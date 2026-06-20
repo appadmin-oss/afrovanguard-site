@@ -1,0 +1,23 @@
+# ── Credentials & server config — NEVER commit ────────────────────────
+config.php
+.htaccess
+.htpasswd
+
+# ── Donor / submission data ────────────────────────────────────────────
+donations.json
+projects/sts/ceo/api/data/
+projects/sts/ceo/api/error_log
+
+# ── Rate-limit state files ─────────────────────────────────────────────
+*.rl
+
+# ── PHP dependencies ───────────────────────────────────────────────────
+vendor/
+
+# ── OS / editor noise ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
