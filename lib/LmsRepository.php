@@ -191,6 +191,38 @@ final class LmsRepository
         $s = $this->db->prepare('SELECT * FROM certificates WHERE user_id = ? AND course_id = ?');
         $s->execute([$userId, $courseId]); return $s->fetch() ?: null;
     }
+    /* ── Payments ── */
+    public function createPayment(int $userId, string $kind, ?int $courseId, int $amountKobo, string $reference, string $provider = 'paystack'): void
+    {
+        $this->db->prepare('INSERT INTO payments (reference, user_id, provider, kind, course_id, amount_kobo) VALUES (?,?,?,?,?,?)')
+            ->execute([$reference, $userId, $provider, $kind, $courseId, $amountKobo]);
+    }
+    public function paymentByRef(string $reference): ?array
+    {
+        $s = $this->db->prepare('SELECT * FROM payments WHERE reference = ?'); $s->execute([$reference]);
+        return $s->fetch() ?: null;
+    }
+    /** Mark a verified payment paid (idempotent) and grant the access it bought. */
+    public function finalizePayment(string $reference): bool
+    {
+        $p = $this->paymentByRef($reference);
+        if (!$p) return false;
+        if ($p['status'] === 'paid') return true;       // already granted
+        $this->db->prepare("UPDATE payments SET status='paid', paid_at=datetime('now') WHERE reference=?")->execute([$reference]);
+        if ($p['kind'] === 'course' && $p['course_id']) {
+            $this->enrol((int) $p['user_id'], (int) $p['course_id']);
+        } elseif ($p['kind'] === 'membership') {
+            $this->grantMembership((int) $p['user_id']);
+        }
+        return true;
+    }
+    public function grantMembership(int $userId, int $months = 12): void
+    {
+        $exp = date('Y-m-d H:i:s', strtotime("+$months months"));
+        $this->db->prepare("INSERT INTO memberships (user_id, tier, status, expires_at) VALUES (?, 'member', 'active', ?)")
+            ->execute([$userId, $exp]);
+    }
+
     public function certificateBySerial(string $serial): ?array
     {
         $s = $this->db->prepare(

@@ -186,3 +186,17 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   passed     INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS payments (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  reference   TEXT UNIQUE NOT NULL,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  provider    TEXT NOT NULL DEFAULT 'paystack',   -- paystack | flutterwave
+  kind        TEXT NOT NULL,                       -- course | membership
+  course_id   INTEGER,
+  amount_kobo INTEGER NOT NULL DEFAULT 0,
+  currency    TEXT NOT NULL DEFAULT 'NGN',
+  status      TEXT NOT NULL DEFAULT 'pending',     -- pending | paid | failed
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  paid_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);

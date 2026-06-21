@@ -105,3 +105,37 @@ body.academy .diary-eyebrow { color: var(--gold-deep); }
 .quiz-result { font-weight: 600; font-size: 14.5px; }
 .quiz-result.ok { color: #16a34a; } .quiz-result.err { color: #dc2626; }
 .quiz-status { font-weight: 700; color: var(--muted); } .quiz-status.done { color: var(--gold-deep); }
+
+/* enrol / payment card */
+.enroll-card { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); padding: 26px 24px; box-shadow: var(--card-shadow); }
+.enroll-card h3 { font-size: 20px; margin: 0 0 8px; }
+.enroll-card p { color: var(--muted); font-size: 14.5px; margin: 0 0 14px; }
+.enroll-form { display: flex; flex-direction: column; gap: 10px; }
+.enroll-form input, .enroll-form textarea { padding: 12px 14px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; }
+.enroll-form input:focus, .enroll-form textarea:focus { outline: none; border-color: var(--gold); }
+.pay-card .pay-price { font-size: 30px; font-weight: 800; color: var(--ink); margin: 0 0 12px; line-height: 1; }
+.pay-card .pay-price span { font-size: 14px; font-weight: 600; color: var(--muted); }
+.pay-card .btn { margin-top: 4px; }
+.enroll-tiny { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+.enroll-tiny a { color: var(--gold-deep); font-weight: 600; }
+.enroll-msg { font-size: 13.5px; font-weight: 600; margin-top: 12px; }
+.enroll-msg.err { color: #dc2626; } .enroll-msg.ok { color: #16a34a; }
+
+/* payment-status flash */
+.pay-flash { border-radius: var(--radius-md); padding: 14px 18px; margin: 18px 0 0; font-weight: 600; font-size: 15px; }
+.pay-flash.ok { background: var(--gold-soft); border: 1px solid var(--gold); color: var(--ink); }
+.pay-flash.err { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+
+/* academy membership band */
+.ac-membership { margin: clamp(40px,7vw,88px) 0 0; padding: clamp(32px,6vw,64px) 0; background: linear-gradient(135deg, #0b0b0c 0%, #15140f 100%); color: #fff; }
+.membership-card { display: grid; grid-template-columns: 1.6fr 1fr; gap: clamp(24px,4vw,48px); align-items: center; }
+.membership-card h2 { font-size: clamp(26px,3.6vw,40px); line-height: 1.08; margin: 8px 0 14px; color: #fff; }
+.membership-copy p { color: rgba(255,255,255,0.72); font-size: 15.5px; margin: 0 0 14px; }
+.membership-price { font-size: clamp(30px,4vw,44px); font-weight: 800; color: var(--gold); margin: 6px 0 0 !important; line-height: 1; }
+.membership-price span { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.6); }
+.membership-cta { text-align: center; }
+.membership-cta .btn { width: 100%; }
+.membership-cta .enroll-tiny { color: rgba(255,255,255,0.6); }
+.membership-cta .enroll-tiny a { color: var(--gold); }
+.membership-active { color: var(--gold); font-weight: 700; font-size: 16px; }
+@media (max-width: 760px) { .membership-card { grid-template-columns: 1fr; } }

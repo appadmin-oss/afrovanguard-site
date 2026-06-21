@@ -87,6 +87,27 @@
   }
   api('me').then(function (d) { renderAccount(d && d.ok ? d.user : null); });
 
+  /* ---- Payments (Paystack) ---- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-pay]'); if (!t) return;
+    e.preventDefault();
+    var kind = t.getAttribute('data-pay');
+    var course = t.getAttribute('data-course') || '';
+    var card = t.closest('.pay-card, .gate') || document;
+    var msg = card.querySelector('.enroll-msg');
+    function note(text, ok) { if (!msg) { toast(text); return; } msg.hidden = false; msg.className = 'enroll-msg' + (ok ? ' ok' : ' err'); msg.textContent = text; }
+    var label = t.textContent; t.disabled = true; t.textContent = 'Starting secure checkout…';
+    api('pay_init', { method: 'POST', body: { kind: kind, course: course } })
+      .then(function (d) {
+        if (d && d.ok && d.authorization_url) { window.location.href = d.authorization_url; return; }
+        if (d && d.ok && d.already) { note(d.message || 'You already have access.', true); setTimeout(function () { location.reload(); }, 900); return; }
+        if (d && /sign in/i.test(d.error || '')) { open('login'); }
+        note((d && d.error) || 'Could not start the payment. Please try again.', false);
+        t.disabled = false; t.textContent = label;
+      })
+      .catch(function () { note('Network error — please try again.', false); t.disabled = false; t.textContent = label; });
+  });
+
   /* ---- Lesson: quiz ---- */
   var quizForm = document.getElementById('quizForm');
   if (quizForm) {

@@ -26,6 +26,15 @@ if (!defined('ADMIN_TOKEN')) {
 foreach (['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
+// Payments (Paystack primary — already used by donations — + optional Flutterwave).
+// config.php normally defines PAYSTACK_PUBLIC_KEY / PAYSTACK_SECRET_KEY directly;
+// also accept the donation system's AV_PAYSTACK_PK/SK env aliases as a fallback.
+if (!defined('PAYSTACK_PUBLIC_KEY')) { $v = getenv('PAYSTACK_PUBLIC_KEY') ?: getenv('AV_PAYSTACK_PK'); if ($v) define('PAYSTACK_PUBLIC_KEY', $v); }
+if (!defined('PAYSTACK_SECRET_KEY')) { $v = getenv('PAYSTACK_SECRET_KEY') ?: getenv('AV_PAYSTACK_SK'); if ($v) define('PAYSTACK_SECRET_KEY', $v); }
+foreach (['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY'] as $k) {
+    if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
+}
+if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('AV_MEMBERSHIP_NGN', $v !== false && $v !== '' ? (int) $v : 5000); }
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/security.php';
@@ -34,6 +43,7 @@ require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';
+require_once __DIR__ . '/Payments.php';
 require_once __DIR__ . '/Sitemap.php';
 
 av_harden_errors();

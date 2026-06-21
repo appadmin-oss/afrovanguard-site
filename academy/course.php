@@ -59,6 +59,12 @@ render_head([
 render_nav('academy');
 ?>
   <main id="main-content">
+<?php $payFlag = preg_replace('/[^a-z]/', '', strtolower((string) ($_GET['pay'] ?? ''))); ?>
+<?php if ($payFlag === 'paid'): ?>
+    <div class="container"><div class="pay-flash ok" role="status">🎉 Payment confirmed — you now have full access. Welcome aboard!</div></div>
+<?php elseif ($payFlag === 'failed'): ?>
+    <div class="container"><div class="pay-flash err" role="status">We couldn’t confirm that payment. If you were charged, contact us and we’ll sort it right away.</div></div>
+<?php endif; ?>
     <article>
       <section class="course-hero <?= $cover ? 'has-cover' : e($c['gradient']) . ' g-grain' ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
         <div class="container">
@@ -121,6 +127,52 @@ render_nav('academy');
 <?php endif; ?>
           </div>
           <aside class="course-side">
+<?php
+            $price = (int) ($c['price_ngn'] ?? 0);
+            $hasAccess = $user && $lms->canAccess($user, $c, ['is_preview' => 0]);
+            $isMember = $user ? $lms->isMember((int) $user['id']) : false;
+            $fmtNgn = fn(int $n) => '₦' . number_format($n);
+?>
+<?php if ($access === 'paid'): ?>
+            <div class="enroll-card pay-card" id="enroll" data-course="<?= e($c['slug']) ?>" data-kind="course">
+<?php if ($hasAccess): ?>
+              <h3>You’re enrolled ✓</h3>
+              <p>You have full access to <?= e($c['title']) ?>.</p>
+<?php if ($firstLesson): ?><a class="btn btn-primary" style="width:100%" href="<?= e(academy_url($c['slug'] . '/learn/' . $firstLesson)) ?>">Continue learning →</a><?php endif; ?>
+<?php else: ?>
+              <h3>Enrol in <?= e($c['title']) ?></h3>
+              <p class="pay-price"><?= $price > 0 ? $fmtNgn($price) : e($c['price']) ?><span> · one-time</span></p>
+              <p>Pay securely with card or transfer to unlock every lesson, quiz and your certificate.</p>
+<?php if ($user): ?>
+              <button type="button" class="btn btn-primary pay-btn" data-pay="course" data-course="<?= e($c['slug']) ?>" style="width:100%">Enrol — <?= $price > 0 ? $fmtNgn($price) : 'pay now' ?> →</button>
+<?php else: ?>
+              <button type="button" class="btn btn-primary" data-auth="register" style="width:100%">Create an account to enrol →</button>
+              <p class="enroll-tiny">Already have an account? <a href="#" data-auth="login">Sign in</a></p>
+<?php endif; ?>
+              <p class="enroll-tiny">Members get this course included. <a href="<?= e(academy_url('')) ?>#membership">See membership →</a></p>
+              <p class="enroll-msg" hidden></p>
+<?php endif; ?>
+            </div>
+<?php elseif ($access === 'membership'): ?>
+            <div class="enroll-card pay-card" id="enroll" data-kind="membership">
+<?php if ($isMember): ?>
+              <h3>Members’ programme ✓</h3>
+              <p>Your membership unlocks <?= e($c['title']) ?> in full.</p>
+<?php if ($firstLesson): ?><a class="btn btn-primary" style="width:100%" href="<?= e(academy_url($c['slug'] . '/learn/' . $firstLesson)) ?>">Start learning →</a><?php endif; ?>
+<?php else: ?>
+              <h3>Members only</h3>
+              <p class="pay-price"><?= $fmtNgn((int) AV_MEMBERSHIP_NGN) ?><span> · per year</span></p>
+              <p>Become an Afrovanguard Academy member to unlock <?= e($c['title']) ?> and every members’ programme.</p>
+<?php if ($user): ?>
+              <button type="button" class="btn btn-primary pay-btn" data-pay="membership" style="width:100%">Become a member →</button>
+<?php else: ?>
+              <button type="button" class="btn btn-primary" data-auth="register" style="width:100%">Create an account to join →</button>
+              <p class="enroll-tiny">Already a member? <a href="#" data-auth="login">Sign in</a></p>
+<?php endif; ?>
+              <p class="enroll-msg" hidden></p>
+<?php endif; ?>
+            </div>
+<?php else: ?>
             <div class="enroll-card" id="enroll">
               <h3>Apply to <?= e($c['title']) ?></h3>
               <p>Free to join. Tell us a little about you and our team will reach out.</p>
@@ -133,6 +185,7 @@ render_nav('academy');
                 <p class="enroll-msg" hidden></p>
               </form>
             </div>
+<?php endif; ?>
           </aside>
         </div>
       </div>

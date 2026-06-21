@@ -50,10 +50,26 @@ render_nav('academy');
       </div>
 <?php elseif (($course['access_type'] ?? '') === 'membership'): ?>
       <p><strong><?= e($course['title']) ?></strong> is a members’ programme. Become a member to unlock every lesson.</p>
-      <a class="btn btn-primary" href="<?= rtrim(SITE_URL,'/') ?>/contact/?subject=Academy+membership">Become a member</a>
+<?php if (Payments::configured('paystack')): ?>
+      <div class="err-actions" style="justify-content:center;display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary pay-btn" data-pay="membership">Become a member — ₦<?= number_format((int) AV_MEMBERSHIP_NGN) ?>/yr →</button>
+        <a class="btn btn-outline" href="<?= e(academy_url($courseSlug . '/')) ?>">Course overview</a>
+      </div>
+      <p class="enroll-msg" hidden></p>
 <?php else: ?>
-      <p><strong><?= e($course['title']) ?></strong> requires enrolment. Reach out and we’ll get you set up.</p>
+      <a class="btn btn-primary" href="<?= rtrim(SITE_URL,'/') ?>/contact/?subject=Academy+membership">Become a member</a>
+<?php endif; ?>
+<?php else: ?>
+      <p><strong><?= e($course['title']) ?></strong> requires enrolment to unlock every lesson and your certificate.</p>
+<?php if (Payments::configured('paystack')): ?>
+      <div class="err-actions" style="justify-content:center;display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary pay-btn" data-pay="course" data-course="<?= e($courseSlug) ?>">Enrol<?= (int)($course['price_ngn'] ?? 0) > 0 ? ' — ₦' . number_format((int) $course['price_ngn']) : '' ?> →</button>
+        <a class="btn btn-outline" href="<?= e(academy_url($courseSlug . '/')) ?>">Course overview</a>
+      </div>
+      <p class="enroll-msg" hidden></p>
+<?php else: ?>
       <a class="btn btn-primary" href="<?= e(academy_url($courseSlug . '/')) ?>">Back to programme</a>
+<?php endif; ?>
 <?php endif; ?>
     </div>
   </div>

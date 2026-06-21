@@ -38,6 +38,7 @@ if (preg_match('~^/diary/([a-z0-9-]+)/?$~', $uri, $m)) {
 if (preg_match('~^/ethos/?$~', $uri)) { require __DIR__ . '/ethos/index.php'; return true; }
 
 // Academy pretty routes
+if ($uri === '/academy/pay' || $uri === '/academy/pay.php') { require __DIR__ . '/academy/pay.php'; return true; }
 if ($uri === '/academy/sitemap.xml') { require __DIR__ . '/academy/sitemap.php'; return true; }
 if (preg_match('~^/academy/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/og.php'; return true; }
 if (preg_match('~^/academy/?$~', $uri)) { require __DIR__ . '/academy/index.php'; return true; }

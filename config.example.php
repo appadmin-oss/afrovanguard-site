@@ -34,9 +34,22 @@ define('FROM_EMAIL',    'donations@afrovanguard.org.ng');
 define('FROM_NAME',     'Afrovanguard');
 define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
 
-/* ─── Paystack ──────────────────────────────────────────────── */
+/* ─── Paystack ──────────────────────────────────────────────────
+ * Primary payment provider. The same keys power donations AND the
+ * Afrovanguard Academy (paid courses + membership). Set a webhook in
+ * your Paystack dashboard pointing at:
+ *   https://afrovanguard.org.ng/academy/pay.php   (charge.success) */
 define('PAYSTACK_PUBLIC_KEY', _av_require_env('AV_PAYSTACK_PK'));
 define('PAYSTACK_SECRET_KEY', _av_require_env('AV_PAYSTACK_SK'));
+
+/* ─── Flutterwave (optional, secondary) ─────────────────────────
+ * Leave blank to disable. */
+define('FLW_PUBLIC_KEY', getenv('AV_FLW_PK') ?: '');
+define('FLW_SECRET_KEY', getenv('AV_FLW_SK') ?: '');
+
+/* ─── Academy membership ────────────────────────────────────────
+ * Annual membership price (NGN) unlocking all members’ programmes. */
+define('AV_MEMBERSHIP_NGN', (int) (getenv('AV_MEMBERSHIP_NGN') ?: 5000));
 
 /* ─── Static Bank Account (Zenith) ─────────────────────────── */
 define('BANK_NAME',      'Zenith Bank');

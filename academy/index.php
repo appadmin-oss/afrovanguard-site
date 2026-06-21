@@ -62,5 +62,28 @@ render_nav('academy');
       </section>
       <div class="no-results">No programmes match your search.</div>
     </div>
+
+<?php $member = false; if ($u = LmsAuth::user()) { $member = (new LmsRepository())->isMember((int) $u['id']); } ?>
+    <section class="ac-membership" id="membership">
+      <div class="container membership-card">
+        <div class="membership-copy">
+          <span class="diary-eyebrow">Academy membership</span>
+          <h2>One membership. Every members’ programme.</h2>
+          <p>Unlock our members-only programmes, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
+          <p class="membership-price"><?= '₦' . number_format((int) AV_MEMBERSHIP_NGN) ?><span> / year</span></p>
+        </div>
+        <div class="membership-cta pay-card">
+<?php if ($member): ?>
+          <p class="membership-active">✓ You’re an active member. Thank you for building Africa with us.</p>
+<?php elseif ($u ?? null): ?>
+          <button type="button" class="btn btn-primary pay-btn" data-pay="membership">Become a member →</button>
+<?php else: ?>
+          <button type="button" class="btn btn-primary" data-auth="register">Create an account to join →</button>
+          <p class="enroll-tiny">Already have an account? <a href="#" data-auth="login">Sign in</a></p>
+<?php endif; ?>
+          <p class="enroll-msg" hidden></p>
+        </div>
+      </div>
+    </section>
   </main>
 <?php echo '<script src="/academy/academy.js" defer></script>'; render_footer();

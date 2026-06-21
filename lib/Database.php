@@ -68,6 +68,9 @@ final class Database
         if (!self::tableExists('quiz_attempts')) {
             self::$pdo->exec("CREATE TABLE IF NOT EXISTS quiz_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0, passed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))");
         }
+        if (!self::tableExists('payments')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT UNIQUE NOT NULL, user_id INTEGER NOT NULL, provider TEXT NOT NULL DEFAULT 'paystack', kind TEXT NOT NULL, course_id INTEGER, amount_kobo INTEGER NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'NGN', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT)");
+        }
         // lessons.quiz_json (additive)
         $lcols = [];
         foreach (self::$pdo->query('PRAGMA table_info(lessons)') as $r) { $lcols[$r['name']] = true; }
