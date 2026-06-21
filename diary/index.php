@@ -10,12 +10,38 @@ $repo      = new DiaryRepository();
 $articles  = $repo->all();
 $featured  = $repo->featured();
 $canonical = diary_url();
+$q         = trim((string) ($_GET['q'] ?? ''));
 
-render_head(
-    'The Afrovanguard Diary — Field notes from a youth movement',
-    'Field notes, methodology, and the mission behind raising one million incorruptible leaders for Africa by 2040. Honest dispatches from Afrovanguard.',
-    $canonical, '', 'website'
-);
+// Structured data: a Blog with its posts, the site graph, and a breadcrumb.
+$blog = [
+    '@type'       => 'Blog',
+    '@id'         => $canonical . '#blog',
+    'url'         => $canonical,
+    'name'        => 'The Afrovanguard Diary',
+    'description' => 'Field notes, methodology, and the mission behind raising one million incorruptible leaders for Africa by 2040.',
+    'publisher'   => ['@id' => SITE_URL . '/#organization'],
+    'blogPost'    => array_map(fn($a) => [
+        '@type' => 'BlogPosting',
+        'headline' => $a['title'],
+        'url' => diary_url($a['slug'] . '/'),
+        'datePublished' => $a['published_at'],
+        'articleSection' => $a['category'],
+    ], $articles),
+];
+$crumbs = schema_breadcrumb([
+    ['name' => 'Home', 'url' => rtrim(SITE_URL,'/').'/'],
+    ['name' => 'The Diary', 'url' => $canonical],
+]);
+
+render_head([
+    'title'     => 'The Afrovanguard Diary — Field notes from a youth movement',
+    'desc'      => 'Field notes, methodology, and the mission behind raising one million incorruptible leaders for Africa by 2040. Honest dispatches from Afrovanguard.',
+    'canonical' => $canonical,
+    'og_kind'   => 'website',
+    'image'     => $featured ? diary_url('og/' . $featured['slug'] . '.png') : null,
+    'keywords'  => 'Afrovanguard, Afrovanguard Diary, youth leadership Nigeria, Alimosho, Lagos NGO, field notes',
+    'jsonld'    => [schema_org(), schema_website(), $blog, $crumbs],
+]);
 render_nav('diary');
 ?>
   <main id="main-content">
@@ -34,7 +60,7 @@ render_nav('diary');
 
     <div class="container">
       <div class="diary-controls">
-        <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" placeholder="Search the diary…  (press /)" aria-label="Search the diary" /></div>
+        <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" placeholder="Search the diary…  (press /)" aria-label="Search the diary" value="<?= e($q) ?>" /></div>
         <div class="diary-filters" role="tablist" aria-label="Filter entries">
           <button class="chip active" data-filter="all">All entries</button>
 <?php foreach ($repo->categories() as $c): ?>

@@ -25,6 +25,50 @@ function json_out($data, int $status = 200): void {
     exit;
 }
 
+/* ── Schema.org / JSON-LD builders (shared, so structured data stays in sync) ── */
+
+function schema_org(): array {
+    return [
+        '@type' => ['Organization', 'NGO'],
+        '@id'   => SITE_URL . '/#organization',
+        'name'  => 'Afrovanguard',
+        'url'   => rtrim(SITE_URL, '/') . '/',
+        'logo'  => rtrim(SITE_URL, '/') . '/Images/og-image.png',
+        'sameAs' => [
+            'https://www.instagram.com/afrovanguard/',
+            'https://twitter.com/afrovanguard',
+            'https://www.facebook.com/afrovanguard/',
+            'https://www.linkedin.com/company/afrovanguard/',
+            'https://www.youtube.com/@afrovanguard',
+        ],
+    ];
+}
+
+function schema_website(): array {
+    return [
+        '@type' => 'WebSite',
+        '@id'   => SITE_URL . '/#website',
+        'url'   => rtrim(SITE_URL, '/') . '/',
+        'name'  => 'Afrovanguard',
+        'publisher' => ['@id' => SITE_URL . '/#organization'],
+        'potentialAction' => [
+            '@type'       => 'SearchAction',
+            'target'      => ['@type' => 'EntryPoint', 'urlTemplate' => diary_url('?q={search_term_string}')],
+            'query-input' => 'required name=search_term_string',
+        ],
+    ];
+}
+
+/** BreadcrumbList from [['name'=>..,'url'=>..], ...]. */
+function schema_breadcrumb(array $items): array {
+    $list = [];
+    foreach ($items as $i => $it) {
+        $list[] = ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $it['name']]
+                + (isset($it['url']) ? ['item' => $it['url']] : []);
+    }
+    return ['@type' => 'BreadcrumbList', 'itemListElement' => $list];
+}
+
 /** Reject cross-origin state-changing requests (lightweight CSRF guard). */
 function require_same_origin(): void {
     $host   = $_SERVER['HTTP_HOST'] ?? '';

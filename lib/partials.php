@@ -27,7 +27,18 @@ final class Icons
 
 const THEME_BOOT = "<script>(function(){try{var t=localStorage.getItem('av.theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);var s=localStorage.getItem('av.scale');if(s)document.documentElement.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
 
-function render_head(string $title, string $desc, string $canonical, string $slug = '', string $ogKind = 'article'): void { ?>
+/**
+ * Render the document head + SEO.
+ * $o keys: title, desc, canonical, slug, og_kind, image, image_alt,
+ *          published, modified, section, tags(array), keywords,
+ *          jsonld(array of schema nodes).
+ */
+function render_head(array $o): void {
+    $title = $o['title']; $desc = $o['desc']; $canonical = $o['canonical'];
+    $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
+    $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
+    $imageAlt = $o['image_alt'] ?? $title;
+    $jsonld = $o['jsonld'] ?? []; ?>
 <!DOCTYPE html>
 <html lang="en-NG" prefix="og: https://ogp.me/ns#">
 <head>
@@ -36,19 +47,39 @@ function render_head(string $title, string $desc, string $canonical, string $slu
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
   <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
-  <link rel="canonical" href="<?= e($canonical) ?>" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+<?php if (!empty($o['keywords'])): ?>  <meta name="keywords" content="<?= e($o['keywords']) ?>" />
+<?php endif; ?>  <link rel="canonical" href="<?= e($canonical) ?>" />
   <meta name="theme-color" content="#111827" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#070B14" media="(prefers-color-scheme: dark)" />
+
   <meta property="og:type" content="<?= e($ogKind) ?>" />
   <meta property="og:site_name" content="Afrovanguard" />
+  <meta property="og:locale" content="en_NG" />
   <meta property="og:title" content="<?= e($title) ?>" />
   <meta property="og:description" content="<?= e($desc) ?>" />
   <meta property="og:url" content="<?= e($canonical) ?>" />
+  <meta property="og:image" content="<?= e($image) ?>" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="<?= e($imageAlt) ?>" />
+<?php if (!empty($o['published'])): ?>  <meta property="article:published_time" content="<?= e($o['published']) ?>" />
+  <meta property="article:modified_time" content="<?= e($o['modified'] ?? $o['published']) ?>" />
+  <meta property="article:publisher" content="https://www.facebook.com/afrovanguard/" />
+<?php endif; if (!empty($o['section'])): ?>  <meta property="article:section" content="<?= e($o['section']) ?>" />
+<?php endif; foreach (($o['tags'] ?? []) as $tag): ?>  <meta property="article:tag" content="<?= e($tag) ?>" />
+<?php endforeach; ?>
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@afrovanguard" />
   <meta name="twitter:title" content="<?= e($title) ?>" />
   <meta name="twitter:description" content="<?= e($desc) ?>" />
-  <?= THEME_BOOT ?>
+  <meta name="twitter:image" content="<?= e($image) ?>" />
+  <meta name="twitter:image:alt" content="<?= e($imageAlt) ?>" />
+
+  <link rel="alternate" type="application/rss+xml" title="The Afrovanguard Diary" href="<?= e(diary_url('feed.xml')) ?>" />
+  <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
+<?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
+<?php endif; ?>  <?= THEME_BOOT ?>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

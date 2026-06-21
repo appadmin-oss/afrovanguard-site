@@ -305,7 +305,8 @@
     var chips = [].slice.call(document.querySelectorAll('.chip'));
     var noRes = document.querySelector('.no-results');
     var featured = document.querySelector('.featured');
-    var curFilter = 'all'; var curQuery = '';
+    var curFilter = 'all';
+    var curQuery = searchInput && searchInput.value ? searchInput.value.trim().toLowerCase() : '';
     function apply() {
       var shown = 0;
       cards.forEach(function (card) {
@@ -324,12 +325,50 @@
     });
     // reflect saved markers on cards
     document.querySelectorAll('[data-bookmark]').forEach(function (b) { b.classList.toggle('is-on', isSaved(b.getAttribute('data-bookmark'))); });
+    if (curQuery) apply(); // honour ?q= prefill from the server
+  }
+
+  /* ---- Heading deep-links (hover # → copy section URL) ---- */
+  if (article) {
+    article.querySelectorAll('h2[id], h3[id]').forEach(function (h) {
+      var a = document.createElement('a');
+      a.className = 'heading-anchor'; a.href = '#' + h.id;
+      a.setAttribute('aria-label', 'Link to this section'); a.textContent = '#';
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var url = location.href.split('#')[0] + '#' + h.id;
+        history.replaceState(null, '', '#' + h.id);
+        if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Section link copied'); });
+        h.scrollIntoView({ behavior: 'smooth' });
+      });
+      h.appendChild(a);
+    });
+  }
+
+  /* ---- Keyboard-shortcuts help dialog (press ?) ---- */
+  function showShortcuts() {
+    var existing = document.getElementById('kbd-help');
+    if (existing) { existing.remove(); return; }
+    var rows = [
+      ['/', 'Focus search'], ['l', 'Listen / pause'], ['d', 'Toggle dark mode'],
+      ['b', 'Save / bookmark'], ['t', 'Back to top'], ['?', 'Show this help'], ['Esc', 'Close']
+    ];
+    var ov = document.createElement('div');
+    ov.id = 'kbd-help'; ov.className = 'kbd-help';
+    ov.innerHTML = '<div class="kbd-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">'
+      + '<h3>Keyboard shortcuts</h3><dl>'
+      + rows.map(function (r) { return '<dt><kbd>' + r[0] + '</kbd></dt><dd>' + r[1] + '</dd>'; }).join('')
+      + '</dl><button class="btn btn-ink btn-sm" data-close>Got it</button></div>';
+    ov.addEventListener('click', function (e) { if (e.target === ov || e.target.hasAttribute('data-close')) ov.remove(); });
+    document.body.appendChild(ov);
   }
 
   /* ---- Keyboard shortcuts ---- */
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { var h = document.getElementById('kbd-help'); if (h) h.remove(); }
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (e.key === '/') { var si = document.querySelector('.search-input'); if (si) { e.preventDefault(); si.focus(); } }
+    else if (e.key === '?') { e.preventDefault(); showShortcuts(); }
     else if (e.key === 't') { window.scrollTo({ top: 0, behavior: 'smooth' }); }
     else if (e.key === 'd') { var c = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'; applyTheme(c); }
     else if (e.key === 'l' && window.__avListen) { window.__avListen.toggle(); }

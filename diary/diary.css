@@ -299,6 +299,26 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 [data-reveal].in { opacity: 1; transform: none; }
 
+/* heading deep-links */
+.article-body h2, .article-body h3 { position: relative; }
+.heading-anchor { position: absolute; left: -1.1em; top: 0; padding: 0 .25em; color: var(--gold-deep); text-decoration: none; opacity: 0; font-weight: 700; transition: opacity var(--t-fast); }
+.article-body h2:hover .heading-anchor, .article-body h3:hover .heading-anchor, .heading-anchor:focus { opacity: 1; }
+@media (max-width: 680px) { .heading-anchor { display: none; } }
+
+/* keyboard-shortcuts help dialog */
+.kbd-help { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.kbd-card { background: var(--surface); color: var(--ink); border: 1px solid var(--divider); border-radius: var(--radius-lg); padding: 28px 30px; max-width: 380px; width: 100%; box-shadow: var(--card-shadow); }
+.kbd-card h3 { font-family: var(--font-body); font-weight: 800; font-size: 18px; margin-bottom: 18px; }
+.kbd-card dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; margin: 0 0 20px; align-items: center; }
+.kbd-card dt { margin: 0; } .kbd-card dd { margin: 0; font-size: 14px; color: var(--body); }
+.kbd-card kbd { font-family: var(--font-body); font-size: 12px; font-weight: 700; background: var(--surface-2); border: 1px solid var(--divider); border-bottom-width: 2px; border-radius: 6px; padding: 3px 9px; color: var(--ink); }
+
+/* end-of-article CTA band */
+.article-cta { margin: 8px auto 0; max-width: 760px; background: linear-gradient(135deg, var(--gold-soft), transparent); border: 1px solid rgba(243,180,22,0.35); border-radius: var(--radius-lg); padding: 30px 32px; display: flex; flex-wrap: wrap; gap: 18px 24px; align-items: center; justify-content: space-between; }
+.article-cta h3 { font-family: var(--font-heading); font-size: 28px; line-height: 1.05; color: var(--ink); }
+.article-cta p { margin: 6px 0 0; color: var(--muted); font-size: 15px; max-width: 42ch; }
+.article-cta .cta-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
 /* ============================================================ FOOTER */
 .site-footer { background: var(--footer-bg); color: rgba(255,255,255,0.7); padding: 72px 0 0; margin-top: 40px; }
 .footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 48px; padding-bottom: 48px; }

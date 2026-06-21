@@ -15,7 +15,11 @@ $a = $slug ? $repo->bySlug($slug) : null;
 
 if (!$a) {
     http_response_code(404);
-    render_head('Not found — The Afrovanguard Diary', 'This diary entry could not be found.', diary_url(), '', 'website');
+    render_head([
+        'title' => 'Not found — The Afrovanguard Diary',
+        'desc'  => 'This diary entry could not be found.',
+        'canonical' => diary_url(), 'og_kind' => 'website',
+    ]);
     render_nav('diary');
     echo '<main id="main-content"><div class="container" style="padding:120px 0;text-align:center">'
        . '<h1 class="article-title" style="margin:0 auto 20px">Entry not found</h1>'
@@ -26,8 +30,45 @@ if (!$a) {
 
 $canonical = diary_url($a['slug'] . '/');
 $related   = $repo->relatedCards((int) $a['id']);
+$ogImage   = diary_url('og/' . $a['slug'] . '.png');
+$authorsText = trim(strip_tags($a['authors_html']));
 
-render_head($a['title'] . ' — The Afrovanguard Diary', $a['dek'], $canonical, $a['slug']);
+// Structured data: the article, its breadcrumb, and the site graph.
+$blogPosting = [
+    '@type'            => 'BlogPosting',
+    'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $canonical],
+    'headline'         => $a['title'],
+    'description'      => $a['dek'],
+    'image'            => [$ogImage],
+    'datePublished'    => $a['published_at'],
+    'dateModified'     => $a['published_at'],
+    'author'           => ['@type' => 'Organization', 'name' => $authorsText ?: 'The Afrovanguard Team', 'url' => rtrim(SITE_URL,'/').'/about/'],
+    'publisher'        => ['@id' => SITE_URL . '/#organization'],
+    'articleSection'   => $a['category'],
+    'wordCount'        => str_word_count(strip_tags($a['body_html'])),
+    'timeRequired'     => 'PT' . (int) $a['read_minutes'] . 'M',
+    'isPartOf'         => ['@id' => SITE_URL . '/#website'],
+];
+$crumbs = schema_breadcrumb([
+    ['name' => 'Home', 'url' => rtrim(SITE_URL,'/').'/'],
+    ['name' => 'The Diary', 'url' => diary_url()],
+    ['name' => $a['title'], 'url' => $canonical],
+]);
+
+render_head([
+    'title'     => $a['title'] . ' — The Afrovanguard Diary',
+    'desc'      => $a['dek'],
+    'canonical' => $canonical,
+    'slug'      => $a['slug'],
+    'og_kind'   => 'article',
+    'image'     => $ogImage,
+    'image_alt' => $a['title'],
+    'published' => $a['published_at'],
+    'section'   => $a['category'],
+    'tags'      => [$a['category'], 'Afrovanguard', 'Alimosho', 'youth leadership'],
+    'keywords'  => $a['category'] . ', Afrovanguard, Alimosho, Lagos, youth leadership, ' . strtolower($a['title']),
+    'jsonld'    => [schema_org(), schema_website(), $blogPosting, $crumbs],
+]);
 render_nav('diary');
 render_subbar($a['title'], $a['slug'], $canonical);
 ?>
@@ -74,6 +115,21 @@ render_subbar($a['title'], $a['slug'], $canonical);
           </div>
         </div>
       </div>
+
+      <section class="similar" style="padding-top:8px">
+        <div class="container">
+          <div class="article-cta" data-reveal>
+            <div>
+              <h3>Build leaders Africa cannot buy.</h3>
+              <p>The Diary documents the work — you can join it. Volunteer with a programme or fund a leader today.</p>
+            </div>
+            <div class="cta-actions">
+              <a class="btn btn-primary" href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a>
+              <a class="btn btn-outline" href="<?= rtrim(SITE_URL,'/') ?>/donate.html">Fund a Leader</a>
+            </div>
+          </div>
+        </div>
+      </section>
 
 <?php if ($related): ?>
       <section class="similar">

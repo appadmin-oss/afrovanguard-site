@@ -1,0 +1,15 @@
+# Afrovanguard — robots.txt
+User-agent: *
+Allow: /
+
+# Keep server internals out of the index
+Disallow: /lib/
+Disallow: /db/
+Disallow: /diary/api.php
+Disallow: /*.php$
+# …but allow the SEO endpoints that legitimately end in routed paths
+Allow: /diary/sitemap.xml
+Allow: /diary/feed.xml
+
+Sitemap: https://afrovanguard.org.ng/diary/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/projects/sts/sitemap.xml
