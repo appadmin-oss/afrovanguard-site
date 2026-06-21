@@ -101,11 +101,14 @@ try {
                 'format' => (string) ($body['format'] ?? 'standard'),
                 'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
             ]);
+            Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => diary_url($slug . '/'), 'sections' => $sections]);
 
         case 'delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            json_out(['ok' => $repo->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))))]);
+            $okd = $repo->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))));
+            if ($okd) Sitemap::rebuild();
+            json_out(['ok' => $okd]);
 
         /* ── Academy ── */
         case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);
@@ -130,10 +133,13 @@ try {
                 'cta_url' => trim((string) ($body['cta_url'] ?? '')), 'featured' => !empty($body['featured']),
                 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft', 'sort' => (int) ($body['sort'] ?? 0),
             ]);
+            Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/']);
         case 'ac_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            json_out(['ok' => $ac->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))))]);
+            $okd = $ac->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))));
+            if ($okd) Sitemap::rebuild();
+            json_out(['ok' => $okd]);
 
         /* ── Curriculum authoring (modules + lessons) ── */
         case 'ac_curriculum':

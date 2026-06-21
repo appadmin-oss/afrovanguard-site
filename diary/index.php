@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 
+Sitemap::ensureFresh();
 $repo      = new DiaryRepository();
 $articles  = $repo->all();
 $featured  = $repo->featured();

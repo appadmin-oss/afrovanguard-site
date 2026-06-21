@@ -1,10 +1,8 @@
-# Afrovanguard — robots.txt  (custom app is the source of truth)
-# This physical file is authoritative: Apache serves it directly, so it is
-# never overridden by WordPress or an SEO plugin's virtual robots.txt.
+# Afrovanguard — robots.txt (auto-maintained by the custom app; authoritative real file)
 User-agent: *
 Allow: /
 
-# Server internals (also blocked at the directory level)
+# Server internals (also blocked at directory level)
 Disallow: /lib/
 Disallow: /db/
 Disallow: /admin/
