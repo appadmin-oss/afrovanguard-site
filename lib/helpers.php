@@ -51,6 +51,16 @@ function extract_sections(string $html): array {
         $h2->setAttribute('id', $id);
         $sections[] = [$id, $label];
     }
+    // Give h3 (e.g. Q&A questions) stable ids too, so they're deep-linkable
+    // and shareable — but keep them out of the table of contents.
+    foreach (iterator_to_array($doc->getElementsByTagName('h3')) as $h3) {
+        $label = trim($h3->textContent);
+        if ($label === '' || $h3->getAttribute('id') !== '') continue;
+        $id = 'q-' . slugify($label); $base = $id; $i = 2;
+        while (isset($seen[$id])) { $id = $base . '-' . $i++; }
+        $seen[$id] = true;
+        $h3->setAttribute('id', $id);
+    }
     // Serialise inner HTML of the wrapper back out.
     $root = $doc->getElementById('__root');
     $out = '';

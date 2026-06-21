@@ -282,6 +282,9 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .sub-inline { display: flex; gap: 10px; flex: 1; min-width: 280px; max-width: 460px; }
 .sub-inline input { flex: 1; padding: 14px 18px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; }
 .sub-inline input:focus { outline: none; border-color: var(--gold); }
+.hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.sub-msg { font-size: 13px; font-weight: 600; margin: 2px 0 0; min-height: 16px; }
+.sub-inline .sub-msg { flex-basis: 100%; }
 @media (max-width: 600px) { .diary-subscribe-band { padding: 28px 22px; } .sub-inline { flex-direction: column; } }
 .post-card .pc-title { font-family: var(--font-body); font-weight: 800; font-size: 20px; line-height: 1.25; color: var(--ink); margin: 18px 0 10px; }
 .post-card:hover .pc-title { color: var(--gold-deep); }

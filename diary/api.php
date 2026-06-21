@@ -60,9 +60,18 @@ try {
         case 'subscribe':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();
+            if (trim((string) ($body['hp'] ?? '')) !== '') json_out(['ok' => true, 'message' => 'You’re subscribed — watch for the next dispatch.']); // honeypot: pretend success
+            if (!av_rate_ok('subscribe', 10, 600)) json_out(['ok' => false, 'error' => 'Too many attempts — please try again shortly.'], 429);
             $email = (string) ($body['email'] ?? '');
             if (!$repo->subscribe($email)) json_out(['ok' => false, 'error' => 'Enter a valid email address.'], 422);
-            json_out(['ok' => true, 'message' => 'Subscribed. Watch for the next dispatch.']);
+            json_out(['ok' => true, 'message' => 'You’re subscribed — watch for the next dispatch.']);
+
+        case 'unsubscribe':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $email = strtolower(trim((string) ($body['email'] ?? '')));
+            if ($email !== '') Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
+            json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

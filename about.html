@@ -1012,6 +1012,56 @@ button,input,textarea{font-family:var(--fb)}
   </div>
 </section>
 
+<!-- OUR ETHOS — links to the full ethos page + PDF -->
+<section class="ethos-band" id="our-ethos" aria-labelledby="ethos-h" style="background:#0B0F1A;color:#fff;padding:clamp(56px,8vw,96px) 0;">
+  <style>
+    .ethos-band .W{max-width:1200px;margin:0 auto;padding:0 clamp(18px,5vw,48px);}
+    .ethos-band .eb-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(28px,5vw,64px);align-items:center;}
+    .ethos-band .eb-tag{display:inline-flex;align-items:center;gap:8px;font:700 12px/1 'Montserrat',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#f3b416;margin-bottom:16px;}
+    .ethos-band .eb-tag::before{content:'';width:22px;height:2px;background:#f3b416;}
+    .ethos-band h2{font-family:'Cormorant SC',Georgia,serif;font-size:clamp(32px,4.5vw,56px);line-height:1.02;margin:0 0 18px;color:#fff;}
+    .ethos-band h2 em{color:#f3b416;font-style:normal;}
+    .ethos-band p{color:rgba(255,255,255,.78);font:400 17px/1.65 'Montserrat',sans-serif;max-width:54ch;margin:0 0 18px;}
+    .ethos-band .eb-points{list-style:none;padding:0;margin:0 0 28px;display:grid;grid-template-columns:1fr 1fr;gap:10px 22px;}
+    .ethos-band .eb-points li{position:relative;padding-left:20px;color:rgba(255,255,255,.85);font:600 14px/1.5 'Montserrat',sans-serif;}
+    .ethos-band .eb-points li::before{content:'▪';position:absolute;left:0;color:#f3b416;}
+    .ethos-band .eb-cta{display:flex;flex-wrap:wrap;gap:12px;}
+    .ethos-band .eb-btn{display:inline-flex;align-items:center;gap:8px;font:700 14px/1 'Montserrat',sans-serif;letter-spacing:.02em;padding:15px 28px;border-radius:9999px;text-decoration:none;border:2px solid transparent;transition:transform .15s,background .15s;}
+    .ethos-band .eb-btn.prim{background:#f3b416;color:#111827;}
+    .ethos-band .eb-btn.prim:hover{transform:translateY(-2px);background:#d49a0e;}
+    .ethos-band .eb-btn.out{border-color:rgba(255,255,255,.4);color:#fff;}
+    .ethos-band .eb-btn.out:hover{border-color:#fff;background:rgba(255,255,255,.08);}
+    .ethos-band .eb-cover{display:block;border-radius:16px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.5);transition:transform .3s;}
+    .ethos-band .eb-cover:hover{transform:translateY(-4px);}
+    .ethos-band .eb-cover img{width:100%;display:block;}
+    @media(max-width:820px){.ethos-band .eb-grid{grid-template-columns:1fr;}.ethos-band .eb-cover{max-width:320px;order:-1;}.ethos-band .eb-points{grid-template-columns:1fr;}}
+  </style>
+  <div class="W">
+    <div class="eb-grid">
+      <div>
+        <span class="eb-tag">The Force for Good</span>
+        <h2 id="ethos-h">Our <em>Ethos</em></h2>
+        <p>Afrovanguardism is a values-driven civic, cultural, leadership and human-development movement. Our ethos binds every member through nine guiding commitments — from the dignity of the person to the stewardship of the earth.</p>
+        <ul class="eb-points">
+          <li>Human dignity &amp; the common good</li>
+          <li>Selfless service &amp; social impact</li>
+          <li>Integrity &amp; anti-corruption</li>
+          <li>Cultural dignity &amp; heritage</li>
+          <li>Good governance &amp; peace</li>
+          <li>Knowledge &amp; the environment</li>
+        </ul>
+        <div class="eb-cta">
+          <a class="eb-btn prim" href="/ethos/">Read our ethos →</a>
+          <a class="eb-btn out" href="/assets/docs/afrovanguard-ethos.pdf" download>Download the PDF ↓</a>
+        </div>
+      </div>
+      <a class="eb-cover" href="/ethos/" aria-label="Read the Afrovanguard ethos">
+        <picture><source srcset="/assets/img/ethos-cover.webp" type="image/webp"><img src="/assets/img/ethos-cover.png" alt="The Global Ethos of Afrovanguardism" loading="lazy"></picture>
+      </a>
+    </div>
+  </div>
+</section>
+
 <!-- IMPACT BAND — Alimosho-focused -->
 <section class="impact-band" aria-labelledby="impact-h">
   <div class="W">

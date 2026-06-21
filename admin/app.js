@@ -270,17 +270,24 @@
 
   /* ---- Inbox ---- */
   function loadInbox() {
-    return api('enrollments').then(function (r) {
-      var box = $('#inboxList'); box.innerHTML = '';
-      if (!r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
-      if (!r.data.enrollments.length) { box.innerHTML = '<p class="muted">No applications yet.</p>'; return; }
-      r.data.enrollments.forEach(function (m) {
-        var row = document.createElement('div'); row.className = 'inbox-row';
-        row.innerHTML = '<div><strong>' + escapeHtml(m.name) + '</strong> · <a href="mailto:' + escapeHtml(m.email) + '">' + escapeHtml(m.email) + '</a>' +
-          (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '<div class="inbox-meta">' + escapeHtml(m.course_slug || '') + ' · ' + escapeHtml(m.created_at) + '</div>' +
-          (m.note ? '<p class="inbox-note">' + escapeHtml(m.note) + '</p>' : '') + '</div>';
-        box.appendChild(row);
-      });
+    var box = $('#inboxList'); box.innerHTML = '';
+    Promise.all([api('enrollments'), api('subscribers')]).then(function (res) {
+      var en = res[0].data, su = res[1].data;
+      var h = '<h2 style="font-family:var(--font-heading);font-size:26px;margin:8px 0 14px">Applications</h2>';
+      if (en.ok && en.enrollments.length) {
+        en.enrollments.forEach(function (m) {
+          h += '<div class="inbox-row"><div><strong>' + escapeHtml(m.name) + '</strong> · <a href="mailto:' + escapeHtml(m.email) + '">' + escapeHtml(m.email) + '</a>' +
+            (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '<div class="inbox-meta">' + escapeHtml(m.course_slug || '') + ' · ' + escapeHtml(m.created_at) + '</div>' +
+            (m.note ? '<p class="inbox-note">' + escapeHtml(m.note) + '</p>' : '') + '</div></div>';
+        });
+      } else { h += '<p class="muted">No applications yet.</p>'; }
+      h += '<h2 style="font-family:var(--font-heading);font-size:26px;margin:32px 0 14px">Newsletter subscribers (' + (su.ok ? su.count : 0) + ')</h2>';
+      if (su.ok && su.subscribers.length) {
+        h += '<div class="inbox-row" style="display:block">';
+        su.subscribers.forEach(function (s) { h += '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--divider)"><a href="mailto:' + escapeHtml(s.email) + '">' + escapeHtml(s.email) + '</a><span class="inbox-meta">' + escapeHtml(s.source) + ' · ' + escapeHtml(s.created_at) + '</span></div>'; });
+        h += '</div>';
+      } else { h += '<p class="muted">No subscribers yet.</p>'; }
+      box.innerHTML = h;
     });
   }
 

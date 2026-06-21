@@ -41,10 +41,11 @@ foreach ($srcs as $f) {
     $im = load($f);
     if (!$im) { fwrite(STDERR, "skip (decode failed): $f\n"); continue; }
     $one = resize($im, $ONE); $two = resize($im, $TWO);
-    imagepng($one, "$dir/$name.png", 8);
     imagewebp($one, "$dir/$name.webp", 82);
     imagewebp($two, "$dir/$name@2x.webp", 80);
+    // Small universal JPG fallback (flat-colour illustrations need no alpha)
+    $fb = resize($im, 760); imagejpeg($fb, "$dir/$name.jpg", 84); imagedestroy($fb);
     imagedestroy($one); imagedestroy($two); imagedestroy($im);
-    fwrite(STDOUT, "✓ $name → .png, .webp, @2x.webp\n");
+    fwrite(STDOUT, "✓ $name → .webp, @2x.webp, .jpg\n");
 }
 fwrite(STDOUT, "Done.\n");

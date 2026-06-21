@@ -101,7 +101,9 @@ render_nav('diary');
         </div>
         <form class="diary-subscribe sub-inline" novalidate>
           <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email" required />
+          <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
           <button type="submit" class="btn btn-primary">Subscribe →</button>
+          <p class="sub-msg" role="status" aria-live="polite"></p>
         </form>
       </section>
     </div>

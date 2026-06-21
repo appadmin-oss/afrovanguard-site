@@ -1,0 +1,63 @@
+/* ============================================================
+   The Ethos of Afrovanguardism — page styling (uses diary.css tokens)
+   ============================================================ */
+.ethos-hero { padding: 72px 0 48px; border-bottom: 1px dashed var(--divider); }
+.ethos-hero-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(28px, 5vw, 72px); align-items: center; }
+.ethos-hero h1 { font-size: clamp(40px, 6.5vw, 84px); line-height: 0.98; letter-spacing: -0.01em; margin: 6px 0 0; }
+.ethos-lead { font-size: clamp(16px, 1.5vw, 19px); line-height: 1.6; color: var(--muted); max-width: 54ch; margin: 22px 0 0; }
+.ethos-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.ethos-cover { display: block; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--card-shadow); transition: transform var(--t-base); }
+.ethos-cover:hover { transform: translateY(-4px); }
+.ethos-cover img { width: 100%; display: block; }
+
+.ethos-body { max-width: 880px; padding: 8px 24px 80px; }
+.ethos-quote { margin: 48px auto; padding: 0 0 0 28px; border-left: 4px solid var(--gold); font-family: var(--font-heading); font-size: clamp(22px, 2.6vw, 30px); line-height: 1.34; color: var(--ink); }
+.ethos-sec { padding: 36px 0; border-top: 1px solid var(--divider); }
+.ethos-sec > h2 { font-size: clamp(28px, 4vw, 46px); line-height: 1.05; margin-bottom: 8px; }
+.ethos-sub { color: var(--muted); font-size: 16px; margin: 0 0 28px; }
+
+.ethos-vm { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.ethos-vm h3 { font-family: var(--font-body); font-weight: 800; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold-deep); margin-bottom: 10px; }
+.ethos-vm p { color: var(--body); font-size: 17px; line-height: 1.6; }
+
+.commit { display: grid; grid-template-columns: 64px 1fr; gap: 20px; padding: 26px 0; border-bottom: 1px solid var(--divider); scroll-margin-top: 90px; }
+.commit:last-child { border-bottom: 0; }
+.commit-no { font-family: var(--font-heading); font-size: 56px; line-height: 0.9; color: var(--gold); font-weight: 700; }
+.commit-body h3 { font-size: clamp(22px, 2.6vw, 30px); line-height: 1.1; }
+.commit-motto { font-family: var(--font-heading); font-style: italic; color: var(--gold-deep); font-size: 19px; margin: 4px 0 14px; }
+.commit-body > p { color: var(--body); font-size: 16.5px; line-height: 1.6; margin: 0 0 16px; }
+.commit-list { list-style: none; padding: 0; margin: 0 0 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 18px; }
+.commit-list li { position: relative; padding-left: 18px; font-size: 14.5px; color: var(--body); }
+.commit-list li::before { content: '▪'; position: absolute; left: 0; color: var(--gold); }
+.commit-close { font-family: var(--font-heading); font-style: italic; font-size: 17px; color: var(--ink); margin: 0; }
+
+.ethos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.ethos-grid.values { grid-template-columns: repeat(2, 1fr); }
+.ethos-tile { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 22px 24px; position: relative; }
+.ethos-tile h3 { font-family: var(--font-body); font-weight: 800; font-size: 18px; color: var(--ink); margin-bottom: 8px; }
+.ethos-tile p { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 0; }
+.ethos-tile .val-no { position: absolute; top: 16px; right: 20px; font-family: var(--font-heading); font-size: 26px; color: var(--gold); opacity: 0.55; }
+
+.creed { background: var(--bg-warm); border-radius: var(--radius-xl); padding: 40px clamp(24px,4vw,48px); border-top: 1px solid var(--divider); }
+.creed-list { counter-reset: creed; list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.creed-list li { counter-increment: creed; position: relative; padding: 16px 0 16px 56px; border-bottom: 1px dashed var(--divider); font-family: var(--font-heading); font-size: clamp(18px, 2.2vw, 24px); color: var(--ink); }
+.creed-list li:last-child { border-bottom: 0; }
+.creed-list li::before { content: counter(creed, decimal-leading-zero); position: absolute; left: 0; top: 18px; font-family: var(--font-body); font-weight: 800; font-size: 13px; color: var(--gold-deep); }
+.creed-sign { font-family: var(--font-heading); font-style: italic; color: var(--gold-deep); margin: 22px 0 0; font-size: 18px; }
+
+.pdf-frame { aspect-ratio: 8.5 / 11; max-height: 90vh; border: 1px solid var(--divider); border-radius: var(--radius-md); overflow: hidden; background: var(--surface-2); }
+.pdf-frame iframe { width: 100%; height: 100%; border: 0; }
+.pdf-frame p { padding: 40px; text-align: center; color: var(--muted); }
+
+@media (max-width: 880px) {
+  .ethos-hero-grid { grid-template-columns: 1fr; }
+  .ethos-cover { max-width: 360px; order: -1; }
+  .ethos-vm, .commit-list { grid-template-columns: 1fr 1fr; }
+  .ethos-grid, .ethos-grid.values { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .commit { grid-template-columns: 1fr; gap: 4px; }
+  .commit-no { font-size: 40px; }
+  .commit-list { grid-template-columns: 1fr; }
+  .creed-list li { padding-left: 44px; }
+}

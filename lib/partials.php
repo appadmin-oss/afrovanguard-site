@@ -246,6 +246,8 @@ function render_footer(): void {
           <h4>Organization</h4>
           <ul class="footer-links">
             <li><a href="<?= $S ?>/about/">About Us</a></li>
+            <li><a href="/ethos/">Our Ethos</a></li>
+            <li><a href="/academy/">Academy</a></li>
             <li><a href="<?= $S ?>/events/">Events</a></li>
             <li><a href="/diary/">The Diary</a></li>
             <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Join Us</a></li>
@@ -261,7 +263,9 @@ function render_footer(): void {
             <h4 style="margin-bottom:8px;">Get the Diary</h4>
             <form class="diary-subscribe" novalidate style="display:flex;flex-direction:column;gap:8px">
               <input type="email" name="email" placeholder="Your email address" aria-label="Newsletter email" autocomplete="email" required />
+              <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
               <button type="submit" class="btn btn-primary" style="width:100%;min-height:44px;">Subscribe →</button>
+              <p class="sub-msg" role="status" aria-live="polite"></p>
             </form>
           </div>
         </div>

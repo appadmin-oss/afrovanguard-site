@@ -106,7 +106,7 @@ a{color:inherit;text-decoration:none}
     <figure class="err-illo" aria-hidden="true">
       <picture>
         <source type="image/webp" srcset="<?= $illoDir . $illoBase ?>.webp 1x, <?= $illoDir . $illoBase ?>@2x.webp 2x" />
-        <img src="<?= $illoDir . $illoBase ?>.png" alt=""
+        <img src="<?= $illoDir . $illoBase ?>.jpg" alt="" loading="eager" decoding="async"
              onerror="this.style.display='none';this.parentNode.parentNode.querySelector('.fallback').style.display='flex'" />
       </picture>
       <div class="fallback" style="display:none"><span class="big"><?= $code ?></span><span class="lbl"><?= $esc($title) ?></span></div>
