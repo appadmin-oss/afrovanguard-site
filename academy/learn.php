@@ -75,9 +75,31 @@ render_nav('academy');
       <div class="lesson-video"><iframe src="<?= e($lesson['video_url']) ?>" title="<?= e($lesson['title']) ?>" loading="lazy" allowfullscreen></iframe></div>
 <?php endif; ?>
       <div class="article-body"><?= $lesson['body_html'] ?></div>
+<?php $quiz = $lms->quiz($lesson); $isDone = in_array((int)$lesson['id'], $doneIds, true); ?>
+<?php if ($quiz): ?>
+      <form class="quiz" id="quizForm" data-course="<?= e($courseSlug) ?>" data-lesson="<?= e($lessonSlug) ?>" data-pass="<?= (int)$quiz['pass'] ?>">
+        <h2>Knowledge check</h2>
+        <p class="quiz-intro">Answer all questions — score <?= (int)$quiz['pass'] ?>% or higher to complete this lesson.</p>
+<?php foreach ($quiz['questions'] as $qi => $q): ?>
+        <fieldset class="quiz-q"><legend><?= ($qi+1) ?>. <?= e($q['q']) ?></legend>
+<?php foreach ($q['options'] as $oi => $opt): ?>
+          <label class="quiz-opt"><input type="radio" name="q<?= $qi ?>" value="<?= $oi ?>" /> <span><?= e($opt) ?></span></label>
+<?php endforeach; ?>
+        </fieldset>
+<?php endforeach; ?>
+        <div class="quiz-actions">
+          <button type="submit" class="btn btn-primary btn-sm"><?= $isDone ? 'Retake quiz' : 'Submit answers' ?></button>
+          <span class="quiz-result" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+<?php endif; ?>
       <div class="lesson-nav">
         <span><?php if ($prev): ?><a class="btn btn-outline btn-sm" href="<?= e(academy_url($courseSlug . '/learn/' . $prev['slug'])) ?>">← Previous</a><?php endif; ?></span>
-        <button class="btn btn-primary btn-sm" id="completeBtn" data-done="<?= in_array((int)$lesson['id'],$doneIds,true) ? '1':'0' ?>"><?= in_array((int)$lesson['id'],$doneIds,true) ? '✓ Completed' : 'Mark complete' ?></button>
+<?php if (!$quiz): ?>
+        <button class="btn btn-primary btn-sm" id="completeBtn" data-done="<?= $isDone ? '1':'0' ?>"><?= $isDone ? '✓ Completed' : 'Mark complete' ?></button>
+<?php else: ?>
+        <span class="quiz-status<?= $isDone ? ' done' : '' ?>" id="quizStatus"><?= $isDone ? '✓ Completed' : 'Quiz required' ?></span>
+<?php endif; ?>
         <span><?php if ($next): ?><a class="btn btn-outline btn-sm" href="<?= e(academy_url($courseSlug . '/learn/' . $next['slug'])) ?>">Next →</a><?php endif; ?></span>
       </div>
     </article>

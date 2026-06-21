@@ -87,6 +87,34 @@
   }
   api('me').then(function (d) { renderAccount(d && d.ok ? d.user : null); });
 
+  /* ---- Lesson: quiz ---- */
+  var quizForm = document.getElementById('quizForm');
+  if (quizForm) {
+    quizForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var qs = quizForm.querySelectorAll('fieldset.quiz-q');
+      var answers = []; var unanswered = false;
+      qs.forEach(function (fs, i) {
+        var sel = fs.querySelector('input[name="q' + i + '"]:checked');
+        if (!sel) unanswered = true;
+        answers.push(sel ? parseInt(sel.value, 10) : -1);
+      });
+      var out = quizForm.querySelector('.quiz-result');
+      if (unanswered) { out.className = 'quiz-result err'; out.textContent = 'Please answer every question.'; return; }
+      var btn = quizForm.querySelector('button[type=submit]'); btn.disabled = true;
+      api('quiz_submit', { method: 'POST', body: { course: quizForm.getAttribute('data-course'), lesson: quizForm.getAttribute('data-lesson'), answers: answers } })
+        .then(function (d) {
+          if (!d.ok) { out.className = 'quiz-result err'; out.textContent = d.error || 'Please sign in.'; if (d.error && /sign in/i.test(d.error)) open('login'); return; }
+          out.className = 'quiz-result ' + (d.passed ? 'ok' : 'err');
+          out.textContent = 'You scored ' + d.score + '%. ' + (d.passed ? 'Passed — lesson complete!' : 'You need ' + d.pass + '% to pass. Try again.');
+          var st = document.getElementById('quizStatus'); if (st && d.passed) { st.textContent = '✓ Completed'; st.classList.add('done'); }
+          var row = document.querySelector('.lesson-side a.lp.active'); if (row && d.passed) row.classList.add('done');
+          if (d.progress) { var b = document.getElementById('sideBar'), p = document.getElementById('sidePct'); if (b) b.style.width = d.progress.pct + '%'; if (p) p.textContent = d.progress.pct + '%'; if (d.progress.complete) toast('Course complete! 🎉 Claim your certificate.'); }
+        }).catch(function () { out.className = 'quiz-result err'; out.textContent = 'Network error.'; })
+        .finally(function () { btn.disabled = false; });
+    });
+  }
+
   /* ---- Lesson: mark complete ---- */
   var lessonEl = document.querySelector('.lesson-main[data-lesson]');
   var btn = document.getElementById('completeBtn');

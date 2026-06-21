@@ -260,16 +260,63 @@
     if (led) openLesson(0, +led.getAttribute('data-ledit'));
     if (ldel && confirm('Delete this lesson?')) post('lesson_delete', { id: +ldel.getAttribute('data-ldel') }).then(loadCurriculum);
   });
+  /* quiz builder */
+  function quizQuestionEl(q) {
+    q = q || { q: '', options: ['', ''], answer: 0 };
+    var wrap = document.createElement('div'); wrap.className = 'qz-q'; wrap.style.cssText = 'border:1px solid var(--divider);border-radius:8px;padding:14px;margin-bottom:12px';
+    var opts = q.options.map(function (o, i) {
+      return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="radio" name="ans_PLACEHOLDER" ' + (i === q.answer ? 'checked' : '') + '> ' +
+        '<input type="text" class="qz-opt" value="' + escapeHtml(o) + '" placeholder="Option ' + (i + 1) + '" style="flex:1;padding:8px;border:1px solid var(--divider);border-radius:6px;background:var(--bg);color:var(--ink)">' +
+        '<button type="button" class="btn btn-outline btn-sm qz-rmopt">✕</button></label>';
+    }).join('');
+    wrap.innerHTML = '<input type="text" class="qz-prompt" value="' + escapeHtml(q.q) + '" placeholder="Question" style="width:100%;padding:9px;border:1px solid var(--divider);border-radius:6px;background:var(--bg);color:var(--ink);font-weight:600;margin-bottom:10px">' +
+      '<div class="qz-opts">' + opts + '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:6px"><button type="button" class="btn btn-outline btn-sm qz-addopt">+ Option</button>' +
+      '<button type="button" class="btn btn-outline btn-sm danger qz-rmq">Remove question</button><span class="muted" style="font-size:12px;align-self:center">• radio = correct answer</span></div>';
+    // unique radio name
+    var rn = 'ans_' + Math.random().toString(36).slice(2);
+    wrap.querySelectorAll('input[type=radio]').forEach(function (r) { r.name = rn; });
+    return wrap;
+  }
+  $('#qz_add').addEventListener('click', function () { $('#qz_questions').appendChild(quizQuestionEl()); });
+  $('#qz_questions').addEventListener('click', function (e) {
+    var q = e.target.closest('.qz-q');
+    if (e.target.classList.contains('qz-rmq')) { q.remove(); return; }
+    if (e.target.classList.contains('qz-addopt')) {
+      var rn = q.querySelector('input[type=radio]').name;
+      var lab = document.createElement('label'); lab.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+      lab.innerHTML = '<input type="radio" name="' + rn + '"> <input type="text" class="qz-opt" placeholder="Option" style="flex:1;padding:8px;border:1px solid var(--divider);border-radius:6px;background:var(--bg);color:var(--ink)"><button type="button" class="btn btn-outline btn-sm qz-rmopt">✕</button>';
+      q.querySelector('.qz-opts').appendChild(lab);
+    }
+    if (e.target.classList.contains('qz-rmopt')) { var l = e.target.closest('label'); if (q.querySelectorAll('.qz-opt').length > 2) l.remove(); }
+  });
+  function loadQuiz(quizJson) {
+    $('#qz_questions').innerHTML = ''; $('#qz_pass').value = 70;
+    if (!quizJson) return;
+    try { var qz = JSON.parse(quizJson); $('#qz_pass').value = qz.pass || 70; (qz.questions || []).forEach(function (q) { $('#qz_questions').appendChild(quizQuestionEl(q)); }); } catch (e) {}
+  }
+  function collectQuiz() {
+    var qs = [];
+    $('#qz_questions').querySelectorAll('.qz-q').forEach(function (q) {
+      var prompt = q.querySelector('.qz-prompt').value.trim();
+      var opts = [].slice.call(q.querySelectorAll('.qz-opt')).map(function (i) { return i.value.trim(); }).filter(Boolean);
+      var radios = [].slice.call(q.querySelectorAll('input[type=radio]'));
+      var ans = radios.findIndex(function (r) { return r.checked; }); if (ans < 0) ans = 0;
+      if (prompt && opts.length >= 2) qs.push({ q: prompt, options: opts, answer: ans });
+    });
+    return qs.length ? { pass: parseInt($('#qz_pass').value, 10) || 70, questions: qs } : null;
+  }
+
   function openLesson(moduleId, lessonId) {
     curLessonModule = moduleId; curLessonId = lessonId;
     ['le_title', 'le_slug', 'le_video'].forEach(function (id) { $('#' + id).value = ''; });
-    $('#le_duration').value = '0'; $('#le_preview').checked = false;
+    $('#le_duration').value = '0'; $('#le_preview').checked = false; loadQuiz(null);
     show('lessonEditor');
     if (lessonId) api('lesson_get&id=' + lessonId).then(function (r) {
       if (!r.data.ok) return; var l = r.data.lesson; curLessonModule = +l.module_id;
       $('#le_title').value = l.title || ''; $('#le_slug').value = l.slug || ''; $('#le_video').value = l.video_url || '';
       $('#le_duration').value = l.duration_min || 0; $('#le_preview').checked = l.is_preview == 1;
-      initTiny('le_body', l.body_html || '<p></p>');
+      loadQuiz(l.quiz_json); initTiny('le_body', l.body_html || '<p></p>');
     });
     else initTiny('le_body', '<p></p>');
   }
@@ -278,7 +325,8 @@
     if (!$('#le_title').value.trim()) { toast('A title is required'); return; }
     post('lesson_save', {
       id: curLessonId, module_id: curLessonModule, title: $('#le_title').value.trim(), slug: $('#le_slug').value.trim(),
-      body_html: getBody('le_body'), video_url: $('#le_video').value.trim(), duration_min: $('#le_duration').value, is_preview: $('#le_preview').checked
+      body_html: getBody('le_body'), video_url: $('#le_video').value.trim(), duration_min: $('#le_duration').value, is_preview: $('#le_preview').checked,
+      quiz: collectQuiz()
     }).then(function (r) { if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; } curLessonId = r.data.id; toast('Lesson saved ✓'); });
   });
   $('#newCourseBtn').addEventListener('click', function () { openCourse(null); });

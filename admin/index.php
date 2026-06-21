@@ -181,6 +181,15 @@
         <label class="fld"><span>Lesson title</span><input id="le_title" placeholder="e.g. Thinking in systems" required /></label>
         <label class="fld"><span>Lesson content</span></label>
         <textarea id="le_body"></textarea>
+        <div class="side-card" id="quizBuilder" style="margin-top:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px">
+            <h3 style="margin:0">Quiz <span class="muted" style="font-weight:600">(optional — gates completion)</span></h3>
+            <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:13px">Pass %
+              <input id="qz_pass" type="number" min="1" max="100" value="70" style="width:72px;padding:8px;border:1px solid var(--divider);border-radius:6px;background:var(--bg);color:var(--ink)" /></label>
+          </div>
+          <div id="qz_questions"></div>
+          <button type="button" class="btn btn-outline btn-sm" id="qz_add">+ Add question</button>
+        </div>
       </div>
       <aside class="editor-side">
         <div class="side-card">

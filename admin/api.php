@@ -158,11 +158,25 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             if (trim((string) ($body['title'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
             $lbody = Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? '')));
+            // Validate + normalise the optional quiz
+            $quizJson = null;
+            if (!empty($body['quiz']) && is_array($body['quiz']) && !empty($body['quiz']['questions'])) {
+                $qs = [];
+                foreach ($body['quiz']['questions'] as $q) {
+                    $prompt = trim((string) ($q['q'] ?? ''));
+                    $opts = array_values(array_filter(array_map(fn($o) => trim((string) $o), (array) ($q['options'] ?? [])), fn($o) => $o !== ''));
+                    if ($prompt === '' || count($opts) < 2) continue;
+                    $ans = max(0, min(count($opts) - 1, (int) ($q['answer'] ?? 0)));
+                    $qs[] = ['q' => $prompt, 'options' => $opts, 'answer' => $ans];
+                }
+                if ($qs) $quizJson = json_encode(['pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))), 'questions' => $qs]);
+            }
             $id = $lms->saveLesson([
                 'id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0),
                 'slug' => trim((string) ($body['slug'] ?? '')), 'title' => trim((string) $body['title']),
                 'body_html' => $lbody, 'video_url' => trim((string) ($body['video_url'] ?? '')),
                 'duration_min' => (int) ($body['duration_min'] ?? 0), 'is_preview' => !empty($body['is_preview']),
+                'quiz_json' => $quizJson,
             ]);
             json_out(['ok' => true, 'id' => $id]);
         case 'lesson_delete':

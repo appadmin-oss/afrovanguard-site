@@ -76,6 +76,33 @@ final class LmsRepository
         return false;
     }
 
+    /** Decode a lesson's quiz, or null. Shape: {pass:int, questions:[{q,options[],answer}]} */
+    public function quiz(array $lesson): ?array
+    {
+        if (empty($lesson['quiz_json'])) return null;
+        $q = json_decode((string) $lesson['quiz_json'], true);
+        if (!is_array($q) || empty($q['questions'])) return null;
+        $q['pass'] = max(1, min(100, (int) ($q['pass'] ?? 70)));
+        return $q;
+    }
+
+    /** Grade submitted answers (array of chosen option indexes). Records the attempt. */
+    public function gradeQuiz(int $userId, array $lesson, array $answers): array
+    {
+        $quiz = $this->quiz($lesson);
+        if (!$quiz) return ['ok' => false];
+        $total = count($quiz['questions']); $correct = 0;
+        foreach ($quiz['questions'] as $i => $q) {
+            if (isset($answers[$i]) && (int) $answers[$i] === (int) $q['answer']) $correct++;
+        }
+        $score = $total ? (int) round($correct / $total * 100) : 0;
+        $passed = $score >= (int) $quiz['pass'];
+        $this->db->prepare('INSERT INTO quiz_attempts (user_id, lesson_id, score, passed) VALUES (?,?,?,?)')
+            ->execute([$userId, (int) $lesson['id'], $score, $passed ? 1 : 0]);
+        if ($passed) $this->markComplete($userId, $lesson);
+        return ['ok' => true, 'score' => $score, 'passed' => $passed, 'correct' => $correct, 'total' => $total, 'pass' => (int) $quiz['pass']];
+    }
+
     public function markComplete(int $userId, array $lesson): void
     {
         $this->db->prepare('INSERT OR IGNORE INTO lesson_progress (user_id, lesson_id, course_id) VALUES (?,?,?)')
@@ -133,6 +160,7 @@ final class LmsRepository
             'module_id' => (int) $d['module_id'], 'course_id' => $courseId, 'slug' => $slug,
             'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => $d['video_url'] ?: null,
             'duration_min' => (int) ($d['duration_min'] ?? 0), 'is_preview' => !empty($d['is_preview']) ? 1 : 0,
+            'quiz_json' => isset($d['quiz_json']) && $d['quiz_json'] !== '' ? $d['quiz_json'] : null,
             'position' => (int) ($d['position'] ?? 0), 'updated_at' => date('Y-m-d H:i:s'),
         ];
         if (!empty($d['id'])) {

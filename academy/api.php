@@ -74,6 +74,19 @@ try {
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
             if ($action === 'lesson_complete') $lms->markComplete((int) $u['id'], $lesson); else $lms->unmark((int) $u['id'], (int) $lesson['id']);
             json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
+        case 'quiz_submit':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $c = $ac->bySlug($slug, true);
+            $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
+            if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
+            if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access.'], 403);
+            $res = $lms->gradeQuiz((int) $u['id'], $lesson, array_map('intval', (array) ($body['answers'] ?? [])));
+            if (empty($res['ok'])) json_out(['ok' => false, 'error' => 'This lesson has no quiz.'], 400);
+            $res['progress'] = $lms->progress((int) $u['id'], (int) $c['id']);
+            json_out($res);
+
         case 'progress':
             $u = LmsAuth::user();
             $c = $slug ? $ac->bySlug($slug, true) : null;
