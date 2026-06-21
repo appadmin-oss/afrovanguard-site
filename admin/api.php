@@ -1,49 +1,64 @@
 <?php
 /**
- * admin/api.php — authenticated CMS API for the Diary editor.
+ * admin/api.php — authenticated Studio API (Diary + Academy).
  *
- *   GET  ?action=ping                      → validate token
- *   GET  ?action=list                      → all entries (incl. drafts)
- *   GET  ?action=get&slug=…                → full entry for editing
- *   GET  ?action=categories                → category names
- *   GET  ?action=articles                  → slugs+titles (related picker)
- *   POST ?action=save        {…article}    → create/update, returns slug
- *   POST ?action=delete      {slug}        → delete
- *   POST ?action=upload      (multipart)   → Cloudinary/local image upload
+ * Auth: a signed httpOnly session cookie (preferred) or a Bearer admin
+ * token (break-glass). State-changing requests under cookie auth must also
+ * send a valid X-CSRF-Token header.
  *
- * Every action requires the admin bearer token.
+ *   POST ?action=login   {token}      → set session cookie, return CSRF
+ *   POST ?action=logout                → clear session
+ *   GET  ?action=session               → auth state + fresh CSRF + flags
+ *
+ *   GET  ?action=list|get|categories|articles|enrollments
+ *   POST ?action=save|delete|upload
+ *   GET  ?action=ac_list|ac_get|ac_categories
+ *   POST ?action=ac_save|ac_delete
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/Cloudinary.php';
+require_once AV_ROOT . '/lib/Embeds.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') { http_response_code(204); exit; }
-require_admin();
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$action = (string) ($_GET['action'] ?? '');
+$isUpload = $action === 'upload';
+$body = [];
+if ($method === 'POST' && !$isUpload) { $body = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST; }
 
 try {
-    $repo   = new DiaryRepository();
-    $action = (string) ($_GET['action'] ?? '');
-    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-    $isUpload = $action === 'upload';
-    $body = [];
-    if ($method === 'POST' && !$isUpload) {
-        $raw = file_get_contents('php://input') ?: '';
-        $body = json_decode($raw, true) ?: $_POST;
+    // ---- Unauthenticated: login / session probe ----
+    if ($action === 'login') {
+        if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+        if (!av_rate_ok('admin_login', 8, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
+        if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) json_out(['ok' => false, 'error' => 'Admin is not configured.'], 503);
+        $tok = (string) ($body['token'] ?? '');
+        if ($tok === '' || !hash_equals((string) ADMIN_TOKEN, $tok)) json_out(['ok' => false, 'error' => 'Invalid token.'], 401);
+        av_admin_cookie_issue();
+        json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured()]);
+    }
+    if ($action === 'logout') { av_admin_cookie_clear(); json_out(['ok' => true]); }
+    if ($action === 'session') {
+        $authed = av_admin_cookie_valid() || av_admin_bearer_ok();
+        json_out(['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured()]);
     }
 
+    // ---- Everything else requires admin ----
+    require_admin();
+    // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete'], true);
+    if ($writing && !av_admin_bearer_ok()) av_csrf_require();
+
+    $repo = new DiaryRepository();
+    $ac   = new AcademyRepository();
+
     switch ($action) {
-        case 'ping':
-            json_out(['ok' => true, 'cloudinary' => Cloudinary::configured()]);
-
-        case 'list':
-            json_out(['ok' => true, 'articles' => $repo->allForAdmin()]);
-
-        case 'categories':
-            json_out(['ok' => true, 'categories' => $repo->categories()]);
-
-        case 'articles':
-            $rows = array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin());
-            json_out(['ok' => true, 'articles' => $rows]);
+        case 'ping':         json_out(['ok' => true, 'cloudinary' => Cloudinary::configured()]);
+        case 'list':         json_out(['ok' => true, 'articles' => $repo->allForAdmin()]);
+        case 'categories':   json_out(['ok' => true, 'categories' => $repo->categories()]);
+        case 'articles':     json_out(['ok' => true, 'articles' => array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin())]);
+        case 'enrollments':  json_out(['ok' => true, 'enrollments' => Database::pdo()->query('SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 200')->fetchAll()]);
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
@@ -57,54 +72,70 @@ try {
             if ($f['error'] !== UPLOAD_ERR_OK) json_out(['ok' => false, 'error' => 'Upload error.'], 400);
             if ($f['size'] > 10 * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max 10 MB.'], 413);
             $mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
-            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'], true)) {
-                json_out(['ok' => false, 'error' => 'Images only (jpg, png, webp, gif).'], 415);
-            }
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'], true)) json_out(['ok' => false, 'error' => 'Images only.'], 415);
             $res = Cloudinary::upload($f['tmp_name'], $f['name']);
-            json_out(['ok' => true, 'url' => $res['url'], 'provider' => $res['provider'], 'location' => $res['url']]);
+            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider']]);
 
         case 'save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $title = trim((string) ($body['title'] ?? ''));
             if ($title === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
-
-            [$cleanBody, $sections] = extract_sections((string) ($body['body_html'] ?? ''));
+            // Embed providers, then sanitize, then derive the TOC.
+            $raw = (string) ($body['body_html'] ?? '');
+            $clean = Embeds::sanitize(Embeds::embedify($raw));
+            [$cleanBody, $sections] = extract_sections($clean);
             $words = str_word_count(strip_tags($cleanBody));
             $read = max(1, (int) ($body['read_minutes'] ?? 0)) ?: max(1, (int) round($words / 200));
-
-            $pubAt = trim((string) ($body['published_at'] ?? '')) ?: date('Y-m-d');
-            $pubTs = strtotime($pubAt) ?: time();
-
+            $pubTs = strtotime(trim((string) ($body['published_at'] ?? ''))) ?: time();
             $slug = $repo->save([
-                'slug'         => trim((string) ($body['slug'] ?? '')) ?: $title,
-                'title'        => $title,
-                'dek'          => trim((string) ($body['dek'] ?? '')),
-                'category'     => trim((string) ($body['category'] ?? 'Dispatch')),
+                'slug' => trim((string) ($body['slug'] ?? '')) ?: $title, 'title' => $title,
+                'dek' => trim((string) ($body['dek'] ?? '')), 'category' => trim((string) ($body['category'] ?? 'Dispatch')),
                 'authors_html' => trim((string) ($body['authors_html'] ?? 'The Afrovanguard Team')),
-                'published'    => date('M j, Y', $pubTs),
-                'published_at' => date('Y-m-d', $pubTs),
-                'read_minutes' => $read,
-                'gradient'     => trim((string) ($body['gradient'] ?? 'g-gold')),
-                'mc_title'     => trim((string) ($body['mc_title'] ?? $title)),
-                'cover_url'    => trim((string) ($body['cover_url'] ?? '')),
-                'og_image'     => trim((string) ($body['og_image'] ?? '')),
-                'body_html'    => $cleanBody,
-                'featured'     => !empty($body['featured']),
-                'status'       => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
-                'sections'     => $sections,
-                'related'      => array_values(array_filter((array) ($body['related'] ?? []))),
+                'published' => date('M j, Y', $pubTs), 'published_at' => date('Y-m-d', $pubTs),
+                'read_minutes' => $read, 'gradient' => trim((string) ($body['gradient'] ?? 'g-gold')),
+                'mc_title' => trim((string) ($body['mc_title'] ?? $title)), 'cover_url' => trim((string) ($body['cover_url'] ?? '')),
+                'og_image' => trim((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
+                'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
+                'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
             ]);
             json_out(['ok' => true, 'slug' => $slug, 'url' => diary_url($slug . '/'), 'sections' => $sections]);
 
         case 'delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
-            json_out(['ok' => $repo->delete($slug)]);
+            json_out(['ok' => $repo->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))))]);
+
+        /* ── Academy ── */
+        case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);
+        case 'ac_categories': json_out(['ok' => true, 'categories' => $ac->categories()]);
+        case 'ac_get':
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => true, 'course' => $cs]);
+        case 'ac_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $t = trim((string) ($body['title'] ?? ''));
+            if ($t === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
+            $cbody = Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? '')));
+            $slug = $ac->save([
+                'slug' => trim((string) ($body['slug'] ?? '')) ?: $t, 'title' => $t,
+                'summary' => trim((string) ($body['summary'] ?? '')), 'body_html' => $cbody,
+                'cover_url' => trim((string) ($body['cover_url'] ?? '')), 'og_image' => trim((string) ($body['og_image'] ?? '')),
+                'category' => trim((string) ($body['category'] ?? 'Programme')), 'level' => trim((string) ($body['level'] ?? 'All levels')),
+                'format' => trim((string) ($body['format'] ?? 'In-person')), 'duration' => trim((string) ($body['duration'] ?? '')),
+                'price' => trim((string) ($body['price'] ?? 'Free')), 'location' => trim((string) ($body['location'] ?? 'Alimosho, Lagos')),
+                'gradient' => trim((string) ($body['gradient'] ?? 'g-gold')), 'outcomes' => trim((string) ($body['outcomes'] ?? '')),
+                'cta_url' => trim((string) ($body['cta_url'] ?? '')), 'featured' => !empty($body['featured']),
+                'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft', 'sort' => (int) ($body['sort'] ?? 0),
+            ]);
+            json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/']);
+        case 'ac_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(['ok' => $ac->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))))]);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }
 } catch (Throwable $ex) {
     error_log('[admin api] ' . $ex->getMessage());
-    json_out(['ok' => false, 'error' => 'Server error: ' . $ex->getMessage()], 500);
+    json_out(['ok' => false, 'error' => av_is_prod() ? 'Server error.' : ('Server error: ' . $ex->getMessage())], 500);
 }

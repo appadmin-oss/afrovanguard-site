@@ -12,4 +12,5 @@ Allow: /diary/sitemap.xml
 Allow: /diary/feed.xml
 
 Sitemap: https://afrovanguard.org.ng/diary/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/academy/sitemap.xml
 Sitemap: https://afrovanguard.org.ng/projects/sts/sitemap.xml

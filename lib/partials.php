@@ -38,7 +38,8 @@ function render_head(array $o): void {
     $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
     $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
     $imageAlt = $o['image_alt'] ?? $title;
-    $jsonld = $o['jsonld'] ?? []; ?>
+    $jsonld = $o['jsonld'] ?? [];
+    if (function_exists('send_security_headers')) send_security_headers('public'); ?>
 <!DOCTYPE html>
 <html lang="en-NG" prefix="og: https://ogp.me/ns#">
 <head>
@@ -104,7 +105,7 @@ function render_nav(string $active = 'diary'): void {
         <ul class="nav-links" role="list">
           <li><a href="<?= $S ?>/">Home</a></li>
           <li><a href="<?= $S ?>/about/">About</a></li>
-          <li><a href="<?= $S ?>/projects">Projects</a></li>
+          <li><a href="/academy/"<?= $cur('academy') ?>>Academy</a></li>
           <li><a href="<?= $S ?>/events/">Events</a></li>
           <li><a href="/diary/"<?= $cur('diary') ?>>Diary</a></li>
           <li><a href="<?= $S ?>/contact/">Contact</a></li>
@@ -125,6 +126,7 @@ function render_nav(string $active = 'diary'): void {
     <a href="<?= $S ?>/">Home</a>
     <a href="<?= $S ?>/about/">About</a>
     <a href="<?= $S ?>/projects">Projects</a>
+    <a href="/academy/">Academy</a>
     <a href="<?= $S ?>/events/">Events</a>
     <a href="/diary/">Diary</a>
     <a href="<?= $S ?>/contact/">Contact</a>
@@ -150,6 +152,27 @@ function render_card(array $a): void {
           <a class="pc-title" href="<?= $url ?>"><?= e($a['title']) ?></a>
           <div class="pc-meta"><span class="pc-cat"><?= e($a['category']) ?></span><span><?= e($a['published']) ?></span><span>· <?= (int)$a['read_minutes'] ?> min</span>
             <button class="pc-saved" data-bookmark="<?= e($a['slug']) ?>" aria-label="Save for later"><?= Icons::BOOKMARK ?></button>
+          </div>
+        </article>
+<?php }
+
+/** A course card for the Academy catalogue. */
+function render_course_card(array $c): void {
+    $url = '/academy/' . e($c['slug']) . '/';
+    $cover = $c['cover_url'] ?? '';
+    $search = strtolower($c['title'] . ' ' . $c['summary'] . ' ' . $c['category'] . ' ' . $c['level']); ?>
+        <article class="ac-card" data-cat="<?= e(slugify($c['category'])) ?>" data-search="<?= e($search) ?>">
+          <a class="ac-thumb <?= $cover ? 'has-cover' : e($c['gradient']) . ' g-grain' ?>" href="<?= $url ?>" aria-label="<?= e($c['title']) ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
+            <span class="ac-cat"><?= e($c['category']) ?></span>
+<?php if (!$cover): ?>            <span class="ac-mark"><?= e($c['title']) ?></span>
+<?php endif; ?>          </a>
+          <div class="ac-body">
+            <a class="ac-title" href="<?= $url ?>"><?= e($c['title']) ?></a>
+            <p class="ac-summary"><?= e($c['summary']) ?></p>
+            <div class="ac-meta">
+              <span>◆ <?= e($c['level']) ?></span><span>● <?= e($c['format']) ?></span><span>◷ <?= e($c['duration']) ?></span>
+            </div>
+            <div class="ac-foot"><span class="ac-price"><?= e($c['price']) ?></span><a class="ac-link" href="<?= $url ?>">View programme →</a></div>
           </div>
         </article>
 <?php }

@@ -282,14 +282,50 @@
     var pb = lb.querySelector('.listen-play'); if (pb) { pb.title = 'Audio playback is not supported in this browser'; }
   }
 
-  /* ---- Lightbox for figures ---- */
-  var imgs = document.querySelectorAll('.article-body figure img');
+  /* ---- Lightbox for all article images (incl. editor-inserted) ---- */
+  var imgs = [].slice.call(document.querySelectorAll('.article-body img, .course-main img'));
   if (imgs.length) {
-    var lbox = document.createElement('div'); lbox.className = 'lightbox';
-    var limg = document.createElement('img'); lbox.appendChild(limg); document.body.appendChild(lbox);
-    imgs.forEach(function (im) { im.addEventListener('click', function () { limg.src = im.currentSrc || im.src; lbox.classList.add('open'); }); });
-    lbox.addEventListener('click', function () { lbox.classList.remove('open'); });
+    imgs.forEach(function (im) { if (!im.getAttribute('loading')) im.setAttribute('loading', 'lazy'); });
+    var lbox = document.createElement('div'); lbox.className = 'lightbox'; lbox.setAttribute('role', 'dialog'); lbox.setAttribute('aria-modal', 'true');
+    lbox.innerHTML = '<button class="lb-close" aria-label="Close">×</button>'
+      + '<button class="lb-nav lb-prev" aria-label="Previous">‹</button>'
+      + '<img alt="" /><div class="lb-cap"></div>'
+      + '<button class="lb-nav lb-next" aria-label="Next">›</button>';
+    document.body.appendChild(lbox);
+    var limg = lbox.querySelector('img'), lcap = lbox.querySelector('.lb-cap'), cur = 0;
+    function capFor(im) { var f = im.closest('figure'); var fc = f && f.querySelector('figcaption'); return (fc && fc.textContent) || im.alt || ''; }
+    function openAt(i) { cur = (i + imgs.length) % imgs.length; var im = imgs[cur]; limg.src = im.currentSrc || im.src; limg.alt = im.alt || ''; lcap.textContent = capFor(im); lbox.classList.add('open'); document.body.style.overflow = 'hidden'; }
+    function close() { lbox.classList.remove('open'); document.body.style.overflow = ''; }
+    imgs.forEach(function (im, i) { im.addEventListener('click', function () { openAt(i); }); });
+    lbox.querySelector('.lb-close').addEventListener('click', close);
+    lbox.querySelector('.lb-prev').addEventListener('click', function (e) { e.stopPropagation(); openAt(cur - 1); });
+    lbox.querySelector('.lb-next').addEventListener('click', function (e) { e.stopPropagation(); openAt(cur + 1); });
+    lbox.addEventListener('click', function (e) { if (e.target === lbox) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (!lbox.classList.contains('open')) return;
+      if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') openAt(cur - 1); else if (e.key === 'ArrowRight') openAt(cur + 1);
+    });
   }
+
+  /* ---- Academy enrolment form ---- */
+  document.querySelectorAll('.enroll-form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var msg = form.querySelector('.enroll-msg');
+      var data = { slug: form.getAttribute('data-course') };
+      ['name', 'email', 'phone', 'note'].forEach(function (k) { var el = form.querySelector('[name="' + k + '"]'); if (el) data[k] = el.value.trim(); });
+      var btn = form.querySelector('button[type=submit]'); btn.disabled = true;
+      fetch('/academy/api.php?action=enroll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          msg.hidden = false; msg.className = 'enroll-msg ' + (d.ok ? 'ok' : 'err');
+          msg.textContent = d.ok ? d.message : (d.error || 'Could not submit.');
+          if (d.ok) form.reset();
+        })
+        .catch(function () { msg.hidden = false; msg.className = 'enroll-msg err'; msg.textContent = 'Network error — please try again.'; })
+        .finally(function () { btn.disabled = false; });
+    });
+  });
 
   /* ---- Scroll reveal ---- */
   if ('IntersectionObserver' in window) {

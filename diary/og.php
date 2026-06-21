@@ -45,30 +45,40 @@ if (!$valid) {
     ];
     [$c1, $c2] = $grads[$a['gradient']] ?? $grads['g-gold'];
 
-    // Background: cover image (cropped to fill) under a dark scrim, else gradient.
+    // Brand gradient fills the whole canvas first.
+    for ($y = 0; $y < $H; $y++) {
+        $t = $y / $H;
+        $r = (int) round($c1[0] + ($c2[0] - $c1[0]) * $t);
+        $g = (int) round($c1[1] + ($c2[1] - $c1[1]) * $t);
+        $b = (int) round($c1[2] + ($c2[2] - $c1[2]) * $t);
+        imagefilledrectangle($im, 0, $y, $W, $y + 1, imagecolorallocate($im, $r, $g, $b));
+    }
+    $grid = imagecolorallocatealpha($im, 255, 255, 255, 116);
+    for ($gx = 0; $gx < $W; $gx += 48) imageline($im, $gx, 0, $gx, $H, $grid);
+    for ($gy = 0; $gy < $H; $gy += 48) imageline($im, 0, $gy, $W, $gy, $grid);
+
+    // With a cover: show it as a well-positioned right-hand panel; text keeps
+    // the left ~56%. Without one: full-bleed gradient, text uses full width.
     $bg = $cover ? og_load_image($cover) : null;
+    $textMax = $W - 2 * $M;
     if ($bg) {
+        $panelX = (int) ($W * 0.56);
+        $panelW = $W - $panelX;
         $sw = imagesx($bg); $sh = imagesy($bg);
-        $scale = max($W / $sw, $H / $sh);
+        $scale = max($panelW / $sw, $H / $sh);
         $nw = (int) ($sw * $scale); $nh = (int) ($sh * $scale);
-        imagecopyresampled($im, $bg, (int) (($W - $nw) / 2), (int) (($H - $nh) / 2), 0, 0, $nw, $nh, $sw, $sh);
+        $dstX = $panelX + (int) (($panelW - $nw) / 2);
+        $dstY = (int) (($H - $nh) / 2);
+        imagecopyresampled($im, $bg, $dstX, $dstY, 0, 0, $nw, $nh, $sw, $sh);
         imagedestroy($bg);
-        // dark vertical scrim for legibility
-        for ($y = 0; $y < $H; $y++) {
-            $al = (int) (38 + 62 * ($y / $H));               // 0.55 → 1.0-ish
-            imagefilledrectangle($im, 0, $y, $W, $y + 1, imagecolorallocatealpha($im, 8, 12, 20, 127 - (int)($al * 0.9)));
+        // Feather the gradient into the panel so text stays legible at the seam.
+        for ($x = 0; $x < 140; $x++) {
+            $alpha = (int) (127 - 110 * ($x / 140));
+            $col = imagecolorallocatealpha($im, $c1[0], $c1[1], $c1[2], max(0, $alpha));
+            imagefilledrectangle($im, $panelX - 140 + $x, 0, $panelX - 140 + $x + 1, $H, $col);
         }
-    } else {
-        for ($y = 0; $y < $H; $y++) {
-            $t = $y / $H;
-            $r = (int) round($c1[0] + ($c2[0] - $c1[0]) * $t);
-            $g = (int) round($c1[1] + ($c2[1] - $c1[1]) * $t);
-            $b = (int) round($c1[2] + ($c2[2] - $c1[2]) * $t);
-            imagefilledrectangle($im, 0, $y, $W, $y + 1, imagecolorallocate($im, $r, $g, $b));
-        }
-        $grid = imagecolorallocatealpha($im, 255, 255, 255, 112);
-        for ($x = 0; $x < $W; $x += 48) imageline($im, $x, 0, $x, $H, $grid);
-        for ($y = 0; $y < $H; $y += 48) imageline($im, 0, $y, $W, $y, $grid);
+        imagefilledrectangle($im, $panelX, 0, $panelX + 5, $H, imagecolorallocate($im, 243, 180, 22)); // gold seam
+        $textMax = $panelX - $M - 24;
     }
 
     $white = imagecolorallocate($im, 255, 255, 255);
@@ -81,8 +91,8 @@ if (!$valid) {
     // Eyebrow
     imagettftext($im, 19, 0, $M, 96, $soft, $fontUI, 'THE AFROVANGUARD DIARY');
 
-    // Title — wrap to width
-    $size = 62; $maxW = $W - 2 * $M; $words = explode(' ', $a['title']); $lines = []; $cur = '';
+    // Title — wrap to the text column width
+    $size = 62; $maxW = $textMax; $words = explode(' ', $a['title']); $lines = []; $cur = '';
     foreach ($words as $w) {
         $try = $cur === '' ? $w : "$cur $w";
         $bb = imagettfbbox($size, 0, $font, $try);

@@ -28,17 +28,22 @@ foreach (['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'
 }
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
+require_once __DIR__ . '/AcademyRepository.php';
 
-/** Gate an endpoint behind the admin bearer token (constant-time). */
+av_harden_errors();
+
+/**
+ * Gate an endpoint behind admin auth: a valid signed session cookie OR a
+ * Bearer admin token (break-glass). State-changing cookie requests must
+ * also carry a valid CSRF header (call av_csrf_require() in the route).
+ */
 function require_admin(): void {
     if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) {
         json_out(['ok' => false, 'error' => 'Admin is not configured on this server.'], 503);
     }
-    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
-    $token = str_starts_with($auth, 'Bearer ') ? trim(substr($auth, 7)) : trim($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '');
-    if ($token === '' || !hash_equals((string) ADMIN_TOKEN, $token)) {
-        json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
-    }
+    if (av_admin_cookie_valid() || av_admin_bearer_ok()) return;
+    json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
 }

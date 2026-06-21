@@ -70,3 +70,41 @@ CREATE TABLE IF NOT EXISTS subscribers (
   source      TEXT NOT NULL DEFAULT 'diary',
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ── Academy ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS courses (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug          TEXT UNIQUE NOT NULL,
+  title         TEXT NOT NULL,
+  summary       TEXT NOT NULL DEFAULT '',
+  body_html     TEXT NOT NULL DEFAULT '',
+  cover_url     TEXT,
+  og_image      TEXT,
+  category      TEXT NOT NULL DEFAULT 'Programme',
+  level         TEXT NOT NULL DEFAULT 'All levels',
+  format        TEXT NOT NULL DEFAULT 'In-person',
+  duration      TEXT NOT NULL DEFAULT '',
+  price         TEXT NOT NULL DEFAULT 'Free',
+  location      TEXT NOT NULL DEFAULT 'Alimosho, Lagos',
+  gradient      TEXT NOT NULL DEFAULT 'g-gold',
+  outcomes      TEXT NOT NULL DEFAULT '',   -- newline-separated
+  cta_url       TEXT,
+  featured      INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'published',
+  sort          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);
+
+CREATE TABLE IF NOT EXISTS enrollments (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id   INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+  course_slug TEXT,
+  name        TEXT NOT NULL,
+  email       TEXT NOT NULL,
+  phone       TEXT,
+  note        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_enroll_course ON enrollments(course_slug);

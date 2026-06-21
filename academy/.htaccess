@@ -1,0 +1,14 @@
+# Afrovanguard Academy — pretty URLs
+#   /academy/                 -> index.php
+#   /academy/<slug>/          -> course.php?slug=<slug>
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /academy/
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteRule ^([a-z0-9-]+)/?$ course.php?slug=$1 [L,QSA]
+</IfModule>

@@ -40,7 +40,21 @@ final class Database
             self::seedIfEmpty();
         }
         self::ensureColumns(); // additive upgrades for already-deployed DBs
+        self::ensureAcademy(); // create + seed academy tables if missing
         return self::$pdo;
+    }
+
+    /** Create the Academy tables (idempotent) and seed them once. */
+    private static function ensureAcademy(): void
+    {
+        if (!self::tableExists('courses')) {
+            self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql'));
+        }
+        $n = (int) self::$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
+        if ($n === 0 && is_file(AV_ROOT . '/db/academy_content.php')) {
+            require_once AV_ROOT . '/db/academy_seed.php';
+            av_seed_courses(self::$pdo);
+        }
     }
 
     /** Add columns introduced after the first release (idempotent). */

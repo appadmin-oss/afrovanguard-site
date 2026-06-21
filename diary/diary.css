@@ -314,6 +314,80 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 [data-reveal].in { opacity: 1; transform: none; }
 
+/* ============================================================ BRAND EMBEDS (in articles) */
+.article-body .embed { margin: 36px 0; }
+.embed-16x9 { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--card-shadow); background: var(--surface-2); }
+.embed-16x9 .embed-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.embed-fixed .embed-frame { width: 100%; border: 0; border-radius: var(--radius-lg); display: block; box-shadow: var(--card-shadow); }
+.embed-frame { background: var(--surface-2); }
+.embed figcaption { margin-top: 12px; text-align: center; font-size: 13px; color: var(--muted); }
+.embed-card { }
+.embed-card-link { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--divider); border-left: 4px solid var(--gold); border-radius: var(--radius-md); padding: 22px 24px; background: var(--surface); transition: all var(--t-fast); }
+.embed-card-link:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: var(--card-shadow); }
+.embed-card-provider { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-deep); }
+.embed-card-label { font-family: var(--font-body); font-weight: 700; font-size: 18px; color: var(--ink); }
+
+/* ============================================================ LIGHTBOX (enhanced) */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.94); z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5vh 4vw; opacity: 0; visibility: hidden; transition: opacity var(--t-base); }
+.lightbox.open { opacity: 1; visibility: visible; }
+.lightbox img { max-width: 100%; max-height: 84vh; border-radius: var(--radius-md); box-shadow: 0 30px 80px rgba(0,0,0,0.6); cursor: default; }
+.lightbox figcaption, .lightbox .lb-cap { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 16px; text-align: center; max-width: 60ch; }
+.lb-close { position: absolute; top: 20px; right: 24px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); color: #fff; font-size: 22px; cursor: pointer; }
+.lb-close:hover { background: rgba(255,255,255,0.16); }
+.lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); color: #fff; font-size: 24px; cursor: pointer; }
+.lb-nav:hover { background: rgba(255,255,255,0.16); } .lb-prev { left: 3vw; } .lb-next { right: 3vw; }
+.article-body img { cursor: zoom-in; border-radius: var(--radius-md); }
+
+/* ============================================================ ACADEMY */
+.ac-hero { padding: 80px 0 48px; border-bottom: 1px dashed var(--divider); }
+.ac-hero h1 { font-size: clamp(44px, 7vw, 92px); line-height: 0.98; letter-spacing: -0.01em; }
+.ac-hero p { font-size: clamp(17px, 1.6vw, 21px); color: var(--muted); max-width: 56ch; margin: 22px 0 0; line-height: 1.6; }
+.ac-hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
+.ac-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; padding: 32px 0 40px; }
+.ac-card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); overflow: hidden; transition: transform var(--t-base), box-shadow var(--t-base); }
+.ac-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow); }
+.ac-thumb { aspect-ratio: 16/10; position: relative; display: flex; align-items: flex-end; padding: 18px; background-size: cover; background-position: center; }
+.ac-thumb.has-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent, rgba(0,0,0,0.4)); }
+.ac-cat { position: relative; z-index: 1; align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; background: rgba(17,24,39,0.6); backdrop-filter: blur(4px); padding: 5px 11px; border-radius: var(--radius-full); }
+.ac-mark { position: absolute; left: 18px; bottom: 16px; font-family: var(--font-heading); color: rgba(255,255,255,0.96); font-size: 30px; line-height: 1; }
+.ac-body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
+.ac-title { font-family: var(--font-body); font-weight: 800; font-size: 21px; color: var(--ink); }
+.ac-title:hover { color: var(--gold-deep); }
+.ac-summary { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 10px 0 16px; flex: 1; }
+.ac-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 16px; }
+.ac-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--divider); padding-top: 14px; }
+.ac-price { font-weight: 800; color: var(--gold-deep); font-size: 14px; }
+.ac-link { font-weight: 700; font-size: 14px; }
+
+.course-hero { color: #fff; padding: 80px 0 56px; position: relative; background-size: cover; background-position: center; }
+.course-hero.has-cover::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(8,12,20,0.86), rgba(8,12,20,0.55)); }
+.course-hero .container { position: relative; z-index: 1; }
+.course-hero h1 { color: #fff; font-size: clamp(38px, 6vw, 72px); line-height: 1.02; max-width: 18ch; }
+.breadcrumb.light, .breadcrumb.light a { color: rgba(255,255,255,0.75); }
+.breadcrumb.light .sep { color: rgba(255,255,255,0.4); }
+.course-dek { font-size: clamp(17px, 1.6vw, 21px); color: rgba(255,255,255,0.88); max-width: 60ch; margin: 18px 0 24px; line-height: 1.55; }
+.course-badges { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,0.9); }
+.course-badges .badge-price { background: var(--gold); color: #111827; padding: 3px 12px; border-radius: var(--radius-full); font-weight: 800; }
+.course-hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+.btn-ghost-light { background: transparent; color: #fff; border-color: rgba(255,255,255,0.5); }
+.btn-ghost-light:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.course-layout { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 56px; padding: 48px 0 72px; align-items: start; }
+.course-main { font-size: 18px; }
+.outcomes { list-style: none; padding: 0; display: grid; gap: 12px; }
+.outcomes li { position: relative; padding-left: 32px; }
+.outcomes li::before { content: '✓'; position: absolute; left: 0; top: 0; width: 22px; height: 22px; background: var(--gold-soft); color: var(--gold-deep); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+.course-side { position: sticky; top: calc(var(--header-h) + 24px); }
+.enroll-card { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); padding: 26px; box-shadow: var(--card-shadow); }
+.enroll-card h3 { font-family: var(--font-body); font-weight: 800; font-size: 20px; color: var(--ink); }
+.enroll-card p { color: var(--muted); font-size: 14px; margin: 8px 0 18px; }
+.enroll-form { display: flex; flex-direction: column; gap: 10px; }
+.enroll-form input, .enroll-form textarea { padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14.5px; }
+.enroll-form input:focus, .enroll-form textarea:focus { outline: none; border-color: var(--gold); }
+.enroll-msg { font-size: 14px; font-weight: 600; margin: 4px 0 0; }
+.enroll-msg.ok { color: #16a34a; } .enroll-msg.err { color: #dc2626; }
+@media (max-width: 1023px) { .ac-grid { grid-template-columns: 1fr 1fr; } .course-layout { grid-template-columns: 1fr; } .course-side { position: static; } }
+@media (max-width: 680px) { .ac-grid { grid-template-columns: 1fr; } }
+
 /* heading deep-links */
 .article-body h2, .article-body h3 { position: relative; }
 .heading-anchor { position: absolute; left: -1.1em; top: 0; padding: 0 .25em; color: var(--gold-deep); text-decoration: none; opacity: 0; font-weight: 700; transition: opacity var(--t-fast); }

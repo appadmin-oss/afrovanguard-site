@@ -8,6 +8,16 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 .studio-brand .afro { color: #fff; } .studio-brand .van { color: var(--gold); }
 .studio-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.6); margin-left: 8px; }
 .studio-actions { display: flex; gap: 10px; align-items: center; }
+.studio-tabs { display: flex; gap: 4px; }
+.studio-tabs .tab { background: transparent; border: none; color: rgba(255,255,255,0.7); font-family: var(--font-body); font-weight: 700; font-size: 14px; padding: 8px 16px; border-radius: var(--radius-full); cursor: pointer; }
+.studio-tabs .tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.studio-tabs .tab.active { color: #111827; background: var(--gold); }
+.inbox-list { display: flex; flex-direction: column; gap: 10px; }
+.inbox-row { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 16px 18px; font-size: 14px; color: var(--ink); }
+.inbox-row a { color: var(--gold-deep); }
+.inbox-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.inbox-note { margin: 8px 0 0; color: var(--body); font-size: 14px; }
+@media (max-width: 760px) { .studio-tabs { order: 3; width: 100%; justify-content: center; } .studio-bar { flex-wrap: wrap; } }
 
 .studio-login { min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .login-card { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); padding: 36px; max-width: 380px; width: 100%; box-shadow: var(--card-shadow); }

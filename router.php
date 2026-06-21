@@ -35,5 +35,14 @@ if (preg_match('~^/diary/([a-z0-9-]+)/?$~', $uri, $m)) {
     return true;
 }
 
+// Academy pretty routes
+if ($uri === '/academy/sitemap.xml') { require __DIR__ . '/academy/sitemap.php'; return true; }
+if (preg_match('~^/academy/?$~', $uri)) { require __DIR__ . '/academy/index.php'; return true; }
+if (preg_match('~^/academy/([a-z0-9-]+)/?$~', $uri, $m)) {
+    $_GET['slug'] = $m[1];
+    require __DIR__ . '/academy/course.php';
+    return true;
+}
+
 // Fallback: let the built-in server handle it (404 for missing files).
 return false;
