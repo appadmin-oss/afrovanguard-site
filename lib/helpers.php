@@ -10,6 +10,54 @@ function e(?string $s): string {
     return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** URL/anchor-safe slug. */
+function slugify(string $s): string {
+    $s = strtolower(trim($s));
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim($s, '-') ?: 'entry';
+}
+
+/** Human "time ago" from an ISO/Y-m-d date. */
+function time_ago(string $date): string {
+    $t = strtotime($date);
+    if (!$t) return '';
+    $d = time() - $t;
+    if ($d < 0) return date('M j, Y', $t);
+    foreach ([31536000 => 'year', 2592000 => 'month', 604800 => 'week', 86400 => 'day'] as $s => $u) {
+        if ($d >= $s) { $n = (int) floor($d / $s); return $n . ' ' . $u . ($n > 1 ? 's' : '') . ' ago'; }
+    }
+    return 'today';
+}
+
+/**
+ * Ensure every <h2> has a stable id and return [cleanHtml, sections].
+ * Lets editors write plain headings; the TOC is derived automatically.
+ */
+function extract_sections(string $html): array {
+    $sections = [];
+    if (trim($html) === '') return [$html, $sections];
+    $doc = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $doc->loadHTML('<?xml encoding="utf-8"?><div id="__root">' . $html . '</div>', LIBXML_NOERROR | LIBXML_NOWARNING);
+    libxml_clear_errors();
+    $seen = [];
+    foreach ($doc->getElementsByTagName('h2') as $h2) {
+        $label = trim($h2->textContent);
+        if ($label === '') continue;
+        $id = $h2->getAttribute('id') ?: slugify($label);
+        $base = $id; $i = 2;
+        while (isset($seen[$id])) { $id = $base . '-' . $i++; }
+        $seen[$id] = true;
+        $h2->setAttribute('id', $id);
+        $sections[] = [$id, $label];
+    }
+    // Serialise inner HTML of the wrapper back out.
+    $root = $doc->getElementById('__root');
+    $out = '';
+    foreach ($root->childNodes as $n) { $out .= $doc->saveHTML($n); }
+    return [$out, $sections];
+}
+
 /** Canonical absolute URL for a diary path (always pretty, trailing slash). */
 function diary_url(string $path = ''): string {
     $path = ltrim($path, '/');

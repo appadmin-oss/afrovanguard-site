@@ -27,13 +27,18 @@ CREATE TABLE IF NOT EXISTS articles (
   mc_session    TEXT,
   mc_title      TEXT,
   mc_tag        TEXT,
+  cover_url     TEXT,                   -- hero / cover image (e.g. Cloudinary)
+  og_image      TEXT,                   -- optional custom social card
   body_html     TEXT NOT NULL,
   base_claps    INTEGER NOT NULL DEFAULT 0,
   featured      INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  status        TEXT NOT NULL DEFAULT 'published',  -- draft | published
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_category  ON articles(category_id);
+CREATE INDEX IF NOT EXISTS idx_articles_status    ON articles(status);
 
 -- Table-of-contents entries (one row per section heading)
 CREATE TABLE IF NOT EXISTS sections (

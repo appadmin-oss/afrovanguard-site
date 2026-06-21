@@ -45,7 +45,16 @@ define('ACCOUNT_NUMBER', '1229629683');
 define('BANK_CODE',      '057');
 
 /* ─── Admin ─────────────────────────────────────────────────── */
+// Gates the Diary Studio editor at /admin/. Generate:
+//   php -r "echo bin2hex(random_bytes(32));"
 define('ADMIN_TOKEN', _av_require_env('AV_ADMIN_TOKEN'));
+
+/* ─── Cloudinary (Diary media uploads) ─────────────────────────
+ * Optional. If unset, the editor stores uploads locally under /uploads.
+ * Find these in your Cloudinary dashboard. */
+define('CLOUDINARY_CLOUD_NAME', getenv('CLOUDINARY_CLOUD_NAME') ?: '');
+define('CLOUDINARY_API_KEY',    getenv('CLOUDINARY_API_KEY') ?: '');
+define('CLOUDINARY_API_SECRET', getenv('CLOUDINARY_API_SECRET') ?: '');
 
 /* ─── Application ───────────────────────────────────────────── */
 define('SITE_URL',            'https://afrovanguard.org.ng');

@@ -72,7 +72,11 @@ render_nav('diary');
 
 <?php if ($featured): ?>
       <article class="featured" data-cat="<?= e($featured['category_slug']) ?>" data-slug="<?= e($featured['slug']) ?>" data-reveal>
+<?php if (!empty($featured['cover_url'])): ?>
+        <a class="feat-thumb has-cover" href="/diary/<?= e($featured['slug']) ?>/" style="background-image:url('<?= e($featured['cover_url']) ?>')"></a>
+<?php else: ?>
         <a class="feat-thumb <?= e($featured['gradient']) ?> g-grain" href="/diary/<?= e($featured['slug']) ?>/"><span class="mc-title"><?= $featured['mc_title'] ?></span></a>
+<?php endif; ?>
         <div>
           <span class="feat-flag">Featured · <?= e($featured['category']) ?></span>
           <h2><a href="/diary/<?= e($featured['slug']) ?>/"><?= e($featured['title']) ?></a></h2>
@@ -88,6 +92,17 @@ render_nav('diary');
 <?php foreach ($articles as $a) { render_card($a); } ?>
         </div>
         <div class="no-results">No entries match your search yet. Try another term, or clear the filters.</div>
+      </section>
+
+      <section class="diary-subscribe-band" data-reveal>
+        <div>
+          <h2>Get the next dispatch</h2>
+          <p>New field notes roughly twice a month. No spam — just the working, as we learn it. Or grab the <a href="<?= e(diary_url('feed.xml')) ?>">RSS feed</a>.</p>
+        </div>
+        <form class="diary-subscribe sub-inline" novalidate>
+          <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email" required />
+          <button type="submit" class="btn btn-primary">Subscribe →</button>
+        </form>
       </section>
     </div>
   </main>

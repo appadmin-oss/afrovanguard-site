@@ -37,6 +37,28 @@ router.php                   local-dev router for `php -S` (mirrors .htaccess)
   `diary/api.php` and persist in SQLite, so counts are the same for every
   visitor — not just per-browser.
 
+## Authoring — Diary Studio (`/admin/`)
+A standard rich-text CMS for writing entries, gated by the admin bearer token.
+
+- `admin/index.php` + `admin/app.js` — token login, entry list (drafts +
+  published), and a TinyMCE editor with image upload, cover image,
+  category/related pickers, draft/publish and live preview.
+- `admin/api.php` — authenticated CRUD (`list / get / save / delete`) plus
+  `upload`. On save, the TOC is derived automatically from the `<h2>`
+  headings and read-time is estimated from word count.
+- Only `status = 'published'` entries appear on the public Diary, in the
+  sitemap, and in the RSS feed; drafts are private.
+
+## Media — Cloudinary (`lib/Cloudinary.php`)
+Image uploads (in-body and cover) go to **Cloudinary** when
+`CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET`
+are configured (signed, server-side). Without keys they fall back to local
+storage under `/uploads` so the editor still works in development.
+
+Covers feed straight into the card thumbnails, the article hero, and the
+auto-generated social image (`diary/og.php` composites the cover under a
+brand scrim).
+
 ## Working with it
 ```bash
 # Local preview (pretty URLs work via router.php)

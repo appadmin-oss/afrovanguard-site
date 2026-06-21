@@ -30,7 +30,8 @@ if (!$a) {
 
 $canonical = diary_url($a['slug'] . '/');
 $related   = $repo->relatedCards((int) $a['id']);
-$ogImage   = diary_url('og/' . $a['slug'] . '.png');
+$ogImage   = !empty($a['og_image']) ? $a['og_image'] : diary_url('og/' . $a['slug'] . '.png');
+$cover     = $a['cover_url'] ?? '';
 $authorsText = trim(strip_tags($a['authors_html']));
 
 // Structured data: the article, its breadcrumb, and the site graph.
@@ -85,6 +86,12 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php render_listen_bar($a['slug'], $canonical); ?>
         </div>
       </div>
+
+<?php if ($cover): ?>
+      <div class="container">
+        <figure class="article-hero"><img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" /></figure>
+      </div>
+<?php endif; ?>
 
       <div class="container">
         <div class="article-layout">

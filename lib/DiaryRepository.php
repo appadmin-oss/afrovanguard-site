@@ -14,26 +14,37 @@ final class DiaryRepository
 
     private const CARD_COLS =
         'a.slug, a.title, a.dek, a.authors_html, a.published, a.published_at,
-         a.read_minutes, a.gradient, a.mc_title, c.name AS category, c.slug AS category_slug,
-         a.featured';
+         a.read_minutes, a.gradient, a.mc_title, a.cover_url, c.name AS category, c.slug AS category_slug,
+         a.featured, a.status';
 
-    /** All entries, newest first (lightweight card fields). */
+    /** All published entries, newest first (lightweight card fields). */
     public function all(): array
     {
         return $this->db->query(
             'SELECT ' . self::CARD_COLS . '
              FROM articles a JOIN categories c ON c.id = a.category_id
+             WHERE a.status = \'published\'
              ORDER BY a.published_at DESC, a.id DESC'
         )->fetchAll();
     }
 
-    /** The single featured dispatch (falls back to newest). */
+    /** Every entry incl. drafts (admin only). */
+    public function allForAdmin(): array
+    {
+        return $this->db->query(
+            'SELECT ' . self::CARD_COLS . ', a.updated_at
+             FROM articles a JOIN categories c ON c.id = a.category_id
+             ORDER BY a.updated_at DESC, a.id DESC'
+        )->fetchAll();
+    }
+
+    /** The single featured published dispatch (falls back to newest). */
     public function featured(): ?array
     {
         $row = $this->db->query(
             'SELECT ' . self::CARD_COLS . '
              FROM articles a JOIN categories c ON c.id = a.category_id
-             WHERE a.featured = 1 ORDER BY a.published_at DESC LIMIT 1'
+             WHERE a.featured = 1 AND a.status = \'published\' ORDER BY a.published_at DESC LIMIT 1'
         )->fetch();
         return $row ?: ($this->all()[0] ?? null);
     }
@@ -48,13 +59,13 @@ final class DiaryRepository
     }
 
     /** Full article (with category) + sections + live clap total. */
-    public function bySlug(string $slug): ?array
+    public function bySlug(string $slug, bool $includeDrafts = false): ?array
     {
-        $st = $this->db->prepare(
-            'SELECT a.*, c.name AS category, c.slug AS category_slug
-             FROM articles a JOIN categories c ON c.id = a.category_id
-             WHERE a.slug = ?'
-        );
+        $sql = 'SELECT a.*, c.name AS category, c.slug AS category_slug
+                FROM articles a JOIN categories c ON c.id = a.category_id
+                WHERE a.slug = ?';
+        if (!$includeDrafts) $sql .= " AND a.status = 'published'";
+        $st = $this->db->prepare($sql);
         $st->execute([$slug]);
         $a = $st->fetch();
         if (!$a) return null;
@@ -75,10 +86,115 @@ final class DiaryRepository
              FROM related r
              JOIN articles a ON a.slug = r.related_slug
              JOIN categories c ON c.id = a.category_id
-             WHERE r.article_id = ? ORDER BY r.position'
+             WHERE r.article_id = ? AND a.status = \'published\' ORDER BY r.position'
         );
         $st->execute([$articleId]);
-        return $st->fetchAll();
+        $rows = $st->fetchAll();
+        // Fall back to recent published entries if no explicit relations resolve.
+        if (count($rows) < 3) {
+            $have = array_column($rows, 'slug');
+            foreach ($this->all() as $a) {
+                if (count($rows) >= 3) break;
+                if (in_array($a['slug'], $have, true)) continue;
+                $self = $this->db->prepare('SELECT slug FROM articles WHERE id = ?');
+                $self->execute([$articleId]);
+                if ($a['slug'] === $self->fetchColumn()) continue;
+                $rows[] = $a;
+            }
+        }
+        return $rows;
+    }
+
+    /** Full row incl. drafts + sections + related slugs (for the editor). */
+    public function getRaw(string $slug): ?array
+    {
+        $a = $this->bySlug($slug, true);
+        if (!$a) return null;
+        $rel = $this->db->prepare('SELECT related_slug FROM related WHERE article_id = ? ORDER BY position');
+        $rel->execute([$a['id']]);
+        $a['related'] = array_column($rel->fetchAll(), 'related_slug');
+        return $a;
+    }
+
+    private function categoryId(string $name): int
+    {
+        $slug = slugify($name);
+        $this->db->prepare('INSERT OR IGNORE INTO categories (slug, name) VALUES (?, ?)')->execute([$slug, $name]);
+        $f = $this->db->prepare('SELECT id FROM categories WHERE slug = ?');
+        $f->execute([$slug]);
+        return (int) $f->fetchColumn();
+    }
+
+    /**
+     * Create or update an article from editor input.
+     * $d keys: slug, title, dek, category, authors_html, published, published_at,
+     *          read_minutes, gradient, mc_title, cover_url, og_image, body_html,
+     *          featured, status, sections[[anchor,label]], related[slug]
+     * Returns the saved slug.
+     */
+    public function save(array $d): string
+    {
+        $slug = slugify($d['slug'] ?: $d['title']);
+        $catId = $this->categoryId($d['category'] ?: 'Dispatch');
+        $now = date('Y-m-d H:i:s');
+
+        $exists = $this->db->prepare('SELECT id FROM articles WHERE slug = ?');
+        $exists->execute([$slug]);
+        $id = $exists->fetchColumn();
+
+        $fields = [
+            'slug' => $slug, 'title' => $d['title'], 'dek' => $d['dek'],
+            'category_id' => $catId, 'authors_html' => $d['authors_html'],
+            'published' => $d['published'], 'published_at' => $d['published_at'],
+            'read_minutes' => (int) $d['read_minutes'], 'gradient' => $d['gradient'] ?: 'g-gold',
+            'mc_title' => $d['mc_title'], 'cover_url' => $d['cover_url'] ?: null,
+            'og_image' => $d['og_image'] ?: null, 'body_html' => $d['body_html'],
+            'featured' => !empty($d['featured']) ? 1 : 0, 'status' => $d['status'] === 'draft' ? 'draft' : 'published',
+            'updated_at' => $now,
+        ];
+
+        $this->db->beginTransaction();
+        try {
+            if ($id) {
+                $set = implode(', ', array_map(fn($k) => "$k = :$k", array_keys($fields)));
+                $st = $this->db->prepare("UPDATE articles SET $set WHERE id = :id");
+                $st->execute($fields + ['id' => $id]);
+            } else {
+                $fields['mc_session'] = strtoupper($d['category'] ?: 'Dispatch');
+                $fields['mc_tag'] = 'ALIMOSHO · LAGOS';
+                $fields['base_claps'] = 0;
+                $fields['created_at'] = $now;
+                $cols = implode(', ', array_keys($fields));
+                $ph = implode(', ', array_map(fn($k) => ":$k", array_keys($fields)));
+                $this->db->prepare("INSERT INTO articles ($cols) VALUES ($ph)")->execute($fields);
+                $id = (int) $this->db->lastInsertId();
+                $this->db->prepare('INSERT OR IGNORE INTO reactions (article_id, claps) VALUES (?, 0)')->execute([$id]);
+            }
+            // Replace sections + related
+            $this->db->prepare('DELETE FROM sections WHERE article_id = ?')->execute([$id]);
+            $insSec = $this->db->prepare('INSERT INTO sections (article_id, anchor, label, position) VALUES (?,?,?,?)');
+            foreach (($d['sections'] ?? []) as $i => $s) { $insSec->execute([$id, $s[0], $s[1], $i]); }
+
+            $this->db->prepare('DELETE FROM related WHERE article_id = ?')->execute([$id]);
+            $insRel = $this->db->prepare('INSERT INTO related (article_id, related_slug, position) VALUES (?,?,?)');
+            foreach (($d['related'] ?? []) as $i => $rs) { if ($rs && $rs !== $slug) $insRel->execute([$id, $rs, $i]); }
+
+            $this->db->commit();
+        } catch (Throwable $ex) { $this->db->rollBack(); throw $ex; }
+        return $slug;
+    }
+
+    public function delete(string $slug): bool
+    {
+        $st = $this->db->prepare('SELECT id FROM articles WHERE slug = ?');
+        $st->execute([$slug]);
+        $id = $st->fetchColumn();
+        if ($id === false) return false;
+        $this->db->prepare('DELETE FROM sections WHERE article_id = ?')->execute([$id]);
+        $this->db->prepare('DELETE FROM related WHERE article_id = ?')->execute([$id]);
+        $this->db->prepare('DELETE FROM reactions WHERE article_id = ?')->execute([$id]);
+        $this->db->prepare('DELETE FROM articles WHERE id = ?')->execute([$id]);
+        return true;
     }
 
     /** Live applause total = seeded base + server-side increments. */

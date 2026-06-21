@@ -39,7 +39,24 @@ final class Database
             self::migrate();
             self::seedIfEmpty();
         }
+        self::ensureColumns(); // additive upgrades for already-deployed DBs
         return self::$pdo;
+    }
+
+    /** Add columns introduced after the first release (idempotent). */
+    private static function ensureColumns(): void
+    {
+        $cols = [];
+        foreach (self::$pdo->query('PRAGMA table_info(articles)') as $r) { $cols[$r['name']] = true; }
+        $add = [
+            'cover_url'  => "ALTER TABLE articles ADD COLUMN cover_url TEXT",
+            'og_image'   => "ALTER TABLE articles ADD COLUMN og_image TEXT",
+            'status'     => "ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'",
+            'updated_at' => "ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
+        ];
+        foreach ($add as $name => $sql) {
+            if (!isset($cols[$name])) { self::$pdo->exec($sql); }
+        }
     }
 
     public static function tableExists(string $name): bool

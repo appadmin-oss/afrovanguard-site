@@ -30,3 +30,6 @@ Thumbs.db
 
 # ── Diary OG image cache (regenerated on demand) ──
 db/cache/
+
+# ── User-uploaded media (Cloudinary fallback) ──
+uploads/

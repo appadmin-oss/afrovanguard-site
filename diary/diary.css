@@ -239,6 +239,21 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .post-card .pc-thumb { aspect-ratio: 1 / 1; border-radius: var(--radius-lg); overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; padding: 24px; transition: transform var(--t-base), box-shadow var(--t-base); }
 .post-card:hover .pc-thumb { transform: translateY(-4px); box-shadow: var(--card-shadow); }
 .post-card .pc-thumb .pc-mark { font-family: var(--font-heading); color: rgba(255,255,255,0.96); font-size: 30px; line-height: 1; text-align: center; }
+.post-card .pc-thumb.has-cover { background-size: cover; background-position: center; align-items: flex-start; justify-content: flex-start; }
+.pc-cat-tag { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; background: rgba(17,24,39,0.66); backdrop-filter: blur(4px); padding: 5px 11px; border-radius: var(--radius-full); }
+.featured .feat-thumb.has-cover { background-size: cover; background-position: center; }
+.article-hero { margin: 0 auto 8px; max-width: 980px; }
+.article-hero img { width: 100%; max-height: 520px; object-fit: cover; border-radius: var(--radius-lg); display: block; box-shadow: var(--card-shadow); }
+
+/* index subscribe band */
+.diary-subscribe-band { display: flex; align-items: center; justify-content: space-between; gap: 24px 40px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-xl); padding: 36px 40px; margin: 8px 0 64px; }
+.diary-subscribe-band h2 { font-size: clamp(26px, 3vw, 38px); line-height: 1.05; }
+.diary-subscribe-band p { color: var(--muted); margin: 10px 0 0; max-width: 46ch; font-size: 15px; }
+.sub-inline { display: flex; gap: 10px; flex: 1; min-width: 280px; max-width: 460px; }
+.sub-inline input { flex: 1; padding: 14px 18px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; }
+.sub-inline input:focus { outline: none; border-color: var(--gold); }
+@media (max-width: 600px) { .diary-subscribe-band { padding: 28px 22px; } .sub-inline { flex-direction: column; } }
 .post-card .pc-title { font-family: var(--font-body); font-weight: 800; font-size: 20px; line-height: 1.25; color: var(--ink); margin: 18px 0 10px; }
 .post-card:hover .pc-title { color: var(--gold-deep); }
 .post-card .pc-meta { font-size: 13px; color: var(--muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }

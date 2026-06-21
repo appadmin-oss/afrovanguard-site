@@ -139,9 +139,14 @@ function render_nav(string $active = 'diary'): void {
 /** A single entry card (used on the index and in related rails). */
 function render_card(array $a): void {
     $search = strtolower($a['title'] . ' ' . $a['dek'] . ' ' . $a['category']);
-    $url = '/diary/' . e($a['slug']) . '/'; ?>
+    $url = '/diary/' . e($a['slug']) . '/';
+    $cover = $a['cover_url'] ?? ''; ?>
         <article class="post-card" data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>" data-search="<?= e($search) ?>">
+<?php if ($cover): ?>
+          <a class="pc-thumb has-cover" href="<?= $url ?>" aria-label="<?= e($a['title']) ?>" style="background-image:url('<?= e($cover) ?>')"><span class="pc-cat-tag"><?= e($a['category']) ?></span></a>
+<?php else: ?>
           <a class="pc-thumb <?= e($a['gradient']) ?> g-grain" href="<?= $url ?>" aria-label="<?= e($a['title']) ?>"><span class="pc-mark"><?= $a['mc_title'] ?></span></a>
+<?php endif; ?>
           <a class="pc-title" href="<?= $url ?>"><?= e($a['title']) ?></a>
           <div class="pc-meta"><span class="pc-cat"><?= e($a['category']) ?></span><span><?= e($a['published']) ?></span><span>· <?= (int)$a['read_minutes'] ?> min</span>
             <button class="pc-saved" data-bookmark="<?= e($a['slug']) ?>" aria-label="Save for later"><?= Icons::BOOKMARK ?></button>

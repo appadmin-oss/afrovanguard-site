@@ -17,6 +17,28 @@ if (is_file($cfg)) { require_once $cfg; }
 if (!defined('SITE_URL'))         define('SITE_URL', 'https://afrovanguard.org.ng');
 if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', AV_ROOT . '/db/diary.sqlite');
 
+// Admin token (config.php or AV_ADMIN_TOKEN env). Absent ⇒ admin disabled.
+if (!defined('ADMIN_TOKEN')) {
+    $t = getenv('AV_ADMIN_TOKEN');
+    if ($t !== false && $t !== '') define('ADMIN_TOKEN', $t);
+}
+// Cloudinary (config.php or env). Absent ⇒ uploads fall back to local /uploads.
+foreach (['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as $k) {
+    if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
+}
+
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
+
+/** Gate an endpoint behind the admin bearer token (constant-time). */
+function require_admin(): void {
+    if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) {
+        json_out(['ok' => false, 'error' => 'Admin is not configured on this server.'], 503);
+    }
+    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+    $token = str_starts_with($auth, 'Bearer ') ? trim(substr($auth, 7)) : trim($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '');
+    if ($token === '' || !hash_equals((string) ADMIN_TOKEN, $token)) {
+        json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
+    }
+}
