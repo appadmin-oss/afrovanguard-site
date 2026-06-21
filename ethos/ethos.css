@@ -61,3 +61,9 @@
   .commit-list { grid-template-columns: 1fr; }
   .creed-list li { padding-left: 44px; }
 }
+
+/* closing progression */
+.ethos-next .next-tile { display:block; text-decoration:none; transition: transform var(--t-base), border-color var(--t-fast); }
+.ethos-next .next-tile:hover { transform: translateY(-3px); border-color: var(--gold); }
+.ethos-next .next-tile h3 { color: var(--ink); }
+.ethos-next .next-tile:hover h3 { color: var(--gold-deep); }

@@ -19,7 +19,7 @@ if (!$c) {
 
 $canonical = rtrim(SITE_URL, '/') . '/academy/' . $c['slug'] . '/';
 $cover = $c['cover_url'] ?: '';
-$ogImage = $c['og_image'] ?: ($cover ?: null);
+$ogImage = $c['og_image'] ?: (rtrim(SITE_URL, '/') . '/academy/og/' . $c['slug'] . '.png');
 $outcomes = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $c['outcomes']))));
 $others = $repo->others($c['slug']);
 

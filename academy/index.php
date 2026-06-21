@@ -25,6 +25,7 @@ render_head([
     'title' => 'Afrovanguard Academy — Free programmes for young Africans',
     'desc'  => 'Technology, creative, and leadership programmes raising one million incorruptible leaders for Africa. Learn, build, and lead with Afrovanguard.',
     'canonical' => $canonical, 'og_kind' => 'website',
+    'image' => $featured ? rtrim(SITE_URL, '/') . '/academy/og/' . $featured['slug'] . '.png' : null,
     'keywords' => 'Afrovanguard Academy, free training Lagos, Techome, MediaPro, Africa GATES, youth programmes Nigeria',
     'jsonld' => [schema_org(), schema_website(), $itemList, $crumbs],
     'css' => ['/academy/academy.css'], 'body_class' => 'academy',
@@ -36,7 +37,7 @@ render_nav('academy');
       <div class="container">
         <span class="diary-eyebrow">The Afrovanguard Academy</span>
         <h1>Learn. Build.<br/>Lead Africa.</h1>
-        <p>Free, hands-on programmes in technology, the creative arts and leadership — the formation behind our goal of <strong>one million incorruptible leaders by 2040</strong>.</p>
+        <p>Free, hands-on programmes in technology, the creative arts and leadership — the formation behind our goal of <strong>one million incorruptible leaders by 2040</strong>. Grounded in <a href="/ethos/" style="color:var(--gold-deep);text-decoration:underline;text-underline-offset:3px">our ethos</a>.</p>
         <div class="ac-hero-cta">
           <a class="btn btn-primary" href="#catalogue">Explore programmes ↓</a>
           <a class="btn btn-outline" href="https://cacentre.afrovanguard.org.ng/volunteer">Teach with us</a>

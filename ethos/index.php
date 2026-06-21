@@ -11,6 +11,7 @@ $S = rtrim(SITE_URL, '/');
 $canonical = "$S/ethos/";
 $pdf = "$S/assets/docs/afrovanguard-ethos.pdf";
 $cover = "$S/assets/img/ethos-cover.webp";
+$ogcard = "$S/assets/img/ethos-og.webp";
 
 $preamble = 'Afrovanguard is a values-driven civic, cultural, leadership, and human-development movement committed to advancing human flourishing, ethical leadership, cultural dignity, accountable governance, sustainable development, and collective prosperity.';
 
@@ -59,7 +60,7 @@ $creed = [
 $jsonld = [
   schema_org(),
   ['@type' => 'Article', '@id' => $canonical . '#ethos', 'headline' => 'The Global Ethos of Afrovanguardism — The Force for Good',
-   'description' => $preamble, 'image' => [$cover], 'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $canonical],
+   'description' => $preamble, 'image' => [$ogcard, $cover], 'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $canonical],
    'author' => ['@id' => $S . '/#organization'], 'publisher' => ['@id' => $S . '/#organization'],
    'about' => ['ethics','leadership','culture','governance','sustainable development'],
    'associatedMedia' => ['@type' => 'MediaObject', 'contentUrl' => $pdf, 'encodingFormat' => 'application/pdf', 'name' => 'Afrovanguard Ethos (PDF)']],
@@ -69,7 +70,7 @@ $jsonld = [
 render_head([
   'title' => 'The Ethos of Afrovanguardism — The Force for Good',
   'desc'  => 'The global ethos of Afrovanguardism: human dignity, selfless service, integrity, cultural heritage, good governance, peace, knowledge and environmental stewardship — nine commitments, a leadership model, seven core values and the Afrovanguard Creed.',
-  'canonical' => $canonical, 'og_kind' => 'article', 'image' => $cover, 'image_alt' => 'The Ethos of Afrovanguardism',
+  'canonical' => $canonical, 'og_kind' => 'article', 'image' => $ogcard, 'image_alt' => 'The Ethos of Afrovanguardism',
   'keywords' => 'Afrovanguardism, Afrovanguard ethos, The Force for Good, ethical leadership Africa, nine commitments, Afrovanguard Creed, core values',
   'css' => ['/ethos/ethos.css'], 'jsonld' => $jsonld,
 ]);
@@ -159,6 +160,16 @@ render_nav('about');
       <div class="ethos-cta" style="margin-top:18px">
         <a class="btn btn-primary" href="/assets/docs/afrovanguard-ethos.pdf" target="_blank" rel="noopener">Open full screen ↗</a>
         <a class="btn btn-outline" href="/assets/docs/afrovanguard-ethos.pdf" download>Download PDF ↓</a>
+      </div>
+    </section>
+
+    <section class="ethos-sec ethos-next" aria-label="Live the ethos">
+      <h2>Live the ethos</h2>
+      <p class="ethos-sub">The ethos is not a statement to admire — it is a way to act. Here is where it becomes real.</p>
+      <div class="ethos-grid">
+        <a class="ethos-tile next-tile" href="/academy/"><h3>Learn &amp; lead →</h3><p>Free, hands-on programmes in the Afrovanguard Academy.</p></a>
+        <a class="ethos-tile next-tile" href="https://cacentre.afrovanguard.org.ng/volunteer"><h3>Join the movement →</h3><p>Volunteer your time, skills and presence in the community.</p></a>
+        <a class="ethos-tile next-tile" href="/diary/"><h3>Read the Diary →</h3><p>Honest field notes on building leaders, in the open.</p></a>
       </div>
     </section>
   </div>
