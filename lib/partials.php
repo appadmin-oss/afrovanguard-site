@@ -86,8 +86,9 @@ function render_head(array $o): void {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
-</head>
-<body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?>>
+<?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
+<?php endforeach; ?></head>
+<body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?><?= !empty($o['body_class']) ? ' class="' . e($o['body_class']) . '"' : '' ?>>
   <a href="#main-content" class="skip-link">Skip to content</a>
   <div class="read-progress" id="read-progress"></div>
 <?php }

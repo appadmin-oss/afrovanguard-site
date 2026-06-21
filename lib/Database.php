@@ -50,10 +50,27 @@ final class Database
         if (!self::tableExists('courses')) {
             self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql'));
         }
+        // Course access columns (additive)
+        $ccols = [];
+        foreach (self::$pdo->query('PRAGMA table_info(courses)') as $r) { $ccols[$r['name']] = true; }
+        $cadd = [
+            'access_type'   => "ALTER TABLE courses ADD COLUMN access_type TEXT NOT NULL DEFAULT 'open'", // open|tracked|membership|paid
+            'price_ngn'     => "ALTER TABLE courses ADD COLUMN price_ngn INTEGER NOT NULL DEFAULT 0",
+            'instructor_id' => "ALTER TABLE courses ADD COLUMN instructor_id INTEGER",
+        ];
+        foreach ($cadd as $name => $sql) { if (!isset($ccols[$name])) self::$pdo->exec($sql); }
+        // LMS tables (idempotent)
+        if (!self::tableExists('lessons')) { self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql')); }
+
         $n = (int) self::$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
         if ($n === 0 && is_file(AV_ROOT . '/db/academy_content.php')) {
             require_once AV_ROOT . '/db/academy_seed.php';
             av_seed_courses(self::$pdo);
+        }
+        $lc = (int) self::$pdo->query('SELECT COUNT(*) FROM lessons')->fetchColumn();
+        if ($lc === 0 && is_file(AV_ROOT . '/db/lessons_seed.php')) {
+            require_once AV_ROOT . '/db/lessons_seed.php';
+            av_seed_lessons(self::$pdo);
         }
     }
 

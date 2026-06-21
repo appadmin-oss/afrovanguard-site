@@ -23,6 +23,17 @@ $ogImage = $c['og_image'] ?: ($cover ?: null);
 $outcomes = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) $c['outcomes']))));
 $others = $repo->others($c['slug']);
 
+$lms = new LmsRepository();
+$user = LmsAuth::user();
+$curriculum = $lms->curriculum((int) $c['id']);
+$lessonTotal = $lms->lessonCount((int) $c['id']);
+$ordered = $lms->orderedLessons((int) $c['id']);
+$access = $c['access_type'] ?? 'open';
+$accessLabels = ['open' => 'Open · free', 'tracked' => 'Free · sign in to track', 'membership' => 'Members only', 'paid' => 'Paid programme'];
+$progress = ($user && $lessonTotal) ? $lms->progress((int) $user['id'], (int) $c['id']) : null;
+$doneIds = $progress['ids'] ?? [];
+$firstLesson = $ordered[0]['slug'] ?? '';
+
 $courseSchema = [
     '@type' => 'Course', 'name' => $c['title'], 'description' => $c['summary'],
     'provider' => ['@type' => 'Organization', 'name' => 'Afrovanguard', '@id' => SITE_URL . '/#organization'],
@@ -43,6 +54,7 @@ render_head([
     'image' => $ogImage, 'image_alt' => $c['title'],
     'keywords' => $c['title'] . ', ' . $c['category'] . ', Afrovanguard Academy, free training, Lagos',
     'jsonld' => [schema_org(), $courseSchema, $crumbs],
+    'css' => ['/academy/academy.css'], 'body_class' => 'academy',
 ]);
 render_nav('academy');
 ?>
@@ -55,9 +67,15 @@ render_nav('academy');
           <p class="course-dek"><?= e($c['summary']) ?></p>
           <div class="course-badges">
             <span>◆ <?= e($c['level']) ?></span><span>● <?= e($c['format']) ?></span><span>◷ <?= e($c['duration']) ?></span>
-            <span>📍 <?= e($c['location']) ?></span><span class="badge-price"><?= e($c['price']) ?></span>
+<?php if ($lessonTotal): ?><span>📚 <?= $lessonTotal ?> lessons</span><?php endif; ?>
+            <span class="badge-price"><?= e($accessLabels[$access] ?? $c['price']) ?></span>
           </div>
-          <div class="course-hero-cta"><a class="btn btn-primary" href="#enroll">Apply / enrol</a>
+          <div class="course-hero-cta">
+<?php if ($lessonTotal && $firstLesson): ?>
+            <a class="btn btn-primary" href="<?= e(academy_url($c['slug'] . '/learn/' . $firstLesson)) ?>"><?= $progress && $progress['completed'] ? 'Continue learning' : 'Start learning' ?> →</a>
+<?php else: ?>
+            <a class="btn btn-primary" href="#enroll">Apply / enrol</a>
+<?php endif; ?>
 <?php if (!empty($c['cta_url'])): ?><a class="btn btn-ghost-light" href="<?= e($c['cta_url']) ?>" target="_blank" rel="noopener">Programme site ↗</a><?php endif; ?></div>
         </div>
       </section>
@@ -72,6 +90,31 @@ render_nav('academy');
 <?php foreach ($outcomes as $o): ?>              <li><?= e($o) ?></li>
 <?php endforeach; ?>
             </ul>
+<?php endif; ?>
+
+<?php if ($curriculum): ?>
+            <div class="curriculum">
+              <h2>Curriculum</h2>
+<?php if ($progress): ?>
+              <div class="cur-progress"><span><?= (int)$progress['completed'] ?>/<?= (int)$progress['total'] ?> done</span><div class="cur-bar"><span style="width:<?= (int)$progress['pct'] ?>%"></span></div><span><?= (int)$progress['pct'] ?>%</span></div>
+<?php endif; ?>
+<?php foreach ($curriculum as $m): ?>
+              <div class="module">
+                <div class="module-head"><span><?= e($m['title']) ?></span><span class="m-count"><?= count($m['lessons']) ?> lessons</span></div>
+<?php foreach ($m['lessons'] as $l):
+                $open = !empty($l['is_preview']) || $access === 'open' || ($user && $lms->canAccess($user, $c, $l));
+                $done = in_array((int)$l['id'], $doneIds, true);
+                $href = academy_url($c['slug'] . '/learn/' . $l['slug']);
+?>
+                <a class="lesson-row<?= $done ? ' done' : '' ?><?= $open ? '' : ' locked' ?>" href="<?= e($href) ?>">
+                  <span class="l-ico"><?= $done ? '✓' : ($open ? '▸' : '🔒') ?></span>
+                  <span class="l-title"><?= e($l['title']) ?></span>
+                  <span class="l-meta"><?php if (!empty($l['is_preview'])): ?><span class="l-preview">Preview</span><?php endif; ?><?php if ((int)$l['duration_min']): ?><span><?= (int)$l['duration_min'] ?> min</span><?php endif; ?></span>
+                </a>
+<?php endforeach; ?>
+              </div>
+<?php endforeach; ?>
+            </div>
 <?php endif; ?>
           </div>
           <aside class="course-side">
@@ -101,4 +144,4 @@ render_nav('academy');
 <?php endif; ?>
     </article>
   </main>
-<?php render_footer();
+<?php echo '<script src="/academy/academy.js" defer></script>'; render_footer();

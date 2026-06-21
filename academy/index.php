@@ -27,6 +27,7 @@ render_head([
     'canonical' => $canonical, 'og_kind' => 'website',
     'keywords' => 'Afrovanguard Academy, free training Lagos, Techome, MediaPro, Africa GATES, youth programmes Nigeria',
     'jsonld' => [schema_org(), schema_website(), $itemList, $crumbs],
+    'css' => ['/academy/academy.css'], 'body_class' => 'academy',
 ]);
 render_nav('academy');
 ?>
@@ -60,4 +61,4 @@ render_nav('academy');
       <div class="no-results">No programmes match your search.</div>
     </div>
   </main>
-<?php render_footer();
+<?php echo '<script src="/academy/academy.js" defer></script>'; render_footer();

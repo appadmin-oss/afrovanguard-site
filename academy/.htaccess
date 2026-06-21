@@ -10,5 +10,7 @@ DirectoryIndex index.php index.html
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
+  RewriteRule ^([a-z0-9-]+)/learn/?$ learn.php?course=$1 [L,QSA]
+  RewriteRule ^([a-z0-9-]+)/learn/([a-z0-9-]+)/?$ learn.php?course=$1&lesson=$2 [L,QSA]
   RewriteRule ^([a-z0-9-]+)/?$ course.php?slug=$1 [L,QSA]
 </IfModule>

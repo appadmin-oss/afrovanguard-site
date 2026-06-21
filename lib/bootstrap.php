@@ -32,8 +32,17 @@ require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/AcademyRepository.php';
+require_once __DIR__ . '/LmsAuth.php';
+require_once __DIR__ . '/LmsRepository.php';
 
 av_harden_errors();
+
+/** Academy base URL (subdomain-ready). Defaults to the /academy path. */
+if (!defined('ACADEMY_URL')) {
+    $env = getenv('AV_ACADEMY_URL');
+    define('ACADEMY_URL', $env ?: (rtrim(SITE_URL, '/') . '/academy'));
+}
+function academy_url(string $path = ''): string { return rtrim(ACADEMY_URL, '/') . '/' . ltrim($path, '/'); }
 
 /**
  * Gate an endpoint behind admin auth: a valid signed session cookie OR a

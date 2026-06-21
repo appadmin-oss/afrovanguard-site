@@ -109,3 +109,64 @@ CREATE TABLE IF NOT EXISTS enrollments (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_enroll_course ON enrollments(course_slug);
+
+-- ── Academy LMS ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS lms_users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  name          TEXT NOT NULL,
+  email         TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'learner',   -- learner | instructor | admin
+  status        TEXT NOT NULL DEFAULT 'active',
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  last_login    TEXT
+);
+CREATE TABLE IF NOT EXISTS lms_sessions (
+  token_hash  TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  ip          TEXT, ua TEXT,
+  expires_at  TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS modules (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  position    INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS lessons (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  module_id    INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+  course_id    INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  slug         TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  body_html    TEXT NOT NULL DEFAULT '',
+  video_url    TEXT,
+  duration_min INTEGER NOT NULL DEFAULT 0,
+  is_preview   INTEGER NOT NULL DEFAULT 0,
+  position     INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id);
+CREATE TABLE IF NOT EXISTS lesson_progress (
+  user_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  lesson_id    INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  course_id    INTEGER NOT NULL,
+  completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, lesson_id)
+);
+CREATE TABLE IF NOT EXISTS course_enrolment (
+  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, course_id)
+);
+CREATE TABLE IF NOT EXISTS memberships (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  tier       TEXT NOT NULL DEFAULT 'member',
+  status     TEXT NOT NULL DEFAULT 'active',     -- active | expired | cancelled
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT
+);
