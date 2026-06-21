@@ -1,0 +1,17 @@
+# Afrovanguard — robots.txt  (custom app is the source of truth)
+# This physical file is authoritative: Apache serves it directly, so it is
+# never overridden by WordPress or an SEO plugin's virtual robots.txt.
+User-agent: *
+Allow: /
+
+# Server internals (also blocked at the directory level)
+Disallow: /lib/
+Disallow: /db/
+Disallow: /admin/
+Disallow: /error.php
+
+# Sitemaps — custom first (authoritative), then WordPress core's own.
+Sitemap: https://afrovanguard.org.ng/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/diary/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/academy/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/wp-sitemap.xml
