@@ -1,0 +1,67 @@
+<?php
+/**
+ * lib/Database.php — PDO / SQLite connection (singleton).
+ *
+ * One shared connection for the whole Diary. On first use it creates the
+ * database from db/schema.sql and seeds it from db/content.php, so a fresh
+ * deploy is self-bootstrapping — no manual migration step required.
+ */
+declare(strict_types=1);
+
+final class Database
+{
+    private static ?PDO $pdo = null;
+
+    public static function pdo(): PDO
+    {
+        if (self::$pdo instanceof PDO) return self::$pdo;
+
+        if (!extension_loaded('pdo_sqlite')) {
+            throw new RuntimeException('pdo_sqlite extension is required for the Diary database.');
+        }
+
+        $path = AV_DB_PATH;
+        $dir  = dirname($path);
+        if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+        $fresh = !is_file($path);
+
+        $pdo = new PDO('sqlite:' . $path, null, null, [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]);
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        self::$pdo = $pdo;
+
+        // Auto-migrate + seed on a brand-new database, or if the core
+        // table is somehow missing.
+        if ($fresh || !self::tableExists('articles')) {
+            self::migrate();
+            self::seedIfEmpty();
+        }
+        return self::$pdo;
+    }
+
+    public static function tableExists(string $name): bool
+    {
+        $st = self::$pdo->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
+        $st->execute([$name]);
+        return (bool) $st->fetchColumn();
+    }
+
+    public static function migrate(): void
+    {
+        $sql = file_get_contents(AV_ROOT . '/db/schema.sql');
+        if ($sql === false) throw new RuntimeException('Cannot read db/schema.sql');
+        self::$pdo->exec($sql);
+    }
+
+    /** Seed from the canonical content file only when the DB has no articles. */
+    public static function seedIfEmpty(): void
+    {
+        $count = (int) self::$pdo->query('SELECT COUNT(*) FROM articles')->fetchColumn();
+        if ($count > 0) return;
+        require_once AV_ROOT . '/db/seed.php'; // defines av_seed(PDO)
+        av_seed(self::$pdo);
+    }
+}

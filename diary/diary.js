@@ -146,18 +146,47 @@
     });
   });
 
-  /* ---- Reactions (clap) ---- */
+  /* ---- Reactions (clap) — persisted server-side via /diary/api.php ---- */
   document.querySelectorAll('[data-react]').forEach(function (btn) {
     var s = btn.getAttribute('data-react');
-    var key = 'av.clap.' + s;
-    var base = parseInt(btn.getAttribute('data-base') || '0', 10);
+    var key = 'av.clap.' + s;                       // remembers if THIS device clapped
+    var total = parseInt(btn.getAttribute('data-base') || '0', 10); // server total (SSR'd)
     var mine = parseInt(get(key, '0'), 10) || 0;
     var countEl = btn.querySelector('.react-count');
-    var render = function () { if (countEl) countEl.textContent = (base + mine); btn.classList.toggle('clapped', mine > 0); };
+    var render = function () { if (countEl) countEl.textContent = total; btn.classList.toggle('clapped', mine > 0); };
     render();
+    // Refresh the live total from the server (kept in sync across readers).
+    fetch('/diary/api.php?action=reactions&slug=' + encodeURIComponent(s))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok) { total = d.claps; render(); } })
+      .catch(function () {});
     btn.addEventListener('click', function () {
-      mine = Math.min(mine + 1, 50); set(key, String(mine)); render();
-      btn.querySelector('.emoji').animate ? btn.querySelector('.emoji').animate([{ transform: 'scale(1.4) rotate(-12deg)' }, { transform: 'scale(1)' }], { duration: 260 }) : 0;
+      var em = btn.querySelector('.emoji');
+      if (em && em.animate) em.animate([{ transform: 'scale(1.4) rotate(-12deg)' }, { transform: 'scale(1)' }], { duration: 260 });
+      mine = Math.min(mine + 1, 50); set(key, String(mine));
+      total += 1; render();                          // optimistic
+      fetch('/diary/api.php?action=react', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: s, count: 1 })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.ok) { total = d.claps; render(); } })
+        .catch(function () {});
+    });
+  });
+
+  /* ---- Newsletter subscribe — persisted server-side ---- */
+  document.querySelectorAll('.diary-subscribe').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = form.querySelector('input[type="email"]');
+      var email = (input && input.value || '').trim();
+      if (!email) return;
+      fetch('/diary/api.php?action=subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      }).then(function (r) { return r.json(); })
+        .then(function (d) { toast(d && d.ok ? (d.message || 'Subscribed.') : (d && d.error || 'Could not subscribe.')); if (d && d.ok) form.reset(); })
+        .catch(function () { toast('Network error — please try again.'); });
     });
   });
 

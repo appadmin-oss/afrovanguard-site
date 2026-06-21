@@ -2,6 +2,12 @@
 config.php
 .htaccess
 .htpasswd
+# (the routing-only diary/.htaccess is force-added — it holds no secrets)
+
+# ── Diary runtime database (auto-created from db/schema.sql + db/content.php) ──
+db/diary.sqlite
+db/diary.sqlite-wal
+db/diary.sqlite-shm
 
 # ── Donor / submission data ────────────────────────────────────────────
 donations.json

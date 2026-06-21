@@ -1,0 +1,18 @@
+# The Afrovanguard Diary — pretty URLs
+# /diary/                      -> index.php
+# /diary/<slug>/  or  <slug>   -> article.php?slug=<slug>
+# /diary/api...                -> api.php (left untouched)
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /diary/
+
+  # Don't rewrite real files or directories (css, js, api.php, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Article slugs -> article.php
+  RewriteRule ^([a-z0-9-]+)/?$ article.php?slug=$1 [L,QSA]
+</IfModule>
