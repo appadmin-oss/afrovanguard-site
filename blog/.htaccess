@@ -1,7 +1,0 @@
-# Legacy /blog/* → /diary/* (permanent redirect, preserves slug + query)
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteRule ^(.*)$ /diary/$1 [R=301,L,NE,QSA]
-</IfModule>
-# Fallback when mod_rewrite is unavailable
-DirectoryIndex index.php

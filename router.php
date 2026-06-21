@@ -15,13 +15,6 @@ $path = __DIR__ . $uri;
 // Serve existing static files (css, js, images, .html) directly.
 if ($uri !== '/' && is_file($path)) { return false; }
 
-// Legacy /blog/* → /diary/* (301)
-if (preg_match('~^/blog/?(.*)$~', $uri, $m)) {
-    $qs = $_SERVER['QUERY_STRING'] ?? '';
-    header('Location: /diary/' . $m[1] . ($qs ? '?' . $qs : ''), true, 301);
-    return true;
-}
-
 // Diary SEO endpoints
 if ($uri === '/diary/sitemap.xml') { require __DIR__ . '/diary/sitemap.php'; return true; }
 if ($uri === '/diary/feed.xml')    { require __DIR__ . '/diary/feed.php'; return true; }
