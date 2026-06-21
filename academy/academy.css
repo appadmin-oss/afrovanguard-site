@@ -88,3 +88,6 @@ body.academy .diary-eyebrow { color: var(--gold-deep); }
 .acct-chip { display: inline-flex; align-items: center; gap: 8px; }
 
 @media (max-width: 900px) { .lesson-page { grid-template-columns: 1fr; } .lesson-side { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--divider); } }
+
+/* completion certificate banner */
+.cert-banner { display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:var(--gold-soft); border:1px solid var(--gold); border-radius:var(--radius-md); padding:14px 18px; margin:0 0 20px; font-weight:600; color:var(--ink); }

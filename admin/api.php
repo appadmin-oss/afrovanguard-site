@@ -47,11 +47,12 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'lesson_save', 'lesson_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
+    $lms  = new LmsRepository();
 
     switch ($action) {
         case 'ping':         json_out(['ok' => true, 'cloudinary' => Cloudinary::configured()]);
@@ -133,6 +134,40 @@ try {
         case 'ac_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             json_out(['ok' => $ac->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))))]);
+
+        /* ── Curriculum authoring (modules + lessons) ── */
+        case 'ac_curriculum':
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title']], 'modules' => $lms->curriculum((int) $cs['id'])]);
+        case 'mod_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $title = trim((string) ($body['title'] ?? '')); if ($title === '') json_out(['ok' => false, 'error' => 'Title required.'], 422);
+            if (!empty($body['id'])) { $lms->renameModule((int) $body['id'], $title); json_out(['ok' => true, 'id' => (int) $body['id']]); }
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'id' => $lms->addModule((int) $cs['id'], $title)]);
+        case 'mod_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $lms->deleteModule((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
+        case 'lesson_get':
+            $l = $lms->lessonById((int) ($_GET['id'] ?? 0));
+            if (!$l) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => true, 'lesson' => $l]);
+        case 'lesson_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (trim((string) ($body['title'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
+            $lbody = Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? '')));
+            $id = $lms->saveLesson([
+                'id' => (int) ($body['id'] ?? 0), 'module_id' => (int) ($body['module_id'] ?? 0),
+                'slug' => trim((string) ($body['slug'] ?? '')), 'title' => trim((string) $body['title']),
+                'body_html' => $lbody, 'video_url' => trim((string) ($body['video_url'] ?? '')),
+                'duration_min' => (int) ($body['duration_min'] ?? 0), 'is_preview' => !empty($body['is_preview']),
+            ]);
+            json_out(['ok' => true, 'id' => $id]);
+        case 'lesson_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $lms->deleteLesson((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

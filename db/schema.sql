@@ -170,3 +170,19 @@ CREATE TABLE IF NOT EXISTS memberships (
   started_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT
 );
+CREATE TABLE IF NOT EXISTS certificates (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  serial     TEXT UNIQUE NOT NULL,
+  issued_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, course_id)
+);
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  score      INTEGER NOT NULL DEFAULT 0,
+  passed     INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

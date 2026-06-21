@@ -95,4 +95,80 @@ final class LmsRepository
         $pct = $total ? (int) round(count($done) / $total * 100) : 0;
         return ['total' => $total, 'completed' => count($done), 'pct' => $pct, 'ids' => $done, 'complete' => $total > 0 && count($done) >= $total];
     }
+
+    /* ── Authoring: modules ── */
+    public function addModule(int $courseId, string $title): int
+    {
+        $pos = (int) $this->db->query('SELECT COALESCE(MAX(position),-1)+1 FROM modules WHERE course_id = ' . (int) $courseId)->fetchColumn();
+        $st = $this->db->prepare('INSERT INTO modules (course_id, title, position) VALUES (?,?,?)');
+        $st->execute([$courseId, $title, $pos]);
+        return (int) $this->db->lastInsertId();
+    }
+    public function renameModule(int $id, string $title): void { $this->db->prepare('UPDATE modules SET title = ? WHERE id = ?')->execute([$title, $id]); }
+    public function deleteModule(int $id): void
+    {
+        $this->db->prepare('DELETE FROM lessons WHERE module_id = ?')->execute([$id]);
+        $this->db->prepare('DELETE FROM modules WHERE id = ?')->execute([$id]);
+    }
+    public function moduleCourse(int $id): ?int
+    {
+        $s = $this->db->prepare('SELECT course_id FROM modules WHERE id = ?'); $s->execute([$id]);
+        $v = $s->fetchColumn(); return $v === false ? null : (int) $v;
+    }
+
+    /* ── Authoring: lessons ── */
+    public function lessonById(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lessons WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
+
+    public function saveLesson(array $d): int
+    {
+        $module = $this->lessonModule((int) $d['module_id']);
+        if (!$module) throw new RuntimeException('Module not found');
+        $courseId = (int) $module['course_id'];
+        $slug = slugify($d['slug'] ?: $d['title']);
+        // ensure unique slug within the course
+        $chk = $this->db->prepare('SELECT id FROM lessons WHERE course_id = ? AND slug = ? AND id <> ?');
+        $base = $slug; $i = 2;
+        while (true) { $chk->execute([$courseId, $slug, (int) ($d['id'] ?? 0)]); if (!$chk->fetchColumn()) break; $slug = $base . '-' . $i++; }
+        $fields = [
+            'module_id' => (int) $d['module_id'], 'course_id' => $courseId, 'slug' => $slug,
+            'title' => $d['title'], 'body_html' => $d['body_html'] ?? '', 'video_url' => $d['video_url'] ?: null,
+            'duration_min' => (int) ($d['duration_min'] ?? 0), 'is_preview' => !empty($d['is_preview']) ? 1 : 0,
+            'position' => (int) ($d['position'] ?? 0), 'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if (!empty($d['id'])) {
+            $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys($fields)));
+            $this->db->prepare("UPDATE lessons SET $set WHERE id = :id")->execute($fields + ['id' => (int) $d['id']]);
+            return (int) $d['id'];
+        }
+        $fields['position'] = (int) $this->db->query('SELECT COALESCE(MAX(position),-1)+1 FROM lessons WHERE module_id = ' . (int) $d['module_id'])->fetchColumn();
+        $cols = implode(',', array_keys($fields)); $ph = implode(',', array_map(fn($k) => ":$k", array_keys($fields)));
+        $this->db->prepare("INSERT INTO lessons ($cols) VALUES ($ph)")->execute($fields);
+        return (int) $this->db->lastInsertId();
+    }
+    private function lessonModule(int $moduleId): ?array { $s = $this->db->prepare('SELECT * FROM modules WHERE id = ?'); $s->execute([$moduleId]); return $s->fetch() ?: null; }
+    public function deleteLesson(int $id): void { $this->db->prepare('DELETE FROM lessons WHERE id = ?')->execute([$id]); }
+
+    /* ── Certificates ── */
+    public function issueCertificate(int $userId, int $courseId): ?array
+    {
+        if (!$this->progress($userId, $courseId)['complete']) return null;
+        $cur = $this->getCertificate($userId, $courseId);
+        if ($cur) return $cur;
+        $serial = 'AV-' . strtoupper(substr(md5($userId . ':' . $courseId . ':' . microtime()), 0, 4)) . '-' . date('Y') . '-' . str_pad((string) $courseId, 3, '0', STR_PAD_LEFT) . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
+        $this->db->prepare('INSERT OR IGNORE INTO certificates (user_id, course_id, serial) VALUES (?,?,?)')->execute([$userId, $courseId, $serial]);
+        return $this->getCertificate($userId, $courseId);
+    }
+    public function getCertificate(int $userId, int $courseId): ?array
+    {
+        $s = $this->db->prepare('SELECT * FROM certificates WHERE user_id = ? AND course_id = ?');
+        $s->execute([$userId, $courseId]); return $s->fetch() ?: null;
+    }
+    public function certificateBySerial(string $serial): ?array
+    {
+        $s = $this->db->prepare(
+            'SELECT c.*, u.name AS learner, co.title AS course FROM certificates c
+             JOIN lms_users u ON u.id = c.user_id JOIN courses co ON co.id = c.course_id WHERE c.serial = ?'
+        );
+        $s->execute([$serial]); return $s->fetch() ?: null;
+    }
 }

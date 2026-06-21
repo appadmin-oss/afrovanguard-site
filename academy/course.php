@@ -97,6 +97,9 @@ render_nav('academy');
               <h2>Curriculum</h2>
 <?php if ($progress): ?>
               <div class="cur-progress"><span><?= (int)$progress['completed'] ?>/<?= (int)$progress['total'] ?> done</span><div class="cur-bar"><span style="width:<?= (int)$progress['pct'] ?>%"></span></div><span><?= (int)$progress['pct'] ?>%</span></div>
+<?php if (!empty($progress['complete'])): ?>
+              <div class="cert-banner">🎓 You’ve completed this programme. <a class="btn btn-primary btn-sm" href="<?= e(academy_url($c['slug'] . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →</a></div>
+<?php endif; ?>
 <?php endif; ?>
 <?php foreach ($curriculum as $m): ?>
               <div class="module">

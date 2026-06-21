@@ -160,6 +160,40 @@
     </form>
   </main>
 
+  <!-- ACADEMY CURRICULUM -->
+  <main class="studio-main" id="curriculumView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="curBackBtn">← All programmes</button>
+      <div><h1 id="curTitle">Curriculum</h1></div>
+      <button class="btn btn-primary btn-sm" id="addModuleBtn">+ Add module</button>
+    </div>
+    <div id="moduleList" class="module-admin-list"></div>
+  </main>
+
+  <!-- LESSON EDITOR -->
+  <main class="studio-main" id="lessonEditorView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="lesBackBtn">← Curriculum</button>
+      <div class="editor-actions"><button class="btn btn-primary btn-sm" id="lesSaveBtn">Save lesson</button></div>
+    </div>
+    <form id="lessonForm" class="editor-grid">
+      <div class="editor-main">
+        <label class="fld"><span>Lesson title</span><input id="le_title" placeholder="e.g. Thinking in systems" required /></label>
+        <label class="fld"><span>Lesson content</span></label>
+        <textarea id="le_body"></textarea>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>Lesson settings</h3>
+          <label class="fld"><span>Slug</span><input id="le_slug" placeholder="auto-from-title" /></label>
+          <label class="fld"><span>Video embed URL (optional)</span><input id="le_video" placeholder="https://www.youtube.com/embed/…" /></label>
+          <label class="fld"><span>Duration (minutes)</span><input id="le_duration" type="number" min="0" value="0" /></label>
+          <label class="fld checkbox"><input type="checkbox" id="le_preview" /> <span>Free preview (open to all)</span></label>
+        </div>
+      </aside>
+    </form>
+  </main>
+
   <!-- INBOX -->
   <main class="studio-main" id="inboxView" hidden>
     <div class="studio-head"><div><h1>Inbox</h1><p class="muted">Academy applications, newest first.</p></div></div>

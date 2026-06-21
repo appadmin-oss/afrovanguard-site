@@ -61,6 +61,17 @@ final class Database
         foreach ($cadd as $name => $sql) { if (!isset($ccols[$name])) self::$pdo->exec($sql); }
         // LMS tables (idempotent)
         if (!self::tableExists('lessons')) { self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql')); }
+        // Tables added after the LMS shipped (idempotent for deployed DBs)
+        if (!self::tableExists('certificates')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS certificates (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, course_id INTEGER NOT NULL, serial TEXT UNIQUE NOT NULL, issued_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, course_id))");
+        }
+        if (!self::tableExists('quiz_attempts')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS quiz_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0, passed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))");
+        }
+        // lessons.quiz_json (additive)
+        $lcols = [];
+        foreach (self::$pdo->query('PRAGMA table_info(lessons)') as $r) { $lcols[$r['name']] = true; }
+        if (!isset($lcols['quiz_json'])) { self::$pdo->exec("ALTER TABLE lessons ADD COLUMN quiz_json TEXT"); }
 
         $n = (int) self::$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
         if ($n === 0 && is_file(AV_ROOT . '/db/academy_content.php')) {

@@ -13,7 +13,8 @@
   var $ = function (s) { return document.querySelector(s); };
   var views = {
     login: $('#loginView'), entries: $('#entriesView'), editor: $('#editorView'),
-    academy: $('#academyView'), courseEditor: $('#courseEditorView'), inbox: $('#inboxView')
+    academy: $('#academyView'), courseEditor: $('#courseEditorView'),
+    curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -208,15 +209,77 @@
         row.innerHTML = '<div class="entry-thumb ' + c.gradient + '"' + (c.cover_url ? ' style="background-image:url(\'' + c.cover_url + '\')"' : '') + '></div>' +
           '<div class="entry-info"><div class="entry-title">' + escapeHtml(c.title) + '</div><div class="entry-meta"><span class="badge ' + c.status + '">' + c.status + '</span> ' +
           escapeHtml(c.category) + ' · ' + escapeHtml(c.level) + (c.featured == 1 ? ' · ★' : '') + '</div></div>' +
-          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-cedit="' + c.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-cdel="' + c.slug + '">Delete</button></div>';
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-ccur="' + c.slug + '">Curriculum</button><button class="btn btn-outline btn-sm" data-cedit="' + c.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-cdel="' + c.slug + '">Delete</button></div>';
         box.appendChild(row);
       });
     });
   }
   $('#courseList').addEventListener('click', function (e) {
-    var ed = e.target.closest('[data-cedit]'), del = e.target.closest('[data-cdel]');
+    var ed = e.target.closest('[data-cedit]'), del = e.target.closest('[data-cdel]'), cur = e.target.closest('[data-ccur]');
     if (ed) openCourse(ed.getAttribute('data-cedit'));
+    if (cur) openCurriculum(cur.getAttribute('data-ccur'));
     if (del && confirm('Delete “' + del.getAttribute('data-cdel') + '”?')) post('ac_delete', { slug: del.getAttribute('data-cdel') }).then(function (r) { toast(r.data.ok ? 'Deleted' : 'Failed'); loadCourses(); });
+  });
+
+  /* ---- Curriculum manager ---- */
+  var curSlug = '', curLessonModule = 0, curLessonId = 0;
+  function openCurriculum(slug) { curSlug = slug; show('curriculum'); loadCurriculum(); }
+  $('#curBackBtn').addEventListener('click', function () { show('academy'); loadCourses(); });
+  function loadCurriculum() {
+    return api('ac_curriculum&slug=' + encodeURIComponent(curSlug)).then(function (r) {
+      if (!r.data.ok) { toast('Could not load'); return; }
+      $('#curTitle').textContent = r.data.course.title + ' — curriculum';
+      var box = $('#moduleList'); box.innerHTML = '';
+      if (!r.data.modules.length) { box.innerHTML = '<p class="muted">No modules yet. Add your first module to start building the curriculum.</p>'; }
+      r.data.modules.forEach(function (m) {
+        var lessons = m.lessons.map(function (l) {
+          return '<div class="entry-row" style="padding:10px 14px"><div class="entry-info"><div class="entry-title" style="font-size:15px">' + escapeHtml(l.title) +
+            (l.is_preview == 1 ? ' <span class="badge published">preview</span>' : '') + '</div><div class="entry-meta">' + (l.duration_min || 0) + ' min</div></div>' +
+            '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-ledit="' + l.id + '">Edit</button><button class="btn btn-outline btn-sm danger" data-ldel="' + l.id + '">Delete</button></div></div>';
+        }).join('');
+        var el = document.createElement('div'); el.className = 'side-card'; el.style.marginBottom = '16px';
+        el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">' +
+          '<h3 style="margin:0">' + escapeHtml(m.title) + '</h3><div style="display:flex;gap:6px">' +
+          '<button class="btn btn-outline btn-sm" data-mren="' + m.id + '" data-mt="' + escapeHtml(m.title) + '">Rename</button>' +
+          '<button class="btn btn-outline btn-sm" data-ladd="' + m.id + '">+ Lesson</button>' +
+          '<button class="btn btn-outline btn-sm danger" data-mdel="' + m.id + '">Delete</button></div></div>' +
+          (lessons || '<p class="muted" style="margin:0">No lessons yet.</p>');
+        box.appendChild(el);
+      });
+    });
+  }
+  $('#addModuleBtn').addEventListener('click', function () {
+    var t = prompt('Module title:'); if (!t) return;
+    post('mod_save', { course: curSlug, title: t.trim() }).then(function () { loadCurriculum(); });
+  });
+  $('#moduleList').addEventListener('click', function (e) {
+    var ren = e.target.closest('[data-mren]'), del = e.target.closest('[data-mdel]'), ladd = e.target.closest('[data-ladd]'), led = e.target.closest('[data-ledit]'), ldel = e.target.closest('[data-ldel]');
+    if (ren) { var t = prompt('Rename module:', ren.getAttribute('data-mt')); if (t) post('mod_save', { id: +ren.getAttribute('data-mren'), title: t.trim() }).then(loadCurriculum); }
+    if (del && confirm('Delete this module and its lessons?')) post('mod_delete', { id: +del.getAttribute('data-mdel') }).then(loadCurriculum);
+    if (ladd) openLesson(+ladd.getAttribute('data-ladd'), 0);
+    if (led) openLesson(0, +led.getAttribute('data-ledit'));
+    if (ldel && confirm('Delete this lesson?')) post('lesson_delete', { id: +ldel.getAttribute('data-ldel') }).then(loadCurriculum);
+  });
+  function openLesson(moduleId, lessonId) {
+    curLessonModule = moduleId; curLessonId = lessonId;
+    ['le_title', 'le_slug', 'le_video'].forEach(function (id) { $('#' + id).value = ''; });
+    $('#le_duration').value = '0'; $('#le_preview').checked = false;
+    show('lessonEditor');
+    if (lessonId) api('lesson_get&id=' + lessonId).then(function (r) {
+      if (!r.data.ok) return; var l = r.data.lesson; curLessonModule = +l.module_id;
+      $('#le_title').value = l.title || ''; $('#le_slug').value = l.slug || ''; $('#le_video').value = l.video_url || '';
+      $('#le_duration').value = l.duration_min || 0; $('#le_preview').checked = l.is_preview == 1;
+      initTiny('le_body', l.body_html || '<p></p>');
+    });
+    else initTiny('le_body', '<p></p>');
+  }
+  $('#lesBackBtn').addEventListener('click', function () { show('curriculum'); loadCurriculum(); });
+  $('#lesSaveBtn').addEventListener('click', function () {
+    if (!$('#le_title').value.trim()) { toast('A title is required'); return; }
+    post('lesson_save', {
+      id: curLessonId, module_id: curLessonModule, title: $('#le_title').value.trim(), slug: $('#le_slug').value.trim(),
+      body_html: getBody('le_body'), video_url: $('#le_video').value.trim(), duration_min: $('#le_duration').value, is_preview: $('#le_preview').checked
+    }).then(function (r) { if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; } curLessonId = r.data.id; toast('Lesson saved ✓'); });
   });
   $('#newCourseBtn').addEventListener('click', function () { openCourse(null); });
   $('#acBackBtn').addEventListener('click', function () { show('academy'); loadCourses(); });
