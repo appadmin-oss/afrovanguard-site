@@ -12,11 +12,9 @@ $repo = new AcademyRepository();
 $c = $slug ? $repo->bySlug($slug) : null;
 
 if (!$c) {
-    http_response_code(404);
-    render_head(['title' => 'Programme not found — Afrovanguard Academy', 'desc' => 'Not found.', 'canonical' => rtrim(SITE_URL,'/').'/academy/', 'og_kind' => 'website']);
-    render_nav('academy');
-    echo '<main id="main-content"><div class="container" style="padding:120px 0;text-align:center"><h1 class="article-title" style="margin:0 auto 16px">Programme not found</h1><p style="color:var(--muted)"><a href="/academy/">Back to the Academy →</a></p></div></main>';
-    render_footer(); exit;
+    require_once AV_ROOT . '/lib/errors.php';
+    av_error_render(404);
+    exit;
 }
 
 $canonical = rtrim(SITE_URL, '/') . '/academy/' . $c['slug'] . '/';

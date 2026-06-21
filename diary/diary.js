@@ -201,9 +201,10 @@
     });
   });
 
-  /* ---- Listen to this article (speech synthesis, with highlight) ---- */
+  /* ---- Scholar Reader — reads the article smartly, humanly, cross-browser ---- */
   var lb = listenBar;
-  if (lb && 'speechSynthesis' in window && article) {
+  var hasTTS = 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance !== 'undefined';
+  if (lb && hasTTS && article) {
     var synth = window.speechSynthesis;
     var playBtns = [].slice.call(document.querySelectorAll('.listen-play, .mini-play'));
     var iconPlay = lb.querySelector('.icon-play');
@@ -213,73 +214,139 @@
     var rateBtn = lb.querySelector('.listen-rate');
     var backBtn = lb.querySelector('.listen-back');
     var fwdBtn = lb.querySelector('.listen-fwd');
+    var voiceSel = lb.querySelector('.listen-voice');
 
-    // Source elements -> chunks (so we can highlight what's being read)
-    var nodes = [].slice.call(article.querySelectorAll('h2, h3, p, li, blockquote')).filter(function (n) { return (n.textContent || '').trim().length > 1; });
-    var chunks = nodes.map(function (n) { return (n.textContent || '').replace(/\s+/g, ' ').trim(); });
-    var words = chunks.join(' ').split(/\s+/).length;
-    var rates = [1.0, 1.25, 1.5, 0.75]; var rateIdx = 0; var rate = 1.0;
-    var idx = 0; var playing = false; var elapsed = 0; var ticker = null; var highlighted = null;
+    // Source elements → readable units. Skip media/embeds/figures/code.
+    var nodes = [].slice.call(article.querySelectorAll('h2, h3, p, li, blockquote'))
+      .filter(function (n) {
+        if (n.closest('.embed, figure, pre, .callout > strong')) return false;
+        return (n.textContent || '').trim().length > 1;
+      });
+
+    // Normalise text so the engine reads it like a person, not a parser.
+    var ABBR = { 'e.g.': 'for example', 'i.e.': 'that is', 'etc.': 'and so on', 'vs.': 'versus',
+      'Dr.': 'Doctor', 'Mr.': 'Mister', 'Mrs.': 'Misses', 'Ms.': 'Miss', 'Prof.': 'Professor',
+      'No.': 'Number', 'approx.': 'approximately', 'Fig.': 'Figure', 'St.': 'Saint', '&': ' and ',
+      '%': ' percent', 'NGO': 'N G O', 'LGA': 'L G A', 'AI': 'A.I.', 'FAQ': 'F A Q', 'RSS': 'R S S' };
+    function normalise(t, isHeading) {
+      t = t.replace(/\s+/g, ' ').trim();
+      t = t.replace(/https?:\/\/\S+/g, ' link ');           // don't read raw URLs
+      t = t.replace(/\[[0-9]+\]/g, '');                      // citation markers
+      Object.keys(ABBR).forEach(function (k) {
+        t = t.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), ABBR[k]);
+      });
+      t = t.replace(/\s*[—–]\s*/g, ', ');                    // dashes → natural pause
+      t = t.replace(/…|\.\.\./g, ', ');                 // ellipsis → pause
+      t = t.replace(/(\d),(\d{3})/g, '$1$2');                // 5,000 → 5000 (engines read better)
+      if (isHeading && !/[.!?]$/.test(t)) t += '.';          // pause after a heading
+      return t;
+    }
+    var units = nodes.map(function (n) {
+      var heading = /^H[23]$/.test(n.tagName);
+      return { node: n, text: normalise(n.textContent || '', heading) };
+    });
+    var words = units.reduce(function (a, u) { return a + u.text.split(/\s+/).length; }, 0);
+
+    var rates = [1.0, 1.15, 1.3, 1.5, 0.85]; var rateIdx = 0; var rate = parseFloat(get('av.read.rate', '1')) || 1;
+    rateIdx = Math.max(0, rates.indexOf(rate)); if (rateIdx < 0) rateIdx = 0;
+    var idx = 0, playing = false, elapsed = 0, ticker = null, highlighted = null, keepAlive = null, voices = [], voice = null;
 
     var fmt = function (s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); };
-    var totalSecs = function () { return words / (2.6 * rate); };
+    var totalSecs = function () { return words / (2.7 * rate); };
     if (totalEl) totalEl.textContent = fmt(totalSecs());
+    if (rateBtn) rateBtn.textContent = (rate % 1 === 0 ? rate.toFixed(1) : rate) + 'x';
+
+    // Pick the most natural English voice available on this device/browser.
+    function scoreVoice(v) {
+      var n = (v.name + ' ' + (v.voiceURI || '')).toLowerCase(); var s = 0;
+      if (/^en[-_]/i.test(v.lang)) s += 5;
+      if (/en[-_]gb/i.test(v.lang)) s += 3; else if (/en[-_](us|ng|au|ie)/i.test(v.lang)) s += 2;
+      if (/natural|neural|enhanced|premium|wavenet|siri/.test(n)) s += 6;
+      if (/google/.test(n)) s += 4;
+      if (/microsoft/.test(n)) s += 2;
+      if (/(daniel|samantha|serena|aria|libby|sonia|ryan|arthur|george)/.test(n)) s += 3;
+      if (v.localService === false) s += 1;   // cloud voices tend to sound better
+      return s;
+    }
+    function loadVoices() {
+      voices = (synth.getVoices() || []).filter(function (v) { return /^en/i.test(v.lang); });
+      if (!voices.length) return;
+      voices.sort(function (a, b) { return scoreVoice(b) - scoreVoice(a); });
+      var saved = get('av.read.voice', '');
+      voice = voices.filter(function (v) { return v.voiceURI === saved; })[0] || voices[0];
+      if (voiceSel) {
+        voiceSel.hidden = voices.length < 2;
+        voiceSel.innerHTML = voices.map(function (v) {
+          return '<option value="' + v.voiceURI + '"' + (v === voice ? ' selected' : '') + '>' + v.name.replace(/\(.*\)/, '').trim() + '</option>';
+        }).join('');
+      }
+    }
+    loadVoices();
+    if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = loadVoices;
+    if (voiceSel) voiceSel.addEventListener('change', function () {
+      voice = voices.filter(function (v) { return v.voiceURI === this.value; }, this)[0] || voice;
+      set('av.read.voice', voice ? voice.voiceURI : '');
+      if (playing) speakFrom(idx);
+    });
 
     function setUI(on) {
       playing = on;
       if (iconPlay) iconPlay.style.display = on ? 'none' : '';
       if (iconPause) iconPause.style.display = on ? '' : 'none';
       document.querySelectorAll('.mini-play').forEach(function (m) { m.innerHTML = on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'; });
-      playBtns.forEach(function (b) { b.setAttribute('aria-label', on ? 'Pause article audio' : 'Listen to this article'); });
+      playBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Pause article audio' : 'Listen to this article'); });
     }
     function startTicker() { stopTicker(); ticker = setInterval(function () { elapsed += 0.25; if (curEl) curEl.textContent = fmt(elapsed); }, 250); }
     function stopTicker() { if (ticker) { clearInterval(ticker); ticker = null; } }
     function highlight(i) {
       if (highlighted) highlighted.classList.remove('speaking');
-      highlighted = nodes[i] || null;
-      if (highlighted) { highlighted.classList.add('speaking'); }
+      highlighted = units[i] ? units[i].node : null;
+      if (highlighted) {
+        highlighted.classList.add('speaking');
+        var r = highlighted.getBoundingClientRect();
+        if (r.top < 90 || r.bottom > window.innerHeight - 40) highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
     function clearHighlight() { if (highlighted) { highlighted.classList.remove('speaking'); highlighted = null; } }
 
-    function speakFrom(i) {
-      synth.cancel();
-      idx = Math.max(0, Math.min(i, chunks.length - 1));
-      speakChunk();
-      setUI(true); startTicker();
-    }
+    // Chrome stops long utterances after ~15s; pause/resume keeps it alive.
+    function startKeepAlive() { stopKeepAlive(); keepAlive = setInterval(function () { if (playing && synth.speaking) { synth.pause(); synth.resume(); } }, 9000); }
+    function stopKeepAlive() { if (keepAlive) { clearInterval(keepAlive); keepAlive = null; } }
+
+    function speakFrom(i) { synth.cancel(); idx = Math.max(0, Math.min(i, units.length - 1)); setUI(true); startTicker(); startKeepAlive(); speakChunk(); }
     function speakChunk() {
-      if (idx >= chunks.length) { setUI(false); stopTicker(); clearHighlight(); elapsed = totalSecs(); if (curEl) curEl.textContent = fmt(elapsed); idx = 0; return; }
+      if (idx >= units.length) { setUI(false); stopTicker(); stopKeepAlive(); clearHighlight(); elapsed = totalSecs(); if (curEl) curEl.textContent = fmt(elapsed); idx = 0; return; }
       highlight(idx);
-      var u = new SpeechSynthesisUtterance(chunks[idx]);
-      u.rate = rate; u.lang = 'en-GB';
+      var u = new SpeechSynthesisUtterance(units[idx].text);
+      u.rate = rate; u.pitch = 0.98; u.volume = 1; u.lang = (voice && voice.lang) || 'en-GB';
+      if (voice) u.voice = voice;
       u.onend = function () { if (!playing) return; idx++; speakChunk(); };
-      u.onerror = function () { setUI(false); stopTicker(); };
+      u.onerror = function () { if (!playing) return; idx++; speakChunk(); };  // skip a bad chunk, keep going
       synth.speak(u);
     }
-    playBtns.forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (!playing) { speakFrom(idx); }
-        else { playing = false; synth.cancel(); setUI(false); stopTicker(); }
-      });
-    });
+    function stop() { playing = false; synth.cancel(); setUI(false); stopTicker(); stopKeepAlive(); }
+    playBtns.forEach(function (b) { b.addEventListener('click', function () { playing ? stop() : speakFrom(idx); }); });
     if (rateBtn) rateBtn.addEventListener('click', function () {
-      rateIdx = (rateIdx + 1) % rates.length; rate = rates[rateIdx];
+      rateIdx = (rateIdx + 1) % rates.length; rate = rates[rateIdx]; set('av.read.rate', String(rate));
       rateBtn.textContent = (rate % 1 === 0 ? rate.toFixed(1) : rate) + 'x';
       if (totalEl) totalEl.textContent = fmt(totalSecs());
       if (playing) speakFrom(idx);
     });
     function jump(d) {
-      var step = Math.max(1, Math.round(chunks.length * 0.06));
+      var step = Math.max(1, Math.round(units.length * 0.06));
       elapsed = Math.max(0, elapsed + d * 10);
-      var t = Math.max(0, Math.min(idx + d * step, chunks.length - 1));
+      var t = Math.max(0, Math.min(idx + d * step, units.length - 1));
       if (playing) speakFrom(t); else { idx = t; highlight(idx); if (curEl) curEl.textContent = fmt(elapsed); }
     }
     if (backBtn) backBtn.addEventListener('click', function () { jump(-1); });
     if (fwdBtn) fwdBtn.addEventListener('click', function () { jump(1); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden && playing) { /* keep playing in bg */ } });
     window.addEventListener('beforeunload', function () { synth.cancel(); });
     window.__avListen = { toggle: function () { playBtns[0] && playBtns[0].click(); } };
   } else if (lb) {
-    var pb = lb.querySelector('.listen-play'); if (pb) { pb.title = 'Audio playback is not supported in this browser'; }
+    // No speech engine (e.g. some locked-down browsers): keep the control, label it.
+    var pb = lb.querySelector('.listen-play');
+    if (pb) { pb.setAttribute('aria-disabled', 'true'); pb.title = 'Read-aloud is not available in this browser'; pb.addEventListener('click', function () { toast('Read-aloud is not supported in this browser.'); }); }
   }
 
   /* ---- Lightbox for all article images (incl. editor-inserted) ---- */

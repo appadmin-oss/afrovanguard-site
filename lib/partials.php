@@ -186,6 +186,7 @@ function render_listen_bar(string $slug, string $canonical): void { ?>
               <button class="listen-skip listen-back" aria-label="Back 10 seconds"><?= Icons::BACK ?><span>10</span></button>
               <button class="listen-skip listen-fwd" aria-label="Forward 10 seconds"><?= Icons::FWD ?><span>10</span></button>
               <button class="listen-rate" aria-label="Playback speed">1.0x</button>
+              <select class="listen-voice" aria-label="Reader voice" title="Choose a voice" hidden></select>
             </div>
           </div>
           <div class="reader-tools">

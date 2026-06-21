@@ -57,6 +57,7 @@
       <div class="editor-actions">
         <a class="btn btn-outline btn-sm" id="previewLink" target="_blank" rel="noopener" hidden>Preview ↗</a>
         <button class="btn btn-outline btn-sm" id="embedBtn" title="Insert an embed">＋ Embed</button>
+        <button class="btn btn-outline btn-sm" id="qaBtn" title="Insert a question & answer">＋ Q&amp;A</button>
         <button class="btn btn-outline btn-sm" id="saveDraftBtn">Save draft</button>
         <button class="btn btn-primary btn-sm" id="publishBtn">Publish</button>
       </div>
@@ -72,6 +73,7 @@
         <div class="side-card">
           <h3>Publishing</h3>
           <label class="fld"><span>Status</span><select id="f_status"><option value="draft">Draft</option><option value="published">Published</option></select></label>
+          <label class="fld"><span>Style</span><select id="f_format"><option value="standard">Standard article</option><option value="qa">Q &amp; A / Interview</option><option value="feature">Feature (cinematic cover)</option></select></label>
           <label class="fld"><span>Slug</span><input id="f_slug" placeholder="auto-from-title" /></label>
           <label class="fld"><span>Published date</span><input id="f_date" type="date" /></label>
           <label class="fld checkbox"><input type="checkbox" id="f_featured" /> <span>Feature on the Diary home</span></label>

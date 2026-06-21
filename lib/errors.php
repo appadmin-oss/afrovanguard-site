@@ -1,15 +1,63 @@
-<!DOCTYPE html>
-<html lang="en-NG" data-mood="lost">
+<?php
+/**
+ * lib/errors.php — one standardized, branded, illustrated error page.
+ *
+ * Self-contained (inline CSS, no DB) so it renders even when the app is
+ * broken. Illustrations live at /assets/illustrations/error-<code>.* and
+ * are mapped by meaning; a tasteful inline fallback shows until they land.
+ *
+ *   av_error_render(404);   // echoes a full page
+ */
+declare(strict_types=1);
+
+function av_error_meta(int $code): array {
+    $map = [
+        400 => ['Bad request', "That request didn't make sense to us.", 'lost'],
+        401 => ['Sign in required', 'You need to be signed in to view this page.', 'stop'],
+        403 => ['Access restricted', "You don't have permission to view this page.", 'stop'],
+        404 => ['Page not found', "We looked everywhere, but this page isn't here.", 'lost'],
+        405 => ['Not allowed', "That action isn't allowed here.", 'stop'],
+        413 => ['Too large', 'That upload is larger than we can accept.', 'lost'],
+        429 => ['Easy does it', 'Too many requests — give it a moment and try again.', 'stop'],
+        500 => ['Something broke', "We're looking into it. Please try again shortly.", 'examine'],
+        503 => ['Back shortly', "We're doing a little maintenance. Please check back soon.", 'examine'],
+    ];
+    return $map[$code] ?? $map[500];
+}
+
+// illustration filename + accent per "mood"
+function av_error_illo(string $mood): array {
+    $m = [
+        'lost'    => ['error-404', '#7c7ce0'],   // purple — shielding eyes, searching
+        'stop'    => ['error-403', '#f3b416'],   // gold/yellow — hand up, stop
+        'examine' => ['error-500', '#ef8a4b'],   // orange — crouching, inspecting
+    ];
+    return $m[$mood] ?? $m['examine'];
+}
+
+function av_error_render(int $code): void {
+    if (!headers_sent()) {
+        http_response_code($code);
+        if (function_exists('send_security_headers')) send_security_headers('public');
+        header('Content-Type: text/html; charset=utf-8');
+    }
+    [$title, $msg, $mood] = av_error_meta($code);
+    [$illoBase, $accent] = av_error_illo($mood);
+    $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : 'https://afrovanguard.org.ng';
+    $esc = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    $illoDir = '/assets/illustrations/';
+    ?><!DOCTYPE html>
+<html lang="en-NG" data-mood="<?= $esc($mood) ?>">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="robots" content="noindex, follow" />
-<title>404 · Page not found — Afrovanguard</title>
+<title><?= $code ?> · <?= $esc($title) ?> — Afrovanguard</title>
 <script>(function(){try{var t=localStorage.getItem('av.theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@600;700&family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <style>
-:root{--gold:#f3b416;--ink:#111827;--bg:#FDFCF8;--surface:#fff;--muted:#6B7280;--divider:#E5E7EB;--accent:#7c7ce0;}
+:root{--gold:#f3b416;--ink:#111827;--bg:#FDFCF8;--surface:#fff;--muted:#6B7280;--divider:#E5E7EB;--accent:<?= $accent ?>;}
 @media (prefers-color-scheme:dark){:root{--ink:#F3F4F6;--bg:#0B1120;--surface:#131C2E;--muted:#8A93A3;--divider:#283349;}}
 [data-theme="dark"]{--ink:#F3F4F6;--bg:#0B1120;--surface:#131C2E;--muted:#8A93A3;--divider:#283349;}
 [data-theme="light"]{--ink:#111827;--bg:#FDFCF8;--surface:#fff;--muted:#6B7280;--divider:#E5E7EB;}
@@ -42,29 +90,30 @@ a{color:inherit;text-decoration:none}
 </style>
 </head>
 <body>
-<header class="err-top"><a class="brand" href="https://afrovanguard.org.ng/">AFRO<span class="v">VANGUARD</span></a></header>
+<header class="err-top"><a class="brand" href="<?= $esc($site) ?>/">AFRO<span class="v">VANGUARD</span></a></header>
 <main class="err-wrap">
   <div class="err-card">
     <div>
-      <div class="err-code">Error 404</div>
-      <h1 class="err-title">Page not found</h1>
-      <p class="err-msg">We looked everywhere, but this page isn&#039;t here.</p>
+      <div class="err-code">Error <?= $code ?></div>
+      <h1 class="err-title"><?= $esc($title) ?></h1>
+      <p class="err-msg"><?= $esc($msg) ?></p>
       <div class="err-actions">
-        <a class="btn btn-primary" href="https://afrovanguard.org.ng/">Back home</a>
+        <a class="btn btn-primary" href="<?= $esc($site) ?>/">Back home</a>
         <a class="btn btn-outline" href="/diary/">The Diary</a>
         <a class="btn btn-outline" href="/academy/">Academy</a>
       </div>
     </div>
     <figure class="err-illo" aria-hidden="true">
       <picture>
-        <source type="image/webp" srcset="/assets/illustrations/error-404.webp 1x, /assets/illustrations/error-404@2x.webp 2x" />
-        <img src="/assets/illustrations/error-404.png" alt=""
+        <source type="image/webp" srcset="<?= $illoDir . $illoBase ?>.webp 1x, <?= $illoDir . $illoBase ?>@2x.webp 2x" />
+        <img src="<?= $illoDir . $illoBase ?>.png" alt=""
              onerror="this.style.display='none';this.parentNode.parentNode.querySelector('.fallback').style.display='flex'" />
       </picture>
-      <div class="fallback" style="display:none"><span class="big">404</span><span class="lbl">Page not found</span></div>
+      <div class="fallback" style="display:none"><span class="big"><?= $code ?></span><span class="lbl"><?= $esc($title) ?></span></div>
     </figure>
   </div>
 </main>
-<footer class="err-foot">&copy; 2026 Afrovanguard · <a href="https://afrovanguard.org.ng/contact/">Contact us</a> · Raising one million incorruptible leaders for Africa.</footer>
+<footer class="err-foot">&copy; <?= date('Y') ?> Afrovanguard · <a href="<?= $esc($site) ?>/contact/">Contact us</a> · Raising one million incorruptible leaders for Africa.</footer>
 </body>
-</html>
+</html><?php
+}

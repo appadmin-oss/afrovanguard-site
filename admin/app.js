@@ -118,11 +118,19 @@
       }
     });
   }
+  function insertBody(html) {
+    if (window.tinymce && tinymce.get('f_body')) tinymce.get('f_body').insertContent(html);
+    else { var ta = document.getElementById('f_body'); if (ta) ta.value += '\n' + html; }
+  }
   $('#embedBtn').addEventListener('click', function () {
     var url = window.prompt('Paste a link to embed (YouTube, Vimeo, Spotify, X, Instagram, Maps, …):');
-    if (!url) return; url = url.trim();
-    if (window.tinymce && tinymce.get('f_body')) tinymce.get('f_body').insertContent('<p>' + url + '</p>');
-    else { var ta = document.getElementById('f_body'); ta.value += '\n<p>' + url + '</p>'; }
+    if (url) insertBody('<p>' + url.trim() + '</p>');
+  });
+  $('#qaBtn').addEventListener('click', function () {
+    var q = window.prompt('Question:'); if (!q) return;
+    var a = window.prompt('Answer:') || '';
+    insertBody('<h3>' + q.trim() + '</h3><p>' + a.trim() + '</p>');
+    if ($('#f_format').value === 'standard') $('#f_format').value = 'qa';
   });
 
   /* ---- Diary editor ---- */
@@ -139,6 +147,7 @@
   function resetForm() {
     ['f_title', 'f_dek', 'f_slug', 'f_authors', 'f_read'].forEach(function (id) { $('#' + id).value = ''; });
     $('#f_status').value = 'draft'; $('#f_category').value = ''; $('#f_gradient').value = 'g-gold';
+    $('#f_format').value = 'standard';
     $('#f_featured').checked = false; $('#f_date').value = new Date().toISOString().slice(0, 10);
     setCover(''); $('#previewLink').hidden = true;
   }
@@ -146,6 +155,7 @@
     $('#f_title').value = a.title || ''; $('#f_dek').value = a.dek || ''; $('#f_slug').value = a.slug || '';
     $('#f_authors').value = stripTags(a.authors_html || ''); $('#f_read').value = a.read_minutes || '';
     $('#f_status').value = a.status || 'draft'; $('#f_category').value = a.category || ''; $('#f_gradient').value = a.gradient || 'g-gold';
+    $('#f_format').value = a.format || 'standard';
     $('#f_featured').checked = a.featured == 1; $('#f_date').value = (a.published_at || '').slice(0, 10);
     setCover(a.cover_url || ''); initTiny('f_body', a.body_html || '<p></p>');
     var pl = $('#previewLink'); pl.hidden = false; pl.href = '/diary/' + a.slug + '/';
@@ -175,7 +185,7 @@
     return { slug: $('#f_slug').value.trim(), title: $('#f_title').value.trim(), dek: $('#f_dek').value.trim(),
       category: $('#f_category').value.trim() || 'Dispatch', authors_html: $('#f_authors').value.trim() || 'The Afrovanguard Team',
       published_at: $('#f_date').value, read_minutes: $('#f_read').value, gradient: $('#f_gradient').value,
-      cover_url: coverUrl, body_html: getBody('f_body'), featured: $('#f_featured').checked, status: status, related: selectedRelated() };
+      cover_url: coverUrl, body_html: getBody('f_body'), featured: $('#f_featured').checked, status: status, format: $('#f_format').value, related: selectedRelated() };
   }
   function saveDiary(status) {
     if (!$('#f_title').value.trim()) { toast('A title is required'); return; }

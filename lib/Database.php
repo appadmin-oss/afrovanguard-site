@@ -67,6 +67,7 @@ final class Database
             'og_image'   => "ALTER TABLE articles ADD COLUMN og_image TEXT",
             'status'     => "ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'",
             'updated_at' => "ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
+            'format'     => "ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'standard'",
         ];
         foreach ($add as $name => $sql) {
             if (!isset($cols[$name])) { self::$pdo->exec($sql); }

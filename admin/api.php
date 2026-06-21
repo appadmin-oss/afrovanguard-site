@@ -96,6 +96,7 @@ try {
                 'mc_title' => trim((string) ($body['mc_title'] ?? $title)), 'cover_url' => trim((string) ($body['cover_url'] ?? '')),
                 'og_image' => trim((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
                 'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
+                'format' => (string) ($body['format'] ?? 'standard'),
                 'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
             ]);
             json_out(['ok' => true, 'slug' => $slug, 'url' => diary_url($slug . '/'), 'sections' => $sections]);

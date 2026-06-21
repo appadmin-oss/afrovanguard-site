@@ -14,17 +14,8 @@ $repo = new DiaryRepository();
 $a = $slug ? $repo->bySlug($slug) : null;
 
 if (!$a) {
-    http_response_code(404);
-    render_head([
-        'title' => 'Not found — The Afrovanguard Diary',
-        'desc'  => 'This diary entry could not be found.',
-        'canonical' => diary_url(), 'og_kind' => 'website',
-    ]);
-    render_nav('diary');
-    echo '<main id="main-content"><div class="container" style="padding:120px 0;text-align:center">'
-       . '<h1 class="article-title" style="margin:0 auto 20px">Entry not found</h1>'
-       . '<p style="color:var(--muted);font-size:18px">That dispatch isn\'t here. <a href="/diary/">Return to the Diary →</a></p></div></main>';
-    render_footer();
+    require_once AV_ROOT . '/lib/errors.php';
+    av_error_render(404);
     exit;
 }
 
@@ -73,12 +64,24 @@ render_head([
 render_nav('diary');
 render_subbar($a['title'], $a['slug'], $canonical);
 ?>
+<?php $format = $a['format'] ?? 'standard'; $isFeature = $format === 'feature' && $cover; ?>
   <main id="main-content">
-    <article>
-      <div class="article-wrap">
+    <article class="format-<?= e($format) ?>">
+<?php if ($isFeature): ?>
+      <header class="feature-hero" style="background-image:url('<?= e($cover) ?>')">
         <div class="container">
           <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span><?= e($a['category']) ?></span></nav>
+          <h1><?= e($a['title']) ?></h1>
+          <p class="feature-dek"><?= e($a['dek']) ?></p>
+        </div>
+      </header>
+<?php endif; ?>
+      <div class="article-wrap">
+        <div class="container">
+<?php if (!$isFeature): ?>
+          <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span><?= e($a['category']) ?></span></nav>
           <h1 class="article-title"><?= e($a['title']) ?></h1>
+<?php endif; ?>
           <div class="article-meta">
             <div><div class="meta-label">Written by</div><div class="meta-value"><?= $a['authors_html'] ?></div></div>
             <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= (int)$a['read_minutes'] ?> min read</div></div>
@@ -87,7 +90,7 @@ render_subbar($a['title'], $a['slug'], $canonical);
         </div>
       </div>
 
-<?php if ($cover): ?>
+<?php if ($cover && !$isFeature): ?>
       <div class="container">
         <figure class="article-hero"><img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" /></figure>
       </div>

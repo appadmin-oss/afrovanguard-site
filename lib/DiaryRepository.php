@@ -150,6 +150,7 @@ final class DiaryRepository
             'mc_title' => $d['mc_title'], 'cover_url' => $d['cover_url'] ?: null,
             'og_image' => $d['og_image'] ?: null, 'body_html' => $d['body_html'],
             'featured' => !empty($d['featured']) ? 1 : 0, 'status' => $d['status'] === 'draft' ? 'draft' : 'published',
+            'format' => in_array($d['format'] ?? 'standard', ['standard', 'qa', 'feature'], true) ? $d['format'] : 'standard',
             'updated_at' => $now,
         ];
 
