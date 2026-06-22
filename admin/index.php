@@ -17,6 +17,7 @@
     <nav class="studio-tabs" id="tabs" hidden>
       <button class="tab active" data-tab="entries">Diary</button>
       <button class="tab" data-tab="academy">Academy</button>
+      <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="inbox">Inbox</button>
     </nav>
     <div class="studio-actions">
@@ -219,6 +220,70 @@
   <main class="studio-main" id="inboxView" hidden>
     <div class="studio-head"><div><h1>Inbox</h1><p class="muted">Academy applications, newest first.</p></div></div>
     <div class="inbox-list" id="inboxList"></div>
+  </main>
+
+  <!-- PEOPLE LIST -->
+  <main class="studio-main" id="peopleView" hidden>
+    <div class="studio-head">
+      <div><h1>People</h1><p class="muted">Leadership, team &amp; volunteers shown on the About page and directory. Set the Volunteer of the Month and birthdays here.</p></div>
+      <button class="btn btn-primary" id="newPersonBtn">+ Add person</button>
+    </div>
+    <div class="entry-list" id="peopleList"></div>
+  </main>
+
+  <!-- PERSON EDITOR -->
+  <main class="studio-main" id="personEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="pBackBtn">← All people</button>
+      <div class="editor-actions">
+        <button class="btn btn-outline btn-sm" id="pDeleteBtn" hidden>Delete</button>
+        <button class="btn btn-primary btn-sm" id="pSaveBtn">Save person</button>
+      </div>
+    </div>
+    <form id="personForm" class="editor-grid">
+      <div class="editor-main">
+        <label class="fld"><span>Full name</span><input id="p_name" placeholder="e.g. Omolola Adefuye" required /></label>
+        <label class="fld"><span>Role / title</span><input id="p_role" placeholder="e.g. Volunteer, STS" /></label>
+        <label class="fld"><span>Tagline (short line on the card)</span><input id="p_tagline" placeholder="e.g. A heart for people. A force for good." /></label>
+        <label class="fld"><span>Bio</span><textarea id="p_bio" rows="4" placeholder="Short biography shown on the profile."></textarea></label>
+        <label class="fld"><span>Location</span><input id="p_location" placeholder="e.g. Lagos, Nigeria" /></label>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>Placement</h3>
+          <label class="fld"><span>Group / tier</span><select id="p_tier">
+            <option value="management">Management</option><option value="director">Director</option>
+            <option value="patron">Patron</option><option value="ngv">NGV</option>
+            <option value="ngg">NGG</option><option value="volunteer">Volunteer</option></select></label>
+          <label class="fld checkbox"><input type="checkbox" id="p_featured" /> <span>Feature in Leadership spotlight</span></label>
+          <label class="fld checkbox"><input type="checkbox" id="p_operations" /> <span>Operations team</span></label>
+          <label class="fld checkbox"><input type="checkbox" id="p_active" checked /> <span>Active (visible)</span></label>
+          <label class="fld"><span>Sort order</span><input id="p_position" type="number" value="0" /></label>
+        </div>
+        <div class="side-card">
+          <h3>Photo</h3>
+          <div class="cover-preview" id="pPhotoPreview"><span>No photo yet</span></div>
+          <input type="file" id="pPhotoFile" accept="image/*" hidden />
+          <div class="cover-actions"><button type="button" class="btn btn-outline btn-sm" id="pPhotoBtn">Upload photo</button><button type="button" class="btn btn-outline btn-sm" id="pPhotoClear" hidden>Remove</button></div>
+          <input id="p_photo" type="hidden" />
+        </div>
+        <div class="side-card">
+          <h3>Celebrations</h3>
+          <label class="fld"><span>Birthday (auto-celebrated)</span><input id="p_birthday" type="text" placeholder="MM-DD e.g. 06-22" pattern="\d{2}-\d{2}" /></label>
+          <label class="fld"><span>Volunteer of the Month (YYYY-MM)</span><input id="p_votm_month" type="text" placeholder="e.g. 2026-06" pattern="\d{4}-\d{2}" /></label>
+          <label class="fld"><span>VOTM tribute / reason</span><textarea id="p_votm_reason" rows="2" placeholder="Why they were chosen."></textarea></label>
+          <label class="fld"><span>VOTM quote</span><input id="p_votm_quote" placeholder="e.g. A heart for people." /></label>
+        </div>
+        <div class="side-card">
+          <h3>Social links</h3>
+          <label class="fld"><span>LinkedIn</span><input id="p_li" placeholder="https://linkedin.com/in/…" /></label>
+          <label class="fld"><span>Twitter / X</span><input id="p_tw" placeholder="https://x.com/…" /></label>
+          <label class="fld"><span>Instagram</span><input id="p_ig" placeholder="https://instagram.com/…" /></label>
+          <label class="fld"><span>Website</span><input id="p_web" placeholder="https://…" /></label>
+          <label class="fld"><span>Email</span><input id="p_email" type="email" placeholder="name@afrovanguard.org.ng" /></label>
+        </div>
+      </aside>
+    </form>
   </main>
 
   <div class="toast" id="toast"></div>

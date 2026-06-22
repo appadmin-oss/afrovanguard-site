@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'lesson_save', 'lesson_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -61,6 +61,27 @@ try {
         case 'articles':     json_out(['ok' => true, 'articles' => array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin())]);
         case 'enrollments':  json_out(['ok' => true, 'enrollments' => Database::pdo()->query('SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 200')->fetchAll()]);
         case 'subscribers':  json_out(['ok' => true, 'subscribers' => Database::pdo()->query('SELECT email, source, created_at FROM subscribers ORDER BY created_at DESC LIMIT 500')->fetchAll(), 'count' => (int) Database::pdo()->query('SELECT COUNT(*) FROM subscribers')->fetchColumn()]);
+
+        // ---- People / Team directory ----
+        case 'team_list':
+            require_once AV_ROOT . '/lib/people.php';
+            json_out(['ok' => true, 'team' => array_map('av_team_member_dict', av_team_rows(Database::pdo(), false))]);
+        case 'team_get':
+            require_once AV_ROOT . '/lib/people.php';
+            $tp = av_team_one(Database::pdo(), (int) ($_GET['id'] ?? 0));
+            if (($tp['status'] ?? '') !== 'ok') json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => true, 'member' => $tp['member']]);
+        case 'team_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/people.php';
+            if (trim((string) ($body['name'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A name is required.'], 422);
+            $tid = av_team_save(Database::pdo(), $body);
+            json_out(['ok' => true, 'id' => $tid]);
+        case 'team_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/people.php';
+            av_team_delete(Database::pdo(), (int) ($body['id'] ?? 0));
+            json_out(['ok' => true]);
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));

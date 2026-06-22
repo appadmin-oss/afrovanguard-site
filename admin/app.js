@@ -14,7 +14,8 @@
   var views = {
     login: $('#loginView'), entries: $('#entriesView'), editor: $('#editorView'),
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
-    curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView')
+    curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'),
+    people: $('#peopleView'), personEdit: $('#personEditView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -48,6 +49,7 @@
       var which = tab.getAttribute('data-tab');
       if (which === 'entries') { show('entries'); loadList(); }
       else if (which === 'academy') { show('academy'); loadCourses(); }
+      else if (which === 'people') { show('people'); loadTeam(); }
       else { show('inbox'); loadInbox(); }
     });
   });
@@ -406,6 +408,94 @@
       box.innerHTML = h;
     });
   }
+
+  /* ---- People / Team ---- */
+  var TIER_LABEL = { management: 'Management', director: 'Director', patron: 'Patron', ngv: 'NGV', ngg: 'NGG', volunteer: 'Volunteer' };
+  var pPhoto = '';
+  function setPPhoto(u) {
+    pPhoto = u || ''; $('#p_photo').value = pPhoto;
+    var pv = $('#pPhotoPreview');
+    pv.innerHTML = pPhoto ? '<img src="' + escapeHtml(pPhoto) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" />' : '<span>No photo yet</span>';
+    $('#pPhotoClear').hidden = !pPhoto;
+  }
+  function loadTeam() {
+    var box = $('#peopleList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    api('team_list').then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load people.</p>'; return; }
+      var rows = r.data.team || [];
+      if (!rows.length) { box.innerHTML = '<p class="muted">No people yet. Add your leadership, team and volunteers.</p>'; return; }
+      box.innerHTML = rows.map(function (m) {
+        return '<div class="entry-row" data-id="' + m.id + '">' +
+          '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name) +
+          (m.featured ? ' <span class="badge published">Spotlight</span>' : '') +
+          (m.active ? '' : ' <span class="badge draft">Hidden</span>') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(TIER_LABEL[m.tier] || m.tier) +
+          (m.role ? ' · ' + escapeHtml(m.role) : '') + (m.birthday ? ' · 🎂 ' + escapeHtml(m.birthday) : '') +
+          '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-edit="' + m.id + '">Edit</button></div></div>';
+      }).join('');
+    });
+  }
+  $('#peopleList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-edit]'); if (b) openPerson(+b.getAttribute('data-edit'));
+  });
+  $('#newPersonBtn').addEventListener('click', function () { openPerson(null); });
+  $('#pBackBtn').addEventListener('click', function () { show('people'); loadTeam(); });
+  $('#pPhotoBtn').addEventListener('click', function () { $('#pPhotoFile').click(); });
+  $('#pPhotoClear').addEventListener('click', function () { setPPhoto(''); });
+  $('#pPhotoFile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    toast('Uploading…');
+    uploadFile(f).then(function (r) { if (r.data && r.data.ok) { setPPhoto(r.data.url); toast('Photo uploaded.'); } else { toast((r.data && r.data.error) || 'Upload failed.'); } });
+  });
+
+  var editingPerson = null;
+  function openPerson(id) {
+    editingPerson = id;
+    $('#personForm').reset();
+    setPPhoto('');
+    $('#pDeleteBtn').hidden = !id;
+    show('personEdit');
+    if (!id) return;
+    api('team_get&id=' + id).then(function (r) {
+      if (!r.data || !r.data.ok) { toast('Not found.'); return; }
+      var m = r.data.member, s = m.socials || {};
+      $('#p_name').value = m.name || ''; $('#p_role').value = m.role || '';
+      $('#p_tagline').value = m.tagline || ''; $('#p_bio').value = m.bio || '';
+      $('#p_location').value = m.location || ''; $('#p_tier').value = m.tier || 'volunteer';
+      $('#p_featured').checked = !!m.featured; $('#p_operations').checked = !!m.operations;
+      $('#p_active').checked = m.active !== false; $('#p_position').value = m.position || 0;
+      $('#p_birthday').value = m.birthday || '';
+      $('#p_votm_month').value = m.votm_month || m.votmMonth || '';
+      $('#p_votm_reason').value = m.votm_reason || ''; $('#p_votm_quote').value = m.votm_quote || '';
+      $('#p_li').value = s.li || ''; $('#p_tw').value = s.tw || ''; $('#p_ig').value = s.ig || '';
+      $('#p_web').value = s.web || ''; $('#p_email').value = s.email || '';
+      setPPhoto(m.photo || '');
+    });
+  }
+  function savePerson() {
+    var name = $('#p_name').value.trim();
+    if (!name) { toast('A name is required.'); return; }
+    var socials = {};
+    ['li', 'tw', 'ig', 'web', 'email'].forEach(function (k) { var v = $('#p_' + k).value.trim(); if (v) socials[k] = v; });
+    var payload = {
+      id: editingPerson || 0, name: name, role: $('#p_role').value.trim(),
+      tier: $('#p_tier').value, featured: $('#p_featured').checked, operations: $('#p_operations').checked,
+      active: $('#p_active').checked, position: +$('#p_position').value || 0,
+      tagline: $('#p_tagline').value.trim(), bio: $('#p_bio').value.trim(), location: $('#p_location').value.trim(),
+      photo: pPhoto, socials: socials, birthday: $('#p_birthday').value.trim(),
+      votm_month: $('#p_votm_month').value.trim(), votm_reason: $('#p_votm_reason').value.trim(), votm_quote: $('#p_votm_quote').value.trim()
+    };
+    post('team_save', payload).then(function (r) {
+      if (r.data && r.data.ok) { toast('Saved.'); show('people'); loadTeam(); }
+      else { toast((r.data && r.data.error) || 'Could not save.'); }
+    });
+  }
+  $('#pSaveBtn').addEventListener('click', savePerson);
+  $('#pDeleteBtn').addEventListener('click', function () {
+    if (!editingPerson || !confirm('Delete this person?')) return;
+    post('team_delete', { id: editingPerson }).then(function () { toast('Deleted.'); show('people'); loadTeam(); });
+  });
 
   /* ---- boot ---- */
   function boot() { show('entries'); loadList(); }
