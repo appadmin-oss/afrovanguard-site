@@ -9,6 +9,18 @@ declare(strict_types=1);
 
 const AV_TEAM_TIERS = ['management', 'director', 'patron', 'ngv', 'ngg', 'volunteer'];
 const AV_TEAM_LEAD_TIERS = ['management', 'director'];
+const AV_TIER_LABELS = ['management' => 'Management', 'director' => 'Director', 'patron' => 'Patron', 'ngv' => 'NGV', 'ngg' => 'NGG', 'volunteer' => 'Volunteer'];
+
+/** URL slug + canonical profile URL for a member dict. */
+function av_person_slug(array $m): string {
+    $s = strtolower(trim((string) ($m['name'] ?? '')));
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim((string) $s, '-');
+}
+function av_person_url(array $m): string {
+    return '/people/' . (int) $m['id'] . '-' . av_person_slug($m) . '/';
+}
+function av_tier_label(string $t): string { return AV_TIER_LABELS[$t] ?? ucfirst($t); }
 
 /** Create the team table if missing (idempotent; safe on deployed DBs). */
 function av_team_ensure(PDO $pdo): void
