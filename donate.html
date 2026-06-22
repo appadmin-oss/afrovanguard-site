@@ -3189,6 +3189,7 @@
     }
     .contribute-success strong { color: var(--color-gold); font-size: 16px; }
 </style>
+  <link rel="stylesheet" href="/assets/site/chrome.css" />
 </head>
 <body>
 
@@ -3238,9 +3239,10 @@
         <ul class="nav-links" role="list">
           <li><a href="https://afrovanguard.org.ng/">Home</a></li>
           <li><a href="https://afrovanguard.org.ng/about/">About</a></li>
+          <li><a href="/academy/">Academy</a></li>
           <li><a href="https://afrovanguard.org.ng/projects/">Projects</a></li>
+          <li><a href="/diary/">Diary</a></li>
           <li><a href="https://afrovanguard.org.ng/events/">Events</a></li>
-          <li><a href="https://afrovanguard.org.ng/diary/">Diary</a></li>
           <li><a href="https://afrovanguard.org.ng/contact/">Contact</a></li>
         </ul>
         <div class="nav-actions">
@@ -3258,19 +3260,16 @@
 
   <!-- Mobile Nav -->
   <nav class="nav-mobile" id="nav-mobile" aria-label="Mobile navigation" inert>
-    <div class="nav-mobile-hd">
-      <span class="nm-brand"><span class="a">AFRO</span><span class="v">VANGUARD</span></span>
-      <button class="nm-x" id="nmClose" aria-label="Close menu">&#215;</button>
-    </div>
     <a href="https://afrovanguard.org.ng/">Home</a>
     <a href="https://afrovanguard.org.ng/about/">About</a>
+    <a href="/academy/">Academy</a>
     <a href="https://afrovanguard.org.ng/projects/">Projects</a>
+    <a href="/diary/">Diary</a>
     <a href="https://afrovanguard.org.ng/events/">Events</a>
-    <a href="https://afrovanguard.org.ng/diary/">Diary</a>
     <a href="https://afrovanguard.org.ng/contact/">Contact</a>
     <div class="mobile-cta-wrap">
-      <a href="https://afrovanguard.org.ng/donate/" class="btn btn-primary">Donate Now</a>
-      <a href="https://afrovanguard.org.ng/join/" class="btn btn-outline-white">Join the Movement</a>
+      <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary" style="width:100%;">Join the Movement</a>
+      <a href="https://afrovanguard.org.ng/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
     </div>
   </nav>
 
@@ -4990,73 +4989,57 @@
   <footer class="site-footer" role="contentinfo">
     <div class="container">
       <div class="footer-grid">
-        <!-- Brand -->
-        <div>
+        <div class="footer-col">
           <div class="footer-logo-mark"><span class="afro">AFRO</span><span class="van">VANGUARD</span></div>
           <p class="footer-tagline">Ambassadors for Community, Tech &amp; Cultural Advancements. Raising 1 million incorruptible African leaders by 2040.</p>
           <div class="footer-socials">
-            <a href="https://www.instagram.com/afrovanguard/" class="footer-social-link" aria-label="Follow Afrovanguard on Instagram" target="_blank" rel="noopener">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-            </a>
-            <a href="https://twitter.com/afrovanguard" class="footer-social-link" aria-label="Follow Afrovanguard on Twitter / X" target="_blank" rel="noopener">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-            </a>
-            <a href="https://www.facebook.com/afrovanguard/" class="footer-social-link" aria-label="Follow Afrovanguard on Facebook" target="_blank" rel="noopener">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-            </a>
-            <a href="https://www.linkedin.com/company/afrovanguard/" class="footer-social-link" aria-label="Connect with Afrovanguard on LinkedIn" target="_blank" rel="noopener">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-            </a>
-            <a href="https://www.youtube.com/@afrovanguard" class="footer-social-link" aria-label="Watch Afrovanguard on YouTube" target="_blank" rel="noopener">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-            </a>
+            <a href="https://www.instagram.com/afrovanguard/" class="footer-social-link" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
+            <a href="https://twitter.com/afrovanguard" class="footer-social-link" aria-label="Twitter / X" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+            <a href="https://www.facebook.com/afrovanguard/" class="footer-social-link" aria-label="Facebook" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
+            <a href="https://www.linkedin.com/company/afrovanguard/" class="footer-social-link" aria-label="LinkedIn" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg></a>
+            <a href="https://www.youtube.com/@afrovanguard" class="footer-social-link" aria-label="YouTube" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
           </div>
         </div>
-
-        <!-- Programs -->
         <div class="footer-col">
-          <h4>Projects</h4>
+          <h4>Programmes</h4>
           <ul class="footer-links">
             <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
-            <li><a href="/projects/sts/lcasp/">LCASP 2026</a></li>
-            <li><a href="https://afrovanguard.org.ng/projects/techhome/">Techome</a></li>
-            <li><a href="https://afrovanguard.org.ng/projects/africa-gates/">Africa GATES</a></li>
-            <li><a href="https://afrovanguard.org.ng/projects/alimosho-summer-school/">Alimosho Summer School</a></li>
             <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
+            <li><a href="https://cacentre.afrovanguard.org.ng/techhome/">Techome</a></li>
+            <li><a href="https://cacentre.afrovanguard.org.ng/mediapro/">MediaPro</a></li>
+            <li><a href="https://cacentre.afrovanguard.org.ng/africa-gates/">Africa GATES</a></li>
           </ul>
         </div>
-
-        <!-- Organization -->
         <div class="footer-col">
           <h4>Organization</h4>
           <ul class="footer-links">
             <li><a href="https://afrovanguard.org.ng/about/">About Us</a></li>
+            <li><a href="/ethos/">Our Ethos</a></li>
+            <li><a href="/academy/">Academy</a></li>
             <li><a href="https://afrovanguard.org.ng/events/">Events</a></li>
-            <li><a href="https://afrovanguard.org.ng/diary/">Diary</a></li>
+            <li><a href="/diary/">The Diary</a></li>
+            <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Join Us</a></li>
+            <li><a href="https://afrovanguard.org.ng/donate.html">Donate</a></li>
             <li><a href="https://afrovanguard.org.ng/contact/">Contact</a></li>
-            <li><a href="https://afrovanguard.org.ng/join/">Join the Movement</a></li>
           </ul>
         </div>
-
-        <!-- Connect -->
         <div class="footer-col footer-contact">
           <h4>Get in Touch</h4>
           <p>Afrovanguard HQ<br/>Alimosho LGA, Lagos, Nigeria</p>
-          <p><a href="/cdn-cgi/l/email-protection#4f2c2e2c2a213b3d2a0f2e293d20392e21283a2e3d2b61203d28612128" style="color:var(--color-gold)"><span class="__cf_email__" data-cfemail="a5c6c4c6c0cbd1d7c0e5c4c3d7cad3c4cbc2d0c4d7c18bcad7c28bcbc2">[email&#160;protected]</span></a></p>
+          <p><a href="mailto:cacentre@afrovanguard.org.ng" style="color:rgba(255,255,255,0.6)">cacentre@afrovanguard.org.ng</a></p>
           <div class="footer-newsletter-mini">
-            <h4 style="margin-bottom:8px;">Newsletter</h4>
-            <input type="email" placeholder="Your email address" aria-label="Newsletter email" />
-            <button class="btn btn-primary" style="border-radius:9999px; width:100%; justify-content:center;">Subscribe →</button>
+            <h4 style="margin-bottom:8px;">Get the Diary</h4>
+            <form class="diary-subscribe" novalidate style="display:flex;flex-direction:column;gap:8px">
+              <input type="email" name="email" placeholder="Your email address" aria-label="Newsletter email" autocomplete="email" required />
+              <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+              <button type="submit" class="btn btn-primary" style="width:100%;min-height:44px;">Subscribe →</button>
+              <p class="sub-msg" role="status" aria-live="polite"></p>
+            </form>
           </div>
         </div>
       </div>
-
       <div class="footer-bottom">
-        <p class="footer-legal">
-          &copy; 2026 Afrovanguard. All rights reserved.
-          <a href="https://afrovanguard.org.ng/privacy-policy/">Privacy Policy</a> ·
-          <a href="https://afrovanguard.org.ng/terms/">Terms of Use</a>
-        </p>
+        <p class="footer-legal">&copy; 2026 Afrovanguard. All rights reserved. <a href="https://afrovanguard.org.ng/privacy-policy/">Privacy Policy</a> · <a href="https://afrovanguard.org.ng/terms/">Terms of Use</a></p>
         <p class="footer-legal">Built with purpose. Powered by passion. For Africa.</p>
       </div>
     </div>
@@ -6700,5 +6683,6 @@
 
     </script>
 
+  <script src="/assets/site/chrome.js" defer></script>
 </body>
 </html>

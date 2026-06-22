@@ -93,8 +93,30 @@ function render_head(array $o): void {
   <div class="read-progress" id="read-progress"></div>
 <?php }
 
-function render_nav(string $active = 'diary'): void {
+/**
+ * Canonical primary navigation — the single definition for the whole site
+ * (PHP pages render it live; static pages get it injected by
+ * tools/build-chrome.php). key => [label, href]. Custom-owned sections use
+ * root-relative paths (served directly, ahead of WordPress); the rest are
+ * pretty URLs under the main domain.
+ */
+function av_nav_items(): array {
     $S = rtrim(SITE_URL, '/');
+    return [
+        'home'    => ['Home',     $S . '/'],
+        'about'   => ['About',    $S . '/about/'],
+        'academy' => ['Academy',  '/academy/'],
+        'projects'=> ['Projects', $S . '/projects/'],
+        'diary'   => ['Diary',    '/diary/'],
+        'events'  => ['Events',   $S . '/events/'],
+        'contact' => ['Contact',  $S . '/contact/'],
+    ];
+}
+
+function render_nav(string $active = 'diary', array $opts = []): void {
+    $S = rtrim(SITE_URL, '/');
+    $showToggle = $opts['theme_toggle'] ?? true; // only where full theming exists
+    $items = av_nav_items();
     $cur = fn($n) => $n === $active ? ' aria-current="page"' : ''; ?>
   <header class="site-header" id="site-header" role="banner">
     <div class="container">
@@ -104,16 +126,11 @@ function render_nav(string $active = 'diary'): void {
           <span class="nav-badge">.ORG.NG</span>
         </a>
         <ul class="nav-links" role="list">
-          <li><a href="<?= $S ?>/">Home</a></li>
-          <li><a href="<?= $S ?>/about/">About</a></li>
-          <li><a href="/academy/"<?= $cur('academy') ?>>Academy</a></li>
-          <li><a href="<?= $S ?>/events/">Events</a></li>
-          <li><a href="/diary/"<?= $cur('diary') ?>>Diary</a></li>
-          <li><a href="<?= $S ?>/contact/">Contact</a></li>
-        </ul>
+<?php foreach ($items as $k => [$label, $href]): ?>          <li><a href="<?= e($href) ?>"<?= $cur($k) ?>><?= e($label) ?></a></li>
+<?php endforeach; ?>        </ul>
         <div class="nav-actions">
-          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
-          <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
+<?php if ($showToggle): ?>          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
+<?php endif; ?>          <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
           <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
         </div>
         <button class="nav-toggle" id="nav-toggle" aria-controls="nav-mobile" aria-expanded="false" aria-label="Open navigation menu">
@@ -124,17 +141,10 @@ function render_nav(string $active = 'diary'): void {
   </header>
   <div class="scrim"></div>
   <nav class="nav-mobile" id="nav-mobile" aria-label="Mobile navigation" inert>
-    <a href="<?= $S ?>/">Home</a>
-    <a href="<?= $S ?>/about/">About</a>
-    <a href="<?= $S ?>/projects">Projects</a>
-    <a href="/academy/">Academy</a>
-    <a href="<?= $S ?>/events/">Events</a>
-    <a href="/diary/">Diary</a>
-    <a href="<?= $S ?>/contact/">Contact</a>
-    <a href="<?= $S ?>/donate.html">Donate</a>
-    <div class="mobile-cta-wrap">
+<?php foreach ($items as $k => [$label, $href]): ?>    <a href="<?= e($href) ?>"<?= $cur($k) ?>><?= e($label) ?></a>
+<?php endforeach; ?>    <div class="mobile-cta-wrap">
       <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary" style="width:100%;">Join the Movement</a>
-      <a href="<?= $S ?>/donate.html" class="btn btn-outline" style="width:100%;">Fund a Leader</a>
+      <a href="<?= $S ?>/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
     </div>
   </nav>
 <?php }
@@ -215,9 +225,10 @@ function render_subbar(string $title, string $slug, string $canonical): void { ?
   </div>
 <?php }
 
-function render_footer(): void {
+/** The shared <footer> markup. No to-top/scripts/closing tags, so it can be
+ *  reused verbatim by both PHP pages and the static-page chrome generator. */
+function av_footer_inner(): void {
     $S = rtrim(SITE_URL, '/'); ?>
-  <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
   <footer class="site-footer" role="contentinfo">
     <div class="container">
       <div class="footer-grid">
@@ -276,6 +287,11 @@ function render_footer(): void {
       </div>
     </div>
   </footer>
+<?php }
+
+function render_footer(): void { ?>
+  <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
+<?php av_footer_inner(); ?>
   <script src="/diary/diary.js" defer></script>
 </body>
 </html>

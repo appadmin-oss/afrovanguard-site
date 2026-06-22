@@ -1,0 +1,74 @@
+/* ============================================================
+   assets/site/chrome.css — canonical site footer (static pages)
+   ------------------------------------------------------------
+   One authoritative definition of the shared footer, loaded after
+   each page's inline styles so the chrome looks identical site-wide
+   (the PHP pages get the same look from diary.css). Self-contained —
+   hardcoded brand values, no dependency on a page's :root tokens.
+   Generated/owned alongside lib/partials.php → tools/build-chrome.php.
+   ============================================================ */
+.site-footer {
+  background: #0A0F1A;
+  color: #fff;
+  padding: 64px 0 0;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.site-footer::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: repeating-linear-gradient(90deg,
+    #f3b416 0, #f3b416 20px, #111827 20px, #111827 24px,
+    #d49a0e 24px, #d49a0e 44px, #b07e08 44px, #b07e08 48px,
+    #22c55e 48px, #22c55e 56px, #f3b416 56px, #f3b416 64px,
+    #b07e08 64px, #b07e08 68px);
+  background-size: 68px 4px;
+}
+.site-footer .container { max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+.site-footer .footer-grid {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 40px; padding-bottom: 56px;
+}
+.site-footer .footer-logo-mark { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
+.site-footer .footer-logo-mark .afro { color: #fff; }
+.site-footer .footer-logo-mark .van { color: #f3b416; }
+.site-footer .footer-tagline { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.7; max-width: 28ch; margin: 0 0 24px; }
+.site-footer .footer-socials { display: flex; gap: 10px; flex-wrap: wrap; }
+.site-footer .footer-social-link {
+  width: 40px; height: 40px; border-radius: 6px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.55); transition: all 0.2s ease; text-decoration: none;
+}
+.site-footer .footer-social-link:hover { background: rgba(243,180,22,0.12); color: #f3b416; border-color: rgba(243,180,22,0.2); }
+.site-footer .footer-col h4 {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #f3b416; margin: 0 0 20px;
+}
+.site-footer .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; }
+.site-footer .footer-links a {
+  font-size: 14px; color: rgba(255,255,255,0.6); text-decoration: none;
+  min-height: 28px; display: flex; align-items: center; transition: color 0.2s ease;
+}
+.site-footer .footer-links a:hover { color: #fff; }
+.site-footer .footer-contact p { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.7; margin: 0 0 14px; }
+.site-footer .footer-newsletter-mini { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.site-footer .footer-newsletter-mini h4 { color: #f3b416; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 8px; }
+.site-footer .footer-newsletter-mini input {
+  padding: 11px 16px; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 13px;
+  outline: none; transition: border-color 0.2s ease; width: 100%; box-sizing: border-box;
+}
+.site-footer .footer-newsletter-mini input::placeholder { color: rgba(255,255,255,0.3); }
+.site-footer .footer-newsletter-mini input:focus { border-color: #f3b416; }
+.site-footer .footer-newsletter-mini input.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.site-footer .footer-newsletter-mini .btn { font-size: 13px; padding: 12px 20px; min-height: 44px; border-radius: 9999px; cursor: pointer; }
+.site-footer .sub-msg { font-size: 12.5px; min-height: 16px; margin: 0; }
+.site-footer .footer-bottom {
+  border-top: 1px solid rgba(255,255,255,0.06); padding: 20px 0;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+.site-footer .footer-legal { font-size: 12px; color: rgba(255,255,255,0.35); margin: 0; }
+.site-footer .footer-legal a { color: rgba(255,255,255,0.45); text-decoration: none; transition: color 0.2s ease; }
+.site-footer .footer-legal a:hover { color: #fff; }
+@media (max-width: 1023px) { .site-footer .footer-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px)  { .site-footer .footer-grid { grid-template-columns: 1fr; gap: 28px; } }
