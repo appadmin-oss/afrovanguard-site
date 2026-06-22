@@ -402,6 +402,7 @@ function render_footer(): void { ?>
   <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
 <?php av_footer_inner(); ?>
   <script src="/assets/site/nav.js" defer></script>
+  <script src="/assets/site/celebrations.js" defer></script>
   <script src="/diary/diary.js" defer></script>
 </body>
 </html>

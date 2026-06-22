@@ -82,7 +82,7 @@ foreach ($pages as $file => $active) {
         }
     }
     // 5) shared scripts before </body>.
-    foreach (['/assets/site/nav.js', '/assets/site/chrome.js'] as $js) {
+    foreach (['/assets/site/nav.js', '/assets/site/celebrations.js', '/assets/site/chrome.js'] as $js) {
         if (strpos($html, $js) === false) {
             $html = preg_replace('~</body>~', '  <script src="' . $js . '" defer></script>' . "\n</body>", $html, 1);
         }
