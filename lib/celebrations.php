@@ -40,6 +40,20 @@ function av_celebration_calendar(): array
     ];
 }
 
+/** Built-in doodle art path for a holiday key (some keys share art). */
+function av_builtin_doodle(string $key): string
+{
+    static $map = [
+        'newyear' => 'newyear', 'eidfitr' => 'eid', 'eidadha' => 'eid', 'easter' => 'easter',
+        'christmas' => 'christmas', 'africaday' => 'africaday', 'independence' => 'independence',
+        'democracyday' => 'independence', 'founding' => 'founding', 'womensday' => 'womensday',
+        'childrensday' => 'childrensday', 'youthday' => 'youthday',
+    ];
+    $file = $map[$key] ?? '';
+    if ($file === '') return '';
+    return is_file(AV_ROOT . '/assets/doodles/' . $file . '.svg') ? '/assets/doodles/' . $file . '.svg' : '';
+}
+
 /** Ensure the admin-managed celebrations table exists (idempotent). */
 function av_celebrations_ensure(PDO $pdo): void
 {
@@ -177,7 +191,7 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
             'message' => ($ov && $ov['message'] !== '') ? $ov['message'] : $message,
             'emoji' => ($ov && $ov['emoji'] !== '') ? $ov['emoji'] : $emoji,
             'theme' => ($ov && $ov['theme'] !== '') ? $ov['theme'] : $theme,
-            'doodle' => $ov['doodle_url'] ?? '',
+            'doodle' => ($ov && $ov['doodle_url'] !== '') ? $ov['doodle_url'] : av_builtin_doodle($key),
         ];
     }
     // Movable feasts computed for this year (Easter family + Eid), matched by full date.
@@ -191,7 +205,7 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
             'message' => ($ov && $ov['message'] !== '') ? $ov['message'] : $message,
             'emoji' => ($ov && $ov['emoji'] !== '') ? $ov['emoji'] : $emoji,
             'theme' => ($ov && $ov['theme'] !== '') ? $ov['theme'] : $theme,
-            'doodle' => $ov['doodle_url'] ?? '',
+            'doodle' => ($ov && $ov['doodle_url'] !== '') ? $ov['doodle_url'] : av_builtin_doodle($key),
         ];
     }
     foreach ($customs as $r) {
