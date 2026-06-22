@@ -587,3 +587,37 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, 
 .avr-close { margin-left: 4px; }
 @media (max-width: 600px) { .av-reader { bottom: 12px; } .avr-time { display: none; } .avr-controls { gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { .avr-eq span { animation: none; height: 60%; } .av-reader { transition: opacity .2s; } }
+
+/* ============================================================ EDITORIAL POLISH
+   Magazine-grade reading: standfirst lead, drop cap, pull-quotes, accented
+   headings. Layered over the base article styles. */
+.article-body .lead {
+  font-style: normal; font-weight: 500; color: var(--ink);
+  font-size: calc(21px * var(--reading-scale)); line-height: 1.5; margin: 0 0 30px;
+}
+/* drop cap on the opening paragraph (after a lead, or the first paragraph) */
+.article-body .lead + p::first-letter,
+.article-body > p:first-of-type:not(.lead)::first-letter {
+  float: left; font-family: var(--font-heading); font-weight: 700;
+  font-size: 4.2em; line-height: .72; padding: 8px 12px 0 0; color: var(--gold-deep);
+}
+/* accented section headings */
+.article-body h2::before {
+  content: ''; display: block; width: 42px; height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-deep)); margin-bottom: 18px;
+}
+.format-qa .article-body h2::before { content: none; }
+/* centered pull-quote */
+.article-body blockquote {
+  border-left: 0; text-align: center; max-width: 32ch; margin: 48px auto;
+  padding: 0; position: relative; font-size: calc(27px * var(--reading-scale)); line-height: 1.3;
+}
+.article-body blockquote::before {
+  content: '\201C'; display: block; font-family: var(--font-heading); font-weight: 700;
+  font-size: 2.6em; line-height: .6; color: var(--gold); margin: 0 0 6px;
+}
+.article-body blockquote cite { text-align: center; }
+@media (max-width: 600px) {
+  .article-body .lead + p::first-letter, .article-body > p:first-of-type:not(.lead)::first-letter { font-size: 3.4em; }
+  .article-body blockquote { font-size: calc(22px * var(--reading-scale)); margin: 36px auto; }
+}
