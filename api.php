@@ -1,117 +1,54 @@
 <?php
 /**
- * ═══════════════════════════════════════════════════════════════════
- *  AFROVANGUARD — Team Directory API Proxy  (v3.0)
- *  File: api.php
+ * api.php — public Team / People directory (native, DB-backed).
  *
- *  GET api.php?action=members        → all active members list
- *  GET api.php?action=member&id=N    → single member full profile
+ * Replaces the old Google Apps Script proxy. Data is managed in the Studio
+ * (admin) and stored in the app database; see lib/people.php.
  *
- *  Security: GAS URL server-side only · rate-limited · CORS-enforced
- *            · all output sanitised · integer-only IDs · action allowlist
- * ═══════════════════════════════════════════════════════════════════
+ *   GET ?action=members          → all active members
+ *   GET ?action=member&id=N      → single member profile
+ *   GET ?action=votm             → current Volunteer of the Month
+ *   GET ?action=celebrations     → today's auto-celebrations (holidays/birthdays/VOTM)
  */
 declare(strict_types=1);
-require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/lib/bootstrap.php';
+require_once AV_ROOT . '/lib/people.php';
 
-av_handle_preflight();
-av_security_headers();
-av_enforce_get();
-av_rate_check();
-
-define('GAS_ENDPOINT', 'https://script.google.com/macros/s/AKfycbxg7TgQJAdn9ngEyjOXU2YvdEVHE1xpR3HShzJiNEh6qU2ESdOXUKHgzkX08JXpqS_F0g/exec');
-define('GAS_TIMEOUT',      15);
-define('CLIENT_CACHE_TTL', 60);
-
-// ── Route ──────────────────────────────────────────────────────────
-$action = trim((string) ($_GET['action'] ?? 'members'));
-av_validate_enum($action, ['members', 'member', 'votm'], 'action');
-
-if ($action === 'member') {
-    $rawId = (string) ($_GET['id'] ?? '');
-    if ($rawId === '') av_json_fail('Member ID is required.', 400);
-    $memberId = av_validate_member_id($rawId);
-    $upstream = GAS_ENDPOINT . '?id=' . $memberId;
-} elseif ($action === 'votm') {
-    $upstream = GAS_ENDPOINT . '?action=votm';
-} else {
-    $upstream = GAS_ENDPOINT;
+if (function_exists('send_security_headers')) send_security_headers('public');
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if ($method === 'OPTIONS') { http_response_code(204); exit; }
+if ($method !== 'GET') json_out(['status' => 'error', 'error' => 'GET required.'], 405);
+if (function_exists('av_rate_ok') && !av_rate_ok('public_api', 120, 60)) {
+    json_out(['status' => 'error', 'error' => 'Too many requests.'], 429);
 }
 
-// ── Fetch from Google Apps Script ─────────────────────────────────
-$raw = av_fetch_gas($upstream);
-
-if ($raw === false || $raw === '') {
-    av_log('api.php', 'Upstream fetch failed', $upstream);
-    av_json_fail('Team directory is temporarily unavailable. Please try again shortly.', 503);
+$action = (string) ($_GET['action'] ?? 'members');
+if (!in_array($action, ['members', 'member', 'votm', 'celebrations'], true)) {
+    json_out(['status' => 'error', 'error' => 'Unknown action.'], 400);
 }
 
-// ── Parse and validate ─────────────────────────────────────────────
-$payload = @json_decode($raw, true);
-
-if (!is_array($payload)) {
-    av_log('api.php', 'Non-JSON upstream response', substr($raw, 0, 200));
-    av_json_fail('Invalid response from directory service.', 502);
-}
-
-if (($payload['status'] ?? '') !== 'ok') {
-    $gasMsg = $payload['message'] ?? 'Unknown error';
-    av_log('api.php', "GAS error: {$gasMsg}", "action={$action}");
-    $isNotFound = str_contains(strtolower($gasMsg), 'not found');
-    av_json_fail(
-        $isNotFound
-            ? 'Member not found or is no longer active.'
-            : 'Directory service error. Please try again.',
-        $isNotFound ? 404 : 502
-    );
-}
-
-// Sanitise all string values before forwarding to client
-$payload = av_sanitise($payload);
-
-http_response_code(200);
-header('Cache-Control: public, max-age=' . CLIENT_CACHE_TTL . ', stale-while-revalidate=30');
-echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-exit;
-
-// ─── cURL + fallback fetch helper ─────────────────────────────────
-function av_fetch_gas(string $url): string|false
-{
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_TIMEOUT        => GAS_TIMEOUT,
-            CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_HTTPHEADER     => [
-                'Accept: application/json',
-                'User-Agent: Afrovanguard-API/3.0 (+https://afrovanguard.org.ng)',
-            ],
-        ]);
-        $result = curl_exec($ch);
-        $code   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err    = curl_error($ch);
-        curl_close($ch);
-        if ($err !== '' || $code !== 200) {
-            av_log('api.php', "cURL error or non-200: {$err} HTTP={$code}", $url);
-            return false;
+try {
+    $pdo = Database::pdo();
+    if ($action === 'members') {
+        $out = av_team_members($pdo);
+    } elseif ($action === 'member') {
+        $id = (int) ($_GET['id'] ?? 0);
+        if ($id < 1) json_out(['status' => 'error', 'error' => 'A member id is required.'], 400);
+        $out = av_team_one($pdo, $id);
+    } elseif ($action === 'votm') {
+        $out = av_votm($pdo);
+    } else { // celebrations
+        if (is_file(AV_ROOT . '/lib/celebrations.php')) {
+            require_once AV_ROOT . '/lib/celebrations.php';
+            $out = ['status' => 'ok', 'celebration' => av_celebration_today($pdo)];
+        } else {
+            $out = ['status' => 'ok', 'celebration' => null];
         }
-        return ($result !== '' && $result !== false) ? $result : false;
     }
-    // Fallback
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'GET', 'timeout' => GAS_TIMEOUT, 'ignore_errors' => true,
-            'follow_location' => true, 'max_redirects' => 5,
-            'header' => "Accept: application/json\r\nUser-Agent: Afrovanguard-API/3.0\r\n",
-        ],
-        'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
-    ]);
-    $result = @file_get_contents($url, false, $ctx);
-    return ($result !== false && $result !== '') ? $result : false;
+} catch (Throwable $e) {
+    error_log('[api] ' . $e->getMessage());
+    json_out(['status' => 'error', 'error' => 'Directory is temporarily unavailable.'], 500);
 }
+
+header('Cache-Control: public, max-age=60, stale-while-revalidate=30');
+json_out($out, ($out['status'] ?? 'ok') === 'ok' ? 200 : 404);
