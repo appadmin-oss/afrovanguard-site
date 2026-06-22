@@ -112,7 +112,6 @@ function av_nav_model(): array {
     $S = rtrim(SITE_URL, '/');
     $V = AV_VOLUNTEER_URL;
     return [
-        'home'    => ['label' => 'Home', 'href' => $S . '/'],
         'about'   => ['label' => 'About', 'href' => $S . '/about/', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
@@ -167,7 +166,6 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
-        'events'  => ['label' => 'Events', 'href' => $S . '/events/'],
         'contact' => ['label' => 'Contact', 'href' => $S . '/contact/'],
     ];
 }

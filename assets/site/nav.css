@@ -121,12 +121,12 @@ html[data-theme="dark"] {
 /* ---- breakpoints ---- */
 /* full bar (logo + 7 links w/ chevrons + actions) needs ~1200px; below that
    we use the burger + drawer. Keeps both PHP and static pages consistent. */
-@media (max-width: 1259px) {
+@media (max-width: 1099px) {
   .nav-links { display: none !important; }
   .nav-actions .nav-donate, .nav-actions .nav-cta { display: none !important; }
   .nav-burger { display: inline-flex; }
 }
-@media (min-width: 1260px) {
+@media (min-width: 1100px) {
   .av-drawer, .scrim { display: none; }
   /* tighten the desktop row so 7 mega links + actions sit comfortably */
   .nav-inner { gap: 14px; }
