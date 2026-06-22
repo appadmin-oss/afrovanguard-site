@@ -48,41 +48,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://afrovanguard.org.ng/diary/introducing-the-afrovanguard-diary/</loc>
-    <lastmod>2026-06-18</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/introducing-the-afrovanguard-diary.png</image:loc><image:title>Introducing The Afrovanguard Diary</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/school-storm-reaching-30000-children/</loc>
-    <lastmod>2026-06-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/school-storm-reaching-30000-children.png</image:loc><image:title>What it takes to reach 30,000 children: notes from School Storm</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/the-math-behind-1-million-leaders/</loc>
-    <lastmod>2026-05-24</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/the-math-behind-1-million-leaders.png</image:loc><image:title>The math behind one million incorruptible leaders by 2040</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/rebuilding-summer-school-six-lgas/</loc>
-    <lastmod>2026-05-10</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/rebuilding-summer-school-six-lgas.png</image:loc><image:title>Six wards, six weeks: rebuilding Summer School for 2026</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/what-techome-taught-us/</loc>
-    <lastmod>2026-04-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/what-techome-taught-us.png</image:loc><image:title>What Techome taught us about teaching technology to teenagers</image:title></image:image>
-  </url>
-  <url>
     <loc>https://afrovanguard.org.ng/academy/techome/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

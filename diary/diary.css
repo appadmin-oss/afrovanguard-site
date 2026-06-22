@@ -342,8 +342,9 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .lightbox.open { opacity: 1; visibility: visible; }
 .lightbox img { max-width: 100%; max-height: 100%; border-radius: var(--radius-md); }
 
-/* scroll reveal */
-[data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+/* scroll reveal — hidden state applies only once JS has set .reveal-on,
+   so content is never stuck invisible if scripts/observer fail to run */
+.reveal-on [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 [data-reveal].in { opacity: 1; transform: none; }
 
 /* ============================================================ BRAND EMBEDS (in articles) */
@@ -501,3 +502,50 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .diary-empty h2 { font-size: clamp(24px,3.4vw,34px); margin: 0 0 12px; }
 .diary-empty p { color: var(--muted); margin: 0 auto 22px; max-width: 46ch; }
 .diary-empty .sub-inline { max-width: 460px; margin: 0 auto; }
+
+/* ============================================================ MODERN POLISH
+   Refined motion, focus and micro-interactions layered on top of the base
+   styles. Kept additive so the established look is preserved. */
+:root { --ease-elegant: cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* smoother reveal easing + gentle blur-in */
+[data-reveal] { transition: opacity .7s var(--ease-elegant), transform .7s var(--ease-elegant); }
+
+/* staggered reveal for grids/rows (container gets .in, children cascade) */
+.reveal-on .reveal-stagger > * { opacity: 0; transform: translateY(20px); transition: opacity .6s var(--ease-elegant), transform .6s var(--ease-elegant); }
+.reveal-stagger.in > * { opacity: 1; transform: none; }
+.reveal-stagger.in > *:nth-child(2) { transition-delay: .06s; }
+.reveal-stagger.in > *:nth-child(3) { transition-delay: .12s; }
+.reveal-stagger.in > *:nth-child(4) { transition-delay: .18s; }
+.reveal-stagger.in > *:nth-child(5) { transition-delay: .24s; }
+.reveal-stagger.in > *:nth-child(6) { transition-delay: .30s; }
+.reveal-stagger.in > *:nth-child(n+7) { transition-delay: .34s; }
+
+/* refined card interactions */
+.post-card .pc-thumb, .ac-card, .post-card:hover .pc-thumb, .ac-card:hover { transition: transform .45s var(--ease-elegant), box-shadow .45s var(--ease-elegant), border-color .3s ease; }
+.post-card:hover .pc-thumb { transform: translateY(-6px); box-shadow: 0 22px 50px -18px rgba(17,24,39,0.5); }
+.ac-card:hover { transform: translateY(-6px); box-shadow: 0 24px 56px -20px rgba(17,24,39,0.5); border-color: color-mix(in srgb, var(--gold) 45%, var(--divider)); }
+/* cover-image zoom on hover (thumb clips via card/overflow) */
+.ac-card { overflow: hidden; }
+.ac-thumb.has-cover { transition: transform .6s var(--ease-elegant); will-change: transform; }
+.ac-card:hover .ac-thumb.has-cover { transform: scale(1.045); }
+.pc-thumb.has-cover { transition: transform .6s var(--ease-elegant); }
+.post-card:hover .pc-thumb.has-cover { transform: translateY(-6px) scale(1.03); }
+
+/* buttons: subtle lift + crisp press */
+.btn { transition: transform .25s var(--ease-elegant), box-shadow .25s var(--ease-elegant), background var(--t-fast), color var(--t-fast), border-color var(--t-fast); }
+.btn-primary:hover, .btn-ink:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -10px rgba(243,180,22,0.6); }
+.btn:active { transform: translateY(0) scale(0.985); }
+
+/* accessible, on-brand focus ring */
+a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 6px;
+}
+/* selection + nicer scrollbar accents */
+::selection { background: rgba(243,180,22,0.28); color: var(--ink); }
+* { scrollbar-color: var(--gold) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal], .reveal-stagger > * { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .post-card:hover .pc-thumb, .ac-card:hover, .ac-card:hover .ac-thumb.has-cover, .post-card:hover .pc-thumb.has-cover { transform: none !important; }
+}

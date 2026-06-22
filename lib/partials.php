@@ -25,7 +25,7 @@ final class Icons
     const LI = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg>';
 }
 
-const THEME_BOOT = "<script>(function(){try{var t=localStorage.getItem('av.theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);var s=localStorage.getItem('av.scale');if(s)document.documentElement.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
+const THEME_BOOT = "<script>(function(){var r=document.documentElement;r.classList.add('reveal-on');try{var t=localStorage.getItem('av.theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.setAttribute('data-theme',t);var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
 
 /**
  * Render the document head + SEO.
@@ -90,6 +90,7 @@ function render_head(array $o): void {
 <?php endforeach; ?></head>
 <body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?><?= !empty($o['body_class']) ? ' class="' . e($o['body_class']) . '"' : '' ?>>
   <a href="#main-content" class="skip-link">Skip to content</a>
+  <noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
   <div class="read-progress" id="read-progress"></div>
 <?php }
 
@@ -154,7 +155,7 @@ function render_card(array $a): void {
     $search = strtolower($a['title'] . ' ' . $a['dek'] . ' ' . $a['category']);
     $url = '/diary/' . e($a['slug']) . '/';
     $cover = $a['cover_url'] ?? ''; ?>
-        <article class="post-card" data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>" data-search="<?= e($search) ?>">
+        <article class="post-card" data-reveal data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>" data-search="<?= e($search) ?>">
 <?php if ($cover): ?>
           <a class="pc-thumb has-cover" href="<?= $url ?>" aria-label="<?= e($a['title']) ?>" style="background-image:url('<?= e($cover) ?>')"><span class="pc-cat-tag"><?= e($a['category']) ?></span></a>
 <?php else: ?>
@@ -172,7 +173,7 @@ function render_course_card(array $c): void {
     $url = '/academy/' . e($c['slug']) . '/';
     $cover = $c['cover_url'] ?? '';
     $search = strtolower($c['title'] . ' ' . $c['summary'] . ' ' . $c['category'] . ' ' . $c['level']); ?>
-        <article class="ac-card" data-cat="<?= e(slugify($c['category'])) ?>" data-search="<?= e($search) ?>">
+        <article class="ac-card" data-reveal data-cat="<?= e(slugify($c['category'])) ?>" data-search="<?= e($search) ?>">
           <a class="ac-thumb <?= $cover ? 'has-cover' : e($c['gradient']) . ' g-grain' ?>" href="<?= $url ?>" aria-label="<?= e($c['title']) ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
             <span class="ac-cat"><?= e($c['category']) ?></span>
 <?php if (!$cover): ?>            <span class="ac-mark"><?= e($c['title']) ?></span>

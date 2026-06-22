@@ -65,7 +65,7 @@ render_nav('academy');
 
 <?php $member = false; if ($u = LmsAuth::user()) { $member = (new LmsRepository())->isMember((int) $u['id']); } ?>
     <section class="ac-membership" id="membership">
-      <div class="container membership-card">
+      <div class="container membership-card" data-reveal>
         <div class="membership-copy">
           <span class="diary-eyebrow">Academy membership</span>
           <h2>One membership. Every members’ programme.</h2>

@@ -400,10 +400,12 @@
   });
 
   /* ---- Scroll reveal ---- */
+  var revealAll = function () { document.querySelectorAll('[data-reveal], .reveal-stagger').forEach(function (n) { n.classList.add('in'); }); };
   if ('IntersectionObserver' in window) {
-    var rev = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rev.unobserve(e.target); } }); }, { threshold: 0.08 });
-    document.querySelectorAll('[data-reveal]').forEach(function (n) { rev.observe(n); });
-  } else { document.querySelectorAll('[data-reveal]').forEach(function (n) { n.classList.add('in'); }); }
+    var rev = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rev.unobserve(e.target); } }); }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('[data-reveal], .reveal-stagger').forEach(function (n) { rev.observe(n); });
+    setTimeout(revealAll, 3000); // safety: never leave content hidden
+  } else { revealAll(); }
 
   /* ---- Index: search + category filter + saved view ---- */
   var controls = document.querySelector('.diary-controls') || document.querySelector('.diary-filters');

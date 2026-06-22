@@ -19,6 +19,16 @@
     t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 2600);
   }
 
+  /* ---- Scroll reveal (matches the Diary) ---- */
+  var revealAll = function () { document.querySelectorAll('[data-reveal], .reveal-stagger').forEach(function (n) { n.classList.add('in'); }); };
+  if ('IntersectionObserver' in window) {
+    var rev = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rev.unobserve(e.target); } });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('[data-reveal], .reveal-stagger').forEach(function (n) { rev.observe(n); });
+    setTimeout(revealAll, 3000); // safety: never leave content hidden
+  } else { revealAll(); }
+
   /* ---- Auth modal ---- */
   var modal;
   function buildModal() {
