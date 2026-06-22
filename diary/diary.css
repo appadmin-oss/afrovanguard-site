@@ -549,3 +549,41 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, 
   [data-reveal], .reveal-stagger > * { opacity: 1 !important; transform: none !important; transition: none !important; }
   .post-card:hover .pc-thumb, .ac-card:hover, .ac-card:hover .ac-thumb.has-cover, .post-card:hover .pc-thumb.has-cover { transform: none !important; }
 }
+
+/* ============================================================ SCHOLAR READER
+   Free, human-like read-aloud — a floating karaoke caption that lights up
+   each word as the neural voice speaks it. */
+.article-body .speaking { transition: background .3s ease, box-shadow .3s ease; }
+.av-reader {
+  position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 160%);
+  width: min(720px, calc(100vw - 32px)); z-index: 320;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid var(--divider); border-radius: 20px;
+  box-shadow: 0 24px 70px -20px rgba(8,12,20,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+  opacity: 0; visibility: hidden; transition: transform .42s cubic-bezier(.22,1,.36,1), opacity .42s, visibility .42s;
+}
+.av-reader.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+.avr-inner { padding: 18px 20px 14px; }
+.avr-eq { display: flex; align-items: flex-end; gap: 3px; height: 14px; margin-bottom: 10px; }
+.avr-eq span { width: 3px; background: var(--gold); border-radius: 2px; height: 40%; animation: avrEq 0.9s ease-in-out infinite; }
+.avr-eq span:nth-child(2) { animation-delay: .15s; } .avr-eq span:nth-child(3) { animation-delay: .3s; }
+@keyframes avrEq { 0%,100% { height: 30%; } 50% { height: 100%; } }
+.avr-text {
+  font-family: var(--font-body); font-size: clamp(17px, 2.1vw, 21px); line-height: 1.55;
+  color: var(--muted); margin: 0 0 14px; max-height: 4.7em; overflow: hidden; font-weight: 500;
+}
+.avr-text .cw { transition: color .12s ease, background .12s ease; border-radius: 4px; padding: 0 1px; }
+.avr-text .cw.on { color: var(--ink); background: var(--gold-soft); box-shadow: 0 0 0 3px var(--gold-soft); font-weight: 700; }
+.avr-controls { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--divider); }
+.avr-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--divider); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--t-fast); flex-shrink: 0; }
+.avr-btn svg { width: 17px; height: 17px; }
+.avr-btn:hover { border-color: var(--gold); color: var(--gold-deep); }
+.avr-play { background: var(--ink); color: var(--bg); border-color: var(--ink); width: 44px; height: 44px; }
+.avr-play:hover { color: var(--bg); opacity: .9; }
+.avr-rate { width: auto; padding: 0 12px; font-family: var(--font-body); font-weight: 700; font-size: 13px; }
+.avr-time { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.avr-time b { color: var(--ink); font-weight: 700; }
+.avr-close { margin-left: 4px; }
+@media (max-width: 600px) { .av-reader { bottom: 12px; } .avr-time { display: none; } .avr-controls { gap: 6px; } }
+@media (prefers-reduced-motion: reduce) { .avr-eq span { animation: none; height: 60%; } .av-reader { transition: opacity .2s; } }
