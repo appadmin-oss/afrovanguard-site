@@ -145,3 +145,8 @@ html[data-theme="dark"] .cs-form-card {
   background: #151B28 !important; border-color: rgba(255,255,255,0.10);
 }
 html[data-theme="dark"] .faq-q:hover { background: rgba(255,255,255,0.04) !important; }
+
+/* contain the off-canvas mobile nav at very narrow widths. body (not html)
+   is what propagates the clip to the viewport on these pages; matches the
+   guard index.html/about.html already ship with inline. */
+body { overflow-x: hidden; }

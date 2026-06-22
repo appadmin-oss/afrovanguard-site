@@ -62,7 +62,7 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: clip; }
 body {
   margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--body);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
@@ -480,6 +480,14 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
   .diary-stats { gap: 24px; }
   .subbar-title { font-size: 14px; }
   .react-hint { display: none; }
+}
+@media (max-width: 380px) {
+  /* keep the header tidy on very small phones so the menu button never clips */
+  .nav-inner { gap: 10px; }
+  .nav-logo-mark { font-size: 16px; }
+  .nav-badge { display: none; }
+  .nav-actions { gap: 8px; }
+  .diary-stats { gap: 18px; }
 }
 @media print {
   .site-header, .subbar, .read-progress, .listen-bar, .reader-tools, .toc, .reactions, .similar, .site-footer, .to-top, .nav-mobile, .scrim { display: none !important; }
