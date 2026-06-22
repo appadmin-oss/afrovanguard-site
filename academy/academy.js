@@ -80,7 +80,9 @@
     var chip = document.getElementById('acctChip');
     if (!chip) { chip = document.createElement('div'); chip.id = 'acctChip'; chip.className = 'acct-chip'; actions.insertBefore(chip, actions.firstChild); }
     if (user) {
-      chip.innerHTML = '<span style="color:#fff;font-size:13px;font-weight:600">' + user.name.split(' ')[0] + '</span> <a href="#" data-logout class="nav-donate" style="padding:8px 10px">Sign out</a>';
+      var teach = (user.role === 'instructor' || user.role === 'admin')
+        ? '<a href="/academy/teach/" class="nav-donate" style="padding:8px 10px">Teach</a> ' : '';
+      chip.innerHTML = '<span style="color:#fff;font-size:13px;font-weight:600">' + user.name.split(' ')[0] + '</span> ' + teach + '<a href="#" data-logout class="nav-donate" style="padding:8px 10px">Sign out</a>';
     } else {
       chip.innerHTML = '<a href="#" data-auth="login" class="nav-donate">Sign in</a>';
     }

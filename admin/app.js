@@ -357,15 +357,20 @@
     $('#c_duration').value = c.duration || ''; $('#c_price').value = c.price || ''; $('#c_location').value = c.location || '';
     $('#c_cta').value = c.cta_url || ''; $('#c_outcomes').value = c.outcomes || ''; $('#c_gradient').value = c.gradient || 'g-gold';
     $('#c_status').value = c.status || 'draft'; $('#c_featured').checked = c.featured == 1; $('#c_sort').value = c.sort || 0;
+    $('#c_access').value = c.access_type || 'open'; $('#c_price_ngn').value = c.price_ngn || 0;
+    $('#c_instructor').value = c.instructor_email || ''; syncAccess();
     setCCover(c.cover_url || ''); initTiny('c_body', c.body_html || '<p></p>');
     var pl = $('#acPreviewLink'); pl.hidden = false; pl.href = '/academy/' + c.slug + '/';
   }
+  function syncAccess() { var w = $('#c_price_ngn_wrap'); if (w) w.hidden = $('#c_access').value !== 'paid'; }
+  if ($('#c_access')) { $('#c_access').addEventListener('change', syncAccess); syncAccess(); }
   function collectCourse(status) {
     return { slug: $('#c_slug').value.trim(), title: $('#c_title').value.trim(), summary: $('#c_summary').value.trim(),
       body_html: getBody('c_body'), outcomes: $('#c_outcomes').value.trim(), category: $('#c_category').value.trim() || 'Programme',
       level: $('#c_level').value.trim() || 'All levels', format: $('#c_format').value, duration: $('#c_duration').value.trim(),
       price: $('#c_price').value.trim() || 'Free', location: $('#c_location').value.trim() || 'Alimosho, Lagos',
       cta_url: $('#c_cta').value.trim(), gradient: $('#c_gradient').value, cover_url: cCoverUrl,
+      access_type: $('#c_access').value, price_ngn: parseInt($('#c_price_ngn').value, 10) || 0, instructor_email: $('#c_instructor').value.trim(),
       featured: $('#c_featured').checked, status: status, sort: $('#c_sort').value };
   }
   function saveCourse(status) {
@@ -373,7 +378,7 @@
     post('ac_save', collectCourse(status)).then(function (r) {
       if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; }
       $('#c_slug').value = r.data.slug; var pl = $('#acPreviewLink'); pl.hidden = false; pl.href = r.data.url; $('#c_status').value = status;
-      toast(status === 'published' ? 'Published ✓' : 'Draft saved ✓');
+      toast(r.data.notice || (status === 'published' ? 'Published ✓' : 'Draft saved ✓'));
     }).catch(function () { toast('Network error'); });
   }
   $('#acSaveDraftBtn').addEventListener('click', function () { saveCourse('draft'); });

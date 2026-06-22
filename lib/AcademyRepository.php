@@ -65,6 +65,13 @@ final class AcademyRepository
             'featured' => !empty($d['featured']) ? 1 : 0, 'status' => ($d['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
             'sort' => (int) ($d['sort'] ?? 0), 'updated_at' => $now,
         ];
+        // Access model (only overwrite when provided, so partial saves are safe)
+        if (array_key_exists('access_type', $d)) {
+            $at = in_array($d['access_type'], ['open', 'tracked', 'membership', 'paid'], true) ? $d['access_type'] : 'open';
+            $f['access_type'] = $at;
+            $f['price_ngn'] = $at === 'paid' ? max(0, (int) ($d['price_ngn'] ?? 0)) : 0;
+        }
+        if (array_key_exists('instructor_id', $d)) { $f['instructor_id'] = $d['instructor_id'] !== null ? (int) $d['instructor_id'] : null; }
         $ex = $this->db->prepare('SELECT id FROM courses WHERE slug = ?'); $ex->execute([$slug]); $id = $ex->fetchColumn();
         if ($id) {
             $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys($f)));

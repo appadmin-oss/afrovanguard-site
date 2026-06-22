@@ -209,10 +209,16 @@ final class LmsRepository
         if (!$p) return false;
         if ($p['status'] === 'paid') return true;       // already granted
         $this->db->prepare("UPDATE payments SET status='paid', paid_at=datetime('now') WHERE reference=?")->execute([$reference]);
+        $user = $this->userRow((int) $p['user_id']);
         if ($p['kind'] === 'course' && $p['course_id']) {
             $this->enrol((int) $p['user_id'], (int) $p['course_id']);
+            if ($user && class_exists('Notify')) {
+                $c = $this->courseRow((int) $p['course_id']);
+                if ($c) Notify::enrolled($user, $c);
+            }
         } elseif ($p['kind'] === 'membership') {
             $this->grantMembership((int) $p['user_id']);
+            if ($user && class_exists('Notify')) Notify::membership($user);
         }
         return true;
     }
@@ -221,6 +227,93 @@ final class LmsRepository
         $exp = date('Y-m-d H:i:s', strtotime("+$months months"));
         $this->db->prepare("INSERT INTO memberships (user_id, tier, status, expires_at) VALUES (?, 'member', 'active', ?)")
             ->execute([$userId, $exp]);
+    }
+    private function userRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lms_users WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
+    private function courseRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM courses WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
+
+    /**
+     * Called after a lesson is completed. If the whole course is now done,
+     * issues the certificate (once) and reports whether this was the first
+     * time — so the caller can send a single completion email.
+     * Returns ['complete'=>bool, 'newly'=>bool, 'cert'=>?array].
+     */
+    public function completeIfDone(int $userId, int $courseId): array
+    {
+        if (!$this->progress($userId, $courseId)['complete']) return ['complete' => false, 'newly' => false, 'cert' => null];
+        $newly = !$this->getCertificate($userId, $courseId);
+        $cert = $this->issueCertificate($userId, $courseId);
+        return ['complete' => true, 'newly' => (bool) ($newly && $cert), 'cert' => $cert];
+    }
+
+    /* ── Instructors ── */
+    public function findUserByEmail(string $email): ?array
+    {
+        $s = $this->db->prepare('SELECT * FROM lms_users WHERE email = ?'); $s->execute([strtolower(trim($email))]);
+        return $s->fetch() ?: null;
+    }
+    public function promoteToInstructor(int $userId): void
+    {
+        $this->db->prepare("UPDATE lms_users SET role='instructor' WHERE id = ? AND role='learner'")->execute([$userId]);
+    }
+    public function instructorName(?int $userId): ?string
+    {
+        if (!$userId) return null;
+        $s = $this->db->prepare('SELECT name FROM lms_users WHERE id = ?'); $s->execute([$userId]);
+        $v = $s->fetchColumn(); return $v === false ? null : (string) $v;
+    }
+
+    /** Courses an instructor owns (any status), with light stats. */
+    public function coursesForInstructor(int $userId): array
+    {
+        $s = $this->db->prepare("SELECT id, slug, title, status, access_type, price_ngn FROM courses WHERE instructor_id = ? ORDER BY sort, title");
+        $s->execute([$userId]);
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) { $r['stats'] = $this->courseStats((int) $r['id']); }
+        return $rows;
+    }
+
+    public function courseStats(int $courseId): array
+    {
+        $total = $this->lessonCount($courseId);
+        $enrolled = (int) $this->db->query('SELECT COUNT(*) FROM course_enrolment WHERE course_id = ' . (int) $courseId)->fetchColumn();
+        $completed = (int) $this->db->query('SELECT COUNT(*) FROM certificates WHERE course_id = ' . (int) $courseId)->fetchColumn();
+        // average completion across enrolled learners
+        $avg = 0;
+        if ($enrolled && $total) {
+            $s = $this->db->prepare('SELECT COUNT(*) FROM lesson_progress WHERE course_id = ?'); $s->execute([$courseId]);
+            $doneRows = (int) $s->fetchColumn();
+            $avg = (int) round(min(100, $doneRows / ($enrolled * $total) * 100));
+        }
+        return ['lessons' => $total, 'enrolled' => $enrolled, 'completed' => $completed, 'avg_pct' => $avg];
+    }
+
+    /** Per-learner roster for one course (enrolled learners + their progress). */
+    public function roster(int $courseId, int $limit = 300): array
+    {
+        $total = $this->lessonCount($courseId);
+        $s = $this->db->prepare(
+            "SELECT u.id, u.name, u.email, e.created_at AS enrolled_at,
+                    (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.user_id = u.id AND lp.course_id = e.course_id) AS done,
+                    (SELECT MAX(completed_at) FROM lesson_progress lp WHERE lp.user_id = u.id AND lp.course_id = e.course_id) AS last_active,
+                    (SELECT 1 FROM certificates c WHERE c.user_id = u.id AND c.course_id = e.course_id) AS certified
+             FROM course_enrolment e JOIN lms_users u ON u.id = e.user_id
+             WHERE e.course_id = ? ORDER BY done DESC, u.name LIMIT ?"
+        );
+        $s->bindValue(1, $courseId, PDO::PARAM_INT); $s->bindValue(2, $limit, PDO::PARAM_INT); $s->execute();
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) {
+            $r['done'] = (int) $r['done'];
+            $r['pct'] = $total ? (int) round(min(100, $r['done'] / $total * 100)) : 0;
+            $r['certified'] = (bool) $r['certified'];
+        }
+        return $rows;
+    }
+
+    public function ownsCourse(int $userId, string $slug): ?array
+    {
+        $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ? AND instructor_id = ?');
+        $s->execute([$slug, $userId]);
+        return $s->fetch() ?: null;
     }
 
     public function certificateBySerial(string $serial): ?array

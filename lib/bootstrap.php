@@ -44,6 +44,8 @@ require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/Payments.php';
+require_once __DIR__ . '/Mailer.php';
+require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Sitemap.php';
 
 av_harden_errors();

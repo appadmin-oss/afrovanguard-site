@@ -138,6 +138,18 @@
           <label class="fld checkbox"><input type="checkbox" id="c_featured" /> <span>Feature on the Academy home</span></label>
         </div>
         <div class="side-card">
+          <h3>Access &amp; enrolment</h3>
+          <label class="fld"><span>Access type</span><select id="c_access">
+            <option value="open">Open · free, no account</option>
+            <option value="tracked">Tracked · free, sign in to track</option>
+            <option value="membership">Members only</option>
+            <option value="paid">Paid programme</option>
+          </select></label>
+          <label class="fld" id="c_price_ngn_wrap" hidden><span>Price (₦, one-time)</span><input id="c_price_ngn" type="number" min="0" step="500" value="0" placeholder="e.g. 15000" /></label>
+          <label class="fld"><span>Instructor email</span><input id="c_instructor" type="email" placeholder="instructor@afrovanguard.org.ng" /></label>
+          <p class="muted" style="font-size:12px;margin:2px 0 0">They need an Academy account first. They’ll get a dashboard at <code>/academy/teach/</code>.</p>
+        </div>
+        <div class="side-card">
           <h3>Details</h3>
           <label class="fld"><span>Category</span><input id="c_category" placeholder="Technology / Creative / Leadership" /></label>
           <label class="fld"><span>Level</span><input id="c_level" placeholder="Beginner / Advanced" /></label>

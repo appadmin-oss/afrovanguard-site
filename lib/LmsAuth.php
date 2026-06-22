@@ -28,7 +28,9 @@ final class LmsAuth
            ->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT), $role]);
         $id = (int) $db->lastInsertId();
         self::startSession($id);
-        return ['ok' => true, 'user' => self::publicUser(self::byId($id))];
+        $full = self::byId($id);
+        if ($full && class_exists('Notify')) Notify::welcome($full);
+        return ['ok' => true, 'user' => self::publicUser($full)];
     }
 
     public static function login(string $email, string $password): array

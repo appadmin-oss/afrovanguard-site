@@ -61,7 +61,9 @@ try {
             if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             if (($c['access_type'] ?? 'open') === 'paid' && !$lms->isMember((int) $u['id']))
                 json_out(['ok' => false, 'error' => 'This course requires payment or membership.'], 402);
+            $wasEnrolled = $lms->isEnrolled((int) $u['id'], (int) $c['id']);
             $lms->enrol((int) $u['id'], (int) $c['id']);
+            if (!$wasEnrolled) Notify::enrolled($u, $c);
             json_out(['ok' => true]);
         case 'lesson_complete':
         case 'lesson_uncomplete':
@@ -72,7 +74,13 @@ try {
             $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
             if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
-            if ($action === 'lesson_complete') $lms->markComplete((int) $u['id'], $lesson); else $lms->unmark((int) $u['id'], (int) $lesson['id']);
+            if ($action === 'lesson_complete') {
+                $lms->markComplete((int) $u['id'], $lesson);
+                $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
+                if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
+            } else {
+                $lms->unmark((int) $u['id'], (int) $lesson['id']);
+            }
             json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
         case 'quiz_submit':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -84,6 +92,10 @@ try {
             if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access.'], 403);
             $res = $lms->gradeQuiz((int) $u['id'], $lesson, array_map('intval', (array) ($body['answers'] ?? [])));
             if (empty($res['ok'])) json_out(['ok' => false, 'error' => 'This lesson has no quiz.'], 400);
+            if (!empty($res['passed'])) {
+                $done = $lms->completeIfDone((int) $u['id'], (int) $c['id']);
+                if (!empty($done['newly'])) Notify::completed($u, $c, academy_url($c['slug'] . '/certificate'));
+            }
             $res['progress'] = $lms->progress((int) $u['id'], (int) $c['id']);
             json_out($res);
 

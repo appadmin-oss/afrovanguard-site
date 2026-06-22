@@ -48,7 +48,7 @@ function render_head(array $o): void {
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($desc) ?>" />
   <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
-  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="robots" content="<?= e($o['robots'] ?? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1') ?>" />
 <?php if (!empty($o['keywords'])): ?>  <meta name="keywords" content="<?= e($o['keywords']) ?>" />
 <?php endif; ?>  <link rel="canonical" href="<?= e($canonical) ?>" />
   <meta name="theme-color" content="#111827" media="(prefers-color-scheme: light)" />

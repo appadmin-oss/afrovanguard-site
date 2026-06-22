@@ -42,6 +42,8 @@ if ($uri === '/academy/pay' || $uri === '/academy/pay.php') { require __DIR__ . 
 if ($uri === '/academy/sitemap.xml') { require __DIR__ . '/academy/sitemap.php'; return true; }
 if (preg_match('~^/academy/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/og.php'; return true; }
 if (preg_match('~^/academy/?$~', $uri)) { require __DIR__ . '/academy/index.php'; return true; }
+if (preg_match('~^/academy/teach/?$~', $uri)) { require __DIR__ . '/academy/teach.php'; return true; }
+if (preg_match('~^/academy/teach/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/teach.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/certificate/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/certificate.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/learn/?$~', $uri, $m)) { $_GET['course'] = $m[1]; require __DIR__ . '/academy/learn.php'; return true; }
 if (preg_match('~^/academy/([a-z0-9-]+)/learn/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['course'] = $m[1]; $_GET['lesson'] = $m[2]; require __DIR__ . '/academy/learn.php'; return true; }

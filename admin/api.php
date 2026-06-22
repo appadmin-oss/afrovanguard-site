@@ -116,13 +116,19 @@ try {
         case 'ac_get':
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
             if (!$cs) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            $cs['instructor_email'] = '';
+            if (!empty($cs['instructor_id'])) {
+                $iu = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
+                $iu->execute([(int) $cs['instructor_id']]);
+                $cs['instructor_email'] = (string) ($iu->fetchColumn() ?: '');
+            }
             json_out(['ok' => true, 'course' => $cs]);
         case 'ac_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $t = trim((string) ($body['title'] ?? ''));
             if ($t === '') json_out(['ok' => false, 'error' => 'A title is required.'], 422);
             $cbody = Embeds::sanitize(Embeds::embedify((string) ($body['body_html'] ?? '')));
-            $slug = $ac->save([
+            $fields = [
                 'slug' => trim((string) ($body['slug'] ?? '')) ?: $t, 'title' => $t,
                 'summary' => trim((string) ($body['summary'] ?? '')), 'body_html' => $cbody,
                 'cover_url' => trim((string) ($body['cover_url'] ?? '')), 'og_image' => trim((string) ($body['og_image'] ?? '')),
@@ -132,9 +138,22 @@ try {
                 'gradient' => trim((string) ($body['gradient'] ?? 'g-gold')), 'outcomes' => trim((string) ($body['outcomes'] ?? '')),
                 'cta_url' => trim((string) ($body['cta_url'] ?? '')), 'featured' => !empty($body['featured']),
                 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft', 'sort' => (int) ($body['sort'] ?? 0),
-            ]);
+                'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),
+            ];
+            // Resolve an instructor by email (must already have an Academy account).
+            $instructorMsg = null;
+            if (array_key_exists('instructor_email', $body)) {
+                $iem = strtolower(trim((string) $body['instructor_email']));
+                if ($iem === '') { $fields['instructor_id'] = null; }
+                else {
+                    $iu = $lms->findUserByEmail($iem);
+                    if ($iu) { $lms->promoteToInstructor((int) $iu['id']); $fields['instructor_id'] = (int) $iu['id']; }
+                    else { $instructorMsg = 'Saved, but no Academy account exists for ' . $iem . ' yet — ask them to create one, then re-save to assign.'; }
+                }
+            }
+            $slug = $ac->save($fields);
             Sitemap::rebuild();
-            json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/']);
+            json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/', 'notice' => $instructorMsg]);
         case 'ac_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $okd = $ac->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))));
