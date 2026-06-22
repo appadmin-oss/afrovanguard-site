@@ -90,8 +90,17 @@ foreach ($pages as $file => $active) {
     // 3) footer
     $html = preg_replace('~<footer\b[^>]*>.*?</footer>~s', $footer, $html, 1);
 
-    // 4) ensure the canonical footer stylesheet loads once, last in <head>
-    //    (after the page's own inline styles, so it is authoritative).
+    // 4a) theme toggle button in the nav actions (first child), if missing.
+    if (strpos($html, 'theme-toggle') === false) {
+        $btn = '<button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">' . Icons::SUN . Icons::MOON . '</button>';
+        $html = preg_replace('~(<div class="nav-actions">\s*)~', '$1' . "\n          " . $btn . "\n          ", $html, 1);
+    }
+    // 4b) no-FOUC theme boot as the first thing in <head> (shared av.theme key).
+    if (strpos($html, "av.theme") === false) {
+        $html = preg_replace('~(<head[^>]*>)~', '$1' . "\n  " . THEME_BOOT, $html, 1);
+    }
+    // 4c) ensure the canonical footer stylesheet loads once, last in <head>
+    //     (after the page's own inline styles, so it is authoritative).
     if (strpos($html, '/assets/site/chrome.css') === false) {
         $html = preg_replace('~</head>~', '  <link rel="stylesheet" href="/assets/site/chrome.css" />' . "\n</head>", $html, 1);
     }

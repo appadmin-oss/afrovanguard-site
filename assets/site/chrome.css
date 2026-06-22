@@ -72,3 +72,76 @@
 .site-footer .footer-legal a:hover { color: #fff; }
 @media (max-width: 1023px) { .site-footer .footer-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px)  { .site-footer .footer-grid { grid-template-columns: 1fr; gap: 28px; } }
+
+/* ============================================================
+   Unified theme toggle + dark mode for the static pages
+   (PHP pages get the same from diary.css/academy.css).
+   The palette is variable-driven, so dark mode flips the
+   semantic tokens; card surfaces that hardcode white are
+   remapped to a dark surface below.
+   ============================================================ */
+.nav-actions .icon-btn.theme-toggle {
+  width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-divider, rgba(0,0,0,0.12)); border-radius: 9999px;
+  background: transparent; color: inherit; cursor: pointer; padding: 0; flex-shrink: 0;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.nav-actions .icon-btn.theme-toggle:hover { border-color: #f3b416; color: #f3b416; }
+.nav-actions .icon-btn.theme-toggle svg { width: 18px; height: 18px; }
+.theme-toggle .moon { display: none; }
+html[data-theme="dark"] .theme-toggle .moon { display: block; }
+html[data-theme="dark"] .theme-toggle .sun { display: none; }
+
+html[data-theme="dark"] {
+  --color-bg:           #0B1120;
+  --color-bg-warm:      #0E1626;
+  --color-bg-mid:       #131C2E;
+  --color-text-primary: #F3F4F6;
+  --color-text-body:    #C7CBD3;
+  --color-text-muted:   #9AA1AD;
+  --color-divider:      rgba(255,255,255,0.12);
+  --card-shadow:        0 20px 60px rgba(0,0,0,0.5);
+}
+/* keep the page background and default text following the tokens */
+html[data-theme="dark"] body { background: var(--color-bg); color: var(--color-text-body); }
+/* card / panel surfaces that hardcode white → dark surface in dark mode */
+html[data-theme="dark"] .problem-block,
+html[data-theme="dark"] .program-card-small,
+html[data-theme="dark"] .program-card-mini,
+html[data-theme="dark"] .event-card,
+html[data-theme="dark"] .testimonial-card,
+html[data-theme="dark"] .carousel-btn,
+html[data-theme="dark"] .donor-card,
+html[data-theme="dark"] .faq-item,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .value-card,
+html[data-theme="dark"] .contact-card,
+html[data-theme="dark"] .info-card {
+  background: #151B28; border-color: rgba(255,255,255,0.10);
+}
+
+/* about.html / contact.html use a different token vocabulary (--ink*, --bg*,
+   --bg-w/--bg-warm, --bg-cr/--bg-cream). Flip those for dark mode too, so the
+   whole site themes from one place. Dark-section tokens (--dk*, --bg-dk/-mid/
+   -foot, --white, --div-dk) intentionally stay dark/light as designed. */
+html[data-theme="dark"] {
+  --ink:   #F3F4F6;
+  --ink-b: #C7CBD3;
+  --ink-m: #9AA1AD;
+  --ink-s: #7E8492;
+  --bg:      #0B1120;
+  --bg-w:    #0E1626;
+  --bg-cr:   #0E1626;
+  --bg-warm: #0E1626;
+  --bg-cream:#0E1626;
+}
+html[data-theme="dark"] .ntl,
+html[data-theme="dark"] .campaign-card,
+html[data-theme="dark"] .cs-form-header,
+html[data-theme="dark"] .cs-field,
+html[data-theme="dark"] .oh-row:nth-child(even),
+html[data-theme="dark"] .mat-need-card,
+html[data-theme="dark"] .cs-form-card {
+  background: #151B28 !important; border-color: rgba(255,255,255,0.10);
+}
+html[data-theme="dark"] .faq-q:hover { background: rgba(255,255,255,0.04) !important; }

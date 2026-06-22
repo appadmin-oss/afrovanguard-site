@@ -5,6 +5,20 @@
 (function () {
   'use strict';
 
+  // Theme toggle — shares the 'av.theme' key with the Diary/Academy pages so
+  // a chosen theme persists across the whole site. (A no-FOUC boot script in
+  // <head> applies the saved theme before paint.)
+  var root = document.documentElement;
+  function applyTheme(t) {
+    root.setAttribute('data-theme', t);
+    try { localStorage.setItem('av.theme', t); } catch (e) {}
+  }
+  document.querySelectorAll('.theme-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  });
+
   // Footer newsletter — same endpoint/shape as the Diary footer form.
   document.querySelectorAll('.diary-subscribe').forEach(function (form) {
     form.addEventListener('submit', function (e) {
