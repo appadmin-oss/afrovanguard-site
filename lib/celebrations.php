@@ -97,6 +97,57 @@ function av_celebrations_delete(PDO $pdo, int $id): void
     $pdo->prepare('DELETE FROM celebrations WHERE id = ?')->execute([$id]);
 }
 
+/* ── Movable feasts (computed per year) ─────────────────────────────
+   Easter (Computus) drives Good Friday / Easter / Easter Monday. Eid dates
+   use the tabular (civil) Islamic calendar — accurate to within a day or
+   two of the announced sighting; admins can fine-tune via the Studio. */
+
+/** Gregorian Easter Sunday for a year (Anonymous Gregorian algorithm). */
+function av_easter_date(int $y): string
+{
+    $a = $y % 19; $b = intdiv($y, 100); $c = $y % 100; $d = intdiv($b, 4); $e = $b % 4;
+    $f = intdiv($b + 8, 25); $g = intdiv($b - $f + 1, 3);
+    $h = (19 * $a + $b - $d - $g + 15) % 30; $i = intdiv($c, 4); $k = $c % 4;
+    $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7; $m = intdiv($a + 11 * $h + 22 * $l, 451);
+    $month = intdiv($h + $l - 7 * $m + 114, 31); $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+    return sprintf('%04d-%02d-%02d', $y, $month, $day);
+}
+
+/** Julian Day Number → 'YYYY-MM-DD' (Gregorian). */
+function av_jd_to_greg(int $jd): string
+{
+    $a = $jd + 32044; $b = intdiv(4 * $a + 3, 146097); $c = $a - intdiv(146097 * $b, 4);
+    $d = intdiv(4 * $c + 3, 1461); $e = $c - intdiv(1461 * $d, 4); $m = intdiv(5 * $e + 2, 153);
+    $day = $e - intdiv(153 * $m + 2, 5) + 1; $month = $m + 3 - 12 * intdiv($m, 10);
+    $year = 100 * $b + $d - 4800 + intdiv($m, 10);
+    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+}
+
+/** Tabular (civil) Islamic date → Julian Day Number. */
+function av_islamic_to_jd(int $iy, int $im, int $id): int
+{
+    return (int) (intdiv(11 * $iy + 3, 30) + 354 * $iy + 30 * $im - intdiv($im - 1, 2) + $id + 1948440 - 385);
+}
+
+/** Movable holidays falling in the given Gregorian year. */
+function av_movable_holidays(int $year): array
+{
+    $out = [];
+    $easter = av_easter_date($year);
+    $e = new DateTime($easter);
+    $out[] = [(clone $e)->modify('-2 days')->format('Y-m-d'), 'goodfriday', 'Good Friday', 'international', '✝️', '#6b7280', 'A reflective Good Friday.'];
+    $out[] = [$easter, 'easter', 'Happy Easter', 'international', '🐣', '#16a34a', 'He is risen — Happy Easter!'];
+    $out[] = [(clone $e)->modify('+1 day')->format('Y-m-d'), 'eastermonday', 'Easter Monday', 'international', '🌿', '#16a34a', 'Happy Easter Monday.'];
+    $hy = (int) round(($year - 622) * 33 / 32);
+    foreach ([$hy - 1, $hy, $hy + 1] as $h) {
+        $fitr = av_jd_to_greg(av_islamic_to_jd($h, 10, 1));   // 1 Shawwal
+        $adha = av_jd_to_greg(av_islamic_to_jd($h, 12, 10));  // 10 Dhu al-Hijjah
+        if (substr($fitr, 0, 4) === (string) $year) $out[] = [$fitr, 'eidfitr', 'Eid Mubarak', 'international', '🌙', '#16a34a', 'Eid al-Fitr Mubarak to our Muslim community.'];
+        if (substr($adha, 0, 4) === (string) $year) $out[] = [$adha, 'eidadha', 'Eid al-Adha Mubarak', 'international', '🐑', '#16a34a', 'Eid al-Adha Mubarak — a blessed celebration of sacrifice.'];
+    }
+    return $out;
+}
+
 /**
  * The celebration payload for a given date (default: today).
  * Returns null when there is nothing to celebrate.
@@ -120,6 +171,20 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
         if ($cmd !== $md) continue;
         $ov = $override[$key] ?? null;
         if ($ov && (int) $ov['enabled'] === 0) continue; // admin disabled this built-in
+        $items[] = [
+            'type' => 'holiday', 'key' => $key, 'scope' => $scope,
+            'title' => $ov['name'] ?? $name,
+            'message' => ($ov && $ov['message'] !== '') ? $ov['message'] : $message,
+            'emoji' => ($ov && $ov['emoji'] !== '') ? $ov['emoji'] : $emoji,
+            'theme' => ($ov && $ov['theme'] !== '') ? $ov['theme'] : $theme,
+            'doodle' => $ov['doodle_url'] ?? '',
+        ];
+    }
+    // Movable feasts computed for this year (Easter family + Eid), matched by full date.
+    foreach (av_movable_holidays((int) substr($date, 0, 4)) as [$fdate, $key, $name, $scope, $emoji, $theme, $message]) {
+        if ($fdate !== $date) continue;
+        $ov = $override[$key] ?? null;
+        if ($ov && (int) $ov['enabled'] === 0) continue;
         $items[] = [
             'type' => 'holiday', 'key' => $key, 'scope' => $scope,
             'title' => $ov['name'] ?? $name,
@@ -157,7 +222,17 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
     }
 
     if (!$items) return null;
-    // Birthdays take visual priority, else the first holiday.
-    usort($items, fn($a, $b) => ($b['type'] === 'birthday' ? 1 : 0) - ($a['type'] === 'birthday' ? 1 : 0));
+    // Rank so birthdays and major/religious days outrank generic observances.
+    $weight = function (array $it): int {
+        if ($it['type'] === 'birthday') return 100;
+        $major = ['eidfitr', 'eidadha', 'easter', 'christmas', 'newyear', 'founding'];
+        $notable = ['goodfriday', 'eastermonday', 'africaday', 'independence', 'democracyday', 'childrensday', 'youthday'];
+        if (in_array($it['key'], $major, true)) return 80;
+        if (in_array($it['key'], $notable, true)) return 60;
+        if (($it['scope'] ?? '') === 'african') return 50;
+        if (($it['scope'] ?? '') === 'internal') return 45;
+        return 30;
+    };
+    usort($items, fn($a, $b) => $weight($b) <=> $weight($a));
     return ['date' => $date, 'items' => $items, 'primary' => $items[0]];
 }

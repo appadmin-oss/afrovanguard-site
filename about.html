@@ -473,6 +473,36 @@ button,input,textarea{font-family:var(--fb)}
 .votm-photo-inner .votm-initials{font-family:var(--fh);font-size:28px;font-weight:700;color:var(--gold)}
 @keyframes photoRingSpin{to{transform:rotate(360deg)}}
 
+/* ── Volunteer of the Month — poster card (v2) ─────────────── */
+.votm2{position:relative;z-index:2;max-width:940px;margin:0 auto;display:grid;grid-template-columns:320px 1fr;background:linear-gradient(150deg,#fdfcf8,#f4f1ea);border-radius:28px;overflow:hidden;box-shadow:0 50px 110px -40px rgba(0,0,0,.7);border:1px solid rgba(243,180,22,.25)}
+.votm2-figure{position:relative;display:flex;align-items:flex-end;justify-content:center;background:radial-gradient(120% 90% at 50% 0,#1b2335,#0d1220);padding-top:34px;overflow:hidden}
+.votm2-figure::before{content:'';position:absolute;inset:0;background-image:radial-gradient(rgba(243,180,22,.10) 1px,transparent 1.5px);background-size:18px 18px;opacity:.5}
+.votm2-arch{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:236px;height:300px;border-radius:118px 118px 0 0;background:linear-gradient(160deg,var(--gold),var(--gdp))}
+.votm2-photo{position:relative;z-index:1;width:226px;height:296px;border-radius:113px 113px 0 0;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;background:#10182a}
+.votm2-photo img{width:100%;height:100%;object-fit:cover;object-position:top center;filter:grayscale(1) contrast(1.06)}
+.votm2-figure .votm-initials{font-family:var(--fh);font-size:72px;font-weight:700;color:#fff;align-self:center;line-height:1}
+.votm2-crest{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:2;font-size:30px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4))}
+.votm2-body{padding:clamp(30px,4vw,48px);display:flex;flex-direction:column;justify-content:center}
+.votm2-eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:var(--fb);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gdp)}
+.votm2-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(243,180,22,.18)}
+.votm2-month{color:var(--ink-m);letter-spacing:.08em}
+.votm2-name{font-family:var(--fh);font-size:clamp(36px,5.2vw,56px);line-height:1.02;color:var(--ink);margin:16px 0 8px;font-weight:700}
+.votm2-role{font-family:var(--fb);font-weight:700;font-size:14.5px;color:var(--gdp);letter-spacing:.02em}
+.votm2-prefix{color:var(--ink-m);font-weight:600;margin-right:2px}
+.votm2-rule{display:block;width:56px;height:3px;background:var(--gold);border-radius:2px;margin:22px 0}
+.votm2-tagline{font-family:var(--fb);font-size:15px;color:var(--ink-b);line-height:1.7;max-width:48ch;margin:0}
+.votm2-quote{position:relative;margin-top:18px;padding-left:42px}
+.votm2-qmark{position:absolute;left:0;top:-10px;font-family:var(--fh);font-size:56px;color:var(--gold);line-height:1}
+.votm2-quote p{font-family:var(--fh);font-style:italic;font-size:22px;line-height:1.4;color:var(--ink);margin:0}
+.votm2-contribution{font-size:13.5px;color:var(--ink-m);line-height:1.6;margin-top:14px}
+.votm2-contribution:empty{display:none}
+.votm2-actions{display:flex;align-items:center;gap:24px;margin-top:30px;flex-wrap:wrap}
+.votm2-nominate{display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:#0d1220;font-family:var(--fb);font-weight:800;font-size:13.5px;padding:13px 24px;border-radius:999px;text-decoration:none;transition:transform .2s,box-shadow .2s}
+.votm2-nominate:hover{transform:translateY(-2px);box-shadow:0 12px 26px -10px rgba(243,180,22,.7)}
+.votm2-link{font-family:var(--fb);font-weight:700;font-size:13.5px;color:var(--ink);text-decoration:none;border-bottom:2px solid rgba(243,180,22,.5);padding-bottom:2px}
+.votm2-link:hover{border-color:var(--gold)}
+@media(max-width:720px){.votm2{grid-template-columns:1fr}.votm2-figure{padding:34px 0 0;min-height:300px}}
+
 .votm-card-body{padding:0 22px 28px;text-align:center}
 .votm-card-prefix{font-family:var(--fb);font-size:8.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:rgba(243,180,22,.65);margin-bottom:4px;display:block}
 .votm-card-name{font-family:var(--fh);font-size:clamp(20px,2.5vw,26px);font-weight:700;color:#fff;margin-bottom:4px;line-height:1.1}
@@ -1440,76 +1470,37 @@ button,input,textarea{font-family:var(--fb)}
       <p style="color:rgba(255,255,255,.25)">Spotlight temporarily unavailable.</p>
     </div>
 
-    <!-- ── Editorial layout: left photo/card, right text ─────── -->
-    <div class="votm-editorial rv" id="votm-content" style="display:none">
-
-      <!-- Photo column -->
-      <div class="votm-photo-col">
-        <div class="votm-award-badge" aria-hidden="true">
-          <div class="votm-award-inner">
-            <span>🏆</span>
-          </div>
-          <svg class="votm-award-ring" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="50" cy="50" r="46" stroke="url(#votmGrad)" stroke-width="2" stroke-dasharray="6 4"/>
-            <defs><linearGradient id="votmGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse"><stop stop-color="#f3b416"/><stop offset="1" stop-color="#d49a0e" stop-opacity=".3"/></linearGradient></defs>
-          </svg>
+    <!-- ── Poster-style spotlight card ───────────────────────── -->
+    <div class="votm2 rv" id="votm-content" style="display:none">
+      <figure class="votm2-figure">
+        <span class="votm2-arch" aria-hidden="true"></span>
+        <div class="votm2-photo" id="votm-photo-inner">
+          <span class="votm-initials" id="votm-initials" aria-hidden="true">—</span>
         </div>
-
-        <div class="votm-portrait-frame">
-          <div class="votm-portrait-ring" aria-hidden="true"></div>
-          <div class="votm-portrait-inner" id="votm-photo-inner">
-            <span class="votm-initials" id="votm-initials" aria-hidden="true">—</span>
-          </div>
+        <span class="votm2-crest" aria-hidden="true">🏆</span>
+      </figure>
+      <div class="votm2-body">
+        <div class="votm2-eyebrow">
+          <span class="votm2-dot" aria-hidden="true"></span>
+          Best Volunteer of the Month
+          <span class="votm2-month" id="votm-month-label"></span>
         </div>
-
-        <div class="votm-id-card">
-          <span class="votm-card-prefix" id="votm-prefix">Ag. Van.</span>
-          <div class="votm-card-name" id="votm-name"></div>
-          <div class="votm-card-role" id="votm-role"></div>
-          <div class="votm-card-divider"></div>
-          <div class="votm-card-contribution" id="votm-contribution"></div>
-          <a class="votm-view-link" id="votm-profile-link" href="#">
-            View Full Profile
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </a>
+        <h2 class="votm2-name" id="votm-h"><span id="votm-name">—</span></h2>
+        <div class="votm2-role"><span class="votm2-prefix" id="votm-prefix">Ag. Van.</span> <span id="votm-role"></span></div>
+        <span class="votm2-rule" aria-hidden="true"></span>
+        <p class="votm2-tagline" id="votm-reason">Each month we celebrate one Vanguard whose character, consistency, and service embody what it means to be a force for good.</p>
+        <div class="votm2-quote" id="votm-quote-wrap" style="display:none">
+          <span class="votm2-qmark" aria-hidden="true">&ldquo;</span>
+          <p id="votm-quote"></p>
+        </div>
+        <div class="votm2-contribution" id="votm-contribution"></div>
+        <div class="votm2-actions">
+          <a class="votm2-nominate" href="https://cacentre.afrovanguard.org.ng/nominate-vanguard">Nominate a Vanguard
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="votm2-link" id="votm-profile-link" href="#">View full profile</a>
         </div>
       </div>
-
-      <!-- Text column -->
-      <div class="votm-copy">
-        <div class="votm-eyebrow-row">
-          <span class="votm-eyebrow">Community Recognition</span>
-          <span class="votm-month-pill">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <span id="votm-month-label">This Month</span>
-          </span>
-        </div>
-
-        <h2 class="votm-title" id="votm-h">
-          Vanguard of<br>the <em>Month</em>
-        </h2>
-
-        <p class="votm-reason" id="votm-reason">
-          Each month we pause to recognise one person whose consistency, character, and commitment to the mission embodies what it truly means to be a Vanguard.
-        </p>
-
-        <div class="votm-quote-block" id="votm-quote-wrap" style="display:none">
-          <svg width="28" height="20" viewBox="0 0 28 20" fill="none" aria-hidden="true" style="margin-bottom:10px;opacity:.4"><path d="M0 20V12C0 5.373 4.477 1.333 13.333 0L14.667 2.667C10.133 3.911 7.644 6.044 7.2 9.067H12V20H0ZM16 20V12C16 5.373 20.477 1.333 29.333 0L30.667 2.667C26.133 3.911 23.644 6.044 23.2 9.067H28V20H16Z" fill="currentColor" style="fill:var(--gold)"/></svg>
-          <p class="votm-quote-text" id="votm-quote"></p>
-        </div>
-
-        <div class="votm-actions">
-          <a href="https://cacentre.afrovanguard.org.ng/nominate-vanguard" class="votm-nominate">
-            Nominate a Vanguard
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </a>
-          <span class="votm-past-link-wrap">
-            <a href="about.html#vanguard-of-the-month" class="votm-past-link">Past Vanguards</a>
-          </span>
-        </div>
-      </div>
-
-    </div><!-- /votm-editorial -->
+    </div><!-- /votm2 -->
   </div>
 </section>
 
@@ -1940,7 +1931,10 @@ var MONTHS = ['January','February','March','April','May','June','July','August',
 
 function votmMonthLabel(month, year){
   if(!month) return 'This Month';
-  return month + (year ? ' ' + year : '');
+  var names=['','January','February','March','April','May','June','July','August','September','October','November','December'];
+  var n=parseInt(month,10);
+  var label=(n>=1&&n<=12)?names[n]:month;
+  return label + (year ? ' ' + year : '');
 }
 
 function fetchVOTM(){
