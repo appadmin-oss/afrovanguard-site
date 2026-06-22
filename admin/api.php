@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -81,6 +81,23 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/people.php';
             av_team_delete(Database::pdo(), (int) ($body['id'] ?? 0));
+            json_out(['ok' => true]);
+
+        // ---- Celebrations (custom dates + uploaded doodle art) ----
+        case 'cel_list':
+            require_once AV_ROOT . '/lib/celebrations.php';
+            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => av_celebration_calendar()]);
+        case 'cel_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/celebrations.php';
+            if (trim((string) ($body['name'] ?? '')) === '' || !preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))) {
+                json_out(['ok' => false, 'error' => 'A name and a date (MM-DD) are required.'], 422);
+            }
+            json_out(['ok' => true, 'id' => av_celebrations_save(Database::pdo(), $body)]);
+        case 'cel_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/celebrations.php';
+            av_celebrations_delete(Database::pdo(), (int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
 
         case 'get':

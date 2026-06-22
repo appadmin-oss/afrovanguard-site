@@ -18,6 +18,7 @@
       <button class="tab active" data-tab="entries">Diary</button>
       <button class="tab" data-tab="academy">Academy</button>
       <button class="tab" data-tab="people">People</button>
+      <button class="tab" data-tab="celebrations">Celebrations</button>
       <button class="tab" data-tab="inbox">Inbox</button>
     </nav>
     <div class="studio-actions">
@@ -281,6 +282,53 @@
           <label class="fld"><span>Instagram</span><input id="p_ig" placeholder="https://instagram.com/…" /></label>
           <label class="fld"><span>Website</span><input id="p_web" placeholder="https://…" /></label>
           <label class="fld"><span>Email</span><input id="p_email" type="email" placeholder="name@afrovanguard.org.ng" /></label>
+        </div>
+      </aside>
+    </form>
+  </main>
+
+  <!-- CELEBRATIONS -->
+  <main class="studio-main" id="celebrationsView" hidden>
+    <div class="studio-head">
+      <div><h1>Celebrations</h1><p class="muted">Auto-celebrated holidays &amp; dates. Built-ins run automatically; add your own with custom doodle art.</p></div>
+      <button class="btn btn-primary" id="newCelBtn">+ Add celebration</button>
+    </div>
+    <div class="entry-list" id="celList"></div>
+    <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Built-in calendar (automatic)</h2>
+    <div class="entry-list" id="celBuiltins"></div>
+  </main>
+
+  <!-- CELEBRATION EDITOR -->
+  <main class="studio-main" id="celEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="celBackBtn">← All celebrations</button>
+      <div class="editor-actions">
+        <button class="btn btn-outline btn-sm" id="celDeleteBtn" hidden>Delete</button>
+        <button class="btn btn-primary btn-sm" id="celSaveBtn">Save</button>
+      </div>
+    </div>
+    <form id="celForm" class="editor-grid">
+      <div class="editor-main">
+        <label class="fld"><span>Name</span><input id="c_name" placeholder="e.g. Eid Mubarak" required /></label>
+        <label class="fld"><span>Message</span><textarea id="c_message" rows="3" placeholder="The festive line shown in the banner."></textarea></label>
+        <label class="fld"><span>Override a built-in (optional key)</span><input id="c_key" placeholder="e.g. christmas — leave blank for a new celebration" /></label>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>When &amp; style</h3>
+          <label class="fld"><span>Date (MM-DD)</span><input id="c_md" placeholder="12-25" pattern="\d{2}-\d{2}" required /></label>
+          <label class="fld"><span>Scope</span><select id="c_scope"><option value="internal">Internal</option><option value="african">African</option><option value="international">International</option></select></label>
+          <label class="fld"><span>Emoji</span><input id="c_emoji" placeholder="🎉" maxlength="4" /></label>
+          <label class="fld"><span>Theme colour</span><input id="c_theme" type="color" value="#f3b416" /></label>
+          <label class="fld checkbox"><input type="checkbox" id="c_enabled" checked /> <span>Enabled</span></label>
+        </div>
+        <div class="side-card">
+          <h3>Doodle art (optional)</h3>
+          <div class="cover-preview" id="cDoodlePreview"><span>No art — uses emoji + colour</span></div>
+          <input type="file" id="cDoodleFile" accept="image/*" hidden />
+          <div class="cover-actions"><button type="button" class="btn btn-outline btn-sm" id="cDoodleBtn">Upload art</button><button type="button" class="btn btn-outline btn-sm" id="cDoodleClear" hidden>Remove</button></div>
+          <input id="c_doodle" type="hidden" />
+          <p class="muted tiny">Shown in place of the logo on the day (Google-doodle style). Wide transparent PNG works best.</p>
         </div>
       </aside>
     </form>

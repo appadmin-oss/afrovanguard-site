@@ -15,7 +15,8 @@
     login: $('#loginView'), entries: $('#entriesView'), editor: $('#editorView'),
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'),
-    people: $('#peopleView'), personEdit: $('#personEditView')
+    people: $('#peopleView'), personEdit: $('#personEditView'),
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -50,6 +51,7 @@
       if (which === 'entries') { show('entries'); loadList(); }
       else if (which === 'academy') { show('academy'); loadCourses(); }
       else if (which === 'people') { show('people'); loadTeam(); }
+      else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
       else { show('inbox'); loadInbox(); }
     });
   });
@@ -495,6 +497,67 @@
   $('#pDeleteBtn').addEventListener('click', function () {
     if (!editingPerson || !confirm('Delete this person?')) return;
     post('team_delete', { id: editingPerson }).then(function () { toast('Deleted.'); show('people'); loadTeam(); });
+  });
+
+  /* ---- Celebrations ---- */
+  var cDoodle = '';
+  function setCDoodle(u) {
+    cDoodle = u || ''; $('#c_doodle').value = cDoodle;
+    $('#cDoodlePreview').innerHTML = cDoodle ? '<img src="' + escapeHtml(cDoodle) + '" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;background:#0b0f1a" />' : '<span>No art — uses emoji + colour</span>';
+    $('#cDoodleClear').hidden = !cDoodle;
+  }
+  function loadCelebrations() {
+    var box = $('#celList'), bi = $('#celBuiltins');
+    box.innerHTML = '<p class="muted">Loading…</p>'; bi.innerHTML = '';
+    api('cel_list').then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      var rows = r.data.celebrations || [];
+      box.innerHTML = rows.length ? rows.map(function (c) {
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + (c.emoji || '🎉') + ' ' + escapeHtml(c.name) +
+          (parseInt(c.enabled, 10) ? '' : ' <span class="badge draft">Off</span>') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + (c.key ? ' · overrides “' + escapeHtml(c.key) + '”' : '') + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celedit="' + c.id + '">Edit</button></div></div>';
+      }).join('') : '<p class="muted">No custom celebrations yet — the built-in calendar below runs automatically.</p>';
+      (r.data.builtins || []).forEach(function (b) {
+        bi.innerHTML += '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + b[4] + ' ' + escapeHtml(b[1]) + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(b[2]) + ' · ' + escapeHtml(b[3]) + '</div></div></div>';
+      });
+    });
+  }
+  $('#celList').addEventListener('click', function (e) { var b = e.target.closest('[data-celedit]'); if (b) openCel(+b.getAttribute('data-celedit')); });
+  $('#newCelBtn').addEventListener('click', function () { openCel(null); });
+  $('#celBackBtn').addEventListener('click', function () { show('celebrations'); loadCelebrations(); });
+  $('#cDoodleBtn').addEventListener('click', function () { $('#cDoodleFile').click(); });
+  $('#cDoodleClear').addEventListener('click', function () { setCDoodle(''); });
+  $('#cDoodleFile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return; toast('Uploading…');
+    uploadFile(f).then(function (r) { if (r.data && r.data.ok) { setCDoodle(r.data.url); toast('Art uploaded.'); } else toast((r.data && r.data.error) || 'Upload failed.'); });
+  });
+  var editingCel = null;
+  function openCel(id) {
+    editingCel = id; $('#celForm').reset(); setCDoodle(''); $('#c_theme').value = '#f3b416';
+    $('#celDeleteBtn').hidden = !id; show('celEdit');
+    if (!id) return;
+    api('cel_list').then(function (r) {
+      var c = (r.data.celebrations || []).filter(function (x) { return +x.id === id; })[0]; if (!c) return;
+      $('#c_name').value = c.name || ''; $('#c_message').value = c.message || ''; $('#c_key').value = c.key || '';
+      $('#c_md').value = c.md || ''; $('#c_scope').value = c.scope || 'internal'; $('#c_emoji').value = c.emoji || '';
+      $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(c.theme) ? c.theme : '#f3b416';
+      $('#c_enabled').checked = parseInt(c.enabled, 10) !== 0; setCDoodle(c.doodle_url || '');
+    });
+  }
+  $('#celSaveBtn').addEventListener('click', function () {
+    var name = $('#c_name').value.trim();
+    if (!name || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
+    post('cel_save', {
+      id: editingCel || 0, name: name, message: $('#c_message').value.trim(), key: $('#c_key').value.trim(),
+      md: $('#c_md').value.trim(), scope: $('#c_scope').value, emoji: $('#c_emoji').value.trim() || '🎉',
+      theme: $('#c_theme').value, enabled: $('#c_enabled').checked, doodle_url: cDoodle
+    }).then(function (r) { if (r.data && r.data.ok) { toast('Saved.'); show('celebrations'); loadCelebrations(); } else toast((r.data && r.data.error) || 'Could not save.'); });
+  });
+  $('#celDeleteBtn').addEventListener('click', function () {
+    if (!editingCel || !confirm('Delete this celebration?')) return;
+    post('cel_delete', { id: editingCel }).then(function () { toast('Deleted.'); show('celebrations'); loadCelebrations(); });
   });
 
   /* ---- boot ---- */
