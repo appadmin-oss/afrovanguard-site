@@ -41,7 +41,62 @@ final class Database
         }
         self::ensureColumns(); // additive upgrades for already-deployed DBs
         self::ensureAcademy(); // create + seed academy tables if missing
+        self::maybePurgeDemo(); // one-time removal of shipped demo content
         return self::$pdo;
+    }
+
+    /* ── Small key/value store for one-time migrations/flags ── */
+    private static function ensureMeta(): void
+    {
+        self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+    }
+    public static function metaGet(string $k): ?string
+    {
+        self::ensureMeta();
+        $s = self::$pdo->prepare('SELECT value FROM app_meta WHERE key = ?'); $s->execute([$k]);
+        $v = $s->fetchColumn(); return $v === false ? null : (string) $v;
+    }
+    public static function metaSet(string $k, string $v): void
+    {
+        self::ensureMeta();
+        self::$pdo->prepare('INSERT INTO app_meta (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')->execute([$k, $v]);
+    }
+
+    /**
+     * Remove the demo content this project used to ship — once per database.
+     * Targeted by exact demo article slugs and a unique sentinel in the demo
+     * lesson bodies, so real content authored in the Studio is never touched.
+     */
+    private static function maybePurgeDemo(): void
+    {
+        if (self::metaGet('demo_purged_v1') !== null) return;
+        try {
+            $slugs = [
+                'introducing-the-afrovanguard-diary',
+                'school-storm-reaching-30000-children',
+                'the-math-behind-1-million-leaders',
+                'rebuilding-summer-school-six-lgas',
+                'what-techome-taught-us',
+            ];
+            $in = implode(',', array_fill(0, count($slugs), '?'));
+            // Articles cascade to sections/related/reactions (FK ON DELETE CASCADE).
+            self::$pdo->prepare("DELETE FROM articles WHERE slug IN ($in)")->execute($slugs);
+            if (self::tableExists('lessons')) {
+                // Demo lessons all carry this exact phrase; real ones won't.
+                self::$pdo->exec("DELETE FROM lessons WHERE body_html LIKE '%Full lesson content is authored in the Studio.%'");
+            }
+            if (self::tableExists('modules')) {
+                // Remove the now-empty demo modules (by their known titles only).
+                self::$pdo->exec(
+                    "DELETE FROM modules WHERE title IN ('Foundations','Building','Becoming a mentor','Orientation','Practicum')
+                     AND id NOT IN (SELECT module_id FROM lessons WHERE module_id IS NOT NULL)
+                     AND course_id IN (SELECT id FROM courses WHERE slug IN ('techome','africa-gates'))"
+                );
+            }
+            self::metaSet('demo_purged_v1', '1');
+        } catch (Throwable $e) {
+            error_log('[db] demo purge skipped: ' . $e->getMessage());
+        }
     }
 
     /** Create the Academy tables (idempotent) and seed them once. */

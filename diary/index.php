@@ -89,10 +89,23 @@ render_nav('diary');
 <?php endif; ?>
 
       <section class="diary-grid" aria-label="All diary entries">
+<?php if (!$articles): ?>
+        <div class="diary-empty">
+          <h2>The first dispatch is on its way</h2>
+          <p>We’re putting the finishing touches on the Diary. New field notes on the mission, our programmes and what we’re learning will land here soon.</p>
+          <form class="diary-subscribe sub-inline" novalidate>
+            <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email" required />
+            <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+            <button type="submit" class="btn btn-primary">Notify me →</button>
+            <p class="sub-msg" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+<?php else: ?>
         <div class="post-grid">
 <?php foreach ($articles as $a) { render_card($a); } ?>
         </div>
         <div class="no-results">No entries match your search yet. Try another term, or clear the filters.</div>
+<?php endif; ?>
       </section>
 
       <section class="diary-subscribe-band" data-reveal>

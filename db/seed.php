@@ -10,6 +10,15 @@
  */
 declare(strict_types=1);
 
+/** Default Diary categories so the Studio editor always has options,
+ *  even on a production install that ships with no demo articles. */
+const AV_DEFAULT_CATEGORIES = [
+    'dispatch'    => 'Dispatch',
+    'field-notes' => 'Field Notes',
+    'mission'     => 'Mission',
+    'programmes'  => 'Programmes',
+];
+
 function av_seed(PDO $pdo, bool $fresh = false): void
 {
     $content = require __DIR__ . '/content.php';
@@ -24,8 +33,8 @@ function av_seed(PDO $pdo, bool $fresh = false): void
             $pdo->exec('DELETE FROM categories');
         }
 
-        // Categories (derive a unique set from the content).
-        $cats = [];
+        // Categories: the default set, plus any referenced by seeded content.
+        $cats = AV_DEFAULT_CATEGORIES;
         foreach ($content as $a) { $cats[$a['category_slug']] = $a['category']; }
         $catId = [];
         $insCat = $pdo->prepare('INSERT OR IGNORE INTO categories (slug, name) VALUES (?, ?)');
