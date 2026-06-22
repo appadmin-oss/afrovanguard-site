@@ -25,7 +25,12 @@ function _av_require_env(string $name): string {
     return $v;
 }
 
-/* ─── Email (SMTP) ──────────────────────────────────────────── */
+/* ─── Email (SMTP) ────────────────────────────────────────────
+ * Powers donation receipts, contact replies AND Academy emails
+ * (welcome / enrolment / membership / certificate-ready) via the
+ * shared lib/Mailer.php. Requires PHPMailer on the server — either
+ * vendor/ (composer) or PHPMailer-master/ — same as the donation
+ * system; without it, mail falls back to PHP mail() then logging. */
 define('SMTP_HOST',     'smtp.gmail.com');
 define('SMTP_PORT',      587);
 define('SMTP_USERNAME', 'donations@afrovanguard.org.ng');
@@ -33,6 +38,11 @@ define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));
 define('FROM_EMAIL',    'donations@afrovanguard.org.ng');
 define('FROM_NAME',     'Afrovanguard');
 define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
+// Optional transport overrides (defaults shown):
+//   SMTP_SECURE 'tls' = STARTTLS (587, Gmail) | 'ssl' = SMTPS (465) | '' = none
+//   SMTP_VERIFY true   = verify TLS cert (set false only for self-signed relays)
+// define('SMTP_SECURE', 'tls');
+// define('SMTP_VERIFY', true);
 
 /* ─── Paystack ──────────────────────────────────────────────────
  * Primary payment provider. The same keys power donations AND the

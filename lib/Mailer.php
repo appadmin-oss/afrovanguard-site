@@ -53,11 +53,24 @@ final class Mailer
             try {
                 $m->isSMTP();
                 $m->Host       = SMTP_HOST;
-                $m->SMTPAuth   = true;
+                $m->Port       = defined('SMTP_PORT') ? SMTP_PORT : 587;
                 $m->Username   = SMTP_USERNAME;
                 $m->Password   = SMTP_PASSWORD;
-                $m->Port       = defined('SMTP_PORT') ? SMTP_PORT : 587;
-                $m->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                $m->SMTPAuth   = SMTP_USERNAME !== '';
+                // Transport security. Defaults to STARTTLS (Gmail/587). Override
+                // with SMTP_SECURE: 'ssl'/'smtps' (465), '' or 'none' (internal relay).
+                $secure = defined('SMTP_SECURE') ? strtolower((string) SMTP_SECURE) : 'tls';
+                if ($secure === 'ssl' || $secure === 'smtps') {
+                    $m->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+                } elseif ($secure === '' || $secure === 'none') {
+                    $m->SMTPSecure = ''; $m->SMTPAutoTLS = false;
+                } else {
+                    $m->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                }
+                // Relax certificate checks only for internal/self-signed relays.
+                if (defined('SMTP_VERIFY') && !SMTP_VERIFY) {
+                    $m->SMTPOptions = ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
+                }
                 $m->CharSet    = 'UTF-8';
                 $m->Timeout    = 20;
                 $m->setFrom($fromEmail, $fromName);
