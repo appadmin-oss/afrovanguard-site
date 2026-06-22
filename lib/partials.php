@@ -23,6 +23,9 @@ final class Icons
     const FWD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg>';
     const X = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>';
     const LI = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg>';
+    const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+    const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 }
 
 const THEME_BOOT = "<script>(function(){var r=document.documentElement;r.classList.add('reveal-on');try{var t=localStorage.getItem('av.theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.setAttribute('data-theme',t);var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
@@ -86,6 +89,7 @@ function render_head(array $o): void {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
+  <link href="/assets/site/nav.css" rel="stylesheet" />
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
 <?php endforeach; ?></head>
 <body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?><?= !empty($o['body_class']) ? ' class="' . e($o['body_class']) . '"' : '' ?>>
@@ -94,31 +98,94 @@ function render_head(array $o): void {
   <div class="read-progress" id="read-progress"></div>
 <?php }
 
+const AV_VOLUNTEER_URL = 'https://cacentre.afrovanguard.org.ng/volunteer';
+
 /**
- * Canonical primary navigation — the single definition for the whole site
- * (PHP pages render it live; static pages get it injected by
- * tools/build-chrome.php). key => [label, href]. Custom-owned sections use
- * root-relative paths (served directly, ahead of WordPress); the rest are
- * pretty URLs under the main domain.
+ * Canonical primary navigation model — the single definition for the whole
+ * site (PHP pages render it live; static pages get it injected by
+ * tools/build-chrome.php). Each item is a top-level link; items with a
+ * "mega" key open a mega-menu panel (columns of links + a featured card
+ * whose illustration lives at /assets/illustrations/nav-<key>.webp).
+ * Custom-owned sections use root-relative paths (served ahead of WordPress).
  */
-function av_nav_items(): array {
+function av_nav_model(): array {
     $S = rtrim(SITE_URL, '/');
+    $V = AV_VOLUNTEER_URL;
     return [
-        'home'    => ['Home',     $S . '/'],
-        'about'   => ['About',    $S . '/about/'],
-        'academy' => ['Academy',  '/academy/'],
-        'projects'=> ['Projects', $S . '/projects/'],
-        'diary'   => ['Diary',    '/diary/'],
-        'events'  => ['Events',   $S . '/events/'],
-        'contact' => ['Contact',  $S . '/contact/'],
+        'home'    => ['label' => 'Home', 'href' => $S . '/'],
+        'about'   => ['label' => 'About', 'href' => $S . '/about/', 'mega' => [
+            'cols' => [
+                ['title' => 'The organisation', 'links' => [
+                    ['About us', $S . '/about/'], ['Our ethos', '/ethos/'],
+                    ['Leadership & model', '/ethos/#leadership'], ['Our story', $S . '/about/#our-story'],
+                ]],
+                ['title' => 'Get involved', 'links' => [
+                    ['Volunteer', $V], ['Donate', $S . '/donate.html'],
+                    ['Events', $S . '/events/'], ['Contact us', $S . '/contact/'],
+                ]],
+            ],
+            'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
+        ]],
+        'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
+            'cols' => [
+                ['title' => 'Learn with us', 'links' => [
+                    ['All programmes', '/academy/'], ['Academy membership', '/academy/#membership'],
+                    ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/'],
+                ]],
+                ['title' => 'Featured programmes', 'links' => [
+                    ['Techome', '/academy/techome/'], ['MediaPro', '/academy/mediapro/'],
+                    ['Africa GATES', '/academy/africa-gates/'], ['NGV Academy', '/academy/ngv-academy/'],
+                ]],
+            ],
+            'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
+        ]],
+        'projects' => ['label' => 'Projects', 'href' => $S . '/projects/', 'mega' => [
+            'cols' => [
+                ['title' => 'Flagship programmes', 'links' => [
+                    ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
+                    ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
+                    ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/'],
+                    ['MediaPro', 'https://cacentre.afrovanguard.org.ng/mediapro/'],
+                ]],
+                ['title' => 'More', 'links' => [
+                    ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
+                    ['All projects', $S . '/projects/'], ['Volunteer', $V], ['Events', $S . '/events/'],
+                ]],
+            ],
+            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => $S . '/projects/', 'cta' => 'See all projects'],
+        ]],
+        'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
+            'cols' => [
+                ['title' => 'Browse the Diary', 'links' => [
+                    ['All entries', '/diary/'], ['Field notes', '/diary/'],
+                    ['The mission', '/diary/'], ['Programme stories', '/diary/'],
+                ]],
+                ['title' => 'Follow along', 'links' => [
+                    ['Subscribe', '/diary/#subscribe'], ['RSS feed', diary_url('feed.xml')],
+                    ['Our ethos', '/ethos/'], ['Academy', '/academy/'],
+                ]],
+            ],
+            'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
+        ]],
+        'events'  => ['label' => 'Events', 'href' => $S . '/events/'],
+        'contact' => ['label' => 'Contact', 'href' => $S . '/contact/'],
     ];
+}
+
+/** Back-compat simple list (label,href) — used by older callers. */
+function av_nav_items(): array {
+    $out = [];
+    foreach (av_nav_model() as $k => $v) { $out[$k] = [$v['label'], $v['href']]; }
+    return $out;
 }
 
 function render_nav(string $active = 'diary', array $opts = []): void {
     $S = rtrim(SITE_URL, '/');
-    $showToggle = $opts['theme_toggle'] ?? true; // only where full theming exists
-    $items = av_nav_items();
-    $cur = fn($n) => $n === $active ? ' aria-current="page"' : ''; ?>
+    $showToggle = $opts['theme_toggle'] ?? true;
+    $model = av_nav_model();
+    $cur = fn($n) => $n === $active ? ' aria-current="page"' : '';
+    $illo = fn($k) => '/assets/illustrations/nav-' . $k . '.webp';
+?>
   <header class="site-header" id="site-header" role="banner">
     <div class="container">
       <nav class="nav-inner" aria-label="Main navigation">
@@ -127,25 +194,68 @@ function render_nav(string $active = 'diary', array $opts = []): void {
           <span class="nav-badge">.ORG.NG</span>
         </a>
         <ul class="nav-links" role="list">
-<?php foreach ($items as $k => [$label, $href]): ?>          <li><a href="<?= e($href) ?>"<?= $cur($k) ?>><?= e($label) ?></a></li>
-<?php endforeach; ?>        </ul>
+<?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
+          <li><a href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a></li>
+<?php else: ?>
+          <li class="has-mega" data-mega="<?= e($k) ?>">
+            <a href="<?= e($it['href']) ?>"<?= $cur($k) ?> aria-haspopup="true" aria-expanded="false"><?= e($it['label']) ?> <?= Icons::CHEVRON ?></a>
+            <div class="mega" role="region" aria-label="<?= e($it['label']) ?> menu">
+              <div class="mega-inner">
+                <div class="mega-cols">
+<?php foreach ($it['mega']['cols'] as $col): ?>                  <div class="mega-col">
+                    <p class="mega-h"><?= e($col['title']) ?></p>
+                    <ul role="list">
+<?php foreach ($col['links'] as [$ll, $lh]): ?>                      <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
+<?php endforeach; ?>                    </ul>
+                  </div>
+<?php endforeach; ?>                </div>
+<?php $f = $it['mega']['feature']; ?>                <a class="mega-feature" href="<?= e($f['href']) ?>" style="background-image:url('<?= e($illo($k)) ?>')">
+                  <span class="mf-kicker"><?= e($f['kicker']) ?></span>
+                  <span class="mf-title"><?= e($f['title']) ?></span>
+                  <span class="mf-text"><?= e($f['text']) ?></span>
+                  <span class="mf-cta"><?= e($f['cta']) ?> <?= Icons::ARROW ?></span>
+                </a>
+              </div>
+            </div>
+          </li>
+<?php endif; endforeach; ?>        </ul>
         <div class="nav-actions">
 <?php if ($showToggle): ?>          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
 <?php endif; ?>          <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
-          <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
+          <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
         </div>
-        <button class="nav-toggle" id="nav-toggle" aria-controls="nav-mobile" aria-expanded="false" aria-label="Open navigation menu">
+        <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
           <span class="nav-toggle-line line-1"></span><span class="nav-toggle-line line-2"></span><span class="nav-toggle-line line-3"></span>
         </button>
       </nav>
     </div>
   </header>
-  <div class="scrim"></div>
-  <nav class="nav-mobile" id="nav-mobile" aria-label="Mobile navigation" inert>
-<?php foreach ($items as $k => [$label, $href]): ?>    <a href="<?= e($href) ?>"<?= $cur($k) ?>><?= e($label) ?></a>
-<?php endforeach; ?>    <div class="mobile-cta-wrap">
-      <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary" style="width:100%;">Join the Movement</a>
+  <div class="scrim" data-close-drawer></div>
+  <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
+    <div class="avd-head">
+      <a href="<?= $S ?>/" class="nav-logo"><span class="nav-logo-mark"><span class="afro">AFRO</span><span class="van">VANGUARD</span></span></a>
+      <button class="avd-close" data-close-drawer aria-label="Close menu"><?= Icons::CLOSE ?></button>
+    </div>
+    <div class="avd-scroll">
+<?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
+      <a class="avd-link" href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a>
+<?php else: ?>
+      <div class="avd-acc">
+        <button class="avd-acc-btn" aria-expanded="false"><span><?= e($it['label']) ?></span><?= Icons::CHEVRON ?></button>
+        <div class="avd-acc-panel">
+          <a class="avd-sub avd-sub-lead" href="<?= e($it['href']) ?>"><?= e($it['label']) ?> home</a>
+<?php foreach ($it['mega']['cols'] as $col): foreach ($col['links'] as [$ll, $lh]): ?>          <a class="avd-sub" href="<?= e($lh) ?>"><?= e($ll) ?></a>
+<?php endforeach; endforeach; ?>        </div>
+      </div>
+<?php endif; endforeach; ?>    </div>
+    <div class="avd-foot">
+      <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary" style="width:100%;">Join the Movement</a>
       <a href="<?= $S ?>/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
+      <div class="avd-social">
+        <a href="https://www.instagram.com/afrovanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
+        <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><?= Icons::X ?></a>
+        <a href="https://www.linkedin.com/company/afrovanguard/" aria-label="LinkedIn" target="_blank" rel="noopener"><?= Icons::LI ?></a>
+      </div>
     </div>
   </nav>
 <?php }
@@ -293,6 +403,7 @@ function av_footer_inner(): void {
 function render_footer(): void { ?>
   <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
 <?php av_footer_inner(); ?>
+  <script src="/assets/site/nav.js" defer></script>
   <script src="/diary/diary.js" defer></script>
 </body>
 </html>

@@ -34,30 +34,16 @@ $pages = [
     'donate.html'  => '',
 ];
 
-$items = av_nav_items();
-
-/** Desktop <li> list (inner of <ul class="nav-links">). */
-function desktop_links(array $items, string $active): string {
-    $o = "\n";
-    foreach ($items as $k => [$label, $href]) {
-        $cur = $k === $active ? ' aria-current="page"' : '';
-        $o .= '          <li><a href="' . e($href) . '"' . $cur . '>' . e($label) . "</a></li>\n";
-    }
-    return $o . '        ';
-}
-
-/** Mobile drawer contents (inner of <nav class="nav-mobile">). */
-function mobile_links(array $items, string $active, string $S): string {
-    $o = "\n";
-    foreach ($items as $k => [$label, $href]) {
-        $cur = $k === $active ? ' aria-current="page"' : '';
-        $o .= '    <a href="' . e($href) . '"' . $cur . '>' . e($label) . "</a>\n";
-    }
-    $o .= '    <div class="mobile-cta-wrap">' . "\n";
-    $o .= '      <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary" style="width:100%;">Join the Movement</a>' . "\n";
-    $o .= '      <a href="' . $S . '/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>' . "\n";
-    $o .= '    </div>' . "\n  ";
-    return $o;
+/** Canonical full nav (header + scrim + mobile drawer), captured from the
+ *  shared partial so static pages get the exact same mega menu + drawer.
+ *  Returns [headerHtml, drawerHtml] split at </header> so each can be
+ *  replaced in place without a greedy gap that could swallow page content. */
+function nav_parts(string $active): array {
+    ob_start(); render_nav($active, ['theme_toggle' => true]); $full = trim(ob_get_clean());
+    $i = strpos($full, '</header>');
+    if ($i === false) return [$full, ''];
+    $i += strlen('</header>');
+    return [substr($full, 0, $i), trim(substr($full, $i))];
 }
 
 /** Canonical <footer>…</footer> markup, captured from the shared partial. */
@@ -65,9 +51,8 @@ function footer_html(): string {
     ob_start(); av_footer_inner(); return trim(ob_get_clean());
 }
 
-$navInner = null; // memoised per active key below
-$footer   = footer_html();
-$changed  = 0; $drift = 0;
+$footer  = footer_html();
+$changed = 0; $drift = 0;
 
 foreach ($pages as $file => $active) {
     $path = $root . '/' . $file;
@@ -75,38 +60,32 @@ foreach ($pages as $file => $active) {
     $html = file_get_contents($path);
     $orig = $html;
 
-    // 1) desktop nav links
+    // 1) replace the header, and (separately) the scrim+drawer, in place.
+    [$navHeader, $navDrawer] = nav_parts($active);
+    $html = preg_replace_callback('~<header class="site-header".*?</header>~s', fn($m) => $navHeader, $html, 1);
     $html = preg_replace_callback(
-        '~(<ul class="nav-links"[^>]*>).*?(</ul>)~s',
-        fn($m) => $m[1] . desktop_links($items, $active) . $m[2],
+        '~(?:<div class="scrim"[^>]*>\s*</div>\s*)?<nav class="(?:nav-mobile|av-drawer)"[^>]*>.*?</nav>~s',
+        fn($m) => $navDrawer,
         $html, 1
     );
-    // 2) mobile drawer
-    $html = preg_replace_callback(
-        '~(<nav class="nav-mobile"[^>]*>).*?(</nav>)~s',
-        fn($m) => $m[1] . mobile_links($items, $active, $S) . $m[2],
-        $html, 1
-    );
-    // 3) footer
+    // 2) footer
     $html = preg_replace('~<footer\b[^>]*>.*?</footer>~s', $footer, $html, 1);
 
-    // 4a) theme toggle button in the nav actions (first child), if missing.
-    if (strpos($html, 'theme-toggle') === false) {
-        $btn = '<button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">' . Icons::SUN . Icons::MOON . '</button>';
-        $html = preg_replace('~(<div class="nav-actions">\s*)~', '$1' . "\n          " . $btn . "\n          ", $html, 1);
-    }
-    // 4b) no-FOUC theme boot as the first thing in <head> (shared av.theme key).
+    // 3) no-FOUC theme boot as the first thing in <head> (shared av.theme key).
     if (strpos($html, "av.theme") === false) {
         $html = preg_replace('~(<head[^>]*>)~', '$1' . "\n  " . THEME_BOOT, $html, 1);
     }
-    // 4c) ensure the canonical footer stylesheet loads once, last in <head>
-    //     (after the page's own inline styles, so it is authoritative).
-    if (strpos($html, '/assets/site/chrome.css') === false) {
-        $html = preg_replace('~</head>~', '  <link rel="stylesheet" href="/assets/site/chrome.css" />' . "\n</head>", $html, 1);
+    // 4) shared stylesheets last in <head> (after the page's inline styles).
+    foreach (['/assets/site/nav.css', '/assets/site/chrome.css'] as $css) {
+        if (strpos($html, $css) === false) {
+            $html = preg_replace('~</head>~', '  <link rel="stylesheet" href="' . $css . '" />' . "\n</head>", $html, 1);
+        }
     }
-    // 5) ensure the shared footer script is present once, before </body>
-    if (strpos($html, '/assets/site/chrome.js') === false) {
-        $html = preg_replace('~</body>~', '  <script src="/assets/site/chrome.js" defer></script>' . "\n</body>", $html, 1);
+    // 5) shared scripts before </body>.
+    foreach (['/assets/site/nav.js', '/assets/site/chrome.js'] as $js) {
+        if (strpos($html, $js) === false) {
+            $html = preg_replace('~</body>~', '  <script src="' . $js . '" defer></script>' . "\n</body>", $html, 1);
+        }
     }
 
     if ($html === $orig) { echo "unchanged: $file\n"; continue; }

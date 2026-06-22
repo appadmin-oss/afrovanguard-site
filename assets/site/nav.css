@@ -1,0 +1,143 @@
+/* ============================================================
+   assets/site/nav.css — mega menu + mobile drawer (site-wide)
+   Loaded on every page (PHP + static). Self-contained and themed
+   via its own --m-* tokens so it looks identical regardless of the
+   page's own variable system. The header BAR keeps its existing
+   styling; this adds the dropdown panels and the new drawer.
+   ============================================================ */
+:root {
+  --m-surface: #ffffff; --m-surface-2: #f7f7f4; --m-ink: #111827;
+  --m-muted: #6b7280; --m-divider: #e8e8e3; --m-gold: #e8a317; --m-gold-deep: #9c6906;
+  --m-shadow: 0 30px 70px -28px rgba(17,24,39,0.45);
+}
+html[data-theme="dark"] {
+  --m-surface: #15161b; --m-surface-2: #1d1f26; --m-ink: #f5f6f7;
+  --m-muted: #9aa1ad; --m-divider: rgba(255,255,255,0.10); --m-gold: #f3b416; --m-gold-deep: #f3b416;
+  --m-shadow: 0 30px 70px -22px rgba(0,0,0,0.7);
+}
+
+/* ---- desktop mega menu ---- */
+/* anchor mega panels to the nav row so positioning is independent of each
+   page's header position; never clip them */
+.nav-inner { position: relative; }
+.site-header, .site-header .container, .nav-inner, .nav-links, .nav-links .has-mega { overflow: visible; }
+.nav-links .has-mega { position: static; }
+.nav-links .has-mega > a { display: inline-flex; align-items: center; gap: 4px; }
+.nav-links .has-mega > a .chev { width: 15px; height: 15px; margin-left: 1px; opacity: .65; transition: transform .3s ease; }
+.nav-links .has-mega:hover > a .chev,
+.nav-links .has-mega:focus-within > a .chev { transform: rotate(180deg); }
+
+.mega {
+  position: absolute; left: 0; right: 0; top: calc(100% + 12px); z-index: 60;
+  opacity: 0; visibility: hidden; transform: translateY(-10px);
+  transition: opacity .26s ease, transform .26s cubic-bezier(.22,1,.36,1), visibility .26s;
+  pointer-events: none;
+}
+.nav-links .has-mega:hover .mega,
+.nav-links .has-mega:focus-within .mega {
+  opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto;
+}
+.mega-inner {
+  max-width: 1120px; margin: 0 auto;
+  background: var(--m-surface); border: 1px solid var(--m-divider);
+  border-radius: 18px; box-shadow: var(--m-shadow);
+  padding: 26px; display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 26px; overflow: hidden;
+}
+.mega-cols { display: contents; }
+.mega-col .mega-h {
+  font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--m-gold-deep); margin: 4px 0 14px;
+}
+.mega-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.mega-col a {
+  display: block; padding: 9px 12px; margin: 0 -12px; border-radius: 10px;
+  font-size: 14.5px; font-weight: 600; color: var(--m-ink); text-decoration: none;
+  transition: background .18s ease, color .18s ease, transform .18s ease;
+}
+.mega-col a:hover { background: var(--m-surface-2); color: var(--m-gold-deep); transform: translateX(3px); }
+
+.mega-feature {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 210px; padding: 22px; border-radius: 14px; overflow: hidden;
+  text-decoration: none; color: #fff; background: #0b0f1a center/cover no-repeat;
+  isolation: isolate;
+}
+.mega-feature::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(150deg, rgba(11,15,26,.86) 0%, rgba(11,15,26,.5) 55%, rgba(232,163,23,.35) 100%);
+}
+.mega-feature .mf-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--m-gold); }
+.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant SC', Georgia, serif); font-size: 24px; line-height: 1.1; margin: 8px 0 6px; }
+.mega-feature .mf-text { font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,0.82); }
+.mega-feature .mf-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 13.5px; font-weight: 800; color: #fff; }
+.mega-feature .mf-cta svg { width: 16px; height: 16px; transition: transform .25s ease; }
+.mega-feature:hover .mf-cta svg { transform: translateX(4px); }
+
+/* ---- header burger (shown on mobile) ---- */
+.nav-burger { display: none; width: 46px; height: 46px; border: 0; background: transparent; cursor: pointer; padding: 0; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
+.nav-burger .nav-toggle-line { width: 24px; height: 2px; background: currentColor; display: block; transition: transform .3s ease, opacity .2s ease; }
+.nav-burger[aria-expanded="true"] .line-1 { transform: translateY(7px) rotate(45deg); }
+.nav-burger[aria-expanded="true"] .line-2 { opacity: 0; }
+.nav-burger[aria-expanded="true"] .line-3 { transform: translateY(-7px) rotate(-45deg); }
+
+/* ---- mobile drawer ---- */
+.av-drawer {
+  position: fixed; inset: 0 0 0 auto; width: min(92vw, 420px); z-index: 250;
+  background: var(--m-surface); color: var(--m-ink);
+  display: flex; flex-direction: column; transform: translateX(100%);
+  transition: transform .38s cubic-bezier(.22,1,.36,1); box-shadow: var(--m-shadow);
+}
+.av-drawer.open { transform: translateX(0); }
+.avd-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--m-divider); }
+.avd-head .nav-logo-mark { font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.avd-head .nav-logo-mark .afro { color: var(--m-ink); } .avd-head .nav-logo-mark .van { color: var(--m-gold); }
+.avd-close { width: 42px; height: 42px; border: 1px solid var(--m-divider); border-radius: 50%; background: transparent; color: var(--m-ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.avd-close svg { width: 18px; height: 18px; }
+.avd-close:hover { border-color: var(--m-gold); color: var(--m-gold-deep); }
+.avd-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px 18px; }
+
+.avd-link, .avd-acc-btn {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 15px 14px; font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 700;
+  color: var(--m-ink); background: transparent; border: 0; border-radius: 12px; cursor: pointer;
+  text-decoration: none; text-align: left; transition: background .18s ease;
+}
+.avd-link:hover, .avd-acc-btn:hover { background: var(--m-surface-2); }
+.avd-link[aria-current="page"] { color: var(--m-gold-deep); }
+.avd-acc-btn .chev { width: 20px; height: 20px; transition: transform .3s ease; opacity: .7; }
+.avd-acc.open .avd-acc-btn .chev { transform: rotate(180deg); }
+.avd-acc-panel { max-height: 0; overflow: hidden; transition: max-height .34s ease; }
+.avd-acc.open .avd-acc-panel { max-height: 520px; }
+.avd-sub { display: block; padding: 11px 14px 11px 26px; font-size: 15px; font-weight: 600; color: var(--m-muted); text-decoration: none; border-radius: 10px; }
+.avd-sub:hover { color: var(--m-gold-deep); background: var(--m-surface-2); }
+.avd-sub-lead { color: var(--m-ink); font-weight: 700; }
+
+.avd-foot { padding: 16px 20px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--m-divider); display: flex; flex-direction: column; gap: 10px; background: var(--m-surface); }
+.avd-social { display: flex; gap: 10px; justify-content: center; margin-top: 6px; }
+.avd-social a { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--m-divider); color: var(--m-muted); display: inline-flex; align-items: center; justify-content: center; transition: all .2s ease; }
+.avd-social a svg { width: 17px; height: 17px; }
+.avd-social a:hover { color: var(--m-gold-deep); border-color: var(--m-gold); }
+
+/* ---- breakpoints ---- */
+/* full bar (logo + 7 links w/ chevrons + actions) needs ~1200px; below that
+   we use the burger + drawer. Keeps both PHP and static pages consistent. */
+@media (max-width: 1259px) {
+  .nav-links { display: none !important; }
+  .nav-actions .nav-donate, .nav-actions .nav-cta { display: none !important; }
+  .nav-burger { display: inline-flex; }
+}
+@media (min-width: 1260px) {
+  .av-drawer, .scrim { display: none; }
+  /* tighten the desktop row so 7 mega links + actions sit comfortably */
+  .nav-inner { gap: 14px; }
+  .nav-links { gap: 0; }
+  .nav-links > li > a { padding-left: 11px; padding-right: 11px; }
+  .nav-actions { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mega, .av-drawer, .avd-acc-panel, .chev, .mega-col a { transition: none !important; }
+}
+
+/* scrim (self-contained so static pages have it too) */
+.scrim { position: fixed; inset: 0; background: rgba(8,10,16,0.55); z-index: 240; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.scrim.open { opacity: 1; visibility: visible; }
