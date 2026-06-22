@@ -192,14 +192,17 @@ button,input,textarea{font-family:var(--fb)}
 .story-body h2{font-size:var(--sz-h2);margin-bottom:22px}
 .story-body h2 em{font-style:normal;color:var(--gold)}
 .story-body p{font-size:var(--sz-body);line-height:1.84;color:var(--ink-b);margin-bottom:18px;max-width:64ch}
-.milestones{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:44px}
-.ms-card{background:var(--white);border:1.5px solid var(--div);border-radius:var(--r8);padding:20px 22px;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .2s}
-.ms-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
-.ms-card:hover{border-color:rgba(243,180,22,.3);box-shadow:var(--sh-md)}
-.ms-yr{font-family:var(--fb);font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gdp);margin-bottom:5px}
-.ms-txt{font-family:var(--fh);font-size:16px;font-weight:600;color:var(--ink);line-height:1.3}
+/* Our Story — vertical timeline */
+.milestones{position:relative;margin-top:46px;padding-left:6px}
+.milestones::before{content:'';position:absolute;left:9px;top:6px;bottom:14px;width:2px;background:linear-gradient(180deg,var(--gold),rgba(243,180,22,.18))}
+.ms-card{position:relative;background:transparent;border:0;border-radius:0;padding:0 0 26px 38px;overflow:visible;transition:transform .25s var(--ease)}
+.ms-card::before{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:var(--white);border:3px solid var(--gold);box-shadow:0 0 0 4px var(--bg-w);z-index:1;transition:background .2s,transform .2s}
+.ms-card:last-child{padding-bottom:0}
+.ms-card:hover{transform:translateX(3px)}
+.ms-card:hover::before{background:var(--gold);transform:scale(1.12)}
+.ms-yr{display:inline-block;font-family:var(--fb);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gdp);background:rgba(243,180,22,.1);padding:3px 10px;border-radius:999px;margin-bottom:8px}
+.ms-txt{font-family:var(--fh);font-size:17px;font-weight:600;color:var(--ink);line-height:1.35}
 @media(max-width:960px){.story-grid{grid-template-columns:1fr}.story-aside{position:static}}
-@media(max-width:560px){.milestones{grid-template-columns:1fr}}
 
 /* ═══════════════════════════════════════════════════════
    MVV SECTION — improved card layout
@@ -1130,13 +1133,13 @@ button,input,textarea{font-family:var(--fb)}
           <div class="mvv-num" aria-hidden="true">01</div>
           <div class="mvv-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
           <h3 class="mvv-title">Mission</h3>
-          <p class="mvv-text">To inculcate a sense of value for cultural heritage in African folks, and instilling its value system through training, events, community projects and entertainment services with advanced strategy, media and technological languages and tools.</p>
+          <p class="mvv-text" data-ethos="mission">To cultivate individuals and institutions that advance justice, accountability, cultural dignity, sustainable prosperity, community development, and responsible leadership — through education, service, innovation, advocacy, and ethical action.</p>
         </div>
         <div class="mvv-card rv d1">
           <div class="mvv-num" aria-hidden="true">02</div>
           <div class="mvv-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
           <h3 class="mvv-title">Vision</h3>
-          <p class="mvv-text">To raise highly responsible Africans who will maximise necessary resources to protect, advance and promote the culture and heritage of their respective communities thereby becoming a model to the rest of the world.</p>
+          <p class="mvv-text" data-ethos="vision">To raise a generation of ethical, competent, culturally grounded, and socially responsible leaders who become a transformative force for good in every sphere of human endeavour.</p>
         </div>
       </div>
       <div class="mvv-card rv d2" style="display:flex;flex-direction:column;justify-content:center;gap:0;padding:40px 36px">
@@ -1155,48 +1158,50 @@ button,input,textarea{font-family:var(--fb)}
     </div>
 
     <div class="cv-grid rv d1">
+      <!-- AV:VALUES -->
       <article class="cv-card">
         <div class="cv-num" aria-hidden="true">01</div>
-        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
-        <h4 class="cv-name">Faith</h4>
-        <p class="cv-desc">We operate with unshakable conviction. Even in uncertainty, opposition, or delay — we remain grounded in purpose and push forward.</p>
+        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2-6.3-4.6-6.3 4.6 2.3-7.2-6-4.4h7.6z"/></svg></div>
+        <h4 class="cv-name">Individuation</h4>
+        <p class="cv-desc">The pursuit of self-discovery, self-mastery, and purpose fulfilment.</p>
       </article>
       <article class="cv-card">
         <div class="cv-num" aria-hidden="true">02</div>
         <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg></div>
-        <h4 class="cv-name">Individuation</h4>
-        <p class="cv-desc">We believe every individual must rise into their highest form. We do not wait for perfect conditions — we maximise what is available and create results regardless of limitations.</p>
+        <h4 class="cv-name">Faith</h4>
+        <p class="cv-desc">Confidence in God, truth, possibility, and the power of righteous action.</p>
       </article>
       <article class="cv-card">
         <div class="cv-num" aria-hidden="true">03</div>
-        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
-        <h4 class="cv-name">Communal Spirit</h4>
-        <p class="cv-desc">We reject isolated success. We believe true progress is collective — built through collaboration, shared growth, and mutual empowerment.</p>
+        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></div>
+        <h4 class="cv-name">Diligence</h4>
+        <p class="cv-desc">A consistent commitment to excellence, discipline, and productivity.</p>
       </article>
       <article class="cv-card">
         <div class="cv-num" aria-hidden="true">04</div>
         <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
         <h4 class="cv-name">Accountability</h4>
-        <p class="cv-desc">We take full ownership of our actions. No excuses. No blame. Only responsibility, correction, and growth. Because discipline is the foundation of power.</p>
+        <p class="cv-desc">Ownership of actions, responsibilities, decisions, and outcomes.</p>
       </article>
       <article class="cv-card">
         <div class="cv-num" aria-hidden="true">05</div>
         <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
         <h4 class="cv-name">Responsibility</h4>
-        <p class="cv-desc">We do not complain about problems — we solve them. Every member is a leader, taking ownership of outcomes that advance both self and society.</p>
+        <p class="cv-desc">An active commitment to solving problems and advancing society.</p>
       </article>
       <article class="cv-card">
         <div class="cv-num" aria-hidden="true">06</div>
         <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
         <h4 class="cv-name">Cultural Appreciation</h4>
-        <p class="cv-desc">We take pride in African identity — not as nostalgia, but as power. We preserve, express, and elevate our culture as a foundation for global relevance.</p>
+        <p class="cv-desc">Respecting, preserving, and advancing humanity’s diverse heritage.</p>
       </article>
       <article class="cv-card cv-card--span">
         <div class="cv-num" aria-hidden="true">07</div>
-        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
-        <h4 class="cv-name">Diligence</h4>
-        <p class="cv-desc">We value consistency over hype. We show up, put in the work, and stay committed until meaningful results are achieved. Excellence is not an event — it is a daily practice.</p>
+        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg></div>
+        <h4 class="cv-name">Communal Spirit</h4>
+        <p class="cv-desc">Promoting cooperation, solidarity, collective prosperity, and cohesion.</p>
       </article>
+      <!-- /AV:VALUES -->
     </div>
 
   </div>
@@ -1845,9 +1850,8 @@ function normalizePhoto(url){
 function lCard(m){
   var p=pal(m.id),prefix=titlePrefix(m.tier);
   var photo = normalizePhoto(m.photo);
-    var img = photo ? '<img src="'+escAttr(photo)+'"...' : '';
-    var phd = photo ? 'none' : 'flex';
-  var phd=m.photo?'none':'flex';
+  var img = photo ? '<img src="'+escAttr(photo)+'" alt="" loading="lazy" onerror="this.style.display=\'none\';var ph=this.parentNode.querySelector(\'.lcard-ph\');if(ph)ph.style.display=\'flex\';">' : '';
+  var phd = photo ? 'none' : 'flex';
   // Only li and tw get icon links on cards; email goes to profile page only
   var socs=(['li','tw']).filter(function(k){var u=(m.socials||{})[k];return u&&u.length>1;})
     .map(function(k){return '<a class="soc-ico" href="'+escAttr(m.socials[k])+'" title="'+escAttr(SLBL[k])+'" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">'+(SICO[k]||'')+'</a>';}).join('');

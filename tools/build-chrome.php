@@ -18,6 +18,7 @@
 declare(strict_types=1);
 
 if (!defined('SITE_URL')) define('SITE_URL', 'https://afrovanguard.org.ng');
+if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 require __DIR__ . '/../lib/helpers.php';   // e()
 require __DIR__ . '/../lib/partials.php';  // av_nav_items(), av_footer_inner(), Icons
 
@@ -51,6 +52,41 @@ function footer_html(): string {
     ob_start(); av_footer_inner(); return trim(ob_get_clean());
 }
 
+/** The seven core-value cards for the About grid, built from the ethos source. */
+function values_cards(array $values): string {
+    $icons = [
+        '<path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2-6.3-4.6-6.3 4.6 2.3-7.2-6-4.4h7.6z"/>',
+        '<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/>',
+        '<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/>',
+        '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>',
+        '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>',
+        '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/>',
+    ];
+    $o = "\n";
+    foreach (array_values($values) as $i => $v) {
+        $span = ($i === count($values) - 1 && count($values) % 3 === 1) ? ' cv-card--span' : '';
+        $o .= '      <article class="cv-card' . $span . '">' . "\n"
+            . '        <div class="cv-num" aria-hidden="true">' . sprintf('%02d', $i + 1) . "</div>\n"
+            . '        <div class="cv-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' . ($icons[$i] ?? $icons[0]) . "</svg></div>\n"
+            . '        <h4 class="cv-name">' . e($v[0]) . "</h4>\n"
+            . '        <p class="cv-desc">' . e($v[1]) . "</p>\n"
+            . "      </article>\n";
+    }
+    return $o . '      ';
+}
+
+/** Keep the About page's mission / vision / values in sync with the ethos. */
+function sync_ethos(string $html): string {
+    if (!is_file(AV_ROOT . '/lib/ethos_content.php')) return $html;
+    $ethos = require AV_ROOT . '/lib/ethos_content.php';
+    $html = preg_replace_callback('~(<p class="mvv-text" data-ethos="mission">).*?(</p>)~s', fn($m) => $m[1] . e($ethos['mission']) . $m[2], $html, 1);
+    $html = preg_replace_callback('~(<p class="mvv-text" data-ethos="vision">).*?(</p>)~s', fn($m) => $m[1] . e($ethos['vision']) . $m[2], $html, 1);
+    $cards = values_cards($ethos['values']);
+    $html = preg_replace_callback('~(<!-- AV:VALUES -->).*?(<!-- /AV:VALUES -->)~s', fn($m) => $m[1] . $cards . $m[2], $html, 1);
+    return $html;
+}
+
 $footer  = footer_html();
 $changed = 0; $drift = 0;
 
@@ -70,6 +106,8 @@ foreach ($pages as $file => $active) {
     );
     // 2) footer
     $html = preg_replace('~<footer\b[^>]*>.*?</footer>~s', $footer, $html, 1);
+    // 2b) About page: keep mission / vision / values synced with the ethos
+    $html = sync_ethos($html);
 
     // 3) no-FOUC theme boot as the first thing in <head> (shared av.theme key).
     if (strpos($html, "av.theme") === false) {
