@@ -3291,6 +3291,7 @@
     </style>
   <link rel="stylesheet" href="/assets/site/chrome.css" />
   <link rel="stylesheet" href="/assets/site/nav.css" />
+  <link rel="stylesheet" href="/assets/site/spotlight.css" />
 </head>
 <body>
 
@@ -4842,27 +4843,11 @@
     </section>
 
     <!-- ====================================================
-         VOLUNTEER OF THE MONTH
+         CELEBRATION SPOTLIGHT — context-aware (birthday / holiday /
+         Volunteer of the Month). Filled by assets/site/spotlight.js;
+         stays hidden when there is nothing to celebrate.
          ==================================================== -->
-    <section class="votm-home-section" id="vanguard-tm" aria-labelledby="votm-home-h">
-    </section>
-    <script>
-    $(document).ready(function() {
-    let $iframe = $('<iframe src="about.html" style="display:none;"></iframe>').appendTo('body');
-
-    $iframe.on('load', function() {
-        setTimeout(function() {
-            let dynamicContent = $iframe.contents().find("#vanguard-of-the-month").html();
-            
-            if (dynamicContent) {
-                $("#volunteer-spotlight").html(dynamicContent);
-            }
-            
-            $iframe.remove();
-        }, 1000);
-    });
-});
-</script>
+    <section id="celebration-spotlight" aria-label="Today's celebration" hidden></section>
 
 
     <!-- ====================================================
@@ -6308,159 +6293,6 @@ function openBotChat(e) {
   <script src="https://files.bpcontent.cloud/2026/01/16/05/20260116055424-SRNU8ZQ1.js" defer></script>
 
   <!-- ================================================================
-       VOLUNTEER OF THE MONTH — HOME PAGE
-       NOTE: Must be in its own <script> tag — content inside
-       <script src="..."> is ignored by browsers per HTML spec.
-       ================================================================ -->
-  <script>
-  /* ================================================================
-     VOLUNTEER OF THE MONTH — HOME PAGE
-     Reuses the same API endpoint as about.html
-     ================================================================ */
-  (function() {
-    var API_ENDPOINT = 'api.php?action=votm';
-    var USE_DEMO_VOTM = true; // Set false in production when GAS is deployed
-
-    var DEMO_VOTM = {
-      id: 12, name: 'Ngozi Enendu', role: 'Events & Logistics Volunteer',
-      tier: 'volunteer', operations: true,
-      month: 'April', year: '2026', photo: '',
-      quote: 'I don\'t volunteer because I have to. I do it because every event, every young person who shows up — that\'s the Africa I want to build.',
-      reason: 'Ngozi has quietly held the logistics of Afrovanguard\'s most demanding events together for years. This month she coordinated three simultaneous programmes across Alimosho with calm professionalism.',
-      contribution: 'Coordinated <strong>3 major events</strong> in a single month — School Storm outreach, Career Hub workshop, and NGG induction.'
-    };
-
-    var PAL = [{bg:'#1a1500',c:'#f3b416'},{bg:'#12133a',c:'#a5b4fc'},{bg:'#00201e',c:'#5eead4'},
-               {bg:'#200808',c:'#f87171'},{bg:'#032008',c:'#86efac'},{bg:'#120820',c:'#c084fc'}];
-
-    function pal(id) { return PAL[((id - 1) % PAL.length + PAL.length) % PAL.length]; }
-    function ini(n)  {
-      return String(n || '').trim().split(/\s+/).slice(0,2)
-        .map(function(w){ return w[0] || ''; }).join('').toUpperCase() || '??';
-    }
-    function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-    function titlePfx(t){ return(t==='management'||t==='director')?'Van.':(t==='patron'?'Patron':'Ag. Van.'); }
-    function setTxt(id, v){ var el=document.getElementById(id); if(el) el.textContent=v; }
-
-    function buildHomeConfetti() {
-      var wrap = document.getElementById('votmHomeConfetti');
-      if (!wrap || wrap.dataset.built) return;
-      wrap.dataset.built = '1';
-      var cols = ['#f3b416','#d49a0e','#fbbf24','#fff','#a5b4fc','#86efac'];
-      for (var i = 0; i < 24; i++) {
-        var s = document.createElement('span');
-        var w = 4 + Math.random() * 6, h = 6 + Math.random() * 9;
-        s.style.cssText = 'width:'+w.toFixed(1)+'px;height:'+h.toFixed(1)+'px;'
-          +'left:'+( Math.random()*100).toFixed(1)+'%;'
-          +'background:'+cols[i%cols.length]+';border-radius:3px;'
-          +'animation-duration:'+(7+Math.random()*9).toFixed(1)+'s;'
-          +'animation-delay:'+(Math.random()*7).toFixed(2)+'s;';
-        wrap.appendChild(s);
-      }
-    }
-
-    function renderHomeVOTM(v) {
-      var p = pal(v.id || 1);
-      var prefix = titlePfx(v.tier || 'volunteer');
-
-      var mEl = document.getElementById('votmHomeMonthLabel');
-      if (mEl) mEl.textContent = (v.month || '') + (v.year ? ' ' + v.year : '');
-
-      var rEl = document.getElementById('votmHomeReason');
-      if (rEl && v.reason) rEl.textContent = v.reason;
-
-      if (v.quote) {
-        var qw = document.getElementById('votmHomeQuoteWrap');
-        var qe = document.getElementById('votmHomeQuote');
-        if (qw) qw.style.display = 'block';
-        if (qe) qe.textContent = '\u201C' + v.quote + '\u201D';
-      }
-
-      var inner = document.getElementById('votmHomePhotoInner');
-      var initEl = document.getElementById('votmHomeInitials');
-      if (inner) {
-        if (v.photo && v.photo.length > 4) {
-          var img = new Image();
-          img.onload = function(){
-            inner.innerHTML = '';
-            var imgEl = document.createElement('img');
-            imgEl.src = v.photo; imgEl.alt = v.name;
-            inner.appendChild(imgEl);
-          };
-          img.onerror = function(){
-            inner.style.background = p.bg;
-            if(initEl){ initEl.textContent = ini(v.name); initEl.style.color = p.c; }
-          };
-          img.src = v.photo;
-        } else {
-          inner.style.background = p.bg;
-          if (initEl){ initEl.textContent = ini(v.name); initEl.style.color = p.c; }
-        }
-      }
-
-      var pfxEl = document.getElementById('votmHomePrefix');
-      if (pfxEl) {
-        pfxEl.textContent = prefix;
-        if (v.operations) {
-          var ob = document.createElement('span');
-          ob.style.cssText='display:inline-flex;align-items:center;font-size:7.5px;font-weight:800;'
-            +'letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:99px;'
-            +'background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.2);margin-left:5px;';
-          ob.textContent = 'Ops';
-          pfxEl.appendChild(ob);
-        }
-      }
-      setTxt('votmHomeName', v.name || '');
-      setTxt('votmHomeRole', v.role || '');
-
-      var cEl = document.getElementById('votmHomeContrib');
-      if (cEl && v.contribution) {
-        cEl.innerHTML = (v.contribution||'').replace(/<(?!\/?(strong)( |>))[^>]+>/gi,'');
-      }
-
-      var lnk = document.getElementById('votmHomeProfileLink');
-      if (lnk && v.id) lnk.href = 'member.html?id=' + encodeURIComponent(v.id);
-
-      var content = document.getElementById('votmHomeContent');
-      if (content) content.style.display = 'grid';
-
-      buildHomeConfetti();
-    }
-
-    function loadHomeVOTM() {
-      var loadEl = document.getElementById('votmHomeLoad');
-      var errEl  = document.getElementById('votmHomeErr');
-      if (loadEl) loadEl.style.display = 'block';
-
-      if (USE_DEMO_VOTM) {
-        setTimeout(function(){
-          if (loadEl) loadEl.style.display = 'none';
-          renderHomeVOTM(DEMO_VOTM);
-        }, 500);
-        return;
-      }
-
-      fetch(API_ENDPOINT, { credentials: 'same-origin' })
-        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(function(data){
-          if (loadEl) loadEl.style.display = 'none';
-          if (!data || data.status !== 'ok' || !data.votm) throw new Error('No VOTM');
-          renderHomeVOTM(data.votm);
-        })
-        .catch(function(){
-          if (loadEl) loadEl.style.display = 'none';
-          if (errEl)  errEl.style.display  = 'block';
-        });
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', loadHomeVOTM);
-    } else {
-      loadHomeVOTM();
-    }
-  })();
-  </script>
-  <!-- ================================================================
        ONBOARDING — First-visit welcome flow (injected by onboarding.js)
        ================================================================ -->
   <script src="js/onboarding.js" defer></script>
@@ -6468,5 +6300,6 @@ function openBotChat(e) {
   <script src="/assets/site/chrome.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
+  <script src="/assets/site/spotlight.js" defer></script>
 </body>
 </html>
