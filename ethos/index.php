@@ -23,6 +23,53 @@ $leadership  = $ethos['leadership'];
 $values      = $ethos['values'];
 $creed       = $ethos['creed'];
 
+/**
+ * Plain-text rendering of the full ethos (faithful to the PDF). Served when a
+ * client asks for text — Accept: text/plain (and not text/html), or ?format=txt
+ * — so the whole document is fetchable as text over HTTP without the page chrome.
+ * The HTML page below is unchanged for browsers.
+ */
+function ethos_to_text(array $e): string {
+    $nl = "\n"; $hr = str_repeat('=', 72);
+    $w  = static fn(string $s): string => wordwrap($s, 78);
+    $out  = 'THE GLOBAL ETHOS OF AFROVANGUARDISM — THE FORCE FOR GOOD' . $nl . $hr . $nl . $nl;
+    $out .= $w($e['preamble']) . $nl . $nl;
+    if (!empty($e['quote'])) $out .= $w('"' . trim($e['quote']) . '"') . $nl . $nl;
+    $out .= 'VISION' . $nl . $w($e['vision']) . $nl . $nl;
+    $out .= 'MISSION' . $nl . $w($e['mission']) . $nl . $nl;
+    $out .= 'NINE GUIDING COMMITMENTS' . $nl . str_repeat('-', 24) . $nl . $nl;
+    foreach ($e['commitments'] as $i => $c) {
+        $out .= ($i + 1) . '. ' . $c[0] . $nl;
+        if (!empty($c[1])) $out .= '   ' . $c[1] . $nl;
+        $out .= $w($c[2]) . $nl;
+        foreach (($c[3] ?? []) as $b) $out .= '   - ' . $b . $nl;
+        if (!empty($c[4])) $out .= $w($c[4]) . $nl;
+        $out .= $nl;
+    }
+    $out .= 'THE LEADERSHIP MODEL' . $nl . str_repeat('-', 20) . $nl . $nl;
+    foreach ($e['leadership'] as $l) $out .= '- ' . $l[0] . ' — ' . $l[1] . $nl;
+    $out .= $nl . 'THE SEVEN CORE VALUES' . $nl . str_repeat('-', 21) . $nl . $nl;
+    foreach ($e['values'] as $n => $v) $out .= ($n + 1) . '. ' . $v[0] . ' — ' . $v[1] . $nl;
+    $out .= $nl . 'THE AFROVANGUARD CREED' . $nl . str_repeat('-', 22) . $nl . $nl;
+    foreach ($e['creed'] as $c) $out .= '- ' . $c . $nl;
+    $out .= $nl . 'This I affirm — in character, in conduct, and in community.' . $nl;
+    $out .= $nl . $hr . $nl . 'Source: ' . rtrim(SITE_URL, '/') . '/assets/docs/afrovanguard-ethos.pdf' . $nl;
+    return $out;
+}
+
+$fmt       = strtolower((string)($_GET['format'] ?? ''));
+$accept    = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+$wantsText = in_array($fmt, ['txt', 'text', 'plain'], true)
+          || ($accept !== '' && stripos($accept, 'text/plain') !== false && stripos($accept, 'text/html') === false);
+if ($wantsText) {
+    if (!headers_sent()) {
+        header('Content-Type: text/plain; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
+        header('Link: <' . $canonical . '>; rel="canonical"');
+    }
+    echo ethos_to_text($ethos);
+    return;
+}
 
 $jsonld = [
   schema_org(),
