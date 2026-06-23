@@ -47,7 +47,9 @@ function av_builtin_doodle(string $key): string
         'newyear' => 'newyear', 'eidfitr' => 'eid', 'eidadha' => 'eid', 'easter' => 'easter',
         'christmas' => 'christmas', 'africaday' => 'africaday', 'independence' => 'independence',
         'democracyday' => 'independence', 'founding' => 'founding', 'womensday' => 'womensday',
-        'childrensday' => 'childrensday', 'youthday' => 'youthday',
+        'childrensday' => 'childrensday', 'youthday' => 'youthday', 'happiness' => 'happiness',
+        'earthday' => 'earthday', 'workersday' => 'workersday', 'peaceday' => 'peaceday',
+        'girlchild' => 'girlchild', 'humanrights' => 'humanrights',
     ];
     $file = $map[$key] ?? '';
     if ($file === '') return '';

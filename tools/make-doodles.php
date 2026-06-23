@@ -64,6 +64,25 @@ $motifs = [
         . '<g transform="translate(280,10)"><path d="M8 0 l8 8 -8 8 -8 -8z" fill="#0ea5e9"/><path d="M8 16 q2 6 -2 10" stroke="#16a34a" stroke-width="1.4" fill="none"/></g>',
     'youthday' =>
         '<g transform="translate(262,8)"><path d="M10 0 C16 6 16 14 12 22 L8 22 C4 14 4 6 10 0Z" fill="#f3b416"/><circle cx="10" cy="9" r="2.6" fill="#0d1220"/><path d="M6 22 l-3 6 4 -2 M14 22 l3 6 -4 -2" stroke="#d4380d" stroke-width="2" fill="none" stroke-linecap="round"/></g>',
+    'happiness' =>
+        '<g transform="translate(262,17)"><circle cx="10" cy="0" r="8.5" fill="#f3b416"/><circle cx="7" cy="-2" r="1.3" fill="#0d1220"/><circle cx="13" cy="-2" r="1.3" fill="#0d1220"/><path d="M6 2 q4 4 8 0" stroke="#0d1220" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>'
+        . '<g stroke="#f3b416" stroke-width="1.8" stroke-linecap="round">' . implode('', array_map(function ($a) {
+            $x = 272 + cos(deg2rad($a)) * 13; $y = 17 + sin(deg2rad($a)) * 13; $x2 = 272 + cos(deg2rad($a)) * 17; $y2 = 17 + sin(deg2rad($a)) * 17;
+            return '<line x1="' . round($x, 1) . '" y1="' . round($y, 1) . '" x2="' . round($x2, 1) . '" y2="' . round($y2, 1) . '"/>';
+        }, [210, 250, 290, 330, 30])) . '</g>',
+    'earthday' =>
+        '<g transform="translate(250,9)"><circle cx="11" cy="11" r="10" fill="#0ea5e9"/><path d="M4 8 q5 -2 8 1 q4 3 7 1 M3 14 q4 2 8 0 q3 -1 7 1" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round"/></g>'
+        . '<path transform="translate(278,8)" d="M2 14 q0 -12 12 -12 q0 12 -12 12z" fill="#16a34a"/><line x1="280" y1="22" x2="285" y2="14" stroke="#16a34a" stroke-width="1.6" stroke-linecap="round"/>',
+    'workersday' =>
+        '<g transform="translate(250,9)" fill="#0ea5e9"><path d="M11 0a11 11 0 0 1 0 22 11 11 0 0 1 0-22zm0 4a7 7 0 0 0 0 14 7 7 0 0 0 0-14z"/><g fill="#0ea5e9"><circle cx="11" cy="-1" r="2"/><circle cx="11" cy="23" r="2"/><circle cx="-1" cy="11" r="2"/><circle cx="23" cy="11" r="2"/><circle cx="3" cy="3" r="2"/><circle cx="19" cy="3" r="2"/><circle cx="3" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></g><circle cx="11" cy="11" r="3" fill="#fff"/></g>'
+        . '<path transform="translate(280,9)" d="M3 0l4 4-3 3 9 9-3 3-9-9-3 3z" fill="#f3b416"/>',
+    'peaceday' =>
+        '<g transform="translate(258,9)" stroke="#0ea5e9" stroke-width="2" fill="none"><circle cx="11" cy="11" r="10"/><line x1="11" y1="1" x2="11" y2="21"/><line x1="11" y1="11" x2="3.5" y2="18.5"/><line x1="11" y1="11" x2="18.5" y2="18.5"/></g>'
+        . '<path transform="translate(284,10)" d="M0 6 q8 -8 14 -2 q-3 1 -6 0 q4 3 0 6 q-2 -3 -4 -3 q1 3 -1 5 q-3 -4 -3 -6z" fill="#16a34a"/>',
+    'girlchild' =>
+        '<g transform="translate(258,8)"><circle cx="11" cy="11" r="5" fill="#ec4899"/><g fill="#ec4899"><ellipse cx="11" cy="2" rx="3" ry="5"/><ellipse cx="11" cy="20" rx="3" ry="5"/><ellipse cx="2" cy="11" rx="5" ry="3"/><ellipse cx="20" cy="11" rx="5" ry="3"/></g><circle cx="11" cy="11" r="3" fill="#f3b416"/></g>',
+    'humanrights' =>
+        '<g transform="translate(256,8)" stroke="#0ea5e9" stroke-width="1.8" fill="none" stroke-linecap="round"><line x1="11" y1="2" x2="11" y2="22"/><line x1="3" y1="6" x2="19" y2="6"/><path d="M3 6l-3 7a4 4 0 0 0 6 0z"/><path d="M19 6l-3 7a4 4 0 0 0 6 0z"/><line x1="6" y1="22" x2="16" y2="22"/></g>',
 ];
 
 $count = 0;
