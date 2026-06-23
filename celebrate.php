@@ -131,6 +131,18 @@ function av_wrap(string $f, float $size, int $maxw, string $t): array {
     if ($cur !== '') $lines[] = $cur;
     return $lines;
 }
+/** auto-fit: shrink size until the text wraps within $maxw and $maxLines. Returns [size, lines[]]. */
+function av_fit_lines(string $f, float $start, float $min, int $maxw, string $t, int $maxLines): array {
+    $t = trim(preg_replace('/\s+/', ' ', str_replace("\n", ' ', $t)));
+    for ($s = $start; $s >= $min; $s -= 2) {
+        $lines = av_wrap($f, $s, $maxw, $t);
+        if (count($lines) > $maxLines) continue;
+        $ok = true;
+        foreach ($lines as $ln) { $b = imagettfbbox($s, 0, $f, $ln); if (($b[2] - $b[0]) > $maxw) { $ok = false; break; } }
+        if ($ok) return [$s, $lines];
+    }
+    return [$min, array_slice(av_wrap($f, $min, $maxw, $t), 0, $maxLines)];
+}
 
 /* ---- render ---- */
 $W = 1080; $H = 1350;
@@ -165,18 +177,23 @@ if ($monthLabel !== '') {
     av_text_center($im, $body, $ps, (int) (($px1 + $px2) / 2), $py2 - 18, $ink, $monthLabel);
 }
 
-// kicker ("Congratulations!" / "Happy Birthday!")
-av_text_center($im, $display, 70, (int) ($W / 2), 340, $ink, $kicker);
-
-// title (1–2 lines), heavy
-$ty = 470; $tlines = explode("\n", $title);
-foreach ($tlines as $i => $tl) av_text_center_bold($im, $body, 86, (int) ($W / 2), $ty + $i * 96, $ink, $tl);
-
-// portrait or themed medallion
+$cx = (int) ($W / 2);
 $hasPhoto = in_array($type, ['votm', 'birthday'], true);
-$cy = 800; $diam = 416; $cx = (int) ($W / 2);
+
 if ($hasPhoto) {
-    imagefilledellipse($im, $cx, $cy, $diam + 30, $diam + 30, $gold);      // solid gold ring
+    /* ---------- portrait layout (VOTM / birthday) ---------- */
+    // kicker (display), auto-fit to one line
+    [$ks, $kl] = av_fit_lines($display, 70, 40, $W - 260, $kicker, 1);
+    av_text_center($im, $display, $ks, $cx, 330, $ink, $kl[0]);
+
+    // title (heavy body), auto-fit up to 2 lines
+    [$ts, $tl] = av_fit_lines($body, 84, 46, $W - 170, $title, 2);
+    $tlh = (int) ($ts * 1.12); $tTop = 432;
+    foreach ($tl as $i => $line) av_text_center_bold($im, $body, $ts, $cx, $tTop + $i * $tlh, $ink, $line);
+
+    // portrait in a solid gold ring
+    $cy = 800; $diam = 380;
+    imagefilledellipse($im, $cx, $cy, $diam + 30, $diam + 30, $gold);
     $port = av_circle_portrait(av_fetch_img($photo), $diam);
     if ($port) {
         imagecopy($im, $port, (int) ($cx - $diam / 2), (int) ($cy - $diam / 2), 0, 0, $diam, $diam);
@@ -184,30 +201,47 @@ if ($hasPhoto) {
     } else {
         imagefilledellipse($im, $cx, $cy, $diam, $diam, imagecolorallocate($im, 26, 34, 51));
         $pp = preg_split('/\s+/', $name); $ini = strtoupper(($pp[0][0] ?? '') . ($pp[count($pp) - 1][0] ?? ''));
-        av_text_center($im, $display, 140, $cx, $cy + 52, $gold, $ini);
+        av_text_center($im, $display, 150, $cx, $cy + 56, $gold, $ini);
     }
-} else {
-    imagefilledellipse($im, $cx, $cy, $diam + 28, $diam + 28, $themeCol);
-    imagefilledellipse($im, $cx, $cy, $diam, $diam, imagecolorallocate($im, 244, 243, 239));
-}
 
-// name ribbon (votm/birthday) — gold banner with folded ends
-$ribbonEnd = $cy + (int) ($diam / 2);
-if ($name !== '') {
-    $ry = $cy + (int) ($diam / 2) - 24; $rh = 84; $rx1 = 168; $rx2 = $W - 168;
+    // name ribbon — gold banner with folded ends
+    $ry = $cy + (int) ($diam / 2) - 18; $rh = 84; $rx1 = 168; $rx2 = $W - 168;
     imagefilledpolygon($im, [$rx1 - 56, $ry + 12, $rx1, $ry + 2, $rx1, $ry + $rh + 4, $rx1 - 56, $ry + $rh + 26], $goldDk);
     imagefilledpolygon($im, [$rx2 + 56, $ry + 12, $rx2, $ry + 2, $rx2, $ry + $rh + 4, $rx2 + 56, $ry + $rh + 26], $goldDk);
     imagefilledrectangle($im, $rx1, $ry, $rx2, $ry + $rh, $gold);
     $nm = strtoupper($name);
     $ns = 50; $b = imagettfbbox($ns, 0, $display, $nm); while (($b[2] - $b[0]) > ($rx2 - $rx1 - 56) && $ns > 24) { $ns -= 2; $b = imagettfbbox($ns, 0, $display, $nm); }
     av_text_center($im, $display, $ns, $cx, $ry + (int) (($rh + $ns) / 2) - 4, $white, $nm);
-    $ribbonEnd = $ry + $rh + 26;
-}
+    $msgY = $ry + $rh + 26 + 50;
 
-// tribute message (wrapped, centered, max 3 lines)
-$msgY = ($name !== '') ? $ribbonEnd + 50 : $cy + (int) ($diam / 2) + 70;
-$ms = 29; $lines = array_slice(av_wrap($body, $ms, $W - 200, $msg), 0, 3);
-foreach ($lines as $i => $ln) av_text_center($im, $body, $ms, $cx, $msgY + $i * 42, $inkSoft, $ln);
+    // tribute message (wrapped, centered, max 3 lines)
+    [$ms, $mlines] = av_fit_lines($body, 29, 21, $W - 220, $msg, 3);
+    foreach ($mlines as $i => $ln) av_text_center($im, $body, $ms, $cx, $msgY + $i * (int) ($ms * 1.45), $inkSoft, $ln);
+} else {
+    /* ---------- badge layout (holiday) ---------- */
+    // kicker above the badge
+    [$ks, $kl] = av_fit_lines($display, 58, 38, $W - 320, $kicker, 1);
+    av_text_center($im, $display, $ks, $cx, 360, $inkSoft, $kl[0]);
+
+    // big themed disc with the holiday name inside
+    $cy = 760; $diam = 560;
+    $themeLight = imagecolorallocate($im, (int) min(255, $tr + (255 - $tr) * 0.32), (int) min(255, $tg + (255 - $tg) * 0.32), (int) min(255, $tb + (255 - $tb) * 0.32));
+    imagefilledellipse($im, $cx, $cy, $diam + 44, $diam + 44, $gold);          // gold rim
+    imagefilledellipse($im, $cx, $cy, $diam, $diam, $themeCol);                 // theme disc
+    imagefilledellipse($im, $cx, $cy, $diam - 28, $diam - 28, $themeCol);
+    imageellipse($im, $cx, $cy, $diam - 56, $diam - 56, $themeLight);           // inner hairline ring
+
+    // holiday title inside the disc, white, auto-fit up to 3 lines
+    [$ts, $tl] = av_fit_lines($display, 92, 40, $diam - 130, $title, 3);
+    $tlh = (int) ($ts * 1.2); $n = count($tl);
+    $startY = $cy - (int) (($n - 1) * $tlh / 2) + (int) ($ts * 0.34);
+    foreach ($tl as $i => $line) av_text_center_bold($im, $display, $ts, $cx, $startY + $i * $tlh, $white, $line);
+
+    // message below the disc
+    $msgY = $cy + (int) ($diam / 2) + 96;
+    [$ms, $mlines] = av_fit_lines($body, 31, 22, $W - 200, $msg, 3);
+    foreach ($mlines as $i => $ln) av_text_center($im, $body, $ms, $cx, $msgY + $i * (int) ($ms * 1.5), $inkSoft, $ln);
+}
 
 // footer
 imagettftext($im, 25, 0, 90, $H - 64, $ink, $body, '@afro.vanguard');
