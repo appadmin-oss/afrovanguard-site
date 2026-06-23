@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/lib/security.php';
 
 /**
  * Afrovanguard Donation Processor — production, zero silent fails
