@@ -130,6 +130,30 @@ function av_votm(PDO $pdo, ?string $month = null): array
     ]];
 }
 
+/** Everyone who has ever been Volunteer of the Month, newest first. */
+function av_votm_history(PDO $pdo): array
+{
+    av_team_ensure($pdo);
+    $rows = $pdo->query("SELECT * FROM team WHERE votm_month <> '' ORDER BY votm_month DESC, id DESC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return array_map(function ($r) {
+        $m = av_team_member_dict($r);
+        $m['votm_month'] = (string) $r['votm_month'];
+        $m['votm_quote'] = (string) $r['votm_quote'];
+        return $m;
+    }, $rows);
+}
+
+/** A few other active members (for "more of the team"), excluding one id. */
+function av_team_others(PDO $pdo, int $excludeId, int $limit = 4): array
+{
+    av_team_ensure($pdo);
+    $s = $pdo->prepare('SELECT * FROM team WHERE active = 1 AND id <> ? ORDER BY featured DESC, position ASC, RANDOM() LIMIT ?');
+    $s->bindValue(1, $excludeId, PDO::PARAM_INT);
+    $s->bindValue(2, $limit, PDO::PARAM_INT);
+    $s->execute();
+    return array_map('av_team_member_dict', $s->fetchAll(PDO::FETCH_ASSOC) ?: []);
+}
+
 /** Active people whose birthday (MM-DD) matches the given date (default today). */
 function av_birthdays_on(PDO $pdo, ?string $mmdd = null): array
 {

@@ -29,6 +29,23 @@ $socIcon = [
 ];
 $socHref = fn($k, $v) => $k === 'email' ? 'mailto:' . $v : $v;
 
+/** Render one directory card (shared by directory + profile "more of the team"). */
+$card = function (array $m) use ($initials) {
+    ob_start(); ?>
+        <a class="pcard" href="<?= e(av_person_url($m)) ?>" data-name="<?= e(strtolower($m['name'] . ' ' . $m['role'] . ' ' . $m['tier'])) ?>" data-tier="<?= e($m['tier']) ?>" data-reveal>
+          <div class="pcard-photo<?= $m['photo'] ? ' has' : '' ?>"<?= $m['photo'] ? ' style="background-image:url(\'' . e($m['photo']) . '\')"' : '' ?>>
+<?php if (!$m['photo']): ?>            <span><?= e($initials($m['name'])) ?></span>
+<?php endif; ?>            <span class="pcard-tier"><?= e(av_tier_label($m['tier'])) ?></span>
+          </div>
+          <div class="pcard-body">
+            <div class="pcard-name"><?= e($m['name']) ?></div>
+            <div class="pcard-role"><?= e($m['role'] ?: av_tier_label($m['tier'])) ?></div>
+<?php if ($m['tagline']): ?>            <div class="pcard-tag"><?= e($m['tagline']) ?></div>
+<?php endif; ?>          </div>
+        </a>
+<?php return ob_get_clean();
+};
+
 /* ============================================================ PROFILE */
 if ($id) {
     $res = av_team_one($pdo, $id);
@@ -75,6 +92,14 @@ if ($id) {
           <a class="btn btn-outline" href="/people/">← Back to the directory</a>
         </div>
       </div>
+<?php $others = av_team_others($pdo, (int) $m['id'], 4); if ($others): ?>
+      <section class="pp-more">
+        <div class="ppl-label"><span>More of the team</span></div>
+        <div class="pcard-grid reveal-stagger">
+<?php foreach ($others as $o) echo $card($o); ?>
+        </div>
+      </section>
+<?php endif; ?>
     </div>
   </main>
 <?php
@@ -95,23 +120,7 @@ render_head([
     'canonical' => $S . '/people/', 'css' => ['/people/people.css'],
 ]);
 render_nav('about');
-
-/** Render one directory card. */
-$card = function (array $m) use ($initials, $socIcon, $socHref) {
-    ob_start(); ?>
-        <a class="pcard" href="<?= e(av_person_url($m)) ?>" data-name="<?= e(strtolower($m['name'] . ' ' . $m['role'] . ' ' . $m['tier'])) ?>" data-tier="<?= e($m['tier']) ?>" data-reveal>
-          <div class="pcard-photo<?= $m['photo'] ? ' has' : '' ?>"<?= $m['photo'] ? ' style="background-image:url(\'' . e($m['photo']) . '\')"' : '' ?>>
-<?php if (!$m['photo']): ?>            <span><?= e($initials($m['name'])) ?></span>
-<?php endif; ?>            <span class="pcard-tier"><?= e(av_tier_label($m['tier'])) ?></span>
-          </div>
-          <div class="pcard-body">
-            <div class="pcard-name"><?= e($m['name']) ?></div>
-            <div class="pcard-role"><?= e($m['role'] ?: av_tier_label($m['tier'])) ?></div>
-<?php if ($m['tagline']): ?>            <div class="pcard-tag"><?= e($m['tagline']) ?></div>
-<?php endif; ?>          </div>
-        </a>
-<?php return ob_get_clean();
-};
+$pastVotm = av_votm_history($pdo);
 ?>
   <main id="main-content" class="ppl-dir">
     <section class="ppl-hero">
@@ -145,6 +154,20 @@ $card = function (array $m) use ($initials, $socIcon, $socHref) {
       <p class="ppl-empty" id="pplEmpty" hidden>No one matches that search yet.</p>
 <?php else: ?>
       <p class="ppl-none">Our directory is being prepared — check back soon.</p>
+<?php endif; ?>
+
+<?php if ($pastVotm): $ml = function ($ym) { $d = DateTime::createFromFormat('Y-m-d', $ym . '-01'); return $d ? $d->format('M Y') : $ym; }; ?>
+      <div class="ppl-label" id="vanguards"><span>🏆 Vanguards of the Month</span></div>
+      <div class="pv-grid reveal-stagger">
+<?php foreach ($pastVotm as $v): ?>        <a class="pv-card" href="<?= e(av_person_url($v)) ?>" data-reveal>
+          <div class="pv-photo<?= $v['photo'] ? ' has' : '' ?>"<?= $v['photo'] ? ' style="background-image:url(\'' . e($v['photo']) . '\')"' : '' ?>><?= $v['photo'] ? '' : '<span>' . e($initials($v['name'])) . '</span>' ?></div>
+          <div class="pv-meta">
+            <span class="pv-month"><?= e($ml($v['votm_month'])) ?></span>
+            <span class="pv-name"><?= e($v['name']) ?></span>
+            <span class="pv-role"><?= e($v['role'] ?: av_tier_label($v['tier'])) ?></span>
+          </div>
+        </a>
+<?php endforeach; ?>      </div>
 <?php endif; ?>
     </div>
   </main>
