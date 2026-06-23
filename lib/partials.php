@@ -115,12 +115,16 @@ function av_nav_model(): array {
         'about'   => ['label' => 'About', 'href' => $S . '/about/', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
-                    ['About us', $S . '/about/'], ['Our ethos', '/ethos/'],
-                    ['Leadership & model', '/ethos/#leadership'], ['Our story', $S . '/about/#our-story'],
+                    ['About us', $S . '/about/', 'info', 'Who we are & our story'],
+                    ['Our ethos', '/ethos/', 'compass', 'Vision, values & the creed'],
+                    ['Leadership model', '/ethos/#leadership', 'users', 'How we lead'],
+                    ['Our people', '/people/', 'team', 'Leadership, team & volunteers'],
                 ]],
                 ['title' => 'Get involved', 'links' => [
-                    ['Volunteer', $V], ['Donate', $S . '/donate.html'],
-                    ['Events', $S . '/events/'], ['Contact us', $S . '/contact/'],
+                    ['Volunteer', $V, 'hand', 'Give your time & talent'],
+                    ['Donate', $S . '/donate.html', 'heart', 'Fund the mission'],
+                    ['Events', $S . '/events/', 'calendar', "What's coming up"],
+                    ['Contact us', $S . '/contact/', 'mail', 'Reach the team'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
@@ -128,12 +132,16 @@ function av_nav_model(): array {
         'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
-                    ['All programmes', '/academy/'], ['Academy membership', '/academy/#membership'],
-                    ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/'],
+                    ['All programmes', '/academy/', 'grad', 'Browse the catalogue'],
+                    ['Academy membership', '/academy/#membership', 'star', 'Unlock everything'],
+                    ['Teach with us', '/academy/teach/', 'teach', 'Become an instructor'],
+                    ['Verify a certificate', '/academy/', 'award', 'Check authenticity'],
                 ]],
                 ['title' => 'Featured programmes', 'links' => [
-                    ['Techome', '/academy/techome/'], ['MediaPro', '/academy/mediapro/'],
-                    ['Africa GATES', '/academy/africa-gates/'], ['NGV Academy', '/academy/ngv-academy/'],
+                    ['Techome', '/academy/techome/', 'code', 'Technology track'],
+                    ['MediaPro', '/academy/mediapro/', 'camera', 'Media & storytelling'],
+                    ['Africa GATES', '/academy/africa-gates/', 'globe', 'Leadership intensive'],
+                    ['NGV Academy', '/academy/ngv-academy/', 'shield', 'The vanguard programme'],
                 ]],
             ],
             'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
@@ -141,14 +149,16 @@ function av_nav_model(): array {
         'projects' => ['label' => 'Projects', 'href' => $S . '/projects/', 'mega' => [
             'cols' => [
                 ['title' => 'Flagship programmes', 'links' => [
-                    ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
-                    ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
-                    ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/'],
-                    ['MediaPro', 'https://cacentre.afrovanguard.org.ng/mediapro/'],
+                    ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/', 'mic', 'Campus leadership tour'],
+                    ['Next Generation Genius', 'https://next.afrovanguard.org.ng/', 'bulb', 'Young innovators'],
+                    ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/', 'code', 'Tech for teenagers'],
+                    ['MediaPro', 'https://cacentre.afrovanguard.org.ng/mediapro/', 'camera', 'Creative media'],
                 ]],
                 ['title' => 'More', 'links' => [
-                    ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All projects', $S . '/projects/'], ['Volunteer', $V], ['Events', $S . '/events/'],
+                    ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/', 'globe', 'Five gates of leadership'],
+                    ['All projects', $S . '/projects/', 'layers', 'Everything we run'],
+                    ['Volunteer', $V, 'hand', 'Join a programme'],
+                    ['Events', $S . '/events/', 'calendar', 'Upcoming dates'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => $S . '/projects/', 'cta' => 'See all projects'],
@@ -156,18 +166,53 @@ function av_nav_model(): array {
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [
                 ['title' => 'Browse the Diary', 'links' => [
-                    ['All entries', '/diary/'], ['Field notes', '/diary/'],
-                    ['The mission', '/diary/'], ['Programme stories', '/diary/'],
+                    ['All entries', '/diary/', 'book', 'The full archive'],
+                    ['Field notes', '/diary/', 'edit', 'How we work'],
+                    ['The mission', '/diary/', 'target', 'Why we exist'],
+                    ['Programme stories', '/diary/', 'layers', 'From the ground'],
                 ]],
                 ['title' => 'Follow along', 'links' => [
-                    ['Subscribe', '/diary/#subscribe'], ['RSS feed', diary_url('feed.xml')],
-                    ['Our ethos', '/ethos/'], ['Academy', '/academy/'],
+                    ['Subscribe', '/diary/#subscribe', 'mail', 'Get new dispatches'],
+                    ['RSS feed', diary_url('feed.xml'), 'rss', 'In your reader'],
+                    ['Our ethos', '/ethos/', 'compass', 'What we believe'],
+                    ['Academy', '/academy/', 'grad', 'Learn with us'],
                 ]],
             ],
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
         'contact' => ['label' => 'Contact', 'href' => $S . '/contact/'],
     ];
+}
+
+/** Compact line icons for the mega menu. */
+function av_nav_icon(string $k): string {
+    static $p = [
+        'info' => '<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r=".4"/>',
+        'compass' => '<circle cx="12" cy="12" r="9"/><polygon points="16 8 14 14 8 16 10 10"/>',
+        'users' => '<path d="M16 18v-2a4 4 0 0 0-8 0v2"/><circle cx="12" cy="7" r="3"/>',
+        'team' => '<circle cx="9" cy="8" r="3"/><path d="M3 19v-1a5 5 0 0 1 10 0v1"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M21 19v-1a5 5 0 0 0-4-4.9"/>',
+        'hand' => '<path d="M8 12V6a1.5 1.5 0 0 1 3 0v5m0-1V4.5a1.5 1.5 0 0 1 3 0V11m0-1V6a1.5 1.5 0 0 1 3 0v7a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-3-4 1.5-1 2.5 2"/>',
+        'heart' => '<path d="M12 21S4 14.5 4 9a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 5.5-8 12-8 12z"/>',
+        'calendar' => '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="6"/><line x1="16" y1="3" x2="16" y2="6"/>',
+        'mail' => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+        'grad' => '<path d="M12 4 2 9l10 5 10-5-10-5z"/><path d="M6 11.5V16c0 1.2 3 3 6 3s6-1.8 6-3v-4.5"/>',
+        'star' => '<polygon points="12 3 14.6 9 21 9.6 16 14 17.5 20.5 12 17 6.5 20.5 8 14 3 9.6 9.4 9"/>',
+        'teach' => '<rect x="3" y="4" width="18" height="12" rx="1.5"/><line x1="12" y1="16" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/>',
+        'award' => '<circle cx="12" cy="9" r="5"/><path d="M9 13l-1 8 4-2 4 2-1-8"/>',
+        'code' => '<polyline points="8 9 4 12 8 15"/><polyline points="16 9 20 12 16 15"/><line x1="13" y1="6" x2="11" y2="18"/>',
+        'camera' => '<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l1.5-2h5L16 7"/>',
+        'globe' => '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/>',
+        'shield' => '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+        'mic' => '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/>',
+        'bulb' => '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10z"/>',
+        'layers' => '<polygon points="12 3 21 8 12 13 3 8"/><polyline points="3 13 12 18 21 13"/>',
+        'book' => '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><line x1="9" y1="3" x2="9" y2="19"/>',
+        'edit' => '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+        'target' => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/>',
+        'rss' => '<path d="M5 11a8 8 0 0 1 8 8"/><path d="M5 5a14 14 0 0 1 14 14"/><circle cx="6" cy="18" r="1.4"/>',
+    ];
+    $d = $p[$k] ?? $p['layers'];
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
 }
 
 /** Back-compat simple list (label,href) — used by older callers. */
@@ -203,7 +248,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 <?php foreach ($it['mega']['cols'] as $col): ?>                  <div class="mega-col">
                     <p class="mega-h"><?= e($col['title']) ?></p>
                     <ul role="list">
-<?php foreach ($col['links'] as [$ll, $lh]): ?>                      <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
+<?php foreach ($col['links'] as $lnk): [$ll, $lh, $lic, $ldesc] = $lnk + [2 => 'layers', 3 => '']; ?>                      <li><a class="mega-link" href="<?= e($lh) ?>"><span class="ml-ico"><?= av_nav_icon($lic) ?></span><span class="ml-txt"><span class="ml-label"><?= e($ll) ?></span><?php if ($ldesc): ?><span class="ml-desc"><?= e($ldesc) ?></span><?php endif; ?></span></a></li>
 <?php endforeach; ?>                    </ul>
                   </div>
 <?php endforeach; ?>                </div>
@@ -242,7 +287,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
         <button class="avd-acc-btn" aria-expanded="false"><span><?= e($it['label']) ?></span><?= Icons::CHEVRON ?></button>
         <div class="avd-acc-panel">
           <a class="avd-sub avd-sub-lead" href="<?= e($it['href']) ?>"><?= e($it['label']) ?> home</a>
-<?php foreach ($it['mega']['cols'] as $col): foreach ($col['links'] as [$ll, $lh]): ?>          <a class="avd-sub" href="<?= e($lh) ?>"><?= e($ll) ?></a>
+<?php foreach ($it['mega']['cols'] as $col): foreach ($col['links'] as $lnk): [$ll, $lh, $lic] = $lnk + [2 => 'layers']; ?>          <a class="avd-sub" href="<?= e($lh) ?>"><span class="avd-sub-ico"><?= av_nav_icon($lic) ?></span><?= e($ll) ?></a>
 <?php endforeach; endforeach; ?>        </div>
       </div>
 <?php endif; endforeach; ?>    </div>

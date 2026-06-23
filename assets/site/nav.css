@@ -1,36 +1,56 @@
 /* ============================================================
-   assets/site/nav.css — mega menu + mobile drawer (site-wide)
-   Loaded on every page (PHP + static). Self-contained and themed
-   via its own --m-* tokens so it looks identical regardless of the
-   page's own variable system. The header BAR keeps its existing
-   styling; this adds the dropdown panels and the new drawer.
+   assets/site/nav.css — modern mega menu + mobile drawer (site-wide).
+   Loaded on every page (PHP + static). The header BAR is dark on all
+   pages, so bar accents use fixed brand values; the mega/drawer panels
+   are light/dark-aware via their own --m-* tokens.
    ============================================================ */
 :root {
-  --m-surface: #ffffff; --m-surface-2: #f7f7f4; --m-ink: #111827;
-  --m-muted: #6b7280; --m-divider: #e8e8e3; --m-gold: #e8a317; --m-gold-deep: #9c6906;
-  --m-shadow: 0 30px 70px -28px rgba(17,24,39,0.45);
+  --m-surface: #ffffff; --m-surface-2: #f6f5f1; --m-ink: #111827;
+  --m-muted: #6b7280; --m-divider: #ebe9e3; --m-gold: #e8a317; --m-gold-deep: #9c6906;
+  --m-shadow: 0 26px 64px -26px rgba(17,24,39,0.42);
 }
 html[data-theme="dark"] {
-  --m-surface: #15161b; --m-surface-2: #1d1f26; --m-ink: #f5f6f7;
-  --m-muted: #9aa1ad; --m-divider: rgba(255,255,255,0.10); --m-gold: #f3b416; --m-gold-deep: #f3b416;
+  --m-surface: #14161c; --m-surface-2: #1d2027; --m-ink: #f5f6f7;
+  --m-muted: #9aa1ad; --m-divider: rgba(255,255,255,0.09); --m-gold: #f3b416; --m-gold-deep: #f3b416;
   --m-shadow: 0 30px 70px -22px rgba(0,0,0,0.7);
 }
 
+/* ---- header bar polish (dark bar; fixed accents) ---- */
+.site-header { border-bottom: 1px solid rgba(255,255,255,0.06); }
+.nav-logo { gap: 9px; }
+.nav-badge {
+  background: rgba(243,180,22,0.16) !important; color: #f3b416 !important;
+  border: 1px solid rgba(243,180,22,0.28); font-size: 8.5px !important;
+  font-weight: 800; letter-spacing: .12em; padding: 3px 7px !important; border-radius: 6px !important;
+}
+.nav-links > li > a {
+  position: relative; background: transparent !important; border-radius: 8px;
+  font-weight: 600; transition: color .2s ease;
+}
+.nav-links > li > a::after {
+  content: ''; position: absolute; left: 12px; right: 12px; bottom: 5px; height: 2px;
+  background: #f3b416; border-radius: 2px; transform: scaleX(0); transform-origin: center;
+  transition: transform .26s cubic-bezier(.22,1,.36,1);
+}
+.nav-links > li > a:hover, .nav-links > li > a[aria-current="page"] { color: #f3b416 !important; }
+.nav-links > li > a:hover::after,
+.nav-links > li > a[aria-current="page"]::after,
+.nav-links .has-mega:hover > a::after,
+.nav-links .has-mega:focus-within > a::after { transform: scaleX(1); }
+
 /* ---- desktop mega menu ---- */
-/* anchor mega panels to the nav row so positioning is independent of each
-   page's header position; never clip them */
 .nav-inner { position: relative; }
 .site-header, .site-header .container, .nav-inner, .nav-links, .nav-links .has-mega { overflow: visible; }
 .nav-links .has-mega { position: static; }
 .nav-links .has-mega > a { display: inline-flex; align-items: center; gap: 4px; }
-.nav-links .has-mega > a .chev { width: 15px; height: 15px; margin-left: 1px; opacity: .65; transition: transform .3s ease; }
+.nav-links .has-mega > a .chev { width: 14px; height: 14px; margin-left: 1px; opacity: .6; transition: transform .3s ease; }
 .nav-links .has-mega:hover > a .chev,
-.nav-links .has-mega:focus-within > a .chev { transform: rotate(180deg); }
+.nav-links .has-mega:focus-within > a .chev { transform: rotate(180deg); opacity: 1; }
 
 .mega {
-  position: absolute; left: 0; right: 0; top: calc(100% + 12px); z-index: 60;
-  opacity: 0; visibility: hidden; transform: translateY(-10px);
-  transition: opacity .26s ease, transform .26s cubic-bezier(.22,1,.36,1), visibility .26s;
+  position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 60;
+  opacity: 0; visibility: hidden; transform: translateY(-8px);
+  transition: opacity .24s ease, transform .26s cubic-bezier(.22,1,.36,1), visibility .26s;
   pointer-events: none;
 }
 .nav-links .has-mega:hover .mega,
@@ -38,43 +58,52 @@ html[data-theme="dark"] {
   opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto;
 }
 .mega-inner {
-  max-width: 1120px; margin: 0 auto;
+  max-width: 1180px; margin: 0 auto;
   background: var(--m-surface); border: 1px solid var(--m-divider);
-  border-radius: 18px; box-shadow: var(--m-shadow);
-  padding: 26px; display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 26px; overflow: hidden;
+  border-radius: 20px; box-shadow: var(--m-shadow);
+  padding: 14px; display: grid; grid-template-columns: 1.05fr 1.05fr .9fr; gap: 10px; overflow: hidden;
 }
 .mega-cols { display: contents; }
+.mega-col { padding: 14px 12px; }
 .mega-col .mega-h {
   font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--m-gold-deep); margin: 4px 0 14px;
+  color: var(--m-gold-deep); margin: 4px 12px 10px;
 }
 .mega-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.mega-col a {
-  display: block; padding: 9px 12px; margin: 0 -12px; border-radius: 10px;
-  font-size: 14.5px; font-weight: 600; color: var(--m-ink); text-decoration: none;
-  transition: background .18s ease, color .18s ease, transform .18s ease;
+.mega-link {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 12px;
+  text-decoration: none; transition: background .18s ease, transform .18s ease;
 }
-.mega-col a:hover { background: var(--m-surface-2); color: var(--m-gold-deep); transform: translateX(3px); }
+.mega-link:hover { background: var(--m-surface-2); transform: translateX(2px); }
+.ml-ico {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; display: inline-flex;
+  align-items: center; justify-content: center; background: rgba(232,163,23,0.12); color: var(--m-gold-deep);
+  transition: background .18s ease, color .18s ease;
+}
+.ml-ico svg { width: 18px; height: 18px; }
+.mega-link:hover .ml-ico { background: var(--m-gold); color: #1a1205; }
+.ml-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ml-label { font-size: 14px; font-weight: 700; color: var(--m-ink); line-height: 1.25; }
+.ml-desc { font-size: 12px; color: var(--m-muted); line-height: 1.3; }
 
 .mega-feature {
   position: relative; display: flex; flex-direction: column; justify-content: flex-end;
-  min-height: 210px; padding: 22px; border-radius: 14px; overflow: hidden;
-  text-decoration: none; color: #fff; background: #0b0f1a center/cover no-repeat;
-  isolation: isolate;
+  min-height: 230px; padding: 24px; border-radius: 14px; overflow: hidden;
+  text-decoration: none; color: #fff; background: #0b0f1a center/cover no-repeat; isolation: isolate;
 }
 .mega-feature::before {
   content: ''; position: absolute; inset: 0; z-index: -1;
-  background: linear-gradient(150deg, rgba(11,15,26,.86) 0%, rgba(11,15,26,.5) 55%, rgba(232,163,23,.35) 100%);
+  background: linear-gradient(155deg, rgba(11,15,26,0.82) 0%, rgba(11,15,26,0.45) 52%, rgba(232,163,23,0.42) 100%);
 }
-.mega-feature .mf-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--m-gold); }
-.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant SC', Georgia, serif); font-size: 24px; line-height: 1.1; margin: 8px 0 6px; }
+.mega-feature .mf-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #ffce5a; }
+.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant SC', Georgia, serif); font-size: 25px; line-height: 1.08; margin: 8px 0 6px; }
 .mega-feature .mf-text { font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,0.82); }
-.mega-feature .mf-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 13.5px; font-weight: 800; color: #fff; }
+.mega-feature .mf-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px; font-size: 13.5px; font-weight: 800; color: #fff; }
 .mega-feature .mf-cta svg { width: 16px; height: 16px; transition: transform .25s ease; }
 .mega-feature:hover .mf-cta svg { transform: translateX(4px); }
 
 /* ---- header burger (shown on mobile) ---- */
-.nav-burger { display: none; width: 46px; height: 46px; border: 0; background: transparent; cursor: pointer; padding: 0; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
+.nav-burger { display: none; width: 46px; height: 46px; border: 0; background: transparent; cursor: pointer; padding: 0; align-items: center; justify-content: center; flex-direction: column; gap: 5px; color: #fff; }
 .nav-burger .nav-toggle-line { width: 24px; height: 2px; background: currentColor; display: block; transition: transform .3s ease, opacity .2s ease; }
 .nav-burger[aria-expanded="true"] .line-1 { transform: translateY(7px) rotate(45deg); }
 .nav-burger[aria-expanded="true"] .line-2 { opacity: 0; }
@@ -107,9 +136,11 @@ html[data-theme="dark"] {
 .avd-acc-btn .chev { width: 20px; height: 20px; transition: transform .3s ease; opacity: .7; }
 .avd-acc.open .avd-acc-btn .chev { transform: rotate(180deg); }
 .avd-acc-panel { max-height: 0; overflow: hidden; transition: max-height .34s ease; }
-.avd-acc.open .avd-acc-panel { max-height: 520px; }
-.avd-sub { display: block; padding: 11px 14px 11px 26px; font-size: 15px; font-weight: 600; color: var(--m-muted); text-decoration: none; border-radius: 10px; }
+.avd-acc.open .avd-acc-panel { max-height: 640px; }
+.avd-sub { display: flex; align-items: center; gap: 12px; padding: 11px 14px 11px 16px; font-size: 15px; font-weight: 600; color: var(--m-muted); text-decoration: none; border-radius: 10px; }
 .avd-sub:hover { color: var(--m-gold-deep); background: var(--m-surface-2); }
+.avd-sub-ico { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: rgba(232,163,23,0.12); color: var(--m-gold-deep); }
+.avd-sub-ico svg { width: 16px; height: 16px; }
 .avd-sub-lead { color: var(--m-ink); font-weight: 700; }
 
 .avd-foot { padding: 16px 20px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--m-divider); display: flex; flex-direction: column; gap: 10px; background: var(--m-surface); }
@@ -119,8 +150,6 @@ html[data-theme="dark"] {
 .avd-social a:hover { color: var(--m-gold-deep); border-color: var(--m-gold); }
 
 /* ---- breakpoints ---- */
-/* full bar (logo + 7 links w/ chevrons + actions) needs ~1200px; below that
-   we use the burger + drawer. Keeps both PHP and static pages consistent. */
 @media (max-width: 1099px) {
   .nav-links { display: none !important; }
   .nav-actions .nav-donate, .nav-actions .nav-cta { display: none !important; }
@@ -128,16 +157,19 @@ html[data-theme="dark"] {
 }
 @media (min-width: 1100px) {
   .av-drawer, .scrim { display: none; }
-  /* tighten the desktop row so 7 mega links + actions sit comfortably */
   .nav-inner { gap: 14px; }
-  .nav-links { gap: 0; }
-  .nav-links > li > a { padding-left: 11px; padding-right: 11px; }
+  .nav-links { gap: 2px; }
+  .nav-links > li > a { padding-left: 12px; padding-right: 12px; }
   .nav-actions { gap: 10px; }
 }
+@media (max-width: 980px) {
+  .mega-inner { grid-template-columns: 1fr 1fr; }
+  .mega-feature { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .mega, .av-drawer, .avd-acc-panel, .chev, .mega-col a { transition: none !important; }
+  .mega, .av-drawer, .avd-acc-panel, .chev, .mega-link, .nav-links > li > a::after { transition: none !important; }
 }
 
-/* scrim (self-contained so static pages have it too) */
+/* scrim */
 .scrim { position: fixed; inset: 0; background: rgba(8,10,16,0.55); z-index: 240; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 .scrim.open { opacity: 1; visibility: visible; }
