@@ -560,6 +560,33 @@
     post('cel_delete', { id: editingCel }).then(function () { toast('Deleted.'); show('celebrations'); loadCelebrations(); });
   });
 
+  /* ---- preview any day's celebration ---- */
+  var celPvBtn = $('#celPreviewBtn');
+  if (celPvBtn) {
+    var dEl = $('#celPreviewDate'); if (dEl && !dEl.value) dEl.value = new Date().toISOString().slice(0, 10);
+    celPvBtn.addEventListener('click', function () {
+      var d = dEl.value; var out = $('#celPreviewOut'); if (!d) return;
+      out.textContent = 'Loading…';
+      fetch('/api.php?action=celebrations&date=' + encodeURIComponent(d), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var c = j && j.celebration;
+          if (!c) { out.innerHTML = '<span class="muted">Nothing special on ' + escapeHtml(d) + ' — the normal logo &amp; no banner.</span>'; return; }
+          var p = c.primary;
+          var doodle = p.doodle ? '<img src="' + escapeHtml(p.doodle) + '" alt="" style="height:32px;display:block;margin:10px 0;background:#0d1220;border-radius:8px;padding:7px 12px" />' : '<span class="muted tiny"> (gold accent on the wordmark)</span>';
+          var others = (c.items || []).slice(1).map(function (it) { return escapeHtml(it.title); }).join(', ');
+          out.innerHTML =
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
+            '<span style="font-size:22px">' + escapeHtml(p.emoji || '🎉') + '</span>' +
+            '<strong style="color:var(--ink)">' + escapeHtml(p.title) + '</strong>' +
+            '<span title="theme" style="width:15px;height:15px;border-radius:50%;background:' + escapeHtml(p.theme || '#f3b416') + ';border:1px solid rgba(0,0,0,.2)"></span></div>' +
+            '<div class="muted">' + escapeHtml(p.message || '') + '</div>' + doodle +
+            (others ? '<div class="muted tiny" style="margin-top:6px">Also today: ' + others + '</div>' : '');
+        })
+        .catch(function () { out.textContent = 'Could not load preview.'; });
+    });
+  }
+
   /* ---- boot ---- */
   function boot() { show('entries'); loadList(); }
   api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); } else show('login'); }).catch(function () { show('login'); });

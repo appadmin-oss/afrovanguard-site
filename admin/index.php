@@ -293,6 +293,14 @@
       <div><h1>Celebrations</h1><p class="muted">Auto-celebrated holidays &amp; dates. Built-ins run automatically; add your own with custom doodle art.</p></div>
       <button class="btn btn-primary" id="newCelBtn">+ Add celebration</button>
     </div>
+    <div class="side-card" id="celPreview" style="margin:0 0 22px">
+      <h3>Preview a day</h3>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="celPreviewDate" class="fld" style="margin:0" />
+        <button class="btn btn-outline btn-sm" id="celPreviewBtn" type="button">Preview</button>
+      </div>
+      <div id="celPreviewOut" class="muted tiny" style="margin-top:12px">Pick a date to see what the site will celebrate (banner, doodle &amp; theme).</div>
+    </div>
     <div class="entry-list" id="celList"></div>
     <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Built-in calendar (automatic)</h2>
     <div class="entry-list" id="celBuiltins"></div>

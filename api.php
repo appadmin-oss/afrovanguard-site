@@ -40,7 +40,9 @@ try {
     } else { // celebrations
         if (is_file(AV_ROOT . '/lib/celebrations.php')) {
             require_once AV_ROOT . '/lib/celebrations.php';
-            $out = ['status' => 'ok', 'celebration' => av_celebration_today($pdo)];
+            $d = (string) ($_GET['date'] ?? '');           // optional preview date
+            $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : null;
+            $out = ['status' => 'ok', 'celebration' => av_celebration_today($pdo, $date)];
         } else {
             $out = ['status' => 'ok', 'celebration' => null];
         }
