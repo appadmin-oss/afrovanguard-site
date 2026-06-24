@@ -63,7 +63,7 @@ render_nav('academy');
       <div class="no-results">No programmes match your search.</div>
     </div>
 
-<?php $member = false; if ($u = LmsAuth::user()) { $member = (new LmsRepository())->isMember((int) $u['id']); } ?>
+<?php $member = false; if ($u = LmsAuth::user()) { $member = (new LmsRepository())->isMember((int) $u['id']) || LmsAuth::isOrgMember($u); } ?>
     <section class="ac-membership" id="membership">
       <div class="container membership-card" data-reveal>
         <div class="membership-copy">

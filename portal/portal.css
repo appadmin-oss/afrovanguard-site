@@ -23,6 +23,11 @@
 .portal-card p { color: var(--body); font-size: 14.5px; line-height: 1.6; margin: 0 0 16px; }
 .pc-empty { color: var(--muted); }
 .pc-empty a, .portal-card p a { color: var(--gold-deep); font-weight: 700; }
+.pc-summary { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 14px; }
+.pc-summary b { color: var(--ink); }
+.portal-status-line { font-size: 14.5px; line-height: 1.6; color: var(--body); margin: 0 0 16px; }
+.portal-status-line strong { color: var(--ink); }
+.portal-badge.org { font-weight: 800; }
 
 /* My learning */
 .learn-list { display: flex; flex-direction: column; gap: 10px; }

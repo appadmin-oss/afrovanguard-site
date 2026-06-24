@@ -89,8 +89,10 @@ final class LmsRepository
         if (!$user) return false;                                   // tracked/membership/paid need an account
         if (LmsAuth::canTeach($user)) return true;                  // instructor / coordinator / admin: full access
         if ($access === 'tracked') return true;                     // free but account-gated for tracking
-        if ($access === 'membership') return $this->isMember((int) $user['id']);
-        if ($access === 'paid') return $this->isEnrolled((int) $user['id'], (int) $course['id']) || $this->isMember((int) $user['id']);
+        // A "member" is a paid Academy member OR an Afrovanguard org account (@afrovanguard.org.ng).
+        $member = $this->isMember((int) $user['id']) || LmsAuth::isOrgMember($user);
+        if ($access === 'membership') return $member;
+        if ($access === 'paid') return $this->isEnrolled((int) $user['id'], (int) $course['id']) || $member;
         return false;
     }
 

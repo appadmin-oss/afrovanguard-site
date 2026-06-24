@@ -1,11 +1,13 @@
 <?php
 /**
- * portal/index.php — the member portal / dashboard.
+ * portal/index.php — the member / learning portal.
  *
- * The authenticated home for learners and @afrovanguard.org.ng members.
- * Served at /portal (a real folder, so WordPress never intercepts it).
- * Four sections (per the agreed scope): My learning, Mentorship hub
- * (org-members only), Membership & profile, My Diary.
+ * Two experiences from one dashboard, decided by the account:
+ *   @afrovanguard.org.ng  → MEMBER       — learning + mentorship + member status + diary
+ *   everyone else         → LEARNING ONLY — learning + diary (mentorship locked)
+ *
+ * Served at /portal (a real folder, so WordPress never intercepts it);
+ * subdomain-ready via PORTAL_URL. Its own slim chrome (member bar + footer).
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -14,18 +16,24 @@ require_once AV_ROOT . '/lib/partials.php';
 $u = LmsAuth::user();
 if (!$u) { header('Location: ' . av_login_url('/portal/')); exit; }
 
-$lms       = new LmsRepository();
-$courses   = $lms->enrolledCourses((int) $u['id']);
-$isMember  = $lms->isMember((int) $u['id']);     // paid Academy membership
-$isOrg     = LmsAuth::isOrgMember($u);           // org member → mentorship access
-$canMentor = LmsAuth::canMentor($u);
-$myEntries = (new DiaryJournal())->mine((int) $u['id']);
-$first     = explode(' ', trim((string) $u['name']))[0] ?: 'there';
-$roleLabel = ucfirst((string) $u['role']);
+$lms        = new LmsRepository();
+$courses    = $lms->enrolledCourses((int) $u['id']);
+$isOrg      = LmsAuth::isOrgMember($u);            // @afrovanguard.org.ng → member
+$canMentor  = LmsAuth::canMentor($u);
+$myEntries  = (new DiaryJournal())->mine((int) $u['id']);
+$first      = explode(' ', trim((string) $u['name']))[0] ?: 'there';
+$roleLabel  = ucfirst((string) $u['role']);
+$certs      = count(array_filter($courses, fn($c) => !empty($c['certified'])));
+$inProgress = count(array_filter($courses, fn($c) => empty($c['complete'])));
+$tag        = $isOrg ? 'Member portal' : 'Learning';
+$showRole   = $isOrg && LmsAuth::rank((string) $u['role']) > LmsAuth::ROLE_RANK['member']; // mentor+
+// Org members are at least "Member" even if their stored role is still learner
+// (org status comes from the verified email domain). Never show below Member.
+$accessLevel = (LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['member']) ? $roleLabel : 'Member';
 
 render_head([
-    'title'      => 'Your portal — Afrovanguard',
-    'desc'       => 'Your Afrovanguard member portal — learning, mentorship, membership and your diary.',
+    'title'      => ($isOrg ? 'Member portal' : 'Your learning') . ' — Afrovanguard',
+    'desc'       => 'Your Afrovanguard portal — learning, and (for members) mentorship and members-only spaces.',
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page',
@@ -36,7 +44,7 @@ render_head([
     <div class="container portal-bar-inner">
       <a class="portal-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard — home">
         <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
-        <span class="portal-tag">Member portal</span>
+        <span class="portal-tag"><?= e($tag) ?></span>
       </a>
       <nav class="portal-bar-actions" aria-label="Member navigation">
         <a class="portal-bar-link" href="/academy/">Academy</a>
@@ -46,15 +54,17 @@ render_head([
       </nav>
     </div>
   </header>
-  <main id="main-content" class="portal">
+  <main id="main-content" class="portal portal--<?= $isOrg ? 'member' : 'learner' ?>">
     <div class="container">
       <header class="portal-head">
         <div>
-          <span class="portal-eyebrow">Member portal</span>
+          <span class="portal-eyebrow"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
           <h1>Welcome back, <?= e($first) ?>.</h1>
           <p class="portal-badges">
-            <span class="portal-badge"><?= e($roleLabel) ?></span>
-<?php if ($isOrg): ?>            <span class="portal-badge org">Afrovanguard member</span>
+<?php if ($isOrg): ?>            <span class="portal-badge org">✦ Afrovanguard member</span>
+<?php if ($showRole): ?>            <span class="portal-badge"><?= e($roleLabel) ?></span>
+<?php endif; ?>
+<?php else: ?>            <span class="portal-badge">Learning access</span>
 <?php endif; ?>          </p>
         </div>
         <a class="btn btn-outline btn-sm" href="#" data-logout>Sign out</a>
@@ -65,6 +75,7 @@ render_head([
         <section class="portal-card span-2">
           <div class="pc-head"><h2>My learning</h2><a href="/academy/" class="pc-link">Browse the Academy →</a></div>
 <?php if ($courses): ?>
+          <p class="pc-summary"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
           <div class="learn-list">
 <?php foreach ($courses as $c): ?>
             <a class="learn-row" href="/academy/<?= e($c['slug']) ?>/learn/">
@@ -81,28 +92,30 @@ render_head([
 <?php endif; ?>
         </section>
 
-        <!-- Mentorship (org members only) -->
+        <!-- Mentorship -->
         <section class="portal-card<?= $isOrg ? '' : ' is-locked' ?>">
           <div class="pc-head"><h2>Mentorship</h2><?= $isOrg ? '<span class="pc-tag">Active</span>' : '<span class="pc-tag locked">Members only</span>' ?></div>
 <?php if ($isOrg): ?>
           <p>You’re connected to the Afrovanguard mentor network.<?= $canMentor ? ' As a mentor, your mentees and sessions will appear here.' : ' Your mentor and upcoming sessions will appear here.' ?></p>
           <a class="btn btn-primary btn-sm" href="mailto:cacentre@afrovanguard.org.ng?subject=Mentorship">Reach the mentorship team</a>
 <?php else: ?>
-          <p>Mentorship is for Afrovanguard members. Sign in with your <strong>@afrovanguard.org.ng</strong> account to unlock it.</p>
+          <p>Mentorship is for Afrovanguard members. Members sign in with an <strong>@afrovanguard.org.ng</strong> account.</p>
 <?php endif; ?>
         </section>
 
-        <!-- Membership & profile -->
+        <!-- Status & profile -->
         <section class="portal-card">
-          <div class="pc-head"><h2>Membership &amp; profile</h2></div>
+          <div class="pc-head"><h2><?= $isOrg ? 'Membership' : 'Your account' ?></h2><?= $isOrg ? '<span class="pc-tag">Member</span>' : '' ?></div>
+<?php if ($isOrg): ?>
+          <p class="portal-status-line">✓ You’re an <strong>Afrovanguard member</strong> — full access to mentorship and members-only programmes.</p>
+<?php else: ?>
+          <p class="portal-status-line">You have <strong>learning access</strong>. Mentorship and members-only spaces are for Afrovanguard members.</p>
+<?php endif; ?>
           <dl class="profile-dl">
             <dt>Name</dt><dd><?= e($u['name']) ?></dd>
             <dt>Email</dt><dd><?= e($u['email']) ?></dd>
-            <dt>Access level</dt><dd><?= e($roleLabel) ?></dd>
-            <dt>Academy membership</dt><dd><?= $isMember ? '<strong>Active</strong>' : 'Not a member yet' ?></dd>
+            <dt><?= $isOrg ? 'Access level' : 'Account' ?></dt><dd><?= $isOrg ? e($accessLevel) : 'Learner' ?></dd>
           </dl>
-<?php if (!$isMember): ?>          <a class="btn btn-outline btn-sm" href="/academy/#membership">Become a member</a>
-<?php endif; ?>
         </section>
 
         <!-- My Diary -->
@@ -125,4 +138,3 @@ render_head([
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>
-
