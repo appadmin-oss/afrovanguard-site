@@ -18,6 +18,7 @@
       <button class="tab active" data-tab="entries">Diary</button>
       <button class="tab" data-tab="moderation">Moderation<span class="tab-badge" id="modBadge" hidden></span></button>
       <button class="tab" data-tab="academy">Academy</button>
+      <button class="tab" data-tab="members">Members</button>
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
       <button class="tab" data-tab="signin">Sign-in</button>
@@ -229,6 +230,33 @@
   <main class="studio-main" id="moderationView" hidden>
     <div class="studio-head"><div><h1>Diary moderation</h1><p class="muted">Public journal submissions from members, awaiting review. Approving publishes the entry to the Diary feed under the author’s name. Private and event entries are never shown here.</p></div></div>
     <div class="inbox-list" id="modList"></div>
+  </main>
+
+  <!-- MEMBERS (RBAC console) -->
+  <main class="studio-main" id="membersView" hidden>
+    <div class="studio-head">
+      <div><h1>Members</h1><p class="muted">Accounts &amp; access levels. Verified <strong>@afrovanguard.org.ng</strong> sign-ins become members (mentorship access); promote to Mentor / Coordinator / Admin, suspend, or pre-create accounts.</p></div>
+      <button class="btn btn-primary" id="memNewBtn">+ Add member</button>
+    </div>
+    <div class="mem-counts" id="memCounts"></div>
+    <div class="side-card mem-create" id="memCreate" hidden>
+      <h3>Add a member</h3>
+      <div class="mem-create-grid">
+        <label class="fld"><span>Name</span><input id="mc_name" placeholder="Full name" /></label>
+        <label class="fld"><span>Email</span><input id="mc_email" type="email" placeholder="name@afrovanguard.org.ng" /></label>
+        <label class="fld"><span>Access level</span><select id="mc_role"></select></label>
+      </div>
+      <div class="editor-actions"><button class="btn btn-outline btn-sm" id="memCreateCancel">Cancel</button><button class="btn btn-primary btn-sm" id="memCreateSave">Create account</button></div>
+      <p class="muted tiny">Pre-creates a passwordless account; they sign in with Google (org email) to claim it.</p>
+    </div>
+    <div class="mem-filters">
+      <div class="search-wrap mem-search">&#128269;<input type="search" id="memQ" placeholder="Search name or email…" aria-label="Search members" /></div>
+      <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
+      <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+    </div>
+    <div class="entry-list" id="memList"></div>
+    <h2 class="mem-audit-h">Recent activity</h2>
+    <div class="inbox-list" id="memAudit"></div>
   </main>
 
   <!-- PEOPLE LIST -->

@@ -239,3 +239,13 @@ CREATE TABLE IF NOT EXISTS auth_illustrations (
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_auth_art_active ON auth_illustrations(active, schedule_kind);
+
+-- ── Member-management audit trail (Studio) ──
+CREATE TABLE IF NOT EXISTS lms_audit (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor      TEXT NOT NULL DEFAULT 'admin',
+  action     TEXT NOT NULL,
+  target     TEXT NOT NULL DEFAULT '',
+  detail     TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), signin: $('#signinView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), signin: $('#signinView'), members: $('#membersView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -54,6 +54,7 @@
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
       else if (which === 'signin') { show('signin'); loadArt(); }
+      else if (which === 'members') { show('members'); loadMembers(); }
       else { show('inbox'); loadInbox(); }
     });
   });
@@ -687,6 +688,76 @@
         if (!confirm('Delete this illustration?')) return;
         post('art_delete', { id: dl.getAttribute('data-id') }).then(function () { toast('Deleted.'); loadArt(); });
       }
+    });
+  }
+
+  /* ---- Members (RBAC console) ---- */
+  var memRoles = ['learner', 'member', 'mentor', 'coordinator', 'admin'], memT;
+  function memCountsHTML(c) {
+    return ['total'].concat(memRoles).filter(function (k) { return k === 'total' || c[k]; }).map(function (k) {
+      return '<span class="mem-chip"><b>' + (c[k] || 0) + '</b> ' + (k === 'total' ? 'total' : escapeHtml(k)) + '</span>';
+    }).join('');
+  }
+  function memRowHTML(m) {
+    var opts = memRoles.map(function (r) { return '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + r + '</option>'; }).join('');
+    var badges = (m.org ? ' <span class="badge published">org</span>' : '') + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '');
+    var seen = m.last_login ? ' · last seen ' + escapeHtml(String(m.last_login).slice(0, 10)) : '';
+    return '<div class="entry-row mem-row" data-id="' + m.id + '">'
+      + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
+      + '<div class="entry-meta">' + escapeHtml(m.email) + ' · joined ' + escapeHtml(String(m.created_at || '').slice(0, 10)) + seen + '</div></div>'
+      + '<div class="entry-ops">'
+      + '<select class="mem-role" data-id="' + m.id + '" title="Access level">' + opts + '</select>'
+      + '<button class="btn btn-outline btn-sm mem-status" data-id="' + m.id + '" data-to="' + (m.status === 'suspended' ? 'active' : 'suspended') + '">' + (m.status === 'suspended' ? 'Reactivate' : 'Suspend') + '</button>'
+      + '</div></div>';
+  }
+  function memAuditHTML(a) {
+    return '<div class="inbox-row"><strong>' + escapeHtml(a.action) + '</strong> ' + escapeHtml(a.target || '')
+      + (a.detail ? ' <span class="muted">(' + escapeHtml(a.detail) + ')</span>' : '')
+      + '<div class="inbox-meta">' + escapeHtml(String(a.created_at || '')) + '</div></div>';
+  }
+  function loadMembers() {
+    var box = $('#memList'); if (!box) return;
+    var q = encodeURIComponent($('#memQ').value.trim());
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    return api('mem_list&q=' + q + '&role=' + $('#memRole').value + '&status=' + $('#memStatus').value).then(function (r) {
+      var d = r.data || {}; if (!d.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      memRoles = d.roles || memRoles;
+      $('#memCounts').innerHTML = memCountsHTML(d.counts || {});
+      if ($('#memRole').options.length <= 1) { var keep = $('#memRole').value; memRoles.forEach(function (r) { var o = document.createElement('option'); o.value = r; o.textContent = r; $('#memRole').appendChild(o); }); $('#memRole').value = keep; }
+      if (!$('#mc_role').options.length) memRoles.forEach(function (r) { var o = document.createElement('option'); o.value = r; o.textContent = r; if (r === 'member') o.selected = true; $('#mc_role').appendChild(o); });
+      var rows = d.members || [];
+      box.innerHTML = rows.length ? rows.map(memRowHTML).join('') : '<p class="muted">No members match.</p>';
+      $('#memAudit').innerHTML = (d.audit || []).length ? d.audit.map(memAuditHTML).join('') : '<p class="muted">No activity yet.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
+  }
+  if ($('#membersView')) {
+    $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(loadMembers, 280); });
+    $('#memRole').addEventListener('change', loadMembers);
+    $('#memStatus').addEventListener('change', loadMembers);
+    $('#memNewBtn').addEventListener('click', function () { var c = $('#memCreate'); c.hidden = !c.hidden; if (!c.hidden) $('#mc_name').focus(); });
+    $('#memCreateCancel').addEventListener('click', function () { $('#memCreate').hidden = true; });
+    $('#memCreateSave').addEventListener('click', function () {
+      var p = { name: $('#mc_name').value.trim(), email: $('#mc_email').value.trim(), role: $('#mc_role').value };
+      if (!p.email) { toast('An email is required.'); return; }
+      this.disabled = true;
+      post('mem_create', p).then(function (r) {
+        if (r.data && r.data.ok) { toast('Member created.'); $('#mc_name').value = ''; $('#mc_email').value = ''; $('#memCreate').hidden = true; loadMembers(); }
+        else toast((r.data && r.data.error) || 'Could not create.');
+      }).catch(function () { toast('Network error.'); }).finally(function () { $('#memCreateSave').disabled = false; });
+    });
+    $('#memList').addEventListener('change', function (e) {
+      var sel = e.target.closest('.mem-role'); if (!sel) return;
+      post('mem_save', { id: sel.getAttribute('data-id'), role: sel.value }).then(function (r) {
+        if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+      });
+    });
+    $('#memList').addEventListener('click', function (e) {
+      var b = e.target.closest('.mem-status'); if (!b) return;
+      var to = b.getAttribute('data-to');
+      if (to === 'suspended' && !confirm('Suspend this member? They will be signed out.')) return;
+      post('mem_save', { id: b.getAttribute('data-id'), status: to }).then(function (r) {
+        if (r.data && r.data.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+      });
     });
   }
 

@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -117,6 +117,36 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             av_auth_art_delete(Database::pdo(), (int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
+
+        // ---- Member management (RBAC console + audit) ----
+        case 'mem_list':
+            json_out(['ok' => true,
+                'members' => $lms->membersForAdmin((string) ($_GET['q'] ?? ''), (string) ($_GET['role'] ?? ''), (string) ($_GET['status'] ?? '')),
+                'counts'  => $lms->memberCounts(),
+                'roles'   => array_keys(LmsAuth::ROLE_RANK),
+                'audit'   => $lms->recentAudit(30)]);
+        case 'mem_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $mid = (int) ($body['id'] ?? 0);
+            $m = $lms->memberById($mid);
+            if (!$m) json_out(['ok' => false, 'error' => 'Member not found.'], 404);
+            $changed = [];
+            if (isset($body['role']) && (string) $body['role'] !== $m['role']) {
+                if (!$lms->setMemberRole($mid, (string) $body['role'])) json_out(['ok' => false, 'error' => 'Unknown access level.'], 422);
+                $lms->audit('role_change', $m['email'], $m['role'] . ' → ' . $body['role']);
+                $changed[] = 'role';
+            }
+            if (isset($body['status']) && (string) $body['status'] !== $m['status']) {
+                if (!$lms->setMemberStatus($mid, (string) $body['status'])) json_out(['ok' => false, 'error' => 'Invalid status.'], 422);
+                $lms->audit($body['status'] === 'suspended' ? 'suspend' : 'reactivate', $m['email']);
+                $changed[] = 'status';
+            }
+            json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid)]);
+        case 'mem_create':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = $lms->createMember((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'member'));
+            if (!empty($res['ok'])) $lms->audit('create_member', strtolower(trim((string) ($body['email'] ?? ''))), 'role ' . ($body['role'] ?? 'member'));
+            json_out($res, !empty($res['ok']) ? 200 : 422);
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));

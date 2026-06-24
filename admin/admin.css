@@ -68,6 +68,20 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 
 .tox-tinymce { border-radius: var(--radius-md) !important; border-color: var(--divider) !important; }
 
+/* Members console */
+.mem-counts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.mem-chip { font-size: 12.5px; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-full); padding: 7px 14px; }
+.mem-chip b { color: var(--gold-deep); }
+.mem-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.mem-filters .mem-search { flex: 1; min-width: 220px; display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-full); padding: 0 16px; }
+.mem-filters .mem-search input { border: 0; background: transparent; outline: none; width: 100%; padding: 11px 0; font: inherit; color: var(--ink); }
+.mem-filters select { padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+.mem-create-grid { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 12px; margin-bottom: 12px; }
+.mem-row .entry-info { flex: 1; }
+.mem-row .mem-role { padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; text-transform: capitalize; }
+.mem-audit-h { font-family: var(--font-heading); font-size: 20px; margin: 28px 0 12px; }
+@media (max-width: 760px) { .mem-create-grid { grid-template-columns: 1fr; } }
+
 /* Sign-in illustration manager */
 .art-add-grid { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
 .art-add-grid .cover-preview { aspect-ratio: 3/4; margin-bottom: 10px; }

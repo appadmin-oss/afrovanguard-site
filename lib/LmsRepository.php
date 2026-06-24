@@ -316,6 +316,98 @@ final class LmsRepository
         return $s->fetch() ?: null;
     }
 
+    /* ── Member administration (Studio) ── */
+
+    /** Lazily ensure the lightweight admin audit trail exists. */
+    public function ensureAudit(): void
+    {
+        static $done = false; if ($done) return;
+        $this->db->exec(
+            "CREATE TABLE IF NOT EXISTS lms_audit (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               actor TEXT NOT NULL DEFAULT 'admin',
+               action TEXT NOT NULL,
+               target TEXT NOT NULL DEFAULT '',
+               detail TEXT NOT NULL DEFAULT '',
+               created_at TEXT NOT NULL DEFAULT (datetime('now'))
+             );"
+        );
+        $done = true;
+    }
+    public function audit(string $action, string $target = '', string $detail = ''): void
+    {
+        $this->ensureAudit();
+        $this->db->prepare("INSERT INTO lms_audit (action, target, detail) VALUES (?,?,?)")->execute([$action, $target, $detail]);
+    }
+    public function recentAudit(int $limit = 40): array
+    {
+        $this->ensureAudit();
+        $s = $this->db->prepare("SELECT * FROM lms_audit ORDER BY id DESC LIMIT ?");
+        $s->bindValue(1, $limit, PDO::PARAM_INT); $s->execute();
+        return $s->fetchAll();
+    }
+
+    /** Counts by role, for the console summary. */
+    public function memberCounts(): array
+    {
+        $out = ['total' => 0];
+        foreach ($this->db->query("SELECT role, COUNT(*) c FROM lms_users GROUP BY role")->fetchAll() as $r) {
+            $out[(string) $r['role']] = (int) $r['c'];
+            $out['total'] += (int) $r['c'];
+        }
+        return $out;
+    }
+
+    /** Filtered member list for the admin console. */
+    public function membersForAdmin(string $q = '', string $role = '', string $status = '', int $limit = 200): array
+    {
+        $w = []; $p = [];
+        if ($q !== '')      { $w[] = '(name LIKE ? OR email LIKE ?)'; $p[] = "%$q%"; $p[] = "%$q%"; }
+        if ($role !== '')   { $w[] = 'role = ?';   $p[] = $role; }
+        if ($status !== '') { $w[] = 'status = ?'; $p[] = $status; }
+        $sql = "SELECT id, name, email, role, status, created_at, last_login FROM lms_users";
+        if ($w) $sql .= ' WHERE ' . implode(' AND ', $w);
+        $sql .= ' ORDER BY id DESC LIMIT ' . (int) $limit;
+        $s = $this->db->prepare($sql); $s->execute($p);
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) { $r['org'] = LmsAuth::isOrgMember($r); $r['rank'] = LmsAuth::rank((string) $r['role']); }
+        return $rows;
+    }
+
+    public function memberById(int $id): ?array
+    {
+        $s = $this->db->prepare("SELECT id, name, email, role, status, created_at, last_login FROM lms_users WHERE id = ?");
+        $s->execute([$id]); return $s->fetch() ?: null;
+    }
+
+    public function setMemberRole(int $id, string $role): bool
+    {
+        if (!isset(LmsAuth::ROLE_RANK[$role])) return false;
+        $this->db->prepare("UPDATE lms_users SET role = ? WHERE id = ?")->execute([$role, $id]);
+        return true;
+    }
+
+    public function setMemberStatus(int $id, string $status): bool
+    {
+        if (!in_array($status, ['active', 'suspended'], true)) return false;
+        $this->db->prepare("UPDATE lms_users SET status = ? WHERE id = ?")->execute([$status, $id]);
+        if ($status === 'suspended') $this->db->prepare("DELETE FROM lms_sessions WHERE user_id = ?")->execute([$id]); // revoke sessions
+        return true;
+    }
+
+    /** Pre-create a member (passwordless; they sign in via Google/reset). */
+    public function createMember(string $name, string $email, string $role): array
+    {
+        $email = strtolower(trim($email)); $name = trim($name);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Enter a valid email address.'];
+        if (!isset(LmsAuth::ROLE_RANK[$role])) $role = 'member';
+        $ex = $this->db->prepare("SELECT id FROM lms_users WHERE email = ?"); $ex->execute([$email]);
+        if ($ex->fetchColumn()) return ['ok' => false, 'error' => 'An account with that email already exists.'];
+        $this->db->prepare("INSERT INTO lms_users (name, email, password_hash, role) VALUES (?,?,?,?)")
+            ->execute([$name !== '' ? $name : ucfirst(explode('@', $email)[0]), $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role]);
+        return ['ok' => true, 'id' => (int) $this->db->lastInsertId()];
+    }
+
     public function certificateBySerial(string $serial): ?array
     {
         $s = $this->db->prepare(
