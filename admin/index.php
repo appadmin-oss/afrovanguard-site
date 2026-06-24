@@ -13,7 +13,7 @@
 </head>
 <body class="studio">
   <header class="studio-bar">
-    <div class="studio-brand"><span class="afro">AFRO</span><span class="van">VANGUARD</span> <span class="studio-tag">Studio</span></div>
+    <div class="studio-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
     <nav class="studio-tabs" id="tabs" hidden>
       <button class="tab active" data-tab="entries">Diary</button>
       <button class="tab" data-tab="moderation">Moderation<span class="tab-badge" id="modBadge" hidden></span></button>
