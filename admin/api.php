@@ -158,11 +158,17 @@ try {
             if ($method !== 'POST' || empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No file.'], 400);
             $f = $_FILES['file'];
             if ($f['error'] !== UPLOAD_ERR_OK) json_out(['ok' => false, 'error' => 'Upload error.'], 400);
-            if ($f['size'] > 10 * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max 10 MB.'], 413);
-            $mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
-            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'], true)) json_out(['ok' => false, 'error' => 'Images only.'], 415);
-            $res = Cloudinary::upload($f['tmp_name'], $f['name']);
-            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider']]);
+            if ($f['size'] > 25 * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max 25 MB.'], 413);
+            $mime = Storage::mime($f['tmp_name']);
+            $imageOk = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+            $docOk   = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                        'text/plain', 'text/csv'];
+            if (!in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
+            // images → Cloudinary, documents → Drive (each with a local fallback)
+            $res = Storage::put($f['tmp_name'], $f['name'], 'auto');
+            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? 'image']);
 
         case 'save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

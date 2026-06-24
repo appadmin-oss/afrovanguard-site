@@ -79,6 +79,17 @@ define('CLOUDINARY_CLOUD_NAME', getenv('CLOUDINARY_CLOUD_NAME') ?: '');
 define('CLOUDINARY_API_KEY',    getenv('CLOUDINARY_API_KEY') ?: '');
 define('CLOUDINARY_API_SECRET', getenv('CLOUDINARY_API_SECRET') ?: '');
 
+/* Document storage on Google Drive (service account). Images go to Cloudinary
+ * (above); documents (PDF/Office/CSV) go to a shared Drive folder via lib/Storage.
+ * Unset ⇒ documents fall back to local /uploads. AV_GDRIVE_SERVICE_ACCOUNT may be
+ * the service-account JSON itself or a path to the key file. */
+define('AV_GDRIVE_SERVICE_ACCOUNT', getenv('AV_GDRIVE_SERVICE_ACCOUNT') ?: '');
+define('AV_GDRIVE_FOLDER_ID',       getenv('AV_GDRIVE_FOLDER_ID') ?: '');
+
+/* Google sign-in (OAuth). Unset ⇒ "Continue with Google" stays disabled. */
+define('AV_GOOGLE_CLIENT_ID',     getenv('AV_GOOGLE_CLIENT_ID') ?: '');
+define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
+
 /* ─── Application ───────────────────────────────────────────── */
 define('SITE_URL',            'https://afrovanguard.org.ng');
 define('CURRENCY_DEFAULT',    'NGN');

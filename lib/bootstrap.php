@@ -39,6 +39,10 @@ if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('A
 foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
+// Document storage on Google Drive (service account). Absent ⇒ docs fall back to local /uploads.
+foreach (['AV_GDRIVE_SERVICE_ACCOUNT', 'AV_GDRIVE_FOLDER_ID'] as $k) {
+    if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
+}
 // The Workspace domain whose VERIFIED accounts are recognised as real org members.
 if (!defined('AV_ORG_DOMAIN')) define('AV_ORG_DOMAIN', getenv('AV_ORG_DOMAIN') ?: 'afrovanguard.org.ng');
 
@@ -56,6 +60,9 @@ require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Sitemap.php';
 require_once __DIR__ . '/AuthArt.php';
+require_once __DIR__ . '/Cloudinary.php';
+require_once __DIR__ . '/Drive.php';
+require_once __DIR__ . '/Storage.php';
 
 av_harden_errors();
 
