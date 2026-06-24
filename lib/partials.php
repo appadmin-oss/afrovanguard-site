@@ -87,7 +87,7 @@ function render_head(array $o): void {
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/assets/site/nav.css" rel="stylesheet" />
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
@@ -177,65 +177,162 @@ function av_nav_items(): array {
     return $out;
 }
 
+/**
+ * Contextual section sub-navigation — the SECOND nav tier (the Asana-style
+ * "section bar"). Rendered ONLY for sections that genuinely have peer
+ * sub-pages worth moving between — used deliberately, never on every page.
+ * Keyed by the active nav section. Each entry: a section brand, its links,
+ * an optional in-section search, and an optional right-aligned action.
+ */
+function av_subnav_model(): array {
+    return [
+        'academy' => [
+            'key'    => 'academy',
+            'brand'  => ['label' => 'Academy', 'href' => '/academy/'],
+            'links'  => [
+                ['Programmes',  '/academy/#catalogue'],
+                ['Membership',  '/academy/#membership'],
+                ['Teach',       '/academy/teach/'],
+            ],
+            'search' => ['placeholder' => 'Search the Academy…', 'target' => '/academy/'],
+            'cta'    => ['label' => 'Log in', 'href' => '/login?next=/academy/'],
+        ],
+    ];
+}
+
+/**
+ * Brand mark for a nav tier. Serves the committed logo image when one is
+ * present (drop an SVG/PNG/WebP at /assets/site/logo-<key>.{svg,png,webp}),
+ * otherwise an elegant Cormorant wordmark so the chrome is never blank.
+ * is_file() resolves live on PHP pages and at build time for static pages,
+ * so adding a logo file + re-running build-chrome.php swaps the wordmark out.
+ */
+function av_brand_mark(string $key = 'afrovanguard'): string {
+    foreach (['.svg', '.png', '.webp'] as $ext) {
+        $rel = '/assets/site/logo-' . $key . $ext;
+        if (is_file(AV_ROOT . $rel)) {
+            $alt = $key === 'academy' ? 'Afrovanguard Academy' : 'Afrovanguard';
+            return '<img class="brand-logo brand-logo--' . e($key) . '" src="' . e($rel) . '" alt="' . e($alt) . '" />';
+        }
+    }
+    if ($key === 'academy') {
+        return '<span class="brand-wordmark brand-wordmark--academy">Academy</span>';
+    }
+    return '<span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>';
+}
+
+/**
+ * Per-visit sign-in illustration, mirroring Afrostrength's auth backdrop.
+ * Picks ONE webp from assets/illustrations/auth/ and keeps it for the browser
+ * session via a session-scoped cookie (this app uses cookies, not PHP
+ * sessions). Day-of-year rotation seeds the first pick so it varies over time
+ * but stays stable within a visit. Returns '' when no art is present (the
+ * layout then shows the brand gradient alone — never broken).
+ */
+function av_auth_illustration(): string {
+    $dir = AV_ROOT . '/assets/illustrations/auth';
+    $files = is_dir($dir) ? (glob($dir . '/*.webp') ?: []) : [];
+    $slugs = array_values(array_map(static fn($f) => basename($f, '.webp'), $files));
+    sort($slugs);
+    if (!$slugs) return '';
+    $chosen = (string) ($_COOKIE['av_illo'] ?? '');
+    if (!in_array($chosen, $slugs, true)) {
+        $chosen = $slugs[(int) date('z') % count($slugs)];
+        if (!headers_sent()) {
+            setcookie('av_illo', $chosen, ['path' => '/', 'httponly' => false, 'samesite' => 'Lax']);
+        }
+        $_COOKIE['av_illo'] = $chosen;
+    }
+    return '/assets/illustrations/auth/' . $chosen . '.webp';
+}
+
+/** Build a sign-in URL that returns the user to $next (defaults to home). */
+function av_login_url(string $next = ''): string {
+    return '/login' . ($next !== '' ? '?next=' . rawurlencode($next) : '');
+}
+
 function render_nav(string $active = 'diary', array $opts = []): void {
     $S = rtrim(SITE_URL, '/');
     $showToggle = $opts['theme_toggle'] ?? true;
     $model = av_nav_model();
+    $sub = av_subnav_model()[$active] ?? null;
     $cur = fn($n) => $n === $active ? ' aria-current="page"' : '';
     $illo = fn($k) => '/assets/illustrations/nav-' . $k . '.webp';
 ?>
-  <header class="site-header" id="site-header" role="banner">
+  <header class="site-header<?= $sub ? ' has-subnav' : '' ?>" id="site-header" role="banner" data-section="<?= e($active) ?>">
+    <!-- Tier 1 · global brand bar -->
     <div class="container">
-      <nav class="nav-inner" aria-label="Main navigation">
-        <a href="<?= $S ?>/" class="nav-logo" aria-label="Afrovanguard — Home">
-          <span class="nav-logo-mark"><span class="afro">AFRO</span><span class="van">VANGUARD</span></span>
-          <span class="nav-badge">.ORG.NG</span>
-        </a>
-        <ul class="nav-links" role="list">
+        <nav class="nav-inner" aria-label="Main navigation">
+          <a href="<?= $S ?>/" class="nav-logo" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
+          <ul class="nav-links" role="list">
 <?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
-          <li><a href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a></li>
+            <li><a href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a></li>
 <?php else: ?>
-          <li class="has-mega" data-mega="<?= e($k) ?>">
-            <a href="<?= e($it['href']) ?>"<?= $cur($k) ?> aria-haspopup="true" aria-expanded="false"><?= e($it['label']) ?> <?= Icons::CHEVRON ?></a>
-            <div class="mega" role="region" aria-label="<?= e($it['label']) ?> menu">
-              <div class="mega-inner">
-                <div class="mega-cols">
-<?php foreach ($it['mega']['cols'] as $col): ?>                  <div class="mega-col">
-                    <p class="mega-h"><?= e($col['title']) ?></p>
-                    <ul role="list">
-<?php foreach ($col['links'] as [$ll, $lh]): ?>                      <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
-<?php endforeach; ?>                    </ul>
-                  </div>
-<?php endforeach; ?>                </div>
-<?php $f = $it['mega']['feature']; ?>                <a class="mega-feature" href="<?= e($f['href']) ?>" style="background-image:url('<?= e($illo($k)) ?>')">
-                  <span class="mf-kicker"><?= e($f['kicker']) ?></span>
-                  <span class="mf-title"><?= e($f['title']) ?></span>
-                  <span class="mf-text"><?= e($f['text']) ?></span>
-                  <span class="mf-cta"><?= e($f['cta']) ?> <?= Icons::ARROW ?></span>
-                </a>
+            <li class="has-mega" data-mega="<?= e($k) ?>">
+              <a href="<?= e($it['href']) ?>"<?= $cur($k) ?> aria-haspopup="true" aria-expanded="false"><?= e($it['label']) ?> <?= Icons::CHEVRON ?></a>
+              <div class="mega" role="region" aria-label="<?= e($it['label']) ?> menu">
+                <div class="mega-inner">
+                  <div class="mega-cols">
+<?php foreach ($it['mega']['cols'] as $col): ?>                    <div class="mega-col">
+                      <p class="mega-h"><?= e($col['title']) ?></p>
+                      <ul role="list">
+<?php foreach ($col['links'] as [$ll, $lh]): ?>                        <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
+<?php endforeach; ?>                      </ul>
+                    </div>
+<?php endforeach; ?>                  </div>
+<?php $f = $it['mega']['feature']; ?>                  <a class="mega-feature" href="<?= e($f['href']) ?>" style="background-image:url('<?= e($illo($k)) ?>')">
+                    <span class="mf-kicker"><?= e($f['kicker']) ?></span>
+                    <span class="mf-title"><?= e($f['title']) ?></span>
+                    <span class="mf-text"><?= e($f['text']) ?></span>
+                    <span class="mf-cta"><?= e($f['cta']) ?> <?= Icons::ARROW ?></span>
+                  </a>
+                </div>
               </div>
-            </div>
-          </li>
-<?php endif; endforeach; ?>        </ul>
-        <div class="nav-actions">
-<?php if ($showToggle): ?>          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
-<?php endif; ?>          <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
-          <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
-        </div>
-        <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
-          <span class="nav-toggle-line line-1"></span><span class="nav-toggle-line line-2"></span><span class="nav-toggle-line line-3"></span>
-        </button>
-      </nav>
+            </li>
+<?php endif; endforeach; ?>          </ul>
+          <div class="nav-actions">
+<?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
+<?php endif; ?>            <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
+            <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
+            <div class="nav-auth" id="navAuth"><a class="nav-signin" data-login-link href="/login">Sign in</a></div>
+          </div>
+          <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
+            <span class="nav-toggle-line line-1"></span><span class="nav-toggle-line line-2"></span><span class="nav-toggle-line line-3"></span>
+          </button>
+        </nav>
     </div>
+<?php if ($sub): ?>
+    <!-- Tier 2 · contextual section bar (sticks on scroll) -->
+    <div class="nav-sub" aria-label="<?= e($sub['brand']['label']) ?> section navigation">
+      <div class="container">
+        <div class="nav-sub-inner">
+          <a class="nav-sub-brand" href="<?= e($sub['brand']['href']) ?>"><?= av_brand_mark($sub['key'] ?? 'afrovanguard') ?></a>
+          <ul class="nav-sub-links" role="list">
+<?php foreach ($sub['links'] as [$ll, $lh]): ?>            <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
+<?php endforeach; ?>          </ul>
+          <div class="nav-sub-actions">
+<?php if (!empty($sub['search'])): ?>            <form class="nav-sub-search" role="search" action="<?= e($sub['search']['target']) ?>" method="get">
+              <?= Icons::SEARCH ?><input type="search" name="q" placeholder="<?= e($sub['search']['placeholder']) ?>" aria-label="Search this section" />
+            </form>
+<?php endif; if (!empty($sub['cta'])): ?>            <a class="nav-sub-cta" id="navSubLogin" data-login-link href="<?= e($sub['cta']['href']) ?>"><?= e($sub['cta']['label']) ?></a>
+<?php endif; ?>          </div>
+        </div>
+      </div>
+    </div>
+<?php endif; ?>
   </header>
   <div class="scrim" data-close-drawer></div>
   <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
     <div class="avd-head">
-      <a href="<?= $S ?>/" class="nav-logo"><span class="nav-logo-mark"><span class="afro">AFRO</span><span class="van">VANGUARD</span></span></a>
+      <a href="<?= $S ?>/" class="nav-logo"><?= av_brand_mark('afrovanguard') ?></a>
       <button class="avd-close" data-close-drawer aria-label="Close menu"><?= Icons::CLOSE ?></button>
     </div>
     <div class="avd-scroll">
-<?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
+<?php if ($sub): ?>      <div class="avd-section">
+        <p class="avd-section-h"><?= e($sub['brand']['label']) ?></p>
+<?php foreach ($sub['links'] as [$ll, $lh]): ?>        <a class="avd-sub" href="<?= e($lh) ?>"><?= e($ll) ?></a>
+<?php endforeach; ?>      </div>
+<?php endif; foreach ($model as $k => $it): if (empty($it['mega'])): ?>
       <a class="avd-link" href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a>
 <?php else: ?>
       <div class="avd-acc">
@@ -247,6 +344,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
       </div>
 <?php endif; endforeach; ?>    </div>
     <div class="avd-foot">
+      <a href="/login" class="btn btn-outline" data-login-link style="width:100%;">Sign in</a>
       <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary" style="width:100%;">Join the Movement</a>
       <a href="<?= $S ?>/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
       <div class="avd-social">

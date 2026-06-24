@@ -4,7 +4,7 @@
    article reader (listen, reading-progress, font controls,
    bookmarks, reactions), and a clean editorial index.
    Layout language adapted from the ElevenLabs blog; rendered in
-   the Afrovanguard brand (gold + ink, Cormorant SC / Montserrat).
+   the Afrovanguard brand (gold + ink, Cormorant / Montserrat).
    ============================================================ */
 
 :root {
@@ -32,7 +32,7 @@
   --card-shadow: 0 24px 60px rgba(17,24,39,0.14);
   --focus:       #1D4ED8;
 
-  --font-heading: 'Cormorant SC', Georgia, serif;
+  --font-heading: 'Cormorant', Georgia, serif;
   --font-body:    'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
 
   --radius-sm: 6px; --radius-md: 12px; --radius-lg: 20px; --radius-xl: 28px; --radius-full: 9999px;

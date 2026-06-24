@@ -67,7 +67,7 @@ html[data-theme="dark"] {
   background: linear-gradient(150deg, rgba(11,15,26,.86) 0%, rgba(11,15,26,.5) 55%, rgba(232,163,23,.35) 100%);
 }
 .mega-feature .mf-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--m-gold); }
-.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant SC', Georgia, serif); font-size: 24px; line-height: 1.1; margin: 8px 0 6px; }
+.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-size: 24px; line-height: 1.1; margin: 8px 0 6px; }
 .mega-feature .mf-text { font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,0.82); }
 .mega-feature .mf-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 13.5px; font-weight: 800; color: #fff; }
 .mega-feature .mf-cta svg { width: 16px; height: 16px; transition: transform .25s ease; }
@@ -141,3 +141,87 @@ html[data-theme="dark"] {
 /* scrim (self-contained so static pages have it too) */
 .scrim { position: fixed; inset: 0; background: rgba(8,10,16,0.55); z-index: 240; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 .scrim.open { opacity: 1; visibility: visible; }
+
+/* ============================================================
+   TWO-TIER NAV REDESIGN — Cormorant wordmark, brand logo slot,
+   contextual section subnav (tier 2), auth entry, scroll collapse.
+   Self-contained (own --m-* tokens) so it renders identically on
+   the dark PHP header and the static marketing pages.
+   ============================================================ */
+
+/* ---- Brand mark (wordmark fallback or committed logo image) ---- */
+.nav-logo .brand-wordmark {
+  font-family: 'Cormorant', Georgia, serif;
+  font-size: 28px; font-weight: 600; line-height: 1; letter-spacing: .4px;
+  display: inline-flex; align-items: baseline; white-space: nowrap;
+}
+.nav-logo .brand-wordmark .wm-1 { color: #fff; }
+.nav-logo .brand-wordmark .wm-2 { color: var(--m-gold); }
+.brand-logo { height: 34px; width: auto; display: block; }
+.avd-head .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 24px; font-weight: 600; }
+.avd-head .brand-wordmark .wm-1 { color: var(--m-ink); }
+.avd-head .brand-wordmark .wm-2 { color: var(--m-gold-deep); }
+.avd-head .brand-logo { height: 30px; }
+
+/* ---- Auth entry in tier 1 (Sign in pill → account when known) ---- */
+.nav-auth { display: inline-flex; align-items: center; gap: 8px; }
+.nav-signin {
+  font-size: 13px; font-weight: 700; color: #fff; text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.28); padding: 9px 17px; border-radius: 9999px;
+  transition: border-color .18s ease, color .18s ease, background .18s ease; white-space: nowrap;
+}
+.nav-signin:hover { border-color: var(--m-gold); color: var(--m-gold); }
+.nav-acct { font-size: 13px; font-weight: 700; color: #fff; text-decoration: none; padding: 9px 6px; white-space: nowrap; }
+.nav-acct:hover { color: var(--m-gold); }
+.nav-acct .nav-acct-hi { color: rgba(255,255,255,0.6); font-weight: 600; }
+
+/* ---- Tier 2 · contextual section bar ---- */
+.nav-sub { background: var(--m-surface); border-bottom: 1px solid var(--m-divider); position: relative; z-index: 1; }
+.nav-sub-inner { display: flex; align-items: center; gap: 24px; min-height: 58px; padding: 6px 0; }
+.nav-sub-brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; flex-shrink: 0; transition: opacity .25s ease; }
+.nav-sub-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 27px; font-weight: 600; color: var(--m-ink); letter-spacing: .3px; line-height: 1; }
+.nav-sub-brand .brand-logo { height: 30px; }
+/* the section brand reads as primary only once the global bar has collapsed */
+.site-header.has-subnav:not(.scrolled) .nav-sub-brand { opacity: .55; }
+.site-header.has-subnav.scrolled .nav-sub-brand { opacity: 1; }
+.nav-sub-links { display: flex; gap: 2px; list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+.nav-sub-links a {
+  font-size: 14.5px; font-weight: 600; color: var(--m-muted); text-decoration: none;
+  padding: 8px 13px; border-radius: 9px; white-space: nowrap;
+  transition: color .16s ease, background .16s ease;
+}
+.nav-sub-links a:hover, .nav-sub-links a[aria-current="page"] { color: var(--m-ink); background: var(--m-surface-2); }
+.nav-sub-actions { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.nav-sub-search { display: inline-flex; align-items: center; gap: 9px; background: var(--m-surface-2); border: 1px solid var(--m-divider); border-radius: 9999px; padding: 9px 16px; min-width: 240px; transition: border-color .18s ease, box-shadow .18s ease; }
+.nav-sub-search:focus-within { border-color: var(--m-gold); box-shadow: 0 0 0 3px rgba(232,163,23,0.14); }
+.nav-sub-search svg { width: 16px; height: 16px; color: var(--m-muted); flex-shrink: 0; }
+.nav-sub-search input { border: 0; background: transparent; outline: none; font-family: inherit; font-size: 14px; color: var(--m-ink); width: 100%; }
+.nav-sub-search input::placeholder { color: var(--m-muted); }
+.nav-sub-cta { font-size: 14px; font-weight: 700; color: var(--m-ink); text-decoration: none; padding: 8px 4px; white-space: nowrap; transition: color .16s ease; }
+.nav-sub-cta:hover { color: var(--m-gold-deep); }
+
+/* ---- Scroll collapse: tier 1 folds away, tier 2 becomes the sticky bar ---- */
+.site-header.has-subnav > .container {
+  overflow: hidden; max-height: 96px; opacity: 1;
+  transition: max-height .34s cubic-bezier(.22,1,.36,1), opacity .22s ease, padding .34s ease;
+}
+.site-header.has-subnav.scrolled > .container {
+  max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; pointer-events: none;
+}
+
+/* ---- Drawer: the current section's links pinned to the top on mobile ---- */
+.avd-section { padding: 2px 0 12px; margin-bottom: 8px; border-bottom: 1px solid var(--m-divider); }
+.avd-section-h { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--m-gold-deep); padding: 8px 14px 6px; margin: 0; }
+
+/* ---- Responsive: subnav is desktop-only; the drawer carries it on mobile ---- */
+@media (max-width: 1099px) {
+  .nav-auth { display: none; }
+  .nav-sub { display: none; }
+  .site-header.has-subnav > .container { max-height: none; opacity: 1; }
+}
+@media (max-width: 1280px) {
+  .nav-sub-search { min-width: 180px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header.has-subnav > .container, .nav-sub-brand { transition: none !important; }
+}

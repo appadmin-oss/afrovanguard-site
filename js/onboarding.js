@@ -273,7 +273,7 @@
 
     /* Headline */
     .av-ob-headline {
-      font-family: 'Cormorant SC', Georgia, serif;
+      font-family: 'Cormorant', Georgia, serif;
       font-size: clamp(36px, 6vw + 1rem, 68px);
       font-weight: 700; color: #fff; line-height: 1.05;
       letter-spacing: -0.015em; margin-bottom: 18px;
@@ -332,7 +332,7 @@
     .av-ob-eyebrow::after  { content:''; width:16px; height:1.5px; background:#f3b416; }
 
     .av-ob-panel-title {
-      font-family: 'Cormorant SC', Georgia, serif;
+      font-family: 'Cormorant', Georgia, serif;
       font-size: clamp(26px, 3.5vw, 44px); font-weight: 700;
       color: #fff; letter-spacing: 0.02em; margin-bottom: 8px; line-height: 1.1;
     }

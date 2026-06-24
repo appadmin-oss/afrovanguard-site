@@ -105,7 +105,7 @@
       block_formats: 'Paragraph=p; Heading=h2; Subheading=h3',
       quickbars_selection_toolbar: 'bold italic | h2 h3 | quicklink blockquote',
       media_live_embeds: true,
-      content_style: "body{font-family:Montserrat,system-ui,sans-serif;font-size:17px;line-height:1.7;max-width:720px} h2{font-family:'Cormorant SC',Georgia,serif;font-size:30px} blockquote{border-left:3px solid #f3b416;padding-left:18px;color:#666}",
+      content_style: "body{font-family:Montserrat,system-ui,sans-serif;font-size:17px;line-height:1.7;max-width:720px} h2{font-family:'Cormorant',Georgia,serif;font-size:30px} blockquote{border-left:3px solid #f3b416;padding-left:18px;color:#666}",
       setup: function (ed) {
         ed.ui.registry.addButton('embedBtn', {
           text: 'Embed', tooltip: 'Embed a video, post, map or audio',

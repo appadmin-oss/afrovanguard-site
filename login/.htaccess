@@ -1,0 +1,12 @@
+# Standard sign-in page — /login → index.php
+# A real directory, so WordPress's root rewrites never intercept it.
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /login/
+  # Real files (index.php, auth.css) are served directly; nothing else to route.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+</IfModule>

@@ -60,4 +60,36 @@
     li.addEventListener('focusin', function () { sync(true); });
     li.addEventListener('focusout', function () { if (!li.contains(document.activeElement)) sync(false); });
   });
+
+  /* ---- Auth-aware chrome (site-wide) ----
+     Every sign-in entry returns the visitor to where they were, and the nav
+     reflects the signed-in member once known. One source of truth so the
+     header is consistent on every page (PHP + static). */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function loginHref() { return '/login?next=' + encodeURIComponent(location.pathname + location.search); }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-login-link]'), function (a) { a.setAttribute('href', loginHref()); });
+
+  function reflectMember(user) {
+    var first = esc((user.name || 'Member').split(' ')[0]);
+    var slot = document.getElementById('navAuth');
+    if (slot) {
+      slot.innerHTML = '<a class="nav-acct" href="/academy/"><span class="nav-acct-hi">Hi,</span> ' + first + '</a>'
+        + '<a class="nav-signin" href="#" data-logout>Sign out</a>';
+    }
+    var subLogin = document.getElementById('navSubLogin');
+    if (subLogin) { subLogin.textContent = first; subLogin.setAttribute('href', '/academy/'); }
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-logout]')) {
+      e.preventDefault();
+      fetch('/academy/api.php?action=logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', credentials: 'same-origin' })
+        .then(function () { location.reload(); }).catch(function () { location.reload(); });
+    }
+  });
+  if (document.getElementById('navAuth') || document.getElementById('navSubLogin')) {
+    fetch('/academy/api.php?action=me', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok && d.user) reflectMember(d.user); })
+      .catch(function () {});
+  }
 })();
