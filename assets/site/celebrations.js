@@ -29,10 +29,10 @@
       + '.av-celebrate .avc-shine{position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.25) 50%,transparent 70%);transform:translateX(-100%);animation:avcShine 3.4s ease-in-out infinite}'
       + '@keyframes avcPop{0%{transform:scale(0) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}'
       + '@keyframes avcShine{0%,100%{transform:translateX(-120%)}55%{transform:translateX(120%)}}'
-      + '.nav-logo-mark.av-doodled{position:relative}'
-      + '.nav-logo-mark.av-doodled::after{content:attr(data-emoji);position:absolute;top:-12px;right:-16px;font-size:15px;animation:avcBob 2.2s ease-in-out infinite}'
-      + '.nav-logo-mark.av-doodled .van{background:linear-gradient(90deg,var(--cc),#fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}'
-      + '.nav-logo-doodle-img{height:30px;width:auto;vertical-align:middle}'
+      + '.brand-wordmark.av-doodled,.nav-logo-mark.av-doodled{position:relative}'
+      + '.brand-wordmark.av-doodled::after,.nav-logo-mark.av-doodled::after{content:attr(data-emoji);position:absolute;top:-12px;right:-18px;font-size:15px;animation:avcBob 2.2s ease-in-out infinite}'
+      + '.brand-wordmark.av-doodled .wm-2,.nav-logo-mark.av-doodled .van{background:linear-gradient(90deg,var(--cc),#fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}'
+      + '.nav-logo-doodle-img{height:30px;width:auto;vertical-align:middle;display:block}'
       + '@keyframes avcBob{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-3px) rotate(8deg)}}'
       + '@media(prefers-reduced-motion:reduce){.av-celebrate .avc-shine,.nav-logo-mark.av-doodled::after,.av-celebrate .avc-emoji{animation:none}}';
     document.head.appendChild(s);
@@ -71,11 +71,15 @@
   }
 
   function doodleLogo(p) {
-    var mark = document.querySelector('.nav-logo-mark'); if (!mark) return;
+    // new Cormorant wordmark (.brand-wordmark) with a legacy fallback
+    var mark = document.querySelector('.nav-logo .brand-wordmark') || document.querySelector('.nav-logo-mark');
+    if (!mark) return;
     if (p.doodle) {
+      // admin-uploaded / built-in art replaces the wordmark for the day
       mark.innerHTML = '<img class="nav-logo-doodle-img" src="' + String(p.doodle).replace(/"/g, '') + '" alt="Afrovanguard" />';
       return;
     }
+    // otherwise keep the live brand wordmark and dress it festively
     mark.classList.add('av-doodled');
     mark.setAttribute('data-emoji', p.emoji || '🎉');
     mark.style.setProperty('--cc', p.theme || '#f3b416');

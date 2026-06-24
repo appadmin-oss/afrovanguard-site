@@ -11,11 +11,13 @@ declare(strict_types=1);
 $dir = dirname(__DIR__) . '/assets/doodles';
 @mkdir($dir, 0775, true);
 
-// Wordmark: AFRO (white) + VANGUARD (gold). System bold font (SVG <img> has no webfonts).
+// Wordmark: Afro (white) + vanguard (gold), in a serif that echoes the brand's
+// Cormorant display face. SVG used as <img> can't load webfonts, so we fall back
+// to Georgia — a serif close in feel to Cormorant — instead of the old sans.
 function wordmark(): string {
-    return '<text x="6" y="37" font-family="Helvetica Neue,Arial,sans-serif" font-weight="800" '
-         . 'font-size="29" letter-spacing="-1"><tspan fill="#ffffff">AFRO</tspan>'
-         . '<tspan fill="#f3b416">VANGUARD</tspan></text>';
+    return '<text x="6" y="38" font-family="Georgia,&apos;Times New Roman&apos;,serif" font-weight="600" '
+         . 'font-size="33" letter-spacing="0.2"><tspan fill="#ffffff">Afro</tspan>'
+         . '<tspan fill="#f3b416">vanguard</tspan></text>';
 }
 function star(float $x, float $y, float $r, string $fill): string {
     $pts = [];

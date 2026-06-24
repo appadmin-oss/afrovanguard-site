@@ -225,3 +225,57 @@ html[data-theme="dark"] {
 @media (prefers-reduced-motion: reduce) {
   .site-header.has-subnav > .container, .nav-sub-brand { transition: none !important; }
 }
+
+/* ============================================================
+   MODERN POLISH — sleeker proportions, refined links + actions,
+   a hairline under the bar, and an optimized mobile drawer.
+   Layered last so it refines both diary.css and the redesign above.
+   ============================================================ */
+:root { --nav-h: 66px; }
+
+/* Tighter, lighter global bar with a hairline for definition on light pages */
+.site-header .nav-inner { padding: 11px 0; min-height: var(--nav-h); gap: 18px; }
+.site-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: rgba(255,255,255,0.07); pointer-events: none; }
+.site-header.has-subnav::after, .site-header.scrolled::after { opacity: 0; }
+.site-header { -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); }
+
+/* Wordmark: a touch smaller + tighter = more refined */
+.nav-logo .brand-wordmark { font-size: 25px; letter-spacing: .2px; }
+
+/* Sleeker top-level links — quiet by default, an animated gold underline on
+   hover/active instead of a heavy pill */
+.site-header .nav-links a { font-size: 14px; font-weight: 600; padding: 8px 12px; position: relative; background: none !important; border-radius: 8px; }
+.site-header .nav-links > li > a::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--m-gold); transform: scaleX(0); transform-origin: left; transition: transform .22s cubic-bezier(.22,1,.36,1); opacity: .9; }
+.site-header .nav-links > li > a:hover, .site-header .nav-links > li > a[aria-current="page"] { color: #fff; }
+.site-header .nav-links > li > a:hover::after, .site-header .nav-links > li > a[aria-current="page"]::after { transform: scaleX(1); }
+.site-header .nav-links .has-mega:hover > a { color: #fff; }
+
+/* Actions: quieter Donate, refined pills, tighter rhythm */
+.site-header .nav-actions { gap: 8px; }
+.site-header .nav-donate { font-size: 13px; font-weight: 600; opacity: .82; }
+.site-header .nav-donate:hover { opacity: 1; }
+.site-header .nav-cta { font-size: 12.5px; font-weight: 700; padding: 9px 18px; min-height: 40px; box-shadow: 0 6px 20px rgba(243,180,22,0.28); }
+.site-header .nav-cta:hover { transform: translateY(-1px); }
+.nav-signin { font-size: 12.5px; padding: 8px 15px; }
+.site-header .icon-btn.theme-toggle { width: 38px; height: 38px; border-color: rgba(255,255,255,0.16); }
+
+/* Mega panel: a hair tighter + softer */
+.mega-inner { border-radius: 16px; padding: 24px; }
+
+/* ---- Mobile drawer — optimized: lighter, larger touch targets, calmer ---- */
+@media (max-width: 1099px) {
+  .site-header .nav-inner { padding: 10px 0; min-height: 58px; }
+  .nav-logo .brand-wordmark { font-size: 23px; }
+  .nav-burger { width: 44px; height: 44px; }
+  .av-drawer { width: min(90vw, 380px); border-radius: 0; }
+  .avd-head { padding: 16px 18px; }
+  .avd-scroll { padding: 14px 14px 20px; }
+  /* the current section, surfaced as a tinted card at the top */
+  .avd-section { background: var(--m-surface-2); border: 1px solid var(--m-divider); border-bottom: 1px solid var(--m-divider); border-radius: 14px; padding: 6px 6px 10px; margin: 0 0 14px; }
+  .avd-section-h { color: var(--m-gold-deep); padding: 9px 14px 6px; }
+  .avd-section .avd-sub { padding-left: 16px; font-weight: 600; color: var(--m-ink); }
+  .avd-link, .avd-acc-btn { font-size: 16.5px; font-weight: 700; padding: 14px 14px; border-radius: 12px; min-height: 52px; }
+  .avd-sub { font-size: 15px; min-height: 46px; display: flex; align-items: center; }
+  .avd-foot { padding: 16px 18px calc(18px + env(safe-area-inset-bottom)); gap: 9px; }
+  .avd-foot .btn { min-height: 50px; font-size: 14px; }
+}
