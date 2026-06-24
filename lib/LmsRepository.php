@@ -69,7 +69,7 @@ final class LmsRepository
         $access = $course['access_type'] ?? 'open';
         if ($access === 'open') return true;                        // open courses: all lessons free
         if (!$user) return false;                                   // tracked/membership/paid need an account
-        if ($user['role'] === 'admin' || $user['role'] === 'instructor') return true;
+        if (LmsAuth::canTeach($user)) return true;                  // instructor / coordinator / admin: full access
         if ($access === 'tracked') return true;                     // free but account-gated for tracking
         if ($access === 'membership') return $this->isMember((int) $user['id']);
         if ($access === 'paid') return $this->isEnrolled((int) $user['id'], (int) $course['id']) || $this->isMember((int) $user['id']);

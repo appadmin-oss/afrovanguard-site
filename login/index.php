@@ -22,11 +22,21 @@ if ($next === '' || $next[0] !== '/' || str_starts_with($next, '//') || str_cont
 }
 $mode = (($_GET['mode'] ?? '') === 'register') ? 'register' : 'login';
 
+/* friendly messages for the OAuth round-trip (?e=…) */
+$errorMap = [
+    'google_off'        => 'Google sign-in isn’t set up yet — please use your email below.',
+    'google_failed'     => 'We couldn’t complete Google sign-in. Please try again, or use your email.',
+    'google_cancelled'  => 'Google sign-in was cancelled.',
+    'google_state'      => 'That sign-in link expired. Please try again.',
+    'rate'              => 'Too many attempts — wait a moment and try again.',
+];
+$authError = $errorMap[(string) ($_GET['e'] ?? '')] ?? '';
+
 /* already signed in → straight through */
 if (LmsAuth::user()) { header('Location: ' . $next); exit; }
 
 $illo          = av_auth_illustration();
-$googleEnabled = defined('AV_GOOGLE_CLIENT_ID') && (string) AV_GOOGLE_CLIENT_ID !== '';
+$googleEnabled = GoogleAuth::configured();
 $googleStart   = '/auth/google/start?next=' . rawurlencode($next);
 $canonical     = rtrim(SITE_URL, '/') . '/login';
 
@@ -64,7 +74,8 @@ render_head([
         <a class="auth-back" href="<?= e(rtrim(SITE_URL, '/')) ?>/">← Back to site</a>
         <h1 class="auth-h" id="authH"><?= $mode === 'register' ? 'Create your account' : 'Welcome back' ?></h1>
         <p class="auth-sub" id="authSub"><?= $mode === 'register' ? 'Free to join — track your learning across the Academy.' : 'Sign in to your Afrovanguard account.' ?></p>
-
+<?php if ($authError): ?>        <p class="auth-banner" role="alert"><?= e($authError) ?></p>
+<?php endif; ?>
         <a class="auth-google<?= $googleEnabled ? '' : ' is-disabled' ?>" id="authGoogle"
            href="<?= $googleEnabled ? e($googleStart) : '#' ?>"<?= $googleEnabled ? '' : ' aria-disabled="true" title="Google sign-in is being set up"' ?>>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>

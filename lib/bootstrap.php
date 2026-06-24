@@ -35,6 +35,12 @@ foreach (['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
 if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('AV_MEMBERSHIP_NGN', $v !== false && $v !== '' ? (int) $v : 5000); }
+// Google sign-in (config.php or env). Absent ⇒ the "Continue with Google" button stays disabled.
+foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET'] as $k) {
+    if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
+}
+// The Workspace domain whose VERIFIED accounts are recognised as real org members.
+if (!defined('AV_ORG_DOMAIN')) define('AV_ORG_DOMAIN', getenv('AV_ORG_DOMAIN') ?: 'afrovanguard.org.ng');
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/security.php';
@@ -44,6 +50,7 @@ require_once __DIR__ . '/DiaryJournal.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';
+require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/Payments.php';
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';

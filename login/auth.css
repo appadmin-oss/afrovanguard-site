@@ -69,6 +69,7 @@ body.auth-page .read-progress { display: none; }
 }
 .auth-google:hover { border-color: var(--ink); box-shadow: 0 6px 22px rgba(17,24,39,0.10); transform: translateY(-1px); }
 .auth-google.is-disabled { opacity: .55; pointer-events: none; }
+.auth-banner { font-size: 13.5px; font-weight: 600; color: #9a3412; background: rgba(234,88,12,0.10); border: 1px solid rgba(234,88,12,0.25); border-radius: 12px; padding: 11px 14px; margin: 0 0 20px; }
 .auth-google-note { font-size: 12.5px; color: var(--muted); text-align: center; margin: 10px 0 0; }
 .auth-or { display: flex; align-items: center; gap: 14px; margin: 22px 0; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--divider); }
