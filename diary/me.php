@@ -3,13 +3,13 @@
  * diary/me.php — the member's Vanguard Diary (composer + personal streams).
  *
  * Signed-in members log three kinds of entry:
- *   📅 Event   — institutional happenings at a CACENTRE hub (backdatable)
- *   🔒 Private — personal reflection, visible only to them
- *   🌐 Public  — submitted to the moderation queue; once approved it joins
+ *   📅 Event   — a public happening; submitted to moderation, then joins the
+ *                Diary's "Events" stream once approved (backdatable)
+ *   🌐 Public  — a reflection submitted to moderation; once approved it joins
  *                the public Diary feed
+ *   🔒 Private — personal reflection, visible only to them; never leaves here
  *
- * Private + event entries never leave this page. The page is noindex — it's a
- * personal workspace, not public content.
+ * The page is noindex — it's a personal workspace, not public content.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -24,8 +24,8 @@ $today     = date('Y-m-d');
 function vd_badge(array $e): array {
     // [icon, kind label, status label, status css, optional link slug]
     $icon = ['event' => '📅', 'private' => '🔒', 'public' => '🌐'][$e['kind']] ?? '📝';
-    $kindLabel = ['event' => 'Event diary', 'private' => 'Private journal', 'public' => 'Public journal'][$e['kind']] ?? 'Entry';
-    if ($e['kind'] === 'public') {
+    $kindLabel = ['event' => 'Event', 'private' => 'Private journal', 'public' => 'Public journal'][$e['kind']] ?? 'Entry';
+    if ($e['kind'] === 'public' || $e['kind'] === 'event') {     // both public-by-default → moderated
         switch ($e['status']) {
             case 'pending':  return [$icon, $kindLabel, 'Pending review', 'is-pending', null];
             case 'approved': return [$icon, $kindLabel, 'Published',      'is-live',    $e['published_slug'] ?? null];
@@ -83,7 +83,7 @@ render_nav('diary');
           <label class="vd-field">
             <span>Category</span>
             <select name="kind" id="vd-kind" required>
-              <option value="event">📅 Event diary — an institutional log</option>
+              <option value="event">📅 Event — a public happening (shown after review)</option>
               <option value="private" selected>🔒 Private journal — only you can see it</option>
               <option value="public">🌐 Public journal — submit to inspire the movement</option>
             </select>
@@ -124,7 +124,7 @@ render_nav('diary');
           <div class="vd-item-foot">
             <time datetime="<?= e($e['entry_date']) ?>"><?= e(date('M j, Y', strtotime($e['entry_date']) ?: time())) ?></time>
 <?php if ($slug): ?>            · <a href="/diary/<?= e($slug) ?>/">View on the Diary →</a>
-<?php endif; ?><?php if ($e['kind'] === 'public' && $e['status'] === 'rejected' && !empty($e['review_note'])): ?>            · <span class="vd-note"><?= e($e['review_note']) ?></span>
+<?php endif; ?><?php if (($e['kind'] === 'public' || $e['kind'] === 'event') && $e['status'] === 'rejected' && !empty($e['review_note'])): ?>            · <span class="vd-note"><?= e($e['review_note']) ?></span>
 <?php endif; ?>            <button type="button" class="vd-del" data-id="<?= (int) $e['id'] ?>" aria-label="Delete this entry">Delete</button>
           </div>
         </li>
@@ -231,19 +231,19 @@ render_nav('diary');
   var hint = document.getElementById('vd-hint');
 
   var HINTS = {
-    event:   '📅 Event entries log institutional happenings. You can backdate them.',
+    event:   '📅 Events are public happenings — shown on the Diary after an admin reviews them. You can backdate them.',
     private: '🔒 Private entries are visible only to you.',
     public:  '🌐 Public entries are reviewed by an admin before they appear on the Diary.'
   };
   kind.addEventListener('change', function () { hint.textContent = HINTS[kind.value] || ''; });
 
   var META = {
-    event:   { icon: '📅', label: 'Event diary' },
+    event:   { icon: '📅', label: 'Event' },
     private: { icon: '🔒', label: 'Private journal' },
     public:  { icon: '🌐', label: 'Public journal' }
   };
   function statusFor(k) {
-    if (k === 'public') return { txt: 'Pending review', cls: 'is-pending' };
+    if (k === 'public' || k === 'event') return { txt: 'Pending review', cls: 'is-pending' };
     return { txt: 'Logged', cls: 'is-logged' };
   }
   function itemHTML(en) {
@@ -274,7 +274,7 @@ render_nav('diary');
       var en = { id: d.id, kind: d.kind, title: payload.title, body: payload.body, entry_date: payload.entry_date };
       if (empty) empty.hidden = true;
       list.insertAdjacentHTML('afterbegin', itemHTML(en));
-      msg.textContent = d.kind === 'public' ? 'Submitted for review — you’ll see it here once approved.' : 'Saved.';
+      msg.textContent = (d.kind === 'public' || d.kind === 'event') ? 'Submitted for review — you’ll see it here once approved.' : 'Saved.';
       msg.className = 'vd-msg is-ok';
       form.querySelector('[name=title]').value = '';
       form.querySelector('[name=body]').value = '';

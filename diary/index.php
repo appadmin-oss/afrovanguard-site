@@ -72,25 +72,8 @@ render_nav('diary');
         </div>
       </div>
 
-<?php if ($featured): ?>
-      <article class="featured" data-cat="<?= e($featured['category_slug']) ?>" data-slug="<?= e($featured['slug']) ?>" data-reveal>
-<?php if (!empty($featured['cover_url'])): ?>
-        <a class="feat-thumb has-cover" href="/diary/<?= e($featured['slug']) ?>/" style="background-image:url('<?= e($featured['cover_url']) ?>')"></a>
-<?php else: ?>
-        <a class="feat-thumb <?= e($featured['gradient']) ?> g-grain" href="/diary/<?= e($featured['slug']) ?>/"><span class="mc-title"><?= $featured['mc_title'] ?></span></a>
-<?php endif; ?>
-        <div>
-          <span class="feat-flag">Featured · <?= e($featured['category']) ?></span>
-          <h2><a href="/diary/<?= e($featured['slug']) ?>/"><?= e($featured['title']) ?></a></h2>
-          <p><?= e($featured['dek']) ?></p>
-          <div class="feat-meta"><?= $featured['authors_html'] ?> · <?= e($featured['published']) ?> · <?= (int)$featured['read_minutes'] ?> min read</div>
-          <a class="btn btn-ink" href="/diary/<?= e($featured['slug']) ?>/">Read the dispatch →</a>
-        </div>
-      </article>
-<?php endif; ?>
-
-      <section class="diary-grid" aria-label="All diary entries">
 <?php if (!$articles): ?>
+      <section class="diary-grid" aria-label="All diary entries">
         <div class="diary-empty">
           <h2>The first dispatch is on its way</h2>
           <p>We’re putting the finishing touches on the Diary. New field notes on the mission, our programmes and what we’re learning will land here soon.</p>
@@ -101,13 +84,63 @@ render_nav('diary');
             <p class="sub-msg" role="status" aria-live="polite"></p>
           </form>
         </div>
+      </section>
 <?php else: ?>
-        <div class="post-grid">
-<?php foreach ($articles as $a) { render_card($a); } ?>
+      <!-- The diary as a canvas "journey map": a winding, year-chaptered trail
+           of entry markers that scales to a lot of entries (camera + culling).
+           The visually-hidden <ul> is the crawlable, keyboard-navigable source
+           of truth AND the List view; the canvas mirrors visible links. -->
+      <section class="diary-journey" aria-label="The diary, entry by entry">
+        <div class="journey-toolbar">
+          <p class="journey-hint"><span id="journeyCount"><?= count($articles) ?></span> entries · newest first · tap a marker to read</p>
+          <div class="journey-tools">
+            <div class="journey-viewtoggle" role="group" aria-label="Choose a view">
+              <button type="button" class="jv-btn is-active" data-view="map" aria-pressed="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>
+                Map
+              </button>
+              <button type="button" class="jv-btn" data-view="list" aria-pressed="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                List
+              </button>
+            </div>
+            <button type="button" class="journey-fs" id="journeyFs" aria-pressed="false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+              <span>Full screen</span>
+            </button>
+          </div>
+        </div>
+        <div class="journey-canvas-wrap" id="journeyWrap">
+          <nav class="journey-rail" id="journeyRail" aria-label="Jump to a year" hidden></nav>
+          <div class="journey-viewport" id="journeyViewport">
+            <canvas id="journeyCanvas" class="journey-canvas" role="img" aria-label="A winding map of the diary entries — use the list view or the links below to navigate."></canvas>
+            <div class="journey-spacer" id="journeySpacer" aria-hidden="true"></div>
+          </div>
+          <div class="journey-card" id="journeyCard" hidden aria-hidden="true"></div>
+          <button type="button" class="journey-fs-close" id="journeyFsClose" aria-label="Exit full screen" hidden>✕</button>
+          <ul class="journey-a11y" id="journeyList" aria-label="All diary entries">
+<?php $n = count($articles); foreach ($articles as $i => $a): ?>
+            <li><a href="/diary/<?= e($a['slug']) ?>/"
+                   data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>"
+                   data-search="<?= e(strtolower($a['title'] . ' ' . $a['category'])) ?>"
+                   data-title="<?= e($a['title']) ?>" data-cat-name="<?= e($a['category']) ?>"
+                   data-published="<?= e($a['published']) ?>" data-date="<?= e($a['published_at']) ?>"
+                   data-min="<?= (int) $a['read_minutes'] ?>"
+                   data-num="<?= $i === 0 ? '★' : ($n - $i) ?>" data-latest="<?= $i === 0 ? '1' : '0' ?>">
+              <span class="je-num"><?= $i === 0 ? '★' : ($n - $i) ?></span>
+              <span class="je-main">
+                <span class="je-cat" data-c="<?= e($a['category_slug']) ?>"><?= e($a['category']) ?><?php if ($i === 0): ?> · Latest<?php endif; ?></span>
+                <span class="je-title"><?= e($a['title']) ?></span>
+                <span class="je-meta"><?= e($a['published']) ?><?php if ((int) $a['read_minutes']): ?> · <?= (int) $a['read_minutes'] ?> min read<?php endif; ?></span>
+              </span>
+              <span class="je-arrow" aria-hidden="true">→</span>
+            </a></li>
+<?php endforeach; ?>
+          </ul>
         </div>
         <div class="no-results">No entries match your search yet. Try another term, or clear the filters.</div>
-<?php endif; ?>
       </section>
+<?php endif; ?>
 
       <section class="diary-subscribe-band" data-reveal>
         <div>
@@ -123,4 +156,5 @@ render_nav('diary');
       </section>
     </div>
   </main>
+  <script src="/diary/journey.js" defer></script>
 <?php render_footer();

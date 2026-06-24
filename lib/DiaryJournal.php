@@ -3,15 +3,17 @@
  * lib/DiaryJournal.php — member-contributed Vanguard Diary.
  *
  * Three entry kinds, matching the redesign spec:
- *   event   — institutional log at a CACENTRE hub (backdatable). Author-facing.
+ *   event   — a public happening at a CACENTRE hub (backdatable) → moderation
+ *             queue → on approval, PROMOTED into the Diary's "Events" stream.
+ *   public  — a reflection to inspire the movement → moderation queue → on
+ *             approval, PROMOTED into the public Diary feed (`articles`).
  *   private — personal reflection. AUTHOR-ONLY; never returned to anyone else.
- *   public  — submitted to inspire the movement → admin moderation queue →
- *             on approval, PROMOTED into the public Diary feed (`articles`).
  *
- * Privacy guarantee: member entries live in their own table, and private/event
- * rows are only ever queried scoped to their author, so they can never reach a
- * public surface (listing, RSS, sitemap, OG). Only an *approved public* entry
- * is copied into the editorial `articles` table — nothing else crosses over.
+ * Privacy guarantee: member entries live in their own table. Private rows are
+ * only ever queried scoped to their author, so they can never reach a public
+ * surface (listing, RSS, sitemap, OG). Public + event entries surface only
+ * once an admin approves them — approval copies the row into the editorial
+ * `articles` table; nothing else crosses over.
  */
 declare(strict_types=1);
 
@@ -35,8 +37,9 @@ final class DiaryJournal
         if (mb_strlen($body) > 20000)    return ['ok' => false, 'error' => 'That entry is a little long — trim it under 20,000 characters.'];
         $entryDate = self::normalizeDate($entryDate);
 
-        // Public submissions await moderation; event/private are logged live.
-        $status = $kind === 'public' ? 'pending' : 'logged';
+        // Event + Public are public BY DEFAULT — they enter the moderation queue
+        // and become publicly visible on approval. Private stays author-only.
+        $status = in_array($kind, ['public', 'event'], true) ? 'pending' : 'logged';
         $now = date('Y-m-d H:i:s');
         $this->db->prepare(
             'INSERT INTO diary_entries (author_id, kind, title, body, entry_date, status, created_at, updated_at)
@@ -72,10 +75,10 @@ final class DiaryJournal
     public function pendingPublic(): array
     {
         return $this->db->query(
-            "SELECT e.id, e.title, e.body, e.entry_date, e.created_at,
+            "SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.created_at,
                     u.name AS author_name, u.email AS author_email
              FROM diary_entries e JOIN lms_users u ON u.id = e.author_id
-             WHERE e.kind = 'public' AND e.status = 'pending'
+             WHERE e.kind IN ('public','event') AND e.status = 'pending'
              ORDER BY e.created_at ASC"
         )->fetchAll();
     }
@@ -83,7 +86,7 @@ final class DiaryJournal
     public function moderationCount(): int
     {
         return (int) $this->db->query(
-            "SELECT COUNT(*) FROM diary_entries WHERE kind = 'public' AND status = 'pending'"
+            "SELECT COUNT(*) FROM diary_entries WHERE kind IN ('public','event') AND status = 'pending'"
         )->fetchColumn();
     }
 
@@ -96,26 +99,28 @@ final class DiaryJournal
         $repo = $repo ?? new DiaryRepository($this->db);
         $st = $this->db->prepare(
             "SELECT e.*, u.name AS author_name FROM diary_entries e JOIN lms_users u ON u.id = e.author_id
-             WHERE e.id = ? AND e.kind = 'public' AND e.status = 'pending'"
+             WHERE e.id = ? AND e.kind IN ('public','event') AND e.status = 'pending'"
         );
         $st->execute([$id]);
         $e = $st->fetch();
         if (!$e) return ['ok' => false, 'error' => 'Entry not found or already handled.'];
 
-        $title = $e['title'] !== '' ? $e['title'] : self::titleFromBody($e['body']);
-        $slug  = $this->uniqueSlug($title);
+        $title    = $e['title'] !== '' ? $e['title'] : self::titleFromBody($e['body']);
+        $slug     = $this->uniqueSlug($title);
+        $isEvent  = ($e['kind'] === 'event');
+        $category = $isEvent ? 'Events' : self::PUBLIC_CATEGORY;
 
         $repo->save([
             'slug'         => $slug,
             'title'        => $title,
             'dek'          => self::excerpt($e['body'], 180),
-            'category'     => self::PUBLIC_CATEGORY,
+            'category'     => $category,
             'authors_html' => e($e['author_name']),                 // escaped: members aren't trusted with HTML
             'published'    => date('M j, Y', strtotime($e['entry_date']) ?: time()),
             'published_at' => $e['entry_date'],
             'read_minutes' => self::readMinutes($e['body']),
-            'gradient'     => 'g-gold',
-            'mc_title'     => self::PUBLIC_CATEGORY,
+            'gradient'     => $isEvent ? 'g-sky' : 'g-gold',
+            'mc_title'     => $category,
             'cover_url'    => null,
             'og_image'     => null,
             'body_html'    => self::bodyToHtml($e['body']),         // sanitised plain-text → HTML
@@ -136,7 +141,7 @@ final class DiaryJournal
     {
         $st = $this->db->prepare(
             "UPDATE diary_entries SET status = 'rejected', review_note = ?, updated_at = datetime('now')
-             WHERE id = ? AND kind = 'public' AND status = 'pending'"
+             WHERE id = ? AND kind IN ('public','event') AND status = 'pending'"
         );
         $st->execute([mb_substr(trim($note), 0, 400), $id]);
         return $st->rowCount() > 0;

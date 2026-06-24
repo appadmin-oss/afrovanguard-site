@@ -569,6 +569,7 @@
     var body = String(e.body || '');
     return '<div class="inbox-row mod-row" data-id="' + e.id + '"><div style="flex:1">'
       + '<strong>' + escapeHtml(e.title || '(untitled)') + '</strong>'
+      + (e.kind === 'event' ? ' <span class="badge published">Event</span>' : ' <span class="badge draft">Journal</span>')
       + '<div class="inbox-meta">' + escapeHtml(e.author_name || '') + ' · ' + escapeHtml(e.author_email || '') + ' · ' + escapeHtml(e.entry_date || '') + '</div>'
       + '<p class="inbox-note" style="white-space:pre-wrap">' + escapeHtml(body.length > 800 ? body.slice(0, 799) + '…' : body) + '</p>'
       + '<div class="mod-actions" style="display:flex;gap:8px;margin-top:10px">'
