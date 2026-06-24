@@ -220,3 +220,22 @@ CREATE TABLE IF NOT EXISTS diary_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_diary_entries_author ON diary_entries(author_id, entry_date DESC);
 CREATE INDEX IF NOT EXISTS idx_diary_entries_mod    ON diary_entries(kind, status);
+
+-- ── Sign-in page illustrations (admin-managed + schedulable) ──
+-- Powers the /login illustration aside. `always` art is the year-round
+-- rotation; `range`/`annual` art shows only on its schedule (annual supports a
+-- year wrap for festive windows). See lib/AuthArt.php.
+CREATE TABLE IF NOT EXISTS auth_illustrations (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  label         TEXT NOT NULL DEFAULT '',
+  image_url     TEXT NOT NULL,
+  active        INTEGER NOT NULL DEFAULT 1,
+  schedule_kind TEXT NOT NULL DEFAULT 'always',   -- always | range | annual
+  start_date    TEXT,                              -- YYYY-MM-DD (range)
+  end_date      TEXT,                              -- YYYY-MM-DD (range)
+  start_md      TEXT,                              -- MM-DD (annual)
+  end_md        TEXT,                              -- MM-DD (annual)
+  sort          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_auth_art_active ON auth_illustrations(active, schedule_kind);

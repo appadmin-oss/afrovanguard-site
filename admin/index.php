@@ -20,6 +20,7 @@
       <button class="tab" data-tab="academy">Academy</button>
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
+      <button class="tab" data-tab="signin">Sign-in</button>
       <button class="tab" data-tab="inbox">Inbox</button>
     </nav>
     <div class="studio-actions">
@@ -339,6 +340,52 @@
         </div>
       </aside>
     </form>
+  </main>
+
+  <!-- SIGN-IN ILLUSTRATIONS (admin-managed + schedulable) -->
+  <main class="studio-main" id="signinView" hidden>
+    <div class="studio-head">
+      <div><h1>Sign-in illustrations</h1><p class="muted">The art shown beside the <a href="/login" target="_blank" rel="noopener">sign-in form</a>. “Always” art rotates year-round; scheduled or holiday art takes over on its dates. One is shown per visitor session.</p></div>
+    </div>
+
+    <div class="side-card" style="max-width:680px;margin-bottom:28px">
+      <h3>Add an illustration</h3>
+      <div class="art-add-grid">
+        <div>
+          <div class="cover-preview" id="artPreview"><span>No image yet</span></div>
+          <input type="file" id="artFile" accept="image/*" hidden />
+          <div class="cover-actions"><button type="button" class="btn btn-outline btn-sm" id="artUploadBtn">Upload image</button></div>
+          <input id="art_image" type="hidden" />
+        </div>
+        <div>
+          <label class="fld"><span>Label (for your reference)</span><input id="art_label" placeholder="e.g. Christmas — children" /></label>
+          <label class="fld"><span>Schedule</span>
+            <select id="art_kind">
+              <option value="always">Always (year-round rotation)</option>
+              <option value="annual">Holiday — every year (MM-DD window)</option>
+              <option value="range">Date range — one-off</option>
+            </select>
+          </label>
+          <div id="artAnnual" hidden>
+            <div class="art-dates">
+              <label class="fld"><span>From (MM-DD)</span><input id="art_start_md" placeholder="12-24" pattern="\d{2}-\d{2}" /></label>
+              <label class="fld"><span>To (MM-DD)</span><input id="art_end_md" placeholder="01-02" pattern="\d{2}-\d{2}" /></label>
+            </div>
+            <p class="muted tiny">Repeats every year. A wrap like 12-24 → 01-02 covers the festive season.</p>
+          </div>
+          <div id="artRange" hidden>
+            <div class="art-dates">
+              <label class="fld"><span>From</span><input id="art_start_date" type="date" /></label>
+              <label class="fld"><span>To</span><input id="art_end_date" type="date" /></label>
+            </div>
+          </div>
+          <label class="fld checkbox"><input type="checkbox" id="art_active" checked /> <span>Active</span></label>
+          <button type="button" class="btn btn-primary btn-sm" id="artSaveBtn">Add illustration</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="entry-list" id="artList"></div>
   </main>
 
   <div class="toast" id="toast"></div>

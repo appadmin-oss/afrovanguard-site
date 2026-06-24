@@ -230,20 +230,31 @@ function av_brand_mark(string $key = 'afrovanguard'): string {
  * layout then shows the brand gradient alone — never broken).
  */
 function av_auth_illustration(): string {
-    $dir = AV_ROOT . '/assets/illustrations/auth';
-    $files = is_dir($dir) ? (glob($dir . '/*.webp') ?: []) : [];
-    $slugs = array_values(array_map(static fn($f) => basename($f, '.webp'), $files));
-    sort($slugs);
-    if (!$slugs) return '';
-    $chosen = (string) ($_COOKIE['av_illo'] ?? '');
-    if (!in_array($chosen, $slugs, true)) {
-        $chosen = $slugs[(int) date('z') % count($slugs)];
-        if (!headers_sent()) {
-            setcookie('av_illo', $chosen, ['path' => '/', 'httponly' => false, 'samesite' => 'Lax']);
+    // 1) admin-managed, scheduled illustrations take precedence (holiday-aware).
+    $urls = [];
+    try {
+        foreach (av_auth_art_active_today(Database::pdo()) as $r) {
+            $u = trim((string) ($r['image_url'] ?? ''));
+            if ($u !== '') $urls[] = $u;
         }
+    } catch (Throwable $e) { /* DB unavailable → fall through to the filesystem */ }
+    // 2) otherwise the committed filesystem drop-zone.
+    if (!$urls) {
+        $dir = AV_ROOT . '/assets/illustrations/auth';
+        foreach (is_dir($dir) ? (glob($dir . '/*.webp') ?: []) : [] as $f) {
+            $urls[] = '/assets/illustrations/auth/' . basename($f);
+        }
+    }
+    if (!$urls) return '';                  // 3) nothing → the brand gradient alone
+    sort($urls);
+    // Pick one, stable for the visit (cookie), seeded by day-of-year.
+    $chosen = (string) ($_COOKIE['av_illo'] ?? '');
+    if (!in_array($chosen, $urls, true)) {
+        $chosen = $urls[(int) date('z') % count($urls)];
+        if (!headers_sent()) setcookie('av_illo', $chosen, ['path' => '/', 'httponly' => false, 'samesite' => 'Lax']);
         $_COOKIE['av_illo'] = $chosen;
     }
-    return '/assets/illustrations/auth/' . $chosen . '.webp';
+    return $chosen;
 }
 
 /** Build a sign-in URL that returns the user to $next (defaults to home). */

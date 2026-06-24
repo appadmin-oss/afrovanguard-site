@@ -68,4 +68,10 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 
 .tox-tinymce { border-radius: var(--radius-md) !important; border-color: var(--divider) !important; }
 
-@media (max-width: 920px) { .editor-grid { grid-template-columns: 1fr; } .editor-side { position: static; } }
+/* Sign-in illustration manager */
+.art-add-grid { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
+.art-add-grid .cover-preview { aspect-ratio: 3/4; margin-bottom: 10px; }
+.art-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#signinView .entry-thumb { aspect-ratio: 3/4; width: 52px; height: auto; }
+
+@media (max-width: 920px) { .editor-grid { grid-template-columns: 1fr; } .editor-side { position: static; } .art-add-grid { grid-template-columns: 1fr; } }

@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -98,6 +98,24 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/celebrations.php';
             av_celebrations_delete(Database::pdo(), (int) ($body['id'] ?? 0));
+            json_out(['ok' => true]);
+
+        // ---- Sign-in illustrations (admin-managed + schedulable) ----
+        case 'art_list':
+            json_out(['ok' => true, 'art' => av_auth_art_all(Database::pdo()), 'today' => array_map(fn($r) => (int) $r['id'], av_auth_art_active_today(Database::pdo()))]);
+        case 'art_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (trim((string) ($body['image_url'] ?? '')) === '') json_out(['ok' => false, 'error' => 'Upload an image first.'], 422);
+            if (($body['schedule_kind'] ?? '') === 'annual' && !(preg_match('/^\d{2}-\d{2}$/', (string) ($body['start_md'] ?? '')) && preg_match('/^\d{2}-\d{2}$/', (string) ($body['end_md'] ?? '')))) {
+                json_out(['ok' => false, 'error' => 'A holiday window needs a start and end date (MM-DD).'], 422);
+            }
+            if (($body['schedule_kind'] ?? '') === 'range' && !(preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($body['start_date'] ?? '')) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($body['end_date'] ?? '')))) {
+                json_out(['ok' => false, 'error' => 'A date range needs a start and end date.'], 422);
+            }
+            json_out(['ok' => true, 'id' => av_auth_art_save(Database::pdo(), $body)]);
+        case 'art_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            av_auth_art_delete(Database::pdo(), (int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
 
         case 'get':

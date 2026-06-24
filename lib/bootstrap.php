@@ -55,6 +55,7 @@ require_once __DIR__ . '/Payments.php';
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Sitemap.php';
+require_once __DIR__ . '/AuthArt.php';
 
 av_harden_errors();
 

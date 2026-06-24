@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), signin: $('#signinView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -53,6 +53,7 @@
       else if (which === 'people') { show('people'); loadTeam(); }
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
+      else if (which === 'signin') { show('signin'); loadArt(); }
       else { show('inbox'); loadInbox(); }
     });
   });
@@ -603,6 +604,91 @@
       }
     });
   })();
+
+  /* ---- Sign-in illustrations (admin-managed + schedulable) ---- */
+  var artRows = [];
+  function setArtImage(url) {
+    $('#art_image').value = url || '';
+    var pv = $('#artPreview');
+    if (url) { pv.style.backgroundImage = "url('" + url.replace(/'/g, '') + "')"; pv.classList.add('has'); pv.innerHTML = ''; }
+    else { pv.style.backgroundImage = ''; pv.classList.remove('has'); pv.innerHTML = '<span>No image yet</span>'; }
+  }
+  function artScheduleFields() {
+    var k = $('#art_kind').value;
+    $('#artAnnual').hidden = k !== 'annual';
+    $('#artRange').hidden = k !== 'range';
+  }
+  function artScheduleText(a) {
+    if (a.schedule_kind === 'annual') return 'Holiday · ' + (a.start_md || '?') + ' → ' + (a.end_md || '?') + ' (yearly)';
+    if (a.schedule_kind === 'range') return 'Range · ' + (a.start_date || '?') + ' → ' + (a.end_date || '?');
+    return 'Always — year-round';
+  }
+  function artRowHTML(a, live) {
+    var on = live.indexOf(Number(a.id)) !== -1;
+    return '<div class="entry-row" data-id="' + a.id + '">'
+      + '<div class="entry-thumb" style="background-image:url(\'' + String(a.image_url).replace(/'/g, '') + '\')"></div>'
+      + '<div class="entry-info"><div class="entry-title">' + escapeHtml(a.label || '(untitled)')
+      + (on ? ' <span class="badge published">Showing now</span>' : '') + '</div>'
+      + '<div class="entry-meta">' + escapeHtml(artScheduleText(a)) + ' · ' + (Number(a.active) ? 'Active' : 'Hidden') + '</div></div>'
+      + '<div class="entry-ops">'
+      + '<button class="btn btn-outline btn-sm art-toggle" data-id="' + a.id + '">' + (Number(a.active) ? 'Hide' : 'Activate') + '</button>'
+      + '<button class="btn btn-outline btn-sm danger art-del" data-id="' + a.id + '">Delete</button>'
+      + '</div></div>';
+  }
+  function loadArt() {
+    var box = $('#artList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    return api('art_list').then(function (r) {
+      var d = r.data || {}; artRows = (d.ok && d.art) || []; var live = d.today || [];
+      box.innerHTML = artRows.length
+        ? artRows.map(function (a) { return artRowHTML(a, live); }).join('')
+        : '<p class="muted">No illustrations yet — the sign-in page falls back to any committed art, then the brand gradient.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
+  }
+  function artFormPayload() {
+    return {
+      image_url: $('#art_image').value, label: $('#art_label').value.trim(),
+      schedule_kind: $('#art_kind').value, active: $('#art_active').checked ? 1 : 0,
+      start_md: $('#art_start_md').value.trim(), end_md: $('#art_end_md').value.trim(),
+      start_date: $('#art_start_date').value, end_date: $('#art_end_date').value
+    };
+  }
+  if ($('#signinView')) {
+    $('#art_kind').addEventListener('change', artScheduleFields);
+    $('#artUploadBtn').addEventListener('click', function () { $('#artFile').click(); });
+    $('#artFile').addEventListener('change', function () {
+      if (!this.files || !this.files[0]) return;
+      toast('Uploading…');
+      uploadFile(this.files[0]).then(function (r) {
+        if (r.data && r.data.ok) { setArtImage(r.data.url); toast('Image uploaded.'); }
+        else toast((r.data && r.data.error) || 'Upload failed.');
+      }).catch(function () { toast('Upload failed.'); });
+    });
+    $('#artSaveBtn').addEventListener('click', function () {
+      var p = artFormPayload();
+      if (!p.image_url) { toast('Upload an image first.'); return; }
+      this.disabled = true;
+      post('art_save', p).then(function (r) {
+        if (r.data && r.data.ok) {
+          toast('Saved.');
+          setArtImage(''); $('#art_label').value = ''; $('#art_kind').value = 'always'; artScheduleFields(); $('#art_active').checked = true;
+          loadArt();
+        } else toast((r.data && r.data.error) || 'Could not save.');
+      }).catch(function () { toast('Network error.'); }).finally(function () { $('#artSaveBtn').disabled = false; });
+    });
+    $('#artList').addEventListener('click', function (e) {
+      var tg = e.target.closest('.art-toggle'), dl = e.target.closest('.art-del');
+      if (tg) {
+        var a = artRows.filter(function (x) { return String(x.id) === tg.getAttribute('data-id'); })[0]; if (!a) return;
+        post('art_save', {
+          id: a.id, image_url: a.image_url, label: a.label, schedule_kind: a.schedule_kind,
+          active: Number(a.active) ? 0 : 1, start_md: a.start_md, end_md: a.end_md, start_date: a.start_date, end_date: a.end_date
+        }).then(function () { loadArt(); });
+      } else if (dl) {
+        if (!confirm('Delete this illustration?')) return;
+        post('art_delete', { id: dl.getAttribute('data-id') }).then(function () { toast('Deleted.'); loadArt(); });
+      }
+    });
+  }
 
   function boot() { show('entries'); loadList(); refreshModBadge(); }
   api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); } else show('login'); }).catch(function () { show('login'); });
