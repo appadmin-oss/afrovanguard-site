@@ -28,18 +28,19 @@
 .site-footer .footer-grid {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 40px; padding-bottom: 56px;
 }
-.site-footer .footer-logo-mark { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
+.site-footer .footer-logo-mark { font-family: 'Cormorant', Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: .3px; line-height: 1; margin-bottom: 14px; }
 .site-footer .footer-logo-mark .afro { color: #fff; }
 .site-footer .footer-logo-mark .van { color: #f3b416; }
 .site-footer .footer-tagline { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.7; max-width: 28ch; margin: 0 0 24px; }
 .site-footer .footer-socials { display: flex; gap: 10px; flex-wrap: wrap; }
 .site-footer .footer-social-link {
-  width: 40px; height: 40px; border-radius: 6px;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  width: 42px; height: 42px; border-radius: 9999px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.14);
   display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,0.55); transition: all 0.2s ease; text-decoration: none;
+  color: rgba(255,255,255,0.72); transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease; text-decoration: none;
 }
-.site-footer .footer-social-link:hover { background: rgba(243,180,22,0.12); color: #f3b416; border-color: rgba(243,180,22,0.2); }
+.site-footer .footer-social-link svg { width: 18px; height: 18px; }
+.site-footer .footer-social-link:hover { background: rgba(243,180,22,0.14); color: #f3b416; border-color: var(--gold, #f3b416); transform: translateY(-3px); }
 .site-footer .footer-col h4 {
   font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
   color: #f3b416; margin: 0 0 20px;

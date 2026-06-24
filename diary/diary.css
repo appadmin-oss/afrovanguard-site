@@ -444,12 +444,13 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 /* ============================================================ FOOTER */
 .site-footer { background: var(--footer-bg); color: rgba(255,255,255,0.7); padding: 72px 0 0; margin-top: 40px; }
 .footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 48px; padding-bottom: 48px; }
-.footer-logo-mark { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; }
+.footer-logo-mark { font-family: 'Cormorant', Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: .3px; line-height: 1; margin-bottom: 16px; }
 .footer-logo-mark .afro { color: #fff; } .footer-logo-mark .van { color: var(--gold); }
 .footer-tagline { font-size: 14px; line-height: 1.6; max-width: 36ch; }
-.footer-socials { display: flex; gap: 12px; margin-top: 20px; }
-.footer-social-link { width: 40px; height: 40px; border-radius: var(--radius-full); border: 1px solid rgba(255,255,255,0.16); display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.7); }
-.footer-social-link:hover { border-color: var(--gold); color: var(--gold); }
+.footer-socials { display: flex; gap: 10px; margin-top: 20px; }
+.footer-social-link { width: 42px; height: 42px; border-radius: var(--radius-full); border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.72); transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease; }
+.footer-social-link svg { width: 18px; height: 18px; }
+.footer-social-link:hover { border-color: var(--gold); background: rgba(243,180,22,0.14); color: var(--gold); transform: translateY(-3px); }
 .footer-col h4 { color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 18px; }
 .footer-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .footer-links a { color: rgba(255,255,255,0.6); font-size: 14px; }

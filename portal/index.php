@@ -31,8 +31,21 @@ render_head([
     'body_class' => 'portal-page',
     'css'        => ['/portal/portal.css'],
 ]);
-render_nav('');
 ?>
+  <header class="portal-bar">
+    <div class="container portal-bar-inner">
+      <a class="portal-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard — home">
+        <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
+        <span class="portal-tag">Member portal</span>
+      </a>
+      <nav class="portal-bar-actions" aria-label="Member navigation">
+        <a class="portal-bar-link" href="/academy/">Academy</a>
+        <a class="portal-bar-link" href="/diary/me/">Diary</a>
+        <span class="portal-acct"><?= e($first) ?></span>
+        <a class="btn btn-outline btn-sm" href="#" data-logout>Sign out</a>
+      </nav>
+    </div>
+  </header>
   <main id="main-content" class="portal">
     <div class="container">
       <header class="portal-head">
@@ -101,4 +114,15 @@ render_nav('');
       </div>
     </div>
   </main>
-<?php render_footer();
+
+  <footer class="portal-foot">
+    <div class="container portal-foot-inner">
+      <span class="brand-wordmark portal-foot-mark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
+      <span class="portal-foot-links"><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a></span>
+      <span class="portal-foot-legal">© 2026 Afrovanguard</span>
+    </div>
+  </footer>
+  <script src="/assets/site/nav.js" defer></script>
+</body>
+</html>
+

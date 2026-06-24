@@ -73,6 +73,15 @@ if (!defined('ACADEMY_URL')) {
 }
 function academy_url(string $path = ''): string { return rtrim(ACADEMY_URL, '/') . '/' . ltrim($path, '/'); }
 
+/** Member portal base URL (subdomain-ready). Set AV_PORTAL_URL to e.g.
+ *  https://members.afrovanguard.org.ng to serve the portal on its own host
+ *  (same docroot); defaults to the /portal path on the main domain. */
+if (!defined('PORTAL_URL')) {
+    $env = getenv('AV_PORTAL_URL');
+    define('PORTAL_URL', $env ?: (rtrim(SITE_URL, '/') . '/portal'));
+}
+function portal_url(string $path = ''): string { return rtrim(PORTAL_URL, '/') . '/' . ltrim($path, '/'); }
+
 /**
  * Gate an endpoint behind admin auth: a valid signed session cookie OR a
  * Bearer admin token (break-glass). State-changing cookie requests must

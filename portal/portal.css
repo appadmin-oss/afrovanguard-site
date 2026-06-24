@@ -42,3 +42,24 @@
 .portal-stat b { font-size: 28px; font-family: var(--font-heading); color: var(--ink); display: block; line-height: 1; margin-bottom: 4px; }
 
 @media (max-width: 760px) { .portal-grid { grid-template-columns: 1fr; } .learn-row { grid-template-columns: 1fr 90px; } }
+
+/* ---- Dedicated portal chrome (its own member bar + slim footer) ---- */
+.portal-bar { position: sticky; top: 0; z-index: 100; background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(255,255,255,0.07); }
+.portal-bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 60px; padding: 10px 0; }
+.portal-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
+.portal-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 25px; font-weight: 600; line-height: 1; letter-spacing: .2px; }
+.portal-brand .wm-1 { color: #fff; } .portal-brand .wm-2 { color: var(--gold); }
+.portal-tag { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,0.55); border-left: 1px solid rgba(255,255,255,0.18); padding-left: 12px; }
+.portal-bar-actions { display: flex; align-items: center; gap: 16px; }
+.portal-bar-link { font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,0.75); text-decoration: none; transition: color .16s ease; }
+.portal-bar-link:hover { color: var(--gold); }
+.portal-acct { font-size: 13px; font-weight: 700; color: #fff; }
+.portal-bar .btn-outline { color: #fff; border-color: rgba(255,255,255,0.28); }
+.portal-bar .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+
+.portal-foot { border-top: 1px solid var(--divider); margin-top: 50px; padding: 26px 0; }
+.portal-foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.portal-foot-mark { font-family: 'Cormorant', Georgia, serif; font-size: 22px; font-weight: 600; }
+.portal-foot-mark .wm-1 { color: var(--ink); } .portal-foot-mark .wm-2 { color: var(--gold-deep); }
+.portal-foot-links a { color: var(--gold-deep); text-decoration: none; font-weight: 600; }
+@media (max-width: 600px) { .portal-tag, .portal-bar-link { display: none; } }
