@@ -29,6 +29,7 @@ if (preg_match('~^/diary/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $
 
 // Diary pretty routes
 if (preg_match('~^/diary/?$~', $uri)) { require __DIR__ . '/diary/index.php'; return true; }
+if (preg_match('~^/diary/me/?$~', $uri)) { require __DIR__ . '/diary/me.php'; return true; }
 if (preg_match('~^/diary/([a-z0-9-]+)/?$~', $uri, $m)) {
     $_GET['slug'] = $m[1];
     require __DIR__ . '/diary/article.php';

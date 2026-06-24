@@ -40,6 +40,7 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
+require_once __DIR__ . '/DiaryJournal.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';

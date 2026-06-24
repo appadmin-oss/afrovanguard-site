@@ -10,6 +10,7 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 .studio-actions { display: flex; gap: 10px; align-items: center; }
 .studio-tabs { display: flex; gap: 4px; }
 .studio-tabs .tab { background: transparent; border: none; color: rgba(255,255,255,0.7); font-family: var(--font-body); font-weight: 700; font-size: 14px; padding: 8px 16px; border-radius: var(--radius-full); cursor: pointer; }
+.tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: #d4380d; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; vertical-align: middle; }
 .studio-tabs .tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .studio-tabs .tab.active { color: #111827; background: var(--gold); }
 .inbox-list { display: flex; flex-direction: column; gap: 10px; }

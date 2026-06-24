@@ -41,8 +41,36 @@ final class Database
         }
         self::ensureColumns(); // additive upgrades for already-deployed DBs
         self::ensureAcademy(); // create + seed academy tables if missing
+        self::ensureDiaryEntries(); // member-contributed diary (categories + moderation)
         self::maybePurgeDemo(); // one-time removal of shipped demo content
         return self::$pdo;
+    }
+
+    /**
+     * Member-contributed Vanguard Diary entries (Event / Private / Public).
+     * Idempotent so already-deployed databases pick it up on the next request,
+     * exactly like ensureAcademy(). Kept separate from `articles` for privacy.
+     */
+    private static function ensureDiaryEntries(): void
+    {
+        if (self::tableExists('diary_entries')) return;
+        self::$pdo->exec(
+            "CREATE TABLE IF NOT EXISTS diary_entries (
+               id             INTEGER PRIMARY KEY AUTOINCREMENT,
+               author_id      INTEGER NOT NULL,
+               kind           TEXT NOT NULL DEFAULT 'private',
+               title          TEXT NOT NULL DEFAULT '',
+               body           TEXT NOT NULL,
+               entry_date     TEXT NOT NULL,
+               status         TEXT NOT NULL DEFAULT 'logged',
+               published_slug TEXT,
+               review_note    TEXT,
+               created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+               updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+             );
+             CREATE INDEX IF NOT EXISTS idx_diary_entries_author ON diary_entries(author_id, entry_date DESC);
+             CREATE INDEX IF NOT EXISTS idx_diary_entries_mod    ON diary_entries(kind, status);"
+        );
     }
 
     /* ── Small key/value store for one-time migrations/flags ── */

@@ -14,6 +14,9 @@ DirectoryIndex index.php index.html
   RewriteRule ^feed\.xml$ feed.php [L]
   RewriteRule ^og/([a-z0-9-]+)\.png$ og.php?slug=$1 [L,QSA]
 
+  # Member's own diary workspace (composer + personal streams)
+  RewriteRule ^me/?$ me.php [L,QSA]
+
   # Don't rewrite real files or directories (css, js, api.php, og.php …)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d

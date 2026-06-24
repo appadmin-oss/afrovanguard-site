@@ -73,6 +73,40 @@ try {
             if ($email !== '') Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
             json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
 
+        /* ── Member-contributed Vanguard Diary (Event / Private / Public) ──
+           These require a signed-in member (LMS account). Private + event
+           entries are only ever read back to their own author. ── */
+        case 'mine': {
+            $u = LmsAuth::require();
+            $journal = new DiaryJournal();
+            json_out(['ok' => true, 'entries' => $journal->mine((int) $u['id'])]);
+        }
+
+        case 'entry.create': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            if (!av_rate_ok('diary_entry', 30, 3600)) json_out(['ok' => false, 'error' => 'You’re logging quickly — give it a moment.'], 429);
+            $journal = new DiaryJournal();
+            $res = $journal->create(
+                (int) $u['id'],
+                (string) ($body['kind'] ?? 'private'),
+                (string) ($body['title'] ?? ''),
+                (string) ($body['body'] ?? ''),
+                (string) ($body['entry_date'] ?? date('Y-m-d'))
+            );
+            json_out($res, $res['ok'] ? 200 : 422);
+        }
+
+        case 'entry.delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $id = (int) ($body['id'] ?? 0);
+            $ok = (new DiaryJournal())->deleteOwn((int) $u['id'], $id);
+            json_out(['ok' => $ok] + ($ok ? [] : ['error' => 'Entry not found.']), $ok ? 200 : 404);
+        }
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

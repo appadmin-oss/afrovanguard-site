@@ -16,6 +16,7 @@
     <div class="studio-brand"><span class="afro">AFRO</span><span class="van">VANGUARD</span> <span class="studio-tag">Studio</span></div>
     <nav class="studio-tabs" id="tabs" hidden>
       <button class="tab active" data-tab="entries">Diary</button>
+      <button class="tab" data-tab="moderation">Moderation<span class="tab-badge" id="modBadge" hidden></span></button>
       <button class="tab" data-tab="academy">Academy</button>
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
@@ -221,6 +222,12 @@
   <main class="studio-main" id="inboxView" hidden>
     <div class="studio-head"><div><h1>Inbox</h1><p class="muted">Academy applications, newest first.</p></div></div>
     <div class="inbox-list" id="inboxList"></div>
+  </main>
+
+  <!-- DIARY MODERATION (public journal submissions) -->
+  <main class="studio-main" id="moderationView" hidden>
+    <div class="studio-head"><div><h1>Diary moderation</h1><p class="muted">Public journal submissions from members, awaiting review. Approving publishes the entry to the Diary feed under the author’s name. Private and event entries are never shown here.</p></div></div>
+    <div class="inbox-list" id="modList"></div>
   </main>
 
   <!-- PEOPLE LIST -->

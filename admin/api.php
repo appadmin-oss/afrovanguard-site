@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -147,6 +147,20 @@ try {
             $okd = $repo->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))));
             if ($okd) Sitemap::rebuild();
             json_out(['ok' => $okd]);
+
+        /* ── Vanguard Diary — member-submission moderation ──
+           Only public submissions surface here; private/event entries never do. */
+        case 'mod_queue':
+            json_out(['ok' => true, 'entries' => (new DiaryJournal())->pendingPublic()]);
+        case 'mod_approve':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = (new DiaryJournal())->approve((int) ($body['id'] ?? 0), $repo); // promotes into the feed
+            if (!empty($res['ok'])) { Sitemap::rebuild(); $res['url'] = diary_url($res['slug'] . '/'); }
+            json_out($res, !empty($res['ok']) ? 200 : 404);
+        case 'mod_reject':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $okr = (new DiaryJournal())->reject((int) ($body['id'] ?? 0), (string) ($body['note'] ?? ''));
+            json_out($okr ? ['ok' => true] : ['ok' => false, 'error' => 'Entry not found or already handled.'], $okr ? 200 : 404);
 
         /* ── Academy ── */
         case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);

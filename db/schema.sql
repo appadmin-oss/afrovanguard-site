@@ -200,3 +200,23 @@ CREATE TABLE IF NOT EXISTS payments (
   paid_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
+
+-- ── Vanguard Diary — member-contributed entries (categories + moderation) ──
+-- Deliberately SEPARATE from `articles` so private/event logs can never leak
+-- into the public editorial feed. A `public` entry, once an admin approves it,
+-- is PROMOTED into `articles` (the public feed) — see lib/DiaryJournal::approve().
+CREATE TABLE IF NOT EXISTS diary_entries (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  author_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  kind           TEXT NOT NULL DEFAULT 'private',    -- event | private | public
+  title          TEXT NOT NULL DEFAULT '',
+  body           TEXT NOT NULL,                       -- plain text; escaped on render
+  entry_date     TEXT NOT NULL,                       -- ISO date (backdatable)
+  status         TEXT NOT NULL DEFAULT 'logged',      -- logged | pending | approved | rejected
+  published_slug TEXT,                                -- article slug once promoted to the feed
+  review_note    TEXT,                                -- admin note (e.g. on reject)
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_diary_entries_author ON diary_entries(author_id, entry_date DESC);
+CREATE INDEX IF NOT EXISTS idx_diary_entries_mod    ON diary_entries(kind, status);

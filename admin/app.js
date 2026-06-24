@@ -14,7 +14,7 @@
   var views = {
     login: $('#loginView'), entries: $('#entriesView'), editor: $('#editorView'),
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
-    curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'),
+    curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView')
   };
@@ -52,6 +52,7 @@
       else if (which === 'academy') { show('academy'); loadCourses(); }
       else if (which === 'people') { show('people'); loadTeam(); }
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
+      else if (which === 'moderation') { show('moderation'); loadModeration(); }
       else { show('inbox'); loadInbox(); }
     });
   });
@@ -561,6 +562,48 @@
   });
 
   /* ---- boot ---- */
-  function boot() { show('entries'); loadList(); }
+  /* ---- Diary moderation (member public-journal submissions) ---- */
+  function modRowHTML(e) {
+    var body = String(e.body || '');
+    return '<div class="inbox-row mod-row" data-id="' + e.id + '"><div style="flex:1">'
+      + '<strong>' + escapeHtml(e.title || '(untitled)') + '</strong>'
+      + '<div class="inbox-meta">' + escapeHtml(e.author_name || '') + ' · ' + escapeHtml(e.author_email || '') + ' · ' + escapeHtml(e.entry_date || '') + '</div>'
+      + '<p class="inbox-note" style="white-space:pre-wrap">' + escapeHtml(body.length > 800 ? body.slice(0, 799) + '…' : body) + '</p>'
+      + '<div class="mod-actions" style="display:flex;gap:8px;margin-top:10px">'
+      + '<button class="btn btn-primary btn-sm mod-approve" data-id="' + e.id + '">Approve &amp; publish</button>'
+      + '<button class="btn btn-outline btn-sm mod-reject" data-id="' + e.id + '">Reject</button>'
+      + '</div></div></div>';
+  }
+  function setModBadge(n) { var b = $('#modBadge'); if (!b) return; if (n > 0) { b.textContent = n; b.hidden = false; } else { b.hidden = true; } }
+  function refreshModBadge() { api('mod_queue').then(function (r) { setModBadge((r.data && r.data.ok && r.data.entries) ? r.data.entries.length : 0); }).catch(function () {}); }
+  function loadModeration() {
+    var box = $('#modList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    return api('mod_queue').then(function (r) {
+      var d = r.data || {}, rows = (d.ok && d.entries) || [];
+      setModBadge(rows.length);
+      box.innerHTML = rows.length ? rows.map(modRowHTML).join('') : '<p class="muted">Nothing awaiting review right now. 🎉</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the queue.</p>'; });
+  }
+  (function () {
+    var box = $('#modList'); if (!box) return;
+    box.addEventListener('click', function (e) {
+      var ap = e.target.closest('.mod-approve'), rj = e.target.closest('.mod-reject');
+      if (ap) {
+        ap.disabled = true;
+        post('mod_approve', { id: ap.getAttribute('data-id') }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Published to the Diary.'); loadModeration(); }
+          else { ap.disabled = false; toast((r.data && r.data.error) || 'Could not approve.'); }
+        });
+      } else if (rj) {
+        var note = prompt('Optional note (why this wasn’t approved):') || '';
+        post('mod_reject', { id: rj.getAttribute('data-id'), note: note }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Entry rejected.'); loadModeration(); }
+          else { toast((r.data && r.data.error) || 'Could not reject.'); }
+        });
+      }
+    });
+  })();
+
+  function boot() { show('entries'); loadList(); refreshModBadge(); }
   api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); } else show('login'); }).catch(function () { show('login'); });
 })();
