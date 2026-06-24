@@ -73,11 +73,11 @@
     var first = esc((user.name || 'Member').split(' ')[0]);
     var slot = document.getElementById('navAuth');
     if (slot) {
-      slot.innerHTML = '<a class="nav-acct" href="/academy/"><span class="nav-acct-hi">Hi,</span> ' + first + '</a>'
+      slot.innerHTML = '<a class="nav-acct" href="/portal/"><span class="nav-acct-hi">Hi,</span> ' + first + '</a>'
         + '<a class="nav-signin" href="#" data-logout>Sign out</a>';
     }
     var subLogin = document.getElementById('navSubLogin');
-    if (subLogin) { subLogin.textContent = first; subLogin.setAttribute('href', '/academy/'); }
+    if (subLogin) { subLogin.textContent = first; subLogin.setAttribute('href', '/portal/'); }
   }
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-logout]')) {

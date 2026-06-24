@@ -18,7 +18,7 @@ require_once AV_ROOT . '/lib/partials.php';
 /* ---- where to send the visitor after sign-in (same-origin path only) ---- */
 $next = (string) ($_GET['next'] ?? '');
 if ($next === '' || $next[0] !== '/' || str_starts_with($next, '//') || str_contains($next, "\n")) {
-    $next = '/academy/';
+    $next = '/portal/';
 }
 $mode = (($_GET['mode'] ?? '') === 'register') ? 'register' : 'login';
 

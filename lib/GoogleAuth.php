@@ -42,7 +42,7 @@ final class GoogleAuth
     /** Sanitise an intended post-login destination to a same-origin path. */
     public static function safeNext(string $next): string
     {
-        return ($next !== '' && $next[0] === '/' && !str_starts_with($next, '//') && !str_contains($next, "\n")) ? $next : '/academy/';
+        return ($next !== '' && $next[0] === '/' && !str_starts_with($next, '//') && !str_contains($next, "\n")) ? $next : '/portal/';
     }
 
     /* ── signed state (also the CSRF token for the callback) ── */
@@ -64,7 +64,7 @@ final class GoogleAuth
         if (av_secret() === '') return null;
         if (!hash_equals(hash_hmac('sha256', "$exp.$nonce.$b64", av_secret()), $sig)) return null;
         $next = base64_decode(strtr($b64, '-_', '+/'), true);
-        return $next === false ? '/academy/' : self::safeNext($next);
+        return $next === false ? '/portal/' : self::safeNext($next);
     }
 
     public static function authUrl(string $state): string

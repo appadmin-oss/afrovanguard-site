@@ -62,6 +62,24 @@ final class LmsRepository
         $this->db->prepare('INSERT OR IGNORE INTO course_enrolment (user_id, course_id) VALUES (?,?)')->execute([$userId, $courseId]);
     }
 
+    /** A learner's enrolled courses with progress + certificate state (for the portal). */
+    public function enrolledCourses(int $userId): array
+    {
+        $s = $this->db->prepare(
+            "SELECT c.id, c.slug, c.title, c.cover_url, c.gradient
+             FROM course_enrolment e JOIN courses c ON c.id = e.course_id
+             WHERE e.user_id = ? ORDER BY e.created_at DESC"
+        );
+        $s->execute([$userId]);
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) {
+            $pr = $this->progress($userId, (int) $r['id']);
+            $r['pct'] = $pr['pct']; $r['complete'] = $pr['complete'];
+            $r['certified'] = (bool) $this->getCertificate($userId, (int) $r['id']);
+        }
+        return $rows;
+    }
+
     /** Can this (maybe-null) user open this lesson? */
     public function canAccess(?array $user, array $course, array $lesson): bool
     {
