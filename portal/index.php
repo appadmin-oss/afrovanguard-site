@@ -92,16 +92,14 @@ render_head([
 <?php endif; ?>
         </section>
 
-        <!-- Mentorship -->
-        <section class="portal-card<?= $isOrg ? '' : ' is-locked' ?>">
-          <div class="pc-head"><h2>Mentorship</h2><?= $isOrg ? '<span class="pc-tag">Active</span>' : '<span class="pc-tag locked">Members only</span>' ?></div>
 <?php if ($isOrg): ?>
+        <!-- Mentorship — members only; not shown to learners at all -->
+        <section class="portal-card">
+          <div class="pc-head"><h2>Mentorship</h2><span class="pc-tag">Active</span></div>
           <p>You’re connected to the Afrovanguard mentor network.<?= $canMentor ? ' As a mentor, your mentees and sessions will appear here.' : ' Your mentor and upcoming sessions will appear here.' ?></p>
           <a class="btn btn-primary btn-sm" href="mailto:cacentre@afrovanguard.org.ng?subject=Mentorship">Reach the mentorship team</a>
-<?php else: ?>
-          <p>Mentorship is for Afrovanguard members. Members sign in with an <strong>@afrovanguard.org.ng</strong> account.</p>
-<?php endif; ?>
         </section>
+<?php endif; ?>
 
         <!-- Status & profile -->
         <section class="portal-card">

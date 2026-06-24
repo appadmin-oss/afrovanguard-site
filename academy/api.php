@@ -59,7 +59,7 @@ try {
             $u = LmsAuth::require();
             $c = $ac->bySlug($slug, true);
             if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
-            if (($c['access_type'] ?? 'open') === 'paid' && !$lms->isMember((int) $u['id']))
+            if (($c['access_type'] ?? 'open') === 'paid' && !($lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u)))
                 json_out(['ok' => false, 'error' => 'This course requires payment or membership.'], 402);
             $wasEnrolled = $lms->isEnrolled((int) $u['id'], (int) $c['id']);
             $lms->enrol((int) $u['id'], (int) $c['id']);
@@ -115,14 +115,14 @@ try {
             $kind = (($body['kind'] ?? '') === 'membership') ? 'membership' : 'course';
             $courseId = null; $amountNgn = 0; $meta = ['user_id' => (int) $u['id'], 'kind' => $kind];
             if ($kind === 'membership') {
-                if ($lms->isMember((int) $u['id'])) json_out(['ok' => true, 'already' => true, 'message' => 'You are already a member.']);
+                if ($lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u)) json_out(['ok' => true, 'already' => true, 'message' => 'You are already a member.']);
                 $amountNgn = (int) AV_MEMBERSHIP_NGN;
                 $meta['purpose'] = 'Afrovanguard Academy — annual membership';
             } else {
                 $c = $slug ? $ac->bySlug($slug, true) : null;
                 if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
                 if (($c['access_type'] ?? 'open') !== 'paid') json_out(['ok' => false, 'error' => 'This course does not require payment.'], 400);
-                if ($lms->isEnrolled((int) $u['id'], (int) $c['id']) || $lms->isMember((int) $u['id']))
+                if ($lms->isEnrolled((int) $u['id'], (int) $c['id']) || $lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u))
                     json_out(['ok' => true, 'already' => true, 'message' => 'You already have access to this course.']);
                 $courseId = (int) $c['id'];
                 $amountNgn = (int) ($c['price_ngn'] ?? 0);
