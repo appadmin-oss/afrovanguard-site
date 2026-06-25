@@ -65,6 +65,7 @@ final class Database
             self::ensureColumns();      // additive upgrades for already-deployed DBs
             self::ensureAcademy();      // create + seed academy tables if missing
             self::ensureDiaryEntries(); // member-contributed diary (categories + moderation)
+            self::ensureLmsVerify();    // email-verification columns (+ grandfather existing accounts)
             self::maybePurgeDemo();     // one-time removal of shipped demo content
         }
         return self::$pdo;
@@ -95,6 +96,23 @@ final class Database
              CREATE INDEX IF NOT EXISTS idx_diary_entries_author ON diary_entries(author_id, entry_date DESC);
              CREATE INDEX IF NOT EXISTS idx_diary_entries_mod    ON diary_entries(kind, status);"
         );
+    }
+
+    /**
+     * Email-verification columns on lms_users (idempotent). Adds email_verified
+     * (default 0) + token columns, and GRANDFATHERS every existing account as
+     * verified so introducing verification never locks out current users — only
+     * new signups start unverified.
+     */
+    private static function ensureLmsVerify(): void
+    {
+        if (!self::tableExists('lms_users')) return;
+        if (!self::columnExists('lms_users', 'email_verified')) {
+            self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0");
+            self::$pdo->exec("UPDATE lms_users SET email_verified = 1");
+        }
+        if (!self::columnExists('lms_users', 'verify_hash'))    self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN verify_hash TEXT");
+        if (!self::columnExists('lms_users', 'verify_expires')) self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN verify_expires TEXT");
     }
 
     /* ── Small key/value store for one-time migrations/flags ── */

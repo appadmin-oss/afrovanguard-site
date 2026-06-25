@@ -136,6 +136,27 @@ render_head([
       e.preventDefault(); mode = a.getAttribute('data-to'); render();
     });
 
+    // Email-verification notice + a one-tap "resend the link" affordance.
+    function showVerifyNotice(text) {
+      msg.className = 'auth-msg'; msg.innerHTML = '';
+      var span = document.createElement('span'); span.textContent = text + ' ';
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.textContent = 'Resend link';
+      btn.style.cssText = 'background:none;border:0;color:#a8821a;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:0';
+      btn.addEventListener('click', function () {
+        var email = form.email.value.trim();
+        if (!email) { msg.className = 'auth-msg err'; msg.textContent = 'Enter your email above, then tap Resend.'; return; }
+        btn.disabled = true; btn.textContent = 'Sending…';
+        fetch('/academy/api.php?action=resend-verification', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email }), credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (x) {
+          msg.className = 'auth-msg'; msg.textContent = (x && x.message) || 'If that account needs verifying, a new link is on its way.';
+        }).catch(function () { btn.disabled = false; btn.textContent = 'Resend link'; msg.className = 'auth-msg err'; msg.textContent = 'Could not resend right now — try again.'; });
+      });
+      msg.appendChild(span); msg.appendChild(btn);
+    }
+
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var payload = { email: form.email.value.trim(), password: form.password.value };
@@ -145,9 +166,12 @@ render_head([
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload), credentials: 'same-origin'
       }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok) { window.location.href = next; return; }
-        msg.className = 'auth-msg err'; msg.textContent = (d && d.error) || 'Something went wrong. Please try again.';
+        // A verified, logged-in success continues; verification responses carry
+        // verify_required (register → ok:true, login → ok:false) — show the notice.
+        if (d && d.ok && !d.verify_required) { window.location.href = next; return; }
         submit.disabled = false; submit.textContent = label;
+        if (d && d.verify_required) { showVerifyNotice(d.message || d.error || 'Please verify your email to continue.'); return; }
+        msg.className = 'auth-msg err'; msg.textContent = (d && d.error) || 'Something went wrong. Please try again.';
       }).catch(function () {
         msg.className = 'auth-msg err'; msg.textContent = 'Network error — please try again.';
         submit.disabled = false; submit.textContent = label;
@@ -155,6 +179,8 @@ render_head([
     });
 
     render();
+    // If they arrived from an expired/invalid verification link, prompt a resend.
+    try { if (/[?&]verify_error=1/.test(location.search)) showVerifyNotice('That verification link was invalid or has expired. Enter your email and request a new one.'); } catch (e) {}
   })();
   </script>
 </body>

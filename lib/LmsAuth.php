@@ -50,13 +50,63 @@ final class LmsAuth
         $ex = $db->prepare('SELECT id FROM lms_users WHERE email = ?'); $ex->execute([$email]);
         if ($ex->fetchColumn()) return ['ok' => false, 'error' => 'An account with that email already exists. Try signing in.'];
         $role = in_array($role, ['learner', 'instructor'], true) ? $role : 'learner';
-        $db->prepare('INSERT INTO lms_users (name, email, password_hash, role) VALUES (?,?,?,?)')
+        // New password accounts start UNVERIFIED — no session until the emailed
+        // link is clicked. (Google/OAuth accounts are created already-verified.)
+        $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified) VALUES (?,?,?,?,0)')
            ->execute([$name, $email, password_hash($password, PASSWORD_BCRYPT), $role]);
         $id = (int) $db->lastInsertId();
-        self::startSession($id);
         $full = self::byId($id);
-        if ($full && class_exists('Notify')) Notify::welcome($full);
-        return ['ok' => true, 'user' => self::publicUser($full)];
+        if ($full) self::sendVerification($full);
+        return ['ok' => true, 'verify_required' => true, 'email' => $email,
+                'message' => 'Account created. Check your inbox for a link to verify your email and finish signing in.'];
+    }
+
+    /** Issue a fresh single-use verification token and email the link (24h TTL). */
+    private static function sendVerification(array $u): void
+    {
+        $token = bin2hex(random_bytes(32));
+        Database::pdo()->prepare('UPDATE lms_users SET verify_hash = ?, verify_expires = ? WHERE id = ?')
+            ->execute([hash('sha256', $token), date('Y-m-d H:i:s', time() + 86400), (int) $u['id']]);
+        if (!class_exists('Mailer')) return;
+        $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : 'https://afrovanguard.org.ng';
+        $link = $site . '/academy/api.php?action=verify-email&token=' . $token;
+        $html = Mailer::shell(
+            'Confirm your email',
+            [
+                'Hi ' . htmlspecialchars((string) $u['name'], ENT_QUOTES) . ',',
+                'Welcome to Afrovanguard. Confirm this email address to activate your account and sign in.',
+                'This link expires in 24 hours. If you didn’t create an account, you can safely ignore this message.',
+            ],
+            ['url' => $link, 'text' => 'Verify my email'],
+            'Confirm your email to activate your Afrovanguard account.'
+        );
+        Mailer::send((string) $u['email'], 'Verify your email — Afrovanguard', $html);
+    }
+
+    /**
+     * Redeem a verification token (single-use). On success marks the account
+     * verified, clears the token, starts a session, and returns the user.
+     */
+    public static function verifyEmailToken(string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+        $db = Database::pdo();
+        $st = $db->prepare("SELECT * FROM lms_users WHERE verify_hash = ? AND verify_expires > datetime('now')");
+        $st->execute([hash('sha256', $token)]);
+        $u = $st->fetch();
+        if (!$u) return null;
+        $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
+        self::startSession((int) $u['id']);
+        if (class_exists('Notify')) { try { Notify::welcome($u); } catch (Throwable $e) {} }
+        return self::byId((int) $u['id']);
+    }
+
+    /** Re-send a verification link. Enumeration-safe (caller rate-limits). */
+    public static function resendVerification(string $email): void
+    {
+        $email = strtolower(trim($email));
+        $u = self::byEmail($email);
+        if ($u && (int) ($u['email_verified'] ?? 1) === 0) self::sendVerification($u);
     }
 
     public static function login(string $email, string $password): array
@@ -65,6 +115,10 @@ final class LmsAuth
         $u = self::byEmail($email);
         if (!$u || $u['status'] !== 'active' || !password_verify($password, $u['password_hash'])) {
             return ['ok' => false, 'error' => 'Incorrect email or password.'];
+        }
+        if ((int) ($u['email_verified'] ?? 1) === 0) {
+            return ['ok' => false, 'verify_required' => true, 'email' => $u['email'],
+                    'error' => 'Please verify your email first — we sent you a link when you signed up. Check your inbox, or request a new one.'];
         }
         Database::pdo()->prepare('UPDATE lms_users SET last_login = datetime(\'now\') WHERE id = ?')->execute([$u['id']]);
         self::startSession((int) $u['id']);
@@ -88,12 +142,16 @@ final class LmsAuth
         if (!$u) {
             $display = $name !== '' ? $name : ucfirst(explode('@', $email)[0]);
             $role = $orgVerified ? 'member' : 'learner';
-            $db->prepare('INSERT INTO lms_users (name, email, password_hash, role) VALUES (?,?,?,?)')
-               ->execute([$display, $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role]);
+            $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified) VALUES (?,?,?,?,?)')
+               ->execute([$display, $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role, $emailVerified ? 1 : 0]);
             $u = self::byEmail($email);
             if ($u && class_exists('Notify')) Notify::welcome($u);
         } else {
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
+            // A successful OAuth sign-in proves email ownership — clear any pending verification.
+            if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) {
+                $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
+            }
             if ($orgVerified && self::rank((string) $u['role']) < self::ROLE_RANK['member']) {
                 $db->prepare("UPDATE lms_users SET role = 'member' WHERE id = ?")->execute([$u['id']]);
                 $u['role'] = 'member';

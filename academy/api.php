@@ -52,6 +52,29 @@ try {
         case 'logout':
             LmsAuth::logout(); json_out(['ok' => true]);
 
+        case 'verify-email': {
+            // The emailed link is a GET (browser navigation, no same-origin) →
+            // verify + redirect into the portal. A POST returns JSON. The 64-hex
+            // token is the secret, so no same-origin check is needed here.
+            $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['token'] ?? $body['token'] ?? ''));
+            $vu = $token !== '' ? LmsAuth::verifyEmailToken($token) : null;
+            if ($method === 'GET') {
+                header('Location: ' . ($vu ? '/portal/?verified=1' : '/login/?verify_error=1'), true, 302);
+                exit;
+            }
+            json_out($vu
+                ? ['ok' => true, 'user' => LmsAuth::publicUser($vu)]
+                : ['ok' => false, 'error' => 'This verification link is invalid or has expired.'],
+                $vu ? 200 : 400);
+        }
+
+        case 'resend-verification':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('lms_resend', 5, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
+            LmsAuth::resendVerification((string) ($body['email'] ?? ''));
+            json_out(['ok' => true, 'message' => 'If that account still needs verifying, a new link is on its way.']);
+
         /* ── Learning ── */
         case 'join':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
