@@ -1,0 +1,63 @@
+# ============================================================================
+#  Afrovanguard — Apache hardening TEMPLATE  (.htaccess.example)
+# ----------------------------------------------------------------------------
+#  The live `.htaccess` is gitignored because it carries secrets via SetEnv,
+#  so this tracked template is the version-controlled source of truth for the
+#  security rules. On deploy, MERGE the blocks below into the real `.htaccess`
+#  (keep your SetEnv secret lines).
+#
+#  Verify after deploy:
+#    curl -I https://afrovanguard.org.ng/donations.json   # must be 403/404
+#    curl -I https://afrovanguard.org.ng/contacts.json     # must be 403/404
+#    curl -I https://afrovanguard.org.ng/config.php        # must NOT show source
+# ============================================================================
+
+# ── Secrets (fill in real values; NEVER commit the live .htaccess) ──────────
+#   SetEnv AV_SMTP_PASSWORD     your_gmail_app_password
+#   SetEnv AV_PAYSTACK_PK       pk_live_xxxxxxxx
+#   SetEnv AV_PAYSTACK_SK       sk_live_xxxxxxxx
+#   SetEnv AV_ADMIN_TOKEN       <php -r "echo bin2hex(random_bytes(32));">
+#
+# ── Optional hardening config (recommended) ─────────────────────────────────
+#   # Store donor/contact data OUTSIDE the web root (defence-in-depth beyond the deny rules):
+#   SetEnv AV_DATA_DIR          /home/<cpuser>/av-private
+#   # If you do NOT front the site with Cloudflare, list your proxy CIDRs so the
+#   # real client IP is trusted (leave unset when behind Cloudflare — its ranges are built in):
+#   # SetEnv AV_TRUSTED_PROXIES 10.0.0.0/8
+#   # STS sub-API:
+#   SetEnv STS_APPS_SCRIPT_URL  https://script.google.com/macros/s/.../exec
+#   SetEnv STS_APPS_SCRIPT_KEY  <long random string; must match Apps Script SHARED_KEY>
+#   SetEnv STS_AI_ACCESS_KEY    <long random string; gates the Gemini proxy>
+
+Options -Indexes -MultiViews
+ServerSignature Off
+
+# ── Force HTTPS ─────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# ── Block dotfiles (.git, .env, .htaccess, …) ───────────────────────────────
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# ── Block data stores, secrets, and source/config files ─────────────────────
+# Belt-and-suspenders: data files are also relocated outside the web root by
+# av-lib.php when AV_DATA_DIR (or a writable parent) is available.
+<FilesMatch "(?i)(^donations\.json$|^contacts\.json$|^config\.php$|\.example\.php$|\.(rl|pem|key|log|sql|md|ini|bak)$)">
+  Require all denied
+</FilesMatch>
+
+# ── Security headers ─────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header unset X-Powered-By
+  Header always unset X-Powered-By
+</IfModule>

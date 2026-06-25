@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/av-lib.php';
 
 /**
  * process-contact.php — Afrovanguard Contact Form Processor
@@ -61,7 +62,16 @@ use PHPMailer\PHPMailer\Exception;
 /* ═══════════════════════════════════════════════════════════
    DATA STORE  —  contacts.json  (file-locked, not web-accessible)
    ═══════════════════════════════════════════════════════════ */
-define('CONTACT_FILE', __DIR__ . '/contacts.json');
+define('AV_DATA_DIR', av_resolve_data_dir(__DIR__));
+define('CONTACT_FILE', AV_DATA_DIR . '/contacts.json');
+
+// One-time migration of any legacy in-webroot contacts.json to the (preferably
+// off-webroot) data dir. Idempotent; the legacy file stays denied by .htaccess.
+$__av_legacy_c = __DIR__ . '/contacts.json';
+if (CONTACT_FILE !== $__av_legacy_c && !file_exists(CONTACT_FILE) && file_exists($__av_legacy_c)) {
+    if (@copy($__av_legacy_c, CONTACT_FILE)) { @chmod(CONTACT_FILE, 0600); }
+}
+unset($__av_legacy_c);
 
 function defaultContactData(): array {
     return [
@@ -333,8 +343,21 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? '';
 
     if ($action === 'get_messages') {
-        $token = trim($_GET['admin_token'] ?? '');
-        if (!defined('ADMIN_TOKEN') || !hash_equals(ADMIN_TOKEN, $token)) {
+        // Prefer the token in a header (Authorization: Bearer … or X-Admin-Token)
+        // so it never lands in web-server access logs / Referer / browser history.
+        // The ?admin_token= query param stays accepted for backward compatibility
+        // — migrate the admin client to the header, then drop the query path.
+        $auth  = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+        $token = stripos($auth, 'Bearer ') === 0 ? trim(substr($auth, 7)) : '';
+        if ($token === '') $token = trim($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '');
+        if ($token === '') $token = trim($_GET['admin_token'] ?? '');
+        // Throttle to blunt token guessing on this PII-returning endpoint.
+        if (!rateLimit('admin_msgs_' . preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip()), 20, 300)) {
+            http_response_code(429);
+            echo json_encode(['success' => false, 'message' => 'Too many requests. Please wait a few minutes.']);
+            exit;
+        }
+        if (!defined('ADMIN_TOKEN') || $token === '' || !hash_equals(ADMIN_TOKEN, $token)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
             exit;
@@ -389,11 +412,7 @@ if (str_contains($contentType, 'application/json')) {
 if ($action === 'submit_contact') {
 
     /* 1. Rate limit ────────────────────────────────────────── */
-    $ip = $_SERVER['HTTP_CF_CONNECTING_IP']
-        ?? $_SERVER['HTTP_X_FORWARDED_FOR']
-        ?? $_SERVER['REMOTE_ADDR']
-        ?? 'unknown';
-    $ip = preg_replace('/[^0-9a-fA-F.:,]/', '', explode(',', $ip)[0]);
+    $ip = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());
     if (!rateLimit('contact_' . $ip, 5, 900)) {
         http_response_code(429);
         echo json_encode(['success' => false, 'message' => 'Too many submissions. Please wait 15 minutes before trying again.']);
@@ -583,7 +602,7 @@ if ($action === 'newsletter') {
     $email = mb_strtolower($email, 'UTF-8');
 
     /* Rate limit newsletter sign-ups per IP */
-    $nlIp = preg_replace('/[^0-9a-fA-F.:,]/', '', explode(',', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown'))[0]);
+    $nlIp = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());
     if (!rateLimit('nl_' . $nlIp, 10, 3600)) {
         http_response_code(429);
         echo json_encode(['success' => false, 'message' => 'Too many requests. Please try again later.']);

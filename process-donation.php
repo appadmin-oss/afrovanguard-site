@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/av-lib.php';
 
 /**
  * Afrovanguard Donation Processor — production, zero silent fails
@@ -62,7 +63,18 @@ use PHPMailer\PHPMailer\Exception;
 /* ═══════════════════════════════════════════════════════════
    DATA STORE  —  donations.json  (file-locked, not web-accessible)
    ═══════════════════════════════════════════════════════════ */
-define('DATA_FILE', __DIR__ . '/donations.json');
+define('AV_DATA_DIR', av_resolve_data_dir(__DIR__));
+define('DATA_FILE', AV_DATA_DIR . '/donations.json');
+
+// One-time migration: if the data now lives outside the web root but a legacy
+// in-webroot donations.json still exists, copy it across so the donor wall /
+// totals / receipts stay continuous. Safe to run on every request — it only
+// acts once, and the legacy file stays denied by .htaccess until you delete it.
+$__av_legacy = __DIR__ . '/donations.json';
+if (DATA_FILE !== $__av_legacy && !file_exists(DATA_FILE) && file_exists($__av_legacy)) {
+    if (@copy($__av_legacy, DATA_FILE)) { @chmod(DATA_FILE, 0600); }
+}
+unset($__av_legacy);
 
 function defaultData(): array {
     return [
@@ -468,7 +480,7 @@ if (!is_array($input)||empty($input['action'])) {
 $action=$input['action'];
 
 /* ── FIX C-06: Rate limiting per IP ─────────────────────────────── */
-$clientIp = preg_replace('/[^0-9a-fA-F:.]/', '', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+$clientIp = preg_replace('/[^0-9a-fA-F:.]/', '', av_client_ip());
 $clientIp = substr($clientIp, 0, 45);
 if (!rateLimit('all_' . $clientIp, 60, 60)) {
     http_response_code(429);
@@ -498,6 +510,30 @@ if ($action==='record_donation') {
     }
     $amount  =(float)($tx['amount']??0)/100;
     $currency=strtoupper($tx['currency']??'NGN');
+    // Harden: only currencies this site actually accepts.
+    if (!in_array($currency, ['NGN','USD','GBP'], true)) {
+        echo json_encode(['success'=>false,'message'=>'Unsupported currency']); exit;
+    }
+    // Bind the reference to THIS donation flow: the donate client and the VA
+    // path stamp metadata.source = 'afrovanguard_donate'. Without it, any
+    // successful Paystack reference on the account could be replayed here to
+    // mint a receipt / nudge the donor wall. Warn-only by default so existing
+    // flows are never broken; set AV_REQUIRE_DONATION_SOURCE=1 to enforce once
+    // the deployed donate client is confirmed to send the marker.
+    $txMeta   = is_array($tx['metadata'] ?? null) ? $tx['metadata'] : [];
+    $txSource = (string)($txMeta['source'] ?? '');
+    if ($txSource === '') {
+        foreach (($txMeta['custom_fields'] ?? []) as $cf) {
+            if (($cf['variable_name'] ?? '') === 'source') { $txSource = (string)($cf['value'] ?? ''); break; }
+        }
+    }
+    if ($txSource !== 'afrovanguard_donate') {
+        if (getenv('AV_REQUIRE_DONATION_SOURCE') === '1') {
+            error_log('[AV] record_donation rejected: source mismatch for ref ' . $ref);
+            echo json_encode(['success'=>false,'message'=>'This payment could not be matched to a donation on this site.']); exit;
+        }
+        error_log('[AV] record_donation: donation source marker missing for ref ' . $ref . ' — set AV_REQUIRE_DONATION_SOURCE=1 after deploying the updated donate client to enforce.');
+    }
     $email   =$tx['customer']['email']??trim($input['email']??'');
     $fn      =trim($input['firstName']??'');
     $ln      =trim($input['lastName']??'');
@@ -551,13 +587,13 @@ if ($action==='generate_virtual_account') {
         'metadata'=>['donor_name'=>$input['name'],'campaign'=>$input['campaign']??'General Fund','source'=>'afrovanguard_donate'],
     ]);
     if (empty($r['status'])||!$r['status']){
-        error_log('[AV] VA fail: '.json_encode($r));
+        error_log('[AV] VA fail: '.(string)($r['message'] ?? 'unknown'));
         echo json_encode(['success'=>false,'message'=>'Could not generate a virtual account. Please try card payment or the static bank transfer.']);exit;
     }
     $data=$r['data']??[];$bank=$data['bank']??[];
     $accNum=$bank['account_number']??($data['account_number']??null);
     if (!$accNum){
-        error_log('[AV] VA missing account: '.json_encode($data));
+        error_log('[AV] VA missing account (ref '.(string)($data['reference'] ?? 'n/a').')');
         echo json_encode(['success'=>false,'message'=>'Virtual account unavailable. Use card or static bank transfer.']);exit;
     }
     echo json_encode([

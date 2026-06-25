@@ -5476,11 +5476,13 @@
           channels:  ['card','bank','ussd','qr'],  /* M-01: mobile_money removed — only valid in Ghana/Kenya */
           label:     `${fn} ${ln} — Afrovanguard Donation`,
           metadata: {
+            source: 'afrovanguard_donate',
             custom_fields: [
               { display_name:'Campaign',  variable_name:'campaign',  value: selectedCampaign },
               { display_name:'Frequency', variable_name:'frequency', value: frequency },
               { display_name:'Anonymous', variable_name:'anonymous', value: anon ? 'Yes' : 'No' },
               { display_name:'Message',   variable_name:'message',   value: msg || '—' },
+              { display_name:'Source',    variable_name:'source',    value: 'afrovanguard_donate' },
             ]
           },
           callback: function(response) {

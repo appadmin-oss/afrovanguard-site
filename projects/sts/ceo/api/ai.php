@@ -9,6 +9,28 @@ sts_cors_and_json();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') sts_fail('POST only', 405);
 if (!sts_rate_limit('ai', AI_RATE_LIMIT)) sts_fail('AI rate limit reached. Please try again later.', 429);
 
+// Anti-abuse for this BILLABLE Gemini proxy. (1) The request must come from the
+// STS dashboard's own host — blocks anonymous curl / cross-site callers.
+// (2) If STS_AI_ACCESS_KEY is configured, require it in the X-STS-Key header.
+// Together with the now-un-spoofable per-IP rate limit above this stops
+// anonymous cost abuse; the complete fix is to gate the dashboard behind login.
+$sts_allowed_host = parse_url(ALLOWED_ORIGIN, PHP_URL_HOST) ?: 'afrovanguard.org.ng';
+$sts_req_host = '';
+foreach (['HTTP_ORIGIN', 'HTTP_REFERER'] as $sts_h) {
+    if (!empty($_SERVER[$sts_h])) { $sts_req_host = (string) parse_url((string) $_SERVER[$sts_h], PHP_URL_HOST); break; }
+}
+$sts_norm = static fn($h) => strtolower(preg_replace('/^www\./', '', (string) $h));
+if ($sts_norm($sts_req_host) !== $sts_norm($sts_allowed_host)) {
+    sts_fail('Forbidden origin.', 403);
+}
+$sts_ai_key = defined('STS_AI_ACCESS_KEY') ? (string) STS_AI_ACCESS_KEY : (string) getenv('STS_AI_ACCESS_KEY');
+if ($sts_ai_key !== '') {
+    $sts_provided = (string) ($_SERVER['HTTP_X_STS_KEY'] ?? '');
+    if ($sts_provided === '' || !hash_equals($sts_ai_key, $sts_provided)) {
+        sts_fail('Unauthorized.', 401);
+    }
+}
+
 if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE' || empty(GEMINI_API_KEY)) {
     sts_fail('AI not configured.', 503);
 }
@@ -52,12 +74,15 @@ function sts_gemini_call($prompt) {
         ],
     ]);
 
-    $ch = curl_init(GEMINI_URL);
+    // Send the API key via the x-goog-api-key header instead of the URL query
+    // string, so it can't leak through curl-verbose / proxy logs / stack traces.
+    $url = rtrim(preg_replace('/([?&])key=[^&]*/', '$1', GEMINI_URL), '?&');
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'x-goog-api-key: ' . GEMINI_API_KEY],
         CURLOPT_TIMEOUT        => 20,
         CURLOPT_CONNECTTIMEOUT => 6,
         CURLOPT_SSL_VERIFYPEER => true,
