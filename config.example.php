@@ -14,15 +14,29 @@
  * NEVER commit config.php or .htaccess to git.
  */
 
+/**
+ * Read a secret from the environment.
+ *
+ * IMPORTANT: configuration loading must NEVER terminate the request. This used
+ * to http_response_code(500) + exit when a value was missing, which meant a
+ * single absent secret (e.g. the SMTP password) took down every page that
+ * transitively loads this config — including the homepage, Diary and Academy,
+ * none of which need payment/SMTP secrets just to render. We now log loudly and
+ * return '' instead; endpoints that genuinely need a secret validate it at the
+ * point of use via av_config_present() and fail only that one request cleanly.
+ */
 function _av_require_env(string $name): string {
     $v = getenv($name);
     if ($v === false || $v === '') {
-        http_response_code(500);
-        error_log("[AV] Missing required environment variable: {$name}");
-        echo json_encode(['success' => false, 'message' => 'Server configuration error.']);
-        exit;
+        error_log("[AV] Missing environment variable: {$name} — dependent feature disabled.");
+        return '';
     }
     return $v;
+}
+
+/** True when a config constant resolves to a usable (non-empty) value. */
+function av_config_present(string $const): bool {
+    return defined($const) && (string) constant($const) !== '';
 }
 
 /* ─── Email (SMTP) ────────────────────────────────────────────

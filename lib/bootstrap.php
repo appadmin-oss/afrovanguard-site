@@ -12,8 +12,31 @@ define('AV_ROOT', dirname(__DIR__));
 
 // Reuse the site's config.php if deployed; otherwise fall back to safe
 // public defaults so the Diary runs standalone (and in local dev).
+//
+// config.php (the legacy donation/payments config) calls _av_require_env() for
+// a handful of SECRETS and historically hard-exits the whole request if any is
+// missing. The Diary / Academy / Portal / public team API don't need those
+// secrets just to RENDER, so a missing payment/SMTP key must never take the
+// public site down. Only load config.php when its required secrets are actually
+// present; if any is missing we skip it and rely on the env-driven fallbacks
+// below. (Endpoints that truly need a secret — donations, contact, admin —
+// require config.php directly and validate their own prerequisites.)
 $cfg = AV_ROOT . '/config.php';
-if (is_file($cfg)) { require_once $cfg; }
+if (is_file($cfg)) {
+    $cfgSafe = true;
+    foreach (['AV_SMTP_PASSWORD', 'AV_PAYSTACK_PK', 'AV_PAYSTACK_SK', 'AV_ADMIN_TOKEN'] as $__k) {
+        $__v = getenv($__k);
+        if ($__v === false || $__v === '') { $cfgSafe = false; break; }
+    }
+    if ($cfgSafe) {
+        require_once $cfg;
+    } else {
+        error_log('[AV bootstrap] config.php present but a required secret env var is missing — '
+            . 'serving the public site from env fallbacks. Set AV_SMTP_PASSWORD / AV_PAYSTACK_PK / '
+            . 'AV_PAYSTACK_SK / AV_ADMIN_TOKEN (e.g. via .htaccess SetEnv) to restore '
+            . 'donation/contact/admin features.');
+    }
+}
 if (!defined('SITE_URL'))         define('SITE_URL', 'https://afrovanguard.org.ng');
 if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', AV_ROOT . '/db/diary.sqlite');
 

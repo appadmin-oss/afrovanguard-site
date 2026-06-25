@@ -41,6 +41,16 @@ if (!file_exists($cfg)) {
 }
 require_once $cfg;
 
+// Config now loads non-fatally (see config.example.php). Donations genuinely
+// need the Paystack secret (charge + webhook verification), so fail this one
+// request cleanly rather than attempting to charge with an empty key.
+if (!defined('PAYSTACK_SECRET_KEY') || (string) PAYSTACK_SECRET_KEY === '') {
+    error_log('[AV] process-donation: PAYSTACK_SECRET_KEY missing — donations disabled until env is set.');
+    http_response_code(503);
+    echo json_encode(['success'=>false,'message'=>'Donations are temporarily unavailable. Please try again shortly.']);
+    exit;
+}
+
 /* ── PHPMailer ──────────────────────────────────────────────── */
 // Supports both Composer (vendor/autoload.php) and manual install (PHPMailer-master/)
 // Install: composer require phpmailer/phpmailer  OR  unzip PHPMailer-master/ here.

@@ -34,4 +34,9 @@ require_once $cfg;
 /* ─── Return ONLY the public key ────────────────────────────── */
 // PAYSTACK_PUBLIC_KEY is safe to send to the browser.
 // PAYSTACK_SECRET_KEY is defined in config.php but is NEVER returned here.
+if (!defined('PAYSTACK_PUBLIC_KEY') || (string) PAYSTACK_PUBLIC_KEY === '') {
+    http_response_code(503);
+    echo json_encode(['error' => 'Payments are temporarily unavailable.']);
+    exit;
+}
 echo json_encode(['publicKey' => PAYSTACK_PUBLIC_KEY]);
