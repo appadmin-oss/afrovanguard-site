@@ -126,8 +126,48 @@ function av_admin_bearer_ok(): bool {
 }
 
 /* ── File-based rate limiting ─────────────────────────────────── */
+function av_cidr_match(string $ip, string $cidr): bool {
+    if (strpos($cidr, '/') === false) return $ip === $cidr;
+    [$subnet, $bits] = explode('/', $cidr, 2); $bits = (int) $bits;
+    $ipB = @inet_pton($ip); $snB = @inet_pton($subnet);
+    if ($ipB === false || $snB === false || strlen($ipB) !== strlen($snB)) return false;
+    $bytes = intdiv($bits, 8); $rem = $bits % 8;
+    if ($bytes > 0 && strncmp($ipB, $snB, $bytes) !== 0) return false;
+    if ($rem === 0) return true;
+    $mask = chr(0xFF << (8 - $rem) & 0xFF);
+    return (($ipB[$bytes] ^ $snB[$bytes]) & $mask) === "\0";
+}
+/**
+ * Real client IP. CF-Connecting-IP / X-Forwarded-For are honoured ONLY when the
+ * direct peer (REMOTE_ADDR) is a Cloudflare edge or an operator-listed proxy
+ * (AV_TRUSTED_PROXIES, comma CIDRs). Otherwise those headers are attacker-
+ * controlled — trusting them would let anyone reset every rate limit and forge
+ * the IP bound to a session. Refresh CF ranges from cloudflare.com/ips.
+ */
 function av_client_ip(): string {
-    return (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'cli');
+    $remote = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($remote === '') return 'cli';
+    static $cf = [
+        '173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22',
+        '141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20',
+        '197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13',
+        '104.24.0.0/14','172.64.0.0/13','131.0.72.0/22',
+        '2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32',
+        '2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32',
+    ];
+    $trusted = $cf;
+    foreach (explode(',', (string) getenv('AV_TRUSTED_PROXIES')) as $c) { $c = trim($c); if ($c !== '') $trusted[] = $c; }
+    $peerTrusted = false;
+    foreach ($trusted as $cidr) { if (av_cidr_match($remote, $cidr)) { $peerTrusted = true; break; } }
+    if ($peerTrusted) {
+        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR'] as $h) {
+            if (!empty($_SERVER[$h])) {
+                $ip = trim(explode(',', (string) $_SERVER[$h])[0]);
+                if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+            }
+        }
+    }
+    return $remote;
 }
 function av_rate_ok(string $bucket, int $max, int $window): bool {
     $dir = AV_ROOT . '/db/cache/rl'; if (!is_dir($dir)) @mkdir($dir, 0775, true);

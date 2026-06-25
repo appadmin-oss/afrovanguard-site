@@ -389,11 +389,7 @@ if (str_contains($contentType, 'application/json')) {
 if ($action === 'submit_contact') {
 
     /* 1. Rate limit ────────────────────────────────────────── */
-    $ip = $_SERVER['HTTP_CF_CONNECTING_IP']
-        ?? $_SERVER['HTTP_X_FORWARDED_FOR']
-        ?? $_SERVER['REMOTE_ADDR']
-        ?? 'unknown';
-    $ip = preg_replace('/[^0-9a-fA-F.:,]/', '', explode(',', $ip)[0]);
+    $ip = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());
     if (!rateLimit('contact_' . $ip, 5, 900)) {
         http_response_code(429);
         echo json_encode(['success' => false, 'message' => 'Too many submissions. Please wait 15 minutes before trying again.']);
@@ -583,7 +579,7 @@ if ($action === 'newsletter') {
     $email = mb_strtolower($email, 'UTF-8');
 
     /* Rate limit newsletter sign-ups per IP */
-    $nlIp = preg_replace('/[^0-9a-fA-F.:,]/', '', explode(',', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown'))[0]);
+    $nlIp = preg_replace('/[^0-9a-fA-F.:]/', '', av_client_ip());
     if (!rateLimit('nl_' . $nlIp, 10, 3600)) {
         http_response_code(429);
         echo json_encode(['success' => false, 'message' => 'Too many requests. Please try again later.']);

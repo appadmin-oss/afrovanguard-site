@@ -1,0 +1,10 @@
+# Deny ALL web access to the database directory. Force-added to git (holds no
+# secrets): the runtime SQLite DB (lms_users password hashes, sessions, diary
+# + academy content), the rate-limit cache, and the SQL/seed files all live
+# here under the web root and must never be reachable over HTTP — they are
+# loaded server-side only.
+Require all denied
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

@@ -478,7 +478,7 @@ if (!is_array($input)||empty($input['action'])) {
 $action=$input['action'];
 
 /* ── FIX C-06: Rate limiting per IP ─────────────────────────────── */
-$clientIp = preg_replace('/[^0-9a-fA-F:.]/', '', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+$clientIp = preg_replace('/[^0-9a-fA-F:.]/', '', av_client_ip());
 $clientIp = substr($clientIp, 0, 45);
 if (!rateLimit('all_' . $clientIp, 60, 60)) {
     http_response_code(429);
