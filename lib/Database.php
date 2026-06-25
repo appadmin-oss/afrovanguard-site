@@ -16,33 +16,57 @@ final class Database
     {
         if (self::$pdo instanceof PDO) return self::$pdo;
 
-        if (!extension_loaded('pdo_sqlite')) {
-            throw new RuntimeException('pdo_sqlite extension is required for the Diary database.');
-        }
-
-        $path = AV_DB_PATH;
-        $dir  = dirname($path);
-        if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
-        $fresh = !is_file($path);
-
-        $pdo = new PDO('sqlite:' . $path, null, null, [
+        // Driver is selectable for portability (sqlite | mysql | pgsql); SQLite
+        // stays the default so existing deploys are byte-for-byte unchanged.
+        $driver = strtolower((string) (getenv('AV_DB_DRIVER') ?: 'sqlite'));
+        $opts = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
-        ]);
-        $pdo->exec('PRAGMA foreign_keys = ON');
+        ];
+        $fresh = false;
+
+        if ($driver === 'sqlite') {
+            if (!extension_loaded('pdo_sqlite')) {
+                throw new RuntimeException('pdo_sqlite extension is required for the Diary database.');
+            }
+            $path = AV_DB_PATH;
+            $dir  = dirname($path);
+            if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+            $fresh = !is_file($path);
+            $pdo = new PDO('sqlite:' . $path, null, null, $opts);
+            $pdo->exec('PRAGMA foreign_keys = ON');
+        } elseif ($driver === 'mysql' || $driver === 'pgsql') {
+            // DSN from AV_DB_DSN, or assembled from discrete host/name/port env vars.
+            $dsn = (string) getenv('AV_DB_DSN');
+            if ($dsn === '') {
+                $host = getenv('AV_DB_HOST') ?: '127.0.0.1';
+                $name = getenv('AV_DB_NAME') ?: 'afrovanguard';
+                $port = getenv('AV_DB_PORT') ?: ($driver === 'pgsql' ? '5432' : '3306');
+                $dsn  = $driver === 'pgsql'
+                    ? "pgsql:host={$host};port={$port};dbname={$name}"
+                    : "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+            }
+            $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
+        } else {
+            throw new RuntimeException("Unsupported AV_DB_DRIVER: {$driver}");
+        }
         self::$pdo = $pdo;
 
-        // Auto-migrate + seed on a brand-new database, or if the core
-        // table is somehow missing.
-        if ($fresh || !self::tableExists('articles')) {
-            self::migrate();
-            self::seedIfEmpty();
+        // Auto-migrate + seed on a brand-new database, or if the core table is
+        // missing. The schema DDL is currently SQLite-shaped, so for mysql/pgsql
+        // the schema is provisioned out-of-band until the DDL-translation slice
+        // lands; the connection + portable helpers below already work on all three.
+        if ($driver === 'sqlite') {
+            if ($fresh || !self::tableExists('articles')) {
+                self::migrate();
+                self::seedIfEmpty();
+            }
+            self::ensureColumns();      // additive upgrades for already-deployed DBs
+            self::ensureAcademy();      // create + seed academy tables if missing
+            self::ensureDiaryEntries(); // member-contributed diary (categories + moderation)
+            self::maybePurgeDemo();     // one-time removal of shipped demo content
         }
-        self::ensureColumns(); // additive upgrades for already-deployed DBs
-        self::ensureAcademy(); // create + seed academy tables if missing
-        self::ensureDiaryEntries(); // member-contributed diary (categories + moderation)
-        self::maybePurgeDemo(); // one-time removal of shipped demo content
         return self::$pdo;
     }
 
@@ -188,11 +212,51 @@ final class Database
         }
     }
 
+    /** Active PDO driver name: 'sqlite' | 'mysql' | 'pgsql'. */
+    public static function driver(): string
+    {
+        return self::$pdo ? (string) self::$pdo->getAttribute(PDO::ATTR_DRIVER_NAME) : 'sqlite';
+    }
+
     public static function tableExists(string $name): bool
     {
-        $st = self::$pdo->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
+        if (self::driver() === 'sqlite') {
+            $st = self::$pdo->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
+        } else {
+            $st = self::$pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_name = ?' .
+                (self::driver() === 'mysql' ? ' AND table_schema = DATABASE()' : '')
+            );
+        }
         $st->execute([$name]);
         return (bool) $st->fetchColumn();
+    }
+
+    /** Portable "does this column exist" check (SQLite PRAGMA / information_schema). */
+    public static function columnExists(string $table, string $col): bool
+    {
+        if (self::driver() === 'sqlite') {
+            foreach (self::$pdo->query('PRAGMA table_info(' . $table . ')') as $r) {
+                if (($r['name'] ?? '') === $col) return true;
+            }
+            return false;
+        }
+        $st = self::$pdo->prepare(
+            'SELECT 1 FROM information_schema.columns WHERE table_name = ? AND column_name = ?' .
+            (self::driver() === 'mysql' ? ' AND table_schema = DATABASE()' : '')
+        );
+        $st->execute([$table, $col]);
+        return (bool) $st->fetchColumn();
+    }
+
+    /** Portable "current timestamp" SQL expression for runtime queries. */
+    public static function nowExpr(): string
+    {
+        switch (self::driver()) {
+            case 'mysql': return 'NOW()';
+            case 'pgsql': return 'CURRENT_TIMESTAMP';
+            default:      return "datetime('now')";
+        }
     }
 
     public static function migrate(): void
