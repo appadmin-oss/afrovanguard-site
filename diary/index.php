@@ -8,7 +8,11 @@ require_once AV_ROOT . '/lib/partials.php';
 
 Sitemap::ensureFresh();
 $repo      = new DiaryRepository();
-$articles  = $repo->all();
+$PER_PAGE  = 12;
+$first     = $repo->page(['limit' => $PER_PAGE]);   // first page only — the rest load progressively
+$articles  = $first['items'];
+$total     = $first['total'];
+$facets    = $repo->facets();
 $featured  = $repo->featured();
 $canonical = diary_url();
 $q         = trim((string) ($_GET['q'] ?? ''));
@@ -53,7 +57,7 @@ render_nav('diary');
         <p>Field notes, methodology, and the mission behind raising <strong>one million incorruptible leaders for Africa by 2040</strong>. We publish the working — what we are learning as we build the movement, including the parts we are still figuring out.</p>
         <div class="diary-stats">
           <div class="diary-stat"><div class="num">5,000+</div><div class="lbl">Lives transformed</div></div>
-          <div class="diary-stat"><div class="num"><?= count($articles) ?></div><div class="lbl">Entries published</div></div>
+          <div class="diary-stat"><div class="num"><?= (int) $total ?></div><div class="lbl">Entries published</div></div>
           <div class="diary-stat"><div class="num">1M</div><div class="lbl">Leaders by 2040</div></div>
         </div>
         <p style="margin-top:22px"><a href="/diary/me/" style="display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--gold,#b8860b);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:2px">✍️ Members — open your Vanguard Diary →</a></p>
@@ -61,18 +65,36 @@ render_nav('diary');
     </section>
 
     <div class="container">
-      <div class="diary-controls">
-        <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" placeholder="Search the diary…  (press /)" aria-label="Search the diary" value="<?= e($q) ?>" /></div>
+      <div class="diary-controls" id="diaryControls" data-total="<?= (int) $total ?>" data-per="<?= (int) $PER_PAGE ?>">
+        <div class="diary-controls-row">
+          <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" id="diarySearch" placeholder="Search the diary…  (press /)" aria-label="Search the diary" value="<?= e($q) ?>" /></div>
+          <div class="diary-selects">
+            <label class="diary-sel"><span class="diary-sel-lbl">Year</span>
+              <select id="diaryYear" aria-label="Filter by year">
+                <option value="">All years</option>
+<?php foreach ($facets['years'] as $yr): ?>
+                <option value="<?= e($yr) ?>"><?= e($yr) ?></option>
+<?php endforeach; ?>
+              </select>
+            </label>
+            <label class="diary-sel"><span class="diary-sel-lbl">Month</span>
+              <select id="diaryMonth" aria-label="Filter by month" disabled>
+                <option value="">All months</option>
+              </select>
+            </label>
+          </div>
+        </div>
         <div class="diary-filters" role="tablist" aria-label="Filter entries">
-          <button class="chip active" data-filter="all">All entries</button>
-<?php foreach ($repo->categories() as $c): ?>
-          <button class="chip" data-filter="<?= e($c['slug']) ?>"><?= e($c['name']) ?></button>
+          <button class="chip active" data-filter="all">All<span class="chip-n"><?= (int) $total ?></span></button>
+<?php foreach ($facets['categories'] as $c): ?>
+          <button class="chip" data-filter="<?= e($c['slug']) ?>"><?= e($c['name']) ?><span class="chip-n"><?= (int) $c['n'] ?></span></button>
 <?php endforeach; ?>
           <button class="chip" data-filter="saved">★ Saved</button>
         </div>
       </div>
+      <script type="application/json" id="diaryFacets"><?= json_encode($facets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
 
-<?php if (!$articles): ?>
+<?php if ($total === 0): ?>
       <section class="diary-grid" aria-label="All diary entries">
         <div class="diary-empty">
           <h2>The first dispatch is on its way</h2>
@@ -92,7 +114,7 @@ render_nav('diary');
            of truth AND the List view; the canvas mirrors visible links. -->
       <section class="diary-journey" aria-label="The diary, entry by entry">
         <div class="journey-toolbar">
-          <p class="journey-hint"><span id="journeyCount"><?= count($articles) ?></span> entries · newest first · tap a marker to read</p>
+          <p class="journey-hint"><span id="journeyCount"><?= (int) $total ?></span> entries · newest first · tap a marker to read</p>
           <div class="journey-tools">
             <div class="journey-viewtoggle" role="group" aria-label="Choose a view">
               <button type="button" class="jv-btn is-active" data-view="map" aria-pressed="true">
@@ -119,7 +141,7 @@ render_nav('diary');
           <div class="journey-card" id="journeyCard" hidden aria-hidden="true"></div>
           <button type="button" class="journey-fs-close" id="journeyFsClose" aria-label="Exit full screen" hidden>✕</button>
           <ul class="journey-a11y" id="journeyList" aria-label="All diary entries">
-<?php $n = count($articles); foreach ($articles as $i => $a): ?>
+<?php $n = $total; foreach ($articles as $i => $a): ?>
             <li><a href="/diary/<?= e($a['slug']) ?>/"
                    data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>"
                    data-search="<?= e(strtolower($a['title'] . ' ' . $a['category'])) ?>"
@@ -140,6 +162,13 @@ render_nav('diary');
         </div>
         <div class="no-results">No entries match your search yet. Try another term, or clear the filters.</div>
       </section>
+      <div class="diary-feed-foot" id="diaryFeedFoot"<?= ($total > count($articles)) ? '' : ' hidden' ?>>
+        <div class="diary-skeleton" id="diarySkeleton" hidden aria-hidden="true">
+          <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
+        </div>
+        <button type="button" class="diary-loadmore" id="diaryLoadMore">Load more entries</button>
+        <div id="diarySentinel" class="diary-sentinel" aria-hidden="true"></div>
+      </div>
 <?php endif; ?>
 
       <section class="diary-subscribe-band" data-reveal>
@@ -156,5 +185,6 @@ render_nav('diary');
       </section>
     </div>
   </main>
+  <script src="/diary/feed.js" defer></script>
   <script src="/diary/journey.js" defer></script>
 <?php render_footer();

@@ -472,7 +472,11 @@
   } else { revealAll(); }
 
   /* ---- Index: search + category filter + saved view ---- */
-  var controls = document.querySelector('.diary-controls') || document.querySelector('.diary-filters');
+  // On the diary index, feed.js owns search + filtering + progressive loading;
+  // skip this legacy client-side filter there to avoid double-binding. It still
+  // runs on any other page that uses .diary-filters without the new controller.
+  var controls = document.getElementById('diaryControls') ? null
+    : (document.querySelector('.diary-controls') || document.querySelector('.diary-filters'));
   if (controls) {
     var cards = [].slice.call(document.querySelectorAll('[data-cat]'));
     var searchInput = document.querySelector('.search-input');

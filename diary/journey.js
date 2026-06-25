@@ -190,9 +190,18 @@
       ctx.save();
       ctx.shadowColor = hovered ? nd.color : 'rgba(0,0,0,.28)';
       ctx.shadowBlur = hovered ? 20 : 9; ctx.shadowOffsetY = hovered ? 0 : 4;
-      var g = ctx.createLinearGradient(nd.x - r, nd.y - r, nd.x + r, nd.y + r);
-      g.addColorStop(0, lighten(nd.color, 0.22)); g.addColorStop(1, nd.color);
+      // Subtle 3D: radial body (lit from upper-left) + a soft specular glint.
+      var g = ctx.createRadialGradient(nd.x - r * 0.35, nd.y - r * 0.4, r * 0.12, nd.x, nd.y, r);
+      g.addColorStop(0, lighten(nd.color, 0.5));
+      g.addColorStop(0.55, lighten(nd.color, 0.12));
+      g.addColorStop(1, shade(nd.color, 0.14));
       ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+      ctx.restore();
+      ctx.save();
+      var sg = ctx.createRadialGradient(nd.x - r * 0.4, nd.y - r * 0.45, 0, nd.x - r * 0.4, nd.y - r * 0.45, r * 0.75);
+      sg.addColorStop(0, 'rgba(255,255,255,.8)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalAlpha = hovered ? 0.6 : 0.45;
+      ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, Math.PI * 2); ctx.fillStyle = sg; ctx.fill();
       ctx.restore();
       ctx.lineWidth = 3; ctx.strokeStyle = surf;
       ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, Math.PI * 2); ctx.stroke();
@@ -219,6 +228,11 @@
   function lighten(hex, amt) {
     var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); if (!m) return hex;
     var f = function (x) { return Math.round(parseInt(x, 16) + (255 - parseInt(x, 16)) * amt); };
+    return 'rgb(' + f(m[1]) + ',' + f(m[2]) + ',' + f(m[3]) + ')';
+  }
+  function shade(hex, amt) {
+    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); if (!m) return hex;
+    var f = function (x) { return Math.round(parseInt(x, 16) * (1 - amt)); };
     return 'rgb(' + f(m[1]) + ',' + f(m[2]) + ',' + f(m[3]) + ')';
   }
 
@@ -299,7 +313,16 @@
   });
   canvas.addEventListener('mouseleave', function () { if (hover !== -1) { hover = -1; hideCard(); schedule(); } });
   canvas.addEventListener('click', function (e) { var h = nodeAt(e); if (h >= 0 && nodes[h].href) window.location.href = nodes[h].href; });
-  viewport.addEventListener('scroll', function () { if (hover !== -1) { hover = -1; hideCard(); } schedule(); }, { passive: true });
+  var nearEndT = 0;
+  viewport.addEventListener('scroll', function () {
+    if (hover !== -1) { hover = -1; hideCard(); }
+    schedule();
+    // Panning near the end of the trail asks the feed controller for more.
+    if (worldH > viewH && (viewport.scrollTop + viewH) > (worldH - 500)) {
+      var now = Date.now();
+      if (now - nearEndT > 600) { nearEndT = now; document.dispatchEvent(new CustomEvent('diary:mapnearend')); }
+    }
+  }, { passive: true });
 
   /* ── Map / List view toggle (Map is the default) ───────────────────── */
   function setView(v) {
@@ -342,9 +365,9 @@
   var rt; window.addEventListener('resize', function () {
     dpr = Math.max(1, window.devicePixelRatio || 1); clearTimeout(rt); rt = setTimeout(refresh, 120);
   }, { passive: true });
-  var si = document.querySelector('.search-input');
-  if (si) si.addEventListener('input', function () { setTimeout(rebuild, 0); });
-  document.querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { setTimeout(rebuild, 30); }); });
+  // feed.js owns filtering + progressive loading; it fires diary:changed after
+  // it mutates #journeyList, so rebuild the map from the (grown/filtered) list.
+  document.addEventListener('diary:changed', function () { setTimeout(rebuild, 0); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
 
   readNodes(); refresh();
