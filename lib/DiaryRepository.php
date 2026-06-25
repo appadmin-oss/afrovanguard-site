@@ -237,4 +237,102 @@ final class DiaryRepository
                  ->execute([$email, $source]);
         return true;
     }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       Paginated, filterable feed (powers progressive loading + year/month UI)
+       ───────────────────────────────────────────────────────────────────── */
+
+    /**
+     * One page of published entries, newest first, with optional filters.
+     *
+     * $opts: year ('YYYY'), month ('MM'), cat (category slug), q (search),
+     *        limit (1..48, default 12), offset (>=0).
+     * Returns ['items'=>card[], 'total'=>int, 'limit'=>int, 'offset'=>int].
+     *
+     * Date filters use substr() on published_at ('YYYY-MM-DD HH:MM:SS') rather
+     * than strftime()/YEAR() so the same SQL runs on SQLite, MySQL and Postgres
+     * (ties into the DB-portability work).
+     */
+    public function page(array $opts): array
+    {
+        [$where, $params] = $this->filterClause($opts);
+        $limit  = max(1, min(48, (int) ($opts['limit'] ?? 12)));
+        $offset = max(0, (int) ($opts['offset'] ?? 0));
+
+        $total = (int) $this->bind(
+            'SELECT COUNT(*) FROM articles a JOIN categories c ON c.id = a.category_id WHERE ' . $where,
+            $params
+        )->fetchColumn();
+
+        // LIMIT/OFFSET are validated ints, inlined for cross-driver consistency.
+        $items = $this->bind(
+            'SELECT ' . self::CARD_COLS . '
+             FROM articles a JOIN categories c ON c.id = a.category_id
+             WHERE ' . $where . '
+             ORDER BY a.published_at DESC, a.id DESC
+             LIMIT ' . $limit . ' OFFSET ' . $offset,
+            $params
+        )->fetchAll();
+
+        return ['items' => $items, 'total' => $total, 'limit' => $limit, 'offset' => $offset];
+    }
+
+    /** Filter facets for the controls UI: years, months-per-year, category counts. */
+    public function facets(): array
+    {
+        $years = $this->db->query(
+            "SELECT DISTINCT substr(published_at, 1, 4) AS y
+             FROM articles WHERE status = 'published' ORDER BY y DESC"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $monthsByYear = [];
+        $ym = $this->db->query(
+            "SELECT DISTINCT substr(published_at, 1, 4) AS y, substr(published_at, 6, 2) AS m
+             FROM articles WHERE status = 'published' ORDER BY y DESC, m DESC"
+        )->fetchAll();
+        foreach ($ym as $r) { $monthsByYear[(string) $r['y']][] = (string) $r['m']; }
+
+        $categories = $this->db->query(
+            "SELECT c.slug, c.name, COUNT(*) AS n
+             FROM articles a JOIN categories c ON c.id = a.category_id
+             WHERE a.status = 'published'
+             GROUP BY c.id, c.slug, c.name ORDER BY c.name"
+        )->fetchAll();
+
+        return ['years' => $years, 'monthsByYear' => $monthsByYear, 'categories' => $categories];
+    }
+
+    /** Build the shared WHERE clause + bound params for page()/count(). */
+    private function filterClause(array $o): array
+    {
+        $where = ["a.status = 'published'"];
+        $p = [];
+        if (!empty($o['year']) && preg_match('/^\d{4}$/', (string) $o['year'])) {
+            $where[] = 'substr(a.published_at, 1, 4) = ?';
+            $p[] = (string) $o['year'];
+        }
+        if (!empty($o['month']) && preg_match('/^\d{2}$/', (string) $o['month'])) {
+            $where[] = 'substr(a.published_at, 6, 2) = ?';
+            $p[] = (string) $o['month'];
+        }
+        if (!empty($o['cat'])) {
+            $where[] = 'c.slug = ?';
+            $p[] = (string) $o['cat'];
+        }
+        if (!empty($o['q'])) {
+            // Escape LIKE wildcards in user input; match title or dek.
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], trim((string) $o['q'])) . '%';
+            $where[] = '(a.title LIKE ? ESCAPE \'\\\' OR a.dek LIKE ? ESCAPE \'\\\')';
+            $p[] = $like;
+            $p[] = $like;
+        }
+        return [implode(' AND ', $where), $p];
+    }
+
+    private function bind(string $sql, array $params): PDOStatement
+    {
+        $st = $this->db->prepare($sql);
+        $st->execute($params);
+        return $st;
+    }
 }

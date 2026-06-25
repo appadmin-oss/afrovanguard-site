@@ -37,8 +37,35 @@ try {
     $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? $body['slug'] ?? '')));
 
     switch ($action) {
-        case 'list':
-            json_out(['ok' => true, 'count' => count($a = $repo->all()), 'articles' => $a]);
+        case 'list': {
+            // Paginated + filterable feed (year / month / category / search) so
+            // both the list and the map can load progressively instead of all
+            // at once. Back-compatible: still returns `articles` + `count`.
+            $limit  = max(1, min(48, (int) ($_GET['limit'] ?? 12)));
+            $page   = max(1, (int) ($_GET['page'] ?? 1));
+            $offset = isset($_GET['offset']) ? max(0, (int) $_GET['offset']) : ($page - 1) * $limit;
+            $month  = preg_replace('/\D/', '', (string) ($_GET['month'] ?? ''));
+            if (strlen($month) === 1) $month = '0' . $month;
+            $res = $repo->page([
+                'year'   => preg_replace('/\D/', '', (string) ($_GET['year'] ?? '')),
+                'month'  => $month,
+                'cat'    => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['cat'] ?? ''))),
+                'q'      => (string) ($_GET['q'] ?? ''),
+                'limit'  => $limit,
+                'offset' => $offset,
+            ]);
+            $out = [
+                'ok'       => true,
+                'articles' => $res['items'],
+                'count'    => count($res['items']),
+                'total'    => $res['total'],
+                'limit'    => $res['limit'],
+                'offset'   => $res['offset'],
+                'hasMore'  => ($res['offset'] + count($res['items'])) < $res['total'],
+            ];
+            if (!empty($_GET['facets'])) $out['facets'] = $repo->facets();
+            json_out($out);
+        }
 
         case 'article':
             $art = $slug ? $repo->bySlug($slug) : null;
