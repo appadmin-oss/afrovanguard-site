@@ -9,9 +9,15 @@
 //
 
 // ── Gemini AI ────────────────────────────────────────────────────────
-define('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY_HERE');
+// Prefer the env var over a hardcoded key (set STS_GEMINI_API_KEY in .htaccess).
+define('GEMINI_API_KEY', getenv('STS_GEMINI_API_KEY') ?: 'YOUR_GEMINI_API_KEY_HERE');
 define('GEMINI_MODEL',   'gemini-2.0-flash');
-define('GEMINI_URL',     'https://generativelanguage.googleapis.com/v1beta/models/' . GEMINI_MODEL . ':generateContent?key=' . GEMINI_API_KEY);
+// Key is sent via the x-goog-api-key request header in ai.php — NOT in this URL.
+define('GEMINI_URL',     'https://generativelanguage.googleapis.com/v1beta/models/' . GEMINI_MODEL . ':generateContent');
+
+// Shared key that gates the AI proxy (ai.php); the CEO dashboard sends it as the
+// X-STS-Key header. Empty = rely on the origin check + per-IP rate limit only.
+define('STS_AI_ACCESS_KEY', getenv('STS_AI_ACCESS_KEY') ?: '');
 
 // ── Google Sheets via Apps Script ────────────────────────────────────
 $_sts_url = getenv('STS_APPS_SCRIPT_URL');
@@ -40,5 +46,7 @@ define('RESERVATIONS_CACHE_TTL', 60);
 define('ALLOWED_ORIGIN', 'https://afrovanguard.org.ng/projects/sts/ceo/');
 
 // ── Storage paths (auto-created) ─────────────────────────────────────
-define('DATA_DIR', __DIR__ . '/data');
+// Prefer a path OUTSIDE the web root (set STS_DATA_DIR in .htaccess); the
+// default sits under the api dir. submissions.json holds speaker PII.
+define('DATA_DIR', getenv('STS_DATA_DIR') ?: __DIR__ . '/data');
 if (!is_dir(DATA_DIR)) { @mkdir(DATA_DIR, 0700, true); }

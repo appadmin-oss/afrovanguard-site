@@ -55,14 +55,18 @@ function doPost(e) {
   }
 }
 
+// Fail CLOSED: if SHARED_KEY is unset, reject rather than allow. A missing key
+// previously turned this ANYONE_ANONYMOUS web app into an open, unauthenticated
+// write/mail endpoint. Set the SHARED_KEY script property to match the PHP
+// side's STS_APPS_SCRIPT_KEY.
 function authorized(e) {
   const key = props().getProperty('SHARED_KEY');
-  if (!key) return true;
+  if (!key) return false;
   return (e && e.parameter && e.parameter.key) === key;
 }
 function authorizedBody(body) {
   const key = props().getProperty('SHARED_KEY');
-  if (!key) return true;
+  if (!key) return false;
   return body && body.key === key;
 }
 

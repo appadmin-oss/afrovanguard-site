@@ -24,14 +24,47 @@ function sts_fail($error, $code = 400) {
     exit;
 }
 
+function sts_cidr_match($ip, $cidr) {
+    if (strpos($cidr, '/') === false) return $ip === $cidr;
+    [$subnet, $bits] = explode('/', $cidr, 2); $bits = (int)$bits;
+    $ipB = @inet_pton($ip); $snB = @inet_pton($subnet);
+    if ($ipB === false || $snB === false || strlen($ipB) !== strlen($snB)) return false;
+    $bytes = intdiv($bits, 8); $rem = $bits % 8;
+    if ($bytes > 0 && strncmp($ipB, $snB, $bytes) !== 0) return false;
+    if ($rem === 0) return true;
+    $mask = chr(0xFF << (8 - $rem) & 0xFF);
+    return (($ipB[$bytes] ^ $snB[$bytes]) & $mask) === "\0";
+}
+
+/**
+ * Real client IP. Forwarded headers are trusted ONLY from a Cloudflare edge
+ * (or a STS_TRUSTED_PROXIES CIDR); otherwise they are attacker-controlled and
+ * ignored — without this the per-IP rate limits reset on a spoofed header.
+ */
 function sts_client_ip() {
-    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $k) {
-        if (!empty($_SERVER[$k])) {
-            $ip = trim(explode(',', $_SERVER[$k])[0]);
-            if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+    $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($remote === '') return 'unknown';
+    static $cf = [
+        '173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22',
+        '141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20',
+        '197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13',
+        '104.24.0.0/14','172.64.0.0/13','131.0.72.0/22',
+        '2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32',
+        '2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32',
+    ];
+    $trusted = $cf;
+    foreach (explode(',', (string)getenv('STS_TRUSTED_PROXIES')) as $c) { $c = trim($c); if ($c !== '') $trusted[] = $c; }
+    $peerTrusted = false;
+    foreach ($trusted as $cidr) { if (sts_cidr_match($remote, $cidr)) { $peerTrusted = true; break; } }
+    if ($peerTrusted) {
+        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR'] as $h) {
+            if (!empty($_SERVER[$h])) {
+                $ip = trim(explode(',', (string)$_SERVER[$h])[0]);
+                if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+            }
         }
     }
-    return 'unknown';
+    return $remote;
 }
 
 /**
