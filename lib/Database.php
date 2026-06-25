@@ -277,6 +277,18 @@ final class Database
         }
     }
 
+    /** Driver-correct "insert; ignore a duplicate" statement (SQLite output unchanged). */
+    public static function insertIgnore(string $table, array $cols): string
+    {
+        $list = implode(', ', $cols);
+        $ph   = implode(', ', array_fill(0, count($cols), '?'));
+        switch (self::driver()) {
+            case 'mysql': return "INSERT IGNORE INTO {$table} ({$list}) VALUES ({$ph})";
+            case 'pgsql': return "INSERT INTO {$table} ({$list}) VALUES ({$ph}) ON CONFLICT DO NOTHING";
+            default:      return "INSERT OR IGNORE INTO {$table} ({$list}) VALUES ({$ph})";
+        }
+    }
+
     public static function migrate(): void
     {
         $sql = file_get_contents(AV_ROOT . '/db/schema.sql');

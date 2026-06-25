@@ -119,7 +119,7 @@ final class DiaryRepository
     private function categoryId(string $name): int
     {
         $slug = slugify($name);
-        $this->db->prepare('INSERT OR IGNORE INTO categories (slug, name) VALUES (?, ?)')->execute([$slug, $name]);
+        $this->db->prepare(Database::insertIgnore('categories', ['slug', 'name']))->execute([$slug, $name]);
         $f = $this->db->prepare('SELECT id FROM categories WHERE slug = ?');
         $f->execute([$slug]);
         return (int) $f->fetchColumn();
@@ -233,7 +233,7 @@ final class DiaryRepository
     {
         $email = strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
-        $this->db->prepare('INSERT OR IGNORE INTO subscribers (email, source) VALUES (?, ?)')
+        $this->db->prepare(Database::insertIgnore('subscribers', ['email', 'source']))
                  ->execute([$email, $source]);
         return true;
     }
