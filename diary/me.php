@@ -51,6 +51,8 @@ render_nav('diary');
       <span class="diary-eyebrow">Vanguard Diary</span>
       <h1>Your Diary</h1>
       <p>Document what you build, reflect in private, and share what could inspire the movement. <strong>Public entries are reviewed before they appear on the Diary.</strong></p>
+<?php if ($user): ?>      <p class="vd-export">Export your journal: <a href="<?= e(diary_url('export.php?scope=mine&format=book')) ?>">as a book (PDF)</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=md')) ?>">Markdown</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=json')) ?>">JSON</a></p>
+<?php endif; ?>
     </div>
   </section>
 

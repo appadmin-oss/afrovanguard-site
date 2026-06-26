@@ -28,6 +28,19 @@ final class DiaryRepository
         )->fetchAll();
     }
 
+    /** All published articles WITH full body, for export/Journal. ASC = journal order. */
+    public function allForExport(string $order = 'ASC'): array
+    {
+        $dir = strtoupper($order) === 'DESC' ? 'DESC' : 'ASC';
+        return $this->db->query(
+            "SELECT a.slug, a.title, a.dek, a.authors_html, a.published, a.published_at,
+                    a.read_minutes, a.body_html, c.name AS category
+             FROM articles a JOIN categories c ON c.id = a.category_id
+             WHERE a.status = 'published'
+             ORDER BY a.published_at $dir, a.id $dir"
+        )->fetchAll();
+    }
+
     /** Every entry incl. drafts (admin only). */
     public function allForAdmin(): array
     {

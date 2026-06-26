@@ -174,7 +174,7 @@ render_nav('diary');
       <section class="diary-subscribe-band" data-reveal>
         <div>
           <h2>Get the next dispatch</h2>
-          <p>New field notes roughly twice a month. No spam — just the working, as we learn it. Or grab the <a href="<?= e(diary_url('feed.xml')) ?>">RSS feed</a>.</p>
+          <p>New field notes roughly twice a month. No spam — just the working, as we learn it. Or grab the <a href="<?= e(diary_url('feed.xml')) ?>">RSS feed</a>, or download the Diary as a <a href="<?= e(diary_url('export.php?format=book')) ?>">Journal</a> · <a href="<?= e(diary_url('export.php?format=md')) ?>">Markdown</a> · <a href="<?= e(diary_url('export.php?format=json')) ?>">JSON</a>.</p>
         </div>
         <form class="diary-subscribe sub-inline" novalidate>
           <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email" required />
