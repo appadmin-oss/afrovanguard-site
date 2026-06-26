@@ -82,6 +82,41 @@ render_head([
       </header>
 
       <div class="portal-grid">
+<?php if ($isOrg):
+        require_once AV_ROOT . '/lib/workspace.php';
+        $wsAdmin     = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
+        $wsSurfaces  = av_workspace_surfaces($wsAdmin);
+        $communities = av_workspace_communities();
+?>
+        <!-- Your Workspace — SSO launchpad into Google Workspace (members only) -->
+        <section class="portal-card span-2 ws-hub">
+          <div class="pc-head"><h2>Your Workspace</h2><span class="pc-tag ws-domain">@<?= e(av_workspace_domain()) ?></span></div>
+          <p class="pc-summary">You’re signed in with Google — jump straight into the Afrovanguard Workspace.</p>
+          <div class="ws-grid">
+<?php foreach ($wsSurfaces as $s): ?>
+            <a class="ws-tile" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
+              <span class="ws-ico ws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
+              <span class="ws-text"><span class="ws-label"><?= e($s['label']) ?></span><span class="ws-desc"><?= e($s['desc']) ?></span></span>
+            </a>
+<?php endforeach; ?>
+          </div>
+        </section>
+<?php if ($communities): ?>
+        <!-- Communities — Google Chat Spaces / Groups (configurable via AV_WS_COMMUNITIES) -->
+        <section class="portal-card span-2 ws-communities">
+          <div class="pc-head"><h2>Communities</h2><span class="pc-tag"><?= count($communities) ?> space<?= count($communities) === 1 ? '' : 's' ?></span></div>
+          <div class="ws-comm-list">
+<?php foreach ($communities as $c): ?>
+            <a class="ws-comm" href="<?= e($c['url']) ?>" target="_blank" rel="noopener noreferrer">
+              <span class="ws-comm-name"><?= e($c['name']) ?></span>
+<?php if ($c['desc'] !== ''): ?>              <span class="ws-comm-desc"><?= e($c['desc']) ?></span>
+<?php endif; ?>            </a>
+<?php endforeach; ?>
+          </div>
+        </section>
+<?php endif; ?>
+<?php endif; ?>
+
         <!-- My learning -->
         <section class="portal-card span-2">
           <div class="pc-head"><h2>My learning</h2><a href="/academy/" class="pc-link">Browse the Academy →</a></div>

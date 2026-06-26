@@ -126,6 +126,27 @@ body.portal-page .read-progress { display: none; }
 .portal-stat { font-size: 14px; color: var(--p-muted); }
 .portal-stat b { font-size: 30px; font-family: 'Cormorant', Georgia, serif; font-weight: 700; color: var(--p-accent); display: block; line-height: 1; margin-bottom: 4px; }
 
+/* Workspace hub (members) — SSO launchpad into Google Workspace */
+.ws-hub .ws-domain { background: var(--p-accent-soft); color: var(--p-accent); text-transform: none; letter-spacing: 0; }
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px; }
+.ws-tile { display: flex; align-items: center; gap: 13px; padding: 14px 15px; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 13px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+.ws-tile:hover { border-color: var(--p-accent); background: var(--p-surface-2); transform: translateY(-2px); }
+.ws-ico { flex-shrink: 0; width: 42px; height: 42px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; background: var(--p-accent-soft); color: var(--p-accent); }
+.ws-ico--chat { background: rgba(59,130,246,0.15); color: var(--p-blue); }
+.ws-ico--meet { background: rgba(46,160,67,0.16); color: var(--p-green); }
+.ws-ico--calendar { background: rgba(59,130,246,0.15); color: var(--p-blue); }
+.ws-ico--groups { background: rgba(46,160,67,0.16); color: var(--p-green); }
+.ws-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-label { font-weight: 700; color: var(--p-ink); font-size: 14.5px; }
+.ws-desc { font-size: 12px; color: var(--p-muted); line-height: 1.35; }
+/* Communities — Google Chat Spaces / Groups */
+.ws-comm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.ws-comm { display: flex; flex-direction: column; gap: 3px; padding: 13px 15px; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 12px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+.ws-comm:hover { border-color: var(--p-accent); background: var(--p-surface-2); transform: translateX(2px); }
+.ws-comm-name { font-weight: 700; color: var(--p-ink); font-size: 14.5px; }
+.ws-comm-name::after { content: ' ↗'; color: var(--p-muted); font-weight: 400; }
+.ws-comm-desc { font-size: 12.5px; color: var(--p-muted); line-height: 1.45; }
+
 /* footer */
 .portal-foot { border-top: 1px solid var(--p-border); margin-top: 50px; padding: 26px 0; }
 .portal-foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--p-muted); }
