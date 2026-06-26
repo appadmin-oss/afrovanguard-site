@@ -17,6 +17,7 @@ final class AppTokens
     const SCOPES = [
         'community:read'  => 'Read the public community feed',
         'community:bot'   => 'Post & reply as the official Afrovanguard bot',
+        'bot:ask'         => 'Ask the AI bot to generate a reply',
         'events:write'    => 'Emit events (fan out to webhooks/listeners)',
     ];
     const PREFIX = 'av_int_';

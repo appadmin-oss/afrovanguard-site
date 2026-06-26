@@ -97,6 +97,28 @@ try {
             json_out(['ok' => true, 'emitted' => $type]);
         }
 
+        case 'bot.ask': {
+            // Ask the AI bot to generate a reply, and optionally publish it as
+            // the official Afrovanguard bot. Lets an external agent drive the bot.
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $need('bot:ask');
+            $prompt = trim((string) ($body['prompt'] ?? ''));
+            if ($prompt === '') json_out(['ok' => false, 'error' => 'prompt required.'], 422);
+            $history = is_array($body['context'] ?? null) ? $body['context'] : [];
+            $ai = AvBot::reply($prompt, $history);
+            if (!$ai['ok']) json_out(['ok' => false, 'error' => $ai['error'] ?? 'AI unavailable.', 'configured' => AvBot::configured()], 503);
+            $out = ['ok' => true, 'text' => $ai['text'], 'model' => AvBot::model(), 'posted' => false];
+            if (!empty($body['post'])) {
+                if (!AppTokens::hasScope($tok, 'community:bot')) json_out(['ok' => false, 'error' => 'Publishing needs the "community:bot" scope.'], 403);
+                $replyTo = (int) ($body['reply_to'] ?? 0);
+                $id = $replyTo > 0
+                    ? Community::reply(Community::botId(), $replyTo, $ai['text'])
+                    : Community::botPost((string) ($body['space'] ?? 'open-floor'), $ai['text']);
+                if ($id) { $out['posted'] = true; $out['post'] = Community::post($id); }
+            }
+            json_out($out);
+        }
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

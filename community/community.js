@@ -101,6 +101,34 @@
         setTimeout(function () { setMsg(msg, '', ''); }, 2500);
       }).catch(function () { btn.disabled = false; setMsg(msg, 'Network error — try again.', 'err'); });
     });
+
+    /* ── Ask the AI bot ── posts the question, then the bot's reply in-thread ── */
+    var askBtn = document.getElementById('cmAsk');
+    if (askBtn) {
+      askBtn.addEventListener('click', function () {
+        var text = (body.value || '').trim();
+        if (text.length < 3) { setMsg(msg, 'Ask the bot a fuller question.', 'err'); return; }
+        askBtn.disabled = true; btn.disabled = true; setMsg(msg, 'Asking the Afrovanguard bot…', '');
+        api('ask', { body: { space: space.value, body: text } }).then(function (d) {
+          askBtn.disabled = false; btn.disabled = false;
+          if (d.__status === 401) { loginRedirect(); return; }
+          if (!d.ok) { setMsg(msg, d.error || 'Could not ask.', 'err'); return; }
+          var empty = feed.querySelector('.cm-empty'); if (empty) empty.remove();
+          var node = renderPost(d.question);
+          feed.insertBefore(node, feed.firstChild);
+          body.value = '';
+          if (d.bot) {
+            var thread = node.querySelector('.cm-thread[data-thread="' + d.question.id + '"]');
+            if (thread) { thread.removeAttribute('hidden'); thread.setAttribute('data-loaded', '1'); thread.appendChild(renderReply(d.bot)); }
+            var rc = node.querySelector('[data-reply="' + d.question.id + '"] .cm-replies'); if (rc) rc.textContent = '1';
+            setMsg(msg, 'Afrovanguard replied below.', 'ok');
+          } else {
+            setMsg(msg, d.note || 'Posted — the team will follow up.', 'ok');
+          }
+          setTimeout(function () { setMsg(msg, '', ''); }, 4500);
+        }).catch(function () { askBtn.disabled = false; btn.disabled = false; setMsg(msg, 'Network error — try again.', 'err'); });
+      });
+    }
   }
   function setMsg(el, t, kind) { if (!el) return; el.textContent = t; el.className = 'cm-msg' + (kind ? ' is-' + kind : ''); }
 

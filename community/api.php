@@ -78,6 +78,55 @@ try {
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
             json_out(['ok' => true] + Community::toggleLike((int) ($body['id'] ?? 0), (int) $u['id']));
         }
+        case 'ask': {
+            // Ask the official Afrovanguard bot (AI). Posts the member's question,
+            // then the bot's Claude-generated reply, in the same thread.
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in to ask.'], 401);
+            if (!av_rate_ok('community_ask', 10, 900)) json_out(['ok' => false, 'error' => 'You’re asking quickly — give it a moment.'], 429);
+            $q = trim((string) ($body['body'] ?? ''));
+            if (mb_strlen($q) < 3) json_out(['ok' => false, 'error' => 'Ask a fuller question.'], 422);
+            $uid = (int) $u['id'];
+
+            // Anchor the question: a reply in an existing thread, or a new post.
+            $threadId = (int) ($body['id'] ?? 0);
+            if ($threadId > 0) {
+                $qid = Community::reply($uid, $threadId, $q);
+                if (!$qid) json_out(['ok' => false, 'error' => 'Could not post your question.'], 422);
+                $parent = $threadId;
+            } else {
+                $qid = Community::createPost($uid, (string) ($body['space'] ?? 'open-floor'), $q);
+                if (!$qid) json_out(['ok' => false, 'error' => 'Could not post your question.'], 422);
+                $parent = $qid;
+            }
+            $question = Community::post($qid, $uid);
+
+            // Build thread context, ask Claude, post the bot's reply.
+            $history = [];
+            if ($threadId > 0) {
+                $root = Community::post($threadId);
+                if ($root) $history[] = ['role' => $root['is_bot'] ? 'bot' : 'member', 'name' => $root['author'], 'text' => $root['body']];
+                foreach (Community::replies($threadId) as $r) {
+                    $history[] = ['role' => $r['is_bot'] ? 'bot' : 'member', 'name' => $r['author'], 'text' => $r['body']];
+                }
+            }
+            $ai = AvBot::reply($q, $history);
+            $botPost = null;
+            if ($ai['ok']) {
+                $brid = Community::reply(Community::botId(), $parent, $ai['text']);
+                if ($brid) $botPost = Community::post($brid, $uid);
+            }
+            json_out([
+                'ok'       => true,
+                'question' => $question,
+                'parent'   => $parent,
+                'bot'      => $botPost,
+                'ai_ok'    => (bool) $ai['ok'],
+                'note'     => $ai['ok'] ? null : (AvBot::configured() ? 'The bot couldn’t answer just now.' : 'The AI bot isn’t enabled yet — a teammate will follow up.'),
+            ]);
+        }
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

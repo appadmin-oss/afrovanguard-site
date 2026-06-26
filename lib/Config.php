@@ -107,6 +107,8 @@ final class Config
             self::chk('Workspace API (service account)', $wsApi ? 'ok' : 'warn', $wsApi ? 'configured — live Calendar/Drive reads in the portal' : 'not set — portal uses the launchpad + embeds'),
             self::chk('Directory delegation', ($wsApi && $wsSub !== '') ? 'ok' : 'info', $wsApi ? ($wsSub !== '' ? 'impersonates ' . $wsSub : 'no AV_WS_SUBJECT — directory read disabled') : '—'),
             self::chk('Org domain', 'info', self::str('AV_ORG_DOMAIN', 'afrovanguard.org.ng')),
+            self::chk('Afrovanguard bot (AI)', (class_exists('AvBot') && AvBot::configured()) ? 'ok' : 'warn',
+                (class_exists('AvBot') && AvBot::configured()) ? ('Claude · ' . AvBot::model()) : 'set ANTHROPIC_API_KEY to enable AI replies'),
         ]];
 
         // Storage

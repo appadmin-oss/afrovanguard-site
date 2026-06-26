@@ -109,6 +109,7 @@ render_nav('community');
                 <option value="<?= e($sp['slug']) ?>"<?= ($activeSp ?: 'open-floor') === $sp['slug'] ? ' selected' : '' ?>><?= e($sp['name']) ?></option>
 <?php endforeach; ?>
               </select>
+              <button type="button" class="cm-ask-btn" id="cmAsk" title="Ask the official Afrovanguard bot">✦ Ask the bot</button>
               <button type="submit" class="cm-post-btn">Post</button>
             </div>
             <p class="cm-msg" role="status" aria-live="polite"></p>

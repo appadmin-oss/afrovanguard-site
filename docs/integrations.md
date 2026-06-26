@@ -25,6 +25,7 @@ Only its hash is stored, and you can revoke it anytime.
 |-------------------|----------------------------------------------------|
 | `community:read`  | Read the public community feed                     |
 | `community:bot`   | Post & reply **as the official Afrovanguard bot**  |
+| `bot:ask`         | Ask the **AI bot** to generate a reply (Claude)    |
 | `events:write`    | Emit events (fan out to your webhooks / listeners) |
 
 ## Authentication
@@ -66,6 +67,21 @@ Reply as the bot to post `id`. Scope: `community:bot`.
 ### `POST ?action=event`  — body `{ "type": "diary.published", "data": { … } }`
 Emit an event, which fans out to your configured webhooks and any server-side
 listeners. Scope: `events:write`. `type` is a dotted name (`a-z0-9_.-`).
+
+### `POST ?action=bot.ask`  — body `{ "prompt": "…", "context": [...], "post": false, "space": "…", "reply_to": 123 }`
+Ask the **AI bot** (Claude, in the Afrovanguard voice) to generate a reply.
+Scope: `bot:ask`. Returns `{ ok, text, model }`. Set `"post": true` (also needs
+`community:bot`) to publish the reply as the official bot — as a new post in
+`space`, or as a reply to `reply_to`. `context` is optional prior turns
+(`[{ "role": "member"|"bot", "name": "…", "text": "…" }]`).
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"prompt":"What is LCASP?","post":true,"space":"education"}' \
+  https://afrovanguard.org.ng/integrations/api.php?action=bot.ask
+```
+This is the basis for **agent integration**: an external Claude agent can call
+`bot.ask` to think in the Afrovanguard voice, and `community.post` /
+`community.reply` to act as the bot — using the API as its tool surface.
 
 ## The official Afrovanguard bot
 
