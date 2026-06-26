@@ -91,3 +91,13 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 #signinView .entry-thumb { aspect-ratio: 3/4; width: 52px; height: auto; }
 
 @media (max-width: 920px) { .editor-grid { grid-template-columns: 1fr; } .editor-side { position: static; } .art-add-grid { grid-template-columns: 1fr; } }
+
+/* ---- Sign-in security policy form ---- */
+.ap-form { margin-top: 4px; }
+.ap-group { border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 14px 16px 4px; margin: 0 0 16px; }
+.ap-group legend { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 0 6px; }
+.ap-group .fld.checkbox { margin-bottom: 12px; align-items: flex-start; }
+.ap-group .fld.checkbox span { font-weight: 600; color: var(--ink); }
+.ap-group .fld.checkbox b { color: var(--gold-deep, #b07e08); }
+.ap-group .fld input[type="number"] { max-width: 140px; }
+#apGoogleNote { font-style: normal; font-weight: 600; }

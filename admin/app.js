@@ -56,7 +56,7 @@
       else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); }
       else if (which === 'system') { show('system'); loadSystem(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
-      else if (which === 'signin') { show('signin'); loadArt(); }
+      else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
       else if (which === 'members') { show('members'); loadMembers(); }
       else { show('inbox'); loadInbox(); }
     });
@@ -789,7 +789,36 @@
       start_date: $('#art_start_date').value, end_date: $('#art_end_date').value
     };
   }
+  /* ---- Sign-in security policy ---- */
+  function apReflect(p) {
+    if (!p) return;
+    document.querySelectorAll('#authPolicyForm [data-ap]').forEach(function (el) {
+      var k = el.getAttribute('data-ap');
+      if (el.type === 'checkbox') el.checked = !!p[k]; else el.value = p[k];
+    });
+  }
+  function loadAuthPolicy() {
+    if (!$('#authPolicyForm')) return;
+    api('auth_policy_get').then(function (r) {
+      var d = r.data || {}; if (!d.ok) return;
+      apReflect(d.policy);
+      var note = $('#apGoogleNote');
+      if (note) note.textContent = d.google_configured ? '— configured' : '— needs AV_GOOGLE_CLIENT_ID (stays off until set)';
+    });
+  }
   if ($('#signinView')) {
+    $('#apSave').addEventListener('click', function () {
+      var policy = {};
+      document.querySelectorAll('#authPolicyForm [data-ap]').forEach(function (el) {
+        var k = el.getAttribute('data-ap');
+        policy[k] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      var btn = this; btn.disabled = true;
+      post('auth_policy_save', { policy: policy }).then(function (r) {
+        if (r.data && r.data.ok) { apReflect(r.data.policy); toast('Security settings saved.'); }
+        else toast((r.data && r.data.error) || 'Could not save.');
+      }).catch(function () { toast('Network error.'); }).finally(function () { btn.disabled = false; });
+    });
     $('#art_kind').addEventListener('change', artScheduleFields);
     $('#artUploadBtn').addEventListener('click', function () { $('#artFile').click(); });
     $('#artFile').addEventListener('change', function () {

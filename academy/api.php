@@ -52,6 +52,28 @@ try {
         case 'logout':
             LmsAuth::logout(); json_out(['ok' => true]);
 
+        /* ── Passwordless: email one-time code ── */
+        case 'auth-methods':   // which sign-in methods the page should offer
+            json_out(['ok' => true, 'methods' => AuthPolicy::publicMethods()]);
+        case 'otp-request':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!AuthPolicy::allows('otp')) json_out(['ok' => false, 'error' => 'Code sign-in is turned off.'], 403);
+            if (!av_rate_ok('otp_request', 6, 900)) json_out(['ok' => false, 'error' => 'Too many code requests — wait a few minutes.'], 429);
+            $r = Otp::request((string) ($body['email'] ?? ''), 'login');
+            // Enumeration-safe: a valid address always reports "sent".
+            json_out($r['ok'] ? ['ok' => true, 'message' => 'If that address can receive mail, a code is on its way.'] : $r, $r['ok'] ? 200 : 422);
+        case 'otp-verify':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('otp_verify', 12, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
+            json_out(LmsAuth::loginWithOtp((string) ($body['email'] ?? ''), (string) ($body['code'] ?? ''), (string) ($body['name'] ?? '')));
+        case 'set-password':   // add/replace a password (after signing in by code)
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            json_out(LmsAuth::setPassword((int) $u['id'], (string) ($body['password'] ?? '')));
+
         case 'verify-email': {
             // The emailed link is a GET (browser navigation, no same-origin) →
             // verify + redirect into the portal. A POST returns JSON. The 64-hex

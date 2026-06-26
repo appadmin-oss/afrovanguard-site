@@ -92,6 +92,26 @@ body.auth-page .read-progress { display: none; }
 .auth-fine { font-size: 12.5px; line-height: 1.6; color: var(--muted); margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--divider); }
 .auth-fine strong { color: var(--ink); }
 
+/* ---- Multi-step sign-in (identify → code / password → set password) ---- */
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+.auth-method { display: flex; flex-direction: column; gap: 14px; margin: 0; }
+.auth-ident { font-size: 13.5px; color: var(--muted); margin: 0 0 18px; }
+.auth-ident b { color: var(--ink); font-weight: 700; }
+.auth-link-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--gold-deep, #b07e08); text-decoration: underline; cursor: pointer; }
+.auth-link-btn:hover { color: var(--ink); }
+.auth-mini { font-size: 12.5px; color: var(--muted); margin: 2px 0 0; }
+.auth-code-input {
+  letter-spacing: .42em; font-variant-numeric: tabular-nums; font-weight: 700;
+  font-size: 22px !important; text-align: center; padding-left: 0.42em !important;
+}
+.auth-newname { font-size: 13px; }
+.auth-newname summary { cursor: pointer; color: var(--gold-deep, #b07e08); font-weight: 700; list-style: none; }
+.auth-newname summary::-webkit-details-marker { display: none; }
+.auth-newname summary::before { content: '+ '; }
+.auth-newname[open] summary::before { content: '– '; }
+.auth-newname[open] summary { margin-bottom: 10px; }
+.auth-msg.ok { color: #15803d; }
+
 /* ---- Responsive: illustration drops away, form takes the screen ---- */
 @media (max-width: 860px) {
   .auth-shell { grid-template-columns: 1fr; }

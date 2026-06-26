@@ -118,7 +118,7 @@ final class Database
     /* ── Small key/value store for one-time migrations/flags ──
        `key` is a reserved word in MySQL, so it is back-quoted there; SQLite and
        Postgres accept it bare. The SQLite statements stay byte-identical. */
-    private static function ensureMeta(): void { self::ensureMetaOn(self::$pdo); }
+    private static function ensureMeta(): void { self::ensureMetaOn(self::pdo()); }
 
     /** Create the app_meta key/value table on an arbitrary connection (driver-aware).
      *  Public so the migrator can provision it on a target before copying data. */

@@ -38,7 +38,7 @@ if (is_file($cfg)) {
     }
 }
 if (!defined('SITE_URL'))         define('SITE_URL', 'https://afrovanguard.org.ng');
-if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', AV_ROOT . '/db/diary.sqlite');
+if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', getenv('AV_DB_PATH') ?: (AV_ROOT . '/db/diary.sqlite'));
 
 // Admin token (config.php or AV_ADMIN_TOKEN env). Absent ⇒ admin disabled.
 if (!defined('ADMIN_TOKEN')) {
@@ -75,6 +75,8 @@ require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/DiaryJournal.php';
 require_once __DIR__ . '/AcademyRepository.php';
+require_once __DIR__ . '/AuthPolicy.php';
+require_once __DIR__ . '/Otp.php';
 require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';

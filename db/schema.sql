@@ -125,7 +125,8 @@ CREATE TABLE IF NOT EXISTS lms_users (
   last_login    TEXT,
   email_verified INTEGER NOT NULL DEFAULT 0,   -- email-verification (also added by ensureLmsVerify on old DBs)
   verify_hash    TEXT,                          -- sha256 of the pending verification token
-  verify_expires TEXT                           -- ISO expiry for the token
+  verify_expires TEXT,                          -- ISO expiry for the token
+  has_password   INTEGER NOT NULL DEFAULT 0     -- 1 once a member sets a real password (OTP/OAuth accounts stay 0)
 );
 CREATE TABLE IF NOT EXISTS lms_sessions (
   token_hash  TEXT PRIMARY KEY,

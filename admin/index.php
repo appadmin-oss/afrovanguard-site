@@ -453,10 +453,42 @@
     <div id="sysHealth"></div>
   </main>
 
-  <!-- SIGN-IN ILLUSTRATIONS (admin-managed + schedulable) -->
+  <!-- SIGN-IN (security policy + illustrations) -->
   <main class="studio-main" id="signinView" hidden>
     <div class="studio-head">
-      <div><h1>Sign-in illustrations</h1><p class="muted">The art shown beside the <a href="/login" target="_blank" rel="noopener">sign-in form</a>. “Always” art rotates year-round; scheduled or holiday art takes over on its dates. One is shown per visitor session.</p></div>
+      <div><h1>Sign-in</h1><p class="muted">Control how members sign in — the security policy and the art beside the <a href="/login" target="_blank" rel="noopener">sign-in form</a>.</p></div>
+    </div>
+
+    <div class="side-card" style="max-width:680px;margin-bottom:28px">
+      <h3>Security policy</h3>
+      <p class="muted" style="margin-top:-4px">Which methods members may use, and the layers around them. Changes apply immediately. At least one method always stays on.</p>
+      <form id="authPolicyForm" class="ap-form">
+        <fieldset class="ap-group">
+          <legend>Allowed sign-in methods</legend>
+          <label class="fld checkbox"><input type="checkbox" data-ap="allow_otp" /> <span>Email one-time code <b>(passwordless)</b> — the recommended primary method</span></label>
+          <label class="fld checkbox"><input type="checkbox" data-ap="allow_password" /> <span>Email &amp; password</span></label>
+          <label class="fld checkbox"><input type="checkbox" data-ap="allow_google" /> <span>Continue with Google <em id="apGoogleNote" class="muted"></em></span></label>
+        </fieldset>
+        <fieldset class="ap-group">
+          <legend>One-time code</legend>
+          <label class="fld"><span>Code length (4–8 digits)</span><input type="number" min="4" max="8" data-ap="otp_length" /></label>
+          <label class="fld"><span>Valid for (seconds, 60–1800)</span><input type="number" min="60" max="1800" step="30" data-ap="otp_ttl" /></label>
+          <label class="fld"><span>Max wrong tries per code (3–10)</span><input type="number" min="3" max="10" data-ap="otp_max_attempts" /></label>
+        </fieldset>
+        <fieldset class="ap-group">
+          <legend>Passwords</legend>
+          <label class="fld"><span>Minimum length (6–64)</span><input type="number" min="6" max="64" data-ap="password_min_len" /></label>
+          <label class="fld checkbox"><input type="checkbox" data-ap="password_require_mixed" /> <span>Require both letters and numbers</span></label>
+          <label class="fld checkbox"><input type="checkbox" data-ap="require_otp_for_org" /> <span>Force <b>@afrovanguard.org.ng</b> accounts to use a code (no password)</span></label>
+        </fieldset>
+        <fieldset class="ap-group">
+          <legend>Sessions &amp; brute-force lockout</legend>
+          <label class="fld"><span>Stay signed in (days, 1–90)</span><input type="number" min="1" max="90" data-ap="session_ttl_days" /></label>
+          <label class="fld"><span>Lock after N failed sign-ins (0 = off)</span><input type="number" min="0" max="100" data-ap="lockout_threshold" /></label>
+          <label class="fld"><span>Lock duration (minutes)</span><input type="number" min="1" max="1440" data-ap="lockout_minutes" /></label>
+        </fieldset>
+        <button type="button" class="btn btn-primary btn-sm" id="apSave">Save security settings</button>
+      </form>
     </div>
 
     <div class="side-card" style="max-width:680px;margin-bottom:28px">
