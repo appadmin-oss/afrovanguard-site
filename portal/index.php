@@ -102,6 +102,49 @@ render_head([
 <?php endforeach; ?>
           </div>
         </section>
+<?php if (GoogleWorkspace::configured()): ?>
+        <!-- Workspace · live — REAL data pulled from the Google APIs (progressive) -->
+        <section class="portal-card span-2 ws-live" id="wsLive">
+          <div class="pc-head"><h2>Workspace · live</h2><span class="pc-tag">From Google</span></div>
+          <div class="ws-live-grid">
+            <div class="ws-live-col">
+              <h3 class="ws-live-h">Upcoming events</h3>
+              <div class="ws-live-list" id="wsEvents"><p class="pc-summary">Loading…</p></div>
+            </div>
+            <div class="ws-live-col">
+              <h3 class="ws-live-h">Recent shared files</h3>
+              <div class="ws-live-list" id="wsFiles"><p class="pc-summary">Loading…</p></div>
+            </div>
+          </div>
+        </section>
+        <script>
+        (function () {
+          function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+          function when(iso, allDay){ if(!iso) return ''; var d=new Date(iso); if(isNaN(d)) return esc(iso);
+            var o=allDay?{weekday:'short',month:'short',day:'numeric'}:{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
+            try{return d.toLocaleString(undefined,o);}catch(e){return d.toISOString().slice(0,16).replace('T',' ');} }
+          function fill(id, html){ var el=document.getElementById(id); if(el) el.innerHTML=html; }
+          fetch('/portal/workspace.php?action=events',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+            if(!d.ok){ fill('wsEvents','<p class="pc-empty">Couldn’t load events.</p>'); return; }
+            if(!d.events||!d.events.length){ fill('wsEvents','<p class="pc-empty">No upcoming events.</p>'); return; }
+            fill('wsEvents', d.events.map(function(e){
+              return '<a class="ws-live-row" '+(e.url?'href="'+esc(e.url)+'" target="_blank" rel="noopener"':'')+'>'
+                +'<span class="ws-live-title">'+esc(e.title)+'</span>'
+                +'<span class="ws-live-sub">'+esc(when(e.start,e.all_day))+(e.location?' · '+esc(e.location):'')+'</span></a>';
+            }).join(''));
+          }).catch(function(){ fill('wsEvents','<p class="pc-empty">Couldn’t load events.</p>'); });
+          fetch('/portal/workspace.php?action=files',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+            if(!d.ok){ fill('wsFiles','<p class="pc-empty">Couldn’t load files.</p>'); return; }
+            if(!d.files||!d.files.length){ fill('wsFiles','<p class="pc-empty">No files shared yet.</p>'); return; }
+            fill('wsFiles', d.files.map(function(f){
+              return '<a class="ws-live-row" '+(f.url?'href="'+esc(f.url)+'" target="_blank" rel="noopener"':'')+'>'
+                +'<span class="ws-live-title">'+esc(f.name)+'</span>'
+                +'<span class="ws-live-sub">'+esc(when(f.modified,false))+'</span></a>';
+            }).join(''));
+          }).catch(function(){ fill('wsFiles','<p class="pc-empty">Couldn’t load files.</p>'); });
+        })();
+        </script>
+<?php endif; ?>
 <?php if ($communities): ?>
         <!-- Communities — Google Chat Spaces / Groups (configurable via AV_WS_COMMUNITIES) -->
         <section class="portal-card span-2 ws-communities">

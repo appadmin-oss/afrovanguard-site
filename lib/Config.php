@@ -99,9 +99,13 @@ final class Config
 
         // Identity / Google
         $oauth = class_exists('GoogleAuth') && GoogleAuth::configured();
+        $wsApi = class_exists('GoogleWorkspace') && GoogleWorkspace::configured();
+        $wsSub = (string) (self::get('AV_WS_SUBJECT', '') ?: self::get('ADMIN_EMAIL', ''));
         $groups[] = ['group' => 'Identity & Workspace', 'checks' => [
             self::chk('Admin token', (defined('ADMIN_TOKEN') && strlen((string) ADMIN_TOKEN) >= 8) ? 'ok' : 'off', 'Studio access'),
             self::chk('Google sign-in (OAuth)', $oauth ? 'ok' : 'warn', $oauth ? 'enabled' : 'not configured — password sign-in still works'),
+            self::chk('Workspace API (service account)', $wsApi ? 'ok' : 'warn', $wsApi ? 'configured — live Calendar/Drive reads in the portal' : 'not set — portal uses the launchpad + embeds'),
+            self::chk('Directory delegation', ($wsApi && $wsSub !== '') ? 'ok' : 'info', $wsApi ? ($wsSub !== '' ? 'impersonates ' . $wsSub : 'no AV_WS_SUBJECT — directory read disabled') : '—'),
             self::chk('Org domain', 'info', self::str('AV_ORG_DOMAIN', 'afrovanguard.org.ng')),
         ]];
 
