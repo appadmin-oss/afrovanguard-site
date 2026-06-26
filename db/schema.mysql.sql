@@ -1,5 +1,5 @@
--- GENERATED from db/schema.sql by Database::translateDDL() — best-effort.
--- VALIDATE on a live instance before switching production (see docs/db-portability.md).
+-- GENERATED from db/schema.sql by Database::translateDDL().
+-- Validated against a live MariaDB 10.11 instance (see docs/db-portability.md).
 
 -- ============================================================
 --  The Afrovanguard Diary — database schema (SQLite / PDO)
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS articles (
   category_id   INTEGER NOT NULL REFERENCES categories(id),
   authors_html  TEXT NOT NULL,
   published     TEXT NOT NULL,          -- human display date, e.g. "Jun 18, 2026"
-  published_at  TEXT NOT NULL,          -- ISO date for ordering, e.g. "2026-06-18"
+  published_at  VARCHAR(32) NOT NULL,   -- ISO date for ordering, e.g. "2026-06-18" (VARCHAR so MySQL can index it)
   read_minutes  INTEGER NOT NULL DEFAULT 5,
   gradient      TEXT NOT NULL DEFAULT 'g-gold',
   mc_session    TEXT,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS articles (
   body_html     TEXT NOT NULL,
   base_claps    INTEGER NOT NULL DEFAULT 0,
   featured      INTEGER NOT NULL DEFAULT 0,
-  status        TEXT NOT NULL DEFAULT 'published',  -- draft | published
+  status        VARCHAR(32) NOT NULL DEFAULT 'published',  -- draft | published (VARCHAR so MySQL can index it)
   format        TEXT NOT NULL DEFAULT 'standard',   -- standard | qa | feature
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -93,17 +93,20 @@ CREATE TABLE IF NOT EXISTS courses (
   outcomes      TEXT NOT NULL DEFAULT '',   -- newline-separated
   cta_url       TEXT,
   featured      INTEGER NOT NULL DEFAULT 0,
-  status        TEXT NOT NULL DEFAULT 'published',
+  status        VARCHAR(32) NOT NULL DEFAULT 'published',
   sort          INTEGER NOT NULL DEFAULT 0,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  access_type   TEXT NOT NULL DEFAULT 'open',   -- open | tracked | membership | paid (also added by ensureAcademy)
+  price_ngn     INTEGER NOT NULL DEFAULT 0,
+  instructor_id INTEGER
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_courses_status ON courses(status);
 
 CREATE TABLE IF NOT EXISTS enrollments (
   id          INTEGER PRIMARY KEY AUTO_INCREMENT,
   course_id   INTEGER REFERENCES courses(id) ON DELETE SET NULL,
-  course_slug TEXT,
+  course_slug VARCHAR(191),
   name        TEXT NOT NULL,
   email       TEXT NOT NULL,
   phone       TEXT,
@@ -121,7 +124,10 @@ CREATE TABLE IF NOT EXISTS lms_users (
   role          TEXT NOT NULL DEFAULT 'learner',   -- learner | instructor | admin
   status        TEXT NOT NULL DEFAULT 'active',
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_login    TEXT
+  last_login    TEXT,
+  email_verified INTEGER NOT NULL DEFAULT 0,   -- email-verification (also added by ensureLmsVerify on old DBs)
+  verify_hash    TEXT,                          -- sha256 of the pending verification token
+  verify_expires TEXT                           -- ISO expiry for the token
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS lms_sessions (
   token_hash  VARCHAR(191) PRIMARY KEY,
@@ -148,7 +154,8 @@ CREATE TABLE IF NOT EXISTS lessons (
   is_preview   INTEGER NOT NULL DEFAULT 0,
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  quiz_json    TEXT                            -- optional quiz spec (also added by ensureAcademy)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_lessons_course ON lessons(course_id);
 CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -210,11 +217,11 @@ CREATE INDEX idx_payments_user ON payments(user_id);
 CREATE TABLE IF NOT EXISTS diary_entries (
   id             INTEGER PRIMARY KEY AUTO_INCREMENT,
   author_id      INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
-  kind           TEXT NOT NULL DEFAULT 'private',    -- event | private | public
+  kind           VARCHAR(32) NOT NULL DEFAULT 'private',  -- event | private | public (VARCHAR so MySQL can index it)
   title          TEXT NOT NULL DEFAULT '',
   body           TEXT NOT NULL,                       -- plain text; escaped on render
-  entry_date     TEXT NOT NULL,                       -- ISO date (backdatable)
-  status         TEXT NOT NULL DEFAULT 'logged',      -- logged | pending | approved | rejected
+  entry_date     VARCHAR(32) NOT NULL,                -- ISO date, backdatable (VARCHAR so MySQL can index it)
+  status         VARCHAR(32) NOT NULL DEFAULT 'logged',   -- logged | pending | approved | rejected (VARCHAR so MySQL can index it)
   published_slug TEXT,                                -- article slug once promoted to the feed
   review_note    TEXT,                                -- admin note (e.g. on reject)
   created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -232,7 +239,7 @@ CREATE TABLE IF NOT EXISTS auth_illustrations (
   label         TEXT NOT NULL DEFAULT '',
   image_url     TEXT NOT NULL,
   active        INTEGER NOT NULL DEFAULT 1,
-  schedule_kind TEXT NOT NULL DEFAULT 'always',   -- always | range | annual
+  schedule_kind VARCHAR(32) NOT NULL DEFAULT 'always',  -- always | range | annual (VARCHAR so MySQL can index it)
   start_date    TEXT,                              -- YYYY-MM-DD (range)
   end_date      TEXT,                              -- YYYY-MM-DD (range)
   start_md      TEXT,                              -- MM-DD (annual)

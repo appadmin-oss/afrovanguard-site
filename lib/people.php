@@ -25,8 +25,7 @@ function av_tier_label(string $t): string { return AV_TIER_LABELS[$t] ?? ucfirst
 /** Create the team table if missing (idempotent; safe on deployed DBs). */
 function av_team_ensure(PDO $pdo): void
 {
-    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return; // provisioned out-of-band on MySQL/Postgres
-    $pdo->exec("CREATE TABLE IF NOT EXISTS team (
+    $ddl = "CREATE TABLE IF NOT EXISTS team (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT '',
@@ -45,7 +44,9 @@ function av_team_ensure(PDO $pdo): void
         position INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )");
+    )";
+    $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
 }
 
 /** Normalise/validate a tier string. */

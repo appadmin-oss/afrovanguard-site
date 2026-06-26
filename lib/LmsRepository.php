@@ -345,6 +345,8 @@ final class LmsRepository
     {
         static $done = false; if ($done) return;
         $done = true;
+        // lms_audit is in db/schema.sql, so MySQL/Postgres get it from the applied
+        // schema file. This lazy create is only a safety net for older SQLite DBs.
         if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return;
         $this->db->exec(
             "CREATE TABLE IF NOT EXISTS lms_audit (

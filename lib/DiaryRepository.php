@@ -220,15 +220,25 @@ final class DiaryRepository
         $aid = $id->fetchColumn();
         if ($aid === false) return 0;
 
-        // Upsert applause. SQLite/Postgres use ON CONFLICT; MySQL uses its
-        // ON DUPLICATE KEY UPDATE form. nowExpr() keeps the timestamp portable
-        // (reactions.updated_at is a real DATETIME/TIMESTAMP on MySQL/Postgres).
+        // Upsert applause. Each engine references the existing row differently:
+        // MySQL uses ON DUPLICATE KEY UPDATE; SQLite reads the bare column;
+        // Postgres requires the table-qualified `reactions.claps` (bare is
+        // ambiguous against the `excluded` pseudo-row). nowExpr() keeps the
+        // timestamp portable (reactions.updated_at is DATETIME/TIMESTAMP there).
         $now = Database::nowExpr();
-        $sql = Database::driver() === 'mysql'
-            ? "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
-               ON DUPLICATE KEY UPDATE claps = claps + VALUES(claps), updated_at = {$now}"
-            : "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
-               ON CONFLICT(article_id) DO UPDATE SET claps = claps + excluded.claps, updated_at = {$now}";
+        switch (Database::driver()) {
+            case 'mysql':
+                $sql = "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
+                        ON DUPLICATE KEY UPDATE claps = claps + VALUES(claps), updated_at = {$now}";
+                break;
+            case 'pgsql':
+                $sql = "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
+                        ON CONFLICT(article_id) DO UPDATE SET claps = reactions.claps + excluded.claps, updated_at = {$now}";
+                break;
+            default: // sqlite — byte-identical to the original
+                $sql = "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
+                        ON CONFLICT(article_id) DO UPDATE SET claps = claps + excluded.claps, updated_at = {$now}";
+        }
         $this->db->prepare($sql)->execute([$aid, $n]);
 
         return $this->claps($slug);

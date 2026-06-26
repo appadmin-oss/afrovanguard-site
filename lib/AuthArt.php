@@ -19,7 +19,11 @@ function av_auth_art_ensure(PDO $pdo): void
 {
     static $done = false;
     if ($done) return;
-    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') { $done = true; return; } // provisioned out-of-band on MySQL/Postgres
+    $done = true;
+    // auth_illustrations is in db/schema.sql, so MySQL/Postgres get it (and its
+    // index) from the applied schema file. This lazy create is only a safety net
+    // for older SQLite DBs that predate the table.
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return;
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS auth_illustrations (
            id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +40,6 @@ function av_auth_art_ensure(PDO $pdo): void
          );
          CREATE INDEX IF NOT EXISTS idx_auth_art_active ON auth_illustrations(active, schedule_kind);"
     );
-    $done = true;
 }
 
 /** True if MM-DD $md falls within [$start,$end], supporting a year wrap. */

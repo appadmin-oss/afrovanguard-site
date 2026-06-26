@@ -54,25 +54,58 @@ function av_builtin_doodle(string $key): string
     return is_file(AV_ROOT . '/assets/doodles/' . $file . '.svg') ? '/assets/doodles/' . $file . '.svg' : '';
 }
 
-/** Ensure the admin-managed celebrations table exists (idempotent). */
+/** Ensure the admin-managed celebrations table exists (idempotent, driver-aware).
+ *  `key` is a reserved word in MySQL (back-quoted there); SQLite/Postgres take it
+ *  bare. The SQLite branch is byte-identical to the original DDL. */
 function av_celebrations_ensure(PDO $pdo): void
 {
-    // SQLite auto-creates this. On MySQL/Postgres it must be provisioned
-    // out-of-band (note the reserved `key` column), so skip the SQLite-only DDL.
-    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return;
-    $pdo->exec("CREATE TABLE IF NOT EXISTS celebrations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key TEXT NOT NULL DEFAULT '',
-        name TEXT NOT NULL DEFAULT '',
-        md TEXT NOT NULL DEFAULT '',
-        scope TEXT NOT NULL DEFAULT 'internal',
-        emoji TEXT NOT NULL DEFAULT '🎉',
-        theme TEXT NOT NULL DEFAULT '#f3b416',
-        message TEXT NOT NULL DEFAULT '',
-        doodle_url TEXT NOT NULL DEFAULT '',
-        enabled INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )");
+    static $done = false; if ($done) return; $done = true;
+    switch ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)) {
+        case 'mysql':
+            $pdo->exec("CREATE TABLE IF NOT EXISTS celebrations (
+                id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                `key` VARCHAR(191) NOT NULL DEFAULT '',
+                name VARCHAR(191) NOT NULL DEFAULT '',
+                md VARCHAR(5) NOT NULL DEFAULT '',
+                scope VARCHAR(20) NOT NULL DEFAULT 'internal',
+                emoji VARCHAR(16) NOT NULL DEFAULT '🎉',
+                theme VARCHAR(9) NOT NULL DEFAULT '#f3b416',
+                message VARCHAR(500) NOT NULL DEFAULT '',
+                doodle_url VARCHAR(255) NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            break;
+        case 'pgsql':
+            $pdo->exec("CREATE TABLE IF NOT EXISTS celebrations (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(191) NOT NULL DEFAULT '',
+                name VARCHAR(191) NOT NULL DEFAULT '',
+                md VARCHAR(5) NOT NULL DEFAULT '',
+                scope VARCHAR(20) NOT NULL DEFAULT 'internal',
+                emoji VARCHAR(16) NOT NULL DEFAULT '🎉',
+                theme VARCHAR(9) NOT NULL DEFAULT '#f3b416',
+                message TEXT NOT NULL DEFAULT '',
+                doodle_url VARCHAR(255) NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )");
+            break;
+        default: // sqlite — byte-identical to the original DDL
+            $pdo->exec("CREATE TABLE IF NOT EXISTS celebrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL DEFAULT '',
+                md TEXT NOT NULL DEFAULT '',
+                scope TEXT NOT NULL DEFAULT 'internal',
+                emoji TEXT NOT NULL DEFAULT '🎉',
+                theme TEXT NOT NULL DEFAULT '#f3b416',
+                message TEXT NOT NULL DEFAULT '',
+                doodle_url TEXT NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )");
+    }
 }
 
 /** All admin rows (for the Studio). */
@@ -98,11 +131,12 @@ function av_celebrations_save(PDO $pdo, array $in): int
     ];
     $id = (int) ($in['id'] ?? 0);
     if ($id > 0) {
-        $set = implode(', ', array_map(fn($k) => "$k = :$k", array_keys($f)));
+        // Quote each column ( `key` is reserved on MySQL ); placeholders stay bare.
+        $set = implode(', ', array_map(fn($k) => Database::quoteIdent($k) . " = :$k", array_keys($f)));
         $pdo->prepare("UPDATE celebrations SET $set WHERE id = :id")->execute($f + ['id' => $id]);
         return $id;
     }
-    $cols = implode(', ', array_keys($f));
+    $cols = implode(', ', array_map(fn($k) => Database::quoteIdent($k), array_keys($f)));
     $ph = implode(', ', array_map(fn($k) => ":$k", array_keys($f)));
     $pdo->prepare("INSERT INTO celebrations ($cols) VALUES ($ph)")->execute($f);
     return (int) $pdo->lastInsertId();

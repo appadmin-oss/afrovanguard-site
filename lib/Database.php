@@ -292,6 +292,14 @@ final class Database
         }
     }
 
+    /** Quote an identifier that collides with a reserved word. Only MySQL needs it
+     *  for the words this app uses (e.g. `key`); SQLite and Postgres accept them bare,
+     *  so their SQL stays byte-identical. */
+    public static function quoteIdent(string $ident): string
+    {
+        return self::driver() === 'mysql' ? "`{$ident}`" : $ident;
+    }
+
     /** Driver-correct "insert; ignore a duplicate" with positional (?) placeholders. */
     public static function insertIgnore(string $table, array $cols): string
     {
