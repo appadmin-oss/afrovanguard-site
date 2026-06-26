@@ -15,6 +15,10 @@ declare(strict_types=1);
 final class Mailer
 {
     private static ?bool $phpmailer = null;
+    private static string $lastError = '';
+
+    /** The last transport error (for the Studio "send test email" diagnostic). */
+    public static function lastError(): string { return self::$lastError; }
 
     /** True when we can at least attempt delivery (SMTP configured). */
     public static function configured(): bool
@@ -41,8 +45,9 @@ final class Mailer
     /** Send an HTML email. Returns true if handed off to a transport. */
     public static function send(string $to, string $subject, string $html, array $opt = []): bool
     {
-        if (!self::configured()) { error_log("[mail] skipped (not configured) → {$to}: {$subject}"); return false; }
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+        self::$lastError = '';
+        if (!self::configured()) { self::$lastError = 'SMTP not configured'; error_log("[mail] skipped (not configured) → {$to}: {$subject}"); return false; }
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { self::$lastError = 'Invalid recipient address'; return false; }
 
         $fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : SMTP_USERNAME;
         $fromName  = defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard';
@@ -84,12 +89,35 @@ final class Mailer
                 $m->send();
                 return true;
             } catch (\Throwable $e) {
-                error_log('[mail] PHPMailer to ' . $to . ': ' . ($m->ErrorInfo ?: $e->getMessage()));
+                self::$lastError = (string) ($m->ErrorInfo ?: $e->getMessage());
+                error_log('[mail] PHPMailer to ' . $to . ': ' . self::$lastError);
                 return false;
             }
         }
 
-        // Fallback: PHP mail()
+        // Self-contained SMTP (no PHPMailer needed). REQUIRED for authenticated
+        // submission to Gmail/Workspace on hosts without Composer — PHP mail()
+        // cannot AUTH, so Gmail silently drops it.
+        if (class_exists('Smtp') && defined('SMTP_HOST') && SMTP_HOST !== '') {
+            $cfg = [
+                'host'   => (string) SMTP_HOST,
+                'port'   => defined('SMTP_PORT') ? (int) SMTP_PORT : 587,
+                'user'   => (string) SMTP_USERNAME,
+                'pass'   => (string) SMTP_PASSWORD,
+                'verify' => !(defined('SMTP_VERIFY') && !SMTP_VERIFY),
+            ];
+            if (defined('SMTP_SECURE')) $cfg['secure'] = (string) SMTP_SECURE;
+            [$ok, $err] = Smtp::send($cfg, [
+                'from' => $fromEmail, 'fromName' => $fromName, 'to' => $to,
+                'subject' => $subject, 'html' => $html, 'text' => $alt,
+                'replyTo' => $fromEmail, 'bcc' => (string) ($opt['bcc'] ?? ''),
+            ]);
+            if ($ok) return true;
+            self::$lastError = $err;
+            error_log('[mail] SMTP to ' . $to . ': ' . $err);   // fall through to mail() as a last resort
+        }
+
+        // Last resort: PHP mail()
         $headers = 'MIME-Version: 1.0' . "\r\n"
             . 'Content-Type: text/html; charset=UTF-8' . "\r\n"
             . 'From: ' . self::encodeName($fromName) . ' <' . $fromEmail . '>' . "\r\n"

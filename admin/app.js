@@ -753,6 +753,18 @@
     });
   }
   $('#sysRefreshBtn').addEventListener('click', loadSystem);
+  if ($('#mailTestBtn')) {
+    $('#mailTestBtn').addEventListener('click', function () {
+      var btn = this, msg = $('#mailTestMsg');
+      btn.disabled = true; msg.textContent = 'Sending…'; msg.style.color = '';
+      post('mail_test', { to: $('#mailTestTo').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        msg.style.color = d.ok ? '#2ea043' : '#d22';
+        msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + ')') : ('✗ ' + (d.error || d.detail || 'Failed.'));
+      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+        .finally(function () { btn.disabled = false; });
+    });
+  }
 
   /* ---- boot ---- */
   /* ---- Diary moderation (member public-journal submissions) ---- */

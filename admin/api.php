@@ -32,7 +32,7 @@ try {
     if ($action === 'login') {
         if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
         if (!av_rate_ok('admin_login', 8, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
-        if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) json_out(['ok' => false, 'error' => 'Admin is not configured.'], 503);
+        if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) json_out(['ok' => false, 'error' => 'Admin isn’t configured. Set AV_ADMIN_TOKEN (a random string, 8+ characters) via .htaccess SetEnv or config.php, then reload.'], 503);
         $tok = (string) ($body['token'] ?? '');
         if ($tok === '' || !hash_equals((string) ADMIN_TOKEN, $tok)) json_out(['ok' => false, 'error' => 'Invalid token.'], 401);
         av_admin_cookie_issue();
@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -145,6 +145,14 @@ try {
         // ---- System / configuration health ----
         case 'sys_health':
             json_out(['ok' => true, 'groups' => Config::diagnostics()]);
+        case 'mail_test':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
+            if (!filter_var($to, FILTER_VALIDATE_EMAIL)) json_out(['ok' => false, 'error' => 'Enter a valid address (or set ADMIN_EMAIL).'], 422);
+            if (!Mailer::configured()) json_out(['ok' => false, 'error' => 'SMTP isn’t configured. Set SMTP_HOST, SMTP_USERNAME and SMTP_PASSWORD (or AV_SMTP_PASSWORD) via SetEnv or config.php.']);
+            $html = Mailer::shell('SMTP test', ['This is a test message from the Afrovanguard Studio.', 'If it reached your inbox, authenticated email delivery is working. 🎉'], null, 'Afrovanguard SMTP test');
+            $sent = Mailer::send($to, 'Afrovanguard — SMTP test', $html);
+            json_out(['ok' => $sent, 'to' => $to, 'detail' => $sent ? 'Sent — check the inbox (and spam folder).' : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error'))]);
 
         // ---- Sign-in security policy (superadmin) ----
         case 'auth_policy_get':

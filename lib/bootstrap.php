@@ -66,6 +66,17 @@ foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET'] as $k) {
 foreach (['AV_GDRIVE_SERVICE_ACCOUNT', 'AV_GDRIVE_FOLDER_ID'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
+// SMTP / email. config.php normally defines these; ALSO accept env so the
+// documented SetEnv-based setup actually works. Without them, Mailer reports
+// "not configured" and silently skips EVERY email — including sign-in codes
+// and verification links. SMTP_PASSWORD falls back to the AV_SMTP_PASSWORD
+// alias the donation config already uses.
+foreach (['SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_SECURE', 'FROM_EMAIL', 'FROM_NAME', 'ADMIN_EMAIL'] as $k) {
+    if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
+}
+if (!defined('SMTP_PASSWORD')) { $v = getenv('SMTP_PASSWORD'); if ($v === false || $v === '') $v = getenv('AV_SMTP_PASSWORD'); if ($v !== false && $v !== '') define('SMTP_PASSWORD', $v); }
+if (!defined('SMTP_VERIFY')) { $v = getenv('SMTP_VERIFY'); if ($v !== false && $v !== '') define('SMTP_VERIFY', !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true)); }
+
 // The Workspace domain whose VERIFIED accounts are recognised as real org members.
 if (!defined('AV_ORG_DOMAIN')) define('AV_ORG_DOMAIN', getenv('AV_ORG_DOMAIN') ?: 'afrovanguard.org.ng');
 
@@ -81,6 +92,7 @@ require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/Payments.php';
+require_once __DIR__ . '/Smtp.php';
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Events.php';

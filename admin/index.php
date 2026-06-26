@@ -467,6 +467,16 @@
       <button class="btn btn-outline btn-sm" id="sysRefreshBtn">Refresh</button>
     </div>
     <div id="sysHealth"></div>
+
+    <div class="side-card" style="max-width:680px;margin-top:26px">
+      <h3>Send a test email</h3>
+      <p class="muted" style="margin-top:-4px">Verify SMTP end-to-end. Sends the brand template through the configured server (Gmail/Workspace) and reports exactly what happened.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <label class="fld" style="flex:1;min-width:240px;margin:0"><span>To (defaults to ADMIN_EMAIL)</span><input id="mailTestTo" type="email" placeholder="you@example.com" /></label>
+        <button type="button" class="btn btn-primary btn-sm" id="mailTestBtn">Send test</button>
+      </div>
+      <p class="muted tiny" id="mailTestMsg" style="margin-top:10px"></p>
+    </div>
   </main>
 
   <!-- SIGN-IN (security policy + illustrations) -->
