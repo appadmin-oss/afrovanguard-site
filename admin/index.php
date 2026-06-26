@@ -22,7 +22,7 @@
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
       <button class="tab" data-tab="communities">Communities</button>
-      <button class="tab" data-tab="webhooks">Webhooks</button>
+      <button class="tab tab--sep" data-tab="webhooks">Webhooks</button>
       <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="signin">Sign-in</button>
       <button class="tab" data-tab="inbox">Inbox</button>

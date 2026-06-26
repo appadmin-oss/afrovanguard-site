@@ -107,3 +107,10 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 .at-scopes code, .at-token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .at-reveal { background: var(--code-bg, #f4f2ec); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 6px; }
 .at-token { display: block; font-size: 13px; font-weight: 700; color: var(--ink); word-break: break-all; user-select: all; }
+
+/* ---- Studio polish ---- */
+.studio-tabs .tab--sep { margin-left: 11px; position: relative; }
+.studio-tabs .tab--sep::before { content: ''; position: absolute; left: -6px; top: 50%; transform: translateY(-50%); height: 18px; width: 1px; background: rgba(255,255,255,0.16); }
+.login-card { border-top: 3px solid var(--gold); }
+.login-card h1 { font-family: var(--font-heading); letter-spacing: -0.01em; }
+.studio-tabs .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

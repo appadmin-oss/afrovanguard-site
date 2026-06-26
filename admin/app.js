@@ -43,23 +43,25 @@
   });
 
   /* ---- Tabs ---- */
+  function activateTab(which) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
+    try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
+    if (which === 'entries') { show('entries'); loadList(); }
+    else if (which === 'academy') { show('academy'); loadCourses(); }
+    else if (which === 'people') { show('people'); loadTeam(); }
+    else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
+    else if (which === 'communities') { show('communities'); loadCommunities(); }
+    else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
+    else if (which === 'system') { show('system'); loadSystem(); }
+    else if (which === 'moderation') { show('moderation'); loadModeration(); }
+    else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
+    else if (which === 'members') { show('members'); loadMembers(); }
+    else { show('inbox'); loadInbox(); }
+    var on = document.querySelector('.tab.active');
+    if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+  }
   document.querySelectorAll('.tab').forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      var which = tab.getAttribute('data-tab');
-      if (which === 'entries') { show('entries'); loadList(); }
-      else if (which === 'academy') { show('academy'); loadCourses(); }
-      else if (which === 'people') { show('people'); loadTeam(); }
-      else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
-      else if (which === 'communities') { show('communities'); loadCommunities(); }
-      else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
-      else if (which === 'system') { show('system'); loadSystem(); }
-      else if (which === 'moderation') { show('moderation'); loadModeration(); }
-      else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
-      else if (which === 'members') { show('members'); loadMembers(); }
-      else { show('inbox'); loadInbox(); }
-    });
+    tab.addEventListener('click', function () { activateTab(tab.getAttribute('data-tab')); });
   });
 
   /* ---- Auth ---- */
@@ -969,6 +971,12 @@
     });
   }
 
-  function boot() { show('entries'); loadList(); refreshModBadge(); }
+  function boot() {
+    var saved = 'entries';
+    try { saved = localStorage.getItem('av.studio.tab') || 'entries'; } catch (e) {}
+    if (!document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'entries';
+    activateTab(saved);
+    refreshModBadge();
+  }
   api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); } else show('login'); }).catch(function () { show('login'); });
 })();
