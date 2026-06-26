@@ -87,8 +87,6 @@
   <meta name="msapplication-TileColor" content="#111827" />
   <meta name="msapplication-navbutton-color" content="#f3b416" />
   <meta name="format-detection" content="telephone=no" />
-  
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
   <!-- ============================================================
        STRUCTURED DATA — JSON-LD
@@ -4845,24 +4843,56 @@
          VOLUNTEER OF THE MONTH
          ==================================================== -->
     <section class="votm-home-section" id="vanguard-tm" aria-labelledby="votm-home-h">
-    </section>
-    <script>
-    $(document).ready(function() {
-    let $iframe = $('<iframe src="about.html" style="display:none;"></iframe>').appendTo('body');
+      <div class="votm-home-confetti" id="votmHomeConfetti" aria-hidden="true"></div>
+      <div class="container">
 
-    $iframe.on('load', function() {
-        setTimeout(function() {
-            let dynamicContent = $iframe.contents().find("#vanguard-of-the-month").html();
-            
-            if (dynamicContent) {
-                $("#volunteer-spotlight").html(dynamicContent);
-            }
-            
-            $iframe.remove();
-        }, 1000);
-    });
-});
-</script>
+        <!-- loading -->
+        <div class="votm-home-state" id="votmHomeLoad">
+          <div class="votm-home-spinner"></div>
+          Loading this month’s honouree…
+        </div>
+
+        <!-- error / not-yet-announced -->
+        <div class="votm-home-state" id="votmHomeErr" style="display:none">
+          Our Volunteer of the Month will be announced soon — <a href="https://cacentre.afrovanguard.org.ng/volunteer" style="color:var(--color-gold);text-decoration:none">join the movement →</a>
+        </div>
+
+        <!-- content -->
+        <div class="votm-home-inner" id="votmHomeContent" style="display:none">
+          <!-- left · copy -->
+          <div class="votm-home-copy">
+            <span class="votm-home-eyebrow">Our people</span>
+            <div class="votm-home-month-pill">★ <span id="votmHomeMonthLabel"></span></div>
+            <h2 class="votm-home-title" id="votm-home-h">Volunteer of the <em>Month</em></h2>
+            <p class="votm-home-reason" id="votmHomeReason"></p>
+            <div class="votm-home-quote" id="votmHomeQuoteWrap" style="display:none"><p id="votmHomeQuote"></p></div>
+            <a class="votm-home-nominate" href="https://cacentre.afrovanguard.org.ng/volunteer">Nominate a volunteer →</a>
+          </div>
+          <!-- right · honouree card -->
+          <div class="votm-home-card-wrap">
+            <div class="votm-home-ring"></div><div class="votm-home-ring"></div><div class="votm-home-ring"></div>
+            <div class="votm-home-card">
+              <div class="votm-home-trophy-row">
+                <div class="votm-home-trophy-ico" aria-hidden="true">🏆</div>
+                <div class="votm-home-orbit" aria-hidden="true"><span>★</span></div>
+              </div>
+              <div class="votm-home-photo-outer">
+                <div class="votm-home-photo-ring" aria-hidden="true"></div>
+                <div class="votm-home-photo-inner" id="votmHomePhotoInner"><span class="votm-home-initials" id="votmHomeInitials"></span></div>
+              </div>
+              <div class="votm-home-card-body">
+                <span class="votm-home-card-prefix" id="votmHomePrefix"></span>
+                <h3 class="votm-home-card-name" id="votmHomeName"></h3>
+                <p class="votm-home-card-role" id="votmHomeRole"></p>
+                <div class="votm-home-divider"></div>
+                <p class="votm-home-card-contribution" id="votmHomeContrib"></p>
+                <a class="votm-home-view" id="votmHomeProfileLink" href="https://cacentre.afrovanguard.org.ng/volunteer">View profile →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
 
     <!-- ====================================================
@@ -5297,47 +5327,11 @@
       }
     }, { passive: true });
 
-    const navToggle    = document.getElementById('nav-toggle');
-    const navMobile    = document.getElementById('nav-mobile');
-    const focusableNavItems = navMobile.querySelectorAll('a, button');
-    let navOpen = false;
-
-    function openMobileNav() {
-      navOpen = true;
-      navToggle.setAttribute('aria-expanded', 'true');
-      navToggle.setAttribute('aria-label', 'Close navigation menu');
-      navMobile.classList.add('open');
-      navMobile.removeAttribute('inert');
-      focusableNavItems[0] && focusableNavItems[0].focus();
-      document.body.style.overflow = 'hidden';
-    }
-
-    function closeMobileNav() {
-      navOpen = false;
-      navToggle.setAttribute('aria-expanded', 'false');
-      navToggle.setAttribute('aria-label', 'Open navigation menu');
-      navMobile.classList.remove('open');
-      navMobile.setAttribute('inert', '');
-      navToggle.focus();
-      document.body.style.overflow = '';
-    }
-
-    navToggle.addEventListener('click', () => navOpen ? closeMobileNav() : openMobileNav());
-
-    // Focus trap
-    navMobile.addEventListener('keydown', (e) => {
-      if (!navOpen) return;
-      if (e.key === 'Escape') { closeMobileNav(); return; }
-      if (e.key === 'Tab') {
-        const first = focusableNavItems[0];
-        const last  = focusableNavItems[focusableNavItems.length - 1];
-        if (e.shiftKey) {
-          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
-        } else {
-          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
-        }
-      }
-    });
+    // NOTE: the mobile drawer (#avBurger / #avDrawer) is driven site-wide by
+    // /assets/site/nav.js (shared chrome). The old inline #nav-toggle /
+    // #nav-mobile handler was removed — those IDs no longer exist on the page,
+    // and dereferencing the missing #nav-mobile threw a TypeError that aborted
+    // the rest of this script (scroll state, VOTM, testimonials, lightbox…).
 
     // ================================================================
     // HERO: legacy stagger refs removed (cinema hero has CSS animations)
