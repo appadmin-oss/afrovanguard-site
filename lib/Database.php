@@ -289,6 +289,39 @@ final class Database
         }
     }
 
+    /**
+     * Translate the canonical SQLite DDL to another driver's dialect.
+     * SQLite returns the input UNCHANGED (the live runtime path is byte-identical
+     * — this method is only used to GENERATE db/schema.mysql.sql + schema.pgsql.sql).
+     * MySQL/Postgres output is best-effort scaffolding and MUST be validated on a
+     * live instance before switching production — see docs/db-portability.md.
+     */
+    public static function translateDDL(string $sql, ?string $driver = null): string
+    {
+        $driver = $driver ?: self::driver();
+        if ($driver === 'sqlite') return $sql;
+
+        $sql = preg_replace('/^\s*PRAGMA[^;]*;\s*$/mi', '', $sql);            // drop SQLite-only PRAGMAs
+        $sql = $driver === 'pgsql'
+            ? preg_replace('/\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b/i', 'SERIAL PRIMARY KEY', $sql)
+            : preg_replace('/\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b/i', 'INTEGER PRIMARY KEY AUTO_INCREMENT', $sql);
+        // TEXT used as a key needs a bounded type for MySQL indexes (harmless on PG).
+        $sql = preg_replace('/\bTEXT\s+PRIMARY\s+KEY\b/i', 'VARCHAR(191) PRIMARY KEY', $sql);
+        $sql = preg_replace('/\bTEXT(\s+UNIQUE)\b/i', 'VARCHAR(191)$1', $sql);
+        $sql = preg_replace("/DEFAULT\s*\(\s*datetime\('now'\)\s*\)/i", 'DEFAULT CURRENT_TIMESTAMP', $sql);
+        // A TEXT column can't carry a CURRENT_TIMESTAMP default on MySQL/Postgres —
+        // promote those created/updated columns to a real timestamp type. (Date
+        // columns without a default stay TEXT: the app stores/compares ISO strings.)
+        $ts  = $driver === 'mysql' ? 'DATETIME' : 'TIMESTAMP';
+        $sql = preg_replace('/\bTEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+CURRENT_TIMESTAMP/i', $ts . '$1 DEFAULT CURRENT_TIMESTAMP', $sql);
+
+        if ($driver === 'mysql') {
+            $sql = str_replace("\n);", "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", $sql); // FKs + unicode
+            $sql = preg_replace('/CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE INDEX', $sql); // MySQL lacks IF NOT EXISTS on indexes
+        }
+        return $sql;
+    }
+
     public static function migrate(): void
     {
         $sql = file_get_contents(AV_ROOT . '/db/schema.sql');
