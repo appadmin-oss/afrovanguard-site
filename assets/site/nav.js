@@ -50,15 +50,25 @@
     });
   });
 
-  /* ---- mega: keep aria-expanded in sync (panels open via CSS) ---- */
+  /* ---- mega: hover-intent open/close ----
+     CSS opens on :hover/:focus-within; this layers a class with a CLOSE DELAY so
+     a brief slip between the trigger and the panel (or a diagonal path to a
+     sub-item) doesn't make the menu vanish. Re-entering cancels the pending
+     close. Keyboard: focus opens, Escape closes. */
   document.querySelectorAll('.nav-links .has-mega').forEach(function (li) {
     var link = li.querySelector(':scope > a');
     if (!link) return;
-    var sync = function (state) { link.setAttribute('aria-expanded', String(state)); };
-    li.addEventListener('mouseenter', function () { sync(true); });
-    li.addEventListener('mouseleave', function () { sync(false); });
-    li.addEventListener('focusin', function () { sync(true); });
-    li.addEventListener('focusout', function () { if (!li.contains(document.activeElement)) sync(false); });
+    var closeT = null;
+    var open = function () { clearTimeout(closeT); li.classList.add('is-open'); link.setAttribute('aria-expanded', 'true'); };
+    var close = function (immediate) {
+      clearTimeout(closeT);
+      closeT = setTimeout(function () { li.classList.remove('is-open'); link.setAttribute('aria-expanded', 'false'); }, immediate ? 0 : 260);
+    };
+    li.addEventListener('mouseenter', open);
+    li.addEventListener('mouseleave', function () { close(false); });
+    li.addEventListener('focusin', open);
+    li.addEventListener('focusout', function () { if (!li.contains(document.activeElement)) close(true); });
+    li.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(true); link.focus(); } });
   });
 
   /* ---- Auth-aware chrome (site-wide) ----

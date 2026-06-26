@@ -25,16 +25,21 @@ html[data-theme="dark"] {
 .nav-links .has-mega > a { display: inline-flex; align-items: center; gap: 4px; }
 .nav-links .has-mega > a .chev { width: 15px; height: 15px; margin-left: 1px; opacity: .65; transition: transform .3s ease; }
 .nav-links .has-mega:hover > a .chev,
-.nav-links .has-mega:focus-within > a .chev { transform: rotate(180deg); }
+.nav-links .has-mega:focus-within > a .chev,
+.nav-links .has-mega.is-open > a .chev { transform: rotate(180deg); }
 
 .mega {
-  position: absolute; left: 0; right: 0; top: calc(100% + 12px); z-index: 60;
+  /* top:100% + transparent padding-top = a contiguous hover BRIDGE across the
+     visual 12px gap, so moving the cursor from the trigger onto the panel never
+     drops :hover (the classic "menu vanishes before you reach it" bug). */
+  position: absolute; left: 0; right: 0; top: 100%; padding-top: 12px; z-index: 60;
   opacity: 0; visibility: hidden; transform: translateY(-10px);
   transition: opacity .26s ease, transform .26s cubic-bezier(.22,1,.36,1), visibility .26s;
   pointer-events: none;
 }
 .nav-links .has-mega:hover .mega,
-.nav-links .has-mega:focus-within .mega {
+.nav-links .has-mega:focus-within .mega,
+.nav-links .has-mega.is-open .mega {
   opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto;
 }
 .mega-inner {

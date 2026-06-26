@@ -1,0 +1,24 @@
+# ============================================================================
+#  STS CEO API — Apache hardening TEMPLATE  (.htaccess.example)
+# ----------------------------------------------------------------------------
+#  The live `.htaccess` is gitignored, so this tracked template is the source
+#  of truth. MERGE these rules into the real `.htaccess` for this directory.
+#  The .php endpoints (ai.php, submit.php, subscribe.php, reservations.php)
+#  stay reachable; only data/config/secrets are denied.
+#
+#  Best practice: also set STS_DATA_DIR to a path OUTSIDE the web root so the
+#  data files are never served regardless of .htaccess support (Nginx ignores it).
+#
+#  Verify after deploy:
+#    curl -I https://afrovanguard.org.ng/projects/sts/ceo/api/data/submissions.json  # 403/404
+# ============================================================================
+
+Options -Indexes
+
+# Deny config, example files, and any JSON / rate-limit state (incl. data/*.json).
+<FilesMatch "(?i)(^config\.php$|\.example\.php$|\.(json|rl)$)">
+  Require all denied
+</FilesMatch>
+
+# Deny the on-disk data directory outright (defence-in-depth alongside STS_DATA_DIR).
+RedirectMatch 404 (?i)/projects/sts/ceo/api/data/
