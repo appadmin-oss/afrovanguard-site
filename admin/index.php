@@ -23,6 +23,7 @@
       <button class="tab" data-tab="celebrations">Celebrations</button>
       <button class="tab" data-tab="communities">Communities</button>
       <button class="tab" data-tab="webhooks">Webhooks</button>
+      <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="signin">Sign-in</button>
       <button class="tab" data-tab="inbox">Inbox</button>
     </nav>
@@ -441,6 +442,15 @@
         </div>
       </aside>
     </form>
+  </main>
+
+  <!-- SYSTEM / HEALTH (configuration & integration status) -->
+  <main class="studio-main" id="systemView" hidden>
+    <div class="studio-head">
+      <div><h1>System</h1><p class="muted">Configuration &amp; integration health — <b style="color:#2ea043">green</b> ready · <b style="color:#e0a106">amber</b> optional/degraded · <b style="color:#d22">red</b> needs attention.</p></div>
+      <button class="btn btn-outline btn-sm" id="sysRefreshBtn">Refresh</button>
+    </div>
+    <div id="sysHealth"></div>
   </main>
 
   <!-- SIGN-IN ILLUSTRATIONS (admin-managed + schedulable) -->

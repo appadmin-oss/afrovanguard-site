@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), signin: $('#signinView'), members: $('#membersView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -54,6 +54,7 @@
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
       else if (which === 'communities') { show('communities'); loadCommunities(); }
       else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); }
+      else if (which === 'system') { show('system'); loadSystem(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
       else if (which === 'signin') { show('signin'); loadArt(); }
       else if (which === 'members') { show('members'); loadMembers(); }
@@ -677,6 +678,25 @@
     if (!editingWh || !confirm('Delete this endpoint and its delivery log?')) return;
     post('wh_delete', { id: editingWh }).then(function () { toast('Deleted.'); show('webhooks'); loadWebhooks(); });
   });
+
+  /* ---- System / Health ---- */
+  function loadSystem() {
+    var box = $('#sysHealth'); box.innerHTML = '<p class="muted">Checking…</p>';
+    var dot = { ok: '#2ea043', warn: '#e0a106', off: '#d22', info: '#8a93a3' };
+    api('sys_health').then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      box.innerHTML = (r.data.groups || []).map(function (g) {
+        return '<div style="margin:0 0 22px"><h2 style="font-family:var(--font-heading);font-size:20px;margin:0 0 8px">' + escapeHtml(g.group) + '</h2>' +
+          (g.checks || []).map(function (c) {
+            return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.15)">' +
+              '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (dot[c.state] || '#8a93a3') + '"></span>' +
+              '<span style="font-weight:600;flex:0 0 230px">' + escapeHtml(c.label) + '</span>' +
+              '<span style="color:#8a93a3;font-size:13px">' + escapeHtml(c.detail || '') + '</span></div>';
+          }).join('') + '</div>';
+      }).join('');
+    });
+  }
+  $('#sysRefreshBtn').addEventListener('click', loadSystem);
 
   /* ---- boot ---- */
   /* ---- Diary moderation (member public-journal submissions) ---- */

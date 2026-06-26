@@ -128,6 +128,10 @@ try {
             Webhooks::endpointDelete((int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
 
+        // ---- System / configuration health ----
+        case 'sys_health':
+            json_out(['ok' => true, 'groups' => Config::diagnostics()]);
+
         // ---- Sign-in illustrations (admin-managed + schedulable) ----
         case 'art_list':
             json_out(['ok' => true, 'art' => av_auth_art_all(Database::pdo()), 'today' => array_map(fn($r) => (int) $r['id'], av_auth_art_active_today(Database::pdo()))]);
