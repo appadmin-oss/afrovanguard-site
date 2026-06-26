@@ -196,14 +196,12 @@ render_head([
 <?php endif; ?>
         </section>
 
-<?php if ($isOrg): ?>
-        <!-- Mentorship — members only; not shown to learners at all -->
+        <!-- Mentorship — find a mentor (everyone); members can also mentor -->
         <section class="portal-card accent-green">
-          <div class="pc-head"><h2>Mentorship</h2><span class="pc-tag">Active</span></div>
-          <p>You’re connected to the Afrovanguard mentor network.<?= $canMentor ? ' As a mentor, your mentees and sessions will appear here.' : ' Your mentor and upcoming sessions will appear here.' ?></p>
-          <a class="btn btn-primary btn-sm" href="mailto:cacentre@afrovanguard.org.ng?subject=Mentorship">Reach the mentorship team</a>
+          <div class="pc-head"><h2>Mentorship</h2><span class="pc-tag"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
+          <p><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others.' : 'Get paired with an Afrovanguard mentor for guidance on your journey.' ?></p>
+          <a class="btn btn-primary btn-sm" href="/mentorship/">Open the mentor network →</a>
         </section>
-<?php endif; ?>
 
         <!-- Status & profile -->
         <section class="portal-card">
