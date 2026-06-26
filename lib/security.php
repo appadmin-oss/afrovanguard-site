@@ -72,6 +72,26 @@ function send_security_headers(string $page = 'public'): void {
     if (av_is_prod()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 }
 
+/**
+ * Fire a domain event from anywhere — including the standalone donation/contact
+ * handlers that only load this file (not the full bootstrap). Lazy-loads JUST the
+ * event/webhook/DB classes (no global functions ⇒ no redeclare risk on the money
+ * path) and is fully guarded, so emitting can never break the caller.
+ */
+function av_emit_event(string $event, array $payload = []): void
+{
+    try {
+        if (!defined('AV_ROOT'))    define('AV_ROOT', dirname(__DIR__));
+        if (!defined('AV_DB_PATH')) define('AV_DB_PATH', AV_ROOT . '/db/diary.sqlite');
+        if (!class_exists('Database')) require_once AV_ROOT . '/lib/Database.php';
+        if (!class_exists('Events'))   require_once AV_ROOT . '/lib/Events.php';
+        if (!class_exists('Webhooks')) require_once AV_ROOT . '/lib/Webhooks.php';
+        Events::emit($event, $payload);
+    } catch (Throwable $e) {
+        error_log('[events] emit ' . $event . ' failed: ' . $e->getMessage());
+    }
+}
+
 /* ── HMAC CSRF tokens (stateless) ─────────────────────────────── */
 function av_csrf_token(int $ttl = 7200): string {
     $secret = av_secret(); if ($secret === '') return '';

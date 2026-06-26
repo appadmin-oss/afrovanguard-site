@@ -179,6 +179,13 @@ function storeDonationIfNew(string $ref, array $entry, float $amount, string $ca
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     ftruncate($fp, 0); rewind($fp); fwrite($fp, $json); fflush($fp);
     flock($fp, LOCK_UN); fclose($fp);
+    // Fire once per unique donation (idempotent by reference). Best-effort.
+    if (function_exists('av_emit_event')) {
+        av_emit_event('donation.completed', [
+            'reference' => $ref, 'amount' => $amount, 'currency' => $currency, 'campaign' => $campaign,
+            'name' => (string) ($entry['name'] ?? ''), 'email' => (string) ($entry['email'] ?? ''),
+        ]);
+    }
     return true;
 }
 

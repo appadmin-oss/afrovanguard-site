@@ -559,6 +559,9 @@ if ($action === 'submit_contact') {
     }
 
     /* 13. Respond ───────────────────────────────────────────── */
+    if (function_exists('av_emit_event')) {
+        av_emit_event('contact.received', ['reference' => $ref, 'name' => $name, 'email' => $email, 'purpose' => $purpose, 'subject' => $subject]);
+    }
     echo json_encode([
         'success'   => true,
         'message'   => "Thank you {$name}! Your message has been received. We'll reply within 24–48 hours.",

@@ -182,6 +182,10 @@ final class DiaryRepository
 
             $this->db->commit();
         } catch (Throwable $ex) { $this->db->rollBack(); throw $ex; }
+        if (($d['status'] ?? '') === 'published' && class_exists('Events')) {
+            Events::emit('diary.published', ['slug' => $slug, 'title' => (string) ($d['title'] ?? ''),
+                'url' => function_exists('diary_url') ? diary_url($slug . '/') : $slug]);
+        }
         return $slug;
     }
 

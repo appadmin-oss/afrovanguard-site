@@ -57,6 +57,7 @@ final class LmsAuth
         $id = (int) $db->lastInsertId();
         $full = self::byId($id);
         if ($full) self::sendVerification($full);
+        if (class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => $name, 'role' => $role, 'via' => 'register']);
         return ['ok' => true, 'verify_required' => true, 'email' => $email,
                 'message' => 'Account created. Check your inbox for a link to verify your email and finish signing in.'];
     }
@@ -148,6 +149,7 @@ final class LmsAuth
                ->execute([$display, $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role, $emailVerified ? 1 : 0]);
             $u = self::byEmail($email);
             if ($u && class_exists('Notify')) Notify::welcome($u);
+            if ($u && class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => (string) $u['name'], 'role' => (string) $u['role'], 'via' => $provider]);
         } else {
             if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
             // A successful OAuth sign-in proves email ownership — clear any pending verification.

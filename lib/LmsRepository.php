@@ -59,7 +59,9 @@ final class LmsRepository
     }
     public function enrol(int $userId, int $courseId): void
     {
-        $this->db->prepare(Database::insertIgnore('course_enrolment', ['user_id', 'course_id']))->execute([$userId, $courseId]);
+        $st = $this->db->prepare(Database::insertIgnore('course_enrolment', ['user_id', 'course_id']));
+        $st->execute([$userId, $courseId]);
+        if ($st->rowCount() > 0 && class_exists('Events')) Events::emit('enrollment.created', ['user_id' => $userId, 'course_id' => $courseId]);
     }
 
     /** A learner's enrolled courses with progress + certificate state (for the portal). */
@@ -436,7 +438,9 @@ final class LmsRepository
         if ($ex->fetchColumn()) return ['ok' => false, 'error' => 'An account with that email already exists.'];
         $this->db->prepare("INSERT INTO lms_users (name, email, password_hash, role) VALUES (?,?,?,?)")
             ->execute([$name !== '' ? $name : ucfirst(explode('@', $email)[0]), $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), $role]);
-        return ['ok' => true, 'id' => (int) $this->db->lastInsertId()];
+        $newId = (int) $this->db->lastInsertId();
+        if (class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => $name, 'role' => $role, 'via' => 'admin']);
+        return ['ok' => true, 'id' => $newId];
     }
 
     public function certificateBySerial(string $serial): ?array

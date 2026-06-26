@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -114,6 +114,18 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/workspace.php';
             av_communities_delete(Database::pdo(), (int) ($body['id'] ?? 0));
+            json_out(['ok' => true]);
+
+        // ---- Webhooks (outbound integrations) ----
+        case 'wh_list':
+            json_out(['ok' => true, 'endpoints' => Webhooks::endpointsAll(), 'deliveries' => Webhooks::recentDeliveries(25), 'events' => Events::catalog()]);
+        case 'wh_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!preg_match('#^https?://[^\s]+$#i', trim((string) ($body['url'] ?? '')))) json_out(['ok' => false, 'error' => 'A valid http(s):// URL is required.'], 422);
+            json_out(['ok' => true, 'id' => Webhooks::endpointSave($body)]);
+        case 'wh_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            Webhooks::endpointDelete((int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
 
         // ---- Sign-in illustrations (admin-managed + schedulable) ----

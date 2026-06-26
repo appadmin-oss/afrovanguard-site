@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), signin: $('#signinView'), members: $('#membersView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), signin: $('#signinView'), members: $('#membersView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -53,6 +53,7 @@
       else if (which === 'people') { show('people'); loadTeam(); }
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
       else if (which === 'communities') { show('communities'); loadCommunities(); }
+      else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
       else if (which === 'signin') { show('signin'); loadArt(); }
       else if (which === 'members') { show('members'); loadMembers(); }
@@ -605,6 +606,76 @@
   $('#commDeleteBtn').addEventListener('click', function () {
     if (!editingComm || !confirm('Delete this community?')) return;
     post('comm_delete', { id: editingComm }).then(function () { toast('Deleted.'); show('communities'); loadCommunities(); });
+  });
+
+  /* ---- Webhooks (outbound integrations) ---- */
+  var whCatalog = {};
+  function loadWebhooks() {
+    var box = $('#whList'), dlv = $('#whDeliveries');
+    box.innerHTML = '<p class="muted">Loading…</p>'; dlv.innerHTML = '';
+    api('wh_list').then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      whCatalog = r.data.events || {};
+      var eps = r.data.endpoints || [];
+      box.innerHTML = eps.length ? eps.map(function (e) {
+        var ev = (e.events === '*' || !e.events) ? 'all events' : escapeHtml(e.events);
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(e.url) +
+          (parseInt(e.enabled, 10) ? '' : ' <span class="badge draft">Off</span>') + '</div>' +
+          '<div class="entry-meta">' + ev + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-whedit="' + e.id + '">Edit</button></div></div>';
+      }).join('') : '<p class="muted">No endpoints yet. Add one to start sending signed events.</p>';
+      var ds = r.data.deliveries || [];
+      dlv.innerHTML = ds.length ? ds.map(function (d) {
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(d.event) +
+          ' <span class="badge ' + (d.status === 'success' ? '' : 'draft') + '">' + escapeHtml(d.status) + '</span></div>' +
+          '<div class="entry-meta">#' + d.id + ' · ' + d.attempts + ' attempt(s) · HTTP ' + (d.last_code || '—') +
+          (d.last_error ? ' · ' + escapeHtml(d.last_error) : '') + ' · ' + escapeHtml(d.updated_at) + '</div></div></div>';
+      }).join('') : '<p class="muted">No deliveries yet.</p>';
+    });
+  }
+  $('#whList').addEventListener('click', function (e) { var b = e.target.closest('[data-whedit]'); if (b) openWh(+b.getAttribute('data-whedit')); });
+  $('#newWhBtn').addEventListener('click', function () { openWh(null); });
+  $('#whBackBtn').addEventListener('click', function () { show('webhooks'); loadWebhooks(); });
+  var editingWh = null;
+  function renderWhEvents(selected) {
+    var all = selected === '*' || !selected;
+    var sel = all ? [] : String(selected).split(',').map(function (s) { return s.trim(); });
+    var html = '<label class="wh-ev" style="display:block;margin:6px 0"><input type="checkbox" id="w_ev_all" ' + (all ? 'checked' : '') + '> <b>All events (*)</b></label>';
+    Object.keys(whCatalog).forEach(function (k) {
+      html += '<label class="wh-ev" style="display:block;margin:6px 0"><input type="checkbox" class="w-ev" value="' + escapeHtml(k) + '" ' +
+        (sel.indexOf(k) >= 0 ? 'checked' : '') + (all ? ' disabled' : '') + '> ' + escapeHtml(k) +
+        ' <span class="muted">— ' + escapeHtml(whCatalog[k]) + '</span></label>';
+    });
+    $('#w_events').innerHTML = html;
+    $('#w_ev_all').addEventListener('change', function () {
+      document.querySelectorAll('.w-ev').forEach(function (c) { c.disabled = $('#w_ev_all').checked; });
+    });
+  }
+  function openWh(id) {
+    editingWh = id; $('#whForm').reset(); $('#w_enabled').checked = true; $('#w_secret').value = '';
+    $('#whDeleteBtn').hidden = !id; show('whEdit');
+    if (!id) { renderWhEvents('*'); return; }
+    api('wh_list').then(function (r) {
+      whCatalog = r.data.events || whCatalog;
+      var e = (r.data.endpoints || []).filter(function (x) { return +x.id === id; })[0]; if (!e) return;
+      $('#w_url').value = e.url || ''; $('#w_secret').value = e.secret || ''; $('#w_enabled').checked = parseInt(e.enabled, 10) !== 0;
+      renderWhEvents(e.events || '*');
+    });
+  }
+  $('#whSaveBtn').addEventListener('click', function () {
+    var url = $('#w_url').value.trim();
+    if (!/^https?:\/\//i.test(url)) { toast('A valid http(s):// URL is required.'); return; }
+    var events = '*';
+    if (!$('#w_ev_all') || !$('#w_ev_all').checked) {
+      var picked = Array.prototype.map.call(document.querySelectorAll('.w-ev:checked'), function (c) { return c.value; });
+      events = picked.length ? picked.join(',') : '*';
+    }
+    post('wh_save', { id: editingWh || 0, url: url, secret: $('#w_secret').value.trim(), events: events, enabled: $('#w_enabled').checked })
+      .then(function (r) { if (r.data && r.data.ok) { toast('Saved.'); show('webhooks'); loadWebhooks(); } else toast((r.data && r.data.error) || 'Could not save.'); });
+  });
+  $('#whDeleteBtn').addEventListener('click', function () {
+    if (!editingWh || !confirm('Delete this endpoint and its delivery log?')) return;
+    post('wh_delete', { id: editingWh }).then(function () { toast('Deleted.'); show('webhooks'); loadWebhooks(); });
   });
 
   /* ---- boot ---- */

@@ -22,6 +22,7 @@
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
       <button class="tab" data-tab="communities">Communities</button>
+      <button class="tab" data-tab="webhooks">Webhooks</button>
       <button class="tab" data-tab="signin">Sign-in</button>
       <button class="tab" data-tab="inbox">Inbox</button>
     </nav>
@@ -401,6 +402,42 @@
           <h3>Display</h3>
           <label class="fld"><span>Sort order</span><input id="m_sort" type="number" value="0" /></label>
           <label class="fld checkbox"><input type="checkbox" id="m_enabled" checked /> <span>Shown to members</span></label>
+        </div>
+      </aside>
+    </form>
+  </main>
+
+  <!-- WEBHOOKS (outbound integrations) -->
+  <main class="studio-main" id="webhooksView" hidden>
+    <div class="studio-head">
+      <div><h1>Webhooks</h1><p class="muted">POST signed JSON to external systems when things happen on the site. Deliveries retry automatically (cron: <code>db/webhooks_run.php</code>).</p></div>
+      <button class="btn btn-primary" id="newWhBtn">+ Add endpoint</button>
+    </div>
+    <div class="entry-list" id="whList"></div>
+    <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Recent deliveries</h2>
+    <div class="entry-list" id="whDeliveries"></div>
+  </main>
+
+  <!-- WEBHOOK EDITOR -->
+  <main class="studio-main" id="whEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="whBackBtn">← All webhooks</button>
+      <div class="editor-actions">
+        <button class="btn btn-outline btn-sm" id="whDeleteBtn" hidden>Delete</button>
+        <button class="btn btn-primary btn-sm" id="whSaveBtn">Save</button>
+      </div>
+    </div>
+    <form id="whForm" class="editor-grid">
+      <div class="editor-main">
+        <label class="fld"><span>Payload URL (https://)</span><input id="w_url" type="url" placeholder="https://example.com/hooks/afrovanguard" required /></label>
+        <div class="fld"><span>Events</span><div id="w_events" class="wh-events"></div></div>
+        <p class="muted tiny">Each POST is signed: <code>X-AV-Signature: sha256=HMAC_SHA256(timestamp + "." + body, secret)</code>, with <code>X-AV-Timestamp</code> &amp; <code>X-AV-Event</code>. Verify on your receiver.</p>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>Settings</h3>
+          <label class="fld"><span>Signing secret</span><input id="w_secret" placeholder="(auto-generated if left blank)" /></label>
+          <label class="fld checkbox"><input type="checkbox" id="w_enabled" checked /> <span>Enabled</span></label>
         </div>
       </aside>
     </form>
