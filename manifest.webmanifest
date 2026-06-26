@@ -1,0 +1,24 @@
+{
+  "name": "Afrovanguard",
+  "short_name": "Afrovanguard",
+  "description": "Your Afrovanguard portal — learning, community and mentorship for the movement.",
+  "id": "/portal/",
+  "start_url": "/portal/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B1120",
+  "theme_color": "#0B1120",
+  "lang": "en-NG",
+  "categories": ["education", "social", "productivity"],
+  "icons": [
+    { "src": "/assets/site/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/site/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/site/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Community", "url": "/community/", "icons": [{ "src": "/assets/site/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mentorship", "url": "/mentorship/" },
+    { "name": "The Diary", "url": "/diary/" }
+  ]
+}

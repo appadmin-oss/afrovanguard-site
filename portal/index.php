@@ -43,6 +43,7 @@ render_head([
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page' . ($ptheme === 'light' ? ' is-light' : ''),
     'css'        => ['/portal/portal.css'],
+    'manifest'   => '/manifest.webmanifest',
 ]);
 ?>
   <header class="portal-bar">
@@ -242,6 +243,29 @@ render_head([
       var light = document.body.classList.toggle('is-light');
       document.cookie = 'av_portal_theme=' + (light ? 'light' : 'dark') + ';path=/;max-age=31536000;samesite=Lax';
     });
+  })();
+  </script>
+  <script>
+  /* PWA — register the service worker and offer an install button. */
+  (function () {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+    }
+    var deferred = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault(); deferred = e;
+      var b = document.createElement('button');
+      b.type = 'button'; b.id = 'pwaInstall';
+      b.textContent = '⤓ Install the app';
+      b.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:300;background:#f3b416;color:#111827;border:0;border-radius:9999px;padding:13px 22px;font:700 14px/1 Montserrat,sans-serif;box-shadow:0 12px 30px rgba(0,0,0,.35);cursor:pointer';
+      b.addEventListener('click', function () {
+        b.remove();
+        if (!deferred) return;
+        deferred.prompt(); deferred.userChoice.finally(function () { deferred = null; });
+      });
+      document.body.appendChild(b);
+    });
+    window.addEventListener('appinstalled', function () { var b = document.getElementById('pwaInstall'); if (b) b.remove(); });
   })();
   </script>
   <script src="/assets/site/nav.js" defer></script>
