@@ -46,8 +46,8 @@ final class LmsRepository
 
     public function isMember(int $userId): bool
     {
-        $s = $this->db->prepare("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > datetime('now')) LIMIT 1");
-        $s->execute([$userId]);
+        $s = $this->db->prepare("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > ?) LIMIT 1");
+        $s->execute([$userId, gmdate('Y-m-d H:i:s')]);
         return (bool) $s->fetchColumn();
     }
 
@@ -59,7 +59,7 @@ final class LmsRepository
     }
     public function enrol(int $userId, int $courseId): void
     {
-        $this->db->prepare('INSERT OR IGNORE INTO course_enrolment (user_id, course_id) VALUES (?,?)')->execute([$userId, $courseId]);
+        $this->db->prepare(Database::insertIgnore('course_enrolment', ['user_id', 'course_id']))->execute([$userId, $courseId]);
     }
 
     /** A learner's enrolled courses with progress + certificate state (for the portal). */
@@ -125,7 +125,7 @@ final class LmsRepository
 
     public function markComplete(int $userId, array $lesson): void
     {
-        $this->db->prepare('INSERT OR IGNORE INTO lesson_progress (user_id, lesson_id, course_id) VALUES (?,?,?)')
+        $this->db->prepare(Database::insertIgnore('lesson_progress', ['user_id', 'lesson_id', 'course_id']))
             ->execute([$userId, (int) $lesson['id'], (int) $lesson['course_id']]);
     }
     public function unmark(int $userId, int $lessonId): void
@@ -203,7 +203,7 @@ final class LmsRepository
         $cur = $this->getCertificate($userId, $courseId);
         if ($cur) return $cur;
         $serial = 'AV-' . strtoupper(substr(md5($userId . ':' . $courseId . ':' . microtime()), 0, 4)) . '-' . date('Y') . '-' . str_pad((string) $courseId, 3, '0', STR_PAD_LEFT) . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
-        $this->db->prepare('INSERT OR IGNORE INTO certificates (user_id, course_id, serial) VALUES (?,?,?)')->execute([$userId, $courseId, $serial]);
+        $this->db->prepare(Database::insertIgnore('certificates', ['user_id', 'course_id', 'serial']))->execute([$userId, $courseId, $serial]);
         return $this->getCertificate($userId, $courseId);
     }
     public function getCertificate(int $userId, int $courseId): ?array
@@ -228,7 +228,7 @@ final class LmsRepository
         $p = $this->paymentByRef($reference);
         if (!$p) return false;
         if ($p['status'] === 'paid') return true;       // already granted
-        $this->db->prepare("UPDATE payments SET status='paid', paid_at=datetime('now') WHERE reference=?")->execute([$reference]);
+        $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=?")->execute([gmdate('Y-m-d H:i:s'), $reference]);
         $user = $this->userRow((int) $p['user_id']);
         if ($p['kind'] === 'course' && $p['course_id']) {
             $this->enrol((int) $p['user_id'], (int) $p['course_id']);
@@ -338,10 +338,14 @@ final class LmsRepository
 
     /* ── Member administration (Studio) ── */
 
-    /** Lazily ensure the lightweight admin audit trail exists. */
+    /** Lazily ensure the lightweight admin audit trail exists. SQLite auto-creates
+     *  it; on MySQL/Postgres the table is provisioned from the schema files, so the
+     *  SQLite-only DDL is skipped there. */
     public function ensureAudit(): void
     {
         static $done = false; if ($done) return;
+        $done = true;
+        if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return;
         $this->db->exec(
             "CREATE TABLE IF NOT EXISTS lms_audit (
                id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -352,12 +356,17 @@ final class LmsRepository
                created_at TEXT NOT NULL DEFAULT (datetime('now'))
              );"
         );
-        $done = true;
     }
     public function audit(string $action, string $target = '', string $detail = ''): void
     {
         $this->ensureAudit();
-        $this->db->prepare("INSERT INTO lms_audit (action, target, detail) VALUES (?,?,?)")->execute([$action, $target, $detail]);
+        // Best-effort: a missing audit table (e.g. not yet provisioned on a
+        // non-SQLite target) must never break the admin action it records.
+        try {
+            $this->db->prepare("INSERT INTO lms_audit (action, target, detail) VALUES (?,?,?)")->execute([$action, $target, $detail]);
+        } catch (Throwable $e) {
+            error_log('[lms] audit write skipped: ' . $e->getMessage());
+        }
     }
     public function recentAudit(int $limit = 40): array
     {

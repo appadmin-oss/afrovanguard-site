@@ -25,6 +25,7 @@ function av_tier_label(string $t): string { return AV_TIER_LABELS[$t] ?? ucfirst
 /** Create the team table if missing (idempotent; safe on deployed DBs). */
 function av_team_ensure(PDO $pdo): void
 {
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return; // provisioned out-of-band on MySQL/Postgres
     $pdo->exec("CREATE TABLE IF NOT EXISTS team (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,

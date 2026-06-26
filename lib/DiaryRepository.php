@@ -169,7 +169,7 @@ final class DiaryRepository
                 $ph = implode(', ', array_map(fn($k) => ":$k", array_keys($fields)));
                 $this->db->prepare("INSERT INTO articles ($cols) VALUES ($ph)")->execute($fields);
                 $id = (int) $this->db->lastInsertId();
-                $this->db->prepare('INSERT OR IGNORE INTO reactions (article_id, claps) VALUES (?, 0)')->execute([$id]);
+                $this->db->prepare(Database::insertIgnore('reactions', ['article_id', 'claps']))->execute([$id, 0]);
             }
             // Replace sections + related
             $this->db->prepare('DELETE FROM sections WHERE article_id = ?')->execute([$id]);
@@ -220,10 +220,16 @@ final class DiaryRepository
         $aid = $id->fetchColumn();
         if ($aid === false) return 0;
 
-        $this->db->prepare(
-            'INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, datetime(\'now\'))
-             ON CONFLICT(article_id) DO UPDATE SET claps = claps + excluded.claps, updated_at = datetime(\'now\')'
-        )->execute([$aid, $n]);
+        // Upsert applause. SQLite/Postgres use ON CONFLICT; MySQL uses its
+        // ON DUPLICATE KEY UPDATE form. nowExpr() keeps the timestamp portable
+        // (reactions.updated_at is a real DATETIME/TIMESTAMP on MySQL/Postgres).
+        $now = Database::nowExpr();
+        $sql = Database::driver() === 'mysql'
+            ? "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
+               ON DUPLICATE KEY UPDATE claps = claps + VALUES(claps), updated_at = {$now}"
+            : "INSERT INTO reactions (article_id, claps, updated_at) VALUES (?, ?, {$now})
+               ON CONFLICT(article_id) DO UPDATE SET claps = claps + excluded.claps, updated_at = {$now}";
+        $this->db->prepare($sql)->execute([$aid, $n]);
 
         return $this->claps($slug);
     }

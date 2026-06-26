@@ -91,8 +91,10 @@ final class LmsAuth
     {
         if (!preg_match('/^[a-f0-9]{64}$/', $token)) return null;
         $db = Database::pdo();
-        $st = $db->prepare("SELECT * FROM lms_users WHERE verify_hash = ? AND verify_expires > datetime('now')");
-        $st->execute([hash('sha256', $token)]);
+        // Bind UTC now (== SQLite datetime('now')) so the TEXT comparison is
+        // identical on SQLite and portable to MySQL/Postgres (text vs text).
+        $st = $db->prepare('SELECT * FROM lms_users WHERE verify_hash = ? AND verify_expires > ?');
+        $st->execute([hash('sha256', $token), gmdate('Y-m-d H:i:s')]);
         $u = $st->fetch();
         if (!$u) return null;
         $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
@@ -120,7 +122,7 @@ final class LmsAuth
             return ['ok' => false, 'verify_required' => true, 'email' => $u['email'],
                     'error' => 'Please verify your email first — we sent you a link when you signed up. Check your inbox, or request a new one.'];
         }
-        Database::pdo()->prepare('UPDATE lms_users SET last_login = datetime(\'now\') WHERE id = ?')->execute([$u['id']]);
+        Database::pdo()->prepare('UPDATE lms_users SET last_login = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s'), $u['id']]);
         self::startSession((int) $u['id']);
         return ['ok' => true, 'user' => self::publicUser($u)];
     }
@@ -158,7 +160,7 @@ final class LmsAuth
             }
         }
         if (!$u) return ['ok' => false, 'error' => 'Could not complete sign-in. Please try again.'];
-        $db->prepare('UPDATE lms_users SET last_login = datetime(\'now\') WHERE id = ?')->execute([$u['id']]);
+        $db->prepare('UPDATE lms_users SET last_login = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s'), $u['id']]);
         self::startSession((int) $u['id']);
         return ['ok' => true, 'user' => self::publicUser($u)];
     }
@@ -181,9 +183,9 @@ final class LmsAuth
         if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) return self::$cache = null;
         $st = Database::pdo()->prepare(
             'SELECT u.* FROM lms_sessions s JOIN lms_users u ON u.id = s.user_id
-             WHERE s.token_hash = ? AND s.expires_at > datetime(\'now\') AND u.status = \'active\''
+             WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = \'active\''
         );
-        $st->execute([hash('sha256', $tok)]);
+        $st->execute([hash('sha256', $tok), gmdate('Y-m-d H:i:s')]);
         $u = $st->fetch();
         return self::$cache = ($u ?: null);
     }

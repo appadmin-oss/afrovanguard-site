@@ -115,21 +115,36 @@ final class Database
         if (!self::columnExists('lms_users', 'verify_expires')) self::$pdo->exec("ALTER TABLE lms_users ADD COLUMN verify_expires TEXT");
     }
 
-    /* ── Small key/value store for one-time migrations/flags ── */
+    /* ── Small key/value store for one-time migrations/flags ──
+       `key` is a reserved word in MySQL, so it is back-quoted there; SQLite and
+       Postgres accept it bare. The SQLite statements stay byte-identical. */
     private static function ensureMeta(): void
     {
-        self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+        switch (self::driver()) {
+            case 'mysql':
+                self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (`key` VARCHAR(191) PRIMARY KEY, value TEXT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+                break;
+            case 'pgsql':
+                self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key VARCHAR(191) PRIMARY KEY, value TEXT)');
+                break;
+            default:
+                self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+        }
     }
     public static function metaGet(string $k): ?string
     {
         self::ensureMeta();
-        $s = self::$pdo->prepare('SELECT value FROM app_meta WHERE key = ?'); $s->execute([$k]);
+        $key = self::driver() === 'mysql' ? '`key`' : 'key';
+        $s = self::$pdo->prepare("SELECT value FROM app_meta WHERE {$key} = ?"); $s->execute([$k]);
         $v = $s->fetchColumn(); return $v === false ? null : (string) $v;
     }
     public static function metaSet(string $k, string $v): void
     {
         self::ensureMeta();
-        self::$pdo->prepare('INSERT INTO app_meta (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')->execute([$k, $v]);
+        $sql = self::driver() === 'mysql'
+            ? 'INSERT INTO app_meta (`key`, value) VALUES (?,?) ON DUPLICATE KEY UPDATE value = VALUES(value)'
+            : 'INSERT INTO app_meta (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value';
+        self::$pdo->prepare($sql)->execute([$k, $v]);
     }
 
     /**
@@ -277,15 +292,25 @@ final class Database
         }
     }
 
-    /** Driver-correct "insert; ignore a duplicate" statement (SQLite output unchanged). */
+    /** Driver-correct "insert; ignore a duplicate" with positional (?) placeholders. */
     public static function insertIgnore(string $table, array $cols): string
     {
         $list = implode(', ', $cols);
         $ph   = implode(', ', array_fill(0, count($cols), '?'));
+        return self::insertIgnoreExpr($table, $list, $ph);
+    }
+
+    /**
+     * Driver-correct INSERT-IGNORE with caller-supplied column + VALUES strings,
+     * so callers using named placeholders (e.g. the seeders) stay portable too.
+     * SQLite output is unchanged from the hand-written `INSERT OR IGNORE`.
+     */
+    public static function insertIgnoreExpr(string $table, string $colsCsv, string $valuesCsv): string
+    {
         switch (self::driver()) {
-            case 'mysql': return "INSERT IGNORE INTO {$table} ({$list}) VALUES ({$ph})";
-            case 'pgsql': return "INSERT INTO {$table} ({$list}) VALUES ({$ph}) ON CONFLICT DO NOTHING";
-            default:      return "INSERT OR IGNORE INTO {$table} ({$list}) VALUES ({$ph})";
+            case 'mysql': return "INSERT IGNORE INTO {$table} ({$colsCsv}) VALUES ({$valuesCsv})";
+            case 'pgsql': return "INSERT INTO {$table} ({$colsCsv}) VALUES ({$valuesCsv}) ON CONFLICT DO NOTHING";
+            default:      return "INSERT OR IGNORE INTO {$table} ({$colsCsv}) VALUES ({$valuesCsv})";
         }
     }
 

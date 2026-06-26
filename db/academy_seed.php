@@ -16,7 +16,7 @@ function av_seed_courses(PDO $pdo, bool $fresh = false): void
         $cols = ['slug','title','summary','body_html','cover_url','category','level','format',
                  'duration','price','location','gradient','outcomes','cta_url','featured','status','sort'];
         $ph = implode(',', array_map(fn($c) => ":$c", $cols));
-        $st = $pdo->prepare('INSERT OR IGNORE INTO courses (' . implode(',', $cols) . ') VALUES (' . $ph . ')');
+        $st = $pdo->prepare(Database::insertIgnoreExpr('courses', implode(',', $cols), $ph));
         foreach ($courses as $c) {
             $st->execute([
                 ':slug' => $c['slug'], ':title' => $c['title'], ':summary' => $c['summary'] ?? '',

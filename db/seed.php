@@ -37,7 +37,7 @@ function av_seed(PDO $pdo, bool $fresh = false): void
         $cats = AV_DEFAULT_CATEGORIES;
         foreach ($content as $a) { $cats[$a['category_slug']] = $a['category']; }
         $catId = [];
-        $insCat = $pdo->prepare('INSERT OR IGNORE INTO categories (slug, name) VALUES (?, ?)');
+        $insCat = $pdo->prepare(Database::insertIgnore('categories', ['slug', 'name']));
         $findCat = $pdo->prepare('SELECT id FROM categories WHERE slug = ?');
         foreach ($cats as $slug => $name) {
             $insCat->execute([$slug, $name]);
@@ -54,7 +54,7 @@ function av_seed(PDO $pdo, bool $fresh = false): void
         );
         $insSec = $pdo->prepare('INSERT INTO sections (article_id, anchor, label, position) VALUES (?,?,?,?)');
         $insRel = $pdo->prepare('INSERT INTO related (article_id, related_slug, position) VALUES (?,?,?)');
-        $insRx  = $pdo->prepare('INSERT OR IGNORE INTO reactions (article_id, claps) VALUES (?, 0)');
+        $insRx  = $pdo->prepare(Database::insertIgnore('reactions', ['article_id', 'claps']));
 
         foreach ($content as $a) {
             $insArt->execute([
@@ -68,7 +68,7 @@ function av_seed(PDO $pdo, bool $fresh = false): void
             $aid = (int) $pdo->lastInsertId();
             foreach ($a['toc'] as $i => $sec) { $insSec->execute([$aid, $sec[0], $sec[1], $i]); }
             foreach ($a['related'] as $i => $rel) { $insRel->execute([$aid, $rel, $i]); }
-            $insRx->execute([$aid]);
+            $insRx->execute([$aid, 0]);
         }
 
         $pdo->commit();

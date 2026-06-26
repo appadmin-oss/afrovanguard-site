@@ -13,8 +13,28 @@ is still required before switching production (see the checklist).
     `AV_DB_HOST`, `AV_DB_NAME`, `AV_DB_PORT`, `AV_DB_USER`, `AV_DB_PASS`
   - (set these via `SetEnv` in `.htaccess`, like the other secrets)
 - **Portable query helpers**: `Database::driver()`, `tableExists()`,
-  `columnExists()`, `nowExpr()`, `insertIgnore()`. The Diary's pagination/filter
-  SQL and its insert-ignore sites already use the portable forms.
+  `columnExists()`, `nowExpr()`, `insertIgnore()`, `insertIgnoreExpr()`.
+- **The whole runtime query layer is now driver-portable** (SQLite output stays
+  byte-identical):
+  - **Upserts** — `Database::metaSet()` and `DiaryRepository::addClaps()` branch
+    to MySQL `ON DUPLICATE KEY UPDATE` / keep `ON CONFLICT … DO UPDATE` elsewhere.
+  - **Insert-ignore** — every `INSERT OR IGNORE` (Diary subscribe/reactions, the
+    LMS `course_enrolment` / `lesson_progress` / `certificates`, and the seeders)
+    goes through `insertIgnore()` / `insertIgnoreExpr()`.
+  - **Timestamps** — runtime `datetime('now')` comparisons/writes against the
+    ISO-text columns (`lms_sessions.expires_at`, `lms_users.verify_expires` /
+    `last_login`, `memberships.expires_at`, `payments.paid_at`) now bind a UTC
+    `gmdate('Y-m-d H:i:s')` parameter — identical to SQLite's `datetime('now')`
+    and a pure text comparison on every engine (avoids the `text > timestamp`
+    error you'd hit on Postgres). Writes into real timestamp columns
+    (`reactions.updated_at`) use `nowExpr()`.
+  - **Reserved words** — `app_meta.key` is back-quoted on MySQL.
+- **Lazy `ensure*()` table-creation is gated to SQLite.** The auto-create DDL for
+  `lms_audit`, `celebrations`, `team`, and `auth_illustrations` is SQLite-only and
+  is now skipped on MySQL/Postgres (so a non-SQLite deploy never errors on invalid
+  DDL); those tables must be **provisioned out-of-band** there (see caveats).
+  `LmsRepository::audit()` is best-effort — a missing audit table never breaks the
+  admin action it records.
 - **Per-driver schemas generated** from the canonical `db/schema.sql`:
   - `db/schema.mysql.sql`, `db/schema.pgsql.sql`
   - Regenerate after editing `db/schema.sql`:
@@ -47,19 +67,29 @@ on your actual server:
   foreign keys and unicode. Confirm FK column types match exactly.
 - [ ] **Descending indexes** (`… (published_at DESC)`) need **MySQL 8.0+**;
   older MySQL silently treats them as ascending (harmless).
-- [ ] **Remaining runtime idioms still to port** before a non-sqlite deploy is
-  fully functional (these run **sqlite-only** today):
-  - The `ON CONFLICT … DO UPDATE` upserts in `Database::metaSet()` and
-    `DiaryRepository::addClaps()` → MySQL `ON DUPLICATE KEY UPDATE`.
-  - `datetime('now')` used inside runtime queries (e.g. `LmsAuth` session/login,
-    `verify_expires` check) → route through `Database::nowExpr()`.
-  - The idempotent `ensure*()` migrations in `Database.php` (email-verification
-    columns, academy tables) emit SQLite DDL and are gated to sqlite — the base
-    schema file covers their tables, but post-release column additions must be
-    applied to your target manually or the gate widened with translated DDL.
-  - The `key` column in `app_meta` is a MySQL reserved word — quote it (`` `key` ``).
-- [ ] Re-run the seeds (`db/seed.php`, academy/lessons seeds) against the target
-  and confirm content loads.
+- [ ] **Runtime SQL idioms are all ported** (see "What's done") — no further code
+  changes are needed for the query layer. The items below are the *remaining*
+  things to do **on the target**, not in the code.
+- [ ] **Provision the SQLite-auto tables.** The base `db/schema.sql` (and the
+  generated per-driver files) cover the core tables. These additional tables are
+  auto-created **only on SQLite** and must be created manually on MySQL/Postgres
+  (or the SQLite DDL widened into the schema files with `translateDDL()` + tested):
+  `app_meta`, `diary_entries`, `lms_audit`, `team`, `auth_illustrations`,
+  `celebrations`. ⚠️ `celebrations` has a column literally named **`key`** (a MySQL
+  reserved word) used throughout its INSERT/UPDATE/SELECT — that one feature needs
+  reserved-word quoting added across the module before it runs on MySQL; it's the
+  only feature not yet MySQL-clean. (The app degrades gracefully if these tables
+  are absent: audit is best-effort; the others only power optional admin surfaces.)
+- [ ] **Post-release column additions** still ship as SQLite-gated `ensure*()`
+  migrations (e.g. email-verification columns, academy access columns). Apply the
+  equivalent `ALTER TABLE`s to your target manually, or widen the gate with
+  translated DDL once validated.
+- [ ] **Seeds use the portable insert-ignore now**, but `db/seed.php` relies on
+  `PDO::lastInsertId()` after plain inserts — that works on SQLite/MySQL; on
+  **Postgres** verify it returns the new id (or switch those inserts to
+  `RETURNING id`). The production cutover path is **data migration from
+  `db/diary.sqlite`**, not re-seeding, so this only matters for a fresh empty
+  Postgres deploy.
 
 ## Smoke tests after switching
 

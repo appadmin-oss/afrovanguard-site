@@ -131,16 +131,18 @@ final class DiaryJournal
             'related'      => [],
         ]);
 
+        $now = Database::nowExpr();
         $this->db->prepare(
-            "UPDATE diary_entries SET status = 'approved', published_slug = ?, updated_at = datetime('now') WHERE id = ?"
+            "UPDATE diary_entries SET status = 'approved', published_slug = ?, updated_at = {$now} WHERE id = ?"
         )->execute([$slug, $id]);
         return ['ok' => true, 'slug' => $slug];
     }
 
     public function reject(int $id, string $note = ''): bool
     {
+        $now = Database::nowExpr();
         $st = $this->db->prepare(
-            "UPDATE diary_entries SET status = 'rejected', review_note = ?, updated_at = datetime('now')
+            "UPDATE diary_entries SET status = 'rejected', review_note = ?, updated_at = {$now}
              WHERE id = ? AND kind IN ('public','event') AND status = 'pending'"
         );
         $st->execute([mb_substr(trim($note), 0, 400), $id]);

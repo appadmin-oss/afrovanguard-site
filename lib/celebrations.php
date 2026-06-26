@@ -57,6 +57,9 @@ function av_builtin_doodle(string $key): string
 /** Ensure the admin-managed celebrations table exists (idempotent). */
 function av_celebrations_ensure(PDO $pdo): void
 {
+    // SQLite auto-creates this. On MySQL/Postgres it must be provisioned
+    // out-of-band (note the reserved `key` column), so skip the SQLite-only DDL.
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return;
     $pdo->exec("CREATE TABLE IF NOT EXISTS celebrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT NOT NULL DEFAULT '',

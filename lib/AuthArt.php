@@ -19,6 +19,7 @@ function av_auth_art_ensure(PDO $pdo): void
 {
     static $done = false;
     if ($done) return;
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') { $done = true; return; } // provisioned out-of-band on MySQL/Postgres
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS auth_illustrations (
            id            INTEGER PRIMARY KEY AUTOINCREMENT,
