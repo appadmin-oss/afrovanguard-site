@@ -408,15 +408,31 @@
     </form>
   </main>
 
-  <!-- WEBHOOKS (outbound integrations) -->
+  <!-- WEBHOOKS + INTEGRATIONS (outbound + inbound) -->
   <main class="studio-main" id="webhooksView" hidden>
     <div class="studio-head">
-      <div><h1>Webhooks</h1><p class="muted">POST signed JSON to external systems when things happen on the site. Deliveries retry automatically (cron: <code>db/webhooks_run.php</code>).</p></div>
+      <div><h1>Webhooks &amp; integrations</h1><p class="muted">Push signed JSON out when things happen, and let trusted apps call in. Deliveries retry automatically (cron: <code>db/webhooks_run.php</code>).</p></div>
       <button class="btn btn-primary" id="newWhBtn">+ Add endpoint</button>
     </div>
     <div class="entry-list" id="whList"></div>
     <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Recent deliveries</h2>
     <div class="entry-list" id="whDeliveries"></div>
+
+    <h2 style="font-family:var(--font-heading);font-size:22px;margin:34px 0 6px">API tokens (inbound)</h2>
+    <p class="muted" style="margin:0 0 14px">Bearer tokens that let apps/other sites call <code>/integrations/api.php</code> — post as the official Afrovanguard bot, emit events, or read the community feed. <a href="/docs/integrations.md" target="_blank" rel="noopener">API docs ↗</a></p>
+    <div class="side-card" style="max-width:680px;margin-bottom:20px">
+      <h3>Create a token</h3>
+      <label class="fld"><span>Name (what is this for?)</span><input id="atName" placeholder="e.g. Discord announcer" /></label>
+      <div class="fld"><span>Scopes</span>
+        <div id="atScopes" class="at-scopes"></div>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" id="atCreate">Create token</button>
+      <div id="atReveal" class="at-reveal" hidden>
+        <p class="muted tiny" style="margin:14px 0 6px">Copy this now — it is shown only once:</p>
+        <code id="atToken" class="at-token"></code>
+      </div>
+    </div>
+    <div class="entry-list" id="atList"></div>
   </main>
 
   <!-- WEBHOOK EDITOR -->

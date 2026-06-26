@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'auth_policy_save'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -126,6 +126,17 @@ try {
         case 'wh_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             Webhooks::endpointDelete((int) ($body['id'] ?? 0));
+            json_out(['ok' => true]);
+
+        // ---- API tokens for integrations (inbound) ----
+        case 'apptoken_list':
+            json_out(['ok' => true, 'tokens' => AppTokens::all(), 'scopes' => AppTokens::SCOPES]);
+        case 'apptoken_create':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(['ok' => true] + AppTokens::issue((string) ($body['name'] ?? ''), is_array($body['scopes'] ?? null) ? $body['scopes'] : []));
+        case 'apptoken_revoke':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            AppTokens::revoke((int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
 
         // ---- System / configuration health ----

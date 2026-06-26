@@ -48,6 +48,8 @@ final class Events
             'donation.completed' => 'A donation was completed',
             'contact.received'   => 'A contact form was submitted',
             'enrollment.created' => 'A learner enrolled in a course',
+            'community.post'     => 'A new community post was created',
+            'community.reply'    => 'A reply was posted in the community',
         ];
     }
 }

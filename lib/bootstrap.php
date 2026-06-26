@@ -85,6 +85,7 @@ require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Events.php';
 require_once __DIR__ . '/Webhooks.php';
+require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';
 require_once __DIR__ . '/AuthArt.php';

@@ -101,3 +101,9 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 .ap-group .fld.checkbox b { color: var(--gold-deep, #b07e08); }
 .ap-group .fld input[type="number"] { max-width: 140px; }
 #apGoogleNote { font-style: normal; font-weight: 600; }
+
+/* ---- API tokens (integrations) ---- */
+.at-scopes { display: flex; flex-direction: column; gap: 2px; }
+.at-scopes code, .at-token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.at-reveal { background: var(--code-bg, #f4f2ec); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 6px; }
+.at-token { display: block; font-size: 13px; font-weight: 700; color: var(--ink); word-break: break-all; user-select: all; }

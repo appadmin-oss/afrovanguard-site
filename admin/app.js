@@ -53,7 +53,7 @@
       else if (which === 'people') { show('people'); loadTeam(); }
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
       else if (which === 'communities') { show('communities'); loadCommunities(); }
-      else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); }
+      else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
       else if (which === 'system') { show('system'); loadSystem(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
       else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
@@ -636,6 +636,49 @@
   }
   $('#whList').addEventListener('click', function (e) { var b = e.target.closest('[data-whedit]'); if (b) openWh(+b.getAttribute('data-whedit')); });
   $('#newWhBtn').addEventListener('click', function () { openWh(null); });
+
+  /* ---- API tokens (inbound integrations) ---- */
+  var atScopesRendered = false;
+  function loadAppTokens() {
+    var box = $('#atList'); if (!box) return;
+    api('apptoken_list').then(function (r) {
+      var d = r.data || {}; if (!d.ok) { box.innerHTML = '<p class="muted">Could not load tokens.</p>'; return; }
+      if (!atScopesRendered) {
+        $('#atScopes').innerHTML = Object.keys(d.scopes || {}).map(function (k) {
+          return '<label class="fld checkbox" style="margin:4px 0"><input type="checkbox" class="at-scope" value="' + escapeHtml(k) +
+            '"' + (k === 'community:read' ? ' checked' : '') + '> <span><code>' + escapeHtml(k) + '</code> — ' + escapeHtml(d.scopes[k]) + '</span></label>';
+        }).join('');
+        atScopesRendered = true;
+      }
+      var ts = d.tokens || [];
+      box.innerHTML = ts.length ? ts.map(function (t) {
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(t.name) +
+          (parseInt(t.revoked, 10) ? ' <span class="badge draft">Revoked</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(t.scopes || '—') + ' · created ' + escapeHtml(t.created_at) +
+          (t.last_used ? ' · last used ' + escapeHtml(t.last_used) : ' · never used') + '</div></div>' +
+          '<div class="entry-ops">' + (parseInt(t.revoked, 10) ? '' : '<button class="btn btn-outline btn-sm danger" data-atrevoke="' + t.id + '">Revoke</button>') + '</div></div>';
+      }).join('') : '<p class="muted">No tokens yet.</p>';
+    });
+  }
+  if ($('#atCreate')) {
+    $('#atCreate').addEventListener('click', function () {
+      var name = $('#atName').value.trim();
+      var scopes = Array.prototype.map.call(document.querySelectorAll('.at-scope:checked'), function (c) { return c.value; });
+      if (!scopes.length) { toast('Pick at least one scope.'); return; }
+      var btn = this; btn.disabled = true;
+      post('apptoken_create', { name: name, scopes: scopes }).then(function (r) {
+        if (r.data && r.data.ok) {
+          $('#atToken').textContent = r.data.token; $('#atReveal').hidden = false;
+          $('#atName').value = ''; toast('Token created — copy it now.'); loadAppTokens();
+        } else toast((r.data && r.data.error) || 'Could not create token.');
+      }).catch(function () { toast('Network error.'); }).finally(function () { btn.disabled = false; });
+    });
+    $('#atList').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-atrevoke]'); if (!b) return;
+      if (!confirm('Revoke this token? Apps using it will stop working immediately.')) return;
+      post('apptoken_revoke', { id: +b.getAttribute('data-atrevoke') }).then(function () { toast('Revoked.'); loadAppTokens(); });
+    });
+  }
   $('#whBackBtn').addEventListener('click', function () { show('webhooks'); loadWebhooks(); });
   var editingWh = null;
   function renderWhEvents(selected) {
