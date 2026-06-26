@@ -55,13 +55,34 @@ function av_workspace_surfaces(bool $isAdmin = false): array
 }
 
 /**
- * Optional communities (Google Chat Spaces / Groups), supplied as a JSON array
- * in AV_WS_COMMUNITIES, e.g.:
- *   [{"name":"All-hands","desc":"Org-wide space","url":"https://chat.google.com/room/AAAA"},
- *    {"name":"Volunteers","url":"https://groups.google.com/a/afrovanguard.org.ng/g/volunteers"}]
- * Only https links are accepted. Absent/invalid ⇒ [].
+ * Communities (Google Chat Spaces / Groups) shown in the portal.
+ * Source of truth: the admin-managed `communities` table (Studio → Communities).
+ * If none are configured there, falls back to the optional AV_WS_COMMUNITIES env
+ * JSON. Only https links are surfaced. Absent everywhere ⇒ [] (section hidden).
  */
 function av_workspace_communities(): array
+{
+    if (class_exists('Database')) {
+        try {
+            $pdo = Database::pdo();
+            av_communities_ensure($pdo);
+            $rows = $pdo->query('SELECT name, description, url FROM communities WHERE enabled = 1 ORDER BY sort ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $out = [];
+            foreach ($rows as $r) {
+                $url = (string) $r['url'];
+                if (!preg_match('#^https://#i', $url)) continue;
+                $out[] = ['name' => (string) $r['name'], 'desc' => (string) $r['description'], 'url' => $url];
+            }
+            if ($out) return $out;
+        } catch (Throwable $e) {
+            error_log('[workspace] communities table read failed: ' . $e->getMessage());
+        }
+    }
+    return av_ws_communities_env();
+}
+
+/** Backward-compatible env-JSON community list (used when none are admin-managed). */
+function av_ws_communities_env(): array
 {
     $raw = getenv('AV_WS_COMMUNITIES');
     if ($raw === false || trim($raw) === '') return [];
@@ -71,12 +92,99 @@ function av_workspace_communities(): array
     foreach ($list as $c) {
         if (!is_array($c) || empty($c['name']) || empty($c['url'])) continue;
         $url = (string) $c['url'];
-        if (!preg_match('#^https://#i', $url)) continue;     // external https only
+        if (!preg_match('#^https://#i', $url)) continue;
         $out[] = [
             'name' => mb_substr((string) $c['name'], 0, 80),
             'desc' => mb_substr((string) ($c['desc'] ?? ''), 0, 160),
             'url'  => $url,
         ];
+    }
+    return $out;
+}
+
+/* ── Admin-managed communities (Studio → Communities) ──────────────────────
+   A small table, created on first use on every engine (driver-aware DDL via
+   translateDDL); SQLite output is byte-identical. No reserved-word columns. */
+function av_communities_ensure(PDO $pdo): void
+{
+    static $done = false; if ($done) return; $done = true;
+    $ddl = "CREATE TABLE IF NOT EXISTS communities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(191) NOT NULL DEFAULT '',
+        description VARCHAR(500) NOT NULL DEFAULT '',
+        url VARCHAR(500) NOT NULL DEFAULT '',
+        sort INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )";
+    $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+}
+
+/** All communities (admin view, any enabled state). */
+function av_communities_all(PDO $pdo): array
+{
+    av_communities_ensure($pdo);
+    return $pdo->query('SELECT * FROM communities ORDER BY sort ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Insert/update a community; returns its id. Caller validates name + https url. */
+function av_communities_save(PDO $pdo, array $in): int
+{
+    av_communities_ensure($pdo);
+    $f = [
+        'name'        => mb_substr(trim((string) ($in['name'] ?? '')), 0, 180),
+        'description' => mb_substr(trim((string) ($in['description'] ?? '')), 0, 480),
+        'url'         => trim((string) ($in['url'] ?? '')),
+        'sort'        => (int) ($in['sort'] ?? 0),
+        'enabled'     => isset($in['enabled']) ? (!empty($in['enabled']) ? 1 : 0) : 1,
+    ];
+    $id = (int) ($in['id'] ?? 0);
+    if ($id > 0) {
+        $set = implode(', ', array_map(fn($k) => "$k = :$k", array_keys($f)));
+        $pdo->prepare("UPDATE communities SET $set WHERE id = :id")->execute($f + ['id' => $id]);
+        return $id;
+    }
+    $cols = implode(', ', array_keys($f));
+    $ph   = implode(', ', array_map(fn($k) => ":$k", array_keys($f)));
+    $pdo->prepare("INSERT INTO communities ($cols) VALUES ($ph)")->execute($f);
+    return (int) $pdo->lastInsertId();
+}
+
+function av_communities_delete(PDO $pdo, int $id): void
+{
+    av_communities_ensure($pdo);
+    $pdo->prepare('DELETE FROM communities WHERE id = ?')->execute([$id]);
+}
+
+/**
+ * Optional in-portal embeds (read-only). Both Google Calendar and Drive folder
+ * views allow iframing (unlike Chat/Mail). Configured via env; absent ⇒ omitted.
+ *   AV_WS_CALENDAR_EMBED  full https://calendar.google.com/... embed src, OR
+ *   AV_WS_CALENDAR_ID     a calendar address (built into an AGENDA embed)
+ *   AV_WS_TZ              IANA tz for the calendar (default Africa/Lagos)
+ *   AV_WS_DRIVE_FOLDER_ID a Drive folder id shared "anyone with the link"
+ */
+function av_workspace_embeds(): array
+{
+    $out = [];
+    $calEmbed = trim((string) getenv('AV_WS_CALENDAR_EMBED'));
+    $calId    = trim((string) getenv('AV_WS_CALENDAR_ID'));
+    if ($calEmbed !== '' && preg_match('#^https://calendar\.google\.com/#i', $calEmbed)) {
+        $out['calendar'] = $calEmbed;
+    } elseif ($calId !== '') {
+        $out['calendar'] = 'https://calendar.google.com/calendar/embed?' . http_build_query([
+            'src'       => $calId,
+            'ctz'       => (getenv('AV_WS_TZ') ?: 'Africa/Lagos'),
+            'mode'      => 'AGENDA',
+            'showTitle' => 0,
+            'showPrint' => 0,
+            'showTabs'  => 0,
+        ]);
+    }
+    $folder = trim((string) getenv('AV_WS_DRIVE_FOLDER_ID'));
+    if ($folder !== '' && preg_match('/^[A-Za-z0-9_-]{10,}$/', $folder)) {
+        $out['drive'] = 'https://drive.google.com/embeddedfolderview?id=' . rawurlencode($folder) . '#grid';
     }
     return $out;
 }

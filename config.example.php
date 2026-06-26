@@ -105,13 +105,18 @@ define('AV_GOOGLE_CLIENT_ID',     getenv('AV_GOOGLE_CLIENT_ID') ?: '');
 define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
 
 /* Google Workspace launchpad (member portal /portal/, @org members only).
- * The tool tiles (Gmail/Chat/Meet/Calendar/Drive/Groups) auto-derive from
- * AV_ORG_DOMAIN — no config needed. Override any link, and supply the optional
- * Communities list, via SetEnv in .htaccess (read at runtime by lib/workspace.php):
- *   SetEnv AV_WS_MAIL_URL / AV_WS_CHAT_URL / AV_WS_MEET_URL / AV_WS_CALENDAR_URL
- *          AV_WS_DRIVE_URL / AV_WS_GROUPS_URL / AV_WS_ADMIN_URL
- *   SetEnv AV_WS_COMMUNITIES '[{"name":"All-hands","desc":"Org-wide space","url":"https://chat.google.com/room/AAAA"}]'
- * Communities unset ⇒ that section is simply hidden. */
+ * Tool tiles (Gmail/Chat/Meet/Calendar/Drive/Groups) auto-derive from
+ * AV_ORG_DOMAIN — no config needed. Optional extras via SetEnv in .htaccess
+ * (read at runtime by lib/workspace.php):
+ *   Link overrides:  AV_WS_MAIL_URL / AV_WS_CHAT_URL / AV_WS_MEET_URL /
+ *                    AV_WS_CALENDAR_URL / AV_WS_DRIVE_URL / AV_WS_GROUPS_URL / AV_WS_ADMIN_URL
+ *   In-portal embeds (read-only): AV_WS_CALENDAR_ID (or a full AV_WS_CALENDAR_EMBED
+ *                    src) + AV_WS_TZ (default Africa/Lagos); AV_WS_DRIVE_FOLDER_ID
+ *                    (a Drive folder shared "anyone with the link").
+ *   Communities: managed in the Studio (Communities tab). As a fallback when none
+ *                exist there, AV_WS_COMMUNITIES accepts a JSON list, e.g.
+ *                '[{"name":"All-hands","url":"https://chat.google.com/room/AAAA"}]'
+ * Anything unset is simply hidden. */
 
 /* ─── Application ───────────────────────────────────────────── */
 define('SITE_URL',            'https://afrovanguard.org.ng');

@@ -87,6 +87,7 @@ render_head([
         $wsAdmin     = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
         $wsSurfaces  = av_workspace_surfaces($wsAdmin);
         $communities = av_workspace_communities();
+        $wsEmbeds    = av_workspace_embeds();
 ?>
         <!-- Your Workspace — SSO launchpad into Google Workspace (members only) -->
         <section class="portal-card span-2 ws-hub">
@@ -113,6 +114,20 @@ render_head([
 <?php endif; ?>            </a>
 <?php endforeach; ?>
           </div>
+        </section>
+<?php endif; ?>
+<?php if (!empty($wsEmbeds['calendar'])): ?>
+        <!-- Team calendar (read-only embed) -->
+        <section class="portal-card span-2 ws-embed">
+          <div class="pc-head"><h2>Team calendar</h2><a class="pc-link" href="<?= e(av_ws_link('AV_WS_CALENDAR_URL', 'https://calendar.google.com/a/' . av_workspace_domain())) ?>" target="_blank" rel="noopener noreferrer">Open in Calendar →</a></div>
+          <div class="ws-frame"><iframe src="<?= e($wsEmbeds['calendar']) ?>" title="Team calendar" loading="lazy" referrerpolicy="no-referrer"></iframe></div>
+        </section>
+<?php endif; ?>
+<?php if (!empty($wsEmbeds['drive'])): ?>
+        <!-- Shared files (read-only Drive folder embed) -->
+        <section class="portal-card span-2 ws-embed">
+          <div class="pc-head"><h2>Shared files</h2><a class="pc-link" href="<?= e(av_ws_link('AV_WS_DRIVE_URL', 'https://drive.google.com/a/' . av_workspace_domain())) ?>" target="_blank" rel="noopener noreferrer">Open in Drive →</a></div>
+          <div class="ws-frame ws-frame--drive"><iframe src="<?= e($wsEmbeds['drive']) ?>" title="Shared files" loading="lazy" referrerpolicy="no-referrer"></iframe></div>
         </section>
 <?php endif; ?>
 <?php endif; ?>

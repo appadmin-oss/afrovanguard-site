@@ -21,6 +21,7 @@
       <button class="tab" data-tab="members">Members</button>
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
+      <button class="tab" data-tab="communities">Communities</button>
       <button class="tab" data-tab="signin">Sign-in</button>
       <button class="tab" data-tab="inbox">Inbox</button>
     </nav>
@@ -365,6 +366,41 @@
           <div class="cover-actions"><button type="button" class="btn btn-outline btn-sm" id="cDoodleBtn">Upload art</button><button type="button" class="btn btn-outline btn-sm" id="cDoodleClear" hidden>Remove</button></div>
           <input id="c_doodle" type="hidden" />
           <p class="muted tiny">Shown in place of the logo on the day (Google-doodle style). Wide transparent PNG works best.</p>
+        </div>
+      </aside>
+    </form>
+  </main>
+
+  <!-- COMMUNITIES (Google Chat Spaces / Groups shown in the member portal) -->
+  <main class="studio-main" id="communitiesView" hidden>
+    <div class="studio-head">
+      <div><h1>Communities</h1><p class="muted">Google Chat Spaces &amp; Groups shown to members in the portal. Members open them in Google — already signed in.</p></div>
+      <button class="btn btn-primary" id="newCommBtn">+ Add community</button>
+    </div>
+    <div class="entry-list" id="commList"></div>
+  </main>
+
+  <!-- COMMUNITY EDITOR -->
+  <main class="studio-main" id="commEditView" hidden>
+    <div class="studio-head">
+      <button class="btn btn-outline btn-sm" id="commBackBtn">← All communities</button>
+      <div class="editor-actions">
+        <button class="btn btn-outline btn-sm" id="commDeleteBtn" hidden>Delete</button>
+        <button class="btn btn-primary btn-sm" id="commSaveBtn">Save</button>
+      </div>
+    </div>
+    <form id="commForm" class="editor-grid">
+      <div class="editor-main">
+        <label class="fld"><span>Name</span><input id="m_name" placeholder="e.g. All-hands" required /></label>
+        <label class="fld"><span>Description</span><textarea id="m_description" rows="2" placeholder="A short line shown under the name."></textarea></label>
+        <label class="fld"><span>Link (https://)</span><input id="m_url" type="url" placeholder="https://chat.google.com/room/… or a Groups URL" required /></label>
+        <p class="muted tiny">Open the Space in Google Chat → ⋮ → Copy link; or use a Group’s groups.google.com URL.</p>
+      </div>
+      <aside class="editor-side">
+        <div class="side-card">
+          <h3>Display</h3>
+          <label class="fld"><span>Sort order</span><input id="m_sort" type="number" value="0" /></label>
+          <label class="fld checkbox"><input type="checkbox" id="m_enabled" checked /> <span>Shown to members</span></label>
         </div>
       </aside>
     </form>

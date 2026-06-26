@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), signin: $('#signinView'), members: $('#membersView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), signin: $('#signinView'), members: $('#membersView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -52,6 +52,7 @@
       else if (which === 'academy') { show('academy'); loadCourses(); }
       else if (which === 'people') { show('people'); loadTeam(); }
       else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
+      else if (which === 'communities') { show('communities'); loadCommunities(); }
       else if (which === 'moderation') { show('moderation'); loadModeration(); }
       else if (which === 'signin') { show('signin'); loadArt(); }
       else if (which === 'members') { show('members'); loadMembers(); }
@@ -561,6 +562,49 @@
   $('#celDeleteBtn').addEventListener('click', function () {
     if (!editingCel || !confirm('Delete this celebration?')) return;
     post('cel_delete', { id: editingCel }).then(function () { toast('Deleted.'); show('celebrations'); loadCelebrations(); });
+  });
+
+  /* ---- Communities (member-portal Spaces / Groups) ---- */
+  function loadCommunities() {
+    var box = $('#commList');
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    api('comm_list').then(function (r) {
+      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      var rows = r.data.communities || [];
+      box.innerHTML = rows.length ? rows.map(function (c) {
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(c.name) +
+          (parseInt(c.enabled, 10) ? '' : ' <span class="badge draft">Hidden</span>') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(c.url) + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-commedit="' + c.id + '">Edit</button></div></div>';
+      }).join('') : '<p class="muted">No communities yet. Add your Google Chat Spaces or Groups so members can find them in the portal.</p>';
+    });
+  }
+  $('#commList').addEventListener('click', function (e) { var b = e.target.closest('[data-commedit]'); if (b) openComm(+b.getAttribute('data-commedit')); });
+  $('#newCommBtn').addEventListener('click', function () { openComm(null); });
+  $('#commBackBtn').addEventListener('click', function () { show('communities'); loadCommunities(); });
+  var editingComm = null;
+  function openComm(id) {
+    editingComm = id; $('#commForm').reset(); $('#m_enabled').checked = true; $('#m_sort').value = 0;
+    $('#commDeleteBtn').hidden = !id; show('commEdit');
+    if (!id) return;
+    api('comm_list').then(function (r) {
+      var c = (r.data.communities || []).filter(function (x) { return +x.id === id; })[0]; if (!c) return;
+      $('#m_name').value = c.name || ''; $('#m_description').value = c.description || ''; $('#m_url').value = c.url || '';
+      $('#m_sort').value = parseInt(c.sort, 10) || 0; $('#m_enabled').checked = parseInt(c.enabled, 10) !== 0;
+    });
+  }
+  $('#commSaveBtn').addEventListener('click', function () {
+    var name = $('#m_name').value.trim(), url = $('#m_url').value.trim();
+    if (!name) { toast('A name is required.'); return; }
+    if (!/^https:\/\//i.test(url)) { toast('A valid https:// link is required.'); return; }
+    post('comm_save', {
+      id: editingComm || 0, name: name, description: $('#m_description').value.trim(),
+      url: url, sort: parseInt($('#m_sort').value, 10) || 0, enabled: $('#m_enabled').checked
+    }).then(function (r) { if (r.data && r.data.ok) { toast('Saved.'); show('communities'); loadCommunities(); } else toast((r.data && r.data.error) || 'Could not save.'); });
+  });
+  $('#commDeleteBtn').addEventListener('click', function () {
+    if (!editingComm || !confirm('Delete this community?')) return;
+    post('comm_delete', { id: editingComm }).then(function () { toast('Deleted.'); show('communities'); loadCommunities(); });
   });
 
   /* ---- boot ---- */

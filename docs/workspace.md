@@ -25,35 +25,36 @@ In `/portal/` (members only — `@org` accounts; learners don't see it):
 - **Your Workspace** — a tile grid: Gmail, Chat, Meet, Calendar, Drive, Groups
   (+ an Admin console tile for `admin`-role accounts). Links auto-target the org
   instance via Google's `/a/<domain>/` convention.
-- **Communities** — an optional list of Google Chat Spaces / Groups (hidden when
-  none are configured).
+- **Communities** — Google Chat Spaces / Groups, managed in the Studio
+  (**Communities** tab). Hidden when none exist.
+- **Team calendar** & **Shared files** — optional read-only embeds of an org
+  Google Calendar and a Drive folder, shown only when configured.
 
 ## Configuration
 
-All in `lib/workspace.php`, driven by env vars (set via `SetEnv` in `.htaccess`,
-like the other config). **Nothing is required** — the tool tiles auto-derive from
-`AV_ORG_DOMAIN` (default `afrovanguard.org.ng`).
+**Communities** are managed in the **Studio → Communities** tab (stored in the
+`communities` table): a name, optional description, and the Space/Group link.
+To get a Space link: open it in Google Chat → ⋮ → Copy link; for a Group, its
+`groups.google.com/a/<domain>/g/<name>` URL.
 
-| Env var | Purpose | Default |
-|---|---|---|
-| `AV_WS_MAIL_URL` … `AV_WS_GROUPS_URL`, `AV_WS_ADMIN_URL` | Override a tile link | `https://<tool>.google.com/a/<domain>` |
-| `AV_WS_COMMUNITIES` | JSON list of Spaces/Groups | unset ⇒ section hidden |
+Everything else is env (`SetEnv` in `.htaccess`, read by `lib/workspace.php`).
+**Nothing is required** — the tool tiles auto-derive from `AV_ORG_DOMAIN`
+(default `afrovanguard.org.ng`):
 
-`AV_WS_COMMUNITIES` example (https links only):
+| Env var | Purpose |
+|---|---|
+| `AV_WS_MAIL_URL` … `AV_WS_GROUPS_URL`, `AV_WS_ADMIN_URL` | Override a tool tile link |
+| `AV_WS_CALENDAR_ID` (or full `AV_WS_CALENDAR_EMBED`) + `AV_WS_TZ` | Embed a read-only org calendar (agenda view) |
+| `AV_WS_DRIVE_FOLDER_ID` | Embed a read-only Drive folder (shared "anyone with the link") |
+| `AV_WS_COMMUNITIES` | Fallback JSON list, used only when the Studio has no communities |
 
-```
-SetEnv AV_WS_COMMUNITIES '[{"name":"All-hands","desc":"Org-wide space","url":"https://chat.google.com/room/AAAA"},{"name":"Volunteers","url":"https://groups.google.com/a/afrovanguard.org.ng/g/volunteers"}]'
-```
+The Calendar/Drive embeds rely on the portal's CSP allowing
+`calendar.google.com` / `drive.google.com` in `frame-src` (already configured in
+`lib/security.php`).
 
-To get a Space link: open the Space in Google Chat → ⋮ → Copy link. For a Group:
-its `groups.google.com/a/<domain>/g/<name>` URL.
+## Done / possible follow-ups
 
-## Possible follow-ups
-
-- **Admin-managed communities** — move the list from env JSON to a small
-  `communities` table with a Studio editor (same pattern as `celebrations`/`team`).
-- **Calendar/Drive surfacing** — embed a read-only org Calendar or a Drive folder
-  list in the portal (both *do* allow iframes / have list APIs), if you want
-  content in-page rather than deep links.
+- ✅ **Admin-managed communities** — Studio → Communities (`communities` table).
+- ✅ **Calendar/Drive surfacing** — read-only embeds in the portal (env-configured).
 - **In-site realtime chat** — only worth it if the site moves to a host with a
   persistent process (Node/WebSockets); otherwise Google Chat is the better home.

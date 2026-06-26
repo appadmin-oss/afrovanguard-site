@@ -38,7 +38,7 @@ function av_embed_hosts(): array {
         'open.spotify.com', 'w.soundcloud.com', 'player.soundcloud.com',
         'platform.twitter.com', 'www.instagram.com', 'instagram.com',
         'www.tiktok.com', 'codepen.io', 'www.google.com', 'maps.google.com',
-        'docs.google.com', 'drive.google.com', 'flo.uri.sh', 'public.flourish.studio',
+        'docs.google.com', 'drive.google.com', 'calendar.google.com', 'flo.uri.sh', 'public.flourish.studio',
         'www.facebook.com', 'web.facebook.com', 'anchor.fm', 'embed.music.apple.com',
         'www.canva.com', 'datawrapper.dwcdn.net',
     ];

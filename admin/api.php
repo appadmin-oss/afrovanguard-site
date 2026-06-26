@@ -47,7 +47,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -98,6 +98,22 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/celebrations.php';
             av_celebrations_delete(Database::pdo(), (int) ($body['id'] ?? 0));
+            json_out(['ok' => true]);
+
+        // ---- Communities (Google Chat Spaces / Groups shown in the member portal) ----
+        case 'comm_list':
+            require_once AV_ROOT . '/lib/workspace.php';
+            json_out(['ok' => true, 'communities' => av_communities_all(Database::pdo())]);
+        case 'comm_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/workspace.php';
+            if (trim((string) ($body['name'] ?? '')) === '') json_out(['ok' => false, 'error' => 'A name is required.'], 422);
+            if (!preg_match('#^https://[^\s]+$#i', trim((string) ($body['url'] ?? '')))) json_out(['ok' => false, 'error' => 'A valid https:// link is required.'], 422);
+            json_out(['ok' => true, 'id' => av_communities_save(Database::pdo(), $body)]);
+        case 'comm_delete':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/workspace.php';
+            av_communities_delete(Database::pdo(), (int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
 
         // ---- Sign-in illustrations (admin-managed + schedulable) ----
