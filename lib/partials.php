@@ -166,6 +166,7 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
+        'community' => ['label' => 'Community', 'href' => '/community/'],
         'contact' => ['label' => 'Contact', 'href' => $S . '/contact/'],
     ];
 }
