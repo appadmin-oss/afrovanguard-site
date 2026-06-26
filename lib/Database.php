@@ -118,17 +118,21 @@ final class Database
     /* ── Small key/value store for one-time migrations/flags ──
        `key` is a reserved word in MySQL, so it is back-quoted there; SQLite and
        Postgres accept it bare. The SQLite statements stay byte-identical. */
-    private static function ensureMeta(): void
+    private static function ensureMeta(): void { self::ensureMetaOn(self::$pdo); }
+
+    /** Create the app_meta key/value table on an arbitrary connection (driver-aware).
+     *  Public so the migrator can provision it on a target before copying data. */
+    public static function ensureMetaOn(PDO $pdo): void
     {
-        switch (self::driver()) {
+        switch ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)) {
             case 'mysql':
-                self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (`key` VARCHAR(191) PRIMARY KEY, value TEXT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+                $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (`key` VARCHAR(191) PRIMARY KEY, value TEXT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
                 break;
             case 'pgsql':
-                self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key VARCHAR(191) PRIMARY KEY, value TEXT)');
+                $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key VARCHAR(191) PRIMARY KEY, value TEXT)');
                 break;
             default:
-                self::$pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+                $pdo->exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
         }
     }
     public static function metaGet(string $k): ?string

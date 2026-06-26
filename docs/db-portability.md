@@ -63,12 +63,23 @@ byte-identical to before.
 ## How to switch (staging first!)
 
 1. Create an empty MySQL/Postgres database + user.
-2. Apply the generated schema: `mysql db < db/schema.mysql.sql` (or
-   `psql db -f db/schema.pgsql.sql`).
-3. Set the `AV_DB_*` env vars to point at it.
-4. Migrate existing data from `db/diary.sqlite` (articles, lms_users, etc.).
-   This is the cutover path — not re-seeding.
-5. Smoke-test every flow (below) on staging before pointing production at it.
+2. Migrate schema **and** data in one step with the built-in tool:
+   ```
+   php db/migrate.php --to=mysql --host=… --port=3306 --db=… --user=… --pass=… --apply-schema
+   php db/migrate.php --to=pgsql --host=… --port=5432 --db=… --user=… --pass=… --apply-schema
+   ```
+   `--apply-schema` provisions the target from `db/schema.<driver>.sql` (and the
+   auxiliary tables); it then copies every table FK-safely, **preserving ids**,
+   re-syncs Postgres sequences, and **verifies row counts** (non-zero exit on any
+   mismatch). `--dry-run` previews; `--truncate` replaces an existing target;
+   `--from=/path.sqlite` overrides the source (default `AV_DB_PATH`). Target
+   connection can also come from the `AV_DB_*` env vars instead of flags.
+3. Set the `AV_DB_*` env vars (driver + connection) to point the app at the target.
+4. Smoke-test every flow (below) on staging before pointing production at it.
+
+> The migrator is validated end-to-end against live **PostgreSQL 16** and
+> **MariaDB 10.11** (schema apply + full copy + count verification, incl. the
+> reserved `app_meta.key` column and the admin-managed tables).
 
 ## Validation
 
