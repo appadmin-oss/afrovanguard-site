@@ -71,6 +71,23 @@
     li.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(true); link.focus(); } });
   });
 
+  /* ---- Scroll-aware header (site-wide) ----
+     PHP pages already DEFINE .site-header.scrolled styling but nothing toggled
+     it — so the header never condensed on scroll. Add a rAF-throttled toggle so
+     every page gets the crisp, solid-on-scroll bar. (The static home page also
+     toggles this class itself; the result is identical, so they don't fight.) */
+  var avHeader = document.getElementById('site-header') || document.querySelector('.site-header');
+  if (avHeader) {
+    var avTick = false;
+    var avScroll = function () {
+      if (avTick) return;
+      avTick = true;
+      window.requestAnimationFrame(function () { avHeader.classList.toggle('scrolled', window.scrollY > 8); avTick = false; });
+    };
+    window.addEventListener('scroll', avScroll, { passive: true });
+    avScroll();
+  }
+
   /* ---- Auth-aware chrome (site-wide) ----
      Every sign-in entry returns the visitor to where they were, and the nav
      reflects the signed-in member once known. One source of truth so the
