@@ -57,6 +57,32 @@ if ($scope === 'mine') {
     $meta['subtitle'] = 'Dispatches from the movement';
     $base = 'afrovanguard-diary';
 }
+// Optional scoping: ?year=YYYY or ?from=YYYY-MM-DD&to=YYYY-MM-DD — export a
+// single period as a Journal volume. Filters the already-built items by date;
+// undated items are kept rather than silently dropped.
+$year = (int) ($_GET['year'] ?? 0);
+$validYear = $year >= 1990 && $year <= 2100;
+$from = !empty($_GET['from']) ? strtotime((string) $_GET['from']) : false;
+$to   = !empty($_GET['to'])   ? strtotime((string) $_GET['to'] . ' 23:59:59') : false;
+if ($validYear || $from || $to) {
+    $items = array_values(array_filter($items, static function (array $it) use ($validYear, $year, $from, $to): bool {
+        $t = strtotime((string) ($it['date'] ?? ''));
+        if (!$t) return true;
+        if ($validYear && (int) date('Y', $t) !== $year) return false;
+        if ($from && $t < $from) return false;
+        if ($to && $t > $to) return false;
+        return true;
+    }));
+    if ($validYear) {
+        $meta['subtitle'] .= ' · ' . $year;
+        $meta['title']    .= ' — Volume ' . $year;
+        $base             .= '-' . $year;
+    } else {
+        $meta['subtitle'] .= ' · ' . ($from ? date('M j, Y', $from) : '…') . ' – ' . ($to ? date('M j, Y', $to) : '…');
+        $base             .= '-range';
+    }
+}
+
 $meta['count'] = count($items);
 $stamp = date('Y-m-d');
 

@@ -51,30 +51,19 @@ render_nav('diary');
       <span class="diary-eyebrow">Vanguard Diary</span>
       <h1>Your Diary</h1>
       <p>Document what you build, reflect in private, and share what could inspire the movement. <strong>Public entries are reviewed before they appear on the Diary.</strong></p>
-<?php if ($user): ?>      <p class="vd-export">Export your journal: <a href="<?= e(diary_url('export.php?scope=mine&format=book')) ?>">as a book (PDF)</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=md')) ?>">Markdown</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=json')) ?>">JSON</a></p>
+<?php if ($user): ?>      <p class="vd-export">Export your journal: <a href="<?= e(diary_url('export.php?scope=mine&format=book')) ?>">as a book (PDF)</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=book&year=' . date('Y'))) ?>"><?= date('Y') ?> volume</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=md')) ?>">Markdown</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=json')) ?>">JSON</a></p>
 <?php endif; ?>
     </div>
   </section>
 
   <div class="container vd-wrap">
 <?php if (!$user): ?>
-    <!-- Signed out: inline sign-in (reuses the Academy account system) -->
+    <!-- Signed out: send to the standard sign-in (passwordless code / password / Google) -->
     <section class="vd-card vd-signin" aria-labelledby="vd-signin-h">
       <h2 id="vd-signin-h">Sign in to your diary</h2>
-      <p class="vd-muted">Your Vanguard Diary uses your Afrovanguard Academy account.</p>
-      <form class="vd-form" id="vd-login" novalidate>
-        <label class="vd-field">
-          <span>Email</span>
-          <input type="email" name="email" autocomplete="email" required placeholder="you@example.com" />
-        </label>
-        <label class="vd-field">
-          <span>Password</span>
-          <input type="password" name="password" autocomplete="current-password" required placeholder="••••••••" />
-        </label>
-        <button type="submit" class="btn btn-primary">Sign in →</button>
-        <p class="vd-msg" role="status" aria-live="polite"></p>
-      </form>
-      <p class="vd-muted">New to the movement? <a href="/academy/">Join the Academy</a> to create an account.</p>
+      <p class="vd-muted">Your Vanguard Diary uses your Afrovanguard account.</p>
+      <p style="margin:18px 0 6px"><a class="btn btn-primary" data-login-link href="/login?next=/diary/me/">Sign in →</a></p>
+      <p class="vd-muted">New here? Signing in with a one-time code creates your account — no password needed.</p>
     </section>
 <?php else: ?>
     <!-- Composer -->
@@ -103,6 +92,7 @@ render_nav('diary');
           <span>Your entry</span>
           <textarea name="body" rows="6" required placeholder="Share your entry here…"></textarea>
         </label>
+        <p class="vd-count" id="vd-count" aria-live="polite"></p>
         <p class="vd-hint" id="vd-hint" aria-live="polite">🔒 Private entries are visible only to you.</p>
         <div class="vd-actions">
           <button type="submit" class="btn btn-primary">Save entry</button>
@@ -163,6 +153,7 @@ render_nav('diary');
     outline: 2px solid var(--gold, #b8860b); outline-offset: 1px; border-color: var(--gold, #b8860b);
   }
   .vd-hint { font-size: 13.5px; color: var(--muted, #6b6b6b); margin: -4px 0 0; }
+  .vd-count { font-size: 12px; color: var(--muted, #8a8a8a); margin: -10px 0 0; text-align: right; min-height: 14px; }
   .vd-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .vd-msg { font-size: 14px; margin: 0; }
   .vd-msg.is-ok { color: #1f7a4d; } .vd-msg.is-err { color: #b3261e; }
@@ -204,26 +195,6 @@ render_nav('diary');
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   }); }
 
-  /* ── Signed-out: inline sign-in via the Academy account system ── */
-  var login = document.getElementById('vd-login');
-  if (login) {
-    login.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var msg = login.querySelector('.vd-msg');
-      msg.textContent = 'Signing in…'; msg.className = 'vd-msg';
-      var fd = new FormData(login);
-      fetch('/academy/api.php?action=login', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') })
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok) { location.reload(); }
-        else { msg.textContent = (d && d.error) || 'Could not sign in.'; msg.className = 'vd-msg is-err'; }
-      }).catch(function () { msg.textContent = 'Network error — try again.'; msg.className = 'vd-msg is-err'; });
-    });
-    return;
-  }
-
   /* ── Composer ── */
   var form = document.getElementById('vd-compose-form');
   if (!form) return;
@@ -231,13 +202,40 @@ render_nav('diary');
   var empty = document.querySelector('.vd-empty');
   var kind = document.getElementById('vd-kind');
   var hint = document.getElementById('vd-hint');
+  var bodyEl = form.querySelector('[name=body]');
+  var titleEl = form.querySelector('[name=title]');
+  var dateEl = form.querySelector('[name=entry_date]');
+  var countEl = document.getElementById('vd-count');
+  var DRAFT_KEY = 'av.vd.draft';
 
   var HINTS = {
     event:   '📅 Events are public happenings — shown on the Diary after an admin reviews them. You can backdate them.',
     private: '🔒 Private entries are visible only to you.',
     public:  '🌐 Public entries are reviewed by an admin before they appear on the Diary.'
   };
-  kind.addEventListener('change', function () { hint.textContent = HINTS[kind.value] || ''; });
+
+  function wordCount(s) { s = String(s || '').trim(); return s ? s.split(/\s+/).length : 0; }
+  function updateCount() { if (countEl) { var w = wordCount(bodyEl.value); countEl.textContent = w ? (w + ' word' + (w === 1 ? '' : 's')) : ''; } }
+  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ kind: kind.value, title: titleEl.value, body: bodyEl.value, entry_date: dateEl ? dateEl.value : '' })); } catch (e) {} }
+  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+
+  // Restore an unsaved draft so a refresh or accidental nav-away never loses work.
+  try {
+    var d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    if (d && (d.body || d.title)) {
+      if (!bodyEl.value) bodyEl.value = d.body || '';
+      if (!titleEl.value) titleEl.value = d.title || '';
+      if (d.kind) kind.value = d.kind;
+      if (d.entry_date && dateEl) dateEl.value = d.entry_date;
+    }
+  } catch (e) {}
+  hint.textContent = HINTS[kind.value] || hint.textContent;
+  updateCount();
+
+  kind.addEventListener('change', function () { hint.textContent = HINTS[kind.value] || ''; saveDraft(); });
+  bodyEl.addEventListener('input', function () { updateCount(); saveDraft(); });
+  titleEl.addEventListener('input', saveDraft);
+  dateEl && dateEl.addEventListener('change', saveDraft);
 
   var META = {
     event:   { icon: '📅', label: 'Event' },
@@ -278,8 +276,9 @@ render_nav('diary');
       list.insertAdjacentHTML('afterbegin', itemHTML(en));
       msg.textContent = (d.kind === 'public' || d.kind === 'event') ? 'Submitted for review — you’ll see it here once approved.' : 'Saved.';
       msg.className = 'vd-msg is-ok';
-      form.querySelector('[name=title]').value = '';
-      form.querySelector('[name=body]').value = '';
+      titleEl.value = '';
+      bodyEl.value = '';
+      clearDraft(); updateCount();
     }).catch(function () { btn.disabled = false; msg.textContent = 'Network error — try again.'; msg.className = 'vd-msg is-err'; });
   });
 

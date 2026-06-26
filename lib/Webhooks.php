@@ -86,6 +86,33 @@ final class Webhooks
         });
     }
 
+    /**
+     * Send a one-off signed test event to ONE endpoint, synchronously, and
+     * record the result. Works even if the endpoint is currently disabled (so
+     * you can verify it before turning it on). Returns the delivery outcome.
+     */
+    public static function sendTest(int $endpointId): array
+    {
+        if (!self::available()) return ['ok' => false, 'error' => 'Webhooks unavailable.'];
+        $db = Database::pdo(); self::ensure();
+        $e = $db->prepare('SELECT * FROM webhook_endpoints WHERE id = ?'); $e->execute([$endpointId]);
+        $ep = $e->fetch(PDO::FETCH_ASSOC);
+        if (!$ep) return ['ok' => false, 'error' => 'Endpoint not found.'];
+        $body = json_encode([
+            'event' => 'webhook.test',
+            'data'  => ['message' => 'Test delivery from the Afrovanguard Studio.', 'endpoint_id' => $endpointId],
+            'site'  => defined('SITE_URL') ? SITE_URL : '',
+            'at'    => gmdate('c'),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $db->prepare('INSERT INTO webhook_deliveries (endpoint_id, event, payload, status, next_attempt_at) VALUES (?,?,?,?,?)')
+           ->execute([$endpointId, 'webhook.test', $body, 'pending', gmdate('Y-m-d H:i:s')]);
+        $id = (int) $db->lastInsertId();
+        [$code, $err] = self::send((string) $ep['url'], (string) $ep['secret'], 'webhook.test', $id, $body);
+        $okStatus = $code >= 200 && $code < 300;
+        self::finish($db, $id, $okStatus ? 'success' : 'failed', $code, $err, 1, $okStatus ? '' : gmdate('Y-m-d H:i:s', time() + 3600));
+        return ['ok' => $okStatus, 'code' => $code, 'error' => $err, 'delivery_id' => $id];
+    }
+
     /** Enabled endpoints subscribed to $event (or to '*'). */
     private static function endpointsForEvent(PDO $db, string $event): array
     {

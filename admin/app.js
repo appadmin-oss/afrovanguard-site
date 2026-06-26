@@ -625,7 +625,7 @@
         return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(e.url) +
           (parseInt(e.enabled, 10) ? '' : ' <span class="badge draft">Off</span>') + '</div>' +
           '<div class="entry-meta">' + ev + '</div></div>' +
-          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-whedit="' + e.id + '">Edit</button></div></div>';
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-whtest="' + e.id + '">Test</button><button class="btn btn-outline btn-sm" data-whedit="' + e.id + '">Edit</button></div></div>';
       }).join('') : '<p class="muted">No endpoints yet. Add one to start sending signed events.</p>';
       var ds = r.data.deliveries || [];
       dlv.innerHTML = ds.length ? ds.map(function (d) {
@@ -636,7 +636,18 @@
       }).join('') : '<p class="muted">No deliveries yet.</p>';
     });
   }
-  $('#whList').addEventListener('click', function (e) { var b = e.target.closest('[data-whedit]'); if (b) openWh(+b.getAttribute('data-whedit')); });
+  $('#whList').addEventListener('click', function (e) {
+    var ed = e.target.closest('[data-whedit]'), tt = e.target.closest('[data-whtest]');
+    if (ed) { openWh(+ed.getAttribute('data-whedit')); return; }
+    if (tt) {
+      tt.disabled = true; var lbl = tt.textContent; tt.textContent = 'Testing…';
+      post('wh_test', { id: +tt.getAttribute('data-whtest') }).then(function (r) {
+        var x = (r.data && r.data.result) || {};
+        toast(x.ok ? 'Test delivered (HTTP ' + x.code + ').' : ('Test failed: ' + (x.error || ('HTTP ' + (x.code || 0)))));
+        loadWebhooks();
+      }).catch(function () { toast('Network error.'); }).finally(function () { tt.disabled = false; tt.textContent = lbl; });
+    }
+  });
   $('#newWhBtn').addEventListener('click', function () { openWh(null); });
 
   /* ---- API tokens (inbound integrations) ---- */
