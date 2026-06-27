@@ -5,7 +5,9 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 
 $serial = trim((string) ($_GET['serial'] ?? ''));
-$cert = $serial !== '' ? (new LmsRepository())->certificateBySerial($serial) : null;
+// Rate-limit lookups so a serial can't be brute-forced against this public endpoint.
+$cert = ($serial !== '' && av_rate_ok('cert_verify', 40, 600))
+    ? (new LmsRepository())->certificateBySerial($serial) : null;
 
 render_head([
     'title' => 'Verify a certificate — Afrovanguard Academy',

@@ -31,9 +31,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (($event['event'] ?? '') === 'charge.success') {
         $reference = (string) ($event['data']['reference'] ?? '');
         if ($reference !== '') {
-            // Re-verify with Paystack before granting (defence in depth).
+            // Re-verify with Paystack before granting (defence in depth). The
+            // verified amount is passed so finalizePayment can reject underpayment.
             $v = Payments::paystackVerify($reference);
-            if (!empty($v['paid'])) { $lms->finalizePayment($reference); }
+            if (!empty($v['paid'])) { $lms->finalizePayment($reference, (int) ($v['amount'] ?? 0)); }
         }
     }
     http_response_code(200);
@@ -53,8 +54,7 @@ if ($payment) {
         $status = 'paid'; // already finalised (e.g. webhook beat the redirect)
     } else {
         $v = Payments::paystackVerify($reference);
-        if (!empty($v['paid']) && (int) $v['amount'] >= (int) $payment['amount_kobo']) {
-            $lms->finalizePayment($reference);
+        if (!empty($v['paid']) && $lms->finalizePayment($reference, (int) ($v['amount'] ?? 0))) {
             $status = 'paid';
         }
     }

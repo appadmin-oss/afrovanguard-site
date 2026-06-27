@@ -204,7 +204,8 @@ final class LmsRepository
         if (!$this->progress($userId, $courseId)['complete']) return null;
         $cur = $this->getCertificate($userId, $courseId);
         if ($cur) return $cur;
-        $serial = 'AV-' . strtoupper(substr(md5($userId . ':' . $courseId . ':' . microtime()), 0, 4)) . '-' . date('Y') . '-' . str_pad((string) $courseId, 3, '0', STR_PAD_LEFT) . str_pad((string) $userId, 4, '0', STR_PAD_LEFT);
+        // Unguessable serial (48 random bits) — public verify.php must not be brute-forceable.
+        $serial = 'AV-' . strtoupper(bin2hex(random_bytes(6))) . '-' . date('Y');
         $this->db->prepare(Database::insertIgnore('certificates', ['user_id', 'course_id', 'serial']))->execute([$userId, $courseId, $serial]);
         return $this->getCertificate($userId, $courseId);
     }
@@ -224,12 +225,23 @@ final class LmsRepository
         $s = $this->db->prepare('SELECT * FROM payments WHERE reference = ?'); $s->execute([$reference]);
         return $s->fetch() ?: null;
     }
-    /** Mark a verified payment paid (idempotent) and grant the access it bought. */
-    public function finalizePayment(string $reference): bool
+    /**
+     * Mark a verified payment paid (idempotent) and grant the access it bought.
+     * $paidKobo MUST be the amount Paystack confirmed was actually paid: access is
+     * refused unless it covers the amount owed. Enforcing this here (not just in
+     * the caller) closes the underpayment bypass where the webhook granted access
+     * without checking the amount.
+     */
+    public function finalizePayment(string $reference, ?int $paidKobo = null): bool
     {
         $p = $this->paymentByRef($reference);
         if (!$p) return false;
-        if ($p['status'] === 'paid') return true;       // already granted
+        if ($p['status'] === 'paid') return true;       // already granted (idempotent)
+        if ($paidKobo === null || (int) $paidKobo < (int) $p['amount_kobo']) {
+            error_log('[lms] finalizePayment refused for ' . $reference . ': paid '
+                . var_export($paidKobo, true) . ' kobo < owed ' . (int) $p['amount_kobo']);
+            return false;
+        }
         $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=?")->execute([gmdate('Y-m-d H:i:s'), $reference]);
         $user = $this->userRow((int) $p['user_id']);
         if ($p['kind'] === 'course' && $p['course_id']) {
