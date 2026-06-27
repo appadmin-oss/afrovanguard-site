@@ -1,0 +1,74 @@
+/* events/events.css — Afrovanguard events page. Self-contained, on-brand,
+   layered on top of the shared nav.css + diary.css tokens. */
+
+.ev-main { --ev-navy:#0B1120; --ev-ink:#111827; --ev-gold:#f3b416; --ev-gold-deep:#b8860b;
+  color:#1f2530; background:#fff; }
+
+/* Hero */
+.ev-hero { position:relative; padding:96px 0 64px; color:#fff;
+  background:radial-gradient(1200px 500px at 75% -10%, #15233f 0%, transparent 60%), linear-gradient(160deg,#0B1120 0%,#10192c 55%,#0e1626 100%); }
+.ev-hero .container { max-width:920px; }
+.ev-kicker { display:inline-block; font:700 12px/1 'Montserrat',sans-serif; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--ev-gold); padding:7px 12px; border:1px solid rgba(243,180,22,.35);
+  border-radius:9999px; margin-bottom:18px; }
+.ev-hero h1 { font-family:'Cormorant',Georgia,serif; font-weight:700; font-size:clamp(2.4rem,5vw,3.8rem);
+  line-height:1.04; margin:0 0 16px; letter-spacing:-.01em; }
+.ev-lede { font-size:clamp(1.02rem,1.6vw,1.2rem); line-height:1.6; color:rgba(255,255,255,.74); max-width:62ch; margin:0 0 28px; }
+
+.ev-cta-row { display:flex; flex-wrap:wrap; gap:12px; }
+/* Guarantee good-looking buttons regardless of global .btn variants. */
+.ev-main .btn { display:inline-flex; align-items:center; justify-content:center; min-height:46px;
+  padding:0 24px; border-radius:9999px; font:700 14px/1 'Montserrat',sans-serif; cursor:pointer;
+  text-decoration:none; border:1.5px solid transparent; transition:transform .15s ease, box-shadow .2s ease, background .2s; }
+.ev-main .btn:hover { transform:translateY(-1px); }
+.ev-main .btn-primary { background:var(--ev-gold); color:#111827; box-shadow:0 6px 20px rgba(243,180,22,.28); }
+.ev-main .btn-primary:hover { box-shadow:0 10px 28px rgba(243,180,22,.38); }
+.ev-main .btn-outline { background:transparent; border-color:rgba(255,255,255,.35); color:#fff; }
+.ev-main .btn-outline:hover { border-color:#fff; background:rgba(255,255,255,.06); }
+
+/* Sections */
+.ev-section { padding:60px 0; }
+.ev-h { font-family:'Cormorant',Georgia,serif; font-weight:700; font-size:clamp(1.8rem,3.2vw,2.6rem);
+  margin:0 0 8px; color:var(--ev-ink); letter-spacing:-.01em; }
+.ev-sub { color:#5b6472; font-size:1rem; line-height:1.6; margin:0 0 28px; max-width:64ch; }
+.ev-sub a { color:var(--ev-gold-deep); font-weight:600; text-decoration:none; }
+.ev-sub a:hover { text-decoration:underline; }
+
+/* Calendar embed */
+.ev-calendar { border:1px solid #e6e8ec; border-radius:16px; overflow:hidden;
+  box-shadow:0 12px 40px rgba(11,17,32,.08); background:#fff; }
+.ev-calendar iframe { display:block; }
+
+/* Announcements */
+.ev-ann-list { list-style:none; margin:0; padding:0; display:grid; gap:14px; }
+.ev-ann { border:1px solid #e9ebef; border-left:4px solid var(--ev-gold); border-radius:12px;
+  padding:18px 20px; background:#fbfbfc; }
+.ev-ann-body { margin:0 0 8px; color:#2b323d; line-height:1.55; }
+.ev-ann-meta { margin:0; font:600 12.5px/1 'Montserrat',sans-serif; color:#8a93a1; }
+
+/* What we host grid */
+.ev-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; }
+.ev-card { border:1px solid #e9ebef; border-radius:16px; padding:26px 24px; background:#fff;
+  transition:transform .18s ease, box-shadow .22s ease, border-color .2s; }
+.ev-card:hover { transform:translateY(-3px); box-shadow:0 16px 40px rgba(11,17,32,.1); border-color:#dfe2e8; }
+.ev-card h3 { font-family:'Cormorant',Georgia,serif; font-weight:700; font-size:1.5rem; margin:0 0 8px; color:var(--ev-ink); }
+.ev-card p { margin:0; color:#5b6472; line-height:1.55; font-size:.97rem; }
+
+/* Closing CTA band */
+.ev-cta-band { padding:72px 0; text-align:center; color:#fff;
+  background:linear-gradient(135deg,#13351a 0%,#0f2a15 60%,#10192c 100%); }
+.ev-cta-band h2 { font-family:'Cormorant',Georgia,serif; font-weight:700; font-size:clamp(1.9rem,3.4vw,2.8rem); margin:0 0 10px; }
+.ev-cta-band p { color:rgba(255,255,255,.78); font-size:1.05rem; margin:0 0 26px; }
+.ev-cta-band .ev-cta-row { justify-content:center; }
+.ev-cta-band .btn-ghost { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.28); }
+.ev-cta-band .btn-ghost:hover { background:rgba(255,255,255,.18); }
+
+@media (max-width:640px){
+  .ev-hero { padding:72px 0 48px; }
+  .ev-section { padding:44px 0; }
+  .ev-cta-band { padding:56px 0; }
+}
+@media (prefers-reduced-motion:reduce){
+  .ev-main .btn, .ev-card { transition:none; }
+  .ev-main .btn:hover, .ev-card:hover { transform:none; }
+}

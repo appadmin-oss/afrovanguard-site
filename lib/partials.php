@@ -117,15 +117,15 @@ function av_nav_model(): array {
     $S = rtrim(SITE_URL, '/');
     $V = AV_VOLUNTEER_URL;
     return [
-        'about'   => ['label' => 'About', 'href' => $S . '/about/', 'mega' => [
+        'about'   => ['label' => 'About', 'href' => $S . '/about.html', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
-                    ['About us', $S . '/about/'], ['Our ethos', '/ethos/'],
-                    ['Leadership & model', '/ethos/#leadership'], ['Our story', $S . '/about/#our-story'],
+                    ['About us', $S . '/about.html'], ['Our ethos', '/ethos/'],
+                    ['Leadership & model', '/ethos/#leadership'], ['Our story', $S . '/about.html#our-story'],
                 ]],
                 ['title' => 'Get involved', 'links' => [
                     ['Volunteer', $V], ['Donate', $S . '/donate.html'],
-                    ['Events', $S . '/events/'], ['Contact us', $S . '/contact/'],
+                    ['Events', '/events/'], ['Contact us', $S . '/contact.html'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
@@ -153,7 +153,7 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'More', 'links' => [
                     ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All projects', $S . '/projects/'], ['Volunteer', $V], ['Events', $S . '/events/'],
+                    ['All projects', $S . '/projects/'], ['Volunteer', $V], ['Events', '/events/'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => $S . '/projects/', 'cta' => 'See all projects'],
@@ -161,8 +161,8 @@ function av_nav_model(): array {
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [
                 ['title' => 'Browse the Diary', 'links' => [
-                    ['All entries', '/diary/'], ['Field notes', '/diary/'],
-                    ['The mission', '/diary/'], ['Programme stories', '/diary/'],
+                    ['All entries', '/diary/'], ['Technology', '/diary/?q=Technology'],
+                    ['Creative', '/diary/?q=Creative'], ['Leadership', '/diary/?q=Leadership'],
                 ]],
                 ['title' => 'Follow along', 'links' => [
                     ['Subscribe', '/diary/#subscribe'], ['RSS feed', diary_url('feed.xml')],
@@ -172,7 +172,7 @@ function av_nav_model(): array {
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
         'community' => ['label' => 'Community', 'href' => '/community/'],
-        'contact' => ['label' => 'Contact', 'href' => $S . '/contact/'],
+        'contact' => ['label' => 'Contact', 'href' => $S . '/contact.html'],
     ];
 }
 
@@ -480,14 +480,14 @@ function av_footer_inner(): void {
         <div class="footer-col">
           <h4>Organization</h4>
           <ul class="footer-links">
-            <li><a href="<?= $S ?>/about/">About Us</a></li>
+            <li><a href="<?= $S ?>/about.html">About Us</a></li>
             <li><a href="/ethos/">Our Ethos</a></li>
             <li><a href="/academy/">Academy</a></li>
-            <li><a href="<?= $S ?>/events/">Events</a></li>
+            <li><a href="/events/">Events</a></li>
             <li><a href="/diary/">The Diary</a></li>
             <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Join Us</a></li>
             <li><a href="<?= $S ?>/donate.html">Donate</a></li>
-            <li><a href="<?= $S ?>/contact/">Contact</a></li>
+            <li><a href="<?= $S ?>/contact.html">Contact</a></li>
           </ul>
         </div>
         <div class="footer-col footer-contact">
