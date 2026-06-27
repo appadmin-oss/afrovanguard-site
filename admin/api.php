@@ -34,11 +34,18 @@ try {
         if (!av_rate_ok('admin_login', 8, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
         if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) json_out(['ok' => false, 'error' => 'Admin isn’t configured. Set AV_ADMIN_TOKEN (a random string, 8+ characters) via .htaccess SetEnv or config.php, then reload.'], 503);
         $tok = (string) ($body['token'] ?? '');
-        if ($tok === '' || !hash_equals((string) ADMIN_TOKEN, $tok)) json_out(['ok' => false, 'error' => 'Invalid token.'], 401);
+        if ($tok === '' || !hash_equals((string) ADMIN_TOKEN, $tok)) {
+            try { (new LmsRepository())->audit('admin_login_failed', '', 'bad token'); } catch (Throwable $e) {}
+            json_out(['ok' => false, 'error' => 'Invalid token.'], 401);
+        }
         av_admin_cookie_issue();
+        try { (new LmsRepository())->audit('admin_login', '', 'token sign-in'); } catch (Throwable $e) {}
         json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured()]);
     }
-    if ($action === 'logout') { av_admin_cookie_clear(); json_out(['ok' => true]); }
+    if ($action === 'logout') {
+        if (av_admin_cookie_valid()) { try { (new LmsRepository())->audit('admin_logout'); } catch (Throwable $e) {} }
+        av_admin_cookie_clear(); json_out(['ok' => true]);
+    }
     if ($action === 'session') {
         $authed = av_admin_cookie_valid() || av_admin_bearer_ok();
         json_out(['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured()]);
@@ -47,12 +54,21 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
     $lms  = new LmsRepository();
+
+    // Enterprise audit trail: record EVERY state-changing admin action centrally
+    // (actor + proxy-validated client IP + action + best-effort target). This is
+    // systemic — new write actions are covered automatically. mem_* self-audit
+    // below with richer before/after detail, so they're excluded here.
+    if ($writing && !in_array($action, ['mem_save', 'mem_create'], true)) {
+        $auditTarget = (string) ($body['slug'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
+        $lms->audit($action, $auditTarget);
+    }
 
     switch ($action) {
         case 'ping':         json_out(['ok' => true, 'cloudinary' => Cloudinary::configured()]);
@@ -60,6 +76,7 @@ try {
         case 'categories':   json_out(['ok' => true, 'categories' => $repo->categories()]);
         case 'articles':     json_out(['ok' => true, 'articles' => array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin())]);
         case 'enrollments':  json_out(['ok' => true, 'enrollments' => Database::pdo()->query('SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 200')->fetchAll()]);
+        case 'audit_log':    json_out(['ok' => true, 'audit' => $lms->recentAudit(min(200, max(1, (int) ($_GET['limit'] ?? 120))))]);
         case 'subscribers':  json_out(['ok' => true, 'subscribers' => Database::pdo()->query('SELECT email, source, created_at FROM subscribers ORDER BY created_at DESC LIMIT 500')->fetchAll(), 'count' => (int) Database::pdo()->query('SELECT COUNT(*) FROM subscribers')->fetchColumn()]);
 
         // ---- People / Team directory ----
@@ -294,6 +311,9 @@ try {
                 'members'           => $cnt("SELECT COUNT(*) FROM memberships WHERE status='active'"),
             ]]);
         }
+        case 'purge_demo':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(['ok' => true, 'removed' => Database::purgeDemoContent()]);
         case 'ac_roster': {
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);

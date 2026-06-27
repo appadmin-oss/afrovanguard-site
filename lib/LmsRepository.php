@@ -349,25 +349,36 @@ final class LmsRepository
         $done = true;
         // lms_audit is in db/schema.sql, so MySQL/Postgres get it from the applied
         // schema file. This lazy create is only a safety net for older SQLite DBs.
-        if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'sqlite') return;
-        $this->db->exec(
-            "CREATE TABLE IF NOT EXISTS lms_audit (
-               id INTEGER PRIMARY KEY AUTOINCREMENT,
-               actor TEXT NOT NULL DEFAULT 'admin',
-               action TEXT NOT NULL,
-               target TEXT NOT NULL DEFAULT '',
-               detail TEXT NOT NULL DEFAULT '',
-               created_at TEXT NOT NULL DEFAULT (datetime('now'))
-             );"
-        );
+        if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+            $this->db->exec(
+                "CREATE TABLE IF NOT EXISTS lms_audit (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   actor TEXT NOT NULL DEFAULT 'admin',
+                   action TEXT NOT NULL,
+                   target TEXT NOT NULL DEFAULT '',
+                   detail TEXT NOT NULL DEFAULT '',
+                   ip TEXT NOT NULL DEFAULT '',
+                   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                 );"
+            );
+        }
+        // Additive: older audit tables (any driver) gain the ip column.
+        try { if (class_exists('Database') && Database::tableExists('lms_audit') && !Database::columnExists('lms_audit', 'ip')) {
+            $this->db->exec("ALTER TABLE lms_audit ADD COLUMN ip TEXT NOT NULL DEFAULT ''");
+        } } catch (Throwable $e) { /* best-effort */ }
     }
-    public function audit(string $action, string $target = '', string $detail = ''): void
+    /**
+     * Append an immutable audit record for a core admin action. Captures the
+     * actor (admin identity) and the proxy-validated client IP automatically, so
+     * every state-changing action is attributable. Best-effort: never throws.
+     */
+    public function audit(string $action, string $target = '', string $detail = '', string $actor = 'admin'): void
     {
         $this->ensureAudit();
-        // Best-effort: a missing audit table (e.g. not yet provisioned on a
-        // non-SQLite target) must never break the admin action it records.
+        $ip = function_exists('av_client_ip') ? av_client_ip() : '';
         try {
-            $this->db->prepare("INSERT INTO lms_audit (action, target, detail) VALUES (?,?,?)")->execute([$action, $target, $detail]);
+            $this->db->prepare("INSERT INTO lms_audit (actor, action, target, detail, ip) VALUES (?,?,?,?,?)")
+                ->execute([$actor ?: 'admin', $action, mb_substr($target, 0, 300), mb_substr($detail, 0, 600), $ip]);
         } catch (Throwable $e) {
             error_log('[lms] audit write skipped: ' . $e->getMessage());
         }

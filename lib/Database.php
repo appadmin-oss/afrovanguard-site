@@ -159,33 +159,45 @@ final class Database
     private static function maybePurgeDemo(): void
     {
         if (self::metaGet('demo_purged_v1') !== null) return;
-        try {
-            $slugs = [
-                'introducing-the-afrovanguard-diary',
-                'school-storm-reaching-30000-children',
-                'the-math-behind-1-million-leaders',
-                'rebuilding-summer-school-six-lgas',
-                'what-techome-taught-us',
-            ];
-            $in = implode(',', array_fill(0, count($slugs), '?'));
-            // Articles cascade to sections/related/reactions (FK ON DELETE CASCADE).
-            self::$pdo->prepare("DELETE FROM articles WHERE slug IN ($in)")->execute($slugs);
-            if (self::tableExists('lessons')) {
-                // Demo lessons all carry this exact phrase; real ones won't.
-                self::$pdo->exec("DELETE FROM lessons WHERE body_html LIKE '%Full lesson content is authored in the Studio.%'");
-            }
-            if (self::tableExists('modules')) {
-                // Remove the now-empty demo modules (by their known titles only).
-                self::$pdo->exec(
-                    "DELETE FROM modules WHERE title IN ('Foundations','Building','Becoming a mentor','Orientation','Practicum')
-                     AND id NOT IN (SELECT module_id FROM lessons WHERE module_id IS NOT NULL)
-                     AND course_id IN (SELECT id FROM courses WHERE slug IN ('techome','africa-gates'))"
-                );
-            }
-            self::metaSet('demo_purged_v1', '1');
-        } catch (Throwable $e) {
-            error_log('[db] demo purge skipped: ' . $e->getMessage());
+        try { self::purgeDemoContent(); self::metaSet('demo_purged_v1', '1'); }
+        catch (Throwable $e) { error_log('[db] demo purge skipped: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Remove all shipped demo/sample content — the original demo Diary articles
+     * and the placeholder Academy lessons/modules. Targeted by exact demo slugs
+     * and a unique sentinel phrase in demo lesson bodies, so real content authored
+     * in the Studio (or the real starter curriculum) is never touched. Idempotent;
+     * safe to run on demand. Returns the row counts removed.
+     */
+    public static function purgeDemoContent(): array
+    {
+        $pdo = self::pdo();
+        $out = ['articles' => 0, 'lessons' => 0, 'modules' => 0];
+        $slugs = [
+            'introducing-the-afrovanguard-diary',
+            'school-storm-reaching-30000-children',
+            'the-math-behind-1-million-leaders',
+            'rebuilding-summer-school-six-lgas',
+            'what-techome-taught-us',
+        ];
+        $in = implode(',', array_fill(0, count($slugs), '?'));
+        // Articles cascade to sections/related/reactions (FK ON DELETE CASCADE).
+        $st = $pdo->prepare("DELETE FROM articles WHERE slug IN ($in)"); $st->execute($slugs);
+        $out['articles'] = $st->rowCount();
+        if (self::tableExists('lessons')) {
+            // Demo lessons all carry this exact phrase; real ones won't.
+            $out['lessons'] = $pdo->exec("DELETE FROM lessons WHERE body_html LIKE '%Full lesson content is authored in the Studio.%'") ?: 0;
         }
+        if (self::tableExists('modules')) {
+            // Remove now-empty demo modules (known titles only, and only when they
+            // hold no lessons — so the real starter curriculum's modules survive).
+            $out['modules'] = $pdo->exec(
+                "DELETE FROM modules WHERE title IN ('Foundations','Building','Becoming a mentor','Practicum')
+                 AND id NOT IN (SELECT module_id FROM lessons WHERE module_id IS NOT NULL)"
+            ) ?: 0;
+        }
+        return $out;
     }
 
     /** Create the Academy tables (idempotent) and seed them once. */

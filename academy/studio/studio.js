@@ -58,7 +58,8 @@
     course:       { title: 'Edit course',  sub: '', actions: '<button class="btn btn-ghost btn-sm" id="courseBack">← Courses</button><button class="btn btn-primary btn-sm" id="courseSave">Save course</button>' },
     curriculum:   { title: 'Curriculum',   sub: 'Modules, lessons & quizzes', actions: '' },
     learners:     { title: 'Learners',     sub: 'Progress & certificates', actions: '' },
-    applications: { title: 'Applications', sub: 'Lead-capture sign-ups', actions: '' }
+    applications: { title: 'Applications', sub: 'Lead-capture sign-ups', actions: '' },
+    activity:     { title: 'Activity log', sub: 'Audit trail — who changed what, and from where', actions: '<button class="btn btn-outline btn-sm" id="auditRefresh">Refresh</button>' }
   };
   function route(name, arg) {
     var v = VIEWS[name] || VIEWS.overview;
@@ -73,6 +74,7 @@
     if (name === 'curriculum') loadCurriculum(arg);
     if (name === 'learners') loadLearners(arg);
     if (name === 'applications') loadApplications();
+    if (name === 'activity') { loadActivity(); var rb = $('#auditRefresh'); if (rb) rb.onclick = loadActivity; }
   }
   $$('.nav-item').forEach(function (b) { b.addEventListener('click', function () { route(b.getAttribute('data-view')); }); });
   $$('.qbtn').forEach(function (b) { b.addEventListener('click', function () { var go = b.getAttribute('data-go'); if (b.getAttribute('data-new')) openCourse(null); else route(go); }); });
@@ -93,6 +95,14 @@
         return '<div class="stat"><div class="stat-num">' + esc(c[1]) + '</div><div class="stat-label">' + esc(c[0]) + '</div><div class="stat-sub">' + esc(c[2]) + '</div></div>';
       }).join('');
     });
+    var pd = $('#purgeDemo');
+    if (pd) pd.onclick = function () {
+      if (!confirm('Remove all shipped demo/sample content (sample Diary articles + placeholder lessons)? Real content and the starter curriculum are kept. This is logged.')) return;
+      post('purge_demo', {}).then(function (d) {
+        if (d && d.ok) { var r = d.removed || {}; toast('Removed ' + (r.articles || 0) + ' articles, ' + (r.lessons || 0) + ' lessons, ' + (r.modules || 0) + ' modules', 'ok'); loadOverview(); }
+        else toast((d && d.error) || 'Purge failed', 'err');
+      }).catch(function () { toast('Network error', 'err'); });
+    };
   }
 
   /* ── Courses ── */
@@ -312,6 +322,34 @@
       body.innerHTML = rows.map(function (r) {
         return '<tr><td class="c-title">' + esc(r.name) + '</td><td>' + esc(r.email) + '</td><td>' + esc(r.phone || '—') + '</td>'
           + '<td>' + esc(r.course_slug || r.course_id || '—') + '</td><td class="muted">' + esc((r.created_at || '').slice(0, 16)) + '</td></tr>';
+      }).join('');
+    });
+  }
+
+  /* ── Activity / audit log ── */
+  var ALABEL = {
+    admin_login: 'Admin signed in', admin_login_failed: 'Failed admin sign-in', admin_logout: 'Admin signed out',
+    ac_save: 'Course saved', ac_delete: 'Course deleted', mod_save: 'Module saved', mod_delete: 'Module deleted',
+    lesson_save: 'Lesson saved', lesson_delete: 'Lesson deleted', save: 'Diary entry saved', delete: 'Diary entry deleted',
+    mem_save: 'Member updated', mem_create: 'Member created', role_change: 'Role changed', suspend: 'Member suspended',
+    reactivate: 'Member reactivated', create_member: 'Member created', comm_save: 'Community saved', comm_delete: 'Community deleted',
+    wh_save: 'Webhook saved', wh_delete: 'Webhook deleted', wh_test: 'Webhook tested', auth_policy_save: 'Sign-in policy changed',
+    apptoken_create: 'API token created', apptoken_revoke: 'API token revoked', team_save: 'Team member saved',
+    team_delete: 'Team member deleted', cel_save: 'Celebration saved', cel_delete: 'Celebration deleted', mail_test: 'Test email sent'
+  };
+  function aclass(a) { return /delete|revoke|suspend|failed/.test(a) ? 'draft' : (/login|create|save|reactivate/.test(a) ? 'published' : 'access'); }
+  function loadActivity() {
+    var body = $('#auditBody'); body.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+    get('audit_log').then(function (d) {
+      var rows = (d && d.audit) || [];
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No activity recorded yet.</td></tr>'; return; }
+      body.innerHTML = rows.map(function (r) {
+        return '<tr><td class="muted" style="white-space:nowrap">' + esc((r.created_at || '').replace('T', ' ').slice(0, 16)) + '</td>'
+          + '<td><span class="badge ' + aclass(r.action) + '">' + esc(ALABEL[r.action] || r.action) + '</span></td>'
+          + '<td class="c-title">' + esc(r.target || '—') + '</td>'
+          + '<td class="muted">' + esc(r.detail || '') + '</td>'
+          + '<td>' + esc(r.actor || 'admin') + '</td>'
+          + '<td class="muted" style="font-variant-numeric:tabular-nums">' + esc(r.ip || '—') + '</td></tr>';
       }).join('');
     });
   }
