@@ -33,17 +33,28 @@ header('Access-Control-Allow-Headers: Content-Type, X-Paystack-Signature');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 /* ── Config ─────────────────────────────────────────────────── */
-$cfg = __DIR__ . '/config.php';
-if (!file_exists($cfg)) {
-    http_response_code(500);
-    echo json_encode(['success'=>false,'message'=>'Server configuration error']);
-    exit;
-}
-require_once $cfg;
+// Self-bootstrap: loads the .env file, promotes SMTP_*/FROM_*/ADMIN_EMAIL and
+// PAYSTACK_* (from AV_PAYSTACK_PK/SK) to constants, and pulls in the
+// dependency-free Smtp + Mailer. This makes donations work on a pure-.env
+// deployment (no config.php) as well as the legacy config.php setup — bootstrap
+// loads config.php itself when it is present and the secrets are in the env.
+require_once __DIR__ . '/lib/bootstrap.php';
 
-// Config now loads non-fatally (see config.example.php). Donations genuinely
-// need the Paystack secret (charge + webhook verification), so fail this one
-// request cleanly rather than attempting to charge with an empty key.
+// Donation-specific settings that normally live in config.php — default them so
+// the money path runs even when config.php is absent (env-only deployments).
+foreach ([
+    'ENABLE_EMAIL_NOTIFICATIONS' => true, 'ENABLE_ADMIN_NOTIFICATIONS' => true,
+    'ENABLE_BANK_TRANSFER_EMAIL' => true, 'ENABLE_MONTHLY_RECURRING' => true,
+    'CURRENCY_DEFAULT' => 'NGN', 'MIN_DONATION_AMOUNT' => 1000,
+    'TAX_RECEIPT_THRESHOLD_NGN' => 5000, 'TAX_RECEIPT_THRESHOLD_USD' => 5, 'TAX_RECEIPT_THRESHOLD_GBP' => 5,
+    'BANK_NAME' => 'Zenith Bank', 'BANK_CODE' => '057', 'ACCOUNT_NUMBER' => '1229629683',
+    'ACCOUNT_NAME' => 'AMBASSADORS FOR COMMUNITY, TECH AND CULTURAL ADVANCEMENTS',
+    'FROM_NAME' => 'Afrovanguard', 'ADMIN_EMAIL' => 'cacentre@afrovanguard.org.ng',
+] as $__k => $__v) { if (!defined($__k)) define($__k, $__v); }
+if (!defined('FROM_EMAIL')) define('FROM_EMAIL', defined('SMTP_USERNAME') ? SMTP_USERNAME : 'donations@afrovanguard.org.ng');
+
+// Donations genuinely need the Paystack secret (charge + webhook verification),
+// so fail this one request cleanly rather than attempting to charge with an empty key.
 if (!defined('PAYSTACK_SECRET_KEY') || (string) PAYSTACK_SECRET_KEY === '') {
     error_log('[AV] process-donation: PAYSTACK_SECRET_KEY missing — donations disabled until env is set.');
     http_response_code(503);
@@ -225,8 +236,14 @@ function esc($v): string {
    ═══════════════════════════════════════════════════════════ */
 function mail_send(string $to, string $sub, string $html): bool {
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
+    // Preferred path: the dependency-free Mailer (authenticated SMTP via lib/Smtp,
+    // falling back to mail()), loaded by bootstrap. This host has no PHPMailer, so
+    // this is what actually delivers receipts and pledge notifications.
+    if (class_exists('Mailer') && method_exists('Mailer', 'send')) {
+        return Mailer::send($to, $sub, $html);
+    }
     if (defined('AV_NO_MAILER')) {
-        error_log("[AV] mail_send skipped — PHPMailer not installed. To: {$to}, Subject: {$sub}");
+        error_log("[AV] mail_send skipped — no mailer available. To: {$to}, Subject: {$sub}");
         return false;
     }
     $m = new PHPMailer(true);

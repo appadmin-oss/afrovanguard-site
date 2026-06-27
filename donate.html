@@ -3487,12 +3487,12 @@
             <span>Donate</span>
           </nav>
 
-          <div class="hero-eyebrow fade-in-up">Fund Africa's Future</div>
+          <div class="hero-eyebrow fade-in-up">Give to Africa's Future</div>
           <h1 class="hero-title fade-in-up fade-in-up-1">
             Your Gift Changes<br><em>Everything</em>
           </h1>
           <p class="hero-sub fade-in-up fade-in-up-2">
-            Every naira and dollar you give goes directly into the hands of young African leaders through mentorship, technology training, and community programs starting from Nigeria, expanding across Africa.
+            Give what you can — equipment, books, your skills and time, or funds. Every contribution goes directly into the hands of young African leaders through mentorship, technology training, and community programmes across Nigeria and beyond.
           </p>
 
           <div class="hero-stats fade-in-up fade-in-up-3">
@@ -3526,22 +3526,22 @@
 
         <!-- DONATION TYPE SWITCHER — immediately clarifies monetary vs material -->
         <div class="donate-type-wrap" id="donate-type-wrap" role="tablist" aria-label="Choose donation type">
-          <button class="donate-type-tab donate-type-tab--active" id="tab-monetary"
-                  role="tab" aria-selected="true" aria-controls="panel-monetary"
-                  onclick="switchDonateType('monetary')">
-            <span class="donate-type-icon" aria-hidden="true">💳</span>
-            <span class="donate-type-label">Give Money</span>
-            <span class="donate-type-desc">Card, bank transfer, USSD</span>
+          <button class="donate-type-tab donate-type-tab--active" id="tab-material"
+                  role="tab" aria-selected="true" aria-controls="panel-material"
+                  onclick="switchDonateType('material')">
+            <span class="donate-type-icon" aria-hidden="true">📦</span>
+            <span class="donate-type-label">Donate Materials</span>
+            <span class="donate-type-desc">Equipment, books, skills &amp; time</span>
           </button>
           <div class="donate-type-divider" aria-hidden="true">
             <span>or</span>
           </div>
-          <button class="donate-type-tab" id="tab-material"
-                  role="tab" aria-selected="false" aria-controls="panel-material"
-                  onclick="switchDonateType('material')">
-            <span class="donate-type-icon" aria-hidden="true">📦</span>
-            <span class="donate-type-label">Donate Materials</span>
-            <span class="donate-type-desc">Equipment, skills, time</span>
+          <button class="donate-type-tab" id="tab-monetary"
+                  role="tab" aria-selected="false" aria-controls="panel-monetary"
+                  onclick="switchDonateType('monetary')">
+            <span class="donate-type-icon" aria-hidden="true">💳</span>
+            <span class="donate-type-label">Give Money</span>
+            <span class="donate-type-desc">Card, bank transfer, USSD</span>
           </button>
         </div>
 
@@ -3585,10 +3585,10 @@
             text-transform: uppercase;
           }
 
-          /* ── Material donations panel ─────────────────────── */
-          #panel-material { display: none; }
-          #panel-material.active { display: block; }
-          #panel-monetary { display: block; }
+          /* ── Donation panels — MATERIAL-FIRST by default ──── */
+          #panel-monetary { display: none; }
+          #panel-monetary.active { display: block; }
+          #panel-material { display: block; }
 
           /* ══════════════════════════════════════════════════════
              MATERIAL DONATIONS — FULL REDESIGN
@@ -6732,6 +6732,15 @@
         if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
+
+    // Material giving is the default. Honour a deep link to the money panel
+    // (#give / #money / #monetary) so "give financially" links still land right.
+    document.addEventListener('DOMContentLoaded', function () {
+      var h = (location.hash || '').toLowerCase();
+      if (h === '#give' || h === '#money' || h === '#monetary' || h === '#donate-money') {
+        switchDonateType('monetary');
+      }
+    });
 
     /* ════════════════════════════════════════════════════════════
        MATERIAL PANEL — FILTER, PREFILL, CLEAR
