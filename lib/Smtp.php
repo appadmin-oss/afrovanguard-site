@@ -31,6 +31,16 @@ final class Smtp
         $timeout = (int) ($cfg['timeout'] ?? 20);
         if ($host === '') return [false, 'No SMTP host.'];
 
+        // Defence-in-depth against header / SMTP-command injection: strip CR/LF and
+        // other control chars from every field that lands in a command or a mail
+        // header. Mailer validates addresses too, but this keeps Smtp safe on its
+        // own — e.g. a stray newline in a configured FROM_NAME / FROM_EMAIL can't
+        // smuggle extra recipients or headers.
+        $clean = static fn($s): string => (string) preg_replace('/[\x00-\x1f\x7f]+/', '', (string) $s);
+        foreach (['from', 'to', 'bcc', 'replyTo', 'fromName', 'subject'] as $__f) {
+            if (isset($msg[$__f])) $msg[$__f] = $clean($msg[$__f]);
+        }
+
         $sslOpts = $verify ? [] : ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
         $ctx = stream_context_create($sslOpts);
         $implicit = ($secure === 'ssl' || $secure === 'smtps');

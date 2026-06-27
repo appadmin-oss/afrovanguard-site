@@ -86,6 +86,11 @@ SYS;
             return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).'];
         }
 
+        // Bound how many prior turns we fold in — a caller (esp. the integration
+        // API's bot.ask) could pass an arbitrarily long context; keep the most
+        // recent turns so we don't build a huge string before the prompt cap.
+        if (count($history) > 40) $history = array_slice($history, -40);
+
         $context = '';
         foreach ($history as $h) {
             $who = (($h['role'] ?? '') === 'bot') ? 'Afrovanguard (you)' : ('Member' . (!empty($h['name']) ? ' ' . $h['name'] : ''));

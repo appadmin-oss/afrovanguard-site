@@ -76,6 +76,7 @@ try {
             if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
             $u = LmsAuth::user();
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!av_rate_ok('community_like', 120, 900)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
             json_out(['ok' => true] + Community::toggleLike((int) ($body['id'] ?? 0), (int) $u['id']));
         }
         case 'ask': {
@@ -90,8 +91,20 @@ try {
             if (mb_strlen($q) < 3) json_out(['ok' => false, 'error' => 'Ask a fuller question.'], 422);
             $uid = (int) $u['id'];
 
-            // Anchor the question: a reply in an existing thread, or a new post.
             $threadId = (int) ($body['id'] ?? 0);
+
+            // Capture the existing thread as context BEFORE adding this question,
+            // so the bot doesn't receive it twice (once as history, once as prompt).
+            $history = [];
+            if ($threadId > 0) {
+                $root = Community::post($threadId);
+                if ($root) $history[] = ['role' => $root['is_bot'] ? 'bot' : 'member', 'name' => $root['author'], 'text' => $root['body']];
+                foreach (Community::replies($threadId) as $r) {
+                    $history[] = ['role' => $r['is_bot'] ? 'bot' : 'member', 'name' => $r['author'], 'text' => $r['body']];
+                }
+            }
+
+            // Anchor the question: a reply in an existing thread, or a new post.
             if ($threadId > 0) {
                 $qid = Community::reply($uid, $threadId, $q);
                 if (!$qid) json_out(['ok' => false, 'error' => 'Could not post your question.'], 422);
@@ -103,15 +116,7 @@ try {
             }
             $question = Community::post($qid, $uid);
 
-            // Build thread context, ask Claude, post the bot's reply.
-            $history = [];
-            if ($threadId > 0) {
-                $root = Community::post($threadId);
-                if ($root) $history[] = ['role' => $root['is_bot'] ? 'bot' : 'member', 'name' => $root['author'], 'text' => $root['body']];
-                foreach (Community::replies($threadId) as $r) {
-                    $history[] = ['role' => $r['is_bot'] ? 'bot' : 'member', 'name' => $r['author'], 'text' => $r['body']];
-                }
-            }
+            // Ask Claude with the prior thread as context, then post the reply.
             $ai = AvBot::reply($q, $history);
             $botPost = null;
             if ($ai['ok']) {
