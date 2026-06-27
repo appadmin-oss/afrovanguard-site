@@ -353,7 +353,14 @@ final class Database
         $sql = preg_replace('/\bTEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+CURRENT_TIMESTAMP/i', $ts . '$1 DEFAULT CURRENT_TIMESTAMP', $sql);
 
         if ($driver === 'mysql') {
-            $sql = str_replace("\n);", "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", $sql); // FKs + unicode
+            // Append ENGINE=InnoDB (FKs + transactions) + utf8mb4 (emoji) to every
+            // table closer. The closer is a line that is whitespace then `);` — match
+            // any indentation (runtime DDL indents heredocs; schema.sql does not), but
+            // NOT a `CREATE INDEX ... (cols);` whose `);` is preceded by column text on
+            // the same line. Without this, tables inherit the server-default charset/
+            // engine — frequently latin1 + MyISAM on shared cPanel hosting, which
+            // truncates 4-byte emoji and drops foreign keys.
+            $sql = preg_replace('/\n([ \t]*)\);/', "\n\$1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", $sql);
             $sql = preg_replace('/CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE INDEX', $sql); // MySQL lacks IF NOT EXISTS on indexes
         }
         return $sql;
