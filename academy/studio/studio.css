@@ -3,6 +3,9 @@
    A focused, professional, light/dark admin console.
    ============================================================ */
 *,*::before,*::after{box-sizing:border-box}
+/* The hidden attribute must always win — .modal/.shell/.login set display, which
+   would otherwise keep a hidden modal/overlay on screen intercepting clicks. */
+[hidden]{display:none!important}
 :root{
   --gold:#f3b416; --gold-deep:#b8860b; --navy:#0B1120;
   --bg:#f4f6f9; --surface:#fff; --surface-2:#fafbfc; --line:#e6e9ef; --line-2:#eef1f5;
