@@ -8,7 +8,7 @@
  */
 declare(strict_types=1);
 
-define('AV_ROOT', dirname(__DIR__));
+if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 
 // ── .env loader ─────────────────────────────────────────────────────────────
 // Shared cPanel hosting has no Composer/dotenv, and a `.env` file is otherwise
