@@ -483,10 +483,13 @@ function av_footer_inner(): void {
             <li><a href="<?= $S ?>/about.html">About Us</a></li>
             <li><a href="/ethos/">Our Ethos</a></li>
             <li><a href="/academy/">Academy</a></li>
-            <li><a href="/events/">Events</a></li>
+            <li><a href="<?= $S ?>/projects/">Projects</a></li>
             <li><a href="/diary/">The Diary</a></li>
-            <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Join Us</a></li>
+            <li><a href="/community/">Community</a></li>
+            <li><a href="/events/">Events</a></li>
+            <li><a href="<?= e(AV_VOLUNTEER_URL) ?>">Volunteer</a></li>
             <li><a href="<?= $S ?>/donate.html">Donate</a></li>
+            <li><a href="/login">Sign In</a></li>
             <li><a href="<?= $S ?>/contact.html">Contact</a></li>
           </ul>
         </div>
