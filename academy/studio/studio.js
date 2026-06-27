@@ -8,6 +8,7 @@
   var csrf = '';
   var courses = [];
   var editingSlug = null;     // course being edited (null = new)
+  var curCourseSlug = '';     // course whose curriculum is open
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
