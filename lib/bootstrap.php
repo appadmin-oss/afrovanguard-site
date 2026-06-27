@@ -10,6 +10,77 @@ declare(strict_types=1);
 
 define('AV_ROOT', dirname(__DIR__));
 
+// ── .env loader ─────────────────────────────────────────────────────────────
+// Shared cPanel hosting has no Composer/dotenv, and a `.env` file is otherwise
+// just inert text — PHP never reads it, so every getenv() below returns false
+// and the whole app behaves as "unconfigured" (no email, no admin, no AI…).
+// Parse a .env file ourselves and populate the environment so getenv() sees it.
+//
+// Precedence: a variable ALREADY in the real environment (Apache SetEnv / PHP-FPM
+// / system env) always wins and is never overwritten — the file only fills gaps.
+// Location search (first readable wins): $AV_ENV_FILE, then one level ABOVE the
+// web root (recommended — not web-served), then the app root. Keep `.env` out of
+// the web root when you can; if it must live there, ensure the server denies it.
+(static function (): void {
+    $candidates = [];
+    $explicit = getenv('AV_ENV_FILE');
+    if (is_string($explicit) && $explicit !== '') $candidates[] = $explicit;
+    $candidates[] = dirname(AV_ROOT) . '/.env'; // above the web root (preferred)
+    $candidates[] = AV_ROOT . '/.env';          // inside the app root (convenient)
+
+    $file = null;
+    foreach ($candidates as $c) {
+        if (is_string($c) && $c !== '' && @is_file($c) && @is_readable($c) && (@filesize($c) ?: 0) <= 262144) { $file = $c; break; }
+    }
+    if ($file === null) return;
+
+    $lines = @file($file, FILE_IGNORE_NEW_LINES);
+    if ($lines === false) return;
+
+    foreach ($lines as $raw) {
+        $line = trim($raw);
+        if ($line === '' || $line[0] === '#' || $line[0] === ';') continue; // blank / comment
+        if (strncmp($line, 'export ', 7) === 0) $line = ltrim(substr($line, 7));
+
+        $eq = strpos($line, '=');
+        if ($eq === false) continue;
+        $key = trim(substr($line, 0, $eq));
+        if ($key === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) continue; // ignore junk keys
+
+        // Real environment wins; the file only fills what isn't already set.
+        $cur = getenv($key);
+        if ($cur !== false && $cur !== '') continue;
+
+        $val = ltrim(substr($line, $eq + 1));
+        if ($val !== '' && ($val[0] === '"' || $val[0] === "'")) {
+            // Quoted: value is the content up to the matching closing quote;
+            // anything after (e.g. a trailing comment) is ignored. Double quotes
+            // honour \n \r \t \" \\ escapes; single quotes are literal.
+            $q = $val[0]; $end = -1;
+            for ($i = 1, $n = strlen($val); $i < $n; $i++) {
+                if ($q === '"' && $val[$i] === '\\') { $i++; continue; }
+                if ($val[$i] === $q) { $end = $i; break; }
+            }
+            if ($end >= 0) {
+                $val = substr($val, 1, $end - 1);
+                if ($q === '"') $val = str_replace(['\\n', '\\r', '\\t', '\\"', '\\\\'], ["\n", "\r", "\t", '"', '\\'], $val);
+            } else {
+                $val = substr($val, 1); // no closing quote — take the rest literally
+            }
+        } else {
+            // Unquoted: trim a trailing inline comment introduced by whitespace + '#'
+            // (so the heavily-commented .env.example works once values are filled in),
+            // while leaving a '#' that's part of the value (e.g. p#ss) intact.
+            $val = preg_replace('/\s+#.*$/', '', $val);
+            $val = rtrim((string) $val);
+        }
+
+        putenv("{$key}={$val}");
+        $_ENV[$key] = $val;
+        $_SERVER[$key] = $val;
+    }
+})();
+
 // Reuse the site's config.php if deployed; otherwise fall back to safe
 // public defaults so the Diary runs standalone (and in local dev).
 //

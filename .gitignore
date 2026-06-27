@@ -1,5 +1,8 @@
 # ── Credentials & server config — NEVER commit ────────────────────────
 config.php
+.env
+.env.*
+!.env.example
 .htaccess
 .htpasswd
 # (the routing-only diary/.htaccess is force-added — it holds no secrets)
