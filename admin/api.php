@@ -279,6 +279,26 @@ try {
 
         /* ── Academy ── */
         case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);
+        case 'ac_overview': {
+            $pdo = Database::pdo();
+            $cnt = function (string $sql) use ($pdo): int { try { return (int) $pdo->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; } };
+            json_out(['ok' => true, 'stats' => [
+                'courses_total'     => $cnt("SELECT COUNT(*) FROM courses"),
+                'courses_published' => $cnt("SELECT COUNT(*) FROM courses WHERE status='published'"),
+                'courses_draft'     => $cnt("SELECT COUNT(*) FROM courses WHERE status<>'published'"),
+                'modules'           => $cnt("SELECT COUNT(*) FROM modules"),
+                'lessons'           => $cnt("SELECT COUNT(*) FROM lessons"),
+                'enrolments'        => $cnt("SELECT COUNT(*) FROM course_enrolment"),
+                'applications'      => $cnt("SELECT COUNT(*) FROM enrollments"),
+                'certificates'      => $cnt("SELECT COUNT(*) FROM certificates"),
+                'members'           => $cnt("SELECT COUNT(*) FROM memberships WHERE status='active'"),
+            ]]);
+        }
+        case 'ac_roster': {
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title'], 'lessons' => $lms->lessonCount((int) $cs['id'])], 'roster' => $lms->roster((int) $cs['id'])]);
+        }
         case 'ac_categories': json_out(['ok' => true, 'categories' => $ac->categories()]);
         case 'ac_get':
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);

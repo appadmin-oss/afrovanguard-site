@@ -113,8 +113,11 @@
   <!-- ACADEMY LIST -->
   <main class="studio-main" id="academyView" hidden>
     <div class="studio-head">
-      <div><h1>Academy programmes</h1><p class="muted">Courses shown on /academy/.</p></div>
-      <button class="btn btn-primary" id="newCourseBtn">+ New programme</button>
+      <div><h1>Academy programmes</h1><p class="muted">Courses shown on /academy/. For full curriculum, quizzes &amp; learners, use the dedicated console.</p></div>
+      <div class="editor-actions">
+        <a class="btn btn-outline" href="/academy/studio/" target="_blank" rel="noopener">Open Academy Studio ↗</a>
+        <button class="btn btn-primary" id="newCourseBtn">+ New programme</button>
+      </div>
     </div>
     <div class="entry-list" id="courseList"></div>
   </main>
