@@ -1,0 +1,58 @@
+# ============================================================================
+#  Afrovanguard — root server configuration.
+#
+#  Once WordPress is removed this becomes the SOLE root .htaccess. It holds NO
+#  secrets (configuration lives in a .env ABOVE the web root, or in real Apache
+#  SetEnv / PHP-FPM env), so it is safe to keep in version control.
+#
+#  DEPLOY NOTE: activate this only when WordPress is gone from the web root —
+#  it takes the place of WordPress's own root .htaccess.
+# ============================================================================
+
+# Serve the static homepage first, then PHP directory indexes. Subfolders that
+# have no .htaccess of their own (community/, mentorship/, people/, blog/)
+# inherit this, so e.g. /community/ correctly resolves to community/index.php.
+DirectoryIndex index.html index.php
+
+# Never expose a directory listing.
+Options -Indexes
+
+RewriteEngine On
+
+# Always allow ACME / domain-verification challenges (SSL renewal, site verify).
+RewriteRule ^\.well-known/ - [L]
+
+# Server-side PHP libraries are require()d, never requested directly over HTTP.
+RewriteRule ^lib/  - [F,L]
+RewriteRule ^db/   - [F,L]
+
+# ── Deny secrets, configs, VCS metadata, dumps and raw source/docs ──────────
+# Matches dotfiles (.env, .git*, .htaccess … but NOT .well-known), config.php /
+# composer.*, and a set of never-serve extensions.
+<IfModule mod_authz_core.c>
+  <FilesMatch "(^\.(?!well-known)|^(config|composer)\.|\.(env|ini|sqlite|sqlite-wal|sqlite-shm|sql|log|lock|bak|dist|sh|md|yml|yaml|example)$)">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <FilesMatch "(^\.(?!well-known)|^(config|composer)\.|\.(env|ini|sqlite|sqlite-wal|sqlite-shm|sql|log|lock|bak|dist|sh|md|yml|yaml|example)$)">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
+
+# ── Conservative security headers (Cloudflare may also set some; harmless) ──
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+AddDefaultCharset UTF-8
+
+# ── Optional: send unknown WordPress-era URLs to the homepage instead of 404 ─
+# Left commented so it never surprises you; enable if old /?p=… or /blog links
+# matter for SEO. Real files/dirs are always served as-is.
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteRule ^ /index.html [L]
