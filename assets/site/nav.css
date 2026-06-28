@@ -340,53 +340,77 @@ html[data-theme="dark"] .mega-col .mega-h { color: var(--m-gold); }
 .nav-utility .nav-donate:hover { color: var(--m-gold); opacity: 1; }
 
 /* ============================================================
-   EXACT AWS-PATTERN TWO-BAR HEADER (Afrovanguard palette)
-   Mirrors the AWS global header *structure* and color-USE pattern,
-   only the hues + content differ:
-     · Tier 0 (top, darkest navy): brand wordmark LEFT · utility cluster RIGHT
-     · Tier 1 (main, navy):        section links LEFT · search + gold CTA RIGHT
-     · gold reserved for the primary CTA + hover accents; white mega panels
-     · sticky header — the top utility bar folds away on scroll, main bar stays
-   Layered last so it governs the final DESKTOP layout. The mobile burger +
-   drawer (≤1099px) are deliberately left untouched.
+   EXACT AWS NAV REPLICA  (Afrovanguard palette · same colour-USE pattern)
+   Faithful to the AWS global header:
+     · Tier 0 — thin DARK utility strip, content RIGHT-aligned only (NO logo):
+       small links + a circular account avatar.
+     · Tier 1 — LIGHT / white main bar: logo LEFT, a divider, DARK nav links,
+       then (right) a search affordance, a Sign-in text link, and ONE solid
+       DARK pill CTA. Gold is the sparing accent (the wordmark, hover, active).
+   Only the hues differ (navy/gold vs squid-ink/orange); the USE pattern is the
+   same. Layered last so it governs the final look. Theme-aware via --m-* tokens
+   (white in light mode like AWS; dark surface in dark mode).
    ============================================================ */
+
+/* ── Tier 0 · dark utility strip (both themes), right-aligned, no logo ── */
+.nav-utility-bar { background: #0f1b2d; border-bottom: 0; }
+.nav-utility { justify-content: flex-end; gap: 20px; min-height: 40px; }
+.nav-utility-actions { display: inline-flex; align-items: center; gap: 18px; }
+.nav-util-link, .nav-utility .nav-donate { font-size: 13px; font-weight: 500; color: rgba(255,255,255,.9); text-decoration: none; opacity: 1; }
+.nav-util-link:hover, .nav-utility .nav-donate:hover { color: var(--m-gold); opacity: 1; }
+.nav-utility .icon-btn.theme-toggle { color: rgba(255,255,255,.9); border-color: rgba(255,255,255,.22); width: 32px; height: 32px; }
+
+/* ── Tier 1 · LIGHT main bar ── */
+.site-header { background: var(--m-surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.site-header.scrolled { background: var(--m-surface); box-shadow: 0 6px 20px -12px rgba(0,0,0,.28); }
+.site-header::after { background: var(--m-divider); height: 1px; opacity: 1; }
+.site-header.scrolled::after, .site-header.has-subnav::after { opacity: 1; }
+
+/* wordmark: dark + gold on the light bar */
+.site-header .nav-logo .brand-wordmark .wm-1 { color: var(--m-ink); }
+.site-header .nav-logo .brand-wordmark .wm-2 { color: var(--m-gold-deep); }
+
+/* divider after the logo (AWS) */
+.nav-divider { display: inline-block; width: 1px; height: 26px; background: var(--m-divider); flex-shrink: 0; }
+
+/* nav links: dark text, gold accent on hover / active */
+.site-header .nav-links a, .site-header .nav-links > li > a { color: var(--m-ink); }
+.site-header .nav-links > li > a:hover,
+.site-header .nav-links .has-mega:hover > a,
+.site-header .nav-links > li > a[aria-current="page"] { color: var(--m-gold-deep); }
+.site-header .nav-links > li > a::after { background: var(--m-gold); }
+.site-header .nav-links .has-mega > a .chev { opacity: .55; }
+
+/* search affordance: magnifier + label (not a full input), like AWS */
+.nav-search-btn { display: inline-flex; align-items: center; gap: 7px; color: var(--m-ink); text-decoration: none; font-size: 14px; font-weight: 600; padding: 8px 4px; }
+.nav-search-btn svg { width: 17px; height: 17px; }
+.nav-search-btn:hover { color: var(--m-gold-deep); }
+
+/* Sign-in text link on the light bar */
+.site-header .nav-signin-link { color: var(--m-ink); border: 0; padding: 8px 4px; font-size: 14px; font-weight: 600; }
+.site-header .nav-signin-link:hover { color: var(--m-gold-deep); }
+
+/* ONE solid pill CTA, far right — DARK in light mode (AWS), gold in dark mode */
+.site-header .nav-cta { display: inline-flex; align-items: center; background: #111827; color: #fff; border: 0;
+  font-size: 13.5px; font-weight: 700; padding: 11px 22px; border-radius: 9999px; text-decoration: none; box-shadow: none;
+  transition: background .18s ease, transform .15s ease; }
+.site-header .nav-cta:hover { background: #000; transform: translateY(-1px); }
+html[data-theme="dark"] .site-header .nav-cta { background: var(--m-gold); color: #1a1205; }
+html[data-theme="dark"] .site-header .nav-cta:hover { background: var(--m-gold); filter: brightness(1.06); }
+
+/* burger: dark on the light bar */
+.nav-burger { color: var(--m-ink); }
+
 @media (min-width: 1100px) {
-  /* sticky whole header so the brand + nav never scroll away (AWS behaviour) */
-  .site-header { position: sticky; top: 0; }
-
-  /* ── Tier 0 — top utility bar: wordmark LEFT, cluster RIGHT, darkest navy ── */
-  .nav-utility-bar { background: #090d15; }
-  .nav-utility { justify-content: space-between; gap: 22px; min-height: 42px; }
-  .nav-util-logo { text-decoration: none; flex-shrink: 0; display: inline-flex; align-items: center; }
-  .nav-util-logo .brand-wordmark { font-size: 21px; }
-  .nav-utility-actions { display: inline-flex; align-items: center; gap: 16px; }
-  .nav-util-link { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,.92); text-decoration: none; }
-  .nav-util-link:hover { color: var(--m-gold); }
-  /* fold the utility bar away on scroll; only the main bar persists (AWS) */
-  .nav-utility-bar { max-height: 60px; overflow: hidden; transition: max-height .3s cubic-bezier(.22,1,.36,1), opacity .2s ease; }
-  .site-header.scrolled .nav-utility-bar { max-height: 0; opacity: 0; }
-
-  /* ── Tier 1 — main bar: links LEFT; brand reappears only once folded ── */
-  .nav-logo-compact { width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: opacity .25s ease, width .25s ease, margin .25s ease; }
-  .site-header.scrolled .nav-logo-compact { width: auto; opacity: 1; margin-right: 20px; }
-  .site-header .nav-inner { gap: 18px; }
-  .nav-inner .nav-links { margin-left: 0; }
-  .nav-inner .nav-actions { margin-left: auto; gap: 14px; }
-
-  /* AWS-style search field in the main bar (right, just before the gold CTA) */
-  .nav-search { display: inline-flex; align-items: center; gap: 8px; flex: 0 1 240px; min-width: 180px;
-    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 8px;
-    padding: 8px 13px; transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
-  .nav-search:focus-within { background: rgba(255,255,255,.12); border-color: var(--m-gold); box-shadow: 0 0 0 3px rgba(232,163,23,.16); }
-  .nav-search svg { width: 16px; height: 16px; color: rgba(255,255,255,.7); flex-shrink: 0; }
-  .nav-search input { border: 0; background: transparent; outline: none; color: #fff; font-family: inherit; font-size: 13.5px; width: 100%; min-width: 0; }
-  .nav-search input::placeholder { color: rgba(255,255,255,.55); }
-
-  /* the contextual subnav (tier 2) stays a secondary sticky bar — so the AWS
-     pattern keeps the MAIN bar intact on scroll rather than collapsing it */
+  .site-header { position: sticky; top: 0; }                 /* AWS: header stays */
+  .nav-utility-bar { max-height: 56px; overflow: hidden; transition: max-height .3s cubic-bezier(.22,1,.36,1), opacity .2s ease; }
+  .site-header.scrolled .nav-utility-bar { max-height: 0; opacity: 0; }   /* top strip folds on scroll */
+  .site-header .nav-inner { gap: 16px; }
+  .nav-inner .nav-links { margin-left: 4px; }
+  .nav-inner .nav-actions { margin-left: auto; gap: 18px; align-items: center; }
   .site-header.has-subnav > .container { max-height: none; opacity: 1; pointer-events: auto; }
   .site-header.has-subnav.scrolled > .container { max-height: none; opacity: 1; }
 }
 
-/* search is a desktop affordance; the drawer carries it on mobile */
-@media (max-width: 1099px) { .nav-search { display: none; } }
+/* search + sign-in + divider are desktop affordances; the drawer carries them */
+@media (max-width: 1099px) { .nav-search-btn, .site-header .nav-inner .nav-signin-link, .nav-divider { display: none; } }
