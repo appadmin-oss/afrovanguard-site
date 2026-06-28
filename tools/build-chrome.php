@@ -29,10 +29,11 @@ $S     = rtrim(SITE_URL, '/');
 // Public marketing pages and which nav item is "current" on each.
 // (member.html / donor-dashboard.html are app shells — left alone.)
 $pages = [
-    'index.html'   => 'home',
-    'about.html'   => 'about',
-    'contact.html' => 'contact',
-    'donate.html'  => '',
+    'index.html'          => 'home',
+    'about.html'          => 'about',
+    'contact.html'        => 'contact',
+    'donate.html'         => '',
+    'projects/index.html' => 'projects',
 ];
 
 /** Canonical full nav (header + scrim + mobile drawer), captured from the
@@ -115,13 +116,15 @@ foreach ($pages as $file => $active) {
     }
     // 4) shared stylesheets last in <head> (after the page's inline styles).
     foreach (['/assets/site/nav.css', '/assets/site/chrome.css'] as $css) {
-        if (strpos($html, $css) === false) {
+        // match the actual tag (href="…"), not a bare mention in a comment/text
+        if (strpos($html, 'href="' . $css . '"') === false) {
             $html = preg_replace('~</head>~', '  <link rel="stylesheet" href="' . $css . '" />' . "\n</head>", $html, 1);
         }
     }
     // 5) shared scripts before </body>.
     foreach (['/assets/site/nav.js', '/assets/site/celebrations.js', '/assets/site/chrome.js'] as $js) {
-        if (strpos($html, $js) === false) {
+        // match the actual tag (src="…"), not a bare mention in a comment/text
+        if (strpos($html, 'src="' . $js . '"') === false) {
             $html = preg_replace('~</body>~', '  <script src="' . $js . '" defer></script>' . "\n</body>", $html, 1);
         }
     }
