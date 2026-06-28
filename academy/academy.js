@@ -37,6 +37,44 @@
     setTimeout(revealAll, 3000); // safety: never leave content hidden
   } else { revealAll(); }
 
+  /* ---- Catalogue search + category filter ----
+     The markup ships the controls (.search-input, .chip[data-filter]) and the
+     filterable cards (.ac-card[data-cat][data-search]) but nothing wired them
+     up, so both were dead. Filter client-side: a card shows when it matches the
+     active category AND the search query. */
+  (function () {
+    var grid = document.querySelector('.ac-grid');
+    var input = document.querySelector('.search-input');
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.diary-filters .chip[data-filter]'));
+    if (!grid || (!input && !chips.length)) return;
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.ac-card'));
+    var noResults = document.querySelector('.no-results');
+    var cat = 'all';
+    function apply() {
+      var q = (input && input.value || '').trim().toLowerCase();
+      var shown = 0;
+      cards.forEach(function (c) {
+        var okCat = cat === 'all' || c.getAttribute('data-cat') === cat;
+        var okQ = !q || (c.getAttribute('data-search') || '').indexOf(q) !== -1;
+        var show = okCat && okQ;
+        c.hidden = !show; if (show) shown++;
+      });
+      if (noResults) noResults.style.display = shown ? 'none' : 'block';
+    }
+    if (input) {
+      var t; input.addEventListener('input', function () { clearTimeout(t); t = setTimeout(apply, 120); });
+      input.addEventListener('search', apply); // clearing the native ✕
+    }
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        cat = chip.getAttribute('data-filter') || 'all';
+        chips.forEach(function (c) { c.classList.toggle('active', c === chip); c.setAttribute('aria-selected', c === chip ? 'true' : 'false'); });
+        apply();
+      });
+    });
+    apply();
+  })();
+
   /* ---- Sign-in → the standalone /login page (no modal) ---- */
   function loginUrl(mode) {
     var u = '/login?next=' + encodeURIComponent(location.pathname + location.search);
