@@ -114,3 +114,23 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 .login-card { border-top: 3px solid var(--gold); }
 .login-card h1 { font-family: var(--font-heading); letter-spacing: -0.01em; }
 .studio-tabs .tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ── WordPress import modal ──────────────────────────────────────────── */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(8,12,20,.55); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+.modal-backdrop[hidden] { display: none; }
+.modal-backdrop:not([hidden]) { display: flex; }
+.modal-box { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: var(--card-shadow); }
+.modal-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--divider); }
+.modal-top h2 { margin: 0; font-size: 19px; }
+.modal-body { padding: 20px 22px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--divider); }
+.icon-x { background: none; border: none; font-size: 26px; line-height: 1; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.icon-x:hover { color: var(--ink); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
+.wp-result { margin-top: 16px; padding: 14px 16px; border-radius: var(--radius-md); background: var(--bg); border: 1px solid var(--divider); font-size: 13px; max-height: 240px; overflow-y: auto; }
+.wp-result .wp-sum { font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.wp-result ul { margin: 0; padding-left: 0; list-style: none; }
+.wp-result li { padding: 3px 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wp-result li b { color: var(--ink); font-weight: 600; }
+.wp-result.err { border-color: #c0392b; color: #c0392b; background: rgba(192,57,43,.06); }

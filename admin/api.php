@@ -55,7 +55,7 @@ try {
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo',
-        'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke'], true);
+        'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -76,6 +76,22 @@ try {
         case 'ping':         json_out(['ok' => true, 'cloudinary' => Cloudinary::configured()]);
         case 'list':         json_out(['ok' => true, 'articles' => $repo->allForAdmin()]);
         case 'categories':   json_out(['ok' => true, 'categories' => $repo->categories()]);
+        case 'diary_import_wp': {
+            // Browser-based WordPress (WXR) import — no SSH needed. Admin-gated +
+            // CSRF (in $writing). Reuses the same engine as the CLI tool.
+            if ($method !== 'POST' || empty($_FILES['wxr'])) json_out(['ok' => false, 'error' => 'No export file uploaded.'], 400);
+            $f = $_FILES['wxr'];
+            if ($f['error'] !== UPLOAD_ERR_OK) json_out(['ok' => false, 'error' => 'Upload failed (PHP error code ' . $f['error'] . ' — the file may exceed the server upload limit).'], 400);
+            if ($f['size'] > 25 * 1024 * 1024) json_out(['ok' => false, 'error' => 'Export file exceeds 25 MB.'], 413);
+            $xml = file_get_contents($f['tmp_name']);
+            if ($xml === false || $xml === '') json_out(['ok' => false, 'error' => 'Could not read the uploaded file.'], 400);
+            require_once AV_ROOT . '/lib/WordpressImport.php';
+            json_out(av_wordpress_import($xml, [
+                'dry_run'        => (string) ($_POST['dry_run'] ?? '') === '1',
+                'status'         => (string) ($_POST['status'] ?? 'as-is'),
+                'include_pages'  => (string) ($_POST['include_pages'] ?? '') === '1',
+            ], $repo));
+        }
         case 'articles':     json_out(['ok' => true, 'articles' => array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin())]);
         case 'enrollments':  json_out(['ok' => true, 'enrollments' => Database::pdo()->query('SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 200')->fetchAll()]);
         case 'audit_log':    json_out(['ok' => true, 'audit' => $lms->recentAudit(min(200, max(1, (int) ($_GET['limit'] ?? 120))))]);

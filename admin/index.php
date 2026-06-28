@@ -53,10 +53,38 @@
   <main class="studio-main" id="entriesView" hidden>
     <div class="studio-head">
       <div><h1>Diary entries</h1><p class="muted" id="cloudinaryNote"></p></div>
-      <button class="btn btn-primary" id="newBtn">+ New entry</button>
+      <div class="editor-actions">
+        <button class="btn btn-outline" id="wpImportBtn" title="Migrate posts from a WordPress export file">↧ Import from WordPress</button>
+        <button class="btn btn-primary" id="newBtn">+ New entry</button>
+      </div>
     </div>
     <div class="entry-list" id="entryList"></div>
   </main>
+
+  <!-- WordPress import modal -->
+  <div class="modal-backdrop" id="wpModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="wpModalTitle">
+      <div class="modal-top"><h2 id="wpModalTitle">Import from WordPress</h2><button class="icon-x" id="wpClose" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <p class="muted" style="margin:0 0 14px">In WordPress: <strong>Tools → Export → Posts → Download Export File</strong>, then upload that <code>.xml</code> here. Post slugs are preserved, so old <code>/blog/…</code> links keep working. Re-importing is safe — entries update by slug instead of duplicating.</p>
+        <label class="fld"><span>WordPress export file (.xml)</span>
+          <input type="file" id="wpFile" accept=".xml,text/xml,application/xml" />
+        </label>
+        <div class="grid2">
+          <label class="fld"><span>Publish state</span>
+            <select id="wpStatus"><option value="as-is">Keep WordPress state (publish/draft)</option><option value="draft">Import all as drafts</option><option value="published">Publish all</option></select>
+          </label>
+          <label class="fld checkbox" style="align-self:end"><input type="checkbox" id="wpPages" /> <span>Include pages too</span></label>
+        </div>
+        <p class="muted tiny" style="margin:6px 0 0">Tip: keep your <code>wp-content/uploads/</code> folder after removing WordPress so in-article images keep loading.</p>
+        <div id="wpResult" class="wp-result" hidden></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" id="wpDryRun">Preview (dry run)</button>
+        <button class="btn btn-primary" id="wpRun">Import</button>
+      </div>
+    </div>
+  </div>
 
   <!-- DIARY EDITOR -->
   <main class="studio-main" id="editorView" hidden>

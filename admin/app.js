@@ -98,6 +98,50 @@
   $('#newBtn').addEventListener('click', function () { openEditor(null); });
   $('#backBtn').addEventListener('click', function () { show('entries'); loadList(); });
 
+  /* ── WordPress import modal (browser-based migration — no SSH needed) ── */
+  (function () {
+    var modal = $('#wpModal');
+    if (!modal) return;
+    function openModal() { $('#wpResult').hidden = true; $('#wpResult').innerHTML = ''; $('#wpFile').value = ''; modal.hidden = false; }
+    function closeModal() { modal.hidden = true; }
+    $('#wpImportBtn').addEventListener('click', openModal);
+    $('#wpClose').addEventListener('click', closeModal);
+    modal.addEventListener('mousedown', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+    function run(dryRun) {
+      var res = $('#wpResult');
+      var file = $('#wpFile').files[0];
+      if (!file) { res.hidden = false; res.className = 'wp-result err'; res.textContent = 'Choose your WordPress export .xml first.'; return; }
+      var fd = new FormData();
+      fd.append('wxr', file);
+      fd.append('dry_run', dryRun ? '1' : '0');
+      fd.append('status', $('#wpStatus').value);
+      fd.append('include_pages', $('#wpPages').checked ? '1' : '0');
+      var dry = $('#wpDryRun'), go = $('#wpRun');
+      dry.disabled = go.disabled = true;
+      res.hidden = false; res.className = 'wp-result'; res.textContent = 'Working…';
+      api('diary_import_wp', { method: 'POST', body: fd }).then(function (r) {
+        dry.disabled = go.disabled = false;
+        var d = r.data || {};
+        if (!d.ok) { res.className = 'wp-result err'; res.textContent = d.error || 'Import failed.'; return; }
+        var posts = d.posts || [];
+        var lead = (d.dry_run ? 'Preview — would import ' : 'Imported ') + d.imported + ' new, ' + d.updated + ' updated' + (d.skipped ? ' · ' + d.skipped + ' skipped' : '');
+        var html = '<div class="wp-sum">' + lead + '</div><ul>';
+        posts.slice(0, 200).forEach(function (p) {
+          html += '<li>' + (p.action === 'new' ? 'NEW' : 'UPD') + ' · <b>' + escapeHtml(p.title) + '</b> <span>(' + p.status + ' · /diary/' + escapeHtml(p.slug) + ')</span></li>';
+        });
+        if (posts.length > 200) html += '<li>…and ' + (posts.length - 200) + ' more</li>';
+        html += '</ul>';
+        if ((d.categories || []).length) html += '<div class="wp-sum" style="margin-top:8px">Categories: ' + d.categories.map(escapeHtml).join(', ') + '</div>';
+        res.innerHTML = html;
+        if (!d.dry_run) { toast('Imported ' + (d.imported + d.updated) + ' post(s)'); loadList(); }
+      }).catch(function () { dry.disabled = go.disabled = false; res.className = 'wp-result err'; res.textContent = 'Network error.'; });
+    }
+    $('#wpDryRun').addEventListener('click', function () { run(true); });
+    $('#wpRun').addEventListener('click', function () { run(false); });
+  })();
+
   /* ---- TinyMCE ---- */
   function getBody(id) { return (window.tinymce && tinymce.get(id)) ? tinymce.get(id).getContent() : ($('#' + id) ? $('#' + id).value : ''); }
   function initTiny(id, initial) {
