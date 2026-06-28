@@ -93,7 +93,10 @@ function readContacts(): array {
 
 function writeContact(array $entry): bool {
     $isNew = !file_exists(CONTACT_FILE);
-    $fp = @fopen(CONTACT_FILE, 'c');
+    // 'c+' = read+write (create, no truncate). Plain 'c' is write-only, so the
+    // stream_get_contents() read below failed ("Bad file descriptor") and every
+    // submission overwrote the file with only the newest entry — losing history.
+    $fp = @fopen(CONTACT_FILE, 'c+');
     if (!$fp) { error_log('[AV-Contact] Cannot open contacts.json'); return false; }
     flock($fp, LOCK_EX);
     $raw  = stream_get_contents($fp) ?: '';
