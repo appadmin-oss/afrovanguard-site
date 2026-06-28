@@ -529,6 +529,7 @@ function render_footer(): void { ?>
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
   <script src="/diary/diary.js" defer></script>
+  <script src="/assets/site/chioma.js" defer></script>
 </body>
 </html>
 <?php }

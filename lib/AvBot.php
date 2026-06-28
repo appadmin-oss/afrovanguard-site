@@ -104,7 +104,7 @@ SYS;
         $payload = [
             'model'      => self::model(),
             'max_tokens' => max(64, min(2048, (int) ($opts['max_tokens'] ?? 1024))),
-            'system'     => self::systemPrompt(),
+            'system'     => trim((string) ($opts['system'] ?? '')) !== '' ? (string) $opts['system'] : self::systemPrompt(),
             'messages'   => [['role' => 'user', 'content' => mb_substr($prompt, 0, 12000)]],
         ];
 
