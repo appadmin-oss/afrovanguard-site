@@ -277,6 +277,16 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     $illo = fn($k) => '/assets/illustrations/nav-' . $k . '.webp';
 ?>
   <header class="site-header<?= $sub ? ' has-subnav' : '' ?>" id="site-header" role="banner" data-section="<?= e($active) ?>">
+    <!-- Tier 0 · thin utility strip (secondary actions) -->
+    <div class="nav-utility-bar">
+      <div class="container">
+        <div class="nav-utility">
+<?php if ($showToggle): ?>          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
+<?php endif; ?>          <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
+          <div class="nav-auth" id="navAuth"><a class="nav-signin" data-login-link href="/login">Sign in</a></div>
+        </div>
+      </div>
+    </div>
     <!-- Tier 1 · global brand bar -->
     <div class="container">
         <nav class="nav-inner" aria-label="Main navigation">
@@ -308,10 +318,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
             </li>
 <?php endif; endforeach; ?>          </ul>
           <div class="nav-actions">
-<?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
-<?php endif; ?>            <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
             <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
-            <div class="nav-auth" id="navAuth"><a class="nav-signin" data-login-link href="/login">Sign in</a></div>
           </div>
           <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
             <span class="nav-toggle-line line-1"></span><span class="nav-toggle-line line-2"></span><span class="nav-toggle-line line-3"></span>

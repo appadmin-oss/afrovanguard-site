@@ -295,3 +295,17 @@ html[data-theme="dark"] {
 @media (prefers-reduced-motion: reduce) {
   .site-header .nav-inner, .nav-logo .brand-wordmark { transition: none !important; }
 }
+
+/* ── Tier 0 · thin utility strip (declutters the primary bar) ───────────────
+   Holds the secondary actions (Donate, theme, Sign in / account) above the main
+   bar — AWS-style — so the primary row is just logo + nav + one CTA. */
+.nav-utility-bar { border-bottom: 1px solid var(--m-divider); }
+.nav-utility { display: flex; align-items: center; justify-content: flex-end; gap: 16px; min-height: 38px; }
+.nav-utility .nav-donate { font-size: 12.5px; font-weight: 600; opacity: .9; }
+.nav-utility .nav-donate:hover { opacity: 1; }
+.nav-utility .nav-auth, .nav-utility .nav-signin { font-size: 12.5px; }
+/* Give the primary bar room to breathe now that it carries fewer items */
+.nav-inner .nav-links { margin-left: 8px; }
+.nav-inner .nav-actions { margin-left: auto; }
+/* On mobile the drawer carries these, so hide the strip entirely */
+@media (max-width: 1099px) { .nav-utility-bar { display: none; } }

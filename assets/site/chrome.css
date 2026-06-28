@@ -81,14 +81,17 @@
    semantic tokens; card surfaces that hardcode white are
    remapped to a dark surface below.
    ============================================================ */
-.nav-actions .icon-btn.theme-toggle {
+.nav-actions .icon-btn.theme-toggle, .nav-utility .icon-btn.theme-toggle {
   width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid var(--color-divider, rgba(0,0,0,0.12)); border-radius: 9999px;
   background: transparent; color: inherit; cursor: pointer; padding: 0; flex-shrink: 0;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
-.nav-actions .icon-btn.theme-toggle:hover { border-color: #f3b416; color: #f3b416; }
-.nav-actions .icon-btn.theme-toggle svg { width: 18px; height: 18px; }
+.nav-actions .icon-btn.theme-toggle:hover, .nav-utility .icon-btn.theme-toggle:hover { border-color: #f3b416; color: #f3b416; }
+.nav-actions .icon-btn.theme-toggle svg, .nav-utility .icon-btn.theme-toggle svg { width: 18px; height: 18px; }
+/* Utility strip lives at a smaller scale than the primary bar */
+.nav-utility .icon-btn.theme-toggle { width: 30px; height: 30px; }
+.nav-utility .icon-btn.theme-toggle svg { width: 15px; height: 15px; }
 .theme-toggle .moon { display: none; }
 html[data-theme="dark"] .theme-toggle .moon { display: block; }
 html[data-theme="dark"] .theme-toggle .sun { display: none; }
