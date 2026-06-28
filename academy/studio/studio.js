@@ -123,6 +123,8 @@
           + '<td class="num">' + esc(c.sort || 0) + '</td>'
           + '<td><div class="row-actions">'
           + '<button class="btn btn-outline btn-sm" data-edit="' + esc(c.slug) + '">Edit</button>'
+          + '<button class="btn btn-ghost btn-sm" data-toggle="' + esc(c.slug) + '" data-status="' + esc(c.status) + '">' + (c.status === 'published' ? 'Unpublish' : 'Publish') + '</button>'
+          + '<button class="btn btn-ghost btn-sm" data-dup="' + esc(c.slug) + '">Duplicate</button>'
           + '<a class="btn btn-ghost btn-sm" href="/academy/' + esc(c.slug) + '/" target="_blank" rel="noopener">View</a>'
           + '<button class="btn btn-ghost btn-sm" data-del="' + esc(c.slug) + '">Delete</button>'
           + '</div></td></tr>';
@@ -130,11 +132,33 @@
       $$('[data-edit]', body).forEach(function (b) { b.onclick = function () { openCourse(b.getAttribute('data-edit')); }; });
       $$('[data-curr]', body).forEach(function (b) { b.onclick = function () { route('curriculum', b.getAttribute('data-curr')); }; });
       $$('[data-del]', body).forEach(function (b) { b.onclick = function () { deleteCourse(b.getAttribute('data-del')); }; });
+      $$('[data-toggle]', body).forEach(function (b) { b.onclick = function () {
+        var ns = b.getAttribute('data-status') === 'published' ? 'draft' : 'published';
+        post('ac_status', { slug: b.getAttribute('data-toggle'), status: ns }).then(function (d) {
+          if (d && d.ok) { toast(ns === 'published' ? 'Published' : 'Unpublished (hidden from the catalogue)', 'ok'); loadCourses(); } else toast((d && d.error) || 'Failed', 'err');
+        });
+      }; });
+      $$('[data-dup]', body).forEach(function (b) { b.onclick = function () {
+        post('ac_duplicate', { slug: b.getAttribute('data-dup') }).then(function (d) {
+          if (d && d.ok) { toast('Duplicated → ' + d.slug + ' (draft)', 'ok'); loadCourses(); } else toast((d && d.error) || 'Failed', 'err');
+        });
+      }; });
     });
   }
   function deleteCourse(slug) {
-    if (!confirm('Delete “' + slug + '” and its curriculum? This cannot be undone.')) return;
-    post('ac_delete', { slug: slug }).then(function (d) { if (d && d.ok) { toast('Course deleted', 'ok'); loadCourses(); } else toast((d && d.error) || 'Delete failed', 'err'); });
+    if (!confirm('Delete “' + slug + '” and its curriculum? Consider Unpublish instead to retire it safely.')) return;
+    post('ac_delete', { slug: slug }).then(function (d) {
+      if (d && d.ok) { toast('Course deleted', 'ok'); loadCourses(); return; }
+      if (d && d.needs_confirm) {
+        if (confirm((d.error || 'This course has learner data.') + '\n\nForce-delete and permanently destroy that data?')) {
+          post('ac_delete', { slug: slug, force: true }).then(function (d2) {
+            if (d2 && d2.ok) { toast('Course force-deleted', 'ok'); loadCourses(); } else toast((d2 && d2.error) || 'Failed', 'err');
+          });
+        }
+        return;
+      }
+      toast((d && d.error) || 'Delete failed', 'err');
+    });
   }
 
   var CF = { title: 'c_title', slug: 'c_slug', summary: 'c_summary', body_html: 'c_body', outcomes: 'c_outcomes',
@@ -197,26 +221,43 @@
     wrap.innerHTML = '<p class="empty">Loading…</p>';
     get('ac_curriculum', 'slug=' + encodeURIComponent(slug)).then(function (d) {
       if (!d || !d.ok) { wrap.innerHTML = '<p class="empty">' + esc((d && d.error) || 'Could not load.') + '</p>'; return; }
-      $('#curHint').textContent = (d.modules || []).length + ' modules';
-      var html = (d.modules || []).map(function (m) {
-        var lessons = (m.lessons || []).map(function (l) {
-          return '<li class="les"><span class="les-grip">⋮⋮</span><span class="les-title">' + esc(l.title) + '</span>'
+      var mods = (d.modules || []).map(function (m) { m.id = +m.id; (m.lessons || []).forEach(function (l) { l.id = +l.id; }); return m; });
+      $('#curHint').textContent = mods.length + ' module' + (mods.length === 1 ? '' : 's');
+      var html = mods.map(function (m, mi) {
+        var lessons = (m.lessons || []).map(function (l, li) {
+          return '<li class="les">'
+            + '<button class="btn btn-ghost btn-sm les-mv" data-lup="' + l.id + '" data-mod="' + m.id + '" title="Move up"' + (li === 0 ? ' disabled' : '') + '>▲</button>'
+            + '<button class="btn btn-ghost btn-sm les-mv" data-ldn="' + l.id + '" data-mod="' + m.id + '" title="Move down"' + (li === m.lessons.length - 1 ? ' disabled' : '') + '>▼</button>'
+            + '<span class="les-title">' + esc(l.title) + '</span>'
             + '<span class="les-tags">' + (l.is_preview && l.is_preview != '0' ? '<span class="badge cert">preview</span>' : '')
             + '<span class="badge access">' + esc(l.duration_min || 0) + ' min</span></span>'
             + '<button class="btn btn-outline btn-sm" data-led="' + l.id + '">Edit</button>'
             + '<button class="btn btn-ghost btn-sm" data-ldel="' + l.id + '">✕</button></li>';
         }).join('') || '<li class="les-empty">No lessons yet.</li>';
         return '<div class="mod"><div class="mod-head"><span class="mod-title">' + esc(m.title) + '</span>'
+          + '<button class="btn btn-ghost btn-sm" data-mup="' + m.id + '" title="Move up"' + (mi === 0 ? ' disabled' : '') + '>▲</button>'
+          + '<button class="btn btn-ghost btn-sm" data-mdn="' + m.id + '" title="Move down"' + (mi === mods.length - 1 ? ' disabled' : '') + '>▼</button>'
           + '<button class="btn btn-ghost btn-sm" data-mren="' + m.id + '">Rename</button>'
           + '<button class="btn btn-ghost btn-sm" data-mdel="' + m.id + '">Delete</button></div>'
           + '<ul class="mod-lessons">' + lessons + '</ul>'
           + '<div class="mod-foot"><button class="btn btn-outline btn-sm" data-ladd="' + m.id + '">+ Add lesson</button></div></div>';
       }).join('');
       wrap.innerHTML = html + '<button class="btn btn-primary btn-sm" id="addMod">+ Add module</button>';
+      function swapAndSave(action, payloadKey, payloadVal, ids, i, j) {
+        if (i < 0 || j < 0 || j >= ids.length) return;
+        var t = ids[i]; ids[i] = ids[j]; ids[j] = t; var p = { ids: ids }; p[payloadKey] = payloadVal;
+        post(action, p).then(function () { renderCurriculum(slug); });
+      }
+      function moveModule(id, dir) { var ids = mods.map(function (m) { return m.id; }); var i = ids.indexOf(id); swapAndSave('mod_reorder', 'course', slug, ids, i, i + dir); }
+      function moveLesson(modId, id, dir) { var m = mods.filter(function (x) { return x.id === modId; })[0]; if (!m) return; var ids = (m.lessons || []).map(function (l) { return l.id; }); var i = ids.indexOf(id); swapAndSave('lesson_reorder', 'module_id', modId, ids, i, i + dir); }
       $('#addMod').onclick = function () {
         var t = prompt('Module title'); if (!t) return;
         post('mod_save', { course: slug, title: t }).then(function (r) { if (r && r.ok) renderCurriculum(slug); else toast((r && r.error) || 'Failed', 'err'); });
       };
+      $$('[data-mup]', wrap).forEach(function (b) { b.onclick = function () { moveModule(+b.getAttribute('data-mup'), -1); }; });
+      $$('[data-mdn]', wrap).forEach(function (b) { b.onclick = function () { moveModule(+b.getAttribute('data-mdn'), 1); }; });
+      $$('[data-lup]', wrap).forEach(function (b) { b.onclick = function () { moveLesson(+b.getAttribute('data-mod'), +b.getAttribute('data-lup'), -1); }; });
+      $$('[data-ldn]', wrap).forEach(function (b) { b.onclick = function () { moveLesson(+b.getAttribute('data-mod'), +b.getAttribute('data-ldn'), 1); }; });
       $$('[data-mren]', wrap).forEach(function (b) { b.onclick = function () { var t = prompt('New module title'); if (t) post('mod_save', { id: +b.getAttribute('data-mren'), title: t }).then(function () { renderCurriculum(slug); }); }; });
       $$('[data-mdel]', wrap).forEach(function (b) { b.onclick = function () { if (confirm('Delete this module and its lessons?')) post('mod_delete', { id: +b.getAttribute('data-mdel') }).then(function () { renderCurriculum(slug); }); }; });
       $$('[data-ladd]', wrap).forEach(function (b) { b.onclick = function () { openLesson(null, +b.getAttribute('data-ladd')); }; });
@@ -290,27 +331,58 @@
   };
 
   /* ── Learners ── */
+  var rosterSlug = '';
   function loadLearners(slug) {
     ensureCourses().then(function () {
       fillCoursePickers();
       var sel = $('#learnCourse'); if (slug) sel.value = slug;
       sel.onchange = function () { renderRoster(sel.value); };
+      var ef = $('#enrolForm');
+      if (ef) ef.onsubmit = function (e) {
+        e.preventDefault();
+        var email = $('#enrolEmail').value.trim(); if (!email || !rosterSlug) return;
+        post('roster_enrol', { course: rosterSlug, email: email }).then(function (d) {
+          if (d && d.ok) { toast('Enrolled ' + email, 'ok'); $('#enrolEmail').value = ''; renderRoster(rosterSlug); }
+          else toast((d && d.error) || 'Could not enrol', 'err');
+        });
+      };
+      var cb = $('#exportCsv');
+      if (cb) cb.onclick = function () { if (rosterSlug) window.open(API + '?action=ac_export&slug=' + encodeURIComponent(rosterSlug), '_blank'); };
       renderRoster(sel.value || (courses[0] && courses[0].slug));
     });
   }
+  function rosterAction(action, userId, confirmMsg, okMsg) {
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    post(action, { course: rosterSlug, user_id: userId }).then(function (d) {
+      if (d && d.ok) { toast(okMsg + (d.serial ? ' · ' + d.serial : ''), 'ok'); renderRoster(rosterSlug); }
+      else toast((d && d.error) || 'Failed', 'err');
+    });
+  }
   function renderRoster(slug) {
-    var body = $('#rosterBody'); if (!slug) { body.innerHTML = '<tr><td colspan="5" class="empty">No courses.</td></tr>'; return; }
-    body.innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
+    rosterSlug = slug;
+    var body = $('#rosterBody'); if (!slug) { body.innerHTML = '<tr><td colspan="6" class="empty">No courses.</td></tr>'; return; }
+    body.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
     get('ac_roster', 'slug=' + encodeURIComponent(slug)).then(function (d) {
-      if (!d || !d.ok) { body.innerHTML = '<tr><td colspan="5" class="empty">Could not load.</td></tr>'; return; }
+      if (!d || !d.ok) { body.innerHTML = '<tr><td colspan="6" class="empty">Could not load.</td></tr>'; return; }
       $('#learnHint').textContent = (d.roster || []).length + ' enrolled · ' + (d.course ? d.course.lessons : 0) + ' lessons';
-      if (!d.roster.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No learners enrolled yet.</td></tr>'; return; }
+      if (!d.roster.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No learners enrolled yet. Use “Enrol by email” to add someone with an Academy account.</td></tr>'; return; }
       body.innerHTML = d.roster.map(function (r) {
         return '<tr><td class="c-title">' + esc(r.name || '—') + '</td><td>' + esc(r.email) + '</td>'
           + '<td class="num"><div style="display:flex;align-items:center;gap:8px;justify-content:flex-end"><div class="progress"><i style="width:' + (r.pct || 0) + '%"></i></div><span>' + (r.pct || 0) + '%</span></div></td>'
           + '<td>' + (r.certified ? '<span class="badge cert">Certified</span>' : '<span class="muted">—</span>') + '</td>'
-          + '<td class="muted">' + esc((r.last_active || '').slice(0, 10) || '—') + '</td></tr>';
+          + '<td class="muted">' + esc((r.last_active || '').slice(0, 10) || '—') + '</td>'
+          + '<td><div class="row-actions">'
+          + (r.certified
+              ? '<button class="btn btn-ghost btn-sm" data-revoke="' + r.id + '">Revoke cert</button>'
+              : '<button class="btn btn-ghost btn-sm" data-issue="' + r.id + '">Issue cert</button>')
+          + '<button class="btn btn-ghost btn-sm" data-reset="' + r.id + '">Reset</button>'
+          + '<button class="btn btn-ghost btn-sm" data-unenrol="' + r.id + '">Unenrol</button>'
+          + '</div></td></tr>';
       }).join('');
+      $$('[data-unenrol]', body).forEach(function (b) { b.onclick = function () { rosterAction('roster_unenrol', +b.getAttribute('data-unenrol'), 'Unenrol this learner and delete their progress in this course?', 'Unenrolled'); }; });
+      $$('[data-reset]', body).forEach(function (b) { b.onclick = function () { rosterAction('roster_reset', +b.getAttribute('data-reset'), 'Reset this learner’s lesson progress and quiz attempts for this course?', 'Progress reset'); }; });
+      $$('[data-issue]', body).forEach(function (b) { b.onclick = function () { rosterAction('cert_issue', +b.getAttribute('data-issue'), 'Issue a certificate to this learner now (bypasses the completion check)?', 'Certificate issued'); }; });
+      $$('[data-revoke]', body).forEach(function (b) { b.onclick = function () { rosterAction('cert_revoke', +b.getAttribute('data-revoke'), 'Revoke this learner’s certificate for this course?', 'Certificate revoked'); }; });
     });
   }
 

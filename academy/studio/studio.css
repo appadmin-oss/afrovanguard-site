@@ -126,9 +126,16 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .tbl .empty{text-align:center;color:var(--muted);padding:34px}
 .tbl .c-title{font-weight:700;color:var(--ink)}
 .tbl .c-meta{font-size:12px;color:var(--muted);margin-top:2px}
-.row-actions{display:flex;gap:6px;justify-content:flex-end}
+.row-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
 .progress{height:7px;border-radius:9999px;background:var(--line);overflow:hidden;min-width:90px}
 .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-deep))}
+
+/* ── Roster tools (manual enrol + export) ── */
+.roster-tools{display:flex;align-items:center;gap:12px;margin:-4px 0 16px;flex-wrap:wrap}
+.enrol-form{display:flex;gap:8px;flex:1;min-width:240px;max-width:480px}
+.enrol-form input{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;font:inherit;color:var(--ink)}
+/* tighter reorder controls in the curriculum builder */
+.mod-head > .btn,.les .les-mv{padding:4px 8px;line-height:1}
 
 /* ── Badges ── */
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:9999px;letter-spacing:.02em}

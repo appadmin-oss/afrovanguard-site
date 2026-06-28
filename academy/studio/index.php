@@ -158,10 +158,17 @@ declare(strict_types=1);
       <!-- LEARNERS -->
       <section class="view" id="view-learners" hidden>
         <div class="picker"><label>Course</label><select id="learnCourse"></select><span class="pick-hint" id="learnHint"></span></div>
+        <div class="roster-tools">
+          <form id="enrolForm" class="enrol-form">
+            <input id="enrolEmail" type="email" placeholder="Enrol by email (needs an Academy account)" autocomplete="off" />
+            <button class="btn btn-outline btn-sm" type="submit">+ Enrol</button>
+          </form>
+          <button class="btn btn-ghost btn-sm" id="exportCsv" type="button">Export CSV</button>
+        </div>
         <div class="table-wrap">
           <table class="tbl" id="rosterTbl">
-            <thead><tr><th>Learner</th><th>Email</th><th class="num">Progress</th><th>Certified</th><th>Last active</th></tr></thead>
-            <tbody id="rosterBody"><tr><td colspan="5" class="empty">Pick a course.</td></tr></tbody>
+            <thead><tr><th>Learner</th><th>Email</th><th class="num">Progress</th><th>Certified</th><th>Last active</th><th>Actions</th></tr></thead>
+            <tbody id="rosterBody"><tr><td colspan="6" class="empty">Pick a course.</td></tr></tbody>
           </table>
         </div>
       </section>

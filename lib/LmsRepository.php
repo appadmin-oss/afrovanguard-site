@@ -198,6 +198,51 @@ final class LmsRepository
     private function lessonModule(int $moduleId): ?array { $s = $this->db->prepare('SELECT * FROM modules WHERE id = ?'); $s->execute([$moduleId]); return $s->fetch() ?: null; }
     public function deleteLesson(int $id): void { $this->db->prepare('DELETE FROM lessons WHERE id = ?')->execute([$id]); }
 
+    /* ── Management: reordering (positions 0..n in the given order) ── */
+    public function reorderModules(int $courseId, array $orderedIds): void
+    {
+        $u = $this->db->prepare('UPDATE modules SET position = ? WHERE id = ? AND course_id = ?');
+        foreach (array_values($orderedIds) as $pos => $id) { $u->execute([$pos, (int) $id, $courseId]); }
+    }
+    public function reorderLessons(int $moduleId, array $orderedIds): void
+    {
+        $u = $this->db->prepare('UPDATE lessons SET position = ? WHERE id = ? AND module_id = ?');
+        foreach (array_values($orderedIds) as $pos => $id) { $u->execute([$pos, (int) $id, $moduleId]); }
+    }
+
+    /* ── Management: per-learner interventions ── */
+    public function unenrol(int $userId, int $courseId): void
+    {
+        $this->db->prepare('DELETE FROM course_enrolment WHERE user_id = ? AND course_id = ?')->execute([$userId, $courseId]);
+        $this->db->prepare('DELETE FROM lesson_progress WHERE user_id = ? AND course_id = ?')->execute([$userId, $courseId]);
+    }
+    public function resetProgress(int $userId, int $courseId): void
+    {
+        $this->db->prepare('DELETE FROM lesson_progress WHERE user_id = ? AND course_id = ?')->execute([$userId, $courseId]);
+        $this->db->prepare('DELETE FROM quiz_attempts WHERE user_id = ? AND lesson_id IN (SELECT id FROM lessons WHERE course_id = ?)')->execute([$userId, $courseId]);
+    }
+    public function revokeCertificate(int $userId, int $courseId): void
+    {
+        $this->db->prepare('DELETE FROM certificates WHERE user_id = ? AND course_id = ?')->execute([$userId, $courseId]);
+    }
+    /** Admin manual issue (e.g. offline cohort) — bypasses the completion check. */
+    public function adminIssueCertificate(int $userId, int $courseId): ?array
+    {
+        if ($cur = $this->getCertificate($userId, $courseId)) return $cur;
+        $serial = 'AV-' . strtoupper(bin2hex(random_bytes(6))) . '-' . date('Y');
+        $this->db->prepare(Database::insertIgnore('certificates', ['user_id', 'course_id', 'serial']))->execute([$userId, $courseId, $serial]);
+        return $this->getCertificate($userId, $courseId);
+    }
+    /** Counts used to decide whether a course can be safely hard-deleted. */
+    public function courseUsage(int $courseId): array
+    {
+        $c = fn($sql) => (int) ($this->db->query($sql)->fetchColumn() ?: 0);
+        return [
+            'enrolments'   => $c('SELECT COUNT(*) FROM course_enrolment WHERE course_id = ' . $courseId),
+            'certificates' => $c('SELECT COUNT(*) FROM certificates WHERE course_id = ' . $courseId),
+        ];
+    }
+
     /* ── Certificates ── */
     public function issueCertificate(int $userId, int $courseId): ?array
     {

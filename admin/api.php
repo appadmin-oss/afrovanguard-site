@@ -54,7 +54,8 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo',
+        'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -66,7 +67,8 @@ try {
     // systemic — new write actions are covered automatically. mem_* self-audit
     // below with richer before/after detail, so they're excluded here.
     if ($writing && !in_array($action, ['mem_save', 'mem_create'], true)) {
-        $auditTarget = (string) ($body['slug'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
+        $auditTarget = (string) ($body['slug'] ?? $body['course'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
+        if (isset($body['user_id'])) $auditTarget = trim($auditTarget . ' user#' . (int) $body['user_id']);
         $lms->audit($action, $auditTarget);
     }
 
@@ -319,6 +321,69 @@ try {
             if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             json_out(['ok' => true, 'course' => ['slug' => $cs['slug'], 'title' => $cs['title'], 'lessons' => $lms->lessonCount((int) $cs['id'])], 'roster' => $lms->roster((int) $cs['id'])]);
         }
+        case 'ac_export': {
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->audit('ac_export', (string) $cs['slug'], 'roster CSV');
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="roster-' . preg_replace('/[^a-z0-9\-]/', '', (string) $cs['slug']) . '.csv"');
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Name', 'Email', 'Enrolled', 'Lessons done', 'Progress %', 'Certified', 'Last active']);
+            foreach ($lms->roster((int) $cs['id'], 5000) as $r) {
+                fputcsv($out, [$r['name'], $r['email'], $r['enrolled_at'] ?? '', $r['done'], $r['pct'], $r['certified'] ? 'yes' : 'no', $r['last_active'] ?? '']);
+            }
+            fclose($out); exit;
+        }
+        /* ── Curriculum reordering ── */
+        case 'mod_reorder': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->reorderModules((int) $cs['id'], array_map('intval', (array) ($body['ids'] ?? [])));
+            json_out(['ok' => true]);
+        }
+        case 'lesson_reorder':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $lms->reorderLessons((int) ($body['module_id'] ?? 0), array_map('intval', (array) ($body['ids'] ?? [])));
+            json_out(['ok' => true]);
+        /* ── Per-learner management ── */
+        case 'roster_enrol': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $u = $lms->findUserByEmail((string) ($body['email'] ?? ''));
+            if (!$u) json_out(['ok' => false, 'error' => 'No Academy account exists for that email yet.'], 404);
+            $lms->enrol((int) $u['id'], (int) $cs['id']);
+            json_out(['ok' => true]);
+        }
+        case 'roster_unenrol': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->unenrol((int) ($body['user_id'] ?? 0), (int) $cs['id']);
+            json_out(['ok' => true]);
+        }
+        case 'roster_reset': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->resetProgress((int) ($body['user_id'] ?? 0), (int) $cs['id']);
+            json_out(['ok' => true]);
+        }
+        case 'cert_issue': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $cert = $lms->adminIssueCertificate((int) ($body['user_id'] ?? 0), (int) $cs['id']);
+            json_out(['ok' => (bool) $cert, 'serial' => $cert['serial'] ?? null]);
+        }
+        case 'cert_revoke': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['course'] ?? ''))), true);
+            if (!$cs) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->revokeCertificate((int) ($body['user_id'] ?? 0), (int) $cs['id']);
+            json_out(['ok' => true]);
+        }
         case 'ac_categories': json_out(['ok' => true, 'categories' => $ac->categories()]);
         case 'ac_get':
             $cs = $ac->bySlug(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? ''))), true);
@@ -358,14 +423,38 @@ try {
                     else { $instructorMsg = 'Saved, but no Academy account exists for ' . $iem . ' yet — ask them to create one, then re-save to assign.'; }
                 }
             }
+            $fields['_editing'] = trim((string) ($body['editing'] ?? ''));
             $slug = $ac->save($fields);
             Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/', 'notice' => $instructorMsg]);
-        case 'ac_delete':
+        case 'ac_delete': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $okd = $ac->delete(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))));
+            $dslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $dc = $ac->bySlug($dslug, true);
+            if (!$dc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $usage = $lms->courseUsage((int) $dc['id']);
+            // Deleting hard-cascades away enrolments + certificates — refuse unless forced.
+            if (($usage['enrolments'] || $usage['certificates']) && empty($body['force'])) {
+                json_out(['ok' => false, 'needs_confirm' => true, 'usage' => $usage,
+                    'error' => 'This course has ' . $usage['enrolments'] . ' enrolment(s) and ' . $usage['certificates'] . ' certificate(s) that would be permanently destroyed. Archive it instead, or re-confirm to force-delete.'], 409);
+            }
+            $okd = $ac->delete($dslug);
             if ($okd) Sitemap::rebuild();
-            json_out(['ok' => $okd]);
+            json_out(['ok' => (bool) $okd]);
+        }
+        case 'ac_duplicate': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $ns = $ac->duplicate(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))));
+            if (!$ns) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            Sitemap::rebuild();
+            json_out(['ok' => true, 'slug' => $ns]);
+        }
+        case 'ac_status': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $ok = $ac->setStatus(preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? ''))), (string) ($body['status'] ?? 'draft'));
+            if ($ok) Sitemap::rebuild();
+            json_out(['ok' => (bool) $ok]);
+        }
 
         /* ── Curriculum authoring (modules + lessons) ── */
         case 'ac_curriculum':
