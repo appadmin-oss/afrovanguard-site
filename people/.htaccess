@@ -1,0 +1,21 @@
+# Afrovanguard people directory — pretty profile URLs
+#   /people/                 -> index.php          (full team directory)
+#   /people/<id>-<slug>/     -> index.php?id=<id>  (a single profile)
+#
+# Without this, the root .htaccess only resolves /people/ via DirectoryIndex;
+# the per-profile URLs (linked everywhere as /people/<id>-<slug>/) would 404.
+# Mirrors the dev router (router.php) so prod and dev route identically.
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /people/
+
+  # Real files (people.css, images, etc.) and directories are served as-is.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # /people/<id>  or  /people/<id>-<slug>  ->  index.php?id=<id>
+  RewriteRule ^([0-9]+)(?:-[^/]*)?/?$ index.php?id=$1 [L,QSA]
+</IfModule>
