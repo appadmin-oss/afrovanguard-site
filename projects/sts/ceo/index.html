@@ -1,0 +1,3416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FAFAF8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0A0A0F" media="(prefers-color-scheme: dark)">
+<title>Street-To-Stardom · 2026 Leadership Series · Speaker Initiation</title>
+<meta name="description" content="You have been invited to address the next 900. Street-To-Stardom 2026 Leadership Series — Alimosho, Lagos.">
+<meta property="og:title" content="Street-To-Stardom · 2026 Leadership Series">
+<meta property="og:description" content="One conversation can redirect a child's destiny. Six centres. 900 children. August 2026.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="assets/sts-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────────
+   STS · CEO Speaker Initiation v3 — production
+   Light theme · cinematic hero · accessible · mobile-first.
+   ───────────────────────────────────────────────────────────────────── */
+
+:root {
+  --bg: #FAFAF8;
+  --bg-sunken: #F4F4F0;
+  --surface: #FFFFFF;
+  --surface-2: #FAFAF8;
+  --ink: #0A0A0F;
+  --ink-soft: #1A1A22;
+  --muted: #6B6B70;
+  --muted-2: #93939A;
+  --hairline: #ECECEC;
+  --hairline-strong: #D7D7DA;
+
+  --blue: #0732F7;
+  --blue-deep: #0420B5;
+  --blue-tint: #EEF1FF;
+  --crimson: #C8102E;
+  --crimson-deep: #92091F;
+  --crimson-tint: #FDEEF1;
+
+  --accent: var(--blue);
+  --accent-deep: var(--blue-deep);
+  --accent-tint: var(--blue-tint);
+  --accent-2: var(--crimson);
+  --accent-2-tint: var(--crimson-tint);
+
+  --success: #1f9b5c;
+  --warning: #d97706;
+  --error:   var(--crimson);
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-display-2: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  --section-pad-x: 56px;
+  --section-pad-y: 96px;
+
+  --shadow-soft: 0 1px 2px rgba(10,10,15,0.04), 0 12px 32px -16px rgba(10,10,15,0.10);
+  --shadow-float: 0 24px 64px -32px rgba(7,50,247,0.30), 0 4px 12px rgba(10,10,15,0.06);
+  --shadow-deep: 0 60px 120px -40px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.18);
+  --shadow-ring: 0 0 0 3px var(--blue-tint);
+
+  --ease-out: cubic-bezier(.2,.7,.2,1);
+  --t-fast: 140ms;
+  --t-med: 240ms;
+  --t-slow: 480ms;
+}
+
+/* ── Reset + Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--bg);
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+::selection { background: var(--accent); color: #fff; }
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+button { cursor: pointer; background: transparent; border: 0; padding: 0; color: inherit; }
+img, svg { display: block; max-width: 100%; }
+img { height: auto; }
+a { color: inherit; text-decoration: none; }
+ul { list-style: none; padding: 0; margin: 0; }
+
+/* ── Accessibility: focus, skip link, sr-only ─────────────── */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute; top: 0; left: 0;
+  padding: 12px 18px;
+  background: var(--ink); color: #fff;
+  font-family: var(--font-mono); font-size: 12px;
+  border-bottom-right-radius: 8px;
+  transform: translateY(-100%);
+  transition: transform var(--t-fast) ease;
+  z-index: 1000;
+}
+.skip-link:focus { transform: translateY(0); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+.live-region {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+}
+
+/* ── Page chrome ──────────────────────────────────────────── */
+.page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+
+.bar {
+  border-bottom: 1px solid var(--hairline);
+  background: rgba(250,250,248,0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  position: sticky; top: 0; z-index: 60;
+}
+.bar-translucent { background: rgba(10,10,15,0.45); border-bottom-color: rgba(255,255,255,0.08); color: #fff; }
+.bar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px var(--section-pad-x);
+  display: flex; align-items: center; justify-content: space-between; gap: 32px;
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 12px;
+  background: transparent; border: 0; padding: 0;
+  color: inherit;
+}
+.brand-mark {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--blue), var(--crimson));
+  border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: var(--font-display-2); font-weight: 700; font-size: 17px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.brand-text { display: flex; flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.15; }
+.brand-name {
+  font-family: var(--font-display-2); font-weight: 700; font-size: 14px;
+  letter-spacing: -0.005em; color: var(--ink);
+}
+.brand-sub {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+
+.bar-stage { display: inline-flex; align-items: center; gap: 14px; }
+.lozenge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.lozenge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 0 rgba(31,155,92,0.5);
+  animation: pulseDot 2s ease-in-out infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(31,155,92,0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(31,155,92,0); }
+}
+.bar-translucent .lozenge { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); color: #fff; }
+
+.bar-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: var(--ink); color: #fff;
+  border-radius: var(--r-pill);
+  font-size: 12.5px; font-weight: 500;
+  transition: background var(--t-fast) ease;
+}
+.bar-cta:hover { background: var(--accent); }
+.bar-translucent .bar-cta { background: #fff; color: var(--ink); }
+.bar-cta .ar { transition: transform var(--t-fast) ease; }
+.bar-cta:hover .ar { transform: translateX(2px); }
+
+/* ── Hero ─────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: 20px var(--section-pad-x) 64px;
+  color: #fff;
+  overflow: hidden;
+  background: #06060B;
+}
+.hero-bg { position: absolute; inset: 0; z-index: 0; }
+.hero-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: grayscale(0.4) contrast(1.1);
+}
+.hero-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(7,50,247,0.45), transparent 60%),
+    radial-gradient(ellipse at 70% 70%, rgba(200,16,46,0.30), transparent 60%),
+    linear-gradient(180deg, rgba(6,6,11,0.7) 0%, rgba(6,6,11,0.45) 50%, rgba(6,6,11,0.92) 100%);
+}
+
+/* Hero top status strip */
+.hero-status {
+  position: relative; z-index: 3;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 24px; flex-wrap: wrap;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.75);
+}
+.hero-status-l, .hero-status-r { display: inline-flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.hero-status-item { display: inline-flex; align-items: center; gap: 8px; }
+.hero-status-item strong { color: #fff; font-weight: 500; }
+.hero-status-sep { width: 1px; height: 11px; background: rgba(255,255,255,0.2); }
+.hero-status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 0 0 rgba(46,204,113,0.55);
+  animation: liveDot 2.2s ease-in-out infinite;
+}
+@keyframes liveDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(46,204,113,0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(46,204,113,0); }
+}
+
+.hero-inner {
+  position: relative; z-index: 2;
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  max-width: 1280px; width: 100%; margin: 0 auto;
+  padding: 64px 0 32px;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgba(255,255,255,0.65);
+  margin-bottom: 32px;
+}
+.hero-eyebrow::before {
+  content: ""; display: inline-block;
+  width: 32px; height: 1px; background: currentColor; opacity: 0.55;
+}
+.hero-h {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(44px, 8vw, 116px);
+  line-height: 0.96; letter-spacing: -0.035em;
+  margin: 0 0 28px; max-width: 1080px;
+  color: #fff;
+  text-wrap: balance;
+}
+.hero-h em {
+  font-style: italic; font-weight: 400;
+  background: linear-gradient(120deg, #6688ff 0%, #ff8094 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+  font-size: clamp(16px, 1.35vw, 19px);
+  line-height: 1.55;
+  color: rgba(255,255,255,0.78);
+  max-width: 620px;
+  margin: 0 0 40px;
+  text-wrap: pretty;
+}
+.hero-cta-group {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin-bottom: 52px;
+}
+.hero-cta-primary {
+  display: inline-flex; align-items: center; gap: 12px;
+  min-height: 52px;
+  padding: 14px 22px 14px 26px;
+  background: #fff; color: var(--ink);
+  border-radius: var(--r-pill);
+  font-weight: 600; font-size: 15px;
+  transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-med) ease, background var(--t-fast) ease;
+  box-shadow: 0 8px 32px -8px rgba(0,0,0,0.4);
+}
+.hero-cta-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px -8px rgba(7,50,247,0.45);
+  background: color-mix(in srgb, #fff 95%, var(--accent));
+}
+.hero-cta-primary:active { transform: translateY(0); }
+.hero-cta-primary .cta-arrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  background: var(--ink); color: #fff;
+  border-radius: 50%; font-size: 11px;
+  transition: transform var(--t-med) ease;
+}
+.hero-cta-primary:hover .cta-arrow { transform: translateY(2px); }
+
+.hero-cta-secondary {
+  display: inline-flex; align-items: center; gap: 10px;
+  min-height: 52px;
+  padding: 12px 18px;
+  background: transparent;
+  color: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: var(--r-pill);
+  font-size: 14.5px; font-weight: 500;
+  transition: border-color var(--t-fast) ease, background var(--t-fast) ease, color var(--t-fast) ease;
+}
+.hero-cta-secondary:hover {
+  border-color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+.hero-cta-secondary .play-icon {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.16);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px;
+  padding-left: 1px;
+}
+
+/* Hero capacity bar */
+.hero-capacity {
+  margin-bottom: 48px; max-width: 760px;
+}
+.hero-capacity-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px; flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.6);
+}
+.hero-capacity-head strong {
+  font-family: var(--font-display); font-style: italic; font-weight: 400;
+  font-size: 15px; text-transform: none; letter-spacing: -0.005em;
+  color: rgba(255,255,255,0.95);
+}
+.hero-capacity-track { display: flex; gap: 4px; }
+.hero-cap-cell {
+  flex: 1; height: 8px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.13);
+  position: relative;
+  cursor: default;
+  transition: transform var(--t-fast) ease;
+}
+.hero-cap-cell.reserved { background: rgba(255,255,255,0.4); }
+.hero-cap-cell.honoured { background: var(--accent-2); opacity: 0.75; }
+.hero-cap-cell.open { background: var(--accent); }
+.hero-cap-cell.recommended { background: var(--accent); box-shadow: 0 0 0 2px rgba(255,255,255,0.22); }
+.hero-cap-cell:hover { transform: scaleY(1.6); }
+.hero-cap-cell::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink); color: #fff;
+  padding: 6px 10px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-fast) ease;
+}
+.hero-cap-cell:hover::after,
+.hero-cap-cell:focus::after { opacity: 1; }
+
+/* Hero stats */
+.hero-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  padding-top: 32px;
+  border-top: 1px solid rgba(255,255,255,0.14);
+}
+.hs {
+  padding: 0 28px;
+  border-right: 1px solid rgba(255,255,255,0.12);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.hs:first-child { padding-left: 0; }
+.hs:last-child { border-right: 0; padding-right: 0; }
+.hs-n {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(36px, 4vw, 56px); line-height: 1; letter-spacing: -0.025em;
+  color: #fff;
+}
+.hs-l {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.55);
+  line-height: 1.5;
+}
+
+/* Hero peers */
+.hero-peers {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+}
+.hero-peers-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px; flex-wrap: wrap;
+  margin-bottom: 18px;
+  font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+}
+.hero-peers-head strong {
+  font-family: var(--font-display); font-style: italic; font-weight: 400;
+  font-size: 15px; text-transform: none; letter-spacing: -0.005em;
+  color: rgba(255,255,255,0.9);
+}
+.hero-peers-track {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.hero-peers-row {
+  display: flex; gap: 36px;
+  width: max-content;
+  animation: peerScroll 42s linear infinite;
+}
+.hero-peers:hover .hero-peers-row,
+.hero-peers:focus-within .hero-peers-row { animation-play-state: paused; }
+@keyframes peerScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.hero-peer {
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0;
+  padding: 8px 16px 8px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: var(--r-pill);
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease;
+}
+.hero-peer:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.22); }
+.hero-peer-init {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-display-2); font-weight: 600;
+  font-size: 13px; color: #fff;
+}
+.hero-peer-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.hero-peer-name { font-size: 13px; font-weight: 500; color: #fff; white-space: nowrap; }
+.hero-peer-title { font-size: 11px; color: rgba(255,255,255,0.6); white-space: nowrap; }
+
+/* Hero scroll cue */
+.hero-scroll-cue {
+  position: absolute; left: 50%; bottom: 22px;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: rgba(255,255,255,0.55);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+  transition: color var(--t-fast) ease;
+  z-index: 4;
+}
+.hero-scroll-cue:hover { color: #fff; }
+.hero-scroll-cue .cue-arrow {
+  width: 22px; height: 22px;
+  border: 1px solid currentColor; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11px;
+  animation: cueBounce 2.4s ease-in-out infinite;
+}
+@keyframes cueBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+/* ── Main stage ────────────────────────────────────────────── */
+.stage {
+  background: var(--bg);
+  padding: var(--section-pad-y) var(--section-pad-x) 120px;
+  flex: 1;
+}
+.wrap { max-width: 1320px; margin: 0 auto; }
+
+/* Prelude */
+.prelude {
+  display: grid; grid-template-columns: 1.4fr 1fr; gap: 64px;
+  padding-bottom: 64px;
+  margin-bottom: 56px;
+  border-bottom: 1px solid var(--hairline);
+  align-items: end;
+}
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 18px;
+}
+.prelude-h {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(34px, 4.5vw, 64px); line-height: 1; letter-spacing: -0.03em;
+  margin: 0 0 22px; text-wrap: balance;
+}
+.prelude-h em {
+  font-style: italic; font-weight: 400;
+  color: var(--accent);
+}
+.prelude-lede {
+  font-size: 17px; line-height: 1.55; color: var(--muted);
+  max-width: 580px; margin: 0;
+}
+.prelude-meta {
+  margin: 0; display: flex; flex-direction: column; gap: 14px;
+}
+.prelude-meta-row {
+  display: grid; grid-template-columns: 120px 1fr;
+  gap: 18px; align-items: baseline;
+}
+.prelude-meta-row dt {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-2);
+}
+.prelude-meta-row dd {
+  margin: 0;
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 17px; letter-spacing: -0.01em;
+}
+.prelude-meta-row dd small {
+  display: block; font-family: var(--font-body); font-size: 12.5px;
+  color: var(--muted); margin-top: 3px;
+}
+
+/* Composer (form area + right rail) */
+.composer { display: grid; grid-template-columns: 1.55fr 1fr; gap: 56px; align-items: start; }
+.composer-left { min-width: 0; }
+.composer-right { min-width: 0; }
+.sticky-rail { position: sticky; top: 90px; display: flex; flex-direction: column; gap: 18px; }
+
+/* Stepper */
+.stepper {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 12px; margin-bottom: 36px;
+}
+.step {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  text-align: left;
+  transition: border-color var(--t-fast) ease, background var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.step:not(:disabled):hover { border-color: var(--hairline-strong); transform: translateY(-1px); }
+.step .ix {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted-2);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.step .ix-bar { width: 14px; height: 1px; background: currentColor; opacity: 0.4; }
+.step .ttl {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: 16px; letter-spacing: -0.012em; color: var(--ink);
+}
+.step .kicker { font-size: 12.5px; color: var(--muted); }
+.step.on { border-color: var(--accent); background: var(--accent-tint); }
+.step.on .ix, .step.on .ttl { color: var(--accent-deep); }
+.step.done { border-color: var(--hairline-strong); }
+.step.done .ix { color: var(--success); }
+.step.todo { opacity: 0.6; }
+.step:disabled { cursor: not-allowed; }
+
+/* Scene wrapper */
+.scene-wrap { min-height: 460px; }
+.scene {
+  animation: sceneIn 460ms var(--ease-out) both;
+}
+@keyframes sceneIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.step-head { margin-bottom: 32px; }
+.step-kicker {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 16px;
+}
+.step-title {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(28px, 3.5vw, 44px); letter-spacing: -0.025em;
+  line-height: 1.05; margin: 0 0 14px; text-wrap: balance;
+}
+.step-title em { font-style: italic; font-weight: 400; color: var(--accent); }
+.step-sub {
+  font-size: 15.5px; line-height: 1.55; color: var(--muted);
+  max-width: 660px; margin: 0; text-wrap: pretty;
+}
+
+/* Fields */
+.fields { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
+.field { grid-column: span 12; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field.col-3 { grid-column: span 3; }
+.field.col-5 { grid-column: span 5; }
+.field.col-7 { grid-column: span 7; }
+.field.col-9 { grid-column: span 9; }
+.field.full { grid-column: 1 / -1; }
+.field label {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  font-weight: 500;
+}
+.field label .opt {
+  font-family: var(--font-body); text-transform: none;
+  letter-spacing: 0; font-size: 11.5px; color: var(--muted-2); font-weight: 400;
+}
+.field label .ok-check {
+  color: var(--success); font-family: var(--font-body); letter-spacing: 0;
+  text-transform: none; font-size: 14px;
+}
+.field input, .field textarea, .field select {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  font-size: 15px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  transition: border-color var(--t-fast) ease, box-shadow var(--t-fast) ease, background var(--t-fast) ease;
+  min-height: 48px;
+}
+.field input::placeholder, .field textarea::placeholder { color: var(--muted-2); }
+.field input:focus, .field textarea:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: var(--shadow-ring);
+}
+.field textarea { min-height: 100px; resize: vertical; line-height: 1.55; }
+.field.err input, .field.err textarea { border-color: var(--error); background: var(--crimson-tint); }
+.field.err input:focus, .field.err textarea:focus { box-shadow: 0 0 0 3px var(--crimson-tint); }
+.field.ok input, .field.ok textarea { border-color: color-mix(in srgb, var(--success) 50%, var(--hairline-strong)); }
+.field-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.err-text {
+  font-size: 12.5px; color: var(--error);
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 2px;
+}
+.err-text::before { content: "⚠"; font-size: 11px; }
+
+.autosave-row {
+  margin-top: 16px;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.06em; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.autosave-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+  animation: pulseDot 2.2s ease-in-out infinite;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 13px 20px;
+  border-radius: var(--r-pill);
+  font-size: 14px; font-weight: 500;
+  font-family: var(--font-body);
+  min-height: 48px;
+  transition: background var(--t-fast) ease, color var(--t-fast) ease, border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent); }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--hairline-strong); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-sunken); border-color: var(--ink); }
+.btn-ghost-light { background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.18); }
+.btn-ghost-light:hover { background: rgba(255,255,255,0.12); }
+.btn-light { background: #fff; color: var(--ink); }
+.btn-arrow { transition: transform var(--t-fast) ease; }
+.btn:hover .btn-arrow { transform: translateX(3px); }
+.btn:hover .btn-arrow.back { transform: translateX(-3px); }
+.btn-final {
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  box-shadow: 0 12px 32px -10px rgba(7,50,247,0.5);
+}
+.btn-final:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-deep), var(--accent));
+  box-shadow: 0 16px 40px -10px rgba(7,50,247,0.6);
+}
+
+.actions {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--hairline);
+}
+
+.composer-foot {
+  margin-top: 24px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--muted); letter-spacing: 0.06em;
+}
+.autosave { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ── Centres grid ─────────────────────────────────────────── */
+.centres { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.centre {
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-lg);
+  text-align: left;
+  overflow: hidden;
+  transition: border-color var(--t-fast) ease, box-shadow var(--t-fast) ease, transform var(--t-fast) ease;
+  cursor: pointer;
+}
+.centre:not(:disabled):hover { border-color: var(--ink); transform: translateY(-2px); box-shadow: var(--shadow-soft); }
+.centre.on { border-color: var(--accent); box-shadow: var(--shadow-ring); background: var(--accent-tint); }
+.centre.honoured { cursor: not-allowed; opacity: 0.78; }
+.centre.honoured:hover { transform: none; }
+.centre-photo {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--bg-sunken);
+}
+.centre-photo img {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: grayscale(0.3);
+}
+.centre-body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 6px; }
+.centre-top {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.centre-pill {
+  padding: 4px 10px;
+  background: var(--bg-sunken); border-radius: var(--r-pill);
+  font-size: 10px; letter-spacing: 0.06em;
+}
+.centre-pill.honoured-pill { background: var(--accent-2-tint); color: var(--crimson-deep); font-weight: 500; }
+.centre-name { font-family: var(--font-display); font-weight: 500; font-size: 22px; letter-spacing: -0.018em; }
+.centre-focus { font-size: 13.5px; color: var(--accent); font-weight: 500; }
+.centre-bio { font-size: 13.5px; color: var(--muted); line-height: 1.55; margin: 6px 0 12px; }
+.centre-foot {
+  display: flex; gap: 18px; align-items: flex-end;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+.centre-stat { display: flex; flex-direction: column; gap: 2px; }
+.centre-stat-n {
+  font-family: var(--font-display); font-weight: 500; font-size: 18px;
+  letter-spacing: -0.015em; color: var(--ink);
+}
+.centre-stat-l { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.centre-stat.right { margin-left: auto; text-align: right; }
+.select-chip {
+  padding: 7px 12px;
+  background: var(--ink); color: #fff;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  text-transform: none;
+}
+.centre.on .select-chip { background: var(--accent); }
+
+/* AI Match Badge */
+.ai-match-badge {
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px 5px 8px;
+  background: var(--accent); color: #fff;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500;
+  box-shadow: 0 4px 12px -2px rgba(7,50,247,0.4);
+}
+.ai-match-badge.runner-up { background: var(--accent-2); box-shadow: 0 4px 12px -2px rgba(200,16,46,0.4); }
+.ai-match-badge .badge-icon { font-size: 11px; }
+
+/* ── Date legend + weeks ──────────────────────────────────── */
+.legend {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  margin-bottom: 22px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--muted); letter-spacing: 0.04em;
+}
+.lg { display: inline-flex; align-items: center; gap: 7px; }
+.lg-sw { width: 12px; height: 12px; border-radius: 3px; background: var(--bg-sunken); border: 1px solid var(--hairline-strong); }
+.lg-open { background: var(--surface); }
+.lg-rec { background: var(--accent-tint); border-color: var(--accent); }
+.lg-res { background: var(--bg-sunken); }
+.lg-on { background: var(--accent); border-color: var(--accent); }
+
+.weeks { display: flex; flex-direction: column; gap: 18px; }
+.week { display: flex; flex-direction: column; }
+.week-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 0 0 10px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.week-head strong { font-family: var(--font-display); font-size: 13px; letter-spacing: -0.005em; color: var(--ink); text-transform: none; }
+.days { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--hairline-strong); border-radius: var(--r-lg); overflow: hidden; }
+.day {
+  position: relative;
+  padding: 18px 20px 20px;
+  background: var(--surface);
+  border-right: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: background var(--t-fast) ease;
+  min-height: 130px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.day:last-child { border-right: 0; }
+.day:hover:not(.reserved) { background: var(--bg-sunken); }
+.day.on { background: var(--accent); color: #fff; }
+.day.on .day-meta, .day.on .day-theme small { color: rgba(255,255,255,0.78); }
+.day.on .day-check { opacity: 1; }
+.day.rec { background: var(--accent-tint); }
+.day.reserved { background: var(--bg-sunken); cursor: not-allowed; }
+.day.reserved::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.025) 8px, rgba(0,0,0,0.025) 10px);
+  pointer-events: none;
+}
+.day-check {
+  position: absolute; top: 14px; right: 16px;
+  width: 22px; height: 22px;
+  border-radius: 50%; background: rgba(255,255,255,0.18);
+  display: grid; place-items: center;
+  color: #fff; font-size: 12px;
+  opacity: 0; transition: opacity var(--t-fast) ease;
+}
+.day-meta { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; }
+.day-date { font-family: var(--font-display); font-weight: 500; font-size: 19px; letter-spacing: -0.012em; }
+.day-theme { font-size: 13px; color: var(--ink-soft); }
+.day-theme small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+.day-reserved-by {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: auto; padding-top: 10px;
+  border-top: 1px solid var(--hairline-strong);
+  font-size: 12px;
+}
+.day-reserved-init {
+  width: 30px; height: 30px;
+  background: var(--ink); color: #fff;
+  border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 500; font-size: 11px;
+  flex-shrink: 0;
+}
+.day-reserved-by strong { display: block; color: var(--ink); font-weight: 600; font-size: 12.5px; }
+.day-reserved-by small { color: var(--muted); font-size: 11px; }
+.rec-flag {
+  position: absolute; top: 14px; left: 18px;
+  padding: 3px 8px;
+  background: var(--accent); color: #fff;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em;
+  border-radius: 4px;
+}
+
+/* ── Review summary ───────────────────────────────────────── */
+.review {
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-lg);
+  padding: 32px 36px;
+}
+.review h4 {
+  margin: 0 0 22px;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+}
+.review dl { margin: 0; display: flex; flex-direction: column; gap: 18px; }
+.review-line {
+  display: grid; grid-template-columns: 130px 1fr;
+  gap: 24px; align-items: baseline;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hairline);
+}
+.review-line:last-child { padding-bottom: 0; border-bottom: 0; }
+.review-line dt {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+.review-line dd {
+  margin: 0;
+  font-family: var(--font-display); font-weight: 500;
+  font-size: 18px; letter-spacing: -0.012em;
+}
+.review-line dd small {
+  display: block; font-family: var(--font-body); font-size: 13px;
+  color: var(--muted); font-weight: 400; margin-top: 3px;
+}
+
+/* ── Legacy Card (right rail) ─────────────────────────────── */
+.legacy {
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  position: relative;
+  transition: transform var(--t-slow) var(--ease-out);
+  transform-style: preserve-3d;
+}
+.legacy-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(7,50,247,0.35), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(200,16,46,0.18), transparent 60%);
+  pointer-events: none;
+}
+.legacy-inner { position: relative; padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 18px; }
+.legacy-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+.legacy-eyebrow {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.55);
+}
+.legacy-eyebrow strong { color: #fff; font-weight: 500; }
+.legacy-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.08);
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.06em; color: rgba(255,255,255,0.75);
+}
+.legacy-status.confirmed { background: rgba(31,155,92,0.18); color: #5ee2a6; }
+.legacy-status .sdot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  animation: pulseDot 2.2s ease-in-out infinite;
+}
+.legacy-portrait {
+  align-self: center;
+  width: 72px; height: 72px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 400; font-size: 24px;
+  letter-spacing: -0.01em; color: #fff;
+  margin-top: 4px;
+}
+.portrait-init { font-style: normal; }
+.legacy-name {
+  text-align: center;
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 22px; letter-spacing: -0.015em; line-height: 1.15;
+  margin: 0;
+}
+.legacy-name.pending { color: rgba(255,255,255,0.4); font-style: italic; }
+.legacy-title {
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.62);
+  margin: -6px 0 4px;
+}
+.legacy-title.pending { color: rgba(255,255,255,0.3); font-style: italic; }
+.legacy-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  padding-top: 14px; padding-bottom: 14px;
+  border-top: 1px solid rgba(255,255,255,0.14);
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+}
+.lf { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lf-key {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+}
+.lf-val {
+  font-family: var(--font-display); font-weight: 500; font-size: 14px;
+  letter-spacing: -0.005em; color: #fff;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.lf-val.pending { color: rgba(255,255,255,0.4); font-style: italic; font-weight: 400; }
+.lf-val small { font-family: var(--font-body); font-weight: 400; font-size: 11px; color: rgba(255,255,255,0.55); font-style: normal; }
+.legacy-quote {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 14px; line-height: 1.5;
+  color: rgba(255,255,255,0.82);
+  margin: 0; text-align: center;
+}
+.legacy-quote em { color: var(--accent); font-style: italic; }
+.legacy-seal {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.14);
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.08em; color: rgba(255,255,255,0.45);
+}
+.crest {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-display-2); font-weight: 700; font-size: 12px;
+  color: #fff;
+}
+.legacy-large .legacy-inner { padding: 36px 36px 28px; }
+.legacy-large .legacy-portrait { width: 96px; height: 96px; font-size: 32px; }
+.legacy-large .legacy-name { font-size: 28px; }
+.legacy-large .lf-val { font-size: 15px; }
+
+/* Peers panel */
+.peers {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 22px 24px;
+}
+.peers h5 {
+  margin: 0 0 14px;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.peers h5 span { color: var(--accent); font-weight: 500; }
+.peers-list { display: flex; flex-direction: column; gap: 16px; }
+.peers-list li { display: grid; grid-template-columns: 36px 1fr auto; gap: 12px; align-items: center; }
+.peer-init {
+  width: 36px; height: 36px;
+  background: var(--bg-sunken); color: var(--ink);
+  border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 500; font-size: 12px;
+}
+.peer-name strong { display: block; font-size: 13.5px; font-weight: 600; }
+.peer-name small { display: block; font-size: 11.5px; color: var(--muted); }
+.peer-where { text-align: right; }
+.peer-status { font-family: var(--font-mono); font-size: 10px; color: var(--accent); letter-spacing: 0.04em; }
+.peer-where small { display: block; font-size: 11px; color: var(--muted); }
+.peers-foot {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.06em; color: var(--muted);
+}
+
+/* ── AI Panels ────────────────────────────────────────────── */
+.ai-panel {
+  position: relative;
+  background: linear-gradient(135deg, var(--accent-tint), color-mix(in srgb, var(--accent-tint) 35%, var(--surface)));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--hairline));
+  border-radius: var(--r-lg);
+  padding: 20px 22px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.ai-panel::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% 100%;
+  animation: aiShimmer 3.5s ease-in-out infinite;
+}
+@keyframes aiShimmer { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.ai-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-deep);
+}
+.ai-spark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: var(--accent); color: #fff;
+  border-radius: 6px; font-size: 12px;
+}
+.ai-rec { display: flex; flex-direction: column; gap: 10px; }
+.ai-rec-item {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: border-color var(--t-fast) ease, box-shadow var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.ai-rec-item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px -4px rgba(7,50,247,0.25);
+  transform: translateY(-1px);
+}
+.ai-rec-rank {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  background: var(--accent); color: #fff;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 600; font-size: 14px;
+}
+.ai-rec-rank.runner { background: var(--accent-2); }
+.ai-rec-body { flex: 1; min-width: 0; }
+.ai-rec-centre {
+  font-family: var(--font-display); font-weight: 600; font-size: 15px;
+  letter-spacing: -0.01em; color: var(--ink); margin-bottom: 3px;
+}
+.ai-rec-reason { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.ai-rec-select { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--accent); margin-top: 6px; }
+.ai-personal-note {
+  font-family: var(--font-display); font-style: italic; font-size: 14px;
+  color: var(--ink-soft); margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 15%, var(--hairline));
+  line-height: 1.5;
+}
+.ai-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 0 4px;
+  font-size: 13px; color: var(--muted);
+}
+.ai-dots { display: inline-flex; gap: 4px; }
+.ai-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0.4; animation: dotPulse 1.2s ease-in-out infinite; }
+.ai-dots span:nth-child(2) { animation-delay: 0.15s; }
+.ai-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.4; transform: scale(1); }
+  40% { opacity: 1; transform: scale(1.2); }
+}
+.ai-note-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ai-note-chip {
+  display: block; width: 100%; text-align: left;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  font-size: 13px; color: var(--ink-soft);
+  line-height: 1.45;
+  cursor: pointer;
+  transition: border-color var(--t-fast) ease, background var(--t-fast) ease;
+}
+.ai-note-chip:hover { border-color: var(--accent); background: var(--accent-tint); }
+
+/* AI brief (on confirmation) */
+.ai-brief {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--r-lg);
+  padding: 26px 28px 24px;
+  color: #fff;
+}
+.ai-brief-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent);
+}
+.ai-brief-greeting {
+  font-family: var(--font-display); font-style: italic;
+  font-size: 17px; color: rgba(255,255,255,0.92); margin-bottom: 18px; line-height: 1.4;
+}
+.ai-brief-section-title {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5);
+  margin: 16px 0 8px;
+}
+.ai-brief-point {
+  padding: 10px 0;
+  font-size: 14px; color: rgba(255,255,255,0.8); line-height: 1.55;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.ai-brief-point:last-child { border-bottom: 0; }
+.ai-brief-highlight {
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.05);
+  border-radius: var(--r-md);
+  border-left: 3px solid var(--accent);
+  margin: 10px 0;
+}
+.ai-brief-highlight-label {
+  font-family: var(--font-mono); font-size: 9.5px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
+}
+.ai-brief-highlight-text {
+  font-family: var(--font-display); font-style: italic; font-size: 16px;
+  color: rgba(255,255,255,0.9); line-height: 1.45;
+}
+.ai-share-tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.ai-share-tab {
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: transparent; color: rgba(255,255,255,0.62);
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all var(--t-fast) ease;
+}
+.ai-share-tab:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
+.ai-share-tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ai-share-copy {
+  position: relative;
+  background: rgba(0,0,0,0.32);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-md);
+  padding: 18px 18px 48px;
+  font-size: 14px; line-height: 1.6;
+  color: rgba(255,255,255,0.85);
+  white-space: pre-wrap;
+  min-height: 80px;
+}
+.ai-share-copy-btn {
+  position: absolute; bottom: 10px; right: 10px;
+  padding: 6px 16px;
+  border-radius: var(--r-pill);
+  background: var(--accent); color: #fff;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em;
+  transition: background var(--t-fast) ease, transform 100ms ease;
+}
+.ai-share-copy-btn:hover { background: var(--accent-deep); }
+.ai-share-copy-btn:active { transform: scale(0.96); }
+
+/* ── Confirmation scene ───────────────────────────────────── */
+.page-confirm { background: #06060B; color: #fff; min-height: 100vh; min-height: 100dvh; }
+.confirm {
+  position: relative; min-height: 100vh; min-height: 100dvh; overflow: hidden;
+  padding: 64px var(--section-pad-x);
+}
+.confirm-bg { position: absolute; inset: 0; z-index: 0; }
+.confirm-bg img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(0.5); }
+.confirm-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(7,50,247,0.40), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(200,16,46,0.22), transparent 60%),
+    linear-gradient(180deg, rgba(6,6,11,0.55), rgba(6,6,11,0.85));
+}
+.confirm-inner {
+  position: relative; z-index: 2;
+  max-width: 1320px; margin: 0 auto;
+}
+.confirm-reveal {
+  text-align: center; max-width: 760px; margin: 0 auto;
+  transition: opacity var(--t-slow) ease, transform var(--t-slow) var(--ease-out);
+  animation: confirmIn 800ms var(--ease-out) both;
+}
+@keyframes confirmIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.confirm-reveal.compact { padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+.confirm-eyebrow {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 14px;
+}
+.confirm-h {
+  font-family: var(--font-display); font-weight: 300;
+  font-size: clamp(38px, 5vw, 72px); line-height: 1.04; letter-spacing: -0.03em;
+  margin: 0 0 18px;
+}
+.confirm-h em { font-style: italic; font-weight: 400; color: var(--accent); }
+.confirm-sub {
+  font-size: 16px; line-height: 1.55; color: rgba(255,255,255,0.75);
+  max-width: 560px; margin: 0 auto 28px;
+}
+.confirm-meta {
+  display: flex; justify-content: center; gap: 28px;
+  flex-wrap: wrap; padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+}
+.confirm-meta div { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.confirm-meta dt {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.55);
+}
+.confirm-meta dd { margin: 0; font-family: var(--font-display); font-size: 16px; letter-spacing: -0.005em; }
+.confirm-stage-2 {
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 700ms ease 200ms, transform 700ms var(--ease-out) 200ms;
+}
+.confirm-stage-2.visible { opacity: 1; transform: translateY(0); }
+.confirm-grid {
+  display: grid; grid-template-columns: 1fr 1.3fr; gap: 36px;
+  margin-top: 48px;
+}
+.confirm-card-wrap { display: flex; flex-direction: column; gap: 16px; }
+.deliverables {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.deliverable {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: var(--r-md);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: border-color var(--t-fast) ease, background var(--t-fast) ease;
+  cursor: pointer;
+}
+.deliverable:hover { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); }
+.deliverable-ix {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
+}
+.deliverable-t {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: 16px; letter-spacing: -0.012em; color: #fff;
+}
+.deliverable-d { font-size: 12.5px; color: rgba(255,255,255,0.65); line-height: 1.5; }
+.deliverable-cta {
+  margin-top: auto; padding-top: 8px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--accent); letter-spacing: 0.05em;
+}
+.confirm-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 48px; padding-top: 32px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  gap: 16px; flex-wrap: wrap;
+}
+
+/* ── How It Works modal ──────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(10,10,15,0.7);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-med) ease;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
+.modal-panel {
+  background: var(--surface); color: var(--ink);
+  border-radius: var(--r-xl);
+  max-width: 660px; width: 100%;
+  max-height: calc(100vh - 48px); overflow-y: auto;
+  padding: 36px 40px;
+  box-shadow: var(--shadow-deep);
+  transform: scale(0.96) translateY(10px);
+  transition: transform 320ms var(--ease-out);
+}
+.modal-backdrop.open .modal-panel { transform: scale(1) translateY(0); }
+.modal-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  margin-bottom: 24px;
+}
+.modal-eyebrow {
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);
+}
+.modal-title {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 30px; letter-spacing: -0.025em; line-height: 1.1;
+  margin: 8px 0 0;
+}
+.modal-title em { font-style: italic; color: var(--accent); }
+.modal-close {
+  background: var(--bg-sunken);
+  width: 36px; height: 36px; border-radius: 50%;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: background var(--t-fast) ease;
+}
+.modal-close:hover { background: var(--hairline-strong); }
+.modal-steps { display: flex; flex-direction: column; gap: 18px; }
+.modal-step {
+  display: flex; gap: 18px; align-items: flex-start;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hairline);
+}
+.modal-step:last-child { border-bottom: 0; padding-bottom: 0; }
+.modal-step-num {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  background: var(--accent-tint); color: var(--accent-deep);
+  border-radius: 10px;
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 500; font-size: 16px;
+}
+.modal-step-title {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: 17px; letter-spacing: -0.01em; margin: 0 0 6px;
+}
+.modal-step-desc { font-size: 14px; color: var(--muted); line-height: 1.55; margin: 0; }
+.modal-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; flex-wrap: wrap;
+  margin-top: 28px; padding-top: 22px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase;
+}
+.modal-foot-cta {
+  background: var(--ink); color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-body); font-weight: 500; font-size: 14px;
+  text-transform: none; letter-spacing: -0.005em;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background var(--t-fast) ease, transform 100ms ease;
+}
+.modal-foot-cta:hover { background: var(--accent); }
+.modal-foot-cta:active { transform: scale(0.98); }
+
+/* ── PARENT ROW + FOOTER (from source codebase) ──────────── */
+.parent-row {
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+.parent-row-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px var(--section-pad-x);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.parent-row-lead {
+  display: flex; align-items: center; gap: 14px;
+  font-size: 13px; color: var(--muted);
+}
+.parent-row-lead .av-mark {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  font-family: var(--font-display-2);
+  font-weight: 700; font-size: 12px;
+  letter-spacing: 0.06em; color: var(--ink);
+  text-transform: uppercase;
+}
+.parent-row-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  transition: color var(--t-fast) ease;
+}
+.parent-row-cta:hover { color: var(--blue); }
+
+.footer-site {
+  padding: 80px var(--section-pad-x) 32px;
+  background: var(--bg);
+}
+.footer-site-inner { max-width: 1440px; margin: 0 auto; }
+.footer-cols {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1.2fr;
+  gap: 48px;
+  padding-bottom: 56px;
+  border-bottom: 1px solid var(--hairline);
+}
+.footer-col h4 {
+  font-family: var(--font-display-2); font-size: 12px;
+  font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink);
+  margin: 0 0 16px;
+}
+.footer-col ul { display: flex; flex-direction: column; gap: 10px; }
+.footer-col a { color: var(--muted); font-size: 14px; transition: color var(--t-fast) ease; }
+.footer-col a:hover { color: var(--blue); }
+.footer-brand-block { display: flex; flex-direction: column; gap: 16px; }
+.footer-brand-block .brand { gap: 12px; }
+.footer-brand-block .brand-mark { width: 32px; height: 32px; font-size: 15px; border-radius: 7px; }
+.footer-brand-block .brand-name { font-size: 16px; }
+.footer-description {
+  color: var(--muted); font-size: 13px;
+  line-height: 1.55; max-width: 300px;
+  margin: 0;
+}
+.footer-social-row {
+  margin-top: 20px;
+  display: flex; gap: 14px;
+}
+.footer-social-row a {
+  font-size: 13px; color: var(--muted);
+  transition: color var(--t-fast) ease;
+}
+.footer-social-row a:hover { color: var(--blue); }
+.footer-newsletter-form {
+  display: flex; gap: 8px;
+  margin-top: 14px;
+}
+.footer-newsletter-form input {
+  flex: 1; min-width: 0;
+  height: 40px; padding: 0 14px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--t-fast) ease;
+}
+.footer-newsletter-form input:focus { border-color: var(--blue); }
+.footer-newsletter-form button {
+  height: 40px; padding: 0 16px;
+  border-radius: 8px;
+  background: var(--ink); color: #fff;
+  font-weight: 600; font-size: 13px;
+  transition: background var(--t-fast) ease, opacity var(--t-fast) ease;
+}
+.footer-newsletter-form button:hover:not(:disabled) { background: var(--blue); }
+.footer-newsletter-form button:disabled { opacity: 0.5; cursor: not-allowed; }
+.footer-newsletter-foot {
+  margin-top: 10px;
+  font-size: 11px; color: var(--muted);
+}
+.footer-newsletter-foot.ok  { color: var(--success); }
+.footer-newsletter-foot.err { color: var(--error); }
+.footer-bottom {
+  padding-top: 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--muted);
+  gap: 16px; flex-wrap: wrap;
+}
+.footer-bottom-links {
+  display: flex; gap: 24px; flex-wrap: wrap;
+}
+.footer-bottom-links a { color: var(--muted); transition: color var(--t-fast) ease; }
+.footer-bottom-links a:hover { color: var(--ink); }
+
+/* ── Back to top ─────────────────────────────────────────── */
+.back-to-top {
+  position: fixed; right: 24px; bottom: 24px; z-index: 90;
+  width: 44px; height: 44px;
+  background: var(--ink); color: #fff;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 16px;
+  box-shadow: var(--shadow-soft);
+  opacity: 0; transform: translateY(20px) scale(0.85);
+  transition: opacity var(--t-med) ease, transform var(--t-med) var(--ease-out), background var(--t-fast) ease;
+  pointer-events: none;
+}
+.back-to-top.visible { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.back-to-top:hover { background: var(--accent); }
+.back-to-top:active { transform: scale(0.92); }
+
+/* ── Toast notifications ─────────────────────────────────── */
+.toast-container {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 250;
+  display: flex; flex-direction: column; gap: 10px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--ink); color: #fff;
+  padding: 14px 18px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  box-shadow: var(--shadow-deep);
+  max-width: 380px;
+  display: flex; align-items: center; gap: 10px;
+  pointer-events: auto;
+  animation: toastIn 320ms var(--ease-out);
+}
+.toast.error { background: var(--crimson); }
+.toast.success { background: var(--success); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Mobile bottom bar + preview sheet ───────────────────── */
+.mob-bar {
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
+  background: rgba(255,255,255,0.96);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid var(--hairline);
+  padding: 10px 16px max(10px, env(safe-area-inset-bottom));
+  align-items: center; gap: 10px;
+}
+.mob-preview-btn {
+  flex: 1;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px 8px 8px;
+  background: var(--bg-sunken);
+  border-radius: var(--r-md);
+  text-align: left;
+  min-width: 0;
+  transition: background var(--t-fast) ease;
+}
+.mob-preview-btn:active { background: var(--hairline); }
+.mob-preview-init {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  background: var(--ink); color: #fff;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 500; font-size: 12px;
+}
+.mob-preview-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.mob-preview-meta strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mob-preview-meta small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mob-preview-eye { margin-left: auto; font-size: 14px; color: var(--muted); }
+.mob-actions { display: flex; align-items: center; gap: 8px; }
+.mob-back {
+  width: 44px; height: 44px;
+  background: var(--bg-sunken);
+  border-radius: var(--r-md);
+  font-size: 18px;
+  display: grid; place-items: center;
+}
+.mob-continue { padding: 12px 18px; min-height: 44px; }
+
+.mob-sheet {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(0,0,0,0.55);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-med) ease;
+}
+.mob-sheet.open { opacity: 1; pointer-events: auto; }
+.mob-sheet-inner {
+  width: 100%;
+  background: var(--bg);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 12px 18px max(18px, env(safe-area-inset-bottom));
+  max-height: 92vh; overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform var(--t-med) var(--ease-out);
+}
+.mob-sheet.open .mob-sheet-inner { transform: translateY(0); }
+.mob-sheet-handle {
+  width: 36px; height: 4px;
+  background: var(--hairline-strong);
+  border-radius: 2px;
+  margin: 4px auto 14px;
+}
+.mob-sheet-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+}
+.mob-sheet-head strong { font-family: var(--font-display); font-size: 17px; }
+.mob-sheet-close {
+  width: 36px; height: 36px;
+  background: var(--bg-sunken);
+  border-radius: 50%;
+  font-size: 14px;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  :root { --section-pad-x: 40px; --section-pad-y: 80px; }
+  .footer-cols { grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 36px; }
+  .composer { grid-template-columns: 1fr; }
+  .composer-right { display: none; }
+  .prelude { grid-template-columns: 1fr; gap: 36px; }
+}
+
+@media (max-width: 900px) {
+  :root { --section-pad-x: 24px; --section-pad-y: 64px; }
+  .bar-inner { padding: 12px var(--section-pad-x); }
+  .brand-text { display: none; }
+  .bar-stage { gap: 8px; }
+  .bar-cta { padding: 7px 12px; font-size: 12px; }
+
+  .hero { padding: 16px var(--section-pad-x) 80px; }
+  .hero-status { font-size: 10px; gap: 12px; padding: 10px 0; }
+  .hero-status-r { width: 100%; justify-content: flex-start; }
+  .hero-status-sep { display: none; }
+  .hero-inner { padding: 40px 0 24px; }
+  .hero-eyebrow { margin-bottom: 22px; font-size: 10.5px; letter-spacing: 0.16em; }
+  .hero-cta-group { width: 100%; }
+  .hero-stats { grid-template-columns: repeat(2, 1fr); padding-top: 24px; }
+  .hs { padding: 16px 0 0; border-right: 0; border-top: 1px solid rgba(255,255,255,0.12); }
+  .hs:nth-child(1), .hs:nth-child(2) { border-top: 0; }
+  .hs:nth-child(odd) { padding-right: 16px; }
+  .hs:nth-child(even) { padding-left: 16px; border-left: 1px solid rgba(255,255,255,0.12); }
+  .hero-scroll-cue { display: none; }
+
+  .stage { padding-bottom: 140px; }
+  .stepper { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .step { padding: 10px 8px; }
+  .step .ttl { font-size: 13px; }
+  .step .kicker { font-size: 11px; }
+  .step .ix { font-size: 9.5px; }
+  .step .ix-bar { display: none; }
+
+  .centres { grid-template-columns: 1fr; }
+  .days { grid-template-columns: 1fr; }
+  .day { border-right: 0; border-bottom: 1px solid var(--hairline); }
+  .day:last-child { border-bottom: 0; }
+  .field.col-3, .field.col-5, .field.col-7, .field.col-9 { grid-column: span 12; }
+
+  .review { padding: 24px 22px; }
+  .review-line { grid-template-columns: 1fr; gap: 8px; }
+  .review-line dt { font-size: 10px; }
+
+  .actions { gap: 8px; }
+  .btn { padding: 11px 16px; font-size: 13px; min-height: 44px; }
+
+  .parent-row-inner { padding: 18px var(--section-pad-x); gap: 16px; }
+  .footer-site { padding: 56px var(--section-pad-x) 28px; }
+  .footer-cols { grid-template-columns: 1fr; gap: 36px; padding-bottom: 36px; }
+  .footer-bottom { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .footer-bottom-links { gap: 18px; }
+
+  .mob-bar { display: flex; }
+  .composer-foot { display: none; }
+  .back-to-top { right: 16px; bottom: 92px; width: 40px; height: 40px; }
+
+  .modal-panel { padding: 28px 22px; }
+  .modal-title { font-size: 24px; }
+
+  .confirm { padding: 48px var(--section-pad-x); }
+  .confirm-grid { grid-template-columns: 1fr; gap: 24px; margin-top: 32px; }
+  .deliverables { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .hero-h { font-size: 40px; line-height: 1.0; }
+  .hero-sub { font-size: 15px; }
+  .hero-cta-primary, .hero-cta-secondary { width: 100%; justify-content: center; }
+  .hero-stats { grid-template-columns: 1fr; }
+  .hs { padding: 14px 0 !important; border-left: 0 !important; border-top: 1px solid rgba(255,255,255,0.12) !important; }
+  .hs:nth-child(1) { border-top: 0 !important; }
+  .stepper { grid-template-columns: 1fr 1fr; }
+  .actions { flex-direction: column-reverse; }
+  .actions .btn { width: 100%; justify-content: center; }
+}
+
+/* ── Reduced motion ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .hero-peers-row { animation: none !important; }
+  .ai-panel::before { animation: none !important; background: var(--accent); }
+}
+
+/* ── Print ───────────────────────────────────────────────── */
+@media print {
+  .bar, .mob-bar, .back-to-top, .hero-scroll-cue, .actions, .composer-foot { display: none !important; }
+  .hero { background: var(--bg); color: var(--ink); min-height: auto; padding: 32px; }
+  .hero-bg, .hero-bg::after { display: none; }
+  .hero-h, .hero-sub, .hero-status, .hero-stats, .hs-n, .hs-l { color: var(--ink); }
+}
+</style>
+</head>
+<body>
+<div id="root" aria-live="polite"></div>
+
+<noscript>
+  <div style="padding:48px 24px;max-width:640px;margin:0 auto;font-family:system-ui,sans-serif;color:#0A0A0F;">
+    <h1 style="font-weight:300;letter-spacing:-0.02em;">JavaScript required</h1>
+    <p>The Street-To-Stardom 2026 speaker initiation form requires JavaScript to run. Please enable it and reload, or contact <a href="mailto:producer@streettostardom.org">producer@streettostardom.org</a> to be initiated by phone.</p>
+  </div>
+</noscript>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-type="module" data-presets="react">
+
+// ═════════════════════════════════════════════════════════════════════
+// STS · Production v3 — data, helpers
+// ═════════════════════════════════════════════════════════════════════
+
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+// ─── Data ────────────────────────────────────────────────────────────
+const CENTRES = [
+  { id: "ikotun", name: "Ikotun Hub",        address: "Ikotun-Egbe, Lagos", focus: "Tech & Future Leadership",        children: 150, capacity: "150 / 150", slotsLeft: 3, status: "open",     bio: "Our flagship centre. Built around computer literacy, robotics and a generation that codes before it can drive.",                          photo: "https://picsum.photos/seed/sts-ikotun/1200/900", hue: 235 },
+  { id: "ayobo",  name: "Ayobo Centre",      address: "Ayobo-Ipaja, Lagos", focus: "Civic Leadership & Service",      children: 130, capacity: "130 / 140", slotsLeft: 2, status: "open",     bio: "A civic engine — every cohort writes a public charter to the local authority before they graduate.",                                   photo: "https://picsum.photos/seed/sts-ayobo/1200/900",  hue: 200 },
+  { id: "egbeda", name: "Egbeda Academy",    address: "Egbeda, Lagos",      focus: "Entrepreneurship & Enterprise",   children: 120, capacity: "120 / 120", slotsLeft: 0, status: "honoured", honouredBy: "Lagos Business Council", bio: "Fully honoured for the 2026 quarter. New seats open Q1 2027.",                                                  photo: "https://picsum.photos/seed/sts-egbeda/1200/900", hue: 28  },
+  { id: "idimu",  name: "Idimu Centre",      address: "Idimu, Lagos",       focus: "Arts, Voice & Self-Expression",   children: 110, capacity: "110 / 120", slotsLeft: 4, status: "open",     bio: "Storytelling, performance and the politics of voice — taught by working artists from across West Africa.",                              photo: "https://picsum.photos/seed/sts-idimu/1200/900",  hue: 320 },
+  { id: "mosan",  name: "Mosan Community",   address: "Mosan-Okunola, Lagos", focus: "Stewardship & Environment",     children: 95,  capacity: "95 / 110",  slotsLeft: 2, status: "open",     bio: "Soil, water, refuse, climate. Children here are growing into the first generation of Alimosho's environmental stewards.",              photo: "https://picsum.photos/seed/sts-mosan/1200/900",  hue: 150 },
+  { id: "ijaiye", name: "Ijaiye Centre",     address: "Ijaiye, Lagos",      focus: "Discipline & Personal Mastery",   children: 145, capacity: "145 / 150", slotsLeft: 1, status: "open",     bio: "Highly competitive intake. Focus on discipline, time-mastery and the daily habits of high performers.",                                photo: "https://picsum.photos/seed/sts-ijaiye/1200/900", hue: 355 },
+];
+
+const WEEKS = [
+  { n: 1, days: [
+    { id: "w1d1", dow: "Saturday", date: "Aug 1, 2026",  iso: "2026-08-01", theme: "Awareness",         sub: "Opening of the cohort" },
+    { id: "w1d2", dow: "Sunday",   date: "Aug 2, 2026",  iso: "2026-08-02", theme: "Discipline" },
+  ]},
+  { n: 2, days: [
+    { id: "w2d1", dow: "Saturday", date: "Aug 8, 2026",  iso: "2026-08-08", theme: "Self-respect" },
+    { id: "w2d2", dow: "Sunday",   date: "Aug 9, 2026",  iso: "2026-08-09", theme: "Focus" },
+  ]},
+  { n: 3, days: [
+    { id: "w3d1", dow: "Saturday", date: "Aug 15, 2026", iso: "2026-08-15", theme: "Retention",         recommended: true },
+    { id: "w3d2", dow: "Sunday",   date: "Aug 16, 2026", iso: "2026-08-16", theme: "Teachable Spirit" },
+  ]},
+  { n: 4, days: [
+    { id: "w4d1", dow: "Saturday", date: "Aug 22, 2026", iso: "2026-08-22", theme: "Responsibility" },
+    { id: "w4d2", dow: "Sunday",   date: "Aug 23, 2026", iso: "2026-08-23", theme: "Emotional Maturity" },
+  ]},
+  { n: 5, days: [
+    { id: "w5d1", dow: "Saturday", date: "Aug 29, 2026", iso: "2026-08-29", theme: "Integrity" },
+    { id: "w5d2", dow: "Sunday",   date: "Aug 30, 2026", iso: "2026-08-30", theme: "Independence",      sub: "Closing ceremony" },
+  ]},
+];
+
+const HONORIFICS = ["Dr.", "Chief", "Prof.", "Mr.", "Mrs.", "Ms.", "Engr.", "Hon.", "Bishop", "Rev.", "Pastor", "Imam", "Alhaji", "Alhaja", "Otunba", "Oba"];
+
+const STEPS = [
+  { ix: "01", title: "Identity",  scene: "Scene I",   kicker: "Who is speaking" },
+  { ix: "02", title: "Centre",    scene: "Scene II",  kicker: "Where you'll stand" },
+  { ix: "03", title: "Date",      scene: "Scene III", kicker: "When the room is yours" },
+  { ix: "04", title: "Review",    scene: "Scene IV",  kicker: "Before the curtain rises" },
+];
+
+const TONE = {
+  heroEyebrow: "PRIVATE INVITATION · 2026 SERIES",
+  heroH: <>One conversation can <em>redirect a child's destiny.</em></>,
+  heroSub: "Street-To-Stardom 2026 Leadership Series. Six centres across Alimosho. 900 children. One hour of your voice in a room they will remember for life.",
+  heroCta: "Step into the room",
+  h1: <>Welcome. <em>The room is being prepared.</em></>,
+  lede: "Choose your centre. Choose your date. Watch your invitation come alive on the right. We'll handle the rest — quietly, beautifully, with the care this deserves.",
+  step1Title: <>Let's begin, <em>thoughtfully.</em></>,
+  step1Sub: "Your details set the tone for everything that follows. Watch your card take shape as you write.",
+  legacyQuote: "The seat is yours the moment you confirm it.",
+  confirmH: <>Thank you. <em>You've changed a day they'll remember.</em></>,
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+function cn(...x) { return x.filter(Boolean).join(" "); }
+function initialsFrom(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "—";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+function splitHonorific(raw) {
+  if (!raw) return [null, raw || ""];
+  const trimmed = raw.trimStart();
+  for (const h of HONORIFICS) {
+    const re = new RegExp("^(" + h.replace(".", "\\.") + ")\\s+", "i");
+    if (re.test(trimmed)) return [h, trimmed.replace(re, "")];
+  }
+  return [null, raw];
+}
+function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test((v || "").trim()); }
+function titleCase(s) { return (s || "").replace(/\b([\p{L}])([\p{L}''\-]*)/gu, (_, a, b) => a.toUpperCase() + b.toLowerCase()); }
+function formatPhone(v) {
+  if (!v) return "";
+  let digits = String(v).replace(/[^\d+]/g, "");
+  if (digits.startsWith("00")) digits = "+" + digits.slice(2);
+  if (digits.startsWith("0")) digits = "+234 " + digits.slice(1);
+  if (!digits.startsWith("+")) digits = "+" + digits;
+  const m = digits.match(/^\+?(\d{1,3})(\d{0,3})(\d{0,3})(\d{0,4})/);
+  if (!m) return digits;
+  return ["+" + m[1], m[2], m[3], m[4]].filter(Boolean).join(" ");
+}
+function computeCountdown() {
+  const target = new Date("2026-08-01T09:00:00+01:00").getTime();
+  const diff = Math.max(0, target - Date.now());
+  return {
+    days:  Math.floor(diff / 86400000),
+    hours: Math.floor((diff % 86400000) / 3600000),
+  };
+}
+
+// ─── Backend client (PHP → AppsScript → Sheets) ──────────────────────
+const API_BASE = "./api";
+
+async function postJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    let parsed = null; try { parsed = JSON.parse(txt); } catch {}
+    throw new Error((parsed && parsed.error) || ("HTTP " + res.status));
+  }
+  return res.json();
+}
+
+async function getJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+// AI engine with in-flight promise dedupe + result cache
+const AI = (() => {
+  const cache = new Map();
+  function call(action, data) {
+    const key = action + ":" + JSON.stringify(data);
+    if (cache.has(key)) return cache.get(key);
+    const p = (async () => {
+      try {
+        const json = await postJSON(API_BASE + "/ai.php", { action, data });
+        if (!json.ok) throw new Error(json.error || "AI error");
+        let parsed = json.data;
+        if (typeof parsed === "string") { try { parsed = JSON.parse(parsed); } catch {} }
+        return parsed;
+      } catch (err) {
+        console.warn("[AI] " + action, err.message);
+        cache.delete(key);
+        return null;
+      }
+    })();
+    cache.set(key, p);
+    return p;
+  }
+  return {
+    centreMatch:  (d) => call("centre_match",  d),
+    sessionBrief: (d) => call("session_brief", d),
+    shareCopy:    (d) => call("share_copy",    d),
+    noteSuggest:  (d) => call("note_suggest",  d),
+    clearCache:   () => cache.clear(),
+  };
+})();
+
+async function submitForm(record) {
+  try {
+    const json = await postJSON(API_BASE + "/submit.php", record);
+    return json;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function subscribeNewsletter(email) {
+  try {
+    const json = await postJSON(API_BASE + "/subscribe.php", { email, source: "footer" });
+    return json;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function fetchReservations() {
+  try {
+    const json = await getJSON(API_BASE + "/reservations.php");
+    if (json && json.ok && json.data && Array.isArray(json.data.reservations)) {
+      return json.data.reservations;
+    }
+  } catch (err) {
+    console.warn("[Reservations]", err.message);
+  }
+  return [];
+}
+
+// ─── Toast notifications ─────────────────────────────────────────────
+let _toastCounter = 0;
+const _toastListeners = new Set();
+function showToast(message, type = "info", duration = 4000) {
+  const id = ++_toastCounter;
+  _toastListeners.forEach((fn) => fn({ type: "add", id, message, kind: type }));
+  setTimeout(() => _toastListeners.forEach((fn) => fn({ type: "remove", id })), duration);
+}
+function ToastContainer() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const handler = (ev) => {
+      if (ev.type === "add") setToasts((t) => [...t, { id: ev.id, message: ev.message, kind: ev.kind }]);
+      else if (ev.type === "remove") setToasts((t) => t.filter((x) => x.id !== ev.id));
+    };
+    _toastListeners.add(handler);
+    return () => _toastListeners.delete(handler);
+  }, []);
+  return (
+    <div className="toast-container" aria-live="polite" aria-atomic="true">
+      {toasts.map((t) => (
+        <div key={t.id} className={cn("toast", t.kind)} role="status">{t.message}</div>
+      ))}
+    </div>
+  );
+}
+
+// ─── CountUp ─────────────────────────────────────────────────────────
+function CountUp({ to, duration = 1100, suffix = "" }) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) { setV(to); return; }
+    let raf, start;
+    const ease = (p) => 1 - Math.pow(1 - p, 3);
+    const tick = (t) => {
+      if (!start) start = t;
+      const p = Math.min((t - start) / duration, 1);
+      setV(Math.floor(ease(p) * to));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, duration]);
+  return <>{v.toLocaleString()}{suffix}</>;
+}
+
+// ─── TopBar ──────────────────────────────────────────────────────────
+function TopBar({ stepIx, onJumpToForm, showStepper = true, translucent = false }) {
+  return (
+    <header className={cn("bar", translucent && "bar-translucent")}>
+      <div className="bar-inner">
+        <button className="brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Street-To-Stardom home">
+          <div className="brand-mark" aria-hidden="true">S</div>
+          <div className="brand-text">
+            <span className="brand-name">Street&#8209;To&#8209;Stardom</span>
+            <span className="brand-sub">2026 Leadership Series · Alimosho</span>
+          </div>
+        </button>
+        {showStepper && (
+          <div className="bar-stage">
+            <span className="lozenge" aria-live="polite">
+              <span className="dot" aria-hidden="true"></span>
+              {STEPS[stepIx] ? `${STEPS[stepIx].scene} · ${STEPS[stepIx].title}` : "Begin"}
+            </span>
+            {onJumpToForm && (
+              <button className="bar-cta" onClick={onJumpToForm}>
+                Continue <span className="ar" aria-hidden="true">→</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+// ─── Field primitive ─────────────────────────────────────────────────
+function Field({ label, opt, hint, error, valid, children, full, col, fieldId }) {
+  const errId = fieldId ? fieldId + "-err" : undefined;
+  const hintId = fieldId ? fieldId + "-hint" : undefined;
+  return (
+    <div className={cn("field", full && "full", col && "col-" + col, error && "err", valid && "ok")}>
+      <label htmlFor={fieldId}>
+        <span>
+          {label}
+          {opt && <span className="opt"> · {opt}</span>}
+        </span>
+        {valid && <span className="ok-check" aria-label="valid">✓</span>}
+      </label>
+      {React.cloneElement(children, {
+        id: fieldId,
+        "aria-invalid": error ? "true" : undefined,
+        "aria-describedby": error ? errId : (hint ? hintId : undefined),
+      })}
+      {error ? (
+        <div className="err-text" id={errId} role="alert">{error}</div>
+      ) : hint ? (
+        <div className="field-hint" id={hintId}>{hint}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Stepper ─────────────────────────────────────────────────────────
+function Stepper({ step, onJump }) {
+  return (
+    <div className="stepper" role="tablist" aria-label="Form progress">
+      {STEPS.map((s, i) => {
+        const state = i === step ? "on" : i < step ? "done" : "todo";
+        return (
+          <button
+            type="button"
+            key={s.ix}
+            className={cn("step", state)}
+            role="tab"
+            aria-selected={state === "on"}
+            aria-controls={`scene-${s.ix}`}
+            disabled={state === "todo"}
+            onClick={() => state !== "todo" && onJump && onJump(i)}
+          >
+            <div className="ix">
+              <span>{s.scene}</span>
+              <span className="ix-bar" aria-hidden="true"></span>
+              <span>{state === "done" ? "Done" : state === "on" ? "Now" : "Up next"}</span>
+            </div>
+            <div className="ttl">{s.title}</div>
+            <div className="kicker">{s.kicker}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Hero ────────────────────────────────────────────────────────────
+function Hero({ onBegin, hasSavedProgress, onHowItWorks, reservations }) {
+  const [countdown, setCountdown] = useState(() => computeCountdown());
+  useEffect(() => {
+    const id = setInterval(() => setCountdown(computeCountdown()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const allDays = useMemo(() => WEEKS.flatMap((w) => w.days.map((d) => ({ ...d, week: w.n }))), []);
+  const reservedIds = new Set(reservations.map((r) => r.dateId));
+  const reservedCount = allDays.filter((d) => reservedIds.has(d.id)).length;
+  const openCount = allDays.length - reservedCount;
+
+  return (
+    <section className="hero" aria-label="Welcome">
+      <div className="hero-bg" aria-hidden="true">
+        <img src="https://picsum.photos/seed/sts-curtain/1900/1200" alt="" loading="eager" decoding="async" />
+      </div>
+
+      <div className="hero-status" role="status" aria-live="polite">
+        <div className="hero-status-l">
+          <span className="hero-status-item">
+            <span className="hero-status-dot" aria-hidden="true"></span>
+            <span>Live · <strong>{openCount} of {allDays.length}</strong> dates open</span>
+          </span>
+          <span className="hero-status-sep" aria-hidden="true"></span>
+          <span className="hero-status-item">Opening <strong>Aug 1, 2026</strong></span>
+          <span className="hero-status-sep" aria-hidden="true"></span>
+          <span className="hero-status-item">
+            <strong>{countdown.days}</strong> days, <strong>{countdown.hours}</strong> hrs to curtain
+          </span>
+        </div>
+        <div className="hero-status-r">
+          <span className="hero-status-item">2026 Series · Alimosho, Lagos</span>
+        </div>
+      </div>
+
+      <div className="hero-inner">
+        <div className="hero-eyebrow">{TONE.heroEyebrow}</div>
+        <h1 className="hero-h">{TONE.heroH}</h1>
+        <p className="hero-sub">{TONE.heroSub}</p>
+
+        <div className="hero-cta-group">
+          <button className="hero-cta-primary" onClick={onBegin}>
+            {hasSavedProgress ? "Continue your initiation" : TONE.heroCta}
+            <span className="cta-arrow" aria-hidden="true">↓</span>
+          </button>
+          <button className="hero-cta-secondary" onClick={onHowItWorks} aria-label="Learn how it works">
+            <span className="play-icon" aria-hidden="true">▶</span>
+            How it works · 3 steps
+          </button>
+        </div>
+
+        <div className="hero-capacity">
+          <div className="hero-capacity-head">
+            <span>Capacity · 5 weeks · 10 sessions</span>
+            <strong>{openCount} open · {reservedCount} reserved · 1 honoured</strong>
+          </div>
+          <div className="hero-capacity-track" role="img" aria-label={`${openCount} dates available out of ${allDays.length}`}>
+            {allDays.map((d) => {
+              const isRes = reservedIds.has(d.id);
+              const state = isRes ? "reserved" : d.recommended ? "recommended" : "open";
+              const reservedBy = reservations.find((r) => r.dateId === d.id);
+              const tip = isRes ? `${d.date} · Reserved by ${reservedBy?.name || "—"}`
+                                : d.recommended ? `${d.date} · Producer's pick`
+                                                : `${d.date} · Available`;
+              return <div key={d.id} className={cn("hero-cap-cell", state)} data-tip={tip} tabIndex="0" />;
+            })}
+          </div>
+        </div>
+
+        <div className="hero-stats">
+          <div className="hs"><span className="hs-n"><CountUp to={900} /></span><span className="hs-l">Children in the cohort</span></div>
+          <div className="hs"><span className="hs-n"><CountUp to={6} /></span><span className="hs-l">Community centres</span></div>
+          <div className="hs"><span className="hs-n"><CountUp to={2400} suffix="+" /></span><span className="hs-l">Volunteer hours logged</span></div>
+          <div className="hs"><span className="hs-n">10</span><span className="hs-l">Principles · one per day</span></div>
+        </div>
+
+        {reservations.length > 0 && (
+          <div className="hero-peers">
+            <div className="hero-peers-head">
+              <span>In the company of</span>
+              <strong>{reservations.length} {reservations.length === 1 ? "leader" : "leaders"} confirmed for 2026</strong>
+            </div>
+            <div className="hero-peers-track">
+              <div className="hero-peers-row" aria-hidden="true">
+                {[...reservations, ...reservations].map((p, i) => (
+                  <div key={i} className="hero-peer">
+                    <span className="hero-peer-init">{p.initial || initialsFrom(p.name)}</span>
+                    <span className="hero-peer-meta">
+                      <span className="hero-peer-name">{p.name}</span>
+                      <span className="hero-peer-title">{p.title}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button className="hero-scroll-cue" onClick={onBegin} aria-label="Scroll to form">
+        <span>SCROLL</span>
+        <span className="cue-arrow" aria-hidden="true">↓</span>
+      </button>
+    </section>
+  );
+}
+
+// ─── Prelude ─────────────────────────────────────────────────────────
+function Prelude({ reservations }) {
+  const allDays = useMemo(() => WEEKS.flatMap((w) => w.days), []);
+  const reservedIds = new Set(reservations.map((r) => r.dateId));
+  const reservedCount = allDays.filter((d) => reservedIds.has(d.id)).length;
+  const openCount = allDays.length - reservedCount;
+  return (
+    <section className="prelude">
+      <div>
+        <div className="eyebrow">SECTION · {STEPS[0].scene} · Initiation</div>
+        <h2 className="prelude-h">{TONE.h1}</h2>
+        <p className="prelude-lede">{TONE.lede}</p>
+      </div>
+      <dl className="prelude-meta">
+        <div className="prelude-meta-row"><dt>Cohort</dt>     <dd>900 children<small>across six Alimosho centres</small></dd></div>
+        <div className="prelude-meta-row"><dt>Session</dt>    <dd>One hour · 9:00 — 10:00 AM<small>+ 30 min mentorship circle</small></dd></div>
+        <div className="prelude-meta-row"><dt>Confirmed</dt>  <dd>{reservedCount} distinguished {reservedCount === 1 ? "leader" : "leaders"}<small>{openCount} of {allDays.length} dates remain</small></dd></div>
+        <div className="prelude-meta-row"><dt>Archive</dt>    <dd>2026 Alimosho Future Leaders Archive<small>permanently catalogued</small></dd></div>
+      </dl>
+    </section>
+  );
+}
+
+// ─── Step 1 · Identity ───────────────────────────────────────────────
+function StepIdentity({ form, setForm, errors, aiNoteSuggest }) {
+  const onName = (e) => {
+    let val = e.target.value;
+    if (!form.honorific) {
+      const [h, rest] = splitHonorific(val);
+      if (h) { setForm({ ...form, name: titleCase(rest), honorific: h }); return; }
+    }
+    setForm({ ...form, name: titleCase(val) });
+  };
+  const onPhone = (e) => setForm({ ...form, whatsapp: formatPhone(e.target.value) });
+  const emailValid = isEmail(form.email);
+  const nameValid = form.name.trim().split(/\s+/).length >= 2;
+
+  return (
+    <div className="scene" id="scene-01">
+      <div className="step-head">
+        <div className="step-kicker">Scene I · Identity</div>
+        <h2 className="step-title">{TONE.step1Title}</h2>
+        <p className="step-sub">{TONE.step1Sub}</p>
+      </div>
+      <div className="fields">
+        <Field label="Honorific" opt="Dr · Chief · …" col="3" fieldId="f-honorific">
+          <input type="text" list="honorifics" value={form.honorific} onChange={(e) => setForm({ ...form, honorific: e.target.value })} placeholder="Dr." autoComplete="honorific-prefix" />
+        </Field>
+        <datalist id="honorifics">{HONORIFICS.map((h) => <option key={h} value={h} />)}</datalist>
+
+        <Field label="Full name" col="9" fieldId="f-name" error={errors.name && "Required — at least two names."} valid={!errors.name && nameValid}>
+          <input type="text" value={form.name} onChange={onName} placeholder="Full name" autoComplete="name" required />
+        </Field>
+        <Field label="Role · Position" full fieldId="f-role" error={errors.role && "Required — used in your introduction on the day."} valid={!errors.role && form.role.trim().length > 2} hint="e.g. Chief Executive Officer · Founder · Commissioner">
+          <input type="text" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Chief Executive Officer" autoComplete="organization-title" required />
+        </Field>
+        <Field label="Organisation" full fieldId="f-org" error={errors.org && "Required — appears under your name on the archive."} valid={!errors.org && form.org.trim().length > 2}>
+          <input type="text" value={form.org} onChange={(e) => setForm({ ...form, org: e.target.value })} placeholder="Your organisation" autoComplete="organization" required />
+        </Field>
+        <Field label="Email" col="7" fieldId="f-email" error={errors.email && "A valid email is required for confirmation."} valid={emailValid}>
+          <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="your@email.com" autoComplete="email" inputMode="email" required />
+        </Field>
+        <Field label="WhatsApp" col="5" opt="private brief" fieldId="f-whatsapp" hint="Auto-formats Nigerian numbers." valid={form.whatsapp.replace(/\D/g, "").length >= 10}>
+          <input type="tel" value={form.whatsapp} onChange={onPhone} placeholder="+234 ___ ___ ____" autoComplete="tel" inputMode="tel" />
+        </Field>
+        <Field label="A note to the producer" opt="optional · 1–2 lines" full fieldId="f-notes">
+          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="e.g. I'm happy to speak across two dates; I have a slight preference for sessions on the discipline of focus…" />
+        </Field>
+        {aiNoteSuggest}
+      </div>
+      <div className="autosave-row" aria-live="polite">
+        <span className="autosave-dot" aria-hidden="true"></span>
+        Your progress is saved to this device. You can leave and return.
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 2 · Centre ─────────────────────────────────────────────────
+function StepCentre({ form, setForm, errors, aiMatch, aiPanel }) {
+  return (
+    <div className="scene" id="scene-02">
+      <div className="step-head">
+        <div className="step-kicker">Scene II · Centre</div>
+        <h2 className="step-title">Which room will <em>you enter?</em></h2>
+        <p className="step-sub">Six communities. Each with its own character, enrolment, and remaining dates. Honoured centres are fully sponsored for the quarter.</p>
+      </div>
+      {aiPanel}
+      <div className="centres" role="radiogroup" aria-label="Choose a centre">
+        {CENTRES.map((c) => {
+          const honoured = c.status === "honoured";
+          const selected = form.centre === c.id;
+          const match = aiMatch ? (aiMatch.top_pick?.id === c.id ? "top" : aiMatch.runner_up?.id === c.id ? "runner" : null) : null;
+          return (
+            <button type="button" key={c.id}
+              className={cn("centre", selected && "on", honoured && "honoured")}
+              role="radio" aria-checked={selected}
+              onClick={() => !honoured && setForm({ ...form, centre: c.id })}
+              disabled={honoured}
+              aria-label={`${c.name}, ${c.focus}, ${c.children} children${honoured ? ' — honoured, not selectable' : ''}`}
+            >
+              {match && (
+                <div className={cn("ai-match-badge", match === "runner" && "runner-up")} aria-label={match === "top" ? "AI top pick" : "AI runner up"}>
+                  <span className="badge-icon" aria-hidden="true">✦</span>
+                  {match === "top" ? "AI Top Pick" : "AI Runner-Up"}
+                </div>
+              )}
+              <div className="centre-photo">
+                <img src={c.photo} alt="" loading="lazy" decoding="async" />
+              </div>
+              <div className="centre-body">
+                <div className="centre-top">
+                  <span className="centre-address">{c.address}</span>
+                  {honoured ? <span className="centre-pill honoured-pill">Honoured</span> : <span className="centre-pill">{c.slotsLeft} date{c.slotsLeft === 1 ? "" : "s"} left</span>}
+                </div>
+                <div className="centre-name">{c.name}</div>
+                <div className="centre-focus">{c.focus}</div>
+                <div className="centre-bio">{c.bio}</div>
+                <div className="centre-foot">
+                  <div className="centre-stat"><span className="centre-stat-n">{c.children}</span><span className="centre-stat-l">children</span></div>
+                  <div className="centre-stat"><span className="centre-stat-n">{c.capacity}</span><span className="centre-stat-l">capacity</span></div>
+                  {honoured ? (
+                    <div className="centre-stat right"><span className="centre-stat-n">{c.honouredBy.split(" ")[0]}</span><span className="centre-stat-l">honouring sponsor</span></div>
+                  ) : (
+                    <div className="centre-stat right select-chip">{selected ? "✓ Selected" : "Select →"}</div>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {errors.centre && <div className="err-text" role="alert">Please choose a centre to continue.</div>}
+    </div>
+  );
+}
+
+// ─── Step 3 · Date ───────────────────────────────────────────────────
+function StepDate({ form, setForm, errors, reservations }) {
+  const resMap = useMemo(() => {
+    const m = {};
+    reservations.forEach((r) => { m[r.dateId] = r; });
+    return m;
+  }, [reservations]);
+
+  return (
+    <div className="scene" id="scene-03">
+      <div className="step-head">
+        <div className="step-kicker">Scene III · Date</div>
+        <h2 className="step-title">When will you <em>take the room?</em></h2>
+        <p className="step-sub">Each day carries one of the cohort's principles. Reserved dates show the peer who has claimed them.</p>
+      </div>
+      <div className="legend" aria-hidden="true">
+        <span className="lg"><span className="lg-sw lg-open"></span>Available</span>
+        <span className="lg"><span className="lg-sw lg-rec"></span>Producer's pick</span>
+        <span className="lg"><span className="lg-sw lg-res"></span>Reserved by a peer</span>
+        <span className="lg"><span className="lg-sw lg-on"></span>Your selection</span>
+      </div>
+      <div className="weeks">
+        {WEEKS.map((w) => (
+          <div className="week" key={w.n}>
+            <div className="week-head">
+              <span>Week {w.n}</span>
+              <strong>{w.days[0].date.split(",")[0]} — {w.days[1].date.split(",")[0]}</strong>
+            </div>
+            <div className="days" role="radiogroup" aria-label={`Week ${w.n} dates`}>
+              {w.days.map((d) => {
+                const reservedBy = resMap[d.id];
+                const reserved = !!reservedBy;
+                const on = form.date === d.id;
+                const rec = d.recommended && !reserved && !on;
+                return (
+                  <div key={d.id}
+                    className={cn("day", on && "on", reserved && "reserved", rec && "rec")}
+                    role="radio" aria-checked={on} aria-disabled={reserved}
+                    tabIndex={reserved ? -1 : 0}
+                    onClick={() => !reserved && setForm({ ...form, date: d.id })}
+                    onKeyDown={(e) => { if (!reserved && (e.key === " " || e.key === "Enter")) { e.preventDefault(); setForm({ ...form, date: d.id }); } }}
+                  >
+                    {rec && <span className="rec-flag" aria-hidden="true">PRODUCER'S PICK</span>}
+                    <div className="day-check" aria-hidden="true">✓</div>
+                    <div className="day-meta">{d.dow} · 9:00 — 10:00 AM</div>
+                    <div className="day-date">{d.date}</div>
+                    <div className="day-theme">Theme · {d.theme}{d.sub && <small>{d.sub}</small>}</div>
+                    {reserved && (
+                      <div className="day-reserved-by">
+                        <div className="day-reserved-init" aria-hidden="true">{reservedBy.initial || initialsFrom(reservedBy.name)}</div>
+                        <div>
+                          <strong>{reservedBy.name}</strong>
+                          <small>{reservedBy.title}</small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {errors.date && <div className="err-text" role="alert">Please pick an available date.</div>}
+    </div>
+  );
+}
+
+// ─── Step 4 · Review ─────────────────────────────────────────────────
+function StepReview({ form, computed }) {
+  return (
+    <div className="scene" id="scene-04">
+      <div className="step-head">
+        <div className="step-kicker">Scene IV · Review</div>
+        <h2 className="step-title">Before you confirm — <em>this is what you are building.</em></h2>
+        <p className="step-sub">A single press confirms your seat in the 2026 Future Leaders Archive.</p>
+      </div>
+      <div className="review">
+        <h4>Your initiation summary</h4>
+        <dl>
+          <div className="review-line">
+            <dt>Leader</dt>
+            <dd>{[form.honorific, form.name].filter(Boolean).join(" ") || "—"}<small>{form.role}{form.role && form.org ? " · " : ""}{form.org}</small></dd>
+          </div>
+          <div className="review-line">
+            <dt>Centre</dt>
+            <dd>{computed.centre?.name || "—"}<small>{computed.centre?.focus} · {computed.centre?.children} children</small></dd>
+          </div>
+          <div className="review-line">
+            <dt>Date</dt>
+            <dd>{computed.day?.dow}, {computed.day?.date || "—"}<small>Theme · {computed.day?.theme} · 9:00 — 10:00 AM</small></dd>
+          </div>
+          <div className="review-line">
+            <dt>Contact</dt>
+            <dd>{form.email || "—"}<small>{form.whatsapp || "WhatsApp not provided"}</small></dd>
+          </div>
+          {form.notes && (
+            <div className="review-line">
+              <dt>Note</dt>
+              <dd style={{fontWeight: 400, color: "var(--ink-soft)", fontSize: 15}}>{form.notes}</dd>
+            </div>
+          )}
+          <div className="review-line">
+            <dt>Archive</dt>
+            <dd>2026 Alimosho Future Leaders Archive<small>One of six leaders who built a generation.</small></dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+// ─── Legacy Card (right rail) ────────────────────────────────────────
+function LegacyCard({ form, computed, confirmed, large }) {
+  const ref = useRef(null);
+  const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
+  const reduceMotion = useRef(false);
+
+  useEffect(() => {
+    reduceMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  const onMove = (e) => {
+    if (!ref.current || large || reduceMotion.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width  - 0.5;
+    const y = (e.clientY - r.top)  / r.height - 0.5;
+    setTilt({ rx: -y * 5, ry: x * 5 });
+  };
+  const onLeave = () => setTilt({ rx: 0, ry: 0 });
+
+  const displayName = [form.honorific, form.name].filter(Boolean).join(" ").trim();
+  const displayTitle = [form.role, form.org].filter(Boolean).join(", ").trim();
+
+  return (
+    <article
+      ref={ref}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+      className={cn("legacy", large && "legacy-large", confirmed && "legacy-confirmed")}
+      style={{ transform: `perspective(1200px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)` }}
+      aria-label="Live preview of your archive card"
+    >
+      <div className="legacy-bg" aria-hidden="true" />
+      <div className="legacy-inner">
+        <div className="legacy-header">
+          <div className="legacy-eyebrow">STREET-TO-STARDOM · <strong>2026 ARCHIVE</strong></div>
+          <div className={cn("legacy-status", confirmed && "confirmed")}>
+            <span className="sdot" aria-hidden="true"></span>
+            {confirmed ? "Confirmed" : "Pending"}
+          </div>
+        </div>
+
+        <div className="legacy-portrait" aria-hidden="true">
+          <span className="portrait-init">{displayName ? initialsFrom(displayName) : "—"}</span>
+        </div>
+
+        <h3 className={cn("legacy-name", !displayName && "pending")}>
+          {displayName || "Your name appears here"}
+        </h3>
+        <div className={cn("legacy-title", !displayTitle && "pending")}>
+          {displayTitle || "Role · Organisation"}
+        </div>
+
+        <div className="legacy-grid">
+          <div className="lf">
+            <span className="lf-key">Will speak at</span>
+            <span className={cn("lf-val", !computed.centre && "pending")}>
+              {computed.centre?.name || "Centre pending"}
+              {computed.centre && <small>{computed.centre.focus}</small>}
+            </span>
+          </div>
+          <div className="lf">
+            <span className="lf-key">Session</span>
+            <span className={cn("lf-val", !computed.day && "pending")}>
+              {computed.day?.date || "Date pending"}
+              {computed.day && <small>{computed.day.dow} · Theme · {computed.day.theme}</small>}
+            </span>
+          </div>
+          <div className="lf">
+            <span className="lf-key">Children present</span>
+            <span className={cn("lf-val", !computed.centre && "pending")}>
+              {computed.centre ? computed.centre.children : "—"}
+              {computed.centre && <small>of 900 cohort</small>}
+            </span>
+          </div>
+          <div className="lf">
+            <span className="lf-key">Time</span>
+            <span className="lf-val">9:00 — 10:00 AM<small>+ 30 min mentorship</small></span>
+          </div>
+        </div>
+
+        <p className="legacy-quote">
+          {confirmed
+            ? <>"One of six leaders who built <em>a generation.</em>"</>
+            : <>"{TONE.legacyQuote}"</>}
+        </p>
+
+        <div className="legacy-seal">
+          <span>Cohort 2026 · Vol. I</span>
+          <div className="crest" aria-hidden="true">S</div>
+          <span>{confirmed ? "Archived ✓" : "Catalogue Pending"}</span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+// ─── Peers Panel ─────────────────────────────────────────────────────
+function PeersPanel({ reservations }) {
+  if (!reservations.length) return null;
+  const allDaysCount = WEEKS.flatMap((w) => w.days).length;
+  return (
+    <div className="peers" aria-label="Leaders already confirmed">
+      <h5>
+        Already confirmed
+        <span>{reservations.length} of {allDaysCount}</span>
+      </h5>
+      <ul className="peers-list">
+        {reservations.slice(0, 5).map((p) => (
+          <li key={p.dateId}>
+            <div className="peer-init" aria-hidden="true">{p.initial || initialsFrom(p.name)}</div>
+            <div className="peer-name">
+              <strong>{p.name}</strong>
+              <small>{p.title}</small>
+            </div>
+            <div className="peer-where">
+              <span className="peer-status">● Speaker</span>
+              <small>{p.dateId}</small>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="peers-foot">
+        <span>And {allDaysCount - reservations.length} dates still open.</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI · Centre Insight panel ───────────────────────────────────────
+function AICentreInsight({ form, onSelectCentre }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const requested = useRef(false);
+
+  const profileReady = form.name.trim().split(/\s+/).length >= 2 && form.role.trim() && form.org.trim();
+
+  useEffect(() => {
+    if (!profileReady || requested.current) return;
+    requested.current = true;
+    setLoading(true);
+    AI.centreMatch({ name: form.name, role: form.role, org: form.org })
+      .then((d) => { if (d) setData(d); else setError(true); })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [profileReady]);
+
+  if (!profileReady || error) return null;
+  if (loading) {
+    return (
+      <div className="ai-panel" role="status">
+        <div className="ai-header"><span className="ai-spark" aria-hidden="true">✦</span> AI Centre Advisor</div>
+        <div className="ai-loading"><div className="ai-dots" aria-hidden="true"><span></span><span></span><span></span></div>Analysing your profile…</div>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const topCentre = CENTRES.find((c) => c.id === data.top_pick?.id);
+  const runnerCentre = CENTRES.find((c) => c.id === data.runner_up?.id);
+
+  return (
+    <div className="ai-panel" role="region" aria-label="AI centre recommendations">
+      <div className="ai-header"><span className="ai-spark" aria-hidden="true">✦</span> AI Centre Advisor · based on your profile</div>
+      <div className="ai-rec">
+        {topCentre && (
+          <button type="button" className="ai-rec-item" onClick={() => onSelectCentre(topCentre.id)}>
+            <div className="ai-rec-rank" aria-hidden="true">1</div>
+            <div className="ai-rec-body">
+              <div className="ai-rec-centre">{topCentre.name}</div>
+              <div className="ai-rec-reason">{data.top_pick.reason}</div>
+              <div className="ai-rec-select">Select this centre →</div>
+            </div>
+          </button>
+        )}
+        {runnerCentre && (
+          <button type="button" className="ai-rec-item" onClick={() => onSelectCentre(runnerCentre.id)}>
+            <div className="ai-rec-rank runner" aria-hidden="true">2</div>
+            <div className="ai-rec-body">
+              <div className="ai-rec-centre">{runnerCentre.name}</div>
+              <div className="ai-rec-reason">{data.runner_up.reason}</div>
+              <div className="ai-rec-select">Select this centre →</div>
+            </div>
+          </button>
+        )}
+      </div>
+      {data.personal_note && <div className="ai-personal-note">{data.personal_note}</div>}
+    </div>
+  );
+}
+
+// ─── AI · Note Suggestions ───────────────────────────────────────────
+function AINoteSuggest({ form, onSelect }) {
+  const [suggestions, setSuggestions] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [requested, setRequested] = useState(false);
+
+  const profileReady = form.name.trim().split(/\s+/).length >= 2 && form.role.trim();
+
+  const doFetch = useCallback(() => {
+    if (loading || suggestions) return;
+    setLoading(true); setRequested(true);
+    const centreObj = CENTRES.find((c) => c.id === form.centre);
+    AI.noteSuggest({ name: form.name, role: form.role, centre: centreObj?.name || "", focus: centreObj?.focus || "" })
+      .then((d) => { if (d?.suggestions) setSuggestions(d.suggestions); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [form.name, form.role, form.centre, loading, suggestions]);
+
+  if (!profileReady) return null;
+  if (suggestions) {
+    return (
+      <div className="ai-note-chips" role="group" aria-label="AI note suggestions">
+        {suggestions.map((s, i) => (
+          <button key={i} type="button" className="ai-note-chip" onClick={() => onSelect(s)}>
+            ✦ {s}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div className="ai-loading" role="status" style={{paddingBottom: 0}}>
+        <div className="ai-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        Writing suggestions…
+      </div>
+    );
+  }
+  if (!requested) {
+    return (
+      <button type="button" className="ai-note-chip" onClick={doFetch} style={{marginTop: 8}}>
+        ✦ Suggest a note with AI
+      </button>
+    );
+  }
+  return null;
+}
+
+// ─── AI · Session Brief ──────────────────────────────────────────────
+function AISessionBrief({ form, computed }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const requested = useRef(false);
+
+  useEffect(() => {
+    if (requested.current) return;
+    requested.current = true;
+    AI.sessionBrief({
+      name: form.name, role: form.role, org: form.org,
+      centre: computed.centre?.name || "", focus: computed.centre?.focus || "",
+      date: computed.day?.date || "", theme: computed.day?.theme || "",
+      children: String(computed.centre?.children || ""),
+    })
+      .then((d) => { if (d) setData(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="ai-brief" role="status">
+        <div className="ai-brief-head"><span className="ai-spark" aria-hidden="true">✦</span> Generating your session brief</div>
+        <div className="ai-loading" style={{color: "rgba(255,255,255,0.6)"}}>
+          <div className="ai-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          Preparing personalised talking points…
+        </div>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <div className="ai-brief">
+      <div className="ai-brief-head"><span className="ai-spark" aria-hidden="true">✦</span> AI Session Brief · personalised for you</div>
+      {data.greeting && <div className="ai-brief-greeting">"{data.greeting}"</div>}
+      {data.talking_points?.length > 0 && (
+        <>
+          <div className="ai-brief-section-title">Suggested Talking Points</div>
+          {data.talking_points.map((tp, i) => <div key={i} className="ai-brief-point">{tp}</div>)}
+        </>
+      )}
+      {data.opening_line && (
+        <div className="ai-brief-highlight">
+          <div className="ai-brief-highlight-label">Suggested Opening Line</div>
+          <div className="ai-brief-highlight-text">"{data.opening_line}"</div>
+        </div>
+      )}
+      {data.closing_prompt && (
+        <div className="ai-brief-highlight">
+          <div className="ai-brief-highlight-label">Closing Prompt</div>
+          <div className="ai-brief-highlight-text">"{data.closing_prompt}"</div>
+        </div>
+      )}
+      {data.mentorship_tip && (
+        <>
+          <div className="ai-brief-section-title">Mentorship Circle Tip</div>
+          <div className="ai-brief-point">{data.mentorship_tip}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── AI · Share Copy ─────────────────────────────────────────────────
+function AIShareCopy({ form, computed }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("linkedin");
+  const [copied, setCopied] = useState(false);
+  const requested = useRef(false);
+
+  useEffect(() => {
+    if (requested.current) return;
+    requested.current = true;
+    AI.shareCopy({
+      name: form.name, honorific: form.honorific,
+      role: form.role, org: form.org,
+      centre: computed.centre?.name || "",
+      date: computed.day?.date || "", theme: computed.day?.theme || "",
+      children: String(computed.centre?.children || ""),
+    })
+      .then((d) => { if (d) setData(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const doCopy = async () => {
+    const text = data?.[tab];
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      showToast("Copied to clipboard.", "success", 2400);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showToast("Couldn't copy automatically. Select and copy manually.", "error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="ai-brief" role="status" style={{marginTop: 12}}>
+        <div className="ai-brief-head"><span className="ai-spark" aria-hidden="true">✦</span> Generating share copy</div>
+        <div className="ai-loading" style={{color: "rgba(255,255,255,0.6)"}}>
+          <div className="ai-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          Writing for LinkedIn, WhatsApp & X…
+        </div>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const tabs = [
+    { key: "linkedin", label: "LinkedIn" },
+    { key: "whatsapp", label: "WhatsApp" },
+    { key: "twitter",  label: "X / Twitter" },
+  ];
+
+  return (
+    <div className="ai-brief" style={{marginTop: 12}}>
+      <div className="ai-brief-head"><span className="ai-spark" aria-hidden="true">✦</span> Share Your Participation</div>
+      <div className="ai-share-tabs" role="tablist">
+        {tabs.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key}
+            className={cn("ai-share-tab", tab === t.key && "on")}
+            onClick={() => { setTab(t.key); setCopied(false); }}
+          >{t.label}</button>
+        ))}
+      </div>
+      <div className="ai-share-copy" role="tabpanel">
+        {data[tab] || "Copy not available."}
+        <button type="button" className="ai-share-copy-btn" onClick={doCopy}>
+          {copied ? "Copied ✓" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── How It Works modal ──────────────────────────────────────────────
+function HowItWorksModal({ open, onClose, onBegin }) {
+  const firstFocusable = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab") {
+        // Simple focus trap
+        const focusables = document.querySelectorAll(".modal-panel button, .modal-panel a, .modal-panel input");
+        if (!focusables.length) return;
+        const first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    setTimeout(() => firstFocusable.current?.focus(), 60);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open, onClose]);
+
+  return (
+    <div
+      className={cn("modal-backdrop", open && "open")}
+      onClick={(e) => e.target.classList.contains("modal-backdrop") && onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="hiw-title"
+      aria-hidden={!open}
+    >
+      <div className="modal-panel">
+        <div className="modal-head">
+          <div>
+            <div className="modal-eyebrow">How the 2026 Series Works</div>
+            <h3 className="modal-title" id="hiw-title">Three steps. <em>Six minutes.</em></h3>
+          </div>
+          <button ref={firstFocusable} className="modal-close" onClick={onClose} aria-label="Close dialog">✕</button>
+        </div>
+        <div className="modal-steps">
+          <div className="modal-step">
+            <div className="modal-step-num" aria-hidden="true">1</div>
+            <div>
+              <h4 className="modal-step-title">Choose your centre &amp; date</h4>
+              <p className="modal-step-desc">Six communities across Alimosho. Pick the one your story fits, then select any open Saturday or Sunday in August 2026. Our AI advisor suggests the strongest match for your role.</p>
+            </div>
+          </div>
+          <div className="modal-step">
+            <div className="modal-step-num" aria-hidden="true">2</div>
+            <div>
+              <h4 className="modal-step-title">Receive your private brief</h4>
+              <p className="modal-step-desc">48 hours before, we send a tailored brief — children's context, suggested talking points, and the producer who will hold the day with you.</p>
+            </div>
+          </div>
+          <div className="modal-step">
+            <div className="modal-step-num" aria-hidden="true">3</div>
+            <div>
+              <h4 className="modal-step-title">Speak. Then mentor.</h4>
+              <p className="modal-step-desc">One hour of address. Thirty minutes of small-group mentorship. Your name enters the 2026 Future Leaders Archive within the hour.</p>
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <span>Address: 9:00 — 10:00 · Mentorship: 10:00 — 10:30</span>
+          <button className="modal-foot-cta" onClick={() => { onClose(); onBegin(); }}>
+            Begin your initiation <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ParentRow + Footer (matches the attached source codebase) ───────
+function ParentRow() {
+  return (
+    <div className="parent-row">
+      <div className="parent-row-inner">
+        <div className="parent-row-lead">
+          <span>An initiative of</span>
+          <span className="av-mark">Afrovanguard</span>
+          <span>· established 2019</span>
+        </div>
+        <a className="parent-row-cta" href="#" target="_blank" rel="noopener noreferrer">
+          Visit Afrovanguard
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <path d="M2 8 L8 2 M3.5 2 L8 2 L8 6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function NewsletterForm() {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState("idle");
+  const [msg, setMsg] = useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!isEmail(email)) { setState("err"); setMsg("Please enter a valid email."); return; }
+    setState("loading");
+    setMsg("");
+    const res = await subscribeNewsletter(email);
+    if (res.ok) {
+      setState("ok");
+      setMsg(res.data?.duplicate ? "You're already subscribed. Thank you." : "Subscribed. Watch for our next dispatch.");
+      setEmail("");
+    } else {
+      setState("err");
+      setMsg(res.error || "Subscription failed. Please try again.");
+    }
+  };
+  return (
+    <>
+      <form className="footer-newsletter-form" onSubmit={submit}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setState("idle"); setMsg(""); }}
+          placeholder="you@example.org"
+          aria-label="Email address"
+          disabled={state === "loading"}
+        />
+        <button type="submit" disabled={state === "loading" || !email}>
+          {state === "loading" ? "…" : state === "ok" ? "Done ✓" : "Subscribe"}
+        </button>
+      </form>
+      <div className={cn("footer-newsletter-foot", state === "ok" && "ok", state === "err" && "err")}>
+        {msg || "You'll receive 4 emails a year. Unsubscribe with one click."}
+      </div>
+    </>
+  );
+}
+
+function SiteFooter({ onBegin }) {
+  const year = new Date().getFullYear();
+  return (
+    <>
+      <ParentRow />
+      <footer className="footer-site" aria-label="Site footer">
+        <div className="footer-site-inner">
+          <div className="footer-cols">
+            <div className="footer-col footer-brand-block">
+              <button className="brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+                <div className="brand-mark" aria-hidden="true">S</div>
+                <div className="brand-text">
+                  <span className="brand-name">Street-To-Stardom</span>
+                </div>
+              </button>
+              <p className="footer-description">
+                Education and youth development for under-resourced Lagos communities. Registered NGO. Data published openly.
+              </p>
+              <div className="footer-social-row">
+                <a href="#" rel="noopener" aria-label="Twitter">Twitter</a>
+                <a href="#" rel="noopener" aria-label="Instagram">Instagram</a>
+                <a href="#" rel="noopener" aria-label="LinkedIn">LinkedIn</a>
+                <a href="#" rel="noopener" aria-label="YouTube">YouTube</a>
+              </div>
+            </div>
+            <div className="footer-col">
+              <h4>Programs</h4>
+              <ul>
+                <li><a href="#">Next Gen Genius Club</a></li>
+                <li><a href="#">Alimosho Summer School</a></li>
+                <li><a href="#">LCASP</a></li>
+                <li><a href="#">STREET Storm</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Organisation</h4>
+              <ul>
+                <li><a href="#">About</a></li>
+                <li><a href="#">Team &amp; Council</a></li>
+                <li><a href="#">Operating units</a></li>
+                <li><a href="#">Impact reports</a></li>
+                <li><a href="#">Contact</a></li>
+                <li><a href="#" onClick={(e) => { e.preventDefault(); onBegin(); }}>Become a speaker</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Stay in the loop</h4>
+              <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.55 }}>
+                Quarterly field notes from the programs we run. No newsletter spam — opt-in only.
+              </div>
+              <NewsletterForm />
+            </div>
+          </div>
+          <div className="footer-bottom">
+            <div>© {year} Street-To-Stardom · An Afrovanguard initiative · RC-XXXXXX</div>
+            <div className="footer-bottom-links">
+              <a href="#">Privacy</a>
+              <a href="#">Safeguarding</a>
+              <a href="#">Annual report</a>
+              <a href="#">Audited financials</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </>
+  );
+}
+
+// ─── Back to top ─────────────────────────────────────────────────────
+function BackToTop() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 600);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return (
+    <button
+      type="button"
+      className={cn("back-to-top", visible && "visible")}
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      aria-label="Back to top"
+    >↑</button>
+  );
+}
+
+// ─── Confirmation ────────────────────────────────────────────────────
+function Confirmation({ form, computed, onReset, submissionId }) {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setStage(1), 1600);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="confirm">
+      <div className="confirm-bg" aria-hidden="true">
+        <img src="https://picsum.photos/seed/sts-confirm/1900/1200" alt="" loading="lazy" decoding="async" />
+      </div>
+      <div className="confirm-inner">
+        <div className={cn("confirm-reveal", stage >= 1 && "compact")}>
+          <div className="confirm-eyebrow">CONFIRMED · 2026 FUTURE LEADERS ARCHIVE</div>
+          <h1 className="confirm-h">{TONE.confirmH}</h1>
+          <p className="confirm-sub">
+            {form.name.split(" ")[0] || "Friend"}, your session is confirmed.
+            {submissionId && <small style={{display:"block", marginTop:8, fontFamily:"var(--font-mono)", fontSize:11, color:"rgba(255,255,255,0.5)", letterSpacing:"0.06em"}}>Reference · {submissionId}</small>}
+          </p>
+          <dl className="confirm-meta">
+            <div><dt>Centre</dt><dd>{computed.centre?.name}</dd></div>
+            <div><dt>Date</dt><dd>{computed.day?.dow}, {computed.day?.date}</dd></div>
+            <div><dt>Theme</dt><dd>{computed.day?.theme}</dd></div>
+          </dl>
+        </div>
+
+        <div className={cn("confirm-stage-2", stage >= 1 && "visible")}>
+          <div className="confirm-grid">
+            <div className="confirm-card-wrap">
+              <LegacyCard form={form} computed={computed} confirmed={true} large />
+              <AISessionBrief form={form} computed={computed} />
+            </div>
+            <div className="deliverables">
+              <div className="deliverable" tabIndex="0">
+                <div className="deliverable-ix">01 · Badge</div>
+                <div className="deliverable-t">Digital Impact Badge</div>
+                <div className="deliverable-d">Shareable identity marker — LinkedIn, WhatsApp, Instagram.</div>
+                <div className="deliverable-cta">Download ↓</div>
+              </div>
+              <div className="deliverable" tabIndex="0">
+                <div className="deliverable-ix">02 · Card</div>
+                <div className="deliverable-t">"I Will Be There" Card</div>
+                <div className="deliverable-d">Professional graphic — name, centre, date, theme.</div>
+                <div className="deliverable-cta">Download ↓</div>
+              </div>
+              <div className="deliverable" tabIndex="0">
+                <div className="deliverable-ix">03 · Letter</div>
+                <div className="deliverable-t">Partnership Letter (PDF)</div>
+                <div className="deliverable-d">Formal letterheaded document for institutional records.</div>
+                <div className="deliverable-cta">Download ↓</div>
+              </div>
+              <div className="deliverable" tabIndex="0">
+                <div className="deliverable-ix">04 · Calendar</div>
+                <div className="deliverable-t">Add to Calendar</div>
+                <div className="deliverable-d">.ics sent to {form.email}.</div>
+                <div className="deliverable-cta">Add →</div>
+              </div>
+              <div className="deliverable" style={{gridColumn: "1 / -1"}}>
+                <AIShareCopy form={form} computed={computed} />
+              </div>
+            </div>
+          </div>
+
+          <div className="confirm-actions">
+            <button className="btn btn-ghost-light" onClick={onReset}>
+              <span className="btn-arrow back" aria-hidden="true">→</span> Submit another initiation
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── App root ────────────────────────────────────────────────────────
+const STORAGE_KEY = "sts-ceo-form-v4";
+const EMPTY = { honorific: "", name: "", role: "", org: "", email: "", whatsapp: "", notes: "", centre: "", date: "" };
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return EMPTY;
+    return { ...EMPTY, ...JSON.parse(raw) };
+  } catch { return EMPTY; }
+}
+
+function App() {
+  const [scene, setScene] = useState("hero");
+  const [step, setStep] = useState(0);
+  const [errors, setErrors] = useState({});
+  const [form, setForm] = useState(loadSaved);
+  const [mobilePreview, setMobilePreview] = useState(false);
+  const [aiMatch, setAiMatch] = useState(null);
+  const [howItWorks, setHowItWorks] = useState(false);
+  const [reservations, setReservations] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submissionId, setSubmissionId] = useState(null);
+
+  const hasSavedProgress = useMemo(
+    () => !!(form.name?.trim() || form.email?.trim() || form.centre || form.date),
+    [form]
+  );
+
+  // Fetch reservations on mount
+  useEffect(() => {
+    fetchReservations().then(setReservations);
+  }, []);
+
+  // Auto-save
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(form)); } catch {}
+  }, [form]);
+
+  const computed = useMemo(() => {
+    const allDays = WEEKS.flatMap((w) => w.days);
+    const centre = CENTRES.find((c) => c.id === form.centre);
+    const day = allDays.find((d) => d.id === form.date);
+    return { centre, day };
+  }, [form.centre, form.date]);
+
+  // Fetch AI centre match when entering step 2
+  useEffect(() => {
+    if (step !== 1 || aiMatch) return;
+    const profileReady = form.name.trim().split(/\s+/).length >= 2 && form.role.trim() && form.org.trim();
+    if (profileReady) {
+      AI.centreMatch({ name: form.name, role: form.role, org: form.org }).then((d) => { if (d) setAiMatch(d); }).catch(() => {});
+    }
+  }, [step, aiMatch, form.name, form.role, form.org]);
+
+  // Prevent selecting an already-reserved date
+  const reservedDateIds = useMemo(() => new Set(reservations.map((r) => r.dateId)), [reservations]);
+
+  const validate = (s) => {
+    const e = {};
+    if (s === 0) {
+      if (!form.name.trim() || form.name.trim().split(/\s+/).length < 2) e.name = true;
+      if (!form.role.trim()) e.role = true;
+      if (!form.org.trim()) e.org = true;
+      if (!isEmail(form.email)) e.email = true;
+    }
+    if (s === 1 && !form.centre) e.centre = true;
+    if (s === 2) {
+      if (!form.date || reservedDateIds.has(form.date)) e.date = true;
+    }
+    return e;
+  };
+
+  const canAdvance = useMemo(() => Object.keys(validate(step)).length === 0, [step, form, reservedDateIds]);
+
+  const scrollToComposer = () => {
+    requestAnimationFrame(() => {
+      const stage = document.getElementById("composer");
+      if (stage) stage.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const goNext = () => {
+    const e = validate(step);
+    setErrors(e);
+    if (Object.keys(e).length === 0) {
+      setStep((x) => Math.min(x + 1, 3));
+      scrollToComposer();
+    } else {
+      showToast("Please complete the highlighted fields.", "error", 3200);
+    }
+  };
+
+  const goBack = () => {
+    setErrors({});
+    setStep((x) => Math.max(0, x - 1));
+    scrollToComposer();
+  };
+
+  const goSubmit = async () => {
+    if (submitting) return;
+    const allErrs = { ...validate(0), ...validate(1), ...validate(2) };
+    if (Object.keys(allErrs).length > 0) {
+      setErrors(allErrs);
+      showToast("Some details are missing. Please review.", "error");
+      return;
+    }
+    setSubmitting(true);
+    const res = await submitForm({
+      honorific: form.honorific, name: form.name, role: form.role, org: form.org,
+      email: form.email, whatsapp: form.whatsapp, notes: form.notes,
+      centre: form.centre, date: form.date,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setSubmissionId(res.data?.id || null);
+      setScene("confirm");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      showToast(res.error || "Submission failed. Please try again.", "error", 6000);
+    }
+  };
+
+  const goReset = () => {
+    setScene("hero"); setStep(0); setForm(EMPTY);
+    setAiMatch(null); setSubmissionId(null);
+    AI.clearCache();
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 50);
+  };
+
+  const onBegin = () => {
+    setScene("form");
+    setTimeout(scrollToComposer, 50);
+  };
+
+  if (scene === "confirm") {
+    return (
+      <div className="page page-confirm">
+        <Confirmation form={form} computed={computed} onReset={goReset} submissionId={submissionId} />
+        <SiteFooter onBegin={goReset} />
+        <BackToTop />
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  return (
+    <div className="page">
+      <a href="#main" className="skip-link">Skip to main content</a>
+      <TopBar stepIx={step} showStepper={scene === "form"} onJumpToForm={scene === "hero" ? onBegin : null} />
+
+      {scene === "hero" && <Hero onBegin={onBegin} hasSavedProgress={hasSavedProgress} onHowItWorks={() => setHowItWorks(true)} reservations={reservations} />}
+
+      <main id="main" className="stage">
+        <div className="wrap">
+          {scene === "form" && <Prelude reservations={reservations} />}
+          {scene === "form" && (
+            <div id="composer" className="composer">
+              <section className="composer-left">
+                <Stepper step={step} onJump={(i) => setStep(i)} />
+                <div className="scene-wrap">
+                  {step === 0 && (
+                    <StepIdentity
+                      form={form} setForm={setForm} errors={errors}
+                      aiNoteSuggest={<AINoteSuggest form={form} onSelect={(note) => setForm({ ...form, notes: note })} />}
+                    />
+                  )}
+                  {step === 1 && (
+                    <StepCentre
+                      form={form} setForm={setForm} errors={errors}
+                      aiMatch={aiMatch}
+                      aiPanel={<AICentreInsight form={form} onSelectCentre={(id) => setForm({ ...form, centre: id })} />}
+                    />
+                  )}
+                  {step === 2 && <StepDate form={form} setForm={setForm} errors={errors} reservations={reservations} />}
+                  {step === 3 && <StepReview form={form} computed={computed} />}
+                </div>
+
+                <div className="actions">
+                  <button className="btn btn-ghost" onClick={goBack} disabled={step === 0} style={{ visibility: step === 0 ? "hidden" : "visible" }}>
+                    <span className="btn-arrow back" aria-hidden="true">→</span> Back
+                  </button>
+                  {step < 3 && (
+                    <button className="btn btn-primary" onClick={goNext} disabled={!canAdvance}>
+                      Continue to {STEPS[step + 1].title.toLowerCase()} <span className="btn-arrow" aria-hidden="true">→</span>
+                    </button>
+                  )}
+                  {step === 3 && (
+                    <button className="btn btn-primary btn-final" onClick={goSubmit} disabled={submitting}>
+                      {submitting ? "Confirming…" : "Confirm my seat in the archive"} <span className="btn-arrow" aria-hidden="true">→</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="composer-foot">
+                  <span>{STEPS[step].scene} · {STEPS[step].title}</span>
+                  <span className="autosave"><span className="autosave-dot"></span>Saved to this device</span>
+                </div>
+              </section>
+
+              <aside className="composer-right" aria-label="Your live invitation">
+                <div className="sticky-rail">
+                  <LegacyCard form={form} computed={computed} confirmed={false} />
+                  <PeersPanel reservations={reservations} />
+                </div>
+              </aside>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <SiteFooter onBegin={onBegin} />
+      <BackToTop />
+      <HowItWorksModal open={howItWorks} onClose={() => setHowItWorks(false)} onBegin={onBegin} />
+      <ToastContainer />
+      <div className="live-region" role="status" aria-live="polite">{submitting && "Submitting your initiation…"}</div>
+
+      {scene === "form" && (
+        <div className="mob-bar" role="region" aria-label="Form actions">
+          <button className="mob-preview-btn" onClick={() => setMobilePreview(true)} aria-label="Preview your invitation">
+            <span className="mob-preview-init" aria-hidden="true">{form.name ? initialsFrom(form.name) : "—"}</span>
+            <span className="mob-preview-meta">
+              <strong>{form.name || "Your invitation"}</strong>
+              <small>{computed.centre?.name || "Centre pending"} · {computed.day?.date || "Date pending"}</small>
+            </span>
+            <span className="mob-preview-eye" aria-hidden="true">↗</span>
+          </button>
+          <div className="mob-actions">
+            {step > 0 && <button className="mob-back" onClick={goBack} aria-label="Back">←</button>}
+            {step < 3 && <button className="btn btn-primary mob-continue" onClick={goNext} disabled={!canAdvance}>Continue <span className="btn-arrow" aria-hidden="true">→</span></button>}
+            {step === 3 && <button className="btn btn-primary mob-continue" onClick={goSubmit} disabled={submitting}>{submitting ? "…" : "Confirm"} <span className="btn-arrow" aria-hidden="true">→</span></button>}
+          </div>
+        </div>
+      )}
+
+      <div className={cn("mob-sheet", mobilePreview && "open")} onClick={(e) => e.target.classList.contains("mob-sheet") && setMobilePreview(false)} role="dialog" aria-modal="true" aria-hidden={!mobilePreview} aria-label="Your invitation preview">
+        <div className="mob-sheet-inner">
+          <div className="mob-sheet-handle" aria-hidden="true"></div>
+          <div className="mob-sheet-head">
+            <strong>Your live invitation</strong>
+            <button className="mob-sheet-close" onClick={() => setMobilePreview(false)} aria-label="Close">✕</button>
+          </div>
+          <LegacyCard form={form} computed={computed} confirmed={false} />
+          <PeersPanel reservations={reservations} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

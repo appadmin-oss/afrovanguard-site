@@ -1,0 +1,156 @@
+/* ============================================================
+   assets/site/chrome.css — canonical site footer (static pages)
+   ------------------------------------------------------------
+   One authoritative definition of the shared footer, loaded after
+   each page's inline styles so the chrome looks identical site-wide
+   (the PHP pages get the same look from diary.css). Self-contained —
+   hardcoded brand values, no dependency on a page's :root tokens.
+   Generated/owned alongside lib/partials.php → tools/build-chrome.php.
+   ============================================================ */
+.site-footer {
+  background: #0A0F1A;
+  color: #fff;
+  padding: 64px 0 0;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.site-footer::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: repeating-linear-gradient(90deg,
+    #f3b416 0, #f3b416 20px, #111827 20px, #111827 24px,
+    #d49a0e 24px, #d49a0e 44px, #b07e08 44px, #b07e08 48px,
+    #22c55e 48px, #22c55e 56px, #f3b416 56px, #f3b416 64px,
+    #b07e08 64px, #b07e08 68px);
+  background-size: 68px 4px;
+}
+.site-footer .container { max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+.site-footer .footer-grid {
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 40px; padding-bottom: 56px;
+}
+.site-footer .footer-logo-mark { font-family: 'Cormorant', Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: .3px; line-height: 1; margin-bottom: 14px; }
+.site-footer .footer-logo-mark .afro { color: #fff; }
+.site-footer .footer-logo-mark .van { color: #f3b416; }
+.site-footer .footer-tagline { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.7; max-width: 28ch; margin: 0 0 24px; }
+.site-footer .footer-socials { display: flex; gap: 10px; flex-wrap: wrap; }
+.site-footer .footer-social-link {
+  width: 42px; height: 42px; border-radius: 9999px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.14);
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.72); transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease; text-decoration: none;
+}
+.site-footer .footer-social-link svg { width: 18px; height: 18px; }
+.site-footer .footer-social-link:hover { background: rgba(243,180,22,0.14); color: #f3b416; border-color: var(--gold, #f3b416); transform: translateY(-3px); }
+.site-footer .footer-col h4 {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #f3b416; margin: 0 0 20px;
+}
+.site-footer .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; }
+.site-footer .footer-links a {
+  font-size: 14px; color: rgba(255,255,255,0.6); text-decoration: none;
+  min-height: 28px; display: flex; align-items: center; transition: color 0.2s ease;
+}
+.site-footer .footer-links a:hover { color: #fff; }
+.site-footer .footer-contact p { font-size: 13px; color: rgba(255,255,255,0.5); line-height: 1.7; margin: 0 0 14px; }
+.site-footer .footer-newsletter-mini { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.site-footer .footer-newsletter-mini h4 { color: #f3b416; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 8px; }
+.site-footer .footer-newsletter-mini input {
+  padding: 11px 16px; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05); color: #fff; font-family: inherit; font-size: 13px;
+  outline: none; transition: border-color 0.2s ease; width: 100%; box-sizing: border-box;
+}
+.site-footer .footer-newsletter-mini input::placeholder { color: rgba(255,255,255,0.3); }
+.site-footer .footer-newsletter-mini input:focus { border-color: #f3b416; }
+.site-footer .footer-newsletter-mini input.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.site-footer .footer-newsletter-mini .btn { font-size: 13px; padding: 12px 20px; min-height: 44px; border-radius: 9999px; cursor: pointer; }
+.site-footer .sub-msg { font-size: 12.5px; min-height: 16px; margin: 0; }
+.site-footer .footer-bottom {
+  border-top: 1px solid rgba(255,255,255,0.06); padding: 20px 0;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+.site-footer .footer-legal { font-size: 12px; color: rgba(255,255,255,0.35); margin: 0; }
+.site-footer .footer-legal a { color: rgba(255,255,255,0.45); text-decoration: none; transition: color 0.2s ease; }
+.site-footer .footer-legal a:hover { color: #fff; }
+@media (max-width: 1023px) { .site-footer .footer-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px)  { .site-footer .footer-grid { grid-template-columns: 1fr; gap: 28px; } }
+
+/* ============================================================
+   Unified theme toggle + dark mode for the static pages
+   (PHP pages get the same from diary.css/academy.css).
+   The palette is variable-driven, so dark mode flips the
+   semantic tokens; card surfaces that hardcode white are
+   remapped to a dark surface below.
+   ============================================================ */
+.nav-actions .icon-btn.theme-toggle, .nav-utility .icon-btn.theme-toggle {
+  width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-divider, rgba(0,0,0,0.12)); border-radius: 9999px;
+  background: transparent; color: inherit; cursor: pointer; padding: 0; flex-shrink: 0;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.nav-actions .icon-btn.theme-toggle:hover, .nav-utility .icon-btn.theme-toggle:hover { border-color: #f3b416; color: #f3b416; }
+.nav-actions .icon-btn.theme-toggle svg, .nav-utility .icon-btn.theme-toggle svg { width: 18px; height: 18px; }
+/* Utility strip lives at a smaller scale than the primary bar */
+.nav-utility .icon-btn.theme-toggle { width: 30px; height: 30px; }
+.nav-utility .icon-btn.theme-toggle svg { width: 15px; height: 15px; }
+.theme-toggle .moon { display: none; }
+html[data-theme="dark"] .theme-toggle .moon { display: block; }
+html[data-theme="dark"] .theme-toggle .sun { display: none; }
+
+html[data-theme="dark"] {
+  --color-bg:           #0B1120;
+  --color-bg-warm:      #0E1626;
+  --color-bg-mid:       #131C2E;
+  --color-text-primary: #F3F4F6;
+  --color-text-body:    #C7CBD3;
+  --color-text-muted:   #9AA1AD;
+  --color-divider:      rgba(255,255,255,0.12);
+  --card-shadow:        0 20px 60px rgba(0,0,0,0.5);
+}
+/* keep the page background and default text following the tokens */
+html[data-theme="dark"] body { background: var(--color-bg); color: var(--color-text-body); }
+/* card / panel surfaces that hardcode white → dark surface in dark mode */
+html[data-theme="dark"] .problem-block,
+html[data-theme="dark"] .program-card-small,
+html[data-theme="dark"] .program-card-mini,
+html[data-theme="dark"] .event-card,
+html[data-theme="dark"] .testimonial-card,
+html[data-theme="dark"] .carousel-btn,
+html[data-theme="dark"] .donor-card,
+html[data-theme="dark"] .faq-item,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .value-card,
+html[data-theme="dark"] .contact-card,
+html[data-theme="dark"] .info-card {
+  background: #151B28; border-color: rgba(255,255,255,0.10);
+}
+
+/* about.html / contact.html use a different token vocabulary (--ink*, --bg*,
+   --bg-w/--bg-warm, --bg-cr/--bg-cream). Flip those for dark mode too, so the
+   whole site themes from one place. Dark-section tokens (--dk*, --bg-dk/-mid/
+   -foot, --white, --div-dk) intentionally stay dark/light as designed. */
+html[data-theme="dark"] {
+  --ink:   #F3F4F6;
+  --ink-b: #C7CBD3;
+  --ink-m: #9AA1AD;
+  --ink-s: #7E8492;
+  --bg:      #0B1120;
+  --bg-w:    #0E1626;
+  --bg-cr:   #0E1626;
+  --bg-warm: #0E1626;
+  --bg-cream:#0E1626;
+}
+html[data-theme="dark"] .ntl,
+html[data-theme="dark"] .campaign-card,
+html[data-theme="dark"] .cs-form-header,
+html[data-theme="dark"] .cs-field,
+html[data-theme="dark"] .oh-row:nth-child(even),
+html[data-theme="dark"] .mat-need-card,
+html[data-theme="dark"] .cs-form-card {
+  background: #151B28 !important; border-color: rgba(255,255,255,0.10);
+}
+html[data-theme="dark"] .faq-q:hover { background: rgba(255,255,255,0.04) !important; }
+
+/* contain the off-canvas mobile nav at very narrow widths. body (not html)
+   is what propagates the clip to the viewport on these pages; matches the
+   guard index.html/about.html already ship with inline. */
+body { overflow-x: hidden; }

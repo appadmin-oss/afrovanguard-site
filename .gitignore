@@ -1,0 +1,44 @@
+# ── Credentials & server config — NEVER commit ────────────────────────
+config.php
+.env
+.env.*
+!.env.example
+.htaccess
+.htpasswd
+# (the routing-only diary/.htaccess is force-added — it holds no secrets)
+
+# ── Diary runtime database (auto-created from db/schema.sql + db/content.php) ──
+db/diary.sqlite
+db/diary.sqlite-wal
+db/diary.sqlite-shm
+
+# ── Donor / submission data ────────────────────────────────────────────
+donations.json
+contacts.json
+projects/sts/ceo/api/data/
+projects/sts/ceo/api/error_log
+
+# ── Rate-limit state files ─────────────────────────────────────────────
+*.rl
+
+# ── PHP dependencies ───────────────────────────────────────────────────
+# vendor/ is COMMITTED on purpose: this site is git-deployed to shared hosting
+# (cPanel) that has no Composer, so the PHPMailer dependency must ship in-repo.
+# Run `composer install` to reproduce it locally.
+
+# ── OS / editor noise ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# ── Diary OG image cache (regenerated on demand) ──
+db/cache/
+
+# ── User-uploaded media (Cloudinary fallback) ──
+uploads/
+
+# ── Generated read-aloud audio cache ───────────────────────────────────
+data/tts/

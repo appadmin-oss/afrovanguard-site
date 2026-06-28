@@ -1,0 +1,15 @@
+# Afrovanguard — robots.txt (auto-maintained by the custom app; authoritative real file)
+User-agent: *
+Allow: /
+
+# Server internals (also blocked at directory level)
+Disallow: /lib/
+Disallow: /db/
+Disallow: /admin/
+Disallow: /error.php
+
+# Sitemaps — custom first (authoritative), then WordPress core's own.
+Sitemap: https://afrovanguard.org.ng/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/diary/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/academy/sitemap.xml
+Sitemap: https://afrovanguard.org.ng/wp-sitemap.xml

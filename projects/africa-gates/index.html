@@ -1,0 +1,3499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Africa GATES | Cultural Gateway & Power Index | Afrovanguard</title>
+<meta name="description" content="Discover Africa GATES — the premier Cultural Gateway for Africa. Vote, nominate, and celebrate excellence through the Cultural Power Index. An initiative by Afrovanguard.">
+
+<meta name="robots" content="index, follow">
+<meta name="keywords" content="Africa GATES, Cultural Power Index, Afrovanguard, African culture awards, African excellence, vote African culture, nominate African leaders">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://afrovanguard.org.ng/projects/africa-gates"> 
+<meta property="og:title" content="Africa GATES — The Cultural Gateway for Africa">
+<meta property="og:description" content="Vote, nominate, and celebrate African excellence through the Cultural Power Index. An Afrovanguard Initiative.">
+<meta property="og:image" content="https://https://afrovanguard.org.ng/Images/gates-og-image.png"> 
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="Africa GATES - Cultural Power Index by Afrovanguard">
+<meta property="og:site_name" content="Africa GATES">
+<meta property="og:locale" content="en_NG">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Africa GATES — Cultural Gateway for Africa">
+<meta name="twitter:description" content="Vote, nominate, and celebrate excellence through the Cultural Power Index. An Afrovanguard Initiative.">
+<meta name="twitter:image" content="https://yourdomain.com/images/og-image-africa-gates.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <style>
+  /* ═══════════════════════════════════════════════
+     TOKENS
+  ═══════════════════════════════════════════════ */
+  :root {
+    --g9: #002200;
+    --g8: #004400;
+    --g7: #006600;
+    --g6: #008800;
+    --g5: #00aa00;
+    --g4: #22cc22;
+    --g3: #55ee55;
+    --g1: #ccffcc;
+
+    --gd9: #6b5900;
+    --gd7: #a88800;
+    --gd5: #d4ab00;
+    --gd4: #f0c800;
+    --gd3: #ffd93d;
+    --gd1: #fff3cc;
+
+    --k9: #080808;
+    --k8: #111111;
+    --k7: #1c1c1c;
+    --k6: #2a2a2a;
+    --k5: #3d3d3d;
+    --k4: #5a5a5a;
+    --k3: #888888;
+    --k2: #b8b8b8;
+    --k1: #e8e8e8;
+    --w:  #ffffff;
+
+    /* Afrovanguard font system */
+    --font-heading: 'Cormorant', Georgia, serif;
+    --font-display: 'Cormorant Garamond', Georgia, serif;
+    --font-body:    'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono:    'Space Mono', monospace;
+
+    /* Afrovanguard gold palette */
+    --av-gold:       #f3b416;
+    --av-gold-dark:  #d49a0e;
+    --av-gold-glow:  rgba(243,180,22,0.18);
+    --av-bg-dark:    #111827;
+    --av-bg-mid:     #1F2937;
+    --av-bg-footer:  #0A0F1A;
+
+    --header-h: 80px;
+    --header-h-min: 52px;
+    --subnav-h: 48px;
+
+    --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
+    --fast: 160ms;
+    --base: 280ms;
+    --slow: 480ms;
+
+    --r-sm: 4px;
+    --r-md: 8px;
+    --r-lg: 14px;
+    --r-xl: 20px;
+    --r-full: 9999px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     RESET
+  ═══════════════════════════════════════════════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    font-family: var(--font-body);
+    background: var(--w);
+    color: var(--k8);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { text-decoration: none; color: inherit; }
+  img, svg { display: block; max-width: 100%; }
+  button { cursor: pointer; font-family: inherit; border: none; background: none; }
+  ul { list-style: none; }
+
+  /* ═══════════════════════════════════════════════
+     LAYOUT
+  ═══════════════════════════════════════════════ */
+  .wrap {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: 32px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     AFROVANGUARD GLOBAL NAV — glass, flows with page
+  ═══════════════════════════════════════════════ */
+  .av-site-top {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 500;
+    /* No background — transparent wrapper, header handles it */
+  }
+
+  .av-header {
+    /* Starts fully transparent so hero shows through */
+    background: transparent;
+    transition: background 0.5s ease, box-shadow 0.5s ease, border-color 0.5s ease;
+    border-bottom: 1px solid transparent;
+  }
+
+  /* Glass state — triggered by .scrolled once user scrolls past ~60px */
+  .av-header.scrolled {
+    background: rgba(10, 14, 26, 0.72);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom-color: rgba(255,255,255,0.07);
+    box-shadow: 0 1px 40px rgba(0,0,0,0.28);
+  }
+
+  /* When GATES sub-nav takes over, global nav slides away */
+  .av-site-top.is-hidden {
+    transform: translateY(-100%);
+    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+  }
+  .av-site-top:not(.is-hidden) {
+    transition: transform 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .av-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; gap: 24px;
+    transition: padding 0.5s ease;
+  }
+  .av-header.scrolled .av-nav {
+    padding: 14px 0;
+  }
+
+  /* Wordmark logo */
+  .av-logo {
+    text-decoration: none; flex-shrink: 0;
+    display: flex; align-items: center; gap: 10px;
+    transition: opacity 0.2s;
+  }
+  .av-logo:hover { opacity: 0.8; }
+  .av-logo__mark {
+    font-family: var(--font-body); font-size: 18px; font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1;
+  }
+  .av-logo__mark .afro { color: #ffffff; }
+  .av-logo__mark .van  { color: var(--av-gold); }
+  .av-logo__badge {
+    font-family: var(--font-body); font-size: 9px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--av-bg-dark); background: var(--av-gold);
+    padding: 2px 7px; border-radius: 9999px;
+  }
+
+  /* Desktop links */
+  .av-links {
+    display: flex; list-style: none; gap: 2px; align-items: center; flex: 1; justify-content: center;
+  }
+  .av-links a {
+    font-family: var(--font-body); font-size: 14px; font-weight: 600;
+    color: rgba(255,255,255,0.85); text-decoration: none;
+    padding: 8px 14px; border-radius: 6px;
+    transition: color 0.2s ease, background 0.2s ease;
+    display: flex; align-items: center; min-height: 44px;
+    white-space: nowrap;
+  }
+  .av-links a:hover, .av-links a.current {
+    color: var(--av-gold); background: rgba(243,180,22,0.07);
+  }
+
+  /* Actions */
+  .av-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .av-donate {
+    font-family: var(--font-body); font-size: 13px; font-weight: 600;
+    color: rgba(255,255,255,0.7); text-decoration: none;
+    padding: 8px 14px; min-height: 44px; display: flex; align-items: center;
+    border-radius: 6px; transition: color 0.2s ease;
+  }
+  .av-donate:hover { color: var(--av-gold); }
+  .av-cta {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: var(--font-body); font-size: 13px; font-weight: 700;
+    letter-spacing: 0.03em; padding: 12px 22px; min-height: 44px;
+    border-radius: 9999px; border: 2px solid var(--av-gold);
+    background: var(--av-gold); color: var(--av-bg-dark);
+    cursor: pointer; transition: all 0.2s ease;
+    text-decoration: none; white-space: nowrap;
+    box-shadow: 0 4px 24px rgba(243,180,22,0.32);
+  }
+  .av-cta:hover {
+    background: var(--av-gold-dark); border-color: var(--av-gold-dark);
+    transform: translateY(-2px); box-shadow: 0 10px 36px rgba(243,180,22,0.4);
+    color: var(--av-bg-dark);
+  }
+
+  /* Hamburger toggle */
+  .av-toggle {
+    display: none; background: none; border: none; cursor: pointer;
+    padding: 10px; gap: 6px; flex-direction: column;
+    min-width: 44px; min-height: 44px; align-items: center; justify-content: center;
+  }
+  .av-toggle-line {
+    width: 22px; height: 2px; background: #ffffff;
+    border-radius: 2px; display: block;
+    transition: transform 0.35s ease, opacity 0.35s ease;
+  }
+  .av-toggle[aria-expanded="true"] .line-1 { transform: translateY(8px) rotate(45deg); }
+  .av-toggle[aria-expanded="true"] .line-2 { opacity: 0; transform: scaleX(0); }
+  .av-toggle[aria-expanded="true"] .line-3 { transform: translateY(-8px) rotate(-45deg); }
+
+  /* Mobile nav — fullscreen takeover, exact Afrovanguard style */
+  .av-mobile-nav {
+    position: fixed; inset: 0; z-index: 499;
+    background: var(--av-bg-dark);
+    display: flex; flex-direction: column;
+    padding: 100px 32px 40px;
+    gap: 4px;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow-y: auto;
+  }
+  .av-mobile-nav.open { transform: translateX(0); }
+  .av-mobile-nav a {
+    font-family: var(--font-heading);
+    font-size: clamp(24px, 5vw, 34px);
+    font-weight: 600; color: #ffffff;
+    letter-spacing: 0.04em; text-decoration: none;
+    padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+    transition: color 0.2s ease; display: block;
+  }
+  .av-mobile-nav a:hover { color: var(--av-gold); }
+  .av-mobile-nav__ctas {
+    margin-top: 28px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .av-mobile-nav .av-cta { border-radius: 9999px; justify-content: center; }
+  .av-mobile-nav .av-outline {
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-body); font-size: 14px; font-weight: 700;
+    letter-spacing: 0.03em; padding: 12px 22px; min-height: 44px;
+    border-radius: 9999px; border: 2px solid rgba(255,255,255,0.6);
+    background: transparent; color: #ffffff;
+    cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+  }
+  .av-mobile-nav .av-outline:hover {
+    background: rgba(255,255,255,0.1); border-color: #ffffff;
+  }
+
+  @media (max-width: 1024px) {
+    .av-links  { display: none; }
+    .av-donate { display: none; }
+    .av-cta    { display: none; }
+    .av-toggle { display: flex; }
+  }
+
+  /* ═══════════════════════════════════════════════
+     GATES SUB-NAV — becomes primary on scroll
+  ═══════════════════════════════════════════════ */
+  .s-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 490;
+    height: var(--subnav-h);
+    background: var(--k8);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: transform var(--base) var(--ease-out),
+                opacity var(--base) var(--ease-out);
+    display: flex;
+    align-items: center;
+  }
+
+  .s-nav.is-visible {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .s-nav__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 16px;
+  }
+
+  .s-nav__logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: opacity var(--fast);
+  }
+  .s-nav__logo:hover { opacity: 0.75; }
+  .s-nav__logo-mark {
+    font-family: var(--font-mono);
+    font-size: 12px; font-weight: 700;
+    color: var(--g4);
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .s-nav__logo-sep {
+    width: 1px; height: 14px;
+    background: rgba(255,255,255,0.15);
+  }
+  .s-nav__logo-label {
+    font-family: var(--font-body);
+    font-size: 11px; font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .s-nav__links {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: 1;
+    justify-content: center;
+  }
+  .s-nav__links::-webkit-scrollbar { display: none; }
+
+  .s-nav__link {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.5);
+    padding: 0 14px;
+    height: var(--subnav-h);
+    display: flex;
+    align-items: center;
+    position: relative;
+    transition: color var(--fast);
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  .s-nav__link::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 14px; right: 14px;
+    height: 2px;
+    background: var(--g4);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--base) var(--ease-out);
+    border-radius: 2px 2px 0 0;
+  }
+  .s-nav__link:hover { color: rgba(255,255,255,0.85); }
+  .s-nav__link.is-active {
+    color: var(--w);
+  }
+  .s-nav__link.is-active::after {
+    transform: scaleX(1);
+  }
+
+  .s-nav__exit {
+    flex-shrink: 0;
+    font-family: var(--font-body);
+    font-size: 11px; font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--r-sm);
+    display: flex; align-items: center; gap: 5px;
+    transition: color var(--fast), border-color var(--fast);
+    text-decoration: none;
+  }
+  .s-nav__exit:hover {
+    color: rgba(255,255,255,0.75);
+    border-color: rgba(255,255,255,0.25);
+  }
+  .s-nav__exit svg { opacity: 0.6; }
+
+  @media (max-width: 768px) {
+    .s-nav__exit { display: none; }
+    .s-nav__logo { display: none; }
+    .s-nav__links { justify-content: flex-start; padding-inline: 16px; }
+  }
+
+  /* Mobile drawer removed — using Afrovanguard fullscreen overlay */
+
+  /* ═══════════════════════════════════════════════
+     BUTTONS
+  ═══════════════════════════════════════════════ */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    border-radius: var(--r-sm);
+    transition: all var(--fast) var(--ease-out);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+    border: 1.5px solid transparent;
+  }
+  .btn--sm  { font-size: 12px; padding: 7px 14px; }
+  .btn--md  { font-size: 13px; padding: 10px 18px; }
+  .btn--lg  { font-size: 14px; padding: 13px 24px; }
+
+  .btn--gold {
+    background: var(--gd4);
+    color: var(--k9);
+    border-color: var(--gd4);
+  }
+  .btn--gold:hover {
+    background: var(--gd3);
+    border-color: var(--gd3);
+    box-shadow: 0 4px 20px rgba(240,200,0,0.35);
+    transform: translateY(-1px);
+  }
+  .btn--green {
+    background: var(--g7);
+    color: var(--w);
+    border-color: var(--g7);
+  }
+  .btn--green:hover {
+    background: var(--g6);
+    border-color: var(--g6);
+    transform: translateY(-1px);
+  }
+  .btn--ghost-white {
+    background: transparent;
+    color: rgba(255,255,255,0.7);
+    border-color: rgba(255,255,255,0.2);
+  }
+  .btn--ghost-white:hover {
+    color: var(--w);
+    border-color: rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.05);
+  }
+  .btn--outline-green {
+    background: transparent;
+    color: var(--g5);
+    border-color: var(--g5);
+  }
+  .btn--outline-green:hover {
+    background: var(--g7);
+    color: var(--w);
+    border-color: var(--g7);
+  }
+  .btn--dark {
+    background: var(--k6);
+    color: rgba(255,255,255,0.75);
+    border-color: rgba(255,255,255,0.1);
+  }
+  .btn--dark:hover {
+    background: var(--k5);
+    color: var(--w);
+  }
+  .btn--w {
+    background: var(--w);
+    color: var(--k8);
+    border-color: var(--w);
+  }
+  .btn--w:hover {
+    background: rgba(255,255,255,0.9);
+    transform: translateY(-1px);
+  }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    background: #080c14;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Clean gradient atmosphere — no noise */
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 80% at 20% 60%, rgba(0, 80, 0, 0.22) 0%, transparent 65%),
+      radial-gradient(ellipse 50% 60% at 85% 15%, rgba(0, 50, 0, 0.14) 0%, transparent 55%),
+      radial-gradient(ellipse 40% 50% at 60% 90%, rgba(243, 180, 22, 0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  /* Subtle vignette */
+  .hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 100% 100% at 50% 50%, transparent 50%, rgba(0,0,0,0.35) 100%);
+    pointer-events: none;
+  }
+
+  /* Ticker */
+  .hero__ticker {
+    position: absolute;
+    top: var(--header-h); /* sits directly under nav */
+    left: 0; right: 0;
+    height: 34px;
+    background: rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    z-index: 5;
+  }
+  .hero__ticker-label {
+    flex-shrink: 0;
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--av-gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0 16px 0 20px;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 100%;
+  }
+  .ticker-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--av-gold);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.65); }
+  }
+  .ticker-track {
+    flex: 1;
+    overflow: hidden;
+  }
+  .ticker-inner {
+    display: flex;
+    gap: 0;
+    animation: tickerScroll 32s linear infinite;
+    white-space: nowrap;
+  }
+  .ticker-inner:hover { animation-play-state: paused; }
+  @keyframes tickerScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  .ticker-entry {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 28px;
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.5);
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  .ticker-entry__name { color: rgba(255,255,255,0.85); }
+  .ticker-entry__score {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--gd4);
+  }
+
+  /* Hero content */
+  .hero__body {
+    position: relative;
+    z-index: 10;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding-top: calc(var(--header-h) + 72px);
+    padding-bottom: 80px;
+  }
+
+  .hero__content {
+    max-width: 780px;
+  }
+
+  .hero__kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--av-gold);
+    margin-bottom: 28px;
+  }
+  .hero__kicker::before {
+    content: '';
+    width: 20px; height: 1.5px;
+    background: var(--av-gold);
+    display: block;
+  }
+
+  .hero__h1 {
+    font-family: var(--font-display);
+    font-size: clamp(52px, 7vw, 96px);
+    font-weight: 600;
+    line-height: 1.0;
+    color: var(--w);
+    letter-spacing: -0.02em;
+    margin-bottom: 28px;
+  }
+  .hero__h1 em {
+    font-style: italic;
+    color: var(--g3);
+  }
+
+  .hero__sub {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.6);
+    max-width: 520px;
+    margin-bottom: 40px;
+  }
+
+  .hero__cta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 64px;
+  }
+
+  .hero__stats {
+    display: flex;
+    gap: 0;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 28px;
+  }
+  .hero__stat {
+    padding-right: 32px;
+    margin-right: 32px;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  .hero__stat:last-child { border-right: none; }
+  .hero__stat-num {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--w);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .hero__stat-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Scroll hint */
+  .hero__scroll {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+    z-index: 10;
+    animation: scrollHint 2.5s ease-in-out infinite;
+  }
+  @keyframes scrollHint {
+    0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.3; }
+    50% { transform: translateX(-50%) translateY(4px); opacity: 0.6; }
+  }
+  .hero__scroll-line {
+    width: 1px; height: 28px;
+    background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.3));
+  }
+
+  /* ═══════════════════════════════════════════════
+     DEMO DATA SYSTEM
+  ═══════════════════════════════════════════════ */
+
+  /* Global demo mode bar — always visible below sub-nav when active */
+  .demo-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 480;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 9px 20px;
+    background: rgba(17, 12, 0, 0.96);
+    border-top: 1px solid rgba(243,180,22,0.25);
+    backdrop-filter: blur(12px);
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.04em;
+  }
+  .demo-bar__dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--av-gold);
+    opacity: 0.85;
+    flex-shrink: 0;
+  }
+  .demo-bar strong {
+    color: var(--av-gold);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .demo-bar a {
+    color: rgba(255,255,255,0.4);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    margin-left: 4px;
+    transition: color 0.15s;
+  }
+  .demo-bar a:hover { color: rgba(255,255,255,0.7); }
+
+  /* Section-level demo chip */
+  .demo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--av-gold);
+    background: rgba(243,180,22,0.08);
+    border: 1px solid rgba(243,180,22,0.22);
+    border-radius: 9999px;
+    padding: 3px 9px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .demo-chip::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--av-gold);
+    flex-shrink: 0;
+  }
+
+  /* Row/card-level demo watermark overlay */
+  .demo-watermark {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--av-gold);
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* ═══════════════════════════════════════════════
+     TYPOGRAPHY SYSTEM — tighter, more professional
+  ═══════════════════════════════════════════════ */
+
+  .sec-h2 {
+    font-family: var(--font-display);
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    line-height: 1.08;
+    color: var(--k8);
+    letter-spacing: -0.025em;
+    margin-bottom: 14px;
+  }
+  .sec-h2--w { color: var(--w); }
+
+  .sec-sub {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.7;
+    color: var(--k4);
+    max-width: 520px;
+  }
+  .sec-sub--w { color: rgba(255,255,255,0.58); }
+
+  .sec-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 48px;
+    flex-wrap: wrap;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--k1);
+  }
+  .section--dark .sec-header,
+  .section--green .sec-header {
+    border-bottom-color: rgba(255,255,255,0.07);
+  }
+
+  /* ═══════════════════════════════════════════════
+     SECTION BACKGROUNDS — cleaner contrast rhythm
+  ═══════════════════════════════════════════════ */
+  .section { padding: 88px 0; }
+  .section--subtle { background: #f7f8fa; }
+  .section--dark { background: #0d1117; color: var(--w); }
+  .section--deep { background: #060a10; color: var(--w); }
+  .section--green { background: #031a08; color: var(--w); }
+
+  /* Hero em accent */
+  .hero__h1 em {
+    font-style: italic;
+    color: var(--av-gold);
+    opacity: 0.9;
+  }
+
+  /* ═══════════════════════════════════════════════
+     ABOUT — refinements
+  ═══════════════════════════════════════════════ */
+  .mv-box {
+    border: 1px solid #e8ecf0;
+    border-left: 3px solid var(--av-gold);
+    border-radius: var(--r-sm);
+    padding: 18px 20px;
+    background: #fdfbf4;
+  }
+  .mv-box__title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8a6a00;
+    margin-bottom: 8px;
+  }
+  .mv-box__text {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--k4);
+    margin: 0;
+  }
+
+  /* ═══════════════════════════════════════════════
+     CPI — gold accent on percentages
+  ═══════════════════════════════════════════════ */
+  .cpi-factor__pct {
+    font-family: var(--font-display);
+    font-size: 34px;
+    font-weight: 700;
+    color: var(--av-gold);
+    line-height: 1;
+    min-width: 60px;
+  }
+  .cpi-factor {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* ═══════════════════════════════════════════════
+     AWARDS — professional, no emoji icons
+  ═══════════════════════════════════════════════ */
+  .awards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 700px) { .awards-grid { grid-template-columns: 1fr; } }
+
+  .award-card {
+    border: 1px solid #e8ecf0;
+    border-radius: var(--r-lg);
+    padding: 32px;
+    background: var(--w);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .award-card:hover {
+    box-shadow: 0 8px 36px rgba(0,0,0,0.09);
+    transform: translateY(-2px);
+  }
+  /* Gold left accent bar instead of top bar */
+  .award-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--av-gold), rgba(243,180,22,0.3));
+  }
+
+  .award-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+  .award-card__number {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--k2);
+    letter-spacing: 0.08em;
+    line-height: 1.4;
+  }
+
+  .award-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 9999px;
+  }
+  .award-badge--live {
+    background: rgba(22,163,74,0.08);
+    color: #15803d;
+    border: 1px solid rgba(22,163,74,0.2);
+  }
+  .award-badge--live::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .award-badge--open {
+    background: rgba(243,180,22,0.08);
+    color: #92620a;
+    border: 1px solid rgba(243,180,22,0.25);
+  }
+  .award-badge--soon {
+    background: rgba(107,114,128,0.08);
+    color: #6b7280;
+    border: 1px solid rgba(107,114,128,0.2);
+  }
+
+  .award-card__name {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--k8);
+    line-height: 1.2;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  .award-card__desc {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: #4b5563;
+    margin-bottom: 18px;
+    flex: 1;
+  }
+  .award-tags {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    margin-bottom: 20px;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: #374151;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 9999px;
+    padding: 3px 9px;
+    letter-spacing: 0.01em;
+  }
+  .award-card__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid #f3f4f6;
+    margin-top: auto;
+  }
+  .award-card__countdown {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--k3);
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEADERBOARD — data table style
+  ═══════════════════════════════════════════════ */
+  .lb-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .lb-layout { grid-template-columns: 1fr; } }
+
+  /* Table header */
+  .lb-table-head {
+    display: grid;
+    grid-template-columns: 40px 48px 1fr 80px 90px;
+    gap: 12px;
+    padding: 0 16px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 4px;
+  }
+  .lb-table-head span {
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #9ca3af;
+  }
+  .lb-table-head .th-right { text-align: right; }
+  @media (max-width: 700px) { .lb-table-head { display: none; } }
+
+  .lb-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .lb-row {
+    display: grid;
+    grid-template-columns: 40px 48px 1fr 80px 90px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--r-sm);
+    border: 1px solid transparent;
+    transition: background 0.12s ease, border-color 0.12s ease;
+    cursor: pointer;
+    position: relative;
+  }
+  .lb-row:hover {
+    background: #fafbfc;
+    border-color: #e5e7eb;
+  }
+  .lb-row--top { background: #fffdf5; border-color: rgba(243,180,22,0.18); }
+  .lb-row--top:hover { background: #fffbee; border-color: rgba(243,180,22,0.32); }
+
+  @media (max-width: 700px) {
+    .lb-row { grid-template-columns: 32px 40px 1fr auto; }
+    .lb-badge { display: none; }
+  }
+
+  .lb-rank {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: #d1d5db;
+    text-align: center;
+    line-height: 1;
+  }
+  .lb-rank--1 { color: var(--av-gold); }
+  .lb-rank--2 { color: #9ca3af; }
+  .lb-rank--3 { color: #b87333; }
+
+  .lb-avatar {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    color: var(--w);
+    background: linear-gradient(135deg, #1a3a1a, #2d6a2d);
+    flex-shrink: 0;
+    font-family: var(--font-body);
+    letter-spacing: -0.02em;
+  }
+
+  .lb-name {
+    font-size: 13.5px; font-weight: 600;
+    color: #111827;
+    margin-bottom: 2px;
+    line-height: 1.2;
+  }
+  .lb-type {
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 500;
+  }
+
+  .lb-badge {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 9999px;
+    white-space: nowrap;
+    font-family: var(--font-body);
+  }
+  .lb-badge--5 { background: rgba(243,180,22,0.1); color: #92620a; border: 1px solid rgba(243,180,22,0.25); }
+  .lb-badge--4 { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+  .lb-badge--3 { background: rgba(180,80,20,0.07); color: #92400e; border: 1px solid rgba(180,80,20,0.15); }
+
+  .lb-score-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+  .lb-score {
+    font-family: var(--font-mono);
+    font-size: 13.5px; font-weight: 700;
+    color: #111827;
+    line-height: 1;
+  }
+  .lb-bar-track {
+    width: 72px; height: 2px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .lb-bar {
+    height: 100%;
+    background: var(--av-gold);
+    border-radius: 2px;
+  }
+
+  /* Sidebar */
+  .lb-sidebar-card {
+    background: #0d1117;
+    border-radius: var(--r-lg);
+    padding: 24px;
+    color: var(--w);
+    position: sticky;
+    top: calc(var(--subnav-h) + 24px);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .lb-sidebar-card h3 {
+    font-family: var(--font-display);
+    font-size: 19px; font-weight: 700;
+    color: var(--w);
+    margin-bottom: 10px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  .lb-sidebar-card p {
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 18px;
+  }
+  .lb-sidebar-card .btn { width: 100%; justify-content: center; margin-bottom: 8px; }
+  .lb-note {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: var(--r-sm);
+    padding: 12px 14px;
+    margin-top: 12px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    font-family: var(--font-mono);
+    line-height: 1.5;
+  }
+
+  /* ═══════════════════════════════════════════════
+     REGISTRY CARDS — cleaner
+  ═══════════════════════════════════════════════ */
+  .registry-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .registry-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .registry-grid { grid-template-columns: 1fr; } }
+
+  .profile-card {
+    border: 1px solid #e5e7eb;
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    background: var(--w);
+    transition: box-shadow 0.22s ease, transform 0.22s ease;
+  }
+  .profile-card:hover {
+    box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+  .profile-card__cover {
+    height: 80px;
+    background: #0d1117;
+    position: relative;
+    display: flex; align-items: flex-end;
+    padding: 0 18px 0;
+    overflow: hidden;
+  }
+  .profile-card__cover::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(0,80,0,0.5) 0%, transparent 60%);
+  }
+  .profile-card__avatar {
+    width: 48px; height: 48px;
+    border-radius: var(--r-sm);
+    border: 2.5px solid var(--w);
+    background: #1f2937;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-body);
+    font-size: 18px; font-weight: 700;
+    color: var(--w);
+    transform: translateY(24px);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    position: relative; z-index: 1;
+  }
+  .profile-card__body { padding: 32px 18px 18px; }
+  .profile-card__name {
+    font-family: var(--font-display);
+    font-size: 17px; font-weight: 700;
+    color: #111827;
+    margin-bottom: 2px;
+    letter-spacing: -0.01em;
+  }
+  .profile-card__role {
+    font-size: 11.5px; font-weight: 500;
+    color: #9ca3af;
+    margin-bottom: 14px;
+  }
+  .profile-card__cpi {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .profile-card__score {
+    font-family: var(--font-mono);
+    font-size: 22px; font-weight: 700;
+    color: #111827;
+    line-height: 1;
+  }
+  .profile-card__cpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #d1d5db;
+  }
+  .profile-badge {
+    display: inline-block;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 9999px;
+    margin-bottom: 14px;
+  }
+  .profile-badge--5 { background: rgba(243,180,22,0.1); color: #92620a; border: 1px solid rgba(243,180,22,0.25); }
+  .profile-badge--4 { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; }
+  .profile-card .btn { width: 100%; justify-content: center; font-size: 12px; padding: 8px 14px; }
+
+  /* Registry CTA */
+  .registry-cta {
+    border: 1.5px dashed #d1d5db;
+    border-radius: var(--r-lg);
+    padding: 32px 20px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 10px;
+    background: #fafafa;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .registry-cta:hover {
+    background: #f0f9f0;
+    border-color: #86efac;
+  }
+  .registry-cta__icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: rgba(0,120,0,0.08); border-radius: var(--r-md); }
+  .registry-cta__title {
+    font-family: var(--font-display);
+    font-size: 18px; font-weight: 700;
+    color: #111827; letter-spacing: -0.01em;
+  }
+  .registry-cta__sub {
+    font-size: 12.5px; color: #6b7280;
+    line-height: 1.6; max-width: 20ch; margin: 0;
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEGACY / TIMELINE
+  ═══════════════════════════════════════════════ */
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 56px; top: 8px; bottom: 8px;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, #e5e7eb 10%, #e5e7eb 90%, transparent);
+  }
+  .tl-year::after {
+    content: '';
+    position: absolute;
+    top: 23px; right: -34px;
+    width: 6px; height: 6px;
+    background: var(--w);
+    border: 2px solid var(--av-gold);
+    border-radius: 50%;
+  }
+  .tl-card {
+    background: var(--w);
+    border: 1px solid #e5e7eb;
+    border-radius: var(--r-md);
+    padding: 18px 20px;
+    transition: box-shadow 0.2s ease;
+  }
+  .tl-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .tl-card__icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+  }
+  .tl-card__name {
+    font-family: var(--font-display);
+    font-size: 16px; font-weight: 700;
+    color: #111827; margin-bottom: 3px;
+    letter-spacing: -0.01em;
+  }
+  .tl-card__meta {
+    font-size: 11.5px; color: #9ca3af; margin-bottom: 10px;
+  }
+
+
+
+  /* ═══════════════════════════════════════════════
+     PARTNER TIERS — cleaner, no green
+  ═══════════════════════════════════════════════ */
+
+
+
+
+
+
+  /* ═══════════════════════════════════════════════
+     RESPONSIVE
+  ═══════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    .section { padding: 60px 0; }
+    .sec-header { margin-bottom: 36px; }
+    .nominate-cta { padding: 36px 24px; }
+    .demo-bar { font-size: 10.5px; gap: 7px; }
+    .footer-bottom { padding-bottom: 64px; }
+  }
+  .vault-card h3 {
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 700;
+    color: var(--w);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .vault-card p {
+    font-size: 13.5px; line-height: 1.65;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 20px;
+  }
+  .vault-stats {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-bottom: 20px;
+  }
+  .vault-stat {
+    background: rgba(255,255,255,0.05);
+    border-radius: var(--r-md);
+    padding: 12px;
+    text-align: center;
+  }
+  .vault-stat-val {
+    font-family: var(--font-display);
+    font-size: 24px; font-weight: 700;
+    color: var(--gd4);
+    line-height: 1; display: block;
+  }
+  .vault-stat-label {
+    font-size: 10px; color: rgba(255,255,255,0.4);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-top: 3px; display: block;
+  }
+  .vault-card .btn { width: 100%; justify-content: center; }
+
+  /* ═══════════════════════════════════════════════
+     OPPORTUNITIES
+  ═══════════════════════════════════════════════ */
+  .opp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 1000px) { .opp-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .opp-grid { grid-template-columns: 1fr; } }
+
+  .opp-card {
+    background: var(--w);
+    border: 1px solid var(--k1);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: box-shadow var(--base), transform var(--base);
+  }
+  .opp-card:hover {
+    box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+  .opp-card--feat {
+    border-color: rgba(240,200,0,0.4);
+    background: linear-gradient(135deg, rgba(240,200,0,0.03), rgba(255,255,255,1));
+  }
+  .opp-card--feat::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, var(--gd7), var(--gd4));
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+    margin: -24px -24px 0;
+  }
+
+  .opp-type {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--k3);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .opp-tier-badge {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: var(--r-sm);
+    background: rgba(0,100,0,0.08); color: var(--g7);
+    margin-left: auto;
+  }
+  .opp-title {
+    font-family: var(--font-display);
+    font-size: 17px; font-weight: 700;
+    color: var(--k8);
+    line-height: 1.3;
+  }
+  .opp-by { font-size: 12px; color: var(--k3); }
+  .opp-desc {
+    font-size: 13.5px; line-height: 1.65;
+    color: var(--k4);
+    flex: 1;
+    margin: 0;
+  }
+  .opp-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px solid var(--k1);
+  }
+  .opp-deadline {
+    font-size: 11.5px; color: var(--k3);
+    font-family: var(--font-mono);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+
+  /* Opp post CTA */
+  .opp-post-cta {
+    background: var(--k7);
+    border-radius: var(--r-lg);
+    padding: 32px 24px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 12px;
+  }
+  .opp-post-cta__icon { font-size: 28px; }
+  .opp-post-cta h3 {
+    font-family: var(--font-display);
+    font-size: 19px; font-weight: 700;
+    color: var(--w); line-height: 1.2;
+  }
+  .opp-post-cta p {
+    font-size: 13px; color: rgba(255,255,255,0.5);
+    line-height: 1.55; max-width: 22ch; margin: 0;
+  }
+
+  /* ═══════════════════════════════════════════════
+     IMPACT
+  ═══════════════════════════════════════════════ */
+  .impact-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  @media (max-width: 900px) { .impact-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) { .impact-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .impact-stat {
+    background: var(--k8);
+    padding: 36px 28px;
+    text-align: center;
+    transition: background var(--fast);
+  }
+  .impact-stat:hover { background: var(--k7); }
+  .impact-stat__num {
+    font-family: var(--font-display);
+    font-size: 44px; font-weight: 700;
+    color: var(--w);
+    line-height: 1; display: block;
+    margin-bottom: 8px;
+  }
+  .impact-stat__num--gold { color: var(--gd4); }
+  .impact-stat__label {
+    font-size: 12px; font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+
+  /* ═══════════════════════════════════════════════
+     PARTNERS
+  ═══════════════════════════════════════════════ */
+  .partner-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  @media (max-width: 800px) { .partner-grid { grid-template-columns: 1fr; } }
+
+  .partner-tier {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--r-lg);
+    padding: 32px 28px;
+    display: flex; flex-direction: column; gap: 16px;
+    transition: border-color var(--base);
+  }
+  .partner-tier:hover { border-color: rgba(255,255,255,0.25); }
+  .partner-tier--feat {
+    border-color: rgba(240,200,0,0.4);
+    background: rgba(240,200,0,0.04);
+    position: relative;
+  }
+  .partner-tier--feat::before {
+    content: 'Most Popular';
+    position: absolute;
+    top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--gd4);
+    color: var(--k9);
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 4px 12px; border-radius: var(--r-full);
+  }
+
+  .partner-tier__level {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+  }
+  .partner-tier__name {
+    font-family: var(--font-display);
+    font-size: 26px; font-weight: 700;
+    color: var(--w); line-height: 1;
+  }
+  .partner-tier__benefits {
+    flex: 1;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .partner-tier__benefit {
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.6);
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .partner-tier__benefit {
+    padding-left: 0;
+  }
+  .partner-tier__benefit-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.6);
+  }
+  .partner-tier__benefit-check svg { flex-shrink: 0; }
+  .partner-tier .btn { width: 100%; justify-content: center; }
+
+  /* ═══════════════════════════════════════════════
+     NOMINATE CTA
+  ═══════════════════════════════════════════════ */
+  .nominate-cta {
+    background: var(--k9);
+    border-radius: var(--r-xl);
+    padding: 64px 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 48px;
+    flex-wrap: wrap;
+    position: relative;
+    overflow: hidden;
+  }
+  .nominate-cta::before {
+    content: '';
+    position: absolute;
+    right: -60px; top: -60px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(0,120,0,0.25), transparent 70%);
+    pointer-events: none;
+  }
+  .nominate-cta::after {
+    content: '';
+    position: absolute;
+    left: -40px; bottom: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(240,200,0,0.1), transparent 70%);
+    pointer-events: none;
+  }
+  .nominate-cta__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--g4);
+    margin-bottom: 18px;
+  }
+  .nominate-cta__badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--g4);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .nominate-cta h2 {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4vw, 46px);
+    font-weight: 700;
+    color: var(--w);
+    line-height: 1.1;
+    max-width: 18ch;
+    margin-bottom: 12px;
+  }
+  .nominate-cta p {
+    font-size: 15px; line-height: 1.65;
+    color: rgba(255,255,255,0.6);
+    max-width: 44ch;
+    margin: 0;
+  }
+  .nominate-cta__actions {
+    display: flex; flex-direction: column; gap: 10px;
+    position: relative; z-index: 1; flex-shrink: 0;
+  }
+  .nominate-cta__note {
+    font-size: 11px; color: rgba(255,255,255,0.3);
+    text-align: center; margin-top: 4px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     FOOTER
+  ═══════════════════════════════════════════════ */
+  .footer {
+    background: var(--k9);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding: 72px 0 0;
+    color: var(--w);
+  }
+
+  /* Return-to-main-site banner — strong exit point */
+  .footer__return {
+    background: linear-gradient(135deg, var(--g8), var(--g9));
+    border: 1px solid rgba(0,170,0,0.2);
+    border-radius: var(--r-lg);
+    padding: 24px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 56px;
+    flex-wrap: wrap;
+  }
+  .footer__return-text p:first-child {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--g4);
+    margin-bottom: 4px;
+  }
+  .footer__return-text p:last-child {
+    font-size: 14px; color: rgba(255,255,255,0.65);
+    margin: 0;
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 48px;
+  }
+  @media (max-width: 900px) { .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; } }
+  @media (max-width: 560px) { .footer-grid { grid-template-columns: 1fr; } }
+
+  .footer-col__title {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 16px;
+  }
+  .footer-col__links {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .footer-col__link {
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.55);
+    transition: color var(--fast);
+  }
+  .footer-col__link:hover { color: rgba(255,255,255,0.9); }
+
+  .footer-brand__name {
+    font-family: var(--font-display);
+    font-size: 20px; font-weight: 700;
+    color: var(--w); margin-bottom: 4px;
+  }
+  .footer-brand__parent {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--g4); margin-bottom: 16px;
+  }
+  .footer-brand__desc {
+    font-size: 13.5px; line-height: 1.7;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 20px; margin-top: 0;
+    max-width: 28ch;
+  }
+  .footer-social { display: flex; gap: 8px; }
+  .footer-social__link {
+    width: 34px; height: 34px;
+    border-radius: var(--r-sm);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: background var(--fast), border-color var(--fast);
+  }
+  .footer-social__link:hover {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  .footer-bottom {
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .footer-bottom__copy {
+    font-size: 12.5px; color: rgba(255,255,255,0.3);
+    margin: 0;
+  }
+  .footer-bottom__legal {
+    display: flex; gap: 20px;
+  }
+  .footer-bottom__legal a {
+    font-size: 12.5px; color: rgba(255,255,255,0.3);
+    transition: color var(--fast);
+  }
+  .footer-bottom__legal a:hover { color: rgba(255,255,255,0.65); }
+
+  /* ═══════════════════════════════════════════════
+     VOTE MODAL
+  ═══════════════════════════════════════════════ */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    z-index: 700;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+    opacity: 0; pointer-events: none;
+    transition: opacity var(--base);
+  }
+  .modal-overlay.is-open {
+    opacity: 1; pointer-events: auto;
+  }
+  .modal {
+    background: var(--w);
+    border-radius: var(--r-xl);
+    padding: 40px;
+    max-width: 440px; width: 100%;
+    position: relative;
+    transform: scale(0.96) translateY(8px);
+    transition: transform var(--base) var(--ease-out);
+  }
+  .modal-overlay.is-open .modal {
+    transform: scale(1) translateY(0);
+  }
+  .modal__close {
+    position: absolute; top: 16px; right: 16px;
+    width: 32px; height: 32px;
+    border-radius: var(--r-sm);
+    background: var(--k1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--k4);
+    cursor: pointer;
+    transition: background var(--fast), color var(--fast);
+  }
+  .modal__close:hover { background: var(--k2); color: var(--k8); }
+  .modal__icon { font-size: 44px; text-align: center; margin-bottom: 16px; }
+  .modal__title {
+    font-family: var(--font-display);
+    font-size: 26px; font-weight: 700;
+    text-align: center; color: var(--k8); margin-bottom: 8px;
+  }
+  .modal__sub {
+    font-size: 14px; line-height: 1.65;
+    color: var(--k4); text-align: center; margin-bottom: 28px;
+  }
+  .modal__label {
+    display: block;
+    font-size: 12px; font-weight: 700;
+    color: var(--k8); margin-bottom: 6px;
+    letter-spacing: 0.03em;
+  }
+  .modal__input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid var(--k1);
+    border-radius: var(--r-md);
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--k8);
+    background: #fafafa;
+    outline: none;
+    transition: border-color var(--fast);
+    margin-bottom: 12px;
+  }
+  .modal__input:focus { border-color: var(--g6); background: var(--w); }
+  .modal .btn { width: 100%; justify-content: center; margin-bottom: 12px; }
+  .modal__note {
+    font-size: 11.5px; line-height: 1.6;
+    color: var(--k3); text-align: center;
+  }
+
+  /* ═══════════════════════════════════════════════
+     BACK TO TOP
+  ═══════════════════════════════════════════════ */
+  .back-top {
+    position: fixed;
+    bottom: 60px; right: 28px;
+    z-index: 400;
+    width: 40px; height: 40px;
+    background: var(--k8);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 16px;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity var(--base), transform var(--base), background var(--fast);
+    pointer-events: none;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .back-top.is-visible {
+    opacity: 1; transform: translateY(0);
+    pointer-events: auto;
+  }
+  .back-top:hover { background: var(--k6); color: var(--w); }
+
+  /* ═══════════════════════════════════════════════
+     REVEAL ANIMATIONS
+  ═══════════════════════════════════════════════ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity var(--slow) var(--ease-out), transform var(--slow) var(--ease-out);
+  }
+  .reveal.is-visible {
+    opacity: 1; transform: translateY(0);
+  }
+  .reveal-d1 { transition-delay: 80ms; }
+  .reveal-d2 { transition-delay: 160ms; }
+  .reveal-d3 { transition-delay: 240ms; }
+  .reveal-d4 { transition-delay: 320ms; }
+
+  /* ═══════════════════════════════════════════════
+     RESPONSIVE
+  ═══════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    .wrap { padding-inline: 20px; }
+    .hero__stats { flex-direction: column; gap: 16px; }
+    .hero__stat { border-right: none; padding-right: 0; margin-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 16px; }
+    .hero__stat:last-child { border-bottom: none; }
+    .sec-header { flex-direction: column; align-items: flex-start; }
+    .lb-layout { grid-template-columns: 1fr; }
+    .lb-row { grid-template-columns: 28px 36px 1fr auto; }
+    .lb-badge { display: none; }
+    .legacy-layout { grid-template-columns: 1fr; }
+    .timeline::before { left: 44px; }
+    .tl-item { grid-template-columns: 44px 1fr; gap: 20px; }
+    .tl-year::after { right: -26px; }
+    .nominate-cta { padding: 40px 28px; }
+    .partner-grid { grid-template-columns: 1fr; }
+    .section { padding: 64px 0; }
+    .about-visual__frame { max-width: 260px; }
+  }
+
+  /* ═══════════════════════════════════════════════
+     SEC-LABEL / SEC-RULE
+  ═══════════════════════════════════════════════ */
+  .sec-label {
+    display: inline-block;
+    font-family: var(--font-body);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--g6);
+    margin-bottom: 10px;
+  }
+  .sec-label--light { color: var(--g4); }
+  .sec-rule {
+    width: 36px; height: 2px;
+    background: var(--av-gold);
+    border-radius: 2px;
+    margin: 14px 0 20px;
+  }
+  .sec-rule--gold { background: var(--av-gold); }
+
+  /* ═══════════════════════════════════════════════
+     ABOUT GRID
+  ═══════════════════════════════════════════════ */
+  .about-grid {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  @media (max-width: 900px) { .about-grid { grid-template-columns: 1fr; } }
+
+  .about-visual { text-align: center; }
+  .about-visual__frame {
+    background: #f0f9f0;
+    border: 1px solid #d1fae5;
+    border-radius: var(--r-xl);
+    padding: 40px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    max-width: 280px;
+    width: 100%;
+  }
+  .about-map-svg { width: 120px; height: auto; }
+  .about-visual__number {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .about-visual__number-val {
+    font-family: var(--font-display);
+    font-size: 36px; font-weight: 700;
+    color: var(--g7); line-height: 1;
+  }
+  .about-visual__number-label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--k3);
+  }
+  .about-text p {
+    font-size: 15px; line-height: 1.75;
+    color: var(--k4); margin-bottom: 16px;
+  }
+  .mv-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 24px 0;
+  }
+  @media (max-width: 600px) { .mv-grid { grid-template-columns: 1fr; } }
+
+  /* ═══════════════════════════════════════════════
+     CPI SECTION
+  ═══════════════════════════════════════════════ */
+  .cpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 64px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .cpi-grid { grid-template-columns: 1fr; } }
+
+  .cpi-factors { margin-top: 28px; }
+  .cpi-factor__name {
+    font-family: var(--font-body);
+    font-size: 14px; font-weight: 700;
+    color: var(--w); margin-bottom: 4px;
+  }
+  .cpi-factor__desc {
+    font-size: 13px; line-height: 1.6;
+    color: rgba(255,255,255,0.45);
+    margin: 0;
+  }
+
+  .cpi-ring-wrap {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .cpi-ring-svg { position: relative; display: inline-block; }
+  .cpi-ring-bg {
+    fill: none;
+    stroke: rgba(255,255,255,0.08);
+    stroke-width: 5;
+  }
+  .cpi-ring-fill {
+    fill: none;
+    stroke: url(#ringGrad);
+    stroke-width: 5;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dashoffset 1.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .cpi-ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .cpi-ring-score {
+    font-family: var(--font-mono);
+    font-size: 22px; font-weight: 700;
+    color: var(--w); line-height: 1;
+  }
+  .cpi-ring-max {
+    font-size: 10px; color: rgba(255,255,255,0.35);
+    font-family: var(--font-mono);
+  }
+
+  .cpi-tiers { display: flex; flex-direction: column; gap: 6px; }
+  .cpi-tier {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .cpi-tier__dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .cpi-tier__label {
+    font-size: 12.5px; font-weight: 600;
+    color: rgba(255,255,255,0.75);
+    flex: 1;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .cpi-tier__range {
+    font-family: var(--font-mono);
+    font-size: 11px; color: rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEGACY / TIMELINE LAYOUT
+  ═══════════════════════════════════════════════ */
+  .legacy-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 40px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .legacy-layout { grid-template-columns: 1fr; } }
+
+  .timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .tl-item {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .tl-year {
+    font-family: var(--font-mono);
+    font-size: 12px; font-weight: 700;
+    color: var(--av-gold);
+    letter-spacing: 0.04em;
+    padding-top: 18px;
+    text-align: right;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .tl-year::after {
+    right: -28px;
+  }
+
+  .tl-card__inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .tl-stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .tl-stat-val {
+    font-family: var(--font-mono);
+    font-size: 14px; font-weight: 700;
+    color: var(--k8); margin-right: 3px;
+  }
+  .tl-stat-label {
+    font-size: 11px; color: var(--k3);
+    font-weight: 500;
+  }
+
+  /* Vault card */
+  .vault-card {
+    background: var(--k8);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    color: var(--w);
+    position: sticky;
+    top: calc(var(--subnav-h) + 24px);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  .vault-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--av-gold);
+    background: rgba(243,180,22,0.08);
+    border: 1px solid rgba(243,180,22,0.2);
+    border-radius: 9999px;
+    padding: 4px 10px;
+    margin-bottom: 14px;
+  }
+  .vault-badge svg { opacity: 0.85; }
+  </style>
+</head>
+<body>
+
+<!-- SVG defs -->
+<svg width="0" height="0" style="position:absolute;overflow:hidden;" aria-hidden="true">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#006600"/>
+      <stop offset="100%" stop-color="#22cc22"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ════════════════════════════════════════
+     AFROVANGUARD GLOBAL NAV — glass, inherited from afrovanguard.org.ng
+════════════════════════════════════════ -->
+<div class="av-site-top" id="avSiteTop">
+
+  <!-- Afrovanguard global nav -->
+  <header class="av-header" id="avHeader" role="banner">
+    <div class="wrap">
+      <nav class="av-nav" aria-label="Main navigation">
+
+        <a href="https://afrovanguard.org.ng/" class="av-logo" aria-label="Afrovanguard — Home">
+          <span class="av-logo__mark" aria-hidden="true">
+            <span class="afro">AFRO</span><span class="van">VANGUARD</span>
+          </span>
+          <span class="av-logo__badge" aria-hidden="true">.ORG.NG</span>
+        </a>
+
+        <ul class="av-links" role="list">
+          <li><a href="https://afrovanguard.org.ng/">Home</a></li>
+          <li><a href="https://afrovanguard.org.ng/about/">About</a></li>
+          <li><a href="https://cacentre.afrovanguard.org.ng" class="current">Projects</a></li>
+          <li><a href="https://afrovanguard.org.ng/events/">Events</a></li>
+          <li><a href="https://afrovanguard.org.ng/diary/">Diary</a></li>
+          <li><a href="https://afrovanguard.org.ng/contact/">Contact</a></li>
+        </ul>
+
+        <div class="av-actions">
+          <a href="https://afrovanguard.org.ng/donate.html" class="av-donate">Donate</a>
+          <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="av-cta">Join the Movement</a>
+        </div>
+
+        <button class="av-toggle" id="avToggle"
+          aria-controls="avMobileNav" aria-expanded="false"
+          aria-label="Open navigation menu">
+          <span class="av-toggle-line line-1"></span>
+          <span class="av-toggle-line line-2"></span>
+          <span class="av-toggle-line line-3"></span>
+        </button>
+
+      </nav>
+    </div>
+  </header>
+
+</div><!-- /.av-site-top -->
+
+<!-- Mobile nav — Afrovanguard fullscreen takeover -->
+<nav class="av-mobile-nav" id="avMobileNav" aria-label="Mobile navigation">
+  <a href="https://afrovanguard.org.ng/">Home</a>
+  <a href="https://afrovanguard.org.ng/about/">About</a>
+  <a href="https://cacentre.afrovanguard.org.ng">Projects</a>
+  <a href="https://afrovanguard.org.ng/events/">Events</a>
+  <a href="https://afrovanguard.org.ng/diary/">Diary</a>
+  <a href="https://afrovanguard.org.ng/contact/">Contact</a>
+  <a href="https://afrovanguard.org.ng/donate.html">Donate</a>
+  <div class="av-mobile-nav__ctas">
+    <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="av-cta">Join the Movement</a>
+    <a href="https://afrovanguard.org.ng/donate.html" class="av-outline">Fund a Leader</a>
+    <a href="https://afrovanguard.org.ng/" class="av-outline" style="opacity:0.55;">← Back to Afrovanguard</a>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════
+     GATES SUB-NAV — slides in once hero exits viewport
+════════════════════════════════════════ -->
+<nav class="s-nav" id="sNav" aria-label="GATES section navigation">
+  <div class="wrap">
+    <div class="s-nav__inner">
+
+      <a href="https://afrovanguard.org.ng" class="s-nav__logo" aria-label="Back to Afrovanguard">
+        <span class="s-nav__logo-mark">G</span>
+        <div class="s-nav__logo-sep"></div>
+        <span class="s-nav__logo-label">Africa GATES</span>
+      </a>
+
+      <div class="s-nav__links" role="list">
+        <a href="#about"         class="s-nav__link" data-spy="about"         role="listitem">About</a>
+        <a href="#awards"        class="s-nav__link" data-spy="awards"        role="listitem">Awards</a>
+        <a href="#leaderboard"   class="s-nav__link" data-spy="leaderboard"   role="listitem">Leaderboard</a>
+        <a href="#registry"      class="s-nav__link" data-spy="registry"      role="listitem">Registry</a>
+        <a href="#legacy"        class="s-nav__link" data-spy="legacy"        role="listitem">Legacy</a>
+        <a href="#opportunities" class="s-nav__link" data-spy="opportunities" role="listitem">Opportunities</a>
+      </div>
+
+      <a href="https://afrovanguard.org.ng" class="s-nav__exit" aria-label="Exit to Afrovanguard main site">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1 5h8M5 1l4 4-4 4"/></svg>
+        Afrovanguard.org.ng
+      </a>
+
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════
+     HERO
+════════════════════════════════════════ -->
+<section class="hero" id="top" aria-label="Hero">
+  <!-- Live ticker -->
+  <div class="hero__ticker" aria-label="Sample CPI scores — demo data">
+    <div class="hero__ticker-label">
+      <span class="ticker-dot"></span>
+      Sample CPI
+    </div>
+    <div class="ticker-track">
+      <div class="ticker-inner" aria-hidden="true">
+        <!-- Duplicated for seamless loop -->
+        <span class="ticker-entry"><span class="ticker-entry__name">Kolade Fashola</span><span class="ticker-entry__score">924 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Bello Beverages</span><span class="ticker-entry__score">881 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Aisha Kareem</span><span class="ticker-entry__score">855 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Sunrise Academy</span><span class="ticker-entry__score">812 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Femi Adeyemi</span><span class="ticker-entry__score">790 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">TechAli Lagos</span><span class="ticker-entry__score">768 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Chinelo Okoye</span><span class="ticker-entry__score">741 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Heritage Craft Co.</span><span class="ticker-entry__score">720 pts</span></span>
+        <!-- duplicate -->
+        <span class="ticker-entry"><span class="ticker-entry__name">Kolade Fashola</span><span class="ticker-entry__score">924 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Bello Beverages</span><span class="ticker-entry__score">881 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Aisha Kareem</span><span class="ticker-entry__score">855 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Sunrise Academy</span><span class="ticker-entry__score">812 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Femi Adeyemi</span><span class="ticker-entry__score">790 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">TechAli Lagos</span><span class="ticker-entry__score">768 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Chinelo Okoye</span><span class="ticker-entry__score">741 pts</span></span>
+        <span class="ticker-entry"><span class="ticker-entry__name">Heritage Craft Co.</span><span class="ticker-entry__score">720 pts</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="hero__body">
+    <div class="wrap">
+      <div class="hero__content">
+
+        <div class="hero__kicker">Nominations Open — 2025 Cycle</div>
+
+        <h1 class="hero__h1">
+          Where <em>Africa</em><br>Meets the World
+        </h1>
+
+        <p class="hero__sub">
+          Africa GATES is the cultural recognition engine of Africa — celebrating talents, businesses, and institutions through our transparent Cultural Power Index.
+        </p>
+
+        <div class="hero__cta">
+          <a href="#awards" class="btn btn--gold btn--lg">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Nominate Someone
+          </a>
+          <button class="btn btn--ghost-white btn--lg" data-vote>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            Cast Your Vote
+          </button>
+          <a href="#registry" class="btn btn--dark btn--lg">View Registry</a>
+        </div>
+
+        <div class="hero__stats">
+          <div class="hero__stat">
+            <div class="hero__stat-num">1,200+</div>
+            <div class="hero__stat-label">Profiles Registered</div>
+          </div>
+          <div class="hero__stat">
+            <div class="hero__stat-num">48k+</div>
+            <div class="hero__stat-label">Votes Cast</div>
+          </div>
+          <div class="hero__stat">
+            <div class="hero__stat-num">7</div>
+            <div class="hero__stat-label">Events Archived</div>
+          </div>
+          <div class="hero__stat">
+            <div class="hero__stat-num">4</div>
+            <div class="hero__stat-label">Award Programmes</div>
+          </div>
+          <div style="display:flex;align-items:center;padding-left:24px;">
+            <span class="demo-chip">Sample Data</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="hero__scroll" aria-hidden="true">
+    <div class="hero__scroll-line"></div>
+    Scroll
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     ABOUT
+════════════════════════════════════════ -->
+<section class="section" id="about" aria-labelledby="about-h">
+  <div class="wrap">
+    <div class="about-grid">
+
+      <div class="about-visual reveal">
+        <div class="about-visual__frame">
+          <svg class="about-map-svg" viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M100 20C65 20 35 50 35 85c0 60 65 135 65 135s65-75 65-135c0-35-30-65-65-65z" fill="rgba(0,200,0,0.3)" stroke="rgba(0,255,0,0.5)" stroke-width="2"/>
+            <circle cx="100" cy="82" r="16" fill="rgba(240,200,0,0.8)"/>
+            <circle cx="100" cy="82" r="8" fill="rgba(255,255,255,0.95)"/>
+            <circle cx="100" cy="82" r="3" fill="rgba(240,200,0,1)"/>
+          </svg>
+          <div class="about-visual__number">
+            <span class="about-visual__number-val">2017</span>
+            <span class="about-visual__number-label">Established</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-text">
+        <span class="sec-label reveal">Our Story</span>
+        <h2 class="sec-h2 reveal" id="about-h">Built for the Soul<br>of Africa</h2>
+        <div class="sec-rule reveal"></div>
+
+        <p class="reveal">
+          Africa GATES was born from a simple belief: that the extraordinary people, businesses, and cultural forces shaping Africa deserve a stage — a permanent, structured, and celebrated one.
+        </p>
+        <p class="reveal reveal-d1">
+          What started as a community event series has grown into a comprehensive cultural recognition ecosystem — with a scoring system that measures real impact, an awards engine running four distinct programmes, and a registry that amplifies local voices to a national audience.
+        </p>
+
+        <div class="mv-grid reveal reveal-d2">
+          <div class="mv-box">
+            <div class="mv-box__title">Mission</div>
+            <p class="mv-box__text">To surface, celebrate, and connect excellence within Africa through transparent, community-driven recognition.</p>
+          </div>
+          <div class="mv-box">
+            <div class="mv-box__title">Vision</div>
+            <p class="mv-box__text">An Africa where every talent and cultural contribution is seen, honoured, and linked to opportunity.</p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;" class="reveal reveal-d3">
+          <a href="#cpi" class="btn btn--green btn--md">Explore CPI System</a>
+          <a href="#legacy" class="btn btn--outline-green btn--md">View Our History</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     CPI SECTION
+════════════════════════════════════════ -->
+<section class="section section--dark" id="cpi" aria-labelledby="cpi-h">
+  <div class="wrap">
+    <div class="cpi-grid">
+
+      <div>
+        <span class="sec-label sec-label--light reveal">How Recognition Works</span>
+        <h2 class="sec-h2 sec-h2--w reveal" id="cpi-h">The Cultural<br>Power Index</h2>
+        <div class="sec-rule sec-rule--gold reveal"></div>
+        <p class="sec-sub sec-sub--w reveal">
+          A transparent, data-driven scoring model. Every profile earns points across four independent components — recognition is earned, never assigned.
+        </p>
+
+        <div class="cpi-factors">
+          <div class="cpi-factor reveal">
+            <div class="cpi-factor__pct">40%</div>
+            <div>
+              <div class="cpi-factor__name">Community Votes</div>
+              <p class="cpi-factor__desc">Raw vote count normalised against cohort maximum. Open voting windows per cycle.</p>
+            </div>
+          </div>
+          <div class="cpi-factor reveal reveal-d1">
+            <div class="cpi-factor__pct">35%</div>
+            <div>
+              <div class="cpi-factor__name">Expert Panel Score</div>
+              <p class="cpi-factor__desc">Independent judges score each profile against published criteria. Transparent rubric.</p>
+            </div>
+          </div>
+          <div class="cpi-factor reveal reveal-d2">
+            <div class="cpi-factor__pct">15%</div>
+            <div>
+              <div class="cpi-factor__name">Activity Score</div>
+              <p class="cpi-factor__desc">Profile completeness, portfolio media, testimonials, and engagement reward active participation.</p>
+            </div>
+          </div>
+          <div class="cpi-factor reveal reveal-d3">
+            <div class="cpi-factor__pct">10%</div>
+            <div>
+              <div class="cpi-factor__name">Legacy Bonus</div>
+              <p class="cpi-factor__desc">Long-term contributors and past award winners earn a permanent legacy bonus.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ring + tiers -->
+      <div class="reveal reveal-d1">
+        <div class="cpi-ring-wrap">
+          <div class="cpi-ring-svg" style="width:160px;height:160px;display:inline-block;position:relative;">
+            <svg width="160" height="160" viewBox="0 0 60 60" aria-label="CPI score ring: 847 out of 1000">
+              <circle class="cpi-ring-bg" cx="30" cy="30" r="26"/>
+              <circle class="cpi-ring-fill" id="cpiRingFill" cx="30" cy="30" r="26"
+                      stroke-dasharray="163.4"
+                      stroke-dashoffset="163.4"/>
+            </svg>
+            <div class="cpi-ring-label">
+              <span class="cpi-ring-score" id="cpiScore">0</span>
+              <span class="cpi-ring-max">/ 1000</span>
+            </div>
+          </div>
+          <p style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:12px;margin-bottom:0;">Example CPI Score</p>
+        </div>
+
+        <div class="cpi-tiers">
+          <div class="cpi-tier">
+            <div class="cpi-tier__dot" style="background:#c8870a;"></div>
+            <span class="cpi-tier__label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c8870a" stroke-width="2" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>Cultural Champion</span>
+            <span class="cpi-tier__range">850–1000</span>
+          </div>
+          <div class="cpi-tier">
+            <div class="cpi-tier__dot" style="background:#888;"></div>
+            <span class="cpi-tier__label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Rising Influence</span>
+            <span class="cpi-tier__range">650–849</span>
+          </div>
+          <div class="cpi-tier">
+            <div class="cpi-tier__dot" style="background:#8b5e3c;"></div>
+            <span class="cpi-tier__label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b5e3c" stroke-width="2" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Community Voice</span>
+            <span class="cpi-tier__range">400–649</span>
+          </div>
+          <div class="cpi-tier">
+            <div class="cpi-tier__dot" style="background:#006600;"></div>
+            <span class="cpi-tier__label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#006600" stroke-width="2" aria-hidden="true"><path d="M12 22V12"/><path d="M12 12C12 7.58 8.42 4 4 4c0 4.42 3.58 8 8 8z"/><path d="M12 12c0-4.42 3.58-8 8-8 0 4.42-3.58 8-8 8z"/></svg>Emerging</span>
+            <span class="cpi-tier__range">200–399</span>
+          </div>
+          <div class="cpi-tier">
+            <div class="cpi-tier__dot" style="background:#3a3a5a;"></div>
+            <span class="cpi-tier__label">Registered</span>
+            <span class="cpi-tier__range">0–199</span>
+          </div>
+        </div>
+
+        <a href="#registry" class="btn btn--gold btn--md" style="width:100%;justify-content:center;margin-top:20px;">Register Your Profile</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     AWARDS
+════════════════════════════════════════ -->
+<section class="section section--subtle" id="awards" aria-labelledby="awards-h">
+  <div class="wrap">
+    <div class="sec-header">
+      <div class="reveal">
+        <span class="sec-label">Recognition Engine</span>
+        <h2 class="sec-h2" id="awards-h">Four Award Programmes</h2>
+        <p class="sec-sub">Running independently — each with its own cycle, categories, and judging panel.</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;" class="reveal">
+        <a href="#nominate" class="btn btn--green btn--md">Nominate Now</a>
+        <button class="btn btn--outline-green btn--md" data-vote>Vote</button>
+      </div>
+    </div>
+
+    <div class="awards-grid">
+
+      <div class="award-card reveal">
+        <div class="award-card__header">
+          <span class="award-card__number">01 / 04</span>
+          <span class="award-badge award-badge--live">Live — Voting Open</span>
+        </div>
+        <h3 class="award-card__name">Africa Business Awards</h3>
+        <p class="award-card__desc">Recognising exceptional businesses, brands, and entrepreneurs driving economic growth across Africa's 6 LCDAs.</p>
+        <div class="award-tags">
+          <span class="tag">Best SME</span>
+          <span class="tag">Best Retail</span>
+          <span class="tag">Innovation</span>
+          <span class="tag">Sustainability</span>
+        </div>
+        <div class="award-card__foot">
+          <button class="btn btn--green btn--sm" data-vote>Vote Now</button>
+          <span class="award-card__countdown" data-deadline="2025-12-15T23:59:00">Loading…</span>
+        </div>
+      </div>
+
+      <div class="award-card reveal reveal-d1">
+        <div class="award-card__header">
+          <span class="award-card__number">02 / 04</span>
+          <span class="award-badge award-badge--open">Nominations Open</span>
+        </div>
+        <h3 class="award-card__name">Incredible Principal Awards</h3>
+        <p class="award-card__desc">Honouring outstanding school principals and education leaders transforming learning outcomes in Africa.</p>
+        <div class="award-tags">
+          <span class="tag">Primary School</span>
+          <span class="tag">Secondary</span>
+          <span class="tag">Vocational</span>
+          <span class="tag">Community Impact</span>
+        </div>
+        <div class="award-card__foot">
+          <a href="#nominate" class="btn btn--gold btn--sm">Nominate</a>
+          <span class="award-card__countdown" data-deadline="2025-11-30T23:59:00">Loading…</span>
+        </div>
+      </div>
+
+      <div class="award-card reveal reveal-d2">
+        <div class="award-card__header">
+          <span class="award-card__number">03 / 04</span>
+          <span class="award-badge award-badge--open">Nominations Open</span>
+        </div>
+        <h3 class="award-card__name">Africa Carol Awards</h3>
+        <p class="award-card__desc">Celebrating choral music excellence — from school choirs to community ensembles preserving Africa's musical heritage.</p>
+        <div class="award-tags">
+          <span class="tag">Best Choir</span>
+          <span class="tag">Best Conductor</span>
+          <span class="tag">Folk Fusion</span>
+          <span class="tag">Youth Ensemble</span>
+        </div>
+        <div class="award-card__foot">
+          <a href="#nominate" class="btn btn--gold btn--sm">Nominate</a>
+          <span class="award-card__countdown" data-deadline="2025-12-01T23:59:00">Loading…</span>
+        </div>
+      </div>
+
+      <div class="award-card reveal reveal-d3">
+        <div class="award-card__header">
+          <span class="award-card__number">04 / 04</span>
+          <span class="award-badge award-badge--soon">Opens Dec 2025</span>
+        </div>
+        <h3 class="award-card__name">Incorruptible Awards</h3>
+        <p class="award-card__desc">A rare recognition for individuals and institutions demonstrating extraordinary integrity and moral courage in public life.</p>
+        <div class="award-tags">
+          <span class="tag">Public Service</span>
+          <span class="tag">Civic Leader</span>
+          <span class="tag">Youth Icon</span>
+          <span class="tag">Whistleblower</span>
+        </div>
+        <div class="award-card__foot">
+          <button class="btn btn--dark btn--sm" disabled style="opacity:0.4;cursor:not-allowed;">Coming Soon</button>
+          <span style="font-family:var(--font-mono);font-size:11px;color:#9ca3af;">Dec 2025</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     LEADERBOARD
+════════════════════════════════════════ -->
+<section class="section" id="leaderboard" aria-labelledby="lb-h">
+  <div class="wrap">
+    <div class="sec-header">
+      <div class="reveal">
+        <span class="sec-label">Cultural Power Index</span>
+        <h2 class="sec-h2" id="lb-h">Live Leaderboard <span class="demo-chip" style="vertical-align:middle;position:relative;top:-4px;">Demo Data</span></h2>
+        <p class="sec-sub">Top-ranked profiles this cycle. Scores refresh every 6 hours.</p>
+      </div>
+      <a href="/africa-gates/leaderboard" class="btn btn--outline-green btn--md reveal">Full Leaderboard →</a>
+    </div>
+
+    <div class="lb-layout">
+      <div>
+        <!-- Column headers -->
+        <div class="lb-table-head">
+          <span>#</span>
+          <span></span>
+          <span>Profile</span>
+          <span>Tier</span>
+          <span class="th-right">CPI Score</span>
+        </div>
+
+        <div class="lb-list" role="list" aria-label="CPI Leaderboard">
+
+        <div class="lb-row lb-row--top reveal" role="listitem">
+          <div class="lb-rank lb-rank--1">1</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#4a1c00,#c8870a);">K</div>
+          <div class="lb-info"><div class="lb-name">Kolade Fashola</div><div class="lb-type">Talent · Music</div></div>
+          <span class="lb-badge lb-badge--5">Champion</span>
+          <div class="lb-score-col"><span class="lb-score">924</span><div class="lb-bar-track"><div class="lb-bar" style="width:92.4%"></div></div></div>
+        </div>
+
+        <div class="lb-row lb-row--top reveal reveal-d1" role="listitem">
+          <div class="lb-rank lb-rank--2">2</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#2a2a2a,#888);">B</div>
+          <div class="lb-info"><div class="lb-name">Bello Beverages Ltd.</div><div class="lb-type">Business · F&amp;B</div></div>
+          <span class="lb-badge lb-badge--5">Champion</span>
+          <div class="lb-score-col"><span class="lb-score">881</span><div class="lb-bar-track"><div class="lb-bar" style="width:88.1%"></div></div></div>
+        </div>
+
+        <div class="lb-row lb-row--top reveal reveal-d2" role="listitem">
+          <div class="lb-rank lb-rank--3">3</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#5a2000,#a05a30);">A</div>
+          <div class="lb-info"><div class="lb-name">Aisha Kareem</div><div class="lb-type">Talent · Fashion Design</div></div>
+          <span class="lb-badge lb-badge--5">Champion</span>
+          <div class="lb-score-col"><span class="lb-score">855</span><div class="lb-bar-track"><div class="lb-bar" style="width:85.5%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal reveal-d3" role="listitem">
+          <div class="lb-rank">4</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#003060,#0060c0);">S</div>
+          <div class="lb-info"><div class="lb-name">Sunrise Academy</div><div class="lb-type">Institution · Education</div></div>
+          <span class="lb-badge lb-badge--4">Rising</span>
+          <div class="lb-score-col"><span class="lb-score">812</span><div class="lb-bar-track"><div class="lb-bar" style="width:81.2%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal" role="listitem">
+          <div class="lb-rank">5</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#3a1060,#7a40b0);">F</div>
+          <div class="lb-info"><div class="lb-name">Femi Adeyemi</div><div class="lb-type">Talent · Visual Arts</div></div>
+          <span class="lb-badge lb-badge--4">Rising</span>
+          <div class="lb-score-col"><span class="lb-score">790</span><div class="lb-bar-track"><div class="lb-bar" style="width:79%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal reveal-d1" role="listitem">
+          <div class="lb-rank">6</div>
+          <div class="lb-avatar">T</div>
+          <div class="lb-info"><div class="lb-name">TechAli Lagos</div><div class="lb-type">Business · Technology</div></div>
+          <span class="lb-badge lb-badge--4">Rising</span>
+          <div class="lb-score-col"><span class="lb-score">768</span><div class="lb-bar-track"><div class="lb-bar" style="width:76.8%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal reveal-d2" role="listitem">
+          <div class="lb-rank">7</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#4a1010,#901818);">C</div>
+          <div class="lb-info"><div class="lb-name">Chinelo Okoye</div><div class="lb-type">Talent · Theatre</div></div>
+          <span class="lb-badge lb-badge--4">Rising</span>
+          <div class="lb-score-col"><span class="lb-score">741</span><div class="lb-bar-track"><div class="lb-bar" style="width:74.1%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal reveal-d3" role="listitem">
+          <div class="lb-rank">8</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#3a2600,#6a4400);">H</div>
+          <div class="lb-info"><div class="lb-name">Heritage Craft Co.</div><div class="lb-type">Business · Artisan Goods</div></div>
+          <span class="lb-badge lb-badge--4">Rising</span>
+          <div class="lb-score-col"><span class="lb-score">720</span><div class="lb-bar-track"><div class="lb-bar" style="width:72%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal" role="listitem">
+          <div class="lb-rank">9</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#002030,#005060);">O</div>
+          <div class="lb-info"><div class="lb-name">Oluwaseun Bankole</div><div class="lb-type">Talent · Photography</div></div>
+          <span class="lb-badge lb-badge--3">Community</span>
+          <div class="lb-score-col"><span class="lb-score">693</span><div class="lb-bar-track"><div class="lb-bar" style="width:69.3%"></div></div></div>
+        </div>
+
+        <div class="lb-row reveal reveal-d1" role="listitem">
+          <div class="lb-rank">10</div>
+          <div class="lb-avatar" style="background:linear-gradient(135deg,#280028,#5a1058);">N</div>
+          <div class="lb-info"><div class="lb-name">Nkechi Eze</div><div class="lb-type">Talent · Dance</div></div>
+          <span class="lb-badge lb-badge--3">Community</span>
+          <div class="lb-score-col"><span class="lb-score">672</span><div class="lb-bar-track"><div class="lb-bar" style="width:67.2%"></div></div></div>
+        </div>
+
+      </div><!-- /.lb-list -->
+      </div><!-- /.lb-main-col -->
+
+      <aside>
+        <div class="lb-sidebar-card reveal">
+          <h3>Improve Your CPI Score</h3>
+          <p>Complete your profile, upload portfolio work, gather testimonials, and encourage your community to vote during open windows.</p>
+          <a href="#registry" class="btn btn--gold btn--md">Create Your Profile</a>
+          <a href="#cpi" class="btn btn--dark btn--md">How CPI Works</a>
+          <div class="lb-note">Scores recalculate every 6 hours. Next update: ~2h 14m
+<br><br><span style="color:rgba(243,180,22,0.5);">◆ DEMO — these are illustrative scores</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     REGISTRY
+════════════════════════════════════════ -->
+<section class="section section--subtle" id="registry" aria-labelledby="reg-h">
+  <div class="wrap">
+    <div class="sec-header">
+      <div class="reveal">
+        <span class="sec-label">GATES Registry</span>
+        <h2 class="sec-h2" id="reg-h">Featured Profiles <span class="demo-chip" style="vertical-align:middle;position:relative;top:-4px;">Demo Data</span></h2>
+        <p class="sec-sub">Talents, businesses, and institutions shaping Africa today.</p>
+      </div>
+      <a href="/africa-gates/registry" class="btn btn--outline-green btn--md reveal">Browse All Profiles →</a>
+    </div>
+
+    <div class="registry-grid">
+
+      <div class="profile-card reveal">
+        <div class="profile-card__cover">
+          <div class="profile-card__avatar">K</div>
+        </div>
+        <div class="profile-card__body">
+          <div class="profile-card__name">Kolade Fashola</div>
+          <div class="profile-card__role">Music · Talent</div>
+          <div class="profile-card__cpi"><span class="profile-card__score">924</span><span class="profile-card__cpi-label">CPI Score</span></div>
+          <span class="profile-badge profile-badge--5">Cultural Champion</span>
+          <a href="#" class="btn btn--green btn--sm">View Profile</a>
+        </div>
+      </div>
+
+      <div class="profile-card reveal reveal-d1">
+        <div class="profile-card__cover" style="background:linear-gradient(135deg,#003060,#0060c0);">
+          <div class="profile-card__avatar" style="background:#dbeafe;color:#1d4ed8;">A</div>
+        </div>
+        <div class="profile-card__body">
+          <div class="profile-card__name">Aisha Kareem</div>
+          <div class="profile-card__role">Fashion Design · Talent</div>
+          <div class="profile-card__cpi"><span class="profile-card__score">855</span><span class="profile-card__cpi-label">CPI Score</span></div>
+          <span class="profile-badge profile-badge--5">Cultural Champion</span>
+          <a href="#" class="btn btn--green btn--sm">View Profile</a>
+        </div>
+      </div>
+
+      <div class="profile-card reveal reveal-d2">
+        <div class="profile-card__cover" style="background:linear-gradient(135deg,#3a1060,#7a40b0);">
+          <div class="profile-card__avatar" style="background:#f3e8ff;color:#7c3aed;">B</div>
+        </div>
+        <div class="profile-card__body">
+          <div class="profile-card__name">Bello Beverages Ltd.</div>
+          <div class="profile-card__role">Food & Beverage · Business</div>
+          <div class="profile-card__cpi"><span class="profile-card__score">881</span><span class="profile-card__cpi-label">CPI Score</span></div>
+          <span class="profile-badge profile-badge--5">Cultural Champion</span>
+          <a href="#" class="btn btn--green btn--sm">View Profile</a>
+        </div>
+      </div>
+
+      <div class="profile-card reveal reveal-d1">
+        <div class="profile-card__cover" style="background:linear-gradient(135deg,#4a1010,#901818);">
+          <div class="profile-card__avatar" style="background:#fee2e2;color:#b91c1c;">C</div>
+        </div>
+        <div class="profile-card__body">
+          <div class="profile-card__name">Chinelo Okoye</div>
+          <div class="profile-card__role">Theatre & Drama · Talent</div>
+          <div class="profile-card__cpi"><span class="profile-card__score">741</span><span class="profile-card__cpi-label">CPI Score</span></div>
+          <span class="profile-badge profile-badge--4">Rising Influence</span>
+          <a href="#" class="btn btn--outline-green btn--sm">View Profile</a>
+        </div>
+      </div>
+
+      <div class="profile-card reveal reveal-d2">
+        <div class="profile-card__cover" style="background:linear-gradient(135deg,#002030,#005060);">
+          <div class="profile-card__avatar" style="background:#e0f2fe;color:#0369a1;">S</div>
+        </div>
+        <div class="profile-card__body">
+          <div class="profile-card__name">Sunrise Academy</div>
+          <div class="profile-card__role">Education · Institution</div>
+          <div class="profile-card__cpi"><span class="profile-card__score">812</span><span class="profile-card__cpi-label">CPI Score</span></div>
+          <span class="profile-badge profile-badge--4">Rising Influence</span>
+          <a href="#" class="btn btn--outline-green btn--sm">View Profile</a>
+        </div>
+      </div>
+
+      <div class="registry-cta reveal reveal-d3">
+        <div class="registry-cta__icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--g6)" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></div>
+        <div class="registry-cta__title">Are You on the Registry?</div>
+        <p class="registry-cta__sub">Join 1,200+ Africa talents and businesses. Your CPI starts the moment you register.</p>
+        <a href="#register" class="btn btn--green btn--md">Register Free →</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     LEGACY
+════════════════════════════════════════ -->
+<section class="section" id="legacy" aria-labelledby="legacy-h">
+  <div class="wrap">
+    <div class="sec-header">
+      <div class="reveal">
+        <span class="sec-label">Event Archive</span>
+        <h2 class="sec-h2" id="legacy-h">Legacy Vault</h2>
+        <p class="sec-sub">Every GATES event — permanently archived with full records, stats, and galleries.</p>
+      </div>
+      <a href="/africa-gates/legacy" class="btn btn--outline-green btn--md reveal">Full Archive →</a>
+    </div>
+
+    <div class="legacy-layout">
+      <div class="timeline">
+
+        <div class="tl-item reveal">
+          <div class="tl-year">2024</div>
+          <div class="tl-card">
+            <div class="tl-card__inner">
+              <div class="tl-card__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
+              <div>
+                <div class="tl-card__name">Africa Business Awards</div>
+                <div class="tl-card__meta">Awards · Africa, Lagos</div>
+                <div class="tl-stats">
+                  <div><span class="tl-stat-val">12</span><span class="tl-stat-label">Categories</span></div>
+                  <div><span class="tl-stat-val">800+</span><span class="tl-stat-label">Attendees</span></div>
+                  <div><span class="tl-stat-val">14k+</span><span class="tl-stat-label">Votes</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item reveal reveal-d1">
+          <div class="tl-year">2023</div>
+          <div class="tl-card">
+            <div class="tl-card__inner">
+              <div class="tl-card__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+              <div>
+                <div class="tl-card__name">Choral Awards 2023</div>
+                <div class="tl-card__meta">Awards · Africa Cultural Centre</div>
+                <div class="tl-stats">
+                  <div><span class="tl-stat-val">8</span><span class="tl-stat-label">Categories</span></div>
+                  <div><span class="tl-stat-val">600+</span><span class="tl-stat-label">Attendees</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item reveal reveal-d2">
+          <div class="tl-year">2022</div>
+          <div class="tl-card">
+            <div class="tl-card__inner">
+              <div class="tl-card__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m5.8 11.3-1.9 7.5 7.5-1.9"/><path d="m5.8 11.3 5.8-5.8"/><path d="m11.6 5.5 5.8-2.8-2.8 5.8"/><path d="m17.4 8.5 1.9 7.5-7.5-1.9"/><circle cx="12" cy="12" r="1"/></svg></div>
+              <div>
+                <div class="tl-card__name">Africa Celebrates Nigeria</div>
+                <div class="tl-card__meta">Community · Independence Day</div>
+                <div class="tl-stats">
+                  <div><span class="tl-stat-val">1,200+</span><span class="tl-stat-label">Attendees</span></div>
+                  <div><span class="tl-stat-val">30+</span><span class="tl-stat-label">Performers</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item reveal reveal-d3">
+          <div class="tl-year">2021</div>
+          <div class="tl-card">
+            <div class="tl-card__inner">
+              <div class="tl-card__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></div>
+              <div>
+                <div class="tl-card__name">Africa Celebrates Nigeria</div>
+                <div class="tl-card__meta">Community · Africa</div>
+                <div class="tl-stats">
+                  <div><span class="tl-stat-val">900+</span><span class="tl-stat-label">Attendees</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item reveal">
+          <div class="tl-year">2018</div>
+          <div class="tl-card">
+            <div class="tl-card__inner">
+              <div class="tl-card__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></div>
+              <div>
+                <div class="tl-card__name">Africa Festival</div>
+                <div class="tl-card__meta">Festival · Cultural Showcase</div>
+                <div class="tl-stats">
+                  <div><span class="tl-stat-val">2,000+</span><span class="tl-stat-label">Attendees</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item reveal reveal-d1">
+          <div class="tl-year">2017</div>
+          <div class="tl-card">
+            <div class="tl-card__inner">
+              <div class="tl-card__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+              <div>
+                <div class="tl-card__name">Africa Carol Concert</div>
+                <div class="tl-card__meta">Concert · The Beginning</div>
+                <div class="tl-stats">
+                  <div><span class="tl-stat-val">500+</span><span class="tl-stat-label">Attendees</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <aside>
+        <div class="vault-card reveal">
+          <div class="vault-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>Vault Highlight</div>
+          <h3>2024 Business Awards</h3>
+          <p>The inaugural Africa Business Awards drew 800+ attendees, 60+ nominees, and 14,000+ votes — establishing the gold standard for community recognition in Lagos State.</p>
+          <div class="vault-stats">
+            <div class="vault-stat"><span class="vault-stat-val">60+</span><span class="vault-stat-label">Nominees</span></div>
+            <div class="vault-stat"><span class="vault-stat-val">12</span><span class="vault-stat-label">Categories</span></div>
+          </div>
+          <a href="/africa-gates/legacy/business-awards-2024" class="btn btn--gold btn--md">Explore Archive →</a>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     OPPORTUNITIES
+════════════════════════════════════════ -->
+<section class="section section--subtle" id="opportunities" aria-labelledby="opp-h">
+  <div class="wrap">
+    <div class="sec-header">
+      <div class="reveal">
+        <span class="sec-label">Opportunity Board</span>
+        <h2 class="sec-h2" id="opp-h">Connect to Opportunity</h2>
+        <p class="sec-sub">Gigs, grants, mentorships, and partnerships — curated for GATES registrants.</p>
+      </div>
+      <a href="/africa-gates/opportunities" class="btn btn--outline-green btn--md reveal">All Opportunities →</a>
+    </div>
+
+    <div class="opp-grid">
+
+      <div class="opp-card opp-card--feat reveal">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="opp-type"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Featured Gig</span>
+          <span class="opp-tier-badge">Tier 3+</span>
+        </div>
+        <div class="opp-title">Cultural Arts Exhibition — Lagos State Council</div>
+        <div class="opp-by">Lagos State Council for Arts & Culture</div>
+        <p class="opp-desc">Seeking 20 visual artists and performers for the annual state cultural showcase. Paid opportunity, transport covered.</p>
+        <div class="opp-foot">
+          <span class="opp-deadline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Nov 30, 2025</span>
+          <a href="#" class="btn btn--gold btn--sm">Apply Now</a>
+        </div>
+      </div>
+
+      <div class="opp-card reveal reveal-d1">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="opp-type"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Partnership</span>
+          <span class="opp-tier-badge">All Tiers</span>
+        </div>
+        <div class="opp-title">Afrovanguard MediaPro Production Partnership</div>
+        <div class="opp-by">Afrovanguard MediaPro</div>
+        <p class="opp-desc">Looking for 5 businesses to co-brand a video production campaign. Full production team provided.</p>
+        <div class="opp-foot">
+          <span class="opp-deadline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Dec 15, 2025</span>
+          <a href="#" class="btn btn--green btn--sm">Apply Now</a>
+        </div>
+      </div>
+
+      <div class="opp-card reveal reveal-d2">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="opp-type"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>Mentorship</span>
+          <span class="opp-tier-badge">Talent</span>
+        </div>
+        <div class="opp-title">6-Month Music Production Mentorship</div>
+        <div class="opp-by">Beat Factory Africa</div>
+        <p class="opp-desc">Intensive mentorship for emerging music producers. Weekly sessions, industry connections, and studio time included.</p>
+        <div class="opp-foot">
+          <span class="opp-deadline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Dec 1, 2025</span>
+          <a href="#" class="btn btn--outline-green btn--sm">Apply Now</a>
+        </div>
+      </div>
+
+      <div class="opp-card reveal">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="opp-type"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-4-7h8"/></svg>Grant</span>
+          <span class="opp-tier-badge">Business</span>
+        </div>
+        <div class="opp-title">SME Digital Transformation Grant — ₦500,000</div>
+        <div class="opp-by">Africa LCDA</div>
+        <p class="opp-desc">Competitive grant for SMEs implementing digital tools. Open to GATES-registered businesses only.</p>
+        <div class="opp-foot">
+          <span class="opp-deadline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Jan 10, 2026</span>
+          <a href="#" class="btn btn--gold btn--sm">Apply Now</a>
+        </div>
+      </div>
+
+      <div class="opp-card reveal reveal-d1">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="opp-type"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m9 12 2 2 4-4"/><path d="M5 7H3a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/><path d="M9 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg>Collaboration</span>
+          <span class="opp-tier-badge">All Types</span>
+        </div>
+        <div class="opp-title">Nollywood Short Film — Extras & Crew Needed</div>
+        <div class="opp-by">Africa Film Collective</div>
+        <p class="opp-desc">Weekend shoot. Looking for 15 extras, 2 assistant directors, and 1 sound engineer. Paid production.</p>
+        <div class="opp-foot">
+          <span class="opp-deadline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Nov 25, 2025</span>
+          <a href="#" class="btn btn--outline-green btn--sm">Apply Now</a>
+        </div>
+      </div>
+
+      <div class="opp-post-cta reveal reveal-d2">
+        <div class="opp-post-cta__icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
+        <h3>Post an Opportunity</h3>
+        <p>Connect with verified, talented people and businesses in the GATES community.</p>
+        <a href="#" class="btn btn--gold btn--md">Submit an Opportunity</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     IMPACT
+════════════════════════════════════════ -->
+<section class="section section--dark" id="impact" aria-labelledby="impact-h">
+  <div class="wrap">
+    <div style="text-align:center;margin-bottom:56px;" class="reveal">
+      <span class="sec-label sec-label--light">By the Numbers</span>
+      <h2 class="sec-h2 sec-h2--w" id="impact-h" style="margin-inline:auto;">Our Impact in Numbers <span class="demo-chip" style="vertical-align:middle;position:relative;top:-3px;">Sample</span></h2>
+      <p class="sec-sub sec-sub--w" style="margin-inline:auto;">Real data from a real community. Updated quarterly.</p>
+    </div>
+
+    <div class="impact-grid">
+      <div class="impact-stat reveal"><span class="impact-stat__num" data-count data-target="1200" data-suffix="+">0</span><span class="impact-stat__label">Registered Talents</span></div>
+      <div class="impact-stat reveal reveal-d1"><span class="impact-stat__num" data-count data-target="340" data-suffix="+">0</span><span class="impact-stat__label">Businesses Featured</span></div>
+      <div class="impact-stat reveal reveal-d2"><span class="impact-stat__num" data-count data-target="48000" data-suffix="+">0</span><span class="impact-stat__label">Total Votes Cast</span></div>
+      <div class="impact-stat reveal reveal-d3"><span class="impact-stat__num" data-count data-target="7">0</span><span class="impact-stat__label">Events Archived</span></div>
+      <div class="impact-stat reveal"><span class="impact-stat__num" data-count data-target="6">0</span><span class="impact-stat__label">LCDAs Represented</span></div>
+      <div class="impact-stat reveal reveal-d1"><span class="impact-stat__num" data-count data-target="4">0</span><span class="impact-stat__label">Award Programmes</span></div>
+      <div class="impact-stat reveal reveal-d2"><span class="impact-stat__num" data-count data-target="35" data-suffix="+">0</span><span class="impact-stat__label">Press Mentions</span></div>
+      <div class="impact-stat reveal reveal-d3"><span class="impact-stat__num impact-stat__num--gold" data-count data-target="4.8" data-decimals="1" data-suffix="★">0</span><span class="impact-stat__label">Community Rating</span></div>
+    </div>
+
+    <div style="text-align:center;margin-top:56px;" class="reveal">
+      <a href="#partners" class="btn btn--gold btn--lg">Become a Partner</a>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     PARTNERS
+════════════════════════════════════════ -->
+<section class="section section--green" id="partners" aria-labelledby="partners-h">
+  <div class="wrap">
+    <div style="text-align:center;margin-bottom:56px;" class="reveal">
+      <span class="sec-label sec-label--light">Sponsor & Partner</span>
+      <h2 class="sec-h2 sec-h2--w" id="partners-h" style="margin-inline:auto;">Invest in Africa's Excellence</h2>
+      <p class="sec-sub sec-sub--w" style="margin-inline:auto;">Partner with Africa GATES to reach a highly engaged community of talents, entrepreneurs, and cultural champions.</p>
+    </div>
+
+    <div class="partner-grid">
+
+      <div class="partner-tier reveal">
+        <div class="partner-tier__level">Gold Sponsor</div>
+        <div class="partner-tier__name">Gold Partner</div>
+        <ul class="partner-tier__benefits">
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Logo placement on all event materials</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Featured sponsor section on GATES homepage</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>5 VIP seats at Awards Night</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Social media spotlight (3 posts)</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Post-event impact report</li>
+        </ul>
+        <a href="mailto:partnerships@afrovanguard.org.ng" class="btn btn--ghost-white btn--md">Enquire Now</a>
+      </div>
+
+      <div class="partner-tier partner-tier--feat reveal reveal-d1">
+        <div class="partner-tier__level">Platinum</div>
+        <div class="partner-tier__name">Platinum Partner</div>
+        <ul class="partner-tier__benefits">
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Title sponsor of one award programme</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Homepage hero banner (30 days)</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>10 VIP seats + backstage access</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Opportunity Board priority listings</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Co-branded press release</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Audience data insights report</li>
+        </ul>
+        <a href="mailto:partnerships@afrovanguard.org.ng" class="btn btn--gold btn--md">Enquire Now</a>
+      </div>
+
+      <div class="partner-tier reveal reveal-d2">
+        <div class="partner-tier__level">Community Partner</div>
+        <div class="partner-tier__name">Community Sponsor</div>
+        <ul class="partner-tier__benefits">
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Logo on event programme</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>2 General Admission seats</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Social media mention</li>
+          <li class="partner-tier__benefit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--g4)" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>GATES Registry verified badge</li>
+        </ul>
+        <a href="mailto:partnerships@afrovanguard.org.ng" class="btn btn--ghost-white btn--md">Enquire Now</a>
+      </div>
+
+    </div>
+
+    <div style="max-width:560px;margin-inline:auto;text-align:center;margin-top:64px;" class="reveal">
+      <p style="font-family:var(--font-display);font-size:28px;font-weight:600;color:var(--w);margin-bottom:12px;line-height:1.2;">Not sure which tier fits? Let's talk.</p>
+      <p style="font-size:15px;color:rgba(255,255,255,0.6);margin-bottom:28px;line-height:1.6;">We build custom packages for brands and institutions that want to go beyond standard sponsorship.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a href="mailto:partnerships@afrovanguard.org.ng" class="btn btn--gold btn--lg">Email Us Directly</a>
+        <a href="#" class="btn btn--ghost-white btn--lg">Download Partnership Pack</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     NOMINATE CTA
+════════════════════════════════════════ -->
+<section class="section" id="nominate" aria-label="Nomination call to action">
+  <div class="wrap">
+    <div class="nominate-cta">
+      <div style="position:relative;z-index:1;">
+        <div class="nominate-cta__badge">Nominations Open</div>
+        <h2>Know Someone Who Deserves Recognition?</h2>
+        <p>Nominations for the 2025 cycle are open across all four programmes. No account required to nominate.</p>
+      </div>
+      <div class="nominate-cta__actions">
+        <a href="#" class="btn btn--gold btn--lg">Nominate a Person</a>
+        <a href="#" class="btn btn--green btn--lg">Nominate a Business</a>
+        <p class="nominate-cta__note">Free · Takes 5 minutes · No signup needed</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════
+     FOOTER — with strong exit point
+════════════════════════════════════════ -->
+<footer class="footer" role="contentinfo">
+  <div class="wrap">
+
+    <!-- EXIT POINT: strong return CTA back to main site -->
+    <div class="footer__return reveal">
+      <div class="footer__return-text">
+        <p>Part of the Afrovanguard ecosystem</p>
+        <p>Africa GATES is one initiative within the broader Afrovanguard platform — connecting communities, culture, and change across Nigeria.</p>
+      </div>
+      <a href="https://afrovanguard.org.ng" class="btn btn--w btn--md" style="flex-shrink:0;">
+        ← Return to Afrovanguard
+      </a>
+    </div>
+
+    <div class="footer-grid">
+
+      <div>
+        <div class="footer-brand__name">Africa GATES</div>
+        <div class="footer-brand__parent">An Afrovanguard Initiative</div>
+        <p class="footer-brand__desc">The cultural recognition engine of Africa — celebrating talents, businesses, and institutions through the Cultural Power Index.</p>
+        <div class="footer-social">
+          <a href="#" class="footer-social__link" aria-label="Instagram"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
+          <a href="#" class="footer-social__link" aria-label="Facebook"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a>
+          <a href="#" class="footer-social__link" aria-label="YouTube"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96A29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58A2.78 2.78 0 0 0 3.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.95A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg></a>
+          <a href="#" class="footer-social__link" aria-label="TikTok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></a>
+        </div>
+      </div>
+
+      <div>
+        <div class="footer-col__title">Platform</div>
+        <div class="footer-col__links">
+          <a href="#about"         class="footer-col__link">About GATES</a>
+          <a href="#cpi"           class="footer-col__link">CPI System</a>
+          <a href="#registry"      class="footer-col__link">GATES Registry</a>
+          <a href="#leaderboard"   class="footer-col__link">Leaderboard</a>
+          <a href="#opportunities" class="footer-col__link">Opportunity Board</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="footer-col__title">Award Programmes</div>
+        <div class="footer-col__links">
+          <a href="#awards" class="footer-col__link">Business Awards</a>
+          <a href="#awards" class="footer-col__link">Principal Awards</a>
+          <a href="#awards" class="footer-col__link">Carol Awards</a>
+          <a href="#awards" class="footer-col__link">Incorruptible Awards</a>
+          <a href="#legacy" class="footer-col__link">Legacy Vault</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="footer-col__title">Get Involved</div>
+        <div class="footer-col__links">
+          <a href="#nominate"                                    class="footer-col__link">Nominate Someone</a>
+          <a href="#registry"                                    class="footer-col__link">Register as Talent</a>
+          <a href="#partners"                                    class="footer-col__link">Become a Partner</a>
+          <a href="mailto:gates@afrovanguard.org.ng"             class="footer-col__link">gates@afrovanguard.org.ng</a>
+          <a href="tel:+2349037776318"                           class="footer-col__link">+234-903-777-6318</a>
+          <a href="https://afrovanguard.org.ng" style="color:var(--g4);font-weight:600;margin-top:8px;" class="footer-col__link">← Back to Afrovanguard ↗</a>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-bottom__copy">© 2026 Africa GATES · An Afrovanguard [Okunola Africa] Initiative. All rights reserved.</p>
+      <div class="footer-bottom__legal">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms & Conditions</a>
+        <a href="#">Voting Rules</a>
+      </div>
+    </div>
+
+  </div>
+</footer>
+
+<!-- Back to top -->
+<a href="#top" class="back-top" id="backTop" aria-label="Back to top">↑</a>
+
+<!-- ════════════════════════════════════════
+     DEMO DATA BAR — always visible
+════════════════════════════════════════ -->
+<div class="demo-bar" role="status" aria-label="Demo data notice">
+  <div class="demo-bar__dot"></div>
+  <strong>DEMO MODE</strong>
+  — All scores, profiles, and stats shown are illustrative sample data only. Real data populates on launch.
+  <a href="#registry">Register your profile →</a>
+</div>
+
+<!-- Vote Modal -->
+<div class="modal-overlay" id="voteModal" role="dialog" aria-modal="true" aria-label="Cast your vote" aria-hidden="true">
+  <div class="modal">
+    <button class="modal__close" id="modalClose" aria-label="Close">✕</button>
+    <div class="modal__icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--g6)" stroke-width="1.5" aria-hidden="true" style="margin:0 auto;display:block;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+    <h2 class="modal__title">Cast Your Vote</h2>
+    <p class="modal__sub">Enter your email to receive a one-time verification code. One vote per email per cycle.</p>
+    <label class="modal__label" for="voteEmail">Your Email Address</label>
+    <input type="email" id="voteEmail" class="modal__input" placeholder="you@example.com">
+    <button class="btn btn--green btn--md">Send Verification Code →</button>
+    <p class="modal__note">Protected by reCAPTCHA. Your email is never shared. Code expires in 10 minutes.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── Measure nav height for hero offset ─────────── */
+function applyHeroOffset() {
+  const h = document.getElementById('avSiteTop')?.getBoundingClientRect().height || 72;
+  document.documentElement.style.setProperty('--header-h', h + 'px');
+}
+applyHeroOffset();
+window.addEventListener('resize', applyHeroOffset);
+
+/* ── Nav Scroll Behavior ─────────────────────────── */
+const avSiteTop = document.getElementById('avSiteTop');
+const avHeader  = document.getElementById('avHeader');
+const sNav      = document.getElementById('sNav');
+const hero      = document.querySelector('.hero');
+let ticking     = false;
+let sNavVisible = false;
+
+function updateNav() {
+  const scrollY    = window.scrollY;
+  const heroBottom = hero ? hero.getBoundingClientRect().bottom : 0;
+
+  avHeader.classList.toggle('scrolled', scrollY > 60);
+
+  const shouldShowSubNav = heroBottom <= 0;
+  if (shouldShowSubNav !== sNavVisible) {
+    sNavVisible = shouldShowSubNav;
+    if (shouldShowSubNav) {
+      sNav.classList.add('is-visible');
+      avSiteTop.classList.add('is-hidden');
+    } else {
+      sNav.classList.remove('is-visible');
+      avSiteTop.classList.remove('is-hidden');
+    }
+  }
+
+  document.getElementById('backTop').classList.toggle('is-visible', scrollY > 500);
+  ticking = false;
+}
+
+window.addEventListener('scroll', () => {
+  if (!ticking) { requestAnimationFrame(updateNav); ticking = true; }
+}, { passive: true });
+updateNav();
+
+/* ── Scroll Spy ──────────────────────────────────── */
+const spyLinks   = document.querySelectorAll('.s-nav__link[data-spy]');
+const spySections = [];
+
+spyLinks.forEach(link => {
+  const el = document.getElementById(link.dataset.spy);
+  if (el) spySections.push({ el, link });
+});
+
+function updateSpy() {
+  const mid = window.scrollY + window.innerHeight * 0.4;
+  let active = null;
+  spySections.forEach(({ el }) => {
+    if (el.offsetTop <= mid) active = el;
+  });
+  spyLinks.forEach(l => l.classList.remove('is-active'));
+  if (active) {
+    const match = [...spyLinks].find(l => l.dataset.spy === active.id);
+    if (match) match.classList.add('is-active');
+  }
+}
+
+window.addEventListener('scroll', updateSpy, { passive: true });
+updateSpy();
+
+/* ── Afrovanguard Mobile Nav ─────────────────────── */
+const avToggle    = document.getElementById('avToggle');
+const avMobileNav = document.getElementById('avMobileNav');
+
+function openMobileNav() {
+  avMobileNav.classList.add('open');
+  avToggle.setAttribute('aria-expanded', 'true');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileNav() {
+  avMobileNav.classList.remove('open');
+  avToggle.setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+}
+
+avToggle.addEventListener('click', () => {
+  avMobileNav.classList.contains('open') ? closeMobileNav() : openMobileNav();
+});
+avMobileNav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMobileNav));
+
+/* ── Vote Modal ──────────────────────────────────── */
+const modal      = document.getElementById('voteModal');
+const modalClose = document.getElementById('modalClose');
+
+function openModal() {
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('voteEmail').focus(), 300);
+}
+function closeModal() {
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+
+document.querySelectorAll('[data-vote]').forEach(btn => btn.addEventListener('click', openModal));
+modalClose.addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeMobileNav(); }});
+
+/* ── Reveal on scroll ────────────────────────────── */
+if ('IntersectionObserver' in window) {
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('is-visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+} else {
+  document.querySelectorAll('.reveal').forEach(el => el.classList.add('is-visible'));
+}
+
+/* ── CPI Ring Animation ──────────────────────────── */
+const ringFill  = document.getElementById('cpiRingFill');
+const scoreEl   = document.getElementById('cpiScore');
+const TARGET    = 847;
+const CIRC      = 163.4; // 2π × 26
+
+const ringObs = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting) {
+    ringObs.disconnect();
+    const offset = CIRC - (TARGET / 1000) * CIRC;
+    ringFill.style.strokeDashoffset = offset;
+
+    // count up score
+    const dur = 1400;
+    const start = performance.now();
+    function tick(now) {
+      const p = Math.min((now - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      scoreEl.textContent = Math.round(ease * TARGET);
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+}, { threshold: 0.3 });
+if (ringFill) ringObs.observe(ringFill);
+
+/* ── Count Up ────────────────────────────────────── */
+const countObs = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const el = entry.target;
+    const target  = parseFloat(el.dataset.target);
+    const suffix  = el.dataset.suffix || '';
+    const decimals = parseInt(el.dataset.decimals || '0');
+    const dur     = 1600;
+    const start   = performance.now();
+
+    countObs.unobserve(el);
+    function tick(now) {
+      const p = Math.min((now - start) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      const val = ease * target;
+      el.textContent = (decimals > 0 ? val.toFixed(decimals) : Math.round(val)) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('[data-count]').forEach(el => countObs.observe(el));
+
+/* ── Countdown timers ────────────────────────────── */
+function updateCountdowns() {
+  document.querySelectorAll('[data-deadline]').forEach(el => {
+    const end = new Date(el.dataset.deadline).getTime();
+    const now = Date.now();
+    const diff = end - now;
+    if (diff <= 0) { el.textContent = 'Closed'; return; }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    el.textContent = d > 0 ? `${d}d ${h}h left` : `${h}h left`;
+  });
+}
+updateCountdowns();
+setInterval(updateCountdowns, 60000);
+</script>
+
+</body>
+</html>

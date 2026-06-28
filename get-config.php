@@ -1,0 +1,41 @@
+<?php
+/**
+ * get-config.php — Safe public configuration endpoint
+ *
+ * Returns ONLY the Paystack public key to the browser.
+ * The secret key (PAYSTACK_SECRET_KEY) is NEVER sent — it stays
+ * in config.php and is used only server-side by process-donation.php.
+ *
+ * Called by donate.html on page load via: fetch('get-config.php')
+ */
+
+/* ─── Security headers ──────────────────────────────────────── */
+header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Cache-Control: public, max-age=3600');   // safe — public key only
+
+$allowedOrigins = ['https://afrovanguard.org.ng', 'https://www.afrovanguard.org.ng'];
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, $allowedOrigins, true)) {
+    header("Access-Control-Allow-Origin: {$origin}");
+    header('Vary: Origin');
+}
+
+/* ─── Load config ───────────────────────────────────────────── */
+// Use the shared bootstrap so this works on BOTH a config.php deployment and a
+// pure-.env deployment: it loads .env, promotes AV_PAYSTACK_PK → PAYSTACK_PUBLIC_KEY,
+// and pulls in config.php only when it is actually present. A missing config.php
+// must never hard-500 here — the public key may legitimately come from the
+// environment, and donate.html fetches this endpoint on every page load.
+require_once __DIR__ . '/lib/bootstrap.php';
+
+/* ─── Return ONLY the public key ────────────────────────────── */
+// PAYSTACK_PUBLIC_KEY is safe to send to the browser.
+// PAYSTACK_SECRET_KEY is defined in config.php but is NEVER returned here.
+if (!defined('PAYSTACK_PUBLIC_KEY') || (string) PAYSTACK_PUBLIC_KEY === '') {
+    http_response_code(503);
+    echo json_encode(['error' => 'Payments are temporarily unavailable.']);
+    exit;
+}
+echo json_encode(['publicKey' => PAYSTACK_PUBLIC_KEY]);

@@ -1,0 +1,27 @@
+# The Afrovanguard Diary — pretty URLs + SEO endpoints
+#   /diary/                      -> index.php
+#   /diary/<slug>/  or  <slug>   -> article.php?slug=<slug>
+#   /diary/og/<slug>.png         -> og.php?slug=<slug>   (social card)
+#   /diary/sitemap.xml           -> sitemap.php
+#   /diary/feed.xml              -> feed.php
+DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /diary/
+
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  RewriteRule ^feed\.xml$ feed.php [L]
+  RewriteRule ^og/([a-z0-9-]+)\.png$ og.php?slug=$1 [L,QSA]
+
+  # Member's own diary workspace (composer + personal streams)
+  RewriteRule ^me/?$ me.php [L,QSA]
+
+  # Don't rewrite real files or directories (css, js, api.php, og.php …)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Article slugs -> article.php
+  RewriteRule ^([a-z0-9-]+)/?$ article.php?slug=$1 [L,QSA]
+</IfModule>

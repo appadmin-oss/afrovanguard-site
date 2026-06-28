@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en-NG">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Afrovanguard Donor Dashboard — see who is funding Africa's next generation of leaders.">
+<!-- Fix L-02: prevent search engine indexing of admin dashboard -->
+<meta name="robots" content="noindex, nofollow">
+<title>Donor Dashboard — Afrovanguard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:wght@500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap">
+<style>
+:root{
+  --gold:#f3b416;--gold-dark:#d49a0e;--gold-deep:#b07e08;
+  --bg:#F9FAFB;--bg-warm:#FDFCF8;--dark:#0d1220;
+  --text:#111827;--muted:#6B7280;--border:#E5E7EB;
+  --green:#22c55e;--red:#ef4444;--blue:#3b82f6;
+  --font-h:'Cormorant',Georgia,serif;
+  --font-b:'Montserrat',-apple-system,sans-serif;
+  --radius:14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;scroll-padding-top:80px;font-size:16px;}
+body{font-family:var(--font-b);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.6;}
+
+/* ── Nav ─────────────────────────────────────────────────── */
+.nav{background:var(--dark);border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:100;padding:0 clamp(16px,4vw,40px);display:flex;align-items:center;justify-content:space-between;height:64px;}
+.nav-logo{font-family:var(--font-h);font-size:18px;font-weight:700;color:#fff;text-decoration:none;letter-spacing:.04em;}
+.nav-logo span{color:var(--gold);}
+.nav-links{display:flex;align-items:center;gap:24px;}
+.nav-links a{color:rgba(255,255,255,.55);font-size:13px;font-weight:600;text-decoration:none;transition:color .15s;}
+.nav-links a:hover{color:#fff;}
+.nav-cta{background:var(--gold);color:var(--dark)!important;padding:8px 18px;border-radius:99px;font-weight:800;font-size:12.5px;}
+
+/* ── Hero ────────────────────────────────────────────────── */
+.hero{background:var(--dark);padding:clamp(48px,7vw,80px) clamp(16px,5vw,80px) clamp(40px,6vw,64px);position:relative;overflow:hidden;}
+.hero::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(243,180,22,.08) 0%,transparent 60%);pointer-events:none;}
+.hero-inner{max-width:1100px;margin:0 auto;position:relative;}
+.hero-label{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:12px;}
+.hero h1{font-family:var(--font-h);font-size:clamp(32px,4vw,54px);font-weight:700;color:#fff;line-height:1.05;letter-spacing:-.02em;margin-bottom:16px;}
+.hero h1 em{color:var(--gold);font-style:normal;}
+.hero p{color:rgba(255,255,255,.55);font-size:15px;max-width:52ch;line-height:1.7;margin-bottom:32px;}
+.stat-strip{display:flex;gap:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);border-radius:14px;overflow:hidden;width:fit-content;}
+.stat-item{padding:16px 28px;border-right:1px solid rgba(255,255,255,.08);}
+.stat-item:last-child{border-right:none;}
+.stat-num{font-family:var(--font-h);font-size:clamp(22px,2.5vw,30px);font-weight:700;color:#fff;line-height:1;margin-bottom:3px;}
+.stat-lbl{font-size:10px;color:rgba(255,255,255,.42);text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+
+/* ── Container ───────────────────────────────────────────── */
+.container{max-width:1100px;margin:0 auto;padding:0 clamp(16px,5vw,40px);}
+
+/* ── Section labels ──────────────────────────────────────── */
+.sec-label{font-size:10.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;}
+.sec-title{font-family:var(--font-h);font-size:clamp(22px,2.5vw,34px);color:var(--text);font-weight:700;letter-spacing:-.02em;margin-bottom:8px;line-height:1.1;}
+.sec-sub{color:var(--muted);font-size:14.5px;line-height:1.65;max-width:54ch;}
+
+/* ── Campaign progress cards ─────────────────────────────── */
+.campaigns-sec{padding:clamp(48px,6vw,72px) 0;}
+.camp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:32px;}
+.camp-card{background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);padding:22px 24px;transition:box-shadow .2s;}
+.camp-card:hover{box-shadow:0 6px 24px rgba(17,24,39,.08);}
+.camp-badge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+.camp-name{font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px;}
+.camp-desc{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;}
+.camp-prog-header{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:7px;flex-wrap:wrap;gap:4px;}
+.camp-prog-raised{font-weight:700;color:var(--text);}
+.camp-prog-pct{color:var(--muted);}
+.camp-track{height:6px;background:#E9E7EB;border-radius:99px;overflow:hidden;margin-bottom:8px;}
+.camp-fill{height:100%;border-radius:99px;width:0;transition:width 1.2s cubic-bezier(.16,1,.3,1);}
+.camp-fill.animated{width:var(--tw,0%);}
+.camp-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);}
+
+/* ── Donor wall — Tiered ─────────────────────────────────── */
+.donors-sec{padding:clamp(56px,7vw,88px) 0;background:var(--bg-warm);}
+.donors-header{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:36px;}
+.donor-filter{display:flex;gap:8px;flex-wrap:wrap;}
+.filter-btn{padding:6px 16px;border:1.5px solid var(--border);border-radius:99px;background:#fff;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;transition:all .16s;font-family:var(--font-b);}
+.filter-btn.active{background:var(--gold);border-color:var(--gold);color:var(--dark);}
+
+/* Tier Legend */
+.tier-legend{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:40px;}
+.tier-legend-item{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:14px 10px;text-align:center;transition:box-shadow .2s,transform .2s;cursor:default;}
+.tier-legend-item:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(17,24,39,.08);}
+.tier-legend-icon{font-size:20px;margin-bottom:6px;display:block;line-height:1;}
+.tier-legend-name{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:3px;}
+.tier-legend-range{font-size:10px;color:var(--muted);font-weight:600;line-height:1.4;}
+.tier-legend-item.platinum{border-color:rgba(229,228,226,.5);background:linear-gradient(135deg,rgba(229,228,226,.12),rgba(180,188,200,.06));}
+.tier-legend-item.platinum .tier-legend-name{color:#7a8694;}
+.tier-legend-item.gold{border-color:rgba(243,180,22,.3);background:linear-gradient(135deg,rgba(243,180,22,.08),rgba(243,180,22,.03));}
+.tier-legend-item.gold .tier-legend-name{color:var(--gold-dark);}
+.tier-legend-item.silver{border-color:rgba(156,163,175,.3);background:linear-gradient(135deg,rgba(156,163,175,.08),rgba(156,163,175,.03));}
+.tier-legend-item.silver .tier-legend-name{color:#6b7280;}
+.tier-legend-item.bronze{border-color:rgba(180,83,9,.2);background:linear-gradient(135deg,rgba(180,83,9,.07),rgba(180,83,9,.02));}
+.tier-legend-item.bronze .tier-legend-name{color:#92400e;}
+.tier-legend-item.patron{border-color:rgba(99,102,241,.2);background:linear-gradient(135deg,rgba(99,102,241,.07),rgba(99,102,241,.02));}
+.tier-legend-item.patron .tier-legend-name{color:#4338ca;}
+.tier-legend-item.friend{border-color:rgba(34,197,94,.2);background:linear-gradient(135deg,rgba(34,197,94,.07),rgba(34,197,94,.02));}
+.tier-legend-item.friend .tier-legend-name{color:#166534;}
+
+/* Tier Group */
+.tier-group{margin-bottom:40px;}
+.tier-group-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:12px;border-bottom:1.5px solid var(--border);}
+.tier-group-icon{font-size:22px;line-height:1;flex-shrink:0;}
+.tier-group-title{font-family:var(--font-h);font-size:clamp(18px,2vw,24px);font-weight:700;letter-spacing:-.01em;line-height:1;}
+.tier-group-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;padding:3px 10px;border-radius:99px;white-space:nowrap;}
+.tier-group-count{font-size:12px;font-weight:700;color:var(--muted);margin-left:auto;}
+
+/* Platinum group */
+.tier-group.tier-platinum .tier-group-header{border-color:rgba(229,228,226,.6);}
+.tier-group.tier-platinum .tier-group-title{color:#4a5568;background:linear-gradient(135deg,#6b7a8d,#9aa5b4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tier-group.tier-platinum .tier-group-badge{background:linear-gradient(135deg,rgba(229,228,226,.25),rgba(180,188,200,.18));color:#4a5568;border:1px solid rgba(229,228,226,.5);}
+
+/* Gold group */
+.tier-group.tier-gold .tier-group-header{border-color:rgba(243,180,22,.4);}
+.tier-group.tier-gold .tier-group-title{background:linear-gradient(135deg,#d49a0e,#f3b416);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tier-group.tier-gold .tier-group-badge{background:rgba(243,180,22,.12);color:var(--gold-dark);border:1px solid rgba(243,180,22,.3);}
+
+/* Silver group */
+.tier-group.tier-silver .tier-group-header{border-color:rgba(156,163,175,.4);}
+.tier-group.tier-silver .tier-group-title{background:linear-gradient(135deg,#6b7280,#9ca3af);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tier-group.tier-silver .tier-group-badge{background:rgba(156,163,175,.12);color:#4b5563;border:1px solid rgba(156,163,175,.35);}
+
+/* Bronze group */
+.tier-group.tier-bronze .tier-group-header{border-color:rgba(180,83,9,.25);}
+.tier-group.tier-bronze .tier-group-title{background:linear-gradient(135deg,#92400e,#b45309);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tier-group.tier-bronze .tier-group-badge{background:rgba(180,83,9,.10);color:#92400e;border:1px solid rgba(180,83,9,.25);}
+
+/* Patron group */
+.tier-group.tier-patron .tier-group-header{border-color:rgba(99,102,241,.25);}
+.tier-group.tier-patron .tier-group-title{background:linear-gradient(135deg,#4338ca,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tier-group.tier-patron .tier-group-badge{background:rgba(99,102,241,.10);color:#4338ca;border:1px solid rgba(99,102,241,.25);}
+
+/* Friend group */
+.tier-group.tier-friend .tier-group-header{border-color:rgba(34,197,94,.25);}
+.tier-group.tier-friend .tier-group-title{color:#166534;}
+.tier-group.tier-friend .tier-group-badge{background:rgba(34,197,94,.10);color:#166534;border:1px solid rgba(34,197,94,.25);}
+
+/* Donor cards */
+.donor-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.donor-card{background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;display:flex;align-items:center;gap:12px;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;}
+.donor-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;opacity:0;transition:opacity .2s;}
+.donor-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(17,24,39,.10);}
+.donor-card:hover::before{opacity:1;}
+
+/* Tier-colored top bar */
+.donor-card.tier-platinum::before{background:linear-gradient(90deg,#9aa5b4,#c8d0d8,#9aa5b4);}
+.donor-card.tier-gold::before{background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));}
+.donor-card.tier-silver::before{background:linear-gradient(90deg,#9ca3af,#d1d5db,#9ca3af);}
+.donor-card.tier-bronze::before{background:linear-gradient(90deg,#92400e,#b45309,#92400e);}
+.donor-card.tier-patron::before{background:linear-gradient(90deg,#4338ca,#6366f1,#4338ca);}
+.donor-card.tier-friend::before{background:linear-gradient(90deg,#16a34a,#22c55e,#16a34a);}
+
+/* Platinum card special */
+.donor-card.tier-platinum{border-color:rgba(154,165,180,.35);background:linear-gradient(135deg,#fff,rgba(229,228,226,.06));}
+.donor-card.tier-gold{border-color:rgba(243,180,22,.2);}
+
+.donor-av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-dark));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--dark);flex-shrink:0;position:relative;}
+.donor-av.inkind{background:linear-gradient(135deg,#8b5cf6,#6d28d9);}
+.donor-av.tier-platinum{background:linear-gradient(135deg,#9aa5b4,#c8d0d8);color:#2d3748;}
+.donor-av.tier-gold{background:linear-gradient(135deg,var(--gold-dark),var(--gold));}
+.donor-av.tier-silver{background:linear-gradient(135deg,#6b7280,#9ca3af);color:#fff;}
+.donor-av.tier-bronze{background:linear-gradient(135deg,#92400e,#b45309);color:#fff;}
+.donor-av.tier-patron{background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;}
+.donor-av.tier-friend{background:linear-gradient(135deg,#166534,#22c55e);color:#fff;}
+
+/* Tier badge on avatar */
+.donor-av-tier{position:absolute;bottom:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;box-shadow:0 1px 4px rgba(0,0,0,.2);}
+
+.donor-name{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3;}
+.donor-amt{font-size:12.5px;font-weight:800;color:var(--gold-dark);margin-top:2px;}
+.donor-amt.inkind{color:#6d28d9;font-size:11px;font-weight:600;}
+.donor-time{font-size:10.5px;color:var(--muted);margin-top:2px;}
+.donor-tier-pill{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:4px;margin-top:3px;display:inline-block;}
+
+.load-more-wrap{text-align:center;margin-top:24px;}
+.load-more-btn{padding:12px 32px;border:2px solid var(--border);border-radius:99px;background:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font-b);color:var(--muted);transition:all .16s;}
+.load-more-btn:hover{border-color:var(--gold);color:var(--dark);box-shadow:0 4px 16px rgba(243,180,22,.15);}
+
+/* Platinum spotlight */
+.platinum-spotlight{background:linear-gradient(135deg,var(--dark),#1a2035);border:1px solid rgba(154,165,180,.25);border-radius:20px;padding:28px;margin-bottom:40px;position:relative;overflow:hidden;}
+.platinum-spotlight::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 90% 10%,rgba(229,228,226,.06),transparent 60%);pointer-events:none;}
+.platinum-spotlight-label{font-size:9.5px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:rgba(154,165,180,.8);margin-bottom:10px;}
+.platinum-spotlight-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
+.platinum-card{background:rgba(255,255,255,.05);border:1px solid rgba(229,228,226,.2);border-radius:14px;padding:20px;display:flex;align-items:center;gap:14px;transition:all .2s;}
+.platinum-card:hover{background:rgba(255,255,255,.09);transform:translateY(-2px);}
+.platinum-av{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#9aa5b4,#c8d0d8);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#2d3748;flex-shrink:0;box-shadow:0 0 0 3px rgba(229,228,226,.2);}
+.platinum-name{font-size:15px;font-weight:700;color:#fff;}
+.platinum-amt{font-size:13px;font-weight:800;background:linear-gradient(135deg,#9aa5b4,#c8d0d8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-top:2px;}
+.platinum-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(154,165,180,.7);margin-top:3px;}
+
+@media(max-width:1100px){.tier-legend{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:900px){.donor-grid{grid-template-columns:repeat(2,1fr);}}.tier-legend{gap:6px;}
+@media(max-width:640px){.tier-legend{grid-template-columns:repeat(2,1fr);}.donor-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:480px){.donor-grid{grid-template-columns:1fr;}.tier-legend{grid-template-columns:repeat(3,1fr);}}
+
+/* Skeleton */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.sk{background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:400px 100%;animation:shimmer 1.4s infinite;}
+.sk-av{width:40px;height:40px;border-radius:50%;}
+.sk-ln{height:11px;border-radius:4px;margin-bottom:7px;}
+.sk-ln:first-child{width:70%;}
+.sk-ln:last-child{width:45%;}
+
+/* ── Admin section ───────────────────────────────────────── */
+.admin-sec{padding:clamp(48px,6vw,72px) 0;background:var(--dark);}
+.admin-sec .sec-title{color:#fff;}
+.admin-sec .sec-sub{color:rgba(255,255,255,.45);}
+.admin-gate{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.10);border-radius:var(--radius);padding:28px 32px;max-width:480px;margin-top:24px;}
+.admin-gate label{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:6px;}
+.admin-input{width:100%;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 15px;color:#fff;font-size:14px;font-family:var(--font-b);outline:none;transition:border-color .18s;}
+.admin-input:focus{border-color:rgba(243,180,22,.5);}
+.admin-input::placeholder{color:rgba(255,255,255,.3);}
+.admin-btn{width:100%;margin-top:14px;padding:14px 20px;background:var(--gold);color:var(--dark);border:none;border-radius:99px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font-b);transition:all .18s;}
+.admin-btn:hover{background:var(--gold-dark);transform:translateY(-1px);box-shadow:0 6px 20px rgba(243,180,22,.35);}
+.admin-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+.admin-panel{display:none;margin-top:28px;}
+.admin-panel.open{display:block;}
+.admin-form{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.10);border-radius:var(--radius);padding:28px 32px;margin-bottom:28px;}
+.admin-form h3{font-family:var(--font-h);font-size:22px;color:#fff;margin-bottom:20px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.4);}
+.form-group select.admin-input{cursor:pointer;}
+.form-group select.admin-input option{background:#1a2035;}
+.form-row.full{grid-template-columns:1fr;}
+.admin-err{font-size:11px;color:#f87171;margin-top:4px;display:none;}
+.confirm-success{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.25);border-radius:12px;padding:18px 22px;margin-top:16px;display:none;animation:successFadeIn .4s ease both;}
+.confirm-success p{font-size:13.5px;color:rgba(255,255,255,.85);margin:0;line-height:1.6;}
+.confirmed-list{margin-top:28px;}
+.confirmed-list h3{font-family:var(--font-h);font-size:20px;color:#fff;margin-bottom:4px;}
+.confirmed-item{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;transition:background .15s;}
+.confirmed-item:hover{background:rgba(255,255,255,.08);}
+.ci-left{display:flex;flex-direction:column;gap:3px;}
+.ci-name{font-size:14px;font-weight:700;color:#fff;}
+.ci-detail{font-size:12px;color:rgba(255,255,255,.4);margin-top:2px;}
+.ci-amount{font-size:15px;font-weight:800;color:var(--gold);}
+.ci-tier-pill{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:2px 8px;border-radius:4px;margin-top:3px;display:inline-block;}
+.ci-ref{font-size:11px;color:rgba(255,255,255,.3);font-family:monospace;}
+/* Live tier preview in admin entry form */
+.tier-preview{display:none;align-items:center;gap:8px;margin-top:8px;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);font-size:12.5px;font-weight:700;color:rgba(255,255,255,.6);transition:all .2s;}
+.tier-preview.visible{display:flex;}
+@keyframes successFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.recent-header{font-size:12px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;}
+
+/* ── Toast ───────────────────────────────────────────────── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:#111827;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px 20px;font-size:13.5px;font-weight:600;color:#fff;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:opacity .28s,transform .28s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);pointer-events:auto;}
+.toast.success{border-left:3px solid var(--green);}
+.toast.error  {border-left:3px solid #f87171;}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.footer{background:var(--dark);border-top:1px solid rgba(255,255,255,.07);padding:32px clamp(16px,5vw,40px);text-align:center;}
+.footer p{font-size:12.5px;color:rgba(255,255,255,.3);margin-bottom:6px;}
+.footer a{color:var(--gold);text-decoration:none;}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media(max-width:900px){
+  .camp-grid{grid-template-columns:1fr 1fr;}
+  .donor-grid{grid-template-columns:repeat(2,1fr);}
+  .stat-strip{flex-wrap:wrap;width:100%;}
+  .stat-item{flex:1;min-width:120px;}
+}
+@media(max-width:640px){
+  .camp-grid{grid-template-columns:1fr;}
+  .donor-grid{grid-template-columns:1fr 1fr;}
+  .form-row{grid-template-columns:1fr;}
+  .donors-header{flex-direction:column;align-items:flex-start;}
+  .admin-form{padding:20px 18px;}
+  .admin-gate{padding:20px 18px;}
+}
+@media(max-width:480px){
+  .donor-grid{grid-template-columns:1fr;}
+  .nav-links .hide-mob{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="https://afrovanguard.org.ng/" class="nav-logo">AFRO<span>VANGUARD</span></a>
+  <div class="nav-links">
+    <a href="https://afrovanguard.org.ng/projects/" class="hide-mob">Projects</a>
+    <a href="/donate" class="hide-mob">Donate</a>
+    <a href="/donate" class="nav-cta">Give Now</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-label">Our Community of Givers</div>
+    <h1>The Vanguard <em>Donors</em></h1>
+    <p>Real people. Real gifts. Real impact. Every name on this page is funding Africa's next generation of incorruptible leaders — one youth at a time.</p>
+    <div class="stat-strip" id="heroStats">
+      <div class="stat-item">
+        <div class="stat-num" id="totalDonors">—</div>
+        <div class="stat-lbl">Total Donors</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" id="totalRaised">—</div>
+        <div class="stat-lbl">Raised (NGN)</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" id="totalInkind">—</div>
+        <div class="stat-lbl">In-Kind Gifts</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">4</div>
+        <div class="stat-lbl">Active Campaigns</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Campaign Progress -->
+<section class="campaigns-sec">
+  <div class="container">
+    <div class="sec-label">Campaign Progress</div>
+    <h2 class="sec-title">Where Your Gift Goes</h2>
+    <p class="sec-sub">Select a campaign when donating to direct your gift to the programs that matter most to you.</p>
+    <div class="camp-grid" id="campGrid">
+      <!-- Filled by loadCampaigns() -->
+      <div class="camp-card"><div class="sk sk-ln" style="width:60%;height:14px;margin-bottom:10px;"></div><div class="sk sk-ln" style="width:40%;height:8px;"></div></div>
+      <div class="camp-card"><div class="sk sk-ln" style="width:60%;height:14px;margin-bottom:10px;"></div><div class="sk sk-ln" style="width:40%;height:8px;"></div></div>
+      <div class="camp-card"><div class="sk sk-ln" style="width:60%;height:14px;margin-bottom:10px;"></div><div class="sk sk-ln" style="width:40%;height:8px;"></div></div>
+      <div class="camp-card"><div class="sk sk-ln" style="width:60%;height:14px;margin-bottom:10px;"></div><div class="sk sk-ln" style="width:40%;height:8px;"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Donor Wall -->
+<section class="donors-sec">
+  <div class="container">
+    <div class="donors-header">
+      <div>
+        <div class="sec-label">Our Community of Givers</div>
+        <h2 class="sec-title" style="margin-bottom:4px;">Vanguard <em style="font-style:normal;color:var(--gold);">Donor Wall</em></h2>
+        <p style="font-size:13.5px;color:var(--muted);max-width:52ch;line-height:1.6;">Every gift — no matter the size — earns a place on this wall. Donors are honoured by tier based on total contributions to Afrovanguard.</p>
+      </div>
+      <div class="donor-filter">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All Donors</button>
+        <button class="filter-btn" data-filter="monetary" onclick="setFilter('monetary',this)">Monetary</button>
+        <button class="filter-btn" data-filter="inkind" onclick="setFilter('inkind',this)">In-Kind</button>
+      </div>
+    </div>
+
+    <!-- Tier Legend -->
+    <div class="tier-legend" role="list" aria-label="Donor tier breakdown">
+      <div class="tier-legend-item platinum" role="listitem">
+        <span class="tier-legend-icon">💎</span>
+        <span class="tier-legend-name">Platinum</span>
+        <span class="tier-legend-range">₦50M – ₦100M</span>
+      </div>
+      <div class="tier-legend-item gold" role="listitem">
+        <span class="tier-legend-icon">🥇</span>
+        <span class="tier-legend-name">Gold</span>
+        <span class="tier-legend-range">₦20M – ₦50M</span>
+      </div>
+      <div class="tier-legend-item silver" role="listitem">
+        <span class="tier-legend-icon">🥈</span>
+        <span class="tier-legend-name">Silver</span>
+        <span class="tier-legend-range">₦5M – ₦20M</span>
+      </div>
+      <div class="tier-legend-item bronze" role="listitem">
+        <span class="tier-legend-icon">🥉</span>
+        <span class="tier-legend-name">Bronze</span>
+        <span class="tier-legend-range">₦1M – ₦5M</span>
+      </div>
+      <div class="tier-legend-item patron" role="listitem">
+        <span class="tier-legend-icon">⭐</span>
+        <span class="tier-legend-name">Patron</span>
+        <span class="tier-legend-range">₦100K – ₦1M</span>
+      </div>
+      <div class="tier-legend-item friend" role="listitem">
+        <span class="tier-legend-icon">💛</span>
+        <span class="tier-legend-name">Friend</span>
+        <span class="tier-legend-range">Under ₦100K</span>
+      </div>
+    </div>
+
+    <!-- Donor Wall (grouped by tier) -->
+    <div id="donorWallRoot" aria-live="polite" aria-busy="true">
+      <!-- Skeletons -->
+      <div class="donor-grid" style="margin-bottom:40px;">
+        <div class="donor-card"><div class="sk sk-av"></div><div style="flex:1"><div class="sk sk-ln"></div><div class="sk sk-ln"></div></div></div>
+        <div class="donor-card"><div class="sk sk-av"></div><div style="flex:1"><div class="sk sk-ln"></div><div class="sk sk-ln"></div></div></div>
+        <div class="donor-card"><div class="sk sk-av"></div><div style="flex:1"><div class="sk sk-ln"></div><div class="sk sk-ln"></div></div></div>
+        <div class="donor-card"><div class="sk sk-av"></div><div style="flex:1"><div class="sk sk-ln"></div><div class="sk sk-ln"></div></div></div>
+      </div>
+    </div>
+    <div class="load-more-wrap">
+      <button class="load-more-btn" id="loadMoreBtn" onclick="loadMore()" style="display:none;">Load More Donors</button>
+    </div>
+  </div>
+</section>
+
+<!-- Admin Section -->
+<section class="admin-sec" id="adminSection">
+  <div class="container">
+    <div class="sec-label" style="color:rgba(243,180,22,.7);">Admin Access</div>
+    <h2 class="sec-title">Confirm Bank Transfers</h2>
+    <p class="sec-sub">Use this panel to record and confirm donations made via the static Zenith Bank account. The donor will be emailed a receipt and their gift will appear on the donor wall.</p>
+
+    <div class="admin-gate" id="adminGate">
+      <label for="adminToken">Admin Token</label>
+      <input type="password" class="admin-input" id="adminToken" placeholder="Enter your admin token" autocomplete="off">
+      <button class="admin-btn" id="adminLoginBtn" onclick="adminLogin()">Unlock Admin Panel</button>
+      <p style="font-size:11.5px;color:rgba(255,255,255,.3);margin-top:12px;">Token is defined in config.php as ADMIN_TOKEN.</p>
+    </div>
+
+    <div class="admin-panel" id="adminPanel">
+
+      <div class="admin-form">
+        <h3>Record Bank Transfer</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="bt_name">Full Name *</label>
+            <input type="text" class="admin-input" id="bt_name" placeholder="Tunde Johnson">
+          </div>
+          <div class="form-group">
+            <label for="bt_email">Email Address *</label>
+            <input type="email" class="admin-input" id="bt_email" placeholder="tunde@example.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="bt_amount">Amount (NGN) *</label>
+            <input type="number" class="admin-input" id="bt_amount" placeholder="50000" min="1000" oninput="updateTierPreview(this.value)">
+            <div class="tier-preview" id="tierPreview"></div>
+          </div>
+          <div class="form-group">
+            <label for="bt_campaign">Campaign *</label>
+            <select class="admin-input" id="bt_campaign">
+              <option value="general">General Fund — Where It's Needed Most</option>
+              <option value="schoolstorm">School Storm Campus Tour 2026</option>
+              <option value="s2s">Street-To-Stardom 2026 Season</option>
+              <option value="techhome">Techome Equipment Drive</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="bt_frequency">Frequency</label>
+            <select class="admin-input" id="bt_frequency">
+              <option value="One-time">One-time</option>
+              <option value="Monthly">Monthly</option>
+              <option value="Annual">Annual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="bt_anon" style="margin-bottom:14px;">Anonymous?</label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" id="bt_anon" style="width:16px;height:16px;accent-color:var(--gold);">
+              <span style="font-size:13px;color:rgba(255,255,255,.55);">Hide name on donor wall</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label for="bt_note">Internal Note (not sent to donor)</label>
+            <input type="text" class="admin-input" id="bt_note" placeholder="e.g. Transfer on 12 Mar 2026, ref: ABC123">
+          </div>
+        </div>
+        <button class="admin-btn" id="confirmBtn" onclick="confirmTransfer()">
+          <span id="confirmBtnText">Confirm &amp; Record Transfer</span>
+        </button>
+        <div class="confirm-success" id="confirmSuccess">
+          <p>✅ Transfer recorded. A receipt has been sent to the donor, and the donation is now live on the donor wall.</p>
+          <p id="confirmRef" style="font-size:11px;color:rgba(255,255,255,.4);margin-top:6px;font-family:monospace;"></p>
+        </div>
+      </div>
+
+      <div class="confirmed-list">
+        <h3>Recently Confirmed Transfers</h3>
+        <p class="recent-header">Latest 10 bank transfers confirmed via admin</p>
+        <div id="confirmedList">
+          <p style="font-size:13px;color:rgba(255,255,255,.35);">No confirmed transfers yet.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <p>© <span id="yr"></span> Afrovanguard · <a href="https://afrovanguard.org.ng/">afrovanguard.org.ng</a></p>
+  <p><a href="/cdn-cgi/l/email-protection#1a797b797f746e687f5a7b7c68756c7b747d6f7b687e3475687d34747d"><span class="__cf_email__" data-cfemail="92f1f3f1f7fce6e0f7d2f3f4e0fde4f3fcf5e7f3e0f6bcfde0f5bcfcf5">[email&#160;protected]</span></a> · <a href="tel:+2349037776318">+234 903 777 6318</a></p>
+</footer>
+
+<div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* ════════════════════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════════════════════ */
+let donorPage     = 0;
+let donorTotal    = 0;
+let currentFilter = 'all';
+let adminToken    = '';
+
+const CAMP_META = {
+  general:     { name:'Where It\'s Needed Most',     badge:'General Fund',    color:'#f3b416', goal:5000000 },
+  schoolstorm: { name:'School Storm Campus Tour 2026',badge:'Flagship Program',color:'#3b82f6', goal:3000000 },
+  s2s:         { name:'Street-To-Stardom 2026',       badge:'Street Program',  color:'#8b5cf6', goal:2500000 },
+  techhome:    { name:'Techome Equipment Drive',     badge:'Tech Education',  color:'#10b981', goal:2000000 },
+};
+
+/* ════════════════════════════════════════════════════════════
+   HELPERS
+   ════════════════════════════════════════════════════════════ */
+function fmtNGN(n) {
+  if (n >= 1e6) return '₦' + (n/1e6).toFixed(n%1e6===0?0:1).replace(/\.?0+$/,'') + 'M';
+  if (n >= 1e3) return '₦' + (n/1e3).toFixed(n%1e3===0?0:0).replace(/\.?0+$/,'') + 'k';
+  return '₦' + n.toLocaleString();
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type;
+  void t.offsetWidth;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4800);
+}
+
+/* ════════════════════════════════════════════════════════════
+   CAMPAIGNS
+   ════════════════════════════════════════════════════════════ */
+function buildCampCard(meta, raised, donors, pct) {
+  const card=document.createElement('div'); card.className='camp-card';
+  const bdg=document.createElement('div'); bdg.className='camp-badge'; bdg.style.color=meta.color; bdg.textContent=meta.badge;
+  const cnm=document.createElement('div'); cnm.className='camp-name'; cnm.textContent=meta.name;
+  const hdr=document.createElement('div'); hdr.className='camp-prog-header';
+  const rs=document.createElement('span'); rs.className='camp-prog-raised'; rs.style.color=meta.color; rs.textContent=fmtNGN(raised)+' raised';
+  const ps=document.createElement('span'); ps.className='camp-prog-pct'; ps.textContent=pct+String.fromCharCode(37)+' · Goal '+fmtNGN(meta.goal);
+  hdr.append(rs,ps);
+  const trk=document.createElement('div'); trk.className='camp-track';
+  const fil=document.createElement('div'); fil.className='camp-fill'; fil.style.background=meta.color; fil.style.setProperty('--tw',pct+'%');
+  trk.appendChild(fil);
+  const ft=document.createElement('div'); ft.className='camp-foot';
+  const ds=document.createElement('span'); ds.textContent=donors.toLocaleString()+' donors';
+  const vs=document.createElement('span'); vs.textContent='via Paystack · verified';
+  ft.append(ds,vs); card.append(bdg,cnm,hdr,trk,ft); return card;
+}
+function loadCampaigns() {
+  fetch('process-donation.php?action=get_stats')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      if (!data.success) return;
+      if (data.totals) {
+        var t=data.totals;
+        var dn=document.getElementById('totalDonors'); if(dn) dn.textContent=(t.donors||0).toLocaleString()+'+';
+        var dr=document.getElementById('totalRaised'); if(dr) dr.textContent=fmtNGN(t.raised_ngn||0);
+        var di=document.getElementById('totalInkind'); if(di) di.textContent=(t.inkind||0).toLocaleString();
+      }
+      var grid=document.getElementById('campGrid'); if(!grid||!data.campaigns) return; grid.innerHTML='';
+      Object.entries(CAMP_META).forEach(function([id,meta]){
+        var c=data.campaigns[id]||{}, raised=c.raised||0, donors=c.donors||0;
+        var pct=Math.min(Math.round((raised/meta.goal)*100),100);
+        var card=buildCampCard(meta,raised,donors,pct); grid.appendChild(card);
+        setTimeout(function(){card.querySelector('.camp-fill').classList.add('animated');},100);
+      });
+    })
+    .catch(function(){
+      var grid=document.getElementById('campGrid'); if(!grid) return; grid.innerHTML='';
+      var def={general:{raised:3250000,donors:47},schoolstorm:{raised:1820000,donors:29},s2s:{raised:980000,donors:18},techhome:{raised:560000,donors:11}};
+      Object.entries(CAMP_META).forEach(function([id,meta]){
+        var c=def[id]||{}, pct=Math.round((c.raised||0)/meta.goal*100);
+        var card=buildCampCard(meta,c.raised||0,c.donors||0,pct); grid.appendChild(card);
+        setTimeout(function(){card.querySelector('.camp-fill').classList.add('animated');},100);
+      });
+    });
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  donorPage = 0;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadDonors(true);
+}
+
+/* ── Tier system ─────────────────────────────────── */
+const TIERS = [
+  { key:'platinum', name:'Platinum', icon:'💎', range:'₦50M – ₦100M',  min:50000000,  max:Infinity,   avClass:'tier-platinum', cardClass:'tier-platinum', pillBg:'rgba(229,228,226,.18)', pillColor:'#4a5568' },
+  { key:'gold',     name:'Gold',     icon:'🥇', range:'₦20M – ₦50M',   min:20000000,  max:50000000,   avClass:'tier-gold',     cardClass:'tier-gold',     pillBg:'rgba(243,180,22,.15)',  pillColor:'var(--gold-dark)' },
+  { key:'silver',   name:'Silver',   icon:'🥈', range:'₦5M – ₦20M',    min:5000000,   max:20000000,   avClass:'tier-silver',   cardClass:'tier-silver',   pillBg:'rgba(156,163,175,.15)', pillColor:'#4b5563' },
+  { key:'bronze',   name:'Bronze',   icon:'🥉', range:'₦1M – ₦5M',     min:1000000,   max:5000000,    avClass:'tier-bronze',   cardClass:'tier-bronze',   pillBg:'rgba(180,83,9,.12)',    pillColor:'#92400e' },
+  { key:'patron',   name:'Patron',   icon:'⭐', range:'₦100K – ₦1M',   min:100000,    max:1000000,    avClass:'tier-patron',   cardClass:'tier-patron',   pillBg:'rgba(99,102,241,.12)', pillColor:'#4338ca' },
+  { key:'friend',   name:'Friend',   icon:'💛', range:'Under ₦100K',   min:0,         max:100000,     avClass:'tier-friend',   cardClass:'tier-friend',   pillBg:'rgba(34,197,94,.12)',   pillColor:'#166534' },
+];
+
+function getDonorTier(amountNGN) {
+  for (const t of TIERS) {
+    if (amountNGN >= t.min && amountNGN < t.max) return t;
+    if (t.min === 50000000 && amountNGN >= 50000000) return t;
+  }
+  return TIERS[TIERS.length - 1];
+}
+
+function parseDonorAmount(d) {
+  // Try to extract numeric amount from display string or use raw amount
+  if (d.amount_raw) return parseFloat(d.amount_raw);
+  if (d.amount_ngn) return parseFloat(d.amount_ngn);
+  const display = d.amount_display || '';
+  const match = display.match(/[\d,]+(\.\d+)?/);
+  if (!match) return 0;
+  let n = parseFloat(match[0].replace(/,/g,''));
+  if (display.includes('M')) n *= 1000000;
+  else if (display.includes('k') || display.includes('K')) n *= 1000;
+  return n;
+}
+
+function buildDonorCard(d) {
+  const isInk = d.type === 'inkind';
+  const amtNGN = parseDonorAmount(d);
+  const tier = isInk ? null : getDonorTier(amtNGN);
+
+  const card = document.createElement('div');
+  card.className = 'donor-card' + (tier ? ' ' + tier.cardClass : '');
+
+  // Avatar
+  const av = document.createElement('div');
+  av.className = 'donor-av' + (isInk ? ' inkind' : (tier ? ' ' + tier.avClass : ''));
+  av.textContent = (d.initials || '??').substring(0, 2).toUpperCase();
+  if (tier) {
+    const avBadge = document.createElement('span');
+    avBadge.className = 'donor-av-tier';
+    avBadge.textContent = tier.icon;
+    av.appendChild(avBadge);
+  }
+
+  // Info
+  const info = document.createElement('div');
+  info.style.cssText = 'min-width:0;flex:1;';
+
+  const nm = document.createElement('div');
+  nm.className = 'donor-name';
+  nm.textContent = d.name || 'Donor';
+
+  const am = document.createElement('div');
+  am.className = 'donor-amt' + (isInk ? ' inkind' : '');
+  am.textContent = d.amount_display || '';
+
+  const tm = document.createElement('div');
+  tm.className = 'donor-time';
+  tm.textContent = d.time_ago || '';
+
+  info.append(nm, am, tm);
+  card.append(av, info);
+  return card;
+}
+
+function buildTierGroup(tier, donors) {
+  if (!donors.length) return null;
+  const group = document.createElement('div');
+  group.className = 'tier-group tier-' + tier.key;
+
+  const hdr = document.createElement('div');
+  hdr.className = 'tier-group-header';
+  hdr.innerHTML = `
+    <span class="tier-group-icon" aria-hidden="true">${tier.icon}</span>
+    <span class="tier-group-title">${tier.name}</span>
+    <span class="tier-group-badge">${tier.range}</span>
+    <span class="tier-group-count">${donors.length} donor${donors.length !== 1 ? 's' : ''}</span>
+  `;
+
+  const grid = document.createElement('div');
+  grid.className = 'donor-grid';
+
+  if (tier.key === 'platinum') {
+    // Platinum gets spotlight treatment
+    const spotlight = document.createElement('div');
+    spotlight.className = 'platinum-spotlight';
+    spotlight.innerHTML = `<div class="platinum-spotlight-label">💎 Platinum Circle — Our Most Generous Supporters</div>
+      <div class="platinum-spotlight-grid" id="platinumGrid"></div>`;
+    group.append(hdr, spotlight);
+
+    const platGrid = spotlight.querySelector('#platinumGrid');
+    donors.forEach(d => {
+      const pCard = document.createElement('div');
+      pCard.className = 'platinum-card';
+      pCard.innerHTML = `
+        <div class="platinum-av">${(d.initials||'??').substring(0,2).toUpperCase()}</div>
+        <div>
+          <div class="platinum-name">${d.name || 'Donor'}</div>
+          <div class="platinum-amt">${d.amount_display || ''}</div>
+          <div class="platinum-badge">Platinum Donor · ${d.time_ago || ''}</div>
+        </div>
+      `;
+      platGrid.appendChild(pCard);
+    });
+    return group;
+  }
+
+  donors.forEach(d => grid.appendChild(buildDonorCard(d)));
+  group.append(hdr, grid);
+  return group;
+}
+
+function renderTieredDonors(donors) {
+  const root = document.getElementById('donorWallRoot');
+  if (!root) return;
+  root.innerHTML = '';
+  root.setAttribute('aria-busy', 'false');
+
+  if (!donors || !donors.length) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'color:var(--muted);padding:32px 0;font-size:14px;text-align:center;';
+    empty.textContent = 'No donors yet — be the first!';
+    root.appendChild(empty);
+    return;
+  }
+
+  // Group by tier
+  const grouped = {};
+  TIERS.forEach(t => { grouped[t.key] = []; });
+  donors.forEach(d => {
+    if (d.type === 'inkind') {
+      grouped['friend'] = grouped['friend'] || [];
+      grouped['friend'].push(d);
+      return;
+    }
+    const amt = parseDonorAmount(d);
+    const tier = getDonorTier(amt);
+    if (!grouped[tier.key]) grouped[tier.key] = [];
+    grouped[tier.key].push(d);
+  });
+
+  TIERS.forEach(tier => {
+    const group = buildTierGroup(tier, grouped[tier.key] || []);
+    if (group) root.appendChild(group);
+  });
+
+  // Animate in
+  root.querySelectorAll('.donor-card, .platinum-card').forEach((card, i) => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(12px)';
+    setTimeout(() => {
+      card.style.transition = 'opacity .4s ease, transform .4s ease';
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+    }, 40 + i * 18);
+  });
+}
+
+function loadDonors(reset) {
+  if (reset) donorPage = 0;
+  const root = document.getElementById('donorWallRoot');
+  if (reset && root) {
+    root.setAttribute('aria-busy', 'true');
+    root.innerHTML = '<div class="donor-grid" style="margin-bottom:40px;">'
+      + Array(4).fill('<div class="donor-card"><div class="sk sk-av"></div><div style="flex:1"><div class="sk sk-ln"></div><div class="sk sk-ln"></div></div></div>').join('')
+      + '</div>';
+  }
+  fetch('process-donation.php?action=get_donors&limit=50&page=' + donorPage + '&type=' + currentFilter)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      if (reset) { renderTieredDonors(data.success ? data.donors : []); }
+      else {
+        // append mode — re-render all with existing + new
+        if (data.success && data.donors) {
+          const existing = Array.from(document.querySelectorAll('[data-donor-id]')).map(el => el._donorData).filter(Boolean);
+          renderTieredDonors([...existing, ...data.donors]);
+        }
+      }
+      donorTotal = data.total || 0;
+      donorPage++;
+      const btn = document.getElementById('loadMoreBtn');
+      if (btn) btn.style.display = (donorPage * 50 < donorTotal) ? 'inline-block' : 'none';
+    })
+    .catch(function(err){
+      console.error('[Dashboard] get_donors:', err.message);
+      if (reset && root) { root.innerHTML = '<p style="color:var(--muted);padding:32px 0;font-size:14px;">Could not load donors. Please refresh.</p>'; }
+    });
+}
+
+function loadMore() { loadDonors(false); }
+
+/* ════════════════════════════════════════════════════════════
+   ADMIN
+   ════════════════════════════════════════════════════════════ */
+async function adminLogin() {
+  const token = document.getElementById('adminToken').value.trim();
+  if (!token) { showToast('Please enter your admin token', 'error'); return; }
+  const btn = document.getElementById('adminLoginBtn');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  try {
+    const r = await fetch('process-donation.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify_admin_token', admin_token: token })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!data.success) {
+      showToast('Incorrect token. Access denied.', 'error');
+      document.getElementById('adminToken').value = '';
+      btn.disabled = false; btn.textContent = 'Unlock Admin Panel'; return;
+    }
+  } catch(e) {
+    showToast('Network error. Please try again.', 'error');
+    btn.disabled = false; btn.textContent = 'Unlock Admin Panel'; return;
+  }
+  adminToken = token;
+  document.getElementById('adminToken').value = '';
+  document.getElementById('adminGate').style.display = 'none';
+  document.getElementById('adminPanel').classList.add('open');
+  loadConfirmedTransfers();
+  btn.disabled = false; btn.textContent = 'Unlock Admin Panel';
+  showToast('Admin panel unlocked', 'success');
+}
+
+function confirmTransfer() {
+  const name     = document.getElementById('bt_name').value.trim();
+  const email    = document.getElementById('bt_email').value.trim();
+  const amount   = parseFloat(document.getElementById('bt_amount').value);
+  const campaign = document.getElementById('bt_campaign').value;
+  const freq     = document.getElementById('bt_frequency').value;
+  const anon     = document.getElementById('bt_anon').checked;
+
+  if (!name)                { showToast('Please enter the donor\'s full name', 'error'); return; }
+  if (!email || !/\S+@\S+\.\S+/.test(email)) { showToast('Please enter a valid email address', 'error'); return; }
+  if (!amount || amount < 1000) { showToast('Minimum transfer amount is ₦1,000', 'error'); return; }
+
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true;
+  document.getElementById('confirmBtnText').textContent = 'Recording…';
+
+  fetch('process-donation.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action:       'record_bank_transfer',
+      admin_token:  adminToken,
+      name,
+      email,
+      amount,
+      campaign,
+      frequency:    freq,
+      anonymous:    anon,
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    document.getElementById('confirmBtnText').innerHTML = 'Confirm &amp; Record Transfer';
+    if (data.success) {
+      const tier = dbGetTier(amount);
+      document.getElementById('confirmSuccess').style.display = 'block';
+      document.getElementById('confirmRef').textContent = 'Reference: ' + (data.reference||'—') + '  ·  ' + tier.icon + ' ' + tier.name + ' Donor';
+      // Clear form
+      ['bt_name','bt_email','bt_amount','bt_note'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.value = '';
+      });
+      document.getElementById('bt_anon').checked = false;
+      const preview = document.getElementById('tierPreview'); if(preview) preview.className = 'tier-preview';
+      showToast('✅ Transfer confirmed — receipt emailed. ' + tier.icon + ' ' + tier.name + ' donor added.', 'success');
+      // Refresh lists
+      loadDonors(true);
+      loadCampaigns();
+      loadConfirmedTransfers();
+      setTimeout(() => { document.getElementById('confirmSuccess').style.display = 'none'; }, 6000);
+    } else {
+      if (data.message && data.message.includes('Unauthorized')) {
+        showToast('Incorrect admin token — please refresh and try again.', 'error');
+        document.getElementById('adminPanel').classList.remove('open');
+        document.getElementById('adminGate').style.display = 'block';
+      } else {
+        showToast(data.message || 'Failed to record transfer. Please try again.', 'error');
+      }
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    document.getElementById('confirmBtnText').innerHTML = 'Confirm &amp; Record Transfer';
+    showToast('Network error. Please check your connection.', 'error');
+  });
+}
+
+/* ════════════════════════════════════════════════════════════
+   TIER HELPERS (mirrors donate.html logic)
+   ════════════════════════════════════════════════════════════ */
+const DB_TIERS = [
+  { key:'platinum', name:'Platinum', icon:'💎', min:50000000, pillBg:'rgba(154,165,180,.18)', pillColor:'#9aa5b4' },
+  { key:'gold',     name:'Gold',     icon:'🥇', min:20000000, pillBg:'rgba(243,180,22,.15)',  pillColor:'var(--gold)' },
+  { key:'silver',   name:'Silver',   icon:'🥈', min:5000000,  pillBg:'rgba(156,163,175,.15)', pillColor:'#9ca3af' },
+  { key:'bronze',   name:'Bronze',   icon:'🥉', min:1000000,  pillBg:'rgba(180,83,9,.12)',    pillColor:'#b45309' },
+  { key:'patron',   name:'Patron',   icon:'⭐', min:100000,   pillBg:'rgba(99,102,241,.12)',  pillColor:'#818cf8' },
+  { key:'friend',   name:'Friend',   icon:'💛', min:0,        pillBg:'rgba(34,197,94,.10)',   pillColor:'#4ade80' },
+];
+
+function dbGetTier(ngn) {
+  for (const t of DB_TIERS) { if (ngn >= t.min) return t; }
+  return DB_TIERS[DB_TIERS.length - 1];
+}
+
+function dbParseAmount(d) {
+  if (d.amount_raw) return parseFloat(d.amount_raw);
+  if (d.amount_ngn) return parseFloat(d.amount_ngn);
+  const s = (d.amount_display || '').replace(/,/g,'');
+  const m = s.match(/[\d.]+/);
+  if (!m) return 0;
+  let n = parseFloat(m[0]);
+  if (s.includes('M')) n *= 1e6;
+  else if (/k/i.test(s)) n *= 1e3;
+  return n;
+}
+
+function updateTierPreview(val) {
+  const preview = document.getElementById('tierPreview');
+  if (!preview) return;
+  const amt = parseFloat(val) || 0;
+  if (amt < 100) { preview.className = 'tier-preview'; return; }
+  const tier = dbGetTier(amt);
+  preview.className = 'tier-preview visible';
+  preview.style.background = tier.pillBg;
+  preview.style.borderColor = tier.pillColor;
+  preview.style.color = tier.pillColor;
+  preview.innerHTML = `${tier.icon} This donor will receive <strong style="margin-left:3px;">${tier.name} status</strong>`;
+}
+
+function loadConfirmedTransfers() {
+  fetch('process-donation.php?action=get_donors&limit=10&type=monetary')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      var list=document.getElementById('confirmedList'); if(!list) return;
+      var bank=(data.donors||[]).filter(function(d){return d.type==='bank_static'||d.type==='bank_va';});
+      if(!bank.length){list.innerHTML='<p style="font-size:13px;color:rgba(255,255,255,.35);">No bank transfers confirmed yet.</p>';return;}
+      list.innerHTML='';
+      bank.forEach(function(d){
+        var amt = dbParseAmount(d);
+        var tier = dbGetTier(amt);
+        var item=document.createElement('div'); item.className='confirmed-item';
+        var left=document.createElement('div'); left.className='ci-left';
+        var nm=document.createElement('div'); nm.className='ci-name'; nm.textContent=d.name||'Anonymous';
+        var det=document.createElement('div'); det.className='ci-detail'; det.textContent=(d.campaign||'general')+' · '+(d.time_ago||'—');
+        var tp=document.createElement('span'); tp.className='ci-tier-pill';
+        tp.style.background=tier.pillBg; tp.style.color=tier.pillColor;
+        tp.textContent=tier.icon+' '+tier.name;
+        left.append(nm,det,tp);
+        var right=document.createElement('div'); right.style.textAlign='right';
+        var am=document.createElement('div'); am.className='ci-amount'; am.textContent=d.amount_display||'—';
+        right.appendChild(am); item.append(left,right); list.appendChild(item);
+      });
+    })
+    .catch(function(err){console.error('[Dashboard] loadConfirmedTransfers:',err.message);});
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   INIT
+   ════════════════════════════════════════════════════════════ */
+document.getElementById('yr').textContent = new Date().getFullYear();
+loadCampaigns();
+loadDonors(true);
+
+// Allow Enter key in admin token field
+var tokenInput = document.getElementById('adminToken');
+if (tokenInput) {
+  tokenInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') adminLogin();
+  });
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en-NG">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title id="pg-title">Member Profile — Afrovanguard</title>
+<meta name="description" id="pg-desc" content="Member profile — Afrovanguard leadership movement."/>
+<meta name="theme-color" content="#f3b416"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+/* ═══════════════════════════════════════════════════════
+   TOKENS
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --gold:#f3b416;--gd:#d49a0e;--gdp:#b07e08;
+  --g10:rgba(243,180,22,.10);--g18:rgba(243,180,22,.18);
+  --ink:#111827;--ink-b:#374151;--ink-m:#6B7280;--ink-s:#9CA3AF;
+  --bg:#F9FAFB;--bg-w:#FDFCF8;
+  --dk:#0d1220;--dk2:#111827;--dk3:#1F2937;--foot:#0A0F1A;
+  --white:#fff;--div:#E5E7EB;--div-dk:rgba(255,255,255,.07);
+  --fh:'Cormorant',Georgia,serif;--fb:'Montserrat',-apple-system,sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.56,.64,1);
+  --tf:.18s;--tb:.32s;
+  --sh-md:0 4px 16px rgba(17,24,39,.09);--sh-lg:0 12px 40px rgba(17,24,39,.13);
+  --r4:6px;--r6:10px;--r8:14px;--r12:20px;--rf:9999px;
+  --W:1200px;
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;overflow-x:hidden;-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);background:var(--dk);color:rgba(255,255,255,.7);line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh}
+a{color:var(--gold);text-decoration:none;transition:color var(--tf)}
+img{max-width:100%;display:block;height:auto}
+button{font-family:var(--fb)}
+::selection{background:var(--gold);color:#fff}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--gold);border-radius:99px}
+:focus-visible{outline:3px solid #1D4ED8;outline-offset:3px;border-radius:4px}
+.skip{position:absolute;top:-100%;left:16px;z-index:9999;background:#1D4ED8;color:#fff;font-size:14px;font-weight:600;padding:10px 18px;border-radius:6px;transition:top .15s}
+.skip:focus{top:16px}
+.W{width:100%;max-width:var(--W);margin:0 auto;padding:0 24px}
+@media(max-width:640px){.W{padding:0 16px}}
+
+/* ═══════════════════════════════════════════════════════
+   NAV
+   ═══════════════════════════════════════════════════════ */
+.site-header{position:sticky;top:0;z-index:160;background:var(--dk);border-bottom:1px solid var(--div-dk);transition:border-color .3s,box-shadow .3s}
+.site-header.scrolled{border-color:rgba(255,255,255,.12);box-shadow:0 4px 40px rgba(0,0,0,.55)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px;gap:24px}
+.nav-logo{text-decoration:none;flex-shrink:0;display:flex;align-items:center;gap:8px}
+.nav-logo-mark{font-family:var(--fb);font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1}
+.nav-logo-mark .afro{color:#fff}.nav-logo-mark .van{color:var(--gold)}
+.nav-badge{font-family:var(--fb);font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--dk);background:var(--gold);padding:2px 8px;border-radius:99px;position:relative;top:-1px}
+.nav-back{font-family:var(--fb);font-size:13px;font-weight:700;color:rgba(255,255,255,.55);display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border:1.5px solid rgba(255,255,255,.1);border-radius:var(--rf);transition:all .18s}
+.nav-back:hover{border-color:rgba(255,255,255,.3);color:#fff}
+.nav-back svg{width:13px;height:13px}
+
+/* ═══════════════════════════════════════════════════════
+   LOADING / ERROR STATES
+   ═══════════════════════════════════════════════════════ */
+.page-state{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 24px}
+.page-state.hidden{display:none}
+.spinner{width:52px;height:52px;border:3px solid rgba(243,180,22,.15);border-top-color:var(--gold);border-radius:50%;animation:spin .75s linear infinite;margin-bottom:24px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.state-title{font-family:var(--fh);font-size:clamp(22px,3vw,32px);font-weight:600;color:rgba(255,255,255,.55);margin-bottom:10px}
+.state-sub{font-size:13px;color:rgba(255,255,255,.28);margin-bottom:24px}
+.state-btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--fb);font-size:13px;font-weight:700;padding:10px 24px;border-radius:var(--rf);background:rgba(243,180,22,.1);border:1.5px solid rgba(243,180,22,.28);color:var(--gold);cursor:pointer;transition:all .18s}
+.state-btn:hover{background:rgba(243,180,22,.2);border-color:var(--gold)}
+.err-ico{font-size:44px;margin-bottom:16px;line-height:1}
+
+/* ═══════════════════════════════════════════════════════
+   PROFILE — HERO SECTION
+   ═══════════════════════════════════════════════════════ */
+#profile-page{display:none}
+#profile-page.show{display:block}
+
+.pf-hero{position:relative;width:100%;min-height:clamp(380px,50vh,580px);overflow:hidden;display:flex;align-items:flex-end;background:#07090f}
+.pf-hero-bg{position:absolute;inset:0;background-size:cover;background-position:center 25%;filter:brightness(.45);transition:opacity .6s}
+.pf-hero-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--fh);font-size:clamp(80px,15vw,160px);font-weight:700}
+.pf-hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,var(--dk) 0%,rgba(7,9,15,.7) 30%,rgba(7,9,15,.25) 60%,transparent 100%),linear-gradient(110deg,rgba(7,9,15,.9) 0%,transparent 55%)}
+.pf-hero-accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(to bottom,transparent,rgba(243,180,22,.9) 30%,rgba(243,180,22,.55) 70%,transparent)}
+.pf-hero-content{position:relative;z-index:2;width:100%;padding:clamp(80px,12vw,140px) 0 clamp(48px,6vw,80px)}
+
+.pf-breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:rgba(255,255,255,.3);margin-bottom:24px;flex-wrap:wrap}
+.pf-breadcrumb a{color:rgba(255,255,255,.3)}.pf-breadcrumb a:hover{color:var(--gold)}
+.pf-breadcrumb sep{color:rgba(255,255,255,.15);margin:0 2px}
+
+.pf-prefix-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--fb);font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
+.pf-prefix-badge::before{content:'';width:24px;height:2px;background:var(--gold)}
+
+.pf-name{font-family:var(--fh);font-size:clamp(32px,6vw,68px);font-weight:700;color:#fff;line-height:1;letter-spacing:-.01em;margin-bottom:10px}
+.pf-role{font-size:clamp(13px,1.5vw,16px);font-weight:600;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.pf-role::before{content:'';width:22px;height:2px;background:var(--gold);flex-shrink:0}
+
+.pf-tier-pill{display:inline-flex;align-items:center;font-family:var(--fb);font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;padding:5px 14px;border-radius:var(--rf)}
+.pt-lead{background:rgba(243,180,22,.12);color:#f3b416;border:1px solid rgba(243,180,22,.3)}
+.pt-dir{background:rgba(251,191,36,.08);color:#fcd34d;border:1px solid rgba(251,191,36,.22)}
+.pt-patron{background:rgba(168,85,247,.1);color:#d8b4fe;border:1px solid rgba(168,85,247,.2)}
+.pt-ngv{background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.28)}
+.pt-ngg{background:rgba(20,184,166,.12);color:#5eead4;border:1px solid rgba(20,184,166,.28)}
+.pt-vol{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.28)}
+.pf-ops-badge{display:inline-flex;align-items:center;font-family:var(--fb);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:var(--rf);background:rgba(99,102,241,.1);color:#a5b4fc;border:1px solid rgba(99,102,241,.2);margin-left:8px;vertical-align:middle}
+
+.pf-hero-meta{display:flex;gap:20px;flex-wrap:wrap;margin-top:20px}
+.pf-hm-item{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:rgba(255,255,255,.35)}
+.pf-hm-item svg{width:12px;height:12px;color:var(--gold);flex-shrink:0}
+
+/* ═══════════════════════════════════════════════════════
+   PROFILE BODY
+   ═══════════════════════════════════════════════════════ */
+.pf-body{background:var(--dk);padding:clamp(48px,6vw,88px) 0;position:relative}
+.pf-body::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(to right,transparent,rgba(243,180,22,.2),transparent)}
+.pf-layout{display:grid;grid-template-columns:1fr 340px;gap:48px;align-items:start}
+@media(max-width:900px){.pf-layout{grid-template-columns:1fr}}
+
+/* Bio */
+.pf-bio-section{}
+.pf-section-label{font-family:var(--fb);font-size:9.5px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.pf-section-label::after{content:'';flex:1;height:1px;background:rgba(243,180,22,.15)}
+.pf-bio-text{font-size:clamp(14px,1.5vw,16px);line-height:1.88;color:rgba(255,255,255,.65);max-width:68ch;margin-bottom:36px}
+
+/* Achievements */
+.pf-ach-list{display:flex;flex-direction:column;gap:10px;margin-bottom:36px}
+.pf-ach-item{display:flex;align-items:flex-start;gap:12px;font-size:14px;line-height:1.6;color:rgba(255,255,255,.58);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:var(--r6);padding:14px 16px;transition:border-color .2s,background .2s}
+.pf-ach-item:hover{border-color:rgba(243,180,22,.18);background:rgba(243,180,22,.04)}
+.pf-ach-ico{color:var(--gold);font-size:12px;flex-shrink:0;margin-top:2px}
+
+/* Projects */
+.pf-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:36px}
+.pf-tag{font-family:var(--fb);font-size:12px;font-weight:700;color:rgba(255,255,255,.55);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:6px 16px;border-radius:var(--rf);transition:all .18s}
+.pf-tag:hover{border-color:rgba(243,180,22,.3);color:rgba(255,255,255,.85);background:rgba(243,180,22,.06)}
+
+/* Social links */
+.pf-socials{display:flex;flex-wrap:wrap;gap:8px}
+.pf-soc-link{display:inline-flex;align-items:center;gap:8px;font-family:var(--fb);font-size:12.5px;font-weight:700;color:rgba(255,255,255,.55);background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);padding:10px 20px;border-radius:var(--rf);text-decoration:none;transition:all .18s}
+.pf-soc-link:hover{border-color:rgba(243,180,22,.4);background:rgba(243,180,22,.08);color:var(--gold)}
+.pf-soc-link svg{width:13px;height:13px;fill:currentColor;flex-shrink:0}
+
+/* Sidebar card */
+.pf-sidebar{}
+.pf-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:var(--r12);overflow:hidden;margin-bottom:20px;transition:border-color .2s}
+.pf-card:hover{border-color:rgba(243,180,22,.15)}
+.pf-card-head{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.06);font-family:var(--fb);font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.28)}
+.pf-card-body{padding:16px 20px}
+.pf-meta-item{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.pf-meta-item:last-child{border-bottom:none}
+.pf-meta-lbl{font-size:9px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.25)}
+.pf-meta-val{font-size:14px;font-weight:600;color:rgba(255,255,255,.7)}
+
+/* CTA card */
+.pf-cta-card{background:linear-gradient(135deg,rgba(243,180,22,.1) 0%,rgba(243,180,22,.04) 100%);border:1px solid rgba(243,180,22,.2);border-radius:var(--r12);padding:24px;text-align:center}
+.pf-cta-card p{font-size:13px;color:rgba(255,255,255,.45);line-height:1.65;margin-bottom:16px}
+.pf-cta-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%;font-family:var(--fb);font-size:13px;font-weight:700;padding:12px 20px;border-radius:var(--rf);background:var(--gold);color:var(--ink);text-decoration:none;transition:all .18s;border:none;cursor:pointer}
+.pf-cta-btn:hover{background:var(--gd);transform:translateY(-1px);color:var(--ink)}
+.pf-cta-ghost{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%;font-family:var(--fb);font-size:12.5px;font-weight:700;padding:10px 20px;border-radius:var(--rf);background:transparent;color:rgba(255,255,255,.5);text-decoration:none;border:1.5px solid rgba(255,255,255,.12);margin-top:8px;transition:all .18s}
+.pf-cta-ghost:hover{border-color:rgba(255,255,255,.28);color:#fff}
+
+/* ═══════════════════════════════════════════════════════
+   FOOTER (minimal)
+   ═══════════════════════════════════════════════════════ */
+.pf-footer{background:var(--foot);border-top:1px solid rgba(255,255,255,.05);padding:24px 0}
+.pf-footer-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.pf-f-brand{font-family:var(--fb);font-size:14px;font-weight:800}
+.pf-f-brand .a{color:#fff}.pf-f-brand .v{color:var(--gold)}
+.pf-f-legal{font-size:11.5px;color:rgba(255,255,255,.22)}
+
+/* ═══════════════════════════════════════════════════════
+   ANIMATE IN
+   ═══════════════════════════════════════════════════════ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.au{animation:fadeUp .6s var(--ease) both}
+.au1{animation-delay:.05s}.au2{animation-delay:.12s}.au3{animation-delay:.2s}.au4{animation-delay:.28s}.au5{animation-delay:.36s}
+</style>
+</head>
+<body>
+<a href="#main" class="skip">Skip to main content</a>
+
+<!-- NAV -->
+<header class="site-header" id="siteheader" role="banner">
+  <div class="W">
+    <div class="nav-inner">
+      <a href="https://afrovanguard.org.ng/" class="nav-logo" aria-label="Afrovanguard Home">
+        <span class="nav-logo-mark"><span class="afro">AFRO</span><span class="van">VANGUARD</span></span>
+        <span class="nav-badge">.ORG.NG</span>
+      </a>
+      <a href="about.html#our-people" class="nav-back" id="back-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        Back to Team
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- LOADING STATE -->
+  <div class="page-state" id="st-load" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="state-title">Loading profile…</p>
+    <p class="state-sub">Fetching from Afrovanguard directory</p>
+  </div>
+
+  <!-- ERROR STATE -->
+  <div class="page-state hidden" id="st-err" role="alert">
+    <div class="err-ico" aria-hidden="true">⚠</div>
+    <p class="state-title">Profile not found</p>
+    <p class="state-sub" id="err-msg">This member profile could not be loaded. Check your connection or return to the team directory.</p>
+    <a href="about.html#our-people" class="state-btn">← Back to Team</a>
+  </div>
+
+  <!-- PROFILE PAGE -->
+  <div id="profile-page" aria-label="Member profile">
+
+    <!-- HERO -->
+    <div class="pf-hero" id="pf-hero">
+      <div class="pf-hero-bg" id="pf-bg" role="img" aria-label="" style="opacity:0"></div>
+      <div class="pf-hero-placeholder" id="pf-ph" aria-hidden="true"></div>
+      <div class="pf-hero-overlay" aria-hidden="true"></div>
+      <div class="pf-hero-accent" aria-hidden="true"></div>
+      <div class="pf-hero-content">
+        <div class="W">
+          <nav class="pf-breadcrumb" aria-label="Breadcrumb">
+            <a href="https://afrovanguard.org.ng/">Home</a>
+            <sep aria-hidden="true">&rsaquo;</sep>
+            <a href="about.html#our-people">Team</a>
+            <sep aria-hidden="true">&rsaquo;</sep>
+            <span id="bc-name">Profile</span>
+          </nav>
+          <p class="pf-prefix-badge au" id="pf-prefix">Van.</p>
+          <h1 class="pf-name au au1" id="pf-name">Loading…</h1>
+          <p class="pf-role au au2" id="pf-role"></p>
+          <span class="pf-tier-pill au au3" id="pf-pill"></span>
+          <div class="pf-hero-meta au au4" id="pf-hmeta"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <section class="pf-body">
+      <div class="W">
+        <div class="pf-layout">
+
+          <!-- Main column -->
+          <div class="au au1">
+
+            <!-- Bio -->
+            <div id="bio-section">
+              <p class="pf-section-label">About</p>
+              <p class="pf-bio-text" id="pf-bio"></p>
+            </div>
+
+            <!-- Achievements -->
+            <div id="ach-section" style="display:none">
+              <p class="pf-section-label">Achievements</p>
+              <div class="pf-ach-list" id="pf-ach"></div>
+            </div>
+
+            <!-- Projects -->
+            <div id="proj-section" style="display:none">
+              <p class="pf-section-label">Projects &amp; Contributions</p>
+              <div class="pf-tags" id="pf-tags"></div>
+            </div>
+
+            <!-- Socials -->
+            <div id="soc-section" style="display:none">
+              <p class="pf-section-label">Connect</p>
+              <div class="pf-socials" id="pf-socs"></div>
+            </div>
+
+          </div>
+
+          <!-- Sidebar -->
+          <aside class="pf-sidebar au au2" aria-label="Member details">
+            <div class="pf-card">
+              <div class="pf-card-head">Details</div>
+              <div class="pf-card-body" id="pf-details">
+                <div class="pf-meta-item"><div class="pf-meta-lbl">Location</div><div class="pf-meta-val" id="d-loc">—</div></div>
+                <div class="pf-meta-item"><div class="pf-meta-lbl">Group</div><div class="pf-meta-val" id="d-grp">—</div></div>
+                <div class="pf-meta-item"><div class="pf-meta-lbl">Member Since</div><div class="pf-meta-val" id="d-since">—</div></div>
+                <div class="pf-meta-item"><div class="pf-meta-lbl">Focus Area</div><div class="pf-meta-val" id="d-focus">—</div></div>
+              </div>
+            </div>
+
+            <div class="pf-cta-card">
+              <p>Inspired by this Vanguard? Join the movement and help raise Africa's next generation of leaders.</p>
+              <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="pf-cta-btn">
+                Become a Vanguard
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </a>
+              <a href="about.html#our-people" class="pf-cta-ghost">← View All Members</a>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer class="pf-footer" role="contentinfo">
+  <div class="W">
+    <div class="pf-footer-inner">
+      <span class="pf-f-brand"><span class="a">AFRO</span><span class="v">VANGUARD</span></span>
+      <span class="pf-f-legal">© 2026 Afrovanguard. Raising 1 Million Incorruptible Leaders.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   CONFIG  —  keep in sync with about.html
+   ═══════════════════════════════════════════════════════
+   SETUP REQUIRED (H-03):
+     1. Deploy Code.gs as a Web App in Google Apps Script
+     2. Paste the deployment URL below (replace YOUR_DEPLOYMENT_ID)
+     3. Also paste it in api.php (GAS_ENDPOINT) and about.html
+     4. Set USE_DEMO = false  when GAS is live
+   ═══════════════════════════════════════════════════════ */
+var USE_PHP  = true;   // true = routes through api.php (recommended for production)
+var PHP_API  = '/api.php';
+var API_URL  = 'https://script.google.com/macros/s/AKfycbxg7TgQJAdn9ngEyjOXU2YvdEVHE1xpR3HShzJiNEh6qU2ESdOXUKHgzkX08JXpqS_F0g/exec'; // fallback only
+var USE_DEMO = false;   // ← Set to false once GAS is deployed and GAS_ENDPOINT is set in api.php
+var FETCH_TIMEOUT_MS = 10000;
+
+/* ═══════════════════════════════════════════════════════
+   DEMO DATA  —  must mirror about.html DEMO exactly
+   ═══════════════════════════════════════════════════════ */
+var DEMO_MEMBERS = [
+  { id:1, featured:true, tier:'management', name:'Babatunde Adeola', role:'President & Founder',
+    tagline:'Architect of the movement — building leaders who build Africa.',
+    bio:'Babatunde Oluwaseyi Just-Joe Adeola founded Afrovanguard with a singular conviction: Africa\'s greatest deficit is not resources but incorruptible leadership. A visionary social entrepreneur, he has guided the organisation from a single programme in Alimosho to a multi-programme movement touching thousands of lives.',
+    location:'Alimosho, Lagos', team:'Executive Management', since:'2018', focus:'Strategy & Vision',
+    operations:false, photo:'',
+    achievements:['Founded Afrovanguard in 2018, growing it from zero to 5,000+ beneficiaries','Architected 8 flagship programmes now active across Nigeria','Secured 10+ national and international partnerships'],
+    projects:['Street-To-Stardom','Africa GATES','Techome','Afrovanguard Academy'], socials:{ li:'https://linkedin.com/company/afrovanguard', tw:'https://x.com/afrovanguard', email:'' } },
+  { id:2, featured:true, tier:'management', name:'Oluwaseun Eleyinmi', role:'Director of Communications',
+    tagline:'Crafting the narrative that amplifies our mission globally.',
+    bio:'Seun leads Afrovanguard\'s entire digital storytelling strategy — from social media to brand identity. He has transformed the organisation\'s digital presence into one of Nigeria\'s most purposeful youth NGO platforms.',
+    location:'Alimosho, Lagos', team:'Executive Management', since:'2019', focus:'Brand & Digital',
+    operations:true, photo:'',
+    achievements:['Grew social media reach by 400% in 24 months','Led brand redesign positioning Afrovanguard as a premium NGO'],
+    projects:['MediaPro','Brand Identity','Content Systems'], socials:{ li:'', tw:'', email:'' } },
+  { id:3, featured:true, tier:'director', name:'Adaeze Nwosu', role:'Director of Programmes',
+    tagline:'Turning vision into measurable impact on the ground.',
+    location:'Alimosho, Lagos', team:'Executive Directors', since:'2020', focus:'Programme Delivery',
+    operations:false, photo:'',
+    bio:'Adaeze oversees the day-to-day execution of all programmes, ensuring quality, reach, and accountability. Her systems thinking has transformed how Afrovanguard scales its impact across every initiative.',
+    achievements:['Scaled Afrovanguard\'s programme reach to 12 new schools','Built the M&E framework used across all programmes'],
+    projects:['Afrovanguard Academy','Career Hub','Africa GATES'], socials:{ li:'', tw:'', email:'' } },
+  { id:4, featured:false, tier:'director', name:'Chukwuemeka Obi', role:'Director of Technology',
+    tagline:'Building the digital infrastructure Africa deserves.',
+    location:'Alimosho, Lagos', team:'Executive Directors', since:'2020', focus:'Tech & Systems',
+    operations:true, photo:'',
+    bio:'Emeka leads all technology initiatives including Techome, the organisation\'s digital platforms, and internal systems. He is the architect behind every tool that keeps the movement running.',
+    achievements:['Built Techome curriculum from scratch','Trained 200+ youth in software development'],
+    projects:['Techome','Digital Infrastructure','MediaPro'], socials:{ li:'', tw:'', email:'' } },
+  { id:5, featured:false, tier:'patron', name:'Dr. Funmilayo Osei', role:'Patron',
+    tagline:'Championing the cause of youth and faith-led transformation across West Africa.',
+    location:'Lagos, Nigeria', team:'Patrons', since:'2021', focus:'Advocacy & Partnerships',
+    operations:false, photo:'',
+    bio:'Dr. Osei has been a committed advocate and supporter of Afrovanguard\'s work since 2021, lending her voice, network, and resources to advance the mission of raising incorruptible leaders.',
+    achievements:['Facilitated key strategic partnerships in 2022','Keynote speaker at Afrovanguard Leadership Summit 2023'],
+    projects:['Africa GATES','Kingdom Advancement Project'], socials:{ li:'', tw:'', email:'' } },
+  { id:6, featured:false, tier:'ngv', name:'Fatimah Bello', role:'Community Relations Lead',
+    tagline:'The bridge between this movement and the communities it serves.',
+    location:'Alimosho, Lagos', team:'Next Generation Vanguard', since:'2019', focus:'Partnerships',
+    operations:false, photo:'',
+    bio:'Fatimah manages relationships with community leaders, local government, and beneficiary families across Alimosho. She is the human face of every programme we run in the field.',
+    achievements:['Onboarded 8 new community partners','Launched the community ambassador programme'],
+    projects:['Career Hub','Afrovanguard Academy'], socials:{ li:'', tw:'', email:'' } },
+  { id:7, featured:false, tier:'ngv', name:'Tunde Adeyemi', role:'Creative Arts Coordinator',
+    tagline:'Where raw talent meets relentless refinement.',
+    location:'Alimosho, Lagos', team:'Next Generation Vanguard', since:'2019', focus:'Arts & Culture',
+    operations:false, photo:'',
+    bio:'Tunde coordinates the creative arts arm of Afrovanguard, channeling young Nigerians\' raw talent in music, dance, and performance into professional-grade careers through Street-To-Stardom.',
+    achievements:['Produced 10+ Street-To-Stardom showcases','3 alumni signed to major record labels'],
+    projects:['Street-To-Stardom','Next Generation Genius'], socials:{ li:'', tw:'', email:'' } },
+  { id:8, featured:false, tier:'ngg', name:'Aisha Mohammed', role:'Scholarships & Opportunities Lead',
+    tagline:'Opening global doors for Africa\'s brightest minds.',
+    location:'Alimosho, Lagos', team:'Next Generation Genius', since:'2021', focus:'International Opportunities',
+    operations:false, photo:'',
+    bio:'Aisha curates and manages the Africa GATES programme, connecting Nigerian youth with international scholarships and fellowships. She has personally guided dozens of young Nigerians to opportunities they never thought possible.',
+    achievements:['Facilitated 40+ scholarship placements','Built relationships with 15 international universities'],
+    projects:['Africa GATES','Next Generation Genius','Business Executive Club'], socials:{ li:'', tw:'', email:'' } },
+  { id:9, featured:false, tier:'ngg', name:'Emeka Eze', role:'Innovation & Research Lead',
+    tagline:'Engineering solutions to Africa\'s most stubborn challenges.',
+    location:'Alimosho, Lagos', team:'Next Generation Genius', since:'2022', focus:'Innovation',
+    operations:true, photo:'',
+    bio:'Emeka leads Afrovanguard\'s innovation agenda — identifying new approaches, piloting programmes, and building the internal research capacity that keeps the movement sharp and relevant.',
+    achievements:['Developed 3 new programme pilots in 2023','Co-authored Afrovanguard\'s 2024 impact report'],
+    projects:['Techome','Next Generation Genius','MediaPro'], socials:{ li:'', tw:'', email:'' } },
+  { id:10, featured:false, tier:'volunteer', name:'Chidera Okonkwo', role:'Creative Design Volunteer',
+    tagline:'Art as advocacy — design for a better Africa.',
+    location:'Alimosho, Lagos', team:'Volunteers', since:'2022', focus:'Design & Visual Communication',
+    operations:false, photo:'',
+    bio:'Chidera volunteers her design and visual communication skills to support Afrovanguard\'s creative campaigns, producing the visual assets that carry our story to the world.',
+    achievements:['Designed visuals for 3 flagship campaigns','Supported 5 major events as lead designer'],
+    projects:['Street-To-Stardom','Kingdom Advancement Project'], socials:{ li:'', tw:'', email:'' } },
+  { id:11, featured:false, tier:'volunteer', name:'Yusuf Garba', role:'Web Development Volunteer',
+    tagline:'One line of code can change a life.',
+    location:'Alimosho, Lagos', team:'Volunteers', since:'2023', focus:'Web Development',
+    operations:false, photo:'',
+    bio:'Yusuf volunteers his software engineering expertise to support Techome and the Afrovanguard digital platforms — proof that our volunteers build the very infrastructure that delivers our programmes.',
+    achievements:['Mentored 30+ Techome students','Contributed core modules to Techome curriculum'],
+    projects:['Techome','Career Hub'], socials:{ li:'', tw:'', email:'' } },
+  { id:12, featured:false, tier:'volunteer', name:'Ngozi Enendu', role:'Events & Logistics Volunteer',
+    tagline:'Behind every great event is someone who refused to let anything slip.',
+    location:'Alimosho, Lagos', team:'Volunteers', since:'2022', focus:'Event Management',
+    operations:true, photo:'',
+    bio:'Ngozi coordinates the logistics that make Afrovanguard\'s events, workshops, and community programmes run without a hitch. Her attention to detail and calm under pressure are two of the movement\'s quiet superpowers.',
+    achievements:['Co-ordinated 8+ large-scale events since 2022','Built vendor and venue partnership database'],
+    projects:['Street-To-Stardom','Next Generation Genius','Career Hub'], socials:{ li:'', tw:'', email:'' } },
+];
+
+/* ═══════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════ */
+var PAL=[{bg:'#1a1500',c:'#f3b416'},{bg:'#12133a',c:'#a5b4fc'},{bg:'#00201e',c:'#5eead4'},{bg:'#200808',c:'#f87171'},{bg:'#032008',c:'#86efac'},{bg:'#120820',c:'#c084fc'}];
+function pal(id){ return PAL[((id-1)%PAL.length+PAL.length)%PAL.length]; }
+function ini(n){ return String(n||'').trim().split(/\s+/).slice(0,2).map(function(w){return w[0]||'';}).join('').toUpperCase()||'??'; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function titlePrefix(t){ return(t==='management'||t==='director')?'Van.':(t==='patron'?'Patron':'Ag. Van.'); }
+function tierLabel(t){ return({management:'Management',director:'Director',patron:'Patron',ngv:'NGV',ngg:'NGG',volunteer:'Volunteer'})[t]||'Member'; }
+function tierPillCls(t){ return({management:'pt-lead',director:'pt-dir',patron:'pt-patron',ngv:'pt-ngv',ngg:'pt-ngg',volunteer:'pt-vol'})[t]||'pt-vol'; }
+
+var SICO={
+  li:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>',
+  tw:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+  email:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>',
+};
+var SLBL={li:'LinkedIn',tw:'Twitter / X',email:'Send Email'};
+
+/* ═══════════════════════════════════════════════════════
+   FETCH HELPERS
+   ═══════════════════════════════════════════════════════ */
+function fetchWithTimeout(url, ms){
+  return new Promise(function(resolve, reject){
+    var t = setTimeout(function(){ reject(new Error('Timeout after '+ms+'ms')); }, ms);
+    fetch(url).then(function(r){ clearTimeout(t); resolve(r); }).catch(function(e){ clearTimeout(t); reject(e); });
+  });
+}
+
+function getMemberId(){
+  var params = new URLSearchParams(window.location.search);
+  var raw = params.get('id');
+  var id = parseInt(raw, 10);
+  return isNaN(id) ? null : id;
+}
+
+function loadMember(){
+  var id = getMemberId();
+  if(!id){ showError('No member ID specified in URL. Add ?id=1 to the URL.'); return; }
+
+  if(USE_DEMO){
+    setTimeout(function(){
+      var m = null;
+      for(var i=0; i<DEMO_MEMBERS.length; i++){
+        if(DEMO_MEMBERS[i].id === id){ m = DEMO_MEMBERS[i]; break; }
+      }
+      if(!m){ showError('Member with ID ' + id + ' not found in demo data.'); return; }
+      renderMember(m);
+    }, 700);
+    return;
+  }
+
+  // Live API fetch
+  fetchWithTimeout((USE_PHP ? (PHP_API+'?action=member&id='+id) : (API_URL+'?id='+id)), FETCH_TIMEOUT_MS)
+    .then(function(r){
+      if(r.status === 404) throw new Error('not_found');
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data){
+      if(!data || data.status !== 'ok' || !data.member) throw new Error('not_found');
+      var m = data.member;
+      // Normalise any legacy or unknown tier to volunteer
+      var validTiers = ['management','director','patron','ngv','ngg','volunteer'];
+      if(validTiers.indexOf(m.tier) === -1) m.tier = 'volunteer';
+      renderMember(m);
+    })
+    .catch(function(e){
+      console.error('[AV Member]', e);
+      var isNotFound = e.message === 'not_found' || (e.message||'').toLowerCase().indexOf('not found') !== -1;
+      showError(isNotFound
+        ? 'This member profile doesn\'t exist or is no longer active.'
+        : 'Something went wrong loading this profile. Please check your connection and try again.'
+      );
+    });
+}
+
+/* ═══════════════════════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════════════════════ */
+function normalizePhoto(url){
+  if(!url || url.length < 5) return '';
+  var match = url.match(/\/file\/d\/([^\/\?]+)/);
+  if(match) return 'https://drive.google.com/uc?export=view&id=' + match[1];
+  return url;
+}
+
+function renderMember(m){
+  var p = pal(m.id);
+  var prefix = titlePrefix(m.tier);
+
+  // Document meta
+  document.title = prefix + ' ' + m.name + ' — Afrovanguard';
+  var descMeta = document.getElementById('pg-desc');
+  if(descMeta) descMeta.content = m.tagline || (m.bio || '').substring(0,150);
+
+  // Hero photo / placeholder
+  var bg = document.getElementById('pf-bg');
+  var ph = document.getElementById('pf-ph');
+  var resolvedPhoto = normalizePhoto(m.photo);
+
+  if(resolvedPhoto){
+    var tmpImg = new Image();
+    tmpImg.onload = function(){
+      if(bg){
+        bg.style.backgroundImage = "url('" + resolvedPhoto + "')";
+        bg.setAttribute('aria-label', m.name);
+        bg.style.opacity = '1';
+      }
+      if(ph) ph.style.display = 'none';
+    };
+    tmpImg.onerror = function(){
+      if(bg) bg.style.display = 'none';
+      if(ph){
+        ph.style.background = p.bg;
+        ph.style.color = p.c;
+        ph.textContent = ini(m.name);
+      }
+    };
+    tmpImg.src = resolvedPhoto;
+  } else {
+    if(bg) bg.style.display = 'none';
+    if(ph){
+      ph.style.background = p.bg;
+      ph.style.color = p.c;
+      ph.textContent = ini(m.name);
+    }
+  }
+
+  // Prefix badge — with Ops badge if applicable
+  var prefixEl = document.getElementById('pf-prefix');
+  if(prefixEl){
+    prefixEl.textContent = prefix;
+    if(m.operations){
+      var opsBadge = document.createElement('span');
+      opsBadge.className = 'pf-ops-badge';
+      opsBadge.textContent = 'Ops';
+      prefixEl.appendChild(opsBadge);
+    }
+  }
+
+  setText('pf-name', m.name);
+  setText('pf-role', m.role);
+  setText('bc-name', m.name);
+
+  // Tier pill
+  var pill = document.getElementById('pf-pill');
+  if(pill){
+    pill.textContent = tierLabel(m.tier);
+    pill.className = 'pf-tier-pill au au3 ' + tierPillCls(m.tier);
+  }
+
+  // Hero meta row — only show items that have data
+  var hmeta = document.getElementById('pf-hmeta');
+  if(hmeta){
+    var items = [];
+    if(m.location) items.push(hMetaItem('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>', esc(m.location)));
+    if(m.since)    items.push(hMetaItem('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 'Since ' + esc(m.since)));
+    if(m.team)     items.push(hMetaItem('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>', esc(m.team)));
+    if(m.operations) items.push('<span class="pf-hm-item" style="color:rgba(165,180,252,.8)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" width="12" height="12"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Operations</span>');
+    hmeta.innerHTML = items.length ? items.join('') : '';
+  }
+
+  // Bio — hide section if empty
+  var bioSec = document.getElementById('bio-section');
+  var bioEl  = document.getElementById('pf-bio');
+  if(m.bio && m.bio.trim()){
+    if(bioEl)  bioEl.textContent = m.bio;
+    if(bioSec) bioSec.style.display = 'block';
+  } else {
+    if(bioSec) bioSec.style.display = 'none';
+  }
+
+  // Sidebar details — hide individual rows that have no data
+  var metaMap = {
+    'd-loc':   m.location,
+    'd-grp':   m.team,
+    'd-since': m.since,
+    'd-focus': m.focus
+  };
+  var anyDetail = false;
+  Object.keys(metaMap).forEach(function(id){
+    var el  = document.getElementById(id);
+    if(!el) return;
+    var row = el.closest('.pf-meta-item');
+    if(metaMap[id] && metaMap[id].toString().trim()){
+      el.textContent = metaMap[id];
+      anyDetail = true;
+    } else {
+      if(row) row.style.display = 'none';
+    }
+  });
+  // Hide the entire details card if nothing to show
+  var detailsCard = document.getElementById('pf-details');
+  if(detailsCard && !anyDetail){
+    var card = detailsCard.closest('.pf-card');
+    if(card) card.style.display = 'none';
+  }
+
+  // Achievements — hide section if empty
+  var achSec = document.getElementById('ach-section');
+  var achEl  = document.getElementById('pf-ach');
+  if(m.achievements && m.achievements.length && achSec && achEl){
+    achEl.innerHTML = m.achievements.map(function(a){
+      return '<div class="pf-ach-item"><span class="pf-ach-ico" aria-hidden="true">★</span>' + esc(a) + '</div>';
+    }).join('');
+    achSec.style.display = 'block';
+  } else {
+    if(achSec) achSec.style.display = 'none';
+  }
+
+  // Projects — hide section if empty
+  var projSec = document.getElementById('proj-section');
+  var projEl  = document.getElementById('pf-tags');
+  if(m.projects && m.projects.length && projSec && projEl){
+    projEl.innerHTML = m.projects.map(function(t){
+      return '<span class="pf-tag">' + esc(t) + '</span>';
+    }).join('');
+    projSec.style.display = 'block';
+  } else {
+    if(projSec) projSec.style.display = 'none';
+  }
+
+  // Socials — hide section if nothing configured
+  var socSec = document.getElementById('soc-section');
+  var socEl  = document.getElementById('pf-socs');
+  if(socSec && socEl){
+    var socLinks = [];
+    var s = m.socials || {};
+    if(s.li && s.li.length > 4)
+      socLinks.push('<a class="pf-soc-link" href="'+esc(s.li)+'" target="_blank" rel="noopener noreferrer">'+SICO.li+esc(SLBL.li)+'</a>');
+    if(s.tw && s.tw.length > 4)
+      socLinks.push('<a class="pf-soc-link" href="'+esc(s.tw)+'" target="_blank" rel="noopener noreferrer">'+SICO.tw+esc(SLBL.tw)+'</a>');
+    if(s.email && s.email.indexOf('@') !== -1)
+      socLinks.push('<a class="pf-soc-link" href="mailto:'+esc(s.email)+'">'+SICO.email+esc(s.email)+'</a>');
+    if(socLinks.length){
+      socEl.innerHTML = socLinks.join('');
+      socSec.style.display = 'block';
+    } else {
+      socSec.style.display = 'none';
+    }
+  }
+
+  // Reveal page
+  var stLoad = document.getElementById('st-load');
+  var pfPage = document.getElementById('profile-page');
+  if(stLoad) stLoad.classList.add('hidden');
+  if(pfPage) pfPage.classList.add('show');
+}
+
+function hMetaItem(svgPaths, label){
+  return '<span class="pf-hm-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">'+svgPaths+'</svg>'+label+'</span>';
+}
+
+function showError(msg){
+  var stLoad = document.getElementById('st-load');
+  var stErr  = document.getElementById('st-err');
+  var errMsg = document.getElementById('err-msg');
+  if(stLoad) stLoad.classList.add('hidden');
+  if(errMsg) errMsg.textContent = msg || 'Profile could not be loaded.';
+  if(stErr)  stErr.classList.remove('hidden');
+}
+
+function setText(id, val){
+  var el = document.getElementById(id);
+  if(el) el.textContent = val;
+}
+
+/* ═══════════════════════════════════════════════════════
+   NAV SCROLL SHADOW
+   ═══════════════════════════════════════════════════════ */
+function initNav(){
+  var hdr = document.getElementById('siteheader');
+  if(hdr) window.addEventListener('scroll', function(){ hdr.classList.toggle('scrolled', window.scrollY > 40); }, {passive:true});
+}
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', function(){
+  initNav();
+  loadMember();
+});
+</script>
+<script src="/assets/site/chioma.js" defer></script>
+</body>
+</html>

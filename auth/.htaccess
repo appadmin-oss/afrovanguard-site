@@ -1,0 +1,13 @@
+# Authentication endpoints — a real /auth/ folder, so WordPress never touches it.
+DirectoryIndex google.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /auth/
+  # /auth/google/start and /auth/google/callback → google.php?action=…
+  RewriteRule ^google/(start|callback)/?$ google.php?action=$1 [L,QSA]
+  # real files served directly
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+</IfModule>

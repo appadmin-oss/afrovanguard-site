@@ -1,0 +1,30 @@
+/* ====================================================================
+   Project detail pages (KAP, Techome, MediaPro, BEC, Career Hub, …).
+   One shared stylesheet driven by projects/_detail.php + lib/projects_content.php.
+   Mirrors the ethos page's visual language; uses the global tokens (diary.css).
+   ==================================================================== */
+
+.pjd-hero { padding: 72px 0 40px; border-bottom: 1px dashed var(--divider); }
+.pjd-hero h1 { font-size: clamp(40px, 6.5vw, 84px); line-height: 0.98; letter-spacing: -0.01em; margin: 8px 0 0; }
+.pjd-lead { font-size: clamp(16px, 1.5vw, 19px); line-height: 1.6; color: var(--muted); max-width: 58ch; margin: 22px 0 0; }
+.pjd-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+
+.pjd-body { padding-bottom: 24px; }
+.pjd-sec { padding: 40px 0; border-top: 1px solid var(--divider); }
+.pjd-sec > h2 { font-size: clamp(28px, 4vw, 46px); line-height: 1.05; margin-bottom: 8px; }
+.pjd-sub { color: var(--muted); font-size: clamp(15px, 1.3vw, 17px); line-height: 1.6; max-width: 66ch; margin: 0 0 24px; }
+
+.pjd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+.pjd-tile { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 24px 26px; position: relative; }
+.pjd-tile h3 { font-family: var(--font-body); font-weight: 800; font-size: 19px; color: var(--ink); margin: 0 0 8px; }
+.pjd-tile p { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 0; }
+.pjd-no { position: absolute; top: 18px; right: 22px; font-family: var(--font-heading); font-size: 26px; color: var(--gold); opacity: 0.5; }
+
+.pjd-grid--links { grid-template-columns: repeat(3, 1fr); }
+.pjd-tile--link { text-decoration: none; display: block; transition: border-color .2s ease, transform .2s ease; }
+.pjd-tile--link:hover { border-color: var(--gold); transform: translateY(-2px); }
+.pjd-tile--link h3 { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .pjd-grid, .pjd-grid--links { grid-template-columns: 1fr; }
+}

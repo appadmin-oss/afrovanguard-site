@@ -1,0 +1,8 @@
+# Runtime data (read-aloud audio cache). Served only through PHP endpoints.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

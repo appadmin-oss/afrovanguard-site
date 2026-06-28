@@ -1,0 +1,217 @@
+/* ============================================================
+   academy/studio/studio.css — Academy admin design system.
+   A focused, professional, light/dark admin console.
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box}
+/* The hidden attribute must always win — .modal/.shell/.login set display, which
+   would otherwise keep a hidden modal/overlay on screen intercepting clicks. */
+[hidden]{display:none!important}
+:root{
+  --gold:#f3b416; --gold-deep:#b8860b; --navy:#0B1120;
+  --bg:#f4f6f9; --surface:#fff; --surface-2:#fafbfc; --line:#e6e9ef; --line-2:#eef1f5;
+  --ink:#1a2231; --ink-2:#5b6472; --muted:#8b93a2;
+  --pri:#1f6feb; --ok:#1a7f37; --warn:#9a6700; --danger:#cf222e;
+  --radius:14px; --radius-sm:10px; --shadow:0 1px 2px rgba(11,17,32,.06),0 8px 24px rgba(11,17,32,.06);
+  --side-w:248px; --topbar-h:64px;
+  --font:'Montserrat',-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
+  --serif:'Cormorant',Georgia,serif;
+}
+[data-theme=dark]{
+  --bg:#0a0e16; --surface:#111827; --surface-2:#0d1521; --line:#1f2937; --line-2:#1a2130;
+  --ink:#e8ebf0; --ink-2:#aab2c0; --muted:#6b7280; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0}
+.muted{color:var(--muted)}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Buttons / fields ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;border-radius:9999px;
+  padding:10px 18px;font:600 13.5px/1 var(--font);cursor:pointer;text-decoration:none;transition:transform .12s,box-shadow .18s,background .15s,border-color .15s;white-space:nowrap}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:none}
+.btn-primary{background:var(--gold);color:#10151f;box-shadow:0 4px 14px rgba(243,180,22,.3)}
+.btn-primary:hover{box-shadow:0 8px 22px rgba(243,180,22,.42)}
+.btn-outline{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn-outline:hover{border-color:var(--muted);background:var(--surface-2)}
+.btn-ghost{background:transparent;color:var(--ink-2)}
+.btn-ghost:hover{background:var(--surface-2)}
+.btn-sm{padding:7px 13px;font-size:12.5px}
+.fld{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.fld>span{font-weight:600;font-size:12.5px;color:var(--ink-2)}
+.fld input,.fld select,.fld textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:10px 12px;width:100%;transition:border-color .15s,box-shadow .15s}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,180,22,.18)}
+.fld textarea{resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.chk{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-2);margin-bottom:12px;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--gold)}
+
+/* ── Login ── */
+.login{min-height:100vh;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(900px 480px at 70% -10%,#15233f 0,transparent 60%),var(--navy)}
+.login-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:36px 32px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.login-brand{font-family:var(--serif);font-size:26px;font-weight:700;margin-bottom:4px}
+.login-brand .wm-1{color:var(--ink)} .login-brand .wm-2{color:var(--gold)}
+.login-tag{font-family:var(--font);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold-deep);border:1px solid var(--line);border-radius:9999px;padding:3px 9px;vertical-align:middle;margin-left:4px}
+.login-sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+.login-card .btn{width:100%;margin-top:4px}
+.login-msg{min-height:18px;font-size:13px;color:var(--danger);margin:12px 0 0;text-align:center}
+.login-back{display:block;text-align:center;margin-top:18px;color:var(--muted);font-size:12.5px;text-decoration:none}
+.login-back:hover{color:var(--ink)}
+
+/* ── Shell ── */
+.shell{display:grid;grid-template-columns:var(--side-w) 1fr;min-height:100vh}
+.side{position:sticky;top:0;height:100vh;background:var(--navy);color:#cdd5e3;display:flex;flex-direction:column;padding:18px 14px;z-index:30}
+.side-brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+.side-mark{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--gold),var(--gold-deep));
+  color:#10151f;font-family:var(--serif);font-weight:700;font-size:22px;display:grid;place-items:center}
+.side-name{font-weight:800;font-size:15px;color:#fff;line-height:1.05;display:flex;flex-direction:column}
+.side-name small{font-weight:600;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.side-nav{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.nav-item{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;color:#aab4c5;
+  padding:11px 12px;border-radius:10px;font:600 13.5px/1 var(--font);cursor:pointer;text-align:left;transition:background .14s,color .14s}
+.nav-item svg{width:19px;height:19px;opacity:.85}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.is-active{background:rgba(243,180,22,.14);color:#fff}
+.nav-item.is-active svg{stroke:var(--gold);opacity:1}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}
+.side-foot .ghost{display:flex;align-items:center;gap:11px;border:0;background:transparent;color:#93a0b4;
+  padding:10px 12px;border-radius:9px;font:600 13px/1 var(--font);cursor:pointer;text-decoration:none}
+.side-foot .ghost:hover{background:rgba(255,255,255,.06);color:#fff}
+.side-foot .ghost svg{width:18px;height:18px}
+.side-foot .danger:hover{background:rgba(207,34,46,.16);color:#ff9ba2}
+.t-moon{display:none}
+[data-theme=dark] .t-sun{display:none}
+[data-theme=dark] .t-moon{display:inline}
+
+/* ── Main / topbar ── */
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{position:sticky;top:0;height:var(--topbar-h);display:flex;align-items:center;gap:16px;padding:0 26px;
+  background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:20}
+.top-title h1{font-family:var(--serif);font-size:24px;font-weight:700;line-height:1.05}
+.top-title p{font-size:12.5px;margin:1px 0 0}
+.top-actions{margin-left:auto;display:flex;gap:10px;align-items:center}
+.hamburger{display:none;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px;cursor:pointer;color:var(--ink)}
+.content{padding:26px;max-width:1240px;width:100%}
+.view{animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── Stat cards ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:30px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow)}
+.stat-num{font-family:var(--serif);font-weight:700;font-size:34px;line-height:1;color:var(--ink)}
+.stat-label{font-size:12.5px;color:var(--muted);margin-top:7px;font-weight:600}
+.stat-sub{font-size:11.5px;color:var(--gold-deep);margin-top:3px;font-weight:600}
+.quick h2{font-family:var(--serif);font-size:21px;margin-bottom:14px}
+.quick-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.qbtn{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;cursor:pointer;
+  display:flex;flex-direction:column;gap:3px;transition:transform .14s,box-shadow .18s,border-color .15s;color:var(--ink)}
+.qbtn:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:var(--gold)}
+.qbtn b{font-size:15px} .qbtn span{font-size:12.5px;color:var(--muted)}
+
+/* ── Tables ── */
+.table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;overflow-x:auto;box-shadow:var(--shadow)}
+.table-wrap .tbl{min-width:680px}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  font-weight:700;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.tbl td{padding:14px 18px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr{transition:background .12s}
+.tbl tbody tr:hover{background:var(--surface-2)}
+.tbl .num{text-align:right}
+.tbl .empty{text-align:center;color:var(--muted);padding:34px}
+.tbl .c-title{font-weight:700;color:var(--ink)}
+.tbl .c-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.row-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.progress{height:7px;border-radius:9999px;background:var(--line);overflow:hidden;min-width:90px}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-deep))}
+
+/* ── Roster tools (manual enrol + export) ── */
+.roster-tools{display:flex;align-items:center;gap:12px;margin:-4px 0 16px;flex-wrap:wrap}
+.enrol-form{display:flex;gap:8px;flex:1;min-width:240px;max-width:480px}
+.enrol-form input{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;font:inherit;color:var(--ink)}
+/* tighter reorder controls in the curriculum builder */
+.mod-head > .btn,.les .les-mv{padding:4px 8px;line-height:1}
+
+/* ── Badges ── */
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:9999px;letter-spacing:.02em}
+.badge.published{background:rgba(26,127,55,.13);color:var(--ok)}
+.badge.draft{background:rgba(154,103,0,.14);color:var(--warn)}
+.badge.access{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.badge.cert{background:rgba(243,180,22,.18);color:var(--gold-deep)}
+
+/* ── Editor ── */
+.editor{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}
+.editor-main{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+.editor-side{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow)}
+.card h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.editor-note{font-size:12.5px;color:var(--warn)}
+
+/* ── Curriculum builder ── */
+.picker{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.picker label{font-weight:600;font-size:12.5px;color:var(--ink-2)}
+.picker select{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;font:inherit;color:var(--ink);min-width:240px}
+.pick-hint{font-size:12.5px;color:var(--muted)}
+.curriculum{display:flex;flex-direction:column;gap:16px}
+.mod{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.mod-head{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.mod-head .mod-title{font-weight:700;font-size:15px;flex:1}
+.mod-lessons{list-style:none;margin:0;padding:8px}
+.les{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;transition:background .12s}
+.les:hover{background:var(--surface-2)}
+.les .les-grip{color:var(--muted);font-size:13px}
+.les .les-title{flex:1;font-weight:600}
+.les .les-tags{display:flex;gap:6px}
+.les-empty{padding:12px;color:var(--muted);font-size:13px}
+.mod-foot{padding:6px 10px 12px}
+
+/* ── Modal ── */
+.modal{position:fixed;inset:0;background:rgba(11,17,32,.55);display:grid;place-items:center;padding:20px;z-index:60;animation:fade .18s}
+.modal-card{width:100%;max-width:620px;max-height:92vh;display:flex;flex-direction:column;background:var(--surface);
+  border:1px solid var(--line);border-radius:18px;box-shadow:0 40px 100px rgba(0,0,0,.45);overflow:hidden}
+.modal-head{display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line)}
+.modal-head h2{font-family:var(--serif);font-size:22px;flex:1}
+.icon-x{border:0;background:transparent;font-size:26px;line-height:1;color:var(--muted);cursor:pointer;padding:0 4px}
+.icon-x:hover{color:var(--ink)}
+.modal-body{padding:22px;overflow:auto}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--line);background:var(--surface-2)}
+.modal-msg{font-size:13px;color:var(--danger);min-height:16px;margin:6px 0 0}
+.quiz{margin-top:8px;border-top:1px dashed var(--line);padding-top:16px}
+.quiz-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.quiz-head h3{font-size:14px} .quiz-head h3 small{color:var(--muted);font-weight:500}
+.quiz-pass{margin-left:auto;font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.quiz-pass input{width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.qcard{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--surface-2)}
+.qcard .qrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.qcard .qrow input[type=text]{flex:1}
+.qopt{display:flex;align-items:center;gap:8px;margin:6px 0}
+.qopt input[type=radio]{accent-color:var(--gold)}
+.qopt input[type=text]{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.link-btn{border:0;background:none;color:var(--danger);font:600 12px var(--font);cursor:pointer}
+
+/* ── Toasts ── */
+.toast-wrap{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:80}
+.toast{background:var(--ink);color:#fff;padding:12px 16px;border-radius:11px;font-size:13.5px;font-weight:600;
+  box-shadow:0 12px 30px rgba(0,0,0,.3);animation:slidein .22s;max-width:340px}
+.toast.ok{background:var(--ok)} .toast.err{background:var(--danger)}
+@keyframes slidein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ── Responsive ── */
+@media (max-width:900px){
+  .editor{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .shell{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .22s ease;width:262px;box-shadow:0 0 60px rgba(0,0,0,.4)}
+  .shell.nav-open .side{transform:none}
+  .hamburger{display:inline-flex}
+  .content{padding:18px}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
