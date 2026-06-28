@@ -12,6 +12,11 @@ final class Database
 {
     private static ?PDO $pdo = null;
 
+    /** Bump to force a schema re-sync even when db/schema.sql is byte-identical
+     *  (e.g. after changing one of the ensure/grandfathering steps). Normally you
+     *  don't touch this — editing db/schema.sql changes its hash and re-syncs. */
+    private const SCHEMA_REV = 1;
+
     public static function pdo(): PDO
     {
         if (self::$pdo instanceof PDO) return self::$pdo;
@@ -62,11 +67,7 @@ final class Database
                 self::migrate();
                 self::seedIfEmpty();
             }
-            self::ensureColumns();      // additive upgrades for already-deployed DBs
-            self::ensureAcademy();      // create + seed academy tables if missing
-            self::ensureDiaryEntries(); // member-contributed diary (categories + moderation)
-            self::ensureLmsVerify();    // email-verification columns (+ grandfather existing accounts)
-            self::maybePurgeDemo();     // one-time removal of shipped demo content
+            self::autoMigrate();        // version-gated: applies pending schema updates, then cheap no-op
         }
         return self::$pdo;
     }
@@ -245,6 +246,89 @@ final class Database
     }
 
     /** Add columns introduced after the first release (idempotent). */
+    /**
+     * Auto-migration — runs at boot so schema updates apply on deploy with NO
+     * SSH/CLI step. Version-gated on (SCHEMA_REV + a hash of db/schema.sql): when
+     * the DB already matches, this is a single cheap SELECT and returns. When it
+     * is behind (fresh DB, or schema.sql changed in a deploy), it runs the
+     * bespoke grandfathering steps and then syncs any missing tables/columns
+     * straight from db/schema.sql, and records the new state. Each step is
+     * isolated so one failure is logged, never fatal.
+     */
+    private static function autoMigrate(): void
+    {
+        $stamp = self::SCHEMA_REV . ':' . (@md5_file(AV_ROOT . '/db/schema.sql') ?: '0');
+        try { if (self::metaGet('schema_state') === $stamp) return; } catch (Throwable $e) { /* meta not ready yet */ }
+
+        // Generic sync first — create any missing tables/columns from schema.sql so
+        // the schema is complete before the bespoke grandfathering/seed steps run.
+        try { self::syncSchemaFromFile(); } catch (Throwable $e) { error_log('[db] schema sync: ' . $e->getMessage()); }
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureDiaryEntries', 'ensureLmsVerify'] as $step) {
+            try { self::$step(); } catch (Throwable $e) { error_log('[db] migration step ' . $step . ': ' . $e->getMessage()); }
+        }
+        self::maybePurgeDemo();
+        try { self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c')); }
+        catch (Throwable $e) { error_log('[db] record schema_state: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Additively bring the live SQLite schema up to db/schema.sql: create any
+     * missing tables and ADD any missing columns. Never drops or rewrites
+     * existing columns/data. Columns that can't be added as-is (NOT NULL without
+     * a constant default, non-constant DEFAULT, inline REFERENCES, PRIMARY KEY)
+     * are softened to a safe additive form so the column still appears.
+     * mysql/pgsql migrate via db/migrate.php (schema there is provisioned out-of-band).
+     */
+    private static function syncSchemaFromFile(): void
+    {
+        if (self::driver() !== 'sqlite') return;
+        $sql = @file_get_contents(AV_ROOT . '/db/schema.sql');
+        if (!$sql) return;
+        // Strip SQL comments first so column parsing never trips on them.
+        $sql = preg_replace('~/\*.*?\*/~s', '', $sql);
+        $sql = preg_replace('~--[^\n]*~', '', $sql);
+        if (!preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([a-zA-Z0-9_]+)["`]?\s*\((.*?)\)\s*;/is', $sql, $mm, PREG_SET_ORDER)) return;
+
+        foreach ($mm as $m) {
+            $table = $m[1];
+            if (!self::tableExists($table)) {
+                try { self::$pdo->exec(self::translateDDL($m[0])); }
+                catch (Throwable $e) { error_log('[db] create ' . $table . ': ' . $e->getMessage()); }
+                continue;
+            }
+            $have = [];
+            foreach (self::$pdo->query('PRAGMA table_info(' . $table . ')') as $r) { $have[strtolower($r['name'])] = true; }
+            foreach (self::splitTopLevel($m[2]) as $def) {
+                $def = trim($def);
+                if ($def === '' || preg_match('/^(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT|KEY|INDEX)\b/i', $def)) continue;
+                if (!preg_match('/^["`]?([a-zA-Z0-9_]+)["`]?\s+(.+)$/s', $def, $cm)) continue;
+                $col = $cm[1]; $rest = $cm[2];
+                if (isset($have[strtolower($col)]) || preg_match('/PRIMARY\s+KEY|AUTOINCREMENT/i', $rest)) continue;
+                // Build a SAFE additive definition: the type token (+ optional length)
+                // and a constant DEFAULT only. NOT NULL / CHECK / REFERENCES / non-constant
+                // defaults are dropped so ADD COLUMN always succeeds on a populated table.
+                if (!preg_match('/^\s*([A-Za-z]+(?:\s*\(\s*[0-9,\s]+\s*\))?)/', $rest, $tm)) continue;
+                $type = preg_replace('/\s+/', '', $tm[1]);
+                if (preg_match('/\bDEFAULT\s+(\x27[^\x27]*\x27|"[^"]*"|-?[0-9.]+)/i', $rest, $dm)) $type .= ' DEFAULT ' . $dm[1];
+                try { self::$pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $col . ' ' . $type); }
+                catch (Throwable $e) { error_log('[db] add ' . $table . '.' . $col . ': ' . $e->getMessage()); }
+            }
+        }
+    }
+
+    /** Split a CREATE TABLE body on top-level commas (ignoring those inside parens). */
+    private static function splitTopLevel(string $body): array
+    {
+        $out = []; $depth = 0; $cur = '';
+        for ($i = 0, $n = strlen($body); $i < $n; $i++) {
+            $ch = $body[$i];
+            if ($ch === '(') $depth++; elseif ($ch === ')') $depth--;
+            if ($ch === ',' && $depth === 0) { $out[] = $cur; $cur = ''; } else { $cur .= $ch; }
+        }
+        if (trim($cur) !== '') $out[] = $cur;
+        return $out;
+    }
+
     private static function ensureColumns(): void
     {
         $cols = [];
