@@ -210,8 +210,17 @@
          sentence-by-sentence with a karaoke caption that lights each word. ---- */
   var lb = listenBar;
   var hasTTS = 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance !== 'undefined';
-  if (lb && hasTTS && article) {
+  // Neural (human-like) read-aloud: server-synthesised MP3 per passage, played
+  // through <audio> so it works on every browser. Falls back to the browser's
+  // speechSynthesis when no engine is configured.
+  var neural = !!(lb && article && lb.getAttribute('data-tts') === '1');
+  var ttsSlug = (lb && lb.getAttribute('data-slug')) || slug;
+  if (lb && article && (neural || hasTTS)) {
     var synth = window.speechSynthesis;
+    var audioEl = neural ? new Audio() : null;
+    var prefetch = {};
+    var elapsedBase = 0;
+    function ttsUrl(t) { return '/diary/tts.php?slug=' + encodeURIComponent(ttsSlug) + '&t=' + encodeURIComponent(t); }
     var playBtns = [].slice.call(document.querySelectorAll('.listen-play, .mini-play'));
     var iconPlay = lb.querySelector('.icon-play');
     var iconPause = lb.querySelector('.icon-pause');
@@ -253,12 +262,31 @@
       return t.replace(/([.!?])\s+(?=["'(]?[A-Z0-9])/g, '$1').split('')
         .map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
     }
+    // Break a paragraph's text into URL-safe pieces (≤ ~280 chars) at sentence/
+    // word boundaries — each piece is verbatim article text, so the server can
+    // validate it and synthesise it, and the <audio> src stays well under URL limits.
+    function chunkText(t) {
+      var out = [], max = 280, buf = '';
+      (t.match(/[^.!?]+[.!?]*\s*/g) || [t]).forEach(function (p) {
+        p = p.trim(); if (!p) return;
+        if ((buf ? buf.length + 1 + p.length : p.length) <= max) { buf = buf ? buf + ' ' + p : p; }
+        else { if (buf) out.push(buf); if (p.length <= max) { buf = p; } else { for (var i = 0; i < p.length; i += max) out.push(p.slice(i, i + max).trim()); buf = ''; } }
+      });
+      if (buf) out.push(buf);
+      return out;
+    }
     var units = [];
     nodes.forEach(function (n) {
       var heading = /^H[23]$/.test(n.tagName);
-      sentences(normalise(n.textContent || '', heading)).forEach(function (s) { units.push({ node: n, text: s }); });
+      if (neural) {
+        chunkText((n.textContent || '').replace(/\s+/g, ' ').trim()).forEach(function (piece) {
+          if (piece) units.push({ node: n, text: piece, raw: piece });
+        });
+      } else {
+        sentences(normalise(n.textContent || '', heading)).forEach(function (s) { units.push({ node: n, text: s, raw: s }); });
+      }
     });
-    if (!units.length) units = [{ node: nodes[0] || article, text: normalise(article.textContent || '', false) }];
+    if (!units.length) { var t0 = (article.textContent || '').replace(/\s+/g, ' ').trim(); units = [{ node: nodes[0] || article, text: neural ? t0.slice(0, 280) : normalise(t0, false), raw: t0.slice(0, 280) }]; }
     var words = units.reduce(function (a, u) { return a + u.text.split(/\s+/).length; }, 0);
 
     var rates = [1.0, 1.15, 1.3, 1.5, 0.85]; var rate = parseFloat(get('av.read.rate', '1')) || 1;
@@ -337,13 +365,19 @@
         }).join('');
       }
     }
-    loadVoices();
-    if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = loadVoices;
-    if (voiceSel) voiceSel.addEventListener('change', function () {
-      voice = voices.filter(function (v) { return v.voiceURI === this.value; }, this)[0] || voice;
-      set('av.read.voice', voice ? voice.voiceURI : '');
-      if (playing) speakFrom(idx);
-    });
+    // Neural mode uses the server-configured voice, so the browser-voice picker
+    // is irrelevant (and synth may be absent on this browser) — skip it entirely.
+    if (neural) {
+      if (voiceSel) voiceSel.hidden = true;
+    } else {
+      loadVoices();
+      if (synth && synth.onvoiceschanged !== undefined) synth.onvoiceschanged = loadVoices;
+      if (voiceSel) voiceSel.addEventListener('change', function () {
+        voice = voices.filter(function (v) { return v.voiceURI === this.value; }, this)[0] || voice;
+        set('av.read.voice', voice ? voice.voiceURI : '');
+        if (playing) speakFrom(idx);
+      });
+    }
 
     function setUI(on) {
       playing = on;
@@ -356,7 +390,7 @@
       document.querySelectorAll('.mini-play').forEach(function (m) { m.innerHTML = pp; });
       playBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Pause article audio' : 'Listen to this article'); });
     }
-    function startTicker() { stopTicker(); ticker = setInterval(function () { elapsed += 0.25; var t = fmt(elapsed); if (curEl) curEl.textContent = t; if (capCur) capCur.textContent = t; }, 250); }
+    function startTicker() { if (neural) return; stopTicker(); ticker = setInterval(function () { elapsed += 0.25; var t = fmt(elapsed); if (curEl) curEl.textContent = t; if (capCur) capCur.textContent = t; }, 250); }
     function stopTicker() { if (ticker) { clearInterval(ticker); ticker = null; } }
     function highlight(i) {
       if (highlighted) highlighted.classList.remove('speaking');
@@ -372,11 +406,17 @@
     function startKeepAlive() { stopKeepAlive(); keepAlive = setInterval(function () { if (playing && synth.speaking) { synth.pause(); synth.resume(); } }, 9000); }
     function stopKeepAlive() { if (keepAlive) { clearInterval(keepAlive); keepAlive = null; } }
 
-    function speakFrom(i) { synth.cancel(); idx = Math.max(0, Math.min(i, units.length - 1)); setUI(true); startTicker(); startKeepAlive(); speakChunk(); }
+    function speakFrom(i) {
+      if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); }
+      idx = Math.max(0, Math.min(i, units.length - 1));
+      if (neural) elapsedBase = totalSecs() * (idx / Math.max(1, units.length));
+      setUI(true); startTicker(); if (!neural) startKeepAlive(); speakChunk();
+    }
     function speakChunk() {
       if (idx >= units.length) { stop(); elapsed = totalSecs(); var t = fmt(elapsed); if (curEl) curEl.textContent = t; if (capCur) capCur.textContent = t; idx = 0; return; }
       highlight(idx);
       renderCaption(units[idx].text);
+      if (neural) { playNeural(idx); return; }
       var u = new SpeechSynthesisUtterance(units[idx].text);
       u.rate = rate; u.pitch = 1.0; u.volume = 1; u.lang = (voice && voice.lang) || 'en-GB';
       if (voice) u.voice = voice;
@@ -385,7 +425,35 @@
       u.onerror = function () { if (!playing) return; idx++; speakChunk(); };
       synth.speak(u);
     }
-    function stop() { playing = false; synth.cancel(); setUI(false); stopTicker(); stopKeepAlive(); clearHighlight(); }
+    /* ── Neural playback: one cached MP3 per passage, played via <audio> ── */
+    function highlightWordByFrac(frac) {
+      if (!capWords.length) return;
+      var wi = Math.max(0, Math.min(capWords.length - 1, Math.floor(frac * capWords.length)));
+      if (activeWord) activeWord.classList.remove('on');
+      activeWord = capWords[wi]; if (activeWord) activeWord.classList.add('on');
+    }
+    function prefetchNext() {
+      var j = idx + 1;
+      if (units[j] && !prefetch[j]) { var a = new Audio(); a.preload = 'auto'; a.src = ttsUrl(units[j].raw); prefetch[j] = a; }
+    }
+    function playNeural(i) {
+      var pre = prefetch[i];
+      if (pre) { audioEl = pre; delete prefetch[i]; } else { audioEl.src = ttsUrl(units[i].raw); }
+      try { audioEl.playbackRate = rate; } catch (e) {}
+      audioEl.ontimeupdate = function () {
+        var d = audioEl.duration;
+        if (d && isFinite(d)) {
+          var t = elapsedBase + audioEl.currentTime;
+          if (curEl) curEl.textContent = fmt(t); if (capCur) capCur.textContent = fmt(t);
+          highlightWordByFrac(audioEl.currentTime / d);
+        }
+      };
+      audioEl.onended = function () { if (!playing) return; elapsedBase += (audioEl.duration && isFinite(audioEl.duration)) ? audioEl.duration : 0; idx++; speakChunk(); };
+      audioEl.onerror = function () { if (!playing) return; idx++; speakChunk(); };
+      var p = audioEl.play(); if (p && p.catch) p.catch(function () {});
+      prefetchNext();
+    }
+    function stop() { playing = false; if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); } setUI(false); stopTicker(); stopKeepAlive(); clearHighlight(); }
     function toggle() { playing ? stop() : speakFrom(idx); }
     playBtns.forEach(function (b) { b.addEventListener('click', toggle); });
     cap.querySelector('.avr-play').addEventListener('click', toggle);
@@ -411,7 +479,7 @@
     if (fwdBtn) fwdBtn.addEventListener('click', function () { jump(1); });
     cap.querySelector('.avr-back').addEventListener('click', function () { jump(-1); });
     cap.querySelector('.avr-fwd').addEventListener('click', function () { jump(1); });
-    window.addEventListener('beforeunload', function () { synth.cancel(); });
+    window.addEventListener('beforeunload', function () { if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); } });
     window.__avListen = { toggle: function () { toggle(); } };
   } else if (lb) {
     var pb = lb.querySelector('.listen-play');

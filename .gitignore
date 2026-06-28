@@ -39,3 +39,6 @@ db/cache/
 
 # ── User-uploaded media (Cloudinary fallback) ──
 uploads/
+
+# ── Generated read-aloud audio cache ───────────────────────────────────
+data/tts/

@@ -413,7 +413,7 @@ function render_course_card(array $c): void {
 <?php }
 
 function render_listen_bar(string $slug, string $canonical): void { ?>
-        <div class="listen-bar" aria-label="Listen to this article and reading controls">
+        <div class="listen-bar" aria-label="Listen to this article and reading controls" data-slug="<?= e($slug) ?>" data-tts="<?= (class_exists('Tts') && Tts::available()) ? '1' : '0' ?>">
           <div class="listen-core">
             <button class="listen-play" aria-label="Listen to this article" title="Listen (l)"><?= Icons::PLAY ?></button>
             <div class="listen-readout">
