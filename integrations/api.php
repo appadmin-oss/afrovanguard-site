@@ -119,6 +119,34 @@ try {
             json_out($out);
         }
 
+        case 'chioma.ask': {
+            // Converse with Chioma — the site's own context-aware guide — over a
+            // Bearer token. Same brain the website widget uses: if you've pointed
+            // AV_CHIOMA_AGENT_URL at your agent she'll route through it, else
+            // Claude, else a scripted fallback. Lets your AI agent talk to (or
+            // _be_) Chioma server-to-server.
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $need('bot:ask');
+            $message = trim((string) ($body['message'] ?? $body['prompt'] ?? ''));
+            if ($message === '') json_out(['ok' => false, 'error' => 'message required.'], 422);
+            // History: accept [{role,text}] (or {content}); page context optional.
+            $history = [];
+            foreach ((array) ($body['history'] ?? $body['context'] ?? []) as $h) {
+                if (!is_array($h)) continue;
+                $t = trim((string) ($h['text'] ?? $h['content'] ?? ''));
+                if ($t === '') continue;
+                $history[] = ['role' => (($h['role'] ?? '') === 'user' || ($h['role'] ?? '') === 'member') ? 'user' : 'bot', 'text' => $t];
+            }
+            $page = is_array($body['page'] ?? null) ? $body['page'] : [];
+            $ctx = [
+                'title'   => mb_substr(trim((string) ($page['title'] ?? '')), 0, 160),
+                'path'    => mb_substr(trim((string) ($page['path'] ?? '')), 0, 200),
+                'section' => preg_replace('/[^a-z0-9 \-]/i', '', (string) ($page['section'] ?? '')),
+            ];
+            $r = Chioma::reply($message, $history, $ctx);
+            json_out(['ok' => true, 'reply' => $r['reply'], 'source' => $r['source'], 'configured' => Chioma::aiAvailable()]);
+        }
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }
