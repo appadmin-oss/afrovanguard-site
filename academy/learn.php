@@ -17,14 +17,23 @@ if (!$course) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); 
 $user = LmsAuth::user();
 $ordered = $lms->orderedLessons((int) $course['id']);
 if (!$ordered) { header('Location: ' . academy_url($courseSlug . '/')); exit; }
-// default to first lesson
-if ($lessonSlug === '') $lessonSlug = $ordered[0]['slug'];
+
+$progress = $user ? $lms->progress((int) $user['id'], (int) $course['id'])
+                  : ['ids' => [], 'pct' => 0, 'completed' => 0, 'total' => count($ordered), 'complete' => false];
+$doneIds = $progress['ids'];
+
+// No lesson in the URL → resume at the learner's first incomplete lesson; fall
+// back to the very first lesson for anonymous / brand-new / finished learners.
+if ($lessonSlug === '') {
+    $lessonSlug = $ordered[0]['slug'];
+    if ($user && $doneIds && empty($progress['complete'])) {
+        foreach ($ordered as $l) { if (!in_array((int) $l['id'], $doneIds, true)) { $lessonSlug = $l['slug']; break; } }
+    }
+}
 $lesson = $lms->lesson((int) $course['id'], $lessonSlug);
 if (!$lesson) { require_once AV_ROOT . '/lib/errors.php'; av_error_render(404); exit; }
 
 $canAccess = $lms->canAccess($user, $course, $lesson);
-$progress = $user ? $lms->progress((int) $user['id'], (int) $course['id']) : ['ids' => [], 'pct' => 0, 'completed' => 0, 'total' => count($ordered)];
-$doneIds = $progress['ids'];
 
 // prev / next
 $pos = 0; foreach ($ordered as $i => $l) { if ($l['slug'] === $lessonSlug) { $pos = $i; break; } }
@@ -108,6 +117,13 @@ render_nav('academy');
           <span class="quiz-result" role="status" aria-live="polite"></span>
         </div>
       </form>
+<?php endif; ?>
+<?php if ($user): ?>
+      <div class="cert-banner" id="courseDone"<?= !empty($progress['complete']) ? '' : ' hidden' ?>>
+        <span style="font-size:22px">🎓</span>
+        <span style="flex:1">You’ve completed <strong><?= e($course['title']) ?></strong> — your certificate is ready.</span>
+        <a class="btn btn-primary btn-sm" href="<?= e(academy_url($courseSlug . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →</a>
+      </div>
 <?php endif; ?>
       <div class="lesson-nav">
         <span><?php if ($prev): ?><a class="btn btn-outline btn-sm" href="<?= e(academy_url($courseSlug . '/learn/' . $prev['slug'])) ?>">← Previous</a><?php endif; ?></span>

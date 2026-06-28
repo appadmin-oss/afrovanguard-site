@@ -287,6 +287,7 @@
     return card;
   }
   function openLesson(id, moduleId) {
+    lessonOpener = document.activeElement;
     lessonId = id || 0; lessonModuleId = moduleId || 0;
     $('#lessonMsg').textContent = '';
     $('#quizQuestions').innerHTML = ''; $('#q_pass').value = 70;
@@ -298,12 +299,17 @@
       var quiz = null; try { quiz = l.quiz_json ? JSON.parse(l.quiz_json) : null; } catch (e) {}
       if (quiz && quiz.questions) { $('#q_pass').value = quiz.pass || 70; quiz.questions.forEach(function (q) { $('#quizQuestions').appendChild(qCard(q)); }); }
       $('#lessonModal').hidden = false;
+      setTimeout(function () { var f = $('#l_title'); if (f) f.focus(); }, 30);
     }
     if (!id) { fill({}); return; }
     get('lesson_get', 'id=' + id).then(function (d) { fill((d && d.lesson) || {}); });
   }
-  function closeLesson() { $('#lessonModal').hidden = true; }
+  var lessonOpener = null;  // element to restore focus to on close
+  function closeLesson() { $('#lessonModal').hidden = true; if (lessonOpener && lessonOpener.focus) { try { lessonOpener.focus(); } catch (e) {} } lessonOpener = null; }
   $('#lessonClose').onclick = closeLesson; $('#lessonCancel').onclick = closeLesson;
+  // Click the backdrop (outside the card) or press Esc to close.
+  $('#lessonModal').addEventListener('mousedown', function (e) { if (e.target === this) closeLesson(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#lessonModal').hidden) closeLesson(); });
   $('#addQ').onclick = function () { $('#quizQuestions').appendChild(qCard()); };
   $('#lessonSave').onclick = function () {
     var title = $('#l_title').value.trim(); if (!title) { $('#lessonMsg').textContent = 'A title is required.'; return; }

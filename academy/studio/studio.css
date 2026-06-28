@@ -114,7 +114,8 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .qbtn b{font-size:15px} .qbtn span{font-size:12.5px;color:var(--muted)}
 
 /* ── Tables ── */
-.table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;overflow-x:auto;box-shadow:var(--shadow)}
+.table-wrap .tbl{min-width:680px}
 .tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .tbl th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
   font-weight:700;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface-2)}

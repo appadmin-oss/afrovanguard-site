@@ -199,7 +199,7 @@ declare(strict_types=1);
 </div>
 
 <!-- Lesson editor modal -->
-<div class="modal" id="lessonModal" hidden>
+<div class="modal" id="lessonModal" role="dialog" aria-modal="true" aria-labelledby="lessonModalTitle" hidden>
   <div class="modal-card">
     <div class="modal-head"><h2 id="lessonModalTitle">Lesson</h2><button class="icon-x" id="lessonClose" aria-label="Close">×</button></div>
     <form id="lessonForm" class="modal-body">

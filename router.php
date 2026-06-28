@@ -15,6 +15,14 @@ $path = __DIR__ . $uri;
 // Serve existing static files (css, js, images, .html) directly.
 if ($uri !== '/' && is_file($path)) { return false; }
 
+// Serve real directories that ship their own index.php (e.g. /academy/studio/)
+// before the generic pretty-route patterns below can swallow them. Apache does
+// this via DirectoryIndex in production; emulate it for the dev server.
+if ($uri !== '/' && is_dir($path) && is_file(rtrim($path, '/') . '/index.php')) {
+    require rtrim($path, '/') . '/index.php';
+    return true;
+}
+
 // Custom-owned /blog/* → /diary/* (301)
 if (preg_match('~^/blog/?(.*)$~', $uri, $m)) {
     $qs = $_SERVER['QUERY_STRING'] ?? '';

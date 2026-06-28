@@ -24,6 +24,8 @@
     if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
     t.textContent = m; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 2600);
   }
+  // Reveal the in-player "course complete → get your certificate" banner.
+  function revealDone() { var cd = document.getElementById('courseDone'); if (cd && cd.hidden) { cd.hidden = false; try { cd.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {} } }
 
   /* ---- Scroll reveal (matches the Diary) ---- */
   var revealAll = function () { document.querySelectorAll('[data-reveal], .reveal-stagger').forEach(function (n) { n.classList.add('in'); }); };
@@ -89,7 +91,7 @@
           out.textContent = 'You scored ' + d.score + '%. ' + (d.passed ? 'Passed — lesson complete!' : 'You need ' + d.pass + '% to pass. Try again.');
           var st = document.getElementById('quizStatus'); if (st && d.passed) { st.textContent = '✓ Completed'; st.classList.add('done'); }
           var row = document.querySelector('.lesson-side a.lp.active'); if (row && d.passed) row.classList.add('done');
-          if (d.progress) { var b = document.getElementById('sideBar'), p = document.getElementById('sidePct'); if (b) b.style.width = d.progress.pct + '%'; if (p) p.textContent = d.progress.pct + '%'; if (d.progress.complete) toast('Course complete! 🎉 Claim your certificate.'); }
+          if (d.progress) { var b = document.getElementById('sideBar'), p = document.getElementById('sidePct'); if (b) b.style.width = d.progress.pct + '%'; if (p) p.textContent = d.progress.pct + '%'; if (d.progress.complete) { revealDone(); toast('Course complete! 🎉 Claim your certificate.'); } }
         }).catch(function () { out.className = 'quiz-result err'; out.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
@@ -109,7 +111,7 @@
           done = !done; btn.setAttribute('data-done', done ? '1' : '0');
           btn.textContent = done ? '✓ Completed' : 'Mark complete';
           var row = document.querySelector('.lesson-side a.lp.active'); if (row) row.classList.toggle('done', done);
-          if (d.progress) { var b = document.getElementById('sideBar'), p = document.getElementById('sidePct'); if (b) b.style.width = d.progress.pct + '%'; if (p) p.textContent = d.progress.pct + '%'; if (d.progress.complete) toast('Course complete! 🎉'); }
+          if (d.progress) { var b = document.getElementById('sideBar'), p = document.getElementById('sidePct'); if (b) b.style.width = d.progress.pct + '%'; if (p) p.textContent = d.progress.pct + '%'; if (d.progress.complete) { revealDone(); toast('Course complete! 🎉'); } else { var cd = document.getElementById('courseDone'); if (cd) cd.hidden = true; } }
         }).catch(function () { toast('Network error'); }).finally(function () { btn.disabled = false; });
     });
   }
