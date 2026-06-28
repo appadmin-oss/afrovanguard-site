@@ -281,14 +281,18 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     <div class="nav-utility-bar">
       <div class="container">
         <div class="nav-utility">
-<?php if ($showToggle): ?>          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
-<?php endif; ?>          <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
-          <span class="nav-util-sep" aria-hidden="true"></span>
-          <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
-          <div class="nav-account" id="navAuth">
-            <a class="acct-btn" data-login-link href="/login" aria-label="Sign in to your account" title="Sign in">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg>
-            </a>
+          <a href="<?= $S ?>/" class="nav-util-logo" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
+          <div class="nav-utility-actions">
+<?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
+<?php endif; ?>            <a href="<?= $S ?>/donate.html" class="nav-donate">Donate</a>
+            <a href="<?= $S ?>/contact.html" class="nav-util-link">Contact</a>
+            <span class="nav-util-sep" aria-hidden="true"></span>
+            <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
+            <div class="nav-account" id="navAuth">
+              <a class="acct-btn" data-login-link href="/login" aria-label="Sign in to your account" title="Sign in">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg>
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -296,7 +300,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     <!-- Tier 1 · global brand bar -->
     <div class="container">
         <nav class="nav-inner" aria-label="Main navigation">
-          <a href="<?= $S ?>/" class="nav-logo" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
+          <a href="<?= $S ?>/" class="nav-logo nav-logo-compact" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
           <ul class="nav-links" role="list">
 <?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
             <li><a href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a></li>
@@ -324,6 +328,9 @@ function render_nav(string $active = 'diary', array $opts = []): void {
             </li>
 <?php endif; endforeach; ?>          </ul>
           <div class="nav-actions">
+            <form class="nav-search" role="search" action="<?= $S ?>/diary/" method="get">
+              <?= Icons::SEARCH ?><input type="search" name="q" placeholder="Search Afrovanguard" aria-label="Search Afrovanguard" />
+            </form>
             <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary btn-sm nav-cta">Join the Movement</a>
           </div>
           <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
