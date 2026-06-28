@@ -616,7 +616,10 @@ if ($action === 'newsletter') {
 
     /* Atomic deduplication + write inside a single file lock */
     $isNew = !file_exists(CONTACT_FILE);
-    $fp = @fopen(CONTACT_FILE, 'c');
+    // 'c+' (read+write), not 'c' (write-only): the dedup/merge below reads the
+    // existing store via stream_get_contents(), which returns '' on a write-only
+    // handle — so 'c' would wipe every prior contact & subscriber on each signup.
+    $fp = @fopen(CONTACT_FILE, 'c+');
     if ($fp) {
         flock($fp, LOCK_EX);
         $raw  = stream_get_contents($fp) ?: '';

@@ -155,7 +155,11 @@ function rateLimit(string $key, int $max = 30, int $window = 60): bool {
  * Returns true if stored (new), false if already recorded (duplicate).
  */
 function storeDonationIfNew(string $ref, array $entry, float $amount, string $campaign, string $currency): bool {
-    $fp = @fopen(DATA_FILE, 'c');
+    // 'c+' (read+write), not 'c' (write-only): the idempotency re-read below uses
+    // stream_get_contents(), which returns '' on a write-only handle. With 'c' the
+    // duplicate check always sees an empty list (defeating idempotency) and the
+    // write overwrites donations.json with only the new entry — wiping all history.
+    $fp = @fopen(DATA_FILE, 'c+');
     if (!$fp) { error_log('[AV] Cannot open donations.json for write'); return false; }
     flock($fp, LOCK_EX);
 
