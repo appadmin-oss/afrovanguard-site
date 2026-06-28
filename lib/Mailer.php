@@ -89,9 +89,12 @@ final class Mailer
                 $m->send();
                 return true;
             } catch (\Throwable $e) {
+                // Don't give up — fall through to the built-in SMTP client (and then
+                // mail()). PHPMailer can fail on a host where the dependency-free
+                // client succeeds (TLS quirks, OpenSSL stream differences), so it
+                // must not be a dead end.
                 self::$lastError = (string) ($m->ErrorInfo ?: $e->getMessage());
-                error_log('[mail] PHPMailer to ' . $to . ': ' . self::$lastError);
-                return false;
+                error_log('[mail] PHPMailer to ' . $to . ': ' . self::$lastError . ' — trying built-in SMTP');
             }
         }
 
