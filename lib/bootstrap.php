@@ -21,6 +21,19 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 // Location search (first readable wins): $AV_ENV_FILE, then one level ABOVE the
 // web root (recommended — not web-served), then the app root. Keep `.env` out of
 // the web root when you can; if it must live there, ensure the server denies it.
+//
+// Supported syntax (a pragmatic subset of the dotenv conventions):
+//   • blank lines and `#` / `;` comment lines
+//   • `export KEY=…` prefixes (space- or tab-separated)
+//   • a leading UTF-8 BOM, and CRLF / CR / LF line endings
+//   • single-quoted values  → fully literal (no escapes, no expansion)
+//   • double-quoted values  → `\n \r \t \" \\` escapes + `${VAR}` expansion
+//   • MULTI-LINE quoted values — a quote left open continues onto later lines
+//     until its match, so a pasted service-account JSON or PEM key parses whole
+//   • unquoted values        → trailing ` # comment` stripped, `${VAR}` expanded
+//   • `${VAR}` resolves to the real environment, else an earlier line in this
+//     file, else is left untouched (a literal `$` survives unless it begins
+//     a well-formed `${NAME}`, so secrets containing `$` are never mangled).
 (static function (): void {
     $candidates = [];
     $explicit = getenv('AV_ENV_FILE');
@@ -34,50 +47,82 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
     }
     if ($file === null) return;
 
-    $lines = @file($file, FILE_IGNORE_NEW_LINES);
-    if ($lines === false) return;
+    $raw = @file_get_contents($file);
+    if (!is_string($raw) || $raw === '') return;
 
-    foreach ($lines as $raw) {
-        $line = trim($raw);
+    // Drop a leading UTF-8 BOM (it would otherwise become part of the first key
+    // name, so that variable would silently fail the key regex and be lost),
+    // then normalise CRLF / CR to LF so line handling is uniform.
+    if (strncmp($raw, "\xEF\xBB\xBF", 3) === 0) $raw = substr($raw, 3);
+    $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $raw));
+    $n     = count($lines);
+
+    // Index of the next *unescaped* closing quote in $s (the content AFTER the
+    // opening quote). Backslash escapes only count inside double quotes. -1 = none.
+    $closeAt = static function (string $s, string $q): int {
+        for ($i = 0, $len = strlen($s); $i < $len; $i++) {
+            if ($q === '"' && $s[$i] === '\\') { $i++; continue; }
+            if (($s[$i] ?? '') === $q) return $i;
+        }
+        return -1;
+    };
+
+    $loaded = [];   // values resolved so far, so later lines can reference them
+    $expand = static function (string $s) use (&$loaded): string {
+        return preg_replace_callback('/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/', static function (array $m) use (&$loaded): string {
+            $env = getenv($m[1]);
+            if ($env !== false && $env !== '') return $env;   // real env wins
+            return $loaded[$m[1]] ?? $m[0];                   // earlier var, else leave literal
+        }, $s) ?? $s;
+    };
+
+    for ($i = 0; $i < $n; $i++) {
+        $line = trim($lines[$i]);
         if ($line === '' || $line[0] === '#' || $line[0] === ';') continue; // blank / comment
-        if (strncmp($line, 'export ', 7) === 0) $line = ltrim(substr($line, 7));
+        $line = preg_replace('/^export[ \t]+/', '', $line, 1) ?? $line;     // optional `export `
 
         $eq = strpos($line, '=');
         if ($eq === false) continue;
         $key = trim(substr($line, 0, $eq));
-        if ($key === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) continue; // ignore junk keys
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) continue;      // ignore junk keys
 
-        // Real environment wins; the file only fills what isn't already set.
-        $cur = getenv($key);
-        if ($cur !== false && $cur !== '') continue;
+        $rest  = ltrim(substr($line, $eq + 1));
+        $quote = ($rest !== '' && ($rest[0] === '"' || $rest[0] === "'")) ? $rest[0] : '';
 
-        $val = ltrim(substr($line, $eq + 1));
-        if ($val !== '' && ($val[0] === '"' || $val[0] === "'")) {
-            // Quoted: value is the content up to the matching closing quote;
-            // anything after (e.g. a trailing comment) is ignored. Double quotes
-            // honour \n \r \t \" \\ escapes; single quotes are literal.
-            $q = $val[0]; $end = -1;
-            for ($i = 1, $n = strlen($val); $i < $n; $i++) {
-                if ($q === '"' && $val[$i] === '\\') { $i++; continue; }
-                if ($val[$i] === $q) { $end = $i; break; }
+        if ($quote !== '') {
+            // Quoted: take the content up to the matching closing quote, pulling
+            // in further lines while the quote stays open (multi-line secrets).
+            $body  = substr($rest, 1);
+            $close = $closeAt($body, $quote);
+            while ($close < 0 && $i + 1 < $n) {
+                $body .= "\n" . $lines[++$i];
+                $close = $closeAt($body, $quote);
             }
-            if ($end >= 0) {
-                $val = substr($val, 1, $end - 1);
-                if ($q === '"') $val = str_replace(['\\n', '\\r', '\\t', '\\"', '\\\\'], ["\n", "\r", "\t", '"', '\\'], $val);
-            } else {
-                $val = substr($val, 1); // no closing quote — take the rest literally
+            $val = $close >= 0 ? substr($body, 0, $close) : $body; // unterminated ⇒ take the rest
+            if ($quote === '"') {
+                // strtr is single-pass, so an escaped backslash (`\\`) is not
+                // re-interpreted — unlike a sequence of str_replace() calls.
+                $val = strtr($val, ['\\\\' => '\\', '\\n' => "\n", '\\r' => "\r", '\\t' => "\t", '\\"' => '"']);
+                $val = $expand($val);
             }
+            // Single quotes are fully literal — no escapes, no expansion.
         } else {
-            // Unquoted: trim a trailing inline comment introduced by whitespace + '#'
-            // (so the heavily-commented .env.example works once values are filled in),
-            // while leaving a '#' that's part of the value (e.g. p#ss) intact.
-            $val = preg_replace('/\s+#.*$/', '', $val);
-            $val = rtrim((string) $val);
+            // Unquoted: strip a trailing inline comment introduced by whitespace +
+            // '#' (so the heavily-commented .env.example works once values are
+            // filled in), keep a '#' that's part of the value (e.g. p#ss), expand.
+            $val = rtrim((string) preg_replace('/\s+#.*$/', '', $rest));
+            $val = $expand($val);
         }
 
+        // Real environment wins; the file only fills what isn't already set. We
+        // still record the live value so later `${VAR}` references resolve to it.
+        $cur = getenv($key);
+        if ($cur !== false && $cur !== '') { $loaded[$key] = $cur; continue; }
+
         putenv("{$key}={$val}");
-        $_ENV[$key] = $val;
+        $_ENV[$key]    = $val;
         $_SERVER[$key] = $val;
+        $loaded[$key]  = $val;
     }
 })();
 
