@@ -36,13 +36,20 @@ header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 /* ── Config ─────────────────────────────────────────────────── */
-$cfg = __DIR__ . '/config.php';
-if (!file_exists($cfg)) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Server configuration error']);
-    exit;
-}
-require_once $cfg;
+// Self-bootstrap like process-donation.php: load .env, promote SMTP_*/FROM_*/
+// ADMIN_EMAIL to constants, and pull in config.php only when it is present. This
+// makes the contact form work on a pure-.env deployment (no config.php) instead
+// of hard-500ing — the form only needs SMTP/recipient settings, which may come
+// from the environment.
+require_once __DIR__ . '/lib/bootstrap.php';
+
+// Contact-specific settings that normally live in config.php — default them so
+// the form runs even when config.php is absent (env-only deployments).
+foreach ([
+    'ENABLE_EMAIL_NOTIFICATIONS' => true, 'ENABLE_ADMIN_NOTIFICATIONS' => true,
+    'FROM_NAME' => 'Afrovanguard', 'ADMIN_EMAIL' => 'cacentre@afrovanguard.org.ng',
+] as $__k => $__v) { if (!defined($__k)) define($__k, $__v); }
+if (!defined('FROM_EMAIL')) define('FROM_EMAIL', defined('SMTP_USERNAME') ? SMTP_USERNAME : 'donations@afrovanguard.org.ng');
 
 /* ── PHPMailer — guarded load (Composer or manual) ─────────── */
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
@@ -147,6 +154,13 @@ function mail_send_contact(string $to, string $subject, string $html, ?array $at
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
     if (defined('AV_NO_MAILER')) {
         error_log("[AV-Contact] mail_send_contact skipped — PHPMailer not installed. To: {$to}");
+        return false;
+    }
+    // SMTP may be unconfigured on a pure-.env deployment. Skip cleanly rather than
+    // dereferencing undefined SMTP_* constants (a fatal in PHP 8) — the submission
+    // is already stored, so the form still succeeds without email.
+    if (!defined('SMTP_HOST') || (string) SMTP_HOST === '' || !defined('SMTP_USERNAME') || !defined('SMTP_PASSWORD') || !defined('SMTP_PORT')) {
+        error_log("[AV-Contact] mail_send_contact skipped — SMTP not configured. To: {$to}");
         return false;
     }
     $m = new PHPMailer(true);
