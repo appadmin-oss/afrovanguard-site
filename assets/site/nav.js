@@ -97,12 +97,19 @@
   Array.prototype.forEach.call(document.querySelectorAll('[data-login-link]'), function (a) { a.setAttribute('href', loginHref()); });
 
   function reflectMember(user) {
-    var first = esc((user.name || 'Member').split(' ')[0]);
+    var name = user.name || 'Member';
+    var first = esc(name.split(' ')[0]);
+    var initial = esc((name.trim()[0] || 'M').toUpperCase());
     var slot = document.getElementById('navAuth');
     if (slot) {
-      slot.innerHTML = '<a class="nav-acct" href="/portal/"><span class="nav-acct-hi">Hi,</span> ' + first + '</a>'
-        + '<a class="nav-signin" href="#" data-logout>Sign out</a>';
+      slot.classList.add('is-member');
+      // AWS-style circular avatar (initial) → account, with a quiet sign-out.
+      slot.innerHTML = '<a class="acct-btn is-member" href="/portal/" title="' + esc(name) + ' — your account" aria-label="Your account"><span class="acct-initial">' + initial + '</span></a>'
+        + '<a class="acct-signout" href="#" data-logout title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></a>';
     }
+    // Sign-in text link (utility strip) becomes the member's first name → portal.
+    var sl = document.querySelector('.nav-signin-link');
+    if (sl) { sl.textContent = 'Hi, ' + first; sl.setAttribute('href', '/portal/'); sl.removeAttribute('data-login-link'); }
     var subLogin = document.getElementById('navSubLogin');
     if (subLogin) { subLogin.textContent = first; subLogin.setAttribute('href', '/portal/'); }
   }
