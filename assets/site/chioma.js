@@ -132,7 +132,17 @@
   window.chioma = {
     open: function (msg) { setOpen(true); if (msg) setTimeout(function () { sendMessage(msg); }, 200); },
     close: function () { setOpen(false); },
-    toggle: function () { setOpen(!open); }
+    toggle: function () { setOpen(!open); },
+    // Programmatic ask — no UI. Resolves to Chioma's reply text. Lets your own
+    // AI agent / scripts converse with Chioma in the browser.
+    //   chioma.ask('How do I donate?').then(function (reply) { ... });
+    ask: function (text, opts) {
+      opts = opts || {};
+      return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ message: String(text || ''), history: opts.history || [], page: opts.page || context() }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (!d || d.reply == null) throw new Error((d && d.error) || 'Chioma had trouble.'); return d.reply; });
+    }
   };
   // Back-compat shim for the old Botpress hooks that pages may still call.
   if (!window.botpress) window.botpress = { open: function () { setOpen(true); }, close: function () { setOpen(false); }, sendEvent: function () {} };

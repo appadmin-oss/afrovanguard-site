@@ -224,6 +224,7 @@ require_once __DIR__ . '/Drive.php';
 require_once __DIR__ . '/GoogleWorkspace.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
+require_once __DIR__ . '/Chioma.php';
 
 av_harden_errors();
 
