@@ -22,6 +22,14 @@
 
   if (sessionStorage.getItem(STORAGE_KEY)) return;
 
+  /* ── Guard: never hijack the mobile/tablet experience ─────────────
+     This is a full-screen "cinematic welcome" (z-index 9000). On the widths
+     where the header collapses to the hamburger + drawer (≤1099px), the overlay
+     sits ON TOP of the burger and locks body scroll — so every tap lands on the
+     welcome modal and the navigation appears broken. Keep it to desktop, where
+     it has room and never covers the nav. (Phones go straight to the site.) */
+  if (window.matchMedia('(max-width: 1099px)').matches) return;
+
   /* ── Role definitions — data-driven ──────────────────────────── */
   const ROLE_DATA = {
     volunteer: {
