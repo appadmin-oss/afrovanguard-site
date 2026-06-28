@@ -715,6 +715,14 @@
     }
   });
   $('#newWhBtn').addEventListener('click', function () { openWh(null); });
+  if ($('#whRunBtn')) $('#whRunBtn').addEventListener('click', function () {
+    var b = this; b.disabled = true; var l = b.textContent; b.textContent = 'Running…';
+    post('wh_run', {}).then(function (r) {
+      var x = (r.data && r.data.result) || {};
+      toast('Queue run — delivered ' + (x.ok || 0) + ' of ' + (x.processed || 0) + ' due.');
+      loadWebhooks();
+    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; b.textContent = l; });
+  });
 
   /* ---- API tokens (inbound integrations) ---- */
   var atScopesRendered = false;

@@ -475,8 +475,8 @@
   <!-- WEBHOOKS + INTEGRATIONS (outbound + inbound) -->
   <main class="studio-main" id="webhooksView" hidden>
     <div class="studio-head">
-      <div><h1>Webhooks &amp; integrations</h1><p class="muted">Push signed JSON out when things happen, and let trusted apps call in. Deliveries retry automatically (cron: <code>db/webhooks_run.php</code>).</p></div>
-      <button class="btn btn-primary" id="newWhBtn">+ Add endpoint</button>
+      <div><h1>Webhooks &amp; integrations</h1><p class="muted">Push signed JSON out when things happen, and let trusted apps call in. Deliveries retry with backoff — drive the queue from cron (<code>php db/webhooks_run.php</code>) or, with no shell access, point a scheduler at <code>/tasks/cron.php?key=…</code>, or hit <b>Run queue now</b>.</p></div>
+      <div class="editor-actions"><button class="btn btn-outline" id="whRunBtn">↻ Run queue now</button><button class="btn btn-primary" id="newWhBtn">+ Add endpoint</button></div>
     </div>
     <div class="entry-list" id="whList"></div>
     <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Recent deliveries</h2>

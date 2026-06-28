@@ -161,8 +161,8 @@ final class Webhooks
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $body,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 3,
-            CURLOPT_TIMEOUT        => 6,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 10,
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
                 'User-Agent: Afrovanguard-Webhooks/1.0',
