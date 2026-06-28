@@ -13,20 +13,10 @@
 </head>
 <body class="studio">
   <header class="studio-bar">
-    <div class="studio-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
-    <nav class="studio-tabs" id="tabs" hidden>
-      <button class="tab active" data-tab="entries">Diary</button>
-      <button class="tab" data-tab="moderation">Moderation<span class="tab-badge" id="modBadge" hidden></span></button>
-      <button class="tab" data-tab="academy">Academy</button>
-      <button class="tab" data-tab="members">Members</button>
-      <button class="tab" data-tab="people">People</button>
-      <button class="tab" data-tab="celebrations">Celebrations</button>
-      <button class="tab" data-tab="communities">Communities</button>
-      <button class="tab tab--sep" data-tab="webhooks">Webhooks</button>
-      <button class="tab" data-tab="system">System</button>
-      <button class="tab" data-tab="signin">Sign-in</button>
-      <button class="tab" data-tab="inbox">Inbox</button>
-    </nav>
+    <div class="studio-brand">
+      <button class="studio-burger" id="studioBurger" aria-label="Toggle sections" aria-expanded="false" hidden><span></span><span></span><span></span></button>
+      <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span>
+    </div>
     <div class="studio-actions">
       <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -37,15 +27,58 @@
     </div>
   </header>
 
+  <!-- Left sidebar — grouped sections (data-tab preserved; driven by app.js) -->
+  <aside class="studio-side" id="studioSide" aria-label="Studio sections">
+    <nav class="studio-nav" id="tabs" hidden>
+      <div class="nav-group">
+        <p class="nav-group-h">Content</p>
+        <button class="tab active" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
+        <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
+        <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
+      </div>
+      <div class="nav-group">
+        <p class="nav-group-h">Academy</p>
+        <button class="tab" data-tab="academy"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4L2 9l10 5 10-5-10-5z"/><path d="M6 11v5c0 1.3 2.7 2.5 6 2.5s6-1.2 6-2.5v-5"/><path d="M22 9v5"/></svg><span>Academy</span></button>
+      </div>
+      <div class="nav-group">
+        <p class="nav-group-h">People</p>
+        <button class="tab" data-tab="members"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.6 2.7-5.5 6-5.5"/><path d="M15 12l2 2 4-4"/></svg><span>Members</span></button>
+        <button class="tab" data-tab="people"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M17 8.2a3 3 0 0 1 0 5.6"/><path d="M19 20c0-2.2-1-3.7-2.6-4.6"/></svg><span>People</span></button>
+        <button class="tab" data-tab="celebrations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/></svg><span>Celebrations</span></button>
+      </div>
+      <div class="nav-group">
+        <p class="nav-group-h">Community</p>
+        <button class="tab" data-tab="communities"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 12h5"/></svg><span>Communities</span></button>
+      </div>
+      <div class="nav-group">
+        <p class="nav-group-h">System</p>
+        <button class="tab" data-tab="webhooks"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Webhooks</span></button>
+        <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
+        <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
+      </div>
+    </nav>
+  </aside>
+  <div class="studio-scrim" id="studioScrim" hidden></div>
+
   <section class="studio-login" id="loginView">
     <div class="login-card">
-      <h1>Afrovanguard Studio</h1>
-      <p>Enter your admin token to manage the Diary &amp; Academy.</p>
-      <form id="loginForm">
-        <input type="password" id="tokenInput" placeholder="Admin token" autocomplete="current-password" required />
-        <button class="btn btn-primary" type="submit">Enter</button>
+      <div class="login-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
+      <h1>Sign in to Studio</h1>
+      <p>Enter your admin access token to manage the Diary, Academy &amp; site.</p>
+      <form id="loginForm" novalidate>
+        <label class="login-field">
+          <span class="login-label">Admin token</span>
+          <span class="login-input-wrap">
+            <input type="password" id="tokenInput" placeholder="••••••••••••••••" autocomplete="current-password" autofocus required />
+            <button type="button" class="login-eye" id="tokenToggle" aria-label="Show token" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </span>
+        </label>
+        <button class="btn btn-primary login-submit" type="submit" id="loginBtn">Sign in</button>
       </form>
-      <p class="login-msg" id="loginMsg"></p>
+      <p class="login-msg" id="loginMsg" role="alert"></p>
+      <p class="login-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Access is rate-limited and logged.</p>
     </div>
   </section>
 
