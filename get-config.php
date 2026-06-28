@@ -23,13 +23,12 @@ if (in_array($origin, $allowedOrigins, true)) {
 }
 
 /* ─── Load config ───────────────────────────────────────────── */
-$cfg = __DIR__ . '/config.php';
-if (!file_exists($cfg)) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Configuration unavailable']);
-    exit;
-}
-require_once $cfg;
+// Use the shared bootstrap so this works on BOTH a config.php deployment and a
+// pure-.env deployment: it loads .env, promotes AV_PAYSTACK_PK → PAYSTACK_PUBLIC_KEY,
+// and pulls in config.php only when it is actually present. A missing config.php
+// must never hard-500 here — the public key may legitimately come from the
+// environment, and donate.html fetches this endpoint on every page load.
+require_once __DIR__ . '/lib/bootstrap.php';
 
 /* ─── Return ONLY the public key ────────────────────────────── */
 // PAYSTACK_PUBLIC_KEY is safe to send to the browser.

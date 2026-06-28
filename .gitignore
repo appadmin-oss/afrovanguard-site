@@ -21,7 +21,9 @@ projects/sts/ceo/api/error_log
 *.rl
 
 # ── PHP dependencies ───────────────────────────────────────────────────
-vendor/
+# vendor/ is COMMITTED on purpose: this site is git-deployed to shared hosting
+# (cPanel) that has no Composer, so the PHPMailer dependency must ship in-repo.
+# Run `composer install` to reproduce it locally.
 
 # ── OS / editor noise ─────────────────────────────────────────────────
 .DS_Store
