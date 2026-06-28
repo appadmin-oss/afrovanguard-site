@@ -19,7 +19,10 @@
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
-    $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
+    $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
+    document.body.classList.toggle('studio-authed', v !== 'login');
+    var burger = $('#studioBurger'); if (burger) burger.hidden = (v === 'login');
+    if (typeof closeSide === 'function') closeSide(); }
 
   var toastEl = $('#toast'), toastT;
   function toast(m) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove('show'); }, 2600); }
@@ -64,14 +67,33 @@
     tab.addEventListener('click', function () { activateTab(tab.getAttribute('data-tab')); });
   });
 
+  /* ---- Sidebar drawer (mobile) ---- */
+  function closeSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (s) s.classList.remove('open'); if (sc) sc.hidden = true; if (b) b.setAttribute('aria-expanded', 'false'); }
+  function toggleSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return; var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open)); }
+  (function () { var b = $('#studioBurger'), sc = $('#studioScrim'); if (b) b.addEventListener('click', toggleSide); if (sc) sc.addEventListener('click', closeSide); document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(); }); })();
+
   /* ---- Auth ---- */
   $('#loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
+    var btn = $('#loginBtn'), msg = $('#loginMsg');
+    msg.textContent = ''; msg.classList.remove('is-error');
+    var label = btn.textContent; btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = 'Signing in…';
+    var reset = function () { btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = label; };
     post('login', { token: $('#tokenInput').value.trim() }).then(function (r) {
       if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); }
-      else { $('#loginMsg').textContent = (r.data && r.data.error) || 'Invalid token.'; }
-    }).catch(function () { $('#loginMsg').textContent = 'Network error.'; });
+      else { msg.textContent = (r.data && r.data.error) || 'That token was not accepted.'; msg.classList.add('is-error'); reset(); var i = $('#tokenInput'); i.focus(); i.select(); }
+    }).catch(function () { msg.textContent = 'Network error — please try again.'; msg.classList.add('is-error'); reset(); });
   });
+  // show / hide the token
+  (function () {
+    var t = $('#tokenToggle'), inp = $('#tokenInput');
+    if (!t || !inp) return;
+    t.addEventListener('click', function () {
+      var reveal = inp.type === 'password'; inp.type = reveal ? 'text' : 'password';
+      t.setAttribute('aria-pressed', String(reveal)); t.setAttribute('aria-label', reveal ? 'Hide token' : 'Show token');
+      t.classList.toggle('is-on', reveal); inp.focus();
+    });
+  })();
   $('#logoutBtn').addEventListener('click', function () { post('logout', {}).finally(function () { csrf = ''; show('login'); }); });
 
   /* ---- Diary list ---- */
