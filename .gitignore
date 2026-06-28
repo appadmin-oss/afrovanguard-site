@@ -14,6 +14,7 @@ db/diary.sqlite-shm
 
 # ── Donor / submission data ────────────────────────────────────────────
 donations.json
+contacts.json
 projects/sts/ceo/api/data/
 projects/sts/ceo/api/error_log
 

@@ -41,6 +41,23 @@ RewriteRule ^db/   - [F,L]
   </FilesMatch>
 </IfModule>
 
+# ── Deny the runtime data stores written to the web root ────────────────────
+# contacts.json (contact + newsletter submissions) and donations.json (donor
+# records) are PII and must never be web-served. They are NOT covered by the
+# extension list above (.json is intentionally not blanket-denied — e.g.
+# .well-known/*.json verification files must still serve), so deny them by name.
+<IfModule mod_authz_core.c>
+  <FilesMatch "^(contacts|donations)\.json$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <FilesMatch "^(contacts|donations)\.json$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
+
 # ── Conservative security headers (Cloudflare may also set some; harmless) ──
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
