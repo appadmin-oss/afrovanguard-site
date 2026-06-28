@@ -75,5 +75,12 @@ if (preg_match('~^/academy/([a-z0-9-]+)/?$~', $uri, $m)) {
     return true;
 }
 
+// Extension-less root pages: /about → about.html, /donate → donate.html, …
+// then /name → name.php. Mirrors the production .htaccess so dev matches prod.
+if (preg_match('~^/([a-z0-9_-]+)/?$~', $uri, $m)) {
+    if (is_file(__DIR__ . '/' . $m[1] . '.html')) { header('Content-Type: text/html; charset=UTF-8'); readfile(__DIR__ . '/' . $m[1] . '.html'); return true; }
+    if (is_file(__DIR__ . '/' . $m[1] . '.php'))  { require __DIR__ . '/' . $m[1] . '.php'; return true; }
+}
+
 // Fallback: let the built-in server handle it (404 for missing files).
 return false;

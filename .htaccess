@@ -25,6 +25,48 @@ RewriteRule ^\.well-known/ - [L]
 # Server-side PHP libraries are require()d, never requested directly over HTTP.
 RewriteRule ^lib/  - [F,L]
 RewriteRule ^db/   - [F,L]
+RewriteRule ^data/ - [F,L]
+
+# ── Clean URLs (work WITHOUT a file extension) ──────────────────────────────
+# Consolidated in the ROOT so routing works even when per-directory .htaccess
+# files aren't honored or deployed on the host. Real files and directories are
+# always served as-is (so /diary/, /academy/, css, js, images, *.php all work).
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Legacy WordPress blog → Diary (permanent)
+RewriteRule ^blog/?(.*)$ /diary/$1 [R=301,L,QSA]
+
+# Diary
+RewriteRule ^diary/sitemap\.xml$ diary/sitemap.php [L]
+RewriteRule ^diary/feed\.xml$ diary/feed.php [L]
+RewriteRule ^diary/og/([a-z0-9-]+)\.png$ diary/og.php?slug=$1 [L,QSA]
+RewriteRule ^diary/me/?$ diary/me.php [L,QSA]
+RewriteRule ^diary/([a-z0-9-]+)/?$ diary/article.php?slug=$1 [L,QSA]
+
+# Academy  (/academy/ and /academy/studio/ are real dirs → served above)
+RewriteRule ^academy/sitemap\.xml$ academy/sitemap.php [L]
+RewriteRule ^academy/og/([a-z0-9-]+)\.png$ academy/og.php?slug=$1 [L,QSA]
+RewriteRule ^academy/teach/?$ academy/teach.php [L,QSA]
+RewriteRule ^academy/teach/([a-z0-9-]+)/?$ academy/teach.php?course=$1 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/certificate/?$ academy/certificate.php?course=$1 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/learn/?$ academy/learn.php?course=$1 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/learn/([a-z0-9-]+)/?$ academy/learn.php?course=$1&lesson=$2 [L,QSA]
+RewriteRule ^academy/([a-z0-9-]+)/?$ academy/course.php?slug=$1 [L,QSA]
+
+# People profiles: /people/<id> or /people/<id>-<slug>
+RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
+
+# Google sign-in endpoints
+RewriteRule ^auth/google/(start|callback)/?$ auth/google.php?action=$1 [L,QSA]
+
+# Extension-less root pages: /about → about.html, /donate → donate.html, …
+RewriteCond %{DOCUMENT_ROOT}/$1.html -f
+RewriteRule ^([a-z0-9_-]+)/?$ /$1.html [L]
+# …and /name → name.php when only a PHP file exists by that name
+RewriteCond %{DOCUMENT_ROOT}/$1.php -f
+RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
 
 # ── Deny secrets, configs, VCS metadata, dumps and raw source/docs ──────────
 # Matches dotfiles (.env, .git*, .htaccess … but NOT .well-known), config.php /
