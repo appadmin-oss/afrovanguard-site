@@ -284,8 +284,6 @@ function render_nav(string $active = 'diary', array $opts = []): void {
           <div class="nav-utility-actions">
 <?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
 <?php endif; ?>            <a href="<?= $S ?>/donate.html" class="nav-util-link nav-donate">Donate</a>
-            <a href="<?= $S ?>/contact.html" class="nav-util-link">Contact</a>
-            <a href="<?= $S ?>/about.html" class="nav-util-link">About</a>
             <div class="nav-account" id="navAuth">
               <a class="acct-btn" data-login-link href="/login" aria-label="Sign in to your account" title="Sign in">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg>
