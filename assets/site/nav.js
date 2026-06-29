@@ -184,4 +184,90 @@
       .then(function (d) { if (d && d.ok && d.user) reflectMember(d.user); })
       .catch(function () {});
   }
+
+  /* ---- Accessible, AI-integrated site search modal ---- */
+  (function () {
+    var modal = document.getElementById('avSearch');
+    var input = document.getElementById('avSearchInput');
+    var resultsEl = document.getElementById('avSearchResults');
+    var aiBox = document.getElementById('avSearchAi'), aiText = document.getElementById('avSearchAiText');
+    var hint = document.getElementById('avSearchHint');
+    if (!modal || !input || !resultsEl) return;
+    var opener = null, tDeb = null, lastReq = 0;
+    var TYPE_BADGE = { Page: 'Page', Diary: 'Diary', Academy: 'Academy' };
+
+    function open() {
+      opener = document.activeElement;
+      modal.hidden = false;
+      requestAnimationFrame(function () { modal.classList.add('open'); });
+      document.body.style.overflow = 'hidden';
+      setTimeout(function () { try { input.focus(); } catch (e) {} }, 30);
+    }
+    function close() {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+      setTimeout(function () { modal.hidden = true; }, 180);
+      input.value = ''; resultsEl.innerHTML = ''; if (aiBox) aiBox.hidden = true; if (aiText) aiText.textContent = '';
+      if (hint) hint.hidden = false;
+      if (opener && opener.focus) { try { opener.focus(); } catch (e) {} }
+    }
+    function row(r) {
+      var a = document.createElement('a');
+      a.className = 'avs-result'; a.href = r.url; a.setAttribute('role', 'option');
+      if (/^https?:/.test(r.url)) { a.target = '_blank'; a.rel = 'noopener'; }
+      a.innerHTML = '<span class="avs-type">' + esc(TYPE_BADGE[r.type] || r.type) + '</span>'
+        + '<span class="avs-rt"><span class="avs-rtitle">' + esc(r.title) + '</span>'
+        + (r.excerpt ? '<span class="avs-rex">' + esc(r.excerpt) + '</span>' : '') + '</span>';
+      a.addEventListener('click', function () { close(); });
+      return a;
+    }
+    function render(d, withAi) {
+      if (hint) hint.hidden = true;
+      var list = (d && d.results) || [];
+      resultsEl.innerHTML = '';
+      if (!list.length && !(withAi)) {
+        resultsEl.innerHTML = '<p class="avs-empty">No matches. Press <kbd>Enter</kbd> to ask the assistant.</p>';
+      } else {
+        list.forEach(function (r) { resultsEl.appendChild(row(r)); });
+      }
+      if (withAi && aiBox && aiText) {
+        var ai = d && d.ai;
+        aiBox.hidden = false;
+        if (ai && ai.ok && ai.text) aiText.textContent = ai.text;
+        else if (ai && ai.configured === false) aiText.textContent = 'The AI assistant isn’t enabled yet — try the results above, or Contact us.';
+        else aiText.textContent = 'I couldn’t answer that just now — try the results above.';
+      }
+    }
+    function search(withAi) {
+      var q = input.value.trim();
+      if (q.length < 2) { resultsEl.innerHTML = ''; if (aiBox) aiBox.hidden = true; if (hint) hint.hidden = false; return; }
+      var req = ++lastReq;
+      if (withAi && aiBox && aiText) { aiBox.hidden = false; aiText.textContent = 'Thinking…'; }
+      fetch('/search.php?q=' + encodeURIComponent(q) + (withAi ? '&ai=1' : ''), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (req === lastReq) render(d, withAi); })
+        .catch(function () { if (req === lastReq) resultsEl.innerHTML = '<p class="avs-empty">Search is unavailable right now.</p>'; });
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-search-open]'), function (el) {
+      el.addEventListener('click', function (e) { e.preventDefault(); open(); });
+    });
+    Array.prototype.forEach.call(modal.querySelectorAll('[data-search-close]'), function (el) {
+      el.addEventListener('click', close);
+    });
+    input.addEventListener('input', function () { clearTimeout(tDeb); tDeb = setTimeout(function () { search(false); }, 240); });
+    var form = document.getElementById('avSearchForm');
+    if (form) form.addEventListener('submit', function (e) { e.preventDefault(); clearTimeout(tDeb); search(true); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) { close(); return; }
+      // focus trap inside the dialog
+      if (e.key === 'Tab' && !modal.hidden) {
+        var f = modal.querySelectorAll('input, button, a[href]');
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+  })();
 })();
