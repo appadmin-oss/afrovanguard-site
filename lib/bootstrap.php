@@ -217,6 +217,7 @@ require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
+require_once __DIR__ . '/AdminAudit.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';
 require_once __DIR__ . '/AuthArt.php';
