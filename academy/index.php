@@ -1,16 +1,34 @@
 <?php
 /**
  * academy/index.php — Afrovanguard Academy course catalogue (from the DB).
+ *
+ * Coursera-style catalogue with an AWS-Bedrock-inspired light hero: breadcrumb,
+ * large serif title, one-line subtitle, dark pill CTA; then a filter/sort bar
+ * and a responsive grid of course cards that show lesson counts and a signed-in
+ * learner's enrolment / progress state.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/_helpers.php';
 
 Sitemap::ensureFresh();
 $repo = new AcademyRepository();
+$lms  = new LmsRepository();
 $courses = $repo->all();
 $featured = $repo->featured();
+$categories = $repo->categories();
 $canonical = rtrim(SITE_URL, '/') . '/academy/';
+
+$user = LmsAuth::user();
+$member = false;
+if ($user) { $member = $lms->isMember((int) $user['id']) || LmsAuth::isOrgMember($user); }
+$cards = ac_decorate_courses($courses, $lms, $user);
+
+// Distinct levels (for the sort/filter affordance) — only when there's variety.
+$levels = [];
+foreach ($courses as $c) { $lv = trim((string) ($c['level'] ?? '')); if ($lv !== '') $levels[$lv] = true; }
+$levels = array_keys($levels);
 
 $itemList = ['@type' => 'ItemList', 'itemListElement' => []];
 foreach ($courses as $i => $c) {
@@ -36,49 +54,82 @@ render_nav('academy');
   <main id="main-content">
     <section class="ac-hero">
       <div class="container">
-        <span class="diary-eyebrow">The Afrovanguard Academy</span>
-        <h1>Learn. Build.<br/>Lead Africa.</h1>
-        <p>Free, hands-on programmes in technology, the creative arts and leadership — the formation behind our goal of <strong>one million incorruptible leaders by 2040</strong>. Grounded in <a href="/ethos/" style="color:var(--gold-deep);text-decoration:underline;text-underline-offset:3px">our ethos</a>.</p>
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="/">Home</a><span class="sep">›</span><span aria-current="page">Academy</span>
+        </nav>
+        <p class="ac-hero-eyebrow">The Afrovanguard Academy</p>
+        <h1>Learn. Build. Lead Africa.</h1>
+        <p class="ac-hero-sub">Free, hands-on programmes in technology, the creative arts and leadership — the formation behind one million incorruptible leaders by 2040.</p>
         <div class="ac-hero-cta">
-          <a class="btn btn-primary" href="#catalogue">Explore programmes ↓</a>
-          <a class="btn btn-outline" href="https://cacentre.afrovanguard.org.ng/volunteer">Teach with us</a>
+          <a class="btn btn-pill" href="#catalogue">Browse courses</a>
+          <a class="btn btn-pill-ghost" href="/academy/teach/">Teach with us</a>
         </div>
+        <dl class="ac-hero-stats" aria-label="Academy at a glance">
+          <div><dt><?= count($courses) ?></dt><dd>Programme<?= count($courses) === 1 ? '' : 's' ?></dd></div>
+<?php if ($categories): ?>          <div><dt><?= count($categories) ?></dt><dd>Track<?= count($categories) === 1 ? '' : 's' ?></dd></div>
+<?php endif; ?>
+          <div><dt>Free</dt><dd>To get started</dd></div>
+        </dl>
       </div>
     </section>
 
     <div class="container" id="catalogue">
-      <div class="diary-controls">
-        <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" placeholder="Search programmes…" aria-label="Search programmes" /></div>
-        <div class="diary-filters" role="tablist" aria-label="Filter programmes">
-          <button class="chip active" data-filter="all">All</button>
-<?php foreach ($repo->categories() as $cat): ?>
-          <button class="chip" data-filter="<?= e(slugify($cat)) ?>"><?= e($cat) ?></button>
+      <div class="ac-toolbar">
+        <div class="ac-toolbar-head">
+          <h2 class="ac-toolbar-title">Explore programmes</h2>
+          <p class="ac-toolbar-count" data-count>Showing all <?= count($courses) ?></p>
+        </div>
+        <div class="ac-toolbar-controls">
+          <div class="search-wrap"><?= Icons::SEARCH ?><input type="search" class="search-input" placeholder="Search programmes…" aria-label="Search programmes" /></div>
+          <label class="ac-sort">
+            <span class="ac-sort-lbl">Sort</span>
+            <select class="ac-sort-select" aria-label="Sort programmes">
+              <option value="featured">Recommended</option>
+              <option value="title">Title (A–Z)</option>
+              <option value="lessons">Most lessons</option>
+            </select>
+          </label>
+        </div>
+        <div class="diary-filters ac-filters" role="tablist" aria-label="Filter programmes by track">
+          <button class="chip active" data-filter="all" role="tab" aria-selected="true">All tracks</button>
+<?php foreach ($categories as $cat): ?>
+          <button class="chip" data-filter="<?= e(slugify($cat)) ?>" role="tab" aria-selected="false"><?= e($cat) ?></button>
 <?php endforeach; ?>
         </div>
       </div>
 
+<?php if ($cards): ?>
       <section class="ac-grid" aria-label="Programmes">
-<?php foreach ($courses as $c): render_course_card($c); endforeach; ?>
+<?php foreach ($cards as $row): ac_course_card($row['course'], $row['opts']); endforeach; ?>
       </section>
-      <div class="no-results">No programmes match your search.</div>
+      <div class="no-results ac-empty-inline">
+        <p>No programmes match your search.</p>
+        <button type="button" class="btn btn-pill-ghost btn-sm" data-clear-filters>Clear filters</button>
+      </div>
+<?php else: ?>
+      <div class="ac-empty">
+        <h2>New programmes are on the way</h2>
+        <p>We're preparing the next cohort of free technology, creative and leadership programmes. Check back soon — or join the movement to be the first to know.</p>
+        <a class="btn btn-pill" href="<?= e(AV_VOLUNTEER_URL) ?>">Join the movement</a>
+      </div>
+<?php endif; ?>
     </div>
 
-<?php $member = false; if ($u = LmsAuth::user()) { $member = (new LmsRepository())->isMember((int) $u['id']) || LmsAuth::isOrgMember($u); } ?>
     <section class="ac-membership" id="membership">
       <div class="container membership-card" data-reveal>
         <div class="membership-copy">
-          <span class="diary-eyebrow">Academy membership</span>
-          <h2>One membership. Every members’ programme.</h2>
+          <span class="ac-hero-eyebrow ac-hero-eyebrow--light">Academy membership</span>
+          <h2>One membership. Every members' programme.</h2>
           <p>Unlock our members-only programmes, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
           <p class="membership-price"><?= '₦' . number_format((int) AV_MEMBERSHIP_NGN) ?><span> / year</span></p>
         </div>
         <div class="membership-cta pay-card">
 <?php if ($member): ?>
-          <p class="membership-active">✓ You’re an active member. Thank you for building Africa with us.</p>
-<?php elseif ($u ?? null): ?>
-          <button type="button" class="btn btn-primary pay-btn" data-pay="membership">Become a member →</button>
+          <p class="membership-active">✓ You're an active member. Thank you for building Africa with us.</p>
+<?php elseif ($user): ?>
+          <button type="button" class="btn btn-pill-gold pay-btn" data-pay="membership">Become a member →</button>
 <?php else: ?>
-          <button type="button" class="btn btn-primary" data-auth="register">Create an account to join →</button>
+          <button type="button" class="btn btn-pill-gold" data-auth="register">Create an account to join →</button>
           <p class="enroll-tiny">Already have an account? <a href="#" data-auth="login">Sign in</a></p>
 <?php endif; ?>
           <p class="enroll-msg" hidden></p>
