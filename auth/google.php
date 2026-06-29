@@ -15,7 +15,7 @@ $action = (string) ($_GET['action'] ?? 'start');
 /** Redirect helper that also clears the one-shot state cookie. */
 function av_oauth_bounce(string $to): void
 {
-    setcookie(GoogleAuth::STATE_COOKIE, '', ['expires' => time() - 3600, 'path' => '/auth/', 'httponly' => true, 'samesite' => 'Lax']);
+    setcookie(GoogleAuth::STATE_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
     header('Location: ' . $to);
     exit;
 }
@@ -27,13 +27,23 @@ if (!GoogleAuth::configured()) {
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 
 if ($action === 'start') {
+    // Pin the WHOLE flow to the canonical host. Google returns to the registered
+    // redirect_uri (built from SITE_URL); if the visitor started on a different
+    // host (e.g. www vs non-www), the state cookie set here wouldn't be sent to
+    // that callback host → "link expired". Bounce to the canonical host first.
+    $canonHost = (string) parse_url(SITE_URL, PHP_URL_HOST);
+    $curHost   = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    if ($canonHost !== '' && $curHost !== '' && strcasecmp($curHost, $canonHost) !== 0) {
+        header('Location: ' . rtrim(SITE_URL, '/') . '/auth/google/start?next=' . rawurlencode((string) ($_GET['next'] ?? '/academy/')));
+        exit;
+    }
     if (LmsAuth::user()) { header('Location: ' . GoogleAuth::safeNext((string) ($_GET['next'] ?? '/academy/'))); exit; }
     if (!av_rate_ok('oauth_start', 20, 600)) av_oauth_bounce('/login?e=rate');
     $state = GoogleAuth::makeState((string) ($_GET['next'] ?? '/academy/'));
     // Pin the state to a one-shot, SameSite=Lax cookie so it survives the Google
     // round-trip but can't be replayed cross-site (login-CSRF protection).
     setcookie(GoogleAuth::STATE_COOKIE, $state, [
-        'expires' => time() + GoogleAuth::STATE_TTL, 'path' => '/auth/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
+        'expires' => time() + GoogleAuth::STATE_TTL, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
     header('Location: ' . GoogleAuth::authUrl($state));
     exit;
