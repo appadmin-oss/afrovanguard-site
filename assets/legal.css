@@ -1,0 +1,243 @@
+/* ============================================================
+   assets/legal.css — shared styling for Afrovanguard legal pages
+   (Privacy Policy, Terms of Use).
+   ------------------------------------------------------------
+   Owned by the legal pages; referenced from both privacy-policy/
+   and terms/ via render_head(['css' => ['/assets/legal.css']]).
+   Layered on the shared nav.css + diary.css design tokens.
+
+   Goals: a calm, trustworthy legal document — a single readable
+   measure (~70ch), generous line-height, clear section hierarchy,
+   a sticky table of contents on wide screens, full light/dark
+   support, WCAG-AA colour contrast, and no horizontal overflow.
+
+   Brand: ink/navy #0A0F1A text, gold accents. Inline body links use
+   a deepened gold (#8a6a10) so normal-size text clears AA (>=4.5:1)
+   on white; brighter brand gold is reserved for large/non-text accents
+   and for dark surfaces where contrast is ample.
+   ============================================================ */
+
+.legal-main {
+  --legal-measure: 72ch;                 /* readable line length */
+  --legal-ink:    #0A0F1A;               /* headings / strong */
+  --legal-body:   #2c333f;               /* paragraph text (AA ~12:1) */
+  --legal-soft:   #5b6472;               /* muted meta (AA on white) */
+  --legal-link:   #8a6a10;               /* inline body links (AA on white) */
+  --legal-accent: #a8821a;               /* brand gold accent */
+  --legal-surface:#ffffff;
+  --legal-toc-bg: #f7f8fa;
+  --legal-border: #e7eaef;
+  --legal-rule:   #eef0f3;
+
+  background: var(--legal-surface);
+  color: var(--legal-body);
+}
+
+/* ---- Hero ------------------------------------------------- */
+.legal-hero {
+  padding: 92px 0 44px;
+  color: #fff;
+  background:
+    radial-gradient(1100px 360px at 12% -10%, rgba(168,130,26,.16), transparent 60%),
+    linear-gradient(160deg, #0A0F1A 0%, #10192c 58%, #0e1626 100%);
+  position: relative;
+}
+.legal-hero::after {                     /* thin gold rule, echoes footer */
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: linear-gradient(90deg, #a8821a, #f3b416 40%, #b07e08);
+  opacity: .85;
+}
+.legal-hero .container { max-width: var(--legal-measure); }
+.legal-hero .legal-kicker {
+  display: inline-block; font: 700 12px/1 'Montserrat', sans-serif;
+  letter-spacing: .18em; text-transform: uppercase; color: #f3b416; margin: 0 0 14px;
+}
+.legal-hero h1 {
+  font-family: 'Cormorant', Georgia, serif; font-weight: 700; color: #fff;
+  font-size: clamp(2.3rem, 4.6vw, 3.3rem); line-height: 1.05; margin: 0 0 12px;
+  letter-spacing: -.01em;
+}
+.legal-hero .legal-lede {
+  color: rgba(255,255,255,.78); font: 400 1.06rem/1.6 'Montserrat', sans-serif;
+  max-width: 60ch; margin: 0 0 14px;
+}
+.legal-hero .legal-updated {
+  color: rgba(255,255,255,.62); font: 600 13px/1.4 'Montserrat', sans-serif;
+  margin: 0; display: inline-flex; align-items: center; gap: 8px;
+}
+.legal-hero .legal-updated::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18);
+}
+
+/* ---- Body layout: sticky TOC + content ------------------- */
+.legal-body { padding: 0; }
+.legal-body .container { max-width: var(--legal-measure); }
+
+/* On wide screens, widen the shell and float a sticky TOC beside
+   the article while the prose itself keeps its readable measure. */
+.legal-layout {
+  display: block;
+  padding: 52px 0 76px;
+}
+
+@media (min-width: 1040px) {
+  .legal-body .container { max-width: 1140px; }
+  .legal-layout {
+    display: grid;
+    grid-template-columns: 252px minmax(0, var(--legal-measure));
+    gap: 64px;
+    justify-content: center;
+    align-items: start;
+  }
+}
+
+/* ---- Table of contents ----------------------------------- */
+.legal-toc {
+  border: 1px solid var(--legal-border); border-radius: 14px;
+  padding: 20px 22px; margin: 0 0 36px; background: var(--legal-toc-bg);
+}
+.legal-toc h2 {
+  font: 700 11px/1 'Montserrat', sans-serif; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--legal-soft); margin: 0 0 14px;
+}
+.legal-toc ol {
+  margin: 0; padding: 0; list-style: none;
+  counter-reset: toc; columns: 2; column-gap: 32px;
+}
+.legal-toc li { margin: 0 0 4px; break-inside: avoid; }
+.legal-toc a {
+  counter-increment: toc;
+  display: block; padding: 6px 8px; border-radius: 8px;
+  color: var(--legal-link); text-decoration: none;
+  font: 500 .92rem/1.4 'Montserrat', sans-serif;
+  transition: background .15s ease, color .15s ease;
+}
+.legal-toc a::before {
+  content: counter(toc) ". "; color: var(--legal-soft); font-weight: 600;
+}
+.legal-toc a:hover { background: rgba(168,130,26,.10); color: #6f550c; }
+
+@media (min-width: 1040px) {
+  .legal-toc {
+    position: sticky; top: 96px; margin: 0; padding: 22px 20px;
+    max-height: calc(100vh - 120px); overflow-y: auto;
+  }
+  .legal-toc ol { columns: 1; }
+  .legal-toc a { font-size: .9rem; }
+}
+
+/* ---- Prose ----------------------------------------------- */
+.legal-content { min-width: 0; }            /* prevents grid overflow */
+.legal-content > .legal-section:first-of-type { margin-top: 0; }
+
+.legal-section { margin: 0 0 40px; scroll-margin-top: 100px; }
+.legal-section h2 {
+  font-family: 'Cormorant', Georgia, serif; font-weight: 700; color: var(--legal-ink);
+  font-size: clamp(1.55rem, 2.6vw, 2.05rem); line-height: 1.15; margin: 0 0 14px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--legal-rule);
+  display: flex; align-items: baseline; gap: .55em;
+}
+.legal-section h2 .legal-num {
+  font: 700 .82rem/1 'Montserrat', sans-serif; letter-spacing: .04em;
+  color: var(--legal-accent); flex: none;
+  transform: translateY(-1px);
+}
+.legal-section h3 {
+  font: 700 1.05rem/1.4 'Montserrat', sans-serif; color: var(--legal-ink);
+  margin: 26px 0 10px;
+}
+.legal-section p,
+.legal-section li { color: var(--legal-body); line-height: 1.75; font-size: 1.04rem; }
+.legal-section p { margin: 0 0 15px; }
+.legal-section ul { margin: 0 0 18px; padding: 0; list-style: none; }
+.legal-section ul li {
+  position: relative; margin: 0 0 11px; padding-left: 26px;
+}
+.legal-section ul li::before {
+  content: ''; position: absolute; left: 4px; top: .62em;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--legal-accent);
+  transform: rotate(45deg);
+}
+.legal-section a {
+  color: var(--legal-link); font-weight: 600; text-decoration: underline;
+  text-decoration-color: rgba(138,106,16,.4); text-underline-offset: 2px;
+}
+.legal-section a:hover { text-decoration-color: currentColor; }
+.legal-section strong { color: var(--legal-ink); font-weight: 700; }
+
+/* Long inline strings (emails, URLs) must wrap, never overflow. */
+.legal-section a,
+.legal-section p,
+.legal-section li { overflow-wrap: anywhere; }
+
+/* ---- Callout (e.g. donations note) ----------------------- */
+.legal-callout {
+  border: 1px solid var(--legal-border); border-left: 4px solid var(--legal-accent);
+  background: #fffdf5; border-radius: 12px; padding: 16px 20px; margin: 0 0 18px;
+}
+.legal-callout p { margin: 0; }
+.legal-callout p + p { margin-top: 10px; }
+
+/* ---- Contact card ---------------------------------------- */
+.legal-contact {
+  margin-top: 48px; padding: 30px 32px; border-radius: 18px;
+  background:
+    radial-gradient(700px 200px at 100% 0%, rgba(168,130,26,.18), transparent 60%),
+    linear-gradient(135deg, #0A0F1A, #13213c);
+  color: #fff; position: relative; overflow: hidden;
+}
+.legal-contact h2 {
+  color: #fff; border: 0; margin: 0 0 8px; padding: 0;
+  font-family: 'Cormorant', Georgia, serif; font-weight: 700; font-size: 1.75rem;
+}
+.legal-contact p { color: rgba(255,255,255,.82); margin: 0 0 6px; line-height: 1.65; }
+.legal-contact a { color: #f3b416; font-weight: 600; text-decoration: none; }
+.legal-contact a:hover { text-decoration: underline; }
+
+/* ============================================================
+   Dark mode — flip the local tokens. The page sits inside the
+   site theme toggle (html[data-theme="dark"]); without this the
+   document would stay light-on-white in dark mode.
+   ============================================================ */
+html[data-theme="dark"] .legal-main {
+  --legal-ink:     #F3F4F6;
+  --legal-body:    #C7CCD6;
+  --legal-soft:    #95a0c2;
+  --legal-link:    #f3b416;               /* bright gold reads fine on dark */
+  --legal-accent:  #f3b416;
+  --legal-surface: #0B1120;
+  --legal-toc-bg:  #131C2E;
+  --legal-border:  #283349;
+  --legal-rule:    #283349;
+}
+html[data-theme="dark"] .legal-toc a { color: #e8c768; }
+html[data-theme="dark"] .legal-toc a:hover { background: rgba(243,180,22,.12); color: #f3b416; }
+html[data-theme="dark"] .legal-section a { text-decoration-color: rgba(243,180,22,.45); }
+html[data-theme="dark"] .legal-callout { background: rgba(243,180,22,.06); }
+
+/* ---- Print ----------------------------------------------- */
+@media print {
+  .legal-hero { background: #fff; color: #000; padding: 0 0 16px; }
+  .legal-hero .legal-kicker,
+  .legal-hero h1,
+  .legal-hero .legal-lede,
+  .legal-hero .legal-updated { color: #000; }
+  .legal-toc, .legal-contact { display: none; }
+  .legal-layout { display: block; padding: 0; }
+  .legal-section { page-break-inside: avoid; }
+}
+
+/* ---- Reduced motion -------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .legal-toc a { transition: none; }
+}
+
+/* ---- Narrow screens -------------------------------------- */
+@media (max-width: 640px) {
+  .legal-hero { padding: 64px 0 34px; }
+  .legal-toc ol { columns: 1; }
+  .legal-layout { padding: 36px 0 56px; }
+  .legal-section p, .legal-section li { font-size: 1.0rem; }
+  .legal-contact { padding: 24px 22px; }
+}
