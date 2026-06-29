@@ -60,7 +60,7 @@ render_nav('diary');
           <div class="diary-stat"><div class="num"><?= (int) $total ?></div><div class="lbl">Entries published</div></div>
           <div class="diary-stat"><div class="num">1M</div><div class="lbl">Leaders by 2040</div></div>
         </div>
-        <p style="margin-top:22px"><a href="/diary/me/" style="display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--gold,#b8860b);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:2px">✍️ Members — open your Vanguard Diary →</a></p>
+        <p style="margin-top:22px"><a class="diary-cta-link" href="/diary/me/">✍️ Keep your own diary — start writing →</a></p>
       </div>
     </section>
 

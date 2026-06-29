@@ -100,9 +100,9 @@ try {
             if ($email !== '') Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
             json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
 
-        /* ── Member-contributed Vanguard Diary (Event / Private / Public) ──
-           These require a signed-in member (LMS account). Private + event
-           entries are only ever read back to their own author. ── */
+        /* ── Personal diary entries (Event / Private / Public) ──
+           These require a signed-in account. Private + event entries are
+           only ever read back to their own author. ── */
         case 'mine': {
             $u = LmsAuth::require();
             $journal = new DiaryJournal();
