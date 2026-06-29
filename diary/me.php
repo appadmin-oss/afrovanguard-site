@@ -1,13 +1,13 @@
 <?php
 /**
- * diary/me.php — the member's Vanguard Diary (composer + personal streams).
+ * diary/me.php — your personal diary (composer + personal streams).
  *
- * Signed-in members log three kinds of entry:
+ * Anyone signed in can log three kinds of entry:
  *   📅 Event   — a public happening; submitted to moderation, then joins the
  *                Diary's "Events" stream once approved (backdatable)
  *   🌐 Public  — a reflection submitted to moderation; once approved it joins
  *                the public Diary feed
- *   🔒 Private — personal reflection, visible only to them; never leaves here
+ *   🔒 Private — personal reflection, visible only to you; never leaves here
  *
  * The page is noindex — it's a personal workspace, not public content.
  */
@@ -36,8 +36,8 @@ function vd_badge(array $e): array {
 }
 
 render_head([
-    'title'     => 'My Vanguard Diary — Afrovanguard',
-    'desc'      => 'Your private Vanguard Diary: log institutional events, keep a personal journal, and submit public reflections to inspire the movement.',
+    'title'     => 'My Diary — Afrovanguard',
+    'desc'      => 'Your personal diary: log events, keep a private journal, and submit public reflections to share with everyone.',
     'canonical' => $canonical,
     'og_kind'   => 'website',
     'robots'    => 'noindex, nofollow',
@@ -48,9 +48,9 @@ render_nav('diary');
 <main id="main-content">
   <section class="diary-hero vd-hero">
     <div class="container">
-      <span class="diary-eyebrow">Vanguard Diary</span>
+      <span class="diary-eyebrow">Your diary</span>
       <h1>Your Diary</h1>
-      <p>Document what you build, reflect in private, and share what could inspire the movement. <strong>Public entries are reviewed before they appear on the Diary.</strong></p>
+      <p>Document what you build, reflect in private, and share what could inspire others. <strong>Public entries are reviewed before they appear on the Diary.</strong></p>
 <?php if ($user): ?>      <p class="vd-export">Export your journal: <a href="<?= e(diary_url('export.php?scope=mine&format=book')) ?>">as a book (PDF)</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=book&year=' . date('Y'))) ?>"><?= date('Y') ?> volume</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=md')) ?>">Markdown</a> · <a href="<?= e(diary_url('export.php?scope=mine&format=json')) ?>">JSON</a></p>
 <?php endif; ?>
     </div>
@@ -61,7 +61,7 @@ render_nav('diary');
     <!-- Signed out: send to the standard sign-in (passwordless code / password / Google) -->
     <section class="vd-card vd-signin" aria-labelledby="vd-signin-h">
       <h2 id="vd-signin-h">Sign in to your diary</h2>
-      <p class="vd-muted">Your Vanguard Diary uses your Afrovanguard account.</p>
+      <p class="vd-muted">Your diary is tied to your Afrovanguard account, so it follows you on any device.</p>
       <p style="margin:18px 0 6px"><a class="btn btn-primary" data-login-link href="/login?next=/diary/me/">Sign in →</a></p>
       <p class="vd-muted">New here? Signing in with a one-time code creates your account — no password needed.</p>
     </section>

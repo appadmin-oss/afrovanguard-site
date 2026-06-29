@@ -310,6 +310,8 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .diary-stats { display: flex; flex-wrap: wrap; gap: 36px; margin-top: 36px; }
 .diary-stat .num { font-family: var(--font-heading); font-size: 40px; line-height: 1; color: var(--ink); }
 .diary-stat .lbl { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 6px; }
+.diary-cta-link { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--gold-deep); text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 2px; transition: color var(--t-fast); }
+.diary-cta-link:hover { color: var(--gold); }
 
 .diary-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 28px 0 8px; }
 .search-wrap { position: relative; flex: 1; min-width: 220px; max-width: 420px; }

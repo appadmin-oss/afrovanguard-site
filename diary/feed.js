@@ -37,8 +37,38 @@
   var MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
 
-  var state = { year: '', month: '', cat: 'all', q: (searchInput && searchInput.value.trim()) || '' };
+  /* Initial filter state is read from the URL so a filtered view is
+     shareable, bookmarkable, and survives back/forward. ?q= is also honoured
+     by the server (it prefills the input), so we mirror it here. */
+  function readUrlState() {
+    var p = new URLSearchParams(location.search);
+    var m = (p.get('month') || '').replace(/\D/g, '');
+    if (m.length === 1) m = '0' + m;
+    return {
+      year:  (p.get('year') || '').replace(/\D/g, '').slice(0, 4),
+      month: m.slice(0, 2),
+      cat:   (p.get('cat') || 'all').replace(/[^a-z0-9\-]/gi, '').toLowerCase() || 'all',
+      q:     (p.get('q') || (searchInput && searchInput.value.trim()) || '')
+    };
+  }
+
+  var state = readUrlState();
   var offset = 0, total = TOTAL, loading = false, done = false, savedMode = false;
+  var syncingUrl = false;
+
+  /* Push the current filter state to the URL (replaceState — no history spam
+     while typing; pushState only on discrete control changes). */
+  function writeUrlState(push) {
+    if (syncingUrl) return;
+    var p = new URLSearchParams();
+    if (state.q)     p.set('q', state.q);
+    if (state.year)  p.set('year', state.year);
+    if (state.month) p.set('month', state.month);
+    if (state.cat && state.cat !== 'all') p.set('cat', state.cat);
+    var qs = p.toString();
+    var url = location.pathname + (qs ? '?' + qs : '') + location.hash;
+    try { history[push ? 'pushState' : 'replaceState'](null, '', url); } catch (e) {}
+  }
 
   function savedSet() { try { return JSON.parse(localStorage.getItem('av.saved') || '[]'); } catch (e) { return []; } }
   function esc(s) {
