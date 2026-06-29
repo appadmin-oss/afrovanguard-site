@@ -10,8 +10,18 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once AV_ROOT . '/lib/Community.php';
 
-$u        = LmsAuth::user();
-$viewerId = $u ? (int) $u['id'] : 0;
+$u = LmsAuth::user();
+// The Community is a members-only space. Non-members are sent to sign in with a
+// clean redirect — never an error page — and returned here afterwards.
+if (!$u) {
+    if (!headers_sent()) header('Location: /login?next=' . rawurlencode('/community/'));
+    echo '<!doctype html><meta charset="utf-8"><title>Sign in — Afrovanguard Community</title>'
+       . '<meta http-equiv="refresh" content="0;url=/login?next=%2Fcommunity%2F">'
+       . '<p style="font-family:system-ui;margin:3rem">The Community is for Afrovanguard members. '
+       . '<a href="/login?next=%2Fcommunity%2F">Sign in to continue →</a></p>';
+    exit;
+}
+$viewerId = (int) $u['id'];
 $spaces   = Community::spaces();
 $counts   = Community::spaceCounts();
 $pulse    = Community::pulse();
