@@ -54,10 +54,14 @@ $orgDomain     = defined('AV_ORG_DOMAIN') ? (string) AV_ORG_DOMAIN : 'afrovangua
 $canonical     = rtrim(SITE_URL, '/') . '/login';
 
 $cfg = [
-    'next'    => $next,
-    'methods' => $methods,
-    'otpLen'  => $otpLen,
-    'pwMin'   => $pwMin,
+    'next'      => $next,
+    'methods'   => $methods,
+    'otpLen'    => $otpLen,
+    'pwMin'     => $pwMin,
+    // Afrovanguard accounts sign in with Google only — the page redirects an
+    // org-domain email to Google (with it pre-filled) instead of code/password.
+    'orgDomain' => defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng',
+    'googleOn'  => GoogleAuth::configured() && ($methods['google'] ?? false),
 ];
 
 render_head([

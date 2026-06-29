@@ -17,6 +17,19 @@ $body = [];
 if ($method === 'POST') { $body = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST; }
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? $_GET['course'] ?? $body['slug'] ?? $body['course'] ?? '')));
 
+/** Org accounts (@afrovanguard.org.ng) must sign in with Google. Refuse the
+ *  email/code/password paths — but only when Google is actually configured, so
+ *  org members are never locked out if SSO isn't set up. The login page also
+ *  redirects them client-side; this is the fail-closed server guard. The reply
+ *  carries google:true + the hint so the client can bounce to Google. */
+function av_require_google_for_org(string $email): void {
+    $email = trim($email);
+    if ($email !== '' && GoogleAuth::configured() && LmsAuth::isOrgEmail($email)) {
+        json_out(['ok' => false, 'google' => true, 'hint' => $email,
+            'error' => 'Afrovanguard accounts sign in with Google — redirecting you now.'], 403);
+    }
+}
+
 try {
     $ac = new AcademyRepository();
     $lms = new LmsRepository();
@@ -42,11 +55,13 @@ try {
         case 'register':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
+            av_require_google_for_org((string) ($body['email'] ?? ''));
             if (!av_rate_ok('lms_register', 6, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
             json_out(LmsAuth::register((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''), (string) ($body['password'] ?? '')));
         case 'login':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
+            av_require_google_for_org((string) ($body['email'] ?? ''));
             if (!av_rate_ok('lms_login', 10, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
             json_out(LmsAuth::login((string) ($body['email'] ?? ''), (string) ($body['password'] ?? '')));
         case 'logout':
@@ -59,6 +74,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             if (!AuthPolicy::allows('otp')) json_out(['ok' => false, 'error' => 'Code sign-in is turned off.'], 403);
+            av_require_google_for_org((string) ($body['email'] ?? ''));
             if (!av_rate_ok('otp_request', 6, 900)) json_out(['ok' => false, 'error' => 'Too many code requests — wait a few minutes.'], 429);
             $r = Otp::request((string) ($body['email'] ?? ''), 'login');
             // Enumeration-safe: a valid address always reports "sent".
@@ -67,6 +83,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             if (!av_rate_ok('otp_verify', 12, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
+            av_require_google_for_org((string) ($body['email'] ?? ''));
             json_out(LmsAuth::loginWithOtp((string) ($body['email'] ?? ''), (string) ($body['code'] ?? ''), (string) ($body['name'] ?? '')));
         case 'set-password':   // add/replace a password (after signing in by code)
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

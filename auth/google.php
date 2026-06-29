@@ -31,10 +31,13 @@ if ($action === 'start') {
     // redirect_uri (built from SITE_URL); if the visitor started on a different
     // host (e.g. www vs non-www), the state cookie set here wouldn't be sent to
     // that callback host → "link expired". Bounce to the canonical host first.
+    $hint      = (string) ($_GET['hint'] ?? '');
     $canonHost = (string) parse_url(SITE_URL, PHP_URL_HOST);
     $curHost   = (string) ($_SERVER['HTTP_HOST'] ?? '');
     if ($canonHost !== '' && $curHost !== '' && strcasecmp($curHost, $canonHost) !== 0) {
-        header('Location: ' . rtrim(SITE_URL, '/') . '/auth/google/start?next=' . rawurlencode((string) ($_GET['next'] ?? '/academy/')));
+        $q = ['next' => (string) ($_GET['next'] ?? '/academy/')];
+        if ($hint !== '') $q['hint'] = $hint;
+        header('Location: ' . rtrim(SITE_URL, '/') . '/auth/google/start?' . http_build_query($q));
         exit;
     }
     if (LmsAuth::user()) { header('Location: ' . GoogleAuth::safeNext((string) ($_GET['next'] ?? '/academy/'))); exit; }
@@ -45,7 +48,7 @@ if ($action === 'start') {
     setcookie(GoogleAuth::STATE_COOKIE, $state, [
         'expires' => time() + GoogleAuth::STATE_TTL, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
-    header('Location: ' . GoogleAuth::authUrl($state));
+    header('Location: ' . GoogleAuth::authUrl($state, $hint));
     exit;
 }
 

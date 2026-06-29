@@ -67,9 +67,9 @@ final class GoogleAuth
         return $next === false ? '/portal/' : self::safeNext($next);
     }
 
-    public static function authUrl(string $state): string
+    public static function authUrl(string $state, string $loginHint = ''): string
     {
-        return self::AUTH_URL . '?' . http_build_query([
+        $params = [
             'client_id'     => AV_GOOGLE_CLIENT_ID,
             'redirect_uri'  => self::redirectUri(),
             'response_type' => 'code',
@@ -77,7 +77,15 @@ final class GoogleAuth
             'state'         => $state,
             'access_type'   => 'online',
             'prompt'        => 'select_account',
-        ]);
+        ];
+        // Pre-fill the account chooser with the address the member typed.
+        if ($loginHint !== '' && filter_var($loginHint, FILTER_VALIDATE_EMAIL)) {
+            $params['login_hint'] = $loginHint;
+            // If it's an org address, scope the chooser to the Workspace domain.
+            $at = strrchr($loginHint, '@');
+            if ($at !== false) $params['hd'] = substr($at, 1);
+        }
+        return self::AUTH_URL . '?' . http_build_query($params);
     }
 
     /**
