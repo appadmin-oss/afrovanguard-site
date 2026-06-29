@@ -395,158 +395,137 @@
     }
 
         /* ================================================================
-       DONATE HERO — PHOTO FULL-BLEED
+       DONATE HERO — LIGHT "BEDROCK" TREATMENT
+       (airy light tint, dark ink heading w/ gold accent, dark pill CTAs —
+        matches about.html / projects/index.html / contact.html)
        ================================================================ */
-    /* ── Full-bleed wrapper ───────────────────────────────────────── */
+    /* ── Full-bleed wrapper + soft light tint ─────────────────────── */
     .hero-bleed-wrapper {
       position:relative;
       width:100vw;
       left:50%;
       transform:translateX(-50%);
       overflow:hidden;
-      background:#070b14;
+      background: var(--color-bg);
     }
 
     .donate-hero {
       padding:0;
       position:relative;
-      min-height: clamp(540px, 72vh, 780px);
-      display:flex;
-      align-items:flex-end;
-    }
-
-    /* ── Photo layer ───────────────────────────────────────────── */
-    .hero-photo {
-      position:absolute; inset:0;
-      background-image: url('https://afrovanguard.org.ng/Images/summer8.png');
-      background-size:cover;
-      background-position:center 20%;
-      transform:scale(1.04);
-      transition:transform 8s ease-out;
-    }
-    .hero-photo.loaded { transform:scale(1); }
-
-    /* ── Layered overlays — photo visible on right, dark on left ── */
-    .hero-bg-layer {
-      position:absolute; inset:0;
+      display:block;
       background:
-        /* Strong dark panel left — keeps text crisp */
-        linear-gradient(105deg,
-          rgba(7,11,20,0.97)  0%,
-          rgba(10,16,28,0.92) 30%,
-          rgba(12,18,30,0.78) 52%,
-          rgba(10,14,24,0.45) 70%,
-          rgba(7,11,20,0.15)  85%,
-          transparent         100%
-        ),
-        /* Bottom fade — grounds the stats bar */
-        linear-gradient(to top,
-          rgba(7,11,20,0.85)  0%,
-          rgba(7,11,20,0.4)   25%,
-          transparent         55%
-        ),
-        /* Top vignette */
-        linear-gradient(to bottom,
-          rgba(7,11,20,0.55)  0%,
-          transparent         30%
-        ),
-        /* Warm gold blush — upper right, barely visible */
-        radial-gradient(ellipse 50% 60% at 85% 15%,
-          rgba(243,180,22,0.09), transparent 65%
-        );
+        radial-gradient(1200px 520px at 12% -10%, rgba(243,180,22,0.10), transparent 60%),
+        radial-gradient(900px 480px at 92% 0%, rgba(17,24,39,0.05), transparent 55%),
+        linear-gradient(180deg, #FBFAF7 0%, var(--color-bg) 78%);
+      border-bottom:1px solid var(--color-divider);
     }
 
-    /* ── Slim gold accent — left edge only ───────────────────── */
-    .hero-accent-bar {
-      position:absolute; left:0; top:0; bottom:0; width:3px;
-      background:linear-gradient(to bottom,
-        transparent 0%,
-        rgba(243,180,22,0.9) 35%,
-        rgba(243,180,22,0.5) 65%,
-        transparent 100%
-      );
-    }
-
-    /* ── No pattern div needed anymore — removing visual noise ── */
-    .hero-pattern { display:none; }
+    /* ── Legacy photo/overlay layers no longer rendered ──────────── */
+    .hero-photo,
+    .hero-bg-layer,
+    .hero-accent-bar,
+    .hero-pattern,
     .hero-deco-num { display:none; }
 
     /* ── Content ─────────────────────────────────────────────── */
     .hero-content-wrap {
       position:relative; z-index:2;
       width:100%;
-      padding: clamp(96px,12vw,140px) 0 clamp(48px,6vw,72px);
+      padding: clamp(40px,5vw,72px) 0 clamp(44px,6vw,80px);
     }
 
     .hero-eyebrow {
       display:inline-flex; align-items:center; gap:10px;
       font-family: var(--font-body); font-size:11px; font-weight:800;
-      letter-spacing:0.18em; text-transform:uppercase;
-      color: var(--color-gold); margin-bottom:20px;
+      letter-spacing:0.16em; text-transform:uppercase;
+      color: var(--color-gold-deep); margin-bottom:18px;
     }
     .hero-eyebrow::before {
-      content:''; display:block; width:32px; height:2px;
-      background: var(--color-gold);
+      content:''; display:block; width:24px; height:2px;
+      background: var(--color-gold); border-radius:2px;
     }
 
     .hero-title {
       font-family: var(--font-heading);
       font-size: var(--text-hero);
-      font-weight:600;
-      color: var(--color-white);
-      line-height:1.08;
+      font-weight:700;
+      color: #15140f;
+      line-height:1.04;
+      letter-spacing:-0.015em;
       margin-bottom: var(--space-md);
-      max-width:680px;
+      max-width:18ch;
     }
-    .hero-title em { font-style:normal; color: var(--color-gold); }
+    .hero-title em { font-style:normal; color: var(--color-gold-deep); }
 
     .hero-sub {
       font-family: var(--font-body);
       font-size: var(--text-lead);
-      color:rgba(255,255,255,0.6);
-      max-width:520px;
-      line-height:1.7;
-      margin-bottom: var(--space-lg);
+      color: var(--color-text-body);
+      max-width:58ch;
+      line-height:1.65;
+      margin-bottom: 30px;
     }
 
-    /* Stats bar — frosted pill floating above photo bottom edge */
+    /* ── CTAs — dark primary pill + ghost (matches site heroes) ──── */
+    .hero-ql-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
+    .hero-ql {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:13px 26px; border-radius: var(--radius-full);
+      font-family: var(--font-body); font-size:13.5px; font-weight:700;
+      text-decoration:none; transition: all 0.2s; white-space:nowrap;
+      min-height:44px;
+    }
+    .hero-ql.prim {
+      background: var(--color-bg-footer); color: var(--color-white);
+      border:2px solid var(--color-bg-footer);
+      box-shadow:0 8px 22px -10px rgba(17,24,39,0.55);
+    }
+    .hero-ql.prim:hover {
+      background:#000; border-color:#000; color: var(--color-white);
+      transform:translateY(-2px); box-shadow:0 14px 30px -12px rgba(17,24,39,0.6);
+    }
+    .hero-ql.out {
+      background:transparent; color:#15140f; border:2px solid var(--color-divider);
+    }
+    .hero-ql.out:hover {
+      border-color:#15140f; color:#15140f; background:rgba(17,24,39,0.03);
+    }
+
+    /* Stats — at-a-glance row on the light background */
     .hero-stats {
-      display:inline-flex; flex-wrap:wrap; gap:0;
-      background:rgba(255,255,255,0.04);
-      border:1px solid rgba(255,255,255,0.09);
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
-      border-radius:16px;
-      padding:4px;
-      margin-top:clamp(24px,3vw,40px);
+      display:flex; flex-wrap:wrap; gap:clamp(24px,5vw,56px);
+      background:transparent; border:none;
+      backdrop-filter:none; -webkit-backdrop-filter:none;
+      border-radius:0; padding:0;
+      margin-top:38px;
     }
     .hero-stat {
-      padding:14px 28px;
-      border-right:1px solid rgba(255,255,255,0.07);
+      padding:0;
+      border-right:none;
       position:relative;
     }
     .hero-stat:last-child { border-right:none; }
     .hero-stat-num {
       font-family: var(--font-heading);
-      font-size:clamp(28px,3vw,40px);
-      font-weight:600; color: var(--color-gold);
+      font-size:clamp(30px,4vw,46px);
+      font-weight:600; color:#15140f;
       line-height:1;
     }
     .hero-stat-label {
-      font-family: var(--font-body); font-size:11px; font-weight:600;
-      letter-spacing:0.1em; text-transform:uppercase;
-      color:rgba(255,255,255,0.45); margin-top:4px;
+      font-family: var(--font-body); font-size:12px; font-weight:700;
+      letter-spacing:0.05em; text-transform:uppercase;
+      color: var(--color-text-muted); margin-top:5px;
     }
 
-    /* Breadcrumb */
+    /* Breadcrumb — dark ink on light */
     .breadcrumb {
-      display:flex; align-items:center; gap:8px;
-      font-family: var(--font-body); font-size:12px; font-weight:600;
-      color:rgba(255,255,255,0.4); margin-bottom:32px;
+      display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+      font-family: var(--font-body); font-size:13px; font-weight:600;
+      color: var(--color-text-muted); margin-bottom:24px;
     }
-    .breadcrumb a { color:rgba(255,255,255,0.4); transition:color var(--t-fast); }
-    .breadcrumb a:hover { color: var(--color-gold); }
-    .breadcrumb span { color:rgba(255,255,255,0.2); }
+    .breadcrumb a { color: var(--color-text-muted); transition:color var(--t-fast); }
+    .breadcrumb a:hover { color: var(--color-gold-deep); }
+    .breadcrumb span { color: var(--color-text-primary); font-weight:700; }
 
     /* ================================================================
        DONATE MAIN — LAYOUT
@@ -1514,8 +1493,8 @@
       :root { --space-xl:56px; --space-2xl:80px; }
       .amount-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
       .field-row { grid-template-columns:1fr; }
-      .hero-stats { flex-direction:column; gap:0; }
-      .hero-stat { border-right:none; border-bottom:1px solid rgba(255,255,255,0.08); margin-right:0; padding:12px 0; width:100%; min-width:100%; }
+      .hero-stats { flex-direction:row; flex-wrap:wrap; gap:20px 28px; }
+      .hero-stat { border-right:none; border-bottom:none; margin-right:0; padding:0; width:auto; min-width:40%; }
       .hero-stat:last-child { border-bottom:none; }
       .donor-grid { grid-template-columns:1fr 1fr; gap:12px; }
       .campaign-card { padding:20px; }
@@ -1550,7 +1529,9 @@
       .form-card-header { padding:18px 18px 14px; }
       .form-card-body { padding:18px 18px; }
       .hero-deco-num { font-size:clamp(120px,25vw,180px); right:-40px; }
-      .hero-stats { padding-top:16px; margin-top:16px; }
+      .hero-ql-row { flex-direction:column; align-items:stretch; }
+      .hero-ql { justify-content:center; font-size:12.5px; padding:12px 20px; }
+      .hero-stats { padding-top:0; margin-top:28px; gap:20px 28px; }
       .campaigns-heading { font-size:clamp(24px,6vw,32px); }
       .bank-row { flex-direction:column; align-items:flex-start; gap:8px; }
       .bank-value { font-size:14px; }
@@ -1640,20 +1621,17 @@
        ================================================================ */
     @media (max-width:768px) {
       .hero-stats {
-        display:grid !important;
-        grid-template-columns:1fr 1fr;
-        gap:0;
-        flex-direction:unset;
+        display:flex !important;
+        flex-wrap:wrap;
+        gap:22px 28px;
+        flex-direction:row;
       }
       .hero-stat {
-        border-right:1px solid rgba(255,255,255,0.08) !important;
-        border-bottom:1px solid rgba(255,255,255,0.08) !important;
-        padding:14px 16px !important;
-        min-width:unset !important; width:unset !important;
+        border-right:none !important;
+        border-bottom:none !important;
+        padding:0 !important;
+        min-width:40% !important; width:auto !important;
       }
-      .hero-stat:nth-child(even) { border-right:none !important; }
-      .hero-stat:nth-child(3),
-      .hero-stat:nth-child(4) { border-bottom:none !important; }
     }
 
     /* ================================================================
@@ -2598,58 +2576,60 @@
   html { scroll-padding-top: 88px; }
   #donate-form { scroll-margin-top: 88px; }
 
-  /* ════ HERO ════════════════════════════════════════════════════ */
-  .donate-hero { min-height: clamp(480px, 68vh, 720px); }
-  .hero-content-wrap { padding: clamp(72px,10vw,120px) 0 clamp(48px,6vw,80px); }
+  /* ════ HERO — light "Bedrock" treatment (definitive) ══════════ */
+  .hero-content-wrap { padding: clamp(40px,5vw,72px) 0 clamp(44px,6vw,80px); }
   .hero-eyebrow {
     font-size: 11px; font-weight: 800; letter-spacing: 0.16em;
-    text-transform: uppercase; color: var(--color-gold);
-    margin-bottom: 14px;
+    text-transform: uppercase; color: var(--color-gold-deep);
+    margin-bottom: 18px;
   }
   .hero-title {
     font-size: var(--text-hero);
-    line-height: 1.0;
+    line-height: 1.04;
     margin-bottom: 20px;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.015em;
+    color: #15140f;
+    font-weight: 700;
   }
-  .hero-title em { color: var(--color-gold); font-style: normal; }
+  .hero-title em { color: var(--color-gold-deep); font-style: normal; }
   .hero-sub {
     font-size: clamp(15px, 1.4vw, 18px);
-    color: rgba(255,255,255,0.72);
-    max-width: 52ch;
+    color: var(--color-text-body);
+    max-width: 58ch;
     line-height: 1.65;
-    margin-bottom: 32px;
+    margin-bottom: 30px;
   }
   .hero-stats {
     display: flex;
-    gap: 0;
-    margin-top: 0;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 14px;
-    backdrop-filter: blur(8px);
-    max-width: 540px;
-    overflow: hidden;
+    flex-wrap: wrap;
+    gap: clamp(24px,5vw,56px);
+    margin-top: 38px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    backdrop-filter: none;
+    max-width: none;
+    overflow: visible;
   }
   .hero-stat {
-    flex: 1;
-    padding: 18px 20px;
-    border-right: 1px solid rgba(255,255,255,0.08);
+    flex: 0 0 auto;
+    padding: 0;
+    border-right: none;
   }
   .hero-stat:last-child { border-right: none; }
   .hero-stat-num {
     font-family: var(--font-heading);
-    font-size: clamp(22px,2.5vw,30px);
-    font-weight: 700;
-    color: #fff;
+    font-size: clamp(30px,4vw,46px);
+    font-weight: 600;
+    color: #15140f;
     line-height: 1;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
   }
   .hero-stat-label {
-    font-size: 10px;
-    color: rgba(255,255,255,0.45);
+    font-size: 12px;
+    color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em;
     font-weight: 700;
     line-height: 1.3;
   }
@@ -3050,12 +3030,12 @@
   @media (max-width: 768px) {
     section[aria-label="Donation section"] { padding: clamp(36px,5vw,56px) 0; }
     .hero-stats {
-      display: grid !important;
-      grid-template-columns: 1fr 1fr;
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: 22px 28px;
     }
-    .hero-stat { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
-    .hero-stat:nth-child(odd) { border-right: 1px solid rgba(255,255,255,0.08) !important; }
-    .hero-stat:nth-child(3), .hero-stat:last-child { border-bottom: none !important; }
+    .hero-stat { border-right: none !important; border-bottom: none !important; min-width: 40%; }
+    .hero-stat:nth-child(odd) { border-right: none !important; }
     .field-row { grid-template-columns: 1fr; gap: 0; }
     .field-row .field { margin-bottom: 14px; }
     .campaign-title { white-space: normal; }
@@ -3498,14 +3478,10 @@
   <main id="main-content">
 
     <!-- ========================================================
-         HERO — full-bleed photo
+         HERO — light "Bedrock" treatment (matches about/projects/contact)
          ======================================================== -->
     <div class="hero-bleed-wrapper">
     <section class="donate-hero" aria-label="Donate page hero">
-      <div class="hero-photo" id="heroPhoto" role="img" aria-label="Young African leaders at an Afrovanguard community programme"></div>
-      <div class="hero-bg-layer"></div>
-      <div class="hero-accent-bar"></div>
-
       <div class="hero-content-wrap">
         <div class="container">
           <!-- Breadcrumb -->
@@ -3517,13 +3493,18 @@
 
           <div class="hero-eyebrow fade-in-up">Give to Africa's Future</div>
           <h1 class="hero-title fade-in-up fade-in-up-1">
-            Your Gift Changes<br><em>Everything</em>
+            Your Gift Changes <em>Everything</em>
           </h1>
           <p class="hero-sub fade-in-up fade-in-up-2">
             Give what you can — equipment, books, your skills and time, or funds. Every contribution goes directly into the hands of young African leaders through mentorship, technology training, and community programmes across Nigeria and beyond.
           </p>
 
-          <div class="hero-stats fade-in-up fade-in-up-3">
+          <div class="hero-ql-row fade-in-up fade-in-up-3">
+            <a href="#donate-form" class="hero-ql prim">Give Now <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+            <a href="#donate-type-wrap" class="hero-ql out">Donate Materials</a>
+          </div>
+
+          <div class="hero-stats fade-in-up fade-in-up-4">
             <div class="hero-stat">
               <div class="hero-stat-num">5,000+</div>
               <div class="hero-stat-label">Lives Transformed</div>
