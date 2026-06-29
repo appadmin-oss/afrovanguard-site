@@ -59,6 +59,10 @@
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
       </div>
+      <div class="nav-group">
+        <p class="nav-group-h">Help</p>
+        <button class="tab" data-tab="guide"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><line x1="12" y1="17" x2="12" y2="17"/></svg><span>Guide</span></button>
+      </div>
     </nav>
   </aside>
   <div class="studio-scrim" id="studioScrim" hidden></div>
@@ -572,6 +576,55 @@
         <button type="button" class="btn btn-primary btn-sm" id="mailTestBtn">Send test</button>
       </div>
       <p class="muted tiny" id="mailTestMsg" style="margin-top:10px"></p>
+    </div>
+  </main>
+
+  <!-- GUIDE (how-to + AI assistant) -->
+  <main class="studio-main" id="guideView" hidden>
+    <div class="studio-head">
+      <div><h1>Guide</h1><p class="muted">How to run the site — and an assistant that answers your questions.</p></div>
+    </div>
+
+    <div class="guide-grid">
+      <div class="guide-main">
+        <div class="guide-ai">
+          <h3>Ask the Studio Assistant</h3>
+          <p class="muted" style="margin-top:-4px">Ask anything about running the site — “How do I publish a diary entry?”, “How do I add a course?”, “How do I set up email?”</p>
+          <div class="guide-chat" id="guideChat" aria-live="polite"></div>
+          <form class="guide-ask-form" id="guideForm">
+            <input id="guideInput" type="text" autocomplete="off" placeholder="Type your question…" aria-label="Ask the Studio assistant" />
+            <button class="btn btn-primary btn-sm" type="submit" id="guideSend">Ask</button>
+          </form>
+          <div class="guide-suggest" id="guideSuggest">
+            <button type="button" class="guide-chip">How do I publish a diary entry?</button>
+            <button type="button" class="guide-chip">How do I add a new course?</button>
+            <button type="button" class="guide-chip">How do I set up email delivery?</button>
+            <button type="button" class="guide-chip">How do I connect a webhook?</button>
+          </div>
+        </div>
+
+        <div class="guide-howto">
+          <h3>How-to — the essentials</h3>
+          <details class="guide-acc" open><summary>Publish a Diary entry</summary>
+            <ol><li>Open <b>Diary</b> in the sidebar.</li><li>Click <b>+ New entry</b>, write your title and body, add a cover image.</li><li>Set the status to <b>Published</b> and <b>Save</b>. It appears on <code>/diary/</code> immediately.</li><li>Migrating from WordPress? Use <b>↧ Import from WordPress</b> and upload your export <code>.xml</code>.</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Approve member submissions</summary>
+            <ol><li>Open <b>Moderation</b> — the badge shows how many are waiting.</li><li>Read each entry, then <b>Approve &amp; publish</b> or <b>Reject</b> (with an optional note).</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Add or edit an Academy course</summary>
+            <ol><li>Open <b>Academy</b> → <b>+ New course</b>; set title, blurb, level and price (free, members, or a NGN amount).</li><li>Open the course’s <b>Curriculum</b> to add modules and lessons (text, video, quiz).</li><li>Set status to <b>Published</b>. Track learners under the course <b>Roster</b> and issue certificates there.</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Set up email delivery</summary>
+            <ol><li>Set <code>SMTP_HOST</code>, <code>SMTP_USERNAME</code> and <code>AV_SMTP_PASSWORD</code> (a 16-char Gmail App Password) via <code>.htaccess</code> <code>SetEnv</code> or <code>config.php</code>.</li><li>Open <b>System</b> → <b>Send a test email</b> to confirm delivery and see which transport was used.</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Connect a webhook or app token (for bots / agents)</summary>
+            <ol><li>Open <b>Webhooks</b> → <b>New endpoint</b>; paste the destination URL, pick the events, and copy the signing secret.</li><li>Use <b>Send test</b> to verify delivery. For inbound bots/agents, create an <b>App token</b> on the same page.</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Manage members &amp; access</summary>
+            <ol><li>Open <b>Members</b> to search accounts, change access level, or suspend/reactivate.</li><li>Use <b>People</b> for public team profiles, and <b>Sign-in</b> to tune the sign-in security policy.</li></ol>
+          </details>
+        </div>
+      </div>
     </div>
   </main>
 

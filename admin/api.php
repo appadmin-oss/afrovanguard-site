@@ -54,7 +54,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo',
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
@@ -227,6 +227,27 @@ try {
             json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
                 ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')
                 : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — SMTP isn’t configured. Set SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password) via .htaccess SetEnv or config.php.'))]);
+
+        // ---- Studio AI guide: answer "how do I…" questions about running the site ----
+        case 'guide_ask': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $q = trim((string) ($body['q'] ?? ''));
+            if (mb_strlen($q) < 3) json_out(['ok' => false, 'error' => 'Ask a fuller question.'], 422);
+            if (!AvBot::configured()) {
+                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set ANTHROPIC_API_KEY (via .htaccess SetEnv or config.php) to turn on the assistant. In the meantime, see the How-to sections on this page.']);
+            }
+            $sys = "You are the Afrovanguard Studio Assistant — a concise, friendly in-app guide for the administrator of the Afrovanguard nonprofit website (afrovanguard.org.ng). "
+                . "Answer ONLY about operating this admin panel (\"the Studio\") and the public site. The Studio's sections are: "
+                . "Overview (at-a-glance metrics + email/delivery health); Diary (create, edit, publish entries and import from WordPress); Moderation (approve member journal submissions); Inbox (enrolment messages + newsletter subscribers); Academy (courses, modules, lessons, rosters, certificates, payments); Members & People (member accounts, access levels, team profiles); Celebrations; Communities; Webhooks (outbound integrations + app tokens for bots/agents); Sign-in (passwordless OTP / password policy + the sign-in illustrations); System (configuration health, send a test email, database). "
+                . "Give short, numbered, practical steps. Refer to the left sidebar tabs by name. If asked something off-topic, gently steer back to running the site. Never invent settings that don't exist; if unsure, say so and point to the System tab.";
+            $hist = [];
+            foreach ((array) ($body['history'] ?? []) as $h) {
+                if (!is_array($h)) continue;
+                $hist[] = ['role' => (($h['role'] ?? '') === 'bot' ? 'bot' : 'member'), 'text' => (string) ($h['text'] ?? '')];
+            }
+            $ai = AvBot::reply($q, $hist, ['system' => $sys]);
+            json_out(['ok' => (bool) $ai['ok'], 'configured' => true, 'answer' => $ai['ok'] ? $ai['text'] : ('Sorry — the assistant couldn’t answer just now. ' . (string) ($ai['__error'] ?? ''))]);
+        }
 
         // ---- Sign-in security policy (superadmin) ----
         case 'auth_policy_get':
