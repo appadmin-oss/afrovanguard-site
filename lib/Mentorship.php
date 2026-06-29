@@ -52,10 +52,52 @@ final class Mentorship
             status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         );
-        CREATE INDEX IF NOT EXISTS idx_msessions ON mentor_sessions(mentorship_id, scheduled_at);";
+        CREATE INDEX IF NOT EXISTS idx_msessions ON mentor_sessions(mentorship_id, scheduled_at);
+        CREATE TABLE IF NOT EXISTS mentor_cohorts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name VARCHAR(160) NOT NULL DEFAULT '',
+            segment VARCHAR(12) NOT NULL DEFAULT 'org',
+            programme VARCHAR(160) NOT NULL DEFAULT '',
+            starts VARCHAR(20) NOT NULL DEFAULT '',
+            ends VARCHAR(20) NOT NULL DEFAULT '',
+            status VARCHAR(20) NOT NULL DEFAULT 'open',
+            created_at VARCHAR(32) NOT NULL DEFAULT ''
+        );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+
+        // Idempotent column additions (segment keeps ORG and EXTERNAL pools apart;
+        // approval gates org mentors; cohort_id/programme make structure admin-defined).
+        self::addCol('mentor_profiles', 'segment', "VARCHAR(12) NOT NULL DEFAULT 'org'");
+        self::addCol('mentor_profiles', 'approval', "VARCHAR(12) NOT NULL DEFAULT 'approved'");
+        self::addCol('mentor_profiles', 'source', "VARCHAR(12) NOT NULL DEFAULT 'applied'");
+        self::addCol('mentor_profiles', 'admin_note', "TEXT NOT NULL DEFAULT ''");
+        self::addCol('mentorships', 'segment', "VARCHAR(12) NOT NULL DEFAULT 'org'");
+        self::addCol('mentorships', 'cohort_id', 'INTEGER NOT NULL DEFAULT 0');
+        self::addCol('mentorships', 'programme', "VARCHAR(160) NOT NULL DEFAULT ''");
+        self::addCol('mentorships', 'origin', "VARCHAR(12) NOT NULL DEFAULT 'request'"); // request|admin
         $done = true;
+    }
+
+    /** Idempotent ADD COLUMN (skips if the column already exists). */
+    private static function addCol(string $table, string $col, string $type): void
+    {
+        try {
+            if (!Database::columnExists($table, $col)) {
+                Database::pdo()->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $col . ' ' . $type);
+            }
+        } catch (Throwable $e) { /* already exists / driver quirk — safe to ignore */ }
+    }
+
+    /** Which pool a user belongs to — ORG (afrovanguard.org.ng) vs EXTERNAL.
+     *  The two are never mixed in listings or matching. */
+    public static function segmentOf(int $uid): string
+    {
+        try {
+            $s = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?'); $s->execute([$uid]);
+            $email = (string) $s->fetchColumn();
+            return ($email !== '' && class_exists('LmsAuth') && LmsAuth::isOrgEmail($email)) ? 'org' : 'external';
+        } catch (Throwable $e) { return 'external'; }
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -93,9 +135,12 @@ final class Mentorship
             $db->prepare('UPDATE mentor_profiles SET headline=?, bio=?, focus=?, capacity=?, accepting=?, updated_at=? WHERE user_id=?')
                ->execute([$headline, $bio, $focus, $capacity, $accepting, $now, $uid]);
         } else {
-            $db->prepare('INSERT INTO mentor_profiles (user_id, headline, bio, focus, capacity, accepting, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)')
-               ->execute([$uid, $headline, $bio, $focus, $capacity, $accepting, $now, $now]);
-            if (class_exists('Events')) { try { Events::emit('mentor.joined', ['user_id' => $uid, 'headline' => $headline]); } catch (Throwable $e) {} }
+            // ORG members are vetted (admin approval); EXTERNAL users self-serve.
+            $segment  = self::segmentOf($uid);
+            $approval = $segment === 'org' ? 'pending' : 'approved';
+            $db->prepare('INSERT INTO mentor_profiles (user_id, headline, bio, focus, capacity, accepting, segment, approval, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+               ->execute([$uid, $headline, $bio, $focus, $capacity, $accepting, $segment, $approval, 'applied', $now, $now]);
+            if (class_exists('Events')) { try { Events::emit('mentor.joined', ['user_id' => $uid, 'headline' => $headline, 'segment' => $segment, 'approval' => $approval]); } catch (Throwable $e) {} }
         }
         return ['ok' => true, 'profile' => self::profile($uid)];
     }
@@ -111,12 +156,17 @@ final class Mentorship
     public static function availableMentors(int $viewerId = 0, int $limit = 50): array
     {
         self::ensure();
-        $rows = Database::pdo()->query(
+        // Only APPROVED mentors, and only within the viewer's own pool (org/external
+        // are never mixed). Signed-out browsing defaults to the external pool.
+        $seg = $viewerId ? self::segmentOf($viewerId) : 'external';
+        $st = Database::pdo()->prepare(
             "SELECT p.*, u.name AS name, u.email AS email,
                     (SELECT COUNT(*) FROM mentorships m WHERE m.mentor_id = p.user_id AND m.status='active') AS mentees
              FROM mentor_profiles p JOIN lms_users u ON u.id = p.user_id
-             WHERE p.accepting = 1 ORDER BY p.updated_at DESC LIMIT " . max(1, min(100, $limit))
-        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+             WHERE p.accepting = 1 AND p.approval = 'approved' AND p.segment = ? ORDER BY p.updated_at DESC LIMIT " . max(1, min(100, $limit))
+        );
+        $st->execute([$seg]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $out = [];
         foreach ($rows as $r) {
             if ((int) $r['user_id'] === $viewerId) continue;
@@ -272,6 +322,271 @@ final class Mentorship
             'notes' => (string) $r['notes'],
             'status' => (string) $r['status'],
         ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       ADMIN — staff management of mentors, mentees, pairings & cohorts.
+       Org and External pools are kept strictly separate throughout.
+       ════════════════════════════════════════════════════════════════ */
+
+    /** At-a-glance counts, split by segment, for the admin dashboard. */
+    public static function adminStats(): array
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $c = function (string $sql) use ($db): int { try { return (int) $db->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; } };
+        $seg = function (string $s): array { return ['org' => 0, 'external' => 0] + []; };
+        $bySeg = function (string $sql) use ($db): array {
+            $out = ['org' => 0, 'external' => 0];
+            try { foreach ($db->query($sql) as $r) { $out[$r['segment'] === 'org' ? 'org' : 'external'] = (int) $r['n']; } } catch (Throwable $e) {}
+            return $out;
+        };
+        return [
+            'mentors_pending'  => $bySeg("SELECT segment, COUNT(*) n FROM mentor_profiles WHERE approval='pending' GROUP BY segment"),
+            'mentors_approved' => $bySeg("SELECT segment, COUNT(*) n FROM mentor_profiles WHERE approval='approved' GROUP BY segment"),
+            'pairs_active'     => $bySeg("SELECT segment, COUNT(*) n FROM mentorships WHERE status='active' GROUP BY segment"),
+            'pairs_pending'    => $bySeg("SELECT segment, COUNT(*) n FROM mentorships WHERE status='pending' GROUP BY segment"),
+            'sessions'         => $c("SELECT COUNT(*) FROM mentor_sessions"),
+            'inactive'         => count(self::inactivePairs(21)),
+        ];
+    }
+
+    /** List mentor profiles for admin (filter by segment / approval / search). */
+    public static function adminMentors(string $segment = '', string $approval = '', string $q = '', int $limit = 200): array
+    {
+        self::ensure();
+        $where = ['1=1']; $args = [];
+        if ($segment === 'org' || $segment === 'external') { $where[] = 'p.segment = ?'; $args[] = $segment; }
+        if (in_array($approval, ['pending', 'approved', 'declined'], true)) { $where[] = 'p.approval = ?'; $args[] = $approval; }
+        if ($q !== '') { $where[] = '(u.name LIKE ? OR u.email LIKE ? OR p.headline LIKE ?)'; $like = '%' . $q . '%'; array_push($args, $like, $like, $like); }
+        $sql = "SELECT p.*, u.name, u.email,
+                       (SELECT COUNT(*) FROM mentorships m WHERE m.mentor_id=p.user_id AND m.status='active') AS active_mentees
+                FROM mentor_profiles p JOIN lms_users u ON u.id=p.user_id
+                WHERE " . implode(' AND ', $where) . " ORDER BY (p.approval='pending') DESC, p.updated_at DESC LIMIT " . max(1, min(500, $limit));
+        $st = Database::pdo()->prepare($sql); $st->execute($args);
+        return array_map(function ($r) {
+            return [
+                'user_id' => (int) $r['user_id'], 'name' => (string) $r['name'], 'email' => (string) $r['email'],
+                'segment' => (string) $r['segment'], 'approval' => (string) $r['approval'], 'source' => (string) ($r['source'] ?? 'applied'),
+                'headline' => (string) $r['headline'], 'focus' => (string) $r['focus'],
+                'capacity' => (int) $r['capacity'], 'accepting' => (int) $r['accepting'], 'active_mentees' => (int) $r['active_mentees'],
+            ];
+        }, $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /* ── undo primitives (used by the audit layer to reverse actions) ── */
+    public static function setMentorApproval(int $uid, string $status): bool
+    {
+        if (!in_array($status, ['pending', 'approved', 'declined'], true)) return false;
+        $accepting = $status === 'approved' ? null : 0; // declining/parking stops new requests
+        $db = Database::pdo();
+        if ($accepting === null) $db->prepare('UPDATE mentor_profiles SET approval=?, updated_at=? WHERE user_id=?')->execute([$status, self::now(), $uid]);
+        else $db->prepare('UPDATE mentor_profiles SET approval=?, accepting=?, updated_at=? WHERE user_id=?')->execute([$status, $accepting, self::now(), $uid]);
+        return true;
+    }
+    public static function setPairStatus(int $id, string $status): bool
+    {
+        if (!in_array($status, self::STATUSES, true)) return false;
+        Database::pdo()->prepare('UPDATE mentorships SET status=?, updated_at=? WHERE id=?')->execute([$status, self::now(), $id]);
+        return true;
+    }
+    public static function setPairMentor(int $id, int $mentorId): bool
+    {
+        Database::pdo()->prepare('UPDATE mentorships SET mentor_id=?, updated_at=? WHERE id=?')->execute([$mentorId, self::now(), $id]);
+        return true;
+    }
+    public static function deletePair(int $id): bool
+    {
+        Database::pdo()->prepare('DELETE FROM mentorships WHERE id=?')->execute([$id]);
+        return true;
+    }
+    /** Dispatcher the audit layer calls to reverse a mentorship action. */
+    public static function applyUndo(string $op, array $a): bool
+    {
+        self::ensure();
+        switch ($op) {
+            case 'mentor_approval': return self::setMentorApproval((int) ($a['uid'] ?? 0), (string) ($a['to'] ?? 'pending'));
+            case 'pair_status':     return self::setPairStatus((int) ($a['id'] ?? 0), (string) ($a['to'] ?? 'ended'));
+            case 'pair_mentor':     return self::setPairMentor((int) ($a['id'] ?? 0), (int) ($a['to'] ?? 0));
+            case 'pair_delete':     return self::deletePair((int) ($a['id'] ?? 0));
+        }
+        return false;
+    }
+
+    /** Mentor profile approval state (for building undo payloads). */
+    public static function approvalOf(int $uid): string
+    {
+        $s = Database::pdo()->prepare('SELECT approval FROM mentor_profiles WHERE user_id=?'); $s->execute([$uid]);
+        return (string) ($s->fetchColumn() ?: '');
+    }
+    public static function pairRow(int $id): ?array
+    {
+        $s = Database::pdo()->prepare('SELECT * FROM mentorships WHERE id=?'); $s->execute([$id]);
+        return $s->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** Admin adds a mentor directly by email (invite-only path for org staff). */
+    public static function adminAddMentor(string $email, array $in): array
+    {
+        self::ensure();
+        $email = strtolower(trim($email));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Enter a valid email.'];
+        $s = Database::pdo()->prepare('SELECT id FROM lms_users WHERE email=?'); $s->execute([$email]);
+        $uid = (int) $s->fetchColumn();
+        if (!$uid) return ['ok' => false, 'error' => 'No member account with that email yet — they must sign in once first.'];
+        $segment = self::segmentOf($uid);
+        $now = self::now();
+        $headline = mb_substr(trim((string) ($in['headline'] ?? 'Afrovanguard mentor')), 0, 160);
+        $focus = mb_substr(trim((string) ($in['focus'] ?? '')), 0, 255);
+        $capacity = max(1, min(50, (int) ($in['capacity'] ?? 3)));
+        $db = Database::pdo();
+        if (self::isMentor($uid)) {
+            $db->prepare("UPDATE mentor_profiles SET approval='approved', accepting=1, source='admin', headline=?, focus=?, capacity=?, updated_at=? WHERE user_id=?")
+               ->execute([$headline, $focus, $capacity, $now, $uid]);
+        } else {
+            $db->prepare("INSERT INTO mentor_profiles (user_id, headline, bio, focus, capacity, accepting, segment, approval, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?, 'approved','admin',?,?)")
+               ->execute([$uid, $headline, '', $focus, $capacity, 1, $segment, $now, $now]);
+        }
+        return ['ok' => true, 'user_id' => $uid, 'segment' => $segment];
+    }
+
+    /** All pairings for admin (filter by segment / status / cohort / search). */
+    public static function adminPairings(string $segment = '', string $status = '', int $cohortId = -1, string $q = '', int $limit = 300): array
+    {
+        self::ensure();
+        $where = ['1=1']; $args = [];
+        if ($segment === 'org' || $segment === 'external') { $where[] = 'm.segment = ?'; $args[] = $segment; }
+        if (in_array($status, self::STATUSES, true)) { $where[] = 'm.status = ?'; $args[] = $status; }
+        if ($cohortId >= 0) { $where[] = 'm.cohort_id = ?'; $args[] = $cohortId; }
+        if ($q !== '') { $where[] = '(mu.name LIKE ? OR mu.email LIKE ? OR eu.name LIKE ? OR eu.email LIKE ?)'; $like = '%' . $q . '%'; array_push($args, $like, $like, $like, $like); }
+        $sql = "SELECT m.*, mu.name AS mentor_name, mu.email AS mentor_email, eu.name AS mentee_name, eu.email AS mentee_email,
+                       (SELECT COUNT(*) FROM mentor_sessions s WHERE s.mentorship_id=m.id) AS session_count,
+                       (SELECT MAX(scheduled_at) FROM mentor_sessions s WHERE s.mentorship_id=m.id) AS last_session
+                FROM mentorships m JOIN lms_users mu ON mu.id=m.mentor_id JOIN lms_users eu ON eu.id=m.mentee_id
+                WHERE " . implode(' AND ', $where) . " ORDER BY m.updated_at DESC LIMIT " . max(1, min(1000, $limit));
+        $st = Database::pdo()->prepare($sql); $st->execute($args);
+        return array_map(function ($r) {
+            return [
+                'id' => (int) $r['id'], 'status' => (string) $r['status'], 'segment' => (string) $r['segment'],
+                'origin' => (string) ($r['origin'] ?? 'request'), 'cohort_id' => (int) $r['cohort_id'], 'programme' => (string) $r['programme'],
+                'mentor' => ['id' => (int) $r['mentor_id'], 'name' => (string) $r['mentor_name'], 'email' => (string) $r['mentor_email']],
+                'mentee' => ['id' => (int) $r['mentee_id'], 'name' => (string) $r['mentee_name'], 'email' => (string) $r['mentee_email']],
+                'message' => (string) $r['message'], 'sessions' => (int) $r['session_count'], 'last_session' => (string) ($r['last_session'] ?? ''),
+                'since' => (string) $r['updated_at'],
+            ];
+        }, $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /** Admin manually pairs a mentee with a mentor (same segment only). */
+    public static function adminAssign(int $mentorId, int $menteeId, int $cohortId = 0, string $programme = ''): array
+    {
+        self::ensure();
+        if ($mentorId <= 0 || $menteeId <= 0 || $mentorId === $menteeId) return ['ok' => false, 'error' => 'Pick a different mentor and mentee.'];
+        $p = self::profile($mentorId);
+        if (!$p) return ['ok' => false, 'error' => 'That mentor has no profile.'];
+        if (($p['approval'] ?? '') !== 'approved') return ['ok' => false, 'error' => 'Approve the mentor before assigning mentees.'];
+        if (self::segmentOf($mentorId) !== self::segmentOf($menteeId)) return ['ok' => false, 'error' => 'Org and external members can’t be paired together.'];
+        if (self::relation($menteeId, $mentorId)) return ['ok' => false, 'error' => 'These two already have a pending/active mentorship.'];
+        if (self::activeMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'That mentor is at capacity.'];
+        $seg = self::segmentOf($mentorId); $now = self::now();
+        $db = Database::pdo();
+        $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, message, segment, cohort_id, programme, origin, created_at, updated_at) VALUES (?,?, 'active','', ?,?,?, 'admin', ?,?)")
+           ->execute([$mentorId, $menteeId, $seg, max(0, $cohortId), mb_substr($programme, 0, 160), $now, $now]);
+        $id = (int) $db->lastInsertId();
+        self::notify($menteeId, 'You’ve been matched with a mentor', 'A mentor has been assigned to you on Afrovanguard — say hello and book your first session.', '/mentorship/');
+        self::notify($mentorId, 'A mentee has been assigned to you', 'You’ve been paired with a new mentee on Afrovanguard.', '/mentorship/');
+        if (class_exists('Events')) { try { Events::emit('mentorship.assigned', ['id' => $id, 'mentor_id' => $mentorId, 'mentee_id' => $menteeId]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'id' => $id];
+    }
+
+    /** Move an active/pending pairing to a different mentor (same segment). */
+    public static function adminReassign(int $mentorshipId, int $newMentorId): array
+    {
+        self::ensure();
+        $m = self::pairRow($mentorshipId);
+        if (!$m) return ['ok' => false, 'error' => 'Pairing not found.'];
+        if (self::segmentOf($newMentorId) !== (string) $m['segment']) return ['ok' => false, 'error' => 'New mentor must be in the same pool.'];
+        $p = self::profile($newMentorId);
+        if (!$p || ($p['approval'] ?? '') !== 'approved') return ['ok' => false, 'error' => 'New mentor isn’t approved.'];
+        $prev = (int) $m['mentor_id'];
+        self::setPairMentor($mentorshipId, $newMentorId);
+        return ['ok' => true, 'prev_mentor' => $prev];
+    }
+
+    /** Active pairings with no session in the last $days days. */
+    public static function inactivePairs(int $days = 21): array
+    {
+        self::ensure();
+        $cut = gmdate('Y-m-d H:i:s', time() - $days * 86400);
+        $sql = "SELECT m.*, mu.name AS mentor_name, eu.name AS mentee_name,
+                       (SELECT MAX(scheduled_at) FROM mentor_sessions s WHERE s.mentorship_id=m.id) AS last_session
+                FROM mentorships m JOIN lms_users mu ON mu.id=m.mentor_id JOIN lms_users eu ON eu.id=m.mentee_id
+                WHERE m.status='active' AND COALESCE((SELECT MAX(scheduled_at) FROM mentor_sessions s WHERE s.mentorship_id=m.id), m.updated_at) < ?
+                ORDER BY m.updated_at ASC";
+        $st = Database::pdo()->prepare($sql); $st->execute([$cut]);
+        return array_map(fn($r) => [
+            'id' => (int) $r['id'], 'segment' => (string) $r['segment'], 'mentor' => (string) $r['mentor_name'], 'mentee' => (string) $r['mentee_name'],
+            'last_session' => (string) ($r['last_session'] ?? ''), 'since' => (string) $r['updated_at'],
+        ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /* ── cohorts (admin-defined structure: ongoing / rounds / programme) ── */
+    public static function listCohorts(string $segment = ''): array
+    {
+        self::ensure();
+        $sql = "SELECT c.*, (SELECT COUNT(*) FROM mentorships m WHERE m.cohort_id=c.id) AS pairs FROM mentor_cohorts c";
+        $args = [];
+        if ($segment === 'org' || $segment === 'external') { $sql .= ' WHERE c.segment = ?'; $args[] = $segment; }
+        $sql .= ' ORDER BY c.created_at DESC';
+        $st = Database::pdo()->prepare($sql); $st->execute($args);
+        return array_map(fn($r) => [
+            'id' => (int) $r['id'], 'name' => (string) $r['name'], 'segment' => (string) $r['segment'], 'programme' => (string) $r['programme'],
+            'starts' => (string) $r['starts'], 'ends' => (string) $r['ends'], 'status' => (string) $r['status'], 'pairs' => (int) $r['pairs'],
+        ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+    public static function createCohort(array $in): array
+    {
+        self::ensure();
+        $name = mb_substr(trim((string) ($in['name'] ?? '')), 0, 160);
+        if ($name === '') return ['ok' => false, 'error' => 'Name the cohort.'];
+        $segment = (($in['segment'] ?? '') === 'external') ? 'external' : 'org';
+        Database::pdo()->prepare('INSERT INTO mentor_cohorts (name, segment, programme, starts, ends, status, created_at) VALUES (?,?,?,?,?,?,?)')
+           ->execute([$name, $segment, mb_substr((string) ($in['programme'] ?? ''), 0, 160), (string) ($in['starts'] ?? ''), (string) ($in['ends'] ?? ''), 'open', self::now()]);
+        return ['ok' => true, 'id' => (int) Database::pdo()->lastInsertId()];
+    }
+    public static function setCohortStatus(int $id, string $status): array
+    {
+        self::ensure();
+        if (!in_array($status, ['open', 'closed', 'archived'], true)) return ['ok' => false, 'error' => 'Bad status.'];
+        Database::pdo()->prepare('UPDATE mentor_cohorts SET status=? WHERE id=?')->execute([$status, $id]);
+        return ['ok' => true];
+    }
+
+    /** Find member accounts for admin assignment, scoped to a segment. */
+    public static function findUsers(string $q, string $segment = '', int $limit = 20): array
+    {
+        self::ensure();
+        $q = trim($q); if ($q === '') return [];
+        $st = Database::pdo()->prepare("SELECT id, name, email FROM lms_users WHERE (name LIKE ? OR email LIKE ?) ORDER BY name LIMIT 60");
+        $like = '%' . $q . '%'; $st->execute([$like, $like]);
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $seg = (class_exists('LmsAuth') && LmsAuth::isOrgEmail((string) $r['email'])) ? 'org' : 'external';
+            if (($segment === 'org' || $segment === 'external') && $seg !== $segment) continue;
+            $out[] = ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'email' => (string) $r['email'], 'segment' => $seg];
+            if (count($out) >= $limit) break;
+        }
+        return $out;
+    }
+
+    /** Flat rows for CSV export of pairings. */
+    public static function exportPairings(string $segment = ''): array
+    {
+        $rows = [['Segment', 'Status', 'Origin', 'Mentor', 'Mentor email', 'Mentee', 'Mentee email', 'Programme', 'Sessions', 'Last session', 'Since']];
+        foreach (self::adminPairings($segment, '', -1, '', 1000) as $p) {
+            $rows[] = [$p['segment'], $p['status'], $p['origin'], $p['mentor']['name'], $p['mentor']['email'], $p['mentee']['name'], $p['mentee']['email'], $p['programme'], $p['sessions'], $p['last_session'], $p['since']];
+        }
+        return $rows;
     }
 
     /* ── email (best-effort) ─────────────────────────────────────── */
