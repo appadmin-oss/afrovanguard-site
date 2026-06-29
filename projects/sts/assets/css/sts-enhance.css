@@ -204,3 +204,12 @@ img{ max-width:100%; height:auto; }
 /* methodology motto + formula align left within the unified hero */
 .page-header .mth-motto{ margin-top:26px; }
 .page-header .mth-formula{ margin-left:0;margin-right:0;justify-content:flex-start; }
+
+/* ── v2 interior hero: copy + framed photo, two columns ───────────── */
+.page-hero2{ display:grid;grid-template-columns:1.25fr .85fr;gap:clamp(32px,5vw,64px);align-items:center; }
+.page-hero2__copy{ min-width:0; }
+.page-hero2__media{ min-width:0; }
+.page-hero2__media .sts-figure{ box-shadow:0 34px 72px -34px rgba(8,10,22,.5); }
+.page-hero2__media .sts-figure > img{ aspect-ratio:4/3; }
+@media(max-width:900px){ .page-hero2{ grid-template-columns:1fr;gap:26px; }
+  .page-hero2__media .sts-figure > img{ aspect-ratio:16/9; } }
