@@ -144,3 +144,63 @@ img{ max-width:100%; height:auto; }
 .sts-avatar__t{ font-family:var(--font-display);font-weight:700;
   font-size:clamp(30px,7vw,56px);color:#fff;letter-spacing:.03em;
   text-shadow:0 2px 14px rgba(0,0,0,.22); }
+
+/* ════════════════════════════════════════════════════════════════════
+   Unified page hero — interior pages (.page-header) now speak the same
+   visual language as the home Hero v2: blue-tint wash, soft brand blobs,
+   and a pill eyebrow. One hero system across the whole site.
+   ════════════════════════════════════════════════════════════════════ */
+.page-header{
+  position:relative; overflow:hidden; isolation:isolate;
+  padding-top:clamp(104px,13vh,148px) !important;
+  padding-bottom:clamp(56px,7vh,80px) !important;
+  background:linear-gradient(180deg, #E9F0FF 0%, rgba(233,240,255,0) 82%);
+  border-bottom:1px solid var(--hairline);
+}
+:root[data-theme=dark] .page-header{
+  background:linear-gradient(180deg, #0A0E1E 0%, rgba(10,14,30,0) 84%);
+}
+/* soft brand blobs echoing the hero decoration */
+.page-header::before{
+  content:"";position:absolute;z-index:-1;pointer-events:none;border-radius:50%;
+  width:min(560px,52vw);height:min(560px,52vw);top:-30%;right:-8%;
+  background:radial-gradient(circle at 50% 50%, rgba(7,50,247,.16), transparent 66%);
+}
+.page-header::after{
+  content:"";position:absolute;z-index:-1;pointer-events:none;border-radius:50%;
+  width:min(440px,44vw);height:min(440px,44vw);bottom:-46%;left:-10%;
+  background:radial-gradient(circle at 50% 50%, rgba(200,16,46,.12), transparent 70%);
+}
+:root[data-theme=dark] .page-header::before{ background:radial-gradient(circle at 50% 50%, rgba(81,114,255,.18), transparent 66%); }
+:root[data-theme=dark] .page-header::after{ background:radial-gradient(circle at 50% 50%, rgba(255,77,99,.12), transparent 70%); }
+
+/* eyebrow → pill, matching .hero-v2__pill */
+.page-header .eyebrow{
+  display:inline-flex;align-items:center;gap:9px;margin-bottom:26px;
+  font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--blue);
+  background:rgba(7,50,247,.10);border:1px solid rgba(7,50,247,.20);
+  border-radius:999px;padding:6px 14px;
+}
+.page-header .eyebrow::before{
+  content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;
+}
+:root[data-theme=dark] .page-header .eyebrow{
+  color:rgba(255,255,255,.84);background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.14);
+}
+/* headline + lede a touch larger/cleaner to match the hero scale */
+.page-header .page-title{ max-width:18ch; }
+.page-header .page-lede{ font-size:clamp(16px,1.5vw,19px);max-width:660px; }
+
+/* the .accent underline: thicken slightly and round, like a marker stroke */
+.accent{ background-size:100% 8px !important; }
+
+/* When a hero needs the crimson accent instead of blue */
+.accent.accent--crimson{ background-image:linear-gradient(var(--crimson),var(--crimson)) !important; }
+
+/* Methodology hero folds into the same shell */
+.mth-hero{ background:linear-gradient(180deg, #E9F0FF 0%, rgba(233,240,255,0) 82%) !important; }
+:root[data-theme=dark] .mth-hero{ background:linear-gradient(180deg, #0A0E1E 0%, rgba(10,14,30,0) 84%) !important; }
+/* methodology motto + formula align left within the unified hero */
+.page-header .mth-motto{ margin-top:26px; }
+.page-header .mth-formula{ margin-left:0;margin-right:0;justify-content:flex-start; }

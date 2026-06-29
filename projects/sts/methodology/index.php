@@ -83,16 +83,11 @@ STSHEAD;
 require $STS_ROOT.'/inc/head.php';
 ?>
 <!-- ── Hero ─────────────────────────────────────────────────────── -->
-  <section class="mth-hero" data-screen-label="Methodology · Hero">
-    <svg class="mth-hero__blob" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-      <ellipse cx="1000" cy="80" rx="260" ry="220" fill="var(--blue,#0732F7)" opacity="0.12" transform="rotate(-18 1000 80)"/>
-      <ellipse cx="1090" cy="240" rx="180" ry="260" fill="var(--crimson,#C8102E)" opacity="0.07" transform="rotate(14 1090 240)"/>
-      <ellipse cx="140" cy="60" rx="220" ry="150" fill="var(--blue,#0732F7)" opacity="0.06" transform="rotate(10 140 60)"/>
-    </svg>
-    <div class="mth-hero__inner">
+  <section class="section page-header" data-screen-label="Methodology · Hero">
+    <div class="section-inner">
       <span class="eyebrow reveal">Our methodology · The STC</span>
-      <h1 class="page-title reveal" style="max-width:880px;margin-left:auto;margin-right:auto;">The STS Transformation Methodology — <span class="accent">raising the Incorruptible Generation</span>.</h1>
-      <p class="page-lede reveal" style="max-width:720px;margin-left:auto;margin-right:auto;">Every Street-To-Stardom programme — School Storms, Summer Impact School, Bootcamps, the Next Generation Genius Club, Community Projects and Leadership Academies — runs on one unified framework: the <strong>STS Transformation Cycle</strong>. Five pillars of formation, seven core values, and a seven-stage journey from discovery to lifelong leadership.</p>
+      <h1 class="page-title reveal">The STS Transformation Methodology — <span class="accent accent--crimson">raising the Incorruptible Generation</span>.</h1>
+      <p class="page-lede reveal">Every Street-To-Stardom programme — School Storms, Summer Impact School, Bootcamps, the Next Generation Genius Club, Community Projects and Leadership Academies — runs on one unified framework: the <strong>STS Transformation Cycle</strong>. Five pillars of formation, seven core values, and a seven-stage journey from discovery to lifelong leadership.</p>
       <div class="mth-motto reveal"><span class="q">&ldquo;Where Dreams Take Root and Glory Blooms.&rdquo;</span></div>
       <div class="mth-formula reveal" aria-label="The STS transformation formula">
         <span class="term">Potential</span><span class="plus">+</span>
