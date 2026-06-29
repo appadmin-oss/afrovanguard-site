@@ -103,10 +103,19 @@ final class GoogleAuth
         ]);
         $res  = curl_exec($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cerr = curl_error($ch);
         curl_close($ch);
-        if ($http !== 200 || !is_string($res)) return null;
+        if ($http !== 200 || !is_string($res)) {
+            // Surface the real reason (redirect_uri mismatch, invalid_client, etc.)
+            // to the error log so production failures are diagnosable.
+            error_log('[google] token exchange failed: HTTP ' . $http . ($cerr ? ' curl=' . $cerr : '') . ' body=' . substr((string) $res, 0, 300));
+            return null;
+        }
         $tok = json_decode($res, true);
-        if (!is_array($tok) || empty($tok['id_token'])) return null;
+        if (!is_array($tok) || empty($tok['id_token'])) {
+            error_log('[google] token response missing id_token: ' . substr($res, 0, 300));
+            return null;
+        }
         return self::readIdToken((string) $tok['id_token']);
     }
 
