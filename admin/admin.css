@@ -200,3 +200,29 @@ body.studio-authed .studio-side { display: block; }
 .ov-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 3px; }
 .ov-dot.ok { background: #2ea043; } .ov-dot.warn { background: #e0a106; } .ov-dot.off { background: #d22; }
 .ov-sep { color: var(--muted); margin: 0 4px; }
+
+/* ── Guide (how-to + AI assistant) ───────────────────────────────────── */
+.guide-grid { max-width: 880px; }
+.guide-ai { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 20px; margin-bottom: 24px; }
+.guide-ai h3 { font-family: var(--font-body); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.guide-chat { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; max-height: 360px; overflow-y: auto; }
+.gc-msg { max-width: 86%; padding: 11px 14px; border-radius: 14px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.gc-user { align-self: flex-end; background: var(--gold-soft, rgba(243,180,22,.12)); color: var(--ink); border: 1px solid rgba(243,180,22,.35); border-bottom-right-radius: 4px; }
+.gc-bot { align-self: flex-start; background: var(--surface-2); color: var(--body); border: 1px solid var(--divider); border-bottom-left-radius: 4px; }
+.gc-pending { color: var(--muted); font-style: italic; }
+.guide-ask-form { display: flex; gap: 10px; }
+.guide-ask-form input { flex: 1; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; }
+.guide-ask-form input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(243,180,22,.16); }
+.guide-suggest { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.guide-chip { font-size: 12.5px; font-weight: 600; color: var(--body); background: var(--surface-2); border: 1px solid var(--divider); border-radius: 9999px; padding: 7px 13px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
+.guide-chip:hover { border-color: var(--gold); color: var(--gold-deep, var(--gold)); }
+.guide-howto h3 { font-family: var(--font-body); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.guide-acc { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); margin-bottom: 10px; overflow: hidden; }
+.guide-acc summary { cursor: pointer; padding: 14px 18px; font-weight: 700; font-size: 14.5px; color: var(--ink); list-style: none; }
+.guide-acc summary::-webkit-details-marker { display: none; }
+.guide-acc summary::before { content: '＋'; color: var(--gold-deep, var(--gold)); font-weight: 700; margin-right: 10px; }
+.guide-acc[open] summary::before { content: '－'; }
+.guide-acc[open] summary { border-bottom: 1px solid var(--divider); }
+.guide-acc ol { margin: 0; padding: 14px 18px 16px 40px; color: var(--body); font-size: 14px; line-height: 1.7; }
+.guide-acc ol li { margin-bottom: 6px; }
+.guide-acc code { background: var(--surface-2); border: 1px solid var(--divider); border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
