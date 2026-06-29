@@ -152,7 +152,7 @@ function av_nav_model(): array {
         'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
             'cols' => [
                 ['title' => 'Flagship programmes', 'links' => [
-                    ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
+                    ['Street-To-Stardom', 'https://sts.afrovanguard.org.ng/'],
                     ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
                     ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/'],
                     ['MediaPro', 'https://cacentre.afrovanguard.org.ng/mediapro/'],
@@ -501,7 +501,7 @@ function av_footer_inner(): void {
         <div class="footer-col">
           <h4>Programmes</h4>
           <ul class="footer-links">
-            <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
+            <li><a href="https://sts.afrovanguard.org.ng/">Street-To-Stardom</a></li>
             <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
             <li><a href="https://cacentre.afrovanguard.org.ng/techhome/">Techome</a></li>
             <li><a href="https://cacentre.afrovanguard.org.ng/mediapro/">MediaPro</a></li>

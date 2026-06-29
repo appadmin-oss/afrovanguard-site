@@ -1,0 +1,23 @@
+{
+  "name": "Street-To-Stardom",
+  "short_name": "STS",
+  "description": "Education, mentorship and youth development for under-resourced communities across Lagos.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FAFAF8",
+  "theme_color": "#0732F7",
+  "orientation": "portrait",
+  "categories": ["education", "nonprofit", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/assets/sts-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/assets/sts-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Volunteer", "short_name": "Volunteer", "url": "/get-involved/volunteer" },
+    { "name": "Sponsor",   "short_name": "Sponsor",   "url": "/get-involved/sponsor" },
+    { "name": "Programs",  "short_name": "Programs",  "url": "/programs" }
+  ]
+}

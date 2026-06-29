@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0732F7"/>
+      <stop offset="100%" stop-color="#0420B5"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+      <line x1="0" y1="0" x2="0" y2="48" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <circle cx="980" cy="160" r="220" fill="rgba(255,255,255,0.08)"/>
+  <g font-family="Montserrat, system-ui, sans-serif" fill="#ffffff">
+    <text x="80" y="200" font-size="22" font-weight="600" letter-spacing="3" fill="rgba(255,255,255,0.7)">STREET-TO-STARDOM</text>
+    <text x="80" y="320" font-size="76" font-weight="700" letter-spacing="-2">Education that meets</text>
+    <text x="80" y="404" font-size="76" font-weight="700" letter-spacing="-2">children where they are.</text>
+    <text x="80" y="496" font-size="26" font-weight="400" fill="rgba(255,255,255,0.85)" letter-spacing="0">Lagos · evidence-led · data published openly</text>
+  </g>
+  <g transform="translate(80,550)" font-family="Inter, system-ui, sans-serif">
+    <rect x="0" y="0" width="290" height="32" rx="4" fill="rgba(255,255,255,0.12)"/>
+    <text x="14" y="22" font-size="13" font-weight="700" fill="#ffffff" letter-spacing="2">AN AFROVANGUARD INITIATIVE</text>
+  </g>
+</svg>

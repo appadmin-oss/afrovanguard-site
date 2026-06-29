@@ -35,7 +35,7 @@ return [
     'summary' => 'Discovering and developing raw talent from under-resourced communities — from the street to the stage, with structure behind it.',
     'outcomes' => "Develop a performance or creative discipline\nReceive coaching, mentorship and a platform\nBuild discipline, confidence and character\nJoin a tracked alumni community",
     'body_html' => '<p>Street-To-Stardom finds talent where the world is not looking and gives it structure, mentorship and a stage. It is education and youth development for under-resourced Lagos communities.</p>',
-    'cta_url' => 'https://cacentre.afrovanguard.org.ng/street-to-stardom/', 'featured' => 0, 'sort' => 4,
+    'cta_url' => 'https://sts.afrovanguard.org.ng/', 'featured' => 0, 'sort' => 4,
   ],
   [
     'slug' => 'next-generation-genius', 'title' => 'Next Generation Genius', 'category' => 'Education', 'level' => 'Beginner',

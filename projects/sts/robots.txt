@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://streettostardom.org/sitemap.xml
+Sitemap: https://streettostardom.org/sitemap-index.xml
