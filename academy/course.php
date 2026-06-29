@@ -2,10 +2,16 @@
 /**
  * academy/course.php — a single programme (from the DB).
  * Reached via /academy/<slug>/ (see .htaccess) or ?slug=<slug>.
+ *
+ * Coursera-style detail page: a light hero (breadcrumb, serif title, subtitle,
+ * dark pill CTA), a tabbed body (Overview · Curriculum · Certificate) with a
+ * "What you'll learn" panel and a module → lesson accordion (lock icons for
+ * gated lessons), and a sticky enrol / continue card with price + progress.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/_helpers.php';
 
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
 $repo = new AcademyRepository();
@@ -29,10 +35,28 @@ $curriculum = $lms->curriculum((int) $c['id']);
 $lessonTotal = $lms->lessonCount((int) $c['id']);
 $ordered = $lms->orderedLessons((int) $c['id']);
 $access = $c['access_type'] ?? 'open';
-$accessLabels = ['open' => 'Open · free', 'tracked' => 'Free · sign in to track', 'membership' => 'Members only', 'paid' => 'Paid programme'];
+$am = ac_access_meta($access);
 $progress = ($user && $lessonTotal) ? $lms->progress((int) $user['id'], (int) $c['id']) : null;
 $doneIds = $progress['ids'] ?? [];
 $firstLesson = $ordered[0]['slug'] ?? '';
+$moduleCount = count($curriculum);
+// Total runtime across lessons that declare a duration (minutes).
+$totalMins = 0;
+foreach ($curriculum as $m) { foreach ($m['lessons'] as $l) { $totalMins += (int) ($l['duration_min'] ?? 0); } }
+
+$isMember = $user ? ($lms->isMember((int) $user['id']) || LmsAuth::isOrgMember($user)) : false;
+$hasAccess = $user && $lms->canAccess($user, $c, ['is_preview' => 0]);
+$price = (int) ($c['price_ngn'] ?? 0);
+$fmtNgn = fn(int $n) => '₦' . number_format($n);
+
+// Primary CTA target / label depends on access + progress.
+$resumeUrl = $firstLesson ? academy_url($c['slug'] . '/learn/' . $firstLesson) : '#enroll';
+$ctaLabel = 'Enrol now';
+if ($lessonTotal && $firstLesson) {
+    if ($progress && !empty($progress['completed'])) $ctaLabel = 'Continue learning';
+    elseif ($hasAccess || $access === 'open' || $access === 'tracked') $ctaLabel = 'Start learning';
+    else $ctaLabel = 'Enrol now';
+}
 
 $courseSchema = [
     '@type' => 'Course', 'name' => $c['title'], 'description' => $c['summary'],
@@ -63,129 +87,215 @@ render_nav('academy');
 <?php if ($payFlag === 'paid'): ?>
     <div class="container"><div class="pay-flash ok" role="status">🎉 Payment confirmed — you now have full access. Welcome aboard!</div></div>
 <?php elseif ($payFlag === 'failed'): ?>
-    <div class="container"><div class="pay-flash err" role="status">We couldn’t confirm that payment. If you were charged, contact us and we’ll sort it right away.</div></div>
+    <div class="container"><div class="pay-flash err" role="status">We couldn't confirm that payment. If you were charged, contact us and we'll sort it right away.</div></div>
 <?php endif; ?>
-    <article>
-      <section class="course-hero <?= $cover ? 'has-cover' : e($c['gradient']) . ' g-grain' ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
+    <article class="course-detail">
+      <section class="course-hero">
         <div class="container">
-          <nav class="breadcrumb light"><a href="/academy/">Academy</a><span class="sep">/</span><span><?= e($c['category']) ?></span></nav>
-          <h1><?= e($c['title']) ?></h1>
-          <p class="course-dek"><?= e($c['summary']) ?></p>
-          <div class="course-badges">
-            <span>◆ <?= e($c['level']) ?></span><span>● <?= e($c['format']) ?></span><span>◷ <?= e($c['duration']) ?></span>
-<?php if ($lessonTotal): ?><span>📚 <?= $lessonTotal ?> lessons</span><?php endif; ?>
-            <span class="badge-price"><?= e($accessLabels[$access] ?? $c['price']) ?></span>
-          </div>
-          <div class="course-hero-cta">
-<?php if ($lessonTotal && $firstLesson): ?>
-            <a class="btn btn-primary" href="<?= e(academy_url($c['slug'] . '/learn/' . $firstLesson)) ?>"><?= $progress && $progress['completed'] ? 'Continue learning' : 'Start learning' ?> →</a>
-<?php else: ?>
-            <a class="btn btn-primary" href="#enroll">Apply / enrol</a>
+          <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="/academy/">Academy</a><span class="sep">›</span><span aria-current="page"><?= e($c['title']) ?></span>
+          </nav>
+          <div class="course-hero-grid">
+            <div class="course-hero-copy">
+              <p class="ac-hero-eyebrow"><?= e($c['category']) ?></p>
+              <h1><?= e($c['title']) ?></h1>
+              <p class="course-dek"><?= e($c['summary']) ?></p>
+              <div class="course-badges">
+                <span class="cb"><?= e($c['level']) ?></span>
+                <span class="cb"><?= e($c['format']) ?></span>
+<?php if (!empty($c['duration'])): ?>                <span class="cb"><?= e($c['duration']) ?></span>
 <?php endif; ?>
-<?php if (!empty($c['cta_url'])): ?><a class="btn btn-ghost-light" href="<?= e($c['cta_url']) ?>" target="_blank" rel="noopener">Programme site ↗</a><?php endif; ?></div>
+<?php if ($lessonTotal): ?>                <span class="cb"><?= $lessonTotal ?> lesson<?= $lessonTotal === 1 ? '' : 's' ?></span>
+<?php endif; ?>
+                <span class="cb badge-access access-<?= e($am['cls']) ?>"><?= e($am['label']) ?></span>
+              </div>
+              <div class="course-hero-cta">
+<?php if ($lessonTotal && $firstLesson): ?>
+                <a class="btn btn-pill" href="<?= e($resumeUrl) ?>"><?= e($ctaLabel) ?> →</a>
+<?php else: ?>
+                <a class="btn btn-pill" href="#enroll">Apply / enrol →</a>
+<?php endif; ?>
+<?php if (!empty($c['cta_url'])): ?>                <a class="btn btn-pill-ghost" href="<?= e($c['cta_url']) ?>" target="_blank" rel="noopener">Programme site ↗</a><?php endif; ?>
+              </div>
+            </div>
+            <div class="course-hero-media <?= $cover ? 'has-cover' : e($c['gradient'] ?: 'g-gold') . ' g-grain' ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?> aria-hidden="true">
+<?php if (!$cover): ?>              <span class="chm-mark"><?= e($c['title']) ?></span>
+<?php endif; ?>            </div>
+          </div>
         </div>
       </section>
 
       <div class="container">
         <div class="course-layout">
-          <div class="course-main article-body">
-<?= $c['body_html'] ?>
-<?php if ($outcomes): ?>
-            <h2>What you will gain</h2>
-            <ul class="outcomes">
-<?php foreach ($outcomes as $o): ?>              <li><?= e($o) ?></li>
-<?php endforeach; ?>
-            </ul>
+          <div class="course-main">
+            <div class="course-tabs" role="tablist" aria-label="Course sections">
+              <button class="course-tab active" role="tab" aria-selected="true" data-tab="overview">Overview</button>
+<?php if ($curriculum): ?>              <button class="course-tab" role="tab" aria-selected="false" data-tab="curriculum">Curriculum</button>
 <?php endif; ?>
+              <button class="course-tab" role="tab" aria-selected="false" data-tab="certificate">Certificate</button>
+            </div>
+
+            <section class="course-panel" data-panel="overview">
+<?php if ($outcomes): ?>
+              <div class="learn-card">
+                <h2>What you'll learn</h2>
+                <ul class="outcomes">
+<?php foreach ($outcomes as $o): ?>                  <li><?= e($o) ?></li>
+<?php endforeach; ?>
+                </ul>
+              </div>
+<?php endif; ?>
+              <div class="article-body course-about">
+<?= $c['body_html'] ?>
+              </div>
+            </section>
 
 <?php if ($curriculum): ?>
-            <div class="curriculum">
-              <h2>Curriculum</h2>
+            <section class="course-panel" data-panel="curriculum" hidden>
+              <div class="curriculum">
+                <div class="curriculum-head">
+                  <h2>Curriculum</h2>
+                  <p class="curriculum-meta"><?= $moduleCount ?> module<?= $moduleCount === 1 ? '' : 's' ?> · <?= $lessonTotal ?> lesson<?= $lessonTotal === 1 ? '' : 's' ?><?= $totalMins ? ' · ' . $totalMins . ' min' : '' ?></p>
+                  <button type="button" class="cur-expand" data-expand-all aria-expanded="false">Expand all</button>
+                </div>
 <?php if ($progress): ?>
-              <div class="cur-progress"><span><?= (int)$progress['completed'] ?>/<?= (int)$progress['total'] ?> done</span><div class="cur-bar"><span style="width:<?= (int)$progress['pct'] ?>%"></span></div><span><?= (int)$progress['pct'] ?>%</span></div>
+                <div class="cur-progress"><span><?= (int)$progress['completed'] ?>/<?= (int)$progress['total'] ?> done</span><div class="cur-bar"><span style="width:<?= (int)$progress['pct'] ?>%"></span></div><span><?= (int)$progress['pct'] ?>%</span></div>
 <?php if (!empty($progress['complete'])): ?>
-              <div class="cert-banner">🎓 You’ve completed this programme. <a class="btn btn-primary btn-sm" href="<?= e(academy_url($c['slug'] . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →</a></div>
+                <div class="cert-banner">🎓 You've completed this programme. <a class="btn btn-pill-gold btn-sm" href="<?= e(academy_url($c['slug'] . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →</a></div>
 <?php endif; ?>
 <?php endif; ?>
-<?php foreach ($curriculum as $m): ?>
-              <div class="module">
-                <div class="module-head"><span><?= e($m['title']) ?></span><span class="m-count"><?= count($m['lessons']) ?> lessons</span></div>
-<?php foreach ($m['lessons'] as $l):
-                $open = !empty($l['is_preview']) || $access === 'open' || ($user && $lms->canAccess($user, $c, $l));
-                $done = in_array((int)$l['id'], $doneIds, true);
-                $href = academy_url($c['slug'] . '/learn/' . $l['slug']);
+<?php foreach ($curriculum as $mi => $m):
+                $mLessons = $m['lessons'];
+                $mDone = 0; foreach ($mLessons as $l) { if (in_array((int)$l['id'], $doneIds, true)) $mDone++; }
+                $open = $mi === 0; // first module open by default
 ?>
-                <a class="lesson-row<?= $done ? ' done' : '' ?><?= $open ? '' : ' locked' ?>" href="<?= e($href) ?>">
-                  <span class="l-ico"><?= $done ? '✓' : ($open ? '▸' : '🔒') ?></span>
-                  <span class="l-title"><?= e($l['title']) ?></span>
-                  <span class="l-meta"><?php if (!empty($l['is_preview'])): ?><span class="l-preview">Preview</span><?php endif; ?><?php if ((int)$l['duration_min']): ?><span><?= (int)$l['duration_min'] ?> min</span><?php endif; ?></span>
-                </a>
+                <div class="module<?= $open ? ' is-open' : '' ?>">
+                  <button type="button" class="module-head" aria-expanded="<?= $open ? 'true' : 'false' ?>">
+                    <span class="module-toggle" aria-hidden="true"></span>
+                    <span class="module-title"><?= e($m['title']) ?></span>
+                    <span class="m-count"><?php if ($progress && $mDone): ?><span class="m-done"><?= $mDone ?>/<?= count($mLessons) ?></span> · <?php endif; ?><?= count($mLessons) ?> lesson<?= count($mLessons) === 1 ? '' : 's' ?></span>
+                  </button>
+                  <div class="module-body">
+<?php foreach ($mLessons as $l):
+                    $lOpen = !empty($l['is_preview']) || $access === 'open' || ($user && $lms->canAccess($user, $c, $l));
+                    $done = in_array((int)$l['id'], $doneIds, true);
+                    $href = academy_url($c['slug'] . '/learn/' . $l['slug']);
+?>
+                    <a class="lesson-row<?= $done ? ' done' : '' ?><?= $lOpen ? '' : ' locked' ?>" href="<?= e($href) ?>">
+                      <span class="l-ico" aria-hidden="true"><?= $done ? '✓' : ($lOpen ? '▸' : '🔒') ?></span>
+                      <span class="l-title"><?= e($l['title']) ?></span>
+                      <span class="l-meta"><?php if (!empty($l['is_preview'])): ?><span class="l-preview">Preview</span><?php endif; ?><?php if ((int)$l['duration_min']): ?><span><?= (int)$l['duration_min'] ?> min</span><?php endif; ?></span>
+                    </a>
+<?php endforeach; ?>
+                  </div>
+                </div>
 <?php endforeach; ?>
               </div>
-<?php endforeach; ?>
-            </div>
+            </section>
 <?php endif; ?>
+
+            <section class="course-panel" data-panel="certificate" hidden>
+              <div class="cert-panel">
+                <div class="cert-panel-mark" aria-hidden="true">🎓</div>
+                <h2>Earn a verifiable certificate</h2>
+                <p>Complete every lesson in <strong><?= e($c['title']) ?></strong> to earn an Afrovanguard Academy Certificate of Completion — issued with a unique serial you can share and that anyone can verify online.</p>
+                <ul class="cert-points">
+                  <li>Personalised, branded certificate (PDF/PNG)</li>
+                  <li>Unique serial number, publicly verifiable</li>
+                  <li>Shareable on LinkedIn and your CV</li>
+                </ul>
+<?php if ($progress && !empty($progress['complete'])): ?>
+                <a class="btn btn-pill-gold" href="<?= e(academy_url($c['slug'] . '/certificate')) ?>" target="_blank" rel="noopener">Get your certificate →</a>
+<?php elseif ($progress): ?>
+                <p class="cert-progress-note">You're <?= (int)$progress['pct'] ?>% of the way there — finish the remaining lessons to unlock it.</p>
+<?php endif; ?>
+              </div>
+            </section>
           </div>
+
           <aside class="course-side">
+            <div class="enroll-card<?= $access === 'paid' || $access === 'membership' ? ' pay-card' : '' ?>" id="enroll"<?= $access === 'paid' ? ' data-course="' . e($c['slug']) . '" data-kind="course"' : ($access === 'membership' ? ' data-kind="membership"' : '') ?>>
+<?php if ($cover): ?>
+              <div class="enroll-cover" style="background-image:url('<?= e($cover) ?>')" aria-hidden="true"></div>
+<?php endif; ?>
+              <div class="enroll-body">
 <?php
-            $price = (int) ($c['price_ngn'] ?? 0);
-            $hasAccess = $user && $lms->canAccess($user, $c, ['is_preview' => 0]);
-            $isMember = $user ? $lms->isMember((int) $user['id']) : false;
-            $fmtNgn = fn(int $n) => '₦' . number_format($n);
+                // ── Price / status line ──
+                if ($access === 'paid') {
+                    $priceTxt = $price > 0 ? $fmtNgn($price) : ($c['price'] ?: 'Paid');
+                    $priceSub = 'one-time';
+                } elseif ($access === 'membership') {
+                    $priceTxt = $fmtNgn((int) AV_MEMBERSHIP_NGN);
+                    $priceSub = 'per year';
+                } else {
+                    $priceTxt = 'Free';
+                    $priceSub = $access === 'tracked' ? 'sign in to track progress' : 'open programme';
+                }
 ?>
+                <p class="enroll-price"><?= e($priceTxt) ?><span><?= e($priceSub) ?></span></p>
+
+<?php if ($progress): ?>
+                <div class="enroll-progress">
+                  <div class="enroll-progress-row"><span><?= (int)$progress['completed'] ?> of <?= (int)$progress['total'] ?> lessons</span><span><?= (int)$progress['pct'] ?>%</span></div>
+                  <div class="cur-bar"><span style="width:<?= (int)$progress['pct'] ?>%"></span></div>
+                </div>
+<?php endif; ?>
+
+<?php /* ── Primary action ── */ ?>
 <?php if ($access === 'paid'): ?>
-            <div class="enroll-card pay-card" id="enroll" data-course="<?= e($c['slug']) ?>" data-kind="course">
 <?php if ($hasAccess): ?>
-              <h3>You’re enrolled ✓</h3>
-              <p>You have full access to <?= e($c['title']) ?>.</p>
-<?php if ($firstLesson): ?><a class="btn btn-primary" style="width:100%" href="<?= e(academy_url($c['slug'] . '/learn/' . $firstLesson)) ?>">Continue learning →</a><?php endif; ?>
+                <p class="enroll-state">✓ You're enrolled — full access unlocked.</p>
+<?php if ($firstLesson): ?>                <a class="btn btn-pill enroll-go" href="<?= e($resumeUrl) ?>"><?= $progress && !empty($progress['completed']) ? 'Continue learning' : 'Start learning' ?> →</a><?php endif; ?>
+<?php elseif ($user): ?>
+                <button type="button" class="btn btn-pill pay-btn" data-pay="course" data-course="<?= e($c['slug']) ?>">Enrol — <?= $price > 0 ? $fmtNgn($price) : 'pay now' ?> →</button>
+                <p class="enroll-tiny">Members get this course included. <a href="<?= e(academy_url('')) ?>#membership">See membership →</a></p>
 <?php else: ?>
-              <h3>Enrol in <?= e($c['title']) ?></h3>
-              <p class="pay-price"><?= $price > 0 ? $fmtNgn($price) : e($c['price']) ?><span> · one-time</span></p>
-              <p>Pay securely with card or transfer to unlock every lesson, quiz and your certificate.</p>
-<?php if ($user): ?>
-              <button type="button" class="btn btn-primary pay-btn" data-pay="course" data-course="<?= e($c['slug']) ?>" style="width:100%">Enrol — <?= $price > 0 ? $fmtNgn($price) : 'pay now' ?> →</button>
-<?php else: ?>
-              <button type="button" class="btn btn-primary" data-auth="register" style="width:100%">Create an account to enrol →</button>
-              <p class="enroll-tiny">Already have an account? <a href="#" data-auth="login">Sign in</a></p>
+                <button type="button" class="btn btn-pill" data-auth="register">Create an account to enrol →</button>
+                <p class="enroll-tiny">Already have an account? <a href="#" data-auth="login">Sign in</a></p>
 <?php endif; ?>
-              <p class="enroll-tiny">Members get this course included. <a href="<?= e(academy_url('')) ?>#membership">See membership →</a></p>
-              <p class="enroll-msg" hidden></p>
-<?php endif; ?>
-            </div>
 <?php elseif ($access === 'membership'): ?>
-            <div class="enroll-card pay-card" id="enroll" data-kind="membership">
 <?php if ($isMember): ?>
-              <h3>Members’ programme ✓</h3>
-              <p>Your membership unlocks <?= e($c['title']) ?> in full.</p>
-<?php if ($firstLesson): ?><a class="btn btn-primary" style="width:100%" href="<?= e(academy_url($c['slug'] . '/learn/' . $firstLesson)) ?>">Start learning →</a><?php endif; ?>
+                <p class="enroll-state">✓ Your membership unlocks this programme.</p>
+<?php if ($firstLesson): ?>                <a class="btn btn-pill enroll-go" href="<?= e($resumeUrl) ?>"><?= $progress && !empty($progress['completed']) ? 'Continue learning' : 'Start learning' ?> →</a><?php endif; ?>
+<?php elseif ($user): ?>
+                <button type="button" class="btn btn-pill pay-btn" data-pay="membership">Become a member →</button>
+                <p class="enroll-tiny">Unlocks every members' programme.</p>
 <?php else: ?>
-              <h3>Members only</h3>
-              <p class="pay-price"><?= $fmtNgn((int) AV_MEMBERSHIP_NGN) ?><span> · per year</span></p>
-              <p>Become an Afrovanguard Academy member to unlock <?= e($c['title']) ?> and every members’ programme.</p>
-<?php if ($user): ?>
-              <button type="button" class="btn btn-primary pay-btn" data-pay="membership" style="width:100%">Become a member →</button>
-<?php else: ?>
-              <button type="button" class="btn btn-primary" data-auth="register" style="width:100%">Create an account to join →</button>
-              <p class="enroll-tiny">Already a member? <a href="#" data-auth="login">Sign in</a></p>
+                <button type="button" class="btn btn-pill" data-auth="register">Create an account to join →</button>
+                <p class="enroll-tiny">Already a member? <a href="#" data-auth="login">Sign in</a></p>
 <?php endif; ?>
-              <p class="enroll-msg" hidden></p>
+<?php else: /* open / tracked */ ?>
+<?php if ($lessonTotal && $firstLesson): ?>
+                <a class="btn btn-pill enroll-go" href="<?= e($resumeUrl) ?>"><?= e($ctaLabel) ?> →</a>
+<?php if ($access === 'tracked' && !$user): ?>                <p class="enroll-tiny">Free to join. <a href="#" data-auth="login">Sign in</a> to save your progress.</p>
 <?php endif; ?>
-            </div>
 <?php else: ?>
-            <div class="enroll-card" id="enroll">
-              <h3>Apply to <?= e($c['title']) ?></h3>
-              <p>Free to join. Tell us a little about you and our team will reach out.</p>
-              <form class="enroll-form" data-course="<?= e($c['slug']) ?>">
-                <input name="name" placeholder="Full name" required autocomplete="name" />
-                <input name="email" type="email" placeholder="Email address" required autocomplete="email" />
-                <input name="phone" placeholder="Phone (optional)" autocomplete="tel" />
-                <textarea name="note" rows="3" placeholder="Why are you interested? (optional)"></textarea>
-                <button type="submit" class="btn btn-primary" style="width:100%">Submit application →</button>
+<?php /* No lessons yet → lead-capture application form */ ?>
+                <p class="enroll-state">Free to join. Tell us a little about you and our team will reach out.</p>
+                <form class="enroll-form" data-course="<?= e($c['slug']) ?>">
+                  <input name="name" placeholder="Full name" required autocomplete="name" />
+                  <input name="email" type="email" placeholder="Email address" required autocomplete="email" />
+                  <input name="phone" placeholder="Phone (optional)" autocomplete="tel" />
+                  <textarea name="note" rows="3" placeholder="Why are you interested? (optional)"></textarea>
+                  <button type="submit" class="btn btn-pill">Submit application →</button>
+                </form>
+<?php endif; ?>
+<?php endif; ?>
                 <p class="enroll-msg" hidden></p>
-              </form>
-            </div>
+
+                <ul class="enroll-meta">
+                  <li><span>Level</span><strong><?= e($c['level']) ?></strong></li>
+                  <li><span>Format</span><strong><?= e($c['format']) ?></strong></li>
+<?php if (!empty($c['duration'])): ?>                  <li><span>Duration</span><strong><?= e($c['duration']) ?></strong></li>
 <?php endif; ?>
+<?php if ($lessonTotal): ?>                  <li><span>Lessons</span><strong><?= $lessonTotal ?></strong></li>
+<?php endif; ?>
+<?php if (!empty($c['location'])): ?>                  <li><span>Location</span><strong><?= e($c['location']) ?></strong></li>
+<?php endif; ?>
+                  <li><span>Certificate</span><strong>Yes, on completion</strong></li>
+                </ul>
+              </div>
+            </div>
           </aside>
         </div>
       </div>
@@ -194,7 +304,11 @@ render_nav('academy');
       <section class="similar">
         <div class="container">
           <h2>More programmes</h2>
-          <section class="ac-grid"><?php foreach ($others as $o) render_course_card($o); ?></section>
+          <section class="ac-grid">
+<?php foreach ($others as $o): ?>
+<?php ac_course_card($o, ['lessons' => $lms->lessonCount((int) $o['id'])]); ?>
+<?php endforeach; ?>
+          </section>
         </div>
       </section>
 <?php endif; ?>
