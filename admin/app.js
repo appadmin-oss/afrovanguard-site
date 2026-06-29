@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -61,6 +61,8 @@
     else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
     else if (which === 'members') { show('members'); loadMembers(); }
     else if (which === 'guide') { show('guide'); }
+    else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
+    else if (which === 'activity') { show('activity'); loadActivity(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -903,6 +905,219 @@
     form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
     var sug = $('#guideSuggest');
     if (sug) sug.addEventListener('click', function (e) { var c = e.target.closest('.guide-chip'); if (c) ask(c.textContent); });
+  })();
+
+  /* ---- Mentorship (mentor–mentee management) ---- */
+  var mtSeg = 'org', mtTab = 'pairings', mtPick = { mentor: null, mentee: null };
+  function statCard(n, label) { return '<div class="ov-card" style="cursor:default"><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span></div>'; }
+  function loadMentorship() {
+    var ex = $('#mtExport'); if (ex) ex.setAttribute('href', API + '?action=mentorship_export&segment=' + mtSeg);
+    api('mentorship_stats').then(function (r) {
+      var s = (r.data && r.data.stats) || {}, g = function (o) { return (o && o[mtSeg]) || 0; };
+      var grid = $('#mtStats'); if (grid) grid.innerHTML = [
+        statCard(g(s.mentors_pending), 'Awaiting approval'),
+        statCard(g(s.mentors_approved), 'Approved mentors'),
+        statCard(g(s.pairs_active), 'Active pairings'),
+        statCard(g(s.pairs_pending), 'Pending requests'),
+        statCard(s.inactive || 0, 'Need attention')
+      ].join('');
+    });
+    mtLoadCohortOptions();
+    mtRenderTab();
+    mtBadges();
+  }
+  function mtBadges() {
+    fetch(API + '?action=mentorship_mentors&approval=pending&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var n = (d.mentors || []).length, b = $('#mtApprBadge'); if (b) { b.textContent = n; b.hidden = !n; }
+    }).catch(function () {});
+    fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var n = (d.pairs || []).length, b = $('#mtInactBadge'); if (b) { b.textContent = n; b.hidden = !n; }
+    }).catch(function () {});
+  }
+  function mtRenderTab() {
+    ['pairings', 'approvals', 'cohorts', 'inactive'].forEach(function (t) { var el = $('#mt' + t.charAt(0).toUpperCase() + t.slice(1)); if (el) el.hidden = (t !== mtTab); });
+    document.querySelectorAll('.subtab[data-mt]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mt') === mtTab); });
+    if (mtTab === 'pairings') mtPairings();
+    else if (mtTab === 'approvals') mtApprovals();
+    else if (mtTab === 'cohorts') mtCohorts();
+    else mtInactive();
+  }
+  function statusPill(s) { return '<span class="badge ' + (s === 'active' ? 'published' : (s === 'pending' ? 'draft' : 'draft')) + '">' + escapeHtml(s) + '</span>'; }
+  function mtPairings() {
+    var box = $('#mtPairings'); box.innerHTML = '<p class="muted">Loading…</p>';
+    fetch(API + '?action=mentorship_pairings&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var rows = (d.pairings) || [];
+      if (!rows.length) { box.innerHTML = '<p class="muted">No pairings in this pool yet. Use “Assign a pairing”, or members can request a mentor.</p>'; return; }
+      box.innerHTML = rows.map(function (p) {
+        var acts = '';
+        if (p.status === 'pending') acts += '<button class="btn btn-primary btn-sm" data-mt-act="activate" data-id="' + p.id + '">Approve</button> <button class="btn btn-outline btn-sm" data-mt-act="decline" data-id="' + p.id + '">Decline</button> ';
+        if (p.status === 'active') acts += '<button class="btn btn-outline btn-sm" data-mt-act="reassign" data-id="' + p.id + '">Reassign</button> <button class="btn btn-outline btn-sm" data-mt-act="end" data-id="' + p.id + '">End</button>';
+        if (p.status === 'ended' || p.status === 'declined') acts += '<button class="btn btn-outline btn-sm" data-mt-act="reactivate" data-id="' + p.id + '">Reactivate</button>';
+        return '<div class="mt-row"><div class="mt-row-main">'
+          + '<div class="mt-pair"><b>' + escapeHtml(p.mentor.name) + '</b> <span class="muted">mentor</span> <span class="mt-arrow">→</span> <b>' + escapeHtml(p.mentee.name) + '</b> <span class="muted">mentee</span></div>'
+          + '<div class="mt-meta">' + statusPill(p.status) + ' · ' + p.sessions + ' session' + (p.sessions === 1 ? '' : 's')
+          + (p.programme ? ' · ' + escapeHtml(p.programme) : '') + (p.origin === 'admin' ? ' · <span class="muted">admin-matched</span>' : '') + '</div></div>'
+          + '<div class="mt-acts">' + acts + '</div></div>';
+      }).join('');
+    });
+  }
+  function mtApprovals() {
+    var box = $('#mtApprovals'); box.innerHTML = '<p class="muted">Loading…</p>';
+    fetch(API + '?action=mentorship_mentors&approval=pending&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var rows = d.mentors || [];
+      if (!rows.length) { box.innerHTML = '<p class="muted">No mentors awaiting approval in this pool. 🎉</p>'; return; }
+      box.innerHTML = rows.map(function (m) {
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(m.name) + '</b> <span class="muted">' + escapeHtml(m.email) + '</span></div>'
+          + '<div class="mt-meta">' + escapeHtml(m.headline) + (m.focus ? ' · ' + escapeHtml(m.focus) : '') + ' · capacity ' + m.capacity + '</div></div>'
+          + '<div class="mt-acts"><button class="btn btn-primary btn-sm" data-mt-act="approve" data-uid="' + m.user_id + '">Approve</button> <button class="btn btn-outline btn-sm" data-mt-act="mdecline" data-uid="' + m.user_id + '">Decline</button></div></div>';
+      }).join('');
+    });
+  }
+  function mtCohorts() {
+    var box = $('#mtCohorts'); box.innerHTML = '<p class="muted">Loading…</p>';
+    fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var rows = d.cohorts || [];
+      var form = '<div class="side-card" style="max-width:680px;margin-bottom:18px"><h3>New cohort (' + mtSeg + ')</h3>'
+        + '<div class="grid2"><label class="fld"><span>Name</span><input id="coName" placeholder="e.g. 2026 Leadership Round 1"></label><label class="fld"><span>Programme (optional)</span><input id="coProg" placeholder="e.g. Academy"></label></div>'
+        + '<div class="grid2"><label class="fld"><span>Starts</span><input id="coStart" type="date"></label><label class="fld"><span>Ends</span><input id="coEnd" type="date"></label></div>'
+        + '<button class="btn btn-primary btn-sm" id="coCreate">Create cohort</button></div>';
+      var list = rows.length ? rows.map(function (c) {
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(c.name) + '</b> ' + statusPill(c.status) + '</div>'
+          + '<div class="mt-meta">' + (c.programme ? escapeHtml(c.programme) + ' · ' : '') + (c.starts || '—') + ' → ' + (c.ends || '—') + ' · ' + c.pairs + ' pairing' + (c.pairs === 1 ? '' : 's') + '</div></div>'
+          + '<div class="mt-acts"><button class="btn btn-outline btn-sm" data-mt-act="' + (c.status === 'open' ? 'cohort_close' : 'cohort_open') + '" data-id="' + c.id + '">' + (c.status === 'open' ? 'Close' : 'Re-open') + '</button></div></div>';
+      }).join('') : '<p class="muted">No cohorts yet — mentorship runs ongoing until you create one.</p>';
+      box.innerHTML = form + list;
+    });
+  }
+  function mtInactive() {
+    var box = $('#mtInactive'); box.innerHTML = '<p class="muted">Loading…</p>';
+    fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var rows = (d.pairs || []).filter(function (p) { return p.segment === mtSeg; });
+      if (!rows.length) { box.innerHTML = '<p class="muted">No inactive pairings — everyone’s meeting. 🎉</p>'; return; }
+      box.innerHTML = '<p class="muted tiny">Active pairings with no session in the last 3 weeks:</p>' + rows.map(function (p) {
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(p.mentor) + '</b> <span class="mt-arrow">→</span> <b>' + escapeHtml(p.mentee) + '</b></div>'
+          + '<div class="mt-meta">last session ' + (p.last_session ? escapeHtml(p.last_session) : 'never') + '</div></div></div>';
+      }).join('');
+    });
+  }
+  function mtLoadCohortOptions() {
+    fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var sel = $('#mtCohort'); if (!sel) return;
+      sel.innerHTML = '<option value="0">— Ongoing (no cohort) —</option>' + (d.cohorts || []).filter(function (c) { return c.status === 'open'; }).map(function (c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join('');
+    });
+  }
+  function mtPickerWire(inputId, pickId, action, which) {
+    var inp = $('#' + inputId), pick = $('#' + pickId); if (!inp) return;
+    var t;
+    inp.addEventListener('input', function () {
+      clearTimeout(t); var q = inp.value.trim(); if (q.length < 2) { pick.innerHTML = ''; return; }
+      t = setTimeout(function () {
+        var url = action === 'mentor'
+          ? (API + '?action=mentorship_mentors&approval=approved&segment=' + mtSeg + '&q=' + encodeURIComponent(q))
+          : (API + '?action=mentorship_find_users&segment=' + mtSeg + '&q=' + encodeURIComponent(q));
+        fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+          var rows = action === 'mentor' ? (d.mentors || []) : (d.users || []);
+          pick.innerHTML = rows.slice(0, 8).map(function (u) {
+            var id = action === 'mentor' ? u.user_id : u.id;
+            return '<button type="button" class="mt-pick-item" data-id="' + id + '" data-name="' + escapeHtml(u.name) + '">' + escapeHtml(u.name) + ' <span class="muted">' + escapeHtml(u.email) + '</span></button>';
+          }).join('') || '<p class="muted tiny" style="padding:6px">No matches in this pool.</p>';
+        });
+      }, 220);
+    });
+    pick.addEventListener('click', function (e) {
+      var it = e.target.closest('.mt-pick-item'); if (!it) return;
+      mtPick[which] = { id: parseInt(it.getAttribute('data-id'), 10), name: it.getAttribute('data-name') };
+      inp.value = it.getAttribute('data-name'); pick.innerHTML = '';
+      $('#mtAssignSave').disabled = !(mtPick.mentor && mtPick.mentee);
+    });
+  }
+  (function wireMentorship() {
+    var view = $('#mentorshipView'); if (!view) return;
+    document.querySelectorAll('.seg-btn[data-seg]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        mtSeg = b.getAttribute('data-seg');
+        document.querySelectorAll('.seg-btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+        $('#mtAssignSeg').textContent = '· ' + (mtSeg === 'org' ? 'Org members' : 'External');
+        mtPick = { mentor: null, mentee: null }; $('#mtMentorSearch').value = ''; $('#mtMenteeSearch').value = ''; $('#mtAssignSave').disabled = true;
+        loadMentorship();
+      });
+    });
+    document.querySelectorAll('.subtab[data-mt]').forEach(function (b) { b.addEventListener('click', function () { mtTab = b.getAttribute('data-mt'); mtRenderTab(); }); });
+    $('#mtAssignBtn').addEventListener('click', function () { var a = $('#mtAssign'); a.hidden = !a.hidden; $('#mtAssignSeg').textContent = '· ' + (mtSeg === 'org' ? 'Org members' : 'External'); });
+    mtPickerWire('mtMentorSearch', 'mtMentorPick', 'mentor', 'mentor');
+    mtPickerWire('mtMenteeSearch', 'mtMenteePick', 'user', 'mentee');
+    $('#mtAssignSave').addEventListener('click', function () {
+      if (!(mtPick.mentor && mtPick.mentee)) return;
+      var btn = this; btn.disabled = true;
+      post('mentorship_assign', { mentor_id: mtPick.mentor.id, mentee_id: mtPick.mentee.id, cohort_id: parseInt($('#mtCohort').value, 10) || 0, programme: $('#mtProgramme').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (d.ok) { toast('Pairing created.'); $('#mtAssign').hidden = true; mtPick = { mentor: null, mentee: null }; $('#mtMentorSearch').value = ''; $('#mtMenteeSearch').value = ''; $('#mtProgramme').value = ''; loadMentorship(); }
+        else { $('#mtAssignMsg').textContent = d.error || 'Could not assign.'; $('#mtAssignMsg').style.color = '#d22'; btn.disabled = false; }
+      });
+    });
+    // delegated actions across the panels
+    view.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-mt-act]'); if (!b) return;
+      var act = b.getAttribute('data-mt-act'), id = b.getAttribute('data-id'), uid = b.getAttribute('data-uid');
+      var go = function (action, payload) { b.disabled = true; post(action, payload).then(function (r) { if (r.data && r.data.ok) { toast('Done.'); loadMentorship(); } else { toast((r.data && r.data.error) || 'Could not complete.'); b.disabled = false; } }); };
+      if (act === 'approve') go('mentorship_approve', { user_id: +uid });
+      else if (act === 'mdecline') go('mentorship_decline', { user_id: +uid });
+      else if (act === 'activate') go('mentorship_set_status', { id: +id, status: 'active' });
+      else if (act === 'decline') go('mentorship_set_status', { id: +id, status: 'declined' });
+      else if (act === 'end') { if (confirm('End this mentorship?')) go('mentorship_set_status', { id: +id, status: 'ended' }); }
+      else if (act === 'reactivate') go('mentorship_set_status', { id: +id, status: 'active' });
+      else if (act === 'cohort_close') go('mentorship_cohort_status', { id: +id, status: 'closed' });
+      else if (act === 'cohort_open') go('mentorship_cohort_status', { id: +id, status: 'open' });
+      else if (act === 'reassign') {
+        var em = prompt('Reassign to which approved mentor? Enter their email (same pool):'); if (!em) return;
+        fetch(API + '?action=mentorship_mentors&approval=approved&segment=' + mtSeg + '&q=' + encodeURIComponent(em.trim()), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+          var m = (d.mentors || []).filter(function (x) { return x.email.toLowerCase() === em.trim().toLowerCase(); })[0] || (d.mentors || [])[0];
+          if (!m) { toast('No approved mentor matches that email in this pool.'); return; }
+          go('mentorship_reassign', { id: +id, mentor_id: m.user_id });
+        });
+      } else if (act === 'cohort_close' || act === 'cohort_open') { /* handled */ }
+    });
+    // cohort create (delegated, since the form is re-rendered)
+    $('#mtCohorts').addEventListener('click', function (e) {
+      if (!e.target.closest('#coCreate')) return;
+      post('mentorship_cohort_create', { name: ($('#coName') || {}).value || '', programme: ($('#coProg') || {}).value || '', starts: ($('#coStart') || {}).value || '', ends: ($('#coEnd') || {}).value || '', segment: mtSeg }).then(function (r) {
+        if (r.data && r.data.ok) { toast('Cohort created.'); mtCohorts(); mtLoadCohortOptions(); } else toast((r.data && r.data.error) || 'Could not create.');
+      });
+    });
+  })();
+
+  /* ---- Activity (per-area audit trail + undo) ---- */
+  var actArea = '';
+  function loadActivity() {
+    var list = $('#actList'); if (list) list.innerHTML = '<p class="muted">Loading…</p>';
+    api('activity' + (actArea ? '&area=' + encodeURIComponent(actArea) : '')).then(function (r) {
+      var d = r.data || {}, areas = d.areas || [], entries = d.entries || [];
+      var chips = $('#actAreas');
+      if (chips) chips.innerHTML = ['<button class="act-chip' + (actArea === '' ? ' active' : '') + '" data-area="">All</button>']
+        .concat(areas.map(function (a) { return '<button class="act-chip' + (actArea === a ? ' active' : '') + '" data-area="' + escapeHtml(a) + '">' + escapeHtml(a) + '</button>'; })).join('');
+      if (!list) return;
+      list.innerHTML = entries.length ? entries.map(function (en) {
+        return '<div class="act-row"><div class="act-main"><span class="act-area">' + escapeHtml(en.area) + '</span>'
+          + '<span class="act-action">' + escapeHtml(en.action.replace(/_/g, ' ')) + '</span>'
+          + (en.target ? ' <span class="muted">#' + escapeHtml(en.target) + '</span>' : '')
+          + '<div class="act-detail">' + escapeHtml(en.detail) + (en.undone ? ' <span class="badge draft">undone</span>' : '') + '</div>'
+          + '<div class="act-when">' + escapeHtml(en.created_at) + ' · ' + escapeHtml(en.actor) + '</div></div>'
+          + '<div class="act-acts">' + (en.can_undo ? '<button class="btn btn-outline btn-sm" data-undo="' + en.id + '">' + escapeHtml(en.undo_label || 'Undo') + '</button>' : '') + '</div></div>';
+      }).join('') : '<p class="muted">No activity recorded yet.</p>';
+    });
+  }
+  (function wireActivity() {
+    var view = $('#activityView'); if (!view) return;
+    $('#actRefresh').addEventListener('click', loadActivity);
+    $('#actAreas').addEventListener('click', function (e) { var c = e.target.closest('.act-chip'); if (!c) return; actArea = c.getAttribute('data-area'); loadActivity(); });
+    $('#actList').addEventListener('click', function (e) {
+      var u = e.target.closest('[data-undo]'); if (!u) return;
+      if (!confirm('Undo this action?')) return;
+      u.disabled = true;
+      post('activity_undo', { id: parseInt(u.getAttribute('data-undo'), 10) }).then(function (r) {
+        if (r.data && r.data.ok) { toast('Reverted.'); loadActivity(); } else { toast((r.data && r.data.error) || 'Could not undo.'); u.disabled = false; }
+      });
+    });
   })();
 
   /* ---- System / Health ---- */

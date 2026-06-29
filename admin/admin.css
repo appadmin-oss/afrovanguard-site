@@ -226,3 +226,35 @@ body.studio-authed .studio-side { display: block; }
 .guide-acc ol { margin: 0; padding: 14px 18px 16px 40px; color: var(--body); font-size: 14px; line-height: 1.7; }
 .guide-acc ol li { margin-bottom: 6px; }
 .guide-acc code { background: var(--surface-2); border: 1px solid var(--divider); border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
+
+/* ── Mentorship admin ────────────────────────────────────────────────── */
+.seg-toggle { display: inline-flex; background: var(--surface-2); border: 1px solid var(--divider); border-radius: 9999px; padding: 4px; gap: 2px; }
+.seg-btn { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 700; padding: 8px 18px; border-radius: 9999px; cursor: pointer; }
+.seg-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.studio-subtabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--divider); margin-bottom: 18px; }
+.subtab { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; padding: 10px 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 7px; }
+.subtab:hover { color: var(--ink); }
+.subtab.active { color: var(--ink); border-bottom-color: var(--gold); }
+.mt-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px; }
+.mt-row-main { min-width: 0; flex: 1; }
+.mt-pair { font-size: 14.5px; color: var(--ink); }
+.mt-pair b { font-weight: 700; }
+.mt-arrow { color: var(--gold-deep, var(--gold)); margin: 0 4px; font-weight: 800; }
+.mt-meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.mt-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.mt-pick { position: relative; display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.mt-pick-item { text-align: left; background: var(--surface); border: 1px solid var(--divider); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+.mt-pick-item:hover { background: var(--surface-2); border-color: var(--gold); }
+.mt-assign h3 .muted { font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+/* ── Activity trail ──────────────────────────────────────────────────── */
+.act-areas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.act-chip { font-size: 12.5px; font-weight: 700; color: var(--body); background: var(--surface-2); border: 1px solid var(--divider); border-radius: 9999px; padding: 6px 13px; cursor: pointer; text-transform: capitalize; }
+.act-chip.active { background: rgba(243,180,22,.16); border-color: var(--gold); color: var(--ink); }
+.act-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px 14px; border-bottom: 1px solid var(--divider); }
+.act-main { min-width: 0; }
+.act-area { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--gold-deep, var(--gold)); background: var(--surface-2); border: 1px solid var(--divider); border-radius: 9999px; padding: 2px 8px; margin-right: 8px; }
+.act-action { font-weight: 700; color: var(--ink); text-transform: capitalize; }
+.act-detail { font-size: 13px; color: var(--body); margin-top: 4px; }
+.act-when { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.act-acts { flex: 0 0 auto; }
