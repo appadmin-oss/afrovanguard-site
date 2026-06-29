@@ -189,10 +189,13 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
             if (!filter_var($to, FILTER_VALIDATE_EMAIL)) json_out(['ok' => false, 'error' => 'Enter a valid address (or set ADMIN_EMAIL).'], 422);
-            if (!Mailer::configured()) json_out(['ok' => false, 'error' => 'SMTP isn’t configured. Set SMTP_HOST, SMTP_USERNAME and SMTP_PASSWORD (or AV_SMTP_PASSWORD) via SetEnv or config.php.']);
-            $html = Mailer::shell('SMTP test', ['This is a test message from the Afrovanguard Studio.', 'If it reached your inbox, authenticated email delivery is working. 🎉'], null, 'Afrovanguard SMTP test');
-            $sent = Mailer::send($to, 'Afrovanguard — SMTP test', $html);
-            json_out(['ok' => $sent, 'to' => $to, 'detail' => $sent ? 'Sent — check the inbox (and spam folder).' : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error'))]);
+            $html = Mailer::shell('Email delivery test', ['This is a test message from the Afrovanguard Studio.', 'If it reached your inbox, email delivery is working. 🎉'], null, 'Afrovanguard email test');
+            $sent = Mailer::send($to, 'Afrovanguard — email test', $html);
+            $via = Mailer::lastTransport();
+            $vianote = $via === 'smtp' ? 'authenticated SMTP' : ($via === 'mail' ? 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) for reliable, non-spam delivery' : '');
+            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
+                ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')
+                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — SMTP isn’t configured. Set SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password) via .htaccess SetEnv or config.php.'))]);
 
         // ---- Sign-in security policy (superadmin) ----
         case 'auth_policy_get':

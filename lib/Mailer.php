@@ -16,9 +16,12 @@ final class Mailer
 {
     private static ?bool $phpmailer = null;
     private static string $lastError = '';
+    private static string $lastTransport = '';
 
     /** The last transport error (for the Studio "send test email" diagnostic). */
     public static function lastError(): string { return self::$lastError; }
+    /** Which transport last delivered: 'smtp' | 'mail' | '' (for diagnostics). */
+    public static function lastTransport(): string { return self::$lastTransport; }
 
     /** True when we can at least attempt delivery (SMTP configured). */
     public static function configured(): bool
@@ -45,15 +48,17 @@ final class Mailer
     /** Send an HTML email. Returns true if handed off to a transport. */
     public static function send(string $to, string $subject, string $html, array $opt = []): bool
     {
-        self::$lastError = '';
-        if (!self::configured()) { self::$lastError = 'SMTP not configured'; error_log("[mail] skipped (not configured) → {$to}: {$subject}"); return false; }
+        self::$lastError = ''; self::$lastTransport = '';
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { self::$lastError = 'Invalid recipient address'; return false; }
 
-        $fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : SMTP_USERNAME;
+        $domain    = defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng';
+        $fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : (defined('SMTP_USERNAME') && SMTP_USERNAME !== '' ? SMTP_USERNAME : 'no-reply@' . $domain);
         $fromName  = defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard';
         $alt = trim(preg_replace('/\s+/', ' ', strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html))));
 
-        if (self::loadPhpMailer()) {
+        // Authenticated SMTP first (only when configured); then ALWAYS fall back
+        // to PHP mail() so a host with a working local MTA still delivers.
+        if (self::configured() && self::loadPhpMailer()) {
             $m = new \PHPMailer\PHPMailer\PHPMailer(true);
             try {
                 $m->isSMTP();
@@ -87,6 +92,7 @@ final class Mailer
                 $m->Body    = $html;
                 $m->AltBody = $alt;
                 $m->send();
+                self::$lastTransport = 'smtp';
                 return true;
             } catch (\Throwable $e) {
                 // Don't give up — fall through to the built-in SMTP client (and then
@@ -101,7 +107,7 @@ final class Mailer
         // Self-contained SMTP (no PHPMailer needed). REQUIRED for authenticated
         // submission to Gmail/Workspace on hosts without Composer — PHP mail()
         // cannot AUTH, so Gmail silently drops it.
-        if (class_exists('Smtp') && defined('SMTP_HOST') && SMTP_HOST !== '') {
+        if (self::configured() && class_exists('Smtp') && defined('SMTP_HOST') && SMTP_HOST !== '') {
             $cfg = [
                 'host'   => (string) SMTP_HOST,
                 'port'   => defined('SMTP_PORT') ? (int) SMTP_PORT : 587,
@@ -115,19 +121,22 @@ final class Mailer
                 'subject' => $subject, 'html' => $html, 'text' => $alt,
                 'replyTo' => $fromEmail, 'bcc' => (string) ($opt['bcc'] ?? ''),
             ]);
-            if ($ok) return true;
+            if ($ok) { self::$lastTransport = 'smtp'; return true; }
             self::$lastError = $err;
             error_log('[mail] SMTP to ' . $to . ': ' . $err);   // fall through to mail() as a last resort
         }
 
-        // Last resort: PHP mail()
+        // Last resort: PHP mail() — attempted even when SMTP is unconfigured or
+        // failed, so a host with a working local MTA (e.g. cPanel/exim) delivers.
         $headers = 'MIME-Version: 1.0' . "\r\n"
             . 'Content-Type: text/html; charset=UTF-8' . "\r\n"
             . 'From: ' . self::encodeName($fromName) . ' <' . $fromEmail . '>' . "\r\n"
             . 'Reply-To: ' . $fromEmail . "\r\n";
         $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, $headers);
-        if (!$ok) error_log("[mail] mail() failed → {$to}: {$subject}");
-        return $ok;
+        if ($ok) { self::$lastTransport = 'mail'; return true; }
+        if (self::$lastError === '') self::$lastError = self::configured() ? 'All transports failed' : 'No SMTP configured and the host mail() is unavailable';
+        error_log("[mail] all transports failed → {$to}: {$subject}");
+        return false;
     }
 
     private static function encodeName(string $n): string

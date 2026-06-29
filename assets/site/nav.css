@@ -129,9 +129,18 @@ html[data-theme="dark"] .nav-utility .theme-toggle .moon { display: block; }
 }
 .nav-search-btn svg { width: 17px; height: 17px; }
 .nav-search-btn:hover { color: var(--m-gold-deep); }
-/* Sign-in now lives in the dark utility strip → light text */
-.nav-utility .nav-signin-link { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); text-decoration: none; transition: color .15s ease; white-space: nowrap; }
+/* Sign-in lives in the dark utility strip → light text, centered with the
+   circles (min-height:0 defeats the global a{min-height:44} that rode it high) */
+.nav-utility .nav-signin-link {
+  display: inline-flex; align-items: center; min-height: 0; line-height: 1;
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.9); text-decoration: none;
+  transition: color .15s ease; white-space: nowrap;
+}
 .nav-utility .nav-signin-link:hover { color: var(--m-gold); }
+/* group the account cluster (Sign in + avatar) and set it apart from the toggle */
+.nav-utility-actions { gap: 14px; }
+.nav-utility-actions .nav-signin-link { margin-left: 6px; }
+.nav-utility-actions .nav-account { margin-left: -2px; }
 .site-header .nav-cta {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--m-ink); color: #fff; border: 0; border-radius: 9999px;
