@@ -12,7 +12,7 @@
 
   var $ = function (s) { return document.querySelector(s); };
   var views = {
-    login: $('#loginView'), entries: $('#entriesView'), editor: $('#editorView'),
+    login: $('#loginView'), overview: $('#overviewView'), entries: $('#entriesView'), editor: $('#editorView'),
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
@@ -49,7 +49,8 @@
   function activateTab(which) {
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
-    if (which === 'entries') { show('entries'); loadList(); }
+    if (which === 'overview') { show('overview'); loadOverview(); }
+    else if (which === 'entries') { show('entries'); loadList(); }
     else if (which === 'academy') { show('academy'); loadCourses(); }
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
@@ -809,6 +810,70 @@
     post('wh_delete', { id: editingWh }).then(function () { toast('Deleted.'); show('webhooks'); loadWebhooks(); });
   });
 
+  /* ---- Overview (landing dashboard) ---- */
+  function ovCard(opts) {
+    return '<button class="ov-card" data-go="' + opts.go + '">' +
+      '<span class="ov-card-ico">' + opts.ico + '</span>' +
+      '<span class="ov-card-num">' + opts.num + '</span>' +
+      '<span class="ov-card-label">' + escapeHtml(opts.label) + '</span>' +
+      (opts.sub ? '<span class="ov-card-sub">' + escapeHtml(opts.sub) + '</span>' : '') +
+      '</button>';
+  }
+  function loadOverview() {
+    var grid = $('#ovGrid'), health = $('#ovHealth'), alert = $('#ovMailAlert');
+    if (grid) grid.innerHTML = '<p class="muted" style="grid-column:1/-1">Loading…</p>';
+    return api('dashboard').then(function (r) {
+      var d = (r.data && r.data.ok) ? r.data : null;
+      if (!d) { if (grid) grid.innerHTML = '<p class="muted" style="grid-column:1/-1">Could not load the overview.</p>'; return; }
+      var s = d.stats || {};
+      var I = {
+        diary: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/></svg>',
+        mod:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>',
+        inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>',
+        member:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.6 2.7-5.5 6-5.5"/><path d="M15 12l2 2 4-4"/></svg>',
+        mail:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+        acad:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4L2 9l10 5 10-5-10-5z"/><path d="M6 11v5c0 1.3 2.7 2.5 6 2.5s6-1.2 6-2.5v-5"/></svg>'
+      };
+      grid.innerHTML = [
+        ovCard({ go: 'entries', ico: I.diary, num: s.diary_published || 0, label: 'Diary entries', sub: (s.diary_drafts || 0) + ' draft' + ((s.diary_drafts === 1) ? '' : 's') }),
+        ovCard({ go: 'moderation', ico: I.mod, num: s.moderation || 0, label: 'Awaiting review', sub: (s.moderation ? 'Needs attention' : 'All clear') }),
+        ovCard({ go: 'members', ico: I.member, num: s.members || 0, label: 'Active members' }),
+        ovCard({ go: 'inbox', ico: I.inbox, num: s.inbox || 0, label: 'Inbox messages', sub: (s.subscribers || 0) + ' subscriber' + ((s.subscribers === 1) ? '' : 's') }),
+        ovCard({ go: 'academy', ico: I.acad, num: s.courses_published || 0, label: 'Published courses', sub: (s.enrolments || 0) + ' enrolment' + ((s.enrolments === 1) ? '' : 's') }),
+        ovCard({ go: 'system', ico: I.mail, num: (d.email && d.email.configured) ? '✓' : '—', label: 'Email delivery', sub: (d.email && d.email.label) || '' })
+      ].join('');
+
+      // Email/delivery banner — only when something needs the owner's attention.
+      if (alert) {
+        if (d.email && !d.email.configured) {
+          alert.hidden = false;
+          alert.className = 'ov-alert ov-alert-warn';
+          alert.innerHTML = '<strong>Email isn’t configured yet.</strong> Members won’t get sign-in codes, receipts or notifications until SMTP is set. ' +
+            'Set <code>SMTP_HOST</code>, <code>SMTP_USERNAME</code> and <code>AV_SMTP_PASSWORD</code> (a Gmail App Password), then ' +
+            '<button class="ov-link" data-go="system">send a test from System →</button>';
+        } else { alert.hidden = true; }
+      }
+
+      if (health) {
+        var h = d.health || {}, parts = [];
+        if (h.ok) parts.push('<span class="ov-dot ok"></span>' + h.ok + ' ready');
+        if (h.warn) parts.push('<span class="ov-dot warn"></span>' + h.warn + ' optional');
+        if (h.off) parts.push('<span class="ov-dot off"></span>' + h.off + ' needs attention');
+        health.innerHTML = parts.length ? parts.join('<span class="ov-sep">·</span>') : '<span class="muted">No checks reported.</span>';
+      }
+    }).catch(function () { if (grid) grid.innerHTML = '<p class="muted" style="grid-column:1/-1">Could not load the overview.</p>'; });
+  }
+  (function () {
+    var ov = $('#overviewView'); if (!ov) return;
+    ov.addEventListener('click', function (e) {
+      var go = e.target.closest('[data-go]'); if (!go) return;
+      var which = go.getAttribute('data-go'), then = go.getAttribute('data-then');
+      activateTab(which);
+      if (then === 'new') { var nb = $('#newBtn'); if (nb) nb.click(); }
+    });
+    var rb = $('#ovRefreshBtn'); if (rb) rb.addEventListener('click', loadOverview);
+  })();
+
   /* ---- System / Health ---- */
   function loadSystem() {
     var box = $('#sysHealth'); box.innerHTML = '<p class="muted">Checking…</p>';
@@ -1069,9 +1134,9 @@
   }
 
   function boot() {
-    var saved = 'entries';
-    try { saved = localStorage.getItem('av.studio.tab') || 'entries'; } catch (e) {}
-    if (!document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'entries';
+    var saved = 'overview';
+    try { saved = localStorage.getItem('av.studio.tab') || 'overview'; } catch (e) {}
+    if (!document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
     activateTab(saved);
     refreshModBadge();
   }

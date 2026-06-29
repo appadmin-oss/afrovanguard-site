@@ -185,6 +185,37 @@ try {
         // ---- System / configuration health ----
         case 'sys_health':
             json_out(['ok' => true, 'groups' => Config::diagnostics()]);
+        case 'dashboard': {
+            // At-a-glance overview for the Studio landing view. Every count is
+            // best-effort (try/catch → 0) so a missing table never 500s the page.
+            $pdo = Database::pdo();
+            $cnt = function (string $sql) use ($pdo): int { try { return (int) $pdo->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; } };
+            try { $pending = count((new DiaryJournal())->pendingPublic()); } catch (Throwable $e) { $pending = 0; }
+            // Email/delivery health, distilled from the same signals as the System page.
+            $mailReady = Mailer::configured();
+            $mailHost  = defined('SMTP_HOST') ? (string) SMTP_HOST : '';
+            $health = ['ok' => 0, 'warn' => 0, 'off' => 0];
+            foreach (Config::diagnostics() as $g) {
+                foreach (($g['checks'] ?? []) as $c) {
+                    $st = $c['state'] ?? 'info';
+                    if (isset($health[$st])) $health[$st]++;
+                }
+            }
+            json_out(['ok' => true, 'stats' => [
+                'diary_published'   => $cnt("SELECT COUNT(*) FROM articles WHERE status='published'"),
+                'diary_drafts'      => $cnt("SELECT COUNT(*) FROM articles WHERE status<>'published'"),
+                'moderation'        => $pending,
+                'inbox'             => $cnt("SELECT COUNT(*) FROM enrollments"),
+                'subscribers'       => $cnt("SELECT COUNT(*) FROM subscribers"),
+                'members'           => $cnt("SELECT COUNT(*) FROM memberships WHERE status='active'"),
+                'courses_published' => $cnt("SELECT COUNT(*) FROM courses WHERE status='published'"),
+                'enrolments'        => $cnt("SELECT COUNT(*) FROM course_enrolment"),
+            ], 'email' => [
+                'configured' => $mailReady,
+                'host'       => $mailHost,
+                'label'      => $mailReady ? ('SMTP ready · ' . ($mailHost ?: 'configured')) : 'SMTP not configured',
+            ], 'health' => $health]);
+        }
         case 'mail_test':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));

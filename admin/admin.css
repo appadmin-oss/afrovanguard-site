@@ -170,3 +170,33 @@ body.studio-authed .studio-side { display: block; }
 .wp-result li { padding: 3px 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .wp-result li b { color: var(--ink); font-weight: 600; }
 .wp-result.err { border-color: #c0392b; color: #c0392b; background: rgba(192,57,43,.06); }
+
+/* ── Overview (landing dashboard) ────────────────────────────────────── */
+.ov-alert { border-radius: var(--radius-md); padding: 14px 16px; margin: 0 0 22px; font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+.ov-alert[hidden] { display: none; }
+.ov-alert-warn { background: rgba(224,161,6,.10); border: 1px solid rgba(224,161,6,.40); }
+.ov-alert code { background: var(--bg); border: 1px solid var(--divider); border-radius: 5px; padding: 1px 6px; font-size: 12.5px; }
+.ov-link { background: none; border: none; padding: 0; color: var(--gold-deep, var(--gold)); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; margin-bottom: 26px; }
+.ov-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md);
+  padding: 18px 18px 16px; cursor: pointer; font-family: inherit; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.ov-card:hover { transform: translateY(-2px); box-shadow: var(--card-shadow); border-color: rgba(243,180,22,.45); }
+.ov-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.ov-card-ico { width: 34px; height: 34px; border-radius: var(--radius-sm); display: inline-grid; place-items: center;
+  background: rgba(243,180,22,.14); color: var(--gold-deep, #9c6906); margin-bottom: 10px; }
+.ov-card-ico svg { width: 19px; height: 19px; }
+.ov-card-num { font-family: var(--font-heading); font-size: 34px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ov-card-label { font-size: 13px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+.ov-card-sub { font-size: 12px; color: var(--muted); }
+
+.ov-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 720px) { .ov-row { grid-template-columns: 1fr; } }
+.ov-panel { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 18px 18px 20px; }
+.ov-panel h3 { font-family: var(--font-body); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+.ov-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.ov-health { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 13.5px; color: var(--ink); margin: 0 0 16px; }
+.ov-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+.ov-dot.ok { background: #2ea043; } .ov-dot.warn { background: #e0a106; } .ov-dot.off { background: #d22; }
+.ov-sep { color: var(--muted); margin: 0 4px; }
