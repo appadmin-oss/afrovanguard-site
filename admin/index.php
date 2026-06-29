@@ -31,8 +31,11 @@
   <aside class="studio-side" id="studioSide" aria-label="Studio sections">
     <nav class="studio-nav" id="tabs" hidden>
       <div class="nav-group">
+        <button class="tab active" data-tab="overview"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Overview</span></button>
+      </div>
+      <div class="nav-group">
         <p class="nav-group-h">Content</p>
-        <button class="tab active" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
+        <button class="tab" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
         <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
         <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
       </div>
@@ -83,6 +86,35 @@
   </section>
 
   <!-- DIARY LIST -->
+  <!-- OVERVIEW (landing dashboard) -->
+  <main class="studio-main" id="overviewView" hidden>
+    <div class="studio-head">
+      <div><h1>Overview</h1><p class="muted">A snapshot of the site — content, people and delivery health at a glance.</p></div>
+      <button class="btn btn-outline btn-sm" id="ovRefreshBtn">Refresh</button>
+    </div>
+
+    <div class="ov-alert" id="ovMailAlert" hidden></div>
+
+    <div class="ov-grid" id="ovGrid"></div>
+
+    <div class="ov-row">
+      <div class="ov-panel">
+        <h3>Quick actions</h3>
+        <div class="ov-actions">
+          <button class="btn btn-primary btn-sm" data-go="entries" data-then="new">+ New diary entry</button>
+          <button class="btn btn-outline btn-sm" data-go="moderation">Review moderation</button>
+          <button class="btn btn-outline btn-sm" data-go="academy">Manage Academy</button>
+          <button class="btn btn-outline btn-sm" data-go="members">View members</button>
+        </div>
+      </div>
+      <div class="ov-panel">
+        <h3>Delivery &amp; system</h3>
+        <p class="ov-health" id="ovHealth"><span class="muted">Checking…</span></p>
+        <button class="btn btn-outline btn-sm" data-go="system">Open System health →</button>
+      </div>
+    </div>
+  </main>
+
   <main class="studio-main" id="entriesView" hidden>
     <div class="studio-head">
       <div><h1>Diary entries</h1><p class="muted" id="cloudinaryNote"></p></div>
