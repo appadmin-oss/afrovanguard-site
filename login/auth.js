@@ -70,6 +70,17 @@
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ---- tiny helpers ---- */
+  // Afrovanguard accounts sign in with Google only. Bounce to Google with the
+  // typed address pre-filled (login_hint), instead of the code/password step.
+  function goGoogle(hint) {
+    var nx = encodeURIComponent(cfg.next || '/portal/');
+    location.href = '/auth/google/start?next=' + nx + (hint ? '&hint=' + encodeURIComponent(hint) : '');
+  }
+  function isOrgEmail(v) {
+    var at = String(v || '').lastIndexOf('@');
+    var dom = at >= 0 ? v.slice(at + 1).toLowerCase() : '';
+    return !!cfg.googleOn && !!cfg.orgDomain && dom === String(cfg.orgDomain).toLowerCase();
+  }
   function post(action, payload) {
     return fetch(API + '?action=' + encodeURIComponent(action), {
       method: 'POST',
@@ -78,6 +89,10 @@
       credentials: 'same-origin'
     }).then(function (r) {
       return r.json().catch(function () { return { ok: false, error: 'Unexpected server response.' }; });
+    }).then(function (d) {
+      // Server guard: org accounts are steered to Google (defense-in-depth).
+      if (d && d.google) { goGoogle(d.hint); return new Promise(function () {}); }
+      return d;
     });
   }
   function setMsg(el, text, kind) {
@@ -162,6 +177,12 @@
     }
     setMsg(identMsg, '');
     email = v;
+    // Afrovanguard members must use Google → redirect with the email pre-filled.
+    if (isOrgEmail(v)) {
+      setMsg(identMsg, 'Afrovanguard accounts sign in with Google — taking you there…', 'ok');
+      goGoogle(v);
+      return;
+    }
     identEmail.textContent = email;
     enterStepTwo();
   });
