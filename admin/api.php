@@ -220,9 +220,15 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
             if (!filter_var($to, FILTER_VALIDATE_EMAIL)) json_out(['ok' => false, 'error' => 'Enter a valid address (or set ADMIN_EMAIL).'], 422);
-            $html = Mailer::shell('Email delivery test', ['This is a test message from the Afrovanguard Studio.', 'If it reached your inbox, email delivery is working. 🎉'], null, 'Afrovanguard email test');
-            $sent = Mailer::send($to, 'Afrovanguard — email test', $html);
-            $via = Mailer::lastTransport();
+            // Never let a mailer hiccup become a raw 500 — always return clean JSON.
+            try {
+                $html = Mailer::shell('Email delivery test', ['This is a test message from the Afrovanguard Studio.', 'If it reached your inbox, email delivery is working. 🎉'], null, 'Afrovanguard email test');
+                $sent = Mailer::send($to, 'Afrovanguard — email test', $html);
+                $via  = method_exists('Mailer', 'lastTransport') ? Mailer::lastTransport() : '';
+            } catch (\Throwable $e) {
+                error_log('[mail_test] ' . $e->getMessage());
+                json_out(['ok' => false, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => '', 'detail' => 'Send failed: ' . $e->getMessage()]);
+            }
             $vianote = $via === 'smtp' ? 'authenticated SMTP' : ($via === 'mail' ? 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) for reliable, non-spam delivery' : '');
             json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
                 ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')

@@ -173,7 +173,7 @@
     if (tinymce.get(id)) tinymce.get(id).remove();
     var dark = document.documentElement.getAttribute('data-theme') === 'dark';
     tinymce.init({
-      selector: '#' + id, height: 520, menubar: false, branding: false, promotion: false,
+      selector: '#' + id, height: 520, menubar: false, branding: false, promotion: false, license_key: 'gpl',
       skin: dark ? 'oxide-dark' : 'oxide', content_css: dark ? 'dark' : 'default',
       plugins: 'link lists image media table code autolink quickbars wordcount fullscreen',
       toolbar: 'undo redo | blocks | bold italic | bullist numlist | blockquote link image media embedBtn | removeformat code fullscreen',
