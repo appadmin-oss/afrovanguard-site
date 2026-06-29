@@ -215,6 +215,7 @@ require_once __DIR__ . '/Events.php';
 require_once __DIR__ . '/Webhooks.php';
 require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
+require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';
