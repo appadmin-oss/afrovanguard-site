@@ -47,7 +47,7 @@ $oi = htmlspecialchars($OG_IMAGE, ENT_QUOTES);
         document.documentElement.setAttribute("data-density", "default");
       } catch (e) {}
     })();
-  </script><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Montserrat:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/><link href="/assets/css/app.css" rel="stylesheet"/><script src="/assets/js/app.js" type="module"></script><?= $PAGE_HEAD_EXTRA ?></head>
+  </script><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Montserrat:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/><link href="/assets/css/app.css" rel="stylesheet"/><link href="/assets/css/sts-enhance.css" rel="stylesheet"/><script src="/assets/js/app.js" type="module"></script><?= $PAGE_HEAD_EXTRA ?></head>
 <body data-pathname="<?= htmlspecialchars($PAGE_PATH, ENT_QUOTES) ?>"><a class="skip-link" href="#main">Skip to content</a>
 <?php require $STS_ROOT . '/inc/nav.php'; ?>
 <main id="main">

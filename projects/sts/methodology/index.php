@@ -2,7 +2,7 @@
 $STS_ROOT = $_SERVER['DOCUMENT_ROOT'] ?? '';
 if ($STS_ROOT === '' || !is_file($STS_ROOT.'/inc/head.php')) { $STS_ROOT = __DIR__; while (!is_file($STS_ROOT.'/inc/head.php') && dirname($STS_ROOT) !== $STS_ROOT) $STS_ROOT = dirname($STS_ROOT); }
 $PAGE_TITLE = "The STS Transformation Methodology — Street-To-Stardom";
-$PAGE_DESC  = "width=device-width, initial-scale=1\" name=\"viewport\"/><meta content=\"IE=edge\" http-equiv=\"X-UA-Compatible\"/><title>The STS Transformation Methodology — Street-To-Stardom</title><meta content=\"The STS Transformation Cycle (STC): five pillars of formation, seven Afrovanguard core values, and a seven-stage journey that turns potential into stardom — raising the Incorruptible Generation.";
+$PAGE_DESC  = "The STS Transformation Cycle (STC): five pillars of formation, seven Afrovanguard core values, and a seven-stage journey that turns potential into stardom — raising the Incorruptible Generation.";
 $PAGE_PATH  = "/methodology/";
 $PAGE_HEAD_EXTRA = <<<'STSHEAD'
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"The STS Transformation Methodology","about":"The Street-To-Stardom Transformation Cycle (STC)","author":{"@type":"Organization","name":"Street-To-Stardom"},"publisher":{"@type":"Organization","name":"Afrovanguard","url":"https://afrovanguard.org.ng"},"inLanguage":"en","url":"https://sts.afrovanguard.org.ng/methodology/"}</script>

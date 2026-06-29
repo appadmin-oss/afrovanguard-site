@@ -1,9 +1,18 @@
+# Dependencies / build leftovers
 node_modules/
 dist/
 .astro/
+api/vendor/
+
+# Local env & logs
 .env
 .env.local
 .DS_Store
 api/logs/
-api/vendor/
 *.log
+**/error_log
+
+# Backend secrets & runtime data — NEVER commit (use *.example.php templates)
+ceo/api/config.php
+ceo/api/data/
+api/data/

@@ -27,6 +27,12 @@ RewriteRule ^lib/  - [F,L]
 RewriteRule ^db/   - [F,L]
 RewriteRule ^data/ - [F,L]
 
+# Street-To-Stardom has its own home at https://sts.afrovanguard.org.ng/.
+# Forward the legacy /projects/sts/* path there so STS has one canonical
+# address. Must precede the "serve real files/dirs as-is" rule below, since
+# projects/sts is a real directory. (Also enforced inside projects/sts/.htaccess.)
+RewriteRule ^projects/sts/?(.*)$ https://sts.afrovanguard.org.ng/$1 [R=301,L]
+
 # ── Clean URLs (work WITHOUT a file extension) ──────────────────────────────
 # Consolidated in the ROOT so routing works even when per-directory .htaccess
 # files aren't honored or deployed on the host. Real files and directories are

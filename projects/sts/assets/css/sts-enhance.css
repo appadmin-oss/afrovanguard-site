@@ -1,0 +1,146 @@
+/* ════════════════════════════════════════════════════════════════════
+   STS · Enhancement layer
+   Loaded after app.css. Extends the Hero v2 design language across the
+   whole site: image treatments, card motion, gradient section accents,
+   reusable methodology components. Purely additive — no existing rule is
+   overridden destructively, so layout stays intact while the site gains
+   a consistent, modern, lively flow.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --sts-ease: cubic-bezier(.3,.7,.4,1);
+  --sts-lift-shadow: 0 22px 48px -24px rgba(7,50,247,.40);
+  --sts-lift-shadow-crimson: 0 22px 48px -24px rgba(200,16,46,.38);
+}
+@media (prefers-reduced-motion: reduce){
+  *{scroll-behavior:auto !important}
+}
+
+/* ── Photographic treatment ─────────────────────────────────────────
+   Every .placeholder that wraps a real <img> gets a gentle ken-burns
+   zoom on hover and a legibility gradient at the foot. */
+.placeholder > img{
+  transition:transform 1.2s var(--sts-ease), filter .5s ease;
+}
+.program-card:hover .placeholder > img,
+.post-card:hover .placeholder > img,
+.person:hover .placeholder > img,
+.sts-figure:hover > img{
+  transform:scale(1.05);
+}
+.placeholder::after{
+  content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(180deg,transparent 55%,rgba(8,10,22,.34));
+  opacity:.9;
+}
+/* the JS placeholder-suppression rule sets .placeholder::after{display:none};
+   re-enable our gradient only where an <img> is actually present */
+.placeholder:has(> img)::after{display:block !important}
+
+/* ── Card motion — unify the lift across every card type ───────────── */
+.program-card,.post-card,.gi-tile,.stat,.person,.duo-card{
+  transition:transform .28s var(--sts-ease), box-shadow .28s ease,
+             border-color .2s ease, background .2s ease;
+  will-change:transform;
+}
+.program-card:hover,.post-card:hover,.person:hover{
+  transform:translateY(-6px); box-shadow:var(--sts-lift-shadow);
+  border-color:rgba(7,50,247,.32);
+}
+.gi-tile:hover{ transform:translateY(-4px); box-shadow:var(--sts-lift-shadow); }
+.gi-tile.primary:hover{ box-shadow:var(--sts-lift-shadow-crimson); }
+.stat:hover{ transform:translateY(-3px); }
+.program-arrow,.gi-tile-arrow span,.btn-arrow{ transition:transform .2s var(--sts-ease); display:inline-block; }
+.program-card:hover .program-arrow{ transform:translateX(4px); }
+.btn:hover .btn-arrow{ transform:translateX(3px); }
+
+/* ── Reveal: a touch more life on first paint ──────────────────────── */
+.reveal{ will-change:opacity, transform; }
+
+/* ── Section gradient accent — opt-in via .sts-accent on a .section ──
+   Soft brand blobs that echo the hero's decoration. */
+.sts-accent{ position:relative; overflow:hidden; isolation:isolate; }
+.sts-accent::before{
+  content:"";position:absolute;z-index:-1;width:min(640px,60vw);height:min(640px,60vw);
+  top:-22%;right:-12%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%, rgba(7,50,247,.14), transparent 68%);
+}
+.sts-accent::after{
+  content:"";position:absolute;z-index:-1;width:min(520px,52vw);height:min(520px,52vw);
+  bottom:-26%;left:-14%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%, rgba(200,16,46,.10), transparent 70%);
+}
+
+/* ── Eyebrow as a pill (modern, matches hero) ──────────────────────── */
+.eyebrow{ position:relative; }
+
+/* ════════════════════════════════════════════════════════════════════
+   Reusable components (used by enriched pages)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Image figure with caption + rounded frame */
+.sts-figure{
+  position:relative;border-radius:20px;overflow:hidden;background:#0C0C20;
+  box-shadow:0 30px 60px -34px rgba(8,10,22,.55);
+}
+.sts-figure > img{ width:100%;height:100%;object-fit:cover;display:block;aspect-ratio:4/3; }
+.sts-figure figcaption{
+  position:absolute;left:0;right:0;bottom:0;z-index:4;padding:18px 18px 14px;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:#fff;background:linear-gradient(180deg,transparent,rgba(8,10,22,.72));
+}
+.sts-figure--tall > img{ aspect-ratio:3/4; }
+
+/* Photo band — full-width strip of images */
+.sts-photoband{ padding:0 var(--section-pad-x); }
+.sts-photoband__grid{
+  max-width:1440px;margin:0 auto;display:grid;gap:14px;
+  grid-template-columns:repeat(4,1fr);
+}
+.sts-photoband__grid .sts-figure:nth-child(1){ grid-row:span 2; }
+@media(max-width:860px){ .sts-photoband__grid{ grid-template-columns:repeat(2,1fr); }
+  .sts-photoband__grid .sts-figure:nth-child(1){ grid-row:auto; } }
+
+/* Methodology pillars strip (compact, reusable on any page) */
+.sts-pillars{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;
+}
+.sts-pill-card{
+  position:relative;padding:22px 20px;border-radius:16px;background:var(--surface);
+  border:1px solid var(--hairline);overflow:hidden;
+  transition:transform .25s var(--sts-ease),box-shadow .25s ease,border-color .2s ease;
+}
+.sts-pill-card:hover{ transform:translateY(-4px);box-shadow:var(--sts-lift-shadow);border-color:rgba(7,50,247,.32); }
+.sts-pill-card::before{ content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--crimson)); }
+.sts-pill-card .n{ font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue); }
+.sts-pill-card .t{ font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:-.02em;margin:7px 0 7px; }
+.sts-pill-card .d{ font-size:13px;line-height:1.55;color:var(--muted); }
+
+/* Ecosystem band — sister Afrovanguard initiatives */
+.sts-eco{ padding:60px var(--section-pad-x); background:var(--surface); border-top:1px solid var(--hairline); }
+.sts-eco__inner{ max-width:1440px;margin:0 auto; }
+.sts-eco__grid{ display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:30px; }
+.sts-eco__card{
+  display:flex;flex-direction:column;gap:8px;padding:22px;border-radius:16px;
+  border:1px solid var(--hairline);background:var(--bg);text-decoration:none;color:inherit;
+  transition:transform .25s var(--sts-ease),box-shadow .25s ease,border-color .2s ease;
+}
+.sts-eco__card:hover{ transform:translateY(-4px);box-shadow:var(--sts-lift-shadow);border-color:rgba(7,50,247,.34); }
+.sts-eco__card .tag{ font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--crimson); }
+.sts-eco__card .name{ font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:6px; }
+.sts-eco__card .desc{ font-size:12.5px;line-height:1.5;color:var(--muted); }
+.sts-eco__card .go{ margin-top:auto;font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;color:var(--blue); }
+
+/* Generic responsive safety net — never let the page scroll sideways */
+html,body{ max-width:100%; overflow-x:hidden; }
+img{ max-width:100%; height:auto; }
+@media(max-width:520px){
+  .section-title{ word-break:break-word; }
+}
+
+/* ── Monogram avatars (team members without a headshot) ───────────── */
+.sts-avatar{ display:grid !important; place-items:center;
+  background:linear-gradient(140deg, hsl(var(--av-h,220) 64% 38%), hsl(calc(var(--av-h,220) + 36) 70% 54%)) !important; }
+.sts-avatar__t{ font-family:var(--font-display);font-weight:700;
+  font-size:clamp(30px,7vw,56px);color:#fff;letter-spacing:.03em;
+  text-shadow:0 2px 14px rgba(0,0,0,.22); }
