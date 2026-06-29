@@ -340,7 +340,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
             </li>
 <?php endif; endforeach; ?>          </ul>
           <div class="nav-actions">
-            <a class="nav-search-btn" href="/diary/" aria-label="Search Afrovanguard"><?= Icons::SEARCH ?><span>Search</span></a>
+            <a class="nav-search-btn" id="navSearchBtn" href="/diary/" data-search-open aria-haspopup="dialog" aria-label="Search Afrovanguard"><?= Icons::SEARCH ?><span>Search</span></a>
             <a href="/donate.html" class="nav-donate-btn">Donate</a>
             <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="nav-cta">Join the Movement</a>
           </div>
@@ -370,6 +370,27 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 <?php endif; ?>
   </header>
   <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <?= Icons::SEARCH ?>
+        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><?= Icons::CLOSE ?></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
   <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
     <div class="avd-head">
       <a href="/" class="nav-logo"><?= av_brand_mark('afrovanguard') ?></a>
