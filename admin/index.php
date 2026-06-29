@@ -47,6 +47,7 @@
         <p class="nav-group-h">People</p>
         <button class="tab" data-tab="members"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.6 2.7-5.5 6-5.5"/><path d="M15 12l2 2 4-4"/></svg><span>Members</span></button>
         <button class="tab" data-tab="people"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 2.9-5.2 6.5-5.2s6.5 1.9 6.5 5.2"/><path d="M17 8.2a3 3 0 0 1 0 5.6"/><path d="M19 20c0-2.2-1-3.7-2.6-4.6"/></svg><span>People</span></button>
+        <button class="tab" data-tab="mentorship"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="2.6"/><circle cx="16.5" cy="8" r="2.2"/><path d="M3.5 19c0-2.8 2.1-4.3 4.5-4.3s4.5 1.5 4.5 4.3"/><path d="M14.5 14.4c2-.3 4 .9 4 3.1"/><path d="M12 13l2.5-2.4"/></svg><span>Mentorship</span></button>
         <button class="tab" data-tab="celebrations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M3 13h18M12 9v12"/><path d="M12 9c-1.5-2.5-5-2.5-5-.5 0 1 .8 1.5 2 1.5h3zM12 9c1.5-2.5 5-2.5 5-.5 0 1-.8 1.5-2 1.5h-3z"/></svg><span>Celebrations</span></button>
       </div>
       <div class="nav-group">
@@ -58,6 +59,7 @@
         <button class="tab" data-tab="webhooks"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Webhooks</span></button>
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
+        <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Help</p>
@@ -626,6 +628,61 @@
         </div>
       </div>
     </div>
+  </main>
+
+  <!-- MENTORSHIP (mentor–mentee management) -->
+  <main class="studio-main" id="mentorshipView" hidden>
+    <div class="studio-head">
+      <div><h1>Mentorship</h1><p class="muted">Mentors, mentees and pairings. <b>Org</b> and <b>external</b> pools are kept separate.</p></div>
+      <div class="editor-actions">
+        <a class="btn btn-outline btn-sm" id="mtExport" href="#" download>↧ Export CSV</a>
+        <button class="btn btn-primary btn-sm" id="mtAssignBtn">+ Assign a pairing</button>
+      </div>
+    </div>
+
+    <div class="seg-toggle" role="tablist" aria-label="Pool">
+      <button class="seg-btn active" role="tab" data-seg="org">Org members</button>
+      <button class="seg-btn" role="tab" data-seg="external">External</button>
+    </div>
+
+    <div class="ov-grid" id="mtStats" style="margin:18px 0 22px"></div>
+
+    <!-- Assign panel (hidden until "Assign a pairing") -->
+    <div class="side-card mt-assign" id="mtAssign" hidden style="max-width:720px;margin-bottom:22px">
+      <h3>Assign a pairing <span class="muted" id="mtAssignSeg"></span></h3>
+      <div class="grid2">
+        <label class="fld"><span>Mentor</span><input id="mtMentorSearch" type="text" autocomplete="off" placeholder="Search approved mentors…" /><div class="mt-pick" id="mtMentorPick"></div></label>
+        <label class="fld"><span>Mentee</span><input id="mtMenteeSearch" type="text" autocomplete="off" placeholder="Search members…" /><div class="mt-pick" id="mtMenteePick"></div></label>
+      </div>
+      <div class="grid2">
+        <label class="fld"><span>Cohort (optional)</span><select id="mtCohort"><option value="0">— Ongoing (no cohort) —</option></select></label>
+        <label class="fld"><span>Programme (optional)</span><input id="mtProgramme" type="text" placeholder="e.g. Street-To-Stardom" /></label>
+      </div>
+      <p class="muted tiny" id="mtAssignMsg" style="margin:0 0 12px"></p>
+      <button class="btn btn-primary btn-sm" id="mtAssignSave" disabled>Create pairing</button>
+    </div>
+
+    <div class="studio-subtabs" role="tablist" aria-label="Mentorship sections">
+      <button class="subtab active" data-mt="pairings">Pairings</button>
+      <button class="subtab" data-mt="approvals">Mentor approvals <span class="tab-badge" id="mtApprBadge" hidden></span></button>
+      <button class="subtab" data-mt="cohorts">Cohorts</button>
+      <button class="subtab" data-mt="inactive">Needs attention <span class="tab-badge" id="mtInactBadge" hidden></span></button>
+    </div>
+
+    <div class="mt-panel" id="mtPairings"></div>
+    <div class="mt-panel" id="mtApprovals" hidden></div>
+    <div class="mt-panel" id="mtCohorts" hidden></div>
+    <div class="mt-panel" id="mtInactive" hidden></div>
+  </main>
+
+  <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <main class="studio-main" id="activityView" hidden>
+    <div class="studio-head">
+      <div><h1>Activity</h1><p class="muted">Every admin action, by area — with one-click undo on reversible ones.</p></div>
+      <button class="btn btn-outline btn-sm" id="actRefresh">Refresh</button>
+    </div>
+    <div class="act-areas" id="actAreas"></div>
+    <div class="act-list" id="actList"></div>
   </main>
 
   <!-- SIGN-IN (security policy + illustrations) -->

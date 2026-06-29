@@ -55,7 +55,8 @@ try {
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
-        'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp'], true);
+        'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
+        'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -254,6 +255,82 @@ try {
             $ai = AvBot::reply($q, $hist, ['system' => $sys]);
             json_out(['ok' => (bool) $ai['ok'], 'configured' => true, 'answer' => $ai['ok'] ? $ai['text'] : ('Sorry — the assistant couldn’t answer just now. ' . (string) ($ai['__error'] ?? ''))]);
         }
+
+        /* ════ Mentorship & mentor–mentee management ════ */
+        case 'mentorship_stats':    json_out(['ok' => true, 'stats' => Mentorship::adminStats()]);
+        case 'mentorship_mentors':  json_out(['ok' => true, 'mentors' => Mentorship::adminMentors((string) ($_GET['segment'] ?? ''), (string) ($_GET['approval'] ?? ''), (string) ($_GET['q'] ?? ''))]);
+        case 'mentorship_pairings': json_out(['ok' => true, 'pairings' => Mentorship::adminPairings((string) ($_GET['segment'] ?? ''), (string) ($_GET['status'] ?? ''), isset($_GET['cohort']) && $_GET['cohort'] !== '' ? (int) $_GET['cohort'] : -1, (string) ($_GET['q'] ?? ''))]);
+        case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 21))]);
+        case 'mentorship_cohorts':  json_out(['ok' => true, 'cohorts' => Mentorship::listCohorts((string) ($_GET['segment'] ?? ''))]);
+        case 'mentorship_find_users': json_out(['ok' => true, 'users' => Mentorship::findUsers((string) ($_GET['q'] ?? ''), (string) ($_GET['segment'] ?? ''))]);
+        case 'mentorship_approve': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $uid = (int) ($body['user_id'] ?? 0); $prev = Mentorship::approvalOf($uid);
+            if ($prev === '') json_out(['ok' => false, 'error' => 'No mentor profile.'], 404);
+            Mentorship::setMentorApproval($uid, 'approved');
+            AdminAudit::log('mentorship', 'mentor_approved', (string) $uid, 'Approved mentor', ['class' => 'Mentorship', 'op' => 'mentor_approval', 'args' => ['uid' => $uid, 'to' => $prev], 'label' => 'Undo approval']);
+            json_out(['ok' => true]);
+        }
+        case 'mentorship_decline': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $uid = (int) ($body['user_id'] ?? 0); $prev = Mentorship::approvalOf($uid);
+            if ($prev === '') json_out(['ok' => false, 'error' => 'No mentor profile.'], 404);
+            Mentorship::setMentorApproval($uid, 'declined');
+            AdminAudit::log('mentorship', 'mentor_declined', (string) $uid, 'Declined mentor', ['class' => 'Mentorship', 'op' => 'mentor_approval', 'args' => ['uid' => $uid, 'to' => $prev], 'label' => 'Undo decline']);
+            json_out(['ok' => true]);
+        }
+        case 'mentorship_add': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = Mentorship::adminAddMentor((string) ($body['email'] ?? ''), $body);
+            if (!empty($res['ok'])) AdminAudit::log('mentorship', 'mentor_added', (string) ($body['email'] ?? ''), 'Added mentor directly (' . ($res['segment'] ?? '') . ')');
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        case 'mentorship_assign': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = Mentorship::adminAssign((int) ($body['mentor_id'] ?? 0), (int) ($body['mentee_id'] ?? 0), (int) ($body['cohort_id'] ?? 0), (string) ($body['programme'] ?? ''));
+            if (!empty($res['ok'])) AdminAudit::log('mentorship', 'pair_assigned', (string) $res['id'], 'Assigned mentee to mentor', ['class' => 'Mentorship', 'op' => 'pair_delete', 'args' => ['id' => (int) $res['id']], 'label' => 'Undo assignment']);
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        case 'mentorship_reassign': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0);
+            $res = Mentorship::adminReassign($id, (int) ($body['mentor_id'] ?? 0));
+            if (!empty($res['ok'])) AdminAudit::log('mentorship', 'pair_reassigned', (string) $id, 'Reassigned pairing to a new mentor', ['class' => 'Mentorship', 'op' => 'pair_mentor', 'args' => ['id' => $id, 'to' => (int) $res['prev_mentor']], 'label' => 'Undo reassign']);
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        case 'mentorship_set_status': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0); $to = (string) ($body['status'] ?? '');
+            $row = Mentorship::pairRow($id);
+            if (!$row) json_out(['ok' => false, 'error' => 'Pairing not found.'], 404);
+            if (!Mentorship::setPairStatus($id, $to)) json_out(['ok' => false, 'error' => 'Bad status.'], 422);
+            AdminAudit::log('mentorship', 'pair_' . $to, (string) $id, 'Set pairing to ' . $to, ['class' => 'Mentorship', 'op' => 'pair_status', 'args' => ['id' => $id, 'to' => (string) $row['status']], 'label' => 'Undo (back to ' . $row['status'] . ')']);
+            json_out(['ok' => true]);
+        }
+        case 'mentorship_cohort_create': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = Mentorship::createCohort($body);
+            if (!empty($res['ok'])) AdminAudit::log('mentorship', 'cohort_created', (string) ($res['id'] ?? ''), 'Created cohort ' . (string) ($body['name'] ?? ''));
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        case 'mentorship_cohort_status': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(Mentorship::setCohortStatus((int) ($body['id'] ?? 0), (string) ($body['status'] ?? '')));
+        }
+        case 'mentorship_export': {
+            $rows = Mentorship::exportPairings((string) ($_GET['segment'] ?? ''));
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="mentorship-pairings.csv"');
+            $out = fopen('php://output', 'w');
+            foreach ($rows as $r) fputcsv($out, $r);
+            fclose($out); exit;
+        }
+
+        /* ════ Activity trail (per-area) + undo ════ */
+        case 'activity':       json_out(['ok' => true, 'entries' => AdminAudit::recent((string) ($_GET['area'] ?? ''), (int) ($_GET['limit'] ?? 80)), 'areas' => AdminAudit::areas()]);
+        case 'activity_undo':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(AdminAudit::undo((int) ($body['id'] ?? 0)));
 
         // ---- Sign-in security policy (superadmin) ----
         case 'auth_policy_get':
