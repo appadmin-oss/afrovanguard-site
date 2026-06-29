@@ -12,7 +12,7 @@ $PAGE_FOOT_EXTRA = $PAGE_FOOT_EXTRA ?? '';
     <div class="parent-row-lead">
       <span>An initiative of</span>
       <span class="av-mark">Afrovanguard</span>
-      <span>· established 2021</span>
+      <span>· established <?= (int) sts_org('founded') ?></span>
     </div>
     <a class="parent-row-cta" href="https://afrovanguard.org.ng" rel="noopener noreferrer" target="_blank">
       Visit Afrovanguard
@@ -75,7 +75,7 @@ $PAGE_FOOT_EXTRA = $PAGE_FOOT_EXTRA ?? '';
       </div>
     </div>
     <div class="footer-bottom">
-      <div>© 2026 Street-To-Stardom · An Afrovanguard initiative · IT-186151</div>
+      <div>© <?= date('Y') ?> Street-To-Stardom · An <?= htmlspecialchars((string) sts_org('parent')) ?> initiative · <?= htmlspecialchars((string) sts_org('reg')) ?></div>
       <div class="footer-bottom-links">
         <a href="/privacy">Privacy</a>
         <a href="/safeguarding">Safeguarding</a>

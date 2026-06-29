@@ -21,6 +21,8 @@ if (!isset($STS_ROOT)) {
   }
 }
 
+require_once $STS_ROOT . '/inc/data.php';
+
 $SITE_ORIGIN = 'https://sts.afrovanguard.org.ng';
 $PAGE_TITLE  = $PAGE_TITLE ?? 'Street-To-Stardom — Education that meets children where they are';
 $PAGE_DESC   = $PAGE_DESC ?? 'Education, mentorship and youth development for under-resourced communities across Lagos. An Afrovanguard initiative.';
