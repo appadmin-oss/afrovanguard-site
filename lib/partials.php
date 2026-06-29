@@ -91,8 +91,10 @@ function render_head(array $o): void {
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/assets/site/nav.css" rel="stylesheet" />
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
-<?php endforeach; ?><?php if (!empty($o['manifest'])): ?>  <link rel="manifest" href="<?= e($o['manifest']) ?>" />
+<?php endforeach; ?>  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
+<?php if (!empty($o['manifest'])): ?>  <link rel="manifest" href="<?= e($o['manifest']) ?>" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Afrovanguard" />
