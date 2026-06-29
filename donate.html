@@ -5429,6 +5429,8 @@
       const header = document.getElementById('site-header');
       const toggle = document.getElementById('nav-toggle');
       const mobile = document.getElementById('nav-mobile');
+      // Superseded by the shared assets/site/nav.js (these legacy IDs no longer exist).
+      if (!toggle || !mobile) return;
 
       window.addEventListener('scroll', () => {
         header.classList.toggle('scrolled', window.scrollY > 20);
