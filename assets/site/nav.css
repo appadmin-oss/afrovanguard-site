@@ -52,16 +52,24 @@ html[data-theme="dark"] {
 }
 .nav-util-link:hover, .nav-utility .nav-donate:hover { color: var(--m-gold); }
 .nav-utility .icon-btn.theme-toggle {
-  width: 32px; height: 32px; color: rgba(255,255,255,0.9);
-  border: 1px solid rgba(255,255,255,0.22); background: transparent;
+  display: inline-grid; place-items: center; box-sizing: border-box; padding: 0; flex: 0 0 auto;
+  width: 34px; height: 34px; min-width: 34px; min-height: 34px; border-radius: 50%;
+  color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.22); background: transparent;
 }
 .nav-utility .icon-btn.theme-toggle:hover { border-color: var(--m-gold); color: var(--m-gold); }
+.nav-utility .icon-btn.theme-toggle svg { width: 17px; height: 17px; }
+/* show exactly ONE icon for the active theme (both = a squashed circle) */
+.nav-utility .theme-toggle .sun { display: block; }
+.nav-utility .theme-toggle .moon { display: none; }
+html[data-theme="dark"] .nav-utility .theme-toggle .sun { display: none; }
+html[data-theme="dark"] .nav-utility .theme-toggle .moon { display: block; }
 
 /* account control: circular person icon → gold initial avatar when signed in */
 .nav-account { display: inline-flex; align-items: center; gap: 6px; }
 .acct-btn {
-  display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,0.42); color: rgba(255,255,255,0.92); flex-shrink: 0;
+  display: inline-grid; place-items: center; box-sizing: border-box; padding: 0; flex: 0 0 auto;
+  width: 34px; height: 34px; min-width: 34px; min-height: 34px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.42); color: rgba(255,255,255,0.92);
   transition: border-color .15s ease, color .15s ease, transform .15s ease;
 }
 .acct-btn svg { width: 18px; height: 18px; }
@@ -114,13 +122,16 @@ html[data-theme="dark"] {
 
 /* right-hand actions: search affordance · sign-in link · one solid pill CTA */
 .nav-actions { display: inline-flex; align-items: center; gap: 18px; margin-left: auto; flex-shrink: 0; }
-.nav-search-btn, .site-header .nav-signin-link {
+.nav-search-btn {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 14px; font-weight: 600; color: var(--m-ink); text-decoration: none;
-  padding: 8px 2px; transition: color .15s ease; white-space: nowrap; background: none; border: 0; cursor: pointer;
+  padding: 8px 2px; transition: color .15s ease; white-space: nowrap;
 }
 .nav-search-btn svg { width: 17px; height: 17px; }
-.nav-search-btn:hover, .site-header .nav-signin-link:hover { color: var(--m-gold-deep); }
+.nav-search-btn:hover { color: var(--m-gold-deep); }
+/* Sign-in now lives in the dark utility strip → light text */
+.nav-utility .nav-signin-link { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); text-decoration: none; transition: color .15s ease; white-space: nowrap; }
+.nav-utility .nav-signin-link:hover { color: var(--m-gold); }
 .site-header .nav-cta {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--m-ink); color: #fff; border: 0; border-radius: 9999px;
@@ -130,6 +141,15 @@ html[data-theme="dark"] {
 .site-header .nav-cta:hover { background: #000; transform: translateY(-1px); }
 html[data-theme="dark"] .site-header .nav-cta { background: var(--m-gold); color: #1a1205; }
 html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); }
+
+/* secondary OUTLINE button (Donate) — sits beside the solid CTA in the main bar */
+.site-header .nav-donate-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--m-divider); color: var(--m-ink); background: transparent;
+  border-radius: 9999px; padding: 10px 20px; font-size: 13.5px; font-weight: 700; line-height: 1;
+  text-decoration: none; white-space: nowrap; transition: border-color .18s ease, color .18s ease;
+}
+.site-header .nav-donate-btn:hover { border-color: var(--m-gold); color: var(--m-gold-deep); }
 
 /* burger (mobile only) */
 .nav-burger {
@@ -254,7 +274,7 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
 @media (max-width: 1099px) {
   .nav-utility-bar, .nav-sub { display: none; }
   .site-header .nav-links,
-  .nav-actions .nav-search-btn, .nav-actions .nav-signin-link, .nav-actions .nav-cta,
+  .nav-actions .nav-search-btn, .nav-actions .nav-donate-btn, .nav-actions .nav-cta,
   .nav-divider { display: none; }
   .nav-burger { display: inline-flex; }
   .site-header .nav-inner { padding: 9px 0; min-height: 56px; }

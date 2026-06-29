@@ -114,18 +114,20 @@ const AV_VOLUNTEER_URL = 'https://cacentre.afrovanguard.org.ng/volunteer';
  * Custom-owned sections use root-relative paths (served ahead of WordPress).
  */
 function av_nav_model(): array {
-    $S = rtrim(SITE_URL, '/');
+    // Same-site links are root-relative so they work on ANY host (production,
+    // preview, local, or while DNS still points at the old site); only genuine
+    // off-site subdomains (cacentre/next/…) stay absolute.
     $V = AV_VOLUNTEER_URL;
     return [
-        'about'   => ['label' => 'About', 'href' => $S . '/about.html', 'mega' => [
+        'about'   => ['label' => 'About', 'href' => '/about.html', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
-                    ['About us', $S . '/about.html'], ['Our ethos', '/ethos/'],
-                    ['Leadership & model', '/ethos/#leadership'], ['Our story', $S . '/about.html#our-story'],
+                    ['About us', '/about.html'], ['Our ethos', '/ethos/'],
+                    ['Leadership & model', '/ethos/#leadership'], ['Our story', '/about.html#our-story'],
                 ]],
                 ['title' => 'Get involved', 'links' => [
-                    ['Volunteer', $V], ['Donate', $S . '/donate.html'],
-                    ['Events', '/events/'], ['Contact us', $S . '/contact.html'],
+                    ['Volunteer', $V], ['Donate', '/donate.html'],
+                    ['Events', '/events/'], ['Contact us', '/contact.html'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
@@ -143,7 +145,7 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
         ]],
-        'projects' => ['label' => 'Projects', 'href' => $S . '/projects/', 'mega' => [
+        'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
             'cols' => [
                 ['title' => 'Flagship programmes', 'links' => [
                     ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
@@ -153,10 +155,10 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'More', 'links' => [
                     ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All projects', $S . '/projects/'], ['Volunteer', $V], ['Events', '/events/'],
+                    ['All projects', '/projects/'], ['Volunteer', $V], ['Events', '/events/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => $S . '/projects/', 'cta' => 'See all projects'],
+            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all projects'],
         ]],
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [
@@ -172,7 +174,7 @@ function av_nav_model(): array {
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
         'community' => ['label' => 'Community', 'href' => '/community/'],
-        'contact' => ['label' => 'Contact', 'href' => $S . '/contact.html'],
+        'contact' => ['label' => 'Contact', 'href' => '/contact.html'],
     ];
 }
 
@@ -283,7 +285,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
         <div class="nav-utility">
           <div class="nav-utility-actions">
 <?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
-<?php endif; ?>            <a href="<?= $S ?>/donate.html" class="nav-util-link nav-donate">Donate</a>
+<?php endif; ?>            <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
             <div class="nav-account" id="navAuth">
               <a class="acct-btn" data-login-link href="/login" aria-label="Sign in to your account" title="Sign in">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg>
@@ -296,7 +298,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     <!-- Tier 1 · global brand bar -->
     <div class="container">
         <nav class="nav-inner" aria-label="Main navigation">
-          <a href="<?= $S ?>/" class="nav-logo" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
+          <a href="/" class="nav-logo" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
           <span class="nav-divider" aria-hidden="true"></span>
           <ul class="nav-links" role="list">
 <?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
@@ -325,8 +327,8 @@ function render_nav(string $active = 'diary', array $opts = []): void {
             </li>
 <?php endif; endforeach; ?>          </ul>
           <div class="nav-actions">
-            <a class="nav-search-btn" href="<?= $S ?>/diary/" aria-label="Search Afrovanguard"><?= Icons::SEARCH ?><span>Search</span></a>
-            <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
+            <a class="nav-search-btn" href="/diary/" aria-label="Search Afrovanguard"><?= Icons::SEARCH ?><span>Search</span></a>
+            <a href="/donate.html" class="nav-donate-btn">Donate</a>
             <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="nav-cta">Join the Movement</a>
           </div>
           <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
@@ -357,7 +359,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
   <div class="scrim" data-close-drawer></div>
   <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
     <div class="avd-head">
-      <a href="<?= $S ?>/" class="nav-logo"><?= av_brand_mark('afrovanguard') ?></a>
+      <a href="/" class="nav-logo"><?= av_brand_mark('afrovanguard') ?></a>
       <button class="avd-close" data-close-drawer aria-label="Close menu"><?= Icons::CLOSE ?></button>
     </div>
     <div class="avd-scroll">
@@ -379,7 +381,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     <div class="avd-foot">
       <a href="/login" class="btn btn-outline" data-login-link style="width:100%;">Sign in</a>
       <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary" style="width:100%;">Join the Movement</a>
-      <a href="<?= $S ?>/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
+      <a href="/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
       <div class="avd-social">
         <a href="https://www.instagram.com/afrovanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
         <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><?= Icons::X ?></a>
