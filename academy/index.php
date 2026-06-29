@@ -119,8 +119,8 @@ render_nav('academy');
       <div class="container membership-card" data-reveal>
         <div class="membership-copy">
           <span class="ac-hero-eyebrow ac-hero-eyebrow--light">Academy membership</span>
-          <h2>One membership. Every members' programme.</h2>
-          <p>Unlock our members-only programmes, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
+          <h2>One membership. Every programme.</h2>
+          <p>Unlock the full catalogue, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
           <p class="membership-price"><?= '₦' . number_format((int) AV_MEMBERSHIP_NGN) ?><span> / year</span></p>
         </div>
         <div class="membership-cta pay-card">
