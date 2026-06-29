@@ -93,19 +93,77 @@
      reflects the signed-in member once known. One source of truth so the
      header is consistent on every page (PHP + static). */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function loginHref() { return '/login?next=' + encodeURIComponent(location.pathname + location.search); }
+  function nextParam() { return encodeURIComponent(location.pathname + location.search); }
+  function loginHref() { return '/login?next=' + nextParam(); }
   Array.prototype.forEach.call(document.querySelectorAll('[data-login-link]'), function (a) { a.setAttribute('href', loginHref()); });
+  // "Create account" carries an explicit sign-up intent into the progressive flow.
+  var acctCreate = document.getElementById('acctCreate');
+  if (acctCreate) acctCreate.setAttribute('href', '/login?intent=signup&next=' + nextParam());
+
+  /* ---- Account popover (AWS-style profile card) ----
+     Clicking the avatar opens a small card instead of navigating — Sign in /
+     Create account when signed out; account links + sign out when signed in. */
+  var acctBtn = document.getElementById('acctBtn');
+  var acctMenu = document.getElementById('acctMenu');
+  function acctAnchor() {
+    // fixed popover: anchor it just under the avatar, right-aligned to it.
+    if (!acctBtn || !acctMenu) return;
+    var r = acctBtn.getBoundingClientRect();
+    acctMenu.style.top = Math.round(r.bottom + 10) + 'px';
+    acctMenu.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+    acctMenu.style.left = 'auto';
+  }
+  function acctOpen(open) {
+    if (!acctBtn || !acctMenu) return;
+    if (open) acctAnchor();
+    acctMenu.hidden = !open;
+    acctMenu.classList.toggle('open', open);
+    acctBtn.setAttribute('aria-expanded', String(open));
+    if (open) {
+      var f = acctMenu.querySelector('a,button');
+      // preventScroll: focusing an element under the sticky header must NOT
+      // yank the page into a scroll-into-view jump.
+      if (f) { try { f.focus({ preventScroll: true }); } catch (e) { try { f.focus(); } catch (e2) {} } }
+    }
+  }
+  if (acctBtn && acctMenu) {
+    acctBtn.addEventListener('click', function (e) { e.preventDefault(); acctOpen(acctMenu.hidden); });
+    document.addEventListener('click', function (e) {
+      if (acctMenu.hidden) return;
+      if (!acctMenu.contains(e.target) && !acctBtn.contains(e.target)) acctOpen(false);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !acctMenu.hidden) { acctOpen(false); acctBtn.focus(); } });
+    // a fixed popover would drift on scroll/resize — re-anchor or close.
+    window.addEventListener('scroll', function () { if (!acctMenu.hidden) acctAnchor(); }, { passive: true });
+    window.addEventListener('resize', function () { if (!acctMenu.hidden) acctAnchor(); });
+  }
 
   function reflectMember(user) {
     var name = user.name || 'Member';
     var first = esc(name.split(' ')[0]);
     var initial = esc((name.trim()[0] || 'M').toUpperCase());
-    var slot = document.getElementById('navAuth');
-    if (slot) {
-      slot.classList.add('is-member');
-      // AWS-style circular avatar (initial) → account, with a quiet sign-out.
-      slot.innerHTML = '<a class="acct-btn is-member" href="/portal/" title="' + esc(name) + ' — your account" aria-label="Your account"><span class="acct-initial">' + initial + '</span></a>'
-        + '<a class="acct-signout" href="#" data-logout title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></a>';
+    var email = esc(user.email || '');
+    // The avatar shows the member's initial and stays the popover trigger.
+    if (acctBtn) {
+      acctBtn.classList.add('is-member');
+      acctBtn.setAttribute('aria-label', name + ' — your account');
+      acctBtn.setAttribute('data-tip', first);
+      acctBtn.innerHTML = '<span class="acct-initial">' + initial + '</span>';
+    }
+    // The popover becomes the member menu: identity + quick links + sign out.
+    if (acctMenu) {
+      acctMenu.innerHTML =
+        '<div class="am-head am-head-member">'
+        + '<span class="am-avatar">' + initial + '</span>'
+        + '<span class="am-id"><span class="am-name">' + esc(name) + '</span>'
+        + (email ? '<span class="am-email">' + email + '</span>' : '') + '</span></div>'
+        + '<nav class="am-links" role="none">'
+        + '<a role="menuitem" href="/portal/">Your portal</a>'
+        + '<a role="menuitem" href="/academy/">Academy</a>'
+        + '<a role="menuitem" href="/diary/">The Diary</a>'
+        + '<a role="menuitem" href="/community/">Community</a>'
+        + '</nav>'
+        + '<div class="am-actions am-actions-member"><a class="am-btn am-btn-ghost" href="#" data-logout>Sign out</a></div>';
     }
     // Sign-in text link (utility strip) becomes the member's first name → portal.
     var sl = document.querySelector('.nav-signin-link');

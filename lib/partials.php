@@ -104,6 +104,8 @@ function render_head(array $o): void {
 <?php }
 
 const AV_VOLUNTEER_URL = 'https://cacentre.afrovanguard.org.ng/volunteer';
+// Events live on the AFG sub-site; the whole site links out to it.
+const AV_EVENTS_URL = 'https://afg.afrovanguard.org.ng/events';
 
 /**
  * Canonical primary navigation model — the single definition for the whole
@@ -127,7 +129,7 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'Get involved', 'links' => [
                     ['Volunteer', $V], ['Donate', '/donate.html'],
-                    ['Events', '/events/'], ['Contact us', '/contact.html'],
+                    ['Events', AV_EVENTS_URL], ['Contact us', '/contact.html'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
@@ -155,7 +157,7 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'More', 'links' => [
                     ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All projects', '/projects/'], ['Volunteer', $V], ['Events', '/events/'],
+                    ['All projects', '/projects/'], ['Volunteer', $V], ['Events', AV_EVENTS_URL],
                 ]],
             ],
             'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all projects'],
@@ -173,7 +175,6 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
-        'community' => ['label' => 'Community', 'href' => '/community/'],
         'contact' => ['label' => 'Contact', 'href' => '/contact.html'],
     ];
 }
@@ -284,12 +285,22 @@ function render_nav(string $active = 'diary', array $opts = []): void {
       <div class="container">
         <div class="nav-utility">
           <div class="nav-utility-actions">
-<?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" aria-label="Toggle dark mode" title="Toggle theme (d)"><?= Icons::SUN . Icons::MOON ?></button>
+<?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" type="button" aria-label="Toggle dark mode" data-tip="Toggle theme"><?= Icons::SUN . Icons::MOON ?></button>
 <?php endif; ?>            <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
             <div class="nav-account" id="navAuth">
-              <a class="acct-btn" data-login-link href="/login" aria-label="Sign in to your account" title="Sign in">
+              <button class="acct-btn" id="acctBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu" data-tip="Account" aria-label="Your account">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg>
-              </a>
+              </button>
+              <div class="acct-menu" id="acctMenu" role="menu" aria-label="Account" hidden>
+                <div class="am-head">
+                  <p class="am-title">Your Afrovanguard account</p>
+                  <p class="am-sub">Sign in to track your learning, certificates and saved entries.</p>
+                </div>
+                <div class="am-actions">
+                  <a class="am-btn am-btn-primary" data-login-link href="/login">Sign in</a>
+                  <a class="am-btn am-btn-ghost" id="acctCreate" href="/login">Create account</a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -503,8 +514,7 @@ function av_footer_inner(): void {
             <li><a href="/academy/">Academy</a></li>
             <li><a href="<?= $S ?>/projects/">Projects</a></li>
             <li><a href="/diary/">The Diary</a></li>
-            <li><a href="/community/">Community</a></li>
-            <li><a href="/events/">Events</a></li>
+            <li><a href="<?= e(AV_EVENTS_URL) ?>">Events</a></li>
             <li><a href="<?= e(AV_VOLUNTEER_URL) ?>">Volunteer</a></li>
             <li><a href="<?= $S ?>/donate.html">Donate</a></li>
             <li><a href="/login">Sign In</a></li>
