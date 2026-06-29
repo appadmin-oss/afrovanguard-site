@@ -9,31 +9,54 @@
 html[data-theme="dark"] .chioma-root, .chioma-root[data-dark="1"] {
   --ch-ink: #f5f6f7; --ch-surface: #15161b; --ch-surface-2: #1d1f26; --ch-muted: #9aa1ad; --ch-line: rgba(255,255,255,.10); }
 
-/* ── FAB ── */
-.chioma-fab { position: relative; width: 60px; height: 60px; border: 0; border-radius: 50%; cursor: pointer;
+/* ── FAB ──
+   A round gold "operations assistant" button. It bobs gently when idle, lifts
+   on hover, presses on tap, and can do a brief attention nudge when a
+   contextual bubble appears. The inner wrapper carries the idle float so the
+   button's own hover/press transform never fights the keyframes. */
+.chioma-fab { position: relative; width: 60px; height: 60px; border: 0; border-radius: 50%; cursor: pointer; padding: 0;
   background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 45%, var(--ch-gold-deep) 100%);
   box-shadow: 0 10px 30px -8px rgba(200,134,10,.6), 0 2px 8px rgba(0,0,0,.18); display: grid; place-items: center;
-  animation: ch-pop .5s cubic-bezier(.22,1,.36,1) both, ch-float 5s ease-in-out 1s infinite; transition: transform .2s ease; }
-.chioma-fab:hover { transform: scale(1.06); }
-.chioma-fab:active { transform: scale(.96); }
-.chioma-fab svg { width: 30px; height: 30px; color: var(--ch-navy); }
-.chioma-fab .ch-dot { position: absolute; top: 4px; right: 5px; width: 13px; height: 13px; border-radius: 50%;
-  background: #18b566; border: 2.5px solid #fff; box-shadow: 0 0 0 0 rgba(24,181,102,.6); animation: ch-pulse 2.4s infinite; }
-.chioma-root.is-open .chioma-fab { animation: none; }
+  animation: ch-pop .55s cubic-bezier(.22,1,.36,1) both; transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .25s ease; }
+.chioma-fab:hover { transform: translateY(-2px) scale(1.06); box-shadow: 0 16px 38px -10px rgba(200,134,10,.72), 0 2px 8px rgba(0,0,0,.2); }
+.chioma-fab:active { transform: scale(.94); }
+.chioma-fab:focus-visible { outline: 3px solid var(--ch-navy); outline-offset: 3px; }
+/* idle float lives on the SVG mark so hover/press scaling stays independent */
+.chioma-fab .ch-mark { width: 40px; height: 40px; color: var(--ch-navy); --ch-spark: #fff8e6;
+  animation: ch-float 5.5s ease-in-out 1.2s infinite; transform-origin: center; }
+.chioma-fab .ch-mark .ch-spark { animation: ch-twinkle 4s ease-in-out 2s infinite; transform-origin: 36px 13px; }
+.chioma-fab .ch-dot { position: absolute; top: 3px; right: 4px; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--ch-gold); border: 2.5px solid #fff; box-shadow: 0 0 0 0 rgba(243,180,22,.7); animation: ch-pulse 2.4s infinite; }
+html[data-theme="dark"] .chioma-fab .ch-dot, .chioma-root[data-dark="1"] .chioma-fab .ch-dot { border-color: var(--ch-surface); }
+.chioma-root.is-open .chioma-fab .ch-mark { animation: none; }
+.chioma-fab.ch-nudge { animation: ch-nudge .65s cubic-bezier(.36,.07,.19,.97) both; }
 
-@keyframes ch-pop { from { transform: scale(0) rotate(-30deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
-@keyframes ch-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes ch-pulse { 0% { box-shadow: 0 0 0 0 rgba(24,181,102,.55); } 70% { box-shadow: 0 0 0 9px rgba(24,181,102,0); } 100% { box-shadow: 0 0 0 0 rgba(24,181,102,0); } }
+@keyframes ch-pop { 0% { transform: scale(0) rotate(-28deg); opacity: 0; } 60% { transform: scale(1.08) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes ch-float { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(-1.5deg); } }
+@keyframes ch-twinkle { 0%,100% { opacity: .5; transform: scale(.82); } 45% { opacity: 1; transform: scale(1.15); } }
+@keyframes ch-pulse { 0% { box-shadow: 0 0 0 0 rgba(243,180,22,.65); } 70% { box-shadow: 0 0 0 9px rgba(243,180,22,0); } 100% { box-shadow: 0 0 0 0 rgba(243,180,22,0); } }
+@keyframes ch-nudge { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-5px) rotate(-4deg); } 50% { transform: translateX(4px) rotate(3deg); } 75% { transform: translateX(-2px) rotate(-1deg); } }
 
-/* ── Greeting nudge ── */
-.chioma-greet { position: absolute; right: 74px; bottom: 8px; max-width: 232px; background: var(--ch-surface);
-  color: var(--ch-ink); border: 1px solid var(--ch-line); border-radius: 16px 16px 4px 16px; padding: 12px 14px;
-  font-size: 13.5px; line-height: 1.45; box-shadow: 0 14px 34px -12px rgba(0,0,0,.3); opacity: 0; transform: translateY(8px) scale(.96);
-  transition: opacity .3s ease, transform .3s ease; pointer-events: none; }
-.chioma-greet.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+/* ── Contextual "thought" bubble / greeting nudge ──
+   A small speech bubble that floats up beside the FAB with a page-aware line.
+   Clickable (opens the chat), dismissable, auto-hides. Capped on the right so
+   it can never push the layout or overflow a 360px viewport. */
+.chioma-greet { position: absolute; right: 74px; bottom: 8px; width: max-content; max-width: min(248px, calc(100vw - 92px));
+  background: var(--ch-surface); color: var(--ch-ink); border: 1px solid var(--ch-line); border-radius: 16px 16px 4px 16px;
+  padding: 12px 14px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 14px 34px -12px rgba(0,0,0,.3); cursor: pointer;
+  opacity: 0; transform: translateY(10px) scale(.94); transform-origin: bottom right; pointer-events: none;
+  transition: opacity .32s ease, transform .38s cubic-bezier(.22,1,.36,1); }
+.chioma-greet.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; animation: ch-bubble-in .42s cubic-bezier(.34,1.56,.64,1) both; }
+.chioma-greet:hover { border-color: var(--ch-gold); }
 .chioma-greet b { color: var(--ch-gold-deep); }
-.chioma-greet .ch-greet-x { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%;
-  border: 1px solid var(--ch-line); background: var(--ch-surface); color: var(--ch-muted); cursor: pointer; font-size: 13px; line-height: 1; }
+/* little tail pointing toward the FAB */
+.chioma-greet::after { content: ''; position: absolute; right: 14px; bottom: -7px; width: 14px; height: 14px; background: var(--ch-surface);
+  border-right: 1px solid var(--ch-line); border-bottom: 1px solid var(--ch-line); transform: rotate(45deg); }
+.chioma-greet .ch-greet-x { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; z-index: 1;
+  border: 1px solid var(--ch-line); background: var(--ch-surface); color: var(--ch-muted); cursor: pointer; font-size: 13px; line-height: 1;
+  display: grid; place-items: center; transition: color .15s ease, border-color .15s ease; }
+.chioma-greet .ch-greet-x:hover { color: var(--ch-ink); border-color: var(--ch-gold); }
+@keyframes ch-bubble-in { 0% { opacity: 0; transform: translateY(14px) scale(.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 
 /* ── Panel ── */
 .chioma-panel { position: absolute; right: 0; bottom: 74px; width: min(380px, calc(100vw - 32px)); height: min(560px, calc(100vh - 120px));
@@ -46,7 +69,7 @@ html[data-theme="dark"] .chioma-root, .chioma-root[data-dark="1"] {
 .ch-head { display: flex; align-items: center; gap: 11px; padding: 15px 16px; background: var(--ch-navy); color: #fff; }
 .ch-head .ch-ava { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
   background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 50%, var(--ch-gold-deep) 100%); }
-.ch-head .ch-ava svg { width: 22px; height: 22px; color: var(--ch-navy); }
+.ch-head .ch-ava .ch-mark { width: 30px; height: 30px; color: var(--ch-navy); --ch-spark: #fff8e6; }
 .ch-head .ch-name { font-weight: 800; font-size: 15px; line-height: 1.1; }
 .ch-head .ch-status { font-size: 11.5px; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 5px; }
 .ch-head .ch-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #18b566; }
@@ -87,6 +110,13 @@ html[data-theme="dark"] .chioma-root, .chioma-root[data-dark="1"] {
   .chioma-greet { max-width: 190px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chioma-fab { animation: ch-pop .3s ease both; }
-  .ch-dot { animation: none; }
+  .chioma-fab { animation: none; }
+  .chioma-fab:hover { transform: none; }
+  .chioma-fab.ch-nudge { animation: none; }
+  .chioma-fab .ch-mark, .chioma-fab .ch-mark .ch-spark, .ch-dot { animation: none; }
+  .chioma-greet { transition: opacity .2s ease; transform: none; animation: none; }
+  .chioma-greet.show { transform: none; animation: none; }
+  .chioma-panel { transition: opacity .2s ease; transform: none; }
+  .chioma-root.is-open.is-anim .chioma-panel { transform: none; }
+  .ch-msg, .ch-typing span { animation: none; }
 }

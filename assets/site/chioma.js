@@ -9,8 +9,17 @@
   if (document.documentElement.hasAttribute('data-no-chioma')) return;
 
   var ENDPOINT = '/chioma.php';
-  var FACE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/><circle cx="9" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="11.5" r="1" fill="currentColor" stroke="none"/><path d="M9 14.5a4 4 0 0 0 6 0"/></svg>';
-  var SEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+  // Chioma's mark — a warm "operations assistant" persona, not a robot.
+  // A friendly figure (head + shoulders) inside a soft ring, with a small
+  // gold "thinking/idea" spark — she's the helpful person who has the answer.
+  // Inline SVG only (CSP forbids external images). Crisp at 56–64px.
+  var FACE = '<svg class="ch-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true" focusable="false">' +
+      '<circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity=".35"/>' +
+      '<path d="M24 25.5a6.6 6.6 0 1 0 0-13.2 6.6 6.6 0 0 0 0 13.2Z" fill="currentColor"/>' +
+      '<path d="M11.6 38.4a12.6 12.6 0 0 1 24.8 0 21.7 21.7 0 0 1-24.8 0Z" fill="currentColor"/>' +
+      '<path class="ch-spark" d="M36.4 9.2l1.15 2.95L40.5 13.3l-2.95 1.15L36.4 17.4l-1.15-2.95L32.3 13.3l2.95-1.15L36.4 9.2Z" fill="var(--ch-spark, #fff)"/>' +
+    '</svg>';
+  var SEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
 
   /* ---- ensure stylesheet ---- */
   if (!document.querySelector('link[href="/assets/site/chioma.css"]')) {
@@ -18,26 +27,52 @@
   }
 
   /* ---- page context ---- */
-  function context() {
-    var sec = document.body.getAttribute('data-section') || '';
-    var path = location.pathname;
-    if (!sec) {
-      if (/^\/academy/.test(path)) sec = 'Academy';
-      else if (/^\/diary/.test(path)) sec = 'Diary';
-      else if (/^\/projects/.test(path)) sec = 'Projects';
-      else if (/donate/.test(path)) sec = 'Donate';
-      else if (/contact/.test(path)) sec = 'Contact';
-      else if (path === '/' || /index/.test(path)) sec = 'Home';
-    }
-    var title = (document.title || '').replace(/\s*[|—–]\s*Afrovanguard.*$/i, '').trim() || 'Afrovanguard';
-    return { title: title, path: path, section: sec };
+  // Normalise the current location into a short route key used for both the
+  // server context.section and the contextual "thought" bubble below.
+  function routeKey() {
+    var path = location.pathname.toLowerCase();
+    if (/^\/academy/.test(path)) return 'academy';
+    if (/^\/diary/.test(path) || /^\/blog/.test(path)) return 'diary';
+    if (/^\/projects/.test(path)) return 'projects';
+    if (/donate/.test(path)) return 'donate';
+    if (/contact/.test(path)) return 'contact';
+    if (/^\/about/.test(path)) return 'about';
+    if (/^\/login/.test(path) || /^\/auth/.test(path)) return 'login';
+    if (/^\/portal/.test(path) || /^\/member/.test(path) || /^\/donor-dashboard/.test(path)) return 'portal';
+    if (/^\/events/.test(path)) return 'events';
+    if (path === '/' || /^\/index/.test(path) || path === '') return 'home';
+    return 'default';
   }
+  var SECTION_LABEL = { academy: 'Academy', diary: 'Diary', projects: 'Projects', donate: 'Donate',
+    contact: 'Contact', about: 'About', login: 'Login', portal: 'Portal', events: 'Events', home: 'Home', default: '' };
+  function context() {
+    var sec = document.body.getAttribute('data-section') || SECTION_LABEL[routeKey()] || '';
+    var title = (document.title || '').replace(/\s*[|—–]\s*Afrovanguard.*$/i, '').trim() || 'Afrovanguard';
+    return { title: title, path: location.pathname, section: sec };
+  }
+
+  /* ---- contextual "thought" bubble phrases, by route ---- */
+  var BUBBLES = {
+    home:     ['New here? I can point you to the right programme.', "Want to see what's happening this week?", 'Looking for something? Just ask me.'],
+    academy:  ['Looking for a course? I can help you choose.', 'Ask me how enrolment works.', 'Our programmes are free — want the details?'],
+    diary:    ['Want a quick summary of an entry?', 'Looking for a topic? Ask me.', 'Curious about the work behind a story?'],
+    donate:   ["Not sure how to give? I'll walk you through it.", 'We welcome materials too — ask me how.', 'Questions about donating? I’m right here.'],
+    projects: ['Curious which programme fits you? Ask away.', 'Want the story behind a project?', 'I can help you find a way to get involved.'],
+    contact:  ['Not sure who to reach? I can point you.', 'Tell me what you need and I’ll help you ask.'],
+    about:    ['Want the short version of our mission? Ask me.', 'Curious how we got started? I can share.'],
+    login:    ['Trouble signing in? I can help.', 'New here? Ask me what membership offers.'],
+    portal:   ['Need a hand finding something here? Just ask.', 'Looking for your next step? I can point you.'],
+    events:   ['Want to know what’s coming up? Ask me.', 'Looking for an event near you? I can help.'],
+    default:  ['Need a hand finding something? Just ask me.', 'I can help you get where you’re going. 🙂']
+  };
 
   /* ---- state ---- */
   var history = [];
   try { history = JSON.parse(sessionStorage.getItem('chioma.history') || '[]') || []; } catch (e) {}
   var open = false, sending = false, greeted = false;
-  try { greeted = sessionStorage.getItem('chioma.greeted') === '1'; } catch (e) {}
+  // Honour the greeting throttle AND the site's onboarding-suppression flags
+  // (the test harness sets these to keep nudges out of the way).
+  try { greeted = sessionStorage.getItem('chioma.greeted') === '1' || sessionStorage.getItem('av_onboarded_v2') != null; } catch (e) {}
 
   /* ---- build DOM ---- */
   var root = document.createElement('div'); root.className = 'chioma-root'; root.setAttribute('data-no-export', '');
@@ -53,14 +88,15 @@
         '<button class="ch-send" type="submit" aria-label="Send">' + SEND + '</button></form>' +
       '<div class="ch-disclaimer">Chioma is an AI guide — double-check anything important.</div>' +
     '</div>' +
-    '<div class="chioma-greet" id="chGreet"><button class="ch-greet-x" aria-label="Dismiss">&times;</button>' +
-      '<b>Hi, I’m Chioma</b> — your guide to Afrovanguard. Need a hand finding something? 👋</div>' +
-    '<button class="chioma-fab" id="chFab" aria-label="Chat with Chioma" aria-expanded="false">' + FACE + '<span class="ch-dot"></span></button>';
+    '<div class="chioma-greet" id="chGreet" role="status" aria-live="polite">' +
+      '<button class="ch-greet-x" type="button" aria-label="Dismiss message">&times;</button>' +
+      '<span class="ch-greet-text"><b>Hi, I’m Chioma</b> — your guide to Afrovanguard. Need a hand finding something? 👋</span></div>' +
+    '<button class="chioma-fab" id="chFab" type="button" aria-label="Chat with Chioma" aria-expanded="false">' + FACE + '<span class="ch-dot"></span></button>';
   (document.body || document.documentElement).appendChild(root);
 
   var body = root.querySelector('#chBody'), input = root.querySelector('#chInput'),
       chips = root.querySelector('#chChips'), greet = root.querySelector('#chGreet'),
-      fab = root.querySelector('#chFab');
+      greetText = greet.querySelector('.ch-greet-text'), fab = root.querySelector('#chFab');
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   // light markup: linkify /paths and bare urls, keep it safe (escaped first)
@@ -104,13 +140,14 @@
   function setOpen(on) {
     open = on; root.classList.toggle('is-open', on); fab.setAttribute('aria-expanded', String(on));
     if (on) {
+      muteBubbles();          // opening chat retires the nudges for this session
       hideGreet();
       requestAnimationFrame(function () { root.classList.add('is-anim'); });
       renderHistory();
       setTimeout(function () { input.focus(); }, 60);
     } else { root.classList.remove('is-anim'); }
   }
-  function hideGreet() { greet.classList.remove('show'); }
+  function hideGreet() { greet.classList.remove('show'); fab.classList.remove('ch-nudge'); }
 
   function sendMessage(text) {
     text = (text || '').trim(); if (!text || sending) return;
@@ -147,16 +184,74 @@
   // Back-compat shim for the old Botpress hooks that pages may still call.
   if (!window.botpress) window.botpress = { open: function () { setOpen(true); }, close: function () { setOpen(false); }, sendEvent: function () {} };
 
+  /* ---- contextual "thought" bubble engine ----
+     Surfaces a short, page-aware nudge near the FAB. Tasteful, not naggy:
+     shows at most a couple of times per session, never after the chat is
+     opened or a bubble is dismissed, and auto-hides after ~8s. */
+  var BUBBLE_CAP = 2, bubbleTimer = null, hideTimer = null;
+  function ss(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+  // Honour the site's onboarding/greeting suppression flags (used in tests too).
+  function muted() { return ss('chioma.muted') === '1'; }
+  function muteBubbles() {
+    ssSet('chioma.muted', '1'); ssSet('chioma.greeted', '1');
+    if (bubbleTimer) { clearTimeout(bubbleTimer); bubbleTimer = null; }
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  }
+  function bubbleCount() { return parseInt(ss('chioma.bubbles') || '0', 10) || 0; }
+
+  var rk = routeKey();
+  function nextPhrase() {
+    var list = BUBBLES[rk] || BUBBLES.default;
+    var i = (parseInt(ss('chioma.phrase') || '0', 10) || 0) % list.length;
+    ssSet('chioma.phrase', String(i + 1));
+    return list[i];
+  }
+  function showBubble(html) {
+    if (open || muted() || bubbleCount() >= BUBBLE_CAP) return;
+    greetText.innerHTML = html;
+    greet.classList.add('show'); fab.classList.add('ch-nudge');
+    setTimeout(function () { fab.classList.remove('ch-nudge'); }, 1400);
+    ssSet('chioma.bubbles', String(bubbleCount() + 1));
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideGreet, 8000);
+    scheduleBubble(38000);  // maybe one more later, if still allowed
+  }
+  function scheduleBubble(delay) {
+    if (bubbleTimer) clearTimeout(bubbleTimer);
+    if (muted() || bubbleCount() >= BUBBLE_CAP) return;
+    bubbleTimer = setTimeout(function () { if (!open && !muted()) showBubble(esc(nextPhrase())); }, delay);
+  }
+
   /* ---- events ---- */
   fab.addEventListener('click', function () { setOpen(!open); });
   root.querySelector('.ch-x').addEventListener('click', function () { setOpen(false); });
   root.querySelector('#chForm').addEventListener('submit', function (e) { e.preventDefault(); sendMessage(input.value); });
-  greet.querySelector('.ch-greet-x').addEventListener('click', function (e) { e.stopPropagation(); hideGreet(); try { sessionStorage.setItem('chioma.greeted', '1'); } catch (e2) {} });
+  greet.querySelector('.ch-greet-x').addEventListener('click', function (e) { e.stopPropagation(); hideGreet(); muteBubbles(); });
   greet.addEventListener('click', function () { setOpen(true); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) setOpen(false); });
+  // Click-away dismiss (don't nag): a tap anywhere else retires the bubble.
+  document.addEventListener('click', function (e) {
+    if (greet.classList.contains('show') && !root.contains(e.target)) { hideGreet(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (open) setOpen(false);
+    else if (greet.classList.contains('show')) { hideGreet(); muteBubbles(); }
+  });
 
-  /* ---- lively greeting nudge (once per session, if not opened) ---- */
-  if (!greeted) {
-    setTimeout(function () { if (!open) { greet.classList.add('show'); try { sessionStorage.setItem('chioma.greeted', '1'); } catch (e) {} setTimeout(hideGreet, 9000); } }, 6500);
+  /* ---- first nudge shortly after load (once per session, if not opened) ----
+     The opening "Hi, I'm Chioma…" greeting is already in the bubble; the first
+     timer reveals it, then schedules at most one later, page-aware follow-up. */
+  if (!greeted && !muted()) {
+    bubbleTimer = setTimeout(function () {
+      bubbleTimer = null;
+      if (open || muted() || bubbleCount() >= BUBBLE_CAP) return;
+      greet.classList.add('show'); fab.classList.add('ch-nudge');
+      setTimeout(function () { fab.classList.remove('ch-nudge'); }, 1400);
+      ssSet('chioma.bubbles', String(bubbleCount() + 1)); ssSet('chioma.greeted', '1');
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideGreet, 8000);
+      scheduleBubble(40000);  // a later, page-aware follow-up (if still allowed)
+    }, 5500);
   }
 })();
