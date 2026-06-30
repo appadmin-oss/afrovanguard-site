@@ -55,7 +55,14 @@ final class Community
             user_id INTEGER NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (post_id, user_id)
-        );";
+        );
+        CREATE TABLE IF NOT EXISTS community_chat (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            author_id INTEGER NOT NULL,
+            body TEXT NOT NULL,
+            created_at VARCHAR(32) NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_cchat_feed ON community_chat(id);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
         // Set $done BEFORE seeding so the nested ensure() inside botPost short-circuits.
@@ -263,6 +270,328 @@ final class Community
         if ($d < 86400) return floor($d / 3600) . 'h';
         if ($d < 604800) return floor($d / 86400) . 'd';
         return gmdate('M j', $t);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       ORG-ONLY: member directory + live group chat + @mentions.
+
+       The Community splits by audience. ORG members (@afrovanguard.org.ng)
+       get the full experience — they can SEE each other (directory) and chat
+       in real time with @mentions. EXTERNAL members get the forum (feed) only.
+       Every method here is the data layer for an ORG-gated surface; the API
+       (community/api.php) refuses these for external members BEFORE calling in,
+       and these methods themselves only ever return ORG members, so a directory
+       leak or a cross-segment mention is impossible even if a gate is missed.
+       ════════════════════════════════════════════════════════════════ */
+
+    /** True if this user id is an ORG member (afrovanguard.org.ng). The single
+     *  server-side gate for the directory + chat. Mirrors Mentorship::segmentOf
+     *  but answers the boolean the chat/directory need. Fail-safe: false. */
+    public static function isOrgMember(int $uid): bool
+    {
+        if ($uid <= 0) return false;
+        try {
+            $s = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
+            $s->execute([$uid]);
+            $email = (string) $s->fetchColumn();
+            return $email !== '' && class_exists('LmsAuth') && LmsAuth::isOrgEmail($email);
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** The org-domain SQL fragment (driver-portable: '%@domain'). The bot is an
+     *  org-domain account but is excluded from the directory (it's not a person). */
+    private static function orgEmailLike(): string
+    {
+        $domain = defined('AV_ORG_DOMAIN') ? strtolower((string) AV_ORG_DOMAIN) : 'afrovanguard.org.ng';
+        return '%@' . $domain;
+    }
+
+    /**
+     * The ORG member directory — who's in the org community. Names, an initial
+     * for the avatar, and a headline if the member opted into mentorship (we
+     * READ mentor_profiles.headline best-effort; never write it). The bot and
+     * the viewer themselves are excluded. ORG members only — never external.
+     */
+    public static function directory(int $viewerId = 0, int $limit = 200): array
+    {
+        self::ensure();
+        $like = self::orgEmailLike();
+        $hasMentor = false;
+        try { $hasMentor = Database::columnExists('mentor_profiles', 'headline'); } catch (Throwable $e) { $hasMentor = false; }
+        $limit = max(1, min(500, $limit));
+        try {
+            if ($hasMentor) {
+                $sql = "SELECT u.id, u.name, u.email, mp.headline AS headline
+                        FROM lms_users u
+                        LEFT JOIN mentor_profiles mp ON mp.user_id = u.id
+                        WHERE u.status = 'active' AND LOWER(u.email) LIKE ? AND u.email <> ?
+                        ORDER BY u.name ASC LIMIT $limit";
+            } else {
+                $sql = "SELECT u.id, u.name, u.email, '' AS headline
+                        FROM lms_users u
+                        WHERE u.status = 'active' AND LOWER(u.email) LIKE ? AND u.email <> ?
+                        ORDER BY u.name ASC LIMIT $limit";
+            }
+            $st = Database::pdo()->prepare($sql);
+            $st->execute([$like, self::BOT_EMAIL]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('[community] directory: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $name = (string) $r['name'];
+            $out[] = [
+                'id'       => (int) $r['id'],
+                'name'     => $name,
+                'initial'  => mb_strtoupper(mb_substr($name, 0, 1)),
+                'headline' => mb_substr(trim((string) ($r['headline'] ?? '')), 0, 160),
+                'is_me'    => (int) $r['id'] === $viewerId,
+            ];
+        }
+        return $out;
+    }
+
+    /** Autocomplete source for @mentions: ORG members matching a name/email
+     *  query. ORG-only, bot excluded. Returns a small, lightweight list. */
+    public static function mentionSearch(string $q, int $viewerId = 0, int $limit = 8): array
+    {
+        self::ensure();
+        $q = trim($q);
+        $like = self::orgEmailLike();
+        $limit = max(1, min(20, $limit));
+        try {
+            if ($q === '') {
+                $sql = "SELECT id, name, email FROM lms_users
+                        WHERE status = 'active' AND LOWER(email) LIKE ? AND email <> ?
+                        ORDER BY name ASC LIMIT $limit";
+                $st = Database::pdo()->prepare($sql);
+                $st->execute([$like, self::BOT_EMAIL]);
+            } else {
+                $term = '%' . $q . '%';
+                $sql = "SELECT id, name, email FROM lms_users
+                        WHERE status = 'active' AND LOWER(email) LIKE ? AND email <> ?
+                          AND (name LIKE ? OR email LIKE ?)
+                        ORDER BY (name LIKE ?) DESC, name ASC LIMIT $limit";
+                $st = Database::pdo()->prepare($sql);
+                $st->execute([$like, self::BOT_EMAIL, $term, $term, $q . '%']);
+            }
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('[community] mentionSearch: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $name = (string) $r['name'];
+            $out[] = [
+                'id'      => (int) $r['id'],
+                'name'    => $name,
+                'handle'  => self::handleFor($name),
+                'initial' => mb_strtoupper(mb_substr($name, 0, 1)),
+                'is_me'   => (int) $r['id'] === $viewerId,
+            ];
+        }
+        return $out;
+    }
+
+    /** A stable @handle for a member name (used in autocomplete + mention text):
+     *  lowercase, spaces→dots, ascii-ish. Display only; resolution is by id. */
+    private static function handleFor(string $name): string
+    {
+        $h = strtolower(trim($name));
+        $h = preg_replace('/[^a-z0-9]+/', '.', $h) ?? $h;
+        return trim($h, '.') ?: 'member';
+    }
+
+    /**
+     * Send a chat message to the org group channel. ORG-only (caller must gate;
+     * we re-check here too). Parses @mentions against ORG members, stores the
+     * raw body, and notifies each mentioned member best-effort. Returns the
+     * shaped message (with resolved mentions) or null on failure — never throws.
+     */
+    public static function chatSend(int $authorId, string $body): ?array
+    {
+        self::ensure();
+        $body = trim($body);
+        if ($body === '' || $authorId <= 0) return null;
+        if (!self::isOrgMember($authorId)) return null; // server-side gate (defence-in-depth)
+        $body = mb_substr($body, 0, 2000);
+        try {
+            $db = Database::pdo();
+            $db->prepare('INSERT INTO community_chat (author_id, body, created_at) VALUES (?,?,?)')
+               ->execute([$authorId, $body, gmdate('Y-m-d H:i:s')]);
+            $id = (int) $db->lastInsertId();
+        } catch (Throwable $e) {
+            error_log('[community] chatSend: ' . $e->getMessage());
+            return null;
+        }
+        // Resolve + notify mentions (best-effort; failure never blocks the send).
+        try {
+            $mentions = self::resolveMentions($body, $authorId);
+            if ($mentions) self::notifyMentions($mentions, $authorId, $body, $id);
+        } catch (Throwable $e) { error_log('[community] mention notify: ' . $e->getMessage()); }
+        if (class_exists('Events')) {
+            try { Events::emit('community.chat', ['id' => $id, 'author_id' => $authorId, 'excerpt' => mb_substr($body, 0, 180)]); } catch (Throwable $e) {}
+        }
+        $m = self::chatOne($id, $authorId);
+        return $m;
+    }
+
+    /**
+     * Poll the chat channel. ORG-only (caller gates). $sinceId returns only
+     * messages with id > sinceId (ascending) for cheap incremental polling;
+     * $sinceId = 0 returns the most recent page (ascending). Fail-safe: []. */
+    public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50): array
+    {
+        self::ensure();
+        if (!self::isOrgMember($viewerId)) return [];
+        $limit = max(1, min(100, $limit));
+        try {
+            $db = Database::pdo();
+            if ($sinceId > 0) {
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+                $st->execute([$sinceId]);
+                $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            } else {
+                // Most recent $limit, returned ascending (oldest→newest) so the UI appends.
+                $st = $db->prepare(self::CHAT_SELECT . ' ORDER BY c.id DESC LIMIT ' . $limit);
+                $st->execute();
+                $rows = array_reverse($st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+            }
+        } catch (Throwable $e) {
+            error_log('[community] chatList: ' . $e->getMessage());
+            return [];
+        }
+        return array_map(fn($r) => self::shapeChat($r, $viewerId), $rows);
+    }
+
+    private const CHAT_SELECT =
+        'SELECT c.id, c.body, c.author_id, c.created_at, u.name AS author, u.email AS author_email
+         FROM community_chat c JOIN lms_users u ON u.id = c.author_id';
+
+    private static function chatOne(int $id, int $viewerId): ?array
+    {
+        try {
+            $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.id = ?');
+            $st->execute([$id]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            return $r ? self::shapeChat($r, $viewerId) : null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /** Normalise a chat row → view model, resolving @mentions to chips. */
+    private static function shapeChat(array $r, int $viewerId): array
+    {
+        $name  = (string) $r['author'];
+        $email = (string) $r['author_email'];
+        $org   = class_exists('LmsAuth') && LmsAuth::isOrgEmail($email);
+        $body  = (string) $r['body'];
+        return [
+            'id'         => (int) $r['id'],
+            'author_id'  => (int) $r['author_id'],
+            'author'     => $name,
+            'initial'    => mb_strtoupper(mb_substr($name, 0, 1)),
+            'body'       => $body,
+            'mentions'   => self::resolveMentions($body, 0),
+            'verified'   => $org,
+            'is_me'      => (int) $r['author_id'] === $viewerId,
+            'created_at' => (string) $r['created_at'],
+            'ago'        => self::ago((string) $r['created_at']),
+        ];
+    }
+
+    /**
+     * Parse @mentions out of a body and resolve them to ORG members. Matches
+     * `@email@domain` (an org email) or `@handle` / `@first.last` tokens against
+     * org member names/handles. Returns a de-duplicated list of resolved
+     * members: [['id','name','handle','token']]. ORG members only — a token
+     * that resolves to an external account or a stranger is dropped (never a
+     * cross-segment leak). $excludeId drops self-mentions from notifications.
+     */
+    public static function resolveMentions(string $body, int $excludeId = 0): array
+    {
+        if (strpos($body, '@') === false) return [];
+        // Token charset: letters, digits, dot, underscore, hyphen, and @ (for emails).
+        if (!preg_match_all('/@([A-Za-z0-9._@\-]+)/u', $body, $m)) return [];
+        $tokens = array_values(array_unique($m[1]));
+        if (!$tokens) return [];
+        $like = self::orgEmailLike();
+        $out = [];
+        $seen = [];
+        foreach ($tokens as $tok) {
+            $tok = rtrim($tok, '.-_'); // trailing punctuation isn't part of the handle
+            if ($tok === '') continue;
+            try {
+                $member = null;
+                if (strpos($tok, '@') !== false && filter_var($tok, FILTER_VALIDATE_EMAIL)) {
+                    // @someone@afrovanguard.org.ng — exact org email.
+                    if (class_exists('LmsAuth') && LmsAuth::isOrgEmail($tok)) {
+                        $s = Database::pdo()->prepare("SELECT id, name, email FROM lms_users WHERE LOWER(email) = LOWER(?) AND email <> ? AND status='active'");
+                        $s->execute([$tok, self::BOT_EMAIL]);
+                        $member = $s->fetch(PDO::FETCH_ASSOC) ?: null;
+                    }
+                } else {
+                    // @handle — match a derived handle (first.last) or a name prefix,
+                    // but ONLY among org members (the LIKE on email enforces it).
+                    $needle = str_replace(['.', '_', '-'], ' ', $tok);
+                    $s = Database::pdo()->prepare(
+                        "SELECT id, name, email FROM lms_users
+                         WHERE status='active' AND LOWER(email) LIKE ? AND email <> ?
+                           AND (REPLACE(REPLACE(LOWER(name),' ','.'),'''','') = LOWER(?) OR LOWER(name) = LOWER(?))
+                         ORDER BY name ASC LIMIT 1");
+                    $s->execute([$like, self::BOT_EMAIL, $tok, $needle]);
+                    $member = $s->fetch(PDO::FETCH_ASSOC) ?: null;
+                }
+            } catch (Throwable $e) { $member = null; }
+            if (!$member) continue;
+            $id = (int) $member['id'];
+            if (isset($seen[$id])) continue;
+            $seen[$id] = true;
+            $out[] = [
+                'id'     => $id,
+                'name'   => (string) $member['name'],
+                'handle' => self::handleFor((string) $member['name']),
+                'token'  => $tok,
+            ];
+        }
+        return $out;
+    }
+
+    /** Email each mentioned member (best-effort, reusing Mailer like Mentorship). */
+    private static function notifyMentions(array $mentions, int $authorId, string $body, int $msgId): void
+    {
+        if (!class_exists('Mailer')) return;
+        try {
+            $a = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $a->execute([$authorId]);
+            $authorName = (string) ($a->fetchColumn() ?: 'A member');
+        } catch (Throwable $e) { $authorName = 'A member'; }
+        $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
+        $url  = $site . '/community/#chat';
+        $excerpt = mb_substr(trim($body), 0, 240);
+        foreach ($mentions as $mn) {
+            if ((int) $mn['id'] === $authorId) continue; // no self-notify
+            try {
+                $s = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+                $s->execute([(int) $mn['id']]);
+                $u = $s->fetch(PDO::FETCH_ASSOC);
+                if (!$u || empty($u['email'])) continue;
+                if (class_exists('Mailer') && method_exists('Mailer', 'shell')) {
+                    $html = Mailer::shell(
+                        'You were mentioned in the Community',
+                        [
+                            'Hi ' . htmlspecialchars((string) $u['name'], ENT_QUOTES) . ',',
+                            htmlspecialchars($authorName, ENT_QUOTES) . ' mentioned you in the Afrovanguard community chat:',
+                            '“' . htmlspecialchars($excerpt, ENT_QUOTES) . '”',
+                        ],
+                        ['url' => $url, 'text' => 'Open the chat'],
+                        $authorName . ' mentioned you in the Community chat.'
+                    );
+                    Mailer::send((string) $u['email'], 'You were mentioned — Afrovanguard Community', $html);
+                }
+            } catch (Throwable $e) { error_log('[community] mention mail: ' . $e->getMessage()); }
+        }
     }
 
     /* ── side panels ── */
