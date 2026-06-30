@@ -61,6 +61,7 @@
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
         <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
         <button class="tab" data-tab="database"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Database</span></button>
+        <button class="tab" data-tab="design"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.7-1.5H17a5 5 0 0 0 5-5c0-5-4.5-9-10-9z"/></svg><span>Design</span></button>
         <button class="tab" data-tab="admins"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 11l-2.5 2.5L18 12"/></svg><span>Team &amp; roles</span></button>
       </div>
       <div class="nav-group">
@@ -779,6 +780,30 @@
         <pre class="db-env" id="dbEnv"></pre>
       </div>
       <details style="margin-top:10px"><summary class="muted">Migration log</summary><pre class="db-log" id="dbLog"></pre></details>
+    </div>
+  </main>
+
+  <!-- DESIGN STUDIO (superadmin · site brand / accent) -->
+  <main class="studio-main" id="designView" hidden>
+    <div class="studio-head">
+      <div><h1>Design studio</h1><p class="muted">Set the site’s brand accent. It applies across the member portal, Diary, Academy, Community and this Studio — instantly, and reversible anytime.</p></div>
+      <button class="btn btn-outline btn-sm" id="brandReset">Reset to default</button>
+    </div>
+    <div class="db-grid">
+      <div class="side-card">
+        <h3>Brand colours</h3>
+        <label class="fld"><span>Accent</span><input id="br_accent" type="color" value="#f3b416" /></label>
+        <label class="fld"><span>Accent — deep (hover &amp; links)</span><input id="br_deep" type="color" value="#b07e08" /></label>
+        <div class="editor-actions" style="margin-top:10px">
+          <button class="btn btn-primary" id="brandSave">Save &amp; apply</button>
+        </div>
+        <p class="db-msg" id="brandMsg" role="status" aria-live="polite"></p>
+        <p class="muted tiny">Keep the deep shade a little darker than the accent for readable hovers and links. Default: gold #f3b416 / #b07e08.</p>
+      </div>
+      <div class="side-card">
+        <h3>Live preview</h3>
+        <div class="brand-pv" id="brandPreview"></div>
+      </div>
     </div>
   </main>
 
