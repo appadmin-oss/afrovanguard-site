@@ -38,17 +38,18 @@ try {
             try { (new LmsRepository())->audit('admin_login_failed', '', 'bad token'); } catch (Throwable $e) {}
             json_out(['ok' => false, 'error' => 'Invalid token.'], 401);
         }
-        av_admin_cookie_issue();
+        av_admin_cookie_issue();   // token sign-in → superadmin
         try { (new LmsRepository())->audit('admin_login', '', 'token sign-in'); } catch (Throwable $e) {}
-        json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured()]);
+        json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured(), 'role' => 'superadmin']);
     }
     if ($action === 'logout') {
         if (av_admin_cookie_valid()) { try { (new LmsRepository())->audit('admin_logout'); } catch (Throwable $e) {} }
         av_admin_cookie_clear(); json_out(['ok' => true]);
     }
     if ($action === 'session') {
-        $authed = av_admin_cookie_valid() || av_admin_bearer_ok();
-        json_out(['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured()]);
+        $role = av_admin_role();           // '' | editor | admin | superadmin (bridges member-admins)
+        $authed = $role !== '';
+        json_out(['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured(), 'role' => $role]);
     }
 
     // ---- Everything else requires admin ----
@@ -56,8 +57,30 @@ try {
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
-        'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo'], true);
+        'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
+        'admin_add', 'admin_remove'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
+
+    /* ── Structured admin levels (editor < admin < superadmin) ──
+       superadmin: everything. admin: management + content + undo, but not roles,
+       destructive purge or the security policy. editor: content only. */
+    $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
+    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'auth_policy_save', 'auth_policy_get'];
+    $managementOnly = [ // not available to editors
+        'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
+        'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
+        'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
+        'activity', 'activity_undo',
+        'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
+        'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
+        'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
+    ];
+    if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
+        json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
+    }
+    if ($role === 'editor' && in_array($action, $managementOnly, true)) {
+        json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
+    }
 
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
@@ -331,6 +354,22 @@ try {
         case 'activity_undo':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             json_out(AdminAudit::undo((int) ($body['id'] ?? 0)));
+
+        /* ════ Admin team & roles (Super Admin only — gated above) ════ */
+        case 'admins_list':
+            json_out(['ok' => true, 'admins' => AdminRoles::list(), 'me' => $role, 'roles' => array_keys(AdminRoles::RANK)]);
+        case 'admin_add': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = AdminRoles::add((string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'editor'), 'token');
+            if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_added', (string) ($body['email'] ?? ''), 'Granted ' . ($body['role'] ?? '') . ' access');
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+        case 'admin_remove': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $res = AdminRoles::remove((string) ($body['email'] ?? ''));
+            if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_removed', (string) ($body['email'] ?? ''), 'Revoked admin access');
+            json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
 
         // ---- Sign-in security policy (superadmin) ----
         case 'auth_policy_get':

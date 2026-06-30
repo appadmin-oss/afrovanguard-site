@@ -7,6 +7,22 @@
   'use strict';
   var API = '/admin/api.php';
   var csrf = '';            // CSRF token kept in memory only
+  var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
+  var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
+  var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
+    inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
+    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin' };
+  function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
+  function applyRoleVisibility() {
+    document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
+      var tab = t.getAttribute('data-tab'); t.hidden = !roleAllows(tab);
+    });
+    // hide now-empty sidebar groups
+    document.querySelectorAll('.nav-group').forEach(function (g) {
+      var any = Array.prototype.some.call(g.querySelectorAll('.tab'), function (t) { return !t.hidden; });
+      var h = g.querySelector('.nav-group-h'); if (h) h.style.display = any ? '' : 'none';
+    });
+  }
   var cloudinary = false;
   var coverUrl = '', cCoverUrl = '';
 
@@ -16,7 +32,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -63,6 +79,7 @@
     else if (which === 'guide') { show('guide'); }
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
+    else if (which === 'admins') { show('admins'); loadAdmins(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -84,7 +101,7 @@
     var label = btn.textContent; btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = 'Signing in…';
     var reset = function () { btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = label; };
     post('login', { token: $('#tokenInput').value.trim() }).then(function (r) {
-      if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); }
+      if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; currentRole = r.data.role || 'superadmin'; boot(); }
       else { msg.textContent = (r.data && r.data.error) || 'That token was not accepted.'; msg.classList.add('is-error'); reset(); var i = $('#tokenInput'); i.focus(); i.select(); }
     }).catch(function () { msg.textContent = 'Network error — please try again.'; msg.classList.add('is-error'); reset(); });
   });
@@ -1120,6 +1137,39 @@
     });
   })();
 
+  /* ---- Team & roles (superadmin) ---- */
+  function loadAdmins() {
+    var box = $('#adList'); if (box) box.innerHTML = '<p class="muted">Loading…</p>';
+    api('admins_list').then(function (r) {
+      var rows = (r.data && r.data.admins) || []; if (!box) return;
+      box.innerHTML = rows.length ? rows.map(function (a) {
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge published" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span></div>'
+          + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
+          + '<div class="mt-acts"><button class="btn btn-outline btn-sm" data-admin-remove="' + escapeHtml(a.email) + '">Revoke</button></div></div>';
+      }).join('') : '<p class="muted">Only the break-glass token (Super Admin) has access right now. Grant a member access above.</p>';
+    });
+  }
+  (function wireAdmins() {
+    var view = $('#adminsView'); if (!view) return;
+    $('#adAdd').addEventListener('click', function () {
+      var email = $('#adEmail').value.trim(), role = $('#adRole').value, msg = $('#adMsg'), btn = this;
+      if (!email) { msg.textContent = 'Enter an email.'; msg.style.color = '#d22'; return; }
+      btn.disabled = true;
+      post('admin_add', { email: email, role: role }).then(function (r) {
+        var d = r.data || {}; msg.style.color = d.ok ? '#2ea043' : '#d22';
+        msg.textContent = d.ok ? ('Granted ' + role + ' access to ' + email + '.') : (d.error || 'Could not grant access.');
+        if (d.ok) { $('#adEmail').value = ''; loadAdmins(); }
+      }).finally(function () { btn.disabled = false; });
+    });
+    $('#adList').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-admin-remove]'); if (!b) return;
+      var em = b.getAttribute('data-admin-remove');
+      if (!confirm('Revoke Studio access for ' + em + '?')) return;
+      b.disabled = true;
+      post('admin_remove', { email: em }).then(function (r) { if (r.data && r.data.ok) { toast('Access revoked.'); loadAdmins(); } else { toast((r.data && r.data.error) || 'Could not revoke.'); b.disabled = false; } });
+    });
+  })();
+
   /* ---- System / Health ---- */
   function loadSystem() {
     var box = $('#sysHealth'); box.innerHTML = '<p class="muted">Checking…</p>';
@@ -1380,11 +1430,12 @@
   }
 
   function boot() {
+    applyRoleVisibility();
     var saved = 'overview';
     try { saved = localStorage.getItem('av.studio.tab') || 'overview'; } catch (e) {}
-    if (!document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
+    if (!document.querySelector('.tab[data-tab="' + saved + '"]') || !roleAllows(saved)) saved = 'overview';
     activateTab(saved);
     refreshModBadge();
   }
-  api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; boot(); } else show('login'); }).catch(function () { show('login'); });
+  api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; currentRole = r.data.role || 'superadmin'; boot(); } else show('login'); }).catch(function () { show('login'); });
 })();

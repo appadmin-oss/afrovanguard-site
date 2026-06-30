@@ -60,6 +60,7 @@
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
         <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
+        <button class="tab" data-tab="admins"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 11l-2.5 2.5L18 12"/></svg><span>Team &amp; roles</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">Help</p>
@@ -673,6 +674,24 @@
     <div class="mt-panel" id="mtApprovals" hidden></div>
     <div class="mt-panel" id="mtCohorts" hidden></div>
     <div class="mt-panel" id="mtInactive" hidden></div>
+  </main>
+
+  <!-- TEAM & ROLES (superadmin) -->
+  <main class="studio-main" id="adminsView" hidden>
+    <div class="studio-head">
+      <div><h1>Team &amp; roles</h1><p class="muted">Who can sign in to the Studio, and at what level. <b>Editor</b> = content only · <b>Admin</b> = management + undo · <b>Super&nbsp;Admin</b> = everything.</p></div>
+    </div>
+    <div class="side-card" style="max-width:640px;margin-bottom:22px">
+      <h3>Grant Studio access</h3>
+      <p class="muted" style="margin-top:-4px">The person must have signed in as a member once. The break-glass admin token is always Super Admin.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <label class="fld" style="flex:1;min-width:220px;margin:0"><span>Member email</span><input id="adEmail" type="email" placeholder="name@example.com" /></label>
+        <label class="fld" style="margin:0"><span>Role</span><select id="adRole"><option value="editor">Editor</option><option value="admin">Admin</option><option value="superadmin">Super Admin</option></select></label>
+        <button class="btn btn-primary btn-sm" id="adAdd" type="button">Grant access</button>
+      </div>
+      <p class="muted tiny" id="adMsg" style="margin-top:10px"></p>
+    </div>
+    <div class="mt-panel" id="adList"></div>
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
