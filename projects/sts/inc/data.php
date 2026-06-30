@@ -179,6 +179,45 @@ function sts_posts(int $limit = 0): array {
     return $limit > 0 ? array_slice($posts, 0, $limit) : $posts;
 }
 
+/**
+ * Next open intake for a programme. Live from the program_sessions table
+ * when the DB is connected ("12 Jul 2026 · Alimosho · 6 seats left"),
+ * otherwise the curated per-programme fallback below.
+ */
+function sts_next_session(string $slug): string {
+    $fallback = [
+        'next-gen'      => 'August 2026 · enrolment opens 4 July',
+        'summer-school' => 'July 2026 · applications open in May',
+        'lcasp'         => 'Continuous · partner schools onboard new cohorts every term',
+        'street-storm'  => 'October 2026 · referrals open in September',
+    ];
+    $cfg = __DIR__ . '/../api/config.php';
+    $dbf = __DIR__ . '/../api/db.php';
+    if (is_file($cfg) && is_file($dbf)) {
+        try {
+            require_once $cfg;
+            if (function_exists('env') && (string) env('DB_NAME', '') !== '') {
+                require_once $dbf;
+                $st = db()->prepare(
+                    "SELECT session_date, location, capacity, volunteers_registered
+                       FROM program_sessions
+                      WHERE program_slug = ? AND status = 'open' AND session_date >= NOW()
+                      ORDER BY session_date ASC LIMIT 1"
+                );
+                $st->execute([$slug]);
+                if ($r = $st->fetch()) {
+                    $when  = date('j M Y', strtotime($r['session_date']));
+                    $left  = max(0, (int) $r['capacity'] - (int) $r['volunteers_registered']);
+                    $where = $r['location'] ? ' · ' . $r['location'] : '';
+                    $seats = $left > 0 ? " · {$left} of {$r['capacity']} seats left" : ' · waitlist only';
+                    return $when . $where . $seats;
+                }
+            }
+        } catch (\Throwable $e) { /* fall through to curated */ }
+    }
+    return $fallback[$slug] ?? 'Dates announced each term';
+}
+
 function sts_term_label(): string {
     $now = time();
     $y   = (int) date('Y');
