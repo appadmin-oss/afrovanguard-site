@@ -210,3 +210,60 @@
 .cm-ask-btn:hover { background: var(--gold-soft); color: var(--ink); }
 .cm-ask-btn[disabled] { opacity: .55; cursor: default; }
 [data-theme="dark"] .cm-ask-btn { color: var(--gold); }
+
+/* ============================================================
+   ORG-ONLY · member directory ("see each other") + live chat
+   (@mention). Only rendered for Afrovanguard members; external
+   members get the forum and never see these cards.
+   ============================================================ */
+/* — directory — */
+.cm-directory .cm-rail-h span { color: var(--gold-deep); }
+[data-theme="dark"] .cm-directory .cm-rail-h span { color: var(--gold); }
+.cm-dir-list { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+.cm-dir-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-md); }
+.cm-dir-row:hover { background: var(--surface-2); }
+.cm-dir-row[data-me] { background: var(--gold-soft); }
+.cm-dir-av { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: #fff; background: var(--gold-deep); user-select: none; }
+.cm-dir-txt { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.cm-dir-name { font-size: 13.5px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-dir-name em { font-style: normal; font-weight: 600; color: var(--muted); }
+.cm-dir-role { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* — chat — */
+.cm-chat { display: flex; flex-direction: column; padding-bottom: 16px; }
+.cm-chat-hint { font-weight: 700; color: var(--gold-deep); text-transform: none; letter-spacing: 0; font-size: 10.5px; margin-left: 6px; }
+[data-theme="dark"] .cm-chat-hint { color: var(--gold); }
+.cm-chat-log { display: flex; flex-direction: column; gap: 13px; height: 300px; overflow-y: auto; margin: 0 -4px 12px; padding: 2px 4px; }
+.cm-chat-empty { color: var(--muted); font-size: 13px; line-height: 1.5; text-align: center; margin: auto 8px; }
+.cm-chat-row { display: flex; gap: 9px; align-items: flex-start; }
+.cm-chat-av { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: #fff; background: var(--gold-deep); user-select: none; }
+.cm-chat-row.is-me .cm-chat-av { background: var(--ink); }
+.cm-chat-bd { min-width: 0; flex: 1; }
+.cm-chat-l1 { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.cm-chat-who { font-size: 13px; font-weight: 800; color: var(--ink); }
+.cm-chat-text { font-size: 13.5px; line-height: 1.5; color: var(--body); word-wrap: break-word; overflow-wrap: anywhere; margin-top: 1px; }
+.cm-mention { font-weight: 700; color: var(--gold-deep); background: var(--gold-soft); border-radius: 5px; padding: 0 4px; }
+[data-theme="dark"] .cm-mention { color: var(--gold); }
+.cm-mention--you { background: var(--gold); color: #111827; }
+
+/* — chat composer — */
+.cm-chat-form { display: flex; align-items: flex-end; gap: 8px; }
+.cm-chat-inwrap { position: relative; flex: 1; }
+.cm-chat-form textarea { width: 100%; resize: none; border: 1px solid var(--divider); border-radius: var(--radius-md); background: var(--surface-2); color: var(--ink); font-family: var(--font-body); font-size: 13.5px; line-height: 1.4; padding: 9px 11px; max-height: 140px; }
+.cm-chat-form textarea:focus { outline: none; border-color: var(--gold); background: var(--surface); }
+.cm-chat-send { flex-shrink: 0; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: var(--radius-md); background: var(--gold); color: #111827; cursor: pointer; transition: filter var(--t-fast); }
+.cm-chat-send:hover { filter: brightness(1.05); }
+.cm-chat-send[disabled] { opacity: .55; cursor: default; }
+.cm-chat-msg { font-size: 12.5px; margin: 7px 0 0; color: var(--muted); }
+.cm-chat-msg.is-err { color: #c0392b; }
+
+/* — @mention autocomplete popover (anchored above the textarea) — */
+.cm-mention-pop { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 30; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); box-shadow: 0 10px 30px rgba(17,24,39,0.16); padding: 5px; max-height: 220px; overflow-y: auto; }
+.cm-mention-opt { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: none; border: none; border-radius: var(--radius-sm, 8px); padding: 7px 8px; cursor: pointer; }
+.cm-mention-opt:hover, .cm-mention-opt.is-active { background: var(--gold-soft); }
+.cm-mention-av { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 12px; font-weight: 700; color: #fff; background: var(--gold-deep); }
+.cm-mention-nm { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.cm-mention-nm em { font-style: normal; font-weight: 600; color: var(--muted); }
+.cm-mention-nm small { font-weight: 600; font-size: 11px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { .cm-chat-send { transition: none; } }

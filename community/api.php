@@ -132,6 +132,37 @@ try {
                 'note'     => $ai['ok'] ? null : (AvBot::configured() ? 'The bot couldn’t answer just now.' : 'The AI bot isn’t enabled yet — a teammate will follow up.'),
             ]);
         }
+        /* ── Org-only: member directory + live chat + @mentions ── */
+        case 'directory': {
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
+            json_out(['ok' => true, 'members' => Community::directory((int) $u['id'])]);
+        }
+        case 'mention_search': {
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
+            json_out(['ok' => true, 'matches' => Community::mentionSearch((string) ($_GET['q'] ?? ''), (int) $u['id'])]);
+        }
+        case 'chat_list': {
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
+            json_out(['ok' => true, 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0))]);
+        }
+        case 'chat_send': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in to chat.'], 401);
+            if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'The members chat is for Afrovanguard members.'], 403);
+            if (!av_rate_ok('community_chat', 60, 300)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
+            $msg = Community::chatSend((int) $u['id'], (string) ($body['body'] ?? ''));
+            if (!$msg) json_out(['ok' => false, 'error' => 'Write a message first.'], 422);
+            json_out(['ok' => true, 'message' => $msg]);
+        }
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

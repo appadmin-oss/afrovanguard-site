@@ -22,6 +22,10 @@ if (!$u) {
     exit;
 }
 $viewerId = (int) $u['id'];
+// Org members get the full community (directory + chat + @mentions); external
+// members get the forum (the spaces/posts feed) only.
+$isOrgMember = Community::isOrgMember($viewerId);
+$orgDirectory = $isOrgMember ? Community::directory($viewerId, 60) : [];
 $spaces   = Community::spaces();
 $counts   = Community::spaceCounts();
 $pulse    = Community::pulse();
@@ -68,14 +72,16 @@ render_head([
 ]);
 render_nav('community');
 ?>
-<main id="main-content" class="cm" data-sort="<?= e($sort) ?>" data-space="<?= e($activeSp) ?>" data-signed-in="<?= $u ? '1' : '0' ?>">
+<main id="main-content" class="cm" data-sort="<?= e($sort) ?>" data-space="<?= e($activeSp) ?>" data-signed-in="<?= $u ? '1' : '0' ?>" data-org="<?= $isOrgMember ? '1' : '0' ?>" data-uid="<?= $viewerId ?>">
   <div class="cm-wrap">
     <!-- HERO -->
     <header class="cm-hero">
       <div class="cm-hero-txt">
-        <span class="cm-online"><span class="cm-online-dot"></span><?= (int) $pulse['members'] ?> members · community</span>
-        <h1>The Community</h1>
-        <p>Where the people behind Afrovanguard talk, debate ideas, and lift each other up. Verified members, real conversations, fully moderated.</p>
+        <span class="cm-online"><span class="cm-online-dot"></span><?= (int) $pulse['members'] ?> members · <?= $isOrgMember ? 'community' : 'forum' ?></span>
+        <h1><?= $isOrgMember ? 'The Community' : 'Community Forum' ?></h1>
+        <p><?= $isOrgMember
+              ? 'Where the people behind Afrovanguard talk, debate ideas, and lift each other up. Verified members, real conversations, fully moderated.'
+              : 'Share field notes, ask questions and learn alongside the wider Afrovanguard community. Real conversations, fully moderated.' ?></p>
       </div>
       <div class="cm-hero-stats">
         <div><b><?= number_format((int) $pulse['members']) ?></b><span>Members</span></div>
@@ -157,12 +163,46 @@ render_nav('community');
             <div><b><?= number_format((int) $pulse['members']) ?></b><span>Members</span></div>
           </div>
         </div>
-        <div class="cm-card cm-event">
-          <span class="cm-event-tag">Live event</span>
-          <h3>Town Hall: Meet the team</h3>
-          <p>Members-only audio. Watch Announcements for the next date.</p>
-          <a class="cm-event-cta" href="/community/?space=events">See events →</a>
+<?php if ($isOrgMember): ?>
+        <!-- ORG-ONLY · who's here -->
+        <div class="cm-card cm-directory">
+          <p class="cm-rail-h">Members · <span id="cmDirCount"><?= count($orgDirectory) ?></span></p>
+          <div class="cm-dir-list" id="cmDirectory">
+<?php foreach ($orgDirectory as $m): ?>
+            <div class="cm-dir-row"<?= $m['is_me'] ? ' data-me="1"' : '' ?>>
+              <span class="cm-dir-av"><?= e($m['initial']) ?></span>
+              <span class="cm-dir-txt">
+                <span class="cm-dir-name"><?= e($m['name']) ?><?= $m['is_me'] ? ' <em>(you)</em>' : '' ?></span>
+<?php if ($m['headline'] !== ''): ?>                <span class="cm-dir-role"><?= e($m['headline']) ?></span>
+<?php endif; ?>              </span>
+            </div>
+<?php endforeach; ?>
+          </div>
         </div>
+        <!-- ORG-ONLY · live members chat (@mention to tag) -->
+        <div class="cm-card cm-chat" id="cmChat">
+          <p class="cm-rail-h">Members chat <span class="cm-chat-hint">@ to mention</span></p>
+          <div class="cm-chat-log" id="cmChatLog" aria-live="polite" aria-label="Members chat messages">
+            <div class="cm-chat-empty">Say hello — this channel is just for Afrovanguard members.</div>
+          </div>
+          <form class="cm-chat-form" id="cmChatForm" autocomplete="off">
+            <div class="cm-chat-inwrap">
+              <textarea id="cmChatInput" rows="1" maxlength="2000" placeholder="Message members… use @ to mention" aria-label="Write a message"></textarea>
+              <div class="cm-mention-pop" id="cmMentionPop" role="listbox" hidden></div>
+            </div>
+            <button type="submit" class="cm-chat-send" aria-label="Send message">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>
+            </button>
+          </form>
+          <p class="cm-chat-msg" role="status" aria-live="polite"></p>
+        </div>
+<?php else: ?>
+        <div class="cm-card cm-event">
+          <span class="cm-event-tag">Members</span>
+          <h3>Behind the movement</h3>
+          <p>Afrovanguard members get a private directory and live chat. Reading and the forum are open to everyone here.</p>
+        </div>
+<?php endif; ?>
       </aside>
     </div>
   </div>
