@@ -215,3 +215,16 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
   body.portal-page * { transition: none !important; }
   .learn-row:hover, .ws-tile:hover, .ws-comm:hover, .portal-page .btn-primary:hover { transform: none; }
 }
+
+/* ── "Coming up" countdowns ──────────────────────────────────────────── */
+.portal-coming { margin: 0 0 24px; }
+.portal-coming[hidden] { display: none; }
+.pc-coming-h { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-size: 22px; margin: 0 0 12px; color: var(--ink, #111827); }
+.pc-coming-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.cd-card { background: var(--surface, #fff); border: 1px solid var(--divider, #E5E7EB); border-left: 3px solid var(--gold, #f3b416); border-radius: var(--radius-md, 14px); padding: 16px 18px; }
+.cd-card[hidden] { display: none; }
+.cd-kicker { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-deep, #b07e08); }
+.cd-title { display: block; font-weight: 700; font-size: 15px; color: var(--ink, #111827); margin: 6px 0 10px; line-height: 1.35; }
+.cd-timer { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-size: 30px; font-weight: 600; color: var(--ink, #111827); font-variant-numeric: tabular-nums; line-height: 1; }
+.cd-link { display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--gold-deep, #b07e08); text-decoration: none; }
+.cd-link:hover { text-decoration: underline; }

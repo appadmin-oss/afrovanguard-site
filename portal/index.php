@@ -82,6 +82,41 @@ render_head([
         <a class="btn btn-outline btn-sm" href="#" data-logout>Sign out</a>
       </header>
 
+<?php
+      // "Coming up" — live countdowns to the next major event (from the AFG
+      // events feed, client-side) and the member's next mentorship session.
+      $cdSession = null;
+      try {
+          $pairs = array_merge(Mentorship::myMentors((int) $u['id']), Mentorship::myMentees((int) $u['id']));
+          $nowTs = time();
+          foreach ($pairs as $pp) foreach (($pp['sessions'] ?? []) as $s) {
+              $ts = !empty($s['when']) ? (int) strtotime((string) $s['when']) : 0;
+              if ($ts && $ts >= $nowTs && (!$cdSession || $ts < $cdSession['ts'])) {
+                  $cdSession = ['ts' => $ts, 'iso' => gmdate('c', $ts), 'title' => ($s['title'] ?: 'Mentorship session'), 'with' => (string) ($pp['name'] ?? '')];
+              }
+          }
+      } catch (Throwable $e) { $cdSession = null; }
+?>
+      <section class="portal-coming" id="portalComing" hidden aria-label="Coming up">
+        <h2 class="pc-coming-h">Coming up</h2>
+        <div class="pc-coming-grid">
+          <div class="cd-card" id="cdEvent" hidden data-iso="">
+            <span class="cd-kicker">Next event</span>
+            <span class="cd-title"></span>
+            <div class="cd-timer"></div>
+            <a class="cd-link" href="<?= e(defined('AV_EVENTS_URL') ? AV_EVENTS_URL : 'https://afg.afrovanguard.org.ng/events') ?>" target="_blank" rel="noopener">All events →</a>
+          </div>
+<?php if ($cdSession): ?>
+          <div class="cd-card" id="cdSession" data-iso="<?= e($cdSession['iso']) ?>">
+            <span class="cd-kicker">Your next session</span>
+            <span class="cd-title"><?= e($cdSession['title']) . ($cdSession['with'] !== '' ? ' · with ' . e($cdSession['with']) : '') ?></span>
+            <div class="cd-timer"></div>
+            <a class="cd-link" href="/mentorship/">Open mentorship →</a>
+          </div>
+<?php endif; ?>
+        </div>
+      </section>
+
       <div class="portal-grid">
 <?php if ($isOrg):
         require_once AV_ROOT . '/lib/workspace.php';
@@ -266,6 +301,38 @@ render_head([
       document.body.appendChild(b);
     });
     window.addEventListener('appinstalled', function () { var b = document.getElementById('pwaInstall'); if (b) b.remove(); });
+  })();
+  </script>
+  <script>
+  /* "Coming up" live countdowns — next AFG event + next mentorship session. */
+  (function () {
+    var wrap = document.getElementById('portalComing'); if (!wrap) return;
+    var cards = [];
+    function fmt(ms) {
+      if (ms <= 0) return 'Starting now';
+      var s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+      var p = function (n) { return (n < 10 ? '0' : '') + n; };
+      return (d ? d + 'd ' : '') + p(h) + 'h ' + p(m) + 'm ' + p(x) + 's';
+    }
+    function reg(card) {
+      if (!card) return; var iso = card.getAttribute('data-iso'); if (!iso) return;
+      var t = Date.parse(iso); if (isNaN(t)) return;
+      cards.push({ t: t, el: card.querySelector('.cd-timer'), card: card }); card.hidden = false;
+    }
+    function tick() {
+      var now = Date.now(), anyVisible = false;
+      cards.forEach(function (c) { var ms = c.t - now; if (c.el) c.el.textContent = fmt(ms); if (ms < -3600000) c.card.hidden = true; if (!c.card.hidden) anyVisible = true; });
+      if (anyVisible) wrap.hidden = false;
+    }
+    reg(document.getElementById('cdSession'));
+    fetch('/events-feed.php', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var ev = ((d && d.events) || []).filter(function (e) { return e.iso && Date.parse(e.iso) > Date.now(); })
+          .sort(function (a, b) { return Date.parse(a.iso) - Date.parse(b.iso); })[0];
+        if (ev) { var c = document.getElementById('cdEvent'); c.setAttribute('data-iso', ev.iso); var ti = c.querySelector('.cd-title'); if (ti) ti.textContent = ev.title || 'Upcoming event'; reg(c); tick(); }
+      }).catch(function () {});
+    tick(); setInterval(tick, 1000);
   })();
   </script>
   <script src="/assets/site/nav.js" defer></script>
