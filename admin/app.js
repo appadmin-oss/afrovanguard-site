@@ -616,6 +616,7 @@
     cDoodle = u || ''; $('#c_doodle').value = cDoodle;
     $('#cDoodlePreview').innerHTML = cDoodle ? '<img src="' + escapeHtml(cDoodle) + '" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;background:#0b0f1a" />' : '<span>No art — uses emoji + colour</span>';
     $('#cDoodleClear').hidden = !cDoodle;
+    if (typeof renderCelPreview === 'function') renderCelPreview();
   }
   function loadCelebrations() {
     var box = $('#celList'), bi = $('#celBuiltins');
@@ -645,18 +646,37 @@
     uploadFile(f).then(function (r) { if (r.data && r.data.ok) { setCDoodle(r.data.url); toast('Art uploaded.'); } else toast((r.data && r.data.error) || 'Upload failed.'); });
   });
   var editingCel = null;
+  function renderCelPreview() {
+    var box = $('#celPreview'); if (!box) return;
+    var name = $('#c_name').value.trim() || 'Celebrating today';
+    var msg = $('#c_message').value.trim();
+    var emoji = $('#c_emoji').value.trim() || '🎉';
+    var theme = /^#[0-9a-f]{6}$/i.test($('#c_theme').value) ? $('#c_theme').value : '#f3b416';
+    var off = !$('#c_enabled').checked;
+    var media = cDoodle
+      ? '<img class="cel-pv-doodle" src="' + escapeHtml(cDoodle) + '" alt="" />'
+      : '<span class="cel-pv-emoji">' + escapeHtml(emoji) + '</span>';
+    box.innerHTML = '<div class="cel-pv-bar" style="--cc:' + escapeHtml(theme) + '">' + media
+      + '<span class="cel-pv-txt"><strong>' + escapeHtml(name) + '</strong>'
+      + (msg ? '<span>' + escapeHtml(msg) + '</span>' : '') + '</span></div>'
+      + (off ? '<p class="cel-pv-off">Disabled — won’t show to members.</p>' : '');
+  }
   function openCel(id) {
     editingCel = id; $('#celForm').reset(); setCDoodle(''); $('#c_theme').value = '#f3b416';
     $('#celDeleteBtn').hidden = !id; show('celEdit');
-    if (!id) return;
+    if (!id) { renderCelPreview(); return; }
     api('cel_list').then(function (r) {
       var c = (r.data.celebrations || []).filter(function (x) { return +x.id === id; })[0]; if (!c) return;
       $('#c_name').value = c.name || ''; $('#c_message').value = c.message || ''; $('#c_key').value = c.key || '';
       $('#c_md').value = c.md || ''; $('#c_scope').value = c.scope || 'internal'; $('#c_emoji').value = c.emoji || '';
       $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(c.theme) ? c.theme : '#f3b416';
       $('#c_enabled').checked = parseInt(c.enabled, 10) !== 0; setCDoodle(c.doodle_url || '');
+      renderCelPreview();
     });
   }
+  // Live preview follows every edit (name, message, emoji, theme, enabled).
+  $('#celForm').addEventListener('input', renderCelPreview);
+  $('#celForm').addEventListener('change', renderCelPreview);
   $('#celSaveBtn').addEventListener('click', function () {
     var name = $('#c_name').value.trim();
     if (!name || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
