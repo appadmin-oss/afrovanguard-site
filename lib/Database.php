@@ -12,6 +12,13 @@ final class Database
 {
     private static ?PDO $pdo = null;
 
+    /** When a configured MySQL/Postgres can't be reached we fall back to SQLite
+     *  so the site stays up; this records which driver was requested so the
+     *  admin (System Health) can SEE the fallback instead of silently running
+     *  on the wrong database. null = no fallback (running on the chosen driver). */
+    private static ?string $fellBackFrom = null;
+    public static function fellBack(): ?string { return self::$fellBackFrom; }
+
     /** Bump to force a schema re-sync even when db/schema.sql is byte-identical
      *  (e.g. after changing one of the ensure/grandfathering steps). Normally you
      *  don't touch this — editing db/schema.sql changes its hash and re-syncs. */
@@ -67,8 +74,9 @@ final class Database
                 $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
             } catch (Throwable $e) {
                 // Configured MySQL/Postgres unreachable → fall back to SQLite so the
-                // site stays up (logged), instead of a hard 500.
+                // site stays up (logged + surfaced in System Health), not a hard 500.
                 error_log('[db] ' . $driver . ' connection failed (' . $e->getMessage() . ') — falling back to SQLite');
+                self::$fellBackFrom = $driver;
                 $driver = 'sqlite';
                 $pdo = $connectSqlite();
             }
@@ -77,16 +85,26 @@ final class Database
         }
         self::$pdo = $pdo;
 
-        // Auto-migrate + seed on a brand-new database, or if the core table is
-        // missing. The schema DDL is currently SQLite-shaped, so for mysql/pgsql
-        // the schema is provisioned out-of-band until the DDL-translation slice
-        // lands; the connection + portable helpers below already work on all three.
-        if ($driver === 'sqlite') {
-            if ($fresh || !self::tableExists('articles')) {
-                self::migrate();
-                self::seedIfEmpty();
+        // Provision + migrate on first use so MySQL is a true first-class driver:
+        // a freshly-configured server database sets ITSELF up (applies the
+        // per-driver schema + seeds) with no SSH/CLI step. SQLite uses the bundled
+        // schema.sql + version-gated column sync. All steps are idempotent and
+        // wrapped so a provisioning hiccup never turns into a hard 500.
+        try {
+            if ($driver === 'sqlite') {
+                if ($fresh || !self::tableExists('articles')) {
+                    self::migrate();
+                    self::seedIfEmpty();
+                }
+                self::autoMigrate();    // version-gated: applies pending schema updates, then cheap no-op
+            } else { // mysql | pgsql — auto-provision when the core table is absent
+                if (!self::tableExists('articles')) {
+                    self::applyServerSchema($driver);
+                    self::seedIfEmpty();
+                }
             }
-            self::autoMigrate();        // version-gated: applies pending schema updates, then cheap no-op
+        } catch (Throwable $e) {
+            error_log('[db] provision (' . $driver . '): ' . $e->getMessage());
         }
         return self::$pdo;
     }
@@ -487,6 +505,35 @@ final class Database
         $sql = file_get_contents(AV_ROOT . '/db/schema.sql');
         if ($sql === false) throw new RuntimeException('Cannot read db/schema.sql');
         self::$pdo->exec($sql);
+    }
+
+    /**
+     * Provision a fresh MySQL/Postgres database from db/schema.<driver>.sql plus
+     * the auxiliary tables that live outside the base schema file (app_meta,
+     * communities, celebrations, team). Mirrors the browser DB-migration tool's
+     * apply-schema step. Idempotent — every statement is CREATE … IF NOT EXISTS —
+     * and only invoked when the core `articles` table is missing (fresh target),
+     * so it never disturbs existing data.
+     */
+    private static function applyServerSchema(string $driver): void
+    {
+        $file = AV_ROOT . '/db/schema.' . $driver . '.sql';
+        $sql  = @file_get_contents($file);
+        if ($sql === false || trim((string) $sql) === '') throw new RuntimeException("Cannot read {$file}");
+        // Strip comments (some contain ';') before splitting on the statement terminator.
+        $sql = (string) preg_replace('/--[^\n]*/', '', $sql);
+        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
+            self::$pdo->exec($stmt);
+        }
+        // Auxiliary/admin tables that aren't in the base schema file.
+        foreach (['workspace', 'celebrations', 'people'] as $libf) {
+            $p = AV_ROOT . '/lib/' . $libf . '.php';
+            if (is_file($p)) require_once $p;
+        }
+        self::ensureMetaOn(self::$pdo);
+        if (function_exists('av_communities_ensure'))  av_communities_ensure(self::$pdo);
+        if (function_exists('av_celebrations_ensure')) av_celebrations_ensure(self::$pdo);
+        if (function_exists('av_team_ensure'))         av_team_ensure(self::$pdo);
     }
 
     /** Seed from the canonical content file only when the DB has no articles. */
