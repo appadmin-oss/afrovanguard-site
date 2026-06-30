@@ -218,6 +218,7 @@ require_once __DIR__ . '/AvBot.php';
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/AdminAudit.php';
+require_once __DIR__ . '/AdminRoles.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Sitemap.php';
 require_once __DIR__ . '/AuthArt.php';
@@ -255,6 +256,8 @@ function require_admin(): void {
     if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) {
         json_out(['ok' => false, 'error' => 'Admin is not configured on this server.'], 503);
     }
-    if (av_admin_cookie_valid() || av_admin_bearer_ok()) return;
+    // Role-aware: break-glass token = superadmin; member-admins (admin_users) get
+    // their level. av_admin_role() returns '' when not an admin at all.
+    if (function_exists('av_admin_role') ? av_admin_role() !== '' : (av_admin_cookie_valid() || av_admin_bearer_ok())) return;
     json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
 }
