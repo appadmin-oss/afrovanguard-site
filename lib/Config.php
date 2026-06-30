@@ -69,7 +69,10 @@ final class Config
         try {
             $pdo = Database::pdo();
             $drv = Database::driver();
-            $db[] = self::chk('Driver', 'ok', $drv);
+            $fell = Database::fellBack();
+            $db[] = $fell
+                ? self::chk('Driver', 'warn', $drv . ' — requested ' . strtoupper($fell) . ' but it was unreachable; check AV_DB_HOST/NAME/USER/PASS')
+                : self::chk('Driver', 'ok', $drv);
             $db[] = self::chk('Connection', 'ok', 'connected');
             $tables = $drv === 'sqlite'
                 ? (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")->fetchColumn()
