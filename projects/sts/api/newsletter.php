@@ -17,9 +17,10 @@ $token = bin2hex(random_bytes(32));
 
 try {
     $pdo = db();
-    $stmt = $pdo->prepare("INSERT INTO newsletter_subscribers (email, full_name, status, unsubscribe_token)
-        VALUES (:e, :n, 'active', :t)
-        ON DUPLICATE KEY UPDATE status = 'active'");
+    $upsert = db_driver() === "sqlite"
+        ? "INSERT INTO newsletter_subscribers (email, full_name, status, unsubscribe_token) VALUES (:e, :n, 'active', :t) ON CONFLICT(email) DO UPDATE SET status = 'active'"
+        : "INSERT INTO newsletter_subscribers (email, full_name, status, unsubscribe_token) VALUES (:e, :n, 'active', :t) ON DUPLICATE KEY UPDATE status = 'active'";
+    $stmt = $pdo->prepare($upsert);
     $stmt->execute([':e' => $email, ':n' => $name, ':t' => $token]);
 } catch (Throwable $e) {
     log_line('db', 'newsletter insert failed', ['err' => $e->getMessage()]);

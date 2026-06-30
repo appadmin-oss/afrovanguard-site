@@ -54,7 +54,7 @@ function sts_stats(): array {
             // Only touch the DB when it is actually configured — avoids a
             // connection hang on hosts where the marketing site ships
             // without a database.
-            if (function_exists('env') && (string) env('DB_NAME', '') !== '') {
+            if (function_exists('env')) { // db() is always safe: MySQL when set, else local SQLite
                 require_once $dbf;
                 $pdo = db();
                 foreach ($pdo->query('SELECT stat_key, stat_value FROM site_stats') as $row) {
@@ -156,7 +156,7 @@ function sts_posts(int $limit = 0): array {
         if (is_file($cfg) && is_file($dbf)) {
             try {
                 require_once $cfg;
-                if (function_exists('env') && (string) env('DB_NAME', '') !== '') {
+                if (function_exists('env')) { // db() is always safe: MySQL when set, else local SQLite
                     require_once $dbf;
                     $pdo = db();
                     $rows = $pdo->query("SELECT slug, title, excerpt, cover_image, category, published_at FROM blog_posts WHERE status='published' ORDER BY published_at DESC")->fetchAll();
@@ -196,15 +196,15 @@ function sts_next_session(string $slug): string {
     if (is_file($cfg) && is_file($dbf)) {
         try {
             require_once $cfg;
-            if (function_exists('env') && (string) env('DB_NAME', '') !== '') {
+            if (function_exists('env')) { // db() is always safe: MySQL when set, else local SQLite
                 require_once $dbf;
                 $st = db()->prepare(
                     "SELECT session_date, location, capacity, volunteers_registered
                        FROM program_sessions
-                      WHERE program_slug = ? AND status = 'open' AND session_date >= NOW()
+                      WHERE program_slug = ? AND status = 'open' AND session_date >= ?
                       ORDER BY session_date ASC LIMIT 1"
                 );
-                $st->execute([$slug]);
+                $st->execute([$slug, date('Y-m-d H:i:s')]);
                 if ($r = $st->fetch()) {
                     $when  = date('j M Y', strtotime($r['session_date']));
                     $left  = max(0, (int) $r['capacity'] - (int) $r['volunteers_registered']);

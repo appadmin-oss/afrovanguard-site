@@ -10,8 +10,8 @@ try {
     $pdo = db();
     $sql = "SELECT id, program_slug, session_date, location, capacity, volunteers_registered, status
             FROM program_sessions
-            WHERE status = 'open' AND session_date > NOW()";
-    $params = [];
+            WHERE status = 'open' AND session_date > :now";
+    $params = [':now' => date('Y-m-d H:i:s')];
     if ($program && $program !== 'all') {
         $sql .= " AND program_slug = :slug";
         $params[':slug'] = $program;
