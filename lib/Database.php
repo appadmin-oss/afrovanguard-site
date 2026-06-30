@@ -21,29 +21,40 @@ final class Database
     {
         if (self::$pdo instanceof PDO) return self::$pdo;
 
-        // Driver is selectable for portability (sqlite | mysql | pgsql); SQLite
-        // stays the default so existing deploys are byte-for-byte unchanged.
-        $driver = strtolower((string) (getenv('AV_DB_DRIVER') ?: 'sqlite'));
+        // Driver selection — MySQL is PRIORITISED. An explicit AV_DB_DRIVER always
+        // wins; otherwise we infer the driver from the configured connection and
+        // prefer MySQL whenever any MySQL config is present (a DSN, or discrete
+        // AV_DB_* creds). SQLite is used only when MySQL isn't configured — and as
+        // a safety net if a configured MySQL can't be reached, so the site stays up.
         $opts = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
+        $dsnEnv = (string) getenv('AV_DB_DSN');
+        $driver = strtolower((string) getenv('AV_DB_DRIVER'));
+        if ($driver === '') {
+            if (stripos($dsnEnv, 'mysql:') === 0) $driver = 'mysql';
+            elseif (stripos($dsnEnv, 'pgsql:') === 0) $driver = 'pgsql';
+            elseif (getenv('AV_DB_NAME') || getenv('AV_DB_USER') || getenv('AV_DB_HOST') || getenv('AV_DB_PASS')) $driver = 'mysql'; // ← MySQL prioritised when any creds exist
+            else $driver = 'sqlite';
+        }
         $fresh = false;
 
-        if ($driver === 'sqlite') {
-            if (!extension_loaded('pdo_sqlite')) {
-                throw new RuntimeException('pdo_sqlite extension is required for the Diary database.');
-            }
-            $path = AV_DB_PATH;
-            $dir  = dirname($path);
+        $connectSqlite = static function () use ($opts, &$fresh): PDO {
+            if (!extension_loaded('pdo_sqlite')) throw new RuntimeException('pdo_sqlite extension is required for the Diary database.');
+            $path = AV_DB_PATH; $dir = dirname($path);
             if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
             $fresh = !is_file($path);
             $pdo = new PDO('sqlite:' . $path, null, null, $opts);
             $pdo->exec('PRAGMA foreign_keys = ON');
+            return $pdo;
+        };
+
+        if ($driver === 'sqlite') {
+            $pdo = $connectSqlite();
         } elseif ($driver === 'mysql' || $driver === 'pgsql') {
-            // DSN from AV_DB_DSN, or assembled from discrete host/name/port env vars.
-            $dsn = (string) getenv('AV_DB_DSN');
+            $dsn = $dsnEnv;
             if ($dsn === '') {
                 $host = getenv('AV_DB_HOST') ?: '127.0.0.1';
                 $name = getenv('AV_DB_NAME') ?: 'afrovanguard';
@@ -52,7 +63,15 @@ final class Database
                     ? "pgsql:host={$host};port={$port};dbname={$name}"
                     : "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
             }
-            $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
+            try {
+                $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
+            } catch (Throwable $e) {
+                // Configured MySQL/Postgres unreachable → fall back to SQLite so the
+                // site stays up (logged), instead of a hard 500.
+                error_log('[db] ' . $driver . ' connection failed (' . $e->getMessage() . ') — falling back to SQLite');
+                $driver = 'sqlite';
+                $pdo = $connectSqlite();
+            }
         } else {
             throw new RuntimeException("Unsupported AV_DB_DRIVER: {$driver}");
         }
