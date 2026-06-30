@@ -87,6 +87,12 @@ render_subbar($a['title'], $a['slug'], $canonical);
             <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= (int)$a['read_minutes'] ?> min read</div></div>
           </div>
 <?php render_listen_bar($a['slug'], $canonical); ?>
+<?php if (!empty($a['audio_url'])): ?>
+          <figure class="article-audio">
+            <figcaption><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3Z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg> Listen to this story <span>· narrated audio</span></figcaption>
+            <audio controls preload="none" src="<?= e($a['audio_url']) ?>">Your browser doesn’t support audio — <a href="<?= e($a['audio_url']) ?>">download the narration</a>.</audio>
+          </figure>
+<?php endif; ?>
         </div>
       </div>
 

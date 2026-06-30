@@ -203,6 +203,17 @@
           <p class="muted tiny">Used on cards, the article hero, and the auto social card.</p>
         </div>
         <div class="side-card">
+          <h3>Audio narration</h3>
+          <div class="audio-preview" id="audioPreview"><span>No audio yet</span></div>
+          <input type="file" id="audioFile" accept="audio/*" hidden />
+          <div class="cover-actions">
+            <button type="button" class="btn btn-outline btn-sm" id="audioBtn">Upload audio</button>
+            <button type="button" class="btn btn-outline btn-sm" id="audioClear" hidden>Remove</button>
+          </div>
+          <label class="fld"><span>…or paste an audio URL</span><input id="f_audio" type="url" placeholder="https://…/narration.mp3" /></label>
+          <p class="muted tiny">Adds a “Listen to this story” player to the top of the post — an author-recorded narration or podcast version. MP3, M4A, OGG or WAV.</p>
+        </div>
+        <div class="side-card">
           <h3>Related entries</h3>
           <div id="relatedBox" class="related-box"></div>
         </div>

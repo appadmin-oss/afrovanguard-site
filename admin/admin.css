@@ -104,6 +104,9 @@ body.studio-authed .studio-side { display: block; }
 .cover-preview { aspect-ratio: 16/9; border-radius: var(--radius-sm); border: 1px dashed var(--divider); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; margin-bottom: 12px; }
 .cover-preview.has { border-style: solid; }
 .cover-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+.audio-preview { border-radius: var(--radius-sm); border: 1px dashed var(--divider); background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; padding: 12px; margin-bottom: 12px; min-height: 54px; }
+.audio-preview.has { border-style: solid; }
+.audio-preview audio { width: 100%; }
 .related-box { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; }
 .rel-item { display: flex; gap: 9px; align-items: center; font-size: 13px; color: var(--ink); font-weight: 500; }
 .rel-item input { width: auto; }
