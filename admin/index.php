@@ -643,6 +643,15 @@
           <details class="guide-acc"><summary>Manage members &amp; access</summary>
             <ol><li>Open <b>Members</b> to search accounts, change access level, or suspend/reactivate.</li><li>Use <b>People</b> for public team profiles, and <b>Sign-in</b> to tune the sign-in security policy.</li></ol>
           </details>
+          <details class="guide-acc"><summary>Add audio narration to a Diary post</summary>
+            <ol><li>Open the entry in <b>Diary</b>; in the <b>Audio narration</b> card, <b>Upload audio</b> (MP3, M4A, OGG or WAV) or paste a URL.</li><li>Save. Readers get a “Listen to this story” player at the top of the post — perfect for a recorded narration or podcast version.</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Run a mentorship programme</summary>
+            <ol><li>Open <b>Mentorship</b>. Approve mentor applications, pair mentors with mentees, or assign people to a cohort/programme.</li><li>Track sessions and flag inactive pairs; export pairings to CSV. Every change is logged under <b>Activity</b> with one-click undo.</li></ol>
+          </details>
+          <details class="guide-acc"><summary>Move to a MySQL / PostgreSQL database</summary>
+            <ol><li>In cPanel, create an empty MySQL/PostgreSQL database and a user with access to it.</li><li>Open <b>Database</b> (Super Admin). Enter the host, name, user and password, then <b>Test connection</b>.</li><li>Run a <b>Dry run</b> to preview, then <b>Migrate now</b> — every table is copied and its row count verified.</li><li>Paste the shown settings into your <code>.env</code> (set the real password) and reload the site to run on the new database.</li></ol>
+          </details>
         </div>
       </div>
     </div>
