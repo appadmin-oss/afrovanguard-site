@@ -469,6 +469,11 @@
       </div>
       <aside class="editor-side">
         <div class="side-card">
+          <h3>Live preview</h3>
+          <p class="muted tiny" style="margin-top:-4px">Exactly what members see in the banner on the day.</p>
+          <div class="cel-preview" id="celPreview" aria-live="polite"></div>
+        </div>
+        <div class="side-card">
           <h3>When &amp; style</h3>
           <label class="fld"><span>Date (MM-DD)</span><input id="c_md" placeholder="12-25" pattern="\d{2}-\d{2}" required /></label>
           <label class="fld"><span>Scope</span><select id="c_scope"><option value="internal">Internal</option><option value="african">African</option><option value="international">International</option></select></label>
