@@ -228,4 +228,169 @@
       }).catch(function () { more.disabled = false; more.textContent = label; });
     });
   }
+
+  /* ============================================================
+     ORG-ONLY · members chat + directory + @mention autocomplete.
+     Org members "see each other" (the directory, SSR'd) and chat
+     live; external members never get here (data-org="0"). Polling
+     is incremental (since=lastId) and pauses when the tab is hidden.
+     ============================================================ */
+  var isOrg = main.getAttribute('data-org') === '1';
+  var chatEl = document.getElementById('cmChat');
+  if (isOrg && chatEl) {
+    var meUid = parseInt(main.getAttribute('data-uid'), 10) || 0;
+    var log = document.getElementById('cmChatLog');
+    var cForm = document.getElementById('cmChatForm');
+    var cInput = document.getElementById('cmChatInput');
+    var cSend = cForm.querySelector('.cm-chat-send');
+    var cMsg = chatEl.querySelector('.cm-chat-msg');
+    var lastId = 0;
+    var polling = false;
+
+    /* Highlight resolved @mentions inside an (escaped) body. The server
+       returns the resolved member list, so we only chip real org members —
+       never arbitrary text. A mention of *you* is styled distinctly. */
+    function withMentions(bodyText, mentions) {
+      var html = nl2br(bodyText);
+      (mentions || []).forEach(function (m) {
+        var tok = String(m.token || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (!tok) return;
+        var re = new RegExp('@' + tok + '(?![A-Za-z0-9._@\\-])', 'g');
+        var you = (m.id | 0) === meUid ? ' cm-mention--you' : '';
+        html = html.replace(re, '<span class="cm-mention' + you + '">@' + esc(m.name) + '</span>');
+      });
+      return html;
+    }
+
+    function renderChat(m) {
+      var row = document.createElement('div');
+      row.className = 'cm-chat-row' + (m.is_me ? ' is-me' : '');
+      row.setAttribute('data-id', m.id);
+      row.innerHTML =
+        '<span class="cm-chat-av">' + esc(m.initial) + '</span>'
+        + '<div class="cm-chat-bd">'
+        + '<div class="cm-chat-l1"><span class="cm-chat-who">' + esc(m.author) + '</span>'
+        + (m.verified ? CHECK : '')
+        + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(m.ago) + '</span></div>'
+        + '<div class="cm-chat-text">' + withMentions(m.body, m.mentions) + '</div></div>';
+      return row;
+    }
+
+    function nearBottom() { return log.scrollHeight - log.scrollTop - log.clientHeight < 80; }
+    function toBottom() { log.scrollTop = log.scrollHeight; }
+
+    function paint(list, opts) {
+      opts = opts || {};
+      if (!list || !list.length) return;
+      var stick = opts.force || nearBottom();
+      var empty = log.querySelector('.cm-chat-empty');
+      if (empty) empty.remove();
+      list.forEach(function (m) {
+        if (m.id > lastId) lastId = m.id;
+        if (log.querySelector('.cm-chat-row[data-id="' + m.id + '"]')) return; // de-dupe
+        log.appendChild(renderChat(m));
+      });
+      if (stick) toBottom();
+    }
+
+    function poll() {
+      if (polling || document.hidden) return;
+      polling = true;
+      api('chat_list', { query: '&since=' + lastId }).then(function (d) {
+        polling = false;
+        if (d && d.ok) paint(d.messages, { force: lastId === 0 });
+      }).catch(function () { polling = false; });
+    }
+
+    /* ── send ── */
+    cForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      hideMentions();
+      var text = (cInput.value || '').trim();
+      if (!text) return;
+      cSend.disabled = true; setMsg(cMsg, '', '');
+      api('chat_send', { body: { body: text } }).then(function (d) {
+        cSend.disabled = false;
+        if (d.__status === 401) { loginRedirect(); return; }
+        if (!d.ok) { setMsg(cMsg, d.error || 'Could not send.', 'err'); return; }
+        paint([d.message], { force: true });
+        cInput.value = ''; grow();
+        cInput.focus();
+      }).catch(function () { cSend.disabled = false; setMsg(cMsg, 'Network error — try again.', 'err'); });
+    });
+    // Enter sends; Shift+Enter is a newline. (Skipped while the @menu is open.)
+    cInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey && !menuOpen()) { e.preventDefault(); cForm.requestSubmit ? cForm.requestSubmit() : cForm.dispatchEvent(new Event('submit', { cancelable: true })); }
+    });
+
+    /* ── textarea auto-grow ── */
+    function grow() { cInput.style.height = 'auto'; cInput.style.height = Math.min(cInput.scrollHeight, 140) + 'px'; }
+    cInput.addEventListener('input', grow);
+
+    /* ── @mention autocomplete ── */
+    var pop = document.getElementById('cmMentionPop');
+    var mActive = -1, mItems = [], mStart = -1, mTimer = null;
+    function menuOpen() { return !pop.hasAttribute('hidden'); }
+    function hideMentions() { pop.setAttribute('hidden', ''); pop.innerHTML = ''; mActive = -1; mItems = []; mStart = -1; }
+    function tokenBeforeCaret() {
+      var pos = cInput.selectionStart || 0;
+      var pre = cInput.value.slice(0, pos);
+      var m = /(^|\s)@([A-Za-z0-9._\-]{0,30})$/.exec(pre);
+      if (!m) return null;
+      return { q: m[2], start: pos - m[2].length - 1 }; // index of the '@'
+    }
+    function drawMenu() {
+      if (!mItems.length) { hideMentions(); return; }
+      pop.innerHTML = mItems.map(function (it, i) {
+        return '<button type="button" class="cm-mention-opt' + (i === mActive ? ' is-active' : '')
+          + '" data-i="' + i + '" role="option" aria-selected="' + (i === mActive ? 'true' : 'false') + '">'
+          + '<span class="cm-mention-av">' + esc(it.initial) + '</span>'
+          + '<span class="cm-mention-nm">' + esc(it.name) + (it.is_me ? ' <em>(you)</em>' : '')
+          + '<small>@' + esc(it.handle) + '</small></span></button>';
+      }).join('');
+      pop.removeAttribute('hidden');
+    }
+    function accept(i) {
+      var it = mItems[i]; if (!it) return;
+      var pos = cInput.selectionStart || 0;
+      var before = cInput.value.slice(0, mStart);
+      var after = cInput.value.slice(pos);
+      var ins = '@' + it.handle + ' ';
+      cInput.value = before + ins + after;
+      var caret = before.length + ins.length;
+      cInput.setSelectionRange(caret, caret);
+      hideMentions(); grow(); cInput.focus();
+    }
+    cInput.addEventListener('input', function () {
+      var tok = tokenBeforeCaret();
+      if (!tok) { hideMentions(); return; }
+      mStart = tok.start;
+      clearTimeout(mTimer);
+      mTimer = setTimeout(function () {
+        api('mention_search', { query: '&q=' + encodeURIComponent(tok.q) }).then(function (d) {
+          if (!d || !d.ok) { hideMentions(); return; }
+          mItems = d.matches || []; mActive = mItems.length ? 0 : -1;
+          drawMenu();
+        }).catch(hideMentions);
+      }, 120);
+    });
+    cInput.addEventListener('keydown', function (e) {
+      if (!menuOpen()) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); mActive = (mActive + 1) % mItems.length; drawMenu(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); mActive = (mActive - 1 + mItems.length) % mItems.length; drawMenu(); }
+      else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); accept(mActive < 0 ? 0 : mActive); }
+      else if (e.key === 'Escape') { e.preventDefault(); hideMentions(); }
+    });
+    pop.addEventListener('mousedown', function (e) {
+      var opt = e.target.closest('[data-i]'); if (!opt) return;
+      e.preventDefault(); accept(+opt.getAttribute('data-i'));
+    });
+    document.addEventListener('click', function (e) { if (!chatEl.contains(e.target)) hideMentions(); });
+
+    /* ── boot: initial load, then poll; pause when hidden ── */
+    poll();
+    var pollTimer = setInterval(poll, 5000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+    if (location.hash === '#chat') { try { chatEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }
+  }
 })();
