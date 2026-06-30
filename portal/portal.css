@@ -1,76 +1,99 @@
 /* ============================================================
    portal/portal.css — the member / learning portal.
-   Self-contained theme: DARK by default, LIGHT via body.is-light
-   (set server-side from a cookie). Palette: deep navy + orange
-   primary (+ blue / green accents), frosted-glass cards. Independent
-   of the marketing-site theme. Headings stay Cormorant (from diary.css).
+
+   Re-skinned to share the Afrovanguard STUDIO (admin) palette:
+   light surfaces with navy ink + gold accents (diary.css tokens),
+   plus a faithful dark mode. The portal keeps its own theme toggle
+   (LIGHT by default — like the Studio — DARK via body.is-dark, set
+   server-side from a cookie so there's no flash). The --p-* tokens
+   below are mapped onto the shared design tokens so the portal reads
+   as the same product family as admin/. Headings stay Cormorant.
    ============================================================ */
 .portal-page {
-  --p-bg: #0a0e16;
-  --p-surface: rgba(255,255,255,0.045);
-  --p-surface-2: rgba(255,255,255,0.08);
-  --p-solid: #131a26;
-  --p-border: rgba(255,255,255,0.10);
-  --p-border-2: rgba(255,255,255,0.18);
-  --p-ink: #f4f7fb;
-  --p-muted: #93a0b4;
-  --p-accent: #f26419;
-  --p-accent-2: #fb7a36;
-  --p-accent-deep: #e2540c;
-  --p-accent-soft: rgba(242,100,25,0.15);
-  --p-green: #2ea043;
-  --p-blue: #3b82f6;
-  --p-bar: rgba(10,14,22,0.82);
-  --p-shadow: 0 10px 34px -22px rgba(0,0,0,0.7);
-  --p-glass: blur(22px) saturate(1.4);
-}
-.portal-page.is-light {
-  --p-bg: #f5f6f9;
-  --p-surface: rgba(255,255,255,0.72);
-  --p-surface-2: rgba(255,255,255,0.92);
-  --p-solid: #ffffff;
-  --p-border: rgba(17,24,39,0.10);
-  --p-border-2: rgba(17,24,39,0.18);
+  /* surfaces / ink — mirror diary.css :root (LIGHT) */
+  --p-bg: #FDFCF8;
+  --p-surface: #FFFFFF;
+  --p-surface-2: #F4F2EC;
+  --p-solid: #FFFFFF;
+  --p-border: #E5E7EB;
+  --p-border-2: #D8DBE0;
   --p-ink: #111827;
-  --p-muted: #5b6473;
-  --p-accent: #e2540c;
-  --p-accent-2: #f26419;
-  --p-accent-deep: #c2410c;
-  --p-accent-soft: rgba(226,84,12,0.10);
+  --p-body: #374151;
+  --p-muted: #6B7280;
+  /* gold accent system (shared brand) */
+  --p-accent: #b07e08;        /* gold-deep — readable on light for text/links */
+  --p-accent-2: #f3b416;      /* gold — fills, bars, hovers */
+  --p-accent-deep: #9c6906;
+  --p-accent-soft: rgba(243,180,22,0.14);
+  --p-on-accent: #111827;     /* ink reads AA on gold fills */
+  /* supporting accents kept for the diary / mentorship cards */
   --p-green: #16a34a;
-  --p-blue: #2563eb;
-  --p-bar: rgba(255,255,255,0.82);
-  --p-shadow: 0 10px 30px -20px rgba(17,24,39,0.28);
+  --p-green-soft: rgba(34,197,94,0.15);
+  --p-blue: #1D4ED8;
+  --p-blue-soft: rgba(29,78,216,0.10);
+  --p-bar: rgba(17,24,39,0.94);     /* the top bar is the brand navy, like the Studio bar */
+  --p-bar-text: rgba(255,255,255,0.85);
+  --p-bar-ink: #ffffff;
+  --p-bar-border: rgba(255,255,255,0.10);
+  --p-shadow: 0 24px 60px rgba(17,24,39,0.10);
+  --p-shadow-sm: 0 10px 30px -20px rgba(17,24,39,0.28);
+  --p-focus: #1D4ED8;
+}
+.portal-page.is-dark {
+  /* surfaces / ink — mirror diary.css [data-theme="dark"] */
+  --p-bg: #0B1120;
+  --p-surface: #131C2E;
+  --p-surface-2: #1B2536;
+  --p-solid: #131C2E;
+  --p-border: #283349;
+  --p-border-2: #36425C;
+  --p-ink: #F3F4F6;
+  --p-body: #C3CAD6;
+  --p-muted: #8A93A3;
+  --p-accent: #f3b416;        /* gold reads AA on dark navy */
+  --p-accent-2: #f3b416;
+  --p-accent-deep: #d49a0e;
+  --p-accent-soft: rgba(243,180,22,0.16);
+  --p-on-accent: #111827;
+  --p-green: #34d399;
+  --p-green-soft: rgba(52,211,153,0.16);
+  --p-blue: #93b4ff;
+  --p-blue-soft: rgba(59,130,246,0.16);
+  --p-bar: rgba(7,11,20,0.92);
+  --p-bar-text: rgba(255,255,255,0.82);
+  --p-bar-ink: #ffffff;
+  --p-bar-border: rgba(255,255,255,0.08);
+  --p-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  --p-shadow-sm: 0 12px 34px -22px rgba(0,0,0,0.6);
+  --p-focus: #6f9bff;
 }
 
 body.portal-page {
   background-color: var(--p-bg);
-  background-image:
-    radial-gradient(48% 42% at 6% 0%, rgba(242,100,25,0.16), transparent 70%),
-    radial-gradient(40% 44% at 98% 8%, rgba(59,130,246,0.12), transparent 72%),
-    radial-gradient(52% 46% at 78% 100%, rgba(46,160,67,0.10), transparent 72%);
-  background-attachment: fixed;
-  color: var(--p-ink);
+  background-image: none;
+  color: var(--p-body);
 }
 body.portal-page .read-progress { display: none; }
+body.portal-page :focus-visible { outline: 3px solid var(--p-focus); outline-offset: 2px; }
 
-/* ---- top nav ---- */
-.portal-bar { position: sticky; top: 0; z-index: 100; background: var(--p-bar); -webkit-backdrop-filter: var(--p-glass); backdrop-filter: var(--p-glass); border-bottom: 1px solid var(--p-border); }
+/* ---- top nav (brand navy bar, like the Studio bar) ---- */
+.portal-bar { position: sticky; top: 0; z-index: 100; background: var(--p-bar); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); border-bottom: 1px solid var(--p-bar-border); }
 .portal-bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 62px; padding: 10px 0; }
 .portal-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
 .portal-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1; letter-spacing: .2px; }
-.portal-brand .wm-1 { color: var(--p-ink); } .portal-brand .wm-2 { color: var(--p-accent); }
-.portal-tag { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--p-muted); border-left: 1px solid var(--p-border-2); padding-left: 12px; }
+.portal-brand .wm-1 { color: var(--p-bar-ink); } .portal-brand .wm-2 { color: var(--p-accent-2); }
+.portal-tag { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--p-bar-text); border-left: 1px solid var(--p-bar-border); padding-left: 12px; }
 .portal-bar-actions { display: flex; align-items: center; gap: 14px; }
-.portal-bar-link { font-size: 13.5px; font-weight: 600; color: var(--p-muted); text-decoration: none; transition: color .16s ease; }
-.portal-bar-link:hover { color: var(--p-accent); }
-.portal-icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--p-border-2); background: var(--p-surface); color: var(--p-ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: border-color .16s ease, color .16s ease; flex-shrink: 0; }
-.portal-icon-btn:hover { border-color: var(--p-accent); color: var(--p-accent); }
-.portal-icon-btn .ico-moon { display: none; } .portal-icon-btn .ico-sun { display: block; }
-.portal-page.is-light .portal-icon-btn .ico-sun { display: none; } .portal-page.is-light .portal-icon-btn .ico-moon { display: block; }
+.portal-bar-link { font-size: 13.5px; font-weight: 600; color: var(--p-bar-text); text-decoration: none; transition: color .16s ease; }
+.portal-bar-link:hover { color: var(--p-accent-2); }
+.portal-icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: var(--p-bar-ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: border-color .16s ease, color .16s ease; flex-shrink: 0; }
+.portal-icon-btn:hover { border-color: var(--p-accent-2); color: var(--p-accent-2); }
+/* LIGHT default → show the moon (offer dark). DARK → show the sun (offer light). */
+.portal-icon-btn .ico-sun { display: none; } .portal-icon-btn .ico-moon { display: block; }
+.portal-page.is-dark .portal-icon-btn .ico-sun { display: block; } .portal-page.is-dark .portal-icon-btn .ico-moon { display: none; }
 .portal-user { display: flex; align-items: center; gap: 10px; }
-.portal-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--p-accent-2), var(--p-accent-deep)); color: #fff; font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-.portal-signout { color: var(--p-ink); }
+.portal-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--p-accent-2), var(--p-accent-deep)); color: #111827; font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.portal-signout { color: var(--p-bar-ink); }
 
 /* ---- header ---- */
 .portal { padding: 36px 0 80px; }
@@ -78,45 +101,61 @@ body.portal-page .read-progress { display: none; }
 .portal-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--p-accent); }
 .portal-head h1 { font-family: 'Cormorant', Georgia, serif; font-size: clamp(34px, 5vw, 48px); line-height: 1.02; color: var(--p-ink); margin: 6px 0 12px; }
 .portal-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
-.portal-badge { font-size: 12px; font-weight: 700; color: var(--p-ink); background: var(--p-surface-2); border: 1px solid var(--p-border); border-radius: 999px; padding: 5px 13px; text-transform: capitalize; }
-.portal-badge.org { background: var(--p-accent-soft); color: var(--p-accent); border-color: rgba(242,100,25,0.35); font-weight: 800; }
+.portal-badge { font-size: 12px; font-weight: 700; color: var(--p-ink); background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 999px; padding: 5px 13px; text-transform: capitalize; }
+.portal-badge.org { background: var(--p-accent-soft); color: var(--p-accent); border-color: rgba(243,180,22,0.45); font-weight: 800; }
 .portal-head .btn-outline { color: var(--p-ink); border-color: var(--p-border-2); background: transparent; }
 .portal-head .btn-outline:hover { border-color: var(--p-accent); color: var(--p-accent); }
 
-/* ---- glass cards ---- */
+/* ---- cards (solid surfaces + gold top rule, like the Studio login/side cards) ---- */
 .portal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
-.portal-card { position: relative; background: var(--p-surface); -webkit-backdrop-filter: var(--p-glass); backdrop-filter: var(--p-glass); border: 1px solid var(--p-border); border-radius: 18px; padding: 24px; box-shadow: var(--p-shadow); overflow: hidden; }
+.portal-card { position: relative; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 18px; padding: 24px; box-shadow: var(--p-shadow); overflow: hidden; }
 .portal-card.span-2 { grid-column: 1 / -1; }
-.portal-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--p-accent), transparent 62%); }
+.portal-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--p-accent-2), transparent 62%); }
 .portal-card.accent-blue::before { background: linear-gradient(90deg, var(--p-blue), transparent 62%); }
 .portal-card.accent-green::before { background: linear-gradient(90deg, var(--p-green), transparent 62%); }
 .pc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .pc-head h2 { font-family: 'Cormorant', Georgia, serif; font-size: 24px; color: var(--p-ink); margin: 0; }
 .pc-link { font-size: 13px; font-weight: 700; color: var(--p-accent); text-decoration: none; white-space: nowrap; }
 .pc-link:hover { text-decoration: underline; }
-.pc-tag { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: rgba(46,160,67,0.16); color: var(--p-green); }
-.portal-card p { color: var(--p-muted); font-size: 14.5px; line-height: 1.6; margin: 0 0 16px; }
+.pc-tag { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--p-green-soft); color: var(--p-green); }
+.portal-card p { color: var(--p-body); font-size: 14.5px; line-height: 1.6; margin: 0 0 16px; }
 .portal-card p strong, .portal-status-line strong { color: var(--p-ink); }
 .pc-empty { color: var(--p-muted); }
 .pc-empty a, .portal-card p a { color: var(--p-accent); font-weight: 700; }
 .pc-summary { font-size: 13px; font-weight: 600; color: var(--p-muted); margin: 0 0 14px; }
 .pc-summary b { color: var(--p-ink); }
-.portal-status-line { font-size: 14.5px; line-height: 1.6; color: var(--p-muted); margin: 0 0 16px; }
+.portal-status-line { font-size: 14.5px; line-height: 1.6; color: var(--p-body); margin: 0 0 16px; }
 
-/* buttons in the portal use the orange accent */
-.portal-page .btn-primary { background: var(--p-accent); border-color: var(--p-accent); color: #fff; box-shadow: 0 6px 20px -8px rgba(242,100,25,0.5); }
-.portal-page .btn-primary:hover { background: var(--p-accent-deep); border-color: var(--p-accent-deep); color: #fff; transform: translateY(-1px); }
-.portal-page .btn-outline { color: var(--p-ink); border-color: var(--p-border-2); }
+/* buttons in the portal use the gold accent (ink-on-gold reads AA) */
+.portal-page .btn-primary { background: var(--p-accent-2); border-color: var(--p-accent-2); color: var(--p-on-accent); box-shadow: 0 4px 24px rgba(243,180,22,0.3); }
+.portal-page .btn-primary:hover { background: var(--p-accent-deep); border-color: var(--p-accent-deep); color: var(--p-on-accent); transform: translateY(-1px); }
+.portal-page .btn-outline { color: var(--p-ink); border-color: var(--p-border-2); background: transparent; }
 .portal-page .btn-outline:hover { border-color: var(--p-accent); color: var(--p-accent); }
+
+/* ---- Coming up — live countdowns ---- */
+.cd-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cd-card { display: flex; flex-direction: column; gap: 10px; padding: 16px 17px; background: var(--p-surface-2); border: 1px solid var(--p-border); border-radius: 14px; min-width: 0; }
+.cd-card.is-empty { color: var(--p-muted); }
+.cd-kicker { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--p-accent); margin: 0; }
+.cd-title { font-size: 15px; font-weight: 700; color: var(--p-ink); text-decoration: none; line-height: 1.35; overflow-wrap: anywhere; }
+a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
+.cd-when { font-size: 12.5px; color: var(--p-muted); margin: 0; }
+.cd-timer { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.cd-unit { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 9px 6px; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 10px; }
+.cd-num { font-family: 'Cormorant', Georgia, serif; font-size: 27px; font-weight: 700; line-height: 1; color: var(--p-ink); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.cd-lbl { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--p-muted); margin-top: 5px; }
+.cd-now { font-size: 13.5px; font-weight: 700; color: var(--p-green); margin: 4px 0 0; }
+.cd-empty { font-size: 13.5px; color: var(--p-muted); margin: 4px 0 0; }
+@media (max-width: 640px) { .cd-wrap { grid-template-columns: 1fr; } }
 
 /* My learning */
 .learn-list { display: flex; flex-direction: column; gap: 10px; }
-.learn-row { display: grid; grid-template-columns: 1fr 120px; gap: 16px; align-items: center; padding: 13px 16px; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 12px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
-.learn-row:hover { border-color: var(--p-accent); background: var(--p-surface-2); transform: translateX(2px); }
+.learn-row { display: grid; grid-template-columns: 1fr 120px; gap: 16px; align-items: center; padding: 13px 16px; background: var(--p-surface-2); border: 1px solid var(--p-border); border-radius: 12px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+.learn-row:hover { border-color: var(--p-accent-2); background: var(--p-surface); transform: translateX(2px); }
 .learn-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .learn-title { font-weight: 700; color: var(--p-ink); font-size: 15px; }
 .learn-meta { font-size: 12.5px; color: var(--p-muted); }
-.learn-bar { height: 7px; border-radius: 999px; background: var(--p-surface-2); overflow: hidden; }
+.learn-bar { height: 7px; border-radius: 999px; background: var(--p-border); overflow: hidden; }
 .learn-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--p-accent-2), var(--p-accent-deep)); }
 
 /* Profile / stats */
@@ -129,25 +168,25 @@ body.portal-page .read-progress { display: none; }
 /* Workspace hub (members) — SSO launchpad into Google Workspace */
 .ws-hub .ws-domain { background: var(--p-accent-soft); color: var(--p-accent); text-transform: none; letter-spacing: 0; }
 .ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px; }
-.ws-tile { display: flex; align-items: center; gap: 13px; padding: 14px 15px; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 13px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
-.ws-tile:hover { border-color: var(--p-accent); background: var(--p-surface-2); transform: translateY(-2px); }
+.ws-tile { display: flex; align-items: center; gap: 13px; padding: 14px 15px; background: var(--p-surface-2); border: 1px solid var(--p-border); border-radius: 13px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+.ws-tile:hover { border-color: var(--p-accent-2); background: var(--p-surface); transform: translateY(-2px); }
 .ws-ico { flex-shrink: 0; width: 42px; height: 42px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; background: var(--p-accent-soft); color: var(--p-accent); }
-.ws-ico--chat { background: rgba(59,130,246,0.15); color: var(--p-blue); }
-.ws-ico--meet { background: rgba(46,160,67,0.16); color: var(--p-green); }
-.ws-ico--calendar { background: rgba(59,130,246,0.15); color: var(--p-blue); }
-.ws-ico--groups { background: rgba(46,160,67,0.16); color: var(--p-green); }
+.ws-ico--chat { background: var(--p-blue-soft); color: var(--p-blue); }
+.ws-ico--meet { background: var(--p-green-soft); color: var(--p-green); }
+.ws-ico--calendar { background: var(--p-blue-soft); color: var(--p-blue); }
+.ws-ico--groups { background: var(--p-green-soft); color: var(--p-green); }
 .ws-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ws-label { font-weight: 700; color: var(--p-ink); font-size: 14.5px; }
 .ws-desc { font-size: 12px; color: var(--p-muted); line-height: 1.35; }
 /* Communities — Google Chat Spaces / Groups */
 .ws-comm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-.ws-comm { display: flex; flex-direction: column; gap: 3px; padding: 13px 15px; background: var(--p-surface); border: 1px solid var(--p-border); border-radius: 12px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
-.ws-comm:hover { border-color: var(--p-accent); background: var(--p-surface-2); transform: translateX(2px); }
+.ws-comm { display: flex; flex-direction: column; gap: 3px; padding: 13px 15px; background: var(--p-surface-2); border: 1px solid var(--p-border); border-radius: 12px; text-decoration: none; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+.ws-comm:hover { border-color: var(--p-accent-2); background: var(--p-surface); transform: translateX(2px); }
 .ws-comm-name { font-weight: 700; color: var(--p-ink); font-size: 14.5px; }
 .ws-comm-name::after { content: ' ↗'; color: var(--p-muted); font-weight: 400; }
 .ws-comm-desc { font-size: 12.5px; color: var(--p-muted); line-height: 1.45; }
 /* In-portal read-only embeds (Calendar / Drive) */
-.ws-frame { width: 100%; border: 1px solid var(--p-border); border-radius: 12px; overflow: hidden; background: var(--p-surface); }
+.ws-frame { width: 100%; border: 1px solid var(--p-border); border-radius: 12px; overflow: hidden; background: var(--p-surface-2); }
 .ws-frame iframe { display: block; width: 100%; height: 360px; border: 0; }
 .ws-frame--drive iframe { height: 300px; }
 
@@ -160,16 +199,19 @@ body.portal-page .read-progress { display: none; }
 
 @media (max-width: 760px) { .portal-grid { grid-template-columns: 1fr; } .learn-row { grid-template-columns: 1fr 90px; } }
 @media (max-width: 600px) { .portal-tag, .portal-bar-link:not(.portal-signout) { display: none; } .portal-bar-actions { gap: 10px; } }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .portal-card, .portal-bar { background: var(--p-solid); }
-}
 
 /* ---- Workspace · live (real Google data) ---- */
 .ws-live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-.ws-live-h { font-family: var(--font-body, inherit); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #6B7280); margin: 0 0 10px; }
+.ws-live-h { font-family: var(--font-body, inherit); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--p-muted); margin: 0 0 10px; }
 .ws-live-list { display: flex; flex-direction: column; gap: 8px; }
-.ws-live-row { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border: 1px solid var(--divider, #E5E7EB); border-radius: 10px; text-decoration: none; transition: border-color .16s, background .16s; }
-.ws-live-row:hover { border-color: var(--gold, #f3b416); background: var(--surface-2, #f4f2ec); }
-.ws-live-title { font-size: 13.5px; font-weight: 700; color: var(--ink, #111827); }
-.ws-live-sub { font-size: 12px; color: var(--muted, #6B7280); }
+.ws-live-row { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; background: var(--p-surface-2); border: 1px solid var(--p-border); border-radius: 10px; text-decoration: none; transition: border-color .16s, background .16s; }
+.ws-live-row:hover { border-color: var(--p-accent-2); background: var(--p-surface); }
+.ws-live-title { font-size: 13.5px; font-weight: 700; color: var(--p-ink); }
+.ws-live-sub { font-size: 12px; color: var(--p-muted); }
 @media (max-width: 640px) { .ws-live-grid { grid-template-columns: 1fr; gap: 16px; } }
+
+/* Respect reduced motion — keep the per-second countdown tick, drop transforms. */
+@media (prefers-reduced-motion: reduce) {
+  body.portal-page * { transition: none !important; }
+  .learn-row:hover, .ws-tile:hover, .ws-comm:hover, .portal-page .btn-primary:hover { transform: none; }
+}
