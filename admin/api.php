@@ -58,7 +58,7 @@ try {
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
-        'admin_add', 'admin_remove', 'db_test', 'db_migrate'], true);
+        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -66,7 +66,7 @@ try {
        destructive purge or the security policy. editor: content only. */
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
     $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'auth_policy_save', 'auth_policy_get',
-        'db_status', 'db_test', 'db_migrate'];
+        'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -481,6 +481,37 @@ try {
                         ? 'Migration complete — every table’s row count was verified. Paste the settings below into your .env (set AV_DB_PASS to the real password) to switch the site to ' . strtoupper($to) . '.'
                         : 'Some tables did not match. Review the log; you can re-run with “Replace target tables” to overwrite.'),
             ]);
+        }
+
+        // ---- Design Studio: site brand / accent colours (superadmin) ----
+        // Stored as JSON in app_meta; render_head() injects a validated :root
+        // override so every dynamic surface (portal, diary, academy, community,
+        // admin) follows the brand. Additive + reversible — clearing restores
+        // the built-in gold.
+        case 'brand_get': {
+            $raw = Database::metaGet('brand_theme');
+            $b = $raw ? json_decode($raw, true) : null;
+            json_out([
+                'ok'       => true,
+                'brand'    => is_array($b) ? $b : null,
+                'defaults' => ['accent' => '#f3b416', 'accent_deep' => '#b07e08'],
+            ]);
+        }
+        case 'brand_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $hex = static fn($v) => (is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v)) ? strtolower($v) : null;
+            if (!empty($body['reset'])) {
+                Database::metaSet('brand_theme', '');
+                AdminAudit::log('design', 'brand_reset', 'brand', 'Reset to the default gold palette');
+                json_out(['ok' => true, 'brand' => null]);
+            }
+            $a = $hex($body['accent'] ?? null);
+            $d = $hex($body['accent_deep'] ?? null);
+            if (!$a) json_out(['ok' => false, 'error' => 'Pick a valid accent colour (#rrggbb).'], 422);
+            $brand = ['accent' => $a, 'accent_deep' => $d ?: $a];
+            Database::metaSet('brand_theme', json_encode($brand));
+            AdminAudit::log('design', 'brand_save', 'brand', 'Accent ' . $a . ' / ' . $brand['accent_deep']);
+            json_out(['ok' => true, 'brand' => $brand]);
         }
 
         // ---- Sign-in security policy (superadmin) ----

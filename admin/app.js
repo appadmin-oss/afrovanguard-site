@@ -11,7 +11,7 @@
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
-    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin' };
+    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin' };
   function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
@@ -32,7 +32,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -81,6 +81,7 @@
     else if (which === 'activity') { show('activity'); loadActivity(); }
     else if (which === 'admins') { show('admins'); loadAdmins(); }
     else if (which === 'database') { show('database'); loadDatabase(); }
+    else if (which === 'design') { show('design'); loadDesign(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -1298,6 +1299,50 @@
         setMsg(d.ok ? 'Migration verified ✓' : (d.error || 'Migration failed — see below.'), d.ok ? 'ok' : 'err');
         renderResult(d); loadDatabase();
       }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
+    });
+  })();
+
+  /* ---- Design studio (superadmin · brand accent) ---- */
+  function renderBrandPreview() {
+    var box = $('#brandPreview'); if (!box) return;
+    var a = $('#br_accent').value, d = $('#br_deep').value;
+    box.innerHTML =
+      '<div class="brand-pv-swatches"><span style="background:' + a + '">Accent<br>' + escapeHtml(a) + '</span>'
+      + '<span style="background:' + d + ';color:#fff">Deep<br>' + escapeHtml(d) + '</span></div>'
+      + '<div class="brand-pv-demo">'
+      + '<button class="bpv-btn" style="background:' + a + '">Primary button</button>'
+      + '<span class="bpv-badge" style="background:' + a + '">Badge</span>'
+      + '<span class="bpv-avatar" style="background:linear-gradient(135deg,' + a + ',' + d + ')">A</span>'
+      + '<a class="bpv-link" style="color:' + d + '" href="#" onclick="return false">A sample link →</a>'
+      + '</div>';
+  }
+  function loadDesign() {
+    api('brand_get').then(function (r) {
+      var d = r.data || {}; var b = d.brand || d.defaults || {};
+      $('#br_accent').value = /^#[0-9a-f]{6}$/i.test(b.accent) ? b.accent : '#f3b416';
+      $('#br_deep').value = /^#[0-9a-f]{6}$/i.test(b.accent_deep) ? b.accent_deep : '#b07e08';
+      renderBrandPreview();
+    }).catch(renderBrandPreview);
+  }
+  (function wireDesign() {
+    var v = $('#designView'); if (!v) return;
+    $('#br_accent').addEventListener('input', renderBrandPreview);
+    $('#br_deep').addEventListener('input', renderBrandPreview);
+    $('#brandSave').addEventListener('click', function () {
+      var msg = $('#brandMsg'), self = this; self.disabled = true; msg.textContent = 'Saving…'; msg.style.color = '';
+      post('brand_save', { accent: $('#br_accent').value, accent_deep: $('#br_deep').value }).then(function (r) {
+        var d = r.data || {}; msg.style.color = d.ok ? '#2ea043' : '#d22';
+        msg.textContent = d.ok ? 'Saved — reload any page to see the new brand.' : (d.error || 'Could not save.');
+      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+        .finally(function () { self.disabled = false; });
+    });
+    $('#brandReset').addEventListener('click', function () {
+      if (!confirm('Reset the brand back to the default Afrovanguard gold?')) return;
+      var msg = $('#brandMsg');
+      post('brand_save', { reset: true }).then(function (r) {
+        if (r.data && r.data.ok) { $('#br_accent').value = '#f3b416'; $('#br_deep').value = '#b07e08'; renderBrandPreview(); msg.style.color = '#2ea043'; msg.textContent = 'Reset to default gold — reload to see it.'; }
+        else { msg.style.color = '#d22'; msg.textContent = (r.data && r.data.error) || 'Could not reset.'; }
+      });
     });
   })();
 

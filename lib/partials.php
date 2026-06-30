@@ -36,6 +36,33 @@ const THEME_BOOT = "<script>(function(){var r=document.documentElement;r.classLi
  *          published, modified, section, tags(array), keywords,
  *          jsonld(array of schema nodes).
  */
+/**
+ * Brand accent overrides set in the Studio's Design panel. Returns the body of
+ * an inline <style> that re-points the gold/accent CSS variables (both the
+ * content-surface --gold tokens and the nav/chrome --m-gold tokens) to the
+ * admin's chosen colours, or '' when the brand is unchanged. Purely additive:
+ * if the value is missing or malformed the built-in palette stands. Cached per
+ * request and fail-safe (a DB hiccup never breaks the page head).
+ */
+function av_brand_css(): string {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = '';
+    try {
+        $raw = class_exists('Database') ? Database::metaGet('brand_theme') : null;
+        if (!$raw) return $cache;
+        $b = json_decode($raw, true);
+        if (!is_array($b)) return $cache;
+        $hex = static fn($v) => (is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v)) ? $v : null;
+        $a = $hex($b['accent'] ?? null);
+        $d = $hex($b['accent_deep'] ?? null);
+        if (!$a && !$d) return $cache;
+        $a = $a ?: $d; $d = $d ?: $a;
+        $cache = ':root{--gold:' . $a . ';--gold-deep:' . $d . ';--m-gold:' . $a . ';--m-gold-deep:' . $d . ';}';
+    } catch (Throwable $e) { $cache = ''; }
+    return $cache;
+}
+
 function render_head(array $o): void {
     $title = $o['title']; $desc = $o['desc']; $canonical = $o['canonical'];
     $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
@@ -91,7 +118,11 @@ function render_head(array $o): void {
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/assets/site/nav.css" rel="stylesheet" />
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
-<?php endforeach; ?>  <link rel="icon" href="/favicon.ico" sizes="any" />
+<?php endforeach;
+  // Studio Design panel brand override — last, so it re-points the accent vars
+  // after every default stylesheet. Validated hex only; empty ⇒ built-in palette.
+  $__brand = av_brand_css(); if ($__brand !== ''): ?>  <style id="av-brand"><?= $__brand ?></style>
+<?php endif; ?>  <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
 <?php if (!empty($o['manifest'])): ?>  <link rel="manifest" href="<?= e($o['manifest']) ?>" />
