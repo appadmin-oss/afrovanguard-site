@@ -24,7 +24,7 @@
     });
   }
   var cloudinary = false;
-  var coverUrl = '', cCoverUrl = '';
+  var coverUrl = '', cCoverUrl = '', audioUrl = '';
 
   var $ = function (s) { return document.querySelector(s); };
   var views = {
@@ -249,7 +249,7 @@
     $('#f_status').value = 'draft'; $('#f_category').value = ''; $('#f_gradient').value = 'g-gold';
     $('#f_format').value = 'standard';
     $('#f_featured').checked = false; $('#f_date').value = new Date().toISOString().slice(0, 10);
-    setCover(''); $('#previewLink').hidden = true;
+    setCover(''); setAudio(''); $('#previewLink').hidden = true;
   }
   function fillForm(a) {
     $('#f_title').value = a.title || ''; $('#f_dek').value = a.dek || ''; $('#f_slug').value = a.slug || '';
@@ -257,7 +257,7 @@
     $('#f_status').value = a.status || 'draft'; $('#f_category').value = a.category || ''; $('#f_gradient').value = a.gradient || 'g-gold';
     $('#f_format').value = a.format || 'standard';
     $('#f_featured').checked = a.featured == 1; $('#f_date').value = (a.published_at || '').slice(0, 10);
-    setCover(a.cover_url || ''); initTiny('f_body', a.body_html || '<p></p>');
+    setCover(a.cover_url || ''); setAudio(a.audio_url || ''); initTiny('f_body', a.body_html || '<p></p>');
     var pl = $('#previewLink'); pl.hidden = false; pl.href = '/diary/' + a.slug + '/';
   }
   function buildRelated(all, currentSlug, selected) {
@@ -281,11 +281,26 @@
     uploadFile(this.files[0]).then(function (r) { r.data && r.data.ok ? (setCover(r.data.url), toast('Cover uploaded')) : toast((r.data && r.data.error) || 'Upload failed'); });
     this.value = '';
   });
+  function setAudio(url) {
+    audioUrl = (url || '').trim();
+    var inp = $('#f_audio'); if (inp && inp.value !== audioUrl) inp.value = audioUrl;
+    var p = $('#audioPreview');
+    if (audioUrl) { p.innerHTML = '<audio controls preload="none" src="' + escapeHtml(audioUrl) + '"></audio>'; p.classList.add('has'); $('#audioClear').hidden = false; }
+    else { p.innerHTML = '<span>No audio yet</span>'; p.classList.remove('has'); $('#audioClear').hidden = true; }
+  }
+  $('#audioBtn').addEventListener('click', function () { $('#audioFile').click(); });
+  $('#audioClear').addEventListener('click', function () { setAudio(''); });
+  $('#f_audio').addEventListener('input', function () { setAudio(this.value); });
+  $('#audioFile').addEventListener('change', function () {
+    if (!this.files[0]) return; toast('Uploading audio…');
+    uploadFile(this.files[0]).then(function (r) { r.data && r.data.ok ? (setAudio(r.data.url), toast('Audio uploaded')) : toast((r.data && r.data.error) || 'Upload failed'); });
+    this.value = '';
+  });
   function collect(status) {
     return { slug: $('#f_slug').value.trim(), title: $('#f_title').value.trim(), dek: $('#f_dek').value.trim(),
       category: $('#f_category').value.trim() || 'Dispatch', authors_html: $('#f_authors').value.trim() || 'The Afrovanguard Team',
       published_at: $('#f_date').value, read_minutes: $('#f_read').value, gradient: $('#f_gradient').value,
-      cover_url: coverUrl, body_html: getBody('f_body'), featured: $('#f_featured').checked, status: status, format: $('#f_format').value, related: selectedRelated() };
+      cover_url: coverUrl, audio_url: ($('#f_audio').value || '').trim(), body_html: getBody('f_body'), featured: $('#f_featured').checked, status: status, format: $('#f_format').value, related: selectedRelated() };
   }
   function saveDiary(status) {
     if (!$('#f_title').value.trim()) { toast('A title is required'); return; }

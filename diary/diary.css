@@ -149,6 +149,11 @@ img { max-width: 100%; }
 .article-title { font-size: clamp(38px, 6vw, 76px); line-height: 1.02; font-weight: 700; letter-spacing: -0.01em; max-width: 16ch; margin-bottom: 36px; }
 .article-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 22px 0; border-top: 1px dashed var(--divider); border-bottom: 1px dashed var(--divider); max-width: 760px; }
 .meta-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.article-audio { margin: 18px 0 0; max-width: 760px; padding: 14px 16px; background: var(--gold-soft); border: 1px solid rgba(243,180,22,0.28); border-radius: var(--radius-md); }
+.article-audio figcaption { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; color: var(--gold-deep); margin-bottom: 10px; }
+.article-audio figcaption span { font-weight: 600; color: var(--muted); }
+[data-theme="dark"] .article-audio figcaption { color: var(--gold); }
+.article-audio audio { width: 100%; height: 40px; }
 .meta-value { font-size: 16px; font-weight: 600; color: var(--ink); }
 .meta-value a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--divider); text-underline-offset: 3px; }
 .meta-value a:hover { text-decoration-color: var(--gold); }

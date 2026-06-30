@@ -166,6 +166,12 @@ final class DiaryRepository
             'format' => in_array($d['format'] ?? 'standard', ['standard', 'qa', 'feature'], true) ? $d['format'] : 'standard',
             'updated_at' => $now,
         ];
+        // Author-provided narration/podcast audio — only bind the column when the
+        // DB actually has it (an un-migrated MySQL/Postgres target degrades to
+        // "no audio" instead of throwing on the INSERT/UPDATE).
+        if (array_key_exists('audio_url', $d) && Database::columnExists('articles', 'audio_url')) {
+            $fields['audio_url'] = trim((string) $d['audio_url']) ?: null;
+        }
 
         $this->db->beginTransaction();
         try {

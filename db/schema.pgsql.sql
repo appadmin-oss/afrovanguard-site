@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS articles (
   mc_tag        TEXT,
   cover_url     TEXT,                   -- hero / cover image (e.g. Cloudinary)
   og_image      TEXT,                   -- optional custom social card
+  audio_url     TEXT,                   -- author-provided narration / podcast audio (e.g. Cloudinary mp3)
   body_html     TEXT NOT NULL,
   base_claps    INTEGER NOT NULL DEFAULT 0,
   featured      INTEGER NOT NULL DEFAULT 0,

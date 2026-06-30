@@ -436,17 +436,25 @@ try {
             if ($method !== 'POST' || empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No file.'], 400);
             $f = $_FILES['file'];
             if ($f['error'] !== UPLOAD_ERR_OK) json_out(['ok' => false, 'error' => 'Upload error.'], 400);
-            if ($f['size'] > 25 * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max 25 MB.'], 413);
             $mime = Storage::mime($f['tmp_name']);
             $imageOk = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
             $docOk   = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
                         'text/plain', 'text/csv'];
-            if (!in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
-            // images → Cloudinary, documents → Drive (each with a local fallback)
+            $audioOk = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/webm'];
+            // finfo sometimes reports a headerless MP3/M4A as octet-stream — allow it
+            // through only when the extension is a known audio type (extension-gated).
+            $ext      = strtolower((string) pathinfo((string) $f['name'], PATHINFO_EXTENSION));
+            $isAudio  = in_array($mime, $audioOk, true)
+                     || ($mime === 'application/octet-stream' && in_array($ext, ['mp3', 'm4a', 'aac', 'ogg', 'oga', 'wav'], true));
+            // Audio narrations can be large; everything else stays at 25 MB.
+            $cap = $isAudio ? 60 : 25;
+            if ($f['size'] > $cap * 1024 * 1024) json_out(['ok' => false, 'error' => 'Max ' . $cap . ' MB.'], 413);
+            if (!$isAudio && !in_array($mime, array_merge($imageOk, $docOk), true)) json_out(['ok' => false, 'error' => 'Unsupported file type.'], 415);
+            // images/audio → Cloudinary (resource_type auto), documents → Drive (each with a local fallback)
             $res = Storage::put($f['tmp_name'], $f['name'], 'auto');
-            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? 'image']);
+            json_out(['ok' => true, 'url' => $res['url'], 'location' => $res['url'], 'provider' => $res['provider'], 'kind' => $res['kind'] ?? ($isAudio ? 'audio' : 'image')]);
 
         case 'save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -467,6 +475,7 @@ try {
                 'read_minutes' => $read, 'gradient' => trim((string) ($body['gradient'] ?? 'g-gold')),
                 'mc_title' => trim((string) ($body['mc_title'] ?? $title)), 'cover_url' => trim((string) ($body['cover_url'] ?? '')),
                 'og_image' => trim((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
+                'audio_url' => trim((string) ($body['audio_url'] ?? '')),
                 'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
                 'format' => (string) ($body['format'] ?? 'standard'),
                 'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
