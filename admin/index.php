@@ -60,6 +60,7 @@
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
         <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
+        <button class="tab" data-tab="database"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Database</span></button>
         <button class="tab" data-tab="admins"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 11l-2.5 2.5L18 12"/></svg><span>Team &amp; roles</span></button>
       </div>
       <div class="nav-group">
@@ -713,6 +714,58 @@
     </div>
     <div class="act-areas" id="actAreas"></div>
     <div class="act-list" id="actList"></div>
+  </main>
+
+  <!-- DATABASE (superadmin · SQLite → MySQL/Postgres migration, no SSH) -->
+  <main class="studio-main" id="databaseView" hidden>
+    <div class="studio-head">
+      <div><h1>Database</h1><p class="muted">Move the site from the bundled SQLite file to MySQL or PostgreSQL — no SSH or terminal needed. Every table is copied and its row count verified.</p></div>
+      <button class="btn btn-outline btn-sm" id="dbRefresh">Refresh</button>
+    </div>
+
+    <div class="db-grid">
+      <div class="side-card">
+        <h3>Current database</h3>
+        <div class="db-status" id="dbStatus"><p class="muted">Loading…</p></div>
+      </div>
+
+      <div class="side-card">
+        <h3>Migrate to a new database</h3>
+        <p class="muted" style="margin-top:-4px">Create an empty MySQL/PostgreSQL database in cPanel first, then enter its details below. Go in order: <b>Test connection</b> → <b>Dry run</b> → <b>Migrate now</b>.</p>
+        <form id="dbForm" class="db-form" autocomplete="off">
+          <div class="db-row3">
+            <label class="fld"><span>Type</span><select id="db_driver"><option value="mysql">MySQL / MariaDB</option><option value="pgsql">PostgreSQL</option></select></label>
+            <label class="fld"><span>Host</span><input id="db_host" placeholder="localhost" /></label>
+            <label class="fld"><span>Port</span><input id="db_port" placeholder="3306" /></label>
+          </div>
+          <div class="db-row3">
+            <label class="fld"><span>Database name</span><input id="db_name" placeholder="cpaneluser_afrovanguard" /></label>
+            <label class="fld"><span>Username</span><input id="db_user" placeholder="cpaneluser_dbuser" /></label>
+            <label class="fld"><span>Password</span><input id="db_pass" type="password" /></label>
+          </div>
+          <div class="db-opts">
+            <label class="fld checkbox"><input type="checkbox" id="db_apply" checked /> <span>Create the tables first (apply schema)</span></label>
+            <label class="fld checkbox"><input type="checkbox" id="db_truncate" /> <span>Replace target tables if they already hold data</span></label>
+          </div>
+          <div class="editor-actions" style="margin-top:6px">
+            <button type="button" class="btn btn-outline" id="dbTestBtn">Test connection</button>
+            <button type="button" class="btn btn-outline" id="dbDryBtn">Dry run</button>
+            <button type="button" class="btn btn-primary" id="dbMigrateBtn">Migrate now</button>
+          </div>
+          <p class="db-msg" id="dbMsg" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="side-card db-result" id="dbResult" hidden>
+      <h3>Result</h3>
+      <div id="dbReport"></div>
+      <div id="dbEnvWrap" hidden>
+        <p class="muted" style="margin:10px 0 6px">Add these to your <code>.env</code> (set <code>AV_DB_PASS</code> to the real password), then reload the site to run on the new database:</p>
+        <pre class="db-env" id="dbEnv"></pre>
+      </div>
+      <details style="margin-top:10px"><summary class="muted">Migration log</summary><pre class="db-log" id="dbLog"></pre></details>
+    </div>
   </main>
 
   <!-- SIGN-IN (security policy + illustrations) -->

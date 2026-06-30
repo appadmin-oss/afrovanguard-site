@@ -58,14 +58,15 @@ try {
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
-        'admin_add', 'admin_remove'], true);
+        'admin_add', 'admin_remove', 'db_test', 'db_migrate'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
        superadmin: everything. admin: management + content + undo, but not roles,
        destructive purge or the security policy. editor: content only. */
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
-    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'auth_policy_save', 'auth_policy_get'];
+    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'auth_policy_save', 'auth_policy_get',
+        'db_status', 'db_test', 'db_migrate'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -369,6 +370,117 @@ try {
             $res = AdminRoles::remove((string) ($body['email'] ?? ''));
             if (!empty($res['ok'])) AdminAudit::log('admins', 'admin_removed', (string) ($body['email'] ?? ''), 'Revoked admin access');
             json_out($res, !empty($res['ok']) ? 200 : 422);
+        }
+
+        // ---- Database: status + browser-based migration (superadmin) ----
+        // Shared cPanel has no SSH/cron, so the SQLite → MySQL/Postgres cutover
+        // (normally db/migrate.php on the CLI) is exposed here. Superadmin-only,
+        // CSRF-protected; credentials are used for this request and shown back as
+        // an .env snippet to paste — never written to disk from the browser.
+        case 'db_status': {
+            require_once AV_ROOT . '/lib/Migrator.php';
+            $src = Database::pdo();
+            $counts = []; $total = 0;
+            foreach (Migrator::ORDER as $t) {
+                if (Migrator::tableExists($src, $t)) { $n = Migrator::count($src, $t); $counts[$t] = $n; $total += $n; }
+            }
+            $driver = Database::driver();
+            json_out([
+                'ok'         => true,
+                'driver'     => $driver,
+                'is_sqlite'  => $driver === 'sqlite',
+                'db'         => $driver === 'sqlite' ? basename((string) (defined('AV_DB_PATH') ? AV_DB_PATH : '')) : (string) (getenv('AV_DB_NAME') ?: ''),
+                'tables'     => $counts,
+                'total_rows' => $total,
+            ]);
+        }
+        case 'db_test':
+        case 'db_migrate': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Migrator.php';
+            $to   = strtolower(trim((string) ($body['driver'] ?? '')));
+            if (!in_array($to, ['mysql', 'pgsql'], true)) json_out(['ok' => false, 'error' => 'Choose a MySQL or PostgreSQL target.'], 422);
+            $host = trim((string) ($body['host'] ?? '')) ?: '127.0.0.1';
+            $port = trim((string) ($body['port'] ?? '')) ?: ($to === 'pgsql' ? '5432' : '3306');
+            $name = trim((string) ($body['name'] ?? ''));
+            $user = trim((string) ($body['user'] ?? ''));
+            $pass = (string) ($body['pass'] ?? '');
+            if ($name === '') json_out(['ok' => false, 'error' => 'A target database name is required.'], 422);
+            $dsn = $to === 'pgsql'
+                ? "pgsql:host=$host;port=$port;dbname=$name"
+                : "mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4";
+            try {
+                $target = new PDO($dsn, $user ?: null, $pass !== '' ? $pass : null,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_TIMEOUT => 8]);
+            } catch (Throwable $e) {
+                json_out(['ok' => false, 'error' => 'Could not connect: ' . $e->getMessage()], 502);
+            }
+            $version = '';
+            try { $version = (string) $target->query('SELECT version()')->fetchColumn(); } catch (Throwable $e) {}
+
+            if ($action === 'db_test') {
+                json_out(['ok' => true, 'connected' => true, 'driver' => $to, 'server' => $version]);
+            }
+
+            // ---- db_migrate: optional schema apply, then verified copy ----
+            $applySchema = !empty($body['apply_schema']);
+            $truncate    = !empty($body['truncate']);
+            $dryRun      = !empty($body['dry_run']);
+            $log = '';
+            $append = function (string $m) use (&$log) { $log .= $m; };
+
+            $appliedStmts = 0;
+            if ($applySchema && !$dryRun) {
+                $file = AV_ROOT . "/db/schema.$to.sql";
+                if (!is_file($file)) json_out(['ok' => false, 'error' => "Schema file missing: db/schema.$to.sql"], 500);
+                $sql = preg_replace('/--[^\n]*/', '', (string) file_get_contents($file));
+                foreach (array_filter(array_map('trim', explode(';', (string) $sql))) as $stmt) {
+                    try { $target->exec($stmt); $appliedStmts++; }
+                    catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Schema step failed: ' . $e->getMessage(), 'log' => $log], 500); }
+                }
+                $append("Applied db/schema.$to.sql ($appliedStmts statements)\n");
+                require_once AV_ROOT . '/lib/workspace.php';
+                require_once AV_ROOT . '/lib/celebrations.php';
+                require_once AV_ROOT . '/lib/people.php';
+                try {
+                    Database::ensureMetaOn($target);
+                    av_communities_ensure($target);
+                    av_celebrations_ensure($target);
+                    av_team_ensure($target);
+                } catch (Throwable $e) { json_out(['ok' => false, 'error' => 'Auxiliary tables: ' . $e->getMessage(), 'log' => $log], 500); }
+            }
+
+            $src = Database::pdo();
+            try {
+                $report = Migrator::migrate($src, $target, ['dryRun' => $dryRun, 'truncate' => $truncate, 'log' => $append]);
+            } catch (Throwable $e) {
+                json_out(['ok' => false, 'error' => $e->getMessage(), 'log' => $log], 422);
+            }
+            $rows = array_sum(array_map(fn($r) => (int) $r['copied'], $report));
+            $bad  = array_keys(array_filter($report, fn($r) => empty($r['ok'])));
+
+            if (!$dryRun) {
+                AdminAudit::log('database', 'db_migrate', $to . ':' . $name,
+                    $rows . ' rows → ' . strtoupper($to) . ' @ ' . $host . ($bad ? ' (mismatch: ' . implode(',', $bad) . ')' : ' ✓'));
+            }
+            $env = "AV_DB_DRIVER=$to\nAV_DB_HOST=$host\nAV_DB_PORT=$port\nAV_DB_NAME=$name\nAV_DB_USER=$user\nAV_DB_PASS=" . ($pass !== '' ? 'your-password' : '');
+            json_out([
+                'ok'       => empty($bad),
+                'dry_run'  => $dryRun,
+                'report'   => $report,
+                'rows'     => $rows,
+                'tables'   => count($report),
+                'mismatch' => $bad,
+                'applied'  => $appliedStmts,
+                'server'   => $version,
+                'env'      => $env,
+                'log'      => $log,
+                'note'     => $dryRun
+                    ? 'Dry run — nothing was written. Uncheck “Dry run”, then Migrate, to copy the data.'
+                    : (empty($bad)
+                        ? 'Migration complete — every table’s row count was verified. Paste the settings below into your .env (set AV_DB_PASS to the real password) to switch the site to ' . strtoupper($to) . '.'
+                        : 'Some tables did not match. Review the log; you can re-run with “Replace target tables” to overwrite.'),
+            ]);
         }
 
         // ---- Sign-in security policy (superadmin) ----

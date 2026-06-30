@@ -11,7 +11,7 @@
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
-    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin' };
+    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin' };
   function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
@@ -32,7 +32,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -80,6 +80,7 @@
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
     else if (which === 'admins') { show('admins'); loadAdmins(); }
+    else if (which === 'database') { show('database'); loadDatabase(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -1182,6 +1183,101 @@
       if (!confirm('Revoke Studio access for ' + em + '?')) return;
       b.disabled = true;
       post('admin_remove', { email: em }).then(function (r) { if (r.data && r.data.ok) { toast('Access revoked.'); loadAdmins(); } else { toast((r.data && r.data.error) || 'Could not revoke.'); b.disabled = false; } });
+    });
+  })();
+
+  /* ---- Database (superadmin · SQLite → MySQL/Postgres migration) ---- */
+  function loadDatabase() {
+    var box = $('#dbStatus'); if (!box) return;
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    api('db_status').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      var rows = Object.keys(d.tables || {}).map(function (t) {
+        return '<tr><td>' + escapeHtml(t) + '</td><td class="db-n">' + (d.tables[t] | 0) + '</td></tr>';
+      }).join('');
+      var driverLabel = { sqlite: 'SQLite (bundled file)', mysql: 'MySQL / MariaDB', pgsql: 'PostgreSQL' }[d.driver] || d.driver;
+      box.innerHTML =
+        '<p class="db-cur"><span class="db-badge ' + (d.is_sqlite ? 'is-sqlite' : 'is-server') + '">' + escapeHtml(driverLabel) + '</span>'
+        + (d.db ? ' <span class="muted">· ' + escapeHtml(d.db) + '</span>' : '') + '</p>'
+        + (d.is_sqlite ? '<p class="muted tiny">You’re on the portable SQLite file. Migrate below to run on a managed server database.</p>'
+                       : '<p class="muted tiny">Already running on a server database. You can still re-copy from SQLite if needed.</p>')
+        + '<table class="db-table"><thead><tr><th>Table</th><th class="db-n">Rows</th></tr></thead><tbody>' + rows
+        + '</tbody><tfoot><tr><td>Total</td><td class="db-n">' + (d.total_rows | 0) + '</td></tr></tfoot></table>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
+  }
+  (function wireDatabase() {
+    var view = $('#databaseView'); if (!view) return;
+    var msg = $('#dbMsg');
+    function setMsg(t, kind) { msg.textContent = t || ''; msg.style.color = kind === 'err' ? '#d22' : (kind === 'ok' ? '#2ea043' : ''); }
+    function params() {
+      return { driver: $('#db_driver').value, host: $('#db_host').value.trim(), port: $('#db_port').value.trim(),
+        name: $('#db_name').value.trim(), user: $('#db_user').value.trim(), pass: $('#db_pass').value,
+        apply_schema: $('#db_apply').checked, truncate: $('#db_truncate').checked };
+    }
+    // Default port follows the chosen driver unless the user typed one.
+    $('#db_driver').addEventListener('change', function () {
+      var p = $('#db_port'); if (!p.value || p.value === '3306' || p.value === '5432') p.value = this.value === 'pgsql' ? '5432' : '3306';
+    });
+    function busy(on) { ['dbTestBtn', 'dbDryBtn', 'dbMigrateBtn'].forEach(function (id) { $('#' + id).disabled = on; }); }
+    function renderResult(d) {
+      var wrap = $('#dbResult'); wrap.hidden = false;
+      var rep = d.report || {};
+      var rows = Object.keys(rep).map(function (t) {
+        var r = rep[t]; var ok = r.ok;
+        return '<tr><td>' + escapeHtml(t) + '</td><td class="db-n">' + (r.source | 0) + '</td><td class="db-n">' + (r.copied | 0)
+          + '</td><td>' + (ok ? '<span class="db-ok">✓</span>' : '<span class="db-bad">✗</span>') + '</td></tr>';
+      }).join('');
+      $('#dbReport').innerHTML =
+        '<p class="' + (d.ok ? 'db-note-ok' : 'db-note-bad') + '">' + escapeHtml(d.note || '') + '</p>'
+        + (d.server ? '<p class="muted tiny">Target server: ' + escapeHtml(d.server) + '</p>' : '')
+        + '<table class="db-table"><thead><tr><th>Table</th><th class="db-n">Source</th><th class="db-n">Copied</th><th></th></tr></thead><tbody>'
+        + rows + '</tbody><tfoot><tr><td>' + (d.tables | 0) + ' tables</td><td></td><td class="db-n">' + (d.rows | 0) + '</td><td></td></tr></tfoot></table>';
+      var envWrap = $('#dbEnvWrap');
+      if (d.env && !d.dry_run && d.ok) { envWrap.hidden = false; $('#dbEnv').textContent = d.env; }
+      else envWrap.hidden = true;
+      $('#dbLog').textContent = d.log || '(no log)';
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    function run(action, confirmMsg) {
+      var p = params();
+      if (!p.name) { setMsg('Enter the target database name.', 'err'); return; }
+      if (confirmMsg && !confirm(confirmMsg)) return;
+      busy(true); setMsg(action === 'db_test' ? 'Connecting…' : (p.dry_run ? 'Checking…' : 'Migrating… this can take a moment.'), '');
+      post(action, p).then(function (r) {
+        var d = r.data || {};
+        if (action === 'db_test') {
+          setMsg(d.ok ? ('Connected ✓ ' + (d.server ? '· ' + d.server : '')) : (d.error || 'Connection failed.'), d.ok ? 'ok' : 'err');
+        } else {
+          setMsg(d.ok ? (d.dry_run ? 'Dry run OK — review below.' : 'Migration verified ✓') : (d.error || 'Migration failed — see below.'), d.ok ? 'ok' : 'err');
+          renderResult(d);
+          loadDatabase();
+        }
+      }).catch(function () { setMsg('Network error — try again.', 'err'); })
+        .finally(function () { busy(false); });
+    }
+    $('#dbRefresh').addEventListener('click', loadDatabase);
+    $('#dbTestBtn').addEventListener('click', function () { run('db_test'); });
+    $('#dbDryBtn').addEventListener('click', function () {
+      var pp = params(); pp.dry_run = true;
+      if (!pp.name) { setMsg('Enter the target database name.', 'err'); return; }
+      busy(true); setMsg('Checking…', '');
+      post('db_migrate', pp).then(function (r) {
+        var d = r.data || {};
+        setMsg(d.ok ? 'Dry run OK — review below.' : (d.error || 'Dry run failed — see below.'), d.ok ? 'ok' : 'err');
+        renderResult(d);
+      }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
+    });
+    $('#dbMigrateBtn').addEventListener('click', function () {
+      var pp = params(); pp.dry_run = false;
+      if (!pp.name) { setMsg('Enter the target database name.', 'err'); return; }
+      if (!confirm('Copy all data into ' + pp.driver.toUpperCase() + ' database “' + pp.name + '” on ' + (pp.host || 'localhost') + '?\n\nThis writes to the target. Make sure it is the right, empty database.')) return;
+      busy(true); setMsg('Migrating… this can take a moment.', '');
+      post('db_migrate', pp).then(function (r) {
+        var d = r.data || {};
+        setMsg(d.ok ? 'Migration verified ✓' : (d.error || 'Migration failed — see below.'), d.ok ? 'ok' : 'err');
+        renderResult(d); loadDatabase();
+      }).catch(function () { setMsg('Network error — try again.', 'err'); }).finally(function () { busy(false); });
     });
   })();
 
