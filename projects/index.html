@@ -374,6 +374,24 @@ html[data-theme="dark"] .hs-num{color:#fff}html[data-theme="dark"] .hs-lbl{color
 @media(max-width:768px){.apply-layout{grid-template-columns:1fr;gap:32px}}
 
 /* ═══════════════════════════════
+   PROJECT ADMIN ELIGIBILITY
+   ═══════════════════════════════ */
+.eligib{background:var(--bg);padding:clamp(52px,7vw,88px) 0;border-top:1px solid var(--div)}
+.eligib-head{max-width:60ch;margin:0 0 clamp(28px,4vw,44px)}
+.eligib-head h2{font-size:var(--sz-h2);margin-bottom:14px}
+.eligib-head h2 em{font-style:normal;color:var(--gold)}
+.eligib-head p{font-family:var(--fb);font-size:var(--sz-sm);color:var(--ink-m);line-height:1.75}
+.eligib-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.eligib-item{display:flex;align-items:flex-start;gap:14px;background:var(--bg-w);border:1px solid var(--div);border-radius:var(--r12);padding:20px 22px;transition:border-color var(--tf),box-shadow var(--tf),transform var(--tf)}
+.eligib-item:hover{border-color:var(--gold);box-shadow:var(--sh-md);transform:translateY(-2px)}
+.eligib-check{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--gold);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(243,180,22,.32);margin-top:1px}
+.eligib-check svg{width:15px;height:15px;stroke-width:3}
+.eligib-item p{font-family:var(--fb);font-size:13.5px;font-weight:600;color:var(--ink-b);line-height:1.55;margin:0}
+.eligib-note{display:flex;align-items:flex-start;gap:12px;margin-top:24px;padding:18px 22px;background:var(--g06);border-left:3px solid var(--gold);border-radius:var(--r8)}
+.eligib-note p{font-family:var(--fb);font-size:13px;color:var(--ink-m);line-height:1.7;margin:0}
+@media(max-width:560px){.eligib-grid{grid-template-columns:1fr}.eligib-item{padding:16px 18px}}
+
+/* ═══════════════════════════════
    QUOTE
    ═══════════════════════════════ */
 .quote-band{background:var(--gold);padding:clamp(36px,5vw,56px) 0;overflow:hidden}
@@ -1073,6 +1091,46 @@ html[data-theme="dark"] .hs-num{color:#fff}html[data-theme="dark"] .hs-lbl{color
             <div class="step-body"><h3>Show up and transform</h3><p>Engage fully. Graduate as a certified Vanguard with real skills, renewed character, and a community built for the long haul.</p></div>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PROJECT ADMIN ELIGIBILITY ─── -->
+  <section class="eligib" aria-labelledby="eligib-h">
+    <div class="W">
+      <div class="eligib-head rv">
+        <span class="lbl">Leadership Pathway</span>
+        <h2 id="eligib-h">Project Admin<br/><em>Eligibility Criteria</em></h2>
+        <p>To be considered for a Project Admin role, an individual must meet the following requirements:</p>
+      </div>
+      <div class="eligib-grid" role="list">
+        <div class="eligib-item rv d1" role="listitem">
+          <span class="eligib-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <p>Must have successfully completed <strong>CIMC Levels 1 &amp; 2</strong>.</p>
+        </div>
+        <div class="eligib-item rv d1" role="listitem">
+          <span class="eligib-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <p>Must demonstrate reliability and consistency in service and commitment.</p>
+        </div>
+        <div class="eligib-item rv d2" role="listitem">
+          <span class="eligib-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <p>Must have maintained at least <strong>70% attendance</strong> at meetings.</p>
+        </div>
+        <div class="eligib-item rv d2" role="listitem">
+          <span class="eligib-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <p>Must exhibit a high level of accountability, responsibility, and integrity.</p>
+        </div>
+        <div class="eligib-item rv d3" role="listitem">
+          <span class="eligib-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <p>Must be at least a <strong>B Member</strong>.</p>
+        </div>
+        <div class="eligib-item rv d3" role="listitem">
+          <span class="eligib-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <p>Must have taught at least one <strong>CIMC Level 1</strong> class.</p>
+        </div>
+      </div>
+      <div class="eligib-note rv" role="note">
+        <p>These criteria help ensure that every Project Admin possesses the necessary training, experience, commitment, and leadership capacity to effectively serve within the project.</p>
       </div>
     </div>
   </section>

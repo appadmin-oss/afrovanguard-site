@@ -486,7 +486,20 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
   .listen-bar { gap: 14px; }
   .post-grid { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr; }
-  .diary-stats { gap: 24px; }
+  /* tighter vertical rhythm so hero + article don't waste the fold on phones */
+  .diary-hero { padding: 52px 0 32px; }
+  .diary-stats { gap: 22px 28px; }
+  .diary-stat .num { font-size: 34px; }
+  .article-wrap { padding: 32px 0 16px; }
+  .diary-controls { gap: 14px; padding: 20px 0 4px; }
+  /* let the search field use the full row instead of capping at 420px */
+  .search-wrap { max-width: none; min-width: 0; }
+  .diary-selects { width: 100%; }
+  .diary-sel { flex: 1; min-width: 0; }
+  .diary-sel select { width: 100%; }
+  /* reactions bar: stack the clap + share cleanly rather than overflow */
+  .reactions { flex-wrap: wrap; gap: 10px; }
+  .byline-end { flex-direction: column; align-items: flex-start; }
   .subbar-title { font-size: 14px; }
   .react-hint { display: none; }
 }
