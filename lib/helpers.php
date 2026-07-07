@@ -74,11 +74,28 @@ function diary_url(string $path = ''): string {
     return rtrim(SITE_URL, '/') . '/diary/' . $path;
 }
 
-/** Send a JSON response and end the request. */
+/**
+ * Cache-busting URL for a same-origin static asset. Appends `?v=<mtime>` from
+ * the file on disk, so a deploy that changes the file changes the URL and the
+ * browser (and any cached copy on a phone) fetches the new version instead of
+ * serving a stale one. Falls back to the bare path if the file isn't found.
+ */
+function av_asset(string $path): string {
+    if ($path === '' || strpos($path, '//') !== false || $path[0] !== '/') return $path; // external / non-root: leave as-is
+    $file = (defined('AV_ROOT') ? AV_ROOT : dirname(__DIR__)) . $path;
+    $m = @filemtime($file);
+    return $m ? ($path . (strpos($path, '?') !== false ? '&' : '?') . 'v=' . $m) : $path;
+}
+
+/** Send a JSON response and end the request (with baseline security headers —
+ *  one place that covers every JSON endpoint on the site). */
 function json_out($data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');                       // API responses are never frames
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Cross-Origin-Resource-Policy: same-origin');   // no cross-site embedding of API data
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }

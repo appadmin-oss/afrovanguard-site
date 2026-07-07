@@ -53,6 +53,11 @@
       <div class="nav-group">
         <p class="nav-group-h">Community</p>
         <button class="tab" data-tab="communities"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 12h5"/></svg><span>Communities</span></button>
+        <button class="tab" data-tab="announcements"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 0 1-5.8-1.6"/></svg><span>Announcements</span></button>
+      </div>
+      <div class="nav-group">
+        <p class="nav-group-h">Giving</p>
+        <button class="tab" data-tab="donations"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 8.6a5 5 0 0 0-7.1-7.1L12 3.2l-1.7-1.7a5 5 0 0 0-7.1 7.1L12 17.4l8.8-8.8z"/><path d="M12 17.4V21"/></svg><span>Donations</span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">System</p>
@@ -76,12 +81,26 @@
     <div class="login-card">
       <div class="login-brand"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span> <span class="studio-tag">Studio</span></div>
       <h1>Sign in to Studio</h1>
-      <p>Enter your admin access token to manage the Diary, Academy &amp; site.</p>
+      <p>Sign in with your Afrovanguard admin account to manage the Diary, Academy &amp; site.</p>
       <form id="loginForm" novalidate>
-        <label class="login-field">
-          <span class="login-label">Admin token</span>
+        <div id="pwBlock">
+          <label class="login-field">
+            <span class="login-label">Email</span>
+            <span class="login-input-wrap">
+              <input type="email" id="emailInput" placeholder="you@afrovanguard.org.ng" autocomplete="username" autofocus />
+            </span>
+          </label>
+          <label class="login-field">
+            <span class="login-label">Password</span>
+            <span class="login-input-wrap">
+              <input type="password" id="passwordInput" placeholder="Your account password" autocomplete="current-password" />
+            </span>
+          </label>
+        </div>
+        <label class="login-field" id="tokenBlock" hidden>
+          <span class="login-label">Super Admin token</span>
           <span class="login-input-wrap">
-            <input type="password" id="tokenInput" placeholder="••••••••••••••••" autocomplete="current-password" autofocus required />
+            <input type="password" id="tokenInput" placeholder="••••••••••••••••" autocomplete="current-password" />
             <button type="button" class="login-eye" id="tokenToggle" aria-label="Show token" aria-pressed="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -90,6 +109,7 @@
         <button class="btn btn-primary login-submit" type="submit" id="loginBtn">Sign in</button>
       </form>
       <p class="login-msg" id="loginMsg" role="alert"></p>
+      <button type="button" class="login-altbtn" id="loginToggle">Use a Super Admin token instead</button>
       <p class="login-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Access is rate-limited and logged.</p>
     </div>
   </section>
@@ -445,11 +465,11 @@
   <!-- CELEBRATIONS -->
   <main class="studio-main" id="celebrationsView" hidden>
     <div class="studio-head">
-      <div><h1>Celebrations</h1><p class="muted">Auto-celebrated holidays &amp; dates. Built-ins run automatically; add your own with custom doodle art.</p></div>
+      <div><h1>Celebrations</h1><p class="muted">Auto-celebrated holidays &amp; dates. Built-ins run automatically and are fully editable — wording, emoji, colour, art, even the date — or add your own with custom doodle art.</p></div>
       <button class="btn btn-primary" id="newCelBtn">+ Add celebration</button>
     </div>
     <div class="entry-list" id="celList"></div>
-    <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Built-in calendar (automatic)</h2>
+    <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Built-in calendar (automatic — click Customise to edit)</h2>
     <div class="entry-list" id="celBuiltins"></div>
   </main>
 
@@ -492,6 +512,101 @@
         </div>
       </aside>
     </form>
+  </main>
+
+  <!-- DONATIONS (giving ledger: stats, filters, manual gifts, goals, CSV) -->
+  <main class="studio-main" id="donationsView" hidden>
+    <div class="studio-head">
+      <div><h1>Donations</h1><p class="muted">Every recorded gift — card, bank transfer and in-kind. Card and virtual-account gifts arrive automatically (Paystack-verified); record offline gifts here. <b>Edit donate page</b> lets you rewrite any text, image or section on the public page, in place.</p></div>
+      <div class="editor-actions">
+        <a class="btn btn-outline btn-sm" href="/donate.html?edit=1" target="_blank" rel="noopener">✏️ Edit donate page</a>
+        <a class="btn btn-outline btn-sm" id="donExportBtn" href="/admin/api.php?action=don_export" download>Export CSV</a>
+        <button class="btn btn-primary btn-sm" id="donAddToggle" aria-expanded="false" aria-controls="donAddCard">+ Record a gift</button>
+      </div>
+    </div>
+
+    <div class="ov-grid" id="donStats" style="margin:18px 0 22px" aria-live="polite"></div>
+
+    <section class="side-card" id="donAddCard" hidden aria-labelledby="donAddH">
+      <h3 id="donAddH">Record an offline gift</h3>
+      <form id="donAddForm" novalidate>
+        <div class="editor-grid" style="grid-template-columns:1fr 1fr;gap:12px">
+          <label class="fld"><span>Donor name <b aria-hidden="true">*</b></span><input id="dn_name" required autocomplete="off" /></label>
+          <label class="fld"><span>Email (for records)</span><input id="dn_email" type="email" autocomplete="off" /></label>
+          <label class="fld"><span>Type</span>
+            <select id="dn_type">
+              <option value="bank_static">Bank transfer (Zenith)</option>
+              <option value="cash">Cash</option>
+              <option value="inkind">In-kind (goods / services)</option>
+            </select></label>
+          <label class="fld" id="dn_amount_wrap"><span>Amount <b aria-hidden="true">*</b></span><input id="dn_amount" type="number" min="1" step="0.01" inputmode="decimal" /></label>
+          <label class="fld" id="dn_inkind_wrap" hidden><span>What was given</span><input id="dn_inkind" placeholder="e.g. 10 laptops" /></label>
+          <label class="fld"><span>Currency</span><select id="dn_currency"><option>NGN</option><option>USD</option><option>GBP</option></select></label>
+          <label class="fld"><span>Campaign</span><select id="dn_campaign"><option value="general">General Fund</option></select></label>
+          <label class="fld" style="grid-column:1 / -1"><span>Note (internal)</span><input id="dn_note" maxlength="300" autocomplete="off" /></label>
+        </div>
+        <label class="fld checkbox"><input type="checkbox" id="dn_anon" /> <span>Show as “Anonymous” on the donor wall</span></label>
+        <div class="editor-actions" style="margin-top:10px">
+          <button type="submit" class="btn btn-primary btn-sm">Save gift</button>
+          <button type="button" class="btn btn-outline btn-sm" id="donAddCancel">Cancel</button>
+        </div>
+        <p class="muted" id="donAddMsg" role="alert"></p>
+      </form>
+    </section>
+
+    <section aria-labelledby="donGoalsH">
+      <h2 id="donGoalsH" style="font-family:var(--font-heading);font-size:20px;margin:24px 0 10px">Campaign goals</h2>
+      <div class="entry-list" id="donGoals"></div>
+    </section>
+
+    <section aria-labelledby="donListH">
+      <h2 id="donListH" style="font-family:var(--font-heading);font-size:20px;margin:24px 0 10px">Gifts</h2>
+      <form class="don-filters" id="donFilters" role="search" aria-label="Filter donations" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <label class="fld" style="flex:1;min-width:180px"><span class="sr-only">Search name, email or reference</span>
+          <input id="df_q" type="search" placeholder="Search name, email, reference…" /></label>
+        <label class="fld"><span class="sr-only">Type</span>
+          <select id="df_type"><option value="">All types</option><option value="monetary">Monetary</option><option value="inkind">In-kind</option><option value="card">Card</option><option value="bank_static">Bank (static)</option><option value="bank_va">Bank (virtual acct)</option><option value="cash">Cash</option></select></label>
+        <label class="fld"><span class="sr-only">Status</span>
+          <select id="df_status"><option value="">All statuses</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="voided">Voided</option></select></label>
+        <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+      </form>
+      <div id="donTableWrap" style="overflow-x:auto" tabindex="0" role="region" aria-labelledby="donListH"></div>
+      <p class="muted" id="donListMsg" role="status" aria-live="polite"></p>
+      <div class="editor-actions" id="donPager" hidden>
+        <button class="btn btn-outline btn-sm" id="donPrev">← Newer</button>
+        <button class="btn btn-outline btn-sm" id="donNext">Older →</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ANNOUNCEMENTS (broadcast to members: email + in-app + native push) -->
+  <main class="studio-main" id="announcementsView" hidden>
+    <div class="studio-head">
+      <div><h1>Announcements</h1><p class="muted">Broadcast to members — delivered by email (from the Afrovanguard general address, not donations@) and shown in every member’s portal, on any device or browser.</p></div>
+    </div>
+    <section class="side-card" aria-labelledby="annComposeH" style="max-width:720px">
+      <h3 id="annComposeH">New announcement</h3>
+      <form id="annForm" novalidate>
+        <label class="fld"><span>Title <b aria-hidden="true">*</b></span><input id="an_title" maxlength="180" required autocomplete="off" placeholder="e.g. LCASP School Storm — volunteers needed" /></label>
+        <label class="fld"><span>Message <b aria-hidden="true">*</b></span><textarea id="an_body" rows="6" maxlength="5000" required placeholder="Write the announcement. Blank lines start new paragraphs."></textarea></label>
+        <div class="editor-grid" style="grid-template-columns:1fr 1fr;gap:12px">
+          <label class="fld"><span>Link (optional)</span><input id="an_url" maxlength="300" placeholder="/donate.html or https://…" autocomplete="off" /></label>
+          <label class="fld"><span>Audience</span>
+            <select id="an_audience">
+              <option value="all">Everyone</option>
+              <option value="members">Members only (@afrovanguard.org.ng)</option>
+              <option value="learners">Learners only (non-members)</option>
+            </select></label>
+        </div>
+        <label class="fld checkbox"><input type="checkbox" id="an_email" checked /> <span>Also send by email now <span class="muted" id="an_count"></span></span></label>
+        <div class="editor-actions" style="margin-top:10px">
+          <button type="submit" class="btn btn-primary btn-sm">Send announcement</button>
+          <span class="muted" id="an_msg" role="alert" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+    <h2 style="font-family:var(--font-heading);font-size:20px;margin:26px 0 10px">Recent</h2>
+    <div class="entry-list" id="annList"></div>
   </main>
 
   <!-- COMMUNITIES (Google Chat Spaces / Groups shown in the member portal) -->
@@ -706,11 +821,11 @@
   <!-- TEAM & ROLES (superadmin) -->
   <main class="studio-main" id="adminsView" hidden>
     <div class="studio-head">
-      <div><h1>Team &amp; roles</h1><p class="muted">Who can sign in to the Studio, and at what level. <b>Editor</b> = content only · <b>Admin</b> = management + undo · <b>Super&nbsp;Admin</b> = everything.</p></div>
+      <div><h1>Team &amp; roles</h1><p class="muted">Who can sign in, and at what level. <b>Editor</b> = content only · <b>Admin</b> = management + undo · <b>Super&nbsp;Admin</b> = everything. Two scoped roles sign in to their own portal instead of the Studio: <b>Academy&nbsp;Admin</b> (<code>/academy/studio/</code>) and <b>Mentorship&nbsp;Admin</b> (<code>/mentorship/admin/</code>).</p></div>
     </div>
     <div class="side-card" style="max-width:640px;margin-bottom:22px">
-      <h3>Grant Studio access</h3>
-      <p class="muted" style="margin-top:-4px">The person must have signed in as a member once. The break-glass admin token is always Super Admin.</p>
+      <h3>Grant access</h3>
+      <p class="muted" style="margin-top:-4px">The person needs a member account with a password (they sign in with their email &amp; password). Scoped admins are taken to their portal automatically. The break-glass token is always Super Admin.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <label class="fld" style="flex:1;min-width:220px;margin:0"><span>Member email</span><input id="adEmail" type="email" placeholder="name@example.com" /></label>
         <label class="fld" style="margin:0"><span>Role</span><select id="adRole"><option value="editor">Editor</option><option value="admin">Admin</option><option value="superadmin">Super Admin</option></select></label>

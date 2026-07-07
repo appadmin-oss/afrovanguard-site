@@ -3180,7 +3180,7 @@
   <link rel="stylesheet" href="/assets/site/chrome.css" />
   <link rel="stylesheet" href="/assets/site/nav.css" />
 </head>
-<body>
+<body data-av-page="donate">
 
   <a href="#main-content" class="skip-link">Skip to main content</a>
 
@@ -3224,7 +3224,7 @@
       <div class="container">
         <div class="nav-utility">
           <div class="nav-utility-actions">
-            <button class="icon-btn theme-toggle" type="button" aria-label="Toggle dark mode" data-tip="Toggle theme"><svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></button>
+            <button class="icon-btn theme-toggle" type="button" aria-label="Toggle dark mode" data-tip="Toggle theme"><svg aria-hidden="true" class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg aria-hidden="true" class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></button>
             <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
             <div class="nav-account" id="navAuth">
               <button class="acct-btn" id="acctBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu" data-tip="Account" aria-label="Your account">
@@ -3386,7 +3386,7 @@
             <li><a href="/contact.html">Contact</a></li>
           </ul>
           <div class="nav-actions">
-            <a class="nav-search-btn" id="navSearchBtn" href="/diary/" data-search-open aria-haspopup="dialog" aria-label="Search Afrovanguard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span></a>
+            <a class="nav-search-btn" id="navSearchBtn" href="/diary/" data-search-open aria-haspopup="dialog" aria-label="Search Afrovanguard"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span></a>
             <a href="/donate.html" class="nav-donate-btn">Donate</a>
             <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="nav-cta">Join the Movement</a>
           </div>
@@ -3398,6 +3398,7 @@
   </header>
 
   <!-- Mobile Nav -->
+  <!-- AV:CHROME -->
   <div class="scrim" data-close-drawer></div>
   <!-- Accessible site search (AI-integrated) — opened from the Search control -->
   <div class="av-search" id="avSearch" hidden>
@@ -3405,7 +3406,7 @@
     <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
       <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
       <form class="av-search-bar" id="avSearchForm" role="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
                placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
         <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </form>
@@ -3488,12 +3489,13 @@
       <a href="https://cacentre.afrovanguard.org.ng/volunteer" class="btn btn-primary" style="width:100%;">Join the Movement</a>
       <a href="/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
       <div class="avd-social">
-        <a href="https://www.instagram.com/afrovanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
-        <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
-        <a href="https://www.linkedin.com/company/afrovanguard/" aria-label="LinkedIn" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg></a>
+        <a href="https://www.instagram.com/afrovanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
+        <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+        <a href="https://www.linkedin.com/company/afrovanguard/" aria-label="LinkedIn" target="_blank" rel="noopener"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg></a>
       </div>
     </div>
   </nav>
+  <!-- /AV:CHROME -->
 
   <main id="main-content">
 
@@ -4034,19 +4036,19 @@
                 <div class="field-row">
                   <div>
                     <label class="field-label" for="firstName">First Name *</label>
-                    <input type="text" class="field" id="firstName" placeholder="Amaka" required autocomplete="given-name" />
-                    <div class="field-error" id="fnErr">Please enter your first name</div>
+                    <input type="text" class="field" id="firstName" placeholder="Amaka" required autocomplete="given-name" aria-describedby="fnErr" />
+                    <div class="field-error" id="fnErr" role="alert">Please enter your first name</div>
                   </div>
                   <div>
                     <label class="field-label" for="lastName">Last Name *</label>
-                    <input type="text" class="field" id="lastName" placeholder="Okafor" required autocomplete="family-name" />
-                    <div class="field-error" id="lnErr">Please enter your last name</div>
+                    <input type="text" class="field" id="lastName" placeholder="Okafor" required autocomplete="family-name" aria-describedby="lnErr" />
+                    <div class="field-error" id="lnErr" role="alert">Please enter your last name</div>
                   </div>
                 </div>
 
                 <label class="field-label" for="email">Email Address *</label>
-                <input type="email" class="field" id="email" placeholder="you@example.com" required autocomplete="email" />
-                <div class="field-error" id="emErr">Please enter a valid email address</div>
+                <input type="email" class="field" id="email" placeholder="you@example.com" required autocomplete="email" aria-describedby="emErr" />
+                <div class="field-error" id="emErr" role="alert">Please enter a valid email address</div>
 
                 <label class="field-label" for="phone">Phone Number</label>
                 <input type="tel" class="field" id="phone" placeholder="+234 800 000 0000" autocomplete="tel" />
@@ -4855,6 +4857,7 @@
               <img
                 class="video-thumb-img"
                 src="Images/summer1.png"
+                alt="Children at an Afrovanguard summer programme — press play to watch the story"
                 loading="lazy"
                 decoding="async"
               />
@@ -5206,6 +5209,45 @@
 
   </main>
 
+  <!-- Mobile sticky give bar — appears after the hero, retires while the
+       form is on screen. data-av-noedit: chrome, not page content. -->
+  <div class="sticky-give" id="stickyGive" hidden data-av-noedit>
+    <span class="sg-txt">Fund Africa's next leaders</span>
+    <a href="#donate-form" class="sg-btn">Give Now</a>
+    <button type="button" class="sg-close" id="stickyGiveClose" aria-label="Dismiss give bar">&times;</button>
+  </div>
+  <style>
+    .sticky-give { position: fixed; left: 0; right: 0; bottom: 0; z-index: 300;
+      display: none; align-items: center; gap: 12px;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+      background: rgba(13, 18, 32, 0.97); border-top: 2px solid var(--color-gold, #f3b416);
+      box-shadow: 0 -8px 30px rgba(0,0,0,0.35); }
+    .sticky-give.on { display: flex; }
+    .sg-txt { flex: 1; min-width: 0; color: #fff; font-size: 13px; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sg-btn { flex-shrink: 0; background: var(--color-gold, #f3b416); color: #15140f;
+      font-weight: 800; font-size: 14px; padding: 10px 22px; border-radius: 999px;
+      text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+    .sg-btn:focus-visible, .sg-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    .sg-close { flex-shrink: 0; width: 34px; height: 34px; border: 0; border-radius: 50%;
+      background: rgba(255,255,255,0.14); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+    @media (min-width: 721px) { .sticky-give.on { display: none; } } /* mobile only */
+  </style>
+  <script>
+    (function () {
+      var bar = document.getElementById('stickyGive');
+      if (!bar || !('IntersectionObserver' in window)) return;
+      var hero = document.querySelector('.donate-hero');
+      var form = document.getElementById('donate-form');
+      var dismissed = false, pastHero = false, formVisible = false;
+      function sync() { var on = pastHero && !formVisible && !dismissed;
+        bar.hidden = !on; bar.classList.toggle('on', on); }
+      if (hero) new IntersectionObserver(function (en) { pastHero = !en[0].isIntersecting; sync(); }).observe(hero);
+      if (form) new IntersectionObserver(function (en) { formVisible = en[0].isIntersecting; sync(); }).observe(form);
+      document.getElementById('stickyGiveClose').addEventListener('click', function () { dismissed = true; sync(); });
+    })();
+  </script>
+
   <!-- ========================================================
        FOOTER — MATCHES HOMEPAGE
        ======================================================== -->
@@ -5216,11 +5258,11 @@
           <div class="footer-logo-mark"><span class="afro">Afro</span><span class="van">vanguard</span></div>
           <p class="footer-tagline">Ambassadors for Community, Tech &amp; Cultural Advancements. Raising 1 million incorruptible African leaders by 2040.</p>
           <div class="footer-socials">
-            <a href="https://www.instagram.com/afrovanguard/" class="footer-social-link" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
-            <a href="https://twitter.com/afrovanguard" class="footer-social-link" aria-label="Twitter / X" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
-            <a href="https://www.facebook.com/afrovanguard/" class="footer-social-link" aria-label="Facebook" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
-            <a href="https://www.linkedin.com/company/afrovanguard/" class="footer-social-link" aria-label="LinkedIn" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg></a>
-            <a href="https://www.youtube.com/@afrovanguard" class="footer-social-link" aria-label="YouTube" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
+            <a href="https://www.instagram.com/afrovanguard/" class="footer-social-link" aria-label="Instagram" target="_blank" rel="noopener"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>
+            <a href="https://twitter.com/afrovanguard" class="footer-social-link" aria-label="Twitter / X" target="_blank" rel="noopener"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+            <a href="https://www.facebook.com/afrovanguard/" class="footer-social-link" aria-label="Facebook" target="_blank" rel="noopener"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>
+            <a href="https://www.linkedin.com/company/afrovanguard/" class="footer-social-link" aria-label="LinkedIn" target="_blank" rel="noopener"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg></a>
+            <a href="https://www.youtube.com/@afrovanguard" class="footer-social-link" aria-label="YouTube" target="_blank" rel="noopener"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>
           </div>
         </div>
         <div class="footer-col">
@@ -5626,7 +5668,7 @@
        VALIDATION
        ════════════════════════════════════════════════════════════════════ */
     function validate() {
-      let ok = true;
+      let ok = true, firstBad = null;
       [
         { id:'firstName', err:'fnErr', fn: v => v.trim().length > 0 },
         { id:'lastName',  err:'lnErr', fn: v => v.trim().length > 0 },
@@ -5635,11 +5677,17 @@
         const el = document.getElementById(id);
         const errEl = document.getElementById(err);
         if (!fn(el.value)) {
-          el.classList.add('invalid'); errEl.style.display = 'block'; ok = false;
+          el.classList.add('invalid'); el.setAttribute('aria-invalid', 'true');
+          errEl.style.display = 'block'; ok = false;
+          if (!firstBad) firstBad = el;
         } else {
-          el.classList.remove('invalid'); errEl.style.display = 'none';
+          el.classList.remove('invalid'); el.removeAttribute('aria-invalid');
+          errEl.style.display = 'none';
         }
       });
+      // Screen-reader + keyboard flow: land on the first problem field so the
+      // error (linked via aria-describedby) is read out immediately.
+      if (firstBad) { try { firstBad.focus({ preventScroll: false }); } catch (e) { firstBad.focus(); } }
       return ok;
     }
 
@@ -6030,7 +6078,7 @@
       updateBtn();
       ['firstName','lastName','email','phone','message'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) { el.value = ''; el.classList.remove('invalid'); }
+        if (el) { el.value = ''; el.classList.remove('invalid'); el.removeAttribute('aria-invalid'); }
       });
       ['fnErr','lnErr','emErr'].forEach(id => {
         const el = document.getElementById(id);
@@ -6767,12 +6815,29 @@
     }
 
     // Material giving is the default. Honour a deep link to the money panel
-    // (#give / #money / #monetary) so "give financially" links still land right.
+    // (#give / #money / #monetary / #donate-form) so "give financially" links still land right.
     document.addEventListener('DOMContentLoaded', function () {
       var h = (location.hash || '').toLowerCase();
-      if (h === '#give' || h === '#money' || h === '#monetary' || h === '#donate-money') {
+      if (h === '#give' || h === '#money' || h === '#monetary' || h === '#donate-money' || h === '#donate-form') {
         switchDonateType('monetary');
+        var f = document.getElementById('donate-form');
+        if (f) setTimeout(function () { f.scrollIntoView({ block: 'start' }); }, 40);
       }
+    });
+
+    // Every "Give Now" CTA on this page targets #donate-form — which sits INSIDE
+    // the monetary panel and is display:none while Materials is active, so the
+    // browser had nothing to scroll to and the primary CTA silently did nothing.
+    // Reveal the money panel first, then scroll.
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('a[href="#donate-form"]');
+      if (!a) return;
+      e.preventDefault();
+      switchDonateType('monetary');
+      var f = document.getElementById('donate-form');
+      var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (f) f.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      try { history.replaceState(null, '', '#donate-form'); } catch (err) {}
     });
 
     /* ════════════════════════════════════════════════════════════
@@ -6922,5 +6987,6 @@
   <script src="/assets/site/chrome.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
+  <script src="/assets/site/page-edits.js" defer></script>
 </body>
 </html>

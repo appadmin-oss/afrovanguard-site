@@ -7,8 +7,11 @@
  *
  *  - A curated built-in calendar of African, international and internal dates.
  *  - Team birthdays (from the people directory).
- *  - Admin-managed celebrations (custom dates + uploaded doodle art + the
- *    ability to disable a built-in), stored in the `celebrations` table.
+ *  - Admin-managed celebrations (custom dates + uploaded doodle art), stored
+ *    in the `celebrations` table. A row whose `key` matches a built-in is an
+ *    OVERRIDE of that default: every field is editable — wording, emoji,
+ *    colour, art, enabled AND the date (empty md = keep the automatic date;
+ *    deleting the row reverts to the shipped default).
  *
  * Served by api.php?action=celebrations and rendered by assets/site/celebrations.js.
  */
@@ -199,6 +202,30 @@ function av_movable_holidays(int $year): array
     return $out;
 }
 
+/** Movable built-ins (Easter family + Eids) in the same tuple shape as
+ *  av_celebration_calendar() — [key, name, md, scope, emoji, theme, message] —
+ *  dated for the given year and marked 'movable' in slot 7, so the Studio can
+ *  list and customise them alongside the fixed calendar. */
+function av_movable_builtins(?int $year = null): array
+{
+    $year = $year ?: (int) date('Y');
+    $out = []; $seen = [];
+    foreach (av_movable_holidays($year) as [$date, $key, $name, $scope, $emoji, $theme, $message]) {
+        if (isset($seen[$key])) continue; // a rare double-Eid year lists each feast once
+        $seen[$key] = true;
+        $out[] = [$key, $name, substr($date, 5), $scope, $emoji, $theme, $message, 'movable'];
+    }
+    return $out;
+}
+
+/** Every built-in key (fixed calendar + movable feasts) — the keys an override
+ *  row may carry with an EMPTY md ("keep the automatic date"). */
+function av_celebration_builtin_keys(): array
+{
+    $keys = array_map(fn($b) => $b[0], av_celebration_calendar());
+    return array_merge($keys, ['goodfriday', 'easter', 'eastermonday', 'eidfitr', 'eidadha']);
+}
+
 /**
  * The celebration payload for a given date (default: today).
  * Returns null when there is nothing to celebrate.
@@ -219,8 +246,11 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
 
     $items = [];
     foreach (av_celebration_calendar() as [$key, $name, $cmd, $scope, $emoji, $theme, $message]) {
-        if ($cmd !== $md) continue;
         $ov = $override[$key] ?? null;
+        // The date is editable too: an override with a stored md MOVES the
+        // built-in to that date (empty md = keep the shipped date).
+        $effMd = ($ov && preg_match('/^\d{2}-\d{2}$/', (string) $ov['md'])) ? $ov['md'] : $cmd;
+        if ($effMd !== $md) continue;
         if ($ov && (int) $ov['enabled'] === 0) continue; // admin disabled this built-in
         $items[] = [
             'type' => 'holiday', 'key' => $key, 'scope' => $scope,
@@ -231,10 +261,13 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
             'doodle' => ($ov && $ov['doodle_url'] !== '') ? $ov['doodle_url'] : av_builtin_doodle($key),
         ];
     }
-    // Movable feasts computed for this year (Easter family + Eid), matched by full date.
+    // Movable feasts computed for this year (Easter family + Eid), matched by full
+    // date — unless the admin PINNED one to an explicit MM-DD (e.g. to match the
+    // announced moon sighting when the tabular Eid estimate is a day off).
     foreach (av_movable_holidays((int) substr($date, 0, 4)) as [$fdate, $key, $name, $scope, $emoji, $theme, $message]) {
-        if ($fdate !== $date) continue;
         $ov = $override[$key] ?? null;
+        $pin = ($ov && preg_match('/^\d{2}-\d{2}$/', (string) $ov['md'])) ? $ov['md'] : '';
+        if ($pin !== '' ? $pin !== $md : $fdate !== $date) continue;
         if ($ov && (int) $ov['enabled'] === 0) continue;
         $items[] = [
             'type' => 'holiday', 'key' => $key, 'scope' => $scope,

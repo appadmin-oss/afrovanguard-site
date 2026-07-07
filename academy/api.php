@@ -45,6 +45,13 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             if (!av_rate_ok('enroll', 8, 600)) json_out(['ok' => false, 'error' => 'Too many submissions — please try later.'], 429);
+            require_once AV_ROOT . '/lib/ContentGuard.php';
+            // Bots that fill the honeypot get a quiet "success" — no signal to adapt.
+            if (ContentGuard::trap($body)) json_out(['ok' => true, 'message' => 'Application received — we will be in touch shortly.']);
+            if (trim((string) ($body['note'] ?? '')) !== '') {
+                $g = ContentGuard::gate((string) $body['note'], ['label' => 'note', 'max' => 2000]);
+                if (!$g['ok']) json_out(['ok' => false, 'error' => $g['error']], 422);
+            }
             if (!$ac->enroll($slug, $body)) json_out(['ok' => false, 'error' => 'Please provide a valid name and email.'], 422);
             json_out(['ok' => true, 'message' => 'Application received — we will be in touch shortly.']);
 
@@ -52,6 +59,22 @@ try {
         case 'me':
             $u = LmsAuth::user();
             json_out(['ok' => true, 'user' => $u ? LmsAuth::publicUser($u) : null, 'member' => $u ? $lms->isMember((int) $u['id']) : false]);
+        case 'announcements': {
+            // Admin broadcasts for the signed-in member (portal bell + native push).
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => true, 'announcements' => []]);
+            require_once AV_ROOT . '/lib/Announcements.php';
+            $isOrg = LmsAuth::isOrgMember($u);
+            $rows = array_values(array_filter(Announcements::recent(15), function ($a) use ($isOrg) {
+                $aud = (string) ($a['audience'] ?? 'all');
+                return $aud === 'all' || ($aud === 'members' && $isOrg) || ($aud === 'learners' && !$isOrg);
+            }));
+            $out = array_map(fn($a) => [
+                'id' => (int) $a['id'], 'title' => (string) $a['title'], 'body' => (string) $a['body'],
+                'url' => (string) $a['url'], 'created_at' => (string) $a['created_at'],
+            ], array_slice($rows, 0, 10));
+            json_out(['ok' => true, 'announcements' => $out]);
+        }
         case 'register':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
@@ -89,6 +112,28 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
             $u = LmsAuth::require();
+            json_out(LmsAuth::setPassword((int) $u['id'], (string) ($body['password'] ?? '')));
+
+        /* ── Portal self-service (account card) ── */
+        case 'me-update':      // change display name
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $name = trim((string) preg_replace('/\s+/', ' ', (string) ($body['name'] ?? '')));
+            if (mb_strlen($name) < 2 || mb_strlen($name) > 80) json_out(['ok' => false, 'error' => 'Enter your name (2–80 characters).'], 422);
+            Database::pdo()->prepare('UPDATE lms_users SET name = ? WHERE id = ?')->execute([$name, (int) $u['id']]);
+            $u['name'] = $name;
+            json_out(['ok' => true, 'user' => LmsAuth::publicUser($u)]);
+        case 'change-password': // verify the CURRENT password, then set the new one
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            if (!av_rate_ok('pw_change', 6, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
+            if (LmsAuth::hasPassword((int) $u['id'])) {
+                // Re-authenticate with the current password (inherits lockout policy).
+                $chk = LmsAuth::login((string) $u['email'], (string) ($body['current'] ?? ''));
+                if (empty($chk['ok'])) json_out(['ok' => false, 'error' => (string) ($chk['error'] ?? 'Your current password didn’t match.')], 403);
+            }
             json_out(LmsAuth::setPassword((int) $u['id'], (string) ($body['password'] ?? '')));
 
         case 'verify-email': {

@@ -66,6 +66,8 @@ body.studio-authed .studio-side { display: block; }
 .login-submit { width: 100%; justify-content: center; padding: 13px; font-size: 15px; }
 .login-submit.is-loading { opacity: .75; cursor: progress; }
 .login-msg { color: #dc2626; font-weight: 600; font-size: 13.5px; min-height: 18px; margin: 14px 0 0 !important; }
+.login-altbtn { display: block; width: 100%; margin: 14px 0 0; padding: 0; border: 0; background: none; color: var(--muted); font: 600 12.5px/1.4 inherit; cursor: pointer; text-align: center; }
+.login-altbtn:hover { color: var(--ink); text-decoration: underline; }
 .login-foot { display: flex; align-items: center; gap: 7px; margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
 .login-foot svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .85; }
 
@@ -306,3 +308,6 @@ body.studio-authed .studio-side { display: block; }
 .bpv-avatar { width: 40px; height: 40px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 800; color: #1a1205; }
 .bpv-link { font-weight: 700; font-size: 13.5px; text-decoration: none; }
 .bpv-link:hover { text-decoration: underline; }
+
+/* Visually hidden, available to screen readers (labels on compact filter controls). */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}

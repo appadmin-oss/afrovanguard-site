@@ -268,6 +268,21 @@
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
+      // Arrow keys walk the results listbox (the roles promise this; deliver it):
+      // ↓ from the input reaches the first result, ↑/↓ move between results,
+      // ↑ from the first result returns to the input. Enter follows the link.
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !modal.hidden) {
+        var opts = Array.prototype.slice.call(resultsEl.querySelectorAll('.avs-result'));
+        if (!opts.length) return;
+        var idx = opts.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown') {
+          if (document.activeElement === input) { e.preventDefault(); opts[0].focus(); }
+          else if (idx >= 0 && idx < opts.length - 1) { e.preventDefault(); opts[idx + 1].focus(); }
+        } else {
+          if (idx === 0) { e.preventDefault(); input.focus(); }
+          else if (idx > 0) { e.preventDefault(); opts[idx - 1].focus(); }
+        }
+      }
     });
   })();
 })();

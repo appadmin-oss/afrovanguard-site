@@ -113,16 +113,21 @@ final class LmsRepository
     {
         $quiz = $this->quiz($lesson);
         if (!$quiz) return ['ok' => false];
-        $total = count($quiz['questions']); $correct = 0;
+        $total = count($quiz['questions']); $correct = 0; $review = [];
         foreach ($quiz['questions'] as $i => $q) {
-            if (isset($answers[$i]) && (int) $answers[$i] === (int) $q['answer']) $correct++;
+            $right = isset($answers[$i]) && (int) $answers[$i] === (int) $q['answer'];
+            if ($right) $correct++;
+            // Post-grading review row — lets the learn page TEACH, not just score.
+            $row = ['i' => $i, 'right' => $right, 'answer' => (int) $q['answer']];
+            if (!empty($q['explain'])) $row['explain'] = (string) $q['explain'];
+            $review[] = $row;
         }
         $score = $total ? (int) round($correct / $total * 100) : 0;
         $passed = $score >= (int) $quiz['pass'];
         $this->db->prepare('INSERT INTO quiz_attempts (user_id, lesson_id, score, passed) VALUES (?,?,?,?)')
             ->execute([$userId, (int) $lesson['id'], $score, $passed ? 1 : 0]);
         if ($passed) $this->markComplete($userId, $lesson);
-        return ['ok' => true, 'score' => $score, 'passed' => $passed, 'correct' => $correct, 'total' => $total, 'pass' => (int) $quiz['pass']];
+        return ['ok' => true, 'score' => $score, 'passed' => $passed, 'correct' => $correct, 'total' => $total, 'pass' => (int) $quiz['pass'], 'review' => $review];
     }
 
     public function markComplete(int $userId, array $lesson): void

@@ -97,14 +97,33 @@ foreach ($pages as $file => $active) {
     $html = file_get_contents($path);
     $orig = $html;
 
-    // 1) replace the header, and (separately) the scrim+drawer, in place.
+    // 1) replace the header, and (separately) the scrim+search+drawer, in place.
     [$navHeader, $navDrawer] = nav_parts($active);
     $html = preg_replace_callback('~<header class="site-header".*?</header>~s', fn($m) => $navHeader, $html, 1);
-    $html = preg_replace_callback(
-        '~(?:<div class="scrim"[^>]*>\s*</div>\s*)?<nav class="(?:nav-mobile|av-drawer)"[^>]*>.*?</nav>~s',
-        fn($m) => $navDrawer,
-        $html, 1
-    );
+    // The drawer half is wrapped in AV:CHROME sentinels so replacement is EXACT
+    // and idempotent. (The old structural regex assumed the scrim sat directly
+    // before the drawer; once the search dialog moved between them, every run
+    // duplicated the unmatched pieces — the same lesson as AV:VALUES.)
+    $drawerWrapped = "<!-- AV:CHROME -->\n  " . $navDrawer . "\n  <!-- /AV:CHROME -->";
+    if (strpos($html, '<!-- AV:CHROME -->') !== false) {
+        $html = preg_replace_callback('~<!-- AV:CHROME -->.*?<!-- /AV:CHROME -->~s', fn($m) => $drawerWrapped, $html, 1);
+    } else {
+        // One-time migration: swallow the whole legacy chrome span — from the
+        // first scrim through the LAST drawer (greedy middle), so any duplicates
+        // a previous non-idempotent run left behind are cleaned up too.
+        $html = preg_replace_callback(
+            '~<div class="scrim"[^>]*>\s*</div>.*<nav class="(?:nav-mobile|av-drawer)"[^>]*>.*?</nav>~s',
+            fn($m) => $drawerWrapped,
+            $html, 1, $n
+        );
+        if (!$n) { // oldest shape: no scrim at all
+            $html = preg_replace_callback(
+                '~<nav class="(?:nav-mobile|av-drawer)"[^>]*>.*?</nav>~s',
+                fn($m) => $drawerWrapped,
+                $html, 1
+            );
+        }
+    }
     // 2) footer
     $html = preg_replace('~<footer\b[^>]*>.*?</footer>~s', $footer, $html, 1);
     // 2b) About page: keep mission / vision / values synced with the ethos

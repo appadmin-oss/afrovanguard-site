@@ -117,13 +117,13 @@ render_nav('diary');
           <p class="journey-hint"><span id="journeyCount"><?= (int) $total ?></span> entries · newest first · tap a marker to read</p>
           <div class="journey-tools">
             <div class="journey-viewtoggle" role="group" aria-label="Choose a view">
-              <button type="button" class="jv-btn is-active" data-view="map" aria-pressed="true">
+              <button type="button" class="jv-btn is-active" data-view="list" aria-pressed="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                Grid
+              </button>
+              <button type="button" class="jv-btn" data-view="map" aria-pressed="false">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>
                 Map
-              </button>
-              <button type="button" class="jv-btn" data-view="list" aria-pressed="false">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-                List
               </button>
             </div>
             <button type="button" class="journey-fs" id="journeyFs" aria-pressed="false">
@@ -132,7 +132,7 @@ render_nav('diary');
             </button>
           </div>
         </div>
-        <div class="journey-canvas-wrap" id="journeyWrap">
+        <div class="journey-canvas-wrap is-listview" id="journeyWrap">
           <nav class="journey-rail" id="journeyRail" aria-label="Jump to a year" hidden></nav>
           <div class="journey-viewport" id="journeyViewport">
             <canvas id="journeyCanvas" class="journey-canvas" role="img" aria-label="A winding map of the diary entries — use the list view or the links below to navigate."></canvas>

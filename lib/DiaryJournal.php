@@ -39,12 +39,28 @@ final class DiaryJournal
 
         // Event + Public are public BY DEFAULT — they enter the moderation queue
         // and become publicly visible on approval. Private stays author-only.
-        $status = in_array($kind, ['public', 'event'], true) ? 'pending' : 'logged';
+        $isPublic = in_array($kind, ['public', 'event'], true);
+        $status   = $isPublic ? 'pending' : 'logged';
+
+        // Submission integrity — PUBLIC-BOUND entries only (a private journal is
+        // the member's own space). Spam/gibberish is rejected inline; the full
+        // guard summary (incl. AI-likelihood) is stored for the moderator, who
+        // makes the human call — flags inform, they never auto-reject.
+        $guardNote = null;
+        if ($isPublic) {
+            require_once __DIR__ . '/ContentGuard.php';
+            $g = ContentGuard::gate($title . "\n" . $body, ['label' => 'entry', 'max' => 20000]);
+            if (!$g['ok']) return ['ok' => false, 'error' => $g['error']];
+            if (!empty($g['analysis']['flags']) || $g['analysis']['ai'] >= 40 || $g['analysis']['spam'] >= 25) {
+                $guardNote = '[guard] ' . $g['analysis']['summary'];
+            }
+        }
+
         $now = date('Y-m-d H:i:s');
         $this->db->prepare(
-            'INSERT INTO diary_entries (author_id, kind, title, body, entry_date, status, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?)'
-        )->execute([$authorId, $kind, $title, $body, $entryDate, $status, $now, $now]);
+            'INSERT INTO diary_entries (author_id, kind, title, body, entry_date, status, review_note, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?)'
+        )->execute([$authorId, $kind, $title, $body, $entryDate, $status, $guardNote, $now, $now]);
 
         return ['ok' => true, 'id' => (int) $this->db->lastInsertId(), 'kind' => $kind, 'status' => $status];
     }
@@ -75,7 +91,7 @@ final class DiaryJournal
     public function pendingPublic(): array
     {
         return $this->db->query(
-            "SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.created_at,
+            "SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.created_at, e.review_note,
                     u.name AS author_name, u.email AS author_email
              FROM diary_entries e JOIN lms_users u ON u.id = e.author_id
              WHERE e.kind IN ('public','event') AND e.status = 'pending'

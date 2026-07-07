@@ -42,16 +42,23 @@ function av_config_present(string $const): bool {
 /* ─── Email (SMTP) ────────────────────────────────────────────
  * Powers donation receipts, contact replies AND Academy emails
  * (welcome / enrolment / membership / certificate-ready) via the
- * shared lib/Mailer.php. Requires PHPMailer on the server — either
- * vendor/ (composer) or PHPMailer-master/ — same as the donation
- * system; without it, mail falls back to PHP mail() then logging. */
-define('SMTP_HOST',     'smtp.gmail.com');
-define('SMTP_PORT',      587);
-define('SMTP_USERNAME', 'donations@afrovanguard.org.ng');
+ * shared lib/Mailer.php. A built-in SMTP client sends authenticated
+ * mail with NO PHPMailer/Composer needed; if PHPMailer IS installed it
+ * is used first. mail() is only a last resort (and is skipped when the
+ * host doesn't provide it).
+ *
+ * IMPORTANT: these read the ENVIRONMENT first (.env / SetEnv), falling
+ * back to the defaults shown. Do NOT hardcode a value here if you set it
+ * in .env — a hardcoded define() here WINS over the environment, which is
+ * the usual cause of "it's using the wrong SMTP host / account". Set the
+ * real values in .env and leave these as-is. */
+define('SMTP_HOST',     getenv('SMTP_HOST')     ?: 'smtp.gmail.com');
+define('SMTP_PORT',     (int) (getenv('SMTP_PORT') ?: 587));
+define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'donations@afrovanguard.org.ng');
 define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));
-define('FROM_EMAIL',    'donations@afrovanguard.org.ng');
-define('FROM_NAME',     'Afrovanguard');
-define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
+define('FROM_EMAIL',    getenv('FROM_EMAIL')    ?: (getenv('SMTP_USERNAME') ?: 'donations@afrovanguard.org.ng'));
+define('FROM_NAME',     getenv('FROM_NAME')     ?: 'Afrovanguard');
+define('ADMIN_EMAIL',   getenv('ADMIN_EMAIL')   ?: 'cacentre@afrovanguard.org.ng');
 // Optional transport overrides (defaults shown):
 //   SMTP_SECURE 'tls' = STARTTLS (587, Gmail) | 'ssl' = SMTPS (465) | '' = none
 //   SMTP_VERIFY true   = verify TLS cert (set false only for self-signed relays)
@@ -103,6 +110,17 @@ define('AV_GDRIVE_FOLDER_ID',       getenv('AV_GDRIVE_FOLDER_ID') ?: '');
 /* Google sign-in (OAuth). Unset ⇒ "Continue with Google" stays disabled. */
 define('AV_GOOGLE_CLIENT_ID',     getenv('AV_GOOGLE_CLIENT_ID') ?: '');
 define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
+
+/* ─── AI (the @Afrovanguard bot + Chioma site guide) ────────────
+ * Runs on EITHER provider. Set just the key you have; the provider is
+ * auto-detected (Anthropic preferred, else Groq) unless AV_AI_PROVIDER
+ * forces one. Both unset ⇒ the bot uses its scripted fallback.
+ *   AV_AI_PROVIDER  anthropic | groq   (optional — auto-detected if '')
+ *   AV_AI_MODEL     default claude-opus-4-8 (anthropic) / llama-3.3-70b-versatile (groq) */
+define('AV_AI_PROVIDER',    getenv('AV_AI_PROVIDER') ?: '');
+define('ANTHROPIC_API_KEY', getenv('ANTHROPIC_API_KEY') ?: '');   // Claude — console.anthropic.com
+define('GROQ_API_KEY',      getenv('GROQ_API_KEY') ?: '');        // Groq  — console.groq.com
+define('AV_AI_MODEL',       getenv('AV_AI_MODEL') ?: '');
 
 /* Google Workspace launchpad (member portal /portal/, @org members only).
  * Tool tiles (Gmail/Chat/Meet/Calendar/Drive/Groups) auto-derive from

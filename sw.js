@@ -7,7 +7,7 @@
    Never caches API responses or authenticated HTML.
    ============================================================ */
 'use strict';
-var VERSION = 'av-pwa-v3';
+var VERSION = 'av-pwa-v4';
 var SHELL = [
   '/assets/site/offline.html',
   '/assets/site/nav.css',
@@ -40,6 +40,29 @@ self.addEventListener('activate', function (e) {
 function isStatic(url) {
   return /\.(css|js|png|jpg|jpeg|webp|svg|woff2?|ico)$/i.test(url.pathname);
 }
+
+/* ── Web Push — admin announcements. The in-app bell + email deliver on every
+   device already; this adds a native notification when the browser supports
+   the Push API and (for iOS) the site is installed as a PWA. Fully active once
+   VAPID keys are configured server-side; harmless until then. ── */
+self.addEventListener('push', function (e) {
+  var data = {};
+  try { data = e.data ? e.data.json() : {}; } catch (err) { data = { title: 'Afrovanguard', body: e.data ? e.data.text() : '' }; }
+  var title = data.title || 'Afrovanguard';
+  var opts = {
+    body: data.body || '', icon: '/assets/site/icon-192.png', badge: '/assets/site/icon-192.png',
+    data: { url: data.url || '/portal/' }, tag: data.tag || 'av-announcement'
+  };
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var url = (e.notification.data && e.notification.data.url) || '/portal/';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) { if (list[i].url.indexOf(url) !== -1 && 'focus' in list[i]) return list[i].focus(); }
+    if (self.clients.openWindow) return self.clients.openWindow(url);
+  }));
+});
 
 self.addEventListener('fetch', function (e) {
   var req = e.request;

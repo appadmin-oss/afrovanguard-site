@@ -52,8 +52,15 @@ final class Mailer
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { self::$lastError = 'Invalid recipient address'; return false; }
 
         $domain    = defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng';
-        $fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : (defined('SMTP_USERNAME') && SMTP_USERNAME !== '' ? SMTP_USERNAME : 'no-reply@' . $domain);
-        $fromName  = defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard';
+        // A caller may override the sender (e.g. announcements use the GENERAL
+        // address, so donations@ stays reserved for donation receipts). The
+        // sender must still be one the SMTP account is allowed to send as
+        // (the authenticated mailbox or a verified Gmail "send-as" alias),
+        // else Gmail rewrites it back to the authenticated account.
+        $fromEmail = (!empty($opt['from']) && filter_var($opt['from'], FILTER_VALIDATE_EMAIL))
+            ? $opt['from']
+            : (defined('FROM_EMAIL') ? FROM_EMAIL : (defined('SMTP_USERNAME') && SMTP_USERNAME !== '' ? SMTP_USERNAME : 'no-reply@' . $domain));
+        $fromName  = !empty($opt['fromName']) ? (string) $opt['fromName'] : (defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
         $alt = trim(preg_replace('/\s+/', ' ', strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html))));
 
         // Authenticated SMTP first (only when configured); then ALWAYS fall back
@@ -128,14 +135,25 @@ final class Mailer
 
         // Last resort: PHP mail() — attempted even when SMTP is unconfigured or
         // failed, so a host with a working local MTA (e.g. cPanel/exim) delivers.
-        $headers = 'MIME-Version: 1.0' . "\r\n"
-            . 'Content-Type: text/html; charset=UTF-8' . "\r\n"
-            . 'From: ' . self::encodeName($fromName) . ' <' . $fromEmail . '>' . "\r\n"
-            . 'Reply-To: ' . $fromEmail . "\r\n";
-        $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, $headers);
-        if ($ok) { self::$lastTransport = 'mail'; return true; }
-        if (self::$lastError === '') self::$lastError = self::configured() ? 'All transports failed' : 'No SMTP configured and the host mail() is unavailable';
-        error_log("[mail] all transports failed → {$to}: {$subject}");
+        // Guard it: on many managed/hardened PHP builds mail() is absent or in
+        // disable_functions, and calling it there is a FATAL "undefined function"
+        // that `@` cannot suppress — which would crash the whole request.
+        if (function_exists('mail')) {
+            $headers = 'MIME-Version: 1.0' . "\r\n"
+                . 'Content-Type: text/html; charset=UTF-8' . "\r\n"
+                . 'From: ' . self::encodeName($fromName) . ' <' . $fromEmail . '>' . "\r\n"
+                . 'Reply-To: ' . $fromEmail . "\r\n";
+            $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, $headers);
+            if ($ok) { self::$lastTransport = 'mail'; return true; }
+        }
+        if (self::$lastError === '') {
+            self::$lastError = self::configured()
+                ? 'All transports failed'
+                : (function_exists('mail')
+                    ? 'No SMTP configured and the host mail() reported failure'
+                    : 'No SMTP configured, and PHP mail() is unavailable on this host — set SMTP_HOST / SMTP_USERNAME / AV_SMTP_PASSWORD');
+        }
+        error_log("[mail] all transports failed → {$to}: {$subject} — " . self::$lastError);
         return false;
     }
 

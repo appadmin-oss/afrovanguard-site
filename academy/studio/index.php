@@ -3,9 +3,10 @@
  * academy/studio/index.php — a dedicated admin for the Academy.
  *
  * A focused, professional management console for courses, curriculum, quizzes,
- * learners and applications. It talks to the existing admin API (/admin/api.php,
- * ADMIN_TOKEN-gated) — no new auth surface — but gives the Academy its own clean,
- * fast, user-friendly home instead of one cramped tab in the general Studio.
+ * learners and applications. The Academy admin signs in here with their own
+ * email + password (an `academy_admin` member account); the signed role cookie
+ * scopes /admin/api.php to Academy actions only. The Super Admin manages from
+ * the main Studio — this portal carries no Super Admin surface.
  */
 declare(strict_types=1);
 ?><!DOCTYPE html>
@@ -28,11 +29,22 @@ declare(strict_types=1);
   <form class="login-card" id="loginForm">
     <div class="login-brand"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span> <span class="login-tag">Academy Studio</span></div>
     <p class="login-sub">Manage courses, curriculum, quizzes and learners.</p>
-    <label class="fld"><span>Admin token</span>
-      <input type="password" id="token" autocomplete="current-password" placeholder="Enter your admin token" required />
-    </label>
-    <button class="btn btn-primary" type="submit">Enter the studio</button>
+    <div id="loginFields">
+      <a class="gbtn" id="googleBtn" href="#" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>
+        <span>Continue with Google</span>
+      </a>
+      <div class="login-or" id="loginOr" hidden><span>or use your email</span></div>
+      <label class="fld"><span>Email</span>
+        <input type="email" id="email" autocomplete="username" placeholder="you@afrovanguard.org.ng" />
+      </label>
+      <label class="fld"><span>Password</span>
+        <input type="password" id="password" autocomplete="current-password" placeholder="Your account password" />
+      </label>
+      <button class="btn btn-primary" type="submit">Enter the studio</button>
+    </div>
     <p class="login-msg" id="loginMsg" role="alert" aria-live="polite"></p>
+    <div class="login-note" id="memberNote" hidden></div>
     <a class="login-back" href="/academy/">← Back to the Academy</a>
   </form>
 </section>
@@ -80,12 +92,6 @@ declare(strict_types=1);
             <button class="qbtn" data-go="curriculum"><b>Build curriculum</b><span>Modules, lessons &amp; quizzes</span></button>
             <button class="qbtn" data-go="learners"><b>See learners</b><span>Progress &amp; certificates</span></button>
             <button class="qbtn" data-go="applications"><b>Applications</b><span>Lead-capture sign-ups</span></button>
-          </div>
-        </div>
-        <div class="quick" style="margin-top:26px">
-          <h2>Maintenance</h2>
-          <div class="quick-row">
-            <button class="qbtn" id="purgeDemo"><b>Remove demo data</b><span>Delete shipped sample articles &amp; placeholder lessons (real content is kept)</span></button>
           </div>
         </div>
       </section>

@@ -23,13 +23,20 @@ if (function_exists('av_rate_ok') && !av_rate_ok('public_api', 120, 60)) {
 }
 
 $action = (string) ($_GET['action'] ?? 'members');
-if (!in_array($action, ['members', 'member', 'votm', 'celebrations'], true)) {
+if (!in_array($action, ['members', 'member', 'votm', 'celebrations', 'page_content'], true)) {
     json_out(['status' => 'error', 'error' => 'Unknown action.'], 400);
 }
 
 try {
     $pdo = Database::pdo();
-    if ($action === 'members') {
+    if ($action === 'page_content') {
+        // Admin-authored content overrides for an editable public page
+        // (applied client-side by assets/site/page-edits.js).
+        $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['page'] ?? '')));
+        if ($slug === '' || strlen($slug) > 40) json_out(['status' => 'error', 'error' => 'A page slug is required.'], 400);
+        $edits = json_decode((string) (Database::metaGet('page_edits:' . $slug) ?: '{}'), true);
+        $out = ['status' => 'ok', 'page' => $slug, 'edits' => (is_array($edits) && $edits) ? $edits : (object) []];
+    } elseif ($action === 'members') {
         $out = av_team_members($pdo);
     } elseif ($action === 'member') {
         $id = (int) ($_GET['id'] ?? 0);

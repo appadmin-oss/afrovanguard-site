@@ -26,6 +26,7 @@
       + '.av-celebrate .avc-av:first-child{margin-left:0}'
       + '.av-celebrate .avc-x{margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0}'
       + '.av-celebrate .avc-x:hover{background:rgba(255,255,255,.3)}'
+      + '.av-celebrate .avc-x:focus-visible{outline:2px solid #fff;outline-offset:2px;background:rgba(255,255,255,.3)}'
       + '.av-celebrate .avc-shine{position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.25) 50%,transparent 70%);transform:translateX(-100%);animation:avcShine 3.4s ease-in-out infinite}'
       + '@keyframes avcPop{0%{transform:scale(0) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}'
       + '@keyframes avcShine{0%,100%{transform:translateX(-120%)}55%{transform:translateX(120%)}}'
@@ -43,9 +44,10 @@
     var h = '<div class="avc-avatars">';
     people.slice(0, 4).forEach(function (p) {
       var ini = (p.name || '?').trim().charAt(0).toUpperCase();
+      var name = esc(p.name || 'Team member');
       h += p.photo
-        ? '<span class="avc-av" style="background-image:url(\'' + String(p.photo).replace(/'/g, '') + '\')"></span>'
-        : '<span class="avc-av">' + ini + '</span>';
+        ? '<span class="avc-av" role="img" aria-label="' + name + '" style="background-image:url(\'' + String(p.photo).replace(/'/g, '') + '\')"></span>'
+        : '<span class="avc-av" role="img" aria-label="' + name + '"><span aria-hidden="true">' + ini + '</span></span>';
     });
     return h + '</div>';
   }
@@ -55,12 +57,15 @@
     injectStyles(theme);
     var bar = document.createElement('div');
     bar.className = 'av-celebrate'; bar.setAttribute('data-key', p.key || '');
+    // Injected async: role=status makes screen readers announce the celebration
+    // politely (after the page settles) instead of it appearing silently.
+    bar.setAttribute('role', 'status');
     bar.style.setProperty('--cc', theme);
-    bar.innerHTML = '<div class="avc-shine"></div><div class="avc-inner">'
-      + (p.type === 'birthday' ? avatarsHtml(p.people) : '<span class="avc-emoji">' + (p.emoji || '🎉') + '</span>')
+    bar.innerHTML = '<div class="avc-shine" aria-hidden="true"></div><div class="avc-inner">'
+      + (p.type === 'birthday' ? avatarsHtml(p.people) : '<span class="avc-emoji" aria-hidden="true">' + (p.emoji || '🎉') + '</span>')
       + '<div class="avc-txt"><strong>' + esc(p.title || 'Celebrating today') + '</strong>'
       + '<span>' + esc(p.message || '') + '</span></div>'
-      + '<button class="avc-x" aria-label="Dismiss">&times;</button></div>';
+      + '<button class="avc-x" type="button" aria-label="Dismiss celebration banner">&times;</button></div>';
     document.body.insertBefore(bar, document.body.firstChild);
     bar.querySelector('.avc-x').addEventListener('click', function () {
       try { localStorage.setItem('av.celebrate.dismissed', c.date + ':' + (p.key || '')); } catch (e) {}

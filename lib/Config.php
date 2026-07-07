@@ -64,6 +64,35 @@ final class Config
         $rt[] = self::chk('fastcgi_finish_request', function_exists('fastcgi_finish_request') ? 'ok' : 'info', function_exists('fastcgi_finish_request') ? 'available (webhooks flush after response)' : 'not available (webhooks flush at shutdown / cron)');
         $groups[] = ['group' => 'Runtime', 'checks' => $rt];
 
+        // Environment & config source — makes "my env isn't being seen" diagnosable:
+        // shows whether a .env was found (and where), how many vars it loaded,
+        // whether a config.php is overriding it, and what the DB env resolved to.
+        $env = [];
+        $diag = $GLOBALS['AV_ENV_DIAG'] ?? null;
+        if (is_array($diag)) {
+            $encNote = !empty($diag['encoding']) ? ' · encoding rescued (' . $diag['encoding'] . ') — re-save the file as plain UTF-8' : '';
+            $env[] = $diag['file']
+                ? self::chk('.env file', ((int) $diag['loaded'] > 0 ? 'ok' : 'warn'), $diag['file'] . ' — ' . (int) $diag['loaded'] . ' var(s) loaded' . $encNote)
+                : self::chk('.env file', 'warn', 'none found — looked in: ' . implode('  ·  ', $diag['candidates'] ?? []));
+        } else {
+            $env[] = self::chk('.env file', 'info', 'loader did not record (real environment / SetEnv only)');
+        }
+        $hasCfg = defined('AV_ROOT') && is_file(AV_ROOT . '/config.php');
+        $envWon = count($GLOBALS['AV_ENV_SOURCE'] ?? []);
+        $env[] = self::chk('config.php', 'info', $hasCfg
+            ? 'present — used only as a FALLBACK; your .env / SetEnv takes precedence' . ($envWon ? " ({$envWon} key(s) currently taken from .env)" : '')
+            : 'not present — using .env / environment');
+        $drvEnv = strtolower((string) getenv('AV_DB_DRIVER'));
+        $env[] = self::chk('AV_DB_DRIVER (env)', $drvEnv !== '' ? 'ok' : 'info', $drvEnv !== '' ? $drvEnv : '(unset → MySQL if AV_DB_* creds exist, else SQLite)');
+        foreach (['AV_DB_HOST', 'AV_DB_NAME', 'AV_DB_USER'] as $k) {
+            $v = (string) getenv($k);
+            $env[] = self::chk($k, $v !== '' ? 'ok' : 'info', $v !== '' ? $v : '(unset)');
+        }
+        $env[] = self::chk('AV_DB_PASS', ((string) getenv('AV_DB_PASS') !== '') ? 'ok' : 'info', ((string) getenv('AV_DB_PASS') !== '') ? 'set' : '(unset)');
+        $env[] = self::chk('DOCUMENT_ROOT', 'info', (string) ($_SERVER['DOCUMENT_ROOT'] ?? '—'));
+        $env[] = self::chk('App root (AV_ROOT)', 'info', defined('AV_ROOT') ? AV_ROOT : '—');
+        $groups[] = ['group' => 'Environment & config source', 'checks' => $env];
+
         // Database
         $db = [];
         try {
@@ -111,7 +140,9 @@ final class Config
             self::chk('Directory delegation', ($wsApi && $wsSub !== '') ? 'ok' : 'info', $wsApi ? ($wsSub !== '' ? 'impersonates ' . $wsSub : 'no AV_WS_SUBJECT — directory read disabled') : '—'),
             self::chk('Org domain', 'info', self::str('AV_ORG_DOMAIN', 'afrovanguard.org.ng')),
             self::chk('Afrovanguard bot (AI)', (class_exists('AvBot') && AvBot::configured()) ? 'ok' : 'warn',
-                (class_exists('AvBot') && AvBot::configured()) ? ('Claude · ' . AvBot::model()) : 'set ANTHROPIC_API_KEY to enable AI replies'),
+                (class_exists('AvBot') && AvBot::configured())
+                    ? (ucfirst(AvBot::provider()) . ' · ' . AvBot::model())
+                    : 'set ANTHROPIC_API_KEY or GROQ_API_KEY to enable AI replies'),
         ]];
 
         // Storage

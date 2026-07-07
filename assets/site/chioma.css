@@ -1,46 +1,54 @@
 /* ============================================================
    Chioma — Afrovanguard's AI site guide (floating assistant).
    Self-contained, theme-aware, on-brand. Injected on every page.
+
+   2026 redesign: one launcher for the whole site. The old "Quick
+   Contact" dock's channels (WhatsApp / call / email) live INSIDE
+   the panel as a quick-actions row, so the separate dock FAB is
+   retired (hidden below). Clean, flat surfaces; gold as accent.
    ============================================================ */
 .chioma-root { --ch-gold: #f3b416; --ch-gold-deep: #c8860a; --ch-ink: #111827; --ch-surface: #ffffff;
-  --ch-surface-2: #f6f6f3; --ch-muted: #6b7280; --ch-line: #e8e8e3; --ch-navy: #0d1220;
+  --ch-surface-2: #fafaf8; --ch-bubble: #f0f0ec; --ch-muted: #9ca3af; --ch-faint: #b6bac2; --ch-line: rgba(17,24,39,.06); --ch-navy: #0d1220;
   position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom));
-  z-index: 2147483000; font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+  z-index: 2147483000; font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  transition: bottom .25s ease; }
 html[data-theme="dark"] .chioma-root, .chioma-root[data-dark="1"] {
-  --ch-ink: #f5f6f7; --ch-surface: #15161b; --ch-surface-2: #1d1f26; --ch-muted: #9aa1ad; --ch-line: rgba(255,255,255,.10); }
+  --ch-ink: #eef0f4; --ch-surface: #14171f; --ch-surface-2: #101319; --ch-bubble: #1c202b; --ch-muted: #9aa1ad; --ch-faint: #6d7482; --ch-line: rgba(255,255,255,.07); }
 
-/* ── FAB ──
-   A round gold "operations assistant" button. It bobs gently when idle, lifts
-   on hover, presses on tap, and can do a brief attention nudge when a
-   contextual bubble appears. The inner wrapper carries the idle float so the
-   button's own hover/press transform never fights the keyframes. */
+/* The widget replaces the legacy "Quick Contact" dock (index / contact /
+   donate) — its channels now live in the panel's quick-actions row. */
+#dock { display: none !important; }
+
+/* Give way to a page's bottom bar (e.g. the donate page's sticky give bar)
+   so the FAB never covers its call-to-action. */
+body:has(.sticky-give.on) .chioma-root { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 62px); }
+
+/* ── FAB ── crisp gold circle, tight two-layer shadow, gentle lift. */
 .chioma-fab { position: relative; width: 60px; height: 60px; border: 0; border-radius: 50%; cursor: pointer; padding: 0;
-  background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 45%, var(--ch-gold-deep) 100%);
-  box-shadow: 0 10px 30px -8px rgba(200,134,10,.6), 0 2px 8px rgba(0,0,0,.18); display: grid; place-items: center;
-  animation: ch-pop .55s cubic-bezier(.22,1,.36,1) both; transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .25s ease; }
-.chioma-fab:hover { transform: translateY(-2px) scale(1.06); box-shadow: 0 16px 38px -10px rgba(200,134,10,.72), 0 2px 8px rgba(0,0,0,.2); }
-.chioma-fab:active { transform: scale(.94); }
+  background: radial-gradient(125% 125% at 32% 24%, #ffdf8f 0%, var(--ch-gold) 48%, var(--ch-gold-deep) 100%);
+  box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 12px 28px -8px rgba(200,134,10,.5); display: grid; place-items: center;
+  animation: ch-pop .55s cubic-bezier(.22,1,.36,1) both; transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .25s ease; }
+.chioma-fab:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(0,0,0,.12), 0 18px 38px -10px rgba(200,134,10,.6); }
+.chioma-fab:active { transform: scale(.95); }
 .chioma-fab:focus-visible { outline: 3px solid var(--ch-navy); outline-offset: 3px; }
-/* idle float lives on the SVG mark so hover/press scaling stays independent */
-.chioma-fab .ch-mark { width: 40px; height: 40px; color: var(--ch-navy); --ch-spark: #fff8e6;
+.chioma-fab .ch-mark { width: 38px; height: 38px; color: var(--ch-navy); --ch-spark: #fff8e6;
   animation: ch-float 5.5s ease-in-out 1.2s infinite; transform-origin: center; }
-.chioma-fab .ch-mark .ch-spark { animation: ch-twinkle 4s ease-in-out 2s infinite; transform-origin: 36px 13px; }
-.chioma-fab .ch-dot { position: absolute; top: 3px; right: 4px; width: 13px; height: 13px; border-radius: 50%;
-  background: var(--ch-gold); border: 2.5px solid #fff; box-shadow: 0 0 0 0 rgba(243,180,22,.7); animation: ch-pulse 2.4s infinite; }
+.chioma-fab .ch-mark .ch-spark { animation: ch-twinkle 4s ease-in-out 2s infinite; transform-origin: 38.5px 9.5px; }
+.chioma-fab .ch-dot { position: absolute; top: 2px; right: 3px; width: 11px; height: 11px; border-radius: 50%;
+  background: #e11d48; border: 2px solid #fff; box-shadow: 0 0 0 0 rgba(225,29,72,.5); animation: ch-pulse 2.4s infinite; }
 html[data-theme="dark"] .chioma-fab .ch-dot, .chioma-root[data-dark="1"] .chioma-fab .ch-dot { border-color: var(--ch-surface); }
+/* Once the chat has been opened this session, the "look at me" dot retires. */
+.chioma-root.ch-seen .ch-dot { display: none; }
 .chioma-root.is-open .chioma-fab .ch-mark { animation: none; }
 .chioma-fab.ch-nudge { animation: ch-nudge .65s cubic-bezier(.36,.07,.19,.97) both; }
 
 @keyframes ch-pop { 0% { transform: scale(0) rotate(-28deg); opacity: 0; } 60% { transform: scale(1.08) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 @keyframes ch-float { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(-1.5deg); } }
 @keyframes ch-twinkle { 0%,100% { opacity: .5; transform: scale(.82); } 45% { opacity: 1; transform: scale(1.15); } }
-@keyframes ch-pulse { 0% { box-shadow: 0 0 0 0 rgba(243,180,22,.65); } 70% { box-shadow: 0 0 0 9px rgba(243,180,22,0); } 100% { box-shadow: 0 0 0 0 rgba(243,180,22,0); } }
+@keyframes ch-pulse { 0% { box-shadow: 0 0 0 0 rgba(225,29,72,.5); } 70% { box-shadow: 0 0 0 8px rgba(225,29,72,0); } 100% { box-shadow: 0 0 0 0 rgba(225,29,72,0); } }
 @keyframes ch-nudge { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-5px) rotate(-4deg); } 50% { transform: translateX(4px) rotate(3deg); } 75% { transform: translateX(-2px) rotate(-1deg); } }
 
-/* ── Contextual "thought" bubble / greeting nudge ──
-   A small speech bubble that floats up beside the FAB with a page-aware line.
-   Clickable (opens the chat), dismissable, auto-hides. Capped on the right so
-   it can never push the layout or overflow a 360px viewport. */
+/* ── Contextual "thought" bubble / greeting nudge ── */
 .chioma-greet { position: absolute; right: 74px; bottom: 8px; width: max-content; max-width: min(248px, calc(100vw - 92px));
   background: var(--ch-surface); color: var(--ch-ink); border: 1px solid var(--ch-line); border-radius: 16px 16px 4px 16px;
   padding: 12px 14px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 14px 34px -12px rgba(0,0,0,.3); cursor: pointer;
@@ -49,7 +57,6 @@ html[data-theme="dark"] .chioma-fab .ch-dot, .chioma-root[data-dark="1"] .chioma
 .chioma-greet.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; animation: ch-bubble-in .42s cubic-bezier(.34,1.56,.64,1) both; }
 .chioma-greet:hover { border-color: var(--ch-gold); }
 .chioma-greet b { color: var(--ch-gold-deep); }
-/* little tail pointing toward the FAB */
 .chioma-greet::after { content: ''; position: absolute; right: 14px; bottom: -7px; width: 14px; height: 14px; background: var(--ch-surface);
   border-right: 1px solid var(--ch-line); border-bottom: 1px solid var(--ch-line); transform: rotate(45deg); }
 .chioma-greet .ch-greet-x { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; z-index: 1;
@@ -58,56 +65,137 @@ html[data-theme="dark"] .chioma-fab .ch-dot, .chioma-root[data-dark="1"] .chioma
 .chioma-greet .ch-greet-x:hover { color: var(--ch-ink); border-color: var(--ch-gold); }
 @keyframes ch-bubble-in { 0% { opacity: 0; transform: translateY(14px) scale(.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 
-/* ── Panel ── */
-.chioma-panel { position: absolute; right: 0; bottom: 74px; width: min(380px, calc(100vw - 32px)); height: min(560px, calc(100vh - 120px));
-  background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 20px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.45);
+/* ── Panel ── flat surfaces, hairline borders, soft depth. */
+.chioma-panel { position: absolute; right: 0; bottom: 74px; width: min(384px, calc(100vw - 24px)); height: min(640px, calc(100vh - 120px));
+  background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 24px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 32px 72px -20px rgba(13,18,32,.38);
   display: none; flex-direction: column; overflow: hidden; opacity: 0; transform: translateY(14px) scale(.98); transform-origin: bottom right;
-  transition: opacity .26s ease, transform .26s cubic-bezier(.22,1,.36,1); }
+  transition: opacity .26s ease, transform .26s cubic-bezier(.22,1,.36,1), width .25s ease, height .25s ease; }
 .chioma-root.is-open .chioma-panel { display: flex; }
 .chioma-root.is-open.is-anim .chioma-panel { opacity: 1; transform: translateY(0) scale(1); }
+/* Maximize mode — near-full height for long conversations. */
+.chioma-root.is-max .chioma-panel { width: min(440px, calc(100vw - 24px)); height: calc(100vh - 110px); }
 
-.ch-head { display: flex; align-items: center; gap: 11px; padding: 15px 16px; background: var(--ch-navy); color: #fff; }
-.ch-head .ch-ava { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+.ch-head { display: flex; align-items: center; gap: 11px; padding: 14px 16px; background: var(--ch-navy); color: #fff; flex-shrink: 0; }
+.ch-head .ch-ava { position: relative; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
   background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 50%, var(--ch-gold-deep) 100%); }
-.ch-head .ch-ava .ch-mark { width: 30px; height: 30px; color: var(--ch-navy); --ch-spark: #fff8e6; }
-.ch-head .ch-name { font-weight: 800; font-size: 15px; line-height: 1.1; }
-.ch-head .ch-status { font-size: 11.5px; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 5px; }
-.ch-head .ch-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #18b566; }
-.ch-head .ch-x { margin-left: auto; width: 32px; height: 32px; border: 0; background: rgba(255,255,255,.1); color: #fff;
-  border-radius: 50%; cursor: pointer; font-size: 17px; line-height: 1; transition: background .15s ease; }
-.ch-head .ch-x:hover { background: rgba(255,255,255,.22); }
+.ch-head .ch-ava .ch-mark { width: 27px; height: 27px; color: var(--ch-navy); --ch-spark: #fff8e6; }
+.ch-head .ch-ava::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%;
+  background: #22c55e; border: 2px solid var(--ch-navy); }
+.ch-head .ch-name { font-weight: 700; font-size: 14.5px; line-height: 1.15; letter-spacing: .01em; }
+.ch-head .ch-status { font-size: 11px; color: rgba(255,255,255,.55); margin-top: 2px; font-weight: 500; }
+.ch-head .ch-hbtns { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.ch-head .ch-x { width: 30px; height: 30px; border: 0; background: transparent; color: rgba(255,255,255,.6);
+  border-radius: 9px; cursor: pointer; font-size: 16px; line-height: 1; display: grid; place-items: center; transition: all .15s ease; }
+.ch-head .ch-x:hover { background: rgba(255,255,255,.1); color: #fff; }
+.ch-head .ch-x:focus-visible { outline: 2px solid var(--ch-gold); outline-offset: 2px; }
+.ch-head .ch-restart { font-size: 14px; }
+.ch-head .ch-max svg { width: 13px; height: 13px; }
 
-.ch-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--ch-surface-2); }
-.ch-msg { max-width: 84%; padding: 10px 13px; border-radius: 15px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; animation: ch-msg-in .26s ease both; }
+/* ── Quick actions ── the old dock's channels, as slim pills. */
+.ch-actions { display: flex; gap: 8px; padding: 12px 16px; background: var(--ch-surface); border-bottom: 1px solid var(--ch-line); flex-shrink: 0; }
+.ch-act { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 8px; border-radius: 9999px;
+  text-decoration: none; background: transparent; border: 1px solid rgba(17,24,39,.1); color: var(--ch-ink);
+  font-size: 12px; font-weight: 600; transition: all .16s ease; white-space: nowrap; }
+html[data-theme="dark"] .ch-act, .chioma-root[data-dark="1"] .ch-act { border-color: rgba(255,255,255,.12); }
+.ch-act:hover { border-color: transparent; background: rgba(243,180,22,.12); color: var(--ch-gold-deep); }
+html[data-theme="dark"] .ch-act:hover, .chioma-root[data-dark="1"] .ch-act:hover { color: #ffd773; }
+.ch-act:focus-visible { outline: 2px solid var(--ch-gold); outline-offset: 2px; }
+.ch-act svg { width: 15px; height: 15px; flex-shrink: 0; }
+.ch-act.ch-act--whatsapp svg { color: #25d366; }
+.ch-act.ch-act--call svg { color: #0ea5e9; }
+.ch-act.ch-act--email svg { color: var(--ch-gold-deep); }
+
+/* ── Conversation ── aurora wash, grouped messages, quiet metadata. */
+.ch-body { flex: 1; overflow-y: auto; padding: 18px 16px 12px; display: flex; flex-direction: column; gap: 10px;
+  background: radial-gradient(130% 55% at 50% -8%, rgba(243,180,22,.07), transparent 62%), var(--ch-surface-2);
+  scrollbar-width: thin; scrollbar-color: rgba(17,24,39,.15) transparent; }
+.ch-body::-webkit-scrollbar { width: 4px; }
+.ch-body::-webkit-scrollbar-thumb { background: rgba(17,24,39,.15); border-radius: 9999px; }
+html[data-theme="dark"] .ch-body, .chioma-root[data-dark="1"] .ch-body { scrollbar-color: rgba(255,255,255,.15) transparent; }
+html[data-theme="dark"] .ch-body::-webkit-scrollbar-thumb, .chioma-root[data-dark="1"] .ch-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); }
+
+.ch-day { align-self: center; font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ch-faint); padding: 0 10px 2px; }
+.ch-row { display: flex; gap: 8px; align-items: flex-start; max-width: 86%; animation: ch-msg-in .26s ease both; }
+.ch-bava { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; margin-top: 4px;
+  background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 50%, var(--ch-gold-deep) 100%); }
+.ch-bava .ch-mark { width: 15px; height: 15px; color: var(--ch-navy); --ch-spark: #fff8e6; }
+.ch-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ch-group.user { align-self: flex-end; align-items: flex-end; margin-left: auto; max-width: 82%; animation: ch-msg-in .26s ease both; }
+
+.ch-msg { padding: 10px 14px; border-radius: 18px; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
 .ch-msg a { color: var(--ch-gold-deep); font-weight: 600; }
-.ch-msg.bot { align-self: flex-start; background: var(--ch-surface); color: var(--ch-ink); border: 1px solid var(--ch-line); border-bottom-left-radius: 5px; }
-.ch-msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--ch-gold) 0%, var(--ch-gold-deep) 100%); color: #2a1c02; border-bottom-right-radius: 5px; font-weight: 600; }
+.ch-msg.bot { background: var(--ch-bubble); color: var(--ch-ink); border-bottom-left-radius: 6px; }
+.ch-msg.user { background: var(--ch-gold); color: #231a02; font-weight: 600; border-bottom-right-radius: 6px; }
 @keyframes ch-msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-.ch-typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: 12px 14px; background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 15px; border-bottom-left-radius: 5px; }
-.ch-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--ch-muted); animation: ch-blink 1.3s infinite both; }
-.ch-typing span:nth-child(2) { animation-delay: .2s; } .ch-typing span:nth-child(3) { animation-delay: .4s; }
+.ch-time { font-size: 9.5px; color: var(--ch-faint); font-weight: 500; letter-spacing: .02em; padding: 0 4px; }
+.ch-tools { display: flex; align-items: center; gap: 2px; padding-left: 2px; opacity: 0; transition: opacity .18s ease; }
+.ch-row:hover .ch-tools, .ch-tools:focus-within { opacity: 1; }
+@media (hover: none) { .ch-tools { opacity: 1; } }
+.ch-tool { border: 0; background: transparent; color: var(--ch-faint); width: 24px; height: 24px; border-radius: 8px;
+  cursor: pointer; display: grid; place-items: center; transition: all .14s ease; padding: 0; }
+.ch-tool svg { width: 12px; height: 12px; }
+.ch-tool:hover { background: rgba(17,24,39,.06); color: var(--ch-ink); }
+html[data-theme="dark"] .ch-tool:hover, .chioma-root[data-dark="1"] .ch-tool:hover { background: rgba(255,255,255,.08); color: var(--ch-ink); }
+.ch-tool.is-on { color: var(--ch-gold-deep); }
+.ch-tool:focus-visible { outline: 2px solid var(--ch-gold); outline-offset: 1px; opacity: 1; }
+
+.ch-typing { display: inline-flex; gap: 4px; padding: 12px 14px; background: var(--ch-bubble); border-radius: 18px; border-bottom-left-radius: 6px; }
+.ch-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--ch-muted); animation: ch-blink 1.3s infinite both; }
+.ch-typing span:nth-child(2) { animation-delay: .18s; } .ch-typing span:nth-child(3) { animation-delay: .36s; }
 @keyframes ch-blink { 0%,80%,100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 
-.ch-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 16px 12px; background: var(--ch-surface-2); }
-.ch-chip { font-size: 12.5px; font-weight: 600; color: var(--ch-ink); background: var(--ch-surface); border: 1px solid var(--ch-line);
-  border-radius: 9999px; padding: 7px 12px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
-.ch-chip:hover { border-color: var(--ch-gold); color: var(--ch-gold-deep); }
+/* Failed-send retry (appended inside a bot message). */
+.ch-retry { border: 1px solid rgba(17,24,39,.15); background: transparent; color: var(--ch-gold-deep); font: 700 12px 'Montserrat', system-ui, sans-serif;
+  border-radius: 9999px; padding: 4px 12px; margin-left: 6px; cursor: pointer; }
+.ch-retry:hover { border-color: var(--ch-gold); }
 
-.ch-foot { display: flex; gap: 8px; padding: 11px 12px; border-top: 1px solid var(--ch-line); background: var(--ch-surface); }
-.ch-foot input { flex: 1; border: 1px solid var(--ch-line); border-radius: 9999px; padding: 11px 15px; font: inherit; font-size: 14px;
-  background: var(--ch-surface-2); color: var(--ch-ink); outline: none; }
-.ch-foot input:focus { border-color: var(--ch-gold); }
-.ch-foot .ch-send { width: 42px; height: 42px; flex-shrink: 0; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--ch-gold) 0%, var(--ch-gold-deep) 100%); color: var(--ch-navy); transition: transform .15s ease; }
-.ch-foot .ch-send:hover { transform: scale(1.07); }
-.ch-foot .ch-send:disabled { opacity: .5; cursor: default; transform: none; }
-.ch-foot .ch-send svg { width: 19px; height: 19px; }
-.ch-disclaimer { font-size: 10.5px; color: var(--ch-muted); text-align: center; padding: 0 0 8px; background: var(--ch-surface); }
+/* ── Suggestion chips ── ghost pills. */
+.ch-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 14px; background: var(--ch-surface-2); }
+.ch-chips:empty { padding: 0; }
+.ch-chip { font: 600 11.5px 'Montserrat', system-ui, sans-serif; color: #4b5563; background: transparent; border: 1px solid rgba(17,24,39,.12);
+  border-radius: 9999px; padding: 7px 13px; cursor: pointer; transition: all .15s ease; }
+html[data-theme="dark"] .ch-chip, .chioma-root[data-dark="1"] .ch-chip { color: #c3c9d4; border-color: rgba(255,255,255,.14); }
+.ch-chip:hover { border-color: var(--ch-gold); color: var(--ch-gold-deep); background: rgba(243,180,22,.07); }
 
-@media (max-width: 480px) {
-  .chioma-panel { width: calc(100vw - 24px); height: min(72vh, calc(100vh - 96px)); }
+/* ── Composer ── borderless field, in-field mic, gold send. */
+.ch-foot { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--ch-line); background: var(--ch-surface); flex-shrink: 0; }
+.ch-inwrap { flex: 1; position: relative; display: flex; align-items: center; min-width: 0; }
+.ch-inwrap input { width: 100%; border: 1px solid transparent; border-radius: 9999px; padding: 11px 44px 11px 16px;
+  font: 500 16px/1.2 'Montserrat', system-ui, sans-serif; background: var(--ch-bubble); color: var(--ch-ink); outline: none; transition: all .15s ease; }
+.ch-inwrap input::placeholder { color: var(--ch-muted); }
+.ch-inwrap input:focus { border-color: var(--ch-gold); background: var(--ch-surface); }
+.ch-mic { position: absolute; right: 6px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent;
+  color: var(--ch-muted); cursor: pointer; display: grid; place-items: center; transition: all .15s ease; padding: 0; }
+.ch-mic svg { width: 15px; height: 15px; }
+.ch-mic:hover { color: var(--ch-gold-deep); background: rgba(243,180,22,.12); }
+.ch-mic:focus-visible { outline: 2px solid var(--ch-gold); outline-offset: 1px; }
+.ch-mic[hidden] { display: none; }
+.ch-mic.listening { color: #e11d48; background: rgba(225,29,72,.1); animation: ch-mic-pulse 1.4s ease-in-out infinite; }
+@keyframes ch-mic-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(225,29,72,.25); } 50% { box-shadow: 0 0 0 6px rgba(225,29,72,0); } }
+.ch-send { width: 40px; height: 40px; flex-shrink: 0; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center;
+  background: var(--ch-gold); color: var(--ch-navy); transition: all .15s ease; }
+.ch-send:hover { background: #ffc63a; transform: scale(1.05); }
+.ch-send:disabled { opacity: .45; cursor: default; transform: none; }
+.ch-send svg { width: 17px; height: 17px; }
+.ch-disclaimer { font-size: 9.5px; color: var(--ch-faint); text-align: center; padding: 0 12px 9px; background: var(--ch-surface); letter-spacing: .01em; flex-shrink: 0; }
+
+/* ── Mobile: the chat is a FULL-SCREEN overlay, app-style. The FAB and
+   nudge bubble retire while open; maximize is meaningless and hides; the
+   composer and disclaimer respect the home-indicator safe area. ── */
+@media (max-width: 640px) {
+  .chioma-root.is-open .chioma-panel {
+    position: fixed; inset: 0; width: 100%; max-width: none;
+    height: 100vh; height: 100dvh; border-radius: 0; border: 0; box-shadow: none;
+    transform: translateY(24px); }
+  .chioma-root.is-open.is-anim .chioma-panel { transform: translateY(0); }
+  .chioma-root.is-open .chioma-panel .ch-head { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+  .chioma-root.is-open .chioma-panel .ch-disclaimer { padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
+  .chioma-root.is-open .chioma-fab, .chioma-root.is-open .chioma-greet { display: none; }
+  .chioma-root .ch-max { display: none; }
   .chioma-greet { max-width: 190px; }
+  .ch-act { font-size: 11px; gap: 5px; padding: 9px 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .chioma-fab { animation: none; }
@@ -117,6 +205,14 @@ html[data-theme="dark"] .chioma-fab .ch-dot, .chioma-root[data-dark="1"] .chioma
   .chioma-greet { transition: opacity .2s ease; transform: none; animation: none; }
   .chioma-greet.show { transform: none; animation: none; }
   .chioma-panel { transition: opacity .2s ease; transform: none; }
-  .chioma-root.is-open.is-anim .chioma-panel { transform: none; }
-  .ch-msg, .ch-typing span { animation: none; }
+  .chioma-root.is-open .chioma-panel, .chioma-root.is-open.is-anim .chioma-panel { transform: none; }
+  .ch-row, .ch-group.user, .ch-typing span { animation: none; }
+  .ch-mic.listening { animation: none; }
 }
+
+/* ── Agent quick actions — next-step buttons an AI agent returns ── */
+.ch-msg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.ch-action { display: inline-block; font: 700 12px 'Montserrat', system-ui, sans-serif; text-decoration: none;
+  color: var(--ch-gold-deep); background: rgba(243,180,22,.1); border: 1px solid rgba(243,180,22,.4);
+  border-radius: 9999px; padding: 7px 14px; transition: all .15s ease; }
+.ch-action:hover { background: var(--ch-gold); color: #231a02; border-color: var(--ch-gold); }

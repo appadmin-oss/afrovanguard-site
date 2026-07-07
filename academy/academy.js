@@ -215,7 +215,8 @@
       function note(text, ok) { if (!msg) { toast(text); return; } msg.hidden = false; msg.className = 'enroll-msg' + (ok ? ' ok' : ' err'); msg.textContent = text; }
       var btn = form.querySelector('button[type=submit]'); var label = btn ? btn.textContent : '';
       var body = { slug: form.getAttribute('data-course') };
-      ['name', 'email', 'phone', 'note'].forEach(function (k) { var el = form.querySelector('[name="' + k + '"]'); if (el) body[k] = el.value; });
+      // website + form_ts are the bot traps — they must reach the server too.
+      ['name', 'email', 'phone', 'note', 'website', 'form_ts'].forEach(function (k) { var el = form.querySelector('[name="' + k + '"]'); if (el) body[k] = el.value; });
       if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
       api('enroll', { method: 'POST', body: body })
         .then(function (d) {
@@ -247,6 +248,21 @@
           if (!d.ok) { out.className = 'quiz-result err'; out.textContent = d.error || 'Please sign in.'; if (d.error && /sign in/i.test(d.error)) goLogin('login'); return; }
           out.className = 'quiz-result ' + (d.passed ? 'ok' : 'err');
           out.textContent = 'You scored ' + d.score + '%. ' + (d.passed ? 'Passed — lesson complete!' : 'You need ' + d.pass + '% to pass. Try again.');
+          // Per-question review: mark right/wrong and surface the instructor's
+          // explanation under each question, so the quiz teaches.
+          (d.review || []).forEach(function (r) {
+            var fs = qs[r.i]; if (!fs) return;
+            fs.classList.remove('q-right', 'q-wrong');
+            fs.classList.add(r.right ? 'q-right' : 'q-wrong');
+            var old = fs.querySelector('.quiz-explain'); if (old) old.remove();
+            if (!r.right || r.explain) {
+              var ex = document.createElement('p'); ex.className = 'quiz-explain';
+              var opts = fs.querySelectorAll('.quiz-opt span');
+              var correctTxt = (!r.right && opts[r.answer]) ? ('Correct answer: ' + opts[r.answer].textContent + '. ') : '';
+              ex.textContent = (r.right ? '✓ ' : '✗ ') + correctTxt + (r.explain || '');
+              fs.appendChild(ex);
+            }
+          });
           var st = document.getElementById('quizStatus'); if (st && d.passed) { st.textContent = '✓ Completed'; st.classList.add('done'); }
           var row = document.querySelector('.lesson-side a.lp.active'); if (row && d.passed) { row.classList.add('done'); var dot = row.querySelector('.dot'); if (dot) dot.textContent = '✓'; }
           if (d.progress) { updateSideProgress(d.progress); if (d.progress.complete) { revealDone(); toast('Course complete! 🎉 Claim your certificate.'); } }

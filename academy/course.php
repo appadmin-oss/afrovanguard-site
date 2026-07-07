@@ -276,7 +276,10 @@ render_nav('academy');
                   <input name="name" placeholder="Full name" required autocomplete="name" />
                   <input name="email" type="email" placeholder="Email address" required autocomplete="email" />
                   <input name="phone" placeholder="Phone (optional)" autocomplete="tel" />
-                  <textarea name="note" rows="3" placeholder="Why are you interested? (optional)"></textarea>
+                  <textarea name="note" rows="3" maxlength="2000" placeholder="Why are you interested? (optional)"></textarea>
+                  <!-- Bot traps: real people never see or fill these (ContentGuard::trap) -->
+                  <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
+                  <input type="hidden" name="form_ts" value="<?= time() ?>" />
                   <button type="submit" class="btn btn-pill">Submit application →</button>
                 </form>
 <?php endif; ?>

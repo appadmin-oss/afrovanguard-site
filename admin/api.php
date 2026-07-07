@@ -40,16 +40,50 @@ try {
         }
         av_admin_cookie_issue();   // token sign-in → superadmin
         try { (new LmsRepository())->audit('admin_login', '', 'token sign-in'); } catch (Throwable $e) {}
-        json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured(), 'role' => 'superadmin']);
+        json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured(), 'role' => 'superadmin', 'home' => '']);
+    }
+    // Email + password sign-in — the clear path for member-admins (editor / admin /
+    // academy_admin / mentorship_admin). Authenticates the member account, then
+    // requires an admin_users role; issues an admin cookie carrying that role.
+    if ($action === 'login_pw') {
+        if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+        if (!av_rate_ok('admin_login', 8, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
+        $email = strtolower(trim((string) ($body['email'] ?? '')));
+        $pass  = (string) ($body['password'] ?? '');
+        $auth  = LmsAuth::login($email, $pass);     // enforces verification, lockout, policy
+        if (empty($auth['ok'])) {
+            try { (new LmsRepository())->audit('admin_login_failed', $email, 'pw: ' . (string) ($auth['error'] ?? 'bad credentials')); } catch (Throwable $e) {}
+            json_out(['ok' => false, 'error' => (string) ($auth['error'] ?? 'Incorrect email or password.'), 'use_otp' => !empty($auth['use_otp']), 'verify_required' => !empty($auth['verify_required'])], 401);
+        }
+        $role = AdminRoles::roleForEmail($email);
+        if ($role === '') {
+            json_out(['ok' => false, 'error' => 'This account doesn’t have admin access yet. Ask a Super Admin to grant you a role.'], 403);
+        }
+        av_admin_cookie_issue(43200, $role);
+        try { (new LmsRepository())->audit('admin_login', $email, 'password sign-in (' . $role . ')'); } catch (Throwable $e) {}
+        json_out(['ok' => true, 'csrf' => av_csrf_token(), 'cloudinary' => Cloudinary::configured(), 'role' => $role, 'home' => AdminRoles::scopeHome($role)]);
     }
     if ($action === 'logout') {
+        // Same-origin gate so logout can't be forced cross-site (CSRF). Lighter
+        // than av_csrf_require() so an expired-CSRF session can still sign out.
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') require_same_origin();
         if (av_admin_cookie_valid()) { try { (new LmsRepository())->audit('admin_logout'); } catch (Throwable $e) {} }
         av_admin_cookie_clear(); json_out(['ok' => true]);
     }
     if ($action === 'session') {
-        $role = av_admin_role();           // '' | editor | admin | superadmin (bridges member-admins)
+        $role = av_admin_role();           // '' | editor | admin | superadmin | academy_admin | mentorship_admin
         $authed = $role !== '';
-        json_out(['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured(), 'role' => $role]);
+        $out = ['ok' => $authed, 'csrf' => $authed ? av_csrf_token() : '', 'cloudinary' => Cloudinary::configured(),
+                'role' => $role, 'scoped' => $authed && AdminRoles::isScoped($role), 'home' => $authed ? AdminRoles::scopeHome($role) : ''];
+        if (!$authed) {
+            // Help the portals' login screen: offer Google when it's set up, and
+            // explain the dead-end where someone IS signed in as a member but has
+            // no admin role (so the screen says why instead of silently looping).
+            $out['google'] = class_exists('GoogleAuth') && GoogleAuth::configured();
+            $u = class_exists('LmsAuth') ? LmsAuth::user() : null;
+            if ($u && !empty($u['email'])) $out['member'] = (string) $u['email'];
+        }
+        json_out($out);
     }
 
     // ---- Everything else requires admin ----
@@ -58,7 +92,8 @@ try {
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
-        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save'], true);
+        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save',
+        'don_add', 'don_status', 'don_goal', 'page_save', 'page_reset', 'ann_send'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -75,12 +110,22 @@ try {
         'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
+        'don_stats', 'don_list', 'don_add', 'don_status', 'don_goal', 'don_export',
+        'page_get', 'page_save', 'page_reset', 'ann_list', 'ann_send',
     ];
-    if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
-        json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
-    }
-    if ($role === 'editor' && in_array($action, $managementOnly, true)) {
-        json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
+    // SCOPED roles (academy_admin / mentorship_admin) are confined to their own
+    // domain by an explicit allow-list and never touch the rank gates below.
+    if (AdminRoles::isScoped($role)) {
+        if (!av_admin_scope_allows($role, $action)) {
+            json_out(['ok' => false, 'error' => 'Your role only has access to its own portal.'], 403);
+        }
+    } else {
+        if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
+            json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
+        }
+        if ($role === 'editor' && in_array($action, $managementOnly, true)) {
+            json_out(['ok' => false, 'error' => 'Editors can manage content only.'], 403);
+        }
     }
 
     $repo = new DiaryRepository();
@@ -146,11 +191,17 @@ try {
         // ---- Celebrations (custom dates + uploaded doodle art) ----
         case 'cel_list':
             require_once AV_ROOT . '/lib/celebrations.php';
-            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => av_celebration_calendar()]);
+            // Fixed calendar + this year's movable feasts (Easter family, Eids) —
+            // ALL built-ins are editable in the Studio, dates included.
+            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => array_merge(av_celebration_calendar(), av_movable_builtins())]);
         case 'cel_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/celebrations.php';
-            if (trim((string) ($body['name'] ?? '')) === '' || !preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))) {
+            // An empty md is valid ONLY on a built-in override — it means "keep
+            // the automatic date" (fixed calendar date, or the computed feast day).
+            $mdOk = preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))
+                || ((string) ($body['md'] ?? '') === '' && in_array(trim((string) ($body['key'] ?? '')), av_celebration_builtin_keys(), true));
+            if (trim((string) ($body['name'] ?? '')) === '' || !$mdOk) {
                 json_out(['ok' => false, 'error' => 'A name and a date (MM-DD) are required.'], 422);
             }
             json_out(['ok' => true, 'id' => av_celebrations_save(Database::pdo(), $body)]);
@@ -159,6 +210,103 @@ try {
             require_once AV_ROOT . '/lib/celebrations.php';
             av_celebrations_delete(Database::pdo(), (int) ($body['id'] ?? 0));
             json_out(['ok' => true]);
+
+        // ---- Donations (public giving ledger + campaign goals) ----
+        case 'don_stats':
+            require_once AV_ROOT . '/lib/Donations.php';
+            json_out(['ok' => true, 'stats' => Donations::stats()]);
+        case 'don_list':
+            require_once AV_ROOT . '/lib/Donations.php';
+            json_out(['ok' => true] + Donations::filtered($_GET));
+        case 'don_add':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Donations.php';
+            try { json_out(['ok' => true, 'donation' => Donations::add($body)]); }
+            catch (InvalidArgumentException $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 422); }
+        case 'don_status':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Donations.php';
+            try { json_out(['ok' => true, 'donation' => Donations::setStatus((string) ($body['reference'] ?? ''), (string) ($body['status'] ?? ''))]); }
+            catch (InvalidArgumentException $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 422); }
+        case 'don_goal':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Donations.php';
+            try { json_out(['ok' => true, 'campaign' => Donations::setGoal((string) ($body['campaign'] ?? ''), (int) ($body['goal'] ?? -1))]); }
+            catch (InvalidArgumentException $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 422); }
+        case 'don_export': {
+            require_once AV_ROOT . '/lib/Donations.php';
+            $lms->audit('don_export', '', 'donations CSV');
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="donations-' . date('Y-m-d') . '.csv"');
+            echo Donations::csv($_GET);
+            exit;
+        }
+
+        // ---- Announcements (broadcast to members: email + in-app + push) ----
+        case 'ann_list':
+            require_once AV_ROOT . '/lib/Announcements.php';
+            json_out(['ok' => true, 'announcements' => Announcements::recent(30), 'counts' => [
+                'all'      => count(Announcements::recipients('all')),
+                'members'  => count(Announcements::recipients('members')),
+                'learners' => count(Announcements::recipients('learners')),
+            ]]);
+        case 'ann_send': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_once AV_ROOT . '/lib/Announcements.php';
+            try {
+                $annId = Announcements::create($body + ['created_by' => (function_exists('av_admin_role') ? av_admin_role() : 'studio')]);
+            } catch (InvalidArgumentException $e) { json_out(['ok' => false, 'error' => $e->getMessage()], 422); }
+            $ann  = (Announcements::recent(1)[0] ?? null)
+                 ?: ['id' => $annId, 'title' => (string) ($body['title'] ?? ''), 'body' => (string) ($body['body'] ?? ''), 'url' => (string) ($body['url'] ?? ''), 'audience' => (string) ($body['audience'] ?? 'all')];
+            $mail = !empty($body['send_email']) ? Announcements::email($ann) : ['sent' => 0, 'total' => 0, 'skipped' => 'email not requested'];
+            $lms->audit('ann_send', (string) $annId, 'announcement · emailed ' . (int) ($mail['sent'] ?? 0));
+            json_out(['ok' => true, 'id' => $annId, 'email' => $mail]);
+        }
+
+        // ---- Editable public pages (selector-keyed content overrides) ----
+        // Authored in place: open the page with ?edit=1 while signed in to the
+        // Studio. Stored per page in app_meta; served publicly via
+        // api.php?action=page_content and applied by assets/site/page-edits.js.
+        case 'page_get': {
+            $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['page'] ?? '')));
+            if ($slug === '') json_out(['ok' => false, 'error' => 'A page slug is required.'], 422);
+            $edits = json_decode((string) (Database::metaGet('page_edits:' . $slug) ?: '{}'), true);
+            json_out(['ok' => true, 'page' => $slug, 'edits' => (is_array($edits) && $edits) ? $edits : (object) []]);
+        }
+        case 'page_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $slug  = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['page'] ?? '')));
+            $edits = $body['edits'] ?? null;
+            if ($slug === '' || !is_array($edits)) json_out(['ok' => false, 'error' => 'A page slug and an edits object are required.'], 422);
+            if (count($edits) > 500) json_out(['ok' => false, 'error' => 'Too many edited regions (max 500) — reset some.'], 422);
+            $clean = [];
+            foreach ($edits as $sel => $p) {
+                if (!is_string($sel) || $sel === '' || strlen($sel) > 500 || !is_array($p)) continue;
+                $row = [];
+                if (array_key_exists('html', $p) && is_string($p['html'])) {
+                    // Defence-in-depth: page overrides are prose/markup, never code.
+                    $row['html'] = preg_replace('~<\s*/?\s*script\b[^>]*>~i', '', $p['html']);
+                }
+                if (!empty($p['src'])  && is_string($p['src']))  $row['src']  = $p['src'];
+                if (array_key_exists('alt', $p) && is_string($p['alt'])) $row['alt'] = $p['alt'];
+                if (!empty($p['href']) && is_string($p['href'])) $row['href'] = $p['href'];
+                if (!empty($p['hide'])) $row['hide'] = true;
+                if ($row) $clean[$sel] = $row;
+            }
+            $json = json_encode($clean, JSON_UNESCAPED_UNICODE);
+            if (strlen((string) $json) > 300000) json_out(['ok' => false, 'error' => 'Edits exceed the 300 KB limit — reset some regions.'], 413);
+            Database::metaSet('page_edits:' . $slug, (string) $json);
+            $lms->audit('page_save', $slug, count($clean) . ' region(s)');
+            json_out(['ok' => true, 'page' => $slug, 'count' => count($clean)]);
+        }
+        case 'page_reset': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['page'] ?? '')));
+            if ($slug === '') json_out(['ok' => false, 'error' => 'A page slug is required.'], 422);
+            Database::metaSet('page_edits:' . $slug, '{}');
+            $lms->audit('page_reset', $slug);
+            json_out(['ok' => true, 'page' => $slug]);
+        }
 
         // ---- Communities (Google Chat Spaces / Groups shown in the member portal) ----
         case 'comm_list':
@@ -245,19 +393,41 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
             if (!filter_var($to, FILTER_VALIDATE_EMAIL)) json_out(['ok' => false, 'error' => 'Enter a valid address (or set ADMIN_EMAIL).'], 422);
+            // What the app ACTUALLY resolved (so "it's reading the wrong creds" is
+            // diagnosable): the effective SMTP values + WHERE they came from. A
+            // stale config.php overrides .env/SetEnv, which is the usual culprit.
+            $smtp = [
+                'host'         => defined('SMTP_HOST') ? (string) SMTP_HOST : '(unset)',
+                'port'         => defined('SMTP_PORT') ? (int) SMTP_PORT : 587,
+                'username'     => defined('SMTP_USERNAME') ? (string) SMTP_USERNAME : '(unset)',
+                'from'         => defined('FROM_EMAIL') ? (string) FROM_EMAIL : '(unset)',
+                'secure'       => defined('SMTP_SECURE') ? (string) SMTP_SECURE : 'tls (default)',
+                'password_set' => defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '',
+                'password_len' => defined('SMTP_PASSWORD') ? strlen((string) SMTP_PASSWORD) : 0,
+                'mail_fn'      => function_exists('mail'),
+                'config_php'   => is_file(AV_ROOT . '/config.php'),   // overrides env when present
+                'env_file'     => (string) (getenv('AV_ENV_FILE') ?: (is_file(dirname(AV_ROOT) . '/.env') ? dirname(AV_ROOT) . '/.env' : (is_file(AV_ROOT . '/.env') ? AV_ROOT . '/.env' : '(no .env found)'))),
+            ];
             // Never let a mailer hiccup become a raw 500 — always return clean JSON.
+            $sent = false; $via = '';
             try {
                 $html = Mailer::shell('Email delivery test', ['This is a test message from the Afrovanguard Studio.', 'If it reached your inbox, email delivery is working. 🎉'], null, 'Afrovanguard email test');
                 $sent = Mailer::send($to, 'Afrovanguard — email test', $html);
                 $via  = method_exists('Mailer', 'lastTransport') ? Mailer::lastTransport() : '';
             } catch (\Throwable $e) {
                 error_log('[mail_test] ' . $e->getMessage());
-                json_out(['ok' => false, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => '', 'detail' => 'Send failed: ' . $e->getMessage()]);
+                json_out(['ok' => false, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => '', 'smtp' => $smtp, 'detail' => 'Send failed: ' . $e->getMessage()]);
             }
             $vianote = $via === 'smtp' ? 'authenticated SMTP' : ($via === 'mail' ? 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) for reliable, non-spam delivery' : '');
-            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
+            $__src = $GLOBALS['AV_ENV_SOURCE'] ?? [];
+            $srcHint = (isset($__src['SMTP_USERNAME']) || isset($__src['SMTP_PASSWORD']))
+                ? ' (resolved from your .env / environment — which now takes precedence over config.php)'
+                : ($smtp['config_php']
+                    ? ' NOTE: these values came from config.php because they are NOT set in your .env. Add SMTP_USERNAME and AV_SMTP_PASSWORD to your .env to control them there — .env now wins over config.php.'
+                    : ' (resolved from ' . $smtp['env_file'] . ' / real environment)');
+            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'smtp' => $smtp, 'detail' => $sent
                 ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')
-                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — SMTP isn’t configured. Set SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password) via .htaccess SetEnv or config.php.'))]);
+                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — SMTP isn’t configured.') . $srcHint)]);
 
         // ---- Studio AI guide: answer "how do I…" questions about running the site ----
         case 'guide_ask': {
@@ -265,7 +435,7 @@ try {
             $q = trim((string) ($body['q'] ?? ''));
             if (mb_strlen($q) < 3) json_out(['ok' => false, 'error' => 'Ask a fuller question.'], 422);
             if (!AvBot::configured()) {
-                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set ANTHROPIC_API_KEY (via .htaccess SetEnv or config.php) to turn on the assistant. In the meantime, see the How-to sections on this page.']);
+                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set ANTHROPIC_API_KEY or GROQ_API_KEY (via .htaccess SetEnv, .env, or config.php) to turn on the assistant. In the meantime, see the How-to sections on this page.']);
             }
             $sys = "You are the Afrovanguard Studio Assistant — a concise, friendly in-app guide for the administrator of the Afrovanguard nonprofit website (afrovanguard.org.ng). "
                 . "Answer ONLY about operating this admin panel (\"the Studio\") and the public site. The Studio's sections are: "
@@ -351,14 +521,27 @@ try {
         }
 
         /* ════ Activity trail (per-area) + undo ════ */
-        case 'activity':       json_out(['ok' => true, 'entries' => AdminAudit::recent((string) ($_GET['area'] ?? ''), (int) ($_GET['limit'] ?? 80)), 'areas' => AdminAudit::areas()]);
+        case 'activity': {
+            $limit = (int) ($_GET['limit'] ?? 80);
+            if (AdminRoles::isScoped($role)) {
+                // Scoped portals must show NO trace of other domains (incl. the
+                // Super Admin's own actions). Pull a wide window and keep only the
+                // rows for actions THIS role may itself perform, then trim.
+                $rows = array_values(array_filter(
+                    AdminAudit::recent('', 300),
+                    fn($e) => av_admin_scope_allows($role, (string) ($e['action'] ?? ''))
+                ));
+                json_out(['ok' => true, 'entries' => array_slice($rows, 0, max(1, min(200, $limit))), 'areas' => []]);
+            }
+            json_out(['ok' => true, 'entries' => AdminAudit::recent((string) ($_GET['area'] ?? ''), $limit), 'areas' => AdminAudit::areas()]);
+        }
         case 'activity_undo':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             json_out(AdminAudit::undo((int) ($body['id'] ?? 0)));
 
         /* ════ Admin team & roles (Super Admin only — gated above) ════ */
         case 'admins_list':
-            json_out(['ok' => true, 'admins' => AdminRoles::list(), 'me' => $role, 'roles' => array_keys(AdminRoles::RANK)]);
+            json_out(['ok' => true, 'admins' => AdminRoles::list(), 'me' => $role, 'roles' => AdminRoles::options()]);
         case 'admin_add': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = AdminRoles::add((string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'editor'), 'token');
@@ -832,13 +1015,22 @@ try {
             // Validate + normalise the optional quiz
             $quizJson = null;
             if (!empty($body['quiz']) && is_array($body['quiz']) && !empty($body['quiz']['questions'])) {
-                $qs = [];
+                $qs = []; $qn = 0;
                 foreach ($body['quiz']['questions'] as $q) {
+                    $qn++;
                     $prompt = trim((string) ($q['q'] ?? ''));
                     $opts = array_values(array_filter(array_map(fn($o) => trim((string) $o), (array) ($q['options'] ?? [])), fn($o) => $o !== ''));
                     if ($prompt === '' || count($opts) < 2) continue;
                     $ans = max(0, min(count($opts) - 1, (int) ($q['answer'] ?? 0)));
-                    $qs[] = ['q' => $prompt, 'options' => $opts, 'answer' => $ans];
+                    $row = ['q' => $prompt, 'options' => $opts, 'answer' => $ans];
+                    // Optional answer explanation, shown after grading. Hard cap so
+                    // learner result screens stay readable on any device.
+                    $exp = trim((string) ($q['explain'] ?? ''));
+                    if (mb_strlen($exp) > 500) {
+                        json_out(['ok' => false, 'error' => 'Question ' . $qn . ': the explanation is over the 500-character maximum (' . mb_strlen($exp) . '). Trim it down.'], 422);
+                    }
+                    if ($exp !== '') $row['explain'] = $exp;
+                    $qs[] = $row;
                 }
                 if ($qs) $quizJson = json_encode(['pass' => max(1, min(100, (int) ($body['quiz']['pass'] ?? 70))), 'questions' => $qs]);
             }

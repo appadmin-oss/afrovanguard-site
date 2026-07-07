@@ -1,6 +1,8 @@
 /* ============================================================
    academy/studio/studio.js — Academy admin console.
-   Talks to /admin/api.php (ADMIN_TOKEN cookie + CSRF).
+   Talks to /admin/api.php. Sign-in is the Academy admin's own
+   email + password (login_pw); the role cookie scopes the API to
+   Academy actions only. No Super Admin surface lives here.
    ============================================================ */
 (function () {
   'use strict';
@@ -30,14 +32,39 @@
   function get(action, qs) { return api(action, { qs: qs ? '&' + qs : '' }); }
   function post(action, payload) { return api(action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) }); }
 
-  /* ── Auth ── */
+  /* ── Auth ──
+     Email + password only. This portal belongs to the Academy admin; anyone
+     whose home is a DIFFERENT portal (e.g. a Mentorship admin) is bounced there.
+     The Super Admin signs in from the main Studio, not here. */
   function showApp(on) { $('#app').hidden = !on; $('#login').hidden = on; }
+  function enter(d) {
+    if (d.home && d.home.indexOf('/academy/') !== 0) { location.replace(d.home); return; }
+    csrf = d.csrf || ''; showApp(true); route('overview');
+  }
+  // Configure the login screen from the session probe: offer Google when it's
+  // set up, or explain the dead-end where someone is signed in as a member but
+  // isn't an Academy admin (and let them switch accounts).
+  function setupLogin(d) {
+    d = d || {};
+    var fields = $('#loginFields'), note = $('#memberNote'), g = $('#googleBtn'), or = $('#loginOr');
+    if (d.member) {
+      fields.hidden = true; note.hidden = false;
+      note.innerHTML = 'You’re signed in as <b>' + esc(d.member) + '</b>, but this account isn’t an Academy admin.<br>'
+        + 'Ask a Super Admin for access, or <button type="button" class="linklike" id="memberSignout">sign out</button> to use a different account.';
+      var so = $('#memberSignout');
+      if (so) so.addEventListener('click', function () { fetch('/academy/api.php?action=logout', { method: 'POST', credentials: 'same-origin' }).finally(function () { location.reload(); }); });
+    } else {
+      fields.hidden = false; note.hidden = true;
+      if (d.google) { g.href = '/auth/google/start?next=' + encodeURIComponent('/academy/studio/'); g.hidden = false; or.hidden = false; }
+      else { g.hidden = true; or.hidden = true; }
+    }
+  }
   $('#loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var btn = e.target.querySelector('button'); btn.disabled = true;
-    post('login', { token: $('#token').value }).then(function (d) {
+    post('login_pw', { email: ($('#email').value || '').trim(), password: $('#password').value }).then(function (d) {
       btn.disabled = false;
-      if (d && d.ok) { csrf = d.csrf || ''; showApp(true); route('overview'); }
+      if (d && d.ok) enter(d);
       else $('#loginMsg').textContent = (d && d.error) || 'Could not sign in.';
     }).catch(function () { btn.disabled = false; $('#loginMsg').textContent = 'Network error.'; });
   });
@@ -96,14 +123,6 @@
         return '<div class="stat"><div class="stat-num">' + esc(c[1]) + '</div><div class="stat-label">' + esc(c[0]) + '</div><div class="stat-sub">' + esc(c[2]) + '</div></div>';
       }).join('');
     });
-    var pd = $('#purgeDemo');
-    if (pd) pd.onclick = function () {
-      if (!confirm('Remove all shipped demo/sample content (sample Diary articles + placeholder lessons)? Real content and the starter curriculum are kept. This is logged.')) return;
-      post('purge_demo', {}).then(function (d) {
-        if (d && d.ok) { var r = d.removed || {}; toast('Removed ' + (r.articles || 0) + ' articles, ' + (r.lessons || 0) + ' lessons, ' + (r.modules || 0) + ' modules', 'ok'); loadOverview(); }
-        else toast((d && d.error) || 'Purge failed', 'err');
-      }).catch(function () { toast('Network error', 'err'); });
-    };
   }
 
   /* ── Courses ── */
@@ -419,8 +438,8 @@
   function aclass(a) { return /delete|revoke|suspend|failed/.test(a) ? 'draft' : (/login|create|save|reactivate/.test(a) ? 'published' : 'access'); }
   function loadActivity() {
     var body = $('#auditBody'); body.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
-    get('audit_log').then(function (d) {
-      var rows = (d && d.audit) || [];
+    get('activity').then(function (d) {
+      var rows = (d && d.entries) || [];
       if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No activity recorded yet.</td></tr>'; return; }
       body.innerHTML = rows.map(function (r) {
         return '<tr><td class="muted" style="white-space:nowrap">' + esc((r.created_at || '').replace('T', ' ').slice(0, 16)) + '</td>'
@@ -435,7 +454,7 @@
 
   /* ── Boot ── */
   get('session').then(function (d) {
-    if (d && d.ok) { csrf = d.csrf || ''; showApp(true); route('overview'); }
-    else showApp(false);
+    if (d && d.ok) enter(d);
+    else { setupLogin(d); showApp(false); }
   }).catch(function () { showApp(false); });
 })();

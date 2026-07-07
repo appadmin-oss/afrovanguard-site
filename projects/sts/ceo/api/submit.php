@@ -60,7 +60,11 @@ if (NOTIFY_EMAIL) {
         "Notes: " . $record['notes'] . "\n\n" .
         "ID: " . $record['id'] . "\n" .
         "Submitted: " . $record['timestamp'] . " (IP " . $record['ip'] . ")";
-    @mail(NOTIFY_EMAIL, $subject, $body_text, "From: " . NOTIFY_FROM . "\r\nReply-To: " . $record['email']);
+    // On hardened hosts mail() is disabled and calling it is a FATAL undefined-
+    // function error that @ cannot suppress — the guard keeps submission alive.
+    if (function_exists('mail')) {
+        @mail(NOTIFY_EMAIL, $subject, $body_text, "From: " . NOTIFY_FROM . "\r\nReply-To: " . $record['email']);
+    }
 }
 
 sts_ok(['id' => $record['id'], 'sheets' => !empty($sheets['ok'])]);

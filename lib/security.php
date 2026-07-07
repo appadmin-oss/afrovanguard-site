@@ -115,7 +115,9 @@ function av_csrf_require(): void {
 define('AV_ADMIN_COOKIE', 'av_admin');
 function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin'): void {
     $secret = av_secret(); if ($secret === '') return;
-    $role = preg_replace('/[^a-z]/', '', strtolower($role)) ?: 'superadmin';
+    // Allow underscores so scoped roles (academy_admin, mentorship_admin) survive
+    // intact; dots are still excluded because the signed payload is dot-delimited.
+    $role = preg_replace('/[^a-z_]/', '', strtolower($role)) ?: 'superadmin';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(10));
     $payload = $exp . '.' . $nonce . '.' . $role;            // role travels inside the signed cookie
     $val = $payload . '.' . hash_hmac('sha256', $payload, $secret);

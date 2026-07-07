@@ -118,7 +118,6 @@ render_subbar($a['title'], $a['slug'], $canonical);
             <div class="reactions">
               <button class="react-btn" data-react="<?= e($a['slug']) ?>" data-base="<?= (int)$a['claps'] ?>"><span class="emoji">👏</span> <span class="react-count"><?= (int)$a['claps'] ?></span></button>
               <button class="react-btn" data-share="<?= e($canonical) ?>"><span class="emoji">↗</span> Share</button>
-              <span class="react-hint">Applause is saved server-side and shared by every reader</span>
             </div>
             <div class="byline-end">
               <span>Reply to any entry: <a href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a> — we read every message.</span>

@@ -10,7 +10,7 @@
   var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
-    inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
+    inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin', donations: 'admin', announcements: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin' };
   function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
   function applyRoleVisibility() {
@@ -32,7 +32,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), donations: $('#donationsView'), announcements: $('#announcementsView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -71,6 +71,8 @@
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
     else if (which === 'communities') { show('communities'); loadCommunities(); }
+    else if (which === 'donations') { show('donations'); loadDonations(); }
+    else if (which === 'announcements') { show('announcements'); loadAnnouncements(); }
     else if (which === 'webhooks') { show('webhooks'); loadWebhooks(); loadAppTokens(); }
     else if (which === 'system') { show('system'); loadSystem(); }
     else if (which === 'moderation') { show('moderation'); loadModeration(); }
@@ -95,17 +97,45 @@
   function toggleSide() { var s = $('#studioSide'), sc = $('#studioScrim'), b = $('#studioBurger'); if (!s) return; var open = !s.classList.contains('open'); s.classList.toggle('open', open); if (sc) sc.hidden = !open; if (b) b.setAttribute('aria-expanded', String(open)); }
   (function () { var b = $('#studioBurger'), sc = $('#studioScrim'); if (b) b.addEventListener('click', toggleSide); if (sc) sc.addEventListener('click', closeSide); document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSide(); }); })();
 
-  /* ---- Auth ---- */
+  /* ---- Auth ----
+     Two ways in: a member admin account (email + password — works for editor,
+     admin and Super Admin alike) or the break-glass Super Admin token. A signed-
+     in SCOPED admin (Academy / Mentorship) is sent straight to their own portal
+     so the Studio shows them no surface they can't use. */
+  var tokenMode = false;
+  function applyToScopedHome(d) {
+    if (d && d.home) { window.location.replace(d.home); return true; }
+    return false;
+  }
+  (function () {
+    var t = $('#loginToggle'); if (!t) return;
+    t.addEventListener('click', function () {
+      tokenMode = !tokenMode;
+      $('#pwBlock').hidden = tokenMode; $('#tokenBlock').hidden = !tokenMode;
+      t.textContent = tokenMode ? 'Use your email & password instead' : 'Use a Super Admin token instead';
+      ($('#' + (tokenMode ? 'tokenInput' : 'emailInput')) || {}).focus && $('#' + (tokenMode ? 'tokenInput' : 'emailInput')).focus();
+    });
+  })();
   $('#loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var btn = $('#loginBtn'), msg = $('#loginMsg');
     msg.textContent = ''; msg.classList.remove('is-error');
     var label = btn.textContent; btn.disabled = true; btn.classList.add('is-loading'); btn.textContent = 'Signing in…';
     var reset = function () { btn.disabled = false; btn.classList.remove('is-loading'); btn.textContent = label; };
-    post('login', { token: $('#tokenInput').value.trim() }).then(function (r) {
-      if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; currentRole = r.data.role || 'superadmin'; boot(); }
-      else { msg.textContent = (r.data && r.data.error) || 'That token was not accepted.'; msg.classList.add('is-error'); reset(); var i = $('#tokenInput'); i.focus(); i.select(); }
-    }).catch(function () { msg.textContent = 'Network error — please try again.'; msg.classList.add('is-error'); reset(); });
+    var fail = function (m, focusSel) { msg.textContent = m; msg.classList.add('is-error'); reset(); var i = focusSel && $(focusSel); if (i) { i.focus(); i.select && i.select(); } };
+    var req = tokenMode
+      ? post('login', { token: $('#tokenInput').value.trim() })
+      : post('login_pw', { email: ($('#emailInput').value || '').trim(), password: $('#passwordInput').value });
+    req.then(function (r) {
+      var d = r.data || {};
+      if (d.ok) {
+        if (applyToScopedHome(d)) return;     // scoped admin → their portal
+        csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; boot();
+      } else {
+        fail(d.error || (tokenMode ? 'That token was not accepted.' : 'Incorrect email or password.'),
+             tokenMode ? '#tokenInput' : '#passwordInput');
+      }
+    }).catch(function () { fail('Network error — please try again.'); });
   });
   // show / hide the token
   (function () {
@@ -387,14 +417,23 @@
     }).join('');
     wrap.innerHTML = '<input type="text" class="qz-prompt" value="' + escapeHtml(q.q) + '" placeholder="Question" style="width:100%;padding:9px;border:1px solid var(--divider);border-radius:6px;background:var(--bg);color:var(--ink);font-weight:600;margin-bottom:10px">' +
       '<div class="qz-opts">' + opts + '</div>' +
+      '<textarea class="qz-explain" maxlength="500" rows="2" placeholder="Explanation shown after grading (optional, max 500 characters)" style="width:100%;padding:8px;border:1px solid var(--divider);border-radius:6px;background:var(--bg);color:var(--ink);font-size:13px;margin-top:8px;resize:vertical">' + escapeHtml(q.explain || '') + '</textarea>' +
       '<div style="display:flex;gap:8px;margin-top:6px"><button type="button" class="btn btn-outline btn-sm qz-addopt">+ Option</button>' +
-      '<button type="button" class="btn btn-outline btn-sm danger qz-rmq">Remove question</button><span class="muted" style="font-size:12px;align-self:center">• radio = correct answer</span></div>';
+      '<button type="button" class="btn btn-outline btn-sm danger qz-rmq">Remove question</button>' +
+      '<span class="muted" style="font-size:12px;align-self:center">• radio = correct answer</span>' +
+      '<span class="muted qz-expcount" style="font-size:12px;align-self:center;margin-left:auto">' + (q.explain ? q.explain.length : 0) + '/500</span></div>';
     // unique radio name
     var rn = 'ans_' + Math.random().toString(36).slice(2);
     wrap.querySelectorAll('input[type=radio]').forEach(function (r) { r.name = rn; });
     return wrap;
   }
   $('#qz_add').addEventListener('click', function () { $('#qz_questions').appendChild(quizQuestionEl()); });
+  // Live character counter for each question's explanation (500 max).
+  $('#qz_questions').addEventListener('input', function (e) {
+    if (!e.target.classList.contains('qz-explain')) return;
+    var c = e.target.closest('.qz-q').querySelector('.qz-expcount');
+    if (c) c.textContent = e.target.value.length + '/500';
+  });
   $('#qz_questions').addEventListener('click', function (e) {
     var q = e.target.closest('.qz-q');
     if (e.target.classList.contains('qz-rmq')) { q.remove(); return; }
@@ -418,7 +457,12 @@
       var opts = [].slice.call(q.querySelectorAll('.qz-opt')).map(function (i) { return i.value.trim(); }).filter(Boolean);
       var radios = [].slice.call(q.querySelectorAll('input[type=radio]'));
       var ans = radios.findIndex(function (r) { return r.checked; }); if (ans < 0) ans = 0;
-      if (prompt && opts.length >= 2) qs.push({ q: prompt, options: opts, answer: ans });
+      var exp = (q.querySelector('.qz-explain') || { value: '' }).value.trim().slice(0, 500);
+      if (prompt && opts.length >= 2) {
+        var row = { q: prompt, options: opts, answer: ans };
+        if (exp) row.explain = exp;
+        qs.push(row);
+      }
     });
     return qs.length ? { pass: parseInt($('#qz_pass').value, 10) || 70, questions: qs } : null;
   }
@@ -619,25 +663,44 @@
     $('#cDoodleClear').hidden = !cDoodle;
     if (typeof renderCelPreview === 'function') renderCelPreview();
   }
+  // Built-in array shape from av_celebration_calendar(): [key,name,md,scope,emoji,theme,message]
+  var celData = { rows: [], builtins: [] };
   function loadCelebrations() {
     var box = $('#celList'), bi = $('#celBuiltins');
     box.innerHTML = '<p class="muted">Loading…</p>'; bi.innerHTML = '';
     api('cel_list').then(function (r) {
       if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
-      var rows = r.data.celebrations || [];
-      box.innerHTML = rows.length ? rows.map(function (c) {
+      celData.rows = r.data.celebrations || [];
+      celData.builtins = r.data.builtins || [];
+      // A stored row whose key matches a built-in is an OVERRIDE of that default;
+      // show its state on the built-in row rather than as a separate "custom" one.
+      var builtinKeys = {}; celData.builtins.forEach(function (b) { builtinKeys[b[0]] = b; });
+      var overrideByKey = {};
+      var customRows = celData.rows.filter(function (c) {
+        if (c.key && builtinKeys[c.key]) { overrideByKey[c.key] = c; return false; }
+        return true;
+      });
+      box.innerHTML = customRows.length ? customRows.map(function (c) {
         return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + (c.emoji || '🎉') + ' ' + escapeHtml(c.name) +
           (parseInt(c.enabled, 10) ? '' : ' <span class="badge draft">Off</span>') + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + (c.key ? ' · overrides “' + escapeHtml(c.key) + '”' : '') + '</div></div>' +
+          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + '</div></div>' +
           '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celedit="' + c.id + '">Edit</button></div></div>';
-      }).join('') : '<p class="muted">No custom celebrations yet — the built-in calendar below runs automatically.</p>';
-      (r.data.builtins || []).forEach(function (b) {
-        bi.innerHTML += '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + b[4] + ' ' + escapeHtml(b[1]) + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(b[2]) + ' · ' + escapeHtml(b[3]) + '</div></div></div>';
-      });
+      }).join('') : '<p class="muted">No custom celebrations yet — the built-in calendar below runs automatically. Click <b>Customise</b> on any built-in to edit its wording, emoji, colour or art (or turn it off).</p>';
+      bi.innerHTML = celData.builtins.map(function (b) {
+        var ov = overrideByKey[b[0]];
+        var badge = ov ? (parseInt(ov.enabled, 10) ? ' <span class="badge published">Edited</span>' : ' <span class="badge draft">Off</span>') : '';
+        var emoji = (ov && ov.emoji) ? ov.emoji : b[4];
+        var name = (ov && ov.name) ? ov.name : b[1];
+        var md = (ov && ov.md) ? ov.md : b[2];   // an override may have MOVED the date
+        var when = escapeHtml(md) + (b[7] === 'movable' ? ((ov && ov.md) ? ' · pinned' : ' · moves yearly') : '');
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + emoji + ' ' + escapeHtml(name) + badge + '</div>' +
+          '<div class="entry-meta">' + when + ' · ' + escapeHtml(b[3]) + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celbuiltin="' + escapeHtml(b[0]) + '">' + (ov ? 'Edit' : 'Customise') + '</button></div></div>';
+      }).join('');
     });
   }
   $('#celList').addEventListener('click', function (e) { var b = e.target.closest('[data-celedit]'); if (b) openCel(+b.getAttribute('data-celedit')); });
+  $('#celBuiltins').addEventListener('click', function (e) { var b = e.target.closest('[data-celbuiltin]'); if (b) openBuiltin(b.getAttribute('data-celbuiltin')); });
   $('#newCelBtn').addEventListener('click', function () { openCel(null); });
   $('#celBackBtn').addEventListener('click', function () { show('celebrations'); loadCelebrations(); });
   $('#cDoodleBtn').addEventListener('click', function () { $('#cDoodleFile').click(); });
@@ -647,6 +710,10 @@
     uploadFile(f).then(function (r) { if (r.data && r.data.ok) { setCDoodle(r.data.url); toast('Art uploaded.'); } else toast((r.data && r.data.error) || 'Upload failed.'); });
   });
   var editingCel = null;
+  // When editing a BUILT-IN: its shipped/computed default date. Saving with the
+  // date unchanged stores md='' ("keep the automatic date"), so a movable feast
+  // (Eid/Easter) keeps auto-computing each year unless deliberately moved.
+  var celBuiltinDefaultMd = null;
   function renderCelPreview() {
     var box = $('#celPreview'); if (!box) return;
     var name = $('#c_name').value.trim() || 'Celebrating today';
@@ -663,34 +730,243 @@
       + (off ? '<p class="cel-pv-off">Disabled — won’t show to members.</p>' : '');
   }
   function openCel(id) {
-    editingCel = id; $('#celForm').reset(); setCDoodle(''); $('#c_theme').value = '#f3b416';
-    $('#celDeleteBtn').hidden = !id; show('celEdit');
+    editingCel = id; celBuiltinDefaultMd = null; $('#celForm').reset(); setCDoodle(''); $('#c_theme').value = '#f3b416';
+    $('#c_md').readOnly = false; $('#c_key').readOnly = false; $('#c_md').title = '';   // fully editable for custom celebrations
+    $('#celDeleteBtn').hidden = !id; $('#celDeleteBtn').textContent = 'Delete'; show('celEdit');
     if (!id) { renderCelPreview(); return; }
-    api('cel_list').then(function (r) {
-      var c = (r.data.celebrations || []).filter(function (x) { return +x.id === id; })[0]; if (!c) return;
-      $('#c_name').value = c.name || ''; $('#c_message').value = c.message || ''; $('#c_key').value = c.key || '';
-      $('#c_md').value = c.md || ''; $('#c_scope').value = c.scope || 'internal'; $('#c_emoji').value = c.emoji || '';
-      $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(c.theme) ? c.theme : '#f3b416';
-      $('#c_enabled').checked = parseInt(c.enabled, 10) !== 0; setCDoodle(c.doodle_url || '');
-      renderCelPreview();
-    });
+    var c = celData.rows.filter(function (x) { return +x.id === id; })[0]; if (!c) return;
+    $('#c_name').value = c.name || ''; $('#c_message').value = c.message || ''; $('#c_key').value = c.key || '';
+    $('#c_md').value = c.md || ''; $('#c_scope').value = c.scope || 'internal'; $('#c_emoji').value = c.emoji || '';
+    $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(c.theme) ? c.theme : '#f3b416';
+    $('#c_enabled').checked = parseInt(c.enabled, 10) !== 0; setCDoodle(c.doodle_url || '');
+    renderCelPreview();
+  }
+  // Edit a BUILT-IN default: pre-fill from the built-in (or its existing override),
+  // save as an override keyed to it. EVERYTHING is editable — wording, emoji,
+  // colour, art, enabled and the date. Leaving the date as shown keeps the
+  // automatic date (fixed calendar date, or the yearly-computed feast day);
+  // Delete removes the override and reverts to the shipped default.
+  function openBuiltin(key) {
+    var b = celData.builtins.filter(function (x) { return x[0] === key; })[0]; if (!b) return;
+    var ov = celData.rows.filter(function (x) { return x.key === key; })[0] || null;
+    editingCel = ov ? +ov.id : 0;
+    celBuiltinDefaultMd = b[2];                  // shipped (or this year's computed) date
+    $('#celForm').reset(); show('celEdit');
+    $('#c_name').value    = (ov && ov.name) ? ov.name : b[1];
+    $('#c_message').value = (ov && ov.message) ? ov.message : (b[6] || '');
+    $('#c_key').value     = key;                 // links this row to the built-in
+    $('#c_md').value      = (ov && ov.md) ? ov.md : b[2];
+    $('#c_scope').value   = (ov && ov.scope) ? ov.scope : b[3];
+    $('#c_emoji').value   = (ov && ov.emoji) ? ov.emoji : b[4];
+    $('#c_theme').value   = /^#[0-9a-f]{6}$/i.test(ov && ov.theme) ? ov.theme : (/^#[0-9a-f]{6}$/i.test(b[5]) ? b[5] : '#f3b416');
+    $('#c_enabled').checked = ov ? parseInt(ov.enabled, 10) !== 0 : true;
+    setCDoodle((ov && ov.doodle_url) ? ov.doodle_url : '');
+    $('#c_md').readOnly = false; $('#c_key').readOnly = true;  // key is the identity link; the date may be moved
+    $('#c_md').title = b[7] === 'movable'
+      ? 'Computed each year (moon/Easter). Change it to PIN this feast to a fixed date; Reset to default returns it to automatic.'
+      : 'Change to move this celebration to another date. Reset to default returns it to ' + b[2] + '.';
+    $('#celDeleteBtn').hidden = !ov;             // only when an override exists (→ revert to default)
+    renderCelPreview();
   }
   // Live preview follows every edit (name, message, emoji, theme, enabled).
   $('#celForm').addEventListener('input', renderCelPreview);
   $('#celForm').addEventListener('change', renderCelPreview);
   $('#celSaveBtn').addEventListener('click', function () {
     var name = $('#c_name').value.trim();
-    if (!name || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
+    var md = $('#c_md').value.trim();
+    if (!name || !/^\d{2}-\d{2}$/.test(md)) { toast('Name and date (MM-DD) are required.'); return; }
+    // Built-in with the date left at its default → store md='' ("automatic"), so
+    // movable feasts keep auto-computing each year instead of freezing this year's date.
+    if (celBuiltinDefaultMd !== null && md === celBuiltinDefaultMd) md = '';
     post('cel_save', {
       id: editingCel || 0, name: name, message: $('#c_message').value.trim(), key: $('#c_key').value.trim(),
-      md: $('#c_md').value.trim(), scope: $('#c_scope').value, emoji: $('#c_emoji').value.trim() || '🎉',
+      md: md, scope: $('#c_scope').value, emoji: $('#c_emoji').value.trim() || '🎉',
       theme: $('#c_theme').value, enabled: $('#c_enabled').checked, doodle_url: cDoodle
     }).then(function (r) { if (r.data && r.data.ok) { toast('Saved.'); show('celebrations'); loadCelebrations(); } else toast((r.data && r.data.error) || 'Could not save.'); });
   });
   $('#celDeleteBtn').addEventListener('click', function () {
-    if (!editingCel || !confirm('Delete this celebration?')) return;
-    post('cel_delete', { id: editingCel }).then(function () { toast('Deleted.'); show('celebrations'); loadCelebrations(); });
+    if (!editingCel) return;
+    var builtin = $('#c_key').readOnly;   // built-in override → deleting reverts to default
+    if (!confirm(builtin ? 'Reset this celebration to its shipped default?' : 'Delete this celebration?')) return;
+    post('cel_delete', { id: editingCel }).then(function () { toast(builtin ? 'Reset to default.' : 'Deleted.'); show('celebrations'); loadCelebrations(); });
   });
+
+  /* ---- Donations (giving ledger: stats, filters, manual gifts, goals) ---- */
+  var donPage = 0, donTotal = 0, donPer = 25;
+  var SYM = { NGN: '₦', USD: '$', GBP: '£' };
+  function money(n, cur) { return (SYM[cur] || '₦') + Number(n || 0).toLocaleString(); }
+  function donQuery() {
+    return 'q=' + encodeURIComponent($('#df_q').value.trim())
+      + '&type=' + encodeURIComponent($('#df_type').value)
+      + '&status=' + encodeURIComponent($('#df_status').value);
+  }
+  function loadDonations() { donPage = 0; loadDonStats(); loadDonList(); }
+  function loadDonStats() {
+    api('don_stats').then(function (r) {
+      if (!r.data || !r.data.ok) { $('#donStats').innerHTML = '<p class="muted">Could not load stats.</p>'; return; }
+      var s = r.data.stats, t = s.totals || {}, m = s.this_month || {}, rc = s.recent || {};
+      $('#donStats').innerHTML =
+        statCard(money(t.raised_ngn, 'NGN'), 'Raised (lifetime, NGN)')
+        + statCard(String(t.donors || 0), 'Gifts recorded')
+        + statCard(money(m.raised_ngn, 'NGN'), 'This month')
+        + statCard(String(t.inkind || rc.inkind || 0), 'In-kind gifts')
+        + (rc.pending ? statCard(String(rc.pending), 'Pending') : '');
+      // Campaign goal editors + the manual-entry campaign selector
+      var goals = $('#donGoals'), sel = $('#dn_campaign'), keys = Object.keys(s.campaigns || {});
+      goals.innerHTML = keys.map(function (k) {
+        var c = s.campaigns[k], pct = c.goal > 0 ? Math.min(100, Math.round(100 * (c.raised || 0) / c.goal)) : 0;
+        return '<div class="entry-row"><div class="entry-info">'
+          + '<div class="entry-title">' + escapeHtml(k) + ' <span class="muted" style="font-weight:400">— ' + money(c.raised, 'NGN') + ' raised · ' + (c.donors || 0) + ' gifts · ' + pct + '% of goal</span></div>'
+          + '<div class="entry-meta"><label>Goal (NGN) <input type="number" min="0" step="1000" value="' + (c.goal || 0) + '" data-goal="' + escapeHtml(k) + '" style="width:140px;margin-left:6px"/></label>'
+          + ' <button class="btn btn-outline btn-sm" data-goalsave="' + escapeHtml(k) + '">Save goal</button></div>'
+          + '</div></div>';
+      }).join('') || '<p class="muted">No campaigns yet.</p>';
+      if (sel) {
+        var cur = sel.value;
+        sel.innerHTML = keys.map(function (k) { return '<option value="' + escapeHtml(k) + '">' + escapeHtml(k) + '</option>'; }).join('');
+        if (keys.indexOf(cur) >= 0) sel.value = cur;
+      }
+    });
+  }
+  function loadDonList() {
+    var wrap = $('#donTableWrap'), msg = $('#donListMsg');
+    msg.textContent = 'Loading…';
+    api('don_list&per=' + donPer + '&page=' + donPage + '&' + donQuery()).then(function (r) {
+      if (!r.data || !r.data.ok) { msg.textContent = 'Could not load donations.'; return; }
+      donTotal = r.data.total || 0;
+      var rows = r.data.rows || [];
+      if (!rows.length) { wrap.innerHTML = ''; msg.textContent = 'No gifts match — card and bank gifts appear here automatically once donations start.'; $('#donPager').hidden = true; return; }
+      wrap.innerHTML = '<table class="db-table"><caption class="sr-only">Donations, newest first</caption><thead><tr>'
+        + '<th scope="col">Date</th><th scope="col">Donor</th><th scope="col">Gift</th><th scope="col">Campaign</th><th scope="col">Reference</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th>'
+        + '</tr></thead><tbody>'
+        + rows.map(function (d) {
+          var gift = d.type === 'inkind' ? escapeHtml(d.inkind_type || 'In-kind') : money(d.amount, d.currency) + ' <span class="muted">' + escapeHtml(d.type || '') + '</span>';
+          var st = d.status || 'confirmed';
+          var badge = st === 'confirmed' ? 'published' : (st === 'voided' ? 'draft' : '');
+          var act = st === 'voided'
+            ? '<button class="btn btn-outline btn-sm" data-donstatus="confirmed" data-ref="' + escapeHtml(d.reference || '') + '">Restore</button>'
+            : '<button class="btn btn-outline btn-sm" data-donstatus="voided" data-ref="' + escapeHtml(d.reference || '') + '">Void</button>';
+          return '<tr>'
+            + '<td>' + escapeHtml((d.created_at || '').slice(0, 10)) + '</td>'
+            + '<td>' + escapeHtml(d.name || 'Donor') + (d.email ? '<br/><span class="muted">' + escapeHtml(d.email) + '</span>' : '') + '</td>'
+            + '<td class="db-n">' + gift + '</td>'
+            + '<td>' + escapeHtml(d.campaign || 'general') + '</td>'
+            + '<td><code>' + escapeHtml(d.reference || '') + '</code></td>'
+            + '<td><span class="badge ' + badge + '">' + escapeHtml(st) + '</span></td>'
+            + '<td>' + act + '</td></tr>';
+        }).join('') + '</tbody></table>';
+      var from = donPage * donPer + 1, to = Math.min(donTotal, (donPage + 1) * donPer);
+      msg.textContent = 'Showing ' + from + '–' + to + ' of ' + donTotal + ' (stored window: latest 500).';
+      $('#donPager').hidden = donTotal <= donPer;
+      $('#donPrev').disabled = donPage === 0;
+      $('#donNext').disabled = to >= donTotal;
+    });
+  }
+  (function () {
+    if (!$('#donationsView')) return;
+    $('#donFilters').addEventListener('submit', function (e) { e.preventDefault(); donPage = 0; loadDonList(); });
+    $('#donPrev').addEventListener('click', function () { if (donPage > 0) { donPage--; loadDonList(); } });
+    $('#donNext').addEventListener('click', function () { donPage++; loadDonList(); });
+    // Keep the CSV export in step with the active filters.
+    $('#donFilters').addEventListener('change', function () { $('#donExportBtn').href = API + '?action=don_export&' + donQuery(); });
+    // Void / restore with totals kept truthful server-side.
+    $('#donTableWrap').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-donstatus]'); if (!b) return;
+      var to = b.getAttribute('data-donstatus'), ref = b.getAttribute('data-ref');
+      if (to === 'voided' && !confirm('Void this gift? It leaves the donor wall and all totals immediately (it can be restored).')) return;
+      post('don_status', { reference: ref, status: to }).then(function (r) {
+        if (r.data && r.data.ok) { toast(to === 'voided' ? 'Gift voided.' : 'Gift restored.'); loadDonStats(); loadDonList(); }
+        else toast((r.data && r.data.error) || 'Could not update.');
+      });
+    });
+    // Campaign goals
+    $('#donGoals').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-goalsave]'); if (!b) return;
+      var k = b.getAttribute('data-goalsave');
+      var input = $('#donGoals').querySelector('[data-goal="' + k + '"]');
+      post('don_goal', { campaign: k, goal: parseInt(input.value, 10) || 0 }).then(function (r) {
+        if (r.data && r.data.ok) { toast('Goal updated.'); loadDonStats(); }
+        else toast((r.data && r.data.error) || 'Could not save goal.');
+      });
+    });
+    // Manual gift form
+    var addCard = $('#donAddCard'), addToggle = $('#donAddToggle');
+    function setAddOpen(open) {
+      addCard.hidden = !open; addToggle.setAttribute('aria-expanded', String(open));
+      if (open) $('#dn_name').focus();
+    }
+    addToggle.addEventListener('click', function () { setAddOpen(addCard.hidden); });
+    $('#donAddCancel').addEventListener('click', function () { setAddOpen(false); });
+    $('#dn_type').addEventListener('change', function () {
+      var ink = this.value === 'inkind';
+      $('#dn_inkind_wrap').hidden = !ink; $('#dn_amount_wrap').hidden = ink;
+    });
+    $('#donAddForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var msg = $('#donAddMsg'); msg.textContent = '';
+      var type = $('#dn_type').value;
+      if (!$('#dn_name').value.trim()) { msg.textContent = 'A donor name is required.'; $('#dn_name').focus(); return; }
+      if (type !== 'inkind' && !(parseFloat($('#dn_amount').value) > 0)) { msg.textContent = 'Enter the gift amount.'; $('#dn_amount').focus(); return; }
+      post('don_add', {
+        type: type, name: $('#dn_name').value.trim(), email: $('#dn_email').value.trim(),
+        amount: parseFloat($('#dn_amount').value) || 0, currency: $('#dn_currency').value,
+        campaign: $('#dn_campaign').value, inkind_type: $('#dn_inkind').value.trim(),
+        note: $('#dn_note').value.trim(), anonymous: $('#dn_anon').checked
+      }).then(function (r) {
+        if (r.data && r.data.ok) {
+          toast('Gift recorded.');
+          $('#donAddForm').reset(); $('#dn_inkind_wrap').hidden = true; $('#dn_amount_wrap').hidden = false;
+          setAddOpen(false); loadDonStats(); loadDonList();
+        } else msg.textContent = (r.data && r.data.error) || 'Could not record the gift.';
+      });
+    });
+  })();
+
+  /* ---- Announcements (broadcast to members) ---- */
+  var annCounts = { all: 0, members: 0, learners: 0 };
+  function annUpdateCount() {
+    var el = $('#an_count'); if (!el) return;
+    var aud = $('#an_audience').value, n = annCounts[aud] || 0;
+    el.textContent = '· ' + n + ' recipient' + (n === 1 ? '' : 's');
+  }
+  function loadAnnouncements() {
+    var list = $('#annList'); list.innerHTML = '<p class="muted">Loading…</p>';
+    api('ann_list').then(function (r) {
+      if (!r.data || !r.data.ok) { list.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      annCounts = r.data.counts || annCounts; annUpdateCount();
+      var rows = r.data.announcements || [];
+      list.innerHTML = rows.length ? rows.map(function (a) {
+        var when = escapeHtml((a.created_at || '').slice(0, 16).replace('T', ' '));
+        var em = parseInt(a.email_count, 10) || 0;
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(a.title) + '</div>'
+          + '<div class="entry-meta">' + when + ' · ' + escapeHtml(a.audience || 'all') + (em ? ' · ✉ ' + em + ' emailed' : '') + '</div></div></div>';
+      }).join('') : '<p class="muted">No announcements yet.</p>';
+    });
+  }
+  (function () {
+    var form = $('#annForm'); if (!form) return;
+    $('#an_audience').addEventListener('change', annUpdateCount);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var msg = $('#an_msg');
+      var title = $('#an_title').value.trim(), body = $('#an_body').value.trim();
+      if (!title || !body) { msg.textContent = 'Title and message are required.'; return; }
+      var btn = form.querySelector('button[type=submit]'); btn.disabled = true; msg.textContent = 'Sending…';
+      post('ann_send', {
+        title: title, body: body, url: $('#an_url').value.trim(),
+        audience: $('#an_audience').value, send_email: $('#an_email').checked
+      }).then(function (r) {
+        btn.disabled = false;
+        if (r.data && r.data.ok) {
+          var em = r.data.email || {};
+          var note = em.sent ? ('Sent — emailed ' + em.sent + (em.failed ? ' (' + em.failed + ' failed)' : '') + (em.capped ? ', capped this batch' : '') + '.')
+            : (em.skipped ? 'Posted to the portal (email skipped).' : 'Sent.');
+          toast('Announcement sent.'); msg.textContent = note;
+          form.reset(); $('#an_email').checked = true; annUpdateCount(); loadAnnouncements();
+        } else { msg.textContent = (r.data && r.data.error) || 'Could not send.'; }
+      }).catch(function () { btn.disabled = false; msg.textContent = 'Network error — try again.'; });
+    });
+  })();
 
   /* ---- Communities (member-portal Spaces / Groups) ---- */
   function loadCommunities() {
@@ -1178,9 +1454,15 @@
   function loadAdmins() {
     var box = $('#adList'); if (box) box.innerHTML = '<p class="muted">Loading…</p>';
     api('admins_list').then(function (r) {
-      var rows = (r.data && r.data.admins) || []; if (!box) return;
+      var data = r.data || {}, rows = data.admins || [], roles = data.roles || [];
+      // Populate the role picker from the server (value + friendly label), so new
+      // roles (Academy / Mentorship admin) appear without touching the markup.
+      var sel = $('#adRole');
+      if (sel && roles.length) sel.innerHTML = roles.map(function (o) { return '<option value="' + escapeHtml(o.value) + '">' + escapeHtml(o.label) + '</option>'; }).join('');
+      var shortLabel = {}; roles.forEach(function (o) { shortLabel[o.value] = String(o.label).split(' — ')[0]; });
+      if (!box) return;
       box.innerHTML = rows.length ? rows.map(function (a) {
-        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge published" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span></div>'
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge published">' + escapeHtml(shortLabel[a.role] || a.role) + '</span></div>'
           + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
           + '<div class="mt-acts"><button class="btn btn-outline btn-sm" data-admin-remove="' + escapeHtml(a.email) + '">Revoke</button></div></div>';
       }).join('') : '<p class="muted">Only the break-glass token (Super Admin) has access right now. Grant a member access above.</p>';
@@ -1371,7 +1653,19 @@
       post('mail_test', { to: $('#mailTestTo').value.trim() }).then(function (r) {
         var d = r.data || {};
         msg.style.color = d.ok ? '#2ea043' : '#d22';
-        msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + ')') : ('✗ ' + (d.error || d.detail || 'Failed.'));
+        var line = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + ')') : ('✗ ' + (d.error || d.detail || 'Failed.'));
+        // Show what the server ACTUALLY resolved, so wrong-credential problems are
+        // visible: which host/username/from it used and where they came from.
+        var s = d.smtp, diag = '';
+        if (s) {
+          diag = '<div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.7">'
+            + '<b>Resolved SMTP</b> — host: <code>' + escapeHtml(s.host) + '</code> · port: <code>' + escapeHtml(s.port) + '</code> · user: <code>' + escapeHtml(s.username) + '</code><br>'
+            + 'from: <code>' + escapeHtml(s.from) + '</code> · security: <code>' + escapeHtml(s.secure) + '</code> · password: ' + (s.password_set ? ('set (' + s.password_len + ' chars)') : '<b style="color:#d22">not set</b>') + '<br>'
+            + 'source: ' + (s.config_php ? '<b style="color:#d22">config.php present — its values OVERRIDE .env / SetEnv</b>' : ('.env: <code>' + escapeHtml(s.env_file) + '</code>'))
+            + ' · PHP mail(): ' + (s.mail_fn ? 'available' : 'unavailable')
+            + '</div>';
+        }
+        msg.innerHTML = escapeHtml(line) + diag;
       }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
@@ -1381,10 +1675,19 @@
   /* ---- Diary moderation (member public-journal submissions) ---- */
   function modRowHTML(e) {
     var body = String(e.body || '');
+    // Submission-integrity verdict from ContentGuard (spam / ai / realism) —
+    // informs the human decision; high AI-likelihood is a flag, not a verdict.
+    var guard = '';
+    if (e.review_note && e.review_note.indexOf('[guard]') === 0) {
+      var warn = /ai-likely|spam-terms|no-language/.test(e.review_note);
+      guard = '<div class="inbox-meta" style="margin-top:4px"><span class="badge ' + (warn ? 'draft' : 'published') + '" title="Automated content check — advisory only">'
+        + '🛡 ' + escapeHtml(e.review_note.replace('[guard] ', '')) + '</span></div>';
+    }
     return '<div class="inbox-row mod-row" data-id="' + e.id + '"><div style="flex:1">'
       + '<strong>' + escapeHtml(e.title || '(untitled)') + '</strong>'
       + (e.kind === 'event' ? ' <span class="badge published">Event</span>' : ' <span class="badge draft">Journal</span>')
       + '<div class="inbox-meta">' + escapeHtml(e.author_name || '') + ' · ' + escapeHtml(e.author_email || '') + ' · ' + escapeHtml(e.entry_date || '') + '</div>'
+      + guard
       + '<p class="inbox-note" style="white-space:pre-wrap">' + escapeHtml(body.length > 800 ? body.slice(0, 799) + '…' : body) + '</p>'
       + '<div class="mod-actions" style="display:flex;gap:8px;margin-top:10px">'
       + '<button class="btn btn-primary btn-sm mod-approve" data-id="' + e.id + '">Approve &amp; publish</button>'
@@ -1613,5 +1916,9 @@
     activateTab(saved);
     refreshModBadge();
   }
-  api('session').then(function (r) { if (r.data && r.data.ok) { csrf = r.data.csrf; cloudinary = !!r.data.cloudinary; currentRole = r.data.role || 'superadmin'; boot(); } else show('login'); }).catch(function () { show('login'); });
+  api('session').then(function (r) {
+    var d = r.data || {};
+    if (d.ok) { if (applyToScopedHome(d)) return; csrf = d.csrf; cloudinary = !!d.cloudinary; currentRole = d.role || 'superadmin'; boot(); }
+    else show('login');
+  }).catch(function () { show('login'); });
 })();

@@ -447,6 +447,15 @@ if ($action === 'submit_contact') {
         exit;
     }
 
+    /* 5.5 Content integrity — spam / gibberish / length on the message body.
+       (Same analyzer as diary submissions and academy enrolment notes.) */
+    require_once __DIR__ . '/lib/ContentGuard.php';
+    $guard = ContentGuard::gate((string) ($input['message'] ?? ''), ['label' => 'message', 'min' => 10, 'max' => 5000]);
+    if (!$guard['ok']) {
+        echo json_encode(['success' => false, 'message' => $guard['error'], 'field' => 'message']);
+        exit;
+    }
+
     /* 6. Sanitise all fields ────────────────────────────────── */
     $purpose  = preg_replace('/[^a-z_]/', '', strtolower(trim($input['purpose'] ?? 'general')));
     if (!array_key_exists($purpose, $PURPOSE_LABELS)) $purpose = 'general';

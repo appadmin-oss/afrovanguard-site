@@ -13,11 +13,20 @@
  *   2. Claude (AvBot) with Chioma's persona — if ANTHROPIC_API_KEY is set.
  *   3. A keyword-routed scripted reply — so she's always useful.
  *
- * Agent webhook contract (AV_CHIOMA_AGENT_URL):
- *   POST {message, history:[{role,text}], context:{title,path,section}, persona, source}
+ * Agent webhook contract (AV_CHIOMA_AGENT_URL) — Make.com-ready:
+ *   POST {message, history:[{role,text}], context:{title,path,section},
+ *         session:"<stable per-visitor conversation id>",
+ *         user:{name,email,member,role}|null   ← who the assistant is helping,
+ *         persona, source:"afrovanguard-chioma"}
  *     (Authorization: Bearer AV_CHIOMA_AGENT_KEY  — sent when configured)
  *   ← any of: {reply|text|message|output|response|answer} or OpenAI
  *     {choices:[{message:{content}}]} or a plain-text body.
+ *     Optionally add {actions:[{label,url}]} (≤6) — rendered as tappable
+ *     buttons under the reply, so the agent can hand the visitor next steps.
+ *
+ *   Make.com: Custom webhook → AI Agent (give it your tools; key its memory
+ *   on `session`; feed it `user` + `context`) → Webhook Response module
+ *   returning {"reply": "...", "actions":[{"label":"Open donate","url":"/donate.html"}]}.
  */
 declare(strict_types=1);
 
@@ -69,18 +78,21 @@ SYS;
 
     /**
      * Generate Chioma's reply.
-     * @return array{ok:bool,reply:string,source:string}
+     * $meta may carry: session (conversation id), user ({name,email,member,role}|null).
+     * @return array{ok:bool,reply:string,source:string,actions:array}
      */
-    public static function reply(string $message, array $history = [], array $ctx = []): array
+    public static function reply(string $message, array $history = [], array $ctx = [], array $meta = []): array
     {
         $message = trim($message);
-        if ($message === '') return ['ok' => false, 'reply' => '', 'source' => 'none'];
+        if ($message === '') return ['ok' => false, 'reply' => '', 'source' => 'none', 'actions' => []];
         $history = array_slice($history, -12);
 
-        // 1) Your own AI Agent.
+        // 1) Your own AI Agent (the executive-assistant path).
         if (self::agentConfigured()) {
-            $r = self::delegate($message, $history, $ctx);
-            if ($r !== null && trim($r) !== '') return ['ok' => true, 'reply' => trim($r), 'source' => 'agent'];
+            $r = self::delegate($message, $history, $ctx, $meta);
+            if ($r !== null && trim((string) $r['text']) !== '') {
+                return ['ok' => true, 'reply' => trim((string) $r['text']), 'source' => 'agent', 'actions' => $r['actions']];
+            }
         }
         // 2) Claude via AvBot, in Chioma's voice.
         if (class_exists('AvBot') && AvBot::configured()) {
@@ -91,20 +103,41 @@ SYS;
                 $hist[] = ['role' => $isUser ? 'member' : 'bot', 'name' => $isUser ? null : 'Chioma', 'text' => mb_substr($t, 0, 1200)];
             }
             $res = AvBot::reply($message, $hist, ['system' => self::systemPrompt($ctx), 'max_tokens' => 500]);
-            if (!empty($res['ok'])) return ['ok' => true, 'reply' => $res['text'], 'source' => 'ai'];
+            if (!empty($res['ok'])) return ['ok' => true, 'reply' => $res['text'], 'source' => 'ai', 'actions' => []];
         }
         // 3) Scripted fallback.
-        return ['ok' => true, 'reply' => self::fallback($message, (string) ($ctx['path'] ?? '')), 'source' => 'fallback'];
+        return ['ok' => true, 'reply' => self::fallback($message, (string) ($ctx['path'] ?? '')), 'source' => 'fallback', 'actions' => []];
     }
 
-    /** Forward to the site owner's configured AI agent; returns its reply text or null. */
-    private static function delegate(string $message, array $history, array $ctx): ?string
+    /** Sanitise agent-supplied quick actions: ≤6 of {label ≤40, url http(s) or same-site path}. */
+    private static function cleanActions($raw): array
+    {
+        if (!is_array($raw)) return [];
+        $out = [];
+        foreach ($raw as $a) {
+            if (!is_array($a)) continue;
+            $label = trim((string) ($a['label'] ?? $a['text'] ?? ''));
+            $url   = trim((string) ($a['url'] ?? $a['href'] ?? ''));
+            if ($label === '' || $url === '') continue;
+            $isPath = $url[0] === '/' && strncmp($url, '//', 2) !== 0;
+            $isHttp = (bool) preg_match('~^https?://~i', $url);
+            if (!$isPath && !$isHttp) continue;
+            $out[] = ['label' => mb_substr($label, 0, 40), 'url' => mb_substr($url, 0, 300)];
+            if (count($out) >= 6) break;
+        }
+        return $out;
+    }
+
+    /** Forward to the configured AI agent; returns ['text','actions'] or null. */
+    private static function delegate(string $message, array $history, array $ctx, array $meta = []): ?array
     {
         if (!function_exists('curl_init')) return null;
         $payload = json_encode([
             'message' => $message,
             'history' => $history,
             'context' => $ctx,
+            'session' => (string) ($meta['session'] ?? ''),
+            'user'    => $meta['user'] ?? null,
             'persona' => self::systemPrompt($ctx),
             'source'  => 'afrovanguard-chioma',
         ]);
@@ -125,13 +158,16 @@ SYS;
 
         $d = json_decode((string) $resp, true);
         if (is_array($d)) {
+            $actions = self::cleanActions($d['actions'] ?? null);
             foreach (['reply', 'text', 'message', 'output', 'response', 'answer'] as $k) {
-                if (isset($d[$k]) && is_string($d[$k]) && trim($d[$k]) !== '') return $d[$k];
+                if (isset($d[$k]) && is_string($d[$k]) && trim($d[$k]) !== '') return ['text' => $d[$k], 'actions' => $actions];
             }
-            if (isset($d['choices'][0]['message']['content'])) return (string) $d['choices'][0]['message']['content'];
+            if (isset($d['choices'][0]['message']['content'])) {
+                return ['text' => (string) $d['choices'][0]['message']['content'], 'actions' => $actions];
+            }
         }
         $trim = trim((string) $resp);   // accept a plain-text body too
-        if ($trim !== '' && $trim[0] !== '{' && $trim[0] !== '[') return mb_substr($trim, 0, 2000);
+        if ($trim !== '' && $trim[0] !== '{' && $trim[0] !== '[') return ['text' => mb_substr($trim, 0, 2000), 'actions' => []];
         return null;
     }
 

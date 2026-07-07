@@ -38,17 +38,47 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
     $candidates = [];
     $explicit = getenv('AV_ENV_FILE');
     if (is_string($explicit) && $explicit !== '') $candidates[] = $explicit;
-    $candidates[] = dirname(AV_ROOT) . '/.env'; // above the web root (preferred)
-    $candidates[] = AV_ROOT . '/.env';          // inside the app root (convenient)
+    $candidates[] = dirname(AV_ROOT) . '/.env'; // above the app dir (preferred)
+    $candidates[] = AV_ROOT . '/.env';          // inside the app dir (convenient)
+    // Shared hosting often serves from a web root that ISN'T the app dir (the app
+    // may live in a subfolder of public_html, or public_html may be a symlink),
+    // so a .env dropped "at the site root" isn't found by the two paths above.
+    // Also try the request's document root and one level above it.
+    $docroot = (string) ($_SERVER['DOCUMENT_ROOT'] ?? '');
+    if ($docroot !== '') { $candidates[] = rtrim($docroot, '/\\') . '/.env'; $candidates[] = dirname($docroot) . '/.env'; }
+    $candidates = array_values(array_unique(array_filter($candidates, fn($c) => is_string($c) && $c !== '')));
+
+    // Record what discovery did, so the Studio can SHOW why env vars aren't seen.
+    $GLOBALS['AV_ENV_DIAG'] = ['file' => null, 'loaded' => 0, 'candidates' => $candidates];
 
     $file = null;
     foreach ($candidates as $c) {
-        if (is_string($c) && $c !== '' && @is_file($c) && @is_readable($c) && (@filesize($c) ?: 0) <= 262144) { $file = $c; break; }
+        if (@is_file($c) && @is_readable($c) && (@filesize($c) ?: 0) <= 262144) { $file = $c; break; }
     }
     if ($file === null) return;
+    $GLOBALS['AV_ENV_DIAG']['file'] = $file;
 
     $raw = @file_get_contents($file);
     if (!is_string($raw) || $raw === '') return;
+
+    // Windows editors save "Unicode" = UTF-16 (Notepad's Unicode option,
+    // PowerShell's Out-File / `>` redirect default): every character is padded
+    // with a NUL byte, so the key regex matches NOTHING and zero vars load even
+    // though the file was found — the classic "my env isn't seen" trap.
+    // Detect the BOM and transcode so a .env authored on Windows still works.
+    if (strncmp($raw, "\xFF\xFE", 2) === 0 || strncmp($raw, "\xFE\xFF", 2) === 0) {
+        $enc = strncmp($raw, "\xFF\xFE", 2) === 0 ? 'UTF-16LE' : 'UTF-16BE';
+        $u16 = substr($raw, 2);
+        if (function_exists('iconv'))                   $raw = (string) @iconv($enc, 'UTF-8//IGNORE', $u16);
+        elseif (function_exists('mb_convert_encoding')) $raw = (string) @mb_convert_encoding($u16, 'UTF-8', $enc);
+        else $raw = str_replace("\x00", '', $u16);      // ASCII content: dropping NULs is a faithful decode
+        $GLOBALS['AV_ENV_DIAG']['encoding'] = strtolower($enc) . ' → utf-8';
+        if ($raw === '') return;
+    } elseif (strpos($raw, "\x00") !== false) {
+        // BOM-less UTF-16 (rare) shows the same NUL symptom — same rescue.
+        $raw = str_replace("\x00", '', $raw);
+        $GLOBALS['AV_ENV_DIAG']['encoding'] = 'nul bytes stripped';
+    }
 
     // Drop a leading UTF-8 BOM (it would otherwise become part of the first key
     // name, so that variable would silently fail the key regex and be lost),
@@ -83,10 +113,17 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 
         $eq = strpos($line, '=');
         if ($eq === false) continue;
-        $key = trim(substr($line, 0, $eq));
+        // Rich-text paste leaves non-breaking spaces (U+00A0) around `KEY =` —
+        // strip them at the edges so the line isn't silently dropped as junk.
+        $key = trim(substr($line, 0, $eq), " \t\xC2\xA0");
         if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $key)) continue;      // ignore junk keys
 
-        $rest  = ltrim(substr($line, $eq + 1));
+        $rest = ltrim(substr($line, $eq + 1), " \t\xC2\xA0");
+        // Values pasted from Word/WhatsApp arrive wrapped in “smart” quotes —
+        // at the delimiter position they are never intentional, so recognise
+        // them as plain quotes (interior curly apostrophes are left alone).
+        if (strncmp($rest, "\xE2\x80\x9C", 3) === 0)      $rest = str_replace(["\xE2\x80\x9C", "\xE2\x80\x9D"], '"', $rest);
+        elseif (strncmp($rest, "\xE2\x80\x98", 3) === 0)  $rest = str_replace(["\xE2\x80\x98", "\xE2\x80\x99"], "'", $rest);
         $quote = ($rest !== '' && ($rest[0] === '"' || $rest[0] === "'")) ? $rest[0] : '';
 
         if ($quote !== '') {
@@ -107,10 +144,14 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
             }
             // Single quotes are fully literal — no escapes, no expansion.
         } else {
-            // Unquoted: strip a trailing inline comment introduced by whitespace +
-            // '#' (so the heavily-commented .env.example works once values are
-            // filled in), keep a '#' that's part of the value (e.g. p#ss), expand.
-            $val = rtrim((string) preg_replace('/\s+#.*$/', '', $rest));
+            // Unquoted: strip an inline comment — a '#' at the start of the value
+            // (i.e. `KEY=   # note`, an empty value with a trailing note, exactly
+            // how every line in .env.example reads) OR one introduced by
+            // whitespace (`KEY=value # note`). A '#' embedded with no leading
+            // space (e.g. p#ss) is kept as part of the value. Without the leading
+            // case, an unfilled `.env.example` line would capture its own comment
+            // as the value — making the app think a blank secret is configured.
+            $val = rtrim((string) preg_replace('/(^|\s)#.*$/', '', $rest));
             $val = $expand($val);
         }
 
@@ -123,6 +164,7 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
         $_ENV[$key]    = $val;
         $_SERVER[$key] = $val;
         $loaded[$key]  = $val;
+        $GLOBALS['AV_ENV_DIAG']['loaded']++;
     }
 })();
 
@@ -137,6 +179,65 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 // present; if any is missing we skip it and rely on the env-driven fallbacks
 // below. (Endpoints that truly need a secret — donations, contact, admin —
 // require config.php directly and validate their own prerequisites.)
+// ── PRECEDENCE: real environment / .env WINS over config.php ────────────────
+// Historically config.php's define()s won, so a stale value in a deployed
+// config.php silently shadowed the .env an admin was actively editing — the
+// classic "the System page shows the wrong SMTP account / my env is different".
+// We fix that by defining every operational constant from the environment HERE,
+// BEFORE config.php loads. A PHP constant cannot be redefined, so config.php's
+// later define() for the same key is a harmless no-op and the .env value stands.
+// Precedence is now:  real env / .env  >  config.php  >  built-in defaults.
+// Keys NOT present in the environment are left for config.php to supply, so
+// nothing that only lives in config.php is affected.
+$GLOBALS['AV_ENV_SOURCE'] = [];   // const => env key it resolved from (for the System panel)
+$__envConst = static function (string $const, array $envKeys, string $cast = 'str'): void {
+    if (defined($const)) return;
+    foreach ($envKeys as $ek) {
+        $v = getenv($ek);
+        if ($v === false || $v === '') continue;
+        if ($cast === 'int')       define($const, (int) $v);
+        elseif ($cast === 'bool')  define($const, !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true));
+        else                       define($const, $v);
+        $GLOBALS['AV_ENV_SOURCE'][$const] = $ek;
+        return;
+    }
+};
+// Email — the setting behind this whole fix. SMTP_PASSWORD accepts either name.
+$__envConst('SMTP_HOST',     ['SMTP_HOST']);
+$__envConst('SMTP_PORT',     ['SMTP_PORT'], 'int');
+$__envConst('SMTP_USERNAME', ['SMTP_USERNAME']);
+$__envConst('SMTP_SECURE',   ['SMTP_SECURE']);
+$__envConst('SMTP_PASSWORD', ['SMTP_PASSWORD', 'AV_SMTP_PASSWORD']);
+$__envConst('SMTP_VERIFY',   ['SMTP_VERIFY'], 'bool');
+$__envConst('FROM_EMAIL',    ['FROM_EMAIL']);
+$__envConst('FROM_NAME',     ['FROM_NAME']);
+$__envConst('ADMIN_EMAIL',   ['ADMIN_EMAIL']);
+// GENERAL sender — for announcements + system mail, so donations@ (FROM_EMAIL)
+// stays reserved for donation receipts only.
+$__envConst('FROM_GENERAL',      ['FROM_GENERAL', 'AV_FROM_GENERAL']);
+$__envConst('FROM_GENERAL_NAME', ['FROM_GENERAL_NAME']);
+// Payments, admin, identity, storage, AI — same precedence, accepting the
+// AV_* aliases the donation config uses.
+$__envConst('PAYSTACK_PUBLIC_KEY', ['PAYSTACK_PUBLIC_KEY', 'AV_PAYSTACK_PK']);
+$__envConst('PAYSTACK_SECRET_KEY', ['PAYSTACK_SECRET_KEY', 'AV_PAYSTACK_SK']);
+$__envConst('FLW_PUBLIC_KEY',      ['FLW_PUBLIC_KEY', 'AV_FLW_PK']);
+$__envConst('FLW_SECRET_KEY',      ['FLW_SECRET_KEY', 'AV_FLW_SK']);
+$__envConst('ADMIN_TOKEN',         ['AV_ADMIN_TOKEN', 'ADMIN_TOKEN']);
+$__envConst('AV_ORG_DOMAIN',       ['AV_ORG_DOMAIN']);
+foreach (['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET',
+          'AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET',
+          'AV_GDRIVE_SERVICE_ACCOUNT', 'AV_GDRIVE_FOLDER_ID',
+          'ANTHROPIC_API_KEY', 'GROQ_API_KEY', 'AV_AI_PROVIDER', 'AV_AI_MODEL'] as $__k) {
+    $__envConst($__k, [$__k]);
+}
+
+// Reuse the site's config.php if deployed; otherwise fall back to safe
+// public defaults so the Diary runs standalone (and in local dev).
+//
+// config.php calls _av_require_env() for a handful of SECRETS and historically
+// hard-exits the whole request if any is missing. The Diary / Academy / Portal
+// don't need those secrets just to RENDER, so a missing key must never take the
+// public site down. Only load config.php when its required secrets are present.
 $cfg = AV_ROOT . '/config.php';
 if (is_file($cfg)) {
     $cfgSafe = true;
@@ -145,7 +246,15 @@ if (is_file($cfg)) {
         if ($__v === false || $__v === '') { $cfgSafe = false; break; }
     }
     if ($cfgSafe) {
+        // config.php re-define()s constants we just set from the environment;
+        // those attempts no-op (env wins) but raise "already defined" warnings.
+        // Swallow ONLY those during the include so the log stays clean; every
+        // other warning propagates normally.
+        set_error_handler(static function (int $no, string $str): bool {
+            return stripos($str, 'already defined') !== false;
+        }, E_WARNING);
         require_once $cfg;
+        restore_error_handler();
     } else {
         error_log('[AV bootstrap] config.php present but a required secret env var is missing — '
             . 'serving the public site from env fallbacks. Set AV_SMTP_PASSWORD / AV_PAYSTACK_PK / '
@@ -192,6 +301,11 @@ foreach (['SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_SECURE', 'FROM_EMAIL'
 }
 if (!defined('SMTP_PASSWORD')) { $v = getenv('SMTP_PASSWORD'); if ($v === false || $v === '') $v = getenv('AV_SMTP_PASSWORD'); if ($v !== false && $v !== '') define('SMTP_PASSWORD', $v); }
 if (!defined('SMTP_VERIFY')) { $v = getenv('SMTP_VERIFY'); if ($v !== false && $v !== '') define('SMTP_VERIFY', !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true)); }
+// GENERAL sender for announcements / system mail. Defaults to the org's main
+// mailbox (ADMIN_EMAIL) so donations@ is used ONLY for donation receipts.
+// Must be a mailbox the SMTP account may send as (itself or a verified alias).
+if (!defined('FROM_GENERAL')) define('FROM_GENERAL', (defined('ADMIN_EMAIL') && ADMIN_EMAIL) ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
+if (!defined('FROM_GENERAL_NAME')) define('FROM_GENERAL_NAME', defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
 
 // The Workspace domain whose VERIFIED accounts are recognised as real org members.
 if (!defined('AV_ORG_DOMAIN')) define('AV_ORG_DOMAIN', getenv('AV_ORG_DOMAIN') ?: 'afrovanguard.org.ng');

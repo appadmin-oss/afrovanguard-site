@@ -396,3 +396,10 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 
 /* teach.php gate uses .err-actions for its button row */
 .gate .err-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+/* ── Quiz review (post-grading): right/wrong states + explanations ── */
+.quiz-q.q-right { border-color: rgba(22,163,74,.5); }
+.quiz-q.q-wrong { border-color: rgba(220,38,38,.5); }
+.quiz-explain { margin: 10px 0 2px; padding: 9px 12px; border-radius: 9px; font-size: 13.5px; line-height: 1.55;
+  background: rgba(243,180,22,.08); border: 1px solid rgba(243,180,22,.3); }
+.quiz-q.q-right .quiz-explain { background: rgba(22,163,74,.07); border-color: rgba(22,163,74,.25); }

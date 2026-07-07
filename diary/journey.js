@@ -336,8 +336,21 @@
     if (!listView) refresh();
   }
   document.querySelectorAll('.jv-btn').forEach(function (b) {
-    b.addEventListener('click', function () { setView(b.getAttribute('data-view')); });
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-view');
+      setView(v);
+      try { localStorage.setItem('av.diary.view', v); } catch (e) {}
+    });
   });
+
+  /* ── Initial view ──────────────────────────────────────────────────────
+     The modern card GRID is the default; the winding Map is opt-in and
+     remembered per device. (The page ships in grid/list mode, so no-JS and
+     first paint are correct; we only switch to Map if the reader chose it.) */
+  (function initView() {
+    var saved = null; try { saved = localStorage.getItem('av.diary.view'); } catch (e) {}
+    setView(saved === 'map' ? 'map' : 'list');
+  })();
 
   /* ── Full screen ───────────────────────────────────────────────────── */
   function setFs(on) {
