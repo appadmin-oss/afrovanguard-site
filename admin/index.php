@@ -706,8 +706,10 @@
   <!-- TEAM & ROLES (superadmin) -->
   <main class="studio-main" id="adminsView" hidden>
     <div class="studio-head">
-      <div><h1>Team &amp; roles</h1><p class="muted">Who can sign in to the Studio, and at what level. <b>Editor</b> = content only · <b>Admin</b> = management + undo · <b>Super&nbsp;Admin</b> = everything.</p></div>
+      <div><h1>Team &amp; roles</h1><p class="muted">Who can sign in to the Studio, and at what level. <b>Editor</b> = content only · <b>Admin</b> = management + undo · <b>Super&nbsp;Admin</b> = everything (roles, security, database, and every manager &amp; member).</p></div>
     </div>
+    <!-- Default Super Admin — auto-provisioned, always present -->
+    <div class="side-card" id="adSuperCard" style="max-width:640px;margin-bottom:22px;display:none"></div>
     <div class="side-card" style="max-width:640px;margin-bottom:22px">
       <h3>Grant Studio access</h3>
       <p class="muted" style="margin-top:-4px">The person must have signed in as a member once. The break-glass admin token is always Super Admin.</p>

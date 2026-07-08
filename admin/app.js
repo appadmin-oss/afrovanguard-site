@@ -1178,12 +1178,51 @@
   function loadAdmins() {
     var box = $('#adList'); if (box) box.innerHTML = '<p class="muted">Loading…</p>';
     api('admins_list').then(function (r) {
-      var rows = (r.data && r.data.admins) || []; if (!box) return;
+      var d = r.data || {};
+      var rows = d.admins || [];
+      var superEmail = (d.default_superadmin || '').toLowerCase();
+      renderSuperCard(superEmail, !!d.has_initial_password);
+      if (!box) return;
       box.innerHTML = rows.length ? rows.map(function (a) {
-        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge published" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span></div>'
+        var isDefault = superEmail && (a.email || '').toLowerCase() === superEmail;
+        var tag = isDefault ? ' <span class="badge" style="background:#f3b41622;color:#8a6400">default</span>' : '';
+        // The default super admin can't be revoked from here — it re-provisions
+        // on next sign-in anyway; revoking would only confuse.
+        var act = isDefault
+          ? '<span class="muted tiny">default super admin</span>'
+          : '<button class="btn btn-outline btn-sm" data-admin-remove="' + escapeHtml(a.email) + '">Revoke</button>';
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge published" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span>' + tag + '</div>'
           + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
-          + '<div class="mt-acts"><button class="btn btn-outline btn-sm" data-admin-remove="' + escapeHtml(a.email) + '">Revoke</button></div></div>';
+          + '<div class="mt-acts">' + act + '</div></div>';
       }).join('') : '<p class="muted">Only the break-glass token (Super Admin) has access right now. Grant a member access above.</p>';
+    });
+  }
+
+  // The always-present default super admin, with a one-time reveal of the
+  // auto-generated password (only shown when one is pending).
+  function renderSuperCard(email, hasPw) {
+    var card = $('#adSuperCard'); if (!card) return;
+    if (!email) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    card.innerHTML =
+      '<h3>Default Super Admin</h3>'
+      + '<p class="muted" style="margin-top:-4px">A single account is auto-provisioned so the Studio always has a way in. It has full access to every admin, manager and member.</p>'
+      + '<div class="mt-pair" style="margin:8px 0"><b>' + escapeHtml(email) + '</b> <span class="badge published">superadmin</span></div>'
+      + (hasPw
+          ? '<p class="muted tiny" style="margin:0 0 8px">A one-time password was generated for this account. Reveal it once, save it somewhere safe, then change it.</p>'
+            + '<button class="btn btn-primary btn-sm" id="adReveal" type="button">Reveal one-time password</button>'
+            + '<p class="mono" id="adRevealOut" style="margin-top:10px;display:none;user-select:all;background:var(--panel,#f6f7f9);padding:10px 12px;border-radius:8px"></p>'
+          : '<p class="muted tiny" style="margin:0">Signs in with its configured password (or with Google, if your org uses Google sign-in). Reset the password anytime from the member’s email above.</p>');
+    var btn = $('#adReveal');
+    if (btn) btn.addEventListener('click', function () {
+      btn.disabled = true;
+      post('superadmin_reveal', {}).then(function (r) {
+        var out = $('#adRevealOut'); var dd = r.data || {};
+        if (dd.password) {
+          out.style.display = ''; out.textContent = dd.email + '  ·  ' + dd.password;
+          btn.textContent = 'Revealed — copy it now'; toast('Copied to the field below. Save it, then change it.');
+        } else { toast('No pending password (an explicit password is configured).'); btn.disabled = false; }
+      });
     });
   }
   (function wireAdmins() {
