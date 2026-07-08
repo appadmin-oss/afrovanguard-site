@@ -15,6 +15,7 @@
  *   POST ?action=community.post   {space, body}         scope community:bot  (posts as @Afrovanguard)
  *   POST ?action=community.reply  {id, body}            scope community:bot
  *   POST ?action=event            {type, data}          scope events:write
+ *   GET  ?action=mentors.directory&segment=&limit=      scope mentors:read
  *
  * Tokens are Bearer secrets, so there is no cookie and no CSRF surface; CORS is
  * open because every call must carry the token. Per-token-less rate limiting is
@@ -95,6 +96,35 @@ try {
             $data['_source'] = 'integration:' . $tok['name'];
             Events::emit($type, $data);
             json_out(['ok' => true, 'emitted' => $type]);
+        }
+
+        case 'mentors.directory': {
+            // The approved mentor / volunteer directory, for a trusted sister
+            // site (e.g. NGG) to mirror into its own mentor pool. Read-only,
+            // scoped, and projected to a stable, PII-light shape. `segment`
+            // optionally filters to 'org' (Afrovanguard staff) or 'external'
+            // (volunteers). `since` (ISO) is accepted for future incremental
+            // syncs; currently the full approved set is returned.
+            $need('mentors:read');
+            $segment = in_array(($_GET['segment'] ?? ''), ['org', 'external'], true) ? (string) $_GET['segment'] : '';
+            $limit   = max(1, min(500, (int) ($_GET['limit'] ?? 500)));
+            $rows = Mentorship::adminMentors($segment, 'approved', (string) ($_GET['q'] ?? ''), $limit);
+            $mentors = array_map(static function (array $m): array {
+                return [
+                    // A stable cross-site reference the mirror can dedupe on.
+                    'ref'           => 'av-mentor-' . $m['user_id'],
+                    'name'          => $m['name'],
+                    'email'         => $m['email'],
+                    'segment'       => $m['segment'],          // org | external
+                    'headline'      => $m['headline'],
+                    'focus'         => $m['focus'],            // free-text skills/tracks
+                    'capacity'      => $m['capacity'],
+                    'accepting'     => (bool) $m['accepting'],
+                    'active_mentees'=> $m['active_mentees'],
+                ];
+            }, $rows);
+            json_out(['ok' => true, 'program' => 'Street-To-Stardom', 'count' => count($mentors),
+                'generated_at' => gmdate('c'), 'mentors' => $mentors]);
         }
 
         case 'bot.ask': {

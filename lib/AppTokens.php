@@ -19,6 +19,7 @@ final class AppTokens
         'community:bot'   => 'Post & reply as the official Afrovanguard bot',
         'bot:ask'         => 'Ask the AI bot to generate a reply',
         'events:write'    => 'Emit events (fan out to webhooks/listeners)',
+        'mentors:read'    => 'Read the approved mentor / volunteer directory (sister-site sync)',
     ];
     const PREFIX = 'av_int_';
 
