@@ -23,6 +23,10 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 
+/* Guarantee the default Super Admin exists before anyone tries to sign in
+ * (idempotent + fingerprint-guarded → a single cheap lookup once provisioned). */
+if (class_exists('SuperAdmin')) { try { SuperAdmin::ensure(); } catch (Throwable $e) {} }
+
 /* ---- where to send the visitor after sign-in (same-origin path only) ---- */
 $next = (string) ($_GET['next'] ?? '');
 if ($next === '' || $next[0] !== '/' || str_starts_with($next, '//') || str_contains($next, "\n")) {

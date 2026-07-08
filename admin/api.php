@@ -28,6 +28,12 @@ $body = [];
 if ($method === 'POST' && !$isUpload) { $body = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST; }
 
 try {
+    // Guarantee the default Super Admin exists before the login/session probe
+    // (idempotent + fingerprint-guarded → one cheap lookup once provisioned).
+    if (in_array($action, ['login', 'session'], true) && class_exists('SuperAdmin')) {
+        try { SuperAdmin::ensure(); } catch (Throwable $e) {}
+    }
+
     // ---- Unauthenticated: login / session probe ----
     if ($action === 'login') {
         if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -65,7 +71,7 @@ try {
        superadmin: everything. admin: management + content + undo, but not roles,
        destructive purge or the security policy. editor: content only. */
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
-    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'auth_policy_save', 'auth_policy_get',
+    $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
         'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
@@ -358,7 +364,17 @@ try {
 
         /* ════ Admin team & roles (Super Admin only — gated above) ════ */
         case 'admins_list':
-            json_out(['ok' => true, 'admins' => AdminRoles::list(), 'me' => $role, 'roles' => array_keys(AdminRoles::RANK)]);
+            json_out(['ok' => true, 'admins' => AdminRoles::list(), 'me' => $role, 'roles' => array_keys(AdminRoles::RANK),
+                'default_superadmin'   => class_exists('SuperAdmin') ? SuperAdmin::defaultEmail() : '',
+                'has_initial_password' => class_exists('SuperAdmin') && SuperAdmin::pendingPassword() !== '']);
+        case 'superadmin_reveal': {
+            // One-time reveal of the auto-generated default super-admin password,
+            // then it's forgotten. (Nothing to show if an explicit
+            // AV_SUPERADMIN_PASSWORD is in use.) Superadmin-gated above.
+            $pw = class_exists('SuperAdmin') ? SuperAdmin::pendingPassword() : '';
+            if ($pw !== '') { SuperAdmin::forgetPassword(); AdminAudit::log('admins', 'superadmin_reveal', SuperAdmin::defaultEmail(), 'Revealed the one-time default super-admin password'); }
+            json_out(['ok' => true, 'email' => class_exists('SuperAdmin') ? SuperAdmin::defaultEmail() : '', 'password' => $pw]);
+        }
         case 'admin_add': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = AdminRoles::add((string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'editor'), 'token');
