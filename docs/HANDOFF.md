@@ -127,8 +127,12 @@ each increment verified with `node build.js` (+ `php api/tests/run.php`,
    wiring landed with (3). ✅ **Phase 10** fonts (earlier session).
    ✅ "Sound & haptics" toggle (A10).
 
-Still open (nice-to-have): a Playwright runtime smoke over the journal PWA —
-`node build.js` is compile-only and won't catch runtime React errors.
+6. ✅ **Runtime smoke.** `tests/journal-smoke.js` (Playwright + Chromium +
+   real PHP backend on a throwaway SQLite DB): OTP sign-in → onboarding →
+   Journey → Shop → Growth → You (live circle code) → Focus → anchor a
+   reflection. PASS, zero uncaught page errors. Setup in the file header.
+
+Nothing from the Anchor design comps remains open.
 
 ---
 
@@ -138,8 +142,8 @@ Still open (nice-to-have): a Playwright runtime smoke over the journal PWA —
   requires `npm install esbuild --no-save` first (not vendored). It transpiles
   BOTH targets (main SPA + journal PWA), validates the `ORDER` array against
   `index.html`, and fails on drift. ALWAYS run it after editing `.jsx` — it's the
-  only compile check. It does NOT catch runtime React errors (couldn't run the
-  PWA headless here).
+  only compile check. It does NOT catch runtime React errors — for those run
+  `tests/journal-smoke.js` (Playwright; setup in its header).
 - **Never commit** `nextgengen/api/config.php`, `afrovanguard-site/config.php`,
   `dist/`, or `node_modules/` (all git-ignored). Tests used throwaway SQLite DBs
   under the scratchpad + temporary config files that were cleaned up.
