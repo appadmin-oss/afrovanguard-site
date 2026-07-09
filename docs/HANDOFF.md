@@ -136,6 +136,52 @@ Nothing from the Anchor design comps remains open.
 
 ---
 
+## 3b. Platform build wave (post-blueprint) — DONE, verified, pushed
+
+All on `claude/ngg-afrovanguard-audit-sync-becs2k`; suite now 182/182 +
+browser E2E. UX blueprint (locked v2): https://claude.ai/code/artifact/6744d694-868b-4f14-b547-7c2edcc52aaf
+
+| Piece | Where | Verified |
+|---|---|---|
+| Identity gateway (one door, staff invisible) + device sessions/revoke + lockout + Argon2id + headers | auth.gateway, api/member/security.php, session.php, migration 10 | tests + live HTTP + smoke |
+| AI key profiles (coach/behaviour/analysis/moderation, Gemini+Groq, fallback chains) | api/_lib/ai.php | tests (offline resolution) |
+| Integration bus (outbox→GChat/signed webhooks/Apps Script Sheets; retries+log) + SMS (Termii→Twilio) | api/_lib/bus.php, sms.php, admin/integrations.php, tools/dispatch-events.php, docs/integrations.md, migration 11 | tests (mocked HTTP) |
+| Registration stack (versioned form builder, gate links, parent verify + consents ledger, QR bind on verify, reminders) | api/_lib/domain/registration.php, admin/registration.php, public/gate.php, public/verify.php, tools/registration-reminders.php, migration 12 | tests + browser E2E |
+| Inbound attendance webhook + published spec | api/hooks/attendance.php, docs/attendance-webhook.md | tests |
+| Behaviour monitor (AI classify + rules fallback, wellbeing flags → bus) | api/_lib/domain/behaviour.php, migration 13 | tests |
+| Gate desk UI (/gate?g=…) + parent page (/verify?t=…) | page-other.jsx (GatePage, ParentVerifyPage), app.jsx routes | Playwright E2E 12/12 |
+| Audit (M&E) role — read-only by construction | util.php admin_role_caps, audit tail | tests green |
+
+## 3c. REMAINING UI (backends all exist — wire, don't invent)
+
+1. **Member dashboard shell** (dark blue #16223E + gold #FFCE54 + Tilt from
+   motion.jsx): tabs Home · Growth · Me; journal = launcher REDIRECT (never a
+   tab); W10 first-run (member.security has hasPassword/sessions; setPassword
+   exists); Me → Security = NGGApi.member.security/securityRevoke*.
+2. **Admin Today screen** (mobile-first W7): stat tiles from
+   admin.registrations.list (pendingCount), admin.behaviour.list (openFlags),
+   admin.summer.attendance; "Needs you" rows; gate-link manager
+   (admin.registration.gates/gateCreate/gateRevoke); integrations screen
+   (admin.integrations.*, test-fire + log); behaviour screen (admin.behaviour.*).
+3. **Form builder UI** (W5) — admin.registration.form/publishForm; builder is
+   super_admin-gated server-side already.
+4. **Audit/M&E workspace** (W8 §6) — audit tail op is open to the 'audit'
+   role; KPIs derivable from admin.summer.attendance + behaviour trend;
+   indicators/report-builder = new (small) ops.
+5. **ID card render + QR scan-by-camera** — waiting on the user's ID design;
+   QR decode needs a vendored lib (jsQR); tokens already bind at verification
+   and check in via typed code today.
+6. **Legal pages** (NDPR set, §blueprint) — static content page + footer links.
+7. Desktop journal rail shell (W9) + ⌘K in journal.
+
+Gotchas for the wave: new JSX pages were appended to page-other.jsx (no new
+ORDER entry needed); /gate + /verify are chrome-less routes in app.jsx; the
+verify POST is CSRF-exempt (token IS the proof); test with throwaway config —
+NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
+.htaccess now.
+
+---
+
 ## 4. Advice / gotchas for the next agent
 
 - **NGG build is in-browser Babel; prod build needs esbuild.** `node build.js`
