@@ -99,34 +99,36 @@ Room visit.
 
 ---
 
-## 3. PENDING — Anchor Journal remaining phases (front-end + economy)
+## 3. Anchor Journal — ALL PHASES DELIVERED (this session)
 
-Backends for Circle/Momentum already exist; most remaining work is UI + a
-client-side cosmetic economy. Tracked in
-`docs/anchor-journal-v2-gap-analysis.md` (see the "Status update" section at the
-bottom). Recommended order:
+Everything below is pushed to `claude/ngg-afrovanguard-audit-sync-becs2k`,
+each increment verified with `node build.js` (+ `php api/tests/run.php`,
+148/148, where the backend changed). Details in
+`docs/anchor-journal-v2-gap-analysis.md` §G.
 
-1. **Multi-step onboarding (Phase 1).** Replace the single `Onboarding`
-   component (`journal/app.jsx`, search `function Onboarding`) with 4 steps:
-   Welcome → Name → Why (chips) → Study time. Persist to `member_state.prefs`
-   (name/why/studyTime). "Replay intro" already re-enters it (`You` screen).
-2. **Shop + economy (Phase 5).** diamonds/levels/ownedThemes/accent/streakFrozen
-   in `member_state` (client-authoritative, cosmetic). Add a `Shop` screen
-   (Streak Freeze 30💎, themes 20💎). Equipping a theme sets `--a` accent.
-   Add a **level-up** celebration distinct from the existing `Celebrate`
-   ("Anchored!"). **Reconcile the two XP models first** — `journal/app.jsx`
-   uses cumulative `RANKS` (250/750/1500/3000) + `xp = reflections*60`, while
-   `api/_lib/domain/momentum.php` uses flat 250/level. Pick one; keep server
-   values authoritative where they exist.
-3. **You → Your Circle invite code (Phases 6–7).** Wire the hardcoded circle
-   rows to real link status. Backend already exists: `member.circle` /
-   `member.circle.rotateCode` / `member.circle.revoke` (see
-   `api/_lib/domain/circle.php`, and `members.anchorCode`). Surface the 6-digit
-   code in `You`.
-4. **Anchor Circle Portal wiring (Phase 8).** `CirclePortal` lives in
-   `page-other.jsx` (route `/circle`, main SPA, NOT the journal PWA). Wire
-   role→code→verify→consent→dashboard to `circle.*` ops + mentor cohort.
-5. **Weekly report (Phase 9)** — printable + remark→Weekly-Review wiring.
+1. ✅ **Multi-step onboarding (Phase 1).** Welcome → Name → Why → Study time;
+   persists to `member_state.prefs` (+ `onboardedAt` — completion follows the
+   account); Replay intro re-enters pre-filled (one-shot session flag).
+2. ✅ **Shop + economy (Phase 5) + XP reconciliation.** Client adopts the
+   server's flat model (60 XP/reflection-day, 250/level — `momentum.php` was
+   already canonical). `member_state.shop`: diamonds (5/day + 5/focus-session
+   − spend), Streak Freeze (30💎, max 2, auto-consume, sync-gated), accent
+   themes (20💎) swapping `--a/--a-ink/--a-rgb` app-wide, gold level-up
+   overlay (per-device baseline in localStorage — no server-clobber race).
+3. ✅ **You → Your Circle (Phases 6–7).** Real invite code + Copy/rotate,
+   LINKED/PENDING from `circle_links`, per-link revoke, and circle remarks
+   surfacing in Weekly Review ("From your circle").
+4. ✅ **Portal cohort strip (Phase 8 remainder).** New `circle.cohort` op
+   (device token list → read-only summaries + at-risk flags); /circle
+   remembers pairings, chip-switches students, "+ Add", graceful fall-over
+   on revocation. (The role→code→verify→consent→dashboard flow shipped in
+   an earlier session.)
+5. ✅ **Phase 9 core** — printable report was already live; remark→Review
+   wiring landed with (3). ✅ **Phase 10** fonts (earlier session).
+   ✅ "Sound & haptics" toggle (A10).
+
+Still open (nice-to-have): a Playwright runtime smoke over the journal PWA —
+`node build.js` is compile-only and won't catch runtime React errors.
 
 ---
 
