@@ -54,7 +54,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo'], true);
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'purge_demo', 'spons_status', 'tier_save', 'tier_delete', 'sts_save'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     $repo = new DiaryRepository();
@@ -414,6 +414,86 @@ try {
         case 'lesson_delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $lms->deleteLesson((int) ($body['id'] ?? 0)); json_out(['ok' => true]);
+
+        // ── STS: sponsorship inbox ────────────────────────────────────────
+        case 'spons_list': {
+            $status = (string) ($_GET['status'] ?? '');
+            $sql = "SELECT id, ref, full_name, email, phone, organization, program, amount_ngn, frequency, status, note, created_at FROM sponsorships";
+            $args = [];
+            if (in_array($status, ['new', 'contacted', 'active', 'declined'], true)) { $sql .= " WHERE status = ?"; $args[] = $status; }
+            $sql .= " ORDER BY id DESC LIMIT 500";
+            $st = Database::pdo()->prepare($sql); $st->execute($args);
+            $counts = Database::pdo()->query("SELECT status, COUNT(*) c FROM sponsorships GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
+            json_out(['ok' => true, 'sponsorships' => $st->fetchAll(PDO::FETCH_ASSOC), 'counts' => $counts]);
+        }
+        case 'spons_status': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0);
+            $status = (string) ($body['status'] ?? '');
+            if ($id < 1 || !in_array($status, ['new', 'contacted', 'active', 'declined'], true)) json_out(['ok' => false, 'error' => 'Bad request.'], 422);
+            $st = Database::pdo()->prepare("UPDATE sponsorships SET status = ?, note = ?, updated_at = datetime('now') WHERE id = ?");
+            $st->execute([$status, mb_substr((string) ($body['note'] ?? ''), 0, 1000), $id]);
+            json_out(['ok' => true]);
+        }
+
+        // ── STS: cost/impact ledger (tiers) ──────────────────────────────
+        case 'tier_list':
+            json_out(['ok' => true, 'tiers' => Database::pdo()->query("SELECT id, sort, amount_ngn, label, impact_line, active FROM sponsor_tiers ORDER BY sort, amount_ngn")->fetchAll(PDO::FETCH_ASSOC)]);
+        case 'tier_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id     = (int) ($body['id'] ?? 0);
+            $amount = max(0, (int) ($body['amount_ngn'] ?? 0));
+            $label  = trim((string) ($body['label'] ?? ''));
+            $line   = trim((string) ($body['impact_line'] ?? ''));
+            $sort   = (int) ($body['sort'] ?? 0);
+            $active = !empty($body['active']) ? 1 : 0;
+            if ($label === '' || $amount < 1) json_out(['ok' => false, 'error' => 'A label and amount are required.'], 422);
+            if ($id > 0) {
+                $st = Database::pdo()->prepare("UPDATE sponsor_tiers SET sort=?, amount_ngn=?, label=?, impact_line=?, active=?, updated_at=datetime('now') WHERE id=?");
+                $st->execute([$sort, $amount, mb_substr($label, 0, 120), mb_substr($line, 0, 400), $active, $id]);
+            } else {
+                $st = Database::pdo()->prepare("INSERT INTO sponsor_tiers (sort, amount_ngn, label, impact_line, active) VALUES (?,?,?,?,?)");
+                $st->execute([$sort, $amount, mb_substr($label, 0, 120), mb_substr($line, 0, 400), $active]);
+                $id = (int) Database::pdo()->lastInsertId();
+            }
+            json_out(['ok' => true, 'id' => $id]);
+        }
+        case 'tier_delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            Database::pdo()->prepare("DELETE FROM sponsor_tiers WHERE id = ?")->execute([(int) ($body['id'] ?? 0)]);
+            json_out(['ok' => true]);
+        }
+
+        // ── STS: headless content sections ───────────────────────────────
+        case 'sts_list':
+            json_out(['ok' => true, 'sections' => Database::pdo()->query("SELECT section, updated_at, updated_by FROM sts_content ORDER BY section")->fetchAll(PDO::FETCH_ASSOC)]);
+        case 'sts_get': {
+            $section = preg_replace('/[^a-z0-9_.-]/i', '', (string) ($_GET['section'] ?? ''));
+            $st = Database::pdo()->prepare("SELECT section, data, updated_at, updated_by FROM sts_content WHERE section = ? LIMIT 1");
+            $st->execute([$section]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) json_out(['ok' => false, 'error' => 'Unknown section.'], 404);
+            $r['data'] = json_decode((string) $r['data'], true);
+            json_out(['ok' => true, 'section' => $r]);
+        }
+        case 'sts_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $section = preg_replace('/[^a-z0-9_.-]/i', '', (string) ($body['section'] ?? ''));
+            if ($section === '') json_out(['ok' => false, 'error' => 'A section slug is required.'], 422);
+            // Accept either a JSON string or an already-decoded object; store canonical JSON.
+            $data = $body['data'] ?? null;
+            if (is_string($data)) { $decoded = json_decode($data, true); if ($decoded === null && trim($data) !== 'null') json_out(['ok' => false, 'error' => 'Content is not valid JSON.'], 422); $data = $decoded; }
+            $json = json_encode($data ?? new stdClass(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            // UPSERT on the unique section.
+            $pdo = Database::pdo();
+            $ex = $pdo->prepare("SELECT id FROM sts_content WHERE section = ?"); $ex->execute([$section]);
+            if ($ex->fetchColumn()) {
+                $pdo->prepare("UPDATE sts_content SET data=?, updated_at=datetime('now'), updated_by='studio' WHERE section=?")->execute([$json, $section]);
+            } else {
+                $pdo->prepare("INSERT INTO sts_content (section, data, updated_by) VALUES (?,?, 'studio')")->execute([$section, $json]);
+            }
+            json_out(['ok' => true, 'section' => $section]);
+        }
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

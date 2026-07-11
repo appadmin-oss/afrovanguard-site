@@ -22,6 +22,7 @@
       <button class="tab" data-tab="people">People</button>
       <button class="tab" data-tab="celebrations">Celebrations</button>
       <button class="tab" data-tab="communities">Communities</button>
+      <button class="tab" data-tab="sponsorship">Sponsorship<span class="tab-badge" id="sponsBadge" hidden></span></button>
       <button class="tab tab--sep" data-tab="webhooks">Webhooks</button>
       <button class="tab" data-tab="system">System</button>
       <button class="tab" data-tab="signin">Sign-in</button>
@@ -230,6 +231,30 @@
   <main class="studio-main" id="inboxView" hidden>
     <div class="studio-head"><div><h1>Inbox</h1><p class="muted">Academy applications, newest first.</p></div></div>
     <div class="inbox-list" id="inboxList"></div>
+  </main>
+
+  <!-- STS SPONSORSHIP (inquiries + cost/impact ledger + sponsor-page config) -->
+  <main class="studio-main" id="sponsorshipView" hidden>
+    <div class="studio-head">
+      <div><h1>Sponsorship</h1><p class="muted">Inquiries from the STS sponsor page, the public cost/impact ledger those tiers render from, and the sponsor-page config. The ledger + config are served headlessly at <code>/api/sponsor-ledger.php</code>.</p></div>
+      <button class="btn btn-outline btn-sm" id="sponsRefresh">Refresh</button>
+    </div>
+    <div class="mem-counts" id="sponsCounts"></div>
+
+    <h2 class="mem-audit-h">Inquiries</h2>
+    <div class="inbox-list" id="sponsList"></div>
+
+    <h2 class="mem-audit-h">Cost / impact ledger</h2>
+    <p class="muted" style="margin:0 0 12px">Each tier is a published cost-ledger line: an amount, a label, and what it funds. These are the presets + impact copy the public sponsor page shows.</p>
+    <div class="entry-list" id="tierList"></div>
+    <button class="btn btn-outline btn-sm" id="tierAdd" style="margin-top:12px">+ Add tier</button>
+
+    <h2 class="mem-audit-h">Sponsor page config</h2>
+    <p class="muted" style="margin:0 0 12px">Slider bounds, programs and cadences the sponsor form offers (JSON). Edited here, served headlessly to the page.</p>
+    <div class="side-card" style="max-width:720px">
+      <textarea id="sponsCfg" rows="14" spellcheck="false" style="width:100%;font-family:var(--font-mono,monospace);font-size:13px;line-height:1.5;padding:12px;border:1px solid var(--divider);border-radius:8px;background:var(--bg);color:var(--ink)"></textarea>
+      <div class="editor-actions" style="margin-top:10px"><span class="muted tiny" id="sponsCfgMsg"></span><button class="btn btn-primary btn-sm" id="sponsCfgSave">Save config</button></div>
+    </div>
   </main>
 
   <!-- DIARY MODERATION (public journal submissions) -->

@@ -16,7 +16,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), sponsorship: $('#sponsorshipView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login'); }
@@ -56,6 +56,7 @@
     else if (which === 'moderation') { show('moderation'); loadModeration(); }
     else if (which === 'signin') { show('signin'); loadAuthPolicy(); loadArt(); }
     else if (which === 'members') { show('members'); loadMembers(); }
+    else if (which === 'sponsorship') { show('sponsorship'); loadSponsorship(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -993,6 +994,96 @@
       });
     });
   }
+
+  /* ---- STS Sponsorship (inquiries + cost/impact ledger + sponsor config) ---- */
+  var STATUSES = ['new', 'contacted', 'active', 'declined'];
+  function ngn(n) { return '₦' + Number(n || 0).toLocaleString(); }
+
+  function loadSponsorship() {
+    // Inquiries.
+    api('spons_list').then(function (r) {
+      var box = $('#sponsList'); box.innerHTML = '';
+      if (!r.data.ok) { box.innerHTML = '<p class="muted">Could not load inquiries.</p>'; return; }
+      var counts = r.data.counts || {};
+      $('#sponsCounts').innerHTML = STATUSES.map(function (s) {
+        return '<span class="mem-count"><b>' + (counts[s] || 0) + '</b> ' + s + '</span>';
+      }).join('');
+      var badge = $('#sponsBadge'); if (badge) { var n = counts['new'] || 0; badge.textContent = n; badge.hidden = !n; }
+      if (!r.data.sponsorships.length) { box.innerHTML = '<p class="muted">No sponsorship inquiries yet.</p>'; return; }
+      r.data.sponsorships.forEach(function (s) {
+        var row = document.createElement('div'); row.className = 'inbox-row';
+        var opts = STATUSES.map(function (v) { return '<option value="' + v + '"' + (v === s.status ? ' selected' : '') + '>' + v + '</option>'; }).join('');
+        row.innerHTML =
+          '<div><strong>' + escapeHtml(s.full_name) + ' · ' + ngn(s.amount_ngn) + ' <span class="muted">/ ' + escapeHtml(String(s.frequency).replace('_', '-')) + '</span></strong>' +
+          '<div class="inbox-meta"><a href="mailto:' + escapeHtml(s.email) + '">' + escapeHtml(s.email) + '</a>' + (s.phone ? ' · ' + escapeHtml(s.phone) : '') + (s.organization ? ' · ' + escapeHtml(s.organization) : '') +
+          ' · <b>' + escapeHtml(s.program) + '</b> · <span class="mono">' + escapeHtml(s.ref) + '</span> · ' + escapeHtml(s.created_at) + '</div>' +
+          (s.note ? '<p class="inbox-note">' + escapeHtml(s.note) + '</p>' : '') + '</div>' +
+          '<div><select data-spons-status="' + s.id + '">' + opts + '</select></div>';
+        box.appendChild(row);
+      });
+    });
+    // Ledger tiers.
+    api('tier_list').then(function (r) {
+      var box = $('#tierList'); box.innerHTML = '';
+      if (!r.data.ok) { box.innerHTML = '<p class="muted">Could not load tiers.</p>'; return; }
+      r.data.tiers.forEach(function (t) { box.appendChild(tierRow(t)); });
+    });
+    // Sponsor config JSON.
+    api('sts_get&section=sponsor').then(function (r) {
+      if (r.data && r.data.ok) $('#sponsCfg').value = JSON.stringify(r.data.section.data, null, 2);
+    });
+  }
+
+  function tierRow(t) {
+    t = t || { id: 0, sort: 0, amount_ngn: 0, label: '', impact_line: '', active: 1 };
+    var row = document.createElement('div'); row.className = 'side-card'; row.style.marginBottom = '10px';
+    row.innerHTML =
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">' +
+      '<label class="fld" style="width:90px"><span>Sort</span><input type="number" data-f="sort" value="' + (t.sort | 0) + '"></label>' +
+      '<label class="fld" style="width:140px"><span>Amount (₦)</span><input type="number" data-f="amount_ngn" value="' + (t.amount_ngn | 0) + '"></label>' +
+      '<label class="fld" style="flex:1;min-width:180px"><span>Label</span><input type="text" data-f="label" value="' + escapeHtml(t.label) + '"></label>' +
+      '<label class="fld checkbox" style="align-self:center"><input type="checkbox" data-f="active"' + (t.active == 1 ? ' checked' : '') + '> <span>Active</span></label>' +
+      '</div>' +
+      '<label class="fld" style="margin-top:8px"><span>Impact line</span><textarea data-f="impact_line" rows="2">' + escapeHtml(t.impact_line) + '</textarea></label>' +
+      '<div class="editor-actions" style="margin-top:8px"><button class="btn btn-outline btn-sm danger" data-tier-del="' + (t.id | 0) + '"' + (t.id ? '' : ' hidden') + '>Delete</button><button class="btn btn-primary btn-sm" data-tier-save="' + (t.id | 0) + '">Save</button></div>';
+    return row;
+  }
+
+  // Inquiry status change.
+  $('#sponsList').addEventListener('change', function (e) {
+    var sel = e.target.closest('[data-spons-status]'); if (!sel) return;
+    post('spons_status', { id: parseInt(sel.getAttribute('data-spons-status'), 10), status: sel.value })
+      .then(function (r) { toast(r.data && r.data.ok ? 'Status updated.' : 'Could not update.'); if (r.data && r.data.ok) loadSponsorship(); });
+  });
+  // Tier save / delete (event delegation on the list).
+  $('#tierList').addEventListener('click', function (e) {
+    var saveBtn = e.target.closest('[data-tier-save]');
+    var delBtn = e.target.closest('[data-tier-del]');
+    if (saveBtn) {
+      var card = saveBtn.closest('.side-card');
+      var g = function (f) { return card.querySelector('[data-f="' + f + '"]'); };
+      post('tier_save', {
+        id: parseInt(saveBtn.getAttribute('data-tier-save'), 10) || 0,
+        sort: parseInt(g('sort').value, 10) || 0,
+        amount_ngn: parseInt(g('amount_ngn').value, 10) || 0,
+        label: g('label').value, impact_line: g('impact_line').value,
+        active: g('active').checked ? 1 : 0,
+      }).then(function (r) { toast(r.data && r.data.ok ? 'Tier saved.' : ((r.data && r.data.error) || 'Could not save.')); if (r.data && r.data.ok) loadSponsorship(); });
+    } else if (delBtn) {
+      if (!confirm('Delete this tier?')) return;
+      post('tier_delete', { id: parseInt(delBtn.getAttribute('data-tier-del'), 10) })
+        .then(function (r) { toast('Tier deleted.'); loadSponsorship(); });
+    }
+  });
+  $('#tierAdd').addEventListener('click', function () { $('#tierList').appendChild(tierRow(null)); });
+  $('#sponsRefresh').addEventListener('click', loadSponsorship);
+  $('#sponsCfgSave').addEventListener('click', function () {
+    var raw = $('#sponsCfg').value, parsed;
+    try { parsed = JSON.parse(raw); } catch (err) { $('#sponsCfgMsg').textContent = 'Not valid JSON: ' + err.message; return; }
+    $('#sponsCfgMsg').textContent = '';
+    post('sts_save', { section: 'sponsor', data: parsed })
+      .then(function (r) { toast(r.data && r.data.ok ? 'Config saved.' : 'Could not save.'); });
+  });
 
   function boot() {
     var saved = 'entries';
