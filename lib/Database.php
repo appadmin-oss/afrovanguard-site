@@ -65,6 +65,7 @@ final class Database
             self::ensureColumns();      // additive upgrades for already-deployed DBs
             self::ensureAcademy();      // create + seed academy tables if missing
             self::ensureDiaryEntries(); // member-contributed diary (categories + moderation)
+            self::ensureSts();          // STS sponsorship inquiries, cost/impact ledger + headless content
             self::ensureLmsVerify();    // email-verification columns (+ grandfather existing accounts)
             self::maybePurgeDemo();     // one-time removal of shipped demo content
         }
@@ -76,6 +77,96 @@ final class Database
      * Idempotent so already-deployed databases pick it up on the next request,
      * exactly like ensureAcademy(). Kept separate from `articles` for privacy.
      */
+    /**
+     * STS layer: sponsorship inquiries, the admin-editable cost/impact ledger,
+     * and a headless content store for STS pages. Idempotent + self-seeding so
+     * a deployed database picks it up on the next request (same style as
+     * ensureAcademy/ensureDiaryEntries). The sponsor page's tiers/impact line
+     * come from sponsor_tiers; sts_content backs the CMS.
+     */
+    private static function ensureSts(): void
+    {
+        // Tables — idempotent. On a fresh DB schema.sql may already have created
+        // them; on an already-deployed DB this creates them on the next request.
+        if (!self::tableExists('sponsorships')) {
+            self::$pdo->exec(
+                "CREATE TABLE IF NOT EXISTS sponsorships (
+                   id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                   ref          TEXT NOT NULL UNIQUE,
+                   full_name    TEXT NOT NULL DEFAULT '',
+                   email        TEXT NOT NULL DEFAULT '',
+                   phone        TEXT NOT NULL DEFAULT '',
+                   organization TEXT NOT NULL DEFAULT '',
+                   program      TEXT NOT NULL DEFAULT '',
+                   amount_ngn   INTEGER NOT NULL DEFAULT 0,
+                   frequency    TEXT NOT NULL DEFAULT 'monthly',
+                   num_children INTEGER NOT NULL DEFAULT 1,
+                   status       TEXT NOT NULL DEFAULT 'new',
+                   note         TEXT NOT NULL DEFAULT '',
+                   ip           TEXT NOT NULL DEFAULT '',
+                   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+                 );
+                 CREATE INDEX IF NOT EXISTS idx_sponsorships_status  ON sponsorships(status, id DESC);
+                 CREATE INDEX IF NOT EXISTS idx_sponsorships_created ON sponsorships(id DESC);"
+            );
+        }
+        if (!self::tableExists('sponsor_tiers')) {
+            self::$pdo->exec(
+                "CREATE TABLE IF NOT EXISTS sponsor_tiers (
+                   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                   sort        INTEGER NOT NULL DEFAULT 0,
+                   amount_ngn  INTEGER NOT NULL DEFAULT 0,
+                   label       TEXT NOT NULL DEFAULT '',
+                   impact_line TEXT NOT NULL DEFAULT '',
+                   active      INTEGER NOT NULL DEFAULT 1,
+                   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+                 );"
+            );
+        }
+        if (!self::tableExists('sts_content')) {
+            self::$pdo->exec(
+                "CREATE TABLE IF NOT EXISTS sts_content (
+                   id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                   section    TEXT NOT NULL UNIQUE,
+                   data       TEXT NOT NULL DEFAULT '{}',
+                   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                   updated_by TEXT NOT NULL DEFAULT ''
+                 );"
+            );
+        }
+
+        // Seed independently of who created the tables, so fresh databases
+        // (built from schema.sql) get seeded too. Only fills when empty.
+        if ((int) self::$pdo->query("SELECT COUNT(*) FROM sponsor_tiers")->fetchColumn() === 0) {
+            $seed = [
+                [1, 25000,  'Materials · 2 children',       'Materials and assessments for 2 children for one school term.'],
+                [2, 50000,  'Term · 4 children + sessions', 'One full school term of materials for 4 children + 8 mentorship sessions across LCASP and NextGen.'],
+                [3, 120000, 'Cohort sponsor',               'A complete cohort of 24 children for one term — facilitators, materials, baseline-endline cycle.'],
+                [4, 300000, 'School-level',                 'A school-level intervention: 3 facilitators, full term, termly report for one partner school.'],
+            ];
+            $st = self::$pdo->prepare("INSERT INTO sponsor_tiers (sort, amount_ngn, label, impact_line) VALUES (?,?,?,?)");
+            foreach ($seed as $r) $st->execute($r);
+        }
+        if ((int) self::$pdo->query("SELECT COUNT(*) FROM sts_content WHERE section = 'sponsor'")->fetchColumn() === 0) {
+            $cfg = json_encode([
+                'slider'   => ['min' => 5000, 'max' => 500000, 'step' => 1000, 'default' => 50000],
+                'programs' => [
+                    ['id' => 'next-gen',      'label' => 'Next Gen Genius Club'],
+                    ['id' => 'summer-school', 'label' => 'Alimosho Summer School'],
+                    ['id' => 'lcasp',         'label' => 'LCASP (flagship)'],
+                    ['id' => 'street-storm',  'label' => 'STREET Storm'],
+                    ['id' => 'any',           'label' => 'Wherever it’s needed most'],
+                ],
+                'cycles'   => ['monthly', 'quarterly', 'annually', 'one_time'],
+                'note'     => 'Every sponsor tier maps to a published cost-ledger line, reviewed monthly by Finance and audited annually.',
+            ], JSON_UNESCAPED_SLASHES);
+            $st = self::$pdo->prepare("INSERT INTO sts_content (section, data) VALUES (?, ?)");
+            $st->execute(['sponsor', $cfg]);
+        }
+    }
+
     private static function ensureDiaryEntries(): void
     {
         if (self::tableExists('diary_entries')) return;

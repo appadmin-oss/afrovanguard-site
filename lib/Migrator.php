@@ -31,6 +31,7 @@ final class Migrator
         'course_enrolment', 'lesson_progress', 'certificates', 'quiz_attempts', 'payments',
         'diary_entries', 'auth_illustrations', 'lms_audit',
         'app_meta', 'communities', 'celebrations', 'team',
+        'sponsorships', 'sponsor_tiers', 'sts_content',
     ];
 
     public static function driver(PDO $db): string

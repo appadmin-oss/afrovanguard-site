@@ -259,3 +259,43 @@ CREATE TABLE IF NOT EXISTS lms_audit (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_lms_audit_created ON lms_audit(id DESC);
+
+-- STS: sponsorship inquiries, admin-editable cost/impact ledger, headless content
+CREATE TABLE IF NOT EXISTS sponsorships (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  ref          TEXT NOT NULL UNIQUE,
+  full_name    TEXT NOT NULL DEFAULT '',
+  email        TEXT NOT NULL DEFAULT '',
+  phone        TEXT NOT NULL DEFAULT '',
+  organization TEXT NOT NULL DEFAULT '',
+  program      TEXT NOT NULL DEFAULT '',
+  amount_ngn   INTEGER NOT NULL DEFAULT 0,
+  frequency    TEXT NOT NULL DEFAULT 'monthly',
+  num_children INTEGER NOT NULL DEFAULT 1,
+  status       TEXT NOT NULL DEFAULT 'new',
+  note         TEXT NOT NULL DEFAULT '',
+  ip           TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sponsorships_status  ON sponsorships(status, id DESC);
+CREATE INDEX IF NOT EXISTS idx_sponsorships_created ON sponsorships(id DESC);
+
+CREATE TABLE IF NOT EXISTS sponsor_tiers (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  sort        INTEGER NOT NULL DEFAULT 0,
+  amount_ngn  INTEGER NOT NULL DEFAULT 0,
+  label       TEXT NOT NULL DEFAULT '',
+  impact_line TEXT NOT NULL DEFAULT '',
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sts_content (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  section    TEXT NOT NULL UNIQUE,
+  data       TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_by TEXT NOT NULL DEFAULT ''
+);
