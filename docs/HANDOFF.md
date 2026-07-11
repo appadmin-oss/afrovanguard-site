@@ -223,9 +223,9 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
   - Sync e2e: serve AV via `php -S 127.0.0.1:8199 -t afrovanguard-site` with
     `AV_DB_PATH` set + a seeded approved mentor + `mentors:read` token, point
     NGG's `afrovanguard.api_token` at it, run `sync-afrovanguard.php --dry-run`.
-- **Commit trailers** used in this project:
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` and a
-  `Claude-Session:` line. Do NOT put model identifiers in commits/PRs beyond that.
+- **Commit trailers**: a `Claude-Session:` line only. Do NOT add a
+  `Co-Authored-By` line, a model identifier, or any external email to
+  commits or PRs.
 - **Don't touch mam-academy** unless asked.
 
 ---
