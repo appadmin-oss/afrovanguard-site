@@ -33,6 +33,10 @@ $accessLevel = (LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['member
 // Membership dues (annual fee) — shown to Afrovanguard members on the dashboard.
 $dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
 $duesCsrf = $dues ? av_csrf_token() : '';
+// Growth-path stage (indicative): org members hold an official Afrovanguard
+// address — a Level A benefit — so they're at least Level A; others are on the
+// Foundation (Level O). The full framework lives at /how-it-works.
+$journeyStage = $isOrg ? 'A' : 'O';
 // The portal has its OWN theme (dark by default, with a light toggle) — server-set
 // from a cookie so there's no flash.
 $ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
@@ -292,6 +296,22 @@ render_head([
 <?php endif; ?>
         </section>
 <?php endif; ?>
+
+<?php
+        // Your journey — the membership progression path (see /how-it-works).
+        $jStages = [['O', 'Foundation Member'], ['A', 'Growing leader'], ['C', 'Organisational leadership']];
+        $jRank = ['O' => 0, 'A' => 1, 'C' => 2][$journeyStage] ?? 0;
+?>
+        <!-- Your growth path -->
+        <section class="portal-card journey-card span-2">
+          <div class="pc-head"><h2>Your journey</h2><a href="/how-it-works" class="pc-link">How progression works →</a></div>
+          <p class="pc-summary">At Afrovanguard you grow through commitment, service and leadership — not time served.</p>
+          <ol class="journey-ladder">
+<?php foreach ($jStages as $i => [$code, $label]):
+            $cls = $i === $jRank ? ' is-here' : ($i < $jRank ? ' is-done' : '');
+?>            <li class="jl<?= $cls ?>"><span class="jl-badge"><?= e($code) ?></span><span class="jl-label"><?= e($label) ?></span></li>
+<?php endforeach; ?>          </ol>
+        </section>
 
         <!-- My Diary -->
         <section class="portal-card accent-blue">

@@ -162,7 +162,7 @@ function av_nav_model(): array {
         'about'   => ['label' => 'About', 'href' => '/about.html', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
-                    ['About us', '/about.html'], ['Our story', '/about.html#our-story'],
+                    ['About us', '/about.html'], ['How it works', '/how-it-works'],
                     ['Our ethos', '/ethos/'], ['Leadership & model', '/ethos/#leadership'],
                 ]],
                 ['title' => 'Connect', 'links' => [

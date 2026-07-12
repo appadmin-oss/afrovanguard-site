@@ -274,3 +274,17 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
 .dues-card.dues-none     .dues-pill { background: var(--afg-success-soft, var(--p-green-soft)); color: var(--afg-success, var(--p-green)); }
 .dues-card.dues-overdue  { border-left-color: var(--afg-danger, #dc2626); }
 .dues-card.dues-due_soon { border-left-color: var(--afg-accent, var(--gold, #f3b416)); }
+
+/* ── Your journey (membership progression) ────────────────────── */
+.journey-ladder { list-style: none; margin: 6px 0 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.journey-ladder .jl { flex: 1; min-width: 150px; display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  border: 1px solid var(--afg-border, var(--p-border)); border-radius: var(--afg-radius-md, 14px);
+  background: var(--afg-surface-2, var(--p-surface-2)); opacity: .62; }
+.journey-ladder .jl.is-done { opacity: .82; }
+.journey-ladder .jl.is-here { opacity: 1; border-color: var(--afg-accent, var(--p-accent-2));
+  box-shadow: 0 0 0 1px var(--afg-accent, var(--p-accent-2)) inset; }
+.journey-ladder .jl-badge { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex;
+  align-items: center; justify-content: center; font-family: var(--afg-font-display, 'Cormorant', Georgia, serif);
+  font-weight: 700; font-size: 17px; background: var(--afg-surface, var(--p-surface)); color: var(--afg-muted, var(--p-muted)); }
+.journey-ladder .jl.is-here .jl-badge { background: var(--afg-accent, var(--p-accent-2)); color: var(--afg-on-accent, #111827); }
+.journey-ladder .jl-label { font-size: 13px; font-weight: 600; color: var(--afg-ink, var(--p-ink)); line-height: 1.2; }
