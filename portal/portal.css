@@ -229,15 +229,17 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
 .cd-link { display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--gold-deep, #b07e08); text-decoration: none; }
 .cd-link:hover { text-decoration: underline; }
 
-/* ── Membership dues card ─────────────────────────────────────── */
-.dues-card { border-left: 3px solid var(--gold, #f3b416); }
+/* ── Membership dues card ───────────────────────────────────────
+ * Reference adoption of the canonical design tokens (assets/site/tokens.css).
+ * Fallbacks preserve the portal's own palette if tokens.css is ever absent. */
+.dues-card { border-left: 3px solid var(--afg-accent, var(--gold, #f3b416)); }
 .dues-dl { margin-top: 4px; }
-.dues-per { color: var(--p-muted); font-weight: 600; }
-.dues-msg { font-size: 13px; color: var(--p-body); margin: 10px 0 0; }
+.dues-per { color: var(--afg-muted, var(--p-muted)); font-weight: 600; }
+.dues-msg { font-size: var(--afg-text-sm, 13px); color: var(--afg-body, var(--p-body)); margin: 10px 0 0; }
 /* status pill colouring by state */
-.dues-card.dues-active   .dues-pill { background: var(--p-green-soft); color: var(--p-green); }
-.dues-card.dues-due_soon .dues-pill { background: rgba(243,180,22,.16); color: var(--gold-deep, #b07e08); }
-.dues-card.dues-overdue  .dues-pill { background: rgba(220,38,38,.12);  color: #b91c1c; }
-.dues-card.dues-none     .dues-pill { background: var(--p-green-soft); color: var(--p-green); }
-.dues-card.dues-overdue  { border-left-color: #dc2626; }
-.dues-card.dues-due_soon { border-left-color: var(--gold, #f3b416); }
+.dues-card.dues-active   .dues-pill { background: var(--afg-success-soft, var(--p-green-soft)); color: var(--afg-success, var(--p-green)); }
+.dues-card.dues-due_soon .dues-pill { background: var(--afg-warning-soft, rgba(243,180,22,.16)); color: var(--afg-accent-ink, var(--gold-deep, #b07e08)); }
+.dues-card.dues-overdue  .dues-pill { background: var(--afg-danger-soft, rgba(220,38,38,.12));  color: var(--afg-danger, #b91c1c); }
+.dues-card.dues-none     .dues-pill { background: var(--afg-success-soft, var(--p-green-soft)); color: var(--afg-success, var(--p-green)); }
+.dues-card.dues-overdue  { border-left-color: var(--afg-danger, #dc2626); }
+.dues-card.dues-due_soon { border-left-color: var(--afg-accent, var(--gold, #f3b416)); }
