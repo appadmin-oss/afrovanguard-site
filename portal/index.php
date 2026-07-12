@@ -30,6 +30,9 @@ $showRole   = $isOrg && LmsAuth::rank((string) $u['role']) > LmsAuth::ROLE_RANK[
 // Org members are at least "Member" even if their stored role is still learner
 // (org status comes from the verified email domain). Never show below Member.
 $accessLevel = (LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['member']) ? $roleLabel : 'Member';
+// Membership dues (annual fee) — shown to Afrovanguard members on the dashboard.
+$dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
+$duesCsrf = $dues ? av_csrf_token() : '';
 // The portal has its OWN theme (dark by default, with a light toggle) — server-set
 // from a cookie so there's no flash.
 $ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
@@ -254,6 +257,42 @@ render_head([
           </dl>
         </section>
 
+<?php if ($isOrg && $dues):
+        $duesAmt    = '₦' . number_format((int) $dues['amount_ngn']);
+        $duesPT     = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
+        $duesDL     = $dues['days_left'];
+        $duesState  = (string) $dues['state'];
+        $duesPill   = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';
+        if (!empty($dues['lifetime'])) $duesPill = 'Lifetime';
+        $duesCanPay = !empty($dues['payable']) && empty($dues['lifetime']);
+?>
+        <!-- Membership dues (annual) -->
+        <section class="portal-card dues-card dues-<?= e($duesState) ?>" id="duesCard" data-csrf="<?= e($duesCsrf) ?>">
+          <div class="pc-head"><h2>Membership dues</h2><span class="pc-tag dues-pill"><?= e($duesPill) ?></span></div>
+<?php if (!empty($dues['lifetime'])): ?>
+          <p class="portal-status-line">✓ <strong>Lifetime membership</strong> — no dues due. Thank you for building Africa with us.</p>
+<?php elseif ($duesState === 'active'): ?>
+          <p class="portal-status-line">✓ Your dues are <strong>paid</strong><?= $duesPT ? ' through <strong>' . e($duesPT) . '</strong>' : '' ?><?= $duesDL !== null ? ' · ' . (int) $duesDL . ' day' . ((int) $duesDL === 1 ? '' : 's') . ' left' : '' ?>.</p>
+<?php elseif ($duesState === 'due_soon'): ?>
+          <p class="portal-status-line">⏳ Your dues expire<?= $duesPT ? ' on <strong>' . e($duesPT) . '</strong>' : ' soon' ?><?= $duesDL !== null ? ' — <strong>' . max(0, (int) $duesDL) . ' day' . ((int) $duesDL === 1 ? '' : 's') . '</strong> left' : '' ?>. Renew to stay current.</p>
+<?php elseif ($duesState === 'overdue'): ?>
+          <p class="portal-status-line">⚠ Your dues <strong>lapsed</strong><?= $duesPT ? ' on <strong>' . e($duesPT) . '</strong>' : '' ?>. Please renew to keep your membership active.</p>
+<?php else: ?>
+          <p class="portal-status-line">Back the mission with your annual membership dues.</p>
+<?php endif; ?>
+          <dl class="profile-dl dues-dl">
+            <dt>Annual dues</dt><dd><strong><?= e($duesAmt) ?></strong> <span class="dues-per">/ year</span></dd>
+<?php if ($duesPT): ?>            <dt><?= $duesState === 'overdue' ? 'Lapsed' : 'Paid through' ?></dt><dd><?= e($duesPT) ?></dd>
+<?php endif; ?>          </dl>
+<?php if ($duesCanPay): ?>
+          <button type="button" class="btn <?= $duesState === 'active' ? 'btn-outline' : 'btn-primary' ?> btn-sm" data-dues-pay><?= $duesState === 'active' ? 'Renew early' : ($duesState === 'due_soon' ? 'Renew dues' : 'Pay dues') ?> — <?= e($duesAmt) ?></button>
+          <p class="enroll-msg dues-msg" hidden></p>
+<?php elseif (empty($dues['lifetime'])): ?>
+          <p class="pc-summary">Online dues payment isn’t available right now — <a href="mailto:cacentre@afrovanguard.org.ng">contact us</a> to pay.</p>
+<?php endif; ?>
+        </section>
+<?php endif; ?>
+
         <!-- My Diary -->
         <section class="portal-card accent-blue">
           <div class="pc-head"><h2>My Diary</h2><a href="/diary/me/" class="pc-link">Open →</a></div>
@@ -333,6 +372,26 @@ render_head([
         if (ev) { var c = document.getElementById('cdEvent'); c.setAttribute('data-iso', ev.iso); var ti = c.querySelector('.cd-title'); if (ti) ti.textContent = ev.title || 'Upcoming event'; reg(c); tick(); }
       }).catch(function () {});
     tick(); setInterval(tick, 1000);
+  })();
+  </script>
+  <script>
+  /* Membership dues — start a secure Paystack checkout for the annual fee. */
+  (function () {
+    var card = document.getElementById('duesCard'); if (!card) return;
+    var btn = card.querySelector('[data-dues-pay]'); if (!btn) return;
+    var msg = card.querySelector('.dues-msg');
+    function say(t) { if (msg) { msg.hidden = false; msg.textContent = t; } }
+    btn.addEventListener('click', function () {
+      btn.disabled = true; say('Starting secure checkout…');
+      fetch('/portal/dues.php?action=pay_init', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': card.getAttribute('data-csrf') || '' },
+        body: '{}'
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok && d.authorization_url) { window.location.href = d.authorization_url; return; }
+        btn.disabled = false; say((d && d.error) || 'Could not start payment. Please try again.');
+      }).catch(function () { btn.disabled = false; say('Network error — please try again.'); });
+    });
   })();
   </script>
   <script src="/assets/site/nav.js" defer></script>

@@ -221,6 +221,18 @@ The site runs **four layered auth mechanisms**, all keyed off `lib/security.php`
 
 Sorted by severity. The codebase is **notably hardened**; most findings are defense-in-depth or maintainability, not active exploits.
 
+> **Remediation status (2026-07-12).** S-1, S-2, S-3, S-4, S-5 are **fixed** in this branch. S-6 (CSP `unsafe-inline`) and S-7 (routing duplication) are **deferred** — both are large, cross-cutting refactors on live-serving surfaces (300 KB+ of inline HTML / the routing front door) where a hasty change risks breakage; they are best done as focused, individually-verified follow-ups. See the "Status" column below.
+>
+> | # | Status | What changed |
+> |---|---|---|
+> | S-1 | ✅ Fixed | `av_private_path()` (`lib/security.php`) stores `donations.json`/`contacts.json` under `AV_PRIVATE_DIR` (above web root) or the already-denied `db/private/`, and migrates any legacy web-root file on first use. Wired into `process-donation.php` + `process-contact.php`; `db/private/` gitignored. |
+> | S-2 | ✅ Fixed | `AV_DB_STRICT=1` makes an unreachable primary DB a hard error instead of a silent SQLite fallback (`Database::dbStrict()`). |
+> | S-3 | ✅ Fixed | `av_secret()` now prefers a dedicated `APP_KEY`/`AV_APP_KEY` for signing, falling back to `ADMIN_TOKEN` only when unset — credential rotation no longer invalidates sessions. |
+> | S-4 | ✅ Fixed | Break-glass token minimum raised to 32 chars via `av_admin_token_configured()` (used by `security.php`, `bootstrap.php`, `admin/api.php`); orphaned `admin-auth.php` deleted. ⚠️ **Action:** if your live `AV_ADMIN_TOKEN` is shorter than 32 chars, regenerate it (`php -r "echo bin2hex(random_bytes(32));"`). |
+> | S-5 | ✅ Fixed | Mentor email in `mentors.directory` is now gated by `AV_MENTORS_SHARE_EMAIL` (defaults on for NextGenGen back-compat; set `0` to share only the stable `ref`). |
+> | S-6 | ⏸ Deferred | CSP `unsafe-inline` removal needs nonces threaded through every inline script across the static pages + admin SPA. |
+> | S-7 | ⏸ Deferred | De-duplicating `.htaccess`/`router.php` needs a route-parity test harness to change safely. |
+
 | # | Severity | Area | Location | Issue | Recommendation |
 |---|---|---|---|---|---|
 | S-1 | **Medium** | Data / PII | `process-donation.php:86`, `process-contact.php` (`CONTACT_FILE`), root `.htaccess:91-101` | `donations.json` & `contacts.json` (donor/contact PII) are written to the **web root**, protected only by a name-based `.htaccess` `FilesMatch` deny. If that `.htaccess` isn't honored (server misconfig, or during the WordPress-coexistence swap) the PII becomes directly fetchable. | Move both stores **outside the web root** (or into the already-denied `db/`), like the SQLite DB. Don't rely on a single by-name deny for PII. |

@@ -10,11 +10,28 @@
  */
 declare(strict_types=1);
 
-/** Server secret for signing (admin token, else APP_KEY). */
+/**
+ * Server secret for signing cookies + CSRF tokens.
+ *
+ * Prefer a DEDICATED signing key (APP_KEY / AV_APP_KEY) so the break-glass
+ * ADMIN_TOKEN credential can be rotated WITHOUT invalidating every admin
+ * session and outstanding CSRF token, and so one value isn't overloaded as
+ * both a credential and a crypto key. Falls back to ADMIN_TOKEN when no
+ * dedicated key is set, preserving existing single-secret deployments.
+ */
 function av_secret(): string {
-    if (defined('ADMIN_TOKEN') && ADMIN_TOKEN) return (string) ADMIN_TOKEN;
     if (defined('APP_KEY') && APP_KEY) return (string) APP_KEY;
-    $env = getenv('APP_KEY'); return $env ?: '';
+    $env = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
+    if ($env) return $env;
+    if (defined('ADMIN_TOKEN') && ADMIN_TOKEN) return (string) ADMIN_TOKEN;
+    return '';
+}
+
+/** Minimum acceptable length for the break-glass ADMIN_TOKEN (superadmin
+ *  credential). Generate one with: php -r "echo bin2hex(random_bytes(32));" */
+const AV_ADMIN_TOKEN_MIN = 32;
+function av_admin_token_configured(): bool {
+    return defined('ADMIN_TOKEN') && strlen((string) ADMIN_TOKEN) >= AV_ADMIN_TOKEN_MIN;
 }
 
 function av_is_prod(): bool {
@@ -154,10 +171,46 @@ function av_admin_cookie_clear(): void {
 
 /** True if the request carries a valid Bearer admin token. */
 function av_admin_bearer_ok(): bool {
-    if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) return false;
+    if (!av_admin_token_configured()) return false;
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
     $token = str_starts_with($auth, 'Bearer ') ? trim(substr($auth, 7)) : trim($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '');
     return $token !== '' && hash_equals((string) ADMIN_TOKEN, $token);
+}
+
+/**
+ * Absolute path for a PRIVATE data store (donor/contact PII, etc.).
+ *
+ * PII must never live directly in the web root behind only a by-name .htaccess
+ * deny — during the WordPress-coexistence transition a replaced root .htaccess
+ * could briefly expose it. Store it where the server denies access with
+ * defense-in-depth instead:
+ *   • AV_PRIVATE_DIR (env) — set this to a directory ABOVE the web root (best).
+ *   • else <root>/db/private — db/ is denied by BOTH the root .htaccess
+ *     (RewriteRule ^db/ - [F,L]) and db/.htaccess, and is already off-limits.
+ *
+ * On first use this transparently MIGRATES a legacy web-root file
+ * (<root>/<name>) into the private dir so existing donations.json / contacts.json
+ * history is preserved and the world-readable copy is removed.
+ */
+function av_private_path(string $name): string {
+    if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
+    $name = basename($name);
+    $dir  = (string) getenv('AV_PRIVATE_DIR');
+    if ($dir === '') $dir = AV_ROOT . '/db/private';
+    if (!is_dir($dir)) { @mkdir($dir, 0700, true); }
+    // Harden the default in-webroot location with its own deny + no index.
+    if (strpos($dir, AV_ROOT) === 0) {
+        $ht = $dir . '/.htaccess';
+        if (!is_file($ht)) @file_put_contents($ht, "Require all denied\n<IfModule !mod_authz_core.c>\nOrder allow,deny\nDeny from all\n</IfModule>\nOptions -Indexes\n");
+    }
+    $target = $dir . '/' . $name;
+    // One-time migration of a legacy web-root file into the private store.
+    $legacy = AV_ROOT . '/' . $name;
+    if (!is_file($target) && is_file($legacy)) {
+        if (@rename($legacy, $target)) { @chmod($target, 0600); }
+        else { if (@copy($legacy, $target)) { @chmod($target, 0600); @unlink($legacy); } }
+    }
+    return $target;
 }
 
 /* ── File-based rate limiting ─────────────────────────────────── */

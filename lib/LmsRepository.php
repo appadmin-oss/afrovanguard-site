@@ -303,9 +303,74 @@ final class LmsRepository
     }
     public function grantMembership(int $userId, int $months = 12): void
     {
-        $exp = date('Y-m-d H:i:s', strtotime("+$months months"));
+        // Renewals extend from the LATER of now or the member's current paid-through
+        // date, so paying dues early (or twice) never forfeits time already paid for.
+        $base = time();
+        $cur  = $this->latestMembership($userId);
+        if ($cur && !empty($cur['expires_at'])) {
+            $curTs = strtotime((string) $cur['expires_at']);
+            if ($curTs && $curTs > $base) $base = $curTs;
+        }
+        $exp = date('Y-m-d H:i:s', strtotime("+$months months", $base));
         $this->db->prepare("INSERT INTO memberships (user_id, tier, status, expires_at) VALUES (?, 'member', 'active', ?)")
             ->execute([$userId, $exp]);
+    }
+
+    /** The member's most recent membership row (lifetime rows first, then latest expiry). */
+    public function latestMembership(int $userId): ?array
+    {
+        $s = $this->db->prepare(
+            "SELECT * FROM memberships WHERE user_id = ?
+             ORDER BY (expires_at IS NULL) DESC, expires_at DESC, id DESC LIMIT 1"
+        );
+        $s->execute([$userId]);
+        return $s->fetch() ?: null;
+    }
+
+    /**
+     * Membership-dues status for the member dashboard. "Dues" are the annual
+     * membership fee (AV_MEMBERSHIP_NGN). Returns a render-ready shape:
+     *   state: active | due_soon | overdue | none
+     */
+    public function duesStatus(int $userId): array
+    {
+        $amountNgn = defined('AV_MEMBERSHIP_NGN') ? (int) AV_MEMBERSHIP_NGN : 5000;
+        $m = $this->latestMembership($userId);
+        $paidThrough = $m['expires_at'] ?? null;
+        $lifetime = $m && empty($paidThrough);
+
+        $daysLeft = null;
+        if ($paidThrough) {
+            $ts = strtotime((string) $paidThrough);
+            if ($ts) $daysLeft = (int) floor(($ts - time()) / 86400);
+        }
+
+        if ($lifetime)               $state = 'active';
+        elseif ($daysLeft === null)  $state = 'none';     // never paid dues
+        elseif ($daysLeft < 0)       $state = 'overdue';  // lapsed
+        elseif ($daysLeft <= 30)     $state = 'due_soon'; // within renewal window
+        else                         $state = 'active';
+
+        $lastPaid = null;
+        $lp = $this->db->prepare(
+            "SELECT paid_at FROM payments
+             WHERE user_id = ? AND kind = 'membership' AND status = 'paid'
+             ORDER BY paid_at DESC, id DESC LIMIT 1"
+        );
+        $lp->execute([$userId]);
+        if ($row = $lp->fetch()) $lastPaid = $row['paid_at'] ?? null;
+
+        return [
+            'amount_ngn'   => $amountNgn,
+            'currency'     => 'NGN',
+            'period'       => 'year',
+            'state'        => $state,
+            'lifetime'     => $lifetime,
+            'paid_through' => $paidThrough ? gmdate('c', (int) strtotime((string) $paidThrough)) : null,
+            'days_left'    => $daysLeft,
+            'last_paid_at' => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
+            'payable'      => class_exists('Payments') && Payments::configured('paystack'),
+        ];
     }
     private function userRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lms_users WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
     private function courseRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM courses WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }

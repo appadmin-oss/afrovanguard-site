@@ -228,3 +228,16 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
 .cd-timer { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-size: 30px; font-weight: 600; color: var(--ink, #111827); font-variant-numeric: tabular-nums; line-height: 1; }
 .cd-link { display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--gold-deep, #b07e08); text-decoration: none; }
 .cd-link:hover { text-decoration: underline; }
+
+/* ── Membership dues card ─────────────────────────────────────── */
+.dues-card { border-left: 3px solid var(--gold, #f3b416); }
+.dues-dl { margin-top: 4px; }
+.dues-per { color: var(--p-muted); font-weight: 600; }
+.dues-msg { font-size: 13px; color: var(--p-body); margin: 10px 0 0; }
+/* status pill colouring by state */
+.dues-card.dues-active   .dues-pill { background: var(--p-green-soft); color: var(--p-green); }
+.dues-card.dues-due_soon .dues-pill { background: rgba(243,180,22,.16); color: var(--gold-deep, #b07e08); }
+.dues-card.dues-overdue  .dues-pill { background: rgba(220,38,38,.12);  color: #b91c1c; }
+.dues-card.dues-none     .dues-pill { background: var(--p-green-soft); color: var(--p-green); }
+.dues-card.dues-overdue  { border-left-color: #dc2626; }
+.dues-card.dues-due_soon { border-left-color: var(--gold, #f3b416); }

@@ -38,7 +38,7 @@ try {
     if ($action === 'login') {
         if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
         if (!av_rate_ok('admin_login', 8, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
-        if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) json_out(['ok' => false, 'error' => 'Admin isn’t configured. Set AV_ADMIN_TOKEN (a random string, 8+ characters) via .htaccess SetEnv or config.php, then reload.'], 503);
+        if (!av_admin_token_configured()) json_out(['ok' => false, 'error' => 'Admin isn’t configured. Set AV_ADMIN_TOKEN (a random string, 32+ characters — e.g. php -r "echo bin2hex(random_bytes(32));") via .htaccess SetEnv or config.php, then reload.'], 503);
         $tok = (string) ($body['token'] ?? '');
         if ($tok === '' || !hash_equals((string) ADMIN_TOKEN, $tok)) {
             try { (new LmsRepository())->audit('admin_login_failed', '', 'bad token'); } catch (Throwable $e) {}

@@ -161,6 +161,22 @@ if (!defined('ADMIN_TOKEN')) {
     $t = getenv('AV_ADMIN_TOKEN');
     if ($t !== false && $t !== '') define('ADMIN_TOKEN', $t);
 }
+// Dedicated signing key for admin cookies + CSRF tokens (config.php or
+// APP_KEY / AV_APP_KEY env). Keeping this separate from ADMIN_TOKEN lets the
+// break-glass credential be rotated without logging every admin out. Absent ⇒
+// av_secret() falls back to ADMIN_TOKEN (legacy single-secret behaviour).
+if (!defined('APP_KEY')) {
+    $k = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
+    if ($k !== false && $k !== '') define('APP_KEY', $k);
+}
+// Whether the scoped integrations API may share mentor EMAIL addresses with a
+// trusted sister site (mentors.directory). Defaults to on for back-compat with
+// the existing NextGenGen mirror; set AV_MENTORS_SHARE_EMAIL=0 to share only a
+// stable cross-site `ref` (the mirror can dedupe on that) and omit the PII.
+if (!defined('AV_MENTORS_SHARE_EMAIL')) {
+    $v = getenv('AV_MENTORS_SHARE_EMAIL');
+    define('AV_MENTORS_SHARE_EMAIL', $v === false || $v === '' ? true : !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true));
+}
 // Cloudinary (config.php or env). Absent ⇒ uploads fall back to local /uploads.
 foreach (['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
@@ -254,7 +270,7 @@ function portal_url(string $path = ''): string { return rtrim(PORTAL_URL, '/') .
  * also carry a valid CSRF header (call av_csrf_require() in the route).
  */
 function require_admin(): void {
-    if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) {
+    if (!av_admin_token_configured()) {
         json_out(['ok' => false, 'error' => 'Admin is not configured on this server.'], 503);
     }
     // Role-aware: break-glass token = superadmin; member-admins (admin_users) get

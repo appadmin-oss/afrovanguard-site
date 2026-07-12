@@ -42,3 +42,6 @@ uploads/
 
 # ── Generated read-aloud audio cache ───────────────────────────────────
 data/tts/
+
+# Private PII data stores (donations/contacts) — never commit
+db/private/

@@ -83,7 +83,11 @@ use PHPMailer\PHPMailer\Exception;
 /* ═══════════════════════════════════════════════════════════
    DATA STORE  —  donations.json  (file-locked, not web-accessible)
    ═══════════════════════════════════════════════════════════ */
-define('DATA_FILE', __DIR__ . '/donations.json');
+// Donor PII must not sit in the web root behind only a by-name .htaccess deny.
+// av_private_path() resolves a defense-in-depth location (AV_PRIVATE_DIR above
+// the web root, else <root>/db/private which the server already denies) and
+// migrates any legacy web-root donations.json into it on first use.
+define('DATA_FILE', av_private_path('donations.json'));
 
 function defaultData(): array {
     return [

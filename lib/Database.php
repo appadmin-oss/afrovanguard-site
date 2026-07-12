@@ -18,6 +18,11 @@ final class Database
      *  on the wrong database. null = no fallback (running on the chosen driver). */
     private static ?string $fellBackFrom = null;
     public static function fellBack(): ?string { return self::$fellBackFrom; }
+    /** When true, an unreachable primary DB is a hard error rather than a silent SQLite fallback. */
+    public static function dbStrict(): bool {
+        $v = getenv('AV_DB_STRICT');
+        return $v !== false && $v !== '' && !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true);
+    }
 
     /** Bump to force a schema re-sync even when db/schema.sql is byte-identical
      *  (e.g. after changing one of the ensure/grandfathering steps). Normally you
@@ -73,9 +78,17 @@ final class Database
             try {
                 $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
             } catch (Throwable $e) {
-                // Configured MySQL/Postgres unreachable → fall back to SQLite so the
-                // site stays up (logged + surfaced in System Health), not a hard 500.
-                error_log('[db] ' . $driver . ' connection failed (' . $e->getMessage() . ') — falling back to SQLite');
+                // Configured MySQL/Postgres unreachable. By default we fall back to
+                // SQLite so the public site stays up (logged + surfaced in System
+                // Health). But silently serving the LIVE site from an empty/stale
+                // local SQLite file can mask a real outage and risk data divergence,
+                // so AV_DB_STRICT=1 makes the failure LOUD (re-throw → hard error)
+                // instead of degrading. Recommended for production.
+                error_log('[db] ' . $driver . ' connection failed (' . $e->getMessage() . ')'
+                    . (self::dbStrict() ? ' — AV_DB_STRICT is set, refusing to fall back to SQLite' : ' — falling back to SQLite'));
+                if (self::dbStrict()) {
+                    throw new RuntimeException('Primary ' . $driver . ' database is unreachable and AV_DB_STRICT is set.', 0, $e);
+                }
                 self::$fellBackFrom = $driver;
                 $driver = 'sqlite';
                 $pdo = $connectSqlite();

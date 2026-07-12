@@ -68,7 +68,11 @@ use PHPMailer\PHPMailer\Exception;
 /* ═══════════════════════════════════════════════════════════
    DATA STORE  —  contacts.json  (file-locked, not web-accessible)
    ═══════════════════════════════════════════════════════════ */
-define('CONTACT_FILE', __DIR__ . '/contacts.json');
+// Contact + newsletter PII must not sit in the web root behind only a by-name
+// .htaccess deny. av_private_path() resolves a defense-in-depth location
+// (AV_PRIVATE_DIR above the web root, else <root>/db/private which the server
+// already denies) and migrates any legacy web-root contacts.json on first use.
+define('CONTACT_FILE', av_private_path('contacts.json'));
 
 function defaultContactData(): array {
     return [
