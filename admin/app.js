@@ -1591,6 +1591,9 @@
       + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
       + '<div class="entry-meta">' + escapeHtml(m.email) + ' · joined ' + escapeHtml(String(m.created_at || '').slice(0, 10)) + seen + '</div></div>'
       + '<div class="entry-ops">'
+      + '<select class="mem-level" data-id="' + m.id + '" title="Membership level (progression)">'
+      + ['O', 'A', 'B', 'C'].map(function (L) { return '<option value="' + L + '"' + ((m.level || 'O') === L ? ' selected' : '') + '>Level ' + L + '</option>'; }).join('')
+      + '</select>'
       + '<select class="mem-role" data-id="' + m.id + '" title="Access level">' + opts + '</select>'
       + '<button class="btn btn-outline btn-sm mem-status" data-id="' + m.id + '" data-to="' + (m.status === 'suspended' ? 'active' : 'suspended') + '">' + (m.status === 'suspended' ? 'Reactivate' : 'Suspend') + '</button>'
       + '</div></div>';
@@ -1631,10 +1634,19 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { $('#memCreateSave').disabled = false; });
     });
     $('#memList').addEventListener('change', function (e) {
-      var sel = e.target.closest('.mem-role'); if (!sel) return;
-      post('mem_save', { id: sel.getAttribute('data-id'), role: sel.value }).then(function (r) {
-        if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
-      });
+      var roleSel = e.target.closest('.mem-role');
+      if (roleSel) {
+        post('mem_save', { id: roleSel.getAttribute('data-id'), role: roleSel.value }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+        });
+        return;
+      }
+      var lvlSel = e.target.closest('.mem-level');
+      if (lvlSel) {
+        post('mem_save', { id: lvlSel.getAttribute('data-id'), level: lvlSel.value }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Membership level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+        });
+      }
     });
     $('#memList').addEventListener('click', function (e) {
       var b = e.target.closest('.mem-status'); if (!b) return;

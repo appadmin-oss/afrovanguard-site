@@ -15,17 +15,18 @@
    ============================================================ */
 
 /* ── Design tokens ─────────────────────────────────────────────────── */
+/* Nav palette now flows from the shared --afg-* token layer (assets/site/tokens.css),
+   which flips light/dark under html[data-theme]. Only the chrome-specific strip
+   and shadow stay per-theme here. Harmonises the nav gold to the one brand gold. */
 :root {
-  --m-surface: #ffffff; --m-surface-2: #f6f6f2; --m-ink: #141821;
-  --m-muted: #5b6472; --m-divider: #e7e7e1;
-  --m-gold: #e8a317; --m-gold-deep: #9c6906; --m-strip: #0f1b2d;
+  --m-surface: var(--afg-surface, #ffffff); --m-surface-2: var(--afg-surface-2, #f6f6f2); --m-ink: var(--afg-ink, #141821);
+  --m-muted: var(--afg-muted, #5b6472); --m-divider: var(--afg-border, #e7e7e1);
+  --m-gold: var(--afg-accent, #f3b416); --m-gold-deep: var(--afg-accent-ink, #b07e08); --m-strip: #0f1b2d;
   --m-shadow: 0 28px 64px -30px rgba(15,23,42,0.45);
   --nav-h: 64px;
 }
 html[data-theme="dark"] {
-  --m-surface: #14151b; --m-surface-2: #1d1f27; --m-ink: #f4f5f7;
-  --m-muted: #9aa1ad; --m-divider: rgba(255,255,255,0.10);
-  --m-gold: #f3b416; --m-gold-deep: #f3b416; --m-strip: #0a0f18;
+  --m-strip: #0a0f18;
   --m-shadow: 0 28px 64px -26px rgba(0,0,0,0.7);
 }
 

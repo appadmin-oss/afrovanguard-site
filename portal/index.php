@@ -33,10 +33,8 @@ $accessLevel = (LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['member
 // Membership dues (annual fee) — shown to Afrovanguard members on the dashboard.
 $dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
 $duesCsrf = $dues ? av_csrf_token() : '';
-// Growth-path stage (indicative): org members hold an official Afrovanguard
-// address — a Level A benefit — so they're at least Level A; others are on the
-// Foundation (Level O). The full framework lives at /how-it-works.
-$journeyStage = $isOrg ? 'A' : 'O';
+// Real membership progression (Level O → A → B → C) + referral progress.
+$journey = Levels::progress((int) $u['id']);
 // The portal has its OWN theme (dark by default, with a light toggle) — server-set
 // from a cookie so there's no flash.
 $ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
@@ -303,19 +301,32 @@ render_head([
 <?php endif; ?>
 
 <?php
-        // Your journey — the membership progression path (see /how-it-works).
-        $jStages = [['O', 'Foundation Member'], ['A', 'Growing leader'], ['C', 'Organisational leadership']];
-        $jRank = ['O' => 0, 'A' => 1, 'C' => 2][$journeyStage] ?? 0;
+        // Your journey — the real membership progression (see /how-it-works).
+        $jOrder = $journey['order'];
+        $jHere  = array_search($journey['level'], $jOrder, true);
+        $jPct   = min(100, (int) round(100 * $journey['referrals'] / max(1, $journey['referrals_needed'])));
 ?>
         <!-- Your growth path -->
         <section class="portal-card journey-card span-2">
           <div class="pc-head"><h2>Your journey</h2><a href="/how-it-works" class="pc-link">How progression works →</a></div>
-          <p class="pc-summary">At Afrovanguard you grow through commitment, service and leadership — not time served.</p>
+          <p class="pc-summary">You're at <strong><?= e($journey['label']) ?></strong>. <?= e($journey['blurb']) ?></p>
           <ol class="journey-ladder">
-<?php foreach ($jStages as $i => [$code, $label]):
-            $cls = $i === $jRank ? ' is-here' : ($i < $jRank ? ' is-done' : '');
-?>            <li class="jl<?= $cls ?>"><span class="jl-badge"><?= e($code) ?></span><span class="jl-label"><?= e($label) ?></span></li>
+<?php foreach ($jOrder as $i => $code):
+            $cls = $i === $jHere ? ' is-here' : ($i < $jHere ? ' is-done' : '');
+?>            <li class="jl<?= $cls ?>"><span class="jl-badge"><?= e($code) ?></span><span class="jl-label"><?= e(Levels::LADDER[$code]['label'] ?? $code) ?></span></li>
 <?php endforeach; ?>          </ol>
+<?php if ($journey['level'] === 'O'): ?>
+          <div class="journey-next">
+            <p class="pc-summary" style="margin:0 0 8px">Toward <strong>Level A</strong> — personally introduce <strong><?= (int) $journey['referrals'] ?> of <?= (int) $journey['referrals_needed'] ?></strong> committed members and mentor them as they settle in.</p>
+            <div class="journey-bar" aria-hidden="true"><span style="width:<?= $jPct ?>%"></span></div>
+<?php if ($journey['eligible_next']): ?>
+            <p class="journey-elig">✓ You've met the referral requirement — leadership will confirm your Level A.</p>
+<?php endif; ?>
+            <label class="journey-invite">Your invite link
+              <input type="text" readonly value="<?= e($journey['invite_url']) ?>" onclick="this.select()" aria-label="Your invite link">
+            </label>
+          </div>
+<?php endif; ?>
         </section>
 
         <!-- My Diary -->

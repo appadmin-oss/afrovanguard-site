@@ -251,12 +251,21 @@ require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
 require_once __DIR__ . '/AiKnowledge.php';
+require_once __DIR__ . '/Levels.php';
 
 av_harden_errors();
 
 // Keep the AI assistants' knowledge fresh: every domain event invalidates the
 // cached "site brief" so Chioma / AvBot are re-fed on the next reply.
 AiKnowledge::boot();
+// Membership progression: capture referrals on sign-up.
+Levels::boot();
+
+// Referral links (/…?ref=<memberId>) drop a short-lived cookie that is consumed
+// when the invited person creates their account (see Levels::boot()).
+if (isset($_GET['ref']) && ctype_digit((string) $_GET['ref']) && empty($_COOKIE['av_ref']) && !headers_sent()) {
+    @setcookie('av_ref', (string) (int) $_GET['ref'], ['expires' => time() + 2592000, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+}
 
 /** Academy base URL (subdomain-ready). Defaults to the /academy path. */
 if (!defined('ACADEMY_URL')) {

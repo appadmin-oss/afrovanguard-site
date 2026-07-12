@@ -2,8 +2,11 @@
    Chioma — Afrovanguard's AI site guide (floating assistant).
    Self-contained, theme-aware, on-brand. Injected on every page.
    ============================================================ */
-.chioma-root { --ch-gold: #f3b416; --ch-gold-deep: #c8860a; --ch-ink: #111827; --ch-surface: #ffffff;
-  --ch-surface-2: #f6f6f3; --ch-muted: #6b7280; --ch-line: #e8e8e3; --ch-navy: #0d1220;
+/* Chioma's light palette flows from the shared --afg-* tokens; its own dark
+   block below (keyed on either html[data-theme=dark] OR .chioma-root[data-dark=1])
+   still wins, so Chioma's independent dark mode is preserved. */
+.chioma-root { --ch-gold: var(--afg-accent, #f3b416); --ch-gold-deep: var(--afg-accent-ink, #c8860a); --ch-ink: var(--afg-ink, #111827); --ch-surface: var(--afg-surface, #ffffff);
+  --ch-surface-2: var(--afg-surface-2, #f6f6f3); --ch-muted: var(--afg-muted, #6b7280); --ch-line: var(--afg-border, #e8e8e3); --ch-navy: var(--afg-navy, #0d1220);
   position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom));
   z-index: 2147483000; font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
 html[data-theme="dark"] .chioma-root, .chioma-root[data-dark="1"] {

@@ -578,7 +578,15 @@ try {
                 $lms->audit($body['status'] === 'suspended' ? 'suspend' : 'reactivate', $m['email']);
                 $changed[] = 'status';
             }
-            json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid)]);
+            if (isset($body['level']) && class_exists('Levels')) {
+                $newLevel = (string) $body['level'];
+                if (Levels::of($mid) !== $newLevel) {
+                    if (!Levels::set($mid, $newLevel)) json_out(['ok' => false, 'error' => 'Unknown level.'], 422);
+                    $lms->audit('level_change', $m['email'], 'Level → ' . $newLevel);
+                    $changed[] = 'level';
+                }
+            }
+            json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null]);
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = $lms->createMember((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'member'));

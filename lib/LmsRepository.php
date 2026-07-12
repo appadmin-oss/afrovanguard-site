@@ -542,16 +542,17 @@ final class LmsRepository
     /** Filtered member list for the admin console. */
     public function membersForAdmin(string $q = '', string $role = '', string $status = '', int $limit = 200): array
     {
+        if (class_exists('Levels')) Levels::ensure(); // guarantees the level column
         $w = []; $p = [];
         if ($q !== '')      { $w[] = '(name LIKE ? OR email LIKE ?)'; $p[] = "%$q%"; $p[] = "%$q%"; }
         if ($role !== '')   { $w[] = 'role = ?';   $p[] = $role; }
         if ($status !== '') { $w[] = 'status = ?'; $p[] = $status; }
-        $sql = "SELECT id, name, email, role, status, created_at, last_login FROM lms_users";
+        $sql = "SELECT id, name, email, role, status, created_at, last_login, level FROM lms_users";
         if ($w) $sql .= ' WHERE ' . implode(' AND ', $w);
         $sql .= ' ORDER BY id DESC LIMIT ' . (int) $limit;
         $s = $this->db->prepare($sql); $s->execute($p);
         $rows = $s->fetchAll();
-        foreach ($rows as &$r) { $r['org'] = LmsAuth::isOrgMember($r); $r['rank'] = LmsAuth::rank((string) $r['role']); }
+        foreach ($rows as &$r) { $r['org'] = LmsAuth::isOrgMember($r); $r['rank'] = LmsAuth::rank((string) $r['role']); $r['level'] = $r['level'] ?? 'O'; }
         return $rows;
     }
 
