@@ -416,6 +416,42 @@ final class Mentorship
         ];
     }
 
+    /**
+     * A member's upcoming mentorship sessions across all active pairings — for
+     * the portal schedule/calendar. Includes the counterpart name and Meet link.
+     */
+    public static function upcomingSessions(int $userId, int $limit = 6): array
+    {
+        self::ensure();
+        try {
+            $sql = "SELECT s.id, s.title, s.scheduled_at, s.meet_url, m.mentor_id, m.mentee_id,
+                           mu.name AS mentor_name, eu.name AS mentee_name
+                    FROM mentor_sessions s
+                    JOIN mentorships m ON m.id = s.mentorship_id
+                    JOIN lms_users mu ON mu.id = m.mentor_id
+                    JOIN lms_users eu ON eu.id = m.mentee_id
+                    WHERE (m.mentee_id = ? OR m.mentor_id = ?) AND m.status = 'active'
+                      AND s.attendance <> 'cancelled' AND s.scheduled_at <> '' AND s.scheduled_at >= ?
+                    ORDER BY s.scheduled_at ASC LIMIT " . (int) $limit;
+            $st = Database::pdo()->prepare($sql);
+            $st->execute([$userId, $userId, gmdate('Y-m-d H:i:s')]);
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $isMentor = (int) $r['mentor_id'] === $userId;
+                $out[] = [
+                    'id'       => (int) $r['id'],
+                    'title'    => (string) $r['title'],
+                    'when'     => (string) $r['scheduled_at'],
+                    'iso'      => gmdate('c', strtotime((string) $r['scheduled_at'] . ' UTC') ?: time()),
+                    'meet_url' => (string) ($r['meet_url'] ?? ''),
+                    'with'     => (string) ($isMentor ? $r['mentee_name'] : $r['mentor_name']),
+                    'role'     => $isMentor ? 'mentoring' : 'with your mentor',
+                ];
+            }
+            return $out;
+        } catch (Throwable $e) { error_log('[mentorship] upcoming: ' . $e->getMessage()); return []; }
+    }
+
     /** A member's overall consistency across all their active/ended pairings. */
     public static function memberConsistency(int $userId): array
     {

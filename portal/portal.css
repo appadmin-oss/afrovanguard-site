@@ -301,3 +301,16 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
 .journey-elig { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--afg-success, var(--p-green)); }
 .journey-invite { display: block; margin-top: 14px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--afg-muted, var(--p-muted)); }
 .journey-invite input { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; padding: 9px 12px; font: inherit; font-size: 13px; text-transform: none; letter-spacing: 0; border: 1px solid var(--afg-border, var(--p-border)); border-radius: var(--afg-radius-sm, 8px); background: var(--afg-surface, var(--p-surface)); color: var(--afg-ink, var(--p-ink)); }
+
+/* ── Your schedule (mentorship sessions on the portal calendar) ── */
+.sched-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.sched-item { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border: 1px solid var(--afg-border, var(--p-border)); border-radius: var(--afg-radius-md, 14px); background: var(--afg-surface-2, var(--p-surface-2)); }
+.sched-when { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 58px; padding: 6px 8px; border-radius: var(--afg-radius-sm, 8px); background: var(--afg-surface, var(--p-surface)); border: 1px solid var(--afg-border, var(--p-border)); }
+.sched-day { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--afg-accent-ink, var(--p-accent)); }
+.sched-date { font-family: var(--afg-font-display, 'Cormorant', Georgia, serif); font-weight: 700; font-size: 17px; color: var(--afg-ink, var(--p-ink)); line-height: 1.1; }
+.sched-time { font-size: 11px; color: var(--afg-muted, var(--p-muted)); }
+.sched-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sched-title { font-weight: 700; color: var(--afg-ink, var(--p-ink)); }
+.sched-sub { font-size: 12.5px; color: var(--afg-muted, var(--p-muted)); }
+.sched-join { flex-shrink: 0; font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 14px; border-radius: 999px; background: var(--afg-accent, var(--p-accent-2)); color: var(--afg-on-accent, #111827); }
+.sched-join:hover { filter: brightness(.96); }

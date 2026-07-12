@@ -35,6 +35,8 @@ $dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
 $duesCsrf = $dues ? av_csrf_token() : '';
 // Real membership progression (Level O → A → B → C) + referral progress.
 $journey = Levels::progress((int) $u['id']);
+// Upcoming mentorship sessions (with Meet links) for the portal schedule/calendar.
+$upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
 // The portal has its OWN theme (dark by default, with a light toggle) — server-set
 // from a cookie so there's no flash.
 $ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
@@ -123,6 +125,24 @@ render_head([
       </section>
 
       <div class="portal-grid">
+<?php if ($upcoming): ?>
+        <!-- Your schedule — upcoming mentorship sessions (Afrovanguard calendar) -->
+        <section class="portal-card span-2 sched-card">
+          <div class="pc-head"><h2>Your schedule</h2><a href="/mentorship/" class="pc-link">Open mentorship →</a></div>
+          <ul class="sched-list">
+<?php foreach ($upcoming as $s):
+            $sd = strtotime((string) $s['when'] . ' UTC') ?: time();
+?>            <li class="sched-item">
+              <div class="sched-when"><span class="sched-day"><?= e(date('D', $sd)) ?></span><span class="sched-date"><?= e(date('j M', $sd)) ?></span><span class="sched-time"><?= e(date('g:ia', $sd)) ?></span></div>
+              <div class="sched-body">
+                <span class="sched-title"><?= e($s['title']) ?></span>
+                <span class="sched-sub"><?= e($s['role']) ?><?= $s['with'] !== '' ? ' · ' . e($s['with']) : '' ?></span>
+              </div>
+<?php if ($s['meet_url'] !== ''): ?>              <a class="sched-join" href="<?= e($s['meet_url']) ?>" target="_blank" rel="noopener">▶ Join Meet</a>
+<?php endif; ?>            </li>
+<?php endforeach; ?>          </ul>
+        </section>
+<?php endif; ?>
 <?php if ($isOrg):
         require_once AV_ROOT . '/lib/workspace.php';
         $wsAdmin     = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
