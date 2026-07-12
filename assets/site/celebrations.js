@@ -91,6 +91,18 @@
       '.avc-btn-ghost{background:transparent;color:var(--afg-ink,#111827);border-color:var(--afg-border,#e5e7eb)}',
       '.avc-btn-ghost:hover{background:var(--afg-surface-2,#f4f2ec)}',
       '.avc-foot{margin:16px 0 0;font-size:11.5px;letter-spacing:.02em;color:var(--afg-muted,#6b7280)}',
+      '.avc-foot a{color:var(--afg-accent-ink,#b07e08);text-decoration:none;font-weight:700}',
+      /* private-note form */
+      '.avc-wish{margin:14px auto 0;max-width:340px;text-align:left;display:flex;flex-direction:column;gap:8px}',
+      '.avc-wish input,.avc-wish textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--afg-border,#e5e7eb);',
+      "border-radius:var(--afg-radius-sm,8px);font-family:inherit;font-size:14px;background:var(--afg-surface,#fff);color:var(--afg-ink,#111827)}",
+      '.avc-wish textarea{resize:vertical;min-height:74px}',
+      '.avc-wish input:focus,.avc-wish textarea:focus{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:1px;border-color:transparent}',
+      '.avc-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}',
+      '.avc-wish-row{display:flex;justify-content:flex-end}',
+      '.avc-wish-status{font-size:13px;margin:2px 0 0;text-align:center;color:var(--afg-muted,#6b7280)}',
+      '.avc-wish-status.is-ok{color:var(--afg-success,#16a34a)}',
+      '.avc-wish-status.is-err{color:var(--afg-danger,#b91c1c)}',
       '.avc-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;',
       'background:var(--afg-surface-2,#f1f1ee);color:var(--afg-muted,#6b7280);font-size:20px;line-height:1}',
       '.avc-close:hover{background:var(--afg-border,#e5e7eb);color:var(--afg-ink,#111827)}',
@@ -136,13 +148,25 @@
     modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-labelledby', 'avcName');
 
-    var body, actions;
+    var body, actions, wishForm = '', foot = 'With gratitude, the whole movement 💛';
     if (single) {
+      var first = firstName(single.name);
       body = '<div class="avc-avatars">' + avatarHtml(single) + '</div>'
         + '<h2 class="avc-name" id="avcName">' + esc(single.name) + '</h2>'
         + (single.role ? '<p class="avc-role">' + esc(single.role) + '</p>' : '');
-      actions = (single.id ? '<a class="avc-btn avc-btn-ghost" href="/member?id=' + encodeURIComponent(single.id) + '">View profile</a>' : '')
-        + '<a class="avc-btn avc-btn-primary" href="/community/?wish=' + encodeURIComponent(firstName(single.name)) + '">Send warm wishes</a>';
+      // Two ways to celebrate: a PRIVATE note (emailed to them) or a PUBLIC post.
+      actions = (single.id ? '<button type="button" class="avc-btn avc-btn-primary" data-wish-private>Send a private note</button>' : '')
+        + '<a class="avc-btn avc-btn-ghost" href="/community/?wish=' + encodeURIComponent(first) + '">Post in the community</a>';
+      if (single.id) {
+        wishForm = '<form class="avc-wish" hidden novalidate data-wish-id="' + esc(String(single.id)) + '">'
+          + '<input class="avc-wish-from" type="text" maxlength="60" autocomplete="name" placeholder="Your name" />'
+          + '<textarea class="avc-wish-text" maxlength="1000" placeholder="Write a birthday note to ' + esc(first) + '…"></textarea>'
+          + '<input class="avc-hp" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />'
+          + '<div class="avc-wish-row"><button type="submit" class="avc-btn avc-btn-primary">Send privately</button></div>'
+          + '<p class="avc-wish-status" role="status" aria-live="polite"></p>'
+          + '</form>';
+        foot += ' · <a href="/member?id=' + encodeURIComponent(single.id) + '">View profile</a>';
+      }
     } else {
       body = '<h2 class="avc-heading" id="avcName">Happy Birthday to our own</h2>'
         + '<div class="avc-people">'
@@ -163,7 +187,8 @@
       + body
       + '<p class="avc-message">' + esc(p.message || 'Wishing you a wonderful birthday from the whole Afrovanguard family.') + '</p>'
       + '<div class="avc-actions">' + actions + '</div>'
-      + '<p class="avc-foot">With gratitude, the whole movement 💛</p>'
+      + wishForm
+      + '<p class="avc-foot">' + foot + '</p>'
       + '</div>';
 
     document.body.appendChild(modal);
@@ -181,7 +206,7 @@
     function onKey(e) {
       if (e.key === 'Escape') { close(); return; }
       if (e.key === 'Tab') {
-        var f = modal.querySelectorAll('a[href],button');
+        var f = modal.querySelectorAll('a[href],button,input:not([tabindex="-1"]),textarea,select');
         if (!f.length) return;
         var first = f[0], last = f[f.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -191,6 +216,40 @@
     modal.querySelector('.avc-close').addEventListener('click', close);
     modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
     document.addEventListener('keydown', onKey);
+
+    // Private-note flow: reveal the form, then POST it to process-wish.php.
+    var toggle = modal.querySelector('[data-wish-private]');
+    var wform = modal.querySelector('.avc-wish');
+    if (toggle && wform) {
+      toggle.addEventListener('click', function () {
+        var showing = !wform.hasAttribute('hidden');
+        if (showing) { wform.setAttribute('hidden', ''); return; }
+        wform.removeAttribute('hidden');
+        var ta = wform.querySelector('.avc-wish-text');
+        if (ta && !ta.value) ta.value = 'Happy birthday, ' + firstName(single.name) + '! ';
+        try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+      });
+      wform.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var status = wform.querySelector('.avc-wish-status');
+        var sendBtn = wform.querySelector('button[type="submit"]');
+        var text = (wform.querySelector('.avc-wish-text').value || '').trim();
+        var fromName = (wform.querySelector('.avc-wish-from').value || '').trim();
+        var hp = (wform.querySelector('.avc-hp').value || '').trim();
+        function say(t, kind) { if (status) { status.textContent = t; status.className = 'avc-wish-status' + (kind ? ' is-' + kind : ''); } }
+        if (text.length < 2) { say('Write a short note first.', 'err'); return; }
+        sendBtn.disabled = true; say('Sending…', '');
+        fetch('/process-wish.php', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: wform.getAttribute('data-wish-id'), from: fromName, message: text, company: hp })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok) {
+            wform.innerHTML = '<p class="avc-wish-status is-ok">Your note is on its way — thank you 💛</p>';
+          } else { sendBtn.disabled = false; say((d && d.error) || 'Could not send just now.', 'err'); }
+        }).catch(function () { sendBtn.disabled = false; say('Network error — please try again.', 'err'); });
+      });
+    }
+
     var focusBtn = modal.querySelector('.avc-close'); if (focusBtn) focusBtn.focus();
   }
 

@@ -48,6 +48,30 @@ final class Notify
         });
     }
 
+    /** A private birthday note from a site visitor, delivered to the celebrant. */
+    public static function birthdayWish(array $person, string $from, string $message): void
+    {
+        self::safe(function () use ($person, $from, $message) {
+            $email = trim((string) ($person['email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+            if (!class_exists('Mailer')) return;
+            $name = self::first((string) ($person['name'] ?? ''));
+            $fromClean = htmlspecialchars(trim($from) !== '' ? $from : 'A well-wisher');
+            $msgHtml = nl2br(htmlspecialchars($message));
+            $html = Mailer::shell(
+                'A birthday wish for you, ' . $name . ' 🎂',
+                [
+                    'Someone from the Afrovanguard community wanted to celebrate you today:',
+                    '<em style="display:block;padding:12px 16px;border-left:3px solid #f3b416;background:#fffbf0;border-radius:0 6px 6px 0;">“' . $msgHtml . '”</em>',
+                    '— ' . $fromClean,
+                ],
+                ['text' => 'Visit Afrovanguard', 'url' => defined('SITE_URL') ? rtrim(SITE_URL, '/') . '/' : '/'],
+                'A birthday wish from the Afrovanguard community.'
+            );
+            Mailer::send($email, 'A birthday wish for you 🎂', $html);
+        });
+    }
+
     public static function welcome(array $user): void
     {
         self::safe(function () use ($user) {
