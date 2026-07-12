@@ -83,7 +83,8 @@ function mn_av(array $m): string {
           <?= mn_av($m) ?>
           <div class="mn-row-bd"><b><?= e($m['name']) ?></b>
             <span class="mn-status mn-status--<?= e($m['status']) ?>"><?= $m['status'] === 'pending' ? 'Awaiting reply' : 'Active' ?></span>
-<?= mn_sessions_html($m['sessions']) ?>
+<?= mn_consistency_html($m['consistency'] ?? []) ?>
+<?= mn_sessions_html($m['sessions'], false) ?>
           </div>
           <div class="mn-row-ops"><?= $m['status'] === 'active' ? '<button class="cm-ask-btn mn-sm" data-end="' . (int) $m['id'] . '">End</button>' : '' ?></div>
         </div>
@@ -97,10 +98,12 @@ function mn_av(array $m): string {
 <?php foreach ($activeMen as $m): ?>
         <div class="mn-row mn-row--col" data-id="<?= (int) $m['id'] ?>">
           <div class="mn-row-top"><?= mn_av($m) ?><div class="mn-row-bd"><b><?= e($m['name']) ?></b><span class="mn-status mn-status--active">Active</span></div></div>
-<?= mn_sessions_html($m['sessions']) ?>
+<?= mn_consistency_html($m['consistency'] ?? []) ?>
+<?= mn_sessions_html($m['sessions'], true) ?>
           <form class="mn-session-form" data-session="<?= (int) $m['id'] ?>">
             <input type="text" name="title" placeholder="Session title (e.g. Career check-in)" />
             <input type="datetime-local" name="when" />
+            <input type="url" name="meet_url" placeholder="Google Meet link (optional)" />
             <button type="submit" class="cm-ask-btn mn-sm">+ Schedule</button>
           </form>
         </div>
@@ -159,14 +162,43 @@ function mn_av(array $m): string {
 
 <?php
 /** Render a small sessions list. (Declared after use is fine in PHP for functions.) */
-function mn_sessions_html(array $sessions): string {
+function mn_sessions_html(array $sessions, bool $asMentor = false): string {
     if (!$sessions) return '';
+    $attLabel = ['scheduled' => 'Scheduled', 'attended' => 'Attended', 'missed' => 'Missed', 'cancelled' => 'Cancelled'];
     $out = '<ul class="mn-sessions">';
     foreach ($sessions as $s) {
         $when = $s['when'] !== '' ? date('M j, g:ia', strtotime($s['when'] . ' UTC') ?: time()) : 'TBD';
-        $out .= '<li><b>' . e($s['title']) . '</b> · ' . e($when) . '</li>';
+        $att  = (string) ($s['attendance'] ?? 'scheduled');
+        $meet = (string) ($s['meet_url'] ?? '');
+        $tr   = (string) ($s['transcript_url'] ?? '');
+        $out .= '<li class="mn-sess mn-sess--' . e($att) . '">';
+        $out .= '<div class="mn-sess-row"><span class="mn-sess-title"><b>' . e($s['title']) . '</b> · ' . e($when) . '</span>';
+        $out .= '<span class="mn-att mn-att--' . e($att) . '">' . e($attLabel[$att] ?? $att) . '</span></div>';
+        $out .= '<div class="mn-sess-links">';
+        if ($meet !== '') $out .= '<a class="mn-join" href="' . e($meet) . '" target="_blank" rel="noopener">▶ Join Meet</a>';
+        if ($tr !== '')   $out .= '<a class="mn-transcript" href="' . e($tr) . '" target="_blank" rel="noopener">📄 Transcript</a>';
+        $out .= '</div>';
+        if ($asMentor) {
+            $out .= '<div class="mn-sess-ctl">'
+                . '<button type="button" class="mn-chip" data-attend="' . (int) $s['id'] . '" data-status="attended">Attended</button>'
+                . '<button type="button" class="mn-chip" data-attend="' . (int) $s['id'] . '" data-status="missed">Missed</button>'
+                . '<button type="button" class="mn-chip" data-meet="' . (int) $s['id'] . '">' . ($meet === '' ? 'Add Meet' : 'Edit Meet') . '</button>'
+                . '<button type="button" class="mn-chip" data-transcript="' . (int) $s['id'] . '">' . ($tr === '' ? 'Add transcript' : 'Edit transcript') . '</button>'
+                . '</div>';
+        }
+        $out .= '</li>';
     }
     return $out . '</ul>';
+}
+
+function mn_consistency_html(array $c): string {
+    if ((int) ($c['held'] ?? 0) <= 0) return '';
+    $rate = (int) ($c['rate'] ?? 0);
+    $streak = (int) ($c['streak'] ?? 0);
+    return '<div class="mn-consist" title="Attendance of past sessions">'
+        . '<div class="mn-consist-bar"><span style="width:' . $rate . '%"></span></div>'
+        . '<span class="mn-consist-txt">' . $rate . '% consistent · ' . (int) $c['attended'] . '/' . (int) $c['held'] . ' attended'
+        . ($streak > 1 ? ' · ' . $streak . '🔥' : '') . '</span></div>';
 }
 ?>
 <style>
@@ -187,8 +219,30 @@ function mn_sessions_html(array $sessions): string {
   .mn-status { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; margin-left: 8px; }
   .mn-status--active { background: rgba(26,138,63,.14); color: #1a8a3f; }
   .mn-status--pending { background: var(--gold-soft); color: var(--gold-deep); }
-  .mn-sessions { margin: 8px 0 0; padding-left: 18px; } .mn-sessions li { font-size: 13px; color: var(--body); margin: 3px 0; }
+  .mn-sessions { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .mn-sessions b { color: var(--ink); }
+  .mn-sess { border: 1px solid var(--divider); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+  .mn-sess--attended { border-left: 3px solid #1a8a3f; } .mn-sess--missed { border-left: 3px solid #c0392b; }
+  .mn-sess--scheduled { border-left: 3px solid var(--gold); }
+  .mn-sess-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .mn-sess-title { font-size: 13px; color: var(--body); }
+  .mn-att { font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .mn-att--scheduled { background: rgba(243,180,22,.16); color: var(--gold-deep); }
+  .mn-att--attended { background: rgba(26,138,63,.14); color: #1a8a3f; }
+  .mn-att--missed { background: rgba(192,57,43,.12); color: #c0392b; }
+  .mn-att--cancelled { background: var(--surface-2); color: var(--muted); }
+  .mn-sess-links { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+  .mn-sess-links a { font-size: 12px; font-weight: 700; text-decoration: none; }
+  .mn-join { color: #fff; background: var(--gold); padding: 4px 12px; border-radius: 999px; }
+  .mn-join:hover { filter: brightness(.96); } .mn-transcript { color: var(--link); align-self: center; }
+  .mn-sess-ctl { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .mn-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--divider); background: var(--surface-2); color: var(--body); cursor: pointer; }
+  .mn-chip:hover { border-color: var(--gold); color: var(--ink); }
+  .mn-consist { margin: 10px 0 2px; }
+  .mn-consist-bar { height: 7px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .mn-consist-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), #1a8a3f); border-radius: 999px; }
+  .mn-consist-txt { display: block; margin-top: 5px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  .mn-session-form input[type=url] { margin-top: 6px; }
   .mn-session-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .mn-session-form input { border: 1px solid var(--divider); border-radius: 10px; padding: 8px 11px; font: inherit; font-size: 13px; background: var(--bg); color: var(--ink); }
   .mn-session-form input[name=title] { flex: 1; min-width: 160px; }
@@ -239,6 +293,27 @@ function mn_sessions_html(array $sessions): string {
       if (!confirm('End this mentorship?')) return;
       end.disabled = true;
       post('end', { id: +end.getAttribute('data-end') }).then(function (d) { if (d.ok) reloadSoon(); else { end.disabled = false; alert(d.error || 'Failed.'); } });
+      return;
+    }
+    var att = e.target.closest('[data-attend]');
+    if (att) {
+      att.disabled = true;
+      post('attend', { session_id: +att.getAttribute('data-attend'), status: att.getAttribute('data-status') })
+        .then(function (d) { if (d.ok) reloadSoon(); else { att.disabled = false; alert(d.error || 'Failed.'); } });
+      return;
+    }
+    var meet = e.target.closest('[data-meet]');
+    if (meet) {
+      var u = prompt('Paste the Google Meet link for this session.\nTip: open meet.google.com/new in another tab to create one, then paste it here.', '');
+      if (u === null) return;
+      post('meet', { session_id: +meet.getAttribute('data-meet'), meet_url: u }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
+      return;
+    }
+    var tr = e.target.closest('[data-transcript]');
+    if (tr) {
+      var t = prompt('Paste the transcript link (a Google Doc or Drive file from the Meet recording).', '');
+      if (t === null) return;
+      post('transcript', { session_id: +tr.getAttribute('data-transcript'), url: t }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
     }
   });
 
@@ -248,7 +323,8 @@ function mn_sessions_html(array $sessions): string {
       e.preventDefault();
       var title = sf.querySelector('[name=title]').value, when = sf.querySelector('[name=when]').value;
       if (!title.trim()) { sf.querySelector('[name=title]').focus(); return; }
-      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
+      var meetEl = sf.querySelector('[name=meet_url]');
+      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when, meet_url: meetEl ? meetEl.value : '' }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
       return;
     }
     if (e.target.id === 'mnBecome') {

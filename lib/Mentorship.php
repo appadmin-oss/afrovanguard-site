@@ -76,7 +76,24 @@ final class Mentorship
         self::addCol('mentorships', 'cohort_id', 'INTEGER NOT NULL DEFAULT 0');
         self::addCol('mentorships', 'programme', "VARCHAR(160) NOT NULL DEFAULT ''");
         self::addCol('mentorships', 'origin', "VARCHAR(12) NOT NULL DEFAULT 'request'"); // request|admin
+        // Session tracking: Google Meet link, attendance (drives consistency),
+        // an optional transcript link, and duration.
+        self::addCol('mentor_sessions', 'meet_url', "VARCHAR(400) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'attendance', "VARCHAR(16) NOT NULL DEFAULT 'scheduled'"); // scheduled|attended|missed|cancelled
+        self::addCol('mentor_sessions', 'attended_at', "VARCHAR(32) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'transcript_url', "VARCHAR(500) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'duration_min', 'INTEGER NOT NULL DEFAULT 0');
         $done = true;
+    }
+
+    /** The mentor who owns a session (via its mentorship), or 0. */
+    private static function sessionMentor(int $sessionId): int
+    {
+        try {
+            $s = Database::pdo()->prepare('SELECT m.mentor_id FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id WHERE s.id = ?');
+            $s->execute([$sessionId]);
+            return (int) ($s->fetchColumn() ?: 0);
+        } catch (Throwable $e) { return 0; }
     }
 
     /** Idempotent ADD COLUMN (skips if the column already exists). */
@@ -291,12 +308,22 @@ final class Mentorship
             'initial'  => mb_strtoupper(mb_substr($name, 0, 1)),
             'since'    => (string) $r['updated_at'],
             'sessions' => self::sessions((int) $r['id']),
+            'consistency' => self::consistency((int) $r['id']),
         ];
     }
 
     /* ── sessions ────────────────────────────────────────────────── */
 
-    public static function addSession(int $mentorId, int $mentorshipId, string $title, string $when, string $notes): array
+    /** Sanitise a Google Meet / video link (https only, bounded). '' clears it. */
+    private static function cleanUrl(string $url, int $max = 500): string
+    {
+        $url = trim($url);
+        if ($url === '') return '';
+        if (!preg_match('~^https://~i', $url)) return '';
+        return mb_substr($url, 0, $max);
+    }
+
+    public static function addSession(int $mentorId, int $mentorshipId, string $title, string $when, string $notes, string $meetUrl = ''): array
     {
         self::ensure();
         $db = Database::pdo();
@@ -305,23 +332,108 @@ final class Mentorship
         if (!$s->fetchColumn()) return ['ok' => false, 'error' => 'No active mentorship to schedule on.'];
         $title = mb_substr(trim($title), 0, 160) ?: 'Mentorship session';
         $whenN = trim($when) !== '' ? gmdate('Y-m-d H:i:s', strtotime($when) ?: time()) : '';
-        $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, created_at) VALUES (?,?,?,?,?)')
-           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::now()]);
+        $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, meet_url, created_at) VALUES (?,?,?,?,?,?)')
+           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::cleanUrl($meetUrl, 400), self::now()]);
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => (int) $db->lastInsertId()];
     }
 
+    /** Mentor sets/updates a session's Meet link. */
+    public static function setMeetLink(int $mentorId, int $sessionId, string $url): array
+    {
+        self::ensure();
+        if (self::sessionMentor($sessionId) !== $mentorId) return ['ok' => false, 'error' => 'Not your session.'];
+        Database::pdo()->prepare('UPDATE mentor_sessions SET meet_url = ? WHERE id = ?')->execute([self::cleanUrl($url, 400), $sessionId]);
+        return ['ok' => true];
+    }
+
+    /** Mentor marks attendance — this is what drives the consistency score. */
+    public static function markAttendance(int $mentorId, int $sessionId, string $status): array
+    {
+        self::ensure();
+        if (!in_array($status, ['scheduled', 'attended', 'missed', 'cancelled'], true)) return ['ok' => false, 'error' => 'Invalid status.'];
+        if (self::sessionMentor($sessionId) !== $mentorId) return ['ok' => false, 'error' => 'Not your session.'];
+        $at = $status === 'attended' ? self::now() : '';
+        Database::pdo()->prepare('UPDATE mentor_sessions SET attendance = ?, status = ?, attended_at = ? WHERE id = ?')
+            ->execute([$status, $status, $at, $sessionId]);
+        return ['ok' => true, 'attendance' => $status];
+    }
+
+    /** Attach (or clear) a transcript link for a session. */
+    public static function attachTranscript(int $mentorId, int $sessionId, string $url): array
+    {
+        self::ensure();
+        if (self::sessionMentor($sessionId) !== $mentorId) return ['ok' => false, 'error' => 'Not your session.'];
+        Database::pdo()->prepare('UPDATE mentor_sessions SET transcript_url = ? WHERE id = ?')->execute([self::cleanUrl($url, 500), $sessionId]);
+        return ['ok' => true];
+    }
+
     public static function sessions(int $mentorshipId): array
     {
-        $st = Database::pdo()->prepare('SELECT id, title, scheduled_at, notes, status FROM mentor_sessions WHERE mentorship_id = ? ORDER BY scheduled_at ASC, id ASC');
+        $st = Database::pdo()->prepare('SELECT id, title, scheduled_at, notes, status, meet_url, attendance, attended_at, transcript_url, duration_min FROM mentor_sessions WHERE mentorship_id = ? ORDER BY scheduled_at ASC, id ASC');
         $st->execute([$mentorshipId]);
         return array_map(fn($r) => [
-            'id'    => (int) $r['id'],
-            'title' => (string) $r['title'],
-            'when'  => (string) $r['scheduled_at'],
-            'notes' => (string) $r['notes'],
-            'status' => (string) $r['status'],
+            'id'         => (int) $r['id'],
+            'title'      => (string) $r['title'],
+            'when'       => (string) $r['scheduled_at'],
+            'notes'      => (string) $r['notes'],
+            'status'     => (string) $r['status'],
+            'meet_url'   => (string) ($r['meet_url'] ?? ''),
+            'attendance' => (string) ($r['attendance'] ?? 'scheduled'),
+            'transcript_url' => (string) ($r['transcript_url'] ?? ''),
+            'duration_min'   => (int) ($r['duration_min'] ?? 0),
+            'past'       => ($r['scheduled_at'] ?? '') !== '' && strtotime((string) $r['scheduled_at']) < time(),
         ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /**
+     * Consistency for one pairing: of the sessions that have already happened,
+     * how many were attended, plus the current attended-streak and next session.
+     */
+    public static function consistency(int $mentorshipId): array
+    {
+        self::ensure();
+        $rows = self::sessions($mentorshipId);
+        $held = 0; $attended = 0; $streak = 0; $next = null;
+        // Past sessions oldest→newest already (sessions() sorts asc).
+        foreach ($rows as $s) {
+            $isPast = !empty($s['past']) && $s['attendance'] !== 'cancelled';
+            if ($isPast) {
+                $held++;
+                if ($s['attendance'] === 'attended') { $attended++; $streak++; }
+                elseif ($s['attendance'] === 'missed') { $streak = 0; }
+            } elseif (!$s['past'] && $s['attendance'] !== 'cancelled' && $next === null) {
+                $next = $s;
+            }
+        }
+        return [
+            'held'     => $held,
+            'attended' => $attended,
+            'rate'     => $held > 0 ? (int) round(100 * $attended / $held) : null,
+            'streak'   => $streak,
+            'total'    => count($rows),
+            'next'     => $next,
+        ];
+    }
+
+    /** A member's overall consistency across all their active/ended pairings. */
+    public static function memberConsistency(int $userId): array
+    {
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT COUNT(*) held,
+                        SUM(CASE WHEN s.attendance='attended' THEN 1 ELSE 0 END) attended
+                 FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id
+                 WHERE (m.mentee_id = ? OR m.mentor_id = ?)
+                   AND s.attendance <> 'cancelled'
+                   AND s.scheduled_at <> '' AND s.scheduled_at < ?"
+            );
+            $st->execute([$userId, $userId, gmdate('Y-m-d H:i:s')]);
+            $r = $st->fetch(PDO::FETCH_ASSOC) ?: ['held' => 0, 'attended' => 0];
+            $held = (int) $r['held']; $att = (int) $r['attended'];
+            return ['held' => $held, 'attended' => $att, 'rate' => $held > 0 ? (int) round(100 * $att / $held) : null];
+        } catch (Throwable $e) { return ['held' => 0, 'attended' => 0, 'rate' => null]; }
     }
 
     /* ════════════════════════════════════════════════════════════════
