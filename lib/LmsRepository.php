@@ -15,8 +15,15 @@ final class LmsRepository
         $mods = $this->db->prepare('SELECT * FROM modules WHERE course_id = ? ORDER BY position, id');
         $mods->execute([$courseId]);
         $modules = $mods->fetchAll();
-        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position FROM lessons WHERE module_id = ? ORDER BY position, id');
-        foreach ($modules as &$m) { $ls->execute([$m['id']]); $m['lessons'] = $ls->fetchAll(); }
+        // Also fetch video_url / quiz_json so the UI can label each lesson's type
+        // (video · reading · quiz) with an icon — a cheap read; both are small.
+        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position, video_url, quiz_json FROM lessons WHERE module_id = ? ORDER BY position, id');
+        foreach ($modules as &$m) {
+            $ls->execute([$m['id']]);
+            $lessons = $ls->fetchAll();
+            foreach ($lessons as &$l) { $l['type'] = self::lessonType($l); }
+            $m['lessons'] = $lessons;
+        }
         return $modules;
     }
 
@@ -33,15 +40,26 @@ final class LmsRepository
         return $s->fetch() ?: null;
     }
 
-    /** Ordered lesson list (for prev/next). */
+    /** Ordered lesson list (for prev/next + the "up next" card). */
     public function orderedLessons(int $courseId): array
     {
         $s = $this->db->prepare(
-            'SELECT l.id, l.slug, l.title, l.is_preview FROM lessons l JOIN modules m ON m.id = l.module_id
+            'SELECT l.id, l.slug, l.title, l.is_preview, l.duration_min, l.video_url, l.quiz_json
+             FROM lessons l JOIN modules m ON m.id = l.module_id
              WHERE l.course_id = ? ORDER BY m.position, m.id, l.position, l.id'
         );
         $s->execute([$courseId]);
-        return $s->fetchAll();
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) { $r['type'] = self::lessonType($r); }
+        return $rows;
+    }
+
+    /** Classify a lesson row as 'video' | 'quiz' | 'reading' from its content. */
+    public static function lessonType(array $l): string
+    {
+        if (!empty($l['video_url'])) return 'video';
+        if (!empty($l['quiz_json']) && trim((string) $l['quiz_json']) !== '') return 'quiz';
+        return 'reading';
     }
 
     public function isMember(int $userId): bool
