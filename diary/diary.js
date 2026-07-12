@@ -609,6 +609,72 @@
     document.body.appendChild(ov);
   }
 
+  /* ---- Human narration player (author-uploaded audio) ---- */
+  (function () {
+    var fig = document.querySelector('[data-narration]');
+    if (!fig) return;
+    var audio = fig.querySelector('audio');
+    var playBtn = fig.querySelector('.na-play');
+    var icPlay = fig.querySelector('.na-ic-play');
+    var icPause = fig.querySelector('.na-ic-pause');
+    var bar = fig.querySelector('.na-bar');
+    var prog = fig.querySelector('.na-progress');
+    var timeEl = fig.querySelector('.na-time');
+    var speedBtn = fig.querySelector('.na-speed');
+    if (!audio || !playBtn) return;
+    var speeds = [1, 1.25, 1.5, 0.75];
+    var si = 0;
+    function fmt(s) {
+      if (!isFinite(s) || s < 0) s = 0;
+      var m = Math.floor(s / 60), r = Math.floor(s % 60);
+      return m + ':' + (r < 10 ? '0' : '') + r;
+    }
+    function setPlaying(on) {
+      fig.classList.toggle('is-playing', on);
+      if (icPlay) icPlay.hidden = on;
+      if (icPause) icPause.hidden = !on;
+      playBtn.setAttribute('aria-label', on ? 'Pause narration' : 'Play narration');
+    }
+    playBtn.addEventListener('click', function () {
+      if (audio.paused) { audio.play().catch(function () {}); } else { audio.pause(); }
+    });
+    audio.addEventListener('play', function () { setPlaying(true); });
+    audio.addEventListener('pause', function () { setPlaying(false); });
+    audio.addEventListener('ended', function () { setPlaying(false); if (prog) prog.style.width = '0%'; });
+    audio.addEventListener('timeupdate', function () {
+      var d = audio.duration || 0;
+      if (prog && d) prog.style.width = (audio.currentTime / d * 100) + '%';
+      if (timeEl) timeEl.textContent = fmt(d ? d - audio.currentTime : audio.currentTime);
+      if (bar) bar.setAttribute('aria-valuenow', String(Math.floor(audio.currentTime)));
+    });
+    audio.addEventListener('loadedmetadata', function () {
+      if (timeEl) timeEl.textContent = fmt(audio.duration);
+      if (bar) { bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', String(Math.floor(audio.duration || 0))); }
+    });
+    function seekFromEvent(e) {
+      var rect = bar.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      var ratio = Math.max(0, Math.min(1, x / rect.width));
+      if (audio.duration) audio.currentTime = ratio * audio.duration;
+    }
+    if (bar) {
+      bar.addEventListener('click', seekFromEvent);
+      bar.addEventListener('keydown', function (e) {
+        if (!audio.duration) return;
+        if (e.key === 'ArrowRight') { e.preventDefault(); audio.currentTime = Math.min(audio.duration, audio.currentTime + 10); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 10); }
+        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); playBtn.click(); }
+      });
+    }
+    if (speedBtn) {
+      speedBtn.addEventListener('click', function () {
+        si = (si + 1) % speeds.length;
+        audio.playbackRate = speeds[si];
+        speedBtn.textContent = speeds[si] + '×';
+      });
+    }
+  })();
+
   /* ---- Keyboard shortcuts ---- */
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { var h = document.getElementById('kbd-help'); if (h) h.remove(); }

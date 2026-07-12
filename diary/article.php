@@ -88,9 +88,18 @@ render_subbar($a['title'], $a['slug'], $canonical);
           </div>
 <?php render_listen_bar($a['slug'], $canonical); ?>
 <?php if (!empty($a['audio_url'])): ?>
-          <figure class="article-audio">
-            <figcaption><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4h4l5 5V5L7 10H3Z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg> Listen to this story <span>· narrated audio</span></figcaption>
-            <audio controls preload="none" src="<?= e($a['audio_url']) ?>">Your browser doesn’t support audio — <a href="<?= e($a['audio_url']) ?>">download the narration</a>.</audio>
+          <figure class="article-audio" id="narration" data-narration>
+            <button type="button" class="na-play" aria-label="Play narration">
+              <svg class="na-ic-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+              <svg class="na-ic-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+            </button>
+            <div class="na-main">
+              <figcaption class="na-label">Listen to this story <span>· narrated by a human</span></figcaption>
+              <div class="na-bar" role="slider" tabindex="0" aria-label="Seek"><span class="na-progress"></span></div>
+            </div>
+            <span class="na-time">0:00</span>
+            <button type="button" class="na-speed" aria-label="Playback speed">1×</button>
+            <audio preload="none" src="<?= e($a['audio_url']) ?>"></audio>
           </figure>
 <?php endif; ?>
         </div>
@@ -103,7 +112,8 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php endif; ?>
 
       <div class="container">
-        <div class="article-layout">
+        <div class="article-layout<?= empty($a['sections']) ? ' no-toc' : '' ?>">
+<?php if (!empty($a['sections'])): ?>
           <aside class="toc" aria-label="On this page">
             <div class="toc-head">On this page</div>
             <ul class="toc-list">
@@ -112,6 +122,7 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php endforeach; ?>
             </ul>
           </aside>
+<?php endif; ?>
           <div class="article-body">
 <?= $a['body_html'] ?>
 

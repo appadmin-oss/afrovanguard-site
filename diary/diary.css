@@ -154,11 +154,24 @@ img { max-width: 100%; }
 .article-title { font-size: clamp(38px, 6vw, 76px); line-height: 1.02; font-weight: 700; letter-spacing: -0.01em; max-width: 16ch; margin-bottom: 36px; }
 .article-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 22px 0; border-top: 1px dashed var(--divider); border-bottom: 1px dashed var(--divider); max-width: 760px; }
 .meta-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.article-audio { margin: 18px 0 0; max-width: 760px; padding: 14px 16px; background: var(--gold-soft); border: 1px solid rgba(243,180,22,0.28); border-radius: var(--radius-md); }
-.article-audio figcaption { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; color: var(--gold-deep); margin-bottom: 10px; }
-.article-audio figcaption span { font-weight: 600; color: var(--muted); }
-[data-theme="dark"] .article-audio figcaption { color: var(--gold); }
-.article-audio audio { width: 100%; height: 40px; }
+/* Human narration — minimalist inline player */
+.article-audio { display: flex; align-items: center; gap: 14px; margin: 20px 0 0; max-width: 760px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-full); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.article-audio.is-playing { border-color: var(--gold); box-shadow: 0 2px 20px rgba(243,180,22,0.14); }
+.na-play { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 0; cursor: pointer; background: var(--gold); color: #111827; transition: transform var(--t-fast), background var(--t-fast); }
+.na-play:hover { transform: scale(1.05); background: var(--gold-dark); }
+.na-play svg { display: block; }
+.na-play svg[hidden] { display: none; }
+.na-play .na-ic-play { margin-left: 2px; }
+.na-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.na-label { font-size: 13px; font-weight: 700; color: var(--ink); }
+.na-label span { font-weight: 500; color: var(--muted); }
+.na-bar { position: relative; height: 5px; border-radius: var(--radius-full); background: var(--divider); cursor: pointer; }
+.na-bar:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.na-progress { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: var(--radius-full); background: linear-gradient(90deg, var(--gold), var(--gold-deep)); transition: width 80ms linear; }
+.na-time { flex: none; font-size: 12.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.na-speed { flex: none; padding: 5px 9px; font-size: 12px; font-weight: 700; color: var(--muted); background: transparent; border: 1px solid var(--divider); border-radius: var(--radius-full); cursor: pointer; transition: color var(--t-fast), border-color var(--t-fast); }
+.na-speed:hover { color: var(--gold-deep); border-color: var(--gold); }
+@media (max-width: 560px) { .na-speed { display: none; } .article-audio { gap: 12px; } }
 .meta-value { font-size: 16px; font-weight: 600; color: var(--ink); }
 .meta-value a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--divider); text-underline-offset: 3px; }
 .meta-value a:hover { text-decoration-color: var(--gold); }
@@ -192,6 +205,7 @@ img { max-width: 100%; }
 
 /* ============================================================ ARTICLE — layout (sticky TOC + content) */
 .article-layout { display: grid; grid-template-columns: 240px minmax(0, 720px); gap: 64px; padding: 44px 0 72px; align-items: start; justify-content: center; }
+.article-layout.no-toc { grid-template-columns: minmax(0, 720px); }
 .toc { position: sticky; top: calc(var(--header-h) + 28px); align-self: start; max-height: calc(100vh - var(--header-h) - 60px); overflow: auto; }
 .toc-head { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
 .toc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--divider); }
