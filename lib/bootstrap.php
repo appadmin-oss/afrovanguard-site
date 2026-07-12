@@ -195,6 +195,11 @@ if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('A
 // or ₦12,000/year (mandatory from Level C).
 if (!defined('AV_DUES_MONTHLY_NGN')) { $v = getenv('AV_DUES_MONTHLY_NGN'); define('AV_DUES_MONTHLY_NGN', $v !== false && $v !== '' ? (int) $v : 1000); }
 if (!defined('AV_DUES_ANNUAL_NGN'))  { $v = getenv('AV_DUES_ANNUAL_NGN');  define('AV_DUES_ANNUAL_NGN',  $v !== false && $v !== '' ? (int) $v : 12000); }
+// Optional Paystack Plan code for AUTO-RENEWING monthly dues. Create a monthly
+// plan in the Paystack dashboard (amount = AV_DUES_MONTHLY_NGN) and put its
+// plan_code (PLN_…) here. When set, the "Pay a month" button starts a recurring
+// subscription; when empty, it falls back to a one-time monthly charge.
+if (!defined('AV_DUES_PLAN_CODE')) { $v = getenv('AV_DUES_PLAN_CODE'); if ($v !== false && $v !== '') define('AV_DUES_PLAN_CODE', $v); }
 // Google sign-in (config.php or env). Absent ⇒ the "Continue with Google" button stays disabled.
 foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }

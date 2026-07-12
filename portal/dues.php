@@ -50,7 +50,13 @@ if ($action === 'pay_init') {
     // finalises membership idempotently (browser redirect AND Paystack webhook).
     $callback = rtrim(SITE_URL, '/') . '/academy/pay.php';
     $meta = ['user_id' => (int) $u['id'], 'kind' => 'membership', 'source' => 'portal_dues', 'purpose' => 'Afrovanguard membership dues (' . $period . ')'];
-    $url = Payments::paystackInit((string) $u['email'], $amountNgn * 100, $reference, $callback, $meta);
+
+    // Monthly + a Paystack Plan configured → start an AUTO-RENEWING subscription.
+    // Otherwise, a one-time charge for the chosen period.
+    $planCode = ($period === 'month' && defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE) ? (string) AV_DUES_PLAN_CODE : '';
+    $url = $planCode !== ''
+        ? Payments::paystackInitPlan((string) $u['email'], $planCode, $reference, $callback, $meta)
+        : Payments::paystackInit((string) $u['email'], $amountNgn * 100, $reference, $callback, $meta);
     if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 502);
     json_out(['ok' => true, 'authorization_url' => $url, 'reference' => $reference]);
 }

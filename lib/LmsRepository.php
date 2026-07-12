@@ -327,6 +327,17 @@ final class LmsRepository
             ->execute([$userId, $exp]);
     }
 
+    /** Extend a member's membership by N months, found by email (recurring dues). */
+    public function grantMembershipByEmail(string $email, int $months = 1): bool
+    {
+        $s = $this->db->prepare('SELECT id FROM lms_users WHERE email = ? LIMIT 1');
+        $s->execute([$email]);
+        $id = (int) ($s->fetchColumn() ?: 0);
+        if ($id <= 0) return false;
+        $this->grantMembership($id, max(1, $months));
+        return true;
+    }
+
     /** The member's most recent membership row (lifetime rows first, then latest expiry). */
     public function latestMembership(int $userId): ?array
     {

@@ -268,6 +268,7 @@ render_head([
         $duesPill   = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';
         if (!empty($dues['lifetime'])) $duesPill = 'Lifetime';
         $duesCanPay = !empty($dues['payable']) && empty($dues['lifetime']);
+        $duesRecurring = defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE;
 ?>
         <!-- Membership dues (annual) -->
         <section class="portal-card dues-card dues-<?= e($duesState) ?>" id="duesCard" data-csrf="<?= e($duesCsrf) ?>">
@@ -290,9 +291,9 @@ render_head([
 <?php if ($duesCanPay): ?>
           <div class="dues-actions">
             <button type="button" class="btn <?= $duesState === 'active' ? 'btn-outline' : 'btn-primary' ?> btn-sm" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?> — <?= e($duesAnnual) ?></button>
-            <button type="button" class="btn btn-outline btn-sm" data-dues-pay data-period="month">Pay a month — <?= e($duesMonthly) ?></button>
+            <button type="button" class="btn btn-outline btn-sm" data-dues-pay data-period="month"><?= $duesRecurring ? 'Subscribe monthly' : 'Pay a month' ?> — <?= e($duesMonthly) ?></button>
           </div>
-          <p class="pc-summary dues-note"><a href="/how-it-works">How dues &amp; progression work →</a></p>
+          <p class="pc-summary dues-note"><?= $duesRecurring ? 'Monthly auto-renews — cancel anytime from your Paystack receipt. ' : '' ?><a href="/how-it-works">How dues &amp; progression work →</a></p>
           <p class="enroll-msg dues-msg" hidden></p>
 <?php elseif (empty($dues['lifetime'])): ?>
           <p class="pc-summary">Online dues payment isn’t available right now — <a href="mailto:cacentre@afrovanguard.org.ng">contact us</a> to pay. <a href="/how-it-works">How dues work →</a></p>
