@@ -58,7 +58,10 @@ function av_brand_css(): string {
         $d = $hex($b['accent_deep'] ?? null);
         if (!$a && !$d) return $cache;
         $a = $a ?: $d; $d = $d ?: $a;
-        $cache = ':root{--gold:' . $a . ';--gold-deep:' . $d . ';--m-gold:' . $a . ';--m-gold-deep:' . $d . ';}';
+        // Repoint the brand accent across every namespace, including the shared
+        // --afg-* token layer, so a custom Studio brand colour flows everywhere.
+        $cache = ':root{--gold:' . $a . ';--gold-deep:' . $d . ';--m-gold:' . $a . ';--m-gold-deep:' . $d
+            . ';--afg-gold:' . $a . ';--afg-accent:' . $a . ';--afg-accent-ink:' . $d . ';}';
     } catch (Throwable $e) { $cache = ''; }
     return $cache;
 }

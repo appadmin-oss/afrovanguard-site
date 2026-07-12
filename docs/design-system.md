@@ -96,13 +96,24 @@ Do this **one module per PR**, so each is independently reviewable and revertibl
 `--afg-*` tokens (with legacy fallbacks) as the first worked example. Use it as
 the template when migrating the rest of the portal, then login, admin, and chioma.
 
-## Suggested rollout order
+## Rollout status
 
-1. ✅ Foundation: `tokens.css` + global wiring + focus ring + dues-card adoption.
-2. **Portal** (`--p-*`) — biggest outlier; join the `data-theme` contract.
-3. **Login** (`--auth-*`) — small surface, quick win.
-4. **Admin/Studio** (`--cc`) — plus document the living style guide on the
-   existing Studio **Design** tab.
-5. **Chioma** (`--ch-*`) and **nav** (`--m-*`).
-6. **Diary base** (`--gold`, `--bg`, …) — alias to tokens last, since it's the
-   global base everything currently inherits.
+1. ✅ **Foundation** — `tokens.css` + global wiring + focus ring + dues-card adoption.
+2. ✅ **Portal** (`--p-*`) — `--afg-*` mirror its themed palette in the portal scope.
+3. ✅ **Static pages** — `tokens.css` injected via `build-chrome.php`.
+4. ✅ **Diary base** (`--gold`, `--bg`, `--surface`, `--ink`, `--body`, `--muted`,
+   `--divider`, `--link`, `--focus`, fonts) → `var(--afg-*, <literal>)`. This is the
+   global base every server-rendered page inherits, so it unifies the whole site.
+   Verified in Chromium: **0** resolved-value changes in light or dark.
+5. ✅ **Admin / Studio** — now loads `tokens.css`; relies on the (now unified) Diary
+   base; stray `--cc` → `var(--afg-accent)`.
+6. ✅ **Brand override** — `av_brand_css()` also repoints `--afg-gold/-accent/-accent-ink`,
+   so a custom Studio brand colour flows through the token layer.
+7. **Login** (`--auth-*`) — already rides the shared `data-theme` + tokens contract via
+   `render_head`; optional palette remap remains (values differ slightly, so left literal).
+8. **Remaining:** `nav` (`--m-*`) and `chioma` (`--ch-*`) private namespaces — both have
+   their own light/dark blocks; migrate the same way when convenient.
+
+Tokens that intentionally stay literal (values differ from `--afg-*`): diary
+`--gold-dark`, `--gold-soft` (0.10 vs 0.14), `--card-shadow` (0.14 vs 0.10),
+`--radius-md` (12 vs 14), and the `--nav-*`/`--footer-bg` chrome colours.

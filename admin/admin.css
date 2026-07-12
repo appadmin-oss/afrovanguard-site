@@ -288,7 +288,7 @@ body.studio-authed .studio-side { display: block; }
 .db-log { color: var(--muted); max-height: 280px; overflow-y: auto; }
 
 /* ── Celebration live preview (mirrors the member banner) ── */
-.cel-pv-bar { --cc: #f3b416; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); color: #fff; overflow: hidden;
+.cel-pv-bar { --cc: var(--afg-accent, #f3b416); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); color: #fff; overflow: hidden;
   background: linear-gradient(100deg, color-mix(in srgb, var(--cc) 92%, #000 8%), color-mix(in srgb, var(--cc) 60%, #1b2536 40%)); box-shadow: 0 2px 12px rgba(0,0,0,.12); }
 .cel-pv-emoji { font-size: 24px; line-height: 1; flex: 0 0 auto; }
 .cel-pv-doodle { height: 34px; width: auto; max-width: 90px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); }

@@ -8,32 +8,35 @@
    ============================================================ */
 
 :root {
-  /* brand */
-  --gold:        #f3b416;
+  /* brand — sourced from the shared --afg-* token layer (assets/site/tokens.css).
+     Fallbacks equal the historic values, so this is zero-distortion even if the
+     token layer is ever absent. Values that differ from --afg-* (gold-dark,
+     gold-soft opacity) intentionally stay literal. */
+  --gold:        var(--afg-gold, #f3b416);
   --gold-dark:   #d49a0e;
-  --gold-deep:   #b07e08;
+  --gold-deep:   var(--afg-gold-deep, #b07e08);
   --gold-soft:   rgba(243,180,22,0.10);
 
-  /* themable surface tokens (LIGHT) */
-  --bg:          #FDFCF8;
+  /* themable surface tokens (LIGHT) — from --afg-* (which flip by data-theme) */
+  --bg:          var(--afg-bg, #FDFCF8);
   --bg-warm:     #FAF8F2;
-  --surface:     #FFFFFF;
-  --surface-2:   #F4F2EC;
-  --ink:         #111827;
-  --body:        #374151;
-  --muted:       #6B7280;
-  --divider:     #E5E7EB;
+  --surface:     var(--afg-surface, #FFFFFF);
+  --surface-2:   var(--afg-surface-2, #F4F2EC);
+  --ink:         var(--afg-ink, #111827);
+  --body:        var(--afg-body, #374151);
+  --muted:       var(--afg-muted, #6B7280);
+  --divider:     var(--afg-border, #E5E7EB);
   --nav-bg:      rgba(17,24,39,0.94);
   --nav-bg-solid:rgba(17,24,39,0.98);
   --nav-text:    rgba(255,255,255,0.85);
   --footer-bg:   #0A0F1A;
-  --link:        #b07e08;
+  --link:        var(--afg-accent-ink, #b07e08);
   --code-bg:     #F4F2EC;
   --card-shadow: 0 24px 60px rgba(17,24,39,0.14);
-  --focus:       #1D4ED8;
+  --focus:       var(--afg-focus, #1D4ED8);
 
-  --font-heading: 'Cormorant', Georgia, serif;
-  --font-body:    'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: var(--afg-font-display, 'Cormorant', Georgia, serif);
+  --font-body:    var(--afg-font-body, 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif);
 
   --radius-sm: 6px; --radius-md: 12px; --radius-lg: 20px; --radius-xl: 28px; --radius-full: 9999px;
   --container-max: 1200px;
@@ -44,19 +47,21 @@
 }
 
 [data-theme="dark"] {
-  --bg:          #0B1120;
+  /* Dark surfaces also derive from --afg-* (fallbacks equal the historic dark
+     values); --afg-* already flips dark under [data-theme="dark"]. */
+  --bg:          var(--afg-bg, #0B1120);
   --bg-warm:     #0E1626;
-  --surface:     #131C2E;
-  --surface-2:   #1B2536;
-  --ink:         #F3F4F6;
-  --body:        #C3CAD6;
-  --muted:       #8A93A3;
-  --divider:     #283349;
+  --surface:     var(--afg-surface, #131C2E);
+  --surface-2:   var(--afg-surface-2, #1B2536);
+  --ink:         var(--afg-ink, #F3F4F6);
+  --body:        var(--afg-body, #C3CAD6);
+  --muted:       var(--afg-muted, #8A93A3);
+  --divider:     var(--afg-border, #283349);
   --nav-bg:      rgba(7,11,20,0.86);
   --nav-bg-solid:rgba(7,11,20,0.97);
   --nav-text:    rgba(255,255,255,0.88);
   --footer-bg:   #070B14;
-  --link:        #f3b416;
+  --link:        var(--afg-accent-ink, #f3b416);
   --code-bg:     #0E1626;
   --card-shadow: 0 24px 60px rgba(0,0,0,0.5);
 }
