@@ -54,7 +54,7 @@ body.academy .ac-hero {
 }
 body.academy .ac-hero h1 {
   font-family: var(--font-heading); font-weight: 700;
-  font-size: clamp(40px, 6.4vw, 76px); line-height: 1.0; letter-spacing: -0.015em;
+  font-size: var(--afg-display-size, clamp(44px, 7vw, 84px)); line-height: 1.0; letter-spacing: -0.015em;
   color: var(--ink); max-width: 16ch; margin: 0;
 }
 .ac-hero-sub { font-size: clamp(16px, 1.5vw, 20px); color: var(--muted); max-width: 56ch; margin: 18px 0 0; line-height: 1.6; }

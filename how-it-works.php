@@ -25,12 +25,8 @@ render_nav('about');
     font-family:var(--afg-font-body,'Montserrat',system-ui,sans-serif)}
   .hiw .hiw-in{max-width:920px;margin:0 auto;padding:0 20px}
   .hiw-hero{background:var(--afg-surface-2,#f4f2ec);border-bottom:1px solid var(--afg-border,#e5e7eb);
-    padding:64px 20px 52px;text-align:center}
-  .hiw-hero .hiw-eyebrow{font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;
-    color:var(--afg-accent-ink,#b07e08);margin:0 0 10px}
-  .hiw-hero h1{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-weight:700;
-    font-size:clamp(34px,6vw,52px);line-height:1.1;margin:0 0 12px;color:var(--afg-ink,#111827)}
-  .hiw-hero p{max-width:640px;margin:0 auto;font-size:17px;line-height:1.6}
+    padding:8px 20px 44px}
+  .hiw-hero .page-lead{max-width:640px}
   .hiw-body{padding:52px 0 72px}
   .hiw-intro{font-size:18px;line-height:1.7;margin:0 0 8px}
   .hiw-note{font-size:15px;color:var(--afg-muted,#6b7280);margin:0 0 40px}
@@ -83,9 +79,13 @@ render_nav('about');
 
 <main id="main-content" class="hiw">
   <header class="hiw-hero">
-    <p class="hiw-eyebrow">How Afrovanguard Works</p>
-    <h1>Progressive Growth &amp; Member Alignment</h1>
-    <p>We develop leaders through a structured progression built on personal growth, accountability, service, leadership and alignment with our vision and values.</p>
+    <div class="hiw-in">
+      <div class="page-head page-head--center" style="padding:0">
+        <p class="page-eyebrow">How Afrovanguard Works</p>
+        <h1 class="page-title">Progressive Growth &amp; Member Alignment</h1>
+        <p class="page-lead">We develop leaders through a structured progression built on personal growth, accountability, service, leadership and alignment with our vision and values.</p>
+      </div>
+    </div>
   </header>
 
   <div class="hiw-body">

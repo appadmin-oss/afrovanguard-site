@@ -121,6 +121,7 @@ function render_head(array $o): void {
   <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/assets/site/nav.css" rel="stylesheet" />
+  <link href="/assets/site/page.css" rel="stylesheet" />
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
 <?php endforeach;
   // Studio Design panel brand override — last, so it re-points the accent vars

@@ -116,7 +116,7 @@ foreach ($pages as $file => $active) {
     }
     // 4) shared stylesheets last in <head> (after the page's inline styles).
     //    tokens.css first — the canonical --afg-* design tokens the rest build on.
-    foreach (['/assets/site/tokens.css', '/assets/site/nav.css', '/assets/site/chrome.css'] as $css) {
+    foreach (['/assets/site/tokens.css', '/assets/site/nav.css', '/assets/site/page.css', '/assets/site/chrome.css'] as $css) {
         // match the actual tag (href="…"), not a bare mention in a comment/text
         if (strpos($html, 'href="' . $css . '"') === false) {
             $html = preg_replace('~</head>~', '  <link rel="stylesheet" href="' . $css . '" />' . "\n</head>", $html, 1);

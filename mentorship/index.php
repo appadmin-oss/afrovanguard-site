@@ -24,10 +24,13 @@ render_nav('mentorship');
 
 if (!$u):
 ?>
-<main id="main-content" class="cm"><div class="cm-wrap"><div class="mn-gate cm-card" style="max-width:560px;margin:60px auto;text-align:center;padding:36px">
-  <h1 style="font-family:var(--font-heading);font-size:34px;margin:0 0 8px">Mentorship</h1>
-  <p style="color:var(--muted);margin:0 0 18px">Sign in to find a mentor, manage your mentorships, or mentor others.</p>
-  <a class="cm-post-btn" data-login-link href="/login?next=/mentorship/">Sign in</a>
+<main id="main-content" class="cm"><div class="cm-wrap"><div class="mn-gate cm-card" style="max-width:560px;margin:60px auto;padding:36px">
+  <header class="page-head page-head--center" style="padding:0">
+    <p class="page-eyebrow">Mentor network</p>
+    <h1 class="page-title">Mentorship</h1>
+    <p class="page-lead">Sign in to find a mentor, manage your mentorships, or mentor others.</p>
+    <div class="page-actions"><a class="cm-post-btn" data-login-link href="/login?next=/mentorship/">Sign in</a></div>
+  </header>
 </div></div></main>
 <?php render_footer(); exit; endif;
 
