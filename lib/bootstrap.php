@@ -245,8 +245,13 @@ require_once __DIR__ . '/GoogleWorkspace.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
+require_once __DIR__ . '/AiKnowledge.php';
 
 av_harden_errors();
+
+// Keep the AI assistants' knowledge fresh: every domain event invalidates the
+// cached "site brief" so Chioma / AvBot are re-fed on the next reply.
+AiKnowledge::boot();
 
 /** Academy base URL (subdomain-ready). Defaults to the /academy path. */
 if (!defined('ACADEMY_URL')) {

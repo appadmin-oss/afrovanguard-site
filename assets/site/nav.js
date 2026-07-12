@@ -194,7 +194,18 @@
     var hint = document.getElementById('avSearchHint');
     if (!modal || !input || !resultsEl) return;
     var opener = null, tDeb = null, lastReq = 0;
-    var TYPE_BADGE = { Page: 'Page', Diary: 'Diary', Academy: 'Academy' };
+    var TYPE_BADGE = { Page: 'Page', Diary: 'Diary', Academy: 'Academy', People: 'Person' };
+    var curQuery = '';
+    // Escape text, then wrap the current query terms in <mark> for highlighting.
+    function hilite(text) {
+        var safe = esc(text == null ? '' : text);
+        var terms = curQuery.toLowerCase().split(/[\s,]+/).filter(function (t) { return t.length >= 2; });
+        if (!terms.length) return safe;
+        var rx = new RegExp('(' + terms.map(function (t) {
+            return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }).join('|') + ')', 'ig');
+        return safe.replace(rx, '<mark class="avs-hl">$1</mark>');
+    }
 
     function open() {
       opener = document.activeElement;
@@ -216,8 +227,8 @@
       a.className = 'avs-result'; a.href = r.url; a.setAttribute('role', 'option');
       if (/^https?:/.test(r.url)) { a.target = '_blank'; a.rel = 'noopener'; }
       a.innerHTML = '<span class="avs-type">' + esc(TYPE_BADGE[r.type] || r.type) + '</span>'
-        + '<span class="avs-rt"><span class="avs-rtitle">' + esc(r.title) + '</span>'
-        + (r.excerpt ? '<span class="avs-rex">' + esc(r.excerpt) + '</span>' : '') + '</span>';
+        + '<span class="avs-rt"><span class="avs-rtitle">' + hilite(r.title) + '</span>'
+        + (r.excerpt ? '<span class="avs-rex">' + hilite(r.excerpt) + '</span>' : '') + '</span>';
       a.addEventListener('click', function () { close(); });
       return a;
     }
@@ -241,6 +252,7 @@
     function search(withAi) {
       var q = input.value.trim();
       if (q.length < 2) { resultsEl.innerHTML = ''; if (aiBox) aiBox.hidden = true; if (hint) hint.hidden = false; return; }
+      curQuery = q;
       var req = ++lastReq;
       if (withAi && aiBox && aiText) { aiBox.hidden = false; aiText.textContent = 'Thinking…'; }
       fetch('/search.php?q=' + encodeURIComponent(q) + (withAi ? '&ai=1' : ''), { credentials: 'same-origin' })
