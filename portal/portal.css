@@ -68,6 +68,37 @@
   --p-focus: #6f9bff;
 }
 
+/* ── Site design tokens, sourced from the portal's own themed palette ────────
+ * Unifies the Portal with the canonical --afg-* token layer (assets/site/tokens.css)
+ * with ZERO distortion: the tokens mirror the portal's existing --p-* values, so
+ * they track the portal's own light/dark switch exactly. Any shared, token-based
+ * component (the dues card, the celebrations popup, future Button/Card) therefore
+ * renders correctly inside the portal without changing a single existing colour. */
+.portal-page {
+  --afg-bg: var(--p-bg);
+  --afg-surface: var(--p-surface);
+  --afg-surface-2: var(--p-surface-2);
+  --afg-border: var(--p-border);
+  --afg-border-strong: var(--p-border-2);
+  --afg-ink: var(--p-ink);
+  --afg-body: var(--p-body);
+  --afg-muted: var(--p-muted);
+  --afg-accent: var(--p-accent-2);
+  --afg-accent-ink: var(--p-accent);
+  --afg-accent-soft: var(--p-accent-soft);
+  --afg-on-accent: var(--p-on-accent);
+  --afg-success: var(--p-green);
+  --afg-success-soft: var(--p-green-soft);
+  --afg-info: var(--p-blue);
+  --afg-info-soft: var(--p-blue-soft);
+  --afg-focus: var(--p-focus);
+  --afg-shadow-sm: var(--p-shadow-sm);
+  --afg-shadow-md: var(--p-shadow);
+  --afg-danger: #dc2626;
+  --afg-danger-soft: rgba(220,38,38,0.14);
+  --afg-warning-soft: var(--p-accent-soft);
+}
+
 body.portal-page {
   background-color: var(--p-bg);
   background-image: none;

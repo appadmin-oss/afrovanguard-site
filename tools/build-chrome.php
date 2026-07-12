@@ -115,7 +115,8 @@ foreach ($pages as $file => $active) {
         $html = preg_replace('~(<head[^>]*>)~', '$1' . "\n  " . THEME_BOOT, $html, 1);
     }
     // 4) shared stylesheets last in <head> (after the page's inline styles).
-    foreach (['/assets/site/nav.css', '/assets/site/chrome.css'] as $css) {
+    //    tokens.css first — the canonical --afg-* design tokens the rest build on.
+    foreach (['/assets/site/tokens.css', '/assets/site/nav.css', '/assets/site/chrome.css'] as $css) {
         // match the actual tag (href="…"), not a bare mention in a comment/text
         if (strpos($html, 'href="' . $css . '"') === false) {
             $html = preg_replace('~</head>~', '  <link rel="stylesheet" href="' . $css . '" />' . "\n</head>", $html, 1);
