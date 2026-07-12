@@ -181,3 +181,11 @@
   outline-offset: 2px;
   border-radius: var(--afg-radius-sm);
 }
+
+/* ── Sticky-nav offset ───────────────────────────────────────────────────────
+ * The site header is sticky on every page. Reserve its height when jumping to
+ * an in-page anchor so headings/sections never land hidden behind the nav, and
+ * give headings the same safety margin. Site-wide and consistent. */
+:root { --afg-nav-offset: 88px; }
+html { scroll-padding-top: var(--afg-nav-offset); }
+:where(h1, h2, h3, h4, [id]) { scroll-margin-top: var(--afg-nav-offset); }

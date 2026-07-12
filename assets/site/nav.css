@@ -31,7 +31,9 @@ html[data-theme="dark"] {
 
 /* ── Header shell ──────────────────────────────────────────────────── */
 .site-header {
-  position: relative; z-index: 100;
+  /* Sticky on EVERY breakpoint so the nav sits in the same place on every page
+     (previously sticky only >=1100px, so it scrolled away on mobile/module pages). */
+  position: sticky; top: 0; z-index: 100;
   background: var(--m-surface);
   border-bottom: 1px solid var(--m-divider);
   -webkit-backdrop-filter: none; backdrop-filter: none;
