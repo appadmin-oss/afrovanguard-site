@@ -47,6 +47,10 @@ function av_team_ensure(PDO $pdo): void
     )";
     $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
     $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+    // Columns added after the initial release (idempotent — ADD COLUMN errors if
+    // it already exists, which we swallow). `email` powers birthday emails.
+    try { $pdo->exec("ALTER TABLE team ADD COLUMN email TEXT NOT NULL DEFAULT ''"); }
+    catch (\Throwable $e) { /* column already present */ }
 }
 
 /** Normalise/validate a tier string. */
@@ -78,6 +82,7 @@ function av_team_member_dict(array $r): array
         'location'   => (string) $r['location'],
         'photo'      => (string) $r['photo_url'],
         'birthday'   => (string) $r['birthday'],
+        'email'      => (string) ($r['email'] ?? ''),
         'socials'    => $socials,
     ];
 }
@@ -142,6 +147,44 @@ function av_birthdays_on(PDO $pdo, ?string $mmdd = null): array
     return array_map('av_team_member_dict', $s->fetchAll(PDO::FETCH_ASSOC) ?: []);
 }
 
+/**
+ * Send each of today's birthday people a personalised birthday email — once
+ * per person per day, idempotently. Safe to call from cron AND lazily from a
+ * page request: a per-day "sent" ledger in app_meta guarantees no duplicates
+ * even if both fire. Returns the number of emails actually sent this call.
+ */
+function av_birthday_emails_run(PDO $pdo): int
+{
+    $people = av_birthdays_on($pdo);
+    if (!$people) return 0;
+
+    $today = date('Y-m-d');
+    $sent = [];
+    try {
+        $raw = class_exists('Database') ? Database::metaGet('bday_sent') : null;
+        $d = $raw ? json_decode($raw, true) : null;
+        if (is_array($d) && ($d['date'] ?? '') === $today && is_array($d['ids'] ?? null)) {
+            $sent = array_map('intval', $d['ids']);
+        }
+    } catch (\Throwable $e) { /* start fresh */ }
+
+    $n = 0;
+    foreach ($people as $p) {
+        $id = (int) ($p['id'] ?? 0);
+        $email = trim((string) ($p['email'] ?? ''));
+        if ($id <= 0 || $email === '' || in_array($id, $sent, true)) continue;
+        if (class_exists('Notify') && method_exists('Notify', 'birthday')) {
+            Notify::birthday($p);         // best-effort; Notify swallows failures
+        }
+        $sent[] = $id; $n++;
+    }
+    if ($n > 0) {
+        try { Database::metaSet('bday_sent', json_encode(['date' => $today, 'ids' => array_values(array_unique($sent))])); }
+        catch (\Throwable $e) { /* best-effort */ }
+    }
+    return $n;
+}
+
 /** Persist a member (insert or update). Returns the id. */
 function av_team_save(PDO $pdo, array $in): int
 {
@@ -158,6 +201,7 @@ function av_team_save(PDO $pdo, array $in): int
         'location' => trim((string) ($in['location'] ?? '')),
         'photo_url' => trim((string) ($in['photo'] ?? $in['photo_url'] ?? '')),
         'socials' => $socials,
+        'email' => filter_var(trim((string) ($in['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: '',
         'birthday' => preg_match('/^\d{2}-\d{2}$/', (string) ($in['birthday'] ?? '')) ? $in['birthday'] : '',
         'votm_month' => preg_match('/^\d{4}-\d{2}$/', (string) ($in['votm_month'] ?? '')) ? $in['votm_month'] : '',
         'votm_reason' => trim((string) ($in['votm_reason'] ?? '')),

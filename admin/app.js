@@ -580,6 +580,7 @@
       $('#p_featured').checked = !!m.featured; $('#p_operations').checked = !!m.operations;
       $('#p_active').checked = m.active !== false; $('#p_position').value = m.position || 0;
       $('#p_birthday').value = m.birthday || '';
+      if ($('#p_notice_email')) $('#p_notice_email').value = m.email || '';
       $('#p_votm_month').value = m.votm_month || m.votmMonth || '';
       $('#p_votm_reason').value = m.votm_reason || ''; $('#p_votm_quote').value = m.votm_quote || '';
       $('#p_li').value = s.li || ''; $('#p_tw').value = s.tw || ''; $('#p_ig').value = s.ig || '';
@@ -598,6 +599,7 @@
       active: $('#p_active').checked, position: +$('#p_position').value || 0,
       tagline: $('#p_tagline').value.trim(), bio: $('#p_bio').value.trim(), location: $('#p_location').value.trim(),
       photo: pPhoto, socials: socials, birthday: $('#p_birthday').value.trim(),
+      email: ($('#p_notice_email') ? $('#p_notice_email').value.trim() : ''),
       votm_month: $('#p_votm_month').value.trim(), votm_reason: $('#p_votm_reason').value.trim(), votm_quote: $('#p_votm_quote').value.trim()
     };
     post('team_save', payload).then(function (r) {

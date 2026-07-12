@@ -84,6 +84,20 @@
     var space = document.getElementById('cmSpace');
     var msg = form.querySelector('.cm-msg');
     var btn = form.querySelector('.cm-post-btn');
+
+    /* Deep-link from a birthday celebration ("Send warm wishes"): prefill the
+     * composer with a birthday message for the honoree and bring it into view. */
+    (function () {
+      var m = /[?&]wish=([^&]+)/.exec(location.search);
+      if (!m || !body) return;
+      var who = '';
+      try { who = decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); } catch (e) { who = ''; }
+      who = who.replace(/[<>]/g, '').slice(0, 60);
+      if (!body.value) body.value = 'Happy birthday' + (who ? ', ' + who : '') + '! 🎉 ';
+      var comp = document.querySelector('.cm-composer');
+      if (comp && comp.scrollIntoView) comp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      try { body.focus(); body.setSelectionRange(body.value.length, body.value.length); } catch (e) {}
+    })();
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var text = (body.value || '').trim();

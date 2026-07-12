@@ -155,35 +155,36 @@ function av_nav_model(): array {
     // off-site subdomains (cacentre/next/…) stay absolute.
     $V = AV_VOLUNTEER_URL;
     return [
+        // WHO WE ARE
         'about'   => ['label' => 'About', 'href' => '/about.html', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
-                    ['About us', '/about.html'], ['Our ethos', '/ethos/'],
-                    ['Leadership & model', '/ethos/#leadership'], ['Our story', '/about.html#our-story'],
+                    ['About us', '/about.html'], ['Our story', '/about.html#our-story'],
+                    ['Our ethos', '/ethos/'], ['Leadership & model', '/ethos/#leadership'],
                 ]],
-                ['title' => 'Get involved', 'links' => [
-                    ['Volunteer', $V], ['Donate', '/donate.html'],
-                    ['Events', AV_EVENTS_URL], ['Contact us', '/contact.html'],
+                ['title' => 'Connect', 'links' => [
+                    ['Contact us', '/contact.html'], ['The Diary', '/diary/'], ['Events', AV_EVENTS_URL],
                 ]],
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
         ]],
+        // LEARN — the Academy platform (learning only; on-the-ground programmes live under Initiatives)
         'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
                     ['All programmes', '/academy/'], ['Academy membership', '/academy/#membership'],
-                    ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/'],
+                    ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/verify.php'],
                 ]],
-                ['title' => 'Featured programmes', 'links' => [
-                    ['Techome', '/academy/techome/'], ['MediaPro', '/academy/mediapro/'],
-                    ['Africa GATES', '/academy/africa-gates/'], ['NGV Academy', '/academy/ngv-academy/'],
+                ['title' => 'Get started', 'links' => [
+                    ['Create an account', '/login'], ['Member portal', '/portal/'], ['Mentorship', '/mentorship/'],
                 ]],
             ],
             'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
         ]],
-        'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
+        // WHAT WE DO ON THE GROUND — flagship initiatives (distinct from Academy learning)
+        'projects' => ['label' => 'Initiatives', 'href' => '/projects/', 'mega' => [
             'cols' => [
-                ['title' => 'Flagship programmes', 'links' => [
+                ['title' => 'Flagship initiatives', 'links' => [
                     ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
                     ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
                     ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/'],
@@ -191,10 +192,23 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'More', 'links' => [
                     ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All projects', '/projects/'], ['Volunteer', $V], ['Events', AV_EVENTS_URL],
+                    ['All initiatives', '/projects/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all projects'],
+            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all initiatives'],
+        ]],
+        // HOW TO HELP — one clear home for every conversion path
+        'involved' => ['label' => 'Get involved', 'href' => '/donate.html', 'mega' => [
+            'cols' => [
+                ['title' => 'Give', 'links' => [
+                    ['Donate', '/donate.html'], ['Fund a campaign', '/donate.html#campaigns'],
+                    ['Become a member', '/academy/#membership'],
+                ]],
+                ['title' => 'Give your time', 'links' => [
+                    ['Volunteer', $V], ['Mentor a young leader', '/mentorship/'], ['Partner with us', '/contact.html'],
+                ]],
+            ],
+            'feature' => ['kicker' => 'Stand with us', 'title' => 'Be part of the movement', 'text' => 'Give, volunteer, mentor or partner — every hand helps raise a leader.', 'href' => '/donate.html', 'cta' => 'Donate now'],
         ]],
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [
@@ -209,7 +223,6 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
-        'contact' => ['label' => 'Contact', 'href' => '/contact.html'],
     ];
 }
 

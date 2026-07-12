@@ -426,6 +426,7 @@
         <div class="side-card">
           <h3>Celebrations</h3>
           <label class="fld"><span>Birthday (auto-celebrated)</span><input id="p_birthday" type="text" placeholder="MM-DD e.g. 06-22" pattern="\d{2}-\d{2}" /></label>
+          <label class="fld"><span>Contact email (for a birthday wish)</span><input id="p_notice_email" type="email" placeholder="name@example.com" autocomplete="off" /></label>
           <label class="fld"><span>Volunteer of the Month (YYYY-MM)</span><input id="p_votm_month" type="text" placeholder="e.g. 2026-06" pattern="\d{4}-\d{2}" /></label>
           <label class="fld"><span>VOTM tribute / reason</span><textarea id="p_votm_reason" rows="2" placeholder="Why they were chosen."></textarea></label>
           <label class="fld"><span>VOTM quote</span><input id="p_votm_quote" placeholder="e.g. A heart for people." /></label>

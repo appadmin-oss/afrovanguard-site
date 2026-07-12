@@ -46,6 +46,15 @@ if (class_exists('Webhooks')) {
     catch (Throwable $e) { $result['ok'] = false; $result['error'] = $e->getMessage(); error_log('[cron] webhooks: ' . $e->getMessage()); }
 }
 
+// Daily: email today's birthday people (idempotent — safe to run every tick).
+if (is_file(AV_ROOT . '/lib/people.php')) {
+    require_once AV_ROOT . '/lib/people.php';
+    if (function_exists('av_birthday_emails_run')) {
+        try { $result['birthdays'] = av_birthday_emails_run(Database::pdo()); }
+        catch (Throwable $e) { error_log('[cron] birthdays: ' . $e->getMessage()); }
+    }
+}
+
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }
 else { echo json_encode($result); }
 exit(0);
