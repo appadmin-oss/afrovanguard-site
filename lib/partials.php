@@ -168,7 +168,7 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
         ]],
-        // LEARN — the Academy platform (learning only; on-the-ground programmes live under Initiatives)
+        // LEARN — the Academy platform (learning only; on-the-ground programmes live under Projects)
         'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
@@ -181,10 +181,10 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
         ]],
-        // WHAT WE DO ON THE GROUND — flagship initiatives (distinct from Academy learning)
-        'projects' => ['label' => 'Initiatives', 'href' => '/projects/', 'mega' => [
+        // WHAT WE DO ON THE GROUND — flagship programmes (distinct from Academy learning)
+        'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
             'cols' => [
-                ['title' => 'Flagship initiatives', 'links' => [
+                ['title' => 'Flagship programmes', 'links' => [
                     ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
                     ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
                     ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/'],
@@ -192,10 +192,10 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'More', 'links' => [
                     ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All initiatives', '/projects/'],
+                    ['All projects', '/projects/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all initiatives'],
+            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all projects'],
         ]],
         // HOW TO HELP — one clear home for every conversion path
         'involved' => ['label' => 'Get involved', 'href' => '/donate.html', 'mega' => [
