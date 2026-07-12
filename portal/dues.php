@@ -36,15 +36,20 @@ if ($action === 'pay_init') {
     if (!Payments::configured('paystack')) json_out(['ok' => false, 'error' => 'Online payment is not available yet — please contact us to pay your dues.'], 503);
     if (!av_rate_ok('dues_pay_init', 12, 600)) json_out(['ok' => false, 'error' => 'Too many attempts — please try again shortly.'], 429);
 
-    $amountNgn = defined('AV_MEMBERSHIP_NGN') ? (int) AV_MEMBERSHIP_NGN : 5000;
+    // Period: monthly (₦1,000 · 1 month) or annual (₦12,000 · 12 months).
+    $period = (($body['period'] ?? 'year') === 'month') ? 'month' : 'year';
+    $months = $period === 'month' ? 1 : 12;
+    $amountNgn = $period === 'month'
+        ? (defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000)
+        : (defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000);
     if ($amountNgn <= 0) json_out(['ok' => false, 'error' => 'Dues are not payable online right now.'], 400);
 
     $reference = Payments::reference('membership');
-    $lms->createPayment((int) $u['id'], 'membership', null, $amountNgn * 100, $reference, 'paystack');
+    $lms->createPayment((int) $u['id'], 'membership', null, $amountNgn * 100, $reference, 'paystack', $months);
     // Reuse the academy return/webhook handler — it verifies server-side and
     // finalises membership idempotently (browser redirect AND Paystack webhook).
     $callback = rtrim(SITE_URL, '/') . '/academy/pay.php';
-    $meta = ['user_id' => (int) $u['id'], 'kind' => 'membership', 'source' => 'portal_dues', 'purpose' => 'Afrovanguard membership dues (annual)'];
+    $meta = ['user_id' => (int) $u['id'], 'kind' => 'membership', 'source' => 'portal_dues', 'purpose' => 'Afrovanguard membership dues (' . $period . ')'];
     $url = Payments::paystackInit((string) $u['email'], $amountNgn * 100, $reference, $callback, $meta);
     if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 502);
     json_out(['ok' => true, 'authorization_url' => $url, 'reference' => $reference]);

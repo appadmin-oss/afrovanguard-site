@@ -288,3 +288,8 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
   font-weight: 700; font-size: 17px; background: var(--afg-surface, var(--p-surface)); color: var(--afg-muted, var(--p-muted)); }
 .journey-ladder .jl.is-here .jl-badge { background: var(--afg-accent, var(--p-accent-2)); color: var(--afg-on-accent, #111827); }
 .journey-ladder .jl-label { font-size: 13px; font-weight: 600; color: var(--afg-ink, var(--p-ink)); line-height: 1.2; }
+
+/* Membership dues — monthly + annual actions */
+.dues-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.dues-note { margin-top: 8px; font-size: 13px; }
+.dues-note a { color: var(--afg-accent-ink, var(--p-accent)); font-weight: 600; text-decoration: none; }

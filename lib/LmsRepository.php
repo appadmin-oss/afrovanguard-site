@@ -260,10 +260,21 @@ final class LmsRepository
         $s->execute([$userId, $courseId]); return $s->fetch() ?: null;
     }
     /* ── Payments ── */
-    public function createPayment(int $userId, string $kind, ?int $courseId, int $amountKobo, string $reference, string $provider = 'paystack'): void
+    /** Idempotently ensure the payments.months column exists (added post-release). */
+    private static bool $monthsEnsured = false;
+    private function ensurePaymentsMonths(): void
     {
-        $this->db->prepare('INSERT INTO payments (reference, user_id, provider, kind, course_id, amount_kobo) VALUES (?,?,?,?,?,?)')
-            ->execute([$reference, $userId, $provider, $kind, $courseId, $amountKobo]);
+        if (self::$monthsEnsured) return;
+        self::$monthsEnsured = true;
+        try { $this->db->exec("ALTER TABLE payments ADD COLUMN months INTEGER NOT NULL DEFAULT 12"); }
+        catch (\Throwable $e) { /* column already present */ }
+    }
+
+    public function createPayment(int $userId, string $kind, ?int $courseId, int $amountKobo, string $reference, string $provider = 'paystack', int $months = 12): void
+    {
+        $this->ensurePaymentsMonths();
+        $this->db->prepare('INSERT INTO payments (reference, user_id, provider, kind, course_id, amount_kobo, months) VALUES (?,?,?,?,?,?,?)')
+            ->execute([$reference, $userId, $provider, $kind, $courseId, $amountKobo, max(1, $months)]);
     }
     public function paymentByRef(string $reference): ?array
     {
@@ -296,7 +307,7 @@ final class LmsRepository
                 if ($c) Notify::enrolled($user, $c);
             }
         } elseif ($p['kind'] === 'membership') {
-            $this->grantMembership((int) $p['user_id']);
+            $this->grantMembership((int) $p['user_id'], (int) ($p['months'] ?? 12) ?: 12);
             if ($user && class_exists('Notify')) Notify::membership($user);
         }
         return true;
@@ -334,7 +345,9 @@ final class LmsRepository
      */
     public function duesStatus(int $userId): array
     {
-        $amountNgn = defined('AV_MEMBERSHIP_NGN') ? (int) AV_MEMBERSHIP_NGN : 5000;
+        $annualNgn  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
+        $monthlyNgn = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+        $amountNgn = $annualNgn;
         $m = $this->latestMembership($userId);
         $paidThrough = $m['expires_at'] ?? null;
         $lifetime = $m && empty($paidThrough);
@@ -361,7 +374,9 @@ final class LmsRepository
         if ($row = $lp->fetch()) $lastPaid = $row['paid_at'] ?? null;
 
         return [
-            'amount_ngn'   => $amountNgn,
+            'amount_ngn'   => $amountNgn,        // annual (kept for back-compat)
+            'annual_ngn'   => $annualNgn,
+            'monthly_ngn'  => $monthlyNgn,
             'currency'     => 'NGN',
             'period'       => 'year',
             'state'        => $state,

@@ -9,8 +9,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 
-$MONTHLY = 1000;
-$ANNUAL  = 12000;
+$MONTHLY = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+$ANNUAL  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
 
 render_head([
     'title'     => 'How Afrovanguard Works — Progressive Growth & Member Alignment',

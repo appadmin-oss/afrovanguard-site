@@ -190,6 +190,11 @@ foreach (['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
 if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('AV_MEMBERSHIP_NGN', $v !== false && $v !== '' ? (int) $v : 5000); }
+// Membership DUES (the "How Afrovanguard Works" framework contribution) — distinct
+// from the Academy membership price above. Voluntary from Level A: ₦1,000/month
+// or ₦12,000/year (mandatory from Level C).
+if (!defined('AV_DUES_MONTHLY_NGN')) { $v = getenv('AV_DUES_MONTHLY_NGN'); define('AV_DUES_MONTHLY_NGN', $v !== false && $v !== '' ? (int) $v : 1000); }
+if (!defined('AV_DUES_ANNUAL_NGN'))  { $v = getenv('AV_DUES_ANNUAL_NGN');  define('AV_DUES_ANNUAL_NGN',  $v !== false && $v !== '' ? (int) $v : 12000); }
 // Google sign-in (config.php or env). Absent ⇒ the "Continue with Google" button stays disabled.
 foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }

@@ -93,7 +93,7 @@ final class AiKnowledge
         $lines[] = 'Membership progression (see /how-it-works): members grow by commitment, service and leadership — not length of membership. '
             . 'Level O (Foundation Member): pick a mentor, join programmes, complete a weekly task, live the values. '
             . 'Level A: introduce and mentor two committed members + consistent service; you then get an official Afrovanguard email, an accountability mentor and leadership opportunities. '
-            . 'Membership contribution from Level A is voluntary at ₦1,000/month or ₦12,000/year; from Level C upward, dues are mandatory. '
+            . 'Membership contribution from Level A is voluntary at ₦' . number_format(defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000) . '/month or ₦' . number_format(defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000) . '/year (pay or renew in the member Portal); from Level C upward, dues are mandatory. '
             . 'Servant-leadership culture: arrive early (30 min, or 2–3 hours for major events) and serve before attending.';
 
         // Academy programmes (title · access · path).

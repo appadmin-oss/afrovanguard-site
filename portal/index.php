@@ -262,7 +262,8 @@ render_head([
         </section>
 
 <?php if ($isOrg && $dues):
-        $duesAmt    = '₦' . number_format((int) $dues['amount_ngn']);
+        $duesAnnual  = '₦' . number_format((int) ($dues['annual_ngn'] ?? $dues['amount_ngn']));
+        $duesMonthly = '₦' . number_format((int) ($dues['monthly_ngn'] ?? 0));
         $duesPT     = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
         $duesDL     = $dues['days_left'];
         $duesState  = (string) $dues['state'];
@@ -285,14 +286,18 @@ render_head([
           <p class="portal-status-line">Back the mission with your annual membership dues.</p>
 <?php endif; ?>
           <dl class="profile-dl dues-dl">
-            <dt>Annual dues</dt><dd><strong><?= e($duesAmt) ?></strong> <span class="dues-per">/ year</span></dd>
+            <dt>Dues</dt><dd><strong><?= e($duesAnnual) ?></strong> <span class="dues-per">/ year</span> · <?= e($duesMonthly) ?> <span class="dues-per">/ month</span></dd>
 <?php if ($duesPT): ?>            <dt><?= $duesState === 'overdue' ? 'Lapsed' : 'Paid through' ?></dt><dd><?= e($duesPT) ?></dd>
 <?php endif; ?>          </dl>
 <?php if ($duesCanPay): ?>
-          <button type="button" class="btn <?= $duesState === 'active' ? 'btn-outline' : 'btn-primary' ?> btn-sm" data-dues-pay><?= $duesState === 'active' ? 'Renew early' : ($duesState === 'due_soon' ? 'Renew dues' : 'Pay dues') ?> — <?= e($duesAmt) ?></button>
+          <div class="dues-actions">
+            <button type="button" class="btn <?= $duesState === 'active' ? 'btn-outline' : 'btn-primary' ?> btn-sm" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?> — <?= e($duesAnnual) ?></button>
+            <button type="button" class="btn btn-outline btn-sm" data-dues-pay data-period="month">Pay a month — <?= e($duesMonthly) ?></button>
+          </div>
+          <p class="pc-summary dues-note"><a href="/how-it-works">How dues &amp; progression work →</a></p>
           <p class="enroll-msg dues-msg" hidden></p>
 <?php elseif (empty($dues['lifetime'])): ?>
-          <p class="pc-summary">Online dues payment isn’t available right now — <a href="mailto:cacentre@afrovanguard.org.ng">contact us</a> to pay.</p>
+          <p class="pc-summary">Online dues payment isn’t available right now — <a href="mailto:cacentre@afrovanguard.org.ng">contact us</a> to pay. <a href="/how-it-works">How dues work →</a></p>
 <?php endif; ?>
         </section>
 <?php endif; ?>
@@ -398,19 +403,24 @@ render_head([
   /* Membership dues — start a secure Paystack checkout for the annual fee. */
   (function () {
     var card = document.getElementById('duesCard'); if (!card) return;
-    var btn = card.querySelector('[data-dues-pay]'); if (!btn) return;
+    var btns = card.querySelectorAll('[data-dues-pay]'); if (!btns.length) return;
     var msg = card.querySelector('.dues-msg');
     function say(t) { if (msg) { msg.hidden = false; msg.textContent = t; } }
-    btn.addEventListener('click', function () {
-      btn.disabled = true; say('Starting secure checkout…');
-      fetch('/portal/dues.php?action=pay_init', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': card.getAttribute('data-csrf') || '' },
-        body: '{}'
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok && d.authorization_url) { window.location.href = d.authorization_url; return; }
-        btn.disabled = false; say((d && d.error) || 'Could not start payment. Please try again.');
-      }).catch(function () { btn.disabled = false; say('Network error — please try again.'); });
+    Array.prototype.forEach.call(btns, function (btn) {
+      btn.addEventListener('click', function () {
+        var period = btn.getAttribute('data-period') || 'year';
+        Array.prototype.forEach.call(btns, function (b) { b.disabled = true; });
+        say('Starting secure checkout…');
+        fetch('/portal/dues.php?action=pay_init', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': card.getAttribute('data-csrf') || '' },
+          body: JSON.stringify({ period: period })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok && d.authorization_url) { window.location.href = d.authorization_url; return; }
+          Array.prototype.forEach.call(btns, function (b) { b.disabled = false; });
+          say((d && d.error) || 'Could not start payment. Please try again.');
+        }).catch(function () { Array.prototype.forEach.call(btns, function (b) { b.disabled = false; }); say('Network error — please try again.'); });
+      });
     });
   })();
   </script>
