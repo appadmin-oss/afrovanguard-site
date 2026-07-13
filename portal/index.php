@@ -60,7 +60,8 @@ render_head([
         <span class="portal-tag"><?= e($tag) ?></span>
       </a>
       <nav class="portal-bar-actions" aria-label="Member navigation">
-        <a class="portal-bar-link" href="/academy/">Academy</a>
+<?php if ($isOrg): ?>        <a class="portal-bar-link" href="/workspace">Workspace</a>
+<?php endif; ?>        <a class="portal-bar-link" href="/academy/">Academy</a>
         <a class="portal-bar-link" href="/diary/me/">Diary</a>
         <button type="button" class="portal-icon-btn" id="portalTheme" aria-label="Switch theme" title="Light / dark">
           <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
@@ -153,7 +154,7 @@ render_head([
         <!-- Your Workspace — SSO launchpad into Google Workspace (members only) -->
         <section class="portal-card span-2 ws-hub">
           <div class="pc-head"><h2>Your Workspace</h2><span class="pc-tag ws-domain">@<?= e(av_workspace_domain()) ?></span></div>
-          <p class="pc-summary">You’re signed in with Google — jump straight into the Afrovanguard Workspace.</p>
+          <p class="pc-summary">You’re signed in with Google — jump straight into the Afrovanguard Workspace. <a href="/workspace" style="color:var(--afg-accent,#f3b416);font-weight:600;text-decoration:none;white-space:nowrap">Open the full Workspace →</a></p>
           <div class="ws-grid">
 <?php foreach ($wsSurfaces as $s): ?>
             <a class="ws-tile" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
