@@ -47,9 +47,14 @@ $duesCsrf = $dues ? av_csrf_token() : '';
 $journey = Levels::progress((int) $u['id']);
 // Upcoming mentorship sessions (with Meet links) for the portal schedule/calendar.
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
-// The portal has its OWN theme (dark by default, with a light toggle) — server-set
-// from a cookie so there's no flash.
-$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
+// The portal has its OWN light/dark theme, server-set from a cookie so there's
+// no flash. Light is the default. NOTE: the cookie key is intentionally NOT the
+// old "av_portal_theme" — that key was written by a previously-broken toggle
+// that never actually themed the page, so honouring it now would silently flip
+// long-standing members into dark ("the design changed"). Using a fresh key
+// means every member returns to the familiar light portal and dark is a clean,
+// deliberate opt-in from here on.
+$ptheme    = (($_COOKIE['av_portal_ui'] ?? 'light') === 'dark') ? 'dark' : 'light';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
 $pInitials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 
@@ -407,7 +412,9 @@ render_head([
     var btn = document.getElementById('portalTheme'); if (!btn) return;
     btn.addEventListener('click', function () {
       var dark = document.body.classList.toggle('is-dark');
-      document.cookie = 'av_portal_theme=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
+      document.cookie = 'av_portal_ui=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
+      // Clear the legacy key so a stale value can never re-flip the theme.
+      document.cookie = 'av_portal_theme=;path=/;max-age=0;samesite=Lax';
     });
   })();
   </script>
