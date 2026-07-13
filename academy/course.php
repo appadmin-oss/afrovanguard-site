@@ -48,6 +48,10 @@ $isMember = $user ? ($lms->isMember((int) $user['id']) || LmsAuth::isOrgMember($
 $hasAccess = $user && $lms->canAccess($user, $c, ['is_preview' => 0]);
 $price = (int) ($c['price_ngn'] ?? 0);
 $fmtNgn = fn(int $n) => '₦' . number_format($n);
+// Coursera-style trust signals for the hero.
+$enrolledCount  = $lms->enrolledCount((int) $c['id']);
+$instructorName = $lms->instructorName($c['instructor_id'] ?? null);
+$skills = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) ($c['outcomes'] ?? '')))));
 
 // Primary CTA target / label depends on access + progress.
 $resumeUrl = $firstLesson ? academy_url($c['slug'] . '/learn/' . $firstLesson) : '#enroll';
@@ -99,7 +103,14 @@ render_nav('academy');
             <div class="course-hero-copy">
               <p class="ac-hero-eyebrow"><?= e($c['category']) ?></p>
               <h1><?= e($c['title']) ?></h1>
+              <div class="course-partner"><span class="course-partner-mark" aria-hidden="true">A</span><span>Afrovanguard Academy<?= $instructorName ? ' · Taught by ' . e($instructorName) : '' ?></span></div>
               <p class="course-dek"><?= e($c['summary']) ?></p>
+              <div class="course-trust">
+<?php if ($enrolledCount > 0): ?>                <span class="course-trust-item"><strong><?= number_format($enrolledCount) ?></strong> already enrolled</span>
+<?php else: ?>                <span class="course-trust-item course-trust-new">New programme — be among the first</span>
+<?php endif; ?>
+                <span class="course-trust-item"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 22l5-3 5 3-1.21-8.11"/></svg> Certificate on completion</span>
+              </div>
               <div class="course-badges">
                 <span class="cb"><?= e($c['level']) ?></span>
                 <span class="cb"><?= e($c['format']) ?></span>
@@ -147,6 +158,48 @@ render_nav('academy');
 <?php endif; ?>
               <div class="article-body course-about">
 <?= $c['body_html'] ?>
+              </div>
+
+<?php if ($skills): ?>
+              <div class="skills-card">
+                <h2>Skills you'll gain</h2>
+                <div class="skills-tags">
+<?php foreach ($skills as $sk): ?>                  <span class="skill-tag"><?= e($sk) ?></span>
+<?php endforeach; ?>
+                </div>
+              </div>
+<?php endif; ?>
+
+              <div class="instructor-card">
+                <h2>Your instructor</h2>
+                <div class="instructor-row">
+                  <span class="instructor-avatar" aria-hidden="true"><?= e(mb_substr($instructorName ?: 'Afrovanguard', 0, 1)) ?></span>
+                  <div class="instructor-info">
+                    <span class="instructor-name"><?= e($instructorName ?: 'The Afrovanguard Academy Faculty') ?></span>
+                    <span class="instructor-role"><?= $instructorName ? 'Programme instructor · Afrovanguard Academy' : 'Practitioners and mentors raising one million incorruptible leaders' ?></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="faq-card">
+                <h2>Frequently asked questions</h2>
+<?php
+                $faqs = [
+                    ['Do I earn a certificate?', 'Yes. Complete every lesson to earn a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.'],
+                    ['How much does it cost?', $access === 'paid'
+                        ? 'This programme is ' . ($price > 0 ? $fmtNgn($price) . ' (one-time)' : 'paid') . '. Academy members get it included — see membership.'
+                        : ($access === 'membership'
+                            ? 'This is a members’ programme, unlocked by Academy membership (' . $fmtNgn((int) AV_MEMBERSHIP_NGN) . '/year).'
+                            : 'This programme is free. ' . ($access === 'tracked' ? 'Create a free account to save your progress and earn your certificate.' : 'You can start straight away.'))],
+                    ['How long does it take?', ($c['duration'] ? 'About ' . $c['duration'] . '. ' : '') . 'It’s self-paced' . ($lessonTotal ? ' across ' . $lessonTotal . ' lesson' . ($lessonTotal === 1 ? '' : 's') : '') . ', so you can learn on your own schedule.'],
+                    ['Do I need any prior experience?', 'This programme is pitched at ' . strtolower((string) $c['level']) . '. Come curious and ready to build — we take it step by step.'],
+                ];
+                foreach ($faqs as $fi => $f): ?>
+                <details class="faq-item"<?= $fi === 0 ? ' open' : '' ?>>
+                  <summary><?= e($f[0]) ?><span class="faq-ico" aria-hidden="true"></span></summary>
+                  <p><?= e(str_replace('’', '’', $f[1])) ?></p>
+                </details>
+<?php endforeach; ?>
               </div>
             </section>
 
