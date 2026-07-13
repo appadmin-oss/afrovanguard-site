@@ -74,7 +74,52 @@ A nightly cron keeps members in sync:
 - **Members** — `tools/gws-sync.php users` (or the cron) upserts every active
   directory user into the LMS as a verified member, by email. Idempotent.
 
+## Enterprise: per-user Workspace (the site acts AS each member)
+
+The service account above is ONE shared identity. For a true Workspace platform,
+each member connects **their own** Google account so the site reads and acts on
+*their* Gmail, Calendar and Drive (`lib/GoogleWorkspaceUser.php`).
+
+- **Connect:** a member visits `/auth/google/connect` (a button on `/workspace`).
+  This is incremental authorization — separate from normal sign-in — requesting
+  offline access to the scopes in `AV_GWS_USER_SCOPES` (default: `gmail.readonly`,
+  `calendar`, `drive.readonly`). It uses the **same OAuth client**
+  (`AV_GOOGLE_CLIENT_ID/SECRET`); add these scopes on the OAuth consent screen.
+- **Storage:** one row per user in `google_connections`. **Refresh tokens are
+  encrypted at rest** (libsodium secretbox keyed off `APP_KEY` — set a strong
+  `APP_KEY`!). Access tokens are cached with their expiry and auto-refreshed.
+- **Disconnect:** `/auth/google/disconnect` (POST + CSRF) revokes the token with
+  Google and forgets it.
+- On `/workspace`, a connected member sees their live Inbox (with unread count),
+  upcoming calendar and recent Drive files.
+
+## Enterprise: real-time push + automation
+
+- **Real-time:** `lib/GoogleWatch.php` registers Calendar/Drive *watch* channels
+  so Google POSTs to `/webhooks/google` (`webhooks/google.php`) on every change —
+  no polling. The receiver validates the channel id + token against
+  `google_channels` and emits `workspace.calendar_changed` / `.drive_changed`.
+  Manage channels with `tools/gws-watch.php`:
+
+  ```
+  php tools/gws-watch.php start <userId>   # calendar + drive channels
+  php tools/gws-watch.php renew            # renew those expiring soon (cron)
+  php tools/gws-watch.php stop  <userId>
+  php tools/gws-watch.php list
+  ```
+
+  Going live requires a **public https** webhook (`SITE_URL`, or override with
+  `AV_WS_WEBHOOK_URL`) and a **push domain verified** in Google Search Console.
+  Until then it's inert. Enable channel creation on connect with `AV_WS_WATCH=1`.
+
+- **Automation:** `lib/AvAutomation.php` turns events into actions:
+  - `workspace.connected` → one-shot onboarding event on the member's calendar
+    (`AV_WS_ONBOARDING=1`, default on) + start watch channels (`AV_WS_WATCH`).
+  - `workspace.disconnected` → stop the member's watch channels.
+  - `workspace.calendar_changed` / `.drive_changed` → real-time hook points.
+
 ## Testing without live Google
 
-`AV_WS_BASE_URL` and `AV_WS_TOKEN_URL` override the Google endpoints so the
-client can be pointed at a mock server in tests. Leave both blank in production.
+`AV_WS_BASE_URL`, `AV_WS_TOKEN_URL`, `AV_WS_REVOKE_URL` and `AV_WS_WEBHOOK_URL`
+override the Google endpoints so the clients can be pointed at a mock server in
+tests. Leave them blank in production.

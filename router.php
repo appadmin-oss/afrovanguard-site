@@ -52,6 +52,9 @@ if (preg_match('~^/login/?$~', $uri)) { require __DIR__ . '/login/index.php'; re
 // Google sign-in endpoints (real /auth/ folder in prod; routed here for dev).
 if (preg_match('~^/auth/google/(start|callback|connect|disconnect)/?$~', $uri, $m)) { $_GET['action'] = $m[1]; require __DIR__ . '/auth/google.php'; return true; }
 
+// Google real-time push receiver (Calendar/Drive watch channels).
+if (preg_match('~^/webhooks/google/?$~', $uri)) { require __DIR__ . '/webhooks/google.php'; return true; }
+
 // Member portal (real /portal/ folder in prod; routed here for dev).
 if (preg_match('~^/portal/?$~', $uri)) { require __DIR__ . '/portal/index.php'; return true; }
 

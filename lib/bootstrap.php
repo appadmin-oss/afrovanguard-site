@@ -253,6 +253,8 @@ require_once __DIR__ . '/Cloudinary.php';
 require_once __DIR__ . '/Drive.php';
 require_once __DIR__ . '/GoogleWorkspace.php';
 require_once __DIR__ . '/GoogleWorkspaceUser.php';
+require_once __DIR__ . '/GoogleWatch.php';
+require_once __DIR__ . '/AvAutomation.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
@@ -267,6 +269,8 @@ av_harden_errors();
 AiKnowledge::boot();
 // Membership progression: capture referrals on sign-up.
 Levels::boot();
+// Workspace automation: subscribe event handlers (onboarding, real-time, etc.).
+AvAutomation::register();
 
 // Referral links (/…?ref=<memberId>) drop a short-lived cookie that is consumed
 // when the invited person creates their account (see Levels::boot()).

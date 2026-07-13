@@ -200,13 +200,17 @@ final class GoogleWorkspaceUser
     public static function disconnect(int $uid): void
     {
         $r = self::rawRow($uid);
-        if ($r) {
-            // Best-effort remote revoke of the refresh token.
-            $rt = self::dec((string) $r['refresh_token']);
-            if ($rt) { try { self::post(self::revokeUrl(), ['token' => $rt]); } catch (Throwable $e) {} }
-            Database::pdo()->prepare('DELETE FROM google_connections WHERE user_id = ?')->execute([$uid]);
+        if (!$r) {
+            if (class_exists('Events')) { try { Events::emit('workspace.disconnected', ['user_id' => $uid]); } catch (Throwable $e) {} }
+            return;
         }
+        // Emit FIRST — while the token still works — so listeners can act on the
+        // live account (e.g. AvAutomation stops the watch channels remotely).
         if (class_exists('Events')) { try { Events::emit('workspace.disconnected', ['user_id' => $uid]); } catch (Throwable $e) {} }
+        // Best-effort remote revoke of the refresh token, then forget it.
+        $rt = self::dec((string) $r['refresh_token']);
+        if ($rt) { try { self::post(self::revokeUrl(), ['token' => $rt]); } catch (Throwable $e) {} }
+        Database::pdo()->prepare('DELETE FROM google_connections WHERE user_id = ?')->execute([$uid]);
     }
 
     /** A valid access token for this user, refreshing via the refresh token if needed. */
