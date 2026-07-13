@@ -140,7 +140,7 @@ render_nav('about');
           <span class="hiw-badge" aria-hidden="true">C</span>
           <p class="hiw-kicker">Toward leadership</p>
           <h2>Level&nbsp;C and beyond</h2>
-          <p>As members ascend, dues become a non-negotiable responsibility of leadership and servant-leadership — the ego filter (below) — becomes the standard. Advancement remains earned, never granted.</p>
+          <p>As members ascend, dues become a non-negotiable responsibility of leadership and servant-leadership — the ego filter (below) — becomes the standard. Advancement remains earned, never granted. Level&nbsp;C leaders who demonstrate leadership multiplication qualify to <a href="/franchise">establish a CACENTRE</a> and carry the model into new communities.</p>
         </li>
       </ol>
 
@@ -175,6 +175,7 @@ render_nav('about');
       <div class="hiw-cta">
         <a class="hiw-btn hiw-btn-primary" href="/portal/">Go to your portal</a>
         <a class="hiw-btn hiw-btn-ghost" href="/mentorship/">Find a mentor</a>
+        <a class="hiw-btn hiw-btn-ghost" href="/franchise">Franchise a CACENTRE</a>
         <a class="hiw-btn hiw-btn-ghost" href="/academy/#membership">Become a member</a>
       </div>
     </div>
