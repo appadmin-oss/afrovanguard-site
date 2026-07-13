@@ -77,13 +77,21 @@ function ac_course_card(array $c, array $opts = []): void
 <?php if (!$cover): ?>            <span class="ac-mark"><?= e($c['title']) ?></span>
 <?php endif; ?>          </a>
           <div class="ac-body">
+            <div class="ac-partner"><span class="ac-partner-mark" aria-hidden="true">A</span><span class="ac-partner-name">Afrovanguard Academy</span></div>
             <a class="ac-title" href="<?= $url ?>"><?= e($c['title']) ?></a>
             <p class="ac-summary"><?= e($c['summary']) ?></p>
+<?php
+            $enrolled = (int) ($opts['enrolled'] ?? 0);
+            $skills = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) ($c['outcomes'] ?? ''))))); // "What you'll learn" lines
+?>
+<?php if ($skills): ?>
+            <p class="ac-skills"><span class="ac-skills-lbl">Skills you'll build</span> <?= e(implode(' · ', array_slice($skills, 0, 3))) ?></p>
+<?php endif; ?>
             <div class="ac-meta">
               <span class="ac-meta-item" title="Level"><?= e($c['level']) ?></span>
-<?php if (!empty($c['duration'])): ?>              <span class="ac-meta-item" title="Duration"><?= e($c['duration']) ?></span>
+<?php if (!empty($c['duration'])): ?>              <span class="ac-dot" aria-hidden="true">·</span><span class="ac-meta-item" title="Duration"><?= e($c['duration']) ?></span>
 <?php endif; ?>
-<?php if ($lessons): ?>              <span class="ac-meta-item" title="Lessons"><?= $lessons ?> lesson<?= $lessons === 1 ? '' : 's' ?></span>
+<?php if ($lessons): ?>              <span class="ac-dot" aria-hidden="true">·</span><span class="ac-meta-item" title="Lessons"><?= $lessons ?> lesson<?= $lessons === 1 ? '' : 's' ?></span>
 <?php endif; ?>            </div>
 <?php if (($state === 'continue' || $state === 'enrolled' || $state === 'done') && $lessons): ?>
             <div class="ac-progress" aria-label="<?= $pct ?>% complete">
@@ -91,6 +99,12 @@ function ac_course_card(array $c, array $opts = []): void
               <span class="ac-progress-pct"><?= $pct ?>%</span>
             </div>
 <?php endif; ?>
+            <div class="ac-trust">
+<?php if ($enrolled > 0): ?>              <span class="ac-trust-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> <?= number_format($enrolled) ?> enrolled</span>
+<?php else: ?>              <span class="ac-trust-item ac-trust-new">New programme</span>
+<?php endif; ?>
+              <span class="ac-trust-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 22l5-3 5 3-1.21-8.11"/></svg> Certificate</span>
+            </div>
             <div class="ac-foot">
               <span class="ac-price ac-price-<?= e($am['cls']) ?>"><?= e(ac_price_label($c)) ?></span>
               <a class="ac-link" href="<?= $url ?>"><?= e($cta) ?> →</a>
@@ -109,7 +123,7 @@ function ac_decorate_courses(array $courses, LmsRepository $lms, ?array $user): 
     foreach ($courses as $c) {
         $id = (int) $c['id'];
         $lessons = $lms->lessonCount($id);
-        $opt = ['lessons' => $lessons];
+        $opt = ['lessons' => $lessons, 'enrolled' => $lms->enrolledCount($id)];
         if ($user && $lessons) {
             $access = $c['access_type'] ?? 'open';
             // "Enrolled" = explicit paid enrolment, OR any access where the

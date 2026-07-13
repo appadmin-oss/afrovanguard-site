@@ -75,6 +75,13 @@ final class LmsRepository
         $s->execute([$userId, $courseId]);
         return (bool) $s->fetchColumn();
     }
+    /** Enrolled-learner count for a course (catalogue social proof). */
+    public function enrolledCount(int $courseId): int
+    {
+        $s = $this->db->prepare('SELECT COUNT(*) FROM course_enrolment WHERE course_id = ?');
+        $s->execute([$courseId]);
+        return (int) $s->fetchColumn();
+    }
     public function enrol(int $userId, int $courseId): void
     {
         $st = $this->db->prepare(Database::insertIgnore('course_enrolment', ['user_id', 'course_id']));

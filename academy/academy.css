@@ -101,8 +101,24 @@ body.academy .ac-hero h1 {
 .ac-title { font-family: var(--font-body); font-weight: 800; font-size: 20px; line-height: 1.25; color: var(--ink); }
 .ac-card:hover .ac-title { color: var(--gold-deep); }
 .ac-summary { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 10px 0 14px; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ac-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 14px; }
-.ac-meta-item { display: inline-flex; align-items: center; padding: 4px 10px; background: var(--surface-2); border-radius: var(--radius-full); }
+.ac-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+.ac-meta-item { display: inline-flex; align-items: center; }
+.ac-dot { color: var(--divider); font-weight: 800; }
+
+/* partner / brand row (Coursera-style "institution" line) */
+.ac-partner { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.ac-partner-mark { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--ink-2); color: var(--gold); font-family: var(--font-heading); font-weight: 700; font-size: 13px; }
+.ac-partner-name { color: var(--body); }
+
+/* skills-you'll-build line */
+.ac-skills { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 0 0 12px; }
+.ac-skills-lbl { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold-deep); margin-bottom: 2px; }
+
+/* trust row: enrolled count + certificate */
+.ac-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.ac-trust-item { display: inline-flex; align-items: center; gap: 5px; }
+.ac-trust-item svg { color: var(--gold-deep); }
+.ac-trust-new { color: var(--gold-deep); font-weight: 800; }
 .ac-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
 .ac-progress-bar { flex: 1; height: 6px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
 .ac-progress-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-dark)); }

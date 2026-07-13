@@ -9,7 +9,7 @@ final class AcademyRepository
     private PDO $db;
     public function __construct(?PDO $pdo = null) { $this->db = $pdo ?? Database::pdo(); }
 
-    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort';
+    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn';
 
     public function all(): array
     {

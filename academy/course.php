@@ -306,7 +306,7 @@ render_nav('academy');
           <h2>More programmes</h2>
           <section class="ac-grid">
 <?php foreach ($others as $o): ?>
-<?php ac_course_card($o, ['lessons' => $lms->lessonCount((int) $o['id'])]); ?>
+<?php ac_course_card($o, ['lessons' => $lms->lessonCount((int) $o['id']), 'enrolled' => $lms->enrolledCount((int) $o['id'])]); ?>
 <?php endforeach; ?>
           </section>
         </div>
