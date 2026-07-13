@@ -80,13 +80,7 @@ function ac_course_card(array $c, array $opts = []): void
             <div class="ac-partner"><span class="ac-partner-mark" aria-hidden="true">A</span><span class="ac-partner-name">Afrovanguard Academy</span></div>
             <a class="ac-title" href="<?= $url ?>"><?= e($c['title']) ?></a>
             <p class="ac-summary"><?= e($c['summary']) ?></p>
-<?php
-            $enrolled = (int) ($opts['enrolled'] ?? 0);
-            $skills = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) ($c['outcomes'] ?? ''))))); // "What you'll learn" lines
-?>
-<?php if ($skills): ?>
-            <p class="ac-skills"><span class="ac-skills-lbl">Skills you'll build</span> <?= e(implode(' · ', array_slice($skills, 0, 3))) ?></p>
-<?php endif; ?>
+<?php $enrolled = (int) ($opts['enrolled'] ?? 0); ?>
             <div class="ac-meta">
               <span class="ac-meta-item" title="Level"><?= e($c['level']) ?></span>
 <?php if (!empty($c['duration'])): ?>              <span class="ac-dot" aria-hidden="true">·</span><span class="ac-meta-item" title="Duration"><?= e($c['duration']) ?></span>

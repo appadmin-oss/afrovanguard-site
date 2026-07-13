@@ -51,7 +51,6 @@ $fmtNgn = fn(int $n) => '₦' . number_format($n);
 // Coursera-style trust signals for the hero.
 $enrolledCount  = $lms->enrolledCount((int) $c['id']);
 $instructorName = $lms->instructorName($c['instructor_id'] ?? null);
-$skills = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', (string) ($c['outcomes'] ?? '')))));
 
 // Primary CTA target / label depends on access + progress.
 $resumeUrl = $firstLesson ? academy_url($c['slug'] . '/learn/' . $firstLesson) : '#enroll';
@@ -159,16 +158,6 @@ render_nav('academy');
               <div class="article-body course-about">
 <?= $c['body_html'] ?>
               </div>
-
-<?php if ($skills): ?>
-              <div class="skills-card">
-                <h2>Skills you'll gain</h2>
-                <div class="skills-tags">
-<?php foreach ($skills as $sk): ?>                  <span class="skill-tag"><?= e($sk) ?></span>
-<?php endforeach; ?>
-                </div>
-              </div>
-<?php endif; ?>
 
               <div class="instructor-card">
                 <h2>Your instructor</h2>

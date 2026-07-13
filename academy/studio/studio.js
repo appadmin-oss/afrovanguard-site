@@ -214,6 +214,12 @@
       renderCurriculum(sel.value || (courses[0] && courses[0].slug));
     });
   }
+  // Lesson-type badge (mirrors the learner-side video/reading/quiz cue).
+  function lesTypeBadge(t) {
+    var m = { video: ['▶', 'Video', 'video'], quiz: ['✓', 'Quiz', 'quiz'], reading: ['≡', 'Reading', 'reading'] };
+    var x = m[t] || m.reading;
+    return '<span class="les-type t-' + x[2] + '" title="' + x[1] + '">' + x[0] + ' ' + x[1] + '</span>';
+  }
   function renderCurriculum(slug) {
     curCourseSlug = slug;
     var wrap = $('#curriculum');
@@ -223,11 +229,17 @@
       if (!d || !d.ok) { wrap.innerHTML = '<p class="empty">' + esc((d && d.error) || 'Could not load.') + '</p>'; return; }
       var mods = (d.modules || []).map(function (m) { m.id = +m.id; (m.lessons || []).forEach(function (l) { l.id = +l.id; }); return m; });
       $('#curHint').textContent = mods.length + ' module' + (mods.length === 1 ? '' : 's');
+      // Curriculum summary (author overview): modules · lessons · runtime
+      var totalLessons = 0, totalMin = 0;
+      mods.forEach(function (m) { (m.lessons || []).forEach(function (l) { totalLessons++; totalMin += (+l.duration_min || 0); }); });
+      $('#curHint').textContent = mods.length + ' module' + (mods.length === 1 ? '' : 's')
+        + ' · ' + totalLessons + ' lesson' + (totalLessons === 1 ? '' : 's') + (totalMin ? ' · ' + totalMin + ' min' : '');
       var html = mods.map(function (m, mi) {
         var lessons = (m.lessons || []).map(function (l, li) {
           return '<li class="les">'
             + '<button class="btn btn-ghost btn-sm les-mv" data-lup="' + l.id + '" data-mod="' + m.id + '" title="Move up"' + (li === 0 ? ' disabled' : '') + '>▲</button>'
             + '<button class="btn btn-ghost btn-sm les-mv" data-ldn="' + l.id + '" data-mod="' + m.id + '" title="Move down"' + (li === m.lessons.length - 1 ? ' disabled' : '') + '>▼</button>'
+            + lesTypeBadge(l.type)
             + '<span class="les-title">' + esc(l.title) + '</span>'
             + '<span class="les-tags">' + (l.is_preview && l.is_preview != '0' ? '<span class="badge cert">preview</span>' : '')
             + '<span class="badge access">' + esc(l.duration_min || 0) + ' min</span></span>'

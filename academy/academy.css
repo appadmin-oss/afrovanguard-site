@@ -110,10 +110,6 @@ body.academy .ac-hero h1 {
 .ac-partner-mark { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--ink-2); color: var(--gold); font-family: var(--font-heading); font-weight: 700; font-size: 13px; }
 .ac-partner-name { color: var(--body); }
 
-/* skills-you'll-build line */
-.ac-skills { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 0 0 12px; }
-.ac-skills-lbl { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold-deep); margin-bottom: 2px; }
-
 /* trust row: enrolled count + certificate */
 .ac-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .ac-trust-item { display: inline-flex; align-items: center; gap: 5px; }
@@ -190,12 +186,6 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .course-about { font-size: 17px; }
 .course-about h2 { font-family: var(--font-heading); font-size: clamp(24px, 3vw, 34px); margin: 36px 0 16px; }
 .course-about h2:first-child { margin-top: 0; }
-
-/* skills-you'll-gain tags */
-.skills-card { margin: 32px 0 0; }
-.skills-card h2 { font-family: var(--font-heading); font-weight: 700; font-size: clamp(22px, 2.6vw, 28px); margin: 0 0 16px; color: var(--ink); }
-.skills-tags { display: flex; flex-wrap: wrap; gap: 10px; }
-.skill-tag { font-size: 13.5px; font-weight: 700; color: var(--body); background: var(--surface); border: 1px solid var(--divider); padding: 8px 15px; border-radius: var(--radius-full); }
 
 /* instructor section */
 .instructor-card { margin: 36px 0 0; padding-top: 32px; border-top: 1px solid var(--divider); }
