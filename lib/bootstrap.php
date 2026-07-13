@@ -257,6 +257,7 @@ require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
 require_once __DIR__ . '/AiKnowledge.php';
 require_once __DIR__ . '/Levels.php';
+require_once __DIR__ . '/ErrorPoem.php';
 
 av_harden_errors();
 

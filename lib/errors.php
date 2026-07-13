@@ -46,6 +46,12 @@ function av_error_render(int $code): void {
     $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : 'https://afrovanguard.org.ng';
     $esc = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     $illoDir = '/assets/illustrations/';
+    // A short poem "for the moment" — Claude-written when configured, curated
+    // otherwise. Never touches the network here (pick() reads a cache); fresh
+    // verses are generated in the background after the response is sent.
+    $poemLines = [];
+    try { if (class_exists('ErrorPoem')) { $p = ErrorPoem::pick($code, $mood); $poemLines = $p['lines'] ?? []; } }
+    catch (\Throwable $e) { $poemLines = []; }
     ?><!DOCTYPE html>
 <html lang="en-NG" data-mood="<?= $esc($mood) ?>">
 <head>
@@ -77,7 +83,9 @@ a{color:inherit;text-decoration:none}
 .err-illo .fallback .lbl{font-weight:800;letter-spacing:.18em;text-transform:uppercase;font-size:12px;opacity:.9}
 .err-code{font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-size:13px;margin-bottom:14px}
 .err-title{font-family:'Cormorant',Georgia,serif;font-size:clamp(40px,7vw,72px);line-height:1.02;margin:0 0 16px}
-.err-msg{color:var(--muted);font-size:clamp(16px,1.6vw,19px);line-height:1.6;max-width:46ch;margin:0 0 28px}
+.err-msg{color:var(--muted);font-size:clamp(16px,1.6vw,19px);line-height:1.6;max-width:46ch;margin:0 0 24px}
+.err-poem{margin:0 0 28px;padding:2px 0 2px 18px;border-left:2px solid var(--accent);max-width:46ch}
+.err-poem p{font-family:'Cormorant',Georgia,serif;font-style:italic;font-size:clamp(18px,2vw,22px);line-height:1.5;color:var(--ink);margin:0;opacity:.9}
 .err-actions{display:flex;flex-wrap:wrap;gap:12px}
 .btn{display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;letter-spacing:.02em;
  padding:14px 26px;border-radius:9999px;border:2px solid transparent;cursor:pointer;transition:transform .15s,background .15s}
@@ -97,6 +105,11 @@ a{color:inherit;text-decoration:none}
       <div class="err-code">Error <?= $code ?></div>
       <h1 class="err-title"><?= $esc($title) ?></h1>
       <p class="err-msg"><?= $esc($msg) ?></p>
+<?php if ($poemLines): ?>
+      <div class="err-poem" role="note" aria-label="A verse for the moment">
+        <p><?php foreach ($poemLines as $i => $ln) { echo ($i ? '<br>' : '') . $esc($ln); } ?></p>
+      </div>
+<?php endif; ?>
       <div class="err-actions">
         <a class="btn btn-primary" href="<?= $esc($site) ?>/">Back home</a>
         <a class="btn btn-outline" href="/diary/">The Diary</a>
@@ -116,4 +129,13 @@ a{color:inherit;text-decoration:none}
 <footer class="err-foot">&copy; <?= date('Y') ?> Afrovanguard · <a href="<?= $esc($site) ?>/contact/">Contact us</a> · Raising one million incorruptible leaders for Africa.</footer>
 </body>
 </html><?php
+    // Generate a fresh Claude poem for NEXT time — only after the response has
+    // been flushed to the client, so the error page never waits on the network.
+    // Needs php-fpm's fastcgi_finish_request(); otherwise we skip (a cron can
+    // warm the cache via tools/warm-error-poems.php).
+    if (class_exists('ErrorPoem') && function_exists('fastcgi_finish_request')) {
+        @ob_end_flush();
+        @fastcgi_finish_request();
+        try { ErrorPoem::maybeRefresh($mood); } catch (\Throwable $e) { /* best-effort */ }
+    }
 }
