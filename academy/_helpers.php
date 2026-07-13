@@ -74,8 +74,7 @@ function ac_course_card(array $c, array $opts = []): void
 <?php if ($state === 'done'): ?>            <span class="ac-state ac-state-done">✓ Completed</span>
 <?php elseif ($state === 'continue' || $state === 'enrolled'): ?>            <span class="ac-state ac-state-go">In progress</span>
 <?php endif; ?>
-<?php if (!$cover): ?>            <span class="ac-mark"><?= e($c['title']) ?></span>
-<?php endif; ?>          </a>
+          </a>
           <div class="ac-body">
             <a class="ac-title" href="<?= $url ?>"><?= e($c['title']) ?></a>
             <p class="ac-summary"><?= e($c['summary']) ?></p>
