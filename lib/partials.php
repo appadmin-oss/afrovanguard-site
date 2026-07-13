@@ -165,6 +165,7 @@ function av_nav_model(): array {
                 ['title' => 'The organisation', 'links' => [
                     ['About us', '/about.html'], ['How it works', '/how-it-works'],
                     ['Our ethos', '/ethos/'], ['Leadership & model', '/ethos/#leadership'],
+                    ['Franchise a CACENTRE', '/franchise'],
                 ]],
                 ['title' => 'Connect', 'links' => [
                     ['Contact us', '/contact.html'], ['The Diary', '/diary/'], ['Events', AV_EVENTS_URL],
@@ -585,6 +586,7 @@ function av_footer_inner(): void {
             <li><a href="/ethos/">Our Ethos</a></li>
             <li><a href="/academy/">Academy</a></li>
             <li><a href="<?= $S ?>/projects/">Projects</a></li>
+            <li><a href="/franchise">Franchise</a></li>
             <li><a href="/diary/">The Diary</a></li>
             <li><a href="<?= e(AV_EVENTS_URL) ?>">Events</a></li>
             <li><a href="<?= e(AV_VOLUNTEER_URL) ?>">Volunteer</a></li>
