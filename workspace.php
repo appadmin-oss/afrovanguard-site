@@ -27,6 +27,9 @@ if (!$u) { header('Location: ' . av_login_url('/workspace')); exit; }
 $isOrg      = LmsAuth::isOrgMember($u);
 $isAdmin    = LmsAuth::atLeast($u, 'admin');
 $wsConfig   = GoogleWorkspace::configured();
+$oauthOn    = GoogleWorkspaceUser::configured();               // per-user connect available?
+$meConn     = $oauthOn && GoogleWorkspaceUser::connected((int) $u['id']);
+$discCsrf   = $oauthOn ? av_csrf_token() : '';
 $domain     = av_workspace_domain();
 $surfaces   = av_workspace_surfaces($isAdmin);
 $comms      = $isOrg ? av_workspace_communities() : [];
@@ -138,8 +141,31 @@ render_head([
   .ws-app .t{display:block;font-weight:600;font-size:15px;line-height:1.2}
   .ws-app .d{display:block;font-size:12px;color:var(--ws-muted);margin-top:3px;line-height:1.3;overflow-wrap:anywhere}
 
+  /* connect card */
+  .ws-connect{display:flex;align-items:center;gap:18px;background:var(--ws-surface);border:1px solid var(--ws-line);
+    border-radius:18px;padding:22px 24px;flex-wrap:wrap}
+  .ws-connect-ico{width:52px;height:52px;border-radius:14px;background:var(--ws-surface-2);color:var(--ws-accent);
+    display:flex;align-items:center;justify-content:center;flex:none}
+  .ws-connect-body{flex:1;min-width:240px}
+  .ws-connect-body h2{font-size:18px;margin:0 0 4px;color:var(--ws-ink);font-weight:700}
+  .ws-connect-body p{margin:0;color:var(--ws-muted);font-size:14px;line-height:1.55;max-width:64ch}
+  .ws-connect-body strong{color:var(--ws-ink)}
+  .ws-connect-btn{display:inline-flex;align-items:center;gap:9px;background:var(--ws-accent);color:var(--ws-on-accent);
+    font-weight:700;font-size:14px;padding:13px 20px;border-radius:12px;text-decoration:none;transition:transform .12s}
+  .ws-connect-btn:hover{transform:translateY(-1px)}
+  .ws-mine-acct{display:inline-flex;align-items:center;gap:8px;color:var(--ws-muted);font-size:12px}
+  .ws-mine-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex:none;box-shadow:0 0 0 3px rgba(34,197,94,.18)}
+  .ws-disc{background:none;border:0;color:var(--ws-muted);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;padding:0}
+  .ws-disc:hover{color:var(--ws-ink)}
+  .ws-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;
+    border-radius:999px;background:var(--ws-accent);color:var(--ws-on-accent);font-size:11px;font-weight:800;margin-left:6px;vertical-align:middle}
+  .ws-li.is-unread .ttl{font-weight:800}
+  .ws-li .snip{font-size:12px;color:var(--ws-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
   /* two-col panels */
   .ws-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .ws-cols-3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:900px){.ws-cols-3{grid-template-columns:1fr}}
   .ws-card{background:var(--ws-surface);border:1px solid var(--ws-line);border-radius:18px;padding:18px 18px 8px}
   .ws-card .ws-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
   .ws-card h3{font-size:15px;margin:0;font-weight:700;color:var(--ws-ink)}
@@ -255,6 +281,43 @@ render_head([
       </a>
     </div>
   </section>
+
+<?php if ($oauthOn): ?>
+  <!-- PER-USER: the member's OWN connected Google Workspace -->
+  <section class="ws-sec" id="wsMine" data-connected="<?= $meConn ? '1' : '0' ?>">
+<?php if (!$meConn): ?>
+    <div class="ws-connect">
+      <div class="ws-connect-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <div class="ws-connect-body">
+        <h2>Connect your Google Workspace</h2>
+        <p>Bring your own <strong>Gmail, Calendar and Drive</strong> into this hub. You'll sign in with Google once and grant access — you can disconnect any time. Your data is read on demand and never shared.</p>
+      </div>
+      <a class="ws-connect-btn" href="/auth/google/connect?next=/workspace">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 11v2h5.5c-.2 1.3-1.6 3.9-5.5 3.9A6 6 0 1112 6c1.7 0 2.8.7 3.5 1.3l2-1.9C16.2 4.1 14.3 3.2 12 3.2A8.8 8.8 0 1012 21c5.1 0 8.5-3.6 8.5-8.7 0-.6 0-1-.1-1.4z"/></svg>
+        Connect Google
+      </a>
+    </div>
+<?php else: ?>
+    <div class="ws-sec-head"><h2>Your Google Workspace</h2>
+      <span class="ws-mine-acct"><span class="ws-mine-dot" title="Connected"></span><?= e($email) ?> · <form method="post" action="/auth/google/disconnect" style="display:inline" onsubmit="return confirm('Disconnect your Google Workspace from this site?')"><input type="hidden" name="csrf" value="<?= e($discCsrf) ?>"><button type="submit" class="ws-disc">Disconnect</button></form></span>
+    </div>
+    <div class="ws-cols ws-cols-3">
+      <div class="ws-card">
+        <div class="ws-card-head"><h3>Inbox <span class="ws-badge" id="wsUnread" hidden></span></h3><a href="https://mail.google.com/mail/u/0/" target="_blank" rel="noopener noreferrer">Gmail →</a></div>
+        <ul class="ws-list" id="wsMineMail"><li class="ws-li"><div class="body"><div class="ws-skel" style="width:70%"></div><div class="ws-skel" style="width:45%"></div></div></li></ul>
+      </div>
+      <div class="ws-card">
+        <div class="ws-card-head"><h3>Your calendar</h3><a href="https://calendar.google.com/calendar/u/0/r" target="_blank" rel="noopener noreferrer">Open →</a></div>
+        <ul class="ws-list" id="wsMineEvents"><li class="ws-li"><div class="body"><div class="ws-skel" style="width:65%"></div><div class="ws-skel" style="width:40%"></div></div></li></ul>
+      </div>
+      <div class="ws-card">
+        <div class="ws-card-head"><h3>Your Drive</h3><a href="https://drive.google.com/drive/u/0/" target="_blank" rel="noopener noreferrer">Open →</a></div>
+        <ul class="ws-list" id="wsMineFiles"><li class="ws-li"><div class="body"><div class="ws-skel" style="width:60%"></div><div class="ws-skel" style="width:35%"></div></div></li></ul>
+      </div>
+    </div>
+<?php endif; ?>
+  </section>
+<?php endif; ?>
 
   <!-- App launcher grid -->
   <section class="ws-sec">
@@ -405,6 +468,43 @@ render_head([
         return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(when)+'</div></div></li>';
       }).join('');
     }).catch(function(){ flEl.innerHTML='<li class="ws-empty">Couldn’t load Drive right now.</li>'; });
+  }
+
+  // PER-USER: the member's own Gmail / Calendar / Drive (one snapshot call).
+  var mineSec = document.getElementById('wsMine');
+  if (mineSec && mineSec.getAttribute('data-connected') === '1') {
+    fetch('/portal/workspace.php?action=me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+      var mine = d && d.mine ? d.mine : null;
+      var mailEl = document.getElementById('wsMineMail'), evEl = document.getElementById('wsMineEvents'), flEl = document.getElementById('wsMineFiles');
+      if (!mine) {
+        [mailEl,evEl,flEl].forEach(function(el){ if(el) el.innerHTML='<li class="ws-empty">Couldn’t reach Google right now.</li>'; });
+        return;
+      }
+      // unread badge
+      var ub = document.getElementById('wsUnread');
+      if (ub && typeof mine.unread === 'number' && mine.unread > 0) { ub.textContent = mine.unread > 99 ? '99+' : mine.unread; ub.hidden = false; }
+      // mail
+      var mail = mine.mail||[];
+      mailEl.innerHTML = mail.length ? mail.map(function(x){
+        var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.subject)+'</a>' : esc(x.subject);
+        return '<li class="ws-li'+(x.unread?' is-unread':'')+'"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(x.from)+'</div><div class="snip">'+esc(x.snippet)+'</div></div></li>';
+      }).join('') : '<li class="ws-empty">Inbox is clear.</li>';
+      // events
+      var ev = mine.events||[];
+      evEl.innerHTML = ev.length ? ev.map(function(x){
+        var loc = x.location ? ' · '+esc(x.location) : (x.meet_url ? ' · Meet' : '');
+        var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.title)+'</a>' : esc(x.title);
+        return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+fmtWhen(x.start,x.all_day)+loc+'</div></div></li>';
+      }).join('') : '<li class="ws-empty">Nothing coming up.</li>';
+      // files
+      var fs = mine.files||[];
+      flEl.innerHTML = fs.length ? fs.map(function(x){
+        var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.name)+'</a>' : esc(x.name);
+        return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(x.modified?fmtWhen(x.modified,false):'')+'</div></div></li>';
+      }).join('') : '<li class="ws-empty">No recent files.</li>';
+    }).catch(function(){
+      ['wsMineMail','wsMineEvents','wsMineFiles'].forEach(function(id){ var el=document.getElementById(id); if(el) el.innerHTML='<li class="ws-empty">Couldn’t reach Google right now.</li>'; });
+    });
   }
 
   // People directory (admins only — endpoint enforces it too).

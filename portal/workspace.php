@@ -11,6 +11,8 @@
  *   GET ?action=events     → {ok, configured, events:[…]}
  *   GET ?action=files      → {ok, configured, files:[…]}
  *   GET ?action=directory  → {ok, configured, users:[…]}  (admins only)
+ *   GET ?action=me         → {ok, oauth, connected, mine:{unread,mail,events,files}}
+ *                            (PER-USER: the member's OWN Gmail/Calendar/Drive)
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
@@ -31,6 +33,13 @@ try {
         case 'directory':
             if (!LmsAuth::atLeast($u, 'admin')) json_out(['ok' => false, 'error' => 'Admins only.'], 403);
             json_out(['ok' => true, 'configured' => $configured, 'users' => $configured ? GoogleWorkspace::directoryUsers(200) : []]);
+        case 'me':
+            // PER-USER: the member's own Google Workspace, via their connected account.
+            $oauth = GoogleWorkspaceUser::configured();
+            if (!$oauth || !GoogleWorkspaceUser::connected((int) $u['id'])) {
+                json_out(['ok' => true, 'oauth' => $oauth, 'connected' => false, 'mine' => null]);
+            }
+            json_out(['ok' => true, 'oauth' => true, 'connected' => true, 'mine' => GoogleWorkspaceUser::snapshot((int) $u['id'])]);
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }
