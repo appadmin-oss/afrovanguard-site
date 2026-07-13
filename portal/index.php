@@ -25,16 +25,6 @@ $first      = explode(' ', trim((string) $u['name']))[0] ?: 'there';
 $roleLabel  = ucfirst((string) $u['role']);
 $certs      = count(array_filter($courses, fn($c) => !empty($c['certified'])));
 $inProgress = count(array_filter($courses, fn($c) => empty($c['complete'])));
-// "Continue learning": the freshest in-progress course (most recent activity,
-// then most recently enrolled), and a short recap of the learner's latest notes.
-$resume = null;
-foreach ($courses as $c) {
-    if (!empty($c['complete']) || (int) $c['pct'] === 0 && empty($c['last_active'])) continue;
-    if (!$resume) { $resume = $c; continue; }
-    if ((string) ($c['last_active'] ?? '') > (string) ($resume['last_active'] ?? '')) $resume = $c;
-}
-if (!$resume) { foreach ($courses as $c) { if (empty($c['complete'])) { $resume = $c; break; } } }
-$recentNotes = $lms->recentNotes((int) $u['id'], 4);
 $tag        = $isOrg ? 'Member portal' : 'Learning';
 $showRole   = $isOrg && LmsAuth::rank((string) $u['role']) > LmsAuth::ROLE_RANK['member']; // mentor+
 // Org members are at least "Member" even if their stored role is still learner
@@ -47,14 +37,9 @@ $duesCsrf = $dues ? av_csrf_token() : '';
 $journey = Levels::progress((int) $u['id']);
 // Upcoming mentorship sessions (with Meet links) for the portal schedule/calendar.
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
-// The portal has its OWN light/dark theme, server-set from a cookie so there's
-// no flash. Light is the default. NOTE: the cookie key is intentionally NOT the
-// old "av_portal_theme" — that key was written by a previously-broken toggle
-// that never actually themed the page, so honouring it now would silently flip
-// long-standing members into dark ("the design changed"). Using a fresh key
-// means every member returns to the familiar light portal and dark is a clean,
-// deliberate opt-in from here on.
-$ptheme    = (($_COOKIE['av_portal_ui'] ?? 'light') === 'dark') ? 'dark' : 'light';
+// The portal has its OWN theme (dark by default, with a light toggle) — server-set
+// from a cookie so there's no flash.
+$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
 $pInitials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 
@@ -63,7 +48,7 @@ render_head([
     'desc'       => 'Your Afrovanguard portal — learning, and (for members) mentorship and members-only spaces.',
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
-    'body_class' => 'portal-page' . ($ptheme === 'dark' ? ' is-dark' : ''),
+    'body_class' => 'portal-page' . ($ptheme === 'light' ? ' is-light' : ''),
     'css'        => ['/portal/portal.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
@@ -256,42 +241,17 @@ render_head([
           <div class="pc-head"><h2>My learning</h2><a href="/academy/" class="pc-link">Browse the Academy →</a></div>
 <?php if ($courses): ?>
           <p class="pc-summary"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
-<?php if ($resume): ?>
-          <a class="resume-card" href="/academy/<?= e($resume['slug']) ?>/learn/">
-            <div class="resume-copy">
-              <span class="resume-kicker"><?= (int) $resume['pct'] > 0 ? 'Continue where you left off' : 'Start learning' ?></span>
-              <span class="resume-title"><?= e($resume['title']) ?></span>
-<?php if (!empty($resume['next'])): ?>
-              <span class="resume-next">Next · <?= e($resume['next']['title']) ?></span>
-<?php endif; ?>
-              <div class="resume-bar" aria-hidden="true"><span style="width:<?= (int) $resume['pct'] ?>%"></span></div>
-              <span class="resume-meta"><?= (int) $resume['done'] ?> of <?= (int) $resume['total'] ?> lessons · <?= (int) $resume['pct'] ?>%</span>
-            </div>
-            <span class="resume-go" aria-hidden="true">Resume →</span>
-          </a>
-<?php endif; ?>
           <div class="learn-list">
 <?php foreach ($courses as $c): ?>
             <a class="learn-row" href="/academy/<?= e($c['slug']) ?>/learn/">
               <div class="learn-info">
                 <span class="learn-title"><?= e($c['title']) ?></span>
-                <span class="learn-meta"><?= $c['complete'] ? '✓ Complete' : ((int) $c['done']) . ' of ' . (int) $c['total'] . ' lessons · ' . ((int) $c['pct']) . '%' ?><?= $c['certified'] ? ' · 🎓 Certified' : '' ?></span>
+                <span class="learn-meta"><?= $c['complete'] ? '✓ Complete' : ((int) $c['pct']) . '% complete' ?><?= $c['certified'] ? ' · 🎓 Certified' : '' ?></span>
               </div>
               <div class="learn-bar" aria-hidden="true"><span style="width:<?= (int) $c['pct'] ?>%"></span></div>
             </a>
 <?php endforeach; ?>
           </div>
-<?php if ($recentNotes): ?>
-          <div class="notes-recap">
-            <div class="notes-recap-head"><h3>Your recent notes</h3></div>
-<?php foreach ($recentNotes as $n): ?>
-            <a class="note-chip" href="/academy/<?= e($n['course_slug']) ?>/learn/<?= e($n['lesson_slug']) ?>#narration">
-              <span class="note-chip-lesson"><?= e($n['lesson_title']) ?><span class="note-chip-course"> · <?= e($n['course_title']) ?></span></span>
-              <span class="note-chip-excerpt"><?= e(mb_strimwidth(trim(preg_replace('/\s+/', ' ', (string) $n['body'])), 0, 120, '…')) ?></span>
-            </a>
-<?php endforeach; ?>
-          </div>
-<?php endif; ?>
 <?php else: ?>
           <p class="pc-empty">You haven’t joined a programme yet. <a href="/academy/">Explore the Academy →</a></p>
 <?php endif; ?>
@@ -411,10 +371,8 @@ render_head([
   (function () {
     var btn = document.getElementById('portalTheme'); if (!btn) return;
     btn.addEventListener('click', function () {
-      var dark = document.body.classList.toggle('is-dark');
-      document.cookie = 'av_portal_ui=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
-      // Clear the legacy key so a stale value can never re-flip the theme.
-      document.cookie = 'av_portal_theme=;path=/;max-age=0;samesite=Lax';
+      var light = document.body.classList.toggle('is-light');
+      document.cookie = 'av_portal_theme=' + (light ? 'light' : 'dark') + ';path=/;max-age=31536000;samesite=Lax';
     });
   })();
   </script>
