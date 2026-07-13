@@ -95,6 +95,7 @@ function mn_av(array $m): string {
           <?= mn_av($m) ?>
           <div class="mn-row-bd"><b><?= e($m['name']) ?></b>
             <span class="mn-status mn-status--<?= e($m['status']) ?>"><?= $m['status'] === 'pending' ? 'Awaiting reply' : 'Active' ?></span>
+<?= mn_goals_html($m) ?>
 <?= mn_consistency_html($m['consistency'] ?? []) ?>
 <?= mn_sessions_html($m['sessions'], false) ?>
           </div>
@@ -110,13 +111,19 @@ function mn_av(array $m): string {
 <?php foreach ($activeMen as $m): ?>
         <div class="mn-row mn-row--col" data-id="<?= (int) $m['id'] ?>">
           <div class="mn-row-top"><?= mn_av($m) ?><div class="mn-row-bd"><b><?= e($m['name']) ?></b><span class="mn-status mn-status--active">Active</span></div></div>
+<?= mn_goals_html($m) ?>
 <?= mn_consistency_html($m['consistency'] ?? []) ?>
 <?= mn_sessions_html($m['sessions'], true) ?>
           <form class="mn-session-form" data-session="<?= (int) $m['id'] ?>">
-            <input type="text" name="title" placeholder="Session title (e.g. Career check-in)" />
+            <select name="type" title="Session type" aria-label="Session type">
+<?php foreach (Mentorship::sessionTypes() as $tk => $tl): ?>              <option value="<?= e($tk) ?>"<?= $tk === 'checkin' ? ' selected' : '' ?>><?= e($tl) ?></option>
+<?php endforeach; ?>
+            </select>
+            <input type="text" name="title" placeholder="Session title (optional — defaults to the type)" />
             <input type="datetime-local" name="when" />
             <input type="number" name="duration_min" min="15" max="240" step="15" value="60" title="Planned length (minutes)" aria-label="Session length in minutes" />
             <input type="url" name="meet_url" placeholder="Google Meet link (optional)" />
+            <input type="text" name="notes" placeholder="Agenda for this session (optional)" />
             <button type="submit" class="cm-ask-btn mn-sm">+ Schedule</button>
           </form>
         </div>
@@ -150,6 +157,17 @@ function mn_av(array $m): string {
 
     <!-- Become a mentor -->
     <aside class="mn-side">
+      <div class="cm-card mn-card mn-standard">
+        <h2 class="mn-h">The Afrovanguard mentorship standard</h2>
+        <p class="mn-sub">Every mentorship runs the same professional way.</p>
+        <ol class="mn-std-list">
+          <li><b>Set goals first.</b> Agree 1–3 clear goals at the kick-off — the compass for every session.</li>
+          <li><b>Meet on a steady cadence.</b> Aim for a session at least every two weeks, on Google Meet.</li>
+          <li><b>Every session is structured.</b> A type and agenda going in; attendance, hours and action items logged after.</li>
+          <li><b>Stay accountable.</b> Consistency, hours and outcomes are tracked for both mentor and mentee.</li>
+          <li><b>Safeguard &amp; respect.</b> Keep it professional, confidential and kind — always.</li>
+        </ol>
+      </div>
       <div class="cm-card mn-card">
         <h2 class="mn-h">Become a mentor</h2>
 <?php if (!$isOrg): ?>
@@ -186,9 +204,14 @@ function mn_sessions_html(array $sessions, bool $asMentor = false): string {
         $tr   = (string) ($s['transcript_url'] ?? '');
         $dur  = (int) ($s['duration_min'] ?? 0);
         $durTxt = $att === 'attended' ? ' · ' . ($dur > 0 ? $dur : 60) . ' min' : ($dur > 0 && $att === 'scheduled' ? ' · ' . $dur . ' min' : '');
+        $type = (string) ($s['type'] ?? 'checkin');
+        $agenda = trim((string) ($s['notes'] ?? ''));
+        $outcome = trim((string) ($s['outcome'] ?? ''));
         $out .= '<li class="mn-sess mn-sess--' . e($att) . '">';
-        $out .= '<div class="mn-sess-row"><span class="mn-sess-title"><b>' . e($s['title']) . '</b> · ' . e($when) . e($durTxt) . '</span>';
+        $out .= '<div class="mn-sess-row"><span class="mn-sess-title"><span class="mn-type">' . e(Mentorship::typeLabel($type)) . '</span> <b>' . e($s['title']) . '</b> · ' . e($when) . e($durTxt) . '</span>';
         $out .= '<span class="mn-att mn-att--' . e($att) . '">' . e($attLabel[$att] ?? $att) . '</span></div>';
+        if ($agenda !== '')  $out .= '<p class="mn-sess-agenda"><b>Agenda:</b> ' . e($agenda) . '</p>';
+        if ($outcome !== '') $out .= '<p class="mn-sess-outcome"><b>Outcome &amp; action items:</b> ' . e($outcome) . '</p>';
         $out .= '<div class="mn-sess-links">';
         if ($meet !== '') $out .= '<a class="mn-join" href="' . e($meet) . '" target="_blank" rel="noopener">▶ Join Meet</a>';
         if ($tr !== '')   $out .= '<a class="mn-transcript" href="' . e($tr) . '" target="_blank" rel="noopener">📄 Transcript</a>';
@@ -197,6 +220,7 @@ function mn_sessions_html(array $sessions, bool $asMentor = false): string {
             $out .= '<div class="mn-sess-ctl">'
                 . '<button type="button" class="mn-chip" data-attend="' . (int) $s['id'] . '" data-status="attended">Attended</button>'
                 . '<button type="button" class="mn-chip" data-attend="' . (int) $s['id'] . '" data-status="missed">Missed</button>'
+                . '<button type="button" class="mn-chip" data-outcome="' . (int) $s['id'] . '">' . ($outcome === '' ? 'Log outcome' : 'Edit outcome') . '</button>'
                 . '<button type="button" class="mn-chip" data-meet="' . (int) $s['id'] . '">' . ($meet === '' ? 'Add Meet' : 'Edit Meet') . '</button>'
                 . '<button type="button" class="mn-chip" data-transcript="' . (int) $s['id'] . '">' . ($tr === '' ? 'Add transcript' : 'Edit transcript') . '</button>'
                 . '</div>';
@@ -204,6 +228,19 @@ function mn_sessions_html(array $sessions, bool $asMentor = false): string {
         $out .= '</li>';
     }
     return $out . '</ul>';
+}
+
+/** The pairing's shared goals — the professional anchor for the relationship. */
+function mn_goals_html(array $m): string {
+    if (($m['status'] ?? '') !== 'active') return '';
+    $g = trim((string) ($m['goals'] ?? ''));
+    $id = (int) $m['id'];
+    if ($g === '') {
+        return '<div class="mn-goals mn-goals--empty"><span>No goals set yet.</span>'
+            . '<button type="button" class="mn-goals-edit" data-goals="' . $id . '">Set goals</button></div>';
+    }
+    return '<div class="mn-goals"><span class="mn-goals-lbl">Goals</span><span class="mn-goals-txt">' . e($g) . '</span>'
+        . '<button type="button" class="mn-goals-edit" data-goals="' . $id . '">Edit</button></div>';
 }
 
 function mn_consistency_html(array $c): string {
@@ -255,6 +292,22 @@ function mn_consistency_html(array $c): string {
   .mn-sess-ctl { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .mn-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--divider); background: var(--surface-2); color: var(--body); cursor: pointer; }
   .mn-chip:hover { border-color: var(--gold); color: var(--ink); }
+  /* standardised session structure */
+  .mn-type { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--gold-deep); background: var(--gold-soft); padding: 2px 8px; border-radius: 999px; margin-right: 4px; vertical-align: middle; }
+  .mn-sess-agenda, .mn-sess-outcome { font-size: 12.5px; line-height: 1.5; margin: 6px 0 0; color: var(--body); }
+  .mn-sess-agenda b, .mn-sess-outcome b { color: var(--ink); }
+  .mn-sess-outcome { padding: 8px 10px; background: var(--surface-2); border-radius: 8px; }
+  /* goals (the professional anchor) */
+  .mn-goals { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; }
+  .mn-goals-lbl { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-deep); }
+  .mn-goals-txt { flex: 1; font-size: 13px; line-height: 1.5; color: var(--ink); font-weight: 600; }
+  .mn-goals--empty { color: var(--muted); font-size: 12.5px; }
+  .mn-goals-edit { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--gold-deep); background: none; border: 0; cursor: pointer; padding: 0; }
+  .mn-goals-edit:hover { text-decoration: underline; }
+  /* the standard panel */
+  .mn-standard .mn-std-list { margin: 10px 0 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+  .mn-standard .mn-std-list li { font-size: 13px; line-height: 1.5; color: var(--body); }
+  .mn-standard .mn-std-list b { color: var(--ink); }
   .mn-stats { display: flex; gap: 26px; flex-wrap: wrap; margin: 18px 0 0; padding: 0; }
   .mn-stat dt { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); }
   .mn-stat dd { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
@@ -343,6 +396,20 @@ function mn_consistency_html(array $c): string {
       var t = prompt('Paste the transcript link (a Google Doc or Drive file from the Meet recording).', '');
       if (t === null) return;
       post('transcript', { session_id: +tr.getAttribute('data-transcript'), url: t }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
+      return;
+    }
+    var oc = e.target.closest('[data-outcome]');
+    if (oc) {
+      var o = prompt('Record the outcome and action items from this session (what was covered, what the mentee will do next).', '');
+      if (o === null) return;
+      post('outcome', { session_id: +oc.getAttribute('data-outcome'), outcome: o }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
+      return;
+    }
+    var gl = e.target.closest('[data-goals]');
+    if (gl) {
+      var g = prompt('What are the goals for this mentorship? (e.g. "Build confidence leading a team; ship one community project by December.")', '');
+      if (g === null) return;
+      post('goals', { id: +gl.getAttribute('data-goals'), goals: g }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
     }
   });
 
@@ -354,7 +421,9 @@ function mn_consistency_html(array $c): string {
       if (!title.trim()) { sf.querySelector('[name=title]').focus(); return; }
       var meetEl = sf.querySelector('[name=meet_url]');
       var durEl = sf.querySelector('[name=duration_min]');
-      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when, meet_url: meetEl ? meetEl.value : '', duration_min: durEl ? (parseInt(durEl.value, 10) || 60) : 60 }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
+      var typeEl = sf.querySelector('[name=type]');
+      var notesEl = sf.querySelector('[name=notes]');
+      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when, meet_url: meetEl ? meetEl.value : '', duration_min: durEl ? (parseInt(durEl.value, 10) || 60) : 60, type: typeEl ? typeEl.value : 'checkin', notes: notesEl ? notesEl.value : '' }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
       return;
     }
     if (e.target.id === 'mnBecome') {

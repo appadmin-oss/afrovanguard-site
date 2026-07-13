@@ -65,7 +65,17 @@ try {
         case 'session':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
-            json_out(Mentorship::addSession($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['when'] ?? ''), (string) ($body['notes'] ?? ''), (string) ($body['meet_url'] ?? ''), (int) ($body['duration_min'] ?? 60)));
+            json_out(Mentorship::addSession($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['when'] ?? ''), (string) ($body['notes'] ?? ''), (string) ($body['meet_url'] ?? ''), (int) ($body['duration_min'] ?? 60), (string) ($body['type'] ?? 'checkin')));
+
+        case 'goals':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::setGoals($uid, (int) ($body['id'] ?? 0), (string) ($body['goals'] ?? '')));
+
+        case 'outcome':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::recordOutcome($uid, (int) ($body['session_id'] ?? 0), (string) ($body['outcome'] ?? '')));
 
         case 'attend':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

@@ -83,8 +83,25 @@ final class Mentorship
         self::addCol('mentor_sessions', 'attended_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'transcript_url', "VARCHAR(500) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'duration_min', 'INTEGER NOT NULL DEFAULT 0');
+        // Standardisation: a shared goals statement per pairing, a standard
+        // session type, and a recorded outcome / action items per session.
+        self::addCol('mentorships', 'goals', "TEXT NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'session_type', "VARCHAR(24) NOT NULL DEFAULT 'checkin'");
+        self::addCol('mentor_sessions', 'outcome', "TEXT NOT NULL DEFAULT ''");
         $done = true;
     }
+
+    /** The standard Afrovanguard mentorship session types (structured cadence). */
+    const SESSION_TYPES = [
+        'kickoff' => 'Kick-off & goal-setting',
+        'checkin' => 'Progress check-in',
+        'skills'  => 'Skills & coaching',
+        'review'  => 'Goal review',
+        'wrapup'  => 'Wrap-up & next steps',
+    ];
+    public static function sessionTypes(): array { return self::SESSION_TYPES; }
+    private static function typeKey(string $t): string { return isset(self::SESSION_TYPES[$t]) ? $t : 'checkin'; }
+    public static function typeLabel(string $t): string { return self::SESSION_TYPES[$t] ?? self::SESSION_TYPES['checkin']; }
 
     /** The mentor who owns a session (via its mentorship), or 0. */
     private static function sessionMentor(int $sessionId): int
@@ -307,9 +324,33 @@ final class Mentorship
             'name'     => $name,
             'initial'  => mb_strtoupper(mb_substr($name, 0, 1)),
             'since'    => (string) $r['updated_at'],
+            'goals'    => (string) ($r['goals'] ?? ''),
             'sessions' => self::sessions((int) $r['id']),
             'consistency' => self::consistency((int) $r['id']),
         ];
+    }
+
+    /** Either party sets/edits the pairing's shared goals (professional anchor). */
+    public static function setGoals(int $uid, int $mentorshipId, string $goals): array
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $s = $db->prepare('SELECT id FROM mentorships WHERE id = ? AND (mentor_id = ? OR mentee_id = ?)');
+        $s->execute([$mentorshipId, $uid, $uid]);
+        if (!$s->fetchColumn()) return ['ok' => false, 'error' => 'Not your mentorship.'];
+        $db->prepare('UPDATE mentorships SET goals = ?, updated_at = ? WHERE id = ?')
+            ->execute([mb_substr(trim($goals), 0, 1000), self::now(), $mentorshipId]);
+        return ['ok' => true];
+    }
+
+    /** Mentor records the outcome / action items after a session. */
+    public static function recordOutcome(int $mentorId, int $sessionId, string $outcome): array
+    {
+        self::ensure();
+        if (self::sessionMentor($sessionId) !== $mentorId) return ['ok' => false, 'error' => 'Not your session.'];
+        Database::pdo()->prepare('UPDATE mentor_sessions SET outcome = ? WHERE id = ?')
+            ->execute([mb_substr(trim($outcome), 0, 2000), $sessionId]);
+        return ['ok' => true];
     }
 
     /* ── sessions ────────────────────────────────────────────────── */
@@ -323,18 +364,19 @@ final class Mentorship
         return mb_substr($url, 0, $max);
     }
 
-    public static function addSession(int $mentorId, int $mentorshipId, string $title, string $when, string $notes, string $meetUrl = '', int $durationMin = 60): array
+    public static function addSession(int $mentorId, int $mentorshipId, string $title, string $when, string $notes, string $meetUrl = '', int $durationMin = 60, string $type = 'checkin'): array
     {
         self::ensure();
         $db = Database::pdo();
         $s = $db->prepare("SELECT id FROM mentorships WHERE id=? AND mentor_id=? AND status='active'");
         $s->execute([$mentorshipId, $mentorId]);
         if (!$s->fetchColumn()) return ['ok' => false, 'error' => 'No active mentorship to schedule on.'];
-        $title = mb_substr(trim($title), 0, 160) ?: 'Mentorship session';
+        $type  = self::typeKey($type);
+        $title = mb_substr(trim($title), 0, 160) ?: self::typeLabel($type);
         $whenN = trim($when) !== '' ? gmdate('Y-m-d H:i:s', strtotime($when) ?: time()) : '';
         $dur   = self::clampDuration($durationMin ?: 60);
-        $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, meet_url, duration_min, created_at) VALUES (?,?,?,?,?,?,?)')
-           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::cleanUrl($meetUrl, 400), $dur, self::now()]);
+        $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, meet_url, duration_min, session_type, created_at) VALUES (?,?,?,?,?,?,?,?)')
+           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::cleanUrl($meetUrl, 400), $dur, $type, self::now()]);
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => (int) $db->lastInsertId()];
     }
@@ -386,7 +428,7 @@ final class Mentorship
 
     public static function sessions(int $mentorshipId): array
     {
-        $st = Database::pdo()->prepare('SELECT id, title, scheduled_at, notes, status, meet_url, attendance, attended_at, transcript_url, duration_min FROM mentor_sessions WHERE mentorship_id = ? ORDER BY scheduled_at ASC, id ASC');
+        $st = Database::pdo()->prepare('SELECT id, title, scheduled_at, notes, status, meet_url, attendance, attended_at, transcript_url, duration_min, session_type, outcome FROM mentor_sessions WHERE mentorship_id = ? ORDER BY scheduled_at ASC, id ASC');
         $st->execute([$mentorshipId]);
         return array_map(fn($r) => [
             'id'         => (int) $r['id'],
@@ -398,6 +440,8 @@ final class Mentorship
             'attendance' => (string) ($r['attendance'] ?? 'scheduled'),
             'transcript_url' => (string) ($r['transcript_url'] ?? ''),
             'duration_min'   => (int) ($r['duration_min'] ?? 0),
+            'type'       => (string) ($r['session_type'] ?? 'checkin'),
+            'outcome'    => (string) ($r['outcome'] ?? ''),
             'past'       => ($r['scheduled_at'] ?? '') !== '' && strtotime((string) $r['scheduled_at']) < time(),
         ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
