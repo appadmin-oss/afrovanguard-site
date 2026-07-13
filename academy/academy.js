@@ -348,7 +348,9 @@
     update();
   })();
 
-  /* ---- Lesson: personal notes (autosaved on-device; downloadable) ---- */
+  /* ---- Lesson: personal notes ----
+     Signed-in learners sync to their account (cross-device) via the API;
+     anonymous readers fall back to on-device localStorage. */
   (function () {
     var panel = document.querySelector('.l-notes[data-notes-key]');
     if (!panel) return;
@@ -357,41 +359,37 @@
     var dlBtn = panel.querySelector('[data-notes-download]');
     var key = panel.getAttribute('data-notes-key');
     var course = panel.getAttribute('data-notes-course') || 'course';
+    var lessonSlug = panel.getAttribute('data-notes-lesson') || '';
     var lessonTitle = panel.getAttribute('data-lesson-title') || '';
+    var remote = panel.getAttribute('data-notes-remote') === '1';
     var LS = window.localStorage;
     function get(k) { try { return LS.getItem(k); } catch (e) { return null; } }
     function set(k, v) { try { LS.setItem(k, v); } catch (e) {} }
-    // Load
-    if (area) { var saved = get(key); if (saved != null) area.value = saved; }
     function flash(msg) { if (statusEl) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(flash._t); flash._t = setTimeout(function () { statusEl.classList.remove('show'); }, 1600); } }
+    // Local mode loads the saved value (remote mode is prefilled server-side).
+    if (area && !remote) { var saved = get(key); if (saved != null) area.value = saved; }
+
     var t;
     if (area) area.addEventListener('input', function () {
       clearTimeout(t);
       t = setTimeout(function () {
         var v = area.value;
-        if (v.trim() === '') { try { LS.removeItem(key); } catch (e) {} } else { set(key, v); }
-        flash('Saved');
-      }, 350);
-    });
-    // Download every note stored for this course as a Markdown file.
-    if (dlBtn) dlBtn.addEventListener('click', function () {
-      var prefix = 'av.notes.' + course + '.';
-      var items = [];
-      for (var i = 0; i < LS.length; i++) {
-        var k = LS.key(i);
-        if (k && k.indexOf(prefix) === 0) {
-          var body = get(k) || '';
-          if (body.trim() === '') continue;
-          items.push({ slug: k.slice(prefix.length), body: body });
+        if (remote) {
+          flash('Saving…');
+          api('note_save', { method: 'POST', body: { course: course, lesson: lessonSlug, body: v } })
+            .then(function (d) { flash(d && d.ok ? 'Saved' : 'Not saved'); })
+            .catch(function () { flash('Offline'); });
+        } else {
+          if (v.trim() === '') { try { LS.removeItem(key); } catch (e) {} } else { set(key, v); }
+          flash('Saved');
         }
-      }
+      }, remote ? 600 : 350);
+    });
+
+    function downloadMd(items) {
       if (!items.length) { toast('No notes saved yet — start typing to capture your first note.'); return; }
-      items.sort(function (a, b) { return a.slug.localeCompare(b.slug); });
       var md = '# My notes — ' + course + '\n\n';
-      items.forEach(function (it) {
-        var title = it.slug === panel.getAttribute('data-notes-key').slice(prefix.length) ? lessonTitle : it.slug.replace(/-/g, ' ');
-        md += '## ' + title + '\n\n' + it.body.trim() + '\n\n';
-      });
+      items.forEach(function (it) { md += '## ' + it.title + '\n\n' + it.body.trim() + '\n\n'; });
       var blob = new Blob([md], { type: 'text/markdown' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -399,6 +397,31 @@
       document.body.appendChild(a); a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       flash('Downloaded');
+    }
+    if (dlBtn) dlBtn.addEventListener('click', function () {
+      if (remote) {
+        fetch('/academy/api.php?action=notes_all&course=' + encodeURIComponent(course), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d || !d.ok) { toast('Could not load your notes.'); return; }
+            downloadMd((d.notes || []).map(function (n) { return { title: n.title, body: n.body }; }));
+          })
+          .catch(function () { toast('Network error — please try again.'); });
+        return;
+      }
+      var prefix = 'av.notes.' + course + '.';
+      var items = [];
+      for (var i = 0; i < LS.length; i++) {
+        var k = LS.key(i);
+        if (k && k.indexOf(prefix) === 0) {
+          var body = get(k) || '';
+          if (body.trim() === '') continue;
+          var s = k.slice(prefix.length);
+          items.push({ slug: s, title: s === lessonSlug ? lessonTitle : s.replace(/-/g, ' '), body: body });
+        }
+      }
+      items.sort(function (a, b) { return a.slug.localeCompare(b.slug); });
+      downloadMd(items);
     });
   })();
 

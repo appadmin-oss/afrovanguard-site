@@ -171,6 +171,15 @@ CREATE TABLE IF NOT EXISTS course_enrolment (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, course_id)
 );
+-- Per-learner lesson notes (cross-device for signed-in members).
+CREATE TABLE IF NOT EXISTS lesson_notes (
+  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  course_id  INTEGER NOT NULL,
+  body       TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, lesson_id)
+);
 CREATE TABLE IF NOT EXISTS memberships (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,

@@ -179,13 +179,14 @@ render_nav('academy');
         </form>
 <?php endif; ?>
 
-        <section class="l-notes" data-notes-key="av.notes.<?= e($courseSlug) ?>.<?= e($lessonSlug) ?>" data-notes-course="<?= e($courseSlug) ?>" data-lesson-title="<?= e($lesson['title']) ?>">
+<?php $savedNote = $user ? $lms->getNote((int) $user['id'], (int) $lesson['id']) : ''; $notesRemote = $user ? '1' : '0'; ?>
+        <section class="l-notes" data-notes-key="av.notes.<?= e($courseSlug) ?>.<?= e($lessonSlug) ?>" data-notes-course="<?= e($courseSlug) ?>" data-notes-lesson="<?= e($lessonSlug) ?>" data-notes-remote="<?= $notesRemote ?>" data-lesson-title="<?= e($lesson['title']) ?>">
           <div class="l-notes-head">
             <h2><span class="l-notes-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span> My notes</h2>
             <span class="l-notes-status" data-notes-status role="status" aria-live="polite"></span>
             <button type="button" class="l-notes-dl" data-notes-download>Download all notes</button>
           </div>
-          <textarea class="l-notes-area" data-notes-area rows="4" placeholder="Capture the key ideas, questions, and timestamps from this lesson. Saved automatically on this device as you type."></textarea>
+          <textarea class="l-notes-area" data-notes-area rows="4" placeholder="<?= $user ? 'Capture the key ideas, questions, and timestamps from this lesson. Saved to your account and synced across your devices.' : 'Capture the key ideas from this lesson. Saved on this device — sign in to sync your notes across devices.' ?>"><?= e($savedNote) ?></textarea>
         </section>
 <?php if ($user): ?>
         <div class="cert-banner" id="courseDone"<?= !empty($progress['complete']) ? '' : ' hidden' ?>>

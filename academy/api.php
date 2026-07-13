@@ -167,6 +167,23 @@ try {
             if (!$u || !$c) json_out(['ok' => true, 'progress' => null]);
             json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
 
+        /* ── Lesson notes (cross-device, signed-in) ── */
+        case 'note_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug, true) : null;
+            $lesson = $c ? $lms->lesson((int) $c['id'], preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['lesson'] ?? '')))) : null;
+            if (!$lesson) json_out(['ok' => false, 'error' => 'Lesson not found.'], 404);
+            if (!$lms->canAccess($u, $c, $lesson)) json_out(['ok' => false, 'error' => 'No access to this lesson.'], 403);
+            $lms->saveNote((int) $u['id'], (int) $lesson['id'], (int) $c['id'], (string) ($body['body'] ?? ''));
+            json_out(['ok' => true]);
+        case 'notes_all':
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug, true) : null;
+            if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'course' => $c['title'], 'notes' => $lms->notesForCourse((int) $u['id'], (int) $c['id'])]);
+
         /* ── Payments (Paystack) ── */
         case 'pay_init':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

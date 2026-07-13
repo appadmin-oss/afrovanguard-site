@@ -163,6 +163,70 @@ final class LmsRepository
         return ['total' => $total, 'completed' => count($done), 'pct' => $pct, 'ids' => $done, 'complete' => $total > 0 && count($done) >= $total];
     }
 
+    /* ── Lesson notes (cross-device for signed-in learners) ── */
+    private static bool $notesEnsured = false;
+    private function ensureNotes(): void
+    {
+        if (self::$notesEnsured) return;
+        self::$notesEnsured = true;
+        // Provisioned from the schema files on MySQL/Postgres; this is only a
+        // safety net for older SQLite databases created before this table existed.
+        if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+            $this->db->exec(
+                "CREATE TABLE IF NOT EXISTS lesson_notes (
+                   user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, course_id INTEGER NOT NULL,
+                   body TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                   PRIMARY KEY (user_id, lesson_id)
+                 );"
+            );
+        }
+    }
+
+    public function getNote(int $userId, int $lessonId): string
+    {
+        $this->ensureNotes();
+        $s = $this->db->prepare('SELECT body FROM lesson_notes WHERE user_id = ? AND lesson_id = ?');
+        $s->execute([$userId, $lessonId]);
+        $v = $s->fetchColumn();
+        return $v === false ? '' : (string) $v;
+    }
+
+    /** Upsert a note; an empty body removes it. Portable (no ON CONFLICT). */
+    public function saveNote(int $userId, int $lessonId, int $courseId, string $body): void
+    {
+        $this->ensureNotes();
+        $body = mb_substr($body, 0, 20000);
+        $now = gmdate('Y-m-d H:i:s');
+        $ex = $this->db->prepare('SELECT 1 FROM lesson_notes WHERE user_id = ? AND lesson_id = ?');
+        $ex->execute([$userId, $lessonId]);
+        $exists = (bool) $ex->fetchColumn();
+        if (trim($body) === '') {
+            if ($exists) $this->db->prepare('DELETE FROM lesson_notes WHERE user_id = ? AND lesson_id = ?')->execute([$userId, $lessonId]);
+            return;
+        }
+        if ($exists) {
+            $this->db->prepare('UPDATE lesson_notes SET body = ?, course_id = ?, updated_at = ? WHERE user_id = ? AND lesson_id = ?')
+                ->execute([$body, $courseId, $now, $userId, $lessonId]);
+        } else {
+            $this->db->prepare('INSERT INTO lesson_notes (user_id, lesson_id, course_id, body, updated_at) VALUES (?,?,?,?,?)')
+                ->execute([$userId, $lessonId, $courseId, $body, $now]);
+        }
+    }
+
+    /** Every note a learner has for a course, joined to lesson titles, in curriculum order. */
+    public function notesForCourse(int $userId, int $courseId): array
+    {
+        $this->ensureNotes();
+        $s = $this->db->prepare(
+            "SELECT n.body, l.title, l.slug
+             FROM lesson_notes n JOIN lessons l ON l.id = n.lesson_id JOIN modules m ON m.id = l.module_id
+             WHERE n.user_id = ? AND n.course_id = ? AND n.body <> ''
+             ORDER BY m.position, m.id, l.position, l.id"
+        );
+        $s->execute([$userId, $courseId]);
+        return $s->fetchAll();
+    }
+
     /* ── Authoring: modules ── */
     public function addModule(int $courseId, string $title): int
     {
