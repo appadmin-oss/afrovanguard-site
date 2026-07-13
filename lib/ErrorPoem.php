@@ -25,23 +25,46 @@ final class ErrorPoem
     const POOL_MAX  = 6;       // keep at most N AI poems per mood
     const LOCK_TTL  = 120;     // seconds a refresh lock is honoured
 
-    /** Curated fallbacks — always available, no network, on-brand. */
+    /**
+     * Curated fallbacks — always available, no network, and grounded in the
+     * Afrovanguard movement: the mission (one million incorruptible leaders by
+     * 2040), its home (Alimosho, Lagos), its work (the Academy, the Diary,
+     * mentorship, Street-To-Stardom) and its values (integrity, service,
+     * building). Grouped by mood; pick() also mixes in any code-specific verse.
+     */
     const CURATED = [
         'lost' => [
-            ["This page wandered off the path we paved —", "but every road here leads back home.", "Take a breath; the work goes on,", "and so, dear traveller, do you."],
-            ["Not every door we knock on opens;", "some rooms were never built at all.", "Turn around — the movement waits", "where a million futures call."],
-            ["You reached for a page long gone,", "like starlight from a vanished star.", "Yet Africa keeps rising still —", "come, let us go on from where you are."],
+            ["This page slipped out of the Diary —", "a story we have not yet told.", "But the work goes on in Alimosho:", "a million futures still unfold."],
+            ["We looked in every room we've built,", "from the Academy to the square.", "This one isn't here, dear friend —", "but the movement is; we'll meet you there."],
+            ["Not every path leads where we planned;", "some doors were never ours to find.", "Turn toward the work that lasts —", "the raising of incorruptible minds."],
+            ["Lagos is wide and pages stray;", "this one took a road unknown.", "Come back to where the builders are —", "you never search these halls alone."],
+            ["The page is gone, the mission isn't:", "one million leaders, Africa's dawn.", "Step back onto the road with us —", "in Alimosho, the light goes on."],
         ],
         'stop' => [
-            ["A gate, for now, stands in your way —", "not to refuse, but to invite:", "sign in, step through, and take your place", "among the builders of the light."],
-            ["Pause. Some thresholds ask a key,", "some ask only that you wait.", "Patience, too, is discipline —", "the quiet craft of the great."],
-            ["Slow down, friend; the road is long,", "and haste can fray the strongest thread.", "Begin again with steady care —", "by patient hands are nations led."],
+            ["A gate, for now — not to refuse,", "but to learn the name you bear.", "Sign in, and take your rightful place", "among the leaders forming there."],
+            ["Some rooms are kept for members yet;", "integrity unlocks the door.", "Join the movement, do the work,", "and these walls will hold you more."],
+            ["Patience, too, is discipline,", "the quiet craft the great ones learn.", "Wait a moment, then return —", "your place is here; it's yours to earn."],
+            ["This threshold asks a little proof:", "that you belong, that you'll be true.", "Afrovanguard keeps a seat", "at the table, saved for you."],
         ],
         'examine' => [
-            ["Something slipped beneath our hands —", "a beam gone crooked in the frame.", "We are already at the mend;", "return, and find it whole again."],
-            ["Even the sturdiest of houses", "needs a carpenter some days.", "Give us a moment with the wood;", "the doors will open soon, and stay."],
-            ["A fault, a pause, a little dust —", "nothing that we cannot clear.", "Africa was built by those", "who fixed the thing and stayed right here."],
+            ["A beam slipped in the house we're building;", "already we are at the mend.", "Even Alimosho's finest walls", "needed a steady hand to tend."],
+            ["Something broke, but nothing's lost —", "the mission holds, the vision stays.", "Give the builders one more moment;", "the doors reopen soon, to stay."],
+            ["A fault, a pause, a little dust:", "nothing this movement cannot clear.", "We were built by those who stayed", "and fixed the thing, and kept it here."],
+            ["Incorruptible means we don't walk off —", "we mend, we steady, and we stay.", "One breath here while we set it right;", "Africa's dawn is on its way."],
         ],
+    ];
+
+    /**
+     * Smart, code-specific verses — mixed into the candidate pool when that
+     * exact status is hit, so a rate-limit reads differently from a locked
+     * page or an oversized upload. Falls back to the mood pool above.
+     */
+    const CODE_EXTRA = [
+        401 => [["A name unknown still waits outside;", "sign in, and the doors will learn your face.", "The work of leaders asks a key —", "step through, and take your place."]],
+        403 => [["This room is held for those who've earned it —", "membership, and a steady hand.", "Keep faith with the work, dear friend;", "soon here is where you'll stand."]],
+        413 => [["That upload outgrew the doorway —", "trim it lighter, try once more.", "Even great things travel best", "when they still fit through the door."]],
+        429 => [["Easy, friend — the road is long,", "and Africa was not built in haste.", "Breathe once; begin again with care.", "No honest effort goes to waste."]],
+        503 => [["We're tightening a bolt or two", "so the work will hold for years.", "Back shortly, stronger than before —", "Africa's dawn is drawing near."]],
     ];
 
     private static function moods(): array { return ['lost', 'stop', 'examine']; }
@@ -101,6 +124,12 @@ final class ErrorPoem
                     if ($lines) $pool[] = ['lines' => $lines, 'ai' => true];
                 }
             }
+            // Smart layer: a verse written for THIS exact status (rate-limit,
+            // locked room, oversized upload…) — weighted so it shows often.
+            foreach ((self::CODE_EXTRA[$code] ?? []) as $p) {
+                $pool[] = ['lines' => $p, 'ai' => false];
+                $pool[] = ['lines' => $p, 'ai' => false]; // double weight
+            }
             foreach ((self::CURATED[$mood] ?? []) as $p) {
                 $pool[] = ['lines' => $p, 'ai' => false];
             }
@@ -153,14 +182,20 @@ final class ErrorPoem
         if (!self::aiEnabled()) return false;
         $mood = self::normalizeMood($mood);
         $situation = [
-            'lost'    => 'a visitor has reached a page that cannot be found (a 404 — something missing or moved)',
-            'stop'    => 'a visitor is gently stopped at a threshold (needs to sign in, lacks permission, or is going too fast)',
-            'examine' => 'the website has hit an unexpected error and the team is repairing it',
+            'lost'    => 'a visitor reached a page that is missing or moved (a 404)',
+            'stop'    => 'a visitor is gently stopped at a threshold — they need to sign in, lack permission, or are going too fast',
+            'examine' => 'the site hit an unexpected error and the team is already repairing it',
         ][$mood];
-        $system = "You are a poet writing for Afrovanguard, a Pan-African movement raising one million incorruptible African leaders. "
-            . "Write ONE short poem for a website error page. Rules: 3 or 4 lines only; no title; no quotation marks; no preamble or explanation; "
-            . "warm, dignified, hopeful, lightly witty; rooted in an African sense of resilience and community. Return ONLY the poem lines, one per line.";
-        $user = "The moment: {$situation}. Write the poem.";
+        // Ground the poem in the actual movement. The live "site brief" (same one
+        // that feeds the @Afrovanguard bot) is added when available so verses can
+        // nod to real programmes without inventing anything.
+        $brief = class_exists('AiKnowledge') ? trim((string) AiKnowledge::asPromptBlock()) : '';
+        $system = "You are a poet for Afrovanguard — a Nigerian-rooted, Pan-African movement based in Alimosho, Lagos, on a mission to raise one million incorruptible African leaders by 2040 through community, technology and cultural advancement. "
+            . "Its work includes the Academy (free programmes — Techome, MediaPro, Africa GATES, Next Generation Genius), the LCASP children's programme, Street-To-Stardom, mentorship, and a public Diary of the work; its values are integrity, servant leadership, service and initiative.\n\n"
+            . "Write ONE short poem for a website error page. Rules: exactly 3 or 4 lines; no title; no quotation marks; no preamble or explanation. "
+            . "Warm, dignified, hopeful, lightly witty; rooted in African resilience and community. You MAY nod to the movement (the mission, Alimosho/Lagos, the Academy or the Diary, building, incorruptible leadership) but keep it natural and never invent specific facts, names, dates, figures or links. Return ONLY the poem lines, one per line."
+            . ($brief !== '' ? "\n\nReference (do not quote verbatim, do not invent beyond it):\n" . mb_substr($brief, 0, 2000) : '');
+        $user = "The moment: {$situation}. Write the Afrovanguard poem.";
         $res = AvBot::reply($user, [], ['system' => $system, 'max_tokens' => 160]);
         if (empty($res['ok']) || empty($res['text'])) return false;
         $lines = self::cleanLines(preg_split('/\r?\n/', (string) $res['text']));
