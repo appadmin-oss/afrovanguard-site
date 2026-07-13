@@ -439,4 +439,58 @@
       else if (k === 's') { var tg = document.getElementById('lsToggle'); var side = document.getElementById('lessonSide'); if (tg && getComputedStyle(tg).display !== 'none') { e.preventDefault(); tg.click(); } else if (side) { e.preventDefault(); side.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
     });
   })();
+
+  /* ---- Instructor roster: search + status filter + column sort ---- */
+  (function () {
+    var root = document.querySelector('[data-teach-roster]');
+    if (!root) return;
+    var table = root.querySelector('[data-roster-table]');
+    var tbody = table && table.querySelector('tbody');
+    if (!tbody) return;
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var search = root.querySelector('[data-roster-search]');
+    var chips = Array.prototype.slice.call(root.querySelectorAll('[data-roster-filter]'));
+    var emptyEl = root.querySelector('[data-roster-empty]');
+    var filter = 'all', query = '';
+
+    function apply() {
+      var shown = 0;
+      rows.forEach(function (r) {
+        var okF = filter === 'all' || r.getAttribute('data-status') === filter;
+        var okQ = !query || (r.getAttribute('data-name') || '').indexOf(query) !== -1;
+        var show = okF && okQ; r.hidden = !show; if (show) shown++;
+      });
+      if (emptyEl) emptyEl.hidden = shown !== 0;
+    }
+    if (search) { var t; search.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { query = search.value.trim().toLowerCase(); apply(); }, 110); }); }
+    chips.forEach(function (c) {
+      c.addEventListener('click', function () {
+        filter = c.getAttribute('data-roster-filter') || 'all';
+        chips.forEach(function (x) { var on = x === c; x.classList.toggle('active', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+        apply();
+      });
+    });
+
+    var sortHeads = Array.prototype.slice.call(table.querySelectorAll('.th-sort[data-sort]'));
+    function sortBy(key, dir) {
+      var arr = rows.slice();
+      arr.sort(function (a, b) {
+        var av, bv, cmp;
+        if (key === 'name') { av = a.getAttribute('data-name'); bv = b.getAttribute('data-name'); cmp = av.localeCompare(bv); }
+        else { av = parseInt(a.getAttribute('data-' + key) || '0', 10); bv = parseInt(b.getAttribute('data-' + key) || '0', 10); cmp = av - bv; }
+        return dir === 'asc' ? cmp : -cmp;
+      });
+      arr.forEach(function (r) { tbody.appendChild(r); });
+    }
+    sortHeads.forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-sort');
+        var cur = th.getAttribute('aria-sort');
+        var dir = cur === 'ascending' ? 'desc' : 'asc';
+        sortHeads.forEach(function (h) { h.removeAttribute('aria-sort'); });
+        th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending');
+        sortBy(key, dir);
+      });
+    });
+  })();
 })();

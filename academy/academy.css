@@ -449,5 +449,37 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .teach-table .r-pct { font-weight: 800; font-size: 12.5px; color: var(--ink); }
 .r-cert { color: var(--gold-deep); font-weight: 800; }
 
+/* instructor roster: head row + export */
+.teach-head-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.teach-head-row .teach-h1 { margin-bottom: 12px; }
+.teach-export { flex-shrink: 0; }
+
+/* lesson completion funnel */
+.funnel { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); padding: 24px 26px; margin: 0 0 28px; box-shadow: var(--card-shadow); }
+.funnel-head h2 { font-family: var(--font-heading); font-weight: 700; font-size: 22px; color: var(--ink); margin: 0 0 4px; }
+.funnel-head p { font-size: 13.5px; color: var(--muted); margin: 0 0 18px; }
+.funnel-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: none; }
+.funnel-row { display: grid; grid-template-columns: 26px minmax(120px, 1.4fr) 3fr auto; gap: 14px; align-items: center; }
+.funnel-num { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 800; }
+.funnel-title { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.funnel-track { height: 9px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
+.funnel-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--gold), var(--gold-deep)); transition: width .3s ease; }
+.funnel-val { font-size: 12.5px; font-weight: 700; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* roster toolbar (search + filter chips) */
+.teach-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 0 0 16px; }
+.teach-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.teach-filters .chip { appearance: none; cursor: pointer; font-family: var(--font-body); font-weight: 700; font-size: 13px; padding: 7px 14px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--surface); color: var(--muted); transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
+.teach-filters .chip:hover { color: var(--ink); border-color: var(--ink); }
+.teach-filters .chip.active { background: var(--gold-soft); border-color: var(--gold); color: var(--gold-deep); }
+
+/* sortable column headers */
+.teach-table .th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.teach-table .th-sort:hover { color: var(--ink); }
+.teach-table .th-sort[aria-sort]::after { content: ' ▾'; font-size: 10px; color: var(--gold-deep); }
+.teach-table .th-sort[aria-sort="ascending"]::after { content: ' ▴'; }
+.teach-noresults { padding: 28px 16px; text-align: center; color: var(--muted); margin: 0; }
+@media (max-width: 560px) { .funnel-row { grid-template-columns: 20px 1fr auto; } .funnel-track { grid-column: 1 / -1; } }
+
 /* teach.php gate uses .err-actions for its button row */
 .gate .err-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }

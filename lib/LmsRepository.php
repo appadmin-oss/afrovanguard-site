@@ -598,6 +598,29 @@ final class LmsRepository
         return $rows;
     }
 
+    /**
+     * Per-lesson completion funnel for a course: how many enrolled learners
+     * have completed each lesson, in curriculum order. Reveals where learners
+     * drop off. Returns [{title, module, done, pct}] (pct of enrolled).
+     */
+    public function lessonFunnel(int $courseId): array
+    {
+        $enrolled = (int) $this->db->query('SELECT COUNT(*) FROM course_enrolment WHERE course_id = ' . (int) $courseId)->fetchColumn();
+        $s = $this->db->prepare(
+            "SELECT l.id, l.title, m.title AS module,
+                    (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.lesson_id = l.id) AS done
+             FROM lessons l JOIN modules m ON m.id = l.module_id
+             WHERE l.course_id = ? ORDER BY m.position, m.id, l.position, l.id"
+        );
+        $s->execute([$courseId]);
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) {
+            $r['done'] = (int) $r['done'];
+            $r['pct'] = $enrolled ? (int) round(min(100, $r['done'] / $enrolled * 100)) : 0;
+        }
+        return $rows;
+    }
+
     public function ownsCourse(int $userId, string $slug): ?array
     {
         $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ? AND instructor_id = ?');
