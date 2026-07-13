@@ -88,6 +88,8 @@ final class Mentorship
         self::addCol('mentorships', 'goals', "TEXT NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'session_type', "VARCHAR(24) NOT NULL DEFAULT 'checkin'");
         self::addCol('mentor_sessions', 'outcome', "TEXT NOT NULL DEFAULT ''");
+        // Google Workspace sync: the Calendar event id we created for this session.
+        self::addCol('mentor_sessions', 'google_event_id', "VARCHAR(128) NOT NULL DEFAULT ''");
         $done = true;
     }
 
@@ -102,6 +104,20 @@ final class Mentorship
     public static function sessionTypes(): array { return self::SESSION_TYPES; }
     private static function typeKey(string $t): string { return isset(self::SESSION_TYPES[$t]) ? $t : 'checkin'; }
     public static function typeLabel(string $t): string { return self::SESSION_TYPES[$t] ?? self::SESSION_TYPES['checkin']; }
+
+    /** Mentor + mentee email addresses for a mentorship (for calendar invites). */
+    private static function pairEmails(int $mentorshipId): array
+    {
+        try {
+            $s = Database::pdo()->prepare(
+                'SELECT mu.email AS a, eu.email AS b FROM mentorships m
+                 JOIN lms_users mu ON mu.id = m.mentor_id JOIN lms_users eu ON eu.id = m.mentee_id WHERE m.id = ?'
+            );
+            $s->execute([$mentorshipId]);
+            $r = $s->fetch(PDO::FETCH_ASSOC) ?: [];
+            return array_values(array_filter([$r['a'] ?? '', $r['b'] ?? '']));
+        } catch (Throwable $e) { return []; }
+    }
 
     /** The mentor who owns a session (via its mentorship), or 0. */
     private static function sessionMentor(int $sessionId): int
@@ -375,10 +391,30 @@ final class Mentorship
         $title = mb_substr(trim($title), 0, 160) ?: self::typeLabel($type);
         $whenN = trim($when) !== '' ? gmdate('Y-m-d H:i:s', strtotime($when) ?: time()) : '';
         $dur   = self::clampDuration($durationMin ?: 60);
+        $meet = self::cleanUrl($meetUrl, 400);
         $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, meet_url, duration_min, session_type, created_at) VALUES (?,?,?,?,?,?,?,?)')
-           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::cleanUrl($meetUrl, 400), $dur, $type, self::now()]);
+           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), $meet, $dur, $type, self::now()]);
+        $sid = (int) $db->lastInsertId();
+        // FULL Google Workspace sync: create a real Calendar event with a Meet
+        // link and invite both parties. Best-effort — if it fails or isn't
+        // configured, the session still stands (mentor can add a link manually).
+        if ($whenN !== '' && $meet === '' && class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()) {
+            try {
+                $emails = self::pairEmails($mentorshipId);
+                $ev = GoogleWorkspace::createMeetEvent(
+                    'Afrovanguard mentorship · ' . $title,
+                    gmdate('c', strtotime($whenN . ' UTC') ?: time()),
+                    $dur, $emails,
+                    trim($notes) !== '' ? "Agenda: " . $notes : 'Afrovanguard mentorship session.'
+                );
+                if ($ev && (!empty($ev['meet_url']) || !empty($ev['id']))) {
+                    $db->prepare('UPDATE mentor_sessions SET meet_url = ?, google_event_id = ? WHERE id = ?')
+                        ->execute([self::cleanUrl((string) $ev['meet_url'], 400), (string) $ev['id'], $sid]);
+                }
+            } catch (Throwable $e) { error_log('[mentorship] calendar sync: ' . $e->getMessage()); }
+        }
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
-        return ['ok' => true, 'id' => (int) $db->lastInsertId()];
+        return ['ok' => true, 'id' => $sid];
     }
 
     /** Keep a session length sane: 5 min .. 10 hours. */
@@ -413,6 +449,13 @@ final class Mentorship
         } else {
             $db->prepare('UPDATE mentor_sessions SET attendance = ?, status = ?, attended_at = ? WHERE id = ?')
                 ->execute([$status, $status, '', $sessionId]);
+        }
+        // Keep Google Calendar in sync: a cancelled session cancels its event.
+        if ($status === 'cancelled' && class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()) {
+            try {
+                $eid = (string) ($db->query('SELECT google_event_id FROM mentor_sessions WHERE id = ' . (int) $sessionId)->fetchColumn() ?: '');
+                if ($eid !== '') GoogleWorkspace::deleteCalendarEvent($eid);
+            } catch (Throwable $e) { /* best-effort */ }
         }
         return ['ok' => true, 'attendance' => $status];
     }

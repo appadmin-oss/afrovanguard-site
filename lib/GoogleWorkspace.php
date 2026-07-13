@@ -24,13 +24,29 @@ final class GoogleWorkspace
 {
     const TOKEN_URL = 'https://oauth2.googleapis.com/token';
     const SCOPE_CALENDAR  = 'https://www.googleapis.com/auth/calendar.readonly';
+    const SCOPE_CALENDAR_RW = 'https://www.googleapis.com/auth/calendar';       // create/update/delete events + Meet
     const SCOPE_DRIVE     = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+    const SCOPE_DRIVE_RO  = 'https://www.googleapis.com/auth/drive.readonly';   // read file content (transcripts)
     const SCOPE_DIRECTORY = 'https://www.googleapis.com/auth/admin.directory.user.readonly';
+    const SCOPE_GROUPS    = 'https://www.googleapis.com/auth/admin.directory.group.readonly';
 
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
     private static array $tokens = [];
 
     public static function configured(): bool { return self::credentials() !== null; }
+
+    /** Full write sync is opt-in (creates real calendar events + Meet links). */
+    public static function calendarWriteEnabled(): bool
+    {
+        if (!self::configured()) return false;
+        $v = (string) Config::get('AV_WS_CALENDAR_WRITE', '1'); // default on when configured
+        return $v !== '0' && strtolower($v) !== 'false';
+    }
+
+    /** OAuth token endpoint (overridable for testing/proxying). */
+    private static function tokenUrl(): string { return (string) (Config::get('AV_WS_TOKEN_URL', '') ?: self::TOKEN_URL); }
+    /** Google API host prefix (overridable for testing). */
+    private static function apiBase(): string { return rtrim((string) (Config::get('AV_WS_BASE_URL', '') ?: 'https://www.googleapis.com'), '/'); }
 
     private static function credentials(): ?array
     {
@@ -71,7 +87,7 @@ final class GoogleWorkspace
         if (!openssl_sign($header . '.' . $payload, $sig, $c['private_key'], 'sha256WithRSAEncryption')) return null;
         $assertion = $header . '.' . $payload . '.' . self::b64url($sig);
 
-        $res = self::http('POST', self::TOKEN_URL, null, http_build_query([
+        $res = self::http('POST', self::tokenUrl(), null, http_build_query([
             'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => $assertion,
         ]));
         if (!$res || empty($res['json']['access_token'])) {
@@ -82,15 +98,24 @@ final class GoogleWorkspace
         return self::$tokens[$key]['v'];
     }
 
-    /** Minimal curl wrapper → ['code'=>int,'body'=>string,'json'=>?array] or null on transport error. */
-    private static function http(string $method, string $url, ?string $bearer, ?string $postBody = null): ?array
+    /** Minimal curl wrapper → ['code'=>int,'body'=>string,'json'=>?array] or null on transport error.
+     *  $jsonBody, when given, is sent as an application/json request body (POST/PATCH). */
+    private static function http(string $method, string $url, ?string $bearer, ?string $postBody = null, ?string $jsonBody = null): ?array
     {
         if (!function_exists('curl_init')) return null;
         $ch = curl_init($url);
         $headers = ['Accept: application/json'];
         if ($bearer) $headers[] = 'Authorization: Bearer ' . $bearer;
-        $opt = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 12, CURLOPT_HTTPHEADER => $headers];
-        if ($method === 'POST') { $opt[CURLOPT_POST] = true; if ($postBody !== null) $opt[CURLOPT_POSTFIELDS] = $postBody; }
+        $opt = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => &$headers];
+        if ($jsonBody !== null) {
+            $headers[] = 'Content-Type: application/json';
+            $opt[CURLOPT_CUSTOMREQUEST] = $method;
+            $opt[CURLOPT_POSTFIELDS] = $jsonBody;
+        } elseif ($method === 'POST') {
+            $opt[CURLOPT_POST] = true; if ($postBody !== null) $opt[CURLOPT_POSTFIELDS] = $postBody;
+        } elseif ($method !== 'GET') {
+            $opt[CURLOPT_CUSTOMREQUEST] = $method;
+        }
         curl_setopt_array($ch, $opt);
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -110,6 +135,19 @@ final class GoogleWorkspace
             return null;
         }
         return is_array($res['json']) ? $res['json'] : null;
+    }
+
+    /** POST/PATCH/DELETE a JSON body to a Google API. Returns the decoded body or null. */
+    private static function apiSend(string $method, string $url, string $scope, bool $impersonate, ?array $body = null): ?array
+    {
+        $tok = self::accessToken($scope, $impersonate);
+        if (!$tok) return null;
+        $res = self::http($method, $url, $tok, null, $body !== null ? json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : ($method === 'DELETE' ? '' : '{}'));
+        if (!$res || $res['code'] >= 400) {
+            if ($res) error_log('[workspace] ' . $method . ' ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 300));
+            return null;
+        }
+        return is_array($res['json']) ? $res['json'] : ($res['code'] < 300 ? ['ok' => true] : null);
     }
 
     /* ── live reads (normalised; [] on any problem) ─────────────── */
@@ -189,6 +227,140 @@ final class GoogleWorkspace
         return $out;
     }
 
+    /* ── live writes (Calendar + Google Meet) ───────────────────────
+     * Create a real calendar event with a Meet conference, invite the
+     * attendees, and return the ids + join link. Impersonates the subject so
+     * the event lives on a real Workspace calendar and Meet is provisioned.
+     * Returns ['id','html_link','meet_url'] or null on any failure. */
+    public static function createMeetEvent(string $title, string $startIso, int $durationMin, array $attendeeEmails = [], string $description = '', ?string $calendarId = null, bool $withMeet = true): ?array
+    {
+        if (!self::calendarWriteEnabled()) return null;
+        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        if ($cal === '') return null;
+        $startTs = strtotime($startIso) ?: time();
+        $endTs   = $startTs + max(5, $durationMin) * 60;
+        $tz      = (string) Config::get('AV_WS_TZ', 'Africa/Lagos');
+        $event = [
+            'summary'     => mb_substr($title, 0, 200),
+            'description' => mb_substr($description, 0, 4000),
+            'start'       => ['dateTime' => gmdate('c', $startTs), 'timeZone' => $tz],
+            'end'         => ['dateTime' => gmdate('c', $endTs), 'timeZone' => $tz],
+        ];
+        $att = [];
+        foreach ($attendeeEmails as $e) { $e = trim((string) $e); if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) $att[] = ['email' => $e]; }
+        if ($att) $event['attendees'] = $att;
+        $qs = ['sendUpdates' => 'all'];
+        if ($withMeet) {
+            $event['conferenceData'] = ['createRequest' => [
+                'requestId' => bin2hex(random_bytes(8)),
+                'conferenceSolutionKey' => ['type' => 'hangoutsMeet'],
+            ]];
+            $qs['conferenceDataVersion'] = '1';
+        }
+        $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . http_build_query($qs);
+        $d = self::apiSend('POST', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $event);
+        if (!$d || empty($d['id'])) return null;
+        return [
+            'id'        => (string) $d['id'],
+            'html_link' => (string) ($d['htmlLink'] ?? ''),
+            'meet_url'  => (string) ($d['hangoutLink'] ?? self::meetFrom($d)),
+        ];
+    }
+
+    /** Pull the Meet join URL out of an event's conferenceData entry points. */
+    private static function meetFrom(array $event): string
+    {
+        foreach (($event['conferenceData']['entryPoints'] ?? []) as $ep) {
+            if (($ep['entryPointType'] ?? '') === 'video' && !empty($ep['uri'])) return (string) $ep['uri'];
+        }
+        return '';
+    }
+
+    /** Patch an existing event (time/title/attendees). Returns true on success. */
+    public static function updateCalendarEvent(string $eventId, array $patch, ?string $calendarId = null): bool
+    {
+        if (!self::calendarWriteEnabled() || $eventId === '') return false;
+        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        if ($cal === '') return false;
+        $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
+        return self::apiSend('PATCH', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $patch) !== null;
+    }
+
+    /** Cancel/delete an event (e.g. when a session is cancelled). */
+    public static function deleteCalendarEvent(string $eventId, ?string $calendarId = null): bool
+    {
+        if (!self::calendarWriteEnabled() || $eventId === '') return false;
+        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        if ($cal === '') return false;
+        $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
+        return self::apiSend('DELETE', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '') !== null;
+    }
+
+    /* ── Directory → members sync ────────────────────────────────── */
+
+    /** Directory groups the org publishes (needs the groups.readonly scope). */
+    public static function directoryGroups(int $max = 200): array
+    {
+        if (!self::configured() || self::subject() === '') return [];
+        $domain = (string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng');
+        $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max))]);
+        $d = self::apiGet('https://admin.googleapis.com/admin/directory/v1/groups?' . $q, self::SCOPE_GROUPS, true);
+        if (!$d || empty($d['groups'])) return [];
+        return array_map(fn($g) => [
+            'name'  => (string) ($g['name'] ?? ''),
+            'email' => (string) ($g['email'] ?? ''),
+            'count' => (int) ($g['directMembersCount'] ?? 0),
+        ], $d['groups']);
+    }
+
+    /**
+     * Provision every active org user from the Workspace directory into the
+     * LMS as a verified member (idempotent upsert by email). Returns a summary
+     * ['created'=>int,'updated'=>int,'skipped'=>int]. Safe to run repeatedly.
+     */
+    public static function syncDirectoryUsers(int $max = 500): array
+    {
+        $sum = ['created' => 0, 'updated' => 0, 'skipped' => 0];
+        if (!self::configured() || self::subject() === '' || !class_exists('Database')) return $sum + ['ok' => false, 'error' => 'not configured'];
+        $users = self::directoryUsers($max);
+        if (!$users) return $sum + ['ok' => true];
+        $db = Database::pdo();
+        $find = $db->prepare('SELECT id FROM lms_users WHERE email = ?');
+        $ins  = $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified, has_password) VALUES (?,?,?,?,1,0)');
+        $upd  = $db->prepare('UPDATE lms_users SET name = ? WHERE id = ? AND (name IS NULL OR name = "")');
+        foreach ($users as $u) {
+            $email = strtolower(trim((string) $u['email']));
+            if ($email === '' || !empty($u['suspended'])) { $sum['skipped']++; continue; }
+            $name = trim((string) $u['name']) ?: ucfirst(explode('@', $email)[0]);
+            $find->execute([$email]);
+            $id = (int) ($find->fetchColumn() ?: 0);
+            if ($id > 0) { $upd->execute([$name, $id]); $sum['updated']++; continue; }
+            try {
+                $ins->execute([$name, $email, password_hash(bin2hex(random_bytes(18)), PASSWORD_BCRYPT), 'member']);
+                $sum['created']++;
+                if (class_exists('Events')) { try { Events::emit('member.created', ['email' => $email, 'name' => $name, 'role' => 'member', 'via' => 'workspace_sync']); } catch (Throwable $e) {} }
+            } catch (Throwable $e) { $sum['skipped']++; }
+        }
+        return $sum + ['ok' => true, 'total' => count($users)];
+    }
+
+    /** Fetch a Drive file's text (e.g. a Meet transcript doc) — read-only. */
+    public static function driveText(string $fileId, int $maxBytes = 200000): ?string
+    {
+        if (!self::configured() || $fileId === '') return null;
+        $tok = self::accessToken(self::SCOPE_DRIVE_RO, self::subject() !== '');
+        if (!$tok) return null;
+        // Google Docs must be exported as text/plain; binary files download directly.
+        $url = self::apiBase() . '/drive/v3/files/' . rawurlencode($fileId) . '/export?mimeType=' . rawurlencode('text/plain');
+        $res = self::http('GET', $url, $tok);
+        if (!$res || $res['code'] >= 400) {
+            $url = self::apiBase() . '/drive/v3/files/' . rawurlencode($fileId) . '?alt=media';
+            $res = self::http('GET', $url, $tok);
+        }
+        if (!$res || $res['code'] >= 400 || !is_string($res['body'])) return null;
+        return mb_substr($res['body'], 0, $maxBytes);
+    }
+
     /**
      * Connectivity probe for the Studio → System page. Reports what actually
      * works against live Google, without leaking tokens.
@@ -198,12 +370,14 @@ final class GoogleWorkspace
         if (!self::configured()) return ['configured' => false];
         $tok = self::accessToken(self::SCOPE_CALENDAR, self::subject() !== '');
         return [
-            'configured' => true,
-            'subject'    => self::subject(),
-            'token_ok'   => $tok !== null,
-            'calendar'   => count(self::calendarEvents(null, 1)),
-            'drive'      => count(self::driveFiles(null, 1)),
-            'directory'  => self::subject() !== '' ? count(self::directoryUsers(1)) : null,
+            'configured'     => true,
+            'subject'        => self::subject(),
+            'token_ok'       => $tok !== null,
+            'calendar_read'  => count(self::calendarEvents(null, 1)),
+            'calendar_write' => self::calendarWriteEnabled(),
+            'drive'          => count(self::driveFiles(null, 1)),
+            'directory'      => self::subject() !== '' ? count(self::directoryUsers(1)) : null,
+            'groups'         => self::subject() !== '' ? count(self::directoryGroups(1)) : null,
         ];
     }
 }
