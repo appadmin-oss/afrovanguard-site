@@ -49,7 +49,7 @@ $journey = Levels::progress((int) $u['id']);
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
 // The portal has its OWN theme (dark by default, with a light toggle) — server-set
 // from a cookie so there's no flash.
-$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
+$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
 $pInitials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 
@@ -58,7 +58,7 @@ render_head([
     'desc'       => 'Your Afrovanguard portal — learning, and (for members) mentorship and members-only spaces.',
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
-    'body_class' => 'portal-page' . ($ptheme === 'light' ? ' is-light' : ''),
+    'body_class' => 'portal-page' . ($ptheme === 'dark' ? ' is-dark' : ''),
     'css'        => ['/portal/portal.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
@@ -406,8 +406,8 @@ render_head([
   (function () {
     var btn = document.getElementById('portalTheme'); if (!btn) return;
     btn.addEventListener('click', function () {
-      var light = document.body.classList.toggle('is-light');
-      document.cookie = 'av_portal_theme=' + (light ? 'light' : 'dark') + ';path=/;max-age=31536000;samesite=Lax';
+      var dark = document.body.classList.toggle('is-dark');
+      document.cookie = 'av_portal_theme=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
     });
   })();
   </script>
