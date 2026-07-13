@@ -14,7 +14,7 @@ $ANNUAL  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
 
 render_head([
     'title'     => 'How Afrovanguard Works — Progressive Growth & Member Alignment',
-    'desc'      => 'How members grow at Afrovanguard: a structured progression built on commitment, mentorship, service and leadership — from Foundation Member (Level O) upward.',
+    'desc'      => 'How members grow at Afrovanguard: an algorithmic progression built on verifiable output, mentorship, invisible service, radical transparency and servant leadership — from Foundation Member (Level O) upward.',
     'canonical' => rtrim(SITE_URL, '/') . '/how-it-works',
     'body_class' => 'hiw-page',
 ]);
@@ -38,7 +38,7 @@ render_nav('about');
     display:flex;align-items:center;justify-content:center;font-family:var(--afg-font-display,'Cormorant',Georgia,serif);
     font-weight:700;font-size:26px;color:var(--afg-on-accent,#111827);background:var(--afg-accent,#f3b416);
     box-shadow:0 8px 22px -10px rgba(0,0,0,.4);z-index:1}
-  .hiw-step.is-goal .hiw-badge{background:var(--afg-ink,#111827);color:#fff}
+  .hiw-step.is-goal .hiw-badge{background:#111827;color:#fff;border:2px solid var(--afg-accent,#f3b416)}
   .hiw-step h2{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-weight:700;
     font-size:26px;line-height:1.15;margin:6px 0 2px;color:var(--afg-ink,#111827)}
   .hiw-step .hiw-kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
@@ -63,8 +63,11 @@ render_nav('about');
   .hiw-amt .n{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-weight:700;font-size:30px;
     color:var(--afg-accent-ink,#b07e08);display:block;line-height:1}
   .hiw-amt .u{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--afg-muted,#6b7280)}
-  .hiw-mand{font-size:14px;color:var(--afg-body,#374151);margin:6px 0 0}
+  .hiw-mand{font-size:14px;color:var(--afg-body,#374151);margin:6px 0 0;line-height:1.6}
   .hiw-mand strong{color:var(--afg-ink,#111827)}
+  .hiw-rule{margin:18px 0 0;background:#111827;color:#fff;border-radius:var(--afg-radius-sm,10px);padding:18px 20px}
+  .hiw-rule-lbl{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--afg-accent,#f3b416);margin:0 0 6px}
+  .hiw-rule p{margin:0;font-size:15px;line-height:1.6;color:rgba(255,255,255,.9)}
   .hiw-quote{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-size:24px;line-height:1.35;
     color:var(--afg-ink,#111827);text-align:center;margin:44px auto 0;max-width:640px}
   /* CTA */
@@ -90,7 +93,8 @@ render_nav('about');
 
   <div class="hiw-body">
     <div class="hiw-in">
-      <p class="hiw-intro">Advancement at Afrovanguard is earned through demonstrated commitment, leadership capacity and consistent contribution — <strong>not merely by length of membership</strong>. Everyone starts on the same footing and grows by showing up, serving and bringing others along.</p>
+      <p class="hiw-intro">Afrovanguard develops leaders through a structured, high-frequency progression system that optimises for personal growth, absolute accountability, invisible service and unyielding alignment with the organisation's vision.</p>
+      <p class="hiw-intro">Advancement is strictly algorithmic — based on verifiable output, systemic growth and consistent contribution, <strong>never on length of membership or mere presence</strong>.</p>
       <p class="hiw-note">Here is the path from your first day to organisational leadership.</p>
 
       <ol class="hiw-ladder">
@@ -98,14 +102,13 @@ render_nav('about');
           <span class="hiw-badge" aria-hidden="true">O</span>
           <p class="hiw-kicker">Where everyone begins</p>
           <h2>Level&nbsp;O — Foundation Member</h2>
-          <p>Every new member joins Afrovanguard as a Level&nbsp;O Member. At this stage you are expected to:</p>
+          <p>Every new member enters the Afrovanguard ecosystem as a Level&nbsp;O Member. At this foundational stage you are stress-tested for consistency and teachability.</p>
           <div class="hiw-card">
+            <h3>Core obligations</h3>
             <ul class="hiw-list">
-              <li>Select a mentor from the approved mentorship structure.</li>
-              <li>Participate actively in Afrovanguard programmes and activities.</li>
-              <li>Complete at least one assigned task or service responsibility each week.</li>
-              <li>Demonstrate consistency, accountability and a willingness to learn.</li>
-              <li>Begin understanding and living the Afrovanguard culture and values.</li>
+              <li><strong>Mentorship alignment.</strong> Select an approved mentor from the verified structural registry.</li>
+              <li><strong>High-frequency execution.</strong> Participate actively in local programmes and complete at least one verified task or service responsibility every week.</li>
+              <li><strong>Behavioural baseline.</strong> Demonstrate absolute consistency, radical accountability and a rapid willingness to learn and internalise Afrovanguard culture.</li>
             </ul>
           </div>
         </li>
@@ -114,20 +117,21 @@ render_nav('about');
           <span class="hiw-badge" aria-hidden="true">A</span>
           <p class="hiw-kicker">Advancement</p>
           <h2>Level&nbsp;A Membership</h2>
-          <p>A Level&nbsp;O Member becomes eligible for Level&nbsp;A after developing leadership capacity through the approved progression pathway. Requirements include:</p>
+          <p>A Level&nbsp;O Member becomes eligible for Level&nbsp;A <strong>only</strong> after demonstrating verifiable capacity and driving measurable ecosystem growth through the approved progression pathway.</p>
           <div class="hiw-card">
+            <h3>Strict requirements for advancement</h3>
             <ul class="hiw-list">
-              <li>Personally introducing <strong>two committed members</strong> into the Afrovanguard community.</li>
-              <li>Supporting and mentoring them through their initial growth and integration.</li>
-              <li>Demonstrating consistent participation, service and alignment with our mission and values.</li>
+              <li><strong>Network expansion — the tracking link.</strong> Personally introduce <strong>two&nbsp;(2) or more</strong> committed individuals who register directly through your unique Afrovanguard referral link.</li>
+              <li><strong>Onboarding integrity.</strong> Actively support and mentor these new sign-ups through their initial integration, ensuring they consistently execute their Level&nbsp;O weekly tasks.</li>
+              <li><strong>Mission alignment.</strong> Demonstrate flawless participation, service and strategic alignment with Afrovanguard's core values.</li>
             </ul>
           </div>
           <div class="hiw-card">
-            <h3>On attaining Level&nbsp;A, you will</h3>
+            <h3>Upon attaining Level&nbsp;A membership</h3>
             <ul class="hiw-list is-check">
-              <li>Receive an official Afrovanguard email address.</li>
-              <li>Be assigned an accountability mentor for guidance, leadership development and performance support.</li>
-              <li>Become eligible for additional leadership responsibilities and organisational opportunities.</li>
+              <li><strong>Sandboxed identity.</strong> Access to the official Afrovanguard communication network under a secure, sandboxed tier that protects global brand equity.</li>
+              <li><strong>Accountability vector.</strong> Paired with a dedicated operational mentor for high-level leadership development, performance audits and strategic support.</li>
+              <li><strong>Operational eligibility.</strong> Eligible to compete for higher leadership responsibilities and regional organisational opportunities.</li>
             </ul>
           </div>
         </li>
@@ -136,34 +140,37 @@ render_nav('about');
           <span class="hiw-badge" aria-hidden="true">C</span>
           <p class="hiw-kicker">Toward leadership</p>
           <h2>Level&nbsp;C and beyond</h2>
-          <p>As members progress, dues become part of the responsibility of leadership, and servant-leadership becomes the standard (see below). Advancement continues to be earned through service and contribution.</p>
+          <p>As members ascend, dues become a non-negotiable responsibility of leadership and servant-leadership — the ego filter (below) — becomes the standard. Advancement remains earned, never granted.</p>
         </li>
       </ol>
 
       <section class="hiw-panel" aria-labelledby="hiw-contrib">
         <h2 id="hiw-contrib">Membership contribution</h2>
-        <p>Beginning from Level&nbsp;A, members may <strong>voluntarily</strong> contribute to the sustainability and growth of the mission:</p>
+        <p>Financial transparency is the ultimate weapon against institutional decay. To ensure absolute sustainability, the ecosystem runs on an immutable, auditable contribution ledger.</p>
         <div class="hiw-amounts">
           <div class="hiw-amt"><span class="n">&#8358;<?= number_format($MONTHLY) ?></span><span class="u">per month</span></div>
           <div class="hiw-amt"><span class="n">&#8358;<?= number_format($ANNUAL) ?></span><span class="u">per year</span></div>
         </div>
-        <p class="hiw-mand">From <strong>Level&nbsp;C upward</strong>, payment of membership dues becomes <strong>mandatory</strong> — part of the responsibilities of organisational leadership. Members can pay or renew their dues any time in the <a href="/portal/">member portal</a>.</p>
+        <p class="hiw-mand"><strong>Level&nbsp;A &amp; B — voluntary.</strong> Members may voluntarily contribute to fuel grassroots operations. <strong>Level&nbsp;C and above — mandatory.</strong> Payment of organisational dues becomes a strict, non-negotiable operational requirement. Dues can be paid or renewed any time in the <a href="/portal/">member portal</a>.</p>
+        <div class="hiw-rule">
+          <p class="hiw-rule-lbl">The radical transparency rule</p>
+          <p>100% of all collected funds are logged on an open-ledger, real-time dashboard accessible to every member. Operational leadership must justify every expenditure. We fight corruption with absolute visibility.</p>
+        </div>
       </section>
 
       <section class="hiw-panel" aria-labelledby="hiw-culture">
-        <h2 id="hiw-culture">Leadership culture</h2>
-        <p>As members progress, they embrace a culture of <strong>servant leadership</strong>. Before qualifying for Level&nbsp;C, every member must show a willingness to:</p>
+        <h2 id="hiw-culture">Leadership culture — the ego filter</h2>
+        <p>As members ascend, they must transition from consumers to <strong>architects</strong> of the system through a culture of intense servant leadership. Before qualifying for Level&nbsp;C, every member must prove their ego is entirely subordinate to the mission by demonstrating a willingness to:</p>
         <div class="hiw-card">
           <ul class="hiw-list">
-            <li>Arrive early for meetings, programmes and events to support setup and preparation.</li>
-            <li>Serve behind the scenes before participating as an attendee.</li>
-            <li>Consistently place the success of the mission above personal convenience.</li>
+            <li><strong>Pre-event architecture.</strong> Arrive at least <strong>30 minutes</strong> before standard meetings and <strong>2–3 hours</strong> early for major programmes to manage setup, logistics and invisible backend labour.</li>
+            <li><strong>Invisible service.</strong> Work comfortably behind the scenes, in menial or uncredited roles, before earning the right to appear as a primary attendee or speaker.</li>
+            <li><strong>Mission primacy.</strong> Consistently and measurably place the velocity of the mission above personal convenience.</li>
           </ul>
         </div>
-        <p class="hiw-mand" style="margin-top:14px">As a minimum, members should arrive at least <strong>30 minutes</strong> before the scheduled start — and, where required, <strong>2–3 hours</strong> earlier for major programmes or events.</p>
       </section>
 
-      <p class="hiw-quote">“Afrovanguard's belief is simple: leadership begins with service. Those who faithfully serve are prepared to lead.”</p>
+      <p class="hiw-quote">“Those who faithfully manage the friction of service are engineered to lead. The machinery of Afrovanguard stays simpler, tougher and more transparent than the human variables within it.”</p>
 
       <div class="hiw-cta">
         <a class="hiw-btn hiw-btn-primary" href="/portal/">Go to your portal</a>
