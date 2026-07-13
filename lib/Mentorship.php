@@ -323,7 +323,7 @@ final class Mentorship
         return mb_substr($url, 0, $max);
     }
 
-    public static function addSession(int $mentorId, int $mentorshipId, string $title, string $when, string $notes, string $meetUrl = ''): array
+    public static function addSession(int $mentorId, int $mentorshipId, string $title, string $when, string $notes, string $meetUrl = '', int $durationMin = 60): array
     {
         self::ensure();
         $db = Database::pdo();
@@ -332,11 +332,17 @@ final class Mentorship
         if (!$s->fetchColumn()) return ['ok' => false, 'error' => 'No active mentorship to schedule on.'];
         $title = mb_substr(trim($title), 0, 160) ?: 'Mentorship session';
         $whenN = trim($when) !== '' ? gmdate('Y-m-d H:i:s', strtotime($when) ?: time()) : '';
-        $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, meet_url, created_at) VALUES (?,?,?,?,?,?)')
-           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::cleanUrl($meetUrl, 400), self::now()]);
+        $dur   = self::clampDuration($durationMin ?: 60);
+        $db->prepare('INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, meet_url, duration_min, created_at) VALUES (?,?,?,?,?,?,?)')
+           ->execute([$mentorshipId, $title, $whenN, mb_substr(trim($notes), 0, 2000), self::cleanUrl($meetUrl, 400), $dur, self::now()]);
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => (int) $db->lastInsertId()];
     }
+
+    /** Keep a session length sane: 5 min .. 10 hours. */
+    private static function clampDuration(int $min): int { return max(5, min(600, $min)); }
+    /** Minutes → hours as a tidy number (e.g. 90 → 1.5, 120 → 2). */
+    private static function fmtHours(int $minutes): float { return round($minutes / 60, 1); }
 
     /** Mentor sets/updates a session's Meet link. */
     public static function setMeetLink(int $mentorId, int $sessionId, string $url): array
@@ -347,15 +353,25 @@ final class Mentorship
         return ['ok' => true];
     }
 
-    /** Mentor marks attendance — this is what drives the consistency score. */
-    public static function markAttendance(int $mentorId, int $sessionId, string $status): array
+    /** Mentor marks attendance — this is what drives the consistency score and
+     *  the logged hours. When a session is marked "attended" we record its
+     *  length (the passed minutes, else the planned duration, else 60) so the
+     *  member's mentorship-hours count is real. */
+    public static function markAttendance(int $mentorId, int $sessionId, string $status, int $durationMin = 0): array
     {
         self::ensure();
         if (!in_array($status, ['scheduled', 'attended', 'missed', 'cancelled'], true)) return ['ok' => false, 'error' => 'Invalid status.'];
         if (self::sessionMentor($sessionId) !== $mentorId) return ['ok' => false, 'error' => 'Not your session.'];
-        $at = $status === 'attended' ? self::now() : '';
-        Database::pdo()->prepare('UPDATE mentor_sessions SET attendance = ?, status = ?, attended_at = ? WHERE id = ?')
-            ->execute([$status, $status, $at, $sessionId]);
+        $db = Database::pdo();
+        if ($status === 'attended') {
+            $cur = (int) ($db->query('SELECT duration_min FROM mentor_sessions WHERE id = ' . (int) $sessionId)->fetchColumn() ?: 0);
+            $dur = self::clampDuration($durationMin > 0 ? $durationMin : ($cur > 0 ? $cur : 60));
+            $db->prepare('UPDATE mentor_sessions SET attendance = ?, status = ?, attended_at = ?, duration_min = ? WHERE id = ?')
+                ->execute([$status, $status, self::now(), $dur, $sessionId]);
+        } else {
+            $db->prepare('UPDATE mentor_sessions SET attendance = ?, status = ?, attended_at = ? WHERE id = ?')
+                ->execute([$status, $status, '', $sessionId]);
+        }
         return ['ok' => true, 'attendance' => $status];
     }
 
@@ -394,13 +410,17 @@ final class Mentorship
     {
         self::ensure();
         $rows = self::sessions($mentorshipId);
-        $held = 0; $attended = 0; $streak = 0; $next = null;
+        $held = 0; $attended = 0; $streak = 0; $next = null; $minutes = 0;
         // Past sessions oldest→newest already (sessions() sorts asc).
         foreach ($rows as $s) {
             $isPast = !empty($s['past']) && $s['attendance'] !== 'cancelled';
             if ($isPast) {
                 $held++;
-                if ($s['attendance'] === 'attended') { $attended++; $streak++; }
+                if ($s['attendance'] === 'attended') {
+                    $attended++; $streak++;
+                    // Older attended sessions predate duration capture → assume 60m.
+                    $minutes += ((int) $s['duration_min']) > 0 ? (int) $s['duration_min'] : 60;
+                }
                 elseif ($s['attendance'] === 'missed') { $streak = 0; }
             } elseif (!$s['past'] && $s['attendance'] !== 'cancelled' && $next === null) {
                 $next = $s;
@@ -412,6 +432,8 @@ final class Mentorship
             'rate'     => $held > 0 ? (int) round(100 * $attended / $held) : null,
             'streak'   => $streak,
             'total'    => count($rows),
+            'minutes'  => $minutes,
+            'hours'    => self::fmtHours($minutes),
             'next'     => $next,
         ];
     }
@@ -459,17 +481,19 @@ final class Mentorship
         try {
             $st = Database::pdo()->prepare(
                 "SELECT COUNT(*) held,
-                        SUM(CASE WHEN s.attendance='attended' THEN 1 ELSE 0 END) attended
+                        SUM(CASE WHEN s.attendance='attended' THEN 1 ELSE 0 END) attended,
+                        SUM(CASE WHEN s.attendance='attended' THEN (CASE WHEN s.duration_min > 0 THEN s.duration_min ELSE 60 END) ELSE 0 END) minutes
                  FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id
                  WHERE (m.mentee_id = ? OR m.mentor_id = ?)
                    AND s.attendance <> 'cancelled'
                    AND s.scheduled_at <> '' AND s.scheduled_at < ?"
             );
             $st->execute([$userId, $userId, gmdate('Y-m-d H:i:s')]);
-            $r = $st->fetch(PDO::FETCH_ASSOC) ?: ['held' => 0, 'attended' => 0];
-            $held = (int) $r['held']; $att = (int) $r['attended'];
-            return ['held' => $held, 'attended' => $att, 'rate' => $held > 0 ? (int) round(100 * $att / $held) : null];
-        } catch (Throwable $e) { return ['held' => 0, 'attended' => 0, 'rate' => null]; }
+            $r = $st->fetch(PDO::FETCH_ASSOC) ?: ['held' => 0, 'attended' => 0, 'minutes' => 0];
+            $held = (int) $r['held']; $att = (int) $r['attended']; $mins = (int) ($r['minutes'] ?? 0);
+            return ['held' => $held, 'attended' => $att, 'rate' => $held > 0 ? (int) round(100 * $att / $held) : null,
+                    'minutes' => $mins, 'hours' => self::fmtHours($mins)];
+        } catch (Throwable $e) { return ['held' => 0, 'attended' => 0, 'rate' => null, 'minutes' => 0, 'hours' => 0.0]; }
     }
 
     /* ════════════════════════════════════════════════════════════════

@@ -42,6 +42,10 @@ $asMentor  = $isMentor ? Mentorship::myMentees((int) $u['id']) : [];
 $mentors   = Mentorship::availableMentors((int) $u['id']);
 $pending   = array_values(array_filter($asMentor, fn($m) => $m['status'] === 'pending'));
 $activeMen = array_values(array_filter($asMentor, fn($m) => $m['status'] === 'active'));
+// A member's mentorship footprint across every pairing — real hours logged.
+$myStats   = Mentorship::memberConsistency((int) $u['id']);
+$myHours   = (float) ($myStats['hours'] ?? 0);
+$hoursDisp = rtrim(rtrim(number_format($myHours, 1), '0'), '.');
 
 /** A small avatar chip. */
 function mn_av(array $m): string {
@@ -55,6 +59,14 @@ function mn_av(array $m): string {
       <h1>Mentorship</h1>
       <p>Pair with people building the movement — get guidance, or give it. Sessions and requests live here.</p>
     </div>
+<?php if ((int) ($myStats['held'] ?? 0) > 0): ?>
+    <dl class="mn-stats" aria-label="Your mentorship at a glance">
+      <div class="mn-stat"><dt><?= e($hoursDisp) ?></dt><dd>Hour<?= $myHours == 1.0 ? '' : 's' ?> logged</dd></div>
+      <div class="mn-stat"><dt><?= (int) $myStats['attended'] ?></dt><dd>Sessions attended</dd></div>
+<?php if ($myStats['rate'] !== null): ?>      <div class="mn-stat"><dt><?= (int) $myStats['rate'] ?>%</dt><dd>Consistency</dd></div>
+<?php endif; ?>
+    </dl>
+<?php endif; ?>
   </header>
 
   <div class="mn-cols">
@@ -103,6 +115,7 @@ function mn_av(array $m): string {
           <form class="mn-session-form" data-session="<?= (int) $m['id'] ?>">
             <input type="text" name="title" placeholder="Session title (e.g. Career check-in)" />
             <input type="datetime-local" name="when" />
+            <input type="number" name="duration_min" min="15" max="240" step="15" value="60" title="Planned length (minutes)" aria-label="Session length in minutes" />
             <input type="url" name="meet_url" placeholder="Google Meet link (optional)" />
             <button type="submit" class="cm-ask-btn mn-sm">+ Schedule</button>
           </form>
@@ -171,8 +184,10 @@ function mn_sessions_html(array $sessions, bool $asMentor = false): string {
         $att  = (string) ($s['attendance'] ?? 'scheduled');
         $meet = (string) ($s['meet_url'] ?? '');
         $tr   = (string) ($s['transcript_url'] ?? '');
+        $dur  = (int) ($s['duration_min'] ?? 0);
+        $durTxt = $att === 'attended' ? ' · ' . ($dur > 0 ? $dur : 60) . ' min' : ($dur > 0 && $att === 'scheduled' ? ' · ' . $dur . ' min' : '');
         $out .= '<li class="mn-sess mn-sess--' . e($att) . '">';
-        $out .= '<div class="mn-sess-row"><span class="mn-sess-title"><b>' . e($s['title']) . '</b> · ' . e($when) . '</span>';
+        $out .= '<div class="mn-sess-row"><span class="mn-sess-title"><b>' . e($s['title']) . '</b> · ' . e($when) . e($durTxt) . '</span>';
         $out .= '<span class="mn-att mn-att--' . e($att) . '">' . e($attLabel[$att] ?? $att) . '</span></div>';
         $out .= '<div class="mn-sess-links">';
         if ($meet !== '') $out .= '<a class="mn-join" href="' . e($meet) . '" target="_blank" rel="noopener">▶ Join Meet</a>';
@@ -195,10 +210,12 @@ function mn_consistency_html(array $c): string {
     if ((int) ($c['held'] ?? 0) <= 0) return '';
     $rate = (int) ($c['rate'] ?? 0);
     $streak = (int) ($c['streak'] ?? 0);
-    return '<div class="mn-consist" title="Attendance of past sessions">'
+    $hours = (float) ($c['hours'] ?? 0);
+    $hrTxt = $hours > 0 ? ' · ' . rtrim(rtrim(number_format($hours, 1), '0'), '.') . ' hr' . ($hours == 1.0 ? '' : 's') . ' logged' : '';
+    return '<div class="mn-consist" title="Attendance & hours of past sessions">'
         . '<div class="mn-consist-bar"><span style="width:' . $rate . '%"></span></div>'
         . '<span class="mn-consist-txt">' . $rate . '% consistent · ' . (int) $c['attended'] . '/' . (int) $c['held'] . ' attended'
-        . ($streak > 1 ? ' · ' . $streak . '🔥' : '') . '</span></div>';
+        . $hrTxt . ($streak > 1 ? ' · ' . $streak . '🔥' : '') . '</span></div>';
 }
 ?>
 <style>
@@ -238,6 +255,9 @@ function mn_consistency_html(array $c): string {
   .mn-sess-ctl { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .mn-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--divider); background: var(--surface-2); color: var(--body); cursor: pointer; }
   .mn-chip:hover { border-color: var(--gold); color: var(--ink); }
+  .mn-stats { display: flex; gap: 26px; flex-wrap: wrap; margin: 18px 0 0; padding: 0; }
+  .mn-stat dt { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); }
+  .mn-stat dd { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   .mn-consist { margin: 10px 0 2px; }
   .mn-consist-bar { height: 7px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
   .mn-consist-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), #1a8a3f); border-radius: 999px; }
@@ -297,8 +317,17 @@ function mn_consistency_html(array $c): string {
     }
     var att = e.target.closest('[data-attend]');
     if (att) {
+      var status = att.getAttribute('data-status');
+      var payload = { session_id: +att.getAttribute('data-attend'), status: status };
+      // Marking a session attended logs its length → real mentorship hours.
+      if (status === 'attended') {
+        var mins = prompt('How long did this session run? (minutes)', '60');
+        if (mins === null) return;
+        var n = parseInt(mins, 10);
+        if (isFinite(n) && n > 0) payload.duration_min = n;
+      }
       att.disabled = true;
-      post('attend', { session_id: +att.getAttribute('data-attend'), status: att.getAttribute('data-status') })
+      post('attend', payload)
         .then(function (d) { if (d.ok) reloadSoon(); else { att.disabled = false; alert(d.error || 'Failed.'); } });
       return;
     }
@@ -324,7 +353,8 @@ function mn_consistency_html(array $c): string {
       var title = sf.querySelector('[name=title]').value, when = sf.querySelector('[name=when]').value;
       if (!title.trim()) { sf.querySelector('[name=title]').focus(); return; }
       var meetEl = sf.querySelector('[name=meet_url]');
-      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when, meet_url: meetEl ? meetEl.value : '' }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
+      var durEl = sf.querySelector('[name=duration_min]');
+      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when, meet_url: meetEl ? meetEl.value : '', duration_min: durEl ? (parseInt(durEl.value, 10) || 60) : 60 }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
       return;
     }
     if (e.target.id === 'mnBecome') {

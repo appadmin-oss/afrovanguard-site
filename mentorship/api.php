@@ -65,12 +65,12 @@ try {
         case 'session':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
-            json_out(Mentorship::addSession($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['when'] ?? ''), (string) ($body['notes'] ?? ''), (string) ($body['meet_url'] ?? '')));
+            json_out(Mentorship::addSession($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['when'] ?? ''), (string) ($body['notes'] ?? ''), (string) ($body['meet_url'] ?? ''), (int) ($body['duration_min'] ?? 60)));
 
         case 'attend':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
-            json_out(Mentorship::markAttendance($uid, (int) ($body['session_id'] ?? 0), (string) ($body['status'] ?? '')));
+            json_out(Mentorship::markAttendance($uid, (int) ($body['session_id'] ?? 0), (string) ($body['status'] ?? ''), (int) ($body['duration_min'] ?? 0)));
 
         case 'meet':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
