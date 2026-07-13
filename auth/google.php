@@ -52,9 +52,51 @@ if ($action === 'start') {
     exit;
 }
 
+/* ── Incremental authorization: connect the member's OWN Google Workspace ──
+   (offline access → refresh token → the site acts AS them). Separate from
+   sign-in; requires an existing session. Returns to the shared callback. */
+if ($action === 'connect') {
+    $u = LmsAuth::user();
+    if (!$u) { header('Location: ' . av_login_url('/workspace')); exit; }
+    if (!av_rate_ok('gws_connect', 20, 600)) av_oauth_bounce('/workspace?e=rate');
+    $state = GoogleWorkspaceUser::makeState((int) $u['id'], (string) ($_GET['next'] ?? '/workspace'));
+    setcookie(GoogleWorkspaceUser::STATE_COOKIE, $state, [
+        'expires' => time() + GoogleWorkspaceUser::STATE_TTL, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
+    ]);
+    header('Location: ' . GoogleWorkspaceUser::connectUrl($state, (string) ($u['email'] ?? '')));
+    exit;
+}
+
+if ($action === 'disconnect') {
+    $u = LmsAuth::user();
+    // State-changing → require POST + a valid CSRF token.
+    if ($u && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && av_csrf_valid((string) ($_POST['csrf'] ?? ''))) {
+        GoogleWorkspaceUser::disconnect((int) $u['id']);
+    }
+    header('Location: /workspace');
+    exit;
+}
+
 if ($action === 'callback') {
-    if (isset($_GET['error'])) av_oauth_bounce('/login?e=google_cancelled');
-    $state  = (string) ($_GET['state'] ?? '');
+    if (isset($_GET['error'])) {
+        // A cancelled connect returns to the hub; a cancelled sign-in to /login.
+        $isConnect = ($_COOKIE[GoogleWorkspaceUser::STATE_COOKIE] ?? '') !== '';
+        av_oauth_bounce($isConnect ? '/workspace?e=connect_cancelled' : '/login?e=google_cancelled');
+    }
+    $state = (string) ($_GET['state'] ?? '');
+
+    // Is this the CONNECT flow? (its own signed state + cookie)
+    $connState = GoogleWorkspaceUser::readState($state);
+    $connCookie = (string) ($_COOKIE[GoogleWorkspaceUser::STATE_COOKIE] ?? '');
+    if ($connState !== null && $connCookie !== '' && hash_equals($connCookie, $state)) {
+        setcookie(GoogleWorkspaceUser::STATE_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        $u = LmsAuth::user();
+        if (!$u || (int) $u['id'] !== $connState['uid']) av_oauth_bounce('/workspace?e=connect_session');
+        $ok = GoogleWorkspaceUser::exchangeAndStore((string) ($_GET['code'] ?? ''), (int) $u['id']);
+        av_oauth_bounce($connState['next'] . (str_contains($connState['next'], '?') ? '&' : '?') . ($ok ? 'connected=1' : 'e=connect_failed'));
+    }
+
+    // …otherwise the normal sign-in flow.
     $cookie = (string) ($_COOKIE[GoogleAuth::STATE_COOKIE] ?? '');
     if ($state === '' || !hash_equals($cookie, $state)) av_oauth_bounce('/login?e=google_state');
     $next = GoogleAuth::readState($state);

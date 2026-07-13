@@ -59,7 +59,7 @@ RewriteRule ^academy/([a-z0-9-]+)/?$ academy/course.php?slug=$1 [L,QSA]
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
 
 # Google sign-in endpoints
-RewriteRule ^auth/google/(start|callback)/?$ auth/google.php?action=$1 [L,QSA]
+RewriteRule ^auth/google/(start|callback|connect|disconnect)/?$ auth/google.php?action=$1 [L,QSA]
 
 # Extension-less root pages: /about → about.html, /donate → donate.html, …
 RewriteCond %{DOCUMENT_ROOT}/$1.html -f

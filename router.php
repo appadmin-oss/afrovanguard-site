@@ -50,7 +50,7 @@ if (preg_match('~^/ethos/?$~', $uri)) { require __DIR__ . '/ethos/index.php'; re
 if (preg_match('~^/login/?$~', $uri)) { require __DIR__ . '/login/index.php'; return true; }
 
 // Google sign-in endpoints (real /auth/ folder in prod; routed here for dev).
-if (preg_match('~^/auth/google/(start|callback)/?$~', $uri, $m)) { $_GET['action'] = $m[1]; require __DIR__ . '/auth/google.php'; return true; }
+if (preg_match('~^/auth/google/(start|callback|connect|disconnect)/?$~', $uri, $m)) { $_GET['action'] = $m[1]; require __DIR__ . '/auth/google.php'; return true; }
 
 // Member portal (real /portal/ folder in prod; routed here for dev).
 if (preg_match('~^/portal/?$~', $uri)) { require __DIR__ . '/portal/index.php'; return true; }

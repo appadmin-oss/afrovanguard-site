@@ -252,6 +252,7 @@ require_once __DIR__ . '/AuthArt.php';
 require_once __DIR__ . '/Cloudinary.php';
 require_once __DIR__ . '/Drive.php';
 require_once __DIR__ . '/GoogleWorkspace.php';
+require_once __DIR__ . '/GoogleWorkspaceUser.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
