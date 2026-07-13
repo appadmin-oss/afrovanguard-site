@@ -41,6 +41,47 @@ final class GoogleWorkspaceUser
         return $s !== '' ? $s : self::DEFAULT_SCOPES;
     }
 
+    /** Should ordinary Google sign-in ALSO request offline Workspace access
+     *  (so it captures a connection)? On by default once OAuth is configured;
+     *  set AV_GWS_CONNECT_ON_SIGNIN=0 to keep sign-in lightweight. */
+    public static function connectOnSignin(): bool
+    {
+        if (!self::configured()) return false;
+        $v = getenv('AV_GWS_CONNECT_ON_SIGNIN');
+        if ($v === false || trim((string) $v) === '') return true;
+        return !in_array(strtolower(trim((string) $v)), ['0', 'off', 'false', 'no'], true);
+    }
+
+    /** True if a scope string carries at least one Workspace API scope (i.e. more
+     *  than bare openid/email/profile) — worth storing a connection for. */
+    private static function hasApiScope(string $scope): bool
+    {
+        foreach (preg_split('/\s+/', trim($scope)) as $s) {
+            if ($s !== '' && str_contains($s, 'googleapis.com/auth/')) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Capture a Workspace connection from the SIGN-IN token bundle (when sign-in
+     * was granted offline Workspace scopes). Stores only when it carries a real
+     * API scope AND we have a refresh token (first grant) or an existing one to
+     * keep. Best-effort; returns whether a connection now exists.
+     */
+    public static function captureFromSignin(int $uid, array $tok): bool
+    {
+        if ($uid <= 0 || empty($tok['access_token'])) return false;
+        $scope = (string) ($tok['scope'] ?? '');
+        if (!self::hasApiScope($scope)) return false;               // basic sign-in only → nothing to store
+        $newConn = !self::connected($uid) && !empty($tok['refresh_token']);
+        if (empty($tok['refresh_token']) && !self::connected($uid)) return false; // no refresh token, nothing usable
+        $profile = !empty($tok['id_token']) && class_exists('GoogleAuth')
+            ? GoogleAuth::profileFromTokens($tok) : null;
+        self::store($uid, $tok, $profile);
+        if ($newConn && class_exists('Events')) { try { Events::emit('workspace.connected', ['user_id' => $uid, 'via' => 'signin']); } catch (Throwable $e) {} }
+        return self::connected($uid);
+    }
+
     /* ── endpoints (overridable for tests, shared with GoogleWorkspace) ── */
     private static function tokenUrl(): string
     {

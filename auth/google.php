@@ -48,7 +48,10 @@ if ($action === 'start') {
     setcookie(GoogleAuth::STATE_COOKIE, $state, [
         'expires' => time() + GoogleAuth::STATE_TTL, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
-    header('Location: ' . GoogleAuth::authUrl($state, $hint));
+    // Connect-on-sign-in: also request offline Workspace scopes so a single
+    // Google sign-in both authenticates AND connects their Workspace.
+    $extra = GoogleWorkspaceUser::connectOnSignin() ? GoogleWorkspaceUser::scopes() : '';
+    header('Location: ' . GoogleAuth::authUrl($state, $hint, $extra));
     exit;
 }
 
@@ -102,11 +105,20 @@ if ($action === 'callback') {
     $next = GoogleAuth::readState($state);
     if ($next === null) av_oauth_bounce('/login?e=google_state');
 
-    $profile = GoogleAuth::exchange((string) ($_GET['code'] ?? ''));
+    $tokens = GoogleAuth::exchangeTokens((string) ($_GET['code'] ?? ''));
+    $profile = $tokens ? GoogleAuth::profileFromTokens($tokens) : null;
     if (!$profile) av_oauth_bounce('/login?e=google_failed');
 
     $res = LmsAuth::oauthSignIn($profile['email'], $profile['name'], (bool) $profile['verified'], 'google');
     if (empty($res['ok'])) av_oauth_bounce('/login?e=google_failed');
+
+    // Connect-on-sign-in: if the grant carried offline Workspace scopes, capture
+    // the connection for the just-signed-in member (best-effort — never blocks login).
+    $uid = (int) ($res['user']['id'] ?? 0);
+    if ($uid > 0 && GoogleWorkspaceUser::connectOnSignin()) {
+        try { GoogleWorkspaceUser::captureFromSignin($uid, $tokens); }
+        catch (Throwable $e) { error_log('[google] connect-on-signin: ' . $e->getMessage()); }
+    }
     av_oauth_bounce($next); // success → back to where they started
 }
 
