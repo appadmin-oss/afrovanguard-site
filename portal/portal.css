@@ -314,3 +314,85 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
 .sched-sub { font-size: 12.5px; color: var(--afg-muted, var(--p-muted)); }
 .sched-join { flex-shrink: 0; font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 14px; border-radius: 999px; background: var(--afg-accent, var(--p-accent-2)); color: var(--afg-on-accent, #111827); }
 .sched-join:hover { filter: brightness(.96); }
+
+/* ============================================================
+   DASHBOARD SHELL — a standard, professional layout: a fixed
+   sidebar rail (brand navy) + slim top bar + scrolling content.
+   Added without touching the card markup, so every feature keeps
+   its classes, ids and behaviour.
+   ============================================================ */
+.portal-app { background: var(--p-bg); }
+.portal-shell { display: flex; align-items: stretch; min-height: 100vh; }
+
+/* ---- sidebar ---- */
+.portal-side {
+  --side-w: 250px;
+  width: var(--side-w); flex: none;
+  position: sticky; top: 0; align-self: flex-start;
+  height: 100vh; display: flex; flex-direction: column;
+  background: #0f1626; color: rgba(255,255,255,.72);
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+.portal-page.is-dark .portal-side { background: #0a0f1c; }
+.side-top { padding: 20px 22px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.portal-side .portal-brand { display: inline-flex; align-items: center; }
+.portal-side .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 25px; font-weight: 600; line-height: 1; }
+.portal-side .wm-1 { color: #fff; } .portal-side .wm-2 { color: var(--p-accent-2); }
+.side-tag { display: block; margin-top: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: rgba(255,255,255,.44); }
+.side-nav { display: flex; flex-direction: column; gap: 2px; padding: 14px 12px; flex: 1; overflow-y: auto; }
+.side-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: rgba(255,255,255,.72); text-decoration: none; font-size: 14px; font-weight: 600; transition: background .15s ease, color .15s ease; }
+.side-link:hover { background: rgba(255,255,255,.06); color: #fff; }
+.side-link.is-active { background: var(--p-accent-soft); color: var(--p-accent-2); }
+.side-ico { display: inline-flex; width: 20px; height: 20px; flex: none; }
+.side-ico svg { width: 19px; height: 19px; }
+.side-foot { padding: 12px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 2px; }
+.side-link--muted { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.55); }
+.side-link--muted:hover { color: #fff; background: rgba(255,255,255,.05); }
+
+/* ---- main column ---- */
+.portal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.portal-topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 14px;
+  height: 60px; padding: 0 clamp(18px, 3vw, 34px);
+  background: color-mix(in srgb, var(--p-surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid var(--p-border); }
+.topbar-burger { display: none; width: 40px; height: 40px; border: 1px solid var(--p-border); border-radius: 10px; background: var(--p-surface); color: var(--p-ink); align-items: center; justify-content: center; cursor: pointer; }
+.topbar-title { font-family: 'Cormorant', Georgia, serif; font-size: 22px; font-weight: 600; color: var(--p-ink); }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.topbar-user { display: flex; align-items: center; gap: 10px; }
+.topbar-user-meta { display: flex; flex-direction: column; line-height: 1.15; }
+.topbar-user-name { font-size: 13.5px; font-weight: 700; color: var(--p-ink); }
+.topbar-user-role { font-size: 11.5px; color: var(--p-muted); }
+/* keep the theme button legible on the light bar */
+.portal-topbar .portal-icon-btn { border-color: var(--p-border-2); color: var(--p-ink); }
+.portal-topbar .portal-icon-btn:hover { border-color: var(--p-accent); color: var(--p-accent); }
+
+/* content sits inside the main column, left-aligned (not page-centred) */
+.portal-app .portal { padding: 26px 0 56px; }
+.portal-app .portal .container { max-width: 1200px; width: 100%; margin: 0; padding: 0 clamp(18px, 3vw, 34px); }
+.portal-app .portal-head { margin-bottom: 22px; }
+.portal-app .portal-head h1 { font-size: clamp(28px, 3.4vw, 40px); margin: 6px 0 12px; }
+.portal-app .portal-card { display: block; box-shadow: var(--p-shadow-sm); border-radius: 16px; }
+.portal-app .portal-card:hover { border-color: var(--p-border-2); }
+
+/* footer, now at the base of the content column */
+.portal-app .portal-foot { background: transparent; border-top: 1px solid var(--p-border); margin-top: 32px; }
+.portal-app .portal-foot-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px clamp(18px,3vw,34px); max-width: 1200px; }
+.portal-app .portal-foot-legal, .portal-app .portal-foot-links { font-size: 12.5px; color: var(--p-muted); }
+.portal-app .portal-foot-links a { color: var(--p-muted); text-decoration: none; }
+.portal-app .portal-foot-links a:hover { color: var(--p-accent); }
+
+/* scrim behind the mobile drawer */
+.portal-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(7,11,20,.5); border: 0; }
+
+/* ---- responsive: off-canvas sidebar under 960px ---- */
+@media (max-width: 960px) {
+  .portal-side { position: fixed; top: 0; left: 0; z-index: 70; transform: translateX(-100%); transition: transform .24s ease; box-shadow: 0 24px 60px rgba(0,0,0,.4); }
+  body.side-open .portal-side { transform: none; }
+  .topbar-burger { display: inline-flex; }
+}
+@media (min-width: 961px) { .portal-scrim { display: none !important; } }
+@media (max-width: 620px) {
+  .portal-app .portal-grid { grid-template-columns: 1fr; }
+  .topbar-user-meta { display: none; }
+}

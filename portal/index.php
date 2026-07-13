@@ -37,9 +37,9 @@ $duesCsrf = $dues ? av_csrf_token() : '';
 $journey = Levels::progress((int) $u['id']);
 // Upcoming mentorship sessions (with Meet links) for the portal schedule/calendar.
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
-// The portal has its OWN theme (dark by default, with a light toggle) — server-set
-// from a cookie so there's no flash.
-$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
+// The portal has its OWN theme (LIGHT by default — a clean, professional
+// dashboard — with a dark toggle). Server-set from a cookie so there's no flash.
+$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
 $pInitials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 
@@ -48,47 +48,70 @@ render_head([
     'desc'       => 'Your Afrovanguard portal — learning, and (for members) mentorship and members-only spaces.',
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
-    'body_class' => 'portal-page' . ($ptheme === 'light' ? ' is-light' : ''),
+    'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
     'css'        => ['/portal/portal.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 ?>
-  <header class="portal-bar">
-    <div class="container portal-bar-inner">
-      <a class="portal-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard — home">
-        <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
-        <span class="portal-tag"><?= e($tag) ?></span>
-      </a>
-      <nav class="portal-bar-actions" aria-label="Member navigation">
-<?php if ($isOrg): ?>        <a class="portal-bar-link" href="/workspace">Workspace</a>
-<?php endif; ?>        <a class="portal-bar-link" href="/academy/">Academy</a>
-        <a class="portal-bar-link" href="/diary/me/">Diary</a>
-        <button type="button" class="portal-icon-btn" id="portalTheme" aria-label="Switch theme" title="Light / dark">
-          <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
-          <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"/></svg>
-        </button>
-        <div class="portal-user">
-          <span class="portal-avatar" aria-hidden="true"><?= e($pInitials) ?></span>
-          <a class="portal-bar-link portal-signout" href="#" data-logout>Sign out</a>
-        </div>
+  <div class="portal-shell">
+    <!-- Sidebar navigation (the standard dashboard rail) -->
+    <aside class="portal-side" id="portalSide" aria-label="Portal navigation">
+      <div class="side-top">
+        <a class="portal-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard — home">
+          <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
+        </a>
+        <span class="side-tag"><?= e($tag) ?></span>
+      </div>
+      <nav class="side-nav" aria-label="Sections">
+        <a class="side-link" href="#overview" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Overview</a>
+        <a class="side-link" href="#learning" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 015.5 4H11v16H5.5A1.5 1.5 0 014 18.5zM20 5.5A1.5 1.5 0 0018.5 4H13v16h5.5a1.5 1.5 0 001.5-1.5z"/></svg></span>Learning</a>
+        <a class="side-link" href="#mentorship" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 5.2A3.2 3.2 0 0116 11M21.5 20a6.5 6.5 0 00-4-6"/></svg></span>Mentorship</a>
+<?php if ($isOrg): ?>        <a class="side-link" href="/workspace"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg></span>Workspace</a>
+        <a class="side-link" href="#membership" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/></svg></span>Membership</a>
+<?php endif; ?>        <a class="side-link" href="/diary/me/"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 4v6h8"/></svg></span>Diary</a>
+        <a class="side-link" href="/academy/"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/></svg></span>Academy</a>
       </nav>
-    </div>
-  </header>
-  <main id="main-content" class="portal portal--<?= $isOrg ? 'member' : 'learner' ?>">
-    <div class="container">
-      <header class="portal-head">
-        <div>
-          <span class="portal-eyebrow"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
-          <h1>Welcome back, <?= e($first) ?>.</h1>
-          <p class="portal-badges">
-<?php if ($isOrg): ?>            <span class="portal-badge org">✦ Afrovanguard member</span>
-<?php if ($showRole): ?>            <span class="portal-badge"><?= e($roleLabel) ?></span>
-<?php endif; ?>
-<?php else: ?>            <span class="portal-badge">Learning access</span>
-<?php endif; ?>          </p>
+      <div class="side-foot">
+        <a class="side-link side-link--muted" href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a>
+        <a class="side-link side-link--muted" href="#" data-logout>Sign out</a>
+      </div>
+    </aside>
+
+    <div class="portal-scrim" id="portalScrim" hidden></div>
+
+    <div class="portal-main">
+      <!-- Slim top bar -->
+      <header class="portal-topbar">
+        <button type="button" class="topbar-burger" id="sideToggle" aria-label="Open navigation" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <span class="topbar-title"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
+        <div class="topbar-actions">
+          <button type="button" class="portal-icon-btn" id="portalTheme" aria-label="Switch theme" title="Light / dark">
+            <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+            <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"/></svg>
+          </button>
+          <div class="topbar-user">
+            <span class="portal-avatar" aria-hidden="true"><?= e($pInitials) ?></span>
+            <span class="topbar-user-meta"><span class="topbar-user-name"><?= e($first) ?></span><span class="topbar-user-role"><?= $isOrg ? e($accessLevel) : 'Learner' ?></span></span>
+          </div>
         </div>
-        <a class="btn btn-outline btn-sm" href="#" data-logout>Sign out</a>
       </header>
+
+      <main id="main-content" class="portal portal--<?= $isOrg ? 'member' : 'learner' ?>">
+        <div class="container">
+          <header class="portal-head" id="overview">
+            <div>
+              <span class="portal-eyebrow"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
+              <h1>Welcome back, <?= e($first) ?>.</h1>
+              <p class="portal-badges">
+<?php if ($isOrg): ?>                <span class="portal-badge org">✦ Afrovanguard member</span>
+<?php if ($showRole): ?>                <span class="portal-badge"><?= e($roleLabel) ?></span>
+<?php endif; ?>
+<?php else: ?>                <span class="portal-badge">Learning access</span>
+<?php endif; ?>              </p>
+            </div>
+          </header>
 
 <?php
       // "Coming up" — live countdowns to the next major event (from the AFG
@@ -238,7 +261,7 @@ render_head([
 <?php endif; ?>
 
         <!-- My learning -->
-        <section class="portal-card span-2">
+        <section class="portal-card span-2" id="learning">
           <div class="pc-head"><h2>My learning</h2><a href="/academy/" class="pc-link">Browse the Academy →</a></div>
 <?php if ($courses): ?>
           <p class="pc-summary"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
@@ -259,14 +282,14 @@ render_head([
         </section>
 
         <!-- Mentorship — find a mentor (everyone); members can also mentor -->
-        <section class="portal-card accent-green">
+        <section class="portal-card accent-green" id="mentorship">
           <div class="pc-head"><h2>Mentorship</h2><span class="pc-tag"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
           <p><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others.' : 'Get paired with an Afrovanguard mentor for guidance on your journey.' ?></p>
           <a class="btn btn-primary btn-sm" href="/mentorship/">Open the mentor network →</a>
         </section>
 
         <!-- Status & profile -->
-        <section class="portal-card">
+        <section class="portal-card" id="membership">
           <div class="pc-head"><h2><?= $isOrg ? 'Membership' : 'Your account' ?></h2><?= $isOrg ? '<span class="pc-tag">Member</span>' : '' ?></div>
 <?php if ($isOrg): ?>
           <p class="portal-status-line">✓ You’re an <strong>Afrovanguard member</strong> — full access to mentorship and members-only programmes.</p>
@@ -329,7 +352,7 @@ render_head([
         $jPct   = min(100, (int) round(100 * $journey['referrals'] / max(1, $journey['referrals_needed'])));
 ?>
         <!-- Your growth path -->
-        <section class="portal-card journey-card span-2">
+        <section class="portal-card portal-journey span-2" id="journey">
           <div class="pc-head"><h2>Your journey</h2><a href="/how-it-works" class="pc-link">How progression works →</a></div>
           <p class="pc-summary">You're at <strong><?= e($journey['label']) ?></strong>. <?= e($journey['blurb']) ?></p>
           <ol class="journey-ladder">
@@ -358,23 +381,56 @@ render_head([
           <a class="btn btn-primary btn-sm" href="/diary/me/">Write an entry</a>
         </section>
       </div>
-    </div>
-  </main>
 
-  <footer class="portal-foot">
-    <div class="container portal-foot-inner">
-      <span class="brand-wordmark portal-foot-mark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
-      <span class="portal-foot-links"><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a></span>
-      <span class="portal-foot-legal">© 2026 Afrovanguard</span>
-    </div>
-  </footer>
+      <footer class="portal-foot">
+        <div class="portal-foot-inner">
+          <span class="portal-foot-legal">© 2026 Afrovanguard</span>
+          <span class="portal-foot-links"><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a></span>
+        </div>
+      </footer>
+        </div>
+      </main>
+    </div><!-- /.portal-main -->
+  </div><!-- /.portal-shell -->
   <script>
   (function () {
-    var btn = document.getElementById('portalTheme'); if (!btn) return;
-    btn.addEventListener('click', function () {
-      var light = document.body.classList.toggle('is-light');
-      document.cookie = 'av_portal_theme=' + (light ? 'light' : 'dark') + ';path=/;max-age=31536000;samesite=Lax';
+    var btn = document.getElementById('portalTheme');
+    if (btn) btn.addEventListener('click', function () {
+      var dark = document.body.classList.toggle('is-dark');
+      document.cookie = 'av_portal_theme=' + (dark ? 'dark' : 'light') + ';path=/;max-age=31536000;samesite=Lax';
     });
+
+    // Sidebar: off-canvas on small screens, persistent on large.
+    var side = document.getElementById('portalSide'), toggle = document.getElementById('sideToggle'),
+        scrim = document.getElementById('portalScrim');
+    function setOpen(on) {
+      document.body.classList.toggle('side-open', on);
+      if (scrim) scrim.hidden = !on;
+      if (toggle) toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
+    }
+    if (toggle) toggle.addEventListener('click', function () { setOpen(!document.body.classList.contains('side-open')); });
+    if (scrim) scrim.addEventListener('click', function () { setOpen(false); });
+
+    // Active section highlight + close the drawer after tapping a link.
+    var links = Array.prototype.slice.call(document.querySelectorAll('.side-link[data-nav]'));
+    var sections = links.map(function (a) { return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+    links.forEach(function (a) { a.addEventListener('click', function () { if (window.innerWidth < 960) setOpen(false); }); });
+    document.querySelectorAll('.side-nav .side-link:not([data-nav])').forEach(function (a) {
+      a.addEventListener('click', function () { if (window.innerWidth < 960) setOpen(false); });
+    });
+    if ('IntersectionObserver' in window && sections.length) {
+      var byId = {};
+      links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            links.forEach(function (l) { l.classList.remove('is-active'); });
+            var a = byId[en.target.id]; if (a) a.classList.add('is-active');
+          }
+        });
+      }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+      sections.forEach(function (s) { obs.observe(s); });
+    }
   })();
   </script>
   <script>
