@@ -88,44 +88,32 @@ body.academy .ac-hero h1 {
 
 /* ============================================================ COURSE GRID + CARDS */
 .ac-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; padding: 28px 0 56px; }
-.ac-card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); overflow: hidden; transition: transform var(--t-base), box-shadow var(--t-base), border-color var(--t-base); }
-.ac-card:hover { transform: translateY(-5px); box-shadow: 0 24px 56px -22px rgba(10,15,26,0.4); border-color: color-mix(in srgb, var(--gold) 45%, var(--divider)); }
+.ac-card { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-lg); overflow: hidden; transition: transform var(--t-base), border-color var(--t-base); }
+.ac-card:hover { transform: translateY(-3px); border-color: var(--ink); }
 .ac-thumb { aspect-ratio: 16/9; position: relative; display: flex; align-items: flex-end; padding: 16px; background-size: cover; background-position: center; }
-.ac-thumb.has-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(0,0,0,0.45)); }
-.ac-cat { position: relative; z-index: 1; align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #fff; background: rgba(10,15,26,0.66); backdrop-filter: blur(4px); padding: 5px 11px; border-radius: var(--radius-full); }
-.ac-state { position: absolute; z-index: 1; top: 14px; right: 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.03em; padding: 5px 11px; border-radius: var(--radius-full); }
+.ac-thumb.has-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(0,0,0,0.4)); }
+.ac-cat { position: relative; z-index: 1; align-self: flex-start; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; background: rgba(10,15,26,0.5); backdrop-filter: blur(4px); padding: 4px 10px; border-radius: var(--radius-full); }
+.ac-state { position: absolute; z-index: 1; top: 14px; right: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; padding: 5px 11px; border-radius: var(--radius-full); }
 .ac-state-done { background: #16a34a; color: #fff; }
 .ac-state-go { background: var(--gold); color: #1a1305; }
 .ac-mark { position: absolute; left: 16px; bottom: 14px; right: 16px; font-family: var(--font-heading); color: rgba(255,255,255,0.97); font-size: clamp(22px, 2.4vw, 30px); line-height: 1.04; z-index: 1; }
-.ac-body { padding: 20px 22px 22px; display: flex; flex-direction: column; flex: 1; }
-.ac-title { font-family: var(--font-body); font-weight: 800; font-size: 20px; line-height: 1.25; color: var(--ink); }
+.ac-body { padding: 22px 24px 20px; display: flex; flex-direction: column; flex: 1; }
+.ac-title { font-family: var(--font-heading); font-weight: 700; font-size: 21px; line-height: 1.22; color: var(--ink); letter-spacing: -0.01em; }
 .ac-card:hover .ac-title { color: var(--gold-deep); }
-.ac-summary { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 10px 0 14px; flex: 1; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ac-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+.ac-summary { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 9px 0 16px; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ac-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); font-weight: 500; margin-bottom: 18px; }
 .ac-meta-item { display: inline-flex; align-items: center; }
-.ac-dot { color: var(--divider); font-weight: 800; }
-
-/* partner / brand row (Coursera-style "institution" line) */
-.ac-partner { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
-.ac-partner-mark { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--ink-2); color: var(--gold); font-family: var(--font-heading); font-weight: 700; font-size: 13px; }
-.ac-partner-name { color: var(--body); }
-
-/* trust row: enrolled count + certificate */
-.ac-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 14px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.ac-trust-item { display: inline-flex; align-items: center; gap: 5px; }
-.ac-trust-item svg { color: var(--gold-deep); }
-.ac-trust-new { color: var(--gold-deep); font-weight: 800; }
-.ac-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
-.ac-progress-bar { flex: 1; height: 6px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
-.ac-progress-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-dark)); }
-.ac-progress-pct { font-size: 12px; font-weight: 800; color: var(--gold-deep); }
-.ac-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--divider); padding-top: 14px; }
-.ac-price { font-weight: 800; font-size: 14px; }
+.ac-dot { color: var(--divider); }
+.ac-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+.ac-progress-bar { flex: 1; height: 5px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
+.ac-progress-bar > span { display: block; height: 100%; background: var(--gold); }
+.ac-progress-pct { font-size: 12px; font-weight: 700; color: var(--gold-deep); }
+.ac-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: auto; }
+.ac-price { font-weight: 700; font-size: 14px; }
 .ac-price-open, .ac-price-tracked { color: #16a34a; }
 .ac-price-membership { color: var(--gold-deep); }
 .ac-price-paid { color: var(--ink); }
-.ac-link { font-weight: 800; font-size: 13.5px; color: var(--gold-deep); white-space: nowrap; }
-.ac-card:hover .ac-link { color: var(--gold-dark); }
+.ac-foot-note { font-size: 12.5px; color: var(--muted); font-weight: 500; white-space: nowrap; }
 
 /* empty states */
 .ac-empty { text-align: center; max-width: 600px; margin: 12px auto; padding: clamp(40px, 6vw, 72px) 28px; border: 1px dashed var(--divider); border-radius: var(--radius-lg); background: var(--bg-warm); }
@@ -144,15 +132,11 @@ body.academy .course-hero::before { display: none; }
 body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-heading); font-weight: 700; font-size: clamp(34px, 5vw, 60px); line-height: 1.02; letter-spacing: -0.01em; max-width: 18ch; margin: 0; }
 .course-dek { font-size: clamp(16px, 1.5vw, 20px); color: var(--muted); max-width: 56ch; margin: 16px 0 22px; line-height: 1.55; }
 .course-badges { display: flex; flex-wrap: wrap; gap: 8px; }
-.course-badges .cb { font-size: 12.5px; font-weight: 700; color: var(--body); background: var(--surface); border: 1px solid var(--divider); padding: 5px 13px; border-radius: var(--radius-full); }
-/* hero partner + trust band */
-.course-partner { display: flex; align-items: center; gap: 9px; margin: 14px 0 0; font-size: 14px; font-weight: 700; color: var(--body); }
-.course-partner-mark { width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--ink-2); color: var(--gold); font-family: var(--font-heading); font-weight: 700; font-size: 14px; }
-.course-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 0 0 22px; font-size: 14px; color: var(--muted); }
-.course-trust-item { display: inline-flex; align-items: center; gap: 6px; }
-.course-trust-item strong { color: var(--ink); font-weight: 800; }
-.course-trust-item svg { color: var(--gold-deep); }
-.course-trust-new { color: var(--gold-deep); font-weight: 700; }
+.course-badges .cb { font-size: 12.5px; font-weight: 600; color: var(--muted); background: transparent; border: 1px solid var(--divider); padding: 5px 13px; border-radius: var(--radius-full); }
+/* hero partner + trust (quiet, text-only) */
+.course-partner { margin: 14px 0 0; font-size: 14px; font-weight: 600; color: var(--body); }
+.course-trust { margin: 0 0 22px; font-size: 14px; color: var(--muted); }
+.course-trust strong { color: var(--ink); font-weight: 700; }
 .badge-access { font-weight: 800; }
 .badge-access.access-open, .badge-access.access-tracked { background: rgba(22,163,74,0.12); color: #15803d; border-color: rgba(22,163,74,0.3); }
 .badge-access.access-membership { background: var(--gold-soft); color: var(--gold-deep); border-color: rgba(243,180,22,0.4); }

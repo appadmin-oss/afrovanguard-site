@@ -77,7 +77,6 @@ function ac_course_card(array $c, array $opts = []): void
 <?php if (!$cover): ?>            <span class="ac-mark"><?= e($c['title']) ?></span>
 <?php endif; ?>          </a>
           <div class="ac-body">
-            <div class="ac-partner"><span class="ac-partner-mark" aria-hidden="true">A</span><span class="ac-partner-name">Afrovanguard Academy</span></div>
             <a class="ac-title" href="<?= $url ?>"><?= e($c['title']) ?></a>
             <p class="ac-summary"><?= e($c['summary']) ?></p>
 <?php $enrolled = (int) ($opts['enrolled'] ?? 0); ?>
@@ -93,15 +92,9 @@ function ac_course_card(array $c, array $opts = []): void
               <span class="ac-progress-pct"><?= $pct ?>%</span>
             </div>
 <?php endif; ?>
-            <div class="ac-trust">
-<?php if ($enrolled > 0): ?>              <span class="ac-trust-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> <?= number_format($enrolled) ?> enrolled</span>
-<?php else: ?>              <span class="ac-trust-item ac-trust-new">New programme</span>
-<?php endif; ?>
-              <span class="ac-trust-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 22l5-3 5 3-1.21-8.11"/></svg> Certificate</span>
-            </div>
             <div class="ac-foot">
               <span class="ac-price ac-price-<?= e($am['cls']) ?>"><?= e(ac_price_label($c)) ?></span>
-              <a class="ac-link" href="<?= $url ?>"><?= e($cta) ?> →</a>
+              <span class="ac-foot-note"><?= $enrolled > 0 ? number_format($enrolled) . ' enrolled' : 'New' ?></span>
             </div>
           </div>
         </article>

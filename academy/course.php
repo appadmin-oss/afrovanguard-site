@@ -102,14 +102,9 @@ render_nav('academy');
             <div class="course-hero-copy">
               <p class="ac-hero-eyebrow"><?= e($c['category']) ?></p>
               <h1><?= e($c['title']) ?></h1>
-              <div class="course-partner"><span class="course-partner-mark" aria-hidden="true">A</span><span>Afrovanguard Academy<?= $instructorName ? ' · Taught by ' . e($instructorName) : '' ?></span></div>
+              <p class="course-partner">Afrovanguard Academy<?= $instructorName ? ' · Taught by ' . e($instructorName) : '' ?></p>
               <p class="course-dek"><?= e($c['summary']) ?></p>
-              <div class="course-trust">
-<?php if ($enrolledCount > 0): ?>                <span class="course-trust-item"><strong><?= number_format($enrolledCount) ?></strong> already enrolled</span>
-<?php else: ?>                <span class="course-trust-item course-trust-new">New programme — be among the first</span>
-<?php endif; ?>
-                <span class="course-trust-item"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 22l5-3 5 3-1.21-8.11"/></svg> Certificate on completion</span>
-              </div>
+              <p class="course-trust"><?= $enrolledCount > 0 ? '<strong>' . number_format($enrolledCount) . '</strong> already enrolled' : 'New programme — be among the first' ?> · Certificate on completion</p>
               <div class="course-badges">
                 <span class="cb"><?= e($c['level']) ?></span>
                 <span class="cb"><?= e($c['format']) ?></span>
