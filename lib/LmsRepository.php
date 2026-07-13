@@ -95,9 +95,46 @@ final class LmsRepository
         foreach ($rows as &$r) {
             $pr = $this->progress($userId, (int) $r['id']);
             $r['pct'] = $pr['pct']; $r['complete'] = $pr['complete'];
+            $r['done'] = $pr['completed']; $r['total'] = $pr['total'];
             $r['certified'] = (bool) $this->getCertificate($userId, (int) $r['id']);
+            $r['next'] = $r['complete'] ? null : $this->nextLesson((int) $r['id'], $pr['ids']);
+            // Most recent activity in this course (last completed lesson) — used to
+            // surface the freshest "continue learning" course first.
+            $la = $this->db->prepare('SELECT MAX(completed_at) FROM lesson_progress WHERE user_id = ? AND course_id = ?');
+            $la->execute([$userId, (int) $r['id']]);
+            $r['last_active'] = $la->fetchColumn() ?: null;
         }
         return $rows;
+    }
+
+    /** First not-yet-completed lesson for a course (given the done id set), or null. */
+    public function nextLesson(int $courseId, array $doneIds): ?array
+    {
+        foreach ($this->orderedLessons($courseId) as $l) {
+            if (!in_array((int) $l['id'], $doneIds, true)) {
+                return ['slug' => $l['slug'], 'title' => $l['title'], 'type' => $l['type'] ?? 'reading'];
+            }
+        }
+        return null;
+    }
+
+    /** A learner's most recently edited notes, with course + lesson context (portal recap). */
+    public function recentNotes(int $userId, int $limit = 4): array
+    {
+        $this->ensureNotes();
+        $s = $this->db->prepare(
+            "SELECT n.body, n.updated_at, l.title AS lesson_title, l.slug AS lesson_slug,
+                    c.title AS course_title, c.slug AS course_slug
+             FROM lesson_notes n
+             JOIN lessons l ON l.id = n.lesson_id
+             JOIN courses c ON c.id = n.course_id
+             WHERE n.user_id = ? AND n.body <> ''
+             ORDER BY n.updated_at DESC, l.id DESC LIMIT ?"
+        );
+        $s->bindValue(1, $userId, PDO::PARAM_INT);
+        $s->bindValue(2, $limit, PDO::PARAM_INT);
+        $s->execute();
+        return $s->fetchAll();
     }
 
     /** Can this (maybe-null) user open this lesson? */
