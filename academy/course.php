@@ -173,7 +173,7 @@ render_nav('academy');
                     ['How much does it cost?', $access === 'paid'
                         ? 'This programme is ' . ($price > 0 ? $fmtNgn($price) . ' (one-time)' : 'paid') . '. Academy members get it included — see membership.'
                         : ($access === 'membership'
-                            ? 'This is a members’ programme, unlocked by Academy membership (' . $fmtNgn((int) AV_MEMBERSHIP_NGN) . '/year).'
+                            ? 'This is a members’ programme, unlocked by Academy membership.'
                             : 'This programme is free. ' . ($access === 'tracked' ? 'Create a free account to save your progress and earn your certificate.' : 'You can start straight away.'))],
                     ['How long does it take?', ($c['duration'] ? 'About ' . $c['duration'] . '. ' : '') . 'It’s self-paced' . ($lessonTotal ? ' across ' . $lessonTotal . ' lesson' . ($lessonTotal === 1 ? '' : 's') : '') . ', so you can learn on your own schedule.'],
                     ['Do I need any prior experience?', 'This programme is pitched at ' . strtolower((string) $c['level']) . '. Come curious and ready to build — we take it step by step.'],
@@ -262,8 +262,8 @@ render_nav('academy');
                     $priceTxt = $price > 0 ? $fmtNgn($price) : ($c['price'] ?: 'Paid');
                     $priceSub = 'one-time';
                 } elseif ($access === 'membership') {
-                    $priceTxt = $fmtNgn((int) AV_MEMBERSHIP_NGN);
-                    $priceSub = 'per year';
+                    $priceTxt = 'Members';
+                    $priceSub = 'included with membership';
                 } else {
                     $priceTxt = 'Free';
                     $priceSub = $access === 'tracked' ? 'sign in to track progress' : 'open programme';

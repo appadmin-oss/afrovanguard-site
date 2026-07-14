@@ -121,7 +121,6 @@ render_nav('academy');
           <span class="ac-hero-eyebrow ac-hero-eyebrow--light">Academy membership</span>
           <h2>One membership. Every programme.</h2>
           <p>Unlock the full catalogue, priority cohorts and your verifiable certificates — and back the mission to raise one million incorruptible leaders.</p>
-          <p class="membership-price"><?= '₦' . number_format((int) AV_MEMBERSHIP_NGN) ?><span> / year</span></p>
         </div>
         <div class="membership-cta pay-card">
 <?php if ($member): ?>

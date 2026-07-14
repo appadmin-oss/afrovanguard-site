@@ -85,7 +85,7 @@ render_nav('academy');
       <p><strong><?= e($course['title']) ?></strong> is a members' programme. Become a member to unlock every lesson.</p>
 <?php if (Payments::configured('paystack')): ?>
       <div class="gate-actions pay-card">
-        <button class="btn btn-pill pay-btn" data-pay="membership">Become a member — ₦<?= number_format((int) AV_MEMBERSHIP_NGN) ?>/yr →</button>
+        <button class="btn btn-pill pay-btn" data-pay="membership">Become a member →</button>
         <a class="btn btn-pill-ghost" href="<?= e(academy_url($courseSlug . '/')) ?>">Course overview</a>
       </div>
       <p class="enroll-msg" hidden></p>

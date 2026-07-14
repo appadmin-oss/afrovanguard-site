@@ -147,10 +147,6 @@ render_nav('about');
       <section class="hiw-panel" aria-labelledby="hiw-contrib">
         <h2 id="hiw-contrib">Membership contribution</h2>
         <p>Financial transparency is the ultimate weapon against institutional decay. To ensure absolute sustainability, the ecosystem runs on an immutable, auditable contribution ledger.</p>
-        <div class="hiw-amounts">
-          <div class="hiw-amt"><span class="n">&#8358;<?= number_format($MONTHLY) ?></span><span class="u">per month</span></div>
-          <div class="hiw-amt"><span class="n">&#8358;<?= number_format($ANNUAL) ?></span><span class="u">per year</span></div>
-        </div>
         <p class="hiw-mand"><strong>Level&nbsp;A &amp; B — voluntary.</strong> Members may voluntarily contribute to fuel grassroots operations. <strong>Level&nbsp;C and above — mandatory.</strong> Payment of organisational dues becomes a strict, non-negotiable operational requirement. Dues can be paid or renewed any time in the <a href="/portal/">member portal</a>.</p>
         <div class="hiw-rule">
           <p class="hiw-rule-lbl">The radical transparency rule</p>

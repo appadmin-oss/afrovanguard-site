@@ -60,7 +60,9 @@ if ($action === 'start') {
    sign-in; requires an existing session. Returns to the shared callback. */
 if ($action === 'connect') {
     $u = LmsAuth::user();
-    if (!$u) { header('Location: ' . av_login_url('/workspace')); exit; }
+    // Not signed in → send to login and come back to the connect flow. (Avoid
+    // av_login_url(): partials.php isn't loaded on this endpoint.)
+    if (!$u) { header('Location: /login?next=' . rawurlencode('/auth/google/connect?next=/workspace')); exit; }
     if (!av_rate_ok('gws_connect', 20, 600)) av_oauth_bounce('/workspace?e=rate');
     $state = GoogleWorkspaceUser::makeState((int) $u['id'], (string) ($_GET['next'] ?? '/workspace'));
     setcookie(GoogleWorkspaceUser::STATE_COOKIE, $state, [
