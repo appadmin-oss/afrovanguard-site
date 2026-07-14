@@ -28,9 +28,17 @@
     document.querySelectorAll('[data-close-drawer]').forEach(function (el) {
       el.addEventListener('click', function () { setDrawer(false); });
     });
-    // close when a real navigation link (not an accordion toggle) is tapped
+    // close when a real navigation link (not an accordion toggle) is tapped.
+    // In-page anchors (#hash) close immediately; links that navigate away are
+    // left to navigate untouched and the drawer is closed on the next tick, so
+    // setting `inert` / moving focus mid-click can never cancel the navigation
+    // on touch browsers ("tapping the sign in did nothing").
     drawer.querySelectorAll('a[href]').forEach(function (a) {
-      a.addEventListener('click', function () { setDrawer(false); });
+      a.addEventListener('click', function () {
+        var href = a.getAttribute('href') || '';
+        if (href === '' || href.charAt(0) === '#') { setDrawer(false); return; }
+        setTimeout(function () { setDrawer(false); }, 0);
+      });
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && drawer.classList.contains('open')) setDrawer(false);
