@@ -391,10 +391,16 @@
     function scoreVoice(v) {
       var n = (v.name + ' ' + (v.voiceURI || '')).toLowerCase(); var s = 0;
       if (/^en[-_]/i.test(v.lang)) s += 5;
-      if (/en[-_]gb/i.test(v.lang)) s += 3; else if (/en[-_](us|ng|au|ie)/i.test(v.lang)) s += 2;
+      // Prefer a Nigerian English voice above all other accents — the Diary should
+      // read in a professional Nigerian voice wherever the device offers one.
+      if (/en[-_]ng/i.test(v.lang) || /niger/i.test(n)) s += 12;
+      else if (/en[-_](gb|ie)/i.test(v.lang)) s += 3;
+      else if (/en[-_](us|au|za|gh|ke)/i.test(v.lang)) s += 2;
       if (/natural|neural|enhanced|premium|wavenet|siri/.test(n)) s += 6;
       if (/google/.test(n)) s += 4;
       if (/microsoft/.test(n)) s += 2;
+      // Known Nigerian / West-African voice names, then other clear English names.
+      if (/(nigeria|ezinne|abeo|femi|funmi|ngozi|chinwe|tunde|ada)/.test(n)) s += 8;
       if (/(daniel|samantha|serena|aria|libby|sonia|ryan|arthur|george|jenny|guy)/.test(n)) s += 3;
       if (v.localService === false) s += 1;
       return s;

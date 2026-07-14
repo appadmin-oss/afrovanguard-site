@@ -161,6 +161,20 @@ render_head([
     border-radius:999px;background:var(--ws-accent);color:var(--ws-on-accent);font-size:11px;font-weight:800;margin-left:6px;vertical-align:middle}
   .ws-li.is-unread .ttl{font-weight:800}
   .ws-li .snip{font-size:12px;color:var(--ws-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* refresh + quick actions + join */
+  .ws-refresh{background:none;border:0;color:var(--ws-muted);font:inherit;font-size:12px;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:4px}
+  .ws-refresh:hover{color:var(--ws-accent)}
+  .ws-refresh-ic{display:inline-block;transition:transform .5s ease}
+  #wsMine.is-loading .ws-refresh-ic{animation:wsSpin .8s linear infinite}
+  @keyframes wsSpin{to{transform:rotate(360deg)}}
+  .ws-quick{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+  .ws-qbtn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:10px;border:1px solid var(--ws-border,rgba(255,255,255,.12));
+    background:var(--ws-surface,rgba(255,255,255,.04));color:var(--ws-ink);text-decoration:none;font-size:13.5px;font-weight:600;transition:border-color .15s,transform .15s}
+  .ws-qbtn:hover{border-color:var(--ws-accent);transform:translateY(-1px)}
+  .ws-qbtn-gold{background:var(--ws-accent);color:var(--ws-on-accent);border-color:var(--ws-accent)}
+  .ws-join{flex:none;align-self:center;margin-left:8px;padding:4px 12px;border-radius:999px;background:var(--ws-accent);color:var(--ws-on-accent);
+    font-size:12px;font-weight:700;text-decoration:none}
+  .ws-join:hover{filter:brightness(.95)}
 
   /* two-col panels */
   .ws-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -299,7 +313,16 @@ render_head([
     </div>
 <?php else: ?>
     <div class="ws-sec-head"><h2>Your Google Workspace</h2>
-      <span class="ws-mine-acct"><span class="ws-mine-dot" title="Connected"></span><?= e($email) ?> · <form method="post" action="/auth/google/disconnect" style="display:inline" onsubmit="return confirm('Disconnect your Google Workspace from this site?')"><input type="hidden" name="csrf" value="<?= e($discCsrf) ?>"><button type="submit" class="ws-disc">Disconnect</button></form></span>
+      <span class="ws-mine-acct"><span class="ws-mine-dot" title="Connected"></span><?= e($email) ?>
+        · <button type="button" class="ws-refresh" id="wsRefresh" aria-label="Refresh"><span class="ws-refresh-ic" aria-hidden="true">↻</span> <span id="wsUpdated">Refresh</span></button>
+        · <form method="post" action="/auth/google/disconnect" style="display:inline" onsubmit="return confirm('Disconnect your Google Workspace from this site?')"><input type="hidden" name="csrf" value="<?= e($discCsrf) ?>"><button type="submit" class="ws-disc">Disconnect</button></form></span>
+    </div>
+    <!-- Quick actions that use the connection: compose, schedule, create, meet -->
+    <div class="ws-quick">
+      <a class="ws-qbtn" href="https://mail.google.com/mail/?view=cm&fs=1" target="_blank" rel="noopener noreferrer"><span>✉️</span> Compose email</a>
+      <a class="ws-qbtn" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer"><span>📅</span> New event</a>
+      <a class="ws-qbtn" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer"><span>📄</span> New doc</a>
+      <a class="ws-qbtn ws-qbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer"><span>🎥</span> Start a Meet</a>
     </div>
     <div class="ws-cols ws-cols-3">
       <div class="ws-card">
@@ -470,41 +493,50 @@ render_head([
     }).catch(function(){ flEl.innerHTML='<li class="ws-empty">Couldn’t load Drive right now.</li>'; });
   }
 
-  // PER-USER: the member's own Gmail / Calendar / Drive (one snapshot call).
+  // PER-USER: the member's own Gmail / Calendar / Drive — refreshable + auto-updating.
   var mineSec = document.getElementById('wsMine');
   if (mineSec && mineSec.getAttribute('data-connected') === '1') {
-    fetch('/portal/workspace.php?action=me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-      var mine = d && d.mine ? d.mine : null;
-      var mailEl = document.getElementById('wsMineMail'), evEl = document.getElementById('wsMineEvents'), flEl = document.getElementById('wsMineFiles');
-      if (!mine) {
+    var mailEl = document.getElementById('wsMineMail'), evEl = document.getElementById('wsMineEvents'), flEl = document.getElementById('wsMineFiles');
+    var refreshBtn = document.getElementById('wsRefresh'), updatedEl = document.getElementById('wsUpdated');
+    var mineTimer = null, mineLoading = false;
+    function joinBtn(u){ return u ? '<a class="ws-join" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Join</a>' : ''; }
+    function loadMine(){
+      if (mineLoading) return; mineLoading = true;
+      if (mineSec) mineSec.classList.add('is-loading');
+      fetch('/portal/workspace.php?action=me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+        mineLoading = false; if (mineSec) mineSec.classList.remove('is-loading');
+        var mine = d && d.mine ? d.mine : null;
+        if (!mine) { [mailEl,evEl,flEl].forEach(function(el){ if(el) el.innerHTML='<li class="ws-empty">Couldn’t reach Google right now.</li>'; }); return; }
+        if (updatedEl) updatedEl.textContent = 'Updated ' + new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+        var ub = document.getElementById('wsUnread');
+        if (ub) { if (typeof mine.unread === 'number' && mine.unread > 0) { ub.textContent = mine.unread > 99 ? '99+' : mine.unread; ub.hidden = false; } else { ub.hidden = true; } }
+        var mail = mine.mail||[];
+        mailEl.innerHTML = mail.length ? mail.map(function(x){
+          var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.subject)+'</a>' : esc(x.subject);
+          return '<li class="ws-li'+(x.unread?' is-unread':'')+'"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(x.from)+'</div><div class="snip">'+esc(x.snippet)+'</div></div></li>';
+        }).join('') : '<li class="ws-empty">Inbox is clear. 🎉</li>';
+        var ev = mine.events||[];
+        evEl.innerHTML = ev.length ? ev.map(function(x){
+          var loc = x.location ? ' · '+esc(x.location) : '';
+          var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.title)+'</a>' : esc(x.title);
+          return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+fmtWhen(x.start,x.all_day)+loc+'</div></div>'+joinBtn(x.meet_url)+'</li>';
+        }).join('') : '<li class="ws-empty">Nothing coming up.</li>';
+        var fs = mine.files||[];
+        flEl.innerHTML = fs.length ? fs.map(function(x){
+          var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.name)+'</a>' : esc(x.name);
+          return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(x.modified?fmtWhen(x.modified,false):'')+'</div></div></li>';
+        }).join('') : '<li class="ws-empty">No recent files.</li>';
+      }).catch(function(){
+        mineLoading = false; if (mineSec) mineSec.classList.remove('is-loading');
         [mailEl,evEl,flEl].forEach(function(el){ if(el) el.innerHTML='<li class="ws-empty">Couldn’t reach Google right now.</li>'; });
-        return;
-      }
-      // unread badge
-      var ub = document.getElementById('wsUnread');
-      if (ub && typeof mine.unread === 'number' && mine.unread > 0) { ub.textContent = mine.unread > 99 ? '99+' : mine.unread; ub.hidden = false; }
-      // mail
-      var mail = mine.mail||[];
-      mailEl.innerHTML = mail.length ? mail.map(function(x){
-        var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.subject)+'</a>' : esc(x.subject);
-        return '<li class="ws-li'+(x.unread?' is-unread':'')+'"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(x.from)+'</div><div class="snip">'+esc(x.snippet)+'</div></div></li>';
-      }).join('') : '<li class="ws-empty">Inbox is clear.</li>';
-      // events
-      var ev = mine.events||[];
-      evEl.innerHTML = ev.length ? ev.map(function(x){
-        var loc = x.location ? ' · '+esc(x.location) : (x.meet_url ? ' · Meet' : '');
-        var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.title)+'</a>' : esc(x.title);
-        return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+fmtWhen(x.start,x.all_day)+loc+'</div></div></li>';
-      }).join('') : '<li class="ws-empty">Nothing coming up.</li>';
-      // files
-      var fs = mine.files||[];
-      flEl.innerHTML = fs.length ? fs.map(function(x){
-        var t = x.url ? '<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.name)+'</a>' : esc(x.name);
-        return '<li class="ws-li"><span class="dot"></span><div class="body"><div class="ttl">'+t+'</div><div class="meta">'+esc(x.modified?fmtWhen(x.modified,false):'')+'</div></div></li>';
-      }).join('') : '<li class="ws-empty">No recent files.</li>';
-    }).catch(function(){
-      ['wsMineMail','wsMineEvents','wsMineFiles'].forEach(function(id){ var el=document.getElementById(id); if(el) el.innerHTML='<li class="ws-empty">Couldn’t reach Google right now.</li>'; });
-    });
+      });
+    }
+    if (refreshBtn) refreshBtn.addEventListener('click', loadMine);
+    loadMine();
+    // Auto-refresh while the tab is visible (every 3 min); pause when hidden.
+    function arm(){ clearInterval(mineTimer); mineTimer = setInterval(function(){ if(!document.hidden) loadMine(); }, 180000); }
+    arm();
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) loadMine(); });
   }
 
   // People directory (admins only — endpoint enforces it too).
