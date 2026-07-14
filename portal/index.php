@@ -38,6 +38,10 @@ $duesCsrf = $dues ? av_csrf_token() : '';
 $journey  = Levels::progress((int) $u['id']);
 $collabCsrf = av_csrf_token();
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
+// Mentorship hours logged (attended sessions, as mentor or mentee) + consistency.
+$mentorStats = class_exists('Mentorship') ? Mentorship::memberConsistency((int) $u['id']) : ['held' => 0, 'attended' => 0, 'rate' => null, 'minutes' => 0, 'hours' => 0.0];
+$mentorHours = (float) ($mentorStats['hours'] ?? 0);
+$mentorHoursLabel = (fmod($mentorHours, 1.0) === 0.0 ? (string) (int) $mentorHours : rtrim(rtrim(number_format($mentorHours, 1), '0'), '.')) . 'h';
 // KPI seeds (client refreshes online + tasks live).
 $openTasks  = $isOrg && class_exists('Collab') ? count(array_filter(Collab::myTasks((int) $u['id']), fn($t) => empty($t['done']))) : 0;
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
@@ -59,9 +63,9 @@ render_head([
 /* Nav model — grouped, with dot colours + optional live badges. */
 $nav = [
     'Main' => [
-        ['overview', 'Overview', 'gold', ''],
+        ['overview', 'Dashboard', 'gold', ''],
         ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
-        ['mentorship', 'Mentorship', 'gray', ''],
+        ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
     ],
     'Account' => [
         ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
@@ -119,7 +123,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
         <button type="button" class="ptop-burger" id="sideToggle" aria-label="Open navigation" aria-expanded="false">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <div class="ptop-crumb"><span>Portal</span><span class="ptop-sep">/</span><span class="ptop-here" id="crumbHere">Overview</span></div>
+        <div class="ptop-crumb"><span>Portal</span><span class="ptop-sep">/</span><span class="ptop-here" id="crumbHere">Dashboard</span></div>
         <div class="ptop-actions">
 <?php if ($isOrg): ?>          <span class="ptop-online" id="topOnline"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="dot-live"></span><span id="tbCount"><?= (int) $onlineNow ?></span> online</span>
 <?php endif; ?>          <button type="button" class="ptop-icon" id="portalTheme" aria-label="Light / dark" title="Light / dark">
@@ -134,217 +138,274 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 
       <div class="portal-scroll">
 
-        <!-- Welcome + quick actions -->
-        <section class="phead" id="overview">
-          <div>
-            <h1>Welcome back, <?= e($first) ?>.</h1>
-            <p class="phead-sub"><?= $isOrg ? "Here’s what’s happening across your Afrovanguard workspace today." : 'Pick up where you left off in your learning.' ?></p>
-          </div>
-          <div class="phead-actions">
-<?php if ($isOrg): ?>            <a class="pbtn pbtn-ghost" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">＋ New event</a>
-            <a class="pbtn pbtn-ghost" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer">＋ New doc</a>
-            <a class="pbtn pbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">▶ Start a Meet</a>
-<?php else: ?>            <a class="pbtn pbtn-gold" href="/academy/">Browse the Academy →</a>
-<?php endif; ?>          </div>
-        </section>
-
-        <!-- KPI chip row -->
-        <section class="pkpis" aria-label="At a glance">
 <?php
-          $stageCode = (string) ($journey['level'] ?? 'O');
-          $duesState = $dues ? (string) $dues['state'] : 'none';
-          $duesVal   = $dues ? ((!empty($dues['lifetime'])) ? 'Lifetime' : ($duesState === 'active' ? 'Current' : ($duesState === 'none' ? 'Not paid' : ucfirst(str_replace('_', ' ', $duesState))))) : '—';
-          $duesTotal = $dues ? (int) ($dues['total_paid_ngn'] ?? 0) : 0;
-          $kpis = [];
-          if ($isOrg) {
-              $kpis[] = ['label' => 'Tasks open', 'value' => (string) $openTasks, 'id' => 'kpiTasks', 'sub' => 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
-              $kpis[] = ['label' => 'Members online', 'value' => (string) $onlineNow, 'id' => 'kpiOnline', 'sub' => 'right now', 'chip' => 'Live', 'tone' => 'green'];
-          }
-          $kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
-          if ($dues) {
-              $kpis[] = ['label' => 'Total dues paid', 'value' => '₦' . number_format($duesTotal), 'sub' => $duesVal, 'chip' => ($duesState === 'active' || !empty($dues['lifetime'])) ? 'Current' : 'Due', 'tone' => ($duesState === 'active' || !empty($dues['lifetime'])) ? 'green' : 'red'];
-          } else {
-              $kpis[] = ['label' => 'Certificates', 'value' => (string) $certs, 'sub' => $inProgress . ' in progress', 'chip' => 'Learning', 'tone' => 'indigo'];
-          }
-          foreach ($kpis as $k):
-?>          <div class="pkpi">
-            <div class="pkpi-top"><span class="pkpi-label"><?= e($k['label']) ?></span><span class="pchip pchip--<?= e($k['tone']) ?>"><?= e($k['chip']) ?></span></div>
-            <div class="pkpi-value"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
-            <div class="pkpi-sub"><?= e($k['sub']) ?></div>
+        // Precompute view data used across tabs.
+        $stageCode = (string) ($journey['level'] ?? 'O');
+        $duesState = $dues ? (string) $dues['state'] : 'none';
+        $duesVal   = $dues ? ((!empty($dues['lifetime'])) ? 'Lifetime' : ($duesState === 'active' ? 'Current' : ($duesState === 'none' ? 'Not paid' : ucfirst(str_replace('_', ' ', $duesState))))) : '—';
+        $duesTotal = $dues ? (int) ($dues['total_paid_ngn'] ?? 0) : 0;
+        $jOrder = $journey['order']; $jHere = array_search($journey['level'], $jOrder, true);
+        $jPct = min(100, (int) round(100 * ($journey['referrals'] ?? 0) / max(1, (int) ($journey['referrals_needed'] ?? 2))));
+?>
+
+        <!-- ============================================================ -->
+        <!-- DASHBOARD                                                    -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-overview" data-view="overview">
+
+          <!-- Welcome + quick actions -->
+          <div class="phead">
+            <div>
+              <h1>Welcome back, <?= e($first) ?>.</h1>
+              <p class="phead-sub"><?= $isOrg ? "Here’s what’s happening across your Afrovanguard workspace today." : 'Pick up where you left off in your learning.' ?></p>
+            </div>
+            <div class="phead-actions">
+<?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">＋ New event</a>
+              <a class="pbtn pbtn-ghost" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer">＋ New doc</a>
+              <a class="pbtn pbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">▶ Start a Meet</a>
+<?php else: ?>              <a class="pbtn pbtn-gold" href="/academy/">Browse the Academy →</a>
+<?php endif; ?>            </div>
           </div>
+
+          <!-- KPI chip row -->
+          <div class="pkpis" aria-label="At a glance">
+<?php
+            $kpis = [];
+            if ($isOrg) {
+                $kpis[] = ['label' => 'Tasks open', 'value' => (string) $openTasks, 'id' => 'kpiTasks', 'sub' => 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
+                $kpis[] = ['label' => 'Members online', 'value' => (string) $onlineNow, 'id' => 'kpiOnline', 'sub' => 'right now', 'chip' => 'Live', 'tone' => 'green'];
+            }
+            $kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
+            $kpis[] = ['label' => 'Mentorship hours', 'value' => $mentorHoursLabel, 'sub' => ((int) $mentorStats['attended']) . ' session' . (((int) $mentorStats['attended']) === 1 ? '' : 's') . ' attended', 'chip' => 'Logged', 'tone' => 'gold'];
+            if ($dues) {
+                $kpis[] = ['label' => 'Total dues paid', 'value' => '₦' . number_format($duesTotal), 'sub' => $duesVal, 'chip' => ($duesState === 'active' || !empty($dues['lifetime'])) ? 'Current' : 'Due', 'tone' => ($duesState === 'active' || !empty($dues['lifetime'])) ? 'green' : 'red'];
+            } else {
+                $kpis[] = ['label' => 'Certificates', 'value' => (string) $certs, 'sub' => $inProgress . ' in progress', 'chip' => 'Learning', 'tone' => 'indigo'];
+            }
+            foreach ($kpis as $k):
+?>            <div class="pkpi">
+              <div class="pkpi-top"><span class="pkpi-label"><?= e($k['label']) ?></span><span class="pchip pchip--<?= e($k['tone']) ?>"><?= e($k['chip']) ?></span></div>
+              <div class="pkpi-value"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
+              <div class="pkpi-sub"><?= e($k['sub']) ?></div>
+            </div>
 <?php endforeach; ?>
+          </div>
+
+          <div class="pcols">
+            <div class="pcol pcol--main">
+<?php if ($isOrg): ?>
+              <!-- Tasks (with filter chips) -->
+              <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+                <div class="pcard-head">
+                  <h2>Your tasks</h2>
+                  <div class="pseg" id="taskFilters" role="tablist">
+                    <button type="button" class="pseg-btn is-on" data-filter="all">All <span class="pseg-n" id="fcAll">0</span></button>
+                    <button type="button" class="pseg-btn" data-filter="open">Open <span class="pseg-n" id="fcOpen">0</span></button>
+                    <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
+                  </div>
+                </div>
+                <div class="pcard-body">
+                  <form class="task-add" id="taskAdd" autocomplete="off">
+                    <input type="text" id="taskInput" name="title" maxlength="300" placeholder="Add a task and press Enter…" aria-label="Add a task">
+                    <button type="submit" class="pbtn pbtn-gold">Add</button>
+                  </form>
+                  <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
+                </div>
+              </section>
+<?php endif; ?>
+              <!-- Your journey -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
+                <div class="pcard-body">
+                  <div class="jl-track">
+<?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? 'is-here' : ($i < $jHere ? 'is-done' : ''); ?>                    <span class="jl-chip <?= $st ?>"><span class="jl-badge"><?= e($code) ?></span><?= e(Levels::LADDER[$code]['label'] ?? $code) ?></span>
+<?php endforeach; ?>                  </div>
+<?php if ($journey['level'] === 'O'): ?>
+                  <div class="jl-progress"><div class="jl-bar" aria-hidden="true"><span style="width:<?= $jPct ?>%"></span></div><span class="jl-count"><?= (int) $journey['referrals'] ?> / <?= (int) $journey['referrals_needed'] ?> introduced</span></div>
+                  <p class="pcard-note">Toward <strong>Level A</strong> — personally introduce committed members and mentor them as they settle in.</p>
+                  <div class="jl-invite"><div class="jl-invite-url" title="Your invite link"><?= e($journey['invite_url']) ?></div><button type="button" class="pbtn pbtn-ghost" id="copyInvite" data-url="<?= e($journey['invite_url']) ?>">Copy</button></div>
+<?php else: ?>
+                  <p class="pcard-note">You’re at <strong><?= e($journey['label']) ?></strong>. <?= e($journey['blurb']) ?></p>
+<?php endif; ?>
+                </div>
+              </section>
+            </div>
+
+            <div class="pcol pcol--side">
+<?php if ($isOrg): ?>
+              <!-- Who's online -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Who’s online</h2><span class="pchip pchip--green" id="onlinePill"><span class="dot-live"></span><span id="onlineCount"><?= (int) $onlineNow ?></span> now</span></div>
+                <div class="pcard-body"><div class="online-list" id="onlineList"><p class="pc-empty">Just you so far.</p></div></div>
+              </section>
+
+              <!-- Recent activity -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Recent activity</h2></div>
+                <div class="pcard-body"><ul class="activity-list" id="activityList"><li class="pc-empty">Loading…</li></ul></div>
+              </section>
+<?php endif; ?>
+              <!-- Mentorship snapshot -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Mentorship</h2><span class="pchip pchip--gold"><?= e($mentorHoursLabel) ?> logged</span></div>
+                <div class="pcard-body">
+                  <div class="mentor-stats">
+                    <div class="mstat"><span class="mstat-n"><?= e($mentorHoursLabel) ?></span><span class="mstat-l">Hours logged</span></div>
+                    <div class="mstat"><span class="mstat-n"><?= (int) $mentorStats['attended'] ?></span><span class="mstat-l">Attended</span></div>
+                    <div class="mstat"><span class="mstat-n"><?= $mentorStats['rate'] !== null ? (int) $mentorStats['rate'] . '%' : '—' ?></span><span class="mstat-l">Consistency</span></div>
+                  </div>
+                  <a class="pbtn pbtn-soft" href="#mentorship" data-goto="mentorship">View mentorship →</a>
+                </div>
+              </section>
+            </div>
+          </div>
         </section>
 
-        <div class="pcols">
-          <!-- ===== left column ===== -->
-          <div class="pcol pcol--main">
-
-<?php if ($isOrg): ?>
-            <!-- Tasks (with filter chips) -->
-            <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
-              <div class="pcard-head">
-                <h2>Your tasks</h2>
-                <div class="pseg" id="taskFilters" role="tablist">
-                  <button type="button" class="pseg-btn is-on" data-filter="all">All <span class="pseg-n" id="fcAll">0</span></button>
-                  <button type="button" class="pseg-btn" data-filter="open">Open <span class="pseg-n" id="fcOpen">0</span></button>
-                  <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
-                </div>
-              </div>
-              <div class="pcard-body">
-                <form class="task-add" id="taskAdd" autocomplete="off">
-                  <input type="text" id="taskInput" name="title" maxlength="300" placeholder="Add a task and press Enter…" aria-label="Add a task">
-                  <button type="submit" class="pbtn pbtn-gold">Add</button>
-                </form>
-                <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
-              </div>
-            </section>
-<?php endif; ?>
-
-            <!-- My learning -->
-            <section class="pcard" id="learning">
-              <div class="pcard-head"><h2>My learning</h2><a class="pcard-link" href="/academy/">Browse the Academy →</a></div>
-              <div class="pcard-body">
+        <!-- ============================================================ -->
+        <!-- LEARNING                                                     -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-learning" data-view="learning" hidden>
+          <div class="view-head"><h1>Learning</h1><a class="pcard-link" href="/academy/">Browse the Academy →</a></div>
+          <section class="pcard">
+            <div class="pcard-head"><h2>My learning</h2><span class="pchip pchip--indigo"><?= count($courses) ?> enrolled</span></div>
+            <div class="pcard-body">
 <?php if ($courses): ?>
-                <p class="pcard-note"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
-                <div class="learn-list">
-<?php foreach ($courses as $c): ?>                  <a class="learn-row" href="/academy/<?= e($c['slug']) ?>/learn/">
-                    <div class="learn-info"><span class="learn-title"><?= e($c['title']) ?></span><span class="learn-meta"><?= $c['complete'] ? '✓ Complete' : ((int) $c['pct']) . '% complete' ?><?= $c['certified'] ? ' · 🎓 Certified' : '' ?></span></div>
-                    <div class="learn-bar" aria-hidden="true"><span style="width:<?= (int) $c['pct'] ?>%"></span></div>
-                  </a>
-<?php endforeach; ?>                </div>
-<?php else: ?>
-                <p class="pc-empty">You haven’t joined a programme yet. <a href="/academy/">Explore the Academy →</a></p>
-<?php endif; ?>
-              </div>
-            </section>
-
-<?php if ($isOrg):
-            require_once AV_ROOT . '/lib/workspace.php';
-            $wsAdmin    = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
-            $wsSurfaces = av_workspace_surfaces($wsAdmin);
-?>
-            <!-- Workspace apps -->
-            <section class="pcard" id="workspace">
-              <div class="pcard-head">
-                <div><h2>Your Workspace</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
-                <a class="pcard-link" href="/workspace">Open all →</a>
-              </div>
-              <div class="pcard-body pws-grid">
-<?php foreach ($wsSurfaces as $s): ?>                <a class="pws-app" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
-                  <span class="pws-ico pws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
-                  <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span></span>
+              <p class="pcard-note"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
+              <div class="learn-list">
+<?php foreach ($courses as $c): ?>                <a class="learn-row" href="/academy/<?= e($c['slug']) ?>/learn/">
+                  <div class="learn-info"><span class="learn-title"><?= e($c['title']) ?></span><span class="learn-meta"><?= $c['complete'] ? '✓ Complete' : ((int) $c['pct']) . '% complete' ?><?= $c['certified'] ? ' · 🎓 Certified' : '' ?></span></div>
+                  <div class="learn-bar" aria-hidden="true"><span style="width:<?= (int) $c['pct'] ?>%"></span></div>
                 </a>
 <?php endforeach; ?>              </div>
-            </section>
-<?php endif; ?>
-
-<?php
-            // Your journey — real progression ladder.
-            $jOrder = $journey['order']; $jHere = array_search($journey['level'], $jOrder, true);
-            $jPct = min(100, (int) round(100 * ($journey['referrals'] ?? 0) / max(1, (int) ($journey['referrals_needed'] ?? 2))));
-?>
-            <!-- Your journey -->
-            <section class="pcard" id="journey">
-              <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
-              <div class="pcard-body">
-                <div class="jl-track">
-<?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? 'is-here' : ($i < $jHere ? 'is-done' : ''); ?>                  <span class="jl-chip <?= $st ?>"><span class="jl-badge"><?= e($code) ?></span><?= e(Levels::LADDER[$code]['label'] ?? $code) ?></span>
-<?php endforeach; ?>                </div>
-<?php if ($journey['level'] === 'O'): ?>
-                <div class="jl-progress"><div class="jl-bar" aria-hidden="true"><span style="width:<?= $jPct ?>%"></span></div><span class="jl-count"><?= (int) $journey['referrals'] ?> / <?= (int) $journey['referrals_needed'] ?> introduced</span></div>
-                <p class="pcard-note">Toward <strong>Level A</strong> — personally introduce committed members and mentor them as they settle in.</p>
-                <div class="jl-invite"><div class="jl-invite-url" title="Your invite link"><?= e($journey['invite_url']) ?></div><button type="button" class="pbtn pbtn-ghost" id="copyInvite" data-url="<?= e($journey['invite_url']) ?>">Copy</button></div>
 <?php else: ?>
-                <p class="pcard-note">You’re at <strong><?= e($journey['label']) ?></strong>. <?= e($journey['blurb']) ?></p>
+              <p class="pc-empty">You haven’t joined a programme yet. <a href="/academy/">Explore the Academy →</a></p>
 <?php endif; ?>
+            </div>
+          </section>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- MENTORSHIP                                                   -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-mentorship" data-view="mentorship" hidden>
+          <div class="view-head"><h1>Mentorship</h1><a class="pcard-link" href="/mentorship/">Open the mentor network →</a></div>
+
+          <!-- Hours logged + consistency -->
+          <section class="pcard">
+            <div class="pcard-head"><h2>Your mentorship</h2><span class="pchip pchip--gold"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
+            <div class="pcard-body">
+              <div class="mentor-stats mentor-stats--lg">
+                <div class="mstat"><span class="mstat-n"><?= e($mentorHoursLabel) ?></span><span class="mstat-l">Hours logged</span></div>
+                <div class="mstat"><span class="mstat-n"><?= (int) $mentorStats['attended'] ?></span><span class="mstat-l">Sessions attended</span></div>
+                <div class="mstat"><span class="mstat-n"><?= (int) $mentorStats['held'] ?></span><span class="mstat-l">Sessions held</span></div>
+                <div class="mstat"><span class="mstat-n"><?= $mentorStats['rate'] !== null ? (int) $mentorStats['rate'] . '%' : '—' ?></span><span class="mstat-l">Consistency</span></div>
               </div>
-            </section>
+              <p class="pcard-note"><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others. Attended sessions are counted toward your logged hours.' : 'Get paired with an Afrovanguard mentor for guidance on your journey. Attended sessions count toward your logged hours.' ?></p>
+              <a class="pbtn pbtn-soft" href="/mentorship/">Open mentor network →</a>
+            </div>
+          </section>
 
-          </div>
-
-          <!-- ===== right column ===== -->
-          <div class="pcol pcol--side">
-
-<?php if ($isOrg): ?>
-            <!-- Who's online -->
-            <section class="pcard">
-              <div class="pcard-head"><h2>Who’s online</h2><span class="pchip pchip--green" id="onlinePill"><span class="dot-live"></span><span id="onlineCount"><?= (int) $onlineNow ?></span> now</span></div>
-              <div class="pcard-body"><div class="online-list" id="onlineList"><p class="pc-empty">Just you so far.</p></div></div>
-            </section>
-
-            <!-- Recent activity -->
-            <section class="pcard">
-              <div class="pcard-head"><h2>Recent activity</h2></div>
-              <div class="pcard-body"><ul class="activity-list" id="activityList"><li class="pc-empty">Loading…</li></ul></div>
-            </section>
+          <!-- Upcoming schedule -->
+          <section class="pcard">
+            <div class="pcard-head"><h2>Your schedule</h2><a class="pcard-link" href="/mentorship/">Manage →</a></div>
+            <div class="pcard-body">
+<?php if ($upcoming): ?>              <ul class="mini-sched">
+<?php foreach (array_slice($upcoming, 0, 6) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time(); ?>                <li><span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span><span class="ms-title"><?= e($s['title']) ?></span><?php if ($s['meet_url'] !== ''): ?><a class="ms-join" href="<?= e($s['meet_url']) ?>" target="_blank" rel="noopener">Join</a><?php endif; ?></li>
+<?php endforeach; ?>              </ul>
+<?php else: ?>              <p class="pc-empty">No upcoming sessions. <a href="/mentorship/">Book one with your mentor →</a></p>
 <?php endif; ?>
+            </div>
+          </section>
+        </section>
 
-<?php if ($isOrg && $dues):
-            // Dues fee amounts are intentionally NOT shown on the portal or the
-            // public site — only the member's own "Total dues paid" and status.
-            $duesPT   = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
-            $duesPill = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';
-            if (!empty($dues['lifetime'])) $duesPill = 'Lifetime';
-            $duesTone = (!empty($dues['lifetime']) || $duesState === 'active') ? 'green' : ($duesState === 'overdue' ? 'red' : 'gold');
-            $duesCanPay = !empty($dues['payable']) && empty($dues['lifetime']);
-            $duesRecurring = defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE;
-            $duesN = (int) ($dues['payments_count'] ?? 0);
+<?php if ($isOrg):
+        require_once AV_ROOT . '/lib/workspace.php';
+        $wsAdmin    = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
+        $wsSurfaces = av_workspace_surfaces($wsAdmin);
 ?>
-            <!-- Membership dues -->
-            <section class="pcard dues-card dues-<?= e($duesState) ?>" id="membership" data-csrf="<?= e($duesCsrf) ?>">
-              <div class="pcard-head"><h2>Membership dues</h2><span class="pchip pchip--<?= e($duesTone) ?>"><?= e($duesPill) ?></span></div>
-              <div class="pcard-body">
-<?php if ($duesTotal > 0): ?>                <div class="dues-total-row"><span>Total dues paid</span><strong>₦<?= number_format($duesTotal) ?></strong><span class="dues-total-n">· <?= $duesN ?> payment<?= $duesN === 1 ? '' : 's' ?></span></div>
+        <!-- ============================================================ -->
+        <!-- WORKSPACE                                                    -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-workspace" data-view="workspace" hidden>
+          <div class="view-head"><h1>Workspace</h1><a class="pcard-link" href="/workspace">Open all →</a></div>
+          <section class="pcard">
+            <div class="pcard-head">
+              <div><h2>Your Workspace</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
+            </div>
+            <div class="pcard-body pws-grid">
+<?php foreach ($wsSurfaces as $s): ?>              <a class="pws-app" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
+                <span class="pws-ico pws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
+                <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span></span>
+              </a>
+<?php endforeach; ?>            </div>
+          </section>
+        </section>
 <?php endif; ?>
-<?php if (!empty($dues['lifetime'])): ?>                <p class="dues-line ok">✓ <strong>Lifetime membership</strong> — no dues due.</p>
-<?php elseif ($duesState === 'active'): ?>                <p class="dues-line ok">✓ Paid<?= $duesPT ? ' through <strong>' . e($duesPT) . '</strong>' : '' ?>.</p>
-<?php elseif ($duesState === 'overdue'): ?>                <p class="dues-line warn">⚠ Lapsed<?= $duesPT ? ' on <strong>' . e($duesPT) . '</strong>' : '' ?> — please renew.</p>
-<?php elseif ($duesState === 'due_soon'): ?>                <p class="dues-line warn">⏳ Renew soon to stay current.</p>
+
+        <!-- ============================================================ -->
+        <!-- MEMBERSHIP / ACCOUNT                                         -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-membership" data-view="membership" hidden>
+          <div class="view-head"><h1><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
+          <div class="pcols">
+            <div class="pcol pcol--main">
+<?php if ($isOrg && $dues):
+              // Dues fee amounts are intentionally NOT shown on the portal or the
+              // public site — only the member's own "Total dues paid" and status.
+              $duesPT   = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
+              $duesPill = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';
+              if (!empty($dues['lifetime'])) $duesPill = 'Lifetime';
+              $duesTone = (!empty($dues['lifetime']) || $duesState === 'active') ? 'green' : ($duesState === 'overdue' ? 'red' : 'gold');
+              $duesCanPay = !empty($dues['payable']) && empty($dues['lifetime']);
+              $duesRecurring = defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE;
+              $duesN = (int) ($dues['payments_count'] ?? 0);
+?>
+              <!-- Membership dues -->
+              <section class="pcard dues-card dues-<?= e($duesState) ?>" id="membership" data-csrf="<?= e($duesCsrf) ?>">
+                <div class="pcard-head"><h2>Membership dues</h2><span class="pchip pchip--<?= e($duesTone) ?>"><?= e($duesPill) ?></span></div>
+                <div class="pcard-body">
+<?php if ($duesTotal > 0): ?>                  <div class="dues-total-row"><span>Total dues paid</span><strong>₦<?= number_format($duesTotal) ?></strong><span class="dues-total-n">· <?= $duesN ?> payment<?= $duesN === 1 ? '' : 's' ?></span></div>
 <?php endif; ?>
-<?php if ($duesCanPay): ?>                <div class="dues-actions">
-                  <button type="button" class="pbtn <?= $duesState === 'active' ? 'pbtn-ghost' : 'pbtn-gold' ?>" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?></button>
-                  <button type="button" class="pbtn pbtn-ghost" data-dues-pay data-period="month"><?= $duesRecurring ? 'Monthly' : 'Pay a month' ?></button>
+<?php if (!empty($dues['lifetime'])): ?>                  <p class="dues-line ok">✓ <strong>Lifetime membership</strong> — no dues due.</p>
+<?php elseif ($duesState === 'active'): ?>                  <p class="dues-line ok">✓ Paid<?= $duesPT ? ' through <strong>' . e($duesPT) . '</strong>' : '' ?>.</p>
+<?php elseif ($duesState === 'overdue'): ?>                  <p class="dues-line warn">⚠ Lapsed<?= $duesPT ? ' on <strong>' . e($duesPT) . '</strong>' : '' ?> — please renew.</p>
+<?php elseif ($duesState === 'due_soon'): ?>                  <p class="dues-line warn">⏳ Renew soon to stay current.</p>
+<?php endif; ?>
+<?php if ($duesCanPay): ?>                  <div class="dues-actions">
+                    <button type="button" class="pbtn <?= $duesState === 'active' ? 'pbtn-ghost' : 'pbtn-gold' ?>" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?></button>
+                    <button type="button" class="pbtn pbtn-ghost" data-dues-pay data-period="month"><?= $duesRecurring ? 'Monthly' : 'Pay a month' ?></button>
+                  </div>
+                  <p class="enroll-msg dues-msg" hidden></p>
+<?php else: ?>                  <div class="dues-note-box">Online payment isn’t available yet — <a href="mailto:cacentre@afrovanguard.org.ng">contact us to pay</a>.</div>
+<?php endif; ?>
                 </div>
-                <p class="enroll-msg dues-msg" hidden></p>
-<?php else: ?>                <div class="dues-note-box">Online payment isn’t available yet — <a href="mailto:cacentre@afrovanguard.org.ng">contact us to pay</a>.</div>
+              </section>
 <?php endif; ?>
-              </div>
-            </section>
-<?php endif; ?>
-
-            <!-- Membership / account -->
-            <section class="pcard"<?= $isOrg ? '' : ' id="membership"' ?>>
-              <div class="pcard-head"><h2><?= $isOrg ? 'Membership' : 'Account' ?></h2><span class="pchip pchip--<?= $isOrg ? 'green' : 'indigo' ?>"><?= $isOrg ? 'Active' : 'Learner' ?></span></div>
-              <div class="pcard-body pdl">
-                <div class="pdl-row"><span>Name</span><strong><?= e($u['name']) ?></strong></div>
-                <div class="pdl-row"><span>Email</span><strong><?= e($u['email']) ?></strong></div>
-                <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
-              </div>
-            </section>
-
-            <!-- Mentorship -->
-            <section class="pcard" id="mentorship">
-              <div class="pcard-head"><h2>Mentorship</h2><span class="pchip pchip--gold"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
-              <div class="pcard-body">
-                <p class="pcard-note"><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others.' : 'Get paired with an Afrovanguard mentor for guidance on your journey.' ?></p>
-<?php if ($upcoming): ?>                <ul class="mini-sched">
-<?php foreach (array_slice($upcoming, 0, 3) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time(); ?>                  <li><span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span><span class="ms-title"><?= e($s['title']) ?></span><?php if ($s['meet_url'] !== ''): ?><a class="ms-join" href="<?= e($s['meet_url']) ?>" target="_blank" rel="noopener">Join</a><?php endif; ?></li>
-<?php endforeach; ?>                </ul>
-<?php endif; ?>
-                <a class="pbtn pbtn-soft" href="/mentorship/">Open mentor network →</a>
-              </div>
-            </section>
-
-            <!-- My Diary -->
-            <section class="pcard" id="diary">
-              <div class="pcard-body diary-card">
-                <div class="diary-stat"><span class="diary-n"><?= count($myEntries) ?></span><div><h2>My Diary</h2><p class="pcard-sub"><?= count($myEntries) === 1 ? 'entry' : 'entries' ?></p></div></div>
-                <a class="pbtn pbtn-blue" href="/diary/me/">Write entry</a>
-              </div>
-            </section>
-
+              <!-- Membership / account details -->
+              <section class="pcard"<?= $isOrg ? '' : ' id="membership"' ?>>
+                <div class="pcard-head"><h2><?= $isOrg ? 'Membership' : 'Account' ?></h2><span class="pchip pchip--<?= $isOrg ? 'green' : 'indigo' ?>"><?= $isOrg ? 'Active' : 'Learner' ?></span></div>
+                <div class="pcard-body pdl">
+                  <div class="pdl-row"><span>Name</span><strong><?= e($u['name']) ?></strong></div>
+                  <div class="pdl-row"><span>Email</span><strong><?= e($u['email']) ?></strong></div>
+                  <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
+                </div>
+              </section>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- DIARY                                                        -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-diary" data-view="diary" hidden>
+          <div class="view-head"><h1>My Diary</h1><a class="pcard-link" href="/diary/me/">Open your Diary →</a></div>
+          <section class="pcard">
+            <div class="pcard-body diary-card">
+              <div class="diary-stat"><span class="diary-n"><?= count($myEntries) ?></span><div><h2>My Diary</h2><p class="pcard-sub"><?= count($myEntries) === 1 ? 'entry' : 'entries' ?></p></div></div>
+              <a class="pbtn pbtn-blue" href="/diary/me/">Write entry</a>
+            </div>
+          </section>
+        </section>
 
         <footer class="pfoot">
           <span>© 2026 Afrovanguard</span>
@@ -368,26 +429,38 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     if (toggle) toggle.addEventListener('click', function(){ setOpen(!document.body.classList.contains('side-open')); });
     if (scrim) scrim.addEventListener('click', function(){ setOpen(false); });
 
-    /* Sidebar: smooth-scroll to sections + scroll-spy + breadcrumb */
+    /* Sidebar: multi-tab view switcher (show one .pview at a time) + breadcrumb.
+       Hash-routed so tabs are linkable and the back button works. */
     var links = [].slice.call(document.querySelectorAll('.pnav-link[data-view]'));
+    var views = [].slice.call(document.querySelectorAll('.pview'));
     var scroller = document.querySelector('.portal-scroll');
     var crumb = document.getElementById('crumbHere');
-    var byId = {}; links.forEach(function(a){ byId[a.getAttribute('data-view')] = a; });
+    var labelFor = {}; links.forEach(function(a){ labelFor[a.getAttribute('data-view')] = (a.querySelector('.pnav-label')||a).textContent.trim(); });
+
+    function showView(name, push){
+      var found = false;
+      views.forEach(function(v){ var on = v.getAttribute('data-view') === name; v.hidden = !on; if(on) found = true; });
+      if (!found) { name = 'overview'; views.forEach(function(v){ v.hidden = v.getAttribute('data-view') !== 'overview'; }); }
+      links.forEach(function(l){ l.classList.toggle('is-active', l.getAttribute('data-view') === name); });
+      if (crumb) crumb.textContent = labelFor[name] || 'Dashboard';
+      if (scroller) scroller.scrollTop = 0;
+      if (push && ('#'+name) !== location.hash) { try { history.pushState(null, '', '#'+name); } catch(e) { location.hash = name; } }
+    }
+
     links.forEach(function(a){
       a.addEventListener('click', function(e){
-        var id=a.getAttribute('data-view'); var el=document.getElementById(id); if(!el) return;
         e.preventDefault();
-        el.scrollIntoView({behavior:'smooth', block:'start'});
+        showView(a.getAttribute('data-view'), true);
         if (window.innerWidth < 960) setOpen(false);
       });
     });
+    // Non-view nav links (Academy / Main site) just close the mobile drawer.
     document.querySelectorAll('.pnav-link:not([data-view])').forEach(function(a){ a.addEventListener('click', function(){ if(window.innerWidth<960) setOpen(false); }); });
-    if ('IntersectionObserver' in window) {
-      var obs = new IntersectionObserver(function(es){
-        es.forEach(function(en){ if(en.isIntersecting){ links.forEach(function(l){l.classList.remove('is-active');}); var a=byId[en.target.id]; if(a){ a.classList.add('is-active'); if(crumb) crumb.textContent = a.querySelector('.pnav-label').textContent; } } });
-      }, { root: scroller, rootMargin: '-15% 0px -75% 0px', threshold: 0 });
-      ['overview','tasks','learning','workspace','journey','membership','mentorship','diary'].forEach(function(id){ var el=document.getElementById(id); if(el) obs.observe(el); });
-    }
+    // In-page "View mentorship →" style jumps.
+    document.querySelectorAll('[data-goto]').forEach(function(a){ a.addEventListener('click', function(e){ e.preventDefault(); showView(a.getAttribute('data-goto'), true); }); });
+    // Deep-link + back/forward support.
+    window.addEventListener('hashchange', function(){ showView((location.hash||'').replace('#',''), false); });
+    showView((location.hash||'').replace('#','') || 'overview', false);
 
     /* Sidebar search → filter nav items */
     var search=document.getElementById('pSearch');

@@ -118,6 +118,21 @@ body.portal-app .read-progress { display:none; }
 .portal-app .pbtn-blue { background:var(--blue); color:#fff; font-weight:600; }
 .portal-app .pbtn-blue:hover { color:#fff; filter:brightness(.95); }
 
+/* ---------- Views (multi-tab) ---------- */
+.pview[hidden] { display:none; }
+.pview { animation:pview-in .22s ease both; }
+@keyframes pview-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.view-head { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:0 0 18px; }
+.view-head h1 { font-size:24px; font-weight:800; letter-spacing:-0.02em; color:var(--ink); margin:0; }
+
+/* ---------- Mentorship stats ---------- */
+.mentor-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:12px; margin-bottom:14px; }
+.mentor-stats--lg { grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:16px; }
+.mstat { background:var(--surface-2,rgba(0,0,0,0.03)); border:1px solid var(--border); border-radius:12px; padding:14px 12px; text-align:center; }
+.mstat-n { display:block; font-size:24px; font-weight:800; letter-spacing:-0.02em; color:var(--ink); line-height:1; }
+.mentor-stats--lg .mstat-n { font-size:30px; }
+.mstat-l { display:block; font-size:11.5px; font-weight:600; color:var(--muted); margin-top:6px; }
+
 /* ---------- KPI chips ---------- */
 .pkpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin-bottom:16px; }
 .pkpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; box-shadow:var(--shadow-sm); }
