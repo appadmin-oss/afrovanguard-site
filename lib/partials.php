@@ -533,6 +533,9 @@ function render_listen_bar(string $slug, string $canonical): void { ?>
             </div>
             <button class="tool-btn" data-bookmark="<?= e($slug) ?>" aria-label="Save for later" title="Save (b)"><?= Icons::BOOKMARK ?></button>
             <button class="tool-btn" data-share="<?= e($canonical) ?>" aria-label="Share or copy link" title="Share"><?= Icons::SHARE ?></button>
+<?php if (class_exists('Tts') && Tts::available() && Tts::ext() === 'mp3' && Tts::engine() !== 'mock'): ?>
+            <a class="tool-btn tool-dl" href="/diary/audio.php?slug=<?= e($slug) ?>" download aria-label="Download the audio narration" title="Download audio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></a>
+<?php endif; ?>
             <button class="tool-btn" onclick="window.print()" aria-label="Print this article" title="Print"><?= Icons::PRINTER ?></button>
           </div>
         </div>
