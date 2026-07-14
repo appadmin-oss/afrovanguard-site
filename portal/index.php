@@ -325,15 +325,45 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
         require_once AV_ROOT . '/lib/workspace.php';
         $wsAdmin    = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
         $wsSurfaces = av_workspace_surfaces($wsAdmin);
+        $wsOauth    = class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured();
+        $wsConn     = $wsOauth && GoogleWorkspaceUser::connected((int) $u['id']);
 ?>
         <!-- ============================================================ -->
         <!-- WORKSPACE                                                    -->
         <!-- ============================================================ -->
         <section class="pview" id="view-workspace" data-view="workspace" hidden>
           <div class="view-head"><h1>Workspace</h1><a class="pcard-link" href="/workspace">Open all →</a></div>
+
+<?php if ($wsOauth && !$wsConn): ?>
+          <!-- Not connected → clear call to action -->
+          <section class="pcard ws-connect-card">
+            <div class="pcard-body">
+              <h2>Connect your Google Workspace</h2>
+              <p class="pcard-note">Bring your Gmail, Calendar and Drive into the portal. You’ll sign in with Google once and can disconnect anytime.</p>
+              <a class="pbtn pbtn-gold" href="/auth/google/connect?next=<?= rawurlencode('/portal/#workspace') ?>">Connect Google →</a>
+            </div>
+          </section>
+<?php elseif ($wsConn): ?>
+          <!-- Connected → live snapshot (fetched from /portal/workspace.php?action=me) -->
+          <section class="pcard" id="wsLive" data-live>
+            <div class="pcard-head"><h2>Your Google Workspace</h2><span class="pchip pchip--green"><span class="dot-live"></span>Connected</span></div>
+            <div class="pcard-body">
+              <div class="pkpis ws-live-kpis">
+                <div class="pkpi"><div class="pkpi-top"><span class="pkpi-label">Unread mail</span></div><div class="pkpi-value" id="wsUnread">—</div><div class="pkpi-sub">in your inbox</div></div>
+                <div class="pkpi"><div class="pkpi-top"><span class="pkpi-label">Next event</span></div><div class="pkpi-value" id="wsNextC" style="font-size:16px;line-height:1.3">—</div><div class="pkpi-sub" id="wsNextW"></div></div>
+                <div class="pkpi"><div class="pkpi-top"><span class="pkpi-label">Recent files</span></div><div class="pkpi-value" id="wsFiles">—</div><div class="pkpi-sub">in your Drive</div></div>
+              </div>
+              <div class="ws-live-cols">
+                <div><h3 class="ws-live-h">Recent mail</h3><ul class="ws-live-list" id="wsMail"><li class="pc-empty">Loading…</li></ul></div>
+                <div><h3 class="ws-live-h">Upcoming</h3><ul class="ws-live-list" id="wsEvents"><li class="pc-empty">Loading…</li></ul></div>
+              </div>
+            </div>
+          </section>
+<?php endif; ?>
+
           <section class="pcard">
             <div class="pcard-head">
-              <div><h2>Your Workspace</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
+              <div><h2>Your Workspace apps</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
             </div>
             <div class="pcard-body pws-grid">
 <?php foreach ($wsSurfaces as $s): ?>              <a class="pws-app" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
@@ -546,6 +576,24 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
   </script>
 
   <script>
+  /* Google Workspace — live snapshot once connected (real difference post-connect). */
+  (function () {
+    var box = document.getElementById('wsLive'); if (!box) return;
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function whenFmt(iso){ var t=Date.parse(iso); if(!t) return esc(iso||''); var d=new Date(t); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+    var $=function(id){return document.getElementById(id);};
+    fetch('/portal/workspace.php?action=me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok||!d.mine) return; var m=d.mine;
+      if($('wsUnread')) $('wsUnread').textContent = (m.unread==null?'—':m.unread);
+      if($('wsFiles')) $('wsFiles').textContent = (m.files?m.files.length:0);
+      var ev=(m.events||[])[0];
+      if(ev){ if($('wsNextC')) $('wsNextC').textContent=ev.title||'Event'; if($('wsNextW')) $('wsNextW').textContent=whenFmt(ev.start); }
+      else { if($('wsNextC')) $('wsNextC').textContent='Nothing scheduled'; if($('wsNextW')) $('wsNextW').textContent=''; }
+      var mail=$('wsMail'); if(mail){ var ms=m.mail||[]; mail.innerHTML = ms.length ? ms.map(function(x){ return '<li class="ws-li'+(x.unread?' is-unread':'')+'"><a href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ws-li-from">'+esc(x.from)+'</span><span class="ws-li-sub">'+esc(x.subject)+'</span></a></li>'; }).join('') : '<li class="pc-empty">Inbox is clear.</li>'; }
+      var evl=$('wsEvents'); if(evl){ var es=m.events||[]; evl.innerHTML = es.length ? es.map(function(x){ return '<li class="ws-li"><a href="'+esc(x.url||x.meet_url||'#')+'" target="_blank" rel="noopener"><span class="ws-li-sub">'+esc(x.title)+'</span><span class="ws-li-when">'+whenFmt(x.start)+'</span></a></li>'; }).join('') : '<li class="pc-empty">No upcoming events.</li>'; }
+    }).catch(function(){});
+  })();
+
   /* PWA — register the service worker. */
   (function(){ if('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); } })();
   </script>

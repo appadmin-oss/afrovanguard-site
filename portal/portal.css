@@ -118,6 +118,20 @@ body.portal-app .read-progress { display:none; }
 .portal-app .pbtn-blue { background:var(--blue); color:#fff; font-weight:600; }
 .portal-app .pbtn-blue:hover { color:#fff; filter:brightness(.95); }
 
+/* ---------- Workspace live snapshot ---------- */
+.ws-connect-card .pbtn { margin-top: 8px; }
+.ws-live-kpis { margin-bottom: 18px; }
+.ws-live-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 640px) { .ws-live-cols { grid-template-columns: 1fr; } }
+.ws-live-h { font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+.ws-live-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ws-live-list .ws-li a { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px; border-radius: 8px; text-decoration: none; color: var(--ink); }
+.ws-live-list .ws-li a:hover { background: var(--surface-2); }
+.ws-li-from { font-size: 12px; color: var(--muted); }
+.ws-li-sub { font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-li.is-unread .ws-li-sub { font-weight: 700; }
+.ws-li-when { font-size: 12px; color: var(--gold-deep); }
+
 /* ---------- Views (multi-tab) ---------- */
 .pview[hidden] { display:none; }
 .pview { animation:pview-in .22s ease both; }
