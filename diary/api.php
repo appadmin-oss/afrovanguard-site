@@ -84,6 +84,26 @@ try {
             $count = (int) ($body['count'] ?? 1);
             json_out(['ok' => true, 'slug' => $slug, 'claps' => $repo->addClaps($slug, $count)]);
 
+        case 'comments':
+            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
+            json_out(['ok' => true, 'slug' => $slug, 'comments' => $repo->comments($slug)]);
+
+        case 'comment':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
+            if (trim((string) ($body['hp'] ?? '')) !== '') json_out(['ok' => true, 'comment' => null]); // honeypot
+            if (!av_rate_ok('diary_comment', 8, 600)) json_out(['ok' => false, 'error' => 'You’re commenting quickly — give it a moment.'], 429);
+            // Signed-in members comment under their real name; guests provide one.
+            $me   = LmsAuth::user();
+            $name = $me ? (string) $me['name'] : (string) ($body['name'] ?? '');
+            $text = (string) ($body['body'] ?? '');
+            if (trim($text) === '') json_out(['ok' => false, 'error' => 'Write a comment first.'], 422);
+            if (!$me && trim($name) === '') json_out(['ok' => false, 'error' => 'Add your name.'], 422);
+            $c = $repo->addComment($slug, $name, $text, $me ? (int) $me['id'] : 0);
+            if (!$c) json_out(['ok' => false, 'error' => 'Could not post your comment.'], 422);
+            json_out(['ok' => true, 'comment' => $c]);
+
         case 'subscribe':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();

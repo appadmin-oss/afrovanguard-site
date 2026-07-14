@@ -21,6 +21,8 @@ if (!$a) {
 
 $canonical = diary_url($a['slug'] . '/');
 $related   = $repo->relatedCards((int) $a['id']);
+$me        = LmsAuth::user();
+$commentN  = $repo->commentCount((int) $a['id']);
 $ogImage   = !empty($a['og_image']) ? $a['og_image'] : diary_url('og/' . $a['slug'] . '.png');
 $cover     = $a['cover_url'] ?? '';
 $authorsText = trim(strip_tags($a['authors_html']));
@@ -166,6 +168,28 @@ render_subbar($a['title'], $a['slug'], $canonical);
                 <button data-share="<?= e($canonical) ?>" aria-label="Copy link"><?= Icons::SHARE ?></button>
               </span>
             </div>
+
+            <!-- Comments -->
+            <section class="comments" id="comments" data-slug="<?= e($a['slug']) ?>" aria-label="Comments">
+              <h2 class="comments-title">Comments <span class="comments-count" id="commentsCount"<?= $commentN ? '' : ' hidden' ?>><?= (int) $commentN ?></span></h2>
+              <form class="comment-form" id="commentForm" autocomplete="on" novalidate>
+<?php if ($me): ?>
+                <p class="comment-as">Commenting as <strong><?= e($me['name']) ?></strong></p>
+<?php else: ?>
+                <div class="comment-row">
+                  <input type="text" name="name" id="cName" placeholder="Your name" maxlength="120" aria-label="Your name" required />
+                </div>
+<?php endif; ?>
+                <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+                <textarea name="body" id="cBody" rows="3" placeholder="Share a thought…" maxlength="4000" aria-label="Your comment" required></textarea>
+                <div class="comment-actions">
+                  <button type="submit" class="btn btn-primary">Post comment</button>
+                  <span class="comment-msg" role="status" aria-live="polite"></span>
+                </div>
+              </form>
+              <ol class="comment-list" id="commentList" aria-live="polite"></ol>
+              <p class="comment-empty" id="commentEmpty" hidden>Be the first to comment.</p>
+            </section>
           </div>
         </div>
       </div>

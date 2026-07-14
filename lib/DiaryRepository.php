@@ -144,6 +144,71 @@ final class DiaryRepository
 
     /* ── Series: group posts into an ordered, numbered series ─────────────── */
     private bool $seriesReady = false;
+    private bool $commentsReady = false;
+
+    /* ── Comments ──────────────────────────────────────────────────────────
+       Lazily-created so the feature needs no migration step. Comments are
+       published on submit (status 'published') but carry a status column so an
+       admin can hide/spam them later. */
+    private function ensureComments(): void
+    {
+        if ($this->commentsReady) return; $this->commentsReady = true;
+        $drv = Database::driver();
+        $ddl = "CREATE TABLE IF NOT EXISTS diary_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id INTEGER NOT NULL DEFAULT 0,
+            user_id INTEGER NOT NULL DEFAULT 0,
+            name VARCHAR(120) NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            status VARCHAR(16) NOT NULL DEFAULT 'published',
+            created_at TEXT NOT NULL DEFAULT ''
+        )";
+        try { $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv)); }
+        catch (Throwable $e) { error_log('[diary] ensureComments: ' . $e->getMessage()); }
+    }
+
+    /** Published comments for an article slug, oldest first. */
+    public function comments(string $slug): array
+    {
+        $this->ensureComments();
+        $a = $this->bySlug($slug);
+        if (!$a) return [];
+        try {
+            $st = $this->db->prepare(
+                "SELECT id, name, body, created_at FROM diary_comments
+                 WHERE article_id = ? AND status = 'published' ORDER BY id ASC"
+            );
+            $st->execute([(int) $a['id']]);
+            return $st->fetchAll() ?: [];
+        } catch (Throwable $e) { return []; }
+    }
+
+    public function commentCount(int $articleId): int
+    {
+        $this->ensureComments();
+        try {
+            $st = $this->db->prepare("SELECT COUNT(*) FROM diary_comments WHERE article_id = ? AND status = 'published'");
+            $st->execute([$articleId]);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /** Add a comment to a published article. Returns the stored row or null. */
+    public function addComment(string $slug, string $name, string $body, int $userId = 0): ?array
+    {
+        $this->ensureComments();
+        $a = $this->bySlug($slug);
+        if (!$a) return null;
+        $name = trim(preg_replace('/\s+/u', ' ', strip_tags($name)));
+        $body = trim(strip_tags($body));
+        $name = mb_substr($name, 0, 120);
+        $body = mb_substr($body, 0, 4000);
+        if ($name === '' || mb_strlen($body) < 2) return null;
+        $now = gmdate('Y-m-d H:i:s');
+        $this->db->prepare('INSERT INTO diary_comments (article_id, user_id, name, body, status, created_at) VALUES (?,?,?,?,?,?)')
+            ->execute([(int) $a['id'], $userId, $name, $body, 'published', $now]);
+        return ['id' => (int) $this->db->lastInsertId(), 'name' => $name, 'body' => $body, 'created_at' => $now];
+    }
     private function ensureSeries(): void
     {
         if ($this->seriesReady) return; $this->seriesReady = true;

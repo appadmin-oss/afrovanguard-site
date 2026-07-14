@@ -215,6 +215,57 @@
     });
   });
 
+  /* ---- Comments: load + post (works for guests and signed-in members) ---- */
+  (function () {
+    var box = document.getElementById('comments'); if (!box) return;
+    var slug = box.getAttribute('data-slug') || '';
+    var listEl = document.getElementById('commentList');
+    var emptyEl = document.getElementById('commentEmpty');
+    var countEl = document.getElementById('commentsCount');
+    var form = document.getElementById('commentForm');
+    var msg = form ? form.querySelector('.comment-msg') : null;
+    function cesc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function initials(n) { var p = String(n || '?').trim().split(/\s+/); return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase(); }
+    function ago(iso) { var t = Date.parse((iso || '').replace(' ', 'T') + 'Z'); if (!t) return ''; var s = (Date.now() - t) / 1000; if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; if (s < 604800) return Math.floor(s / 86400) + 'd ago'; return new Date(t).toLocaleDateString(); }
+    function row(c) {
+      return '<li class="comment"><span class="comment-ava">' + cesc(initials(c.name)) + '</span>'
+        + '<div class="comment-main"><div class="comment-head"><strong>' + cesc(c.name) + '</strong>'
+        + '<span class="comment-when">' + cesc(ago(c.created_at)) + '</span></div>'
+        + '<p class="comment-body">' + cesc(c.body).replace(/\n/g, '<br>') + '</p></div></li>';
+    }
+    function setCount(n) { if (countEl) { countEl.textContent = n; countEl.hidden = !n; } }
+    function render(list) {
+      list = list || [];
+      listEl.innerHTML = list.map(row).join('');
+      if (emptyEl) emptyEl.hidden = list.length > 0;
+      setCount(list.length);
+    }
+    fetch('/diary/api.php?action=comments&slug=' + encodeURIComponent(slug), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (d) { if (d && d.ok) render(d.comments); }).catch(function () {});
+    if (form) form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var nameEl = document.getElementById('cName'), bodyEl = document.getElementById('cBody');
+      var payload = { slug: slug, body: bodyEl ? bodyEl.value : '', hp: (form.querySelector('[name=hp]') || {}).value || '' };
+      if (nameEl) payload.name = nameEl.value;
+      if (!payload.body.trim()) { if (msg) { msg.textContent = 'Write a comment first.'; msg.className = 'comment-msg err'; } return; }
+      var btn = form.querySelector('button[type=submit]'); if (btn) btn.disabled = true;
+      if (msg) { msg.textContent = 'Posting…'; msg.className = 'comment-msg'; }
+      fetch('/diary/api.php?action=comment', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (btn) btn.disabled = false;
+          if (d && d.ok && d.comment) {
+            if (emptyEl) emptyEl.hidden = true;
+            listEl.insertAdjacentHTML('beforeend', row(d.comment));
+            setCount(listEl.children.length);
+            if (bodyEl) bodyEl.value = '';
+            if (msg) { msg.textContent = 'Posted — thank you.'; msg.className = 'comment-msg ok'; }
+          } else if (msg) { msg.textContent = (d && d.error) || 'Could not post.'; msg.className = 'comment-msg err'; }
+        })
+        .catch(function () { if (btn) btn.disabled = false; if (msg) { msg.textContent = 'Network error.'; msg.className = 'comment-msg err'; } });
+    });
+  })();
+
   /* ---- Scholar Reader — free, human-like read-aloud (neural Web Speech)
          sentence-by-sentence with a karaoke caption that lights each word. ---- */
   var lb = listenBar;
