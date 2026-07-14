@@ -48,9 +48,62 @@ function av_team_ensure(PDO $pdo): void
     $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
     $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
     // Columns added after the initial release (idempotent — ADD COLUMN errors if
-    // it already exists, which we swallow). `email` powers birthday emails.
-    try { $pdo->exec("ALTER TABLE team ADD COLUMN email TEXT NOT NULL DEFAULT ''"); }
-    catch (\Throwable $e) { /* column already present */ }
+    // it already exists, which we swallow). `email` powers birthday emails;
+    // `grp` lets admins group members; `synced` marks rows auto-created from an
+    // @afrovanguard.org.ng account so a manual edit is never overwritten.
+    foreach ([
+        "ALTER TABLE team ADD COLUMN email TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team ADD COLUMN grp TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE team ADD COLUMN synced INTEGER NOT NULL DEFAULT 0",
+    ] as $sql) {
+        try { $pdo->exec($sql); } catch (\Throwable $e) { /* column already present */ }
+    }
+}
+
+/**
+ * Auto-enrol @afrovanguard.org.ng members onto the People directory.
+ *
+ * Every verified org account becomes a team row (matched by email) if one does
+ * not already exist — so members appear on /people automatically. Existing rows
+ * are left untouched (admins can rename, re-tier, group, feature or hide them);
+ * we only refresh the display name of still-auto rows that haven't been edited.
+ * Idempotent and cheap — safe to call on every directory render.
+ */
+function av_team_sync_org_members(PDO $pdo): int
+{
+    av_team_ensure($pdo);
+    if (!Database::tableExists('lms_users')) return 0;
+    $domain = strtolower((string) (defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng'));
+    // Existing team emails (lower-cased) so we never double-insert.
+    $have = [];
+    foreach ($pdo->query("SELECT LOWER(email) e FROM team WHERE email <> ''")->fetchAll(PDO::FETCH_COLUMN) as $e) { $have[$e] = true; }
+    // Verified org accounts. Tolerate schemas without an explicit verified flag.
+    $verCol = Database::columnExists('lms_users', 'email_verified') ? 'email_verified'
+            : (Database::columnExists('lms_users', 'verified') ? 'verified' : '');
+    $sql = "SELECT id, name, email, role FROM lms_users WHERE LOWER(email) LIKE " . $pdo->quote('%@' . $domain);
+    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $added = 0; $now = gmdate('Y-m-d H:i:s');
+    $ins = $pdo->prepare("INSERT INTO team (name, role, tier, email, grp, synced, active, position, created_at) VALUES (?,?,?,?,?,1,1,?,?)");
+    foreach ($rows as $r) {
+        $email = strtolower(trim((string) $r['email']));
+        if ($email === '' || isset($have[$email])) continue;
+        $name = trim((string) $r['name']) ?: ucfirst(explode('@', $email)[0]);
+        $tier = in_array((string) ($r['role'] ?? ''), ['admin', 'director', 'management'], true) ? 'management' : 'volunteer';
+        try { $ins->execute([$name, 'Member', $tier, $email, 'Members', 9999, $now]); $added++; $have[$email] = true; }
+        catch (\Throwable $e) { error_log('[people] sync: ' . $e->getMessage()); }
+    }
+    return $added;
+}
+
+/** Distinct non-empty groups present, in display order. */
+function av_team_groups(PDO $pdo): array
+{
+    av_team_ensure($pdo);
+    $out = [];
+    foreach ($pdo->query("SELECT DISTINCT grp FROM team WHERE active = 1 AND grp <> '' ORDER BY grp")->fetchAll(PDO::FETCH_COLUMN) as $g) {
+        if (trim((string) $g) !== '') $out[] = (string) $g;
+    }
+    return $out;
 }
 
 /** Normalise/validate a tier string. */
@@ -83,6 +136,7 @@ function av_team_member_dict(array $r): array
         'photo'      => (string) $r['photo_url'],
         'birthday'   => (string) $r['birthday'],
         'email'      => (string) ($r['email'] ?? ''),
+        'grp'        => (string) ($r['grp'] ?? ''),
         'socials'    => $socials,
     ];
 }
@@ -200,6 +254,7 @@ function av_team_save(PDO $pdo, array $in): int
         'bio' => trim((string) ($in['bio'] ?? '')),
         'location' => trim((string) ($in['location'] ?? '')),
         'photo_url' => trim((string) ($in['photo'] ?? $in['photo_url'] ?? '')),
+        'grp' => trim((string) ($in['grp'] ?? '')),
         'socials' => $socials,
         'email' => filter_var(trim((string) ($in['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: '',
         'birthday' => preg_match('/^\d{2}-\d{2}$/', (string) ($in['birthday'] ?? '')) ? $in['birthday'] : '',

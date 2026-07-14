@@ -632,6 +632,7 @@
       $('#p_location').value = m.location || ''; $('#p_tier').value = m.tier || 'volunteer';
       $('#p_featured').checked = !!m.featured; $('#p_operations').checked = !!m.operations;
       $('#p_active').checked = m.active !== false; $('#p_position').value = m.position || 0;
+      if ($('#p_grp')) $('#p_grp').value = m.grp || '';
       $('#p_birthday').value = m.birthday || '';
       if ($('#p_notice_email')) $('#p_notice_email').value = m.email || '';
       $('#p_votm_month').value = m.votm_month || m.votmMonth || '';
@@ -649,6 +650,7 @@
     var payload = {
       id: editingPerson || 0, name: name, role: $('#p_role').value.trim(),
       tier: $('#p_tier').value, featured: $('#p_featured').checked, operations: $('#p_operations').checked,
+      grp: ($('#p_grp') ? $('#p_grp').value.trim() : ''),
       active: $('#p_active').checked, position: +$('#p_position').value || 0,
       tagline: $('#p_tagline').value.trim(), bio: $('#p_bio').value.trim(), location: $('#p_location').value.trim(),
       photo: pPhoto, socials: socials, birthday: $('#p_birthday').value.trim(),

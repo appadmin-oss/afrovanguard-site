@@ -425,6 +425,9 @@
             <option value="management">Management</option><option value="director">Director</option>
             <option value="patron">Patron</option><option value="ngv">NGV</option>
             <option value="ngg">NGG</option><option value="volunteer">Volunteer</option></select></label>
+          <label class="fld"><span>Group</span><input id="p_grp" list="p_grp_list" placeholder="e.g. Media, Programmes, Alimosho chapter" />
+            <datalist id="p_grp_list"></datalist>
+            <span class="muted" style="font-size:12px">A free-form group for the People directory filter. Members from @afrovanguard.org.ng are auto-added; group them here.</span></label>
           <label class="fld checkbox"><input type="checkbox" id="p_featured" /> <span>Feature in Leadership spotlight</span></label>
           <label class="fld checkbox"><input type="checkbox" id="p_operations" /> <span>Operations team</span></label>
           <label class="fld checkbox"><input type="checkbox" id="p_active" checked /> <span>Active (visible)</span></label>
