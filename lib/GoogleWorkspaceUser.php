@@ -31,7 +31,10 @@ final class GoogleWorkspaceUser
     const DEFAULT_SCOPES = 'openid email profile '
         . 'https://www.googleapis.com/auth/gmail.readonly '
         . 'https://www.googleapis.com/auth/calendar '
-        . 'https://www.googleapis.com/auth/drive.readonly';
+        . 'https://www.googleapis.com/auth/drive.readonly '
+        // Google Chat: read the member's spaces + messages, and post as them.
+        . 'https://www.googleapis.com/auth/chat.spaces.readonly '
+        . 'https://www.googleapis.com/auth/chat.messages';
 
     public static function configured(): bool { return GoogleAuth::configured(); }
 
@@ -298,6 +301,60 @@ final class GoogleWorkspaceUser
         $tok = self::accessTokenFor($uid);
         if (!$tok) return null;
         return self::http('POST', self::apiBase() . $path, $tok, $body);
+    }
+
+    /* ── Google Chat (chat.googleapis.com, separate host) ────────────────── */
+    private static function chatBase(): string { return 'https://chat.googleapis.com/v1'; }
+
+    /** The member's Chat spaces: [{name,id,label,type}]. name = "spaces/AAA…". */
+    public static function chatSpaces(int $uid, int $max = 50): array
+    {
+        $tok = self::accessTokenFor($uid);
+        if (!$tok) return [];
+        $r = self::http('GET', self::chatBase() . '/spaces?' . http_build_query(['pageSize' => max(1, min(100, $max))]), $tok, null);
+        $out = [];
+        foreach ((is_array($r) ? ($r['spaces'] ?? []) : []) as $s) {
+            $name = (string) ($s['name'] ?? '');
+            if ($name === '') continue;
+            $type = (string) ($s['spaceType'] ?? ($s['type'] ?? ''));
+            $label = (string) ($s['displayName'] ?? '');
+            if ($label === '') $label = $type === 'DIRECT_MESSAGE' ? 'Direct message' : 'Space';
+            $out[] = ['name' => $name, 'id' => substr($name, 7), 'label' => $label, 'type' => $type];
+        }
+        return $out;
+    }
+
+    /** Recent messages in a space, oldest→newest: [{id,text,sender,ts,mine?}]. */
+    public static function chatMessages(int $uid, string $spaceId, int $max = 30): array
+    {
+        $tok = self::accessTokenFor($uid);
+        if (!$tok) return [];
+        $spaceId = preg_replace('/[^A-Za-z0-9_\-]/', '', $spaceId);
+        if ($spaceId === '') return [];
+        $r = self::http('GET', self::chatBase() . '/spaces/' . rawurlencode($spaceId) . '/messages?'
+            . http_build_query(['pageSize' => max(1, min(100, $max)), 'orderBy' => 'createTime desc']), $tok, null);
+        $out = [];
+        foreach ((is_array($r) ? ($r['messages'] ?? []) : []) as $m) {
+            $out[] = [
+                'id'     => (string) ($m['name'] ?? ''),
+                'text'   => (string) ($m['text'] ?? ''),
+                'sender' => (string) ($m['sender']['displayName'] ?? 'Member'),
+                'ts'     => (string) ($m['createTime'] ?? ''),
+            ];
+        }
+        return array_reverse($out); // API returns newest-first; show oldest-first
+    }
+
+    /** Post a message to a space as the member. Returns true on success. */
+    public static function chatSend(int $uid, string $spaceId, string $text): bool
+    {
+        $tok = self::accessTokenFor($uid);
+        if (!$tok) return false;
+        $spaceId = preg_replace('/[^A-Za-z0-9_\-]/', '', $spaceId);
+        $text = trim($text);
+        if ($spaceId === '' || $text === '') return false;
+        $r = self::http('POST', self::chatBase() . '/spaces/' . rawurlencode($spaceId) . '/messages', $tok, ['text' => mb_substr($text, 0, 4000)]);
+        return is_array($r) && !empty($r['name']);
     }
 
     /* ── convenience surfaces (each best-effort; [] / null on any failure) ── */

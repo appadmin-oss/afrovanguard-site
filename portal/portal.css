@@ -132,6 +132,24 @@ body.portal-app .read-progress { display:none; }
 .ws-li.is-unread .ws-li-sub { font-weight: 700; }
 .ws-li-when { font-size: 12px; color: var(--gold-deep); }
 
+/* ---------- Team Chat (Google Chat) ---------- */
+.chat-wrap { display:grid; grid-template-columns:200px 1fr; gap:14px; min-height:320px; }
+@media (max-width:640px){ .chat-wrap{ grid-template-columns:1fr; } }
+.chat-spaces { display:flex; flex-direction:column; gap:4px; border-right:1px solid var(--border); padding-right:10px; max-height:380px; overflow-y:auto; }
+@media (max-width:640px){ .chat-spaces{ border-right:0; border-bottom:1px solid var(--border); padding:0 0 10px; flex-direction:row; flex-wrap:wrap; } }
+.chat-space { text-align:left; padding:9px 11px; border:0; background:transparent; color:var(--ink); border-radius:8px; font:inherit; font-size:13.5px; cursor:pointer; }
+.chat-space:hover { background:var(--surface-2); }
+.chat-space.is-on { background:var(--gold-soft); color:var(--gold-deep); font-weight:700; }
+.chat-main { display:flex; flex-direction:column; min-width:0; }
+.chat-thread { flex:1; overflow-y:auto; max-height:340px; padding:4px 4px 8px; display:flex; flex-direction:column; gap:12px; }
+.chat-msg-h { display:flex; align-items:baseline; gap:8px; }
+.chat-msg-h b { font-size:13px; color:var(--ink); } .chat-msg-h span { font-size:11px; color:var(--muted); }
+.chat-msg-b { font-size:14px; color:var(--ink); line-height:1.5; overflow-wrap:anywhere; margin-top:1px; }
+.chat-compose { display:flex; gap:8px; margin-top:10px; }
+.chat-compose input { flex:1; min-width:0; padding:10px 14px; border-radius:9px; border:1px solid var(--border-2); background:var(--surface-2); color:var(--ink); font:inherit; font-size:14px; }
+.chat-compose input:focus { outline:none; border-color:var(--gold); background:var(--surface); }
+.chat-hint { margin-top:12px; }
+
 /* ---------- Views (multi-tab) ---------- */
 .pview[hidden] { display:none; }
 .pview { animation:pview-in .22s ease both; }
