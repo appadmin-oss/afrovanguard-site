@@ -207,6 +207,9 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
                 <div class="pcard-body">
                   <form class="task-add" id="taskAdd" autocomplete="off">
                     <input type="text" id="taskInput" name="title" maxlength="300" placeholder="Add a task and press Enter…" aria-label="Add a task">
+                    <select id="taskAssignee" class="task-assignee" aria-label="Assign to" title="Assign to a member">
+                      <option value="0">Assign to me</option>
+                    </select>
                     <button type="submit" class="pbtn pbtn-gold">Add</button>
                   </form>
                   <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
@@ -490,11 +493,15 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
       if(kpiTasks)kpiTasks.textContent=open; }
-    function taskHtml(t){ return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
+    function taskHtml(t){
+      var who = t.assigned_out ? ('→ '+esc(t.assignee_name)) : (t.mine ? '' : ('from '+esc(t.creator_name)));
+      return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
-      +'<span class="task-title">'+esc(t.title)+'</span>'
+      +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+'</span>'
       +(t.due&&!t.done?'<span class="task-due">'+esc(t.due)+'</span>':'')
       +'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+    function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
+      var cur=sel.value; sel.innerHTML='<option value="0">Assign to me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
     function render(){ var rows=TASKS.filter(function(t){ return FILTER==='all'?true:FILTER==='open'?!t.done:t.done; });
       listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here — you’re all caught up.</li>';
       counts(); }
@@ -502,14 +509,16 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
-    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return; TASKS=d.tasks||[]; render(); renderActivity(d.activity); renderOnline(d.online,d.count); }).catch(function(){}); }
+    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return; TASKS=d.tasks||[]; render(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); }).catch(function(){}); }
 
     // filter chips
     document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(b){ b.addEventListener('click', function(){ document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(x){x.classList.remove('is-on');}); b.classList.add('is-on'); FILTER=b.getAttribute('data-filter'); render(); }); });
     // add
     var form=document.getElementById('taskAdd'), input=document.getElementById('taskInput');
-    form.addEventListener('submit', function(e){ e.preventDefault(); var title=(input.value||'').trim(); if(!title) return; input.value=''; input.disabled=true;
-      post('task_add',{title:title}).then(function(d){ input.disabled=false; input.focus(); if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
+    form.addEventListener('submit', function(e){ e.preventDefault(); var title=(input.value||'').trim(); if(!title) return;
+      var asel=document.getElementById('taskAssignee'); var assignee=asel?(+asel.value||0):0;
+      input.value=''; input.disabled=true;
+      post('task_add',{title:title, assignee:assignee}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
     // toggle / delete
     listEl.addEventListener('click', function(e){ var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
       if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }

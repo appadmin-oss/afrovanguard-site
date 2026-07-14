@@ -185,6 +185,10 @@ body.portal-app .read-progress { display:none; }
 .task-title { flex:1; min-width:0; font-size:14px; color:var(--ink); }
 .task.is-done .task-title { text-decoration:line-through; color:var(--muted-2); }
 .task-due { font-size:11.5px; font-weight:600; color:var(--gold-deep); background:var(--gold-soft); border:1px solid var(--gold-soft-bd); padding:2px 9px; border-radius:999px; white-space:nowrap; }
+.task-assignee { flex-shrink:0; max-width:150px; padding:10px 12px; border-radius:9px; border:1px solid var(--border-2); background:var(--surface-2); color:var(--ink); font-size:13px; font-family:inherit; }
+.task-assignee:focus { outline:none; border-color:var(--gold); }
+.task-who { display:inline-block; margin-left:8px; font-size:11px; font-weight:700; color:var(--muted); background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:1px 8px; vertical-align:middle; }
+@media (max-width:560px){ .task-add{ flex-wrap:wrap; } .task-assignee{ max-width:none; flex:1; } }
 .task-del { width:26px; height:26px; border:none; background:transparent; color:var(--muted-2); font-size:13px; cursor:pointer; border-radius:6px; flex:none; }
 .task-del:hover { color:var(--red); background:var(--surface-2); }
 .task-empty { text-align:center; padding:22px; }

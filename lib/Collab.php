@@ -204,15 +204,38 @@ final class Collab
         $st->execute([$uid, $uid]);
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $assignee = (int) $r['assignee_id'];
+            $creator  = (int) $r['creator_id'];
             $out[] = [
-                'id'    => (int) $r['id'],
-                'title' => (string) $r['title'],
-                'done'  => (bool) $r['done'],
-                'due'   => (string) $r['due'],
-                'mine'  => (int) $r['assignee_id'] === $uid,
+                'id'       => (int) $r['id'],
+                'title'    => (string) $r['title'],
+                'done'     => (bool) $r['done'],
+                'due'      => (string) $r['due'],
+                'mine'     => $assignee === $uid,
+                // Allocation context for the UI.
+                'assignee_id'   => $assignee,
+                'assignee_name' => $assignee === $uid ? 'You' : self::nameOf($assignee),
+                'assigned_out'  => $creator === $uid && $assignee !== $uid, // I gave this to someone
+                'creator_name'  => $creator === $uid ? 'You' : self::nameOf($creator),
             ];
         }
         return $out;
+    }
+
+    /** Members who can be assigned a task (org members), for the allocation picker. */
+    public static function roster(int $limit = 200): array
+    {
+        try {
+            $domain = strtolower((string) (defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng'));
+            $pdo = Database::pdo();
+            $st = $pdo->prepare("SELECT id, name, email FROM lms_users WHERE LOWER(email) LIKE ? ORDER BY name ASC LIMIT " . max(1, min(500, $limit)));
+            $st->execute(['%@' . $domain]);
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $out[] = ['id' => (int) $r['id'], 'name' => (string) ($r['name'] ?: explode('@', (string) $r['email'])[0])];
+            }
+            return $out;
+        } catch (Throwable $e) { return []; }
     }
 
     private static function ownedTask(int $uid, int $taskId): ?array

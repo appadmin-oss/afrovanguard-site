@@ -42,7 +42,11 @@ try {
                 'count'    => Collab::onlineCount(),
                 'activity' => Collab::recentActivity(18),
                 'tasks'    => Collab::myTasks($uid),
+                'roster'   => Collab::roster(),
             ]);
+
+        case 'roster':
+            json_out(['ok' => true, 'roster' => Collab::roster()]);
 
         case 'heartbeat':
             $writeGuard();
@@ -53,7 +57,7 @@ try {
         case 'task_add':
             $writeGuard();
             if (!av_rate_ok('collab_task_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), 0, (string) ($body['due'] ?? ''));
+            $id = Collab::addTask($uid, (string) ($body['title'] ?? ''), (int) ($body['assignee'] ?? 0), (string) ($body['due'] ?? ''));
             if (!$id) json_out(['ok' => false, 'error' => 'Enter a task.'], 400);
             $mine = array_values(array_filter(Collab::myTasks($uid), fn($t) => $t['id'] === $id));
             json_out(['ok' => true, 'task' => $mine[0] ?? ['id' => $id]]);
