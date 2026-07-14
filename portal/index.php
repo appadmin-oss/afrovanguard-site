@@ -65,13 +65,13 @@ render_head([
         <span class="side-tag"><?= e($tag) ?></span>
       </div>
       <nav class="side-nav" aria-label="Sections">
-        <a class="side-link" href="#overview" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Overview</a>
-        <a class="side-link" href="#learning" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 015.5 4H11v16H5.5A1.5 1.5 0 014 18.5zM20 5.5A1.5 1.5 0 0018.5 4H13v16h5.5a1.5 1.5 0 001.5-1.5z"/></svg></span>Learning</a>
-        <a class="side-link" href="#mentorship" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 5.2A3.2 3.2 0 0116 11M21.5 20a6.5 6.5 0 00-4-6"/></svg></span>Mentorship</a>
-<?php if ($isOrg): ?>        <a class="side-link" href="/workspace"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg></span>Workspace</a>
-        <a class="side-link" href="#membership" data-nav><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/></svg></span>Membership</a>
-<?php endif; ?>        <a class="side-link" href="/diary/me/"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 4v6h8"/></svg></span>Diary</a>
-        <a class="side-link" href="/academy/"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/></svg></span>Academy</a>
+        <a class="side-link" href="#home" data-view="home"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Home</a>
+        <a class="side-link" href="#learning" data-view="learning"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 015.5 4H11v16H5.5A1.5 1.5 0 014 18.5zM20 5.5A1.5 1.5 0 0018.5 4H13v16h5.5a1.5 1.5 0 001.5-1.5z"/></svg></span>Learning</a>
+        <a class="side-link" href="#mentorship" data-view="mentorship"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><path d="M16 5.2A3.2 3.2 0 0116 11M21.5 20a6.5 6.5 0 00-4-6"/></svg></span>Mentorship</a>
+<?php if ($isOrg): ?>        <a class="side-link" href="#workspace" data-view="workspace"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg></span>Workspace</a>
+<?php endif; ?>        <a class="side-link" href="#membership" data-view="membership"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/></svg></span><?= $isOrg ? 'Membership' : 'Account' ?></a>
+        <a class="side-link" href="#diary" data-view="diary"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13l3 3v13H4z"/><path d="M8 4v6h8"/></svg></span>Diary</a>
+        <a class="side-link side-link--ext" href="/academy/"><span class="side-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/></svg></span>Academy ↗</a>
       </nav>
       <div class="side-foot">
         <a class="side-link side-link--muted" href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a>
@@ -103,6 +103,8 @@ render_head([
 
       <main id="main-content" class="portal portal--<?= $isOrg ? 'member' : 'learner' ?>">
         <div class="container">
+        <!-- ==================== HOME ==================== -->
+        <section class="pview" data-view="home" id="view-home">
           <header class="portal-head" id="overview">
             <div>
               <span class="portal-eyebrow"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
@@ -206,6 +208,9 @@ render_head([
 <?php endforeach; ?>          </ul>
         </section>
 <?php endif; ?>
+          </div><!-- /.portal-grid (home) -->
+        </section><!-- /view: home -->
+
 <?php if ($isOrg):
         require_once AV_ROOT . '/lib/workspace.php';
         $wsAdmin     = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
@@ -213,6 +218,10 @@ render_head([
         $communities = av_workspace_communities();
         $wsEmbeds    = av_workspace_embeds();
 ?>
+        <!-- ==================== WORKSPACE ==================== -->
+        <section class="pview" data-view="workspace" id="view-workspace" hidden>
+          <div class="view-head"><h1>Workspace</h1><a class="pc-link" href="/workspace">Open the full Workspace →</a></div>
+          <div class="portal-grid">
         <!-- Your Workspace — SSO launchpad into Google Workspace (members only) -->
         <section class="portal-card span-2 ws-hub">
           <div class="pc-head"><h2>Your Workspace</h2><span class="pc-tag ws-domain">@<?= e(av_workspace_domain()) ?></span></div>
@@ -297,8 +306,14 @@ render_head([
           <div class="ws-frame ws-frame--drive"><iframe src="<?= e($wsEmbeds['drive']) ?>" title="Shared files" loading="lazy" referrerpolicy="no-referrer"></iframe></div>
         </section>
 <?php endif; ?>
+          </div><!-- /.portal-grid (workspace) -->
+        </section><!-- /view: workspace -->
 <?php endif; ?>
 
+        <!-- ==================== LEARNING ==================== -->
+        <section class="pview" data-view="learning" id="view-learning" hidden>
+          <div class="view-head"><h1>Learning</h1></div>
+          <div class="portal-grid">
         <!-- My learning -->
         <section class="portal-card span-2" id="learning">
           <div class="pc-head"><h2>My learning</h2><a href="/academy/" class="pc-link">Browse the Academy →</a></div>
@@ -319,14 +334,26 @@ render_head([
           <p class="pc-empty">You haven’t joined a programme yet. <a href="/academy/">Explore the Academy →</a></p>
 <?php endif; ?>
         </section>
+          </div><!-- /.portal-grid (learning) -->
+        </section><!-- /view: learning -->
 
+        <!-- ==================== MENTORSHIP ==================== -->
+        <section class="pview" data-view="mentorship" id="view-mentorship" hidden>
+          <div class="view-head"><h1>Mentorship</h1><a class="pc-link" href="/mentorship/">Open the mentor network →</a></div>
+          <div class="portal-grid">
         <!-- Mentorship — find a mentor (everyone); members can also mentor -->
         <section class="portal-card accent-green" id="mentorship">
           <div class="pc-head"><h2>Mentorship</h2><span class="pc-tag"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
           <p><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others.' : 'Get paired with an Afrovanguard mentor for guidance on your journey.' ?></p>
           <a class="btn btn-primary btn-sm" href="/mentorship/">Open the mentor network →</a>
         </section>
+          </div><!-- /.portal-grid (mentorship) -->
+        </section><!-- /view: mentorship -->
 
+        <!-- ==================== MEMBERSHIP / ACCOUNT ==================== -->
+        <section class="pview" data-view="membership" id="view-membership" hidden>
+          <div class="view-head"><h1><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
+          <div class="portal-grid">
         <!-- Status & profile -->
         <section class="portal-card" id="membership">
           <div class="pc-head"><h2><?= $isOrg ? 'Membership' : 'Your account' ?></h2><?= $isOrg ? '<span class="pc-tag">Member</span>' : '' ?></div>
@@ -413,13 +440,21 @@ render_head([
 <?php endif; ?>
         </section>
 
+          </div><!-- /.portal-grid (membership) -->
+        </section><!-- /view: membership -->
+
+        <!-- ==================== DIARY ==================== -->
+        <section class="pview" data-view="diary" id="view-diary" hidden>
+          <div class="view-head"><h1>Diary</h1><a class="pc-link" href="/diary/me/">Open the Diary →</a></div>
+          <div class="portal-grid">
         <!-- My Diary -->
         <section class="portal-card accent-blue">
           <div class="pc-head"><h2>My Diary</h2><a href="/diary/me/" class="pc-link">Open →</a></div>
           <p class="portal-stat"><b><?= count($myEntries) ?></b> diary <?= count($myEntries) === 1 ? 'entry' : 'entries' ?></p>
           <a class="btn btn-primary btn-sm" href="/diary/me/">Write an entry</a>
         </section>
-      </div>
+          </div><!-- /.portal-grid (diary) -->
+        </section><!-- /view: diary -->
 
       <footer class="portal-foot">
         <div class="portal-foot-inner">
@@ -450,26 +485,44 @@ render_head([
     if (toggle) toggle.addEventListener('click', function () { setOpen(!document.body.classList.contains('side-open')); });
     if (scrim) scrim.addEventListener('click', function () { setOpen(false); });
 
-    // Active section highlight + close the drawer after tapping a link.
-    var links = Array.prototype.slice.call(document.querySelectorAll('.side-link[data-nav]'));
-    var sections = links.map(function (a) { return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
-    links.forEach(function (a) { a.addEventListener('click', function () { if (window.innerWidth < 960) setOpen(false); }); });
-    document.querySelectorAll('.side-nav .side-link:not([data-nav])').forEach(function (a) {
+    // ---- View switching: the sidebar swaps the main panel (workplace app feel) ----
+    var navLinks = Array.prototype.slice.call(document.querySelectorAll('.side-link[data-view]'));
+    var views = Array.prototype.slice.call(document.querySelectorAll('.pview'));
+    var titleEl = document.querySelector('.topbar-title');
+    var labelFor = {};
+    navLinks.forEach(function (a) { labelFor[a.getAttribute('data-view')] = (a.textContent || '').trim(); });
+    var main = document.getElementById('main-content');
+
+    function showView(name, push) {
+      var found = false;
+      views.forEach(function (v) {
+        var on = v.getAttribute('data-view') === name;
+        v.hidden = !on; if (on) found = true;
+      });
+      if (!found) { name = 'home'; views.forEach(function (v) { v.hidden = v.getAttribute('data-view') !== 'home'; }); }
+      navLinks.forEach(function (l) { l.classList.toggle('is-active', l.getAttribute('data-view') === name); });
+      if (titleEl && labelFor[name]) titleEl.textContent = labelFor[name];
+      if (main) main.scrollTop = 0;
+      window.scrollTo(0, 0);
+      if (push && location.hash.slice(1) !== name) history.replaceState(null, '', '#' + name);
+    }
+    navLinks.forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        showView(a.getAttribute('data-view'), true);
+        if (window.innerWidth < 960) setOpen(false);
+      });
+    });
+    // Non-view links (Academy, Main site, Sign out) just close the drawer on mobile.
+    document.querySelectorAll('.side-link:not([data-view])').forEach(function (a) {
       a.addEventListener('click', function () { if (window.innerWidth < 960) setOpen(false); });
     });
-    if ('IntersectionObserver' in window && sections.length) {
-      var byId = {};
-      links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
-      var obs = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (en.isIntersecting) {
-            links.forEach(function (l) { l.classList.remove('is-active'); });
-            var a = byId[en.target.id]; if (a) a.classList.add('is-active');
-          }
-        });
-      }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
-      sections.forEach(function (s) { obs.observe(s); });
-    }
+    // Deep-link + back/forward support.
+    window.addEventListener('hashchange', function () { showView(location.hash.slice(1) || 'home', false); });
+    showView(location.hash.slice(1) || 'home', false);
+
+    // Let any in-page control jump to a view via href="#viewname".
+    window.portalGoTo = function (name) { showView(name, true); };
   })();
   </script>
   <script>

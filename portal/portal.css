@@ -460,3 +460,16 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
 .online-ava.is-away::after { background: #f59e0b; } .online-ava.is-busy::after { background: #ef4444; }
 .online-name { font-size: 13px; font-weight: 600; color: var(--p-ink); }
 .online-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--p-green-soft); color: var(--p-green); }
+
+/* ============================================================
+   VIEW SWITCHING — the portal behaves like a workplace app:
+   the sidebar swaps the main panel instead of scrolling.
+   ============================================================ */
+.pview[hidden] { display: none !important; }
+.pview { animation: pview-in .22s ease both; }
+@keyframes pview-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 4px 0 20px; }
+.view-head h1 { font-family: 'Cormorant', Georgia, serif; font-size: clamp(26px, 3vw, 36px); line-height: 1.05; color: var(--p-ink); margin: 0; }
+.view-head .pc-link { font-size: 13.5px; }
+.side-link.is-active { background: var(--p-accent-soft); color: var(--p-accent-2); }
+.side-link--ext { color: rgba(255,255,255,.55); }
