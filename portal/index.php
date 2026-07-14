@@ -280,8 +280,8 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 <?php endif; ?>
 
 <?php if ($isOrg && $dues):
-            $duesAnnual  = '₦' . number_format((int) ($dues['annual_ngn'] ?? $dues['amount_ngn']));
-            $duesMonthly = '₦' . number_format((int) ($dues['monthly_ngn'] ?? 0));
+            // Dues fee amounts are intentionally NOT shown on the portal or the
+            // public site — only the member's own "Total dues paid" and status.
             $duesPT   = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
             $duesPill = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';
             if (!empty($dues['lifetime'])) $duesPill = 'Lifetime';
