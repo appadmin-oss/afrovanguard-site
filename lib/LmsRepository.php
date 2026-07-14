@@ -510,18 +510,29 @@ final class LmsRepository
         $lp->execute([$userId]);
         if ($row = $lp->fetch()) $lastPaid = $row['paid_at'] ?? null;
 
+        // Total dues ever paid (sum of confirmed membership payments), plus a count.
+        $tp = $this->db->prepare(
+            "SELECT COALESCE(SUM(amount_kobo), 0) AS kobo, COUNT(*) AS n
+             FROM payments WHERE user_id = ? AND kind = 'membership' AND status = 'paid'"
+        );
+        $tp->execute([$userId]);
+        $totRow = $tp->fetch() ?: ['kobo' => 0, 'n' => 0];
+        $totalPaidNgn = (int) round(((int) $totRow['kobo']) / 100);
+
         return [
-            'amount_ngn'   => $amountNgn,        // annual (kept for back-compat)
-            'annual_ngn'   => $annualNgn,
-            'monthly_ngn'  => $monthlyNgn,
-            'currency'     => 'NGN',
-            'period'       => 'year',
-            'state'        => $state,
-            'lifetime'     => $lifetime,
-            'paid_through' => $paidThrough ? gmdate('c', (int) strtotime((string) $paidThrough)) : null,
-            'days_left'    => $daysLeft,
-            'last_paid_at' => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
-            'payable'      => class_exists('Payments') && Payments::configured('paystack'),
+            'amount_ngn'    => $amountNgn,        // annual (kept for back-compat)
+            'annual_ngn'    => $annualNgn,
+            'monthly_ngn'   => $monthlyNgn,
+            'currency'      => 'NGN',
+            'period'        => 'year',
+            'state'         => $state,
+            'lifetime'      => $lifetime,
+            'paid_through'  => $paidThrough ? gmdate('c', (int) strtotime((string) $paidThrough)) : null,
+            'days_left'     => $daysLeft,
+            'last_paid_at'  => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
+            'total_paid_ngn' => $totalPaidNgn,   // cumulative dues contributed
+            'payments_count' => (int) $totRow['n'],
+            'payable'       => class_exists('Payments') && Payments::configured('paystack'),
         ];
     }
     private function userRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lms_users WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }

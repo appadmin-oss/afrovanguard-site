@@ -397,6 +397,8 @@ render_head([
           <dl class="profile-dl dues-dl">
             <dt>Dues</dt><dd><strong><?= e($duesAnnual) ?></strong> <span class="dues-per">/ year</span> · <?= e($duesMonthly) ?> <span class="dues-per">/ month</span></dd>
 <?php if ($duesPT): ?>            <dt><?= $duesState === 'overdue' ? 'Lapsed' : 'Paid through' ?></dt><dd><?= e($duesPT) ?></dd>
+<?php endif; ?>
+<?php $duesTotal = (int) ($dues['total_paid_ngn'] ?? 0); $duesN = (int) ($dues['payments_count'] ?? 0); if ($duesTotal > 0): ?>            <dt>Total dues paid</dt><dd><strong class="dues-total">₦<?= number_format($duesTotal) ?></strong> <span class="dues-per">across <?= $duesN ?> payment<?= $duesN === 1 ? '' : 's' ?></span></dd>
 <?php endif; ?>          </dl>
 <?php if ($duesCanPay): ?>
           <div class="dues-actions">

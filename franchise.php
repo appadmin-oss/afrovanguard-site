@@ -2,8 +2,8 @@
 /**
  * franchise.php — "Afrovanguard Social Franchise & Governance Framework".
  * The public framework for establishing Community Advancement Centres
- * (CACENTREs) and running Afrovanguard flagship projects (LCASP, BEC,
- * Africa GATES, Street-To-Stardom) under one vision and one standard.
+ * (CACENTREs) and running Afrovanguard flagship projects (BEC, Africa GATES,
+ * Street-To-Stardom) in ANY community, under one vision and one standard.
  * Served at /franchise.
  */
 declare(strict_types=1);
@@ -14,7 +14,7 @@ $applyMail = 'mailto:cacentre@afrovanguard.org.ng?subject=' . rawurlencode('Afro
 
 render_head([
     'title'      => 'Social Franchise & Governance Framework — Afrovanguard',
-    'desc'       => 'How competent leaders establish Afrovanguard Community Advancement Centres (CACENTREs) and run flagship projects — LCASP, BEC, Africa GATES, Street-To-Stardom — under one vision, one governance framework and one operational standard.',
+    'desc'       => 'How competent leaders establish Afrovanguard Community Advancement Centres (CACENTREs) and run flagship projects — BEC, Africa GATES, Street-To-Stardom — in any community, under one vision, one governance framework and one operational standard.',
     'canonical'  => rtrim(SITE_URL, '/') . '/franchise',
     'body_class' => 'fr-page',
 ]);
@@ -61,7 +61,7 @@ render_nav('about');
   /* system chips */
   .fr-chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
   .fr-chip{font-size:13px;font-weight:600;color:var(--afg-body,#374151);background:var(--afg-surface,#fff);border:1px solid var(--afg-border,#e5e7eb);border-radius:var(--afg-radius-pill,999px);padding:7px 14px}
-  /* LCASP timeline */
+  /* implementation timeline */
   .fr-time{position:relative;margin:16px 0 0;padding:0;list-style:none}
   .fr-time::before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:2px;background:var(--fr-line)}
   .fr-tstep{position:relative;padding:0 0 22px 36px}
@@ -78,6 +78,15 @@ render_nav('about');
   .fr-btn-primary{background:var(--afg-accent,#f3b416);color:var(--afg-on-accent,#111827)}
   .fr-btn-ghost{background:transparent;color:var(--afg-ink,#111827);border-color:var(--afg-border,#e5e7eb)}
   .fr-btn:focus-visible{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:2px}
+  /* on-this-page nav */
+  .fr-toc{position:sticky;top:0;z-index:20;background:var(--afg-surface,#fff);border-bottom:1px solid var(--afg-border,#e5e7eb);
+    -webkit-backdrop-filter:saturate(1.1) blur(6px);backdrop-filter:saturate(1.1) blur(6px)}
+  .fr-toc-in{display:flex;gap:6px;overflow-x:auto;padding:10px 20px;scrollbar-width:none}
+  .fr-toc-in::-webkit-scrollbar{display:none}
+  .fr-toc-in a{flex:none;font-size:13px;font-weight:600;color:var(--afg-muted,#6b7280);text-decoration:none;
+    padding:7px 13px;border-radius:999px;white-space:nowrap;transition:background .15s,color .15s}
+  .fr-toc-in a:hover{background:var(--afg-surface-2,#f4f2ec);color:var(--afg-ink,#111827)}
+  .fr-toc-in a.is-active{background:var(--afg-accent-soft,rgba(243,180,22,.14));color:var(--afg-accent-ink,#b07e08)}
   @media(max-width:720px){.fr-split,.fr-flags{grid-template-columns:1fr}.fr-pillars{grid-template-columns:1fr 1fr}}
 </style>
 
@@ -87,11 +96,31 @@ render_nav('about');
       <div class="page-head page-head--center" style="padding:0">
         <p class="page-eyebrow">Afrovanguard Social Franchise</p>
         <h1 class="page-title">Franchise &amp; Governance Framework</h1>
-        <p class="page-lead">How competent leaders establish Afrovanguard Community Advancement Centres and carry the mission into new communities — under one vision, one governance framework, one operational standard and one culture.</p>
-        <p class="fr-hero-sub">For the Lagos Child Accelerated Success Project (LCASP) &amp; the CACENTRE Network</p>
+        <p class="page-lead">How competent leaders establish Afrovanguard Community Advancement Centres and carry the mission into new communities — anywhere in the world — under one vision, one governance framework, one operational standard and one culture.</p>
+        <p class="fr-hero-sub">For the Afrovanguard Community Advancement Centre (CACENTRE) Network</p>
       </div>
     </div>
   </header>
+
+  <nav class="fr-toc" aria-label="On this page">
+    <div class="fr-in fr-toc-in">
+      <a href="#purpose">Purpose</a>
+      <a href="#model">The model</a>
+      <a href="#eligibility">Eligibility</a>
+      <a href="#level-c">Qualifying</a>
+      <a href="#responsibilities">Responsibilities</a>
+      <a href="#funding">Funding</a>
+      <a href="#cacentre">The centre</a>
+      <a href="#identity">Identity</a>
+      <a href="#flagships">Flagship projects</a>
+      <a href="#operations">Operations</a>
+      <a href="#global-access">Member access</a>
+      <a href="#flexibility">Local flexibility</a>
+      <a href="#partnerships">Partnerships</a>
+      <a href="#cycle">Implementation</a>
+      <a href="#admin">Project admin</a>
+    </div>
+  </nav>
 
   <div class="fr-body">
     <div class="fr-in">
@@ -112,7 +141,7 @@ render_nav('about');
       <section class="fr-sec" id="model">
         <p class="fr-num">02 · The Social Franchise Model</p>
         <h2>What a franchise grants</h2>
-        <p>The Lagos Child Accelerated Success Project (LCASP) and all Afrovanguard flagship projects are implemented through the Afrovanguard Social Franchise Model. A franchise grants qualified individuals or organizations the right to establish and operate an Afrovanguard CACENTRE, implement Afrovanguard programmes, and use approved systems, curriculum, branding and operational standards.</p>
+        <p>All Afrovanguard flagship projects are implemented through the Afrovanguard Social Franchise Model. A franchise grants qualified individuals or organizations the right to establish and operate an Afrovanguard CACENTRE in their own community, implement Afrovanguard programmes, and use approved systems, curriculum, branding and operational standards.</p>
         <p class="fr-note"><strong>No individual, institution or organization</strong> may independently operate, replicate or represent any Afrovanguard project without an official franchise approval.</p>
       </section>
 
@@ -227,7 +256,7 @@ render_nav('about');
         <p>Every CACENTRE adopts an indigenous community name reflecting the local language and culture — expressing strength, excellence, hope, resilience or advancement.</p>
         <div class="fr-card">
           <h3>Example</h3>
-          <p style="margin:0"><strong>Okun Alimosho CACENTRE</strong> — “Strength of Alimosho”.</p>
+          <p style="margin:0"><strong>Okun [Community] CACENTRE</strong> — where “Okun” carries the local meaning of strength. Each centre chooses a name rooted in its own community and language.</p>
         </div>
         <p class="fr-note">Whatever its local identity, every CACENTRE remains part of the Afrovanguard Community Advancement Centre Network.</p>
       </section>
@@ -337,30 +366,30 @@ render_nav('about');
         <p>CACENTREs are encouraged to partner with government, schools, NGOs, faith-based organizations, businesses, community associations and international organizations. Every partnership must align with Afrovanguard's vision and governance framework.</p>
       </section>
 
-      <section class="fr-sec" id="lcasp">
-        <p class="fr-num">14 · The LCASP Cycle</p>
-        <h2>Lagos Child Accelerated Success Project</h2>
-        <p>A scalable, standardized project built to serve every Local Government Area in Lagos State, run on a continuous <strong>12-month implementation cycle</strong>.</p>
+      <section class="fr-sec" id="cycle">
+        <p class="fr-num">14 · The Implementation Cycle</p>
+        <h2>How a centre runs its year</h2>
+        <p>Every CACENTRE runs its flagship youth project on a continuous <strong>12-month implementation cycle</strong> — a scalable, standardized rhythm that adapts to any community, region or country while keeping the same milestones and quality bar.</p>
         <ol class="fr-time">
           <li class="fr-tstep">
-            <h4>After the Community Concert — stakeholder engagement</h4>
-            <p>Send partnership and approval letters to the Lagos State Government, local governments, schools, sponsors, partners, donors and community leaders. Government approvals ideally processed December–January.</p>
+            <h4>Stakeholder engagement</h4>
+            <p>Send partnership and approval letters to the relevant government authorities, local councils, schools, sponsors, partners, donors and community leaders, following each locality's own approval calendar.</p>
           </li>
           <li class="fr-tstep">
-            <h4>School engagement — Second Term (January)</h4>
-            <p>Project introduction, student counselling, leadership sessions, parent engagement and Summer School preparation. Each school receives at least three official follow-up visits after approval.</p>
+            <h4>School engagement</h4>
+            <p>Project introduction, student counselling, leadership sessions, parent engagement and holiday-programme preparation. Each school receives at least three official follow-up visits after approval.</p>
           </li>
           <li class="fr-tstep">
-            <h4>School Storm — from May</h4>
-            <p>Every participating school receives a first visit (introduction) and a second visit (follow-up &amp; Summer School preparation).</p>
+            <h4>Outreach drive</h4>
+            <p>Every participating school receives a first visit (introduction) and a second visit (follow-up &amp; holiday-programme preparation).</p>
           </li>
           <li class="fr-tstep">
             <h4>Volunteer standards</h4>
             <p>Recruitment completed before school engagement. Weekly service; a minimum of five volunteers per school engagement; removal after two consecutive missed assignments without approval.</p>
           </li>
           <li class="fr-tstep">
-            <h4>Summer School readiness</h4>
-            <p>Before commencement: venue secured, Summer Packs ready, donor commitments confirmed, at least ten committed volunteers, ten trained instructors, and overall deployment of thirty to forty people.</p>
+            <h4>Holiday-programme readiness</h4>
+            <p>Before commencement: venue secured, learning packs ready, donor commitments confirmed, at least ten committed volunteers, ten trained instructors, and overall deployment of thirty to forty people.</p>
           </li>
           <li class="fr-tstep">
             <h4>Community Concert</h4>
@@ -408,5 +437,25 @@ render_nav('about');
     </div>
   </div>
 </main>
+
+<script>
+/* Franchise TOC scroll-spy — highlight the section in view. */
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.fr-toc-in a'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) {
+        links.forEach(function (l) { l.classList.remove('is-active'); });
+        var a = byId[en.target.id];
+        if (a) { a.classList.add('is-active'); a.scrollIntoView({ block: 'nearest', inline: 'center' }); }
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('.fr-sec[id]').forEach(function (s) { obs.observe(s); });
+})();
+</script>
 
 <?php render_footer(); ?>
