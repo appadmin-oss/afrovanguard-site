@@ -870,3 +870,47 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, 
   .sk-card { animation: none; }
   .diary-loadmore:hover, .journey-canvas-wrap.is-listview .journey-a11y a:hover { transform: none; }
 }
+
+/* ============================================================
+   SERIES — group posts into an ordered, numbered series.
+   ============================================================ */
+.series-box { margin: 0 0 28px; padding: 18px 20px; border: 1px solid var(--border, #E5E7EB);
+  border-left: 3px solid var(--gold, #f3b416); border-radius: 12px; background: var(--surface-2, #F4F2EC); }
+.series-box-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.series-kicker { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-deep, #b07e08); }
+.series-title { font-family: var(--font-heading, 'Cormorant', serif); font-size: 22px; font-weight: 700; color: var(--ink); text-decoration: none; }
+.series-title:hover { color: var(--gold-deep, #b07e08); }
+.series-list { list-style: none; margin: 0; padding: 0; counter-reset: none; display: flex; flex-direction: column; gap: 2px; }
+.series-list li { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; border-top: 1px solid var(--border, #E5E7EB); font-size: 15px; }
+.series-list li:first-child { border-top: 0; }
+.series-list .series-n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--surface, #fff); border: 1px solid var(--border, #E5E7EB); color: var(--muted); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
+.series-list li.is-current .series-n { background: var(--gold, #f3b416); color: #111827; border-color: var(--gold, #f3b416); }
+.series-list a { color: var(--ink); text-decoration: none; }
+.series-list a:hover { color: var(--gold-deep, #b07e08); text-decoration: underline; }
+.series-list .series-cur { color: var(--ink); font-weight: 700; }
+.series-list .series-cur em { color: var(--muted); font-weight: 600; font-style: normal; font-size: 13px; }
+
+/* prev / next within a series */
+.series-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 32px 0 8px; }
+.series-step { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--border, #E5E7EB); border-radius: 12px; text-decoration: none; background: var(--surface, #fff); transition: border-color .15s ease, transform .15s ease; }
+.series-step:hover { border-color: var(--gold, #f3b416); transform: translateY(-1px); }
+.series-step.is-empty { border: 0; background: transparent; }
+.series-step .series-dir { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--gold-deep, #b07e08); }
+.series-step strong { color: var(--ink); font-family: var(--font-heading, 'Cormorant', serif); font-size: 18px; font-weight: 700; line-height: 1.2; }
+.series-next { text-align: right; }
+@media (max-width: 640px) { .series-nav { grid-template-columns: 1fr; } .series-next { text-align: left; } }
+
+/* series landing page */
+.series-page { padding: clamp(40px, 6vw, 72px) 0; }
+.series-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-deep, #b07e08); margin: 10px 0 8px; }
+.series-page-title { font-family: var(--font-heading, 'Cormorant', serif); font-size: clamp(32px, 5vw, 52px); line-height: 1.03; color: var(--ink); margin: 0 0 10px; }
+.series-page-dek { font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+.series-index { list-style: none; margin: 24px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.series-index-item a { display: flex; gap: 16px; align-items: flex-start; padding: 18px 20px; border: 1px solid var(--border, #E5E7EB); border-radius: 14px; background: var(--surface, #fff); text-decoration: none; transition: border-color .15s ease, transform .15s ease; }
+.series-index-item a:hover { border-color: var(--gold, #f3b416); transform: translateY(-2px); }
+.series-index-n { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--gold, #f3b416); color: #111827; font-family: var(--font-heading, 'Cormorant', serif); font-weight: 700; font-size: 20px; display: inline-flex; align-items: center; justify-content: center; }
+.series-index-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.series-index-title { font-family: var(--font-heading, 'Cormorant', serif); font-size: 21px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+.series-index-dek { font-size: 14.5px; color: var(--muted); line-height: 1.5; }
+.series-index-meta { font-size: 12.5px; color: var(--muted); }
+.series-back { margin-top: 28px; } .series-back a { color: var(--gold-deep, #b07e08); font-weight: 700; text-decoration: none; }

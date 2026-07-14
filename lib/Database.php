@@ -390,6 +390,8 @@ final class Database
             'status'     => "ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'",
             'updated_at' => "ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
             'format'     => "ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'standard'",
+            'series_id'  => "ALTER TABLE articles ADD COLUMN series_id INTEGER NOT NULL DEFAULT 0",
+            'series_part'=> "ALTER TABLE articles ADD COLUMN series_part INTEGER NOT NULL DEFAULT 0",
         ];
         foreach ($add as $name => $sql) {
             if (!isset($cols[$name])) { self::$pdo->exec($sql); }

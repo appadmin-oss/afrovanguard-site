@@ -238,8 +238,9 @@
   /* ---- Diary editor ---- */
   function openEditor(slug) {
     resetForm();
-    Promise.all([api('articles'), api('categories')]).then(function (res) {
+    Promise.all([api('articles'), api('categories'), api('diary_series')]).then(function (res) {
       $('#catList').innerHTML = (res[1].data.categories || []).map(function (c) { return '<option value="' + escapeHtml(c.name) + '">'; }).join('');
+      if ($('#seriesList')) $('#seriesList').innerHTML = ((res[2] && res[2].data && res[2].data.series) || []).map(function (s) { return '<option value="' + escapeHtml(s.title) + '">'; }).join('');
       buildRelated(res[0].data.articles || [], slug, []);
       if (slug) api('get&slug=' + encodeURIComponent(slug)).then(function (r) { if (r.data.ok) { fillForm(r.data.article); buildRelated(res[0].data.articles || [], slug, r.data.article.related || []); } });
       else initTiny('f_body', '<p></p>');
@@ -247,7 +248,7 @@
     show('editor');
   }
   function resetForm() {
-    ['f_title', 'f_dek', 'f_slug', 'f_authors', 'f_read'].forEach(function (id) { $('#' + id).value = ''; });
+    ['f_title', 'f_dek', 'f_slug', 'f_authors', 'f_read', 'f_series', 'f_series_part'].forEach(function (id) { var el = $('#' + id); if (el) el.value = ''; });
     $('#f_status').value = 'draft'; $('#f_category').value = ''; $('#f_gradient').value = 'g-gold';
     $('#f_format').value = 'standard';
     $('#f_featured').checked = false; $('#f_date').value = new Date().toISOString().slice(0, 10);
@@ -256,6 +257,8 @@
   function fillForm(a) {
     $('#f_title').value = a.title || ''; $('#f_dek').value = a.dek || ''; $('#f_slug').value = a.slug || '';
     $('#f_authors').value = stripTags(a.authors_html || ''); $('#f_read').value = a.read_minutes || '';
+    if ($('#f_series')) $('#f_series').value = a.series_title || '';
+    if ($('#f_series_part')) $('#f_series_part').value = a.series_part || '';
     $('#f_status').value = a.status || 'draft'; $('#f_category').value = a.category || ''; $('#f_gradient').value = a.gradient || 'g-gold';
     $('#f_format').value = a.format || 'standard';
     $('#f_featured').checked = a.featured == 1; $('#f_date').value = (a.published_at || '').slice(0, 10);
@@ -301,6 +304,7 @@
   function collect(status) {
     return { slug: $('#f_slug').value.trim(), title: $('#f_title').value.trim(), dek: $('#f_dek').value.trim(),
       category: $('#f_category').value.trim() || 'Dispatch', authors_html: $('#f_authors').value.trim() || 'The Afrovanguard Team',
+      series: ($('#f_series') ? $('#f_series').value.trim() : ''), series_part: ($('#f_series_part') ? $('#f_series_part').value : ''),
       published_at: $('#f_date').value, read_minutes: $('#f_read').value, gradient: $('#f_gradient').value,
       cover_url: coverUrl, audio_url: ($('#f_audio').value || '').trim(), body_html: getBody('f_body'), featured: $('#f_featured').checked, status: status, format: $('#f_format').value, related: selectedRelated() };
   }

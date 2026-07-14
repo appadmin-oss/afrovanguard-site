@@ -43,6 +43,7 @@ RewriteRule ^diary/sitemap\.xml$ diary/sitemap.php [L]
 RewriteRule ^diary/feed\.xml$ diary/feed.php [L]
 RewriteRule ^diary/og/([a-z0-9-]+)\.png$ diary/og.php?slug=$1 [L,QSA]
 RewriteRule ^diary/me/?$ diary/me.php [L,QSA]
+RewriteRule ^diary/series/([a-z0-9-]+)/?$ diary/series.php?slug=$1 [L,QSA]
 RewriteRule ^diary/([a-z0-9-]+)/?$ diary/article.php?slug=$1 [L,QSA]
 
 # Academy  (/academy/ and /academy/studio/ are real dirs → served above)

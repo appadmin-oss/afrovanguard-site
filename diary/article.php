@@ -124,7 +124,30 @@ render_subbar($a['title'], $a['slug'], $canonical);
           </aside>
 <?php endif; ?>
           <div class="article-body">
+<?php if (!empty($a['series'])): $sx = $a['series']; ?>
+            <aside class="series-box" aria-label="Part of a series">
+              <div class="series-box-head">
+                <span class="series-kicker"><?= $sx['part'] ? 'Part ' . (int) $sx['part'] . ' of' : 'Part of' ?> a <?= (int) $sx['count'] ?>-part series</span>
+                <a class="series-title" href="/diary/series/<?= e($sx['slug']) ?>"><?= e($sx['title']) ?></a>
+              </div>
+              <ol class="series-list">
+<?php foreach ($sx['posts'] as $p): $cur = $p['slug'] === $a['slug']; ?>
+                <li class="<?= $cur ? 'is-current' : '' ?>"><span class="series-n"><?= (int) $p['series_part'] ?: '•' ?></span><?php if ($cur): ?><span class="series-cur"><?= e($p['title']) ?> <em>· you’re here</em></span><?php else: ?><a href="/diary/<?= e($p['slug']) ?>/"><?= e($p['title']) ?></a><?php endif; ?></li>
+<?php endforeach; ?>
+              </ol>
+            </aside>
+<?php endif; ?>
 <?= $a['body_html'] ?>
+
+<?php if (!empty($a['series']) && ($a['series']['prev'] || $a['series']['next'])): $sx = $a['series']; ?>
+            <nav class="series-nav" aria-label="Series navigation">
+<?php if ($sx['prev']): ?>              <a class="series-step series-prev" href="/diary/<?= e($sx['prev']['slug']) ?>/"><span class="series-dir">← Previous in series</span><strong><?= e($sx['prev']['title']) ?></strong></a>
+<?php else: ?>              <span class="series-step is-empty"></span>
+<?php endif; ?>
+<?php if ($sx['next']): ?>              <a class="series-step series-next" href="/diary/<?= e($sx['next']['slug']) ?>/"><span class="series-dir">Next in series →</span><strong><?= e($sx['next']['title']) ?></strong></a>
+<?php endif; ?>
+            </nav>
+<?php endif; ?>
 
             <div class="reactions">
               <button class="react-btn" data-react="<?= e($a['slug']) ?>" data-base="<?= (int)$a['claps'] ?>"><span class="emoji">👏</span> <span class="react-count"><?= (int)$a['claps'] ?></span></button>

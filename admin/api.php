@@ -124,6 +124,7 @@ try {
             ], $repo));
         }
         case 'articles':     json_out(['ok' => true, 'articles' => array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin())]);
+        case 'diary_series': json_out(['ok' => true, 'series' => $repo->seriesList()]);
         case 'enrollments':  json_out(['ok' => true, 'enrollments' => Database::pdo()->query('SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 200')->fetchAll()]);
         case 'audit_log':    json_out(['ok' => true, 'audit' => $lms->recentAudit(min(200, max(1, (int) ($_GET['limit'] ?? 120))))]);
         case 'subscribers':  json_out(['ok' => true, 'subscribers' => Database::pdo()->query('SELECT email, source, created_at FROM subscribers ORDER BY created_at DESC LIMIT 500')->fetchAll(), 'count' => (int) Database::pdo()->query('SELECT COUNT(*) FROM subscribers')->fetchColumn()]);
@@ -645,6 +646,7 @@ try {
                 'audio_url' => trim((string) ($body['audio_url'] ?? '')),
                 'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
                 'format' => (string) ($body['format'] ?? 'standard'),
+                'series' => trim((string) ($body['series'] ?? '')), 'series_part' => (int) ($body['series_part'] ?? 0),
                 'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
             ]);
             Sitemap::rebuild();

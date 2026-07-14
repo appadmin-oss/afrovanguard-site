@@ -192,6 +192,8 @@
         <div class="side-card">
           <h3>Classification</h3>
           <label class="fld"><span>Category</span><input id="f_category" list="catList" placeholder="e.g. Field Notes" /><datalist id="catList"></datalist></label>
+          <label class="fld"><span>Series (optional)</span><input id="f_series" list="seriesList" placeholder="e.g. Building Alimosho" /><datalist id="seriesList"></datalist></label>
+          <label class="fld"><span>Part # in series</span><input id="f_series_part" type="number" min="0" placeholder="e.g. 1" /></label>
           <label class="fld"><span>Author(s)</span><input id="f_authors" placeholder="The Afrovanguard Team" /></label>
           <label class="fld"><span>Read time (min, optional)</span><input id="f_read" type="number" min="1" placeholder="auto" /></label>
           <label class="fld"><span>Card gradient</span><select id="f_gradient">
