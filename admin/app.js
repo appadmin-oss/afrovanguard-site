@@ -466,6 +466,8 @@
   function openCourse(slug) {
     ['c_title', 'c_summary', 'c_slug', 'c_category', 'c_level', 'c_duration', 'c_price', 'c_location', 'c_cta', 'c_outcomes'].forEach(function (id) { $('#' + id).value = ''; });
     $('#c_status').value = 'draft'; $('#c_format').value = 'In-person'; $('#c_gradient').value = 'g-gold'; $('#c_featured').checked = false; $('#c_sort').value = '0';
+    $('#c_access').value = 'open'; $('#c_price_ngn').value = '0'; if ($('#c_pass_code')) $('#c_pass_code').value = '';
+    renderGrants([]); syncAccess();
     setCCover(''); $('#acPreviewLink').hidden = true;
     if (slug) api('ac_get&slug=' + encodeURIComponent(slug)).then(function (r) { if (r.data.ok) fillCourse(r.data.course); });
     else initTiny('c_body', '<p></p>');
@@ -478,19 +480,66 @@
     $('#c_cta').value = c.cta_url || ''; $('#c_outcomes').value = c.outcomes || ''; $('#c_gradient').value = c.gradient || 'g-gold';
     $('#c_status').value = c.status || 'draft'; $('#c_featured').checked = c.featured == 1; $('#c_sort').value = c.sort || 0;
     $('#c_access').value = c.access_type || 'open'; $('#c_price_ngn').value = c.price_ngn || 0;
+    if ($('#c_pass_code')) $('#c_pass_code').value = c.pass_code || '';
     $('#c_instructor').value = c.instructor_email || ''; syncAccess();
     setCCover(c.cover_url || ''); initTiny('c_body', c.body_html || '<p></p>');
     var pl = $('#acPreviewLink'); pl.hidden = false; pl.href = '/academy/' + c.slug + '/';
+    loadGrants();
   }
-  function syncAccess() { var w = $('#c_price_ngn_wrap'); if (w) w.hidden = $('#c_access').value !== 'paid'; }
+  function syncAccess() {
+    var access = $('#c_access').value;
+    var w = $('#c_price_ngn_wrap'); if (w) w.hidden = access !== 'paid';
+    var pw = $('#c_pass_wrap'); if (pw) pw.hidden = access !== 'restricted';
+    var gw = $('#c_access_grants_wrap'); if (gw) gw.hidden = access !== 'restricted';
+    if (access === 'restricted') loadGrants();
+  }
   if ($('#c_access')) { $('#c_access').addEventListener('change', syncAccess); syncAccess(); }
+  /* ---- Restricted-course access grants ---- */
+  function renderGrants(grants) {
+    var ul = $('#c_grant_list'); if (!ul) return;
+    if (!grants || !grants.length) { ul.innerHTML = '<li class="muted" style="font-size:12px">No members added yet.</li>'; return; }
+    ul.innerHTML = grants.map(function (g) {
+      return '<li style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 8px;background:var(--surface-2,#f6f6f4);border-radius:8px">' +
+        '<span style="min-width:0"><strong style="font-size:13px">' + escapeHtml(g.name || g.email) + '</strong>' +
+        '<span class="muted" style="display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(g.email) + '</span></span>' +
+        '<button type="button" class="btn btn-outline btn-sm" data-revoke="' + g.id + '">Remove</button></li>';
+    }).join('');
+  }
+  function loadGrants() {
+    if ($('#c_access').value !== 'restricted') return;
+    var slug = $('#c_slug').value.trim();
+    if (!slug) { renderGrants([]); return; }
+    api('ac_grants&slug=' + encodeURIComponent(slug)).then(function (r) { if (r.data && r.data.ok) renderGrants(r.data.grants); });
+  }
+  if ($('#c_grant_btn')) {
+    $('#c_grant_btn').addEventListener('click', function () {
+      var slug = $('#c_slug').value.trim();
+      if (!slug) { toast('Save the course first, then add members.'); return; }
+      var email = $('#c_grant_email').value.trim();
+      if (!email) { toast('Enter a member email.'); return; }
+      post('ac_grant', { slug: slug, email: email }).then(function (r) {
+        if (!r.data.ok) { toast(r.data.error || 'Could not grant access.'); return; }
+        $('#c_grant_email').value = ''; renderGrants(r.data.grants); toast('Access granted ✓');
+      }).catch(function () { toast('Network error'); });
+    });
+  }
+  if ($('#c_grant_list')) {
+    $('#c_grant_list').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-revoke]'); if (!b) return;
+      var slug = $('#c_slug').value.trim();
+      post('ac_revoke', { slug: slug, user_id: parseInt(b.getAttribute('data-revoke'), 10) }).then(function (r) {
+        if (r.data.ok) renderGrants(r.data.grants);
+      });
+    });
+  }
   function collectCourse(status) {
     return { slug: $('#c_slug').value.trim(), title: $('#c_title').value.trim(), summary: $('#c_summary').value.trim(),
       body_html: getBody('c_body'), outcomes: $('#c_outcomes').value.trim(), category: $('#c_category').value.trim() || 'Programme',
       level: $('#c_level').value.trim() || 'All levels', format: $('#c_format').value, duration: $('#c_duration').value.trim(),
       price: $('#c_price').value.trim() || 'Free', location: $('#c_location').value.trim() || 'Alimosho, Lagos',
       cta_url: $('#c_cta').value.trim(), gradient: $('#c_gradient').value, cover_url: cCoverUrl,
-      access_type: $('#c_access').value, price_ngn: parseInt($('#c_price_ngn').value, 10) || 0, instructor_email: $('#c_instructor').value.trim(),
+      access_type: $('#c_access').value, price_ngn: parseInt($('#c_price_ngn').value, 10) || 0,
+      pass_code: $('#c_pass_code') ? $('#c_pass_code').value.trim() : '', instructor_email: $('#c_instructor').value.trim(),
       featured: $('#c_featured').checked, status: status, sort: $('#c_sort').value };
   }
   function saveCourse(status) {

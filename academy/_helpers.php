@@ -19,6 +19,7 @@ function ac_access_meta(string $access): array
         'tracked'    => ['label' => 'Free',          'cls' => 'tracked'],
         'membership' => ['label' => 'Members only',  'cls' => 'membership'],
         'paid'       => ['label' => 'Paid',          'cls' => 'paid'],
+        'restricted' => ['label' => 'Restricted',    'cls' => 'restricted'],
     ][$access] ?? ['label' => 'Free', 'cls' => 'open'];
 }
 
@@ -31,6 +32,7 @@ function ac_price_label(array $c): string
         return $n > 0 ? '₦' . number_format($n) : ($c['price'] ?: 'Paid');
     }
     if ($access === 'membership') return 'Members';
+    if ($access === 'restricted') return 'Restricted';
     return 'Free';
 }
 

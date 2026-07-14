@@ -81,11 +81,20 @@ render_nav('academy');
         <button class="btn btn-pill" data-auth="register">Create free account</button>
         <button class="btn btn-pill-ghost" data-auth="login">Sign in</button>
       </div>
+<?php elseif (($course['access_type'] ?? '') === 'restricted'): ?>
+      <p><strong><?= e($course['title']) ?></strong> is a restricted programme. Access is limited to invited members or those holding a pass.</p>
+<?php if (trim((string) ($course['pass_code'] ?? '')) !== ''): ?>
+      <form class="enroll-form pass-form gate-actions" data-course="<?= e($courseSlug) ?>">
+        <input name="code" placeholder="Enter your pass code" autocomplete="off" required />
+        <button type="submit" class="btn btn-pill">Unlock →</button>
+      </form>
+<?php endif; ?>
+      <a class="btn btn-pill-ghost" href="<?= e(academy_url($courseSlug . '/')) ?>">Course overview</a>
 <?php elseif (($course['access_type'] ?? '') === 'membership'): ?>
       <p><strong><?= e($course['title']) ?></strong> is a members' programme. Become a member to unlock every lesson.</p>
 <?php if (Payments::configured('paystack')): ?>
       <div class="gate-actions pay-card">
-        <button class="btn btn-pill pay-btn" data-pay="membership">Become a member →</button>
+        <button class="btn btn-pill pay-btn" data-pay="membership">Become a member — ₦<?= number_format((int) AV_MEMBERSHIP_NGN) ?>/yr →</button>
         <a class="btn btn-pill-ghost" href="<?= e(academy_url($courseSlug . '/')) ?>">Course overview</a>
       </div>
       <p class="enroll-msg" hidden></p>

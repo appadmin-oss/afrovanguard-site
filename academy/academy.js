@@ -237,9 +237,27 @@
       .catch(function () { note('Network error — please try again.', false); t.disabled = false; t.textContent = label; });
   });
 
+  /* ---- Restricted course: redeem a pass code ---- */
+  (function () {
+    var form = document.querySelector('.pass-form[data-course]');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = form.querySelector('button[type=submit]'); var label = btn ? btn.textContent : '';
+      var code = (form.querySelector('[name="code"]') || {}).value || '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+      api('pass_redeem', { method: 'POST', body: { slug: form.getAttribute('data-course'), code: code } })
+        .then(function (d) {
+          if (d && d.ok) { toast(d.message || 'Unlocked ✓'); setTimeout(function () { window.location.reload(); }, 700); }
+          else { toast((d && d.error) || 'That pass code is not valid.'); if (btn) { btn.disabled = false; btn.textContent = label; } }
+        })
+        .catch(function () { toast('Network error — please try again.'); if (btn) { btn.disabled = false; btn.textContent = label; } });
+    });
+  })();
+
   /* ---- Lead-capture application form (open courses with no lessons yet) ---- */
   (function () {
-    var form = document.querySelector('.enroll-form[data-course]');
+    var form = document.querySelector('.enroll-form[data-course]:not(.pass-form)');
     if (!form) return;
     form.addEventListener('submit', function (e) {
       e.preventDefault();

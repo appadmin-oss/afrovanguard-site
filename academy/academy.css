@@ -112,6 +112,8 @@ body.academy .ac-hero h1 {
 .ac-price-open, .ac-price-tracked { color: #16a34a; }
 .ac-price-membership { color: var(--gold-deep); }
 .ac-price-paid { color: var(--ink); }
+.ac-price-restricted { color: #b45309; display: inline-flex; align-items: center; gap: 4px; }
+.ac-price-restricted::before { content: "🔒"; font-size: 12px; }
 .ac-foot-note { font-size: 12.5px; color: var(--muted); font-weight: 500; white-space: nowrap; }
 
 /* empty states */

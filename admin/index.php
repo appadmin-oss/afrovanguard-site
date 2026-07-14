@@ -271,8 +271,19 @@
             <option value="tracked">Tracked · free, sign in to track</option>
             <option value="membership">Members only</option>
             <option value="paid">Paid programme</option>
+            <option value="restricted">Restricted · locked to selected members / pass</option>
           </select></label>
           <label class="fld" id="c_price_ngn_wrap" hidden><span>Price (₦, one-time)</span><input id="c_price_ngn" type="number" min="0" step="500" value="0" placeholder="e.g. 15000" /></label>
+          <label class="fld" id="c_pass_wrap" hidden><span>Pass code (optional)</span><input id="c_pass_code" placeholder="e.g. cohort-2026" />
+            <span class="muted" style="font-size:12px">Any member holding this pass can open the course. Leave blank to allow only the members you add below.</span></label>
+          <div class="fld" id="c_access_grants_wrap" hidden>
+            <span>Members with access</span>
+            <div class="grant-add" style="display:flex;gap:8px;margin:4px 0 8px">
+              <input id="c_grant_email" type="email" placeholder="member@email.com" style="flex:1" />
+              <button type="button" class="btn btn-outline btn-sm" id="c_grant_btn">Grant</button>
+            </div>
+            <ul id="c_grant_list" class="grant-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px"></ul>
+          </div>
           <label class="fld"><span>Instructor email</span><input id="c_instructor" type="email" placeholder="instructor@afrovanguard.org.ng" /></label>
           <p class="muted" style="font-size:12px;margin:2px 0 0">They need an Academy account first. They’ll get a dashboard at <code>/academy/teach/</code>.</p>
         </div>

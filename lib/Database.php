@@ -261,11 +261,20 @@ final class Database
         $ccols = [];
         foreach (self::$pdo->query('PRAGMA table_info(courses)') as $r) { $ccols[$r['name']] = true; }
         $cadd = [
-            'access_type'   => "ALTER TABLE courses ADD COLUMN access_type TEXT NOT NULL DEFAULT 'open'", // open|tracked|membership|paid
+            'access_type'   => "ALTER TABLE courses ADD COLUMN access_type TEXT NOT NULL DEFAULT 'open'", // open|tracked|membership|paid|restricted
             'price_ngn'     => "ALTER TABLE courses ADD COLUMN price_ngn INTEGER NOT NULL DEFAULT 0",
             'instructor_id' => "ALTER TABLE courses ADD COLUMN instructor_id INTEGER",
+            'pass_code'     => "ALTER TABLE courses ADD COLUMN pass_code TEXT NOT NULL DEFAULT ''", // for access_type=restricted: any member holding this pass gets in
         ];
         foreach ($cadd as $name => $sql) { if (!isset($ccols[$name])) self::$pdo->exec($sql); }
+        // Restricted-course access: an explicit per-member allowlist, and named
+        // "passes" an admin grants that unlock any course requiring that pass.
+        if (!self::tableExists('course_access')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS course_access (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER NOT NULL, user_id INTEGER NOT NULL, granted_by INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(course_id, user_id))");
+        }
+        if (!self::tableExists('member_passes')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS member_passes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, code TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '', granted_by INTEGER NOT NULL DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, code))");
+        }
         // LMS tables (idempotent)
         if (!self::tableExists('lessons')) { self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql')); }
         // Tables added after the LMS shipped (idempotent for deployed DBs)

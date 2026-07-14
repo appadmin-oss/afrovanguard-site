@@ -787,6 +787,7 @@ try {
                 'cta_url' => trim((string) ($body['cta_url'] ?? '')), 'featured' => !empty($body['featured']),
                 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft', 'sort' => (int) ($body['sort'] ?? 0),
                 'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),
+                'pass_code' => (string) ($body['pass_code'] ?? ''),
             ];
             // Resolve an instructor by email (must already have an Academy account).
             $instructorMsg = null;
@@ -803,6 +804,31 @@ try {
             $slug = $ac->save($fields);
             Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/', 'notice' => $instructorMsg]);
+        case 'ac_grants': {
+            // List members explicitly granted access to a restricted course.
+            $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? $body['slug'] ?? '')));
+            $gc = $gslug ? $ac->bySlug($gslug, true) : null;
+            if (!$gc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'grants' => $lms->courseAccessList((int) $gc['id'])]);
+        }
+        case 'ac_grant': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $gc = $gslug ? $ac->bySlug($gslug, true) : null;
+            if (!$gc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $gu = $lms->userByEmail((string) ($body['email'] ?? ''));
+            if (!$gu) json_out(['ok' => false, 'error' => 'No account exists for that email yet — ask them to sign in once, then grant access.'], 404);
+            $lms->grantCourseAccess((int) $gc['id'], (int) $gu['id'], 0);
+            json_out(['ok' => true, 'grants' => $lms->courseAccessList((int) $gc['id'])]);
+        }
+        case 'ac_revoke': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $gc = $gslug ? $ac->bySlug($gslug, true) : null;
+            if (!$gc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->revokeCourseAccess((int) $gc['id'], (int) ($body['user_id'] ?? 0));
+            json_out(['ok' => true, 'grants' => $lms->courseAccessList((int) $gc['id'])]);
+        }
         case 'ac_delete': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $dslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));

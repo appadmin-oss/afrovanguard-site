@@ -157,7 +157,109 @@ final class LmsRepository
         $member = $this->isMember((int) $user['id']) || LmsAuth::isOrgMember($user);
         if ($access === 'membership') return $member;
         if ($access === 'paid') return $this->isEnrolled((int) $user['id'], (int) $course['id']) || $member;
+        if ($access === 'restricted') {
+            // Locked: only an explicit per-member grant, or holding the course's pass.
+            if ($this->hasCourseAccess((int) $user['id'], (int) $course['id'])) return true;
+            $pass = trim((string) ($course['pass_code'] ?? ''));
+            return $pass !== '' && $this->hasActivePass((int) $user['id'], $pass);
+        }
         return false;
+    }
+
+    /* ── Restricted courses: per-member allowlist + named passes ──────────── */
+
+    /** Does this member have an explicit grant to this course? */
+    public function hasCourseAccess(int $userId, int $courseId): bool
+    {
+        if ($userId <= 0 || $courseId <= 0) return false;
+        try {
+            $s = $this->db->prepare('SELECT 1 FROM course_access WHERE user_id = ? AND course_id = ?');
+            $s->execute([$userId, $courseId]);
+            return (bool) $s->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** Grant a member access to a restricted course (idempotent). */
+    public function grantCourseAccess(int $courseId, int $userId, int $by = 0): bool
+    {
+        if ($courseId <= 0 || $userId <= 0) return false;
+        $this->db->prepare(Database::insertIgnore('course_access', ['course_id', 'user_id', 'granted_by', 'created_at']))
+            ->execute([$courseId, $userId, $by, gmdate('Y-m-d H:i:s')]);
+        return true;
+    }
+
+    public function revokeCourseAccess(int $courseId, int $userId): bool
+    {
+        $this->db->prepare('DELETE FROM course_access WHERE course_id = ? AND user_id = ?')->execute([$courseId, $userId]);
+        return true;
+    }
+
+    /** Members explicitly granted a course: [{id,name,email,created_at}]. */
+    public function courseAccessList(int $courseId): array
+    {
+        $s = $this->db->prepare(
+            'SELECT u.id, u.name, u.email, ca.created_at
+             FROM course_access ca JOIN lms_users u ON u.id = ca.user_id
+             WHERE ca.course_id = ? ORDER BY ca.id DESC'
+        );
+        $s->execute([$courseId]);
+        return $s->fetchAll() ?: [];
+    }
+
+    /** Does the member hold an unexpired pass with this code? */
+    public function hasActivePass(int $userId, string $code): bool
+    {
+        $code = trim($code);
+        if ($userId <= 0 || $code === '') return false;
+        try {
+            $s = $this->db->prepare(
+                "SELECT 1 FROM member_passes WHERE user_id = ? AND code = ?
+                 AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)"
+            );
+            $s->execute([$userId, $code, gmdate('Y-m-d H:i:s')]);
+            return (bool) $s->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** Grant a member a pass by code (idempotent; refreshes label/expiry). */
+    public function grantPass(int $userId, string $code, string $label = '', string $expiresAt = '', int $by = 0): bool
+    {
+        $code = preg_replace('/[^a-z0-9\-]/', '', strtolower(trim($code)));
+        if ($userId <= 0 || $code === '') return false;
+        $exp = trim($expiresAt) !== '' ? $expiresAt : null;
+        $now = gmdate('Y-m-d H:i:s');
+        $n = $this->db->prepare('UPDATE member_passes SET label = ?, expires_at = ?, granted_by = ? WHERE user_id = ? AND code = ?');
+        $n->execute([$label, $exp, $by, $userId, $code]);
+        if ($n->rowCount() === 0) {
+            try { $this->db->prepare('INSERT INTO member_passes (user_id, code, label, granted_by, expires_at, created_at) VALUES (?,?,?,?,?,?)')
+                ->execute([$userId, $code, $label, $by, $exp, $now]); }
+            catch (Throwable $e) { /* raced */ }
+        }
+        return true;
+    }
+
+    public function revokePass(int $userId, string $code): bool
+    {
+        $this->db->prepare('DELETE FROM member_passes WHERE user_id = ? AND code = ?')->execute([$userId, trim($code)]);
+        return true;
+    }
+
+    /** A member's passes: [{code,label,expires_at,created_at}]. */
+    public function memberPasses(int $userId): array
+    {
+        try {
+            $s = $this->db->prepare('SELECT code, label, expires_at, created_at FROM member_passes WHERE user_id = ? ORDER BY id DESC');
+            $s->execute([$userId]);
+            return $s->fetchAll() ?: [];
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** Resolve a member by email (for admin grant-by-email). */
+    public function userByEmail(string $email): ?array
+    {
+        $s = $this->db->prepare('SELECT id, name, email FROM lms_users WHERE email = ?');
+        $s->execute([strtolower(trim($email))]);
+        return $s->fetch() ?: null;
     }
 
     /** Decode a lesson's quiz, or null. Shape: {pass:int, questions:[{q,options[],answer}]} */

@@ -167,6 +167,22 @@ try {
             if (!$u || !$c) json_out(['ok' => true, 'progress' => null]);
             json_out(['ok' => true, 'progress' => $lms->progress((int) $u['id'], (int) $c['id'])]);
 
+        /* ── Restricted-course pass redemption ── */
+        case 'pass_redeem':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('pass_redeem', 10, 900)) json_out(['ok' => false, 'error' => 'Too many attempts — try again later.'], 429);
+            $u = LmsAuth::require();
+            $c = $slug ? $ac->bySlug($slug, true) : null;
+            if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            if (($c['access_type'] ?? 'open') !== 'restricted') json_out(['ok' => false, 'error' => 'This course is not pass-restricted.'], 400);
+            $code = slugify((string) ($body['code'] ?? ''));
+            $want = slugify((string) ($c['pass_code'] ?? ''));
+            if ($want === '') json_out(['ok' => false, 'error' => 'This course has no pass — ask an Academy admin for access.'], 400);
+            if ($code === '' || $code !== $want) json_out(['ok' => false, 'error' => 'That pass code is not valid for this programme.'], 422);
+            $lms->grantPass((int) $u['id'], $want, $c['title'] ?? '', '', 0);
+            json_out(['ok' => true, 'message' => 'Pass accepted — this programme is now unlocked.']);
+
         /* ── Lesson notes (cross-device, signed-in) ── */
         case 'note_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
