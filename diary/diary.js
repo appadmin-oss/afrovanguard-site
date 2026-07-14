@@ -65,6 +65,15 @@
   var toTop = document.querySelector('.to-top');
   var article = document.querySelector('.article-body');
   var listenBar = document.querySelector('.listen-bar');
+  /* Tables: wrap each in a horizontal-scroll container so wide tables never
+     break the reading column or overflow the page on small screens. */
+  if (article) {
+    [].slice.call(article.querySelectorAll('table')).forEach(function (t) {
+      if (t.parentElement && t.parentElement.classList.contains('table-scroll')) return;
+      var w = document.createElement('div'); w.className = 'table-scroll';
+      t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+  }
   function onScroll() {
     var y = window.scrollY || window.pageYOffset;
     if (header) header.classList.toggle('scrolled', y > 8);
@@ -301,10 +310,13 @@
 
     /* ---- floating karaoke caption (teleprompter) ---- */
     var cap = document.createElement('div');
-    cap.className = 'av-reader'; cap.setAttribute('aria-hidden', 'true');
-    cap.innerHTML = '<div class="avr-inner"><div class="avr-eq"><span></span><span></span><span></span></div>'
-      + '<p class="avr-text"></p>'
+    cap.className = 'av-reader av-reader--controls'; cap.setAttribute('aria-hidden', 'true');
+    // Controls-only pill — NO teleprompter text. While reading, the words are
+    // highlighted on the article page itself and the page follows along, so the
+    // reader never floats a separate "player with words" over the content/nav.
+    cap.innerHTML = '<div class="avr-inner">'
       + '<div class="avr-controls">'
+      + '<span class="avr-eq" aria-hidden="true"><span></span><span></span><span></span></span>'
       + '<button class="avr-btn avr-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg></button>'
       + '<button class="avr-btn avr-play" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>'
       + '<button class="avr-btn avr-fwd" aria-label="Forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg></button>'
@@ -319,26 +331,10 @@
     var capTot = cap.querySelector('.avr-tot');
     capTot.textContent = fmt(totalSecs());
 
-    function renderCaption(s) {
-      var html = '', pos = 0; capRanges = [];
-      s.split(/(\s+)/).forEach(function (tok) {
-        if (/\S/.test(tok)) { html += '<span class="cw" data-a="' + pos + '" data-b="' + (pos + tok.length) + '">' + esc(tok) + '</span>'; }
-        else { html += tok; }
-        pos += tok.length;
-      });
-      capText.innerHTML = html;
-      capWords = [].slice.call(capText.querySelectorAll('.cw'));
-      capRanges = capWords.map(function (w) { return [+w.getAttribute('data-a'), +w.getAttribute('data-b'), w]; });
-      activeWord = null;
-    }
-    function highlightWord(ci) {
-      for (var k = 0; k < capRanges.length; k++) {
-        if (ci >= capRanges[k][0] && ci < capRanges[k][1]) {
-          if (activeWord) activeWord.classList.remove('on');
-          activeWord = capRanges[k][2]; activeWord.classList.add('on'); return;
-        }
-      }
-    }
+    // Teleprompter removed — reading is shown on the page itself (see highlight()).
+    // These remain as safe no-ops so the speak/neural code paths are unchanged.
+    function renderCaption(s) { capWords = []; capRanges = []; activeWord = null; }
+    function highlightWord(ci) {}
 
     /* ---- voices: prefer natural/neural ---- */
     function scoreVoice(v) {

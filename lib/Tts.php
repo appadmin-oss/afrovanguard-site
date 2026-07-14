@@ -43,9 +43,14 @@ final class Tts
 
     public static function voice(): string
     {
+        if (self::engine() === 'elevenlabs') {
+            // ElevenLabs addresses voices by ID, not name. Default to "Rachel"
+            // (a warm, clear narration voice). Override with AV_TTS_VOICE_ID.
+            $vid = trim((string) getenv('AV_TTS_VOICE_ID'));
+            return $vid !== '' ? $vid : '21m00Tcm4TlvDq8ikWAM';
+        }
         $v = trim((string) getenv('AV_TTS_VOICE'));
-        if ($v !== '') return $v;
-        return self::engine() === 'elevenlabs' ? (string) (getenv('AV_TTS_VOICE_ID') ?: 'Rachel') : 'nova';
+        return $v !== '' ? $v : 'nova';
     }
 
     /** Content-Type for the produced audio. */
@@ -87,13 +92,31 @@ final class Tts
         return null;
     }
 
-    /* ── ElevenLabs (https://elevenlabs.io/docs) ── */
+    /* ── ElevenLabs (https://elevenlabs.io/docs/api-reference/text-to-speech) ──
+       Voice, model and voice_settings are all env-tunable so the narration can be
+       dialed in without code changes:
+         AV_TTS_VOICE_ID    the voice (default "Rachel" 21m00Tcm4TlvDq8ikWAM)
+         AV_TTS_MODEL       eleven_turbo_v2_5 (fast/cheap, default) |
+                            eleven_multilingual_v2 (highest quality)
+         AV_TTS_STABILITY   0..1  (default 0.5)   — steadiness vs. expressiveness
+         AV_TTS_SIMILARITY  0..1  (default 0.75)  — closeness to the source voice
+         AV_TTS_STYLE       0..1  (default 0.0)   — style exaggeration           */
     private static function elevenlabs(string $text, string $voice): ?string
     {
         $key = self::key();
         if ($key === '') return null;
-        $vid = getenv('AV_TTS_VOICE_ID') ?: $voice;
-        $payload = json_encode(['text' => $text, 'model_id' => getenv('AV_TTS_MODEL') ?: 'eleven_turbo_v2_5']);
+        $vid = trim((string) getenv('AV_TTS_VOICE_ID')) ?: ($voice ?: '21m00Tcm4TlvDq8ikWAM');
+        $clamp = static fn($v, $d) => is_numeric($v) ? max(0.0, min(1.0, (float) $v)) : $d;
+        $payload = json_encode([
+            'text'     => $text,
+            'model_id' => getenv('AV_TTS_MODEL') ?: 'eleven_turbo_v2_5',
+            'voice_settings' => [
+                'stability'        => $clamp(getenv('AV_TTS_STABILITY'), 0.5),
+                'similarity_boost' => $clamp(getenv('AV_TTS_SIMILARITY'), 0.75),
+                'style'            => $clamp(getenv('AV_TTS_STYLE'), 0.0),
+                'use_speaker_boost' => true,
+            ],
+        ]);
         [$body, $code, $ctype] = self::http(
             'https://api.elevenlabs.io/v1/text-to-speech/' . rawurlencode($vid) . '?output_format=mp3_44100_128',
             $payload, ['xi-api-key: ' . $key, 'Content-Type: application/json', 'Accept: audio/mpeg']);

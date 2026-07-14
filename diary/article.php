@@ -24,6 +24,10 @@ $related   = $repo->relatedCards((int) $a['id']);
 $ogImage   = !empty($a['og_image']) ? $a['og_image'] : diary_url('og/' . $a['slug'] . '.png');
 $cover     = $a['cover_url'] ?? '';
 $authorsText = trim(strip_tags($a['authors_html']));
+// Accurate read time from the actual body (≈220 wpm silent reading), so the
+// "min read" always matches the words on the page rather than a stale field.
+$bodyWords = str_word_count(strip_tags(strip_tags($a['body_html'])));
+$readMin   = $bodyWords > 0 ? max(1, (int) round($bodyWords / 220)) : max(1, (int) $a['read_minutes']);
 
 // Structured data: the article, its breadcrumb, and the site graph.
 $blogPosting = [
@@ -37,8 +41,8 @@ $blogPosting = [
     'author'           => ['@type' => 'Organization', 'name' => $authorsText ?: 'The Afrovanguard Team', 'url' => rtrim(SITE_URL,'/').'/about/'],
     'publisher'        => ['@id' => SITE_URL . '/#organization'],
     'articleSection'   => $a['category'],
-    'wordCount'        => str_word_count(strip_tags($a['body_html'])),
-    'timeRequired'     => 'PT' . (int) $a['read_minutes'] . 'M',
+    'wordCount'        => $bodyWords,
+    'timeRequired'     => 'PT' . $readMin . 'M',
     'isPartOf'         => ['@id' => SITE_URL . '/#website'],
 ];
 $crumbs = schema_breadcrumb([
@@ -84,7 +88,7 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php endif; ?>
           <div class="article-meta">
             <div><div class="meta-label">Written by</div><div class="meta-value"><?= $a['authors_html'] ?></div></div>
-            <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= (int)$a['read_minutes'] ?> min read</div></div>
+            <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= $readMin ?> min read</div></div>
           </div>
 <?php render_listen_bar($a['slug'], $canonical); ?>
 <?php if (!empty($a['audio_url'])): ?>
