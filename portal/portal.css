@@ -134,12 +134,14 @@ body.portal-app .read-progress { display:none; }
 .mstat-l { display:block; font-size:11.5px; font-weight:600; color:var(--muted); margin-top:6px; }
 
 /* ---------- KPI chips ---------- */
-.pkpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; margin-bottom:16px; }
-.pkpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; box-shadow:var(--shadow-sm); }
-.pkpi-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+/* auto-fit at a smaller min keeps the row balanced (e.g. 5 across on desktop,
+   3+2 on tablet) instead of orphaning a lone card as 4+1. */
+.pkpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(176px,1fr)); gap:14px; margin-bottom:20px; align-items:stretch; }
+.pkpi { display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:15px 16px; box-shadow:var(--shadow-sm); }
+.pkpi-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:auto; }
 .pkpi-label { font-size:12.5px; font-weight:600; color:var(--muted); }
-.pkpi-value { font-size:26px; font-weight:800; letter-spacing:-0.02em; color:var(--ink); line-height:1; }
-.pkpi-sub { font-size:12px; color:var(--muted-2); margin-top:8px; }
+.pkpi-value { font-size:22px; font-weight:800; letter-spacing:-0.02em; color:var(--ink); line-height:1.15; margin-top:12px; }
+.pkpi-sub { font-size:12px; color:var(--muted-2); margin-top:6px; }
 .pchip { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 .pchip--gold   { color:var(--gold-deep); background:var(--gold-soft); border:1px solid var(--gold-soft-bd); }
 .pchip--green  { color:var(--green); background:var(--green-soft); border:1px solid var(--green-bd); }
