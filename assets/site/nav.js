@@ -17,6 +17,11 @@
     if (scrim) scrim.classList.toggle('open', open);
     if (burger) burger.setAttribute('aria-expanded', String(open));
     if (open) { drawer.removeAttribute('inert'); } else { drawer.setAttribute('inert', ''); }
+    // Mark the document so site-wide CSS can lift floating overlays (e.g. the
+    // homepage contact/AI dock, z-index 900) out of the way — otherwise they
+    // sit ON TOP of the open drawer and swallow taps on its footer buttons
+    // ("the sign in link on the mobile menu is not clicking").
+    root.classList.toggle('av-drawer-open', open);
     document.body.style.overflow = open ? 'hidden' : '';
     if (open) {
       var first = drawer.querySelector('.avd-close');
