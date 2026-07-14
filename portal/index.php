@@ -35,6 +35,8 @@ $dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
 $duesCsrf = $dues ? av_csrf_token() : '';
 // Real membership progression (Level O → A → B → C) + referral progress.
 $journey = Levels::progress((int) $u['id']);
+// Collaboration (presence / activity / tasks) CSRF token for the workspace panels.
+$collabCsrf = av_csrf_token();
 // Upcoming mentorship sessions (with Meet links) for the portal schedule/calendar.
 $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
 // The portal has its OWN theme (LIGHT by default — a clean, professional
@@ -87,7 +89,8 @@ render_head([
         </button>
         <span class="topbar-title"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
         <div class="topbar-actions">
-          <button type="button" class="portal-icon-btn" id="portalTheme" aria-label="Switch theme" title="Light / dark">
+<?php if ($isOrg): ?>          <span class="topbar-presence" id="topbarPresence" hidden><span class="online-dot"></span><span id="tbCount">0</span> online</span>
+<?php endif; ?>          <button type="button" class="portal-icon-btn" id="portalTheme" aria-label="Switch theme" title="Light / dark">
             <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
             <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"/></svg>
           </button>
@@ -112,6 +115,19 @@ render_head([
 <?php endif; ?>              </p>
             </div>
           </header>
+
+<?php if ($isOrg): ?>
+          <!-- Quick actions — the "get to work" row (à la Workspace / Zoom) -->
+          <section class="quick-actions" aria-label="Quick actions">
+            <a class="qa qa--go" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>Start a Meet</a>
+            <a class="qa" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M12 13v4M10 15h4"/></svg>New event</a>
+            <a class="qa" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></svg>New doc</a>
+            <a class="qa qa--ws" href="/workspace">Open Workspace →</a>
+          </section>
+<?php endif; ?>
 
 <?php
       // "Coming up" — live countdowns to the next major event (from the AFG
@@ -149,6 +165,29 @@ render_head([
       </section>
 
       <div class="portal-grid">
+<?php if ($isOrg): ?>
+        <!-- Your tasks — shared action items -->
+        <section class="portal-card span-2 collab-tasks" id="collabTasks" data-csrf="<?= e($collabCsrf) ?>">
+          <div class="pc-head"><h2>Your tasks</h2><span class="pc-tag" id="taskCount" hidden></span></div>
+          <form class="task-add" id="taskAdd" autocomplete="off">
+            <input type="text" id="taskInput" name="title" maxlength="300" placeholder="Add a task…" aria-label="Add a task">
+            <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          </form>
+          <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
+        </section>
+
+        <!-- Team activity — a live feed from across the workspace -->
+        <section class="portal-card collab-activity" id="collabActivity">
+          <div class="pc-head"><h2>Team activity</h2></div>
+          <ul class="activity-list" id="activityList"><li class="pc-empty">Loading…</li></ul>
+        </section>
+
+        <!-- Who's online — presence -->
+        <section class="portal-card collab-online" id="collabOnline">
+          <div class="pc-head"><h2>Who’s online</h2><span class="pc-tag online-pill"><span class="online-dot"></span><span id="onlineCount">0</span></span></div>
+          <div class="online-list" id="onlineList"><p class="pc-empty">Just you so far.</p></div>
+        </section>
+<?php endif; ?>
 <?php if ($upcoming): ?>
         <!-- Your schedule — upcoming mentorship sessions (Afrovanguard calendar) -->
         <section class="portal-card span-2 sched-card">
@@ -511,6 +550,101 @@ render_head([
         }).catch(function () { Array.prototype.forEach.call(btns, function (b) { b.disabled = false; }); say('Network error — please try again.'); });
       });
     });
+  })();
+  </script>
+  <script>
+  /* Collaboration panel — presence, team activity and tasks. */
+  (function () {
+    var root = document.getElementById('collabTasks'); if (!root) return;
+    var csrf = root.getAttribute('data-csrf') || '';
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function post(action, body){
+      return fetch('/portal/collab.php?action=' + action, {
+        method:'POST', credentials:'same-origin',
+        headers:{ 'Content-Type':'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify(body||{})
+      }).then(function(r){ return r.json(); });
+    }
+    var listEl = document.getElementById('taskList'),
+        countEl = document.getElementById('taskCount'),
+        actEl = document.getElementById('activityList'),
+        onlineEl = document.getElementById('onlineList'),
+        onlineCountEl = document.getElementById('onlineCount'),
+        presence = document.getElementById('topbarPresence'),
+        tbCount = document.getElementById('tbCount');
+
+    function taskItem(t){
+      return '<li class="task' + (t.done?' is-done':'') + '" data-id="' + t.id + '">'
+        + '<button type="button" class="task-check" aria-label="Toggle done">' + (t.done?'✓':'') + '</button>'
+        + '<span class="task-title">' + esc(t.title) + '</span>'
+        + (t.due?'<span class="task-due">' + esc(t.due) + '</span>':'')
+        + '<button type="button" class="task-del" aria-label="Delete task">×</button></li>';
+    }
+    function renderTasks(tasks){
+      tasks = tasks || [];
+      var open = tasks.filter(function(t){ return !t.done; }).length;
+      if (countEl){ countEl.hidden = false; countEl.textContent = open + ' open'; }
+      listEl.innerHTML = tasks.length ? tasks.map(taskItem).join('')
+        : '<li class="pc-empty task-empty">No tasks yet — add your first above.</li>';
+    }
+    function renderActivity(items){
+      items = items || [];
+      actEl.innerHTML = items.length ? items.map(function(a){
+        var obj = a.object ? ' <b>' + esc(a.object) + '</b>' : '';
+        var line = '<span class="act-line"><b>' + esc(a.actor) + '</b> ' + esc(a.verb) + obj + '</span>';
+        var inner = '<span class="act-ava">' + esc(a.initials) + '</span><span class="act-body">' + line + '<span class="act-ago">' + esc(a.ago) + '</span></span>';
+        return '<li class="act">' + (a.url ? '<a href="' + esc(a.url) + '">' + inner + '</a>' : inner) + '</li>';
+      }).join('') : '<li class="pc-empty">No activity yet.</li>';
+    }
+    function renderOnline(users, count){
+      if (onlineCountEl) onlineCountEl.textContent = count || (users?users.length:0);
+      if (tbCount) tbCount.textContent = count || 0;
+      if (presence) presence.hidden = !(count > 0);
+      users = users || [];
+      onlineEl.innerHTML = users.length ? users.map(function(u){
+        return '<span class="online-chip" title="' + esc(u.name) + ' · ' + esc(u.ago) + '"><span class="online-ava is-' + esc(u.status) + '">' + esc(u.initials) + '</span><span class="online-name">' + esc(u.name) + '</span></span>';
+      }).join('') : '<p class="pc-empty">Just you so far.</p>';
+    }
+
+    function load(){
+      fetch('/portal/collab.php?action=bootstrap', {credentials:'same-origin'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(!d||!d.ok) return; renderTasks(d.tasks); renderActivity(d.activity); renderOnline(d.online, d.count); })
+        .catch(function(){});
+    }
+
+    // Add a task
+    var form = document.getElementById('taskAdd'), input = document.getElementById('taskInput');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var title = (input.value||'').trim(); if(!title) return;
+      input.value=''; input.disabled = true;
+      post('task_add', {title:title}).then(function(d){
+        input.disabled=false; input.focus();
+        if (d && d.ok && d.task){
+          var empty = listEl.querySelector('.task-empty'); if (empty) listEl.innerHTML='';
+          listEl.insertAdjacentHTML('afterbegin', taskItem(d.task));
+          var open = listEl.querySelectorAll('.task:not(.is-done)').length;
+          if (countEl){ countEl.hidden=false; countEl.textContent = open + ' open'; }
+        }
+      }).catch(function(){ input.disabled=false; });
+    });
+    // Toggle / delete (event delegation)
+    listEl.addEventListener('click', function(e){
+      var li = e.target.closest('.task'); if(!li) return; var id = +li.getAttribute('data-id');
+      if (e.target.closest('.task-check')){
+        post('task_toggle', {id:id}).then(function(d){ if(d&&d.ok){ li.classList.toggle('is-done', d.done); li.querySelector('.task-check').textContent = d.done?'✓':'';
+          var open = listEl.querySelectorAll('.task:not(.is-done)').length; if(countEl) countEl.textContent = open + ' open'; } });
+      } else if (e.target.closest('.task-del')){
+        post('task_delete', {id:id}).then(function(d){ if(d&&d.ok){ li.remove(); if(!listEl.querySelector('.task')) listEl.innerHTML='<li class="pc-empty task-empty">No tasks yet — add your first above.</li>'; } });
+      }
+    });
+
+    load();
+    // Heartbeat keeps presence live (and refreshes the count) every 45s.
+    setInterval(function(){ post('heartbeat', {}).then(function(d){ if(d&&typeof d.count==='number'){ if(onlineCountEl) onlineCountEl.textContent=d.count; if(tbCount) tbCount.textContent=d.count; if(presence) presence.hidden = !(d.count>0); } }).catch(function(){}); }, 45000);
+    // Refresh the feed + presence list periodically.
+    setInterval(load, 90000);
   })();
   </script>
   <script src="/assets/site/nav.js" defer></script>

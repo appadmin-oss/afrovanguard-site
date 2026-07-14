@@ -255,6 +255,7 @@ require_once __DIR__ . '/GoogleWorkspace.php';
 require_once __DIR__ . '/GoogleWorkspaceUser.php';
 require_once __DIR__ . '/GoogleWatch.php';
 require_once __DIR__ . '/AvAutomation.php';
+require_once __DIR__ . '/Collab.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
@@ -271,6 +272,8 @@ AiKnowledge::boot();
 Levels::boot();
 // Workspace automation: subscribe event handlers (onboarding, real-time, etc.).
 AvAutomation::register();
+// Collaboration: feed domain events into the team activity stream.
+Collab::bootEvents();
 
 // Referral links (/…?ref=<memberId>) drop a short-lived cookie that is consumed
 // when the invited person creates their account (see Levels::boot()).

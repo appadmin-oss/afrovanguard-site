@@ -396,3 +396,67 @@ a.cd-title:hover { color: var(--p-accent); text-decoration: underline; }
   .portal-app .portal-grid { grid-template-columns: 1fr; }
   .topbar-user-meta { display: none; }
 }
+
+/* ============================================================
+   COLLABORATION — quick actions, tasks, team activity, presence.
+   Makes the portal read like a productivity workspace.
+   ============================================================ */
+/* quick actions row */
+.quick-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; }
+.qa { display: inline-flex; align-items: center; gap: 9px; padding: 11px 16px; border-radius: 12px;
+  border: 1px solid var(--p-border); background: var(--p-surface); color: var(--p-ink);
+  font-size: 13.5px; font-weight: 700; text-decoration: none; transition: transform .12s ease, border-color .12s ease; }
+.qa:hover { transform: translateY(-1px); border-color: var(--p-accent); }
+.qa svg { color: var(--p-accent); }
+.qa--go { background: var(--p-accent-2); border-color: var(--p-accent-2); color: var(--p-on-accent); }
+.qa--go svg { color: var(--p-on-accent); }
+.qa--go:hover { background: var(--p-accent-deep); border-color: var(--p-accent-deep); }
+.qa--ws { margin-left: auto; color: var(--p-accent); }
+
+/* presence pill in the top bar */
+.topbar-presence { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--p-muted); padding: 6px 12px; border: 1px solid var(--p-border); border-radius: 999px; }
+.online-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--p-green); box-shadow: 0 0 0 3px var(--p-green-soft); flex: none; }
+
+/* tasks */
+.task-add { display: flex; gap: 10px; margin: 0 0 14px; }
+.task-add input { flex: 1; min-width: 0; padding: 11px 14px; font: inherit; font-size: 14px; border: 1px solid var(--p-border); border-radius: 10px; background: var(--p-surface-2); color: var(--p-ink); }
+.task-add input:focus { outline: none; border-color: var(--p-accent); background: var(--p-surface); }
+.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.task { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--p-border); border-radius: 12px; background: var(--p-surface-2); }
+.task-check { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--p-border-2); background: var(--p-surface); color: var(--p-on-accent); font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.task-check:hover { border-color: var(--p-accent); }
+.task.is-done .task-check { background: var(--p-accent-2); border-color: var(--p-accent-2); }
+.task-title { flex: 1; min-width: 0; font-size: 14px; color: var(--p-ink); }
+.task.is-done .task-title { text-decoration: line-through; color: var(--p-muted); }
+.task-due { font-size: 11.5px; font-weight: 700; color: var(--p-accent); background: var(--p-accent-soft); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.task-del { flex: none; width: 26px; height: 26px; border: 0; background: transparent; color: var(--p-muted); font-size: 20px; line-height: 1; cursor: pointer; border-radius: 6px; }
+.task-del:hover { color: var(--afg-danger, #dc2626); background: var(--p-surface); }
+
+/* team activity feed */
+.activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.act { border-top: 1px solid var(--p-border); }
+.act:first-child { border-top: 0; }
+.act a, .act > .act-ava + .act-body, .act { text-decoration: none; }
+.act > a, .act { display: block; }
+.act a { display: flex; }
+.act .act-ava, .act > .act-ava { }
+.act-ava { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--p-surface-2); border: 1px solid var(--p-border); color: var(--p-accent); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.act > a, .act { padding: 0; }
+.act a, .act-inner { align-items: flex-start; gap: 12px; padding: 11px 2px; }
+.act-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.act-line { font-size: 13.5px; color: var(--p-body); line-height: 1.4; }
+.act-line b { color: var(--p-ink); font-weight: 700; }
+.act-ago { font-size: 11.5px; color: var(--p-muted); }
+.act a:hover .act-line b:first-child { color: var(--p-accent); }
+/* the whole row is the flex when wrapped in <a>; when no url, mimic it */
+.act { display: flex; align-items: flex-start; gap: 12px; padding: 11px 2px; }
+.act > a { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 0; }
+
+/* presence list */
+.online-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.online-chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border: 1px solid var(--p-border); border-radius: 999px; background: var(--p-surface-2); }
+.online-ava { position: relative; width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--p-accent-2), var(--p-accent-deep)); color: #111827; font-size: 11.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.online-ava::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--p-green); border: 2px solid var(--p-surface); }
+.online-ava.is-away::after { background: #f59e0b; } .online-ava.is-busy::after { background: #ef4444; }
+.online-name { font-size: 13px; font-weight: 600; color: var(--p-ink); }
+.online-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--p-green-soft); color: var(--p-green); }
