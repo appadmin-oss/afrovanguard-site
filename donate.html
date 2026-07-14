@@ -3830,14 +3830,14 @@
             .donate-type-label { font-size: 12px; }
           }
           
-          .lcasp-needs-header {
+          .mat-needs-header2 {
             display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
             margin-bottom: 6px;
           }
-          .lcasp-needs-tag {
+          .mat-needs-tag2 {
             font-family: var(--font-body); font-size: 9px; font-weight: 800;
             letter-spacing: 0.14em; text-transform: uppercase;
-            color: #fff; background: var(--color-lcasp-red, #e11d48);
+            color: #fff; background: #e11d48;
             padding: 3px 10px; border-radius: 9999px;
           }
           @media (max-width: 580px) {
@@ -4298,12 +4298,12 @@
           <div class="mat-header">
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
               <div class="section-label" style="margin-bottom:0;">Material Donations</div>
-              <span style="font-family:var(--font-body);font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#fff;background:#e11d48;padding:3px 10px;border-radius:9999px;">LCASP 2026 Priority</span>
+              <span style="font-family:var(--font-body);font-size:9px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#fff;background:#e11d48;padding:3px 10px;border-radius:9999px;">2026 Priority</span>
             </div>
             <h2 style="font-family:var(--font-heading);font-size:var(--text-h2);color:var(--color-text-primary);margin-bottom:10px;">
-              What LCASP <em style="font-style:normal;color:var(--color-gold);">Needs</em>
+              What Our Community Centres <em style="font-style:normal;color:var(--color-gold);">Need</em>
             </h2>
-            <p class="mat-intro">Beyond money, LCASP 2026 needs equipment, materials, and skilled volunteers to run 6 community centres. Click any card to pre-fill the contribution form below.</p>
+            <p class="mat-intro">Beyond money, our community centres need equipment, materials, and skilled volunteers to keep running. Click any card to pre-fill the contribution form below.</p>
           </div>
 
           <!-- Filter bar -->
@@ -4341,7 +4341,7 @@
           <div class="mat-needs-grid" id="matNeedsGrid">
 
             <!-- ICT & Technology -->
-            <div class="mat-need-card" data-category="ict" onclick="matPrefill('ICT Equipment', 'equipment', 'I would like to donate ICT equipment for LCASP centres: ')">
+            <div class="mat-need-card" data-category="ict" onclick="matPrefill('ICT Equipment', 'equipment', 'I would like to donate ICT equipment for our community centres: ')">
               <div class="mat-need-card-top">
                 <div class="mat-need-card-icon-wrap">
                   <span class="mat-need-card-icon" aria-hidden="true">💻</span>
@@ -4388,7 +4388,7 @@
             </div>
 
             <!-- Audio & Performance -->
-            <div class="mat-need-card" data-category="audio" onclick="matPrefill('Audio & Performance Equipment', 'equipment', 'I would like to donate audio/performance equipment for LCASP: ')">
+            <div class="mat-need-card" data-category="audio" onclick="matPrefill('Audio & Performance Equipment', 'equipment', 'I would like to donate audio/performance equipment for our community centres: ')">
               <div class="mat-need-card-top">
                 <div class="mat-need-card-icon-wrap">
                   <span class="mat-need-card-icon" aria-hidden="true">🎵</span>
@@ -4435,7 +4435,7 @@
             </div>
 
             <!-- Centre Setup -->
-            <div class="mat-need-card" data-category="centre" onclick="matPrefill('Centre Setup Items', 'equipment', 'I would like to donate centre setup materials for LCASP: ')">
+            <div class="mat-need-card" data-category="centre" onclick="matPrefill('Centre Setup Items', 'equipment', 'I would like to donate centre setup materials for our community centres: ')">
               <div class="mat-need-card-top">
                 <div class="mat-need-card-icon-wrap">
                   <span class="mat-need-card-icon" aria-hidden="true">🏛️</span>
@@ -4482,7 +4482,7 @@
             </div>
 
             <!-- Branding & Events -->
-            <div class="mat-need-card" data-category="audio" onclick="matPrefill('Branding & Events Support', 'equipment', 'I would like to support with branding or event materials for LCASP/Ogidi Omo Expo: ')">
+            <div class="mat-need-card" data-category="audio" onclick="matPrefill('Branding & Events Support', 'equipment', 'I would like to support with branding or event materials for the Ogidi Omo Expo: ')">
               <div class="mat-need-card-top">
                 <div class="mat-need-card-icon-wrap">
                   <span class="mat-need-card-icon" aria-hidden="true">🎨</span>
@@ -4529,7 +4529,7 @@
             </div>
 
             <!-- Skilled Volunteers -->
-            <div class="mat-need-card" data-category="people critical" onclick="matPrefill('Volunteer / Skills', 'volunteer', 'I would like to volunteer my time or skills for LCASP 2026: ')">
+            <div class="mat-need-card" data-category="people critical" onclick="matPrefill('Volunteer / Skills', 'volunteer', 'I would like to volunteer my time or skills for our 2026 programmes: ')">
               <div class="mat-need-card-top">
                 <div class="mat-need-card-icon-wrap">
                   <span class="mat-need-card-icon" aria-hidden="true">🙋</span>
@@ -4576,7 +4576,7 @@
             </div>
 
             <!-- Transport & Logistics -->
-            <div class="mat-need-card" data-category="centre" onclick="matPrefill('Transport & Logistics Support', 'other', 'I would like to help with transport or logistics for LCASP: ')">
+            <div class="mat-need-card" data-category="centre" onclick="matPrefill('Transport & Logistics Support', 'other', 'I would like to help with transport or logistics for our community centres: ')">
               <div class="mat-need-card-top">
                 <div class="mat-need-card-icon-wrap">
                   <span class="mat-need-card-icon" aria-hidden="true">⛽</span>
@@ -5463,7 +5463,7 @@
         20:  'covers transport and logistics for a community mentorship session.',
         40:  'funds one week of creative arts and leadership activities.',
         75:  'sponsors one student through a full workshop module.',
-        200: 'covers equipment support for one LCASP community centre for a day.',
+        200: 'covers equipment support for one community centre for a day.',
         500: 'funds outreach and engagement across an entire Alimosho community.',
       }
     };
@@ -7014,7 +7014,7 @@
             name, email,
             contribute_type: type,
             description: desc,
-            campaign: 'lcasp-2026'
+            campaign: 'community-centres-2026'
           })
         });
         const data = res.ok ? await res.json() : { success: false };
