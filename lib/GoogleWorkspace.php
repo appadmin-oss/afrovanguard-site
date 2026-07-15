@@ -29,6 +29,8 @@ final class GoogleWorkspace
     const SCOPE_DRIVE_RO  = 'https://www.googleapis.com/auth/drive.readonly';   // read file content (transcripts)
     const SCOPE_DIRECTORY = 'https://www.googleapis.com/auth/admin.directory.user.readonly';
     const SCOPE_GROUPS    = 'https://www.googleapis.com/auth/admin.directory.group.readonly';
+    const SCOPE_MEET_RO   = 'https://www.googleapis.com/auth/meetings.space.readonly'; // read conference records
+    const SCOPE_REPORTS   = 'https://www.googleapis.com/auth/admin.reports.audit.readonly'; // org Meet audit log
 
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
     private static array $tokens = [];
@@ -47,6 +49,10 @@ final class GoogleWorkspace
     private static function tokenUrl(): string { return (string) (Config::get('AV_WS_TOKEN_URL', '') ?: self::TOKEN_URL); }
     /** Google API host prefix (overridable for testing). */
     private static function apiBase(): string { return rtrim((string) (Config::get('AV_WS_BASE_URL', '') ?: 'https://www.googleapis.com'), '/'); }
+    /** Meet REST API host (own host; overridable for testing). */
+    private static function meetBase(): string { return rtrim((string) (Config::get('AV_MEET_BASE_URL', '') ?: 'https://meet.googleapis.com'), '/'); }
+    /** Admin SDK Reports API host (overridable for testing). */
+    private static function reportsBase(): string { return rtrim((string) (Config::get('AV_REPORTS_BASE_URL', '') ?: 'https://admin.googleapis.com'), '/'); }
 
     private static function credentials(): ?array
     {
@@ -70,11 +76,13 @@ final class GoogleWorkspace
      * the `sub` claim (required for Directory; harmless for Calendar/Drive on
      * resources the impersonated user can see). Returns null on any failure.
      */
-    private static function accessToken(string $scope, bool $impersonate = false): ?string
+    private static function accessToken(string $scope, bool $impersonate = false, ?string $asUser = null): ?string
     {
         $c = self::credentials();
         if (!$c) return null;
-        $sub = $impersonate ? self::subject() : '';
+        // An explicit $asUser wins (impersonate that specific mailbox — required
+        // by the Meet API, which only exposes records to a conference host/guest).
+        $sub = $asUser !== null && $asUser !== '' ? $asUser : ($impersonate ? self::subject() : '');
         $key = $scope . '|' . $sub;
         if (isset(self::$tokens[$key]) && self::$tokens[$key]['exp'] > time() + 30) return self::$tokens[$key]['v'];
 
@@ -125,9 +133,9 @@ final class GoogleWorkspace
         return ['code' => $code, 'body' => $body, 'json' => json_decode($body, true)];
     }
 
-    private static function apiGet(string $url, string $scope, bool $impersonate): ?array
+    private static function apiGet(string $url, string $scope, bool $impersonate, ?string $asUser = null): ?array
     {
-        $tok = self::accessToken($scope, $impersonate);
+        $tok = self::accessToken($scope, $impersonate, $asUser);
         if (!$tok) return null;
         $res = self::http('GET', $url, $tok);
         if (!$res || $res['code'] >= 400) {
@@ -294,6 +302,100 @@ final class GoogleWorkspace
         if ($cal === '') return false;
         $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
         return self::apiSend('DELETE', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '') !== null;
+    }
+
+    /* ── Google Meet REST API + Admin Reports (authoritative attendance) ──
+     * Two independent sources of truth for how long a Meet actually ran, so the
+     * logged mentorship hours come from Google — not a browser tab:
+     *   • Meet REST API v2 — near-real-time; reads the conferenceRecord for the
+     *     meeting space (start/end). Needs domain-wide delegation for the Meet
+     *     scope and works by impersonating a conference host/guest (the mentor).
+     *   • Admin SDK Reports API — the org's own Meet audit log (call_ended +
+     *     duration_seconds), matched by meeting code. Tamper-proof, but lags.
+     */
+
+    /** Meet reconciliation is possible when the service account is configured. */
+    public static function meetEnabled(): bool { return self::configured(); }
+    /** Reports reconciliation additionally needs an admin to impersonate. */
+    public static function reportsEnabled(): bool { return self::configured() && self::subject() !== ''; }
+
+    /**
+     * Authoritative conference window for a Meet code, as seen by Google.
+     * Impersonates $hostEmail (a conference participant — the mentor). Returns
+     * ['start'=>ts,'end'=>ts,'seconds'=>int] for the most recent ENDED conference
+     * at/after $afterTs, or null if none has ended yet / not configured.
+     */
+    public static function meetConferenceForCode(string $meetingCode, string $hostEmail, int $afterTs = 0): ?array
+    {
+        $code = trim($meetingCode);
+        if ($code === '' || $hostEmail === '' || !self::meetEnabled()) return null;
+        // Resolve the space (accepts the dashed meeting code as an alias).
+        $space = self::apiGet(self::meetBase() . '/v2/spaces/' . rawurlencode($code), self::SCOPE_MEET_RO, false, $hostEmail);
+        $spaceName = is_array($space) ? (string) ($space['name'] ?? '') : '';
+        if ($spaceName === '') return null;
+        // List conference records for that space (most recent first).
+        $q = http_build_query(['filter' => 'space.name="' . $spaceName . '"', 'pageSize' => 10]);
+        $recs = self::apiGet(self::meetBase() . '/v2/conferenceRecords?' . $q, self::SCOPE_MEET_RO, false, $hostEmail);
+        $items = is_array($recs) ? ($recs['conferenceRecords'] ?? []) : [];
+        $best = null;
+        foreach ($items as $r) {
+            $s = strtotime((string) ($r['startTime'] ?? '')) ?: 0;
+            $e = strtotime((string) ($r['endTime'] ?? '')) ?: 0;
+            if ($e <= 0) continue;                 // still live — no authoritative end yet
+            if ($afterTs > 0 && $s > 0 && $s < $afterTs - 3600) continue; // not this session
+            if ($best === null || $e > $best['end']) $best = ['start' => $s, 'end' => $e, 'seconds' => max(0, $e - $s)];
+        }
+        return $best;
+    }
+
+    /**
+     * Longest Meet call duration (seconds) the org audit log recorded for this
+     * meeting code, or null. Matches ignoring dashes/case. Impersonates an admin.
+     */
+    public static function reportsMeetSeconds(string $meetingCode, int $afterTs = 0): ?int
+    {
+        $code = strtolower(str_replace('-', '', trim($meetingCode)));
+        if ($code === '' || !self::reportsEnabled()) return null;
+        $params = [
+            'eventName' => 'call_ended',
+            'filters'   => 'meeting_code==' . $code,
+            'maxResults' => 100,
+        ];
+        if ($afterTs > 0) $params['startTime'] = gmdate('Y-m-d\TH:i:s\Z', $afterTs - 3600);
+        $url = self::reportsBase() . '/admin/reports/v1/activity/users/all/applications/meet?' . http_build_query($params);
+        $d = self::apiGet($url, self::SCOPE_REPORTS, false, self::subject());
+        if (!is_array($d) || empty($d['items'])) return null;
+        $max = 0;
+        foreach ($d['items'] as $it) {
+            foreach (($it['events'] ?? []) as $ev) {
+                foreach (($ev['parameters'] ?? []) as $p) {
+                    if (($p['name'] ?? '') === 'duration_seconds') {
+                        $v = (int) ($p['intValue'] ?? $p['value'] ?? 0);
+                        if ($v > $max) $max = $v;
+                    }
+                }
+            }
+        }
+        return $max > 0 ? $max : null;
+    }
+
+    /**
+     * Best authoritative duration (minutes) for a Meet, trying the near-real-time
+     * Meet API first (impersonating $hostEmail) then the Reports audit log.
+     * Returns ['minutes'=>int,'source'=>'meet'|'reports','start'=>?ts,'end'=>?ts]
+     * or null when Google can't (yet) confirm it.
+     */
+    public static function authoritativeMeetMinutes(string $meetingCode, string $hostEmail, int $afterTs = 0): ?array
+    {
+        $conf = self::meetConferenceForCode($meetingCode, $hostEmail, $afterTs);
+        if ($conf && $conf['seconds'] > 0) {
+            return ['minutes' => (int) round($conf['seconds'] / 60), 'source' => 'meet', 'start' => $conf['start'], 'end' => $conf['end']];
+        }
+        $secs = self::reportsMeetSeconds($meetingCode, $afterTs);
+        if ($secs !== null && $secs > 0) {
+            return ['minutes' => (int) round($secs / 60), 'source' => 'reports', 'start' => null, 'end' => null];
+        }
+        return null;
     }
 
     /* ── Directory → members sync ────────────────────────────────── */

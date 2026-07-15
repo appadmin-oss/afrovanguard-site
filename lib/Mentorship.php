@@ -96,6 +96,11 @@ final class Mentorship
         self::addCol('mentor_sessions', 'ended_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'started_by', 'INTEGER NOT NULL DEFAULT 0');
         self::addCol('mentor_sessions', 'last_ping', "VARCHAR(32) NOT NULL DEFAULT ''");
+        // Where the logged hours came from — '' none yet, 'heartbeat' portal
+        // presence (provisional), 'meet'/'reports' confirmed by Google (final).
+        self::addCol('mentor_sessions', 'hours_source', "VARCHAR(12) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'reconciled_at', "VARCHAR(32) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'reconcile_tries', 'INTEGER NOT NULL DEFAULT 0');
         $done = true;
     }
 
@@ -211,7 +216,8 @@ final class Mentorship
         $end = $endAt ?: gmdate('Y-m-d H:i:s');
         $secs = max(0, (strtotime($end . ' UTC') ?: time()) - (strtotime($started . ' UTC') ?: time()));
         $dur = self::clampDuration((int) round($secs / 60));
-        Database::pdo()->prepare("UPDATE mentor_sessions SET ended_at = ?, duration_min = ?, attendance = 'attended' WHERE id = ?")
+        // Provisional: from portal presence. Google reconciliation may refine it.
+        Database::pdo()->prepare("UPDATE mentor_sessions SET ended_at = ?, duration_min = ?, attendance = 'attended', hours_source = CASE WHEN hours_source IN ('meet','reports') THEN hours_source ELSE 'heartbeat' END WHERE id = ?")
             ->execute([$end, $dur, $sessionId]);
         return ['ok' => true, 'duration_min' => $dur, 'started_at' => $started, 'ended_at' => $end];
     }
@@ -252,6 +258,7 @@ final class Mentorship
             'ended_at'    => $ended,
             'live'        => $live,
             'duration_min'=> (int) $r['duration_min'],
+            'source'      => (string) ($r['hours_source'] ?? ''),
             'started_by'  => (int) ($r['started_by'] ?? 0),
             'starter'     => ((int) ($r['started_by'] ?? 0) === (int) $r['mentor_id']) ? (string) $r['mentor_name'] : (((int) ($r['started_by'] ?? 0) === (int) $r['mentee_id']) ? (string) $r['mentee_name'] : ''),
             'mentor'      => (string) $r['mentor_name'],
@@ -285,6 +292,100 @@ final class Mentorship
             }
             return count($ids);
         } catch (Throwable $e) { error_log('[mentorship] finalizeStale: ' . $e->getMessage()); return 0; }
+    }
+
+    /* ── Authoritative reconciliation against Google Meet ──────────────
+     * The heartbeat gives an instant, provisional log. Google is the source of
+     * truth for how long the call actually ran, so we reconcile each ended (or
+     * clearly-past) session against the Meet REST API / Admin Reports audit log
+     * and overwrite the logged minutes with Google's number. Bounded + cached so
+     * portal reads stay fast and we don't hammer the API. */
+
+    /** Pull the join code out of a Meet URL (meet.google.com/abc-defg-hij). */
+    private static function meetCode(string $url): string
+    {
+        if ($url === '') return '';
+        $path = (string) (parse_url($url, PHP_URL_PATH) ?: $url);
+        if (preg_match('~([a-z]{3,4}-[a-z]{3,4}-[a-z]{3,4})~i', $path, $m)) return strtolower($m[1]);
+        $seg = trim($path, '/');
+        return preg_match('~^[a-z]{3,}$~i', $seg) ? strtolower($seg) : '';
+    }
+
+    /** How many reconcile attempts before we stop trying a session (Reports lags). */
+    private const RECONCILE_MAX_TRIES = 8;
+    /** Don't re-hit Google for the same session more often than this. */
+    private const RECONCILE_COOLDOWN = 90;
+
+    /**
+     * Reconcile one session's logged hours with Google's record. Overwrites the
+     * duration (and start/end when Meet gives them) and marks the source 'meet'
+     * or 'reports' once confirmed. Records every attempt (for cooldown/cap).
+     * Returns the source string on success, '' otherwise.
+     */
+    public static function reconcile(int $sessionId): string
+    {
+        self::ensure();
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return '';
+        try {
+            $db = Database::pdo();
+            $st = $db->prepare(
+                'SELECT s.*, mu.email AS mentor_email
+                 FROM mentor_sessions s
+                 JOIN mentorships m ON m.id = s.mentorship_id
+                 JOIN lms_users mu ON mu.id = m.mentor_id
+                 WHERE s.id = ?'
+            );
+            $st->execute([$sessionId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return '';
+            if (in_array((string) ($r['hours_source'] ?? ''), ['meet', 'reports'], true)) return (string) $r['hours_source'];
+            $code = self::meetCode((string) ($r['meet_url'] ?? ''));
+            $anchor = strtotime(((string) ($r['started_at'] ?? '') ?: (string) ($r['scheduled_at'] ?? '')) . ' UTC') ?: 0;
+            $mentorEmail = (string) ($r['mentor_email'] ?? '');
+            $hit = $code !== '' ? GoogleWorkspace::authoritativeMeetMinutes($code, $mentorEmail, $anchor) : null;
+            $now = self::now();
+            if ($hit && (int) $hit['minutes'] > 0) {
+                $dur = self::clampDuration((int) $hit['minutes']);
+                $startCol = !empty($hit['start']) ? gmdate('Y-m-d H:i:s', (int) $hit['start']) : (string) ($r['started_at'] ?? '');
+                $endCol   = !empty($hit['end'])   ? gmdate('Y-m-d H:i:s', (int) $hit['end'])   : ((string) ($r['ended_at'] ?? '') ?: $now);
+                $db->prepare("UPDATE mentor_sessions SET duration_min = ?, attendance = 'attended', started_at = CASE WHEN started_at = '' THEN ? ELSE started_at END, ended_at = ?, hours_source = ?, reconciled_at = ?, reconcile_tries = reconcile_tries + 1 WHERE id = ?")
+                   ->execute([$dur, $startCol, $endCol, (string) $hit['source'], $now, $sessionId]);
+                return (string) $hit['source'];
+            }
+            $db->prepare('UPDATE mentor_sessions SET reconciled_at = ?, reconcile_tries = reconcile_tries + 1 WHERE id = ?')->execute([$now, $sessionId]);
+            return '';
+        } catch (Throwable $e) { error_log('[mentorship] reconcile: ' . $e->getMessage()); return ''; }
+    }
+
+    /**
+     * Sweep a user's not-yet-confirmed past sessions and reconcile a few against
+     * Google. Bounded ($max) and cooldown-gated so portal reads stay fast; a no-op
+     * when Meet isn't configured. Returns the number confirmed this pass.
+     */
+    public static function reconcilePending(int $uid, int $max = 4): int
+    {
+        self::ensure();
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return 0;
+        try {
+            $cool = gmdate('Y-m-d H:i:s', time() - self::RECONCILE_COOLDOWN);
+            $now  = gmdate('Y-m-d H:i:s');
+            $st = Database::pdo()->prepare(
+                "SELECT s.id FROM mentor_sessions s
+                 JOIN mentorships m ON m.id = s.mentorship_id
+                 WHERE (m.mentor_id = ? OR m.mentee_id = ?)
+                   AND s.meet_url <> '' AND s.attendance <> 'cancelled'
+                   AND s.hours_source NOT IN ('meet','reports')
+                   AND s.reconcile_tries < ?
+                   AND (s.reconciled_at = '' OR s.reconciled_at < ?)
+                   AND (s.ended_at <> '' OR (s.scheduled_at <> '' AND s.scheduled_at < ?))
+                 ORDER BY s.scheduled_at DESC LIMIT ?"
+            );
+            $st->execute([$uid, $uid, self::RECONCILE_MAX_TRIES, $cool, $now, max(1, min(10, $max))]);
+            $ids = $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            $n = 0;
+            foreach ($ids as $sid) { if (self::reconcile((int) $sid) !== '') $n++; }
+            return $n;
+        } catch (Throwable $e) { error_log('[mentorship] reconcilePending: ' . $e->getMessage()); return 0; }
     }
 
     /** Idempotent ADD COLUMN (skips if the column already exists). */
@@ -691,8 +792,9 @@ final class Mentorship
     {
         self::ensure();
         self::finalizeStale($userId);
+        self::reconcilePending($userId);
         try {
-            $sql = "SELECT s.id, s.title, s.scheduled_at, s.meet_url, s.started_at, s.ended_at, s.duration_min, m.mentor_id, m.mentee_id,
+            $sql = "SELECT s.id, s.title, s.scheduled_at, s.meet_url, s.started_at, s.ended_at, s.duration_min, s.hours_source, m.mentor_id, m.mentee_id,
                            mu.name AS mentor_name, eu.name AS mentee_name
                     FROM mentor_sessions s
                     JOIN mentorships m ON m.id = s.mentorship_id
@@ -720,6 +822,7 @@ final class Mentorship
                     'started_at'   => (string) ($r['started_at'] ?? ''),
                     'ended_at'     => (string) ($r['ended_at'] ?? ''),
                     'duration_min' => (int) ($r['duration_min'] ?? 0),
+                    'source'       => (string) ($r['hours_source'] ?? ''),
                     'live'         => (string) ($r['started_at'] ?? '') !== '' && (string) ($r['ended_at'] ?? '') === '',
                 ];
             }
@@ -732,6 +835,7 @@ final class Mentorship
     {
         self::ensure();
         self::finalizeStale($userId);
+        self::reconcilePending($userId);
         try {
             $st = Database::pdo()->prepare(
                 "SELECT COUNT(*) held,

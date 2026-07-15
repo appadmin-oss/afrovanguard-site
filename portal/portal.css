@@ -329,6 +329,9 @@ body.portal-app .read-progress { display:none; }
 .msi-timer { font-variant-numeric:tabular-nums; letter-spacing:.02em; }
 .msi-nolink { color:var(--muted); font-size:12px; }
 .msi-note { font-size:11.5px; color:var(--muted-2); margin:0; }
+.msi-src { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:.02em; vertical-align:middle; }
+.msi-src.msi-verified { color:var(--green); background:color-mix(in srgb, var(--green) 14%, transparent); }
+.msi-src.msi-provisional { color:var(--muted-2); background:color-mix(in srgb, var(--muted-2) 14%, transparent); }
 
 /* ---------- diary ---------- */
 .diary-card { display:flex; align-items:center; justify-content:space-between; gap:12px; }

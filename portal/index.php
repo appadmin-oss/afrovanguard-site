@@ -45,6 +45,16 @@ $mentorHoursLabel = (fmod($mentorHours, 1.0) === 0.0 ? (string) (int) $mentorHou
 if (!function_exists('self_fmt_dur')) {
     function self_fmt_dur(int $m): string { $m = max(0, $m); $h = intdiv($m, 60); $r = $m % 60; return $h ? ($h . 'h' . ($r ? ' ' . $r . 'm' : '')) : ($r . 'm'); }
 }
+if (!function_exists('self_meet_source')) {
+    // How the logged hours were confirmed → a trust label for transparency.
+    function self_meet_source(string $src): string {
+        switch ($src) {
+            case 'meet':    return 'Verified by Google Meet';
+            case 'reports': return 'Verified · Meet audit log';
+            default:        return 'Provisional · confirming with Google';
+        }
+    }
+}
 // KPI seeds (client refreshes online + tasks live).
 $openTasks  = $isOrg && class_exists('Collab') ? count(array_filter(Collab::myTasks((int) $u['id']), fn($t) => empty($t['done']))) : 0;
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
@@ -318,7 +328,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 <?php if ($upcoming): ?>              <ul class="mini-sched">
 <?php foreach (array_slice($upcoming, 0, 6) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time();
                 $mst = $s['ended_at'] !== '' ? 'done' : ($s['live'] ? 'live' : 'idle'); ?>
-                <li class="msi" data-session="<?= (int) $s['id'] ?>" data-meet="<?= e($s['meet_url']) ?>" data-state="<?= $mst ?>" data-started="<?= e($s['started_at']) ?>">
+                <li class="msi" data-session="<?= (int) $s['id'] ?>" data-meet="<?= e($s['meet_url']) ?>" data-state="<?= $mst ?>" data-started="<?= e($s['started_at']) ?>" data-source="<?= e((string) ($s['source'] ?? '')) ?>">
                   <div class="msi-top">
                     <span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span>
                     <span class="ms-title"><?= e($s['title']) ?> <span class="ms-with">· <?= e($s['role']) ?> <?= e($s['with']) ?></span></span>
@@ -330,13 +340,18 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
                     <span class="msi-nolink">No link yet — <a href="/mentorship/">set one</a></span>
 <?php endif; ?>
                     <span class="msi-log"><?php
-                      if ($s['ended_at'] !== '') { echo '✓ Logged ' . e(self_fmt_dur((int) $s['duration_min'])) . ' · ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '–' . e(date('g:ia', strtotime($s['ended_at'] . ' UTC') ?: time())); }
+                      if ($s['ended_at'] !== '') {
+                          $src = (string) ($s['source'] ?? '');
+                          $vcls = in_array($src, ['meet', 'reports'], true) ? 'msi-verified' : 'msi-provisional';
+                          echo '✓ Logged ' . e(self_fmt_dur((int) $s['duration_min'])) . ' · ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '–' . e(date('g:ia', strtotime($s['ended_at'] . ' UTC') ?: time()));
+                          echo ' <span class="msi-src ' . $vcls . '">' . e(self_meet_source($src)) . '</span>';
+                      }
                       elseif ($s['live']) { echo '<span class="msi-live"><span class="dot-live"></span>Live · <span class="msi-timer" aria-label="Elapsed meeting time">…</span></span>'; }
                     ?></span>
                   </div>
                 </li>
 <?php endforeach; ?>              </ul>
-              <p class="msi-note">Meeting start &amp; end times are logged automatically for transparency — your logged hours reflect the real meeting length.</p>
+              <p class="msi-note">Start the meeting from here — the system logs the hours automatically. Times are reconciled against Google Meet’s own record for complete transparency, so the logged hours reflect the real call.</p>
 <?php else: ?>              <p class="pc-empty">No upcoming sessions. <a href="/mentorship/">Book one with your mentor →</a></p>
 <?php endif; ?>
             </div>
@@ -643,6 +658,12 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     function parseUTC(s) { return Date.parse((s || '').replace(' ', 'T') + 'Z') || 0; }
     function hhmm(iso) { var t = parseUTC(iso); if (!t) return ''; return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
     function fmtDur(m) { m = Math.max(0, m || 0); var h = Math.floor(m / 60), r = m % 60; return h ? (h + 'h' + (r ? ' ' + r + 'm' : '')) : (r + 'm'); }
+    function srcLabel(s) {
+      var v = s === 'meet' || s === 'reports';
+      var t = s === 'meet' ? 'Verified by Google Meet' : (s === 'reports' ? 'Verified · Meet audit log' : 'Provisional · confirming with Google');
+      return ' <span class="msi-src ' + (v ? 'msi-verified' : 'msi-provisional') + '">' + t + '</span>';
+    }
+    function doneMsg(d) { return '✓ Logged ' + fmtDur(d.duration_min) + ' · ' + hhmm(d.started_at) + '–' + hhmm(d.ended_at) + srcLabel(d.source || ''); }
     // Live elapsed as H:MM:SS (or M:SS under an hour).
     function fmtElapsed(sec) { sec = Math.max(0, sec | 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60, p = function (n) { return (n < 10 ? '0' : '') + n; }; return h ? (h + ':' + p(m) + ':' + p(s)) : (m + ':' + p(s)); }
     var pingTimers = {};
@@ -701,7 +722,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
       var id = +li.getAttribute('data-session'); startPing(li, id);
       var poll = setInterval(function () {
         post('meet_state', { session_id: id }).then(function (d) {
-          if (d && d.ok && !d.live && d.ended_at) { clearInterval(poll); stopPing(id); setState(li, 'done', '✓ Logged ' + fmtDur(d.duration_min) + ' · ' + hhmm(d.started_at) + '–' + hhmm(d.ended_at)); }
+          if (d && d.ok && !d.live && d.ended_at) { clearInterval(poll); stopPing(id); setState(li, 'done', doneMsg(d)); }
         });
       }, 30000);
     });
