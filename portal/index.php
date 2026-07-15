@@ -42,6 +42,9 @@ $upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['
 $mentorStats = class_exists('Mentorship') ? Mentorship::memberConsistency((int) $u['id']) : ['held' => 0, 'attended' => 0, 'rate' => null, 'minutes' => 0, 'hours' => 0.0];
 $mentorHours = (float) ($mentorStats['hours'] ?? 0);
 $mentorHoursLabel = (fmod($mentorHours, 1.0) === 0.0 ? (string) (int) $mentorHours : rtrim(rtrim(number_format($mentorHours, 1), '0'), '.')) . 'h';
+if (!function_exists('self_fmt_dur')) {
+    function self_fmt_dur(int $m): string { $m = max(0, $m); $h = intdiv($m, 60); $r = $m % 60; return $h ? ($h . 'h' . ($r ? ' ' . $r . 'm' : '')) : ($r . 'm'); }
+}
 // KPI seeds (client refreshes online + tasks live).
 $openTasks  = $isOrg && class_exists('Collab') ? count(array_filter(Collab::myTasks((int) $u['id']), fn($t) => empty($t['done']))) : 0;
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
@@ -308,13 +311,33 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
             </div>
           </section>
 
-          <!-- Upcoming schedule -->
-          <section class="pcard">
+          <!-- Upcoming schedule — start the Meet from here; start/end auto-logged -->
+          <section class="pcard" id="mentorSchedule" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>Your schedule</h2><a class="pcard-link" href="/mentorship/">Manage →</a></div>
             <div class="pcard-body">
 <?php if ($upcoming): ?>              <ul class="mini-sched">
-<?php foreach (array_slice($upcoming, 0, 6) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time(); ?>                <li><span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span><span class="ms-title"><?= e($s['title']) ?></span><?php if ($s['meet_url'] !== ''): ?><a class="ms-join" href="<?= e($s['meet_url']) ?>" target="_blank" rel="noopener">Join</a><?php endif; ?></li>
+<?php foreach (array_slice($upcoming, 0, 6) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time();
+                $mst = $s['ended_at'] !== '' ? 'done' : ($s['live'] ? 'live' : 'idle'); ?>
+                <li class="msi" data-session="<?= (int) $s['id'] ?>" data-meet="<?= e($s['meet_url']) ?>" data-state="<?= $mst ?>">
+                  <div class="msi-top">
+                    <span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span>
+                    <span class="ms-title"><?= e($s['title']) ?> <span class="ms-with">· <?= e($s['role']) ?> <?= e($s['with']) ?></span></span>
+                  </div>
+                  <div class="msi-meet">
+<?php if ($s['meet_url'] !== ''): ?>
+                    <button type="button" class="pbtn pbtn-gold msi-start"<?= $mst === 'done' ? ' hidden' : '' ?>><?= $s['live'] ? 'Join meeting' : 'Start meeting' ?></button>
+                    <button type="button" class="pbtn pbtn-ghost msi-end"<?= $mst === 'live' ? '' : ' hidden' ?>>End &amp; log</button>
+<?php else: ?>
+                    <span class="msi-nolink">No link yet — <a href="/mentorship/">set one</a></span>
+<?php endif; ?>
+                    <span class="msi-log"><?php
+                      if ($s['ended_at'] !== '') { echo '✓ Logged ' . e(self_fmt_dur((int) $s['duration_min'])) . ' · ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '–' . e(date('g:ia', strtotime($s['ended_at'] . ' UTC') ?: time())); }
+                      elseif ($s['live']) { echo '<span class="msi-live"><span class="dot-live"></span>Live · started ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '</span>'; }
+                    ?></span>
+                  </div>
+                </li>
 <?php endforeach; ?>              </ul>
+              <p class="msi-note">Meeting start &amp; end times are logged automatically for transparency — your logged hours reflect the real meeting length.</p>
 <?php else: ?>              <p class="pc-empty">No upcoming sessions. <a href="/mentorship/">Book one with your mentor →</a></p>
 <?php endif; ?>
             </div>
@@ -611,6 +634,54 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
       var mail=$('wsMail'); if(mail){ var ms=m.mail||[]; mail.innerHTML = ms.length ? ms.map(function(x){ return '<li class="ws-li'+(x.unread?' is-unread':'')+'"><a href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ws-li-from">'+esc(x.from)+'</span><span class="ws-li-sub">'+esc(x.subject)+'</span></a></li>'; }).join('') : '<li class="pc-empty">Inbox is clear.</li>'; }
       var evl=$('wsEvents'); if(evl){ var es=m.events||[]; evl.innerHTML = es.length ? es.map(function(x){ return '<li class="ws-li"><a href="'+esc(x.url||x.meet_url||'#')+'" target="_blank" rel="noopener"><span class="ws-li-sub">'+esc(x.title)+'</span><span class="ws-li-when">'+whenFmt(x.start)+'</span></a></li>'; }).join('') : '<li class="pc-empty">No upcoming events.</li>'; }
     }).catch(function(){});
+  })();
+
+  /* Mentorship meetings — trigger the Meet link + auto-log start/end times. */
+  (function () {
+    var root = document.getElementById('mentorSchedule'); if (!root) return;
+    var csrf = root.getAttribute('data-csrf') || '';
+    function post(action, body) { return fetch('/mentorship/api.php?action=' + action, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }); }
+    function hhmm(iso) { var t = Date.parse((iso || '').replace(' ', 'T') + 'Z'); if (!t) return ''; return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+    function fmtDur(m) { m = Math.max(0, m || 0); var h = Math.floor(m / 60), r = m % 60; return h ? (h + 'h' + (r ? ' ' + r + 'm' : '')) : (r + 'm'); }
+    var pingTimers = {};
+    function setState(li, state, log) {
+      li.setAttribute('data-state', state);
+      var start = li.querySelector('.msi-start'), end = li.querySelector('.msi-end'), logEl = li.querySelector('.msi-log');
+      if (state === 'live') { if (start) { start.hidden = false; start.textContent = 'Join meeting'; } if (end) end.hidden = false; }
+      else if (state === 'done') { if (start) start.hidden = true; if (end) end.hidden = true; }
+      else { if (start) { start.hidden = false; start.textContent = 'Start meeting'; } if (end) end.hidden = true; }
+      if (log != null && logEl) logEl.innerHTML = log;
+    }
+    function startPing(li, id) {
+      stopPing(id);
+      pingTimers[id] = setInterval(function () { if (!document.hidden) post('meet_ping', { session_id: id }); }, 60000);
+    }
+    function stopPing(id) { if (pingTimers[id]) { clearInterval(pingTimers[id]); delete pingTimers[id]; } }
+    root.addEventListener('click', function (e) {
+      var li = e.target.closest('.msi'); if (!li) return;
+      var id = +li.getAttribute('data-session');
+      if (e.target.closest('.msi-start')) {
+        var meet = li.getAttribute('data-meet') || '';
+        // Open the meeting immediately (user gesture → not blocked), then log start.
+        if (meet) window.open(meet, '_blank', 'noopener');
+        post('meet_start', { session_id: id }).then(function (d) {
+          if (d && d.ok) { setState(li, 'live', '<span class="msi-live"><span class="dot-live"></span>Live · started ' + hhmm(d.started_at) + '</span>'); startPing(li, id); }
+        });
+      } else if (e.target.closest('.msi-end')) {
+        post('meet_end', { session_id: id }).then(function (d) {
+          if (d && d.ok) { stopPing(id); setState(li, 'done', '✓ Logged ' + fmtDur(d.duration_min) + ' · ' + hhmm(d.started_at) + '–' + hhmm(d.ended_at)); }
+        });
+      }
+    });
+    // Keep already-live rows pinging and reflect the other party ending the call.
+    [].forEach.call(root.querySelectorAll('.msi[data-state="live"]'), function (li) {
+      var id = +li.getAttribute('data-session'); startPing(li, id);
+      var poll = setInterval(function () {
+        post('meet_state', { session_id: id }).then(function (d) {
+          if (d && d.ok && !d.live && d.ended_at) { clearInterval(poll); stopPing(id); setState(li, 'done', '✓ Logged ' + fmtDur(d.duration_min) + ' · ' + hhmm(d.started_at) + '–' + hhmm(d.ended_at)); }
+        });
+      }, 30000);
+    });
   })();
 
   /* PWA — register the service worker. */

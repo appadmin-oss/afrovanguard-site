@@ -90,6 +90,12 @@ final class Mentorship
         self::addCol('mentor_sessions', 'outcome', "TEXT NOT NULL DEFAULT ''");
         // Google Workspace sync: the Calendar event id we created for this session.
         self::addCol('mentor_sessions', 'google_event_id', "VARCHAR(128) NOT NULL DEFAULT ''");
+        // Auto-logged meeting times (real, server-stamped) for full transparency:
+        // when the Meet link was first triggered from the portal, and when it ended.
+        self::addCol('mentor_sessions', 'started_at', "VARCHAR(32) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'ended_at', "VARCHAR(32) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'started_by', 'INTEGER NOT NULL DEFAULT 0');
+        self::addCol('mentor_sessions', 'last_ping', "VARCHAR(32) NOT NULL DEFAULT ''");
         $done = true;
     }
 
@@ -127,6 +133,121 @@ final class Mentorship
             $s->execute([$sessionId]);
             return (int) ($s->fetchColumn() ?: 0);
         } catch (Throwable $e) { return 0; }
+    }
+
+    /** The session's mentorship parties + row, if $uid is one of them; else null. */
+    private static function participantSession(int $uid, int $sessionId): ?array
+    {
+        try {
+            $st = Database::pdo()->prepare(
+                'SELECT s.*, m.mentor_id, m.mentee_id, mu.name AS mentor_name, eu.name AS mentee_name
+                 FROM mentor_sessions s
+                 JOIN mentorships m ON m.id = s.mentorship_id
+                 JOIN lms_users mu ON mu.id = m.mentor_id
+                 JOIN lms_users eu ON eu.id = m.mentee_id
+                 WHERE s.id = ?'
+            );
+            $st->execute([$sessionId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return null;
+            if ((int) $r['mentor_id'] !== $uid && (int) $r['mentee_id'] !== $uid) return null;
+            return $r;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /**
+     * Trigger the Meet link from the portal. On the FIRST trigger this stamps the
+     * real start time (server clock, UTC), records who started it, and marks the
+     * session attended — so logged hours reflect the actual meeting, not an
+     * estimate. Idempotent: later joins just refresh the live heartbeat.
+     * Returns ['ok','url','started_at','ended_at'] or ['ok'=>false].
+     */
+    public static function startMeeting(int $uid, int $sessionId): array
+    {
+        self::ensure();
+        $r = self::participantSession($uid, $sessionId);
+        if (!$r) return ['ok' => false, 'error' => 'Not your session.'];
+        $url = (string) ($r['meet_url'] ?? '');
+        if ($url === '') return ['ok' => false, 'error' => 'No meeting link set for this session yet.'];
+        $now = gmdate('Y-m-d H:i:s');
+        $db = Database::pdo();
+        if ((string) ($r['ended_at'] ?? '') !== '') {
+            return ['ok' => true, 'url' => $url, 'started_at' => (string) $r['started_at'], 'ended_at' => (string) $r['ended_at'], 'note' => 'This meeting has already been logged.'];
+        }
+        if ((string) ($r['started_at'] ?? '') === '') {
+            $db->prepare("UPDATE mentor_sessions SET started_at = ?, started_by = ?, last_ping = ?, attendance = 'attended', attended_at = ? WHERE id = ?")
+               ->execute([$now, $uid, $now, $now, $sessionId]);
+            $r['started_at'] = $now;
+        } else {
+            $db->prepare('UPDATE mentor_sessions SET last_ping = ? WHERE id = ?')->execute([$now, $sessionId]);
+        }
+        return ['ok' => true, 'url' => $url, 'started_at' => (string) $r['started_at'], 'ended_at' => ''];
+    }
+
+    /** Keep a started meeting "live" (called periodically while the portal card is open). */
+    public static function pingMeeting(int $uid, int $sessionId): array
+    {
+        self::ensure();
+        $r = self::participantSession($uid, $sessionId);
+        if (!$r || (string) ($r['started_at'] ?? '') === '' || (string) ($r['ended_at'] ?? '') !== '') return ['ok' => false];
+        Database::pdo()->prepare('UPDATE mentor_sessions SET last_ping = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s'), $sessionId]);
+        return ['ok' => true];
+    }
+
+    /**
+     * End the meeting and log the real duration (ended - started, clamped 1..600
+     * min). Either participant may end it. Returns ['ok','duration_min','started_at','ended_at'].
+     */
+    public static function endMeeting(int $uid, int $sessionId, ?string $endAt = null): array
+    {
+        self::ensure();
+        $r = self::participantSession($uid, $sessionId);
+        if (!$r) return ['ok' => false, 'error' => 'Not your session.'];
+        $started = (string) ($r['started_at'] ?? '');
+        if ($started === '') return ['ok' => false, 'error' => 'This meeting hasn’t started yet.'];
+        if ((string) ($r['ended_at'] ?? '') !== '') {
+            return ['ok' => true, 'already' => true, 'duration_min' => (int) $r['duration_min'], 'started_at' => $started, 'ended_at' => (string) $r['ended_at']];
+        }
+        $end = $endAt ?: gmdate('Y-m-d H:i:s');
+        $secs = max(0, (strtotime($end . ' UTC') ?: time()) - (strtotime($started . ' UTC') ?: time()));
+        $dur = self::clampDuration((int) round($secs / 60));
+        Database::pdo()->prepare("UPDATE mentor_sessions SET ended_at = ?, duration_min = ?, attendance = 'attended' WHERE id = ?")
+            ->execute([$end, $dur, $sessionId]);
+        return ['ok' => true, 'duration_min' => $dur, 'started_at' => $started, 'ended_at' => $end];
+    }
+
+    /**
+     * Transparent meeting log for a session (visible to both parties): real start
+     * / end times, who started it, live state, and the logged duration. Also
+     * auto-closes a meeting left "live" with no heartbeat for >20 min (stamps the
+     * end at the last heartbeat) so a forgotten tab never inflates the hours.
+     */
+    public static function meetingState(int $uid, int $sessionId): array
+    {
+        self::ensure();
+        $r = self::participantSession($uid, $sessionId);
+        if (!$r) return ['ok' => false, 'error' => 'Not your session.'];
+        $started = (string) ($r['started_at'] ?? '');
+        $ended   = (string) ($r['ended_at'] ?? '');
+        $ping    = (string) ($r['last_ping'] ?? '');
+        // Auto-close a stale live meeting at its last heartbeat.
+        if ($started !== '' && $ended === '' && $ping !== '') {
+            $age = time() - (strtotime($ping . ' UTC') ?: time());
+            if ($age > 1200) { self::endMeeting($uid, $sessionId, $ping); $r = self::participantSession($uid, $sessionId); $ended = (string) $r['ended_at']; }
+        }
+        $live = $started !== '' && $ended === '';
+        return [
+            'ok'          => true,
+            'session_id'  => $sessionId,
+            'started_at'  => $started,
+            'ended_at'    => $ended,
+            'live'        => $live,
+            'duration_min'=> (int) $r['duration_min'],
+            'started_by'  => (int) ($r['started_by'] ?? 0),
+            'starter'     => ((int) ($r['started_by'] ?? 0) === (int) $r['mentor_id']) ? (string) $r['mentor_name'] : (((int) ($r['started_by'] ?? 0) === (int) $r['mentee_id']) ? (string) $r['mentee_name'] : ''),
+            'mentor'      => (string) $r['mentor_name'],
+            'mentee'      => (string) $r['mentee_name'],
+        ];
     }
 
     /** Idempotent ADD COLUMN (skips if the column already exists). */
@@ -533,17 +654,20 @@ final class Mentorship
     {
         self::ensure();
         try {
-            $sql = "SELECT s.id, s.title, s.scheduled_at, s.meet_url, m.mentor_id, m.mentee_id,
+            $sql = "SELECT s.id, s.title, s.scheduled_at, s.meet_url, s.started_at, s.ended_at, s.duration_min, m.mentor_id, m.mentee_id,
                            mu.name AS mentor_name, eu.name AS mentee_name
                     FROM mentor_sessions s
                     JOIN mentorships m ON m.id = s.mentorship_id
                     JOIN lms_users mu ON mu.id = m.mentor_id
                     JOIN lms_users eu ON eu.id = m.mentee_id
                     WHERE (m.mentee_id = ? OR m.mentor_id = ?) AND m.status = 'active'
-                      AND s.attendance <> 'cancelled' AND s.scheduled_at <> '' AND s.scheduled_at >= ?
-                    ORDER BY s.scheduled_at ASC LIMIT " . (int) $limit;
+                      AND s.attendance <> 'cancelled' AND s.scheduled_at <> ''
+                      AND (s.scheduled_at >= ? OR (s.started_at <> '' AND s.ended_at = ''))
+                    ORDER BY (s.started_at <> '' AND s.ended_at = '') DESC, s.scheduled_at ASC LIMIT " . (int) $limit;
             $st = Database::pdo()->prepare($sql);
-            $st->execute([$userId, $userId, gmdate('Y-m-d H:i:s')]);
+            // Include sessions from the last few hours so one happening right now
+            // (scheduled time just passed) stays visible with its live controls.
+            $st->execute([$userId, $userId, gmdate('Y-m-d H:i:s', time() - 4 * 3600)]);
             $out = [];
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
                 $isMentor = (int) $r['mentor_id'] === $userId;
@@ -555,6 +679,10 @@ final class Mentorship
                     'meet_url' => (string) ($r['meet_url'] ?? ''),
                     'with'     => (string) ($isMentor ? $r['mentee_name'] : $r['mentor_name']),
                     'role'     => $isMentor ? 'mentoring' : 'with your mentor',
+                    'started_at'   => (string) ($r['started_at'] ?? ''),
+                    'ended_at'     => (string) ($r['ended_at'] ?? ''),
+                    'duration_min' => (int) ($r['duration_min'] ?? 0),
+                    'live'         => (string) ($r['started_at'] ?? '') !== '' && (string) ($r['ended_at'] ?? '') === '',
                 ];
             }
             return $out;

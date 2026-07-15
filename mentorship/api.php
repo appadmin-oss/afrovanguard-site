@@ -87,6 +87,26 @@ try {
             require_same_origin();
             json_out(Mentorship::setMeetLink($uid, (int) ($body['session_id'] ?? 0), (string) ($body['meet_url'] ?? '')));
 
+        /* ── Triggered from the portal: open the Meet link + auto-log start/end ── */
+        case 'meet_start':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            if (!av_rate_ok('meet_start_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            json_out(Mentorship::startMeeting($uid, (int) ($body['session_id'] ?? 0)));
+
+        case 'meet_ping':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::pingMeeting($uid, (int) ($body['session_id'] ?? 0)));
+
+        case 'meet_end':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::endMeeting($uid, (int) ($body['session_id'] ?? 0)));
+
+        case 'meet_state':
+            json_out(Mentorship::meetingState($uid, (int) ($_GET['session_id'] ?? $body['session_id'] ?? 0)));
+
         case 'transcript':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();

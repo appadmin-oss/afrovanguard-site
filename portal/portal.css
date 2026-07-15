@@ -318,6 +318,16 @@ body.portal-app .read-progress { display:none; }
 .ms-when { color:var(--gold-deep); font-weight:700; white-space:nowrap; }
 .ms-title { flex:1; min-width:0; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ms-join { font-weight:700; white-space:nowrap; }
+/* Meeting rows with start/end logging */
+.mini-sched li.msi { flex-direction:column; align-items:stretch; gap:8px; }
+.msi-top { display:flex; align-items:center; gap:10px; }
+.ms-with { color:var(--muted); font-weight:500; }
+.msi-meet { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.msi-meet .pbtn { padding:6px 14px; font-size:12.5px; }
+.msi-log { font-size:12px; color:var(--muted); }
+.msi-live { display:inline-flex; align-items:center; gap:6px; color:var(--green); font-weight:700; }
+.msi-nolink { color:var(--muted); font-size:12px; }
+.msi-note { font-size:11.5px; color:var(--muted-2); margin:0; }
 
 /* ---------- diary ---------- */
 .diary-card { display:flex; align-items:center; justify-content:space-between; gap:12px; }
