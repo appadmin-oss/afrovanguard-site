@@ -71,7 +71,8 @@ function ac_course_card(array $c, array $opts = []): void
                  data-title="<?= e(strtolower((string) $c['title'])) ?>"
                  data-featured="<?= $featured ?>"
                  data-lessons="<?= $lessons ?>">
-          <a class="ac-thumb <?= $cover ? 'has-cover' : e($c['gradient'] ?: 'g-gold') . ' g-grain' ?>" href="<?= $url ?>" aria-label="<?= e($c['title']) ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
+<?php $cid = (int) ($c['cover_is_dark'] ?? -1); $coverTone = $cover ? ($cid === 1 ? ' is-on-dark' : ($cid === 0 ? ' is-on-light' : '')) : ''; ?>
+          <a class="ac-thumb <?= $cover ? 'has-cover' : e($c['gradient'] ?: 'g-gold') . ' g-grain' ?><?= $coverTone ?>" href="<?= $url ?>" aria-label="<?= e($c['title']) ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
             <span class="ac-cat"><?= e($c['category']) ?></span>
 <?php if ($state === 'done'): ?>            <span class="ac-state ac-state-done">✓ Completed</span>
 <?php elseif ($state === 'continue' || $state === 'enrolled'): ?>            <span class="ac-state ac-state-go">In progress</span>

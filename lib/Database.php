@@ -265,6 +265,7 @@ final class Database
             'price_ngn'     => "ALTER TABLE courses ADD COLUMN price_ngn INTEGER NOT NULL DEFAULT 0",
             'instructor_id' => "ALTER TABLE courses ADD COLUMN instructor_id INTEGER",
             'pass_code'     => "ALTER TABLE courses ADD COLUMN pass_code TEXT NOT NULL DEFAULT ''", // for access_type=restricted: any member holding this pass gets in
+            'cover_is_dark' => "ALTER TABLE courses ADD COLUMN cover_is_dark INTEGER NOT NULL DEFAULT -1", // -1 unknown, 0 light, 1 dark (for colour-aware overlay text)
         ];
         foreach ($cadd as $name => $sql) { if (!isset($ccols[$name])) self::$pdo->exec($sql); }
         // Restricted-course access: an explicit per-member allowlist, and named
@@ -401,6 +402,7 @@ final class Database
             'format'     => "ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'standard'",
             'series_id'  => "ALTER TABLE articles ADD COLUMN series_id INTEGER NOT NULL DEFAULT 0",
             'series_part'=> "ALTER TABLE articles ADD COLUMN series_part INTEGER NOT NULL DEFAULT 0",
+            'cover_is_dark' => "ALTER TABLE articles ADD COLUMN cover_is_dark INTEGER NOT NULL DEFAULT -1", // colour-aware hero text
         ];
         foreach ($add as $name => $sql) {
             if (!isset($cols[$name])) { self::$pdo->exec($sql); }

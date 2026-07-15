@@ -74,8 +74,8 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php $format = $a['format'] ?? 'standard'; $isFeature = $format === 'feature' && $cover; ?>
   <main id="main-content">
     <article class="format-<?= e($format) ?>">
-<?php if ($isFeature): ?>
-      <header class="feature-hero" style="background-image:url('<?= e($cover) ?>')">
+<?php if ($isFeature): $hcid = (int) ($a['cover_is_dark'] ?? -1); $heroTone = $hcid === 1 ? ' is-on-dark' : ($hcid === 0 ? ' is-on-light' : ''); ?>
+      <header class="feature-hero<?= $heroTone ?>" style="background-image:url('<?= e($cover) ?>')">
         <div class="container">
           <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span><?= e($a['category']) ?></span></nav>
           <h1><?= e($a['title']) ?></h1>

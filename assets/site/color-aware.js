@@ -31,6 +31,8 @@
     return n ? (sum / n) / 255 : 0.5;
   }
   function apply(el, region) {
+    // Server may have precomputed the tone (GD, at save time) — trust it, no flash.
+    if (el.classList.contains('is-on-light') || el.classList.contains('is-on-dark')) return;
     var url = bgUrl(el);
     if (!url) return;
     var img = new Image();

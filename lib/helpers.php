@@ -17,6 +17,61 @@ function slugify(string $s): string {
     return trim($s, '-') ?: 'entry';
 }
 
+/** Fetch image bytes for a local (web-root-relative) path or an http(s) URL. */
+function av_fetch_image_bytes(string $url): ?string {
+    $url = trim($url);
+    if ($url === '') return null;
+    if ($url[0] === '/') {                       // web-root-relative local file
+        $p = AV_ROOT . $url;
+        return is_file($p) ? (string) file_get_contents($p) : null;
+    }
+    if (preg_match('~^https?://~i', $url) && function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_USERAGENT => 'AfrovanguardBot/1.0',
+        ]);
+        $b = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return ($b !== false && $code >= 200 && $code < 300 && strlen((string) $b) < 8000000) ? (string) $b : null;
+    }
+    return null;
+}
+
+/**
+ * Is a cover image dark where text sits? Computed server-side (GD) at save time
+ * so overlaid text can pick a legible colour with no client work or CORS limits.
+ *   $region: 'top' (cover chips), 'bottom' (hero title), or 'all'.
+ * Returns 1 (dark → light text), 0 (light → dark text), or null (unknown).
+ */
+function av_cover_is_dark(?string $url, string $region = 'top'): ?int {
+    $url = trim((string) $url);
+    if ($url === '' || !function_exists('imagecreatefromstring')) return null;
+    $bytes = av_fetch_image_bytes($url);
+    if ($bytes === null || $bytes === '') return null;
+    $img = @imagecreatefromstring($bytes);
+    if (!$img) return null;
+    if (function_exists('imagepalettetotruecolor')) @imagepalettetotruecolor($img);
+    $w = imagesx($img); $h = imagesy($img);
+    if ($w < 2 || $h < 2) { imagedestroy($img); return null; }
+    if ($region === 'bottom')      { $rx = 0; $ry = (int) ($h * 0.55); $rw = $w; $rh = $h - $ry; }
+    elseif ($region === 'all')     { $rx = 0; $ry = 0; $rw = $w; $rh = $h; }
+    else                           { $rx = 0; $ry = 0; $rw = $w; $rh = (int) ($h * 0.5); }
+    $stepX = max(1, (int) ($rw / 24)); $stepY = max(1, (int) ($rh / 24));
+    $sum = 0.0; $n = 0;
+    for ($y = $ry; $y < $ry + $rh; $y += $stepY) {
+        for ($x = $rx; $x < $rx + $rw; $x += $stepX) {
+            $rgb = imagecolorat($img, $x, $y);
+            $sum += 0.2126 * (($rgb >> 16) & 0xFF) + 0.7152 * (($rgb >> 8) & 0xFF) + 0.0722 * ($rgb & 0xFF);
+            $n++;
+        }
+    }
+    imagedestroy($img);
+    if ($n === 0) return null;
+    return (($sum / $n) / 255) < 0.6 ? 1 : 0;
+}
+
 /** Human "time ago" from an ISO/Y-m-d date. */
 function time_ago(string $date): string {
     $t = strtotime($date);

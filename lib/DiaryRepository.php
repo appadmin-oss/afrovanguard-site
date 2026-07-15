@@ -356,6 +356,11 @@ final class DiaryRepository
         if (array_key_exists('audio_url', $d) && Database::columnExists('articles', 'audio_url')) {
             $fields['audio_url'] = trim((string) $d['audio_url']) ?: null;
         }
+        // Colour-aware feature hero: precompute luminance of the bottom region
+        // (where the title sits) so the hero text picks a legible colour.
+        if (Database::columnExists('articles', 'cover_is_dark')) {
+            $fields['cover_is_dark'] = $fields['cover_url'] ? (av_cover_is_dark((string) $fields['cover_url'], 'bottom') ?? -1) : -1;
+        }
         // Series: a post can belong to an ordered, numbered series. The series is
         // created on first use (by title). Guarded so un-migrated engines degrade.
         if ($this->seriesEnabled()) {
