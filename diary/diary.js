@@ -281,7 +281,7 @@
     var prefetch = {};
     var elapsedBase = 0;
     function ttsUrl(t) { return '/diary/tts.php?slug=' + encodeURIComponent(ttsSlug) + '&t=' + encodeURIComponent(t); }
-    var playBtns = [].slice.call(document.querySelectorAll('.listen-play, .mini-play'));
+    var playBtns = [].slice.call(document.querySelectorAll('.listen-play, .mini-play, [data-listen]'));
     var iconPlay = lb.querySelector('.icon-play');
     var iconPause = lb.querySelector('.icon-pause');
     var curEl = lb.querySelector('.listen-cur');
@@ -365,22 +365,56 @@
     // Controls-only pill — NO teleprompter text. While reading, the words are
     // highlighted on the article page itself and the page follows along, so the
     // reader never floats a separate "player with words" over the content/nav.
+    // Full-width reading bar (docs-style): Close · speed · section nav · play ·
+    // time · a progress track pinned to the bottom edge.
     cap.innerHTML = '<div class="avr-inner">'
-      + '<div class="avr-controls">'
-      + '<span class="avr-eq" aria-hidden="true"><span></span><span></span><span></span></span>'
-      + '<button class="avr-btn avr-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg></button>'
+      + '<button class="avr-close" aria-label="Close player"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg><span>Close player</span></button>'
+      + '<div class="avr-speed" role="group" aria-label="Playback speed">'
+      +   '<button class="avr-sp is-on" data-rate="1">1.0x</button>'
+      +   '<button class="avr-sp" data-rate="1.5">1.5x</button>'
+      +   '<button class="avr-sp" data-rate="2">2.0x</button>'
+      + '</div>'
+      + '<div class="avr-sec">'
+      +   '<button class="avr-btn avr-secprev" aria-label="Previous section"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>'
+      +   '<span class="avr-seclabel"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H2zM22 4h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H22z"/></svg><span class="avr-secname">Overview</span></span>'
+      +   '<button class="avr-btn avr-secnext" aria-label="Next section"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>'
+      + '</div>'
       + '<button class="avr-btn avr-play" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>'
-      + '<button class="avr-btn avr-fwd" aria-label="Forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg></button>'
-      + '<button class="avr-btn avr-rate" aria-label="Speed">1.0x</button>'
       + '<span class="avr-time"><b class="avr-cur">0:00</b> / <span class="avr-tot">0:00</span></span>'
-      + '<button class="avr-btn avr-close" aria-label="Stop reading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
-      + '</div></div>';
+      + '<div class="avr-track" role="slider" tabindex="0" aria-label="Seek"><span class="avr-fill"></span></div>'
+      + '</div>';
     document.body.appendChild(cap);
-    var capText = cap.querySelector('.avr-text');
-    var capRate = cap.querySelector('.avr-rate');
+    var capText = null;
     var capCur = cap.querySelector('.avr-cur');
     var capTot = cap.querySelector('.avr-tot');
+    var capFill = cap.querySelector('.avr-fill');
+    var capSecName = cap.querySelector('.avr-secname');
     capTot.textContent = fmt(totalSecs());
+
+    /* ---- Section model: map each unit to the nearest preceding H2 ---- */
+    var sections = [];
+    units.forEach(function (u, i) {
+      if (u.node && u.node.tagName === 'H2') sections.push({ idx: i, label: (u.node.textContent || '').replace(/\s+/g, ' ').trim() });
+    });
+    var introLabel = ((document.querySelector('.article-title, .feature-hero h1') || {}).textContent || 'Overview').replace(/\s+/g, ' ').trim();
+    function sectionIndexFor(i) { var s = -1; for (var k = 0; k < sections.length; k++) { if (sections[k].idx <= i) s = k; else break; } return s; }
+    function updateSection(i) {
+      if (!capSecName) return;
+      var s = sectionIndexFor(i);
+      capSecName.textContent = s < 0 ? introLabel : sections[s].label;
+    }
+    function gotoSection(dir) {
+      var cur = sectionIndexFor(idx);
+      var t = cur + dir;
+      var target = t < 0 ? 0 : (sections[t] ? sections[t].idx : (dir > 0 ? units.length - 1 : 0));
+      if (playing) speakFrom(target); else { idx = Math.max(0, Math.min(target, units.length - 1)); highlight(idx); updateSection(idx); updateProgress(); }
+    }
+    function updateProgress() {
+      if (!capFill) return;
+      var pct = units.length > 1 ? (idx / (units.length - 1)) * 100 : 0;
+      capFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    }
+    updateSection(0); updateProgress();
 
     // Teleprompter removed — reading is shown on the page itself (see highlight()).
     // These remain as safe no-ops so the speak/neural code paths are unchanged.
@@ -435,6 +469,7 @@
     function setUI(on) {
       playing = on;
       cap.classList.toggle('show', on);
+      document.body.classList.toggle('reading-open', on); // lift floating launchers above the bar
       var pp = on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
                   : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
       var avrPlay = cap.querySelector('.avr-play'); if (avrPlay) avrPlay.innerHTML = pp;
@@ -453,6 +488,7 @@
         var r = highlighted.getBoundingClientRect();
         if (r.top < 90 || r.bottom > window.innerHeight - 180) highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+      updateSection(i); updateProgress();
     }
     function clearHighlight() { if (highlighted) { highlighted.classList.remove('speaking'); highlighted = null; } }
 
@@ -512,26 +548,44 @@
     cap.querySelector('.avr-play').addEventListener('click', toggle);
     cap.querySelector('.avr-close').addEventListener('click', stop);
 
-    function setRate() {
-      rateIdx = (rateIdx + 1) % rates.length; rate = rates[rateIdx]; set('av.read.rate', String(rate));
+    // Speed: explicit 1.0 / 1.5 / 2.0 buttons (docs-style), plus the inline
+    // listen-bar rate button which cycles through the same set.
+    var SPEEDS = [1, 1.5, 2];
+    function applyRate(r) {
+      rate = r; set('av.read.rate', String(rate));
       var lbl = (rate % 1 === 0 ? rate.toFixed(1) : rate) + 'x';
-      if (rateBtn) rateBtn.textContent = lbl; if (capRate) capRate.textContent = lbl;
+      if (rateBtn) rateBtn.textContent = lbl;
+      [].forEach.call(cap.querySelectorAll('.avr-sp'), function (b) { b.classList.toggle('is-on', parseFloat(b.getAttribute('data-rate')) === rate); });
       var t = fmt(totalSecs()); if (totalEl) totalEl.textContent = t; if (capTot) capTot.textContent = t;
       if (playing) speakFrom(idx);
     }
-    if (rateBtn) rateBtn.addEventListener('click', setRate);
-    capRate.addEventListener('click', setRate);
-    capRate.textContent = (rate % 1 === 0 ? rate.toFixed(1) : rate) + 'x';
+    [].forEach.call(cap.querySelectorAll('.avr-sp'), function (b) {
+      b.addEventListener('click', function () { applyRate(parseFloat(b.getAttribute('data-rate')) || 1); });
+    });
+    if (rateBtn) rateBtn.addEventListener('click', function () {
+      var i = SPEEDS.indexOf(rate); applyRate(SPEEDS[(i + 1) % SPEEDS.length]);
+    });
+    applyRate(SPEEDS.indexOf(rate) >= 0 ? rate : 1);
 
+    // Section navigation (docs-style ◀ / ▶).
+    cap.querySelector('.avr-secprev').addEventListener('click', function () { gotoSection(-1); });
+    cap.querySelector('.avr-secnext').addEventListener('click', function () { gotoSection(1); });
+
+    // 10-second-equivalent skip stays on the inline listen-bar buttons.
     function jump(d) {
-      elapsed = Math.max(0, elapsed + d * 8);
       var t = Math.max(0, Math.min(idx + d, units.length - 1));
-      if (playing) speakFrom(t); else { idx = t; highlight(idx); renderCaption(units[idx].text); }
+      if (playing) speakFrom(t); else { idx = t; highlight(idx); updateSection(idx); updateProgress(); }
     }
     if (backBtn) backBtn.addEventListener('click', function () { jump(-1); });
     if (fwdBtn) fwdBtn.addEventListener('click', function () { jump(1); });
-    cap.querySelector('.avr-back').addEventListener('click', function () { jump(-1); });
-    cap.querySelector('.avr-fwd').addEventListener('click', function () { jump(1); });
+
+    // Seek by clicking the progress track.
+    var track = cap.querySelector('.avr-track');
+    if (track) track.addEventListener('click', function (e) {
+      var r = track.getBoundingClientRect(); var frac = r.width ? (e.clientX - r.left) / r.width : 0;
+      var t = Math.max(0, Math.min(Math.round(frac * (units.length - 1)), units.length - 1));
+      if (playing) speakFrom(t); else { idx = t; highlight(idx); updateSection(idx); updateProgress(); }
+    });
     window.addEventListener('beforeunload', function () { if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); } });
     window.__avListen = { toggle: function () { toggle(); } };
   } else if (lb) {

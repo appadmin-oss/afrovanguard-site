@@ -23,6 +23,7 @@ $canonical = diary_url($a['slug'] . '/');
 $related   = $repo->relatedCards((int) $a['id']);
 $me        = LmsAuth::user();
 $commentN  = $repo->commentCount((int) $a['id']);
+$audioDl   = class_exists('Tts') && Tts::available() && Tts::ext() === 'mp3' && Tts::engine() !== 'mock';
 $ogImage   = !empty($a['og_image']) ? $a['og_image'] : diary_url('og/' . $a['slug'] . '.png');
 $cover     = $a['cover_url'] ?? '';
 $authorsText = trim(strip_tags($a['authors_html']));
@@ -127,6 +128,17 @@ render_subbar($a['title'], $a['slug'], $canonical);
               <li><a href="#<?= e($s['anchor']) ?>"><?= e($s['label']) ?></a></li>
 <?php endforeach; ?>
             </ul>
+            <div class="toc-actions">
+              <button type="button" class="toc-btn toc-btn-primary" data-listen aria-label="Listen to this article">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> Listen
+              </button>
+<?php if ($audioDl): ?>              <a class="toc-btn" href="/diary/audio.php?slug=<?= e($a['slug']) ?>" download>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg> Download audio
+              </a>
+<?php endif; ?>              <button type="button" class="toc-btn" onclick="window.print()">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg> Print / PDF
+              </button>
+            </div>
           </aside>
 <?php endif; ?>
           <div class="article-body">
