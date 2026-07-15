@@ -149,6 +149,11 @@ body.portal-app .read-progress { display:none; }
 .chat-compose input { flex:1; min-width:0; padding:10px 14px; border-radius:9px; border:1px solid var(--border-2); background:var(--surface-2); color:var(--ink); font:inherit; font-size:14px; }
 .chat-compose input:focus { outline:none; border-color:var(--gold); background:var(--surface); }
 .chat-hint { margin-top:12px; }
+.chat-count { font-family:var(--font-body,inherit); font-size:12px; font-weight:700; color:var(--muted); background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:1px 8px; margin-left:6px; }
+.chat-unread { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#ef4444; color:#fff; font-size:11px; font-weight:800; margin-left:4px; }
+.chat-space { position:relative; display:flex; align-items:center; gap:7px; }
+.chat-space.has-unread .chat-space-name { font-weight:800; }
+.chat-unread-dot { width:8px; height:8px; border-radius:50%; background:#ef4444; flex:none; }
 
 /* ---------- Views (multi-tab) ---------- */
 .pview[hidden] { display:none; }

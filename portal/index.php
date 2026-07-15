@@ -362,7 +362,8 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 
           <!-- Google Chat — live, in-portal (spaces + messages + send) -->
           <section class="pcard chat-card" id="chatCard" data-csrf="<?= e($collabCsrf) ?>">
-            <div class="pcard-head"><h2>Team Chat</h2><span class="pchip pchip--green"><span class="dot-live"></span>Google Chat</span></div>
+            <div class="pcard-head"><h2>Team Chat <span class="chat-count" id="chatSpaceCount" hidden></span></h2>
+              <span class="pchip pchip--green"><span class="dot-live"></span>Google Chat <span class="chat-unread" id="chatUnreadBadge" hidden></span></span></div>
             <div class="pcard-body">
               <div class="chat-wrap">
                 <aside class="chat-spaces" id="chatSpaces" aria-label="Chat spaces"><p class="pc-empty">Loading spaces…</p></aside>
@@ -612,49 +613,10 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     }).catch(function(){});
   })();
 
-  /* Google Chat — live team chat inside the portal (spaces + messages + send). */
-  (function () {
-    var card = document.getElementById('chatCard'); if (!card) return;
-    var csrf = card.getAttribute('data-csrf') || '';
-    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-    var spacesEl=document.getElementById('chatSpaces'), threadEl=document.getElementById('chatThread'),
-        form=document.getElementById('chatCompose'), input=document.getElementById('chatInput');
-    var curSpace=null, poll=null;
-    function tfmt(iso){ var t=Date.parse(iso); if(!t) return ''; var d=new Date(t); return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
-    function renderSpaces(list){
-      if(!list||!list.length){ spacesEl.innerHTML='<p class="pc-empty">No spaces yet. <a href="https://chat.google.com/" target="_blank" rel="noopener">Open Chat ↗</a></p>'; return; }
-      spacesEl.innerHTML = list.map(function(s){ return '<button type="button" class="chat-space" data-id="'+esc(s.id)+'">'+esc(s.label)+'</button>'; }).join('');
-    }
-    function renderMsgs(list){
-      list=list||[];
-      threadEl.innerHTML = list.length ? list.map(function(m){
-        return '<div class="chat-msg"><div class="chat-msg-h"><b>'+esc(m.sender)+'</b><span>'+esc(tfmt(m.ts))+'</span></div><div class="chat-msg-b">'+esc(m.text).replace(/\n/g,'<br>')+'</div></div>';
-      }).join('') : '<p class="pc-empty">No messages yet — say hello.</p>';
-      threadEl.scrollTop = threadEl.scrollHeight;
-    }
-    function loadMsgs(){ if(!curSpace) return;
-      fetch('/portal/workspace.php?action=chat_messages&space='+encodeURIComponent(curSpace),{credentials:'same-origin'})
-        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) renderMsgs(d.messages); }).catch(function(){}); }
-    function openSpace(id){
-      curSpace=id;
-      [].forEach.call(spacesEl.querySelectorAll('.chat-space'),function(b){ b.classList.toggle('is-on', b.getAttribute('data-id')===id); });
-      form.hidden=false; threadEl.innerHTML='<p class="pc-empty">Loading messages…</p>'; loadMsgs();
-      clearInterval(poll); poll=setInterval(function(){ if(!document.hidden) loadMsgs(); }, 8000);
-    }
-    spacesEl.addEventListener('click', function(e){ var b=e.target.closest('.chat-space'); if(b) openSpace(b.getAttribute('data-id')); });
-    if(form) form.addEventListener('submit', function(e){ e.preventDefault(); var t=(input.value||'').trim(); if(!t||!curSpace) return;
-      input.value=''; input.disabled=true;
-      fetch('/portal/workspace.php?action=chat_send',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({space:curSpace,text:t})})
-        .then(function(r){return r.json();}).then(function(d){ input.disabled=false; input.focus(); if(d&&d.ok) loadMsgs(); }).catch(function(){ input.disabled=false; }); });
-    fetch('/portal/workspace.php?action=chat_spaces',{credentials:'same-origin'}).then(function(r){return r.json();})
-      .then(function(d){ if(d&&d.ok) renderSpaces(d.spaces); else spacesEl.innerHTML='<p class="pc-empty">Chat unavailable.</p>'; })
-      .catch(function(){ spacesEl.innerHTML='<p class="pc-empty">Chat unavailable.</p>'; });
-    document.addEventListener('visibilitychange', function(){ if(!document.hidden) loadMsgs(); });
-  })();
-
   /* PWA — register the service worker. */
   (function(){ if('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); } })();
   </script>
+  <script src="/portal/team-chat.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

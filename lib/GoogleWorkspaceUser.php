@@ -32,9 +32,11 @@ final class GoogleWorkspaceUser
         . 'https://www.googleapis.com/auth/gmail.readonly '
         . 'https://www.googleapis.com/auth/calendar '
         . 'https://www.googleapis.com/auth/drive.readonly '
-        // Google Chat: read the member's spaces + messages, and post as them.
+        // Google Chat: read the member's spaces + messages, post as them, and
+        // read per-space read-state (to show unread badges).
         . 'https://www.googleapis.com/auth/chat.spaces.readonly '
-        . 'https://www.googleapis.com/auth/chat.messages';
+        . 'https://www.googleapis.com/auth/chat.messages '
+        . 'https://www.googleapis.com/auth/chat.users.readstate.readonly';
 
     public static function configured(): bool { return GoogleAuth::configured(); }
 
@@ -343,6 +345,27 @@ final class GoogleWorkspaceUser
             ];
         }
         return array_reverse($out); // API returns newest-first; show oldest-first
+    }
+
+    /** Unread map for the member's spaces: { "<id>": true|false }.
+     *  Unread = the space's newest message is later than the member's read time.
+     *  Bounded (one read-state + one message lookup per space) to keep it cheap. */
+    public static function chatUnreadMap(int $uid, int $maxSpaces = 20): array
+    {
+        $tok = self::accessTokenFor($uid);
+        if (!$tok) return [];
+        $out = [];
+        foreach (self::chatSpaces($uid, $maxSpaces) as $s) {
+            $id = $s['id'];
+            $rs = self::http('GET', self::chatBase() . '/users/me/spaces/' . rawurlencode($id) . '/spaceReadState', $tok, null);
+            $lastRead = is_array($rs) ? (string) ($rs['lastReadTime'] ?? '') : '';
+            $mr = self::http('GET', self::chatBase() . '/spaces/' . rawurlencode($id) . '/messages?'
+                . http_build_query(['pageSize' => 1, 'orderBy' => 'createTime desc']), $tok, null);
+            $latest = '';
+            if (is_array($mr) && !empty($mr['messages'][0]['createTime'])) $latest = (string) $mr['messages'][0]['createTime'];
+            $out[$id] = ($latest !== '' && ($lastRead === '' || strcmp($latest, $lastRead) > 0));
+        }
+        return $out;
     }
 
     /** Post a message to a space as the member. Returns true on success. */

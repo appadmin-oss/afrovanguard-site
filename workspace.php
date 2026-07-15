@@ -175,6 +175,24 @@ render_head([
   .ws-join{flex:none;align-self:center;margin-left:8px;padding:4px 12px;border-radius:999px;background:var(--ws-accent);color:var(--ws-on-accent);
     font-size:12px;font-weight:700;text-decoration:none}
   .ws-join:hover{filter:brightness(.95)}
+  /* team chat */
+  .ws-chat-wrap{display:grid;grid-template-columns:200px 1fr;gap:14px;min-height:280px;margin-top:10px}
+  @media(max-width:640px){.ws-chat-wrap{grid-template-columns:1fr}}
+  .ws-chat-spaces{display:flex;flex-direction:column;gap:3px;border-right:1px solid var(--ws-border,rgba(255,255,255,.1));padding-right:10px;max-height:340px;overflow-y:auto}
+  @media(max-width:640px){.ws-chat-spaces{border-right:0;border-bottom:1px solid var(--ws-border,rgba(255,255,255,.1));padding:0 0 8px;flex-direction:row;flex-wrap:wrap}}
+  .chat-space{position:relative;text-align:left;padding:8px 11px;border:0;background:transparent;color:var(--ws-ink);border-radius:8px;font:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .chat-space:hover{background:var(--ws-surface,rgba(255,255,255,.05))}
+  .chat-space.is-on{background:var(--ws-accent);color:var(--ws-on-accent);font-weight:700}
+  .chat-space.has-unread .chat-space-name{font-weight:800}
+  .chat-unread-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;flex:none}
+  .ws-chat-main{display:flex;flex-direction:column;min-width:0}
+  .ws-chat-thread{flex:1;overflow-y:auto;max-height:300px;padding:2px 2px 6px;display:flex;flex-direction:column;gap:11px}
+  .chat-msg-h{display:flex;align-items:baseline;gap:8px}
+  .chat-msg-h b{font-size:12.5px;color:var(--ws-ink)}.chat-msg-h span{font-size:11px;color:var(--ws-muted)}
+  .chat-msg-b{font-size:13.5px;color:var(--ws-ink);line-height:1.5;overflow-wrap:anywhere}
+  .ws-chat-compose{display:flex;gap:8px;margin-top:10px}
+  .ws-chat-compose input{flex:1;min-width:0;padding:9px 13px;border-radius:9px;border:1px solid var(--ws-border,rgba(255,255,255,.12));background:var(--ws-surface,rgba(255,255,255,.04));color:var(--ws-ink);font:inherit;font-size:13.5px}
+  .ws-chat-compose input:focus{outline:none;border-color:var(--ws-accent)}
 
   /* two-col panels */
   .ws-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -336,6 +354,24 @@ render_head([
       <div class="ws-card">
         <div class="ws-card-head"><h3>Your Drive</h3><a href="https://drive.google.com/drive/u/0/" target="_blank" rel="noopener noreferrer">Open →</a></div>
         <ul class="ws-list" id="wsMineFiles"><li class="ws-li"><div class="body"><div class="ws-skel" style="width:60%"></div><div class="ws-skel" style="width:35%"></div></div></li></ul>
+      </div>
+    </div>
+
+    <!-- Team Chat — live Google Chat (spaces + messages + send + unread) -->
+    <div class="ws-card ws-chat" id="chatCard" data-csrf="<?= e($discCsrf ?: av_csrf_token()) ?>" style="margin-top:16px">
+      <div class="ws-card-head">
+        <h3>Team Chat <span class="ws-badge" id="chatSpaceCount" hidden></span> <span class="ws-badge" id="chatUnreadBadge" hidden style="background:#ef4444"></span></h3>
+        <a href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Open Chat →</a>
+      </div>
+      <div class="ws-chat-wrap">
+        <div class="ws-chat-spaces" id="chatSpaces"><p class="ws-empty">Loading spaces…</p></div>
+        <div class="ws-chat-main">
+          <div class="ws-chat-thread" id="chatThread"><p class="ws-empty">Pick a space to start chatting.</p></div>
+          <form class="ws-chat-compose" id="chatCompose" autocomplete="off" hidden>
+            <input type="text" id="chatInput" maxlength="4000" placeholder="Message this space…" aria-label="Message">
+            <button type="submit" class="ws-qbtn ws-qbtn-gold">Send</button>
+          </form>
+        </div>
       </div>
     </div>
 <?php endif; ?>
@@ -556,6 +592,7 @@ render_head([
   }
 })();
 </script>
+<script src="/portal/team-chat.js" defer></script>
 <?php
 /** Local greeting by time of day (server tz). */
 function wsGreeting(): string

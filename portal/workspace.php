@@ -46,6 +46,10 @@ try {
             if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false, 'error' => 'Connect Google to use Chat.'], 200);
             json_out(['ok' => true, 'connected' => true, 'spaces' => GoogleWorkspaceUser::chatSpaces((int) $u['id'])]);
         }
+        case 'chat_unread': {
+            if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false], 200);
+            json_out(['ok' => true, 'connected' => true, 'unread' => GoogleWorkspaceUser::chatUnreadMap((int) $u['id'], 20)]);
+        }
         case 'chat_messages': {
             if (!GoogleWorkspaceUser::connected((int) $u['id'])) json_out(['ok' => false, 'connected' => false], 200);
             $sp = (string) ($_GET['space'] ?? '');
