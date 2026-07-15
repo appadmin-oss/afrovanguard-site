@@ -318,7 +318,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 <?php if ($upcoming): ?>              <ul class="mini-sched">
 <?php foreach (array_slice($upcoming, 0, 6) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time();
                 $mst = $s['ended_at'] !== '' ? 'done' : ($s['live'] ? 'live' : 'idle'); ?>
-                <li class="msi" data-session="<?= (int) $s['id'] ?>" data-meet="<?= e($s['meet_url']) ?>" data-state="<?= $mst ?>">
+                <li class="msi" data-session="<?= (int) $s['id'] ?>" data-meet="<?= e($s['meet_url']) ?>" data-state="<?= $mst ?>" data-started="<?= e($s['started_at']) ?>">
                   <div class="msi-top">
                     <span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span>
                     <span class="ms-title"><?= e($s['title']) ?> <span class="ms-with">· <?= e($s['role']) ?> <?= e($s['with']) ?></span></span>
@@ -332,7 +332,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 <?php endif; ?>
                     <span class="msi-log"><?php
                       if ($s['ended_at'] !== '') { echo '✓ Logged ' . e(self_fmt_dur((int) $s['duration_min'])) . ' · ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '–' . e(date('g:ia', strtotime($s['ended_at'] . ' UTC') ?: time())); }
-                      elseif ($s['live']) { echo '<span class="msi-live"><span class="dot-live"></span>Live · started ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '</span>'; }
+                      elseif ($s['live']) { echo '<span class="msi-live"><span class="dot-live"></span>Live · <span class="msi-timer" aria-label="Elapsed meeting time">…</span></span>'; }
                     ?></span>
                   </div>
                 </li>
@@ -641,9 +641,21 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     var root = document.getElementById('mentorSchedule'); if (!root) return;
     var csrf = root.getAttribute('data-csrf') || '';
     function post(action, body) { return fetch('/mentorship/api.php?action=' + action, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }); }
-    function hhmm(iso) { var t = Date.parse((iso || '').replace(' ', 'T') + 'Z'); if (!t) return ''; return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+    function parseUTC(s) { return Date.parse((s || '').replace(' ', 'T') + 'Z') || 0; }
+    function hhmm(iso) { var t = parseUTC(iso); if (!t) return ''; return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
     function fmtDur(m) { m = Math.max(0, m || 0); var h = Math.floor(m / 60), r = m % 60; return h ? (h + 'h' + (r ? ' ' + r + 'm' : '')) : (r + 'm'); }
+    // Live elapsed as H:MM:SS (or M:SS under an hour).
+    function fmtElapsed(sec) { sec = Math.max(0, sec | 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60, p = function (n) { return (n < 10 ? '0' : '') + n; }; return h ? (h + ':' + p(m) + ':' + p(s)) : (m + ':' + p(s)); }
     var pingTimers = {};
+    var liveHtml = '<span class="msi-live"><span class="dot-live"></span>Live · <span class="msi-timer">0:00</span></span>';
+    function tickAll() {
+      var now = Date.now();
+      [].forEach.call(root.querySelectorAll('.msi[data-state="live"]'), function (li) {
+        var t = parseUTC(li.getAttribute('data-started') || ''); var el = li.querySelector('.msi-timer');
+        if (t && el) el.textContent = fmtElapsed((now - t) / 1000);
+      });
+    }
+    setInterval(tickAll, 1000); tickAll();
     function setState(li, state, log) {
       li.setAttribute('data-state', state);
       var start = li.querySelector('.msi-start'), end = li.querySelector('.msi-end'), logEl = li.querySelector('.msi-log');
@@ -651,6 +663,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
       else if (state === 'done') { if (start) start.hidden = true; if (end) end.hidden = true; }
       else { if (start) { start.hidden = false; start.textContent = 'Start meeting'; } if (end) end.hidden = true; }
       if (log != null && logEl) logEl.innerHTML = log;
+      if (state === 'live') tickAll();
     }
     function startPing(li, id) {
       stopPing(id);
@@ -665,7 +678,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
         // Open the meeting immediately (user gesture → not blocked), then log start.
         if (meet) window.open(meet, '_blank', 'noopener');
         post('meet_start', { session_id: id }).then(function (d) {
-          if (d && d.ok) { setState(li, 'live', '<span class="msi-live"><span class="dot-live"></span>Live · started ' + hhmm(d.started_at) + '</span>'); startPing(li, id); }
+          if (d && d.ok) { li.setAttribute('data-started', d.started_at || ''); setState(li, 'live', liveHtml); startPing(li, id); }
         });
       } else if (e.target.closest('.msi-end')) {
         post('meet_end', { session_id: id }).then(function (d) {
