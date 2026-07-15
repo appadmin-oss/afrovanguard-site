@@ -96,6 +96,10 @@ body.academy .ac-hero h1 {
 .ac-state { position: absolute; z-index: 1; top: 14px; right: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; padding: 5px 11px; border-radius: var(--radius-full); }
 .ac-state-done { background: #16a34a; color: #fff; }
 .ac-state-go { background: var(--gold); color: #1a1305; }
+/* Colour-aware cover chips: flip to dark-on-light over light imagery,
+   light-on-dark over dark imagery (set by color-aware.js). */
+.ac-thumb.is-on-light .ac-cat { color: #0a0f1a; background: rgba(255,255,255,0.78); }
+.ac-thumb.is-on-dark  .ac-cat { color: #fff; background: rgba(10,15,26,0.5); }
 .ac-body { padding: 22px 24px 20px; display: flex; flex-direction: column; flex: 1; }
 .ac-title { font-family: var(--font-heading); font-weight: 700; font-size: 21px; line-height: 1.22; color: var(--ink); letter-spacing: -0.01em; }
 .ac-card:hover .ac-title { color: var(--gold-deep); }

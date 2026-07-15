@@ -268,6 +268,11 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .feature-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 30%, rgba(8,12,20,0.88)); }
 .feature-hero .container { position: relative; z-index: 1; padding: 56px 24px; }
 .feature-hero .breadcrumb, .feature-hero .breadcrumb a { color: rgba(255,255,255,0.8); }
+/* Colour-aware hero: dark text + light scrim over a light photo (set by JS). */
+.feature-hero.is-on-light { color: #0a0f1a; }
+.feature-hero.is-on-light::before { background: linear-gradient(transparent 28%, rgba(250,249,246,0.92)); }
+.feature-hero.is-on-light h1, .feature-hero.is-on-light .feature-dek { color: #0a0f1a; }
+.feature-hero.is-on-light .breadcrumb, .feature-hero.is-on-light .breadcrumb a { color: rgba(10,15,26,0.75); }
 .feature-hero h1 { color: #fff; font-size: clamp(40px, 6.5vw, 84px); line-height: 1; max-width: 18ch; }
 .feature-hero .feature-dek { color: rgba(255,255,255,0.9); font-size: clamp(17px, 1.8vw, 22px); max-width: 56ch; margin-top: 18px; line-height: 1.5; }
 

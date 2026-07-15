@@ -617,6 +617,7 @@ function render_footer(): void { ?>
 <?php av_footer_inner(); ?>
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
+  <script src="/assets/site/color-aware.js" defer></script>
   <script src="/diary/diary.js" defer></script>
   <script src="/assets/site/chioma.js" defer></script>
 </body>

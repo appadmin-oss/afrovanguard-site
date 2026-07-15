@@ -48,38 +48,22 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://afrovanguard.org.ng/diary/rich-article/</loc>
-    <lastmod>2026-07-14 18:00:51</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/rich-article.png</image:loc><image:title>A Rich Article</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/post-3/</loc>
-    <lastmod>2026-07-14 17:52:46</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/post-3.png</image:loc><image:title>Post 3</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/post-2/</loc>
-    <lastmod>2026-07-14 17:52:46</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/post-2.png</image:loc><image:title>Post 2</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/diary/post-1/</loc>
-    <lastmod>2026-07-14 17:52:46</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/diary/og/post-1.png</image:loc><image:title>Post 1</image:title></image:image>
-  </url>
-  <url>
     <loc>https://afrovanguard.org.ng/academy/techome/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <image:image><image:loc>https://afrovanguard.org.ng/academy/og/techome.png</image:loc><image:title>Techome</image:title></image:image>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/academy/leadership-on-a-light-cover/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <image:image><image:loc>https://afrovanguard.org.ng/academy/og/leadership-on-a-light-cover.png</image:loc><image:title>Leadership on a Light Cover</image:title></image:image>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/academy/strategy-on-a-dark-cover/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <image:image><image:loc>https://afrovanguard.org.ng/academy/og/strategy-on-a-dark-cover.png</image:loc><image:title>Strategy on a Dark Cover</image:title></image:image>
   </url>
   <url>
     <loc>https://afrovanguard.org.ng/academy/mediapro/</loc>
