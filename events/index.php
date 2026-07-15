@@ -58,7 +58,7 @@ render_nav('about');
         <h1>Where the movement meets.</h1>
         <p class="ev-lede">From open town halls to the Annual Gala, our events are where members, mentors and the young leaders we serve come together. Public events are listed here and announced in the community.</p>
         <div class="ev-cta-row">
-          <a class="btn btn-primary" href="/community/?space=events">See community announcements</a>
+          <a class="btn btn-primary" href="/portal/?space=events#community">See community announcements</a>
           <a class="btn btn-outline" href="<?= e($S) ?>/contact.html">Host or partner with us</a>
         </div>
       </div>
@@ -77,7 +77,7 @@ render_nav('about');
 <?php if ($announcements): ?>
     <section class="ev-section container" aria-labelledby="ev-ann-h">
       <h2 id="ev-ann-h" class="ev-h">Latest from the Events space</h2>
-      <p class="ev-sub">Recent announcements from the community. <a href="/community/?space=events">Open the Events space →</a></p>
+      <p class="ev-sub">Recent announcements from the community. <a href="/portal/?space=events#community">Open the Events space →</a></p>
       <ul class="ev-ann-list" role="list">
 <?php foreach ($announcements as $a): ?>
         <li class="ev-ann">

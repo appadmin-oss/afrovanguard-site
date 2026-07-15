@@ -568,7 +568,7 @@ final class Community
             $authorName = (string) ($a->fetchColumn() ?: 'A member');
         } catch (Throwable $e) { $authorName = 'A member'; }
         $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
-        $url  = $site . '/community/#chat';
+        $url  = $site . '/portal/#community';
         $excerpt = mb_substr(trim($body), 0, 240);
         foreach ($mentions as $mn) {
             if ((int) $mn['id'] === $authorId) continue; // no self-notify

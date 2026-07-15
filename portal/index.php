@@ -17,9 +17,14 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once AV_ROOT . '/lib/community_view.php';
 
 $u = LmsAuth::user();
 if (!$u) { header('Location: ' . av_login_url('/portal/')); exit; }
+
+// Community lives inside the portal now (a tab). A ?space= param deep-links to a
+// space, and #community opens the tab (see the view switcher below).
+$communitySpace = ($_GET['space'] ?? '') !== '' ? preg_replace('/[^a-z0-9\-]/', '', strtolower((string) $_GET['space'])) : '';
 
 $lms        = new LmsRepository();
 $courses    = $lms->enrolledCourses((int) $u['id']);
@@ -69,7 +74,7 @@ render_head([
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
-    'css'        => ['/portal/portal.css'],
+    'css'        => ['/portal/portal.css', '/community/community.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 
@@ -78,6 +83,7 @@ $nav = [
     'Main' => [
         ['overview', 'Dashboard', 'gold', ''],
         ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
+        ['community', 'Community', 'green', ($cPulse = (class_exists('Community') ? Community::pulse() : [])) && (int) ($cPulse['posts_today'] ?? 0) > 0 ? (string) (int) $cPulse['posts_today'] : ''],
         ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
     ],
     'Account' => [
@@ -301,6 +307,20 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
         </section>
 
         <!-- ============================================================ -->
+        <!-- COMMUNITY  (the members' social space, embedded)             -->
+        <!-- ============================================================ -->
+        <section class="pview pview--community" id="view-community" data-view="community" hidden>
+          <div class="view-head">
+            <div>
+              <h1>Community</h1>
+              <p class="view-sub"><?= $isOrg ? 'Talk with members, share field notes, and ask the Afrovanguard bot.' : 'Share field notes and learn alongside the wider community.' ?></p>
+            </div>
+            <span class="ptop-online view-live"><span class="dot-live"></span>Live</span>
+          </div>
+<?php av_render_community((int) $u['id'], $isOrg, ['hero' => false, 'space' => $communitySpace]); ?>
+        </section>
+
+        <!-- ============================================================ -->
         <!-- MENTORSHIP                                                   -->
         <!-- ============================================================ -->
         <section class="pview" id="view-mentorship" data-view="mentorship" hidden>
@@ -506,9 +526,11 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 
   <script>
   (function () {
-    /* Theme toggle */
+    /* Theme toggle — also mirror onto <html data-theme> so the embedded
+       Community (community.css keys off [data-theme]) follows the portal. */
     var tbtn = document.getElementById('portalTheme');
-    function paintTheme(){ var dark=document.body.classList.contains('is-dark'); var s=tbtn&&tbtn.querySelector('.ico-sun'), m=tbtn&&tbtn.querySelector('.ico-moon'); if(s)s.style.display=dark?'block':'none'; if(m)m.style.display=dark?'none':'block'; }
+    function syncTheme(){ var dark=document.body.classList.contains('is-dark'); document.documentElement.setAttribute('data-theme', dark?'dark':'light'); }
+    function paintTheme(){ var dark=document.body.classList.contains('is-dark'); var s=tbtn&&tbtn.querySelector('.ico-sun'), m=tbtn&&tbtn.querySelector('.ico-moon'); if(s)s.style.display=dark?'block':'none'; if(m)m.style.display=dark?'none':'block'; syncTheme(); }
     if (tbtn) tbtn.addEventListener('click', function(){ var dark=document.body.classList.toggle('is-dark'); document.cookie='av_portal_theme='+(dark?'dark':'light')+';path=/;max-age=31536000;samesite=Lax'; paintTheme(); });
     paintTheme();
 
@@ -732,6 +754,7 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
   (function(){ if('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); } })();
   </script>
   <script src="/portal/team-chat.js" defer></script>
+  <script src="/community/community.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

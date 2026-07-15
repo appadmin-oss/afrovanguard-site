@@ -13,6 +13,14 @@
   var feed = document.getElementById('cmFeed');
   var signedIn = main.getAttribute('data-signed-in') === '1';
 
+  /* When embedded in the portal the community lives in a tab that may be
+     hidden; pause live polling until it's on screen. On the standalone page
+     there's no such wrapper, so it's always "visible". */
+  var portalView = document.getElementById('view-community');
+  function communityVisible() { return !portalView || !portalView.hidden; }
+  var kickers = []; // functions to run when the tab is (re)opened
+  function kick() { if (communityVisible()) kickers.forEach(function (f) { try { f(); } catch (e) {} }); }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -244,6 +252,97 @@
   }
 
   /* ============================================================
+     LIVE FEED · switch spaces/sort without a reload, and surface new
+     posts as they arrive (a "N new posts" pill). Works on the page and
+     inside the portal tab. Polling pauses when the tab isn't visible.
+     ============================================================ */
+  var moreBtn = document.getElementById('cmMore');
+  var feedLabel = main.querySelector('.cm-feed-label');
+  var pending = [], pill = null;
+
+  function inFeed(id) { return !!feed.querySelector('.cm-post[data-id="' + id + '"]'); }
+  function feedTopId() { var a = feed.querySelector('.cm-post[data-id]'); return a ? +a.getAttribute('data-id') : 0; }
+
+  function renderPill() {
+    if (!pending.length) { if (pill) { pill.remove(); pill = null; } return; }
+    if (!pill) {
+      pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'cm-live-pill';
+      pill.addEventListener('click', flushPending);
+      feed.parentNode.insertBefore(pill, feed);
+    }
+    pill.textContent = '▲ ' + pending.length + ' new post' + (pending.length > 1 ? 's' : '');
+  }
+  function flushPending() {
+    pending.sort(function (a, b) { return a.id - b.id; }); // oldest first → newest ends on top
+    var empty = feed.querySelector('.cm-empty'); if (empty) empty.remove();
+    pending.forEach(function (p) { if (!inFeed(p.id)) feed.insertBefore(renderPost(p), feed.firstChild); });
+    pending = []; renderPill();
+    if (feed.scrollIntoView) feed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  var feedPolling = false;
+  function feedPoll() {
+    if (feedPolling || document.hidden || !communityVisible()) return;
+    if ((main.getAttribute('data-sort') || 'latest') !== 'latest') return; // only "Latest" streams
+    var sp = main.getAttribute('data-space') || '';
+    var q = '&sort=latest&offset=0' + (sp ? '&space=' + encodeURIComponent(sp) : '');
+    feedPolling = true;
+    api('feed', { query: q }).then(function (d) {
+      feedPolling = false;
+      if (!d || !d.ok) return;
+      var top = feedTopId();
+      (d.posts || []).forEach(function (p) {
+        if (p.id > top && !inFeed(p.id) && !pending.some(function (x) { return x.id === p.id; })) pending.push(p);
+      });
+      renderPill();
+    }).catch(function () { feedPolling = false; });
+  }
+
+  /* switch space / sort in place */
+  function loadFeed(space, sort) {
+    main.setAttribute('data-space', space || '');
+    main.setAttribute('data-sort', sort || 'latest');
+    pending = []; renderPill();
+    // reflect active states
+    [].forEach.call(main.querySelectorAll('.cm-space-link'), function (a) {
+      a.classList.toggle('is-active', (a.getAttribute('data-space') || '') === (space || ''));
+    });
+    [].forEach.call(main.querySelectorAll('.cm-sort-tab'), function (a) {
+      a.classList.toggle('is-active', (a.getAttribute('data-sort') || 'latest') === (sort || 'latest'));
+    });
+    if (feedLabel) feedLabel.textContent = space ? space.replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : 'All activity';
+    var compSpace = document.getElementById('cmSpace');
+    if (compSpace && space) { try { compSpace.value = space; } catch (e) {} }
+    feed.innerHTML = '<div class="cm-empty">Loading…</div>';
+    var q = '&sort=' + encodeURIComponent(sort || 'latest') + '&offset=0' + (space ? '&space=' + encodeURIComponent(space) : '');
+    api('feed', { query: q }).then(function (d) {
+      feed.innerHTML = '';
+      if (!d || !d.ok || !(d.posts || []).length) {
+        feed.innerHTML = '<div class="cm-empty">No posts here yet. Be the first to share something.</div>';
+      } else {
+        d.posts.forEach(function (p) { feed.appendChild(renderPost(p)); });
+      }
+      if (moreBtn) {
+        if (d && d.has_more) { moreBtn.removeAttribute('hidden'); moreBtn.setAttribute('data-offset', d.offset); }
+        else moreBtn.setAttribute('hidden', '');
+      }
+    }).catch(function () { feed.innerHTML = '<div class="cm-empty">Could not load posts.</div>'; });
+  }
+
+  main.addEventListener('click', function (e) {
+    var sl = e.target.closest('.cm-space-link');
+    if (sl && sl.hasAttribute('data-space')) { e.preventDefault(); loadFeed(sl.getAttribute('data-space') || '', main.getAttribute('data-sort') || 'latest'); return; }
+    var st = e.target.closest('.cm-sort-tab');
+    if (st && st.hasAttribute('data-sort')) { e.preventDefault(); loadFeed(main.getAttribute('data-space') || '', st.getAttribute('data-sort') || 'latest'); return; }
+  });
+
+  kickers.push(feedPoll);
+  setInterval(feedPoll, 15000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) feedPoll(); });
+
+  /* ============================================================
      ORG-ONLY · members chat + directory + @mention autocomplete.
      Org members "see each other" (the directory, SSR'd) and chat
      live; external members never get here (data-org="0"). Polling
@@ -308,7 +407,7 @@
     }
 
     function poll() {
-      if (polling || document.hidden) return;
+      if (polling || document.hidden || !communityVisible()) return;
       polling = true;
       api('chat_list', { query: '&since=' + lastId }).then(function (d) {
         polling = false;
@@ -403,8 +502,18 @@
 
     /* ── boot: initial load, then poll; pause when hidden ── */
     poll();
+    kickers.push(poll);
     var pollTimer = setInterval(poll, 5000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
     if (location.hash === '#chat') { try { chatEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }
+  }
+
+  /* When the portal switches to the Community tab, resume live polling at once
+     (hashchange fires for #community; also cover in-portal nav clicks). */
+  if (portalView) {
+    window.addEventListener('hashchange', function () { setTimeout(kick, 60); });
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-view="community"],[data-goto="community"]')) setTimeout(kick, 80);
+    });
   }
 })();
