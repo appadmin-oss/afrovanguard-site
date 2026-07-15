@@ -326,7 +326,6 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
                   <div class="msi-meet">
 <?php if ($s['meet_url'] !== ''): ?>
                     <button type="button" class="pbtn pbtn-gold msi-start"<?= $mst === 'done' ? ' hidden' : '' ?>><?= $s['live'] ? 'Join meeting' : 'Start meeting' ?></button>
-                    <button type="button" class="pbtn pbtn-ghost msi-end"<?= $mst === 'live' ? '' : ' hidden' ?>>End &amp; log</button>
 <?php else: ?>
                     <span class="msi-nolink">No link yet — <a href="/mentorship/">set one</a></span>
 <?php endif; ?>
@@ -658,35 +657,46 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     setInterval(tickAll, 1000); tickAll();
     function setState(li, state, log) {
       li.setAttribute('data-state', state);
-      var start = li.querySelector('.msi-start'), end = li.querySelector('.msi-end'), logEl = li.querySelector('.msi-log');
-      if (state === 'live') { if (start) { start.hidden = false; start.textContent = 'Join meeting'; } if (end) end.hidden = false; }
-      else if (state === 'done') { if (start) start.hidden = true; if (end) end.hidden = true; }
-      else { if (start) { start.hidden = false; start.textContent = 'Start meeting'; } if (end) end.hidden = true; }
+      var start = li.querySelector('.msi-start'), logEl = li.querySelector('.msi-log');
+      if (state === 'live') { if (start) { start.hidden = false; start.textContent = 'Join meeting'; } }
+      else if (state === 'done') { if (start) start.hidden = true; }
+      else { if (start) { start.hidden = false; start.textContent = 'Start meeting'; } }
       if (log != null && logEl) logEl.innerHTML = log;
       if (state === 'live') tickAll();
     }
+    // One beat every 60s keeps a live meeting fresh; the server closes it (and
+    // logs the hours) automatically once the beats stop — nobody presses "end".
     function startPing(li, id) {
       stopPing(id);
       pingTimers[id] = setInterval(function () { if (!document.hidden) post('meet_ping', { session_id: id }); }, 60000);
     }
     function stopPing(id) { if (pingTimers[id]) { clearInterval(pingTimers[id]); delete pingTimers[id]; } }
+    // Fire one last beat on leave so the auto-logged end time ≈ when they left.
+    function beat(id) {
+      var url = '/mentorship/api.php?action=meet_ping';
+      var payload = JSON.stringify({ session_id: id });
+      try {
+        if (navigator.sendBeacon) { navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' })); return; }
+      } catch (e) {}
+      fetch(url, { method: 'POST', credentials: 'same-origin', keepalive: true, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: payload }).catch(function () {});
+    }
+    function farewell() {
+      Object.keys(pingTimers).forEach(function (id) { beat(+id); });
+    }
+    document.addEventListener('visibilitychange', function () { if (document.hidden) farewell(); });
+    window.addEventListener('pagehide', farewell);
     root.addEventListener('click', function (e) {
+      if (!e.target.closest('.msi-start')) return;
       var li = e.target.closest('.msi'); if (!li) return;
       var id = +li.getAttribute('data-session');
-      if (e.target.closest('.msi-start')) {
-        var meet = li.getAttribute('data-meet') || '';
-        // Open the meeting immediately (user gesture → not blocked), then log start.
-        if (meet) window.open(meet, '_blank', 'noopener');
-        post('meet_start', { session_id: id }).then(function (d) {
-          if (d && d.ok) { li.setAttribute('data-started', d.started_at || ''); setState(li, 'live', liveHtml); startPing(li, id); }
-        });
-      } else if (e.target.closest('.msi-end')) {
-        post('meet_end', { session_id: id }).then(function (d) {
-          if (d && d.ok) { stopPing(id); setState(li, 'done', '✓ Logged ' + fmtDur(d.duration_min) + ' · ' + hhmm(d.started_at) + '–' + hhmm(d.ended_at)); }
-        });
-      }
+      var meet = li.getAttribute('data-meet') || '';
+      // Open the meeting immediately (user gesture → not blocked), then log start.
+      if (meet) window.open(meet, '_blank', 'noopener');
+      post('meet_start', { session_id: id }).then(function (d) {
+        if (d && d.ok) { li.setAttribute('data-started', d.started_at || ''); setState(li, 'live', liveHtml); startPing(li, id); }
+      });
     });
-    // Keep already-live rows pinging and reflect the other party ending the call.
+    // Keep already-live rows pinging and reflect the meeting being auto-closed.
     [].forEach.call(root.querySelectorAll('.msi[data-state="live"]'), function (li) {
       var id = +li.getAttribute('data-session'); startPing(li, id);
       var poll = setInterval(function () {

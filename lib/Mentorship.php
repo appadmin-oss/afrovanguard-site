@@ -217,10 +217,19 @@ final class Mentorship
     }
 
     /**
+     * How long (seconds) a live meeting may go without a heartbeat before the
+     * server auto-closes it at the last heartbeat. Participants never press
+     * "end" — the portal beats every 60s while the tab is open and fires one
+     * last beat on leave, so this window just needs to outlast a missed beat.
+     */
+    private const MEET_STALE_SECS = 300;
+
+    /**
      * Transparent meeting log for a session (visible to both parties): real start
      * / end times, who started it, live state, and the logged duration. Also
-     * auto-closes a meeting left "live" with no heartbeat for >20 min (stamps the
-     * end at the last heartbeat) so a forgotten tab never inflates the hours.
+     * auto-closes a meeting left "live" with no heartbeat (stamps the end at the
+     * last heartbeat) so hours are captured automatically, without anyone having
+     * to press "end".
      */
     public static function meetingState(int $uid, int $sessionId): array
     {
@@ -233,7 +242,7 @@ final class Mentorship
         // Auto-close a stale live meeting at its last heartbeat.
         if ($started !== '' && $ended === '' && $ping !== '') {
             $age = time() - (strtotime($ping . ' UTC') ?: time());
-            if ($age > 1200) { self::endMeeting($uid, $sessionId, $ping); $r = self::participantSession($uid, $sessionId); $ended = (string) $r['ended_at']; }
+            if ($age > self::MEET_STALE_SECS) { self::endMeeting($uid, $sessionId, $ping); $r = self::participantSession($uid, $sessionId); $ended = (string) $r['ended_at']; }
         }
         $live = $started !== '' && $ended === '';
         return [
@@ -248,6 +257,34 @@ final class Mentorship
             'mentor'      => (string) $r['mentor_name'],
             'mentee'      => (string) $r['mentee_name'],
         ];
+    }
+
+    /**
+     * Sweep any of this user's live meetings whose heartbeat has gone stale and
+     * close them at the last heartbeat — so logged hours are always finalized
+     * automatically before we read/report them. Cheap; safe to call on reads.
+     * Returns the number of meetings it closed.
+     */
+    public static function finalizeStale(int $uid): int
+    {
+        self::ensure();
+        try {
+            $cut = gmdate('Y-m-d H:i:s', time() - self::MEET_STALE_SECS);
+            $st = Database::pdo()->prepare(
+                "SELECT s.id FROM mentor_sessions s
+                 JOIN mentorships m ON m.id = s.mentorship_id
+                 WHERE (m.mentor_id = ? OR m.mentee_id = ?)
+                   AND s.started_at <> '' AND s.ended_at = ''
+                   AND s.last_ping <> '' AND s.last_ping < ?"
+            );
+            $st->execute([$uid, $uid, $cut]);
+            $ids = $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            foreach ($ids as $sid) {
+                $r = self::participantSession($uid, (int) $sid);
+                if ($r) self::endMeeting($uid, (int) $sid, (string) ($r['last_ping'] ?? ''));
+            }
+            return count($ids);
+        } catch (Throwable $e) { error_log('[mentorship] finalizeStale: ' . $e->getMessage()); return 0; }
     }
 
     /** Idempotent ADD COLUMN (skips if the column already exists). */
@@ -653,6 +690,7 @@ final class Mentorship
     public static function upcomingSessions(int $userId, int $limit = 6): array
     {
         self::ensure();
+        self::finalizeStale($userId);
         try {
             $sql = "SELECT s.id, s.title, s.scheduled_at, s.meet_url, s.started_at, s.ended_at, s.duration_min, m.mentor_id, m.mentee_id,
                            mu.name AS mentor_name, eu.name AS mentee_name
@@ -693,6 +731,7 @@ final class Mentorship
     public static function memberConsistency(int $userId): array
     {
         self::ensure();
+        self::finalizeStale($userId);
         try {
             $st = Database::pdo()->prepare(
                 "SELECT COUNT(*) held,
