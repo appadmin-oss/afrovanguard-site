@@ -516,16 +516,7 @@ function render_course_card(array $c): void {
 
 function render_listen_bar(string $slug, string $canonical): void { ?>
         <div class="listen-bar" aria-label="Listen to this article and reading controls" data-slug="<?= e($slug) ?>" data-tts="<?= (class_exists('Tts') && Tts::available()) ? '1' : '0' ?>">
-          <div class="listen-core">
-            <button class="listen-play" aria-label="Listen to this article" title="Listen (l)"><?= Icons::PLAY ?></button>
-            <div class="listen-readout">
-              <span class="listen-time"><b class="listen-cur">0:00</b> / <span class="listen-total">0:00</span></span>
-              <button class="listen-skip listen-back" aria-label="Back 10 seconds"><?= Icons::BACK ?><span>10</span></button>
-              <button class="listen-skip listen-fwd" aria-label="Forward 10 seconds"><?= Icons::FWD ?><span>10</span></button>
-              <button class="listen-rate" aria-label="Playback speed">1.0x</button>
-              <select class="listen-voice" aria-label="Reader voice" title="Choose a voice" hidden></select>
-            </div>
-          </div>
+          <button class="listen-play" aria-label="Listen to this article" title="Listen (l)"><?= Icons::PLAY ?><span class="listen-label">Listen</span></button>
           <div class="reader-tools">
             <div class="tool-group" role="group" aria-label="Text size">
               <button data-font="dec" aria-label="Decrease text size">A−</button>
