@@ -223,4 +223,61 @@
     window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(maybeLoad, 80); });
     maybeLoad();
   })();
+
+  /* ---- Async daily standup (enterprise, org-shared, DB-backed) ---- */
+  (function () {
+    var card = document.getElementById('tlStandup');
+    if (!card) return;                       // org-only (server-gated)
+    var csrf = card.getAttribute('data-csrf') || '';
+    var form = document.getElementById('tlSuForm'),
+        doneEl = document.getElementById('tlSuDone'), nextEl = document.getElementById('tlSuNext'), blkEl = document.getElementById('tlSuBlk'),
+        clearBtn = document.getElementById('tlSuClear'), boardEl = document.getElementById('tlSuBoard'), msg = document.getElementById('tlSuMsg');
+    function post(action, b) {
+      return fetch('/portal/standup.php?action=' + action, { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(b || {}) }).then(function (r) { return r.json(); });
+    }
+    function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+
+    function line(icon, cls, text) {
+      return text ? '<p class="su-line ' + cls + '"><span class="su-ic">' + icon + '</span>' + esc(text).replace(/\n/g, '<br>') + '</p>' : '';
+    }
+    function entryHTML(s) {
+      return '<article class="su-entry' + (s.mine ? ' is-mine' : '') + (s.blockers ? ' has-blk' : '') + '">'
+        + '<div class="su-e-head"><b>' + esc(s.author) + (s.mine ? ' <span class="su-you">you</span>' : '') + '</b><span class="su-ago">' + esc(s.ago) + '</span></div>'
+        + line('✅', 'su-done', s.done) + line('▶', 'su-next', s.next) + line('⛔', 'su-blk', s.blockers)
+        + '</article>';
+    }
+    function render(board, mine) {
+      boardEl.innerHTML = board && board.length ? board.map(entryHTML).join('')
+        : '<p class="pc-empty">No check-ins yet today — be the first above.</p>';
+      if (mine) {
+        doneEl.value = mine.done || ''; nextEl.value = mine.next || ''; blkEl.value = mine.blockers || '';
+        clearBtn.hidden = false; document.getElementById('tlSuSave').textContent = 'Update';
+      } else { clearBtn.hidden = true; document.getElementById('tlSuSave').textContent = 'Post update'; }
+    }
+    function load() {
+      fetch('/portal/standup.php?action=board', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.ok) render(d.board, d.mine); }).catch(function () {});
+    }
+
+    form && form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var b = { done: doneEl.value.trim(), next: nextEl.value.trim(), blockers: blkEl.value.trim() };
+      if (!b.done && !b.next && !b.blockers) { say('Add at least one field.', 'err'); return; }
+      say('Posting…');
+      post('post', b).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not post.', 'err'); return; }
+        say('Posted.', 'ok'); setTimeout(function () { say(''); }, 2000); load();
+      }).catch(function () { say('Network error.', 'err'); });
+    });
+    clearBtn && clearBtn.addEventListener('click', function () {
+      if (!confirm('Remove your standup for today?')) return;
+      post('delete', {}).then(function (d) { if (d.ok) { doneEl.value = nextEl.value = blkEl.value = ''; say('Cleared.', 'ok'); setTimeout(function () { say(''); }, 2000); load(); } });
+    });
+
+    function maybeLoad() { if (!document.getElementById('view-tools').hidden) load(); }
+    document.addEventListener('click', function (e) { if (e.target.closest('[data-view="tools"]')) setTimeout(maybeLoad, 90); });
+    window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(maybeLoad, 90); });
+    maybeLoad();
+  })();
 })();

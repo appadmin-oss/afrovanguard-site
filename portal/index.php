@@ -412,6 +412,24 @@ $nav['You'] = [
               <div class="poll-list" id="tlPollList"><p class="pc-empty">Loading polls…</p></div>
             </div>
           </section>
+
+          <!-- Enterprise: Async standup — daily team check-ins -->
+          <section class="pcard tool-standup" id="tlStandup" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>◷ Daily standup</h2><span class="pchip pchip--indigo">Members · today</span></div>
+            <div class="pcard-body">
+              <form id="tlSuForm" class="su-form" autocomplete="off">
+                <label class="su-field"><span>✅ What I did</span><textarea id="tlSuDone" class="su-in" rows="2" maxlength="1000" placeholder="Yesterday / recently…"></textarea></label>
+                <label class="su-field"><span>▶ What's next</span><textarea id="tlSuNext" class="su-in" rows="2" maxlength="1000" placeholder="Today's focus…"></textarea></label>
+                <label class="su-field"><span>⛔ Blockers</span><textarea id="tlSuBlk" class="su-in" rows="1" maxlength="1000" placeholder="Anything in the way? (optional)"></textarea></label>
+                <div class="su-foot">
+                  <button type="submit" class="pbtn pbtn-gold" id="tlSuSave">Post update</button>
+                  <button type="button" class="pbtn pbtn-ghost" id="tlSuClear" hidden>Clear mine</button>
+                  <span class="poll-msg" id="tlSuMsg" role="status" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="su-board" id="tlSuBoard"><p class="pc-empty">Loading today's board…</p></div>
+            </div>
+          </section>
 <?php endif; ?>
         </section>
 

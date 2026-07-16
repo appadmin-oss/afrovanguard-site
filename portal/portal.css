@@ -616,4 +616,27 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .poll-close:hover { border-color:var(--gold); color:var(--gold-deep); }
 .poll-x:hover { border-color:var(--red); color:var(--red); }
 
+/* Async daily standup (enterprise, org-shared) */
+.tool-standup .pcard-body { display:flex; flex-direction:column; gap:16px; }
+.su-form { display:flex; flex-direction:column; gap:10px; }
+.su-field { display:flex; flex-direction:column; gap:4px; }
+.su-field > span { font-size:12.5px; font-weight:700; color:var(--muted); }
+.su-in { width:100%; border:1px solid var(--border); border-radius:9px; padding:8px 11px; background:var(--surface-2);
+  color:var(--ink); font:inherit; font-size:13.5px; line-height:1.5; resize:vertical; }
+.su-in:focus { outline:none; border-color:var(--gold); background:var(--surface); }
+.su-foot { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+.su-board { display:flex; flex-direction:column; gap:11px; }
+.su-entry { border:1px solid var(--border); border-radius:11px; padding:11px 13px; background:var(--surface); }
+.su-entry.is-mine { border-color:var(--gold); background:var(--gold-soft); }
+.su-entry.has-blk { border-left:3px solid var(--red); }
+.su-e-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:7px; }
+.su-e-head b { font-size:14px; color:var(--ink); font-weight:700; }
+.su-you { font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--on-gold);
+  background:var(--gold); border-radius:999px; padding:1px 7px; margin-left:4px; }
+.su-ago { flex:none; font-size:11.5px; color:var(--muted-2); }
+.su-line { display:flex; gap:8px; margin:4px 0; font-size:13px; line-height:1.5; color:var(--ink); }
+.su-ic { flex:none; }
+.su-blk { color:var(--red); }
+
 @media (max-width:560px){ .tools-grid { grid-template-columns:1fr; } .focus-clock, .cd-big b { font-size:44px; } }
