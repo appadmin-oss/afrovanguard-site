@@ -61,8 +61,15 @@ if (!function_exists('self_meet_source')) {
     }
 }
 // KPI seeds (client refreshes online + tasks live).
-$openTasks  = $isOrg && class_exists('Collab') ? count(array_filter(Collab::myTasks((int) $u['id']), fn($t) => empty($t['done']))) : 0;
+$myTasks    = $isOrg && class_exists('Collab') ? Collab::myTasks((int) $u['id']) : [];
+$openTasks  = count(array_filter($myTasks, fn($t) => empty($t['done'])));
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
+// Productivity "Today" aggregates — what genuinely needs attention now.
+$todayStr   = gmdate('Y-m-d');
+$tasksDue   = array_values(array_filter($myTasks, fn($t) => empty($t['done']) && $t['due'] !== '' && $t['due'] <= $todayStr));
+$tasksOverdue = count(array_filter($tasksDue, fn($t) => !empty($t['overdue'])));
+$nextSession = $upcoming[0] ?? null; // upcoming is ordered live-first, then soonest
+$cPulseToday = class_exists('Community') ? Community::pulse() : ['posts_today' => 0];
 
 $ptheme    = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
@@ -78,20 +85,29 @@ render_head([
     'manifest'   => '/manifest.webmanifest',
 ]);
 
-/* Nav model — grouped, with dot colours + optional live badges. */
+/* Nav model — grouped for flow (Home · Work · Learn · You), with dot colours
+   + optional live badges. Related productivity tools sit together. */
+$postsToday = (int) ($cPulseToday['posts_today'] ?? 0);
 $nav = [
-    'Main' => [
-        ['overview', 'Dashboard', 'gold', ''],
-        ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
-        ['community', 'Community', 'green', ($cPulse = (class_exists('Community') ? Community::pulse() : [])) && (int) ($cPulse['posts_today'] ?? 0) > 0 ? (string) (int) $cPulse['posts_today'] : ''],
-        ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
-    ],
-    'Account' => [
-        ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
-        ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
+    'Home' => [
+        ['overview', 'Today', 'gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
+        ['community', 'Community', 'green', $postsToday > 0 ? (string) $postsToday : ''],
     ],
 ];
-if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray', '' ]]);
+if ($isOrg) {
+    $nav['Work'] = [
+        ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
+        ['workspace', 'Workspace', 'gray', ''],
+    ];
+}
+$nav['Learn'] = [
+    ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
+    ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
+];
+$nav['You'] = [
+    ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
+    ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
+];
 ?>
   <div class="portal-shell">
 
@@ -186,6 +202,42 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 <?php endif; ?>            </div>
           </div>
 
+          <!-- Needs your attention — the productivity focus of "Today" -->
+<?php
+            $attn = [];
+            if ($nextSession) {
+                $ns = $nextSession;
+                $when = !empty($ns['live']) ? 'Live now' : date('D g:ia', strtotime((string) $ns['when'] . ' UTC') ?: time());
+                $attn[] = ['ico' => '🎥', 'tone' => !empty($ns['live']) ? 'green' : 'indigo',
+                    'title' => (!empty($ns['live']) ? 'Meeting live — ' : 'Next meeting — ') . e($ns['title']),
+                    'sub' => e($ns['role']) . ' ' . e($ns['with']) . ' · ' . e($when), 'cta' => 'Go', 'goto' => 'mentorship'];
+            }
+            if ($isOrg && $tasksDue) {
+                $n = count($tasksDue);
+                $attn[] = ['ico' => '✓', 'tone' => $tasksOverdue ? 'red' : 'gold',
+                    'title' => $n . ' task' . ($n === 1 ? '' : 's') . ' due' . ($tasksOverdue ? ' · ' . $tasksOverdue . ' overdue' : ''),
+                    'sub' => 'Due today or earlier', 'cta' => 'Open', 'goto' => 'tasks'];
+            }
+            if ($postsToday) {
+                $attn[] = ['ico' => '💬', 'tone' => 'indigo',
+                    'title' => $postsToday . ' new community post' . ($postsToday === 1 ? '' : 's') . ' today',
+                    'sub' => 'Catch up with members', 'cta' => 'Open', 'goto' => 'community'];
+            }
+            if ($attn):
+?>          <section class="pcard today-attn">
+            <div class="pcard-head"><h2>Needs your attention</h2><span class="pchip pchip--gold"><?= e(date('D, M j')) ?></span></div>
+            <div class="pcard-body">
+              <ul class="attn-list">
+<?php foreach ($attn as $a): ?>                <li class="attn-item attn--<?= e($a['tone']) ?>">
+                  <span class="attn-ico"><?= $a['ico'] ?></span>
+                  <span class="attn-txt"><span class="attn-title"><?= $a['title'] ?></span><span class="attn-sub"><?= $a['sub'] ?></span></span>
+                  <a class="pbtn pbtn-soft attn-cta" href="#<?= e($a['goto']) ?>" data-goto="<?= e($a['goto']) ?>"><?= e($a['cta']) ?> →</a>
+                </li>
+<?php endforeach; ?>              </ul>
+            </div>
+          </section>
+<?php endif; ?>
+
           <!-- KPI chip row -->
           <div class="pkpis" aria-label="At a glance">
 <?php
@@ -212,29 +264,6 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
 
           <div class="pcols">
             <div class="pcol pcol--main">
-<?php if ($isOrg): ?>
-              <!-- Tasks (with filter chips) -->
-              <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
-                <div class="pcard-head">
-                  <h2>Your tasks</h2>
-                  <div class="pseg" id="taskFilters" role="tablist">
-                    <button type="button" class="pseg-btn is-on" data-filter="all">All <span class="pseg-n" id="fcAll">0</span></button>
-                    <button type="button" class="pseg-btn" data-filter="open">Open <span class="pseg-n" id="fcOpen">0</span></button>
-                    <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
-                  </div>
-                </div>
-                <div class="pcard-body">
-                  <form class="task-add" id="taskAdd" autocomplete="off">
-                    <input type="text" id="taskInput" name="title" maxlength="300" placeholder="Add a task and press Enter…" aria-label="Add a task">
-                    <select id="taskAssignee" class="task-assignee" aria-label="Assign to" title="Assign to a member">
-                      <option value="0">Assign to me</option>
-                    </select>
-                    <button type="submit" class="pbtn pbtn-gold">Add</button>
-                  </form>
-                  <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
-                </div>
-              </section>
-<?php endif; ?>
               <!-- Your journey -->
               <section class="pcard">
                 <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
@@ -282,6 +311,46 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
             </div>
           </div>
         </section>
+
+<?php if ($isOrg): ?>
+        <!-- ============================================================ -->
+        <!-- TASKS  (dedicated productivity view)                         -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-tasks" data-view="tasks" hidden>
+          <div class="view-head">
+            <div><h1>Tasks</h1><p class="view-sub">Plan your work, set due dates and priorities, and assign to teammates.</p></div>
+          </div>
+          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-body">
+              <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
+                <input type="text" id="taskInput" name="title" maxlength="300" placeholder="What needs doing?" aria-label="Task">
+                <div class="task-add-meta">
+                  <label class="task-af"><span>Due</span><input type="date" id="taskDue" aria-label="Due date"></label>
+                  <label class="task-af"><span>Priority</span>
+                    <select id="taskPriority" aria-label="Priority">
+                      <option value="normal" selected>Normal</option>
+                      <option value="high">High</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </label>
+                  <label class="task-af"><span>Assign</span>
+                    <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
+                  </label>
+                  <button type="submit" class="pbtn pbtn-gold">Add task</button>
+                </div>
+              </form>
+              <div class="pseg task-filters" id="taskFilters" role="tablist">
+                <button type="button" class="pseg-btn is-on" data-filter="all">All <span class="pseg-n" id="fcAll">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="open">Open <span class="pseg-n" id="fcOpen">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="overdue">Overdue <span class="pseg-n" id="fcOver">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="mine">Mine <span class="pseg-n" id="fcMine">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
+              </div>
+              <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
+            </div>
+          </section>
+        </section>
+<?php endif; ?>
 
         <!-- ============================================================ -->
         <!-- LEARNING                                                     -->
@@ -595,22 +664,31 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
         onlineEl=document.getElementById('onlineList'), onlineCountEl=document.getElementById('onlineCount'),
         topOnline=document.getElementById('topOnline'), tbCount=document.getElementById('tbCount'),
         kpiTasks=document.getElementById('kpiTasks'), kpiOnline=document.getElementById('kpiOnline'),
-        fcAll=document.getElementById('fcAll'), fcOpen=document.getElementById('fcOpen'), fcDone=document.getElementById('fcDone');
+        fcAll=document.getElementById('fcAll'), fcOpen=document.getElementById('fcOpen'), fcDone=document.getElementById('fcDone'),
+        fcOver=document.getElementById('fcOver'), fcMine=document.getElementById('fcMine');
     var TASKS=[], FILTER='all';
-
-    function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open;
+    var TODAY=new Date().toISOString().slice(0,10);
+    function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
+    function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open,
+        over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
+      if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
       if(kpiTasks)kpiTasks.textContent=open; }
+    function dueLabel(t){ if(!t.due) return ''; var d=new Date(t.due+'T00:00:00');
+      return isNaN(d)?t.due:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
     function taskHtml(t){
       var who = t.assigned_out ? ('→ '+esc(t.assignee_name)) : (t.mine ? '' : ('from '+esc(t.creator_name)));
+      var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
+      var due = (t.due&&!t.done) ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
       return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
-      +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+'</span>'
-      +(t.due&&!t.done?'<span class="task-due">'+esc(t.due)+'</span>':'')
-      +'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+      +pr+'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+'</span>'
+      +due+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
     function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
-      var cur=sel.value; sel.innerHTML='<option value="0">Assign to me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
-    function render(){ var rows=TASKS.filter(function(t){ return FILTER==='all'?true:FILTER==='open'?!t.done:t.done; });
+      var cur=sel.value; sel.innerHTML='<option value="0">Me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
+    function render(){ var rows=TASKS.filter(function(t){
+        if(FILTER==='open')return !t.done; if(FILTER==='done')return t.done;
+        if(FILTER==='overdue')return isOverdue(t); if(FILTER==='mine')return t.mine && !t.done; return true; });
       listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here — you’re all caught up.</li>';
       counts(); }
     function renderOnline(users,count){ if(onlineCountEl)onlineCountEl.textContent=count||0; if(tbCount)tbCount.textContent=count||0; if(kpiOnline)kpiOnline.textContent=count||0; if(topOnline)topOnline.hidden=!(count>0);
@@ -625,8 +703,10 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
     var form=document.getElementById('taskAdd'), input=document.getElementById('taskInput');
     form.addEventListener('submit', function(e){ e.preventDefault(); var title=(input.value||'').trim(); if(!title) return;
       var asel=document.getElementById('taskAssignee'); var assignee=asel?(+asel.value||0):0;
+      var dsel=document.getElementById('taskDue'); var due=dsel?dsel.value:'';
+      var psel=document.getElementById('taskPriority'); var priority=psel?psel.value:'normal';
       input.value=''; input.disabled=true;
-      post('task_add',{title:title, assignee:assignee}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
+      post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
     // toggle / delete
     listEl.addEventListener('click', function(e){ var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
       if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }

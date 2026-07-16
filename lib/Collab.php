@@ -159,18 +159,24 @@ final class Collab
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
         $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        // Priority is a later addition — add it idempotently.
+        try { if (!Database::columnExists('collab_tasks', 'priority')) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN priority VARCHAR(8) NOT NULL DEFAULT 'normal'"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
     }
 
+    /** Valid task priorities (low → normal → high). */
+    private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
+
     /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = ''): int
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal'): int
     {
         $title = trim(mb_substr(trim($title), 0, 300));
         if ($creatorId <= 0 || $title === '') return 0;
         self::ensureTasks();
         $assignee = $assigneeId > 0 ? $assigneeId : $creatorId;
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
-        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, created_at) VALUES (?,?,?,0,?,?)')
-            ->execute([$creatorId, $assignee, $title, $due, gmdate('Y-m-d H:i:s')]);
+        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, created_at) VALUES (?,?,?,0,?,?,?)')
+            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), gmdate('Y-m-d H:i:s')]);
         return (int) Database::pdo()->lastInsertId();
     }
 
@@ -198,19 +204,25 @@ final class Collab
     {
         self::ensureTasks();
         $limit = max(1, min(100, $limit));
+        // Open first, then soonest due (undated last), newest first within.
         $st = Database::pdo()->prepare(
-            'SELECT * FROM collab_tasks WHERE assignee_id = ? OR creator_id = ? ORDER BY done ASC, id DESC LIMIT ' . $limit
+            "SELECT * FROM collab_tasks WHERE assignee_id = ? OR creator_id = ?
+             ORDER BY done ASC, CASE WHEN due = '' THEN 1 ELSE 0 END ASC, due ASC, id DESC LIMIT " . $limit
         );
         $st->execute([$uid, $uid]);
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $assignee = (int) $r['assignee_id'];
             $creator  = (int) $r['creator_id'];
+            $due = (string) $r['due'];
+            $overdue = $due !== '' && !$r['done'] && $due < gmdate('Y-m-d');
             $out[] = [
                 'id'       => (int) $r['id'],
                 'title'    => (string) $r['title'],
                 'done'     => (bool) $r['done'],
-                'due'      => (string) $r['due'],
+                'due'      => $due,
+                'overdue'  => $overdue,
+                'priority' => self::normPriority((string) ($r['priority'] ?? 'normal')),
                 'mine'     => $assignee === $uid,
                 // Allocation context for the UI.
                 'assignee_id'   => $assignee,
