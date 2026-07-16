@@ -250,6 +250,19 @@ render_head([
     .ws-search{display:none}
     .ws-cols{grid-template-columns:1fr}
     .ws-bar-in{gap:8px}
+    .ws-bar-actions{margin-left:auto}
+  }
+  @media (max-width:560px){
+    .ws-wrap{padding-left:14px;padding-right:14px}
+    .ws-back{padding:7px 10px}
+    .ws-back-txt{display:none}          /* keep just the back arrow */
+    .ws-brand-tag{display:none}          /* drop the "Workspace" tag chip */
+    .ws-bar-actions{gap:2px}
+    .ws-quick{flex-wrap:wrap}
+    .ws-apps{grid-template-columns:1fr 1fr}
+  }
+  @media (max-width:380px){
+    .ws-apps{grid-template-columns:1fr}
   }
 </style>
 
