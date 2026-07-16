@@ -23,11 +23,42 @@ declare(strict_types=1);
 
 final class Tts
 {
-    public static function engine(): string { return strtolower(trim((string) (getenv('AV_TTS_ENGINE') ?: 'openai'))); }
+    /**
+     * Selected engine. If AV_TTS_ENGINE is set explicitly it wins; otherwise we
+     * auto-detect from which key/voice is configured, so simply "adding the
+     * ElevenLabs key" turns on ElevenLabs without a second setting.
+     */
+    public static function engine(): string
+    {
+        $e = strtolower(trim((string) getenv('AV_TTS_ENGINE')));
+        if ($e !== '') return $e;
+        if (self::elevenKey() !== '' || trim((string) getenv('AV_TTS_VOICE_ID')) !== '') return 'elevenlabs';
+        // A generic key: ElevenLabs keys start "sk_"; OpenAI's start "sk-".
+        $k = trim((string) getenv('AV_TTS_API_KEY'));
+        if ($k !== '') return str_starts_with($k, 'sk_') ? 'elevenlabs' : 'openai';
+        return 'openai';
+    }
 
+    /** Non-sensitive status, for the ?probe diagnostic (never returns the key). */
+    public static function status(): array
+    {
+        return ['engine' => self::engine(), 'available' => self::available(), 'has_key' => self::key() !== '',
+                'voice' => self::voice(), 'ext' => self::ext(), 'model' => (string) (getenv('AV_TTS_MODEL') ?: '')];
+    }
+
+    /** ElevenLabs key under any of the common variable names. */
+    private static function elevenKey(): string
+    {
+        return (string) (getenv('AV_ELEVENLABS_API_KEY') ?: getenv('ELEVENLABS_API_KEY') ?: getenv('ELEVEN_API_KEY') ?: '');
+    }
+
+    /** The API key for the active engine. */
     private static function key(): string
     {
-        return (string) (getenv('AV_TTS_API_KEY') ?: getenv('AV_OPENAI_API_KEY') ?: '');
+        if (self::engine() === 'elevenlabs') {
+            return (string) (self::elevenKey() ?: getenv('AV_TTS_API_KEY') ?: '');
+        }
+        return (string) (getenv('AV_TTS_API_KEY') ?: getenv('AV_OPENAI_API_KEY') ?: getenv('OPENAI_API_KEY') ?: '');
     }
 
     /** Is the reader's neural voice usable right now? Drives graceful fallback. */

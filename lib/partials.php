@@ -329,7 +329,9 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     $model = av_nav_model();
     $sub = av_subnav_model()[$active] ?? null;
     $cur = fn($n) => $n === $active ? ' aria-current="page"' : '';
-    $illo = fn($k) => '/assets/illustrations/nav-' . $k . '.webp';
+    // Only reference a mega-feature illustration when the file actually exists —
+    // otherwise the browser 404s on a missing background image.
+    $illo = function ($k) { $rel = '/assets/illustrations/nav-' . $k . '.webp'; return is_file(AV_ROOT . $rel) ? $rel : ''; };
 ?>
   <header class="site-header<?= $sub ? ' has-subnav' : '' ?>" id="site-header" role="banner" data-section="<?= e($active) ?>">
     <!-- Tier 0 · thin utility strip (secondary actions) -->
@@ -379,7 +381,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 <?php endforeach; ?>                      </ul>
                     </div>
 <?php endforeach; ?>                  </div>
-<?php $f = $it['mega']['feature']; ?>                  <a class="mega-feature" href="<?= e($f['href']) ?>" style="background-image:url('<?= e($illo($k)) ?>')">
+<?php $f = $it['mega']['feature']; $fimg = $illo($k); ?>                  <a class="mega-feature<?= $fimg === '' ? ' mega-feature--plain' : '' ?>" href="<?= e($f['href']) ?>"<?= $fimg !== '' ? ' style="background-image:url(\'' . e($fimg) . '\')"' : '' ?>>
                     <span class="mf-kicker"><?= e($f['kicker']) ?></span>
                     <span class="mf-title"><?= e($f['title']) ?></span>
                     <span class="mf-text"><?= e($f['text']) ?></span>

@@ -183,6 +183,27 @@
     if (sl) { sl.textContent = 'Hi, ' + first; sl.setAttribute('href', '/portal/'); sl.removeAttribute('data-login-link'); }
     var subLogin = document.getElementById('navSubLogin');
     if (subLogin) { subLogin.textContent = first; subLogin.setAttribute('href', '/portal/'); }
+    // Mobile drawer: reflect the signed-in member (identity + portal link + sign out).
+    var df = document.querySelector('.avd-foot');
+    if (df) {
+      var mSignin = df.querySelector('[data-login-link]');
+      if (mSignin) {
+        mSignin.textContent = 'Hi, ' + first + ' — your portal';
+        mSignin.setAttribute('href', '/portal/');
+        mSignin.removeAttribute('data-login-link');
+      }
+      if (!df.querySelector('[data-logout]')) {
+        var so = document.createElement('a');
+        so.href = '#'; so.className = 'btn btn-outline'; so.style.width = '100%';
+        so.setAttribute('data-logout', ''); so.textContent = 'Sign out';
+        df.insertBefore(so, df.querySelector('.avd-social'));
+      }
+      var mid = document.createElement('div');
+      mid.className = 'avd-me';
+      mid.innerHTML = '<span class="avd-me-av">' + initial + '</span><span class="avd-me-id"><span class="avd-me-name">' + esc(name) + '</span>' + (email ? '<span class="avd-me-email">' + email + '</span>' : '') + '</span>';
+      var scroll = document.querySelector('.avd-scroll');
+      if (scroll && !document.querySelector('.avd-me')) scroll.insertBefore(mid, scroll.firstChild);
+    }
   }
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-logout]')) {

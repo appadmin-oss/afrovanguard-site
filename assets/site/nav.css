@@ -409,3 +409,10 @@ html.av-drawer-open .dock { opacity: 0; visibility: hidden; pointer-events: none
 
 /* Search: matched-term highlight */
 .avs-hl { background: var(--afg-warning-soft, rgba(243,180,22,.22)); color: inherit; border-radius: 3px; padding: 0 1px; font-weight: 700; }
+
+/* Mobile drawer — signed-in member card (added by nav.js reflectMember) */
+.avd-me{display:flex;align-items:center;gap:11px;padding:12px 14px;margin:0 0 8px;border:1px solid var(--divider,#e6e6e6);border-radius:12px;background:var(--surface-2,#f6f6f4)}
+.avd-me-av{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--gold,#e0a82e),var(--gold-deep,#b4791a))}
+.avd-me-id{display:flex;flex-direction:column;min-width:0}
+.avd-me-name{font-weight:700;color:var(--ink,#111);font-size:14px}
+.avd-me-email{font-size:12px;color:var(--muted,#666);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

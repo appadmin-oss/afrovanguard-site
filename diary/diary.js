@@ -21,6 +21,35 @@
     clearTimeout(toast._t); toast._t = setTimeout(function () { toastEl.classList.remove('show'); }, 2400);
   }
 
+  /* ---- Audio download (content-type checked) ----
+     The narration links point at /diary/audio.php with a `download` attr; on
+     any failure that endpoint returns JSON, and the browser would happily save
+     that JSON as a file. Intercept: fetch first, save only real audio, and
+     surface the error message otherwise. */
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href*="/diary/audio.php"]');
+    if (!a) return;
+    e.preventDefault();
+    var url = a.getAttribute('href');
+    var label = a.getAttribute('title') || '';
+    a.setAttribute('aria-busy', 'true'); toast('Preparing audio…');
+    fetch(url, { credentials: 'same-origin' }).then(function (r) {
+      var ct = r.headers.get('Content-Type') || '';
+      if (!r.ok || ct.indexOf('audio') === -1) {
+        return r.json().then(function (d) { toast((d && d.error) || 'Audio isn’t available yet.'); })
+                       .catch(function () { toast('Audio isn’t available yet.'); });
+      }
+      return r.blob().then(function (blob) {
+        var m = /slug=([a-z0-9\-]+)/i.exec(url); var name = (m ? m[1] : 'article') + '.mp3';
+        var dl = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = dl; link.download = name; document.body.appendChild(link); link.click();
+        setTimeout(function () { URL.revokeObjectURL(dl); link.remove(); }, 1500);
+        toast('Audio downloaded.');
+      });
+    }).catch(function () { toast('Could not download audio.'); })
+      .then(function () { a.removeAttribute('aria-busy'); });
+  });
+
   /* ---- Theme (light/dark) ---- */
   var root = document.documentElement;
   function applyTheme(t) { root.setAttribute('data-theme', t); set('av.theme', t); }

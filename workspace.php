@@ -73,6 +73,9 @@ render_head([
     border-bottom:1px solid var(--ws-line);backdrop-filter:saturate(1.1)}
   .ws-bar-in{display:flex;align-items:center;gap:14px;height:60px}
   .ws-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;font-weight:700}
+  .ws-back{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ws-muted);
+    border:1px solid var(--ws-line);border-radius:999px;padding:7px 13px 7px 10px;font-size:13px;font-weight:600;flex:none}
+  .ws-back:hover{color:var(--ws-ink);border-color:var(--ws-accent)}
   .ws-brand .wm-1{color:var(--ws-ink)}.ws-brand .wm-2{color:var(--ws-accent)}
   .ws-brand-tag{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--ws-muted);
     border-left:1px solid var(--ws-line);padding-left:10px;text-transform:uppercase}
@@ -252,6 +255,10 @@ render_head([
 
 <header class="ws-bar">
   <div class="ws-wrap ws-bar-in">
+    <a class="ws-back" href="/portal/" aria-label="Back to the member portal" title="Back to portal">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      <span class="ws-back-txt">Portal</span>
+    </a>
     <a class="ws-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard home">
       <span><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
       <span class="ws-brand-tag">Workspace</span>

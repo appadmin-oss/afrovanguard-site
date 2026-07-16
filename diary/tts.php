@@ -18,6 +18,14 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 
 header('X-Content-Type-Options: nosniff');
 
+// Diagnostic: /diary/tts.php?probe=1 → which engine/key the server detects
+// (never returns the key itself). Lets an admin confirm setup at a glance.
+if (isset($_GET['probe'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => true, 'tts' => Tts::status()]);
+    exit;
+}
+
 function tts_fail(int $code, string $msg): void
 {
     http_response_code($code);
