@@ -173,7 +173,7 @@ body.portal-app .read-progress { display:none; }
 /* ---------- KPI chips ---------- */
 /* auto-fit at a smaller min keeps the row balanced (e.g. 5 across on desktop,
    3+2 on tablet) instead of orphaning a lone card as 4+1. */
-.pkpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(176px,1fr)); gap:14px; margin-bottom:20px; align-items:stretch; }
+.pkpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(152px,1fr)); gap:14px; margin-bottom:20px; align-items:stretch; }
 .pkpi { display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:15px 16px; box-shadow:var(--shadow-sm); }
 .pkpi-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:auto; }
 .pkpi-label { font-size:12.5px; font-weight:600; color:var(--muted); }
@@ -351,9 +351,36 @@ body.portal-app .read-progress { display:none; }
   .ptop-burger { display:inline-flex; }
 }
 @media (min-width:961px) { .portal-scrim { display:none !important; } }
+
+/* Tablet / large phone */
+@media (max-width:720px) {
+  .portal-scroll { padding:18px clamp(14px,4vw,24px) 40px; }
+  .phead { margin-bottom:18px; gap:14px; }
+  .view-head { flex-wrap:wrap; gap:8px; }
+}
+
+/* Phones */
 @media (max-width:560px) {
   .phead h1 { font-size:22px; }
+  .pcard-head { flex-wrap:wrap; gap:8px; }
   .pcard-head .pseg { width:100%; justify-content:space-between; }
+  /* action buttons fill the row instead of wrapping awkwardly */
+  .phead-actions { width:100%; gap:8px; }
+  .phead-actions .pbtn { flex:1 1 auto; justify-content:center; }
+  /* compact top bar — drop the "Portal /" crumb prefix, keep the page name */
+  .ptop { gap:8px; padding:0 14px; }
+  .ptop-crumb > span:first-child, .ptop-sep { display:none; }
+  .ptop-actions { gap:8px; }
+  /* tasks: quick-add + filters stack cleanly */
+  .task-add-meta { gap:8px; }
+  .task-add-meta .task-af { flex:1 1 44%; }
+  .task-add-meta .pbtn { margin-left:0; width:100%; }
+  .task-filters { flex-wrap:wrap; }
+  /* KPI values a touch smaller so 2-up fits comfortably */
+  .pkpi-value { font-size:22px; }
+}
+@media (max-width:380px) {
+  .pkpis { grid-template-columns:1fr 1fr; }
 }
 
 /* ============================================================

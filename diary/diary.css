@@ -627,12 +627,27 @@ body.reading-open .dock { transform: translateY(-66px); transition: transform .3
 .avr-fill { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--gold), var(--gold-deep)); transition: width .2s linear; }
 /* The on-page reading highlight is the star — clear, without feeling external. */
 .article-body .speaking { background: var(--gold-soft); box-shadow: 0 0 0 6px var(--gold-soft); border-radius: 5px; scroll-margin-top: 96px; }
+/* Mobile player: one clean row that never overflows — the section label flexes
+   (and truncates) so Play, section-nav and Close always stay on screen, with
+   comfortable touch targets and safe-area padding for the home indicator. */
 @media (max-width: 720px) {
-  .avr-inner { gap: 8px; padding: 10px 12px; }
+  .avr-inner { gap: 8px; padding: 10px 12px calc(11px + env(safe-area-inset-bottom, 0px)); }
   .avr-close span { display: none; }
-  .avr-seclabel { max-width: 130px; font-size: 13px; }
+  .avr-close { padding: 8px; }
   .avr-time { display: none; }
+  .avr-sec { flex: 1 1 auto; min-width: 0; margin: 0; }
+  .avr-seclabel { flex: 1; min-width: 0; max-width: none; font-size: 13px; }
+  .avr-sp { padding: 5px 8px; font-size: 12px; }
 }
+@media (max-width: 440px) {
+  .avr-inner { gap: 6px; padding: 9px 10px calc(11px + env(safe-area-inset-bottom, 0px)); }
+  .avr-btn { width: 38px; height: 38px; }
+  .avr-play { width: 44px; height: 44px; }
+  .avr-speed { padding: 2px; }
+  .avr-sp { padding: 6px; font-size: 11.5px; }
+  .avr-seclabel svg { display: none; }
+}
+@media (max-width: 340px) { .avr-speed { display: none; } }
 @media (prefers-reduced-motion: reduce) { .av-reader { transition: opacity .2s; } .avr-fill { transition: none; } }
 
 /* ============================================================ EDITORIAL POLISH
