@@ -149,4 +149,78 @@
     refresh();
     setInterval(refresh, 60000);
   })();
+
+  /* ---- Team Polls (enterprise, org-shared, DB-backed) ---- */
+  (function () {
+    var card = document.getElementById('tlPolls');
+    if (!card) return;                       // org-only (server-gated)
+    var csrf = card.getAttribute('data-csrf') || '';
+    var form = document.getElementById('tlPollForm'), qEl = document.getElementById('tlPollQ'),
+        optsWrap = document.getElementById('tlPollOpts'), addOpt = document.getElementById('tlPollAddOpt'),
+        listEl = document.getElementById('tlPollList'), msg = document.getElementById('tlPollMsg');
+    function post(action, b) {
+      return fetch('/portal/polls.php?action=' + action, { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(b || {}) }).then(function (r) { return r.json(); });
+    }
+    function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+
+    function pollHTML(p) {
+      var voted = p.my_vote >= 0, showResults = voted || p.closed;
+      var opts = p.options.map(function (o, i) {
+        var on = p.my_vote === i;
+        if (showResults) {
+          return '<button type="button" class="poll-o poll-o--res' + (on ? ' is-mine' : '') + '" data-poll="' + p.id + '" data-idx="' + i + '"' + (p.closed ? ' disabled' : '') + '>'
+            + '<span class="poll-o-bar" style="width:' + o.pct + '%"></span>'
+            + '<span class="poll-o-txt">' + esc(o.text) + (on ? ' ✓' : '') + '</span>'
+            + '<span class="poll-o-pct">' + o.pct + '%</span></button>';
+        }
+        return '<button type="button" class="poll-o" data-poll="' + p.id + '" data-idx="' + i + '">' + esc(o.text) + '</button>';
+      }).join('');
+      var admin = p.mine ? '<button type="button" class="poll-x" data-del="' + p.id + '">Delete</button>'
+        + (p.closed ? '' : '<button type="button" class="poll-close" data-close="' + p.id + '">Close</button>') : '';
+      return '<article class="poll' + (p.closed ? ' is-closed' : '') + '" data-id="' + p.id + '">'
+        + '<div class="poll-top"><h3 class="poll-question">' + esc(p.question) + '</h3>' + (p.closed ? '<span class="poll-tag">Closed</span>' : '') + '</div>'
+        + '<div class="poll-o-list">' + opts + '</div>'
+        + '<div class="poll-foot"><span>' + esc(p.author) + ' · ' + esc(p.ago) + ' · ' + p.total + ' vote' + (p.total === 1 ? '' : 's') + '</span><span class="poll-admin">' + admin + '</span></div>'
+        + '</article>';
+    }
+    function render(polls) {
+      listEl.innerHTML = polls && polls.length ? polls.map(pollHTML).join('')
+        : '<p class="pc-empty">No polls yet — ask the team something above.</p>';
+    }
+    function load() { fetch('/portal/polls.php?action=list', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { if (d && d.ok) render(d.polls); }).catch(function () {}); }
+
+    addOpt && addOpt.addEventListener('click', function () {
+      var n = optsWrap.querySelectorAll('.poll-opt').length;
+      if (n >= 6) { say('Up to 6 options.', 'err'); return; }
+      var i = document.createElement('input'); i.className = 'poll-opt'; i.placeholder = 'Option ' + (n + 1); i.maxLength = 120;
+      optsWrap.appendChild(i); i.focus();
+    });
+    form && form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var q = (qEl.value || '').trim();
+      var options = [].map.call(optsWrap.querySelectorAll('.poll-opt'), function (x) { return x.value.trim(); }).filter(Boolean);
+      if (!q || options.length < 2) { say('Add a question and at least two options.', 'err'); return; }
+      say('Creating…');
+      post('create', { question: q, options: options }).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not create.', 'err'); return; }
+        qEl.value = ''; optsWrap.innerHTML = '<input class="poll-opt" placeholder="Option 1" maxlength="120"><input class="poll-opt" placeholder="Option 2" maxlength="120">';
+        say('Poll posted.', 'ok'); setTimeout(function () { say(''); }, 2000); load();
+      }).catch(function () { say('Network error.', 'err'); });
+    });
+    listEl.addEventListener('click', function (e) {
+      var o = e.target.closest('[data-idx]');
+      if (o) { post('vote', { id: +o.getAttribute('data-poll'), idx: +o.getAttribute('data-idx') }).then(function (d) { if (d.ok) load(); }); return; }
+      var cl = e.target.closest('[data-close]');
+      if (cl) { post('close', { id: +cl.getAttribute('data-close') }).then(function (d) { if (d.ok) load(); }); return; }
+      var dl = e.target.closest('[data-del]');
+      if (dl) { if (confirm('Delete this poll?')) post('delete', { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+
+    // Load when the Tools tab is opened (and on boot if already there).
+    function maybeLoad() { if (!document.getElementById('view-tools').hidden) load(); }
+    document.addEventListener('click', function (e) { if (e.target.closest('[data-view="tools"]')) setTimeout(maybeLoad, 80); });
+    window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(maybeLoad, 80); });
+    maybeLoad();
+  })();
 })();

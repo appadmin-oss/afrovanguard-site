@@ -391,6 +391,28 @@ $nav['You'] = [
               </div>
             </section>
           </div>
+
+<?php if ($isOrg): ?>
+          <!-- Enterprise: Team Polls — collaborative decisions with live tallies -->
+          <section class="pcard tool-polls" id="tlPolls" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>▤ Team polls</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlPollForm" class="poll-new" autocomplete="off">
+                <input id="tlPollQ" class="poll-q" placeholder="Ask the team a question…" maxlength="300">
+                <div class="poll-opts" id="tlPollOpts">
+                  <input class="poll-opt" placeholder="Option 1" maxlength="120">
+                  <input class="poll-opt" placeholder="Option 2" maxlength="120">
+                </div>
+                <div class="poll-new-foot">
+                  <button type="button" class="pbtn pbtn-ghost" id="tlPollAddOpt">+ Add option</button>
+                  <button type="submit" class="pbtn pbtn-gold">Create poll</button>
+                  <span class="poll-msg" id="tlPollMsg" role="status" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="poll-list" id="tlPollList"><p class="pc-empty">Loading polls…</p></div>
+            </div>
+          </section>
+<?php endif; ?>
         </section>
 
 <?php if ($isOrg): ?>
