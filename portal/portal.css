@@ -68,6 +68,8 @@ body.portal-app .read-progress { display:none; }
 .pnav-link.is-active { background:var(--gold-soft); color:var(--ink); font-weight:600; }
 .pnav-dot { width:7px; height:7px; border-radius:2px; background:var(--border-3); flex:none; }
 .pnav-link.is-active .pnav-dot, .pnav-dot--gold { background:var(--gold); }
+.pnav-dot--green { background:var(--green-dot); }
+.pnav-dot--indigo { background:var(--indigo); }
 .pnav-label { flex:1; min-width:0; }
 .pnav-badge { font-size:11px; font-weight:700; color:var(--muted-2); background:var(--surface-2); padding:1px 7px; border-radius:999px; }
 .pnav-link.is-active .pnav-badge { color:var(--gold-deeper); background:var(--gold-soft); }
@@ -513,3 +515,62 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   .pcols--diary { gap:14px; }
   .pd-editor { min-height:200px; }
 }
+
+/* ============================================================
+   TOOLS — Afrovanguard first-party productivity apps
+   ============================================================ */
+.tools-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; align-items:start; }
+.tool .pcard-head h2 { font-size:15px; }
+.tool-meta { font-size:12px; color:var(--muted); }
+.tool-meta b { color:var(--ink); }
+.tool-row { display:flex; align-items:center; gap:8px; }
+.tool-row--foot { justify-content:space-between; margin-top:10px; }
+.tool-hint { font-size:12px; color:var(--muted-2); }
+.tool-empty { list-style:none; color:var(--muted); font-size:13px; padding:10px 2px; }
+
+/* Notes */
+.tool-notes { width:100%; min-height:150px; resize:vertical; border:1px solid var(--border); border-radius:10px;
+  padding:11px 12px; background:var(--surface-2); color:var(--ink); font:inherit; font-size:14px; line-height:1.6; }
+.tool-notes:focus { outline:none; border-color:var(--gold); background:var(--surface); }
+
+/* Focus timer */
+.tool-focus { text-align:center; }
+.focus-mode { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-bottom:10px; }
+.fm-btn { font:inherit; font-size:12px; font-weight:700; padding:5px 10px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--border); background:var(--surface-2); color:var(--muted); }
+.fm-btn.is-on { background:var(--ink); color:#fff; border-color:var(--ink); }
+.portal-app.is-dark .fm-btn.is-on { background:var(--gold); color:var(--on-gold); border-color:var(--gold); }
+.focus-clock { font-size:52px; font-weight:800; letter-spacing:.01em; color:var(--ink); font-variant-numeric:tabular-nums;
+  margin:6px 0 12px; line-height:1; }
+.focus-clock.is-running { color:var(--gold-deep); }
+.focus-actions { display:flex; gap:8px; justify-content:center; }
+.focus-actions .pbtn { min-width:96px; justify-content:center; }
+
+/* Habits */
+.habit-list { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:7px; }
+.habit { display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); }
+.habit:last-child { border-bottom:0; }
+.hb-check { width:26px; height:26px; flex:none; border-radius:8px; border:1.5px solid var(--border-3); background:var(--surface);
+  color:var(--green); font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.habit.is-done .hb-check { background:var(--green-soft); border-color:var(--green-bd); }
+.hb-name { flex:1; min-width:0; font-size:13.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hb-7 { display:inline-flex; gap:3px; flex:none; }
+.hb-dot { width:8px; height:8px; border-radius:50%; background:var(--border-2); }
+.hb-dot.on { background:var(--green-dot); }
+.hb-streak { font-size:12px; font-weight:700; color:var(--muted); flex:none; min-width:30px; text-align:right; }
+.hb-del { flex:none; background:none; border:0; color:var(--muted-2); cursor:pointer; font-size:13px; padding:2px 4px; }
+.hb-del:hover { color:var(--red); }
+#tlHabitInput, .cd-set input { flex:1; min-width:0; border:1px solid var(--border); border-radius:9px; padding:8px 11px;
+  background:var(--surface-2); color:var(--ink); font:inherit; font-size:13.5px; }
+#tlHabitInput:focus, .cd-set input:focus { outline:none; border-color:var(--gold); }
+
+/* Countdown */
+.cd-set { display:flex; flex-wrap:wrap; gap:8px; }
+.cd-set input[type=date] { flex:1 1 120px; }
+.cd-view { text-align:center; padding:6px 0 2px; }
+.cd-big { display:flex; align-items:baseline; justify-content:center; gap:8px; }
+.cd-big b { font-size:52px; font-weight:800; color:var(--gold-deep); line-height:1; font-variant-numeric:tabular-nums; }
+.cd-big span { font-size:14px; color:var(--muted); font-weight:600; }
+.cd-label { margin:8px 0 12px; color:var(--ink); font-weight:600; }
+
+@media (max-width:560px){ .tools-grid { grid-template-columns:1fr; } .focus-clock, .cd-big b { font-size:44px; } }

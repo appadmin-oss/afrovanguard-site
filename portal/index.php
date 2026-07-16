@@ -113,6 +113,7 @@ $postsToday = (int) ($cPulseToday['posts_today'] ?? 0);
 $nav = [
     'Home' => [
         ['overview', 'Today', 'gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
+        ['tools', 'Tools', 'indigo', ''],
         ['community', 'Community', 'green', $postsToday > 0 ? (string) $postsToday : ''],
     ],
 ];
@@ -331,6 +332,64 @@ $nav['You'] = [
                 </div>
               </section>
             </div>
+          </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- TOOLS  (Afrovanguard first-party productivity apps)          -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-tools" data-view="tools" hidden data-uid="<?= (int) $u['id'] ?>">
+          <div class="view-head">
+            <div><h1>Tools</h1><p class="view-sub">A little suite of Afrovanguard productivity tools — private to you, right in the portal.</p></div>
+          </div>
+          <div class="tools-grid">
+            <section class="pcard tool" id="tlNotes">
+              <div class="pcard-head"><h2>✎ Notes</h2><span class="tool-meta" id="tlNotesMeta">Autosaves</span></div>
+              <div class="pcard-body">
+                <textarea id="tlNotesArea" class="tool-notes" placeholder="Jot anything… it autosaves as you type."></textarea>
+                <div class="tool-row tool-row--foot"><span class="tool-hint" id="tlNotesCount">0 words</span><button type="button" class="pbtn pbtn-ghost" id="tlNotesClear">Clear</button></div>
+              </div>
+            </section>
+
+            <section class="pcard tool" id="tlFocus">
+              <div class="pcard-head"><h2>◐ Focus timer</h2><span class="tool-meta"><b id="tlFocusSessions">0</b> done today</span></div>
+              <div class="pcard-body tool-focus">
+                <div class="focus-mode" id="tlFocusMode">
+                  <button type="button" class="fm-btn is-on" data-min="25" data-mode="Focus">Focus · 25</button>
+                  <button type="button" class="fm-btn" data-min="5" data-mode="Break">Break · 5</button>
+                  <button type="button" class="fm-btn" data-min="15" data-mode="Long break">Long · 15</button>
+                </div>
+                <div class="focus-clock" id="tlFocusClock">25:00</div>
+                <div class="focus-actions">
+                  <button type="button" class="pbtn pbtn-gold" id="tlFocusStart">Start</button>
+                  <button type="button" class="pbtn pbtn-ghost" id="tlFocusReset">Reset</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="pcard tool" id="tlHabits">
+              <div class="pcard-head"><h2>✓ Habits</h2><span class="tool-meta" id="tlHabitsMeta"></span></div>
+              <div class="pcard-body">
+                <form id="tlHabitAdd" class="tool-row" autocomplete="off"><input id="tlHabitInput" placeholder="Add a daily habit…" maxlength="60"><button class="pbtn pbtn-gold" type="submit">Add</button></form>
+                <ul class="habit-list" id="tlHabitList"></ul>
+              </div>
+            </section>
+
+            <section class="pcard tool" id="tlCountdown">
+              <div class="pcard-head"><h2>◔ Countdown</h2></div>
+              <div class="pcard-body tool-cd">
+                <div class="cd-set" id="tlCdSet">
+                  <input id="tlCdLabel" placeholder="Counting down to…" maxlength="60">
+                  <input type="date" id="tlCdDate">
+                  <button type="button" class="pbtn pbtn-gold" id="tlCdSave">Set</button>
+                </div>
+                <div class="cd-view" id="tlCdView" hidden>
+                  <div class="cd-big"><b id="tlCdNum">0</b><span id="tlCdUnit">days</span></div>
+                  <p class="cd-label" id="tlCdShow"></p>
+                  <button type="button" class="pbtn pbtn-ghost" id="tlCdClear">Clear</button>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -933,6 +992,7 @@ $nav['You'] = [
   (function(){ if('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); } })();
   </script>
   <script src="/portal/team-chat.js" defer></script>
+  <script src="/portal/tools.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>
