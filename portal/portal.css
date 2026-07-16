@@ -478,3 +478,11 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .pd-modal-body { color:var(--body); font-size:15.5px; line-height:1.75; }
 .pd-modal-body h1 { font-size:20px; color:var(--ink); margin:.6em 0 .3em; }
 .pd-modal-body blockquote { border-left:3px solid var(--gold); padding-left:14px; color:var(--body); margin:.5em 0; }
+
+/* Diary editor toolbar: let it wrap/scroll on narrow screens (no clipping) */
+@media (max-width:560px){
+  #view-diary trix-toolbar { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  #view-diary trix-toolbar .trix-button-row { flex-wrap:wrap; }
+  .pcols--diary { gap:14px; }
+  .pd-editor { min-height:200px; }
+}
