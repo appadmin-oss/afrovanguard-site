@@ -158,7 +158,7 @@ try {
             $u = LmsAuth::user();
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
             if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
-            json_out(['ok' => true, 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0))]);
+            json_out(['ok' => true, 'channels' => Community::CHAT_CHANNELS, 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0), 50, (string) ($_GET['channel'] ?? 'general'))]);
         }
         case 'chat_send': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -167,9 +167,23 @@ try {
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in to chat.'], 401);
             if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'The members chat is for Afrovanguard members.'], 403);
             if (!av_rate_ok('community_chat', 60, 300)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
-            $msg = Community::chatSend((int) $u['id'], (string) ($body['body'] ?? ''));
+            $msg = Community::chatSend((int) $u['id'], (string) ($body['body'] ?? ''), (string) ($body['channel'] ?? 'general'));
             if (!$msg) json_out(['ok' => false, 'error' => 'Write a message first.'], 422);
             json_out(['ok' => true, 'message' => $msg]);
+        }
+        case 'to_task': {
+            // Turn a chat message or post into a task (org members) — chat ⇄ work bridge.
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
+            if (!class_exists('Collab')) { require_once AV_ROOT . '/lib/Collab.php'; }
+            if (!av_rate_ok('community_totask_' . (int) $u['id'], 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $title = trim(mb_substr((string) ($body['body'] ?? ''), 0, 300));
+            $id = $title !== '' ? Collab::addTask((int) $u['id'], $title) : 0;
+            if (!$id) json_out(['ok' => false, 'error' => 'Nothing to turn into a task.'], 422);
+            json_out(['ok' => true, 'task_id' => $id]);
         }
 
         default:

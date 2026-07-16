@@ -504,6 +504,14 @@ $nav['You'] = [
               <p class="pcard-note chat-hint">Chats are live from Google Chat and sent as you. <a href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Open Chat ↗</a></p>
             </div>
           </section>
+<?php else: /* Google OAuth not configured on this deployment — be honest about why nothing fetches */ ?>
+          <section class="pcard ws-connect-card">
+            <div class="pcard-body">
+              <h2>Live Google Workspace isn’t enabled yet</h2>
+              <p class="pcard-note">Your Gmail, Calendar and Drive can appear here live — but this site first needs its Google Workspace connection switched on by an administrator (the Google OAuth credentials). Until then, use the app launchpad below to jump straight into each tool.</p>
+              <a class="pbtn pbtn-soft" href="/workspace">Open the Workspace hub →</a>
+            </div>
+          </section>
 <?php endif; ?>
 
           <section class="pcard">

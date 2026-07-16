@@ -208,3 +208,16 @@
   #view-community .cm-grid { grid-template-columns:minmax(0,1fr); grid-template-areas:"spaces" "feed" "rail"; }
   #view-community .cm-rail--r { position:static; }
 }
+
+/* ---- members-chat: channels + message→task ---- */
+#view-community .cm-chan { display:flex; flex-wrap:wrap; gap:5px; margin:0 0 10px; }
+#view-community .cm-chan-btn { font:inherit; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px;
+  border:1px solid var(--border); background:var(--surface-2); color:var(--muted); cursor:pointer; line-height:1.4; }
+#view-community .cm-chan-btn:hover { color:var(--ink); border-color:var(--gold); }
+#view-community .cm-chan-btn.is-on { background:var(--ink); color:#fff; border-color:var(--ink); }
+.portal-app.is-dark #view-community .cm-chan-btn.is-on { background:var(--gold); color:var(--on-gold); border-color:var(--gold); }
+#view-community .cm-to-task { margin-left:auto; font:inherit; font-size:10.5px; font-weight:700; color:var(--muted-2);
+  background:transparent; border:1px solid transparent; border-radius:7px; padding:1px 7px; cursor:pointer; opacity:0; transition:opacity .12s; }
+#view-community .cm-chat-row:hover .cm-to-task { opacity:1; }
+#view-community .cm-to-task:hover { color:var(--gold-deep); border-color:var(--border); background:var(--surface); }
+#view-community .cm-to-task.is-done { color:var(--green); opacity:1; }

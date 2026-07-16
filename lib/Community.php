@@ -65,9 +65,16 @@ final class Community
         CREATE INDEX IF NOT EXISTS idx_cchat_feed ON community_chat(id);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        // Chat channels are a later addition — add the column idempotently.
+        try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
         // Set $done BEFORE seeding so the nested ensure() inside botPost short-circuits.
         if ($pdo === null) { self::seedSpaces($db); $done = true; self::seedWelcome($db); }
     }
+
+    /** The members-chat channels (fixed set, keeps the space tidy). */
+    const CHAT_CHANNELS = ['general' => 'General', 'announcements' => 'Announcements', 'mentorship' => 'Mentorship', 'random' => 'Random'];
+    private static function normChannel(string $c): string { $c = strtolower(trim($c)); return isset(self::CHAT_CHANNELS[$c]) ? $c : 'general'; }
 
     private static function seedWelcome(PDO $db): void
     {
@@ -411,17 +418,18 @@ final class Community
      * raw body, and notifies each mentioned member best-effort. Returns the
      * shaped message (with resolved mentions) or null on failure — never throws.
      */
-    public static function chatSend(int $authorId, string $body): ?array
+    public static function chatSend(int $authorId, string $body, string $channel = 'general'): ?array
     {
         self::ensure();
         $body = trim($body);
         if ($body === '' || $authorId <= 0) return null;
         if (!self::isOrgMember($authorId)) return null; // server-side gate (defence-in-depth)
         $body = mb_substr($body, 0, 2000);
+        $channel = self::normChannel($channel);
         try {
             $db = Database::pdo();
-            $db->prepare('INSERT INTO community_chat (author_id, body, created_at) VALUES (?,?,?)')
-               ->execute([$authorId, $body, gmdate('Y-m-d H:i:s')]);
+            $db->prepare('INSERT INTO community_chat (author_id, body, channel, created_at) VALUES (?,?,?,?)')
+               ->execute([$authorId, $body, $channel, gmdate('Y-m-d H:i:s')]);
             $id = (int) $db->lastInsertId();
         } catch (Throwable $e) {
             error_log('[community] chatSend: ' . $e->getMessage());
@@ -443,21 +451,22 @@ final class Community
      * Poll the chat channel. ORG-only (caller gates). $sinceId returns only
      * messages with id > sinceId (ascending) for cheap incremental polling;
      * $sinceId = 0 returns the most recent page (ascending). Fail-safe: []. */
-    public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50): array
+    public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50, string $channel = 'general'): array
     {
         self::ensure();
         if (!self::isOrgMember($viewerId)) return [];
         $limit = max(1, min(100, $limit));
+        $channel = self::normChannel($channel);
         try {
             $db = Database::pdo();
             if ($sinceId > 0) {
-                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
-                $st->execute([$sinceId]);
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+                $st->execute([$channel, $sinceId]);
                 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
             } else {
                 // Most recent $limit, returned ascending (oldest→newest) so the UI appends.
-                $st = $db->prepare(self::CHAT_SELECT . ' ORDER BY c.id DESC LIMIT ' . $limit);
-                $st->execute();
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? ORDER BY c.id DESC LIMIT ' . $limit);
+                $st->execute([$channel]);
                 $rows = array_reverse($st->fetchAll(PDO::FETCH_ASSOC) ?: []);
             }
         } catch (Throwable $e) {

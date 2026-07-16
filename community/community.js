@@ -359,6 +359,7 @@
     var cMsg = chatEl.querySelector('.cm-chat-msg');
     var lastId = 0;
     var polling = false;
+    var channel = chatEl.getAttribute('data-channel') || 'general';
 
     /* Highlight resolved @mentions inside an (escaped) body. The server
        returns the resolved member list, so we only chip real org members —
@@ -384,7 +385,8 @@
         + '<div class="cm-chat-bd">'
         + '<div class="cm-chat-l1"><span class="cm-chat-who">' + esc(m.author) + '</span>'
         + (m.verified ? CHECK : '')
-        + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(m.ago) + '</span></div>'
+        + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(m.ago) + '</span>'
+        + '<button type="button" class="cm-to-task" title="Turn into a task" data-task="' + esc(m.body) + '">+ Task</button></div>'
         + '<div class="cm-chat-text">' + withMentions(m.body, m.mentions) + '</div></div>';
       return row;
     }
@@ -409,11 +411,35 @@
     function poll() {
       if (polling || document.hidden || !communityVisible()) return;
       polling = true;
-      api('chat_list', { query: '&since=' + lastId }).then(function (d) {
+      api('chat_list', { query: '&channel=' + encodeURIComponent(channel) + '&since=' + lastId }).then(function (d) {
         polling = false;
         if (d && d.ok) paint(d.messages, { force: lastId === 0 });
       }).catch(function () { polling = false; });
     }
+
+    /* ── channel switching (# General / Announcements / …) ── */
+    var chanBar = document.getElementById('cmChan');
+    if (chanBar) chanBar.addEventListener('click', function (e) {
+      var btn = e.target.closest('.cm-chan-btn'); if (!btn) return;
+      var ch = btn.getAttribute('data-chan') || 'general';
+      if (ch === channel) return;
+      channel = ch; chatEl.setAttribute('data-channel', ch); lastId = 0;
+      [].forEach.call(chanBar.querySelectorAll('.cm-chan-btn'), function (b) { b.classList.toggle('is-on', b === btn); });
+      log.innerHTML = '<div class="cm-chat-empty">Loading #' + esc(ch) + '…</div>';
+      poll();
+    });
+
+    /* ── message → task (chat ⇄ work bridge) ── */
+    log.addEventListener('click', function (e) {
+      var b = e.target.closest('.cm-to-task'); if (!b) return;
+      var body = b.getAttribute('data-task') || ''; if (!body) return;
+      b.disabled = true;
+      api('to_task', { body: { body: body } }).then(function (d) {
+        b.disabled = false;
+        if (d && d.ok) { b.textContent = '✓ Task'; b.classList.add('is-done'); setMsg(cMsg, 'Added to your tasks.', 'ok'); setTimeout(function(){ setMsg(cMsg,'',''); }, 2500); }
+        else { setMsg(cMsg, (d && d.error) || 'Could not create task.', 'err'); }
+      }).catch(function () { b.disabled = false; setMsg(cMsg, 'Network error — try again.', 'err'); });
+    });
 
     /* ── send ── */
     cForm.addEventListener('submit', function (e) {
@@ -422,7 +448,7 @@
       var text = (cInput.value || '').trim();
       if (!text) return;
       cSend.disabled = true; setMsg(cMsg, '', '');
-      api('chat_send', { body: { body: text } }).then(function (d) {
+      api('chat_send', { body: { body: text, channel: channel } }).then(function (d) {
         cSend.disabled = false;
         if (d.__status === 401) { loginRedirect(); return; }
         if (!d.ok) { setMsg(cMsg, d.error || 'Could not send.', 'err'); return; }

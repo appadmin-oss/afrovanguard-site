@@ -166,8 +166,11 @@ if (!function_exists('av_render_community')) {
           </div>
         </div>
         <!-- ORG-ONLY · live members chat (@mention to tag) -->
-        <div class="cm-card cm-chat" id="cmChat">
+        <div class="cm-card cm-chat" id="cmChat" data-channel="general">
           <p class="cm-rail-h">Members chat <span class="cm-chat-hint">@ to mention</span></p>
+          <div class="cm-chan" id="cmChan" role="tablist" aria-label="Chat channels">
+<?php foreach (Community::CHAT_CHANNELS as $ck => $cl): ?>            <button type="button" class="cm-chan-btn<?= $ck === 'general' ? ' is-on' : '' ?>" data-chan="<?= e($ck) ?>"># <?= e($cl) ?></button>
+<?php endforeach; ?>          </div>
           <div class="cm-chat-log" id="cmChatLog" aria-live="polite" aria-label="Members chat messages">
             <div class="cm-chat-empty">Say hello — this channel is just for Afrovanguard members.</div>
           </div>
