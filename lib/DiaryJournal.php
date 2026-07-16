@@ -124,6 +124,102 @@ final class DiaryJournal
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
+    /* ── Share with specific people (Google-Workspace style) ───────────────
+       Beyond the secret link, an author can grant named members read access to
+       one of their entries. Recipients see it in "Shared with me" and can open
+       it read-only. Access is revocable per person. ── */
+
+    private function ensureShares(): void
+    {
+        try {
+            $drv = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
+            $ddl = "CREATE TABLE IF NOT EXISTS diary_shares (
+                entry_id INTEGER NOT NULL,
+                user_id  INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (entry_id, user_id)
+            )";
+            $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        } catch (Throwable $e) { /* best-effort */ }
+    }
+
+    /** Author grants a member (by email) read access to their entry. */
+    public function shareWith(int $authorId, int $entryId, string $email): array
+    {
+        $this->ensureShares();
+        $own = $this->db->prepare('SELECT title FROM diary_entries WHERE id = ? AND author_id = ?');
+        $own->execute([$entryId, $authorId]);
+        if ($own->fetch() === false) return ['ok' => false, 'error' => 'Entry not found.'];
+        $email = strtolower(trim($email));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Enter a valid email.'];
+        $u = $this->db->prepare('SELECT id, name FROM lms_users WHERE LOWER(email) = ?');
+        $u->execute([$email]);
+        $target = $u->fetch(PDO::FETCH_ASSOC);
+        if (!$target) return ['ok' => false, 'error' => 'No member has that email.'];
+        if ((int) $target['id'] === $authorId) return ['ok' => false, 'error' => 'That entry is already yours.'];
+        $this->db->prepare('INSERT OR IGNORE INTO diary_shares (entry_id,user_id,created_at) VALUES (?,?,?)')
+                 ->execute([$entryId, (int) $target['id'], gmdate('Y-m-d H:i:s')]);
+        return ['ok' => true, 'user' => ['id' => (int) $target['id'], 'name' => (string) $target['name'], 'email' => $email]];
+    }
+
+    /** Author revokes a member's access. */
+    public function unshareWith(int $authorId, int $entryId, int $userId): bool
+    {
+        $this->ensureShares();
+        $own = $this->db->prepare('SELECT 1 FROM diary_entries WHERE id = ? AND author_id = ?');
+        $own->execute([$entryId, $authorId]);
+        if (!$own->fetchColumn()) return false;
+        $this->db->prepare('DELETE FROM diary_shares WHERE entry_id = ? AND user_id = ?')->execute([$entryId, $userId]);
+        return true;
+    }
+
+    /** Who an entry is shared with (author view). */
+    public function shareRecipients(int $authorId, int $entryId): array
+    {
+        $this->ensureShares();
+        $st = $this->db->prepare(
+            'SELECT u.id, u.name, u.email FROM diary_shares s
+             JOIN diary_entries e ON e.id = s.entry_id AND e.author_id = ?
+             JOIN lms_users u ON u.id = s.user_id
+             WHERE s.entry_id = ? ORDER BY u.name'
+        );
+        $st->execute([$authorId, $entryId]);
+        return array_map(fn($r) => ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'email' => (string) $r['email']], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /** Entries shared WITH this member (read-only), newest first. */
+    public function sharedWithMe(int $userId): array
+    {
+        $this->ensureShares();
+        try {
+            $st = $this->db->prepare(
+                'SELECT e.id, e.kind, e.title, e.body, e.entry_date, u.name AS author_name
+                 FROM diary_shares s JOIN diary_entries e ON e.id = s.entry_id
+                 JOIN lms_users u ON u.id = e.author_id
+                 WHERE s.user_id = ? ORDER BY e.entry_date DESC, e.id DESC LIMIT 50'
+            );
+            $st->execute([$userId]);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** A single entry the viewer may read (author or granted). Null otherwise. */
+    public function readable(int $viewerId, int $entryId): ?array
+    {
+        $this->ensureShares();
+        $st = $this->db->prepare(
+            'SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.author_id, u.name AS author_name
+             FROM diary_entries e JOIN lms_users u ON u.id = e.author_id WHERE e.id = ?'
+        );
+        $st->execute([$entryId]);
+        $e = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$e) return null;
+        if ((int) $e['author_id'] === $viewerId) return $e;
+        $g = $this->db->prepare('SELECT 1 FROM diary_shares WHERE entry_id = ? AND user_id = ?');
+        $g->execute([$entryId, $viewerId]);
+        return $g->fetchColumn() ? $e : null;
+    }
+
     /* ── Moderation (admin) ───────────────────────────────────────────────
        Only public submissions are ever exposed here. Private + event entries
        are never returned to the queue — they stay invisible to everyone. ── */

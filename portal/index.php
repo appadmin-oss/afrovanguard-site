@@ -664,6 +664,21 @@ $nav['You'] = [
                   </ul>
                 </div>
               </section>
+              <section class="pcard" id="pdSharedCard" hidden>
+                <div class="pcard-head"><h2>Shared with me</h2><span class="pchip pchip--indigo" id="pdSharedCount">0</span></div>
+                <div class="pcard-body"><ul class="pd-list" id="pdShared"></ul></div>
+              </section>
+            </div>
+          </div>
+
+          <!-- read modal for shared-with-me entries -->
+          <div class="pd-modal" id="pdModal" hidden>
+            <div class="pd-modal-back" data-pdclose></div>
+            <div class="pd-modal-card" role="dialog" aria-modal="true" aria-labelledby="pdModalTitle">
+              <button type="button" class="pd-modal-x" data-pdclose aria-label="Close">✕</button>
+              <h2 id="pdModalTitle"></h2>
+              <p class="pd-modal-meta" id="pdModalMeta"></p>
+              <div class="pd-modal-body" id="pdModalBody"></div>
             </div>
           </div>
         </section>
