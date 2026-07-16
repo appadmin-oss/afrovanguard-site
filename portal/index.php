@@ -445,11 +445,7 @@ $nav['You'] = [
                     <span class="ms-title"><?= e($s['title']) ?> <span class="ms-with">· <?= e($s['role']) ?> <?= e($s['with']) ?></span></span>
                   </div>
                   <div class="msi-meet">
-<?php if ($s['meet_url'] !== ''): ?>
                     <button type="button" class="pbtn pbtn-gold msi-start"<?= $mst === 'done' ? ' hidden' : '' ?>><?= $s['live'] ? 'Join meeting' : 'Start meeting' ?></button>
-<?php else: ?>
-                    <span class="msi-nolink">No link yet — <a href="/mentorship/">set one</a></span>
-<?php endif; ?>
                     <span class="msi-log"><?php
                       if ($s['ended_at'] !== '') {
                           $src = (string) ($s['source'] ?? '');
@@ -911,11 +907,16 @@ $nav['You'] = [
       var li = e.target.closest('.msi'); if (!li) return;
       var id = +li.getAttribute('data-session');
       var meet = li.getAttribute('data-meet') || '';
-      // Open the meeting immediately (user gesture → not blocked), then log start.
-      if (meet) window.open(meet, '_blank', 'noopener');
+      // Open a tab synchronously (user gesture → not blocked); we'll point it at
+      // the room. If there's no link yet, meet_start generates one and returns it.
+      var w = window.open(meet || '', '_blank');
       post('meet_start', { session_id: id }).then(function (d) {
-        if (d && d.ok) { li.setAttribute('data-started', d.started_at || ''); setState(li, 'live', liveHtml); startPing(li, id); }
-      });
+        if (d && d.ok) {
+          if (d.url) { li.setAttribute('data-meet', d.url); if (w) { try { w.location = d.url; } catch (e) {} } else window.open(d.url, '_blank'); }
+          else if (w && !meet) { try { w.close(); } catch (e) {} }
+          li.setAttribute('data-started', d.started_at || ''); setState(li, 'live', liveHtml); startPing(li, id);
+        } else { if (w) { try { w.close(); } catch (e) {} } }
+      }).catch(function () { if (w) { try { w.close(); } catch (e) {} } });
     });
     // Keep already-live rows pinging and reflect the meeting being auto-closed.
     [].forEach.call(root.querySelectorAll('.msi[data-state="live"]'), function (li) {

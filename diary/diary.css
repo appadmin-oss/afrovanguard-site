@@ -600,7 +600,11 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, input:focus-visible, 
 }
 .av-reader.show { transform: none; opacity: 1; visibility: visible; }
 /* Lift floating launchers (Chioma / dock) above the reading bar while it's open. */
-body.reading-open .chioma-fab, body.reading-open .dock { transform: translateY(-66px); transition: transform .3s ease; }
+/* While the reader bar is open, lift the whole Chioma widget (fab + greeting +
+   panel anchor) clear above it — moving the fixed root, not just the button, so
+   a :hover transform can't drop it back onto the player. */
+body.reading-open .chioma-root { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 76px) !important; transition: bottom .3s ease; }
+body.reading-open .dock { transform: translateY(-66px); transition: transform .3s ease; }
 .avr-inner { position: relative; display: flex; align-items: center; gap: 14px; max-width: 1120px; margin: 0 auto; padding: 12px 24px; }
 .avr-close { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--divider); background: var(--surface); color: var(--ink); border-radius: 8px; font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all var(--t-fast); }
 .avr-close:hover { border-color: var(--gold); color: var(--gold-deep); }

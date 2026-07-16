@@ -173,9 +173,15 @@ final class Mentorship
         $r = self::participantSession($uid, $sessionId);
         if (!$r) return ['ok' => false, 'error' => 'Not your session.'];
         $url = (string) ($r['meet_url'] ?? '');
-        if ($url === '') return ['ok' => false, 'error' => 'No meeting link set for this session yet.'];
-        $now = gmdate('Y-m-d H:i:s');
         $db = Database::pdo();
+        // No link yet? Generate a stable, unguessable room both parties share, so
+        // a meeting always works even when Google Meet/Calendar isn't configured.
+        if ($url === '') {
+            $url = self::autoRoomUrl($sessionId);
+            $db->prepare('UPDATE mentor_sessions SET meet_url = ? WHERE id = ?')->execute([$url, $sessionId]);
+            $r['meet_url'] = $url;
+        }
+        $now = gmdate('Y-m-d H:i:s');
         if ((string) ($r['ended_at'] ?? '') !== '') {
             return ['ok' => true, 'url' => $url, 'started_at' => (string) $r['started_at'], 'ended_at' => (string) $r['ended_at'], 'note' => 'This meeting has already been logged.'];
         }
@@ -674,6 +680,17 @@ final class Mentorship
         }
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $sid];
+    }
+
+    /** A stable, unguessable video-room URL for a session — same for both
+     *  parties, no Google/API needed. Host is overridable via AV_MEET_ROOM_BASE
+     *  (default Jitsi, which needs no account/config). */
+    public static function autoRoomUrl(int $sessionId): string
+    {
+        $secret = function_exists('av_secret') ? (string) av_secret() : (defined('APP_KEY') ? (string) APP_KEY : 'av');
+        $room = 'AfrovanguardMentorship-' . substr(hash('sha256', 'mtg|' . $sessionId . '|' . $secret), 0, 20);
+        $base = rtrim((string) (getenv('AV_MEET_ROOM_BASE') ?: 'https://meet.jit.si'), '/');
+        return $base . '/' . $room . '#config.prejoinPageEnabled=false';
     }
 
     /** Keep a session length sane: 5 min .. 10 hours. */
