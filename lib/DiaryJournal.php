@@ -33,8 +33,12 @@ final class DiaryJournal
         $kind  = in_array($kind, self::KINDS, true) ? $kind : 'private';
         $title = trim(mb_substr(trim($title), 0, 160));
         $body  = trim($body);
-        if ($body === '')               return ['ok' => false, 'error' => 'Write something before saving.'];
-        if (mb_strlen($body) > 20000)    return ['ok' => false, 'error' => 'That entry is a little long — trim it under 20,000 characters.'];
+        // Rich-editor entries arrive as HTML → sanitise to the allowlist before
+        // storing; plain-text entries are stored as-is (back-compat).
+        if (self::isHtml($body)) $body = self::sanitizeHtml($body);
+        $plain = trim(strip_tags(str_replace('<', ' <', $body)));
+        if ($plain === '')              return ['ok' => false, 'error' => 'Write something before saving.'];
+        if (mb_strlen($body) > 40000)    return ['ok' => false, 'error' => 'That entry is a little long — trim it down.'];
         $entryDate = self::normalizeDate($entryDate);
 
         // Event + Public are public BY DEFAULT — they enter the moderation queue
@@ -212,9 +216,67 @@ final class DiaryJournal
         return date('Y-m-d', $ts);
     }
 
-    /** Plain text → safe HTML: escape, blank-line paragraphs, single newlines → <br>. */
+    /* ── Rich text ────────────────────────────────────────────────────────
+       Entries may now be written in a rich editor (Trix), so a body can be
+       either legacy plain text OR a constrained set of HTML. We sanitise HTML
+       to a strict allowlist on the way in and out, and keep the plain-text path
+       for older/plain entries. ── */
+
+    /** Does this body already contain (rich-editor) HTML markup? */
+    public static function isHtml(string $s): bool
+    {
+        return (bool) preg_match('~<(p|div|br|h1|h2|blockquote|strong|em|b|i|u|del|a|ul|ol|li|pre)\b[^>]*>~i', $s);
+    }
+
+    private const ALLOWED_TAGS = ['p','br','div','h1','h2','blockquote','strong','em','b','i','u','del','a','ul','ol','li','pre'];
+
+    /** Strip a rich-editor HTML string down to a safe allowlist of tags/attrs. */
+    public static function sanitizeHtml(string $html): string
+    {
+        $html = trim($html);
+        if ($html === '') return '';
+        if (!class_exists('DOMDocument')) return e(strip_tags($html)); // conservative fallback
+        $doc = new DOMDocument();
+        libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="UTF-8"><div id="__r">' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        $root = $doc->getElementById('__r');
+        if (!$root) return '';
+        self::cleanNode($root);
+        $out = '';
+        foreach (iterator_to_array($root->childNodes) as $c) { $out .= $doc->saveHTML($c); }
+        return trim($out);
+    }
+
+    private static function cleanNode(DOMNode $node): void
+    {
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child->nodeType !== XML_ELEMENT_NODE) continue;
+            $tag = strtolower($child->nodeName);
+            if (!in_array($tag, self::ALLOWED_TAGS, true)) {
+                if (in_array($tag, ['script', 'style', 'iframe', 'object', 'embed'], true)) { $node->removeChild($child); continue; }
+                self::cleanNode($child);                                   // sanitise subtree first
+                while ($child->firstChild) { $node->insertBefore($child->firstChild, $child); } // then unwrap
+                $node->removeChild($child);
+                continue;
+            }
+            if ($child->hasAttributes()) {
+                foreach (iterator_to_array($child->attributes) as $attr) {
+                    $keep = ($tag === 'a' && strtolower($attr->name) === 'href'
+                             && preg_match('~^\s*(https?:|mailto:|/)~i', (string) $attr->value));
+                    if (!$keep) $child->removeAttribute($attr->name);
+                }
+                if ($tag === 'a' && $child->getAttribute('href') !== '') { $child->setAttribute('rel', 'noopener noreferrer'); $child->setAttribute('target', '_blank'); }
+            }
+            self::cleanNode($child);
+        }
+    }
+
+    /** Body → safe HTML. Rich HTML is sanitised; plain text keeps the old
+     *  escape + blank-line paragraph behaviour. */
     public static function bodyToHtml(string $text): string
     {
+        if (self::isHtml($text)) { $h = self::sanitizeHtml($text); return $h !== '' ? $h : '<p></p>'; }
         $text = str_replace(["\r\n", "\r"], "\n", trim($text));
         $out = [];
         foreach (preg_split('/\n{2,}/', $text) ?: [] as $block) {
@@ -224,9 +286,10 @@ final class DiaryJournal
         return $out ? implode("\n", $out) : '<p></p>';
     }
 
+    /** Plain-text excerpt — strips any HTML first so previews/deks stay clean. */
     public static function excerpt(string $text, int $len = 180): string
     {
-        $t = trim((string) preg_replace('/\s+/', ' ', $text));
+        $t = trim((string) preg_replace('/\s+/', ' ', strip_tags(str_replace('<', ' <', $text))));
         return mb_strlen($t) <= $len ? $t : rtrim(mb_substr($t, 0, $len - 1)) . '…';
     }
 

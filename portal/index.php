@@ -50,6 +50,28 @@ $mentorHoursLabel = (fmod($mentorHours, 1.0) === 0.0 ? (string) (int) $mentorHou
 if (!function_exists('self_fmt_dur')) {
     function self_fmt_dur(int $m): string { $m = max(0, $m); $h = intdiv($m, 60); $r = $m % 60; return $h ? ($h . 'h' . ($r ? ' ' . $r . 'm' : '')) : ($r . 'm'); }
 }
+if (!function_exists('self_diary_item')) {
+    // One entry row for the portal Diary streams (mirrors portal/diary.js).
+    function self_diary_item(array $e): string {
+        $icon = ['event' => '📅', 'private' => '🔒', 'public' => '🌐'][$e['kind']] ?? '📝';
+        $klabel = ['event' => 'Event', 'private' => 'Private', 'public' => 'Public'][$e['kind']] ?? 'Entry';
+        if ($e['kind'] === 'public' || $e['kind'] === 'event') {
+            $map = ['pending' => ['Pending review', 'is-pending'], 'approved' => ['Published', 'is-live'], 'rejected' => ['Not approved', 'is-rejected']];
+            [$stTxt, $stCls] = $map[$e['status']] ?? ['Logged', 'is-logged'];
+        } else { [$stTxt, $stCls] = ['Logged', 'is-logged']; }
+        $slug = ($e['status'] === 'approved') ? (string) ($e['published_slug'] ?? '') : '';
+        $date = date('M j, Y', strtotime((string) $e['entry_date']) ?: time());
+        $h  = '<li class="pd-item" data-id="' . (int) $e['id'] . '">';
+        $h .= '<div class="pd-item-top"><span class="pd-kind">' . $icon . ' ' . e($klabel) . '</span><span class="pd-st ' . $stCls . '">' . e($stTxt) . '</span></div>';
+        if (($e['title'] ?? '') !== '') $h .= '<p class="pd-item-title">' . e($e['title']) . '</p>';
+        $h .= '<p class="pd-item-ex">' . e(DiaryJournal::excerpt((string) $e['body'], 140)) . '</p>';
+        $h .= '<div class="pd-item-foot"><time>' . e($date) . '</time>';
+        if ($slug !== '') $h .= ' · <a href="/diary/' . e($slug) . '/" target="_blank" rel="noopener">View →</a>';
+        $h .= '<button type="button" class="pd-share" data-id="' . (int) $e['id'] . '">Share</button>';
+        $h .= '<button type="button" class="pd-del" data-id="' . (int) $e['id'] . '">Delete</button></div></li>';
+        return $h;
+    }
+}
 if (!function_exists('self_meet_source')) {
     // How the logged hours were confirmed → a trust label for transparency.
     function self_meet_source(string $src): string {
@@ -81,7 +103,7 @@ render_head([
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
-    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css'],
+    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 
@@ -584,13 +606,66 @@ $nav['You'] = [
         <!-- DIARY                                                        -->
         <!-- ============================================================ -->
         <section class="pview" id="view-diary" data-view="diary" hidden>
-          <div class="view-head"><h1>My Diary</h1><a class="pcard-link" href="/diary/me/">Open your Diary →</a></div>
-          <section class="pcard">
-            <div class="pcard-body diary-card">
-              <div class="diary-stat"><span class="diary-n"><?= count($myEntries) ?></span><div><h2>My Diary</h2><p class="pcard-sub"><?= count($myEntries) === 1 ? 'entry' : 'entries' ?></p></div></div>
-              <a class="pbtn pbtn-blue" href="/diary/me/">Write entry</a>
+          <div class="view-head">
+            <div><h1>My Diary</h1><p class="view-sub">Write with a rich editor. Private stays yours; public is reviewed before it joins the Diary.</p></div>
+            <a class="pcard-link" href="/diary/" target="_blank" rel="noopener">Open the public Diary →</a>
+          </div>
+          <div class="pcols pcols--diary">
+            <div class="pcol pcol--main">
+              <section class="pcard" id="pdiary">
+                <div class="pcard-body">
+                  <form id="pdCompose" class="pd-form" autocomplete="off">
+                    <div class="pd-meta">
+                      <label class="pd-field"><span>Category</span>
+                        <select id="pdKind">
+                          <option value="private" selected>🔒 Private — only you</option>
+                          <option value="public">🌐 Public — submit to the Diary</option>
+                          <option value="event">📅 Event — a public happening</option>
+                        </select>
+                      </label>
+                      <label class="pd-field"><span>Template</span>
+                        <select id="pdTemplate">
+                          <option value="">Blank page</option>
+                          <option value="daily">Daily reflection</option>
+                          <option value="field">Field note</option>
+                          <option value="project">Project log</option>
+                          <option value="meeting">Meeting notes</option>
+                          <option value="gratitude">Gratitude</option>
+                          <option value="weekly">Weekly review</option>
+                          <option value="idea">Idea / proposal</option>
+                        </select>
+                      </label>
+                      <label class="pd-field"><span>Date</span>
+                        <input type="date" id="pdDate" value="<?= e(date('Y-m-d')) ?>" max="<?= e(date('Y-m-d')) ?>">
+                      </label>
+                    </div>
+                    <label class="pd-field pd-field--title"><span>Title <em>(optional)</em></span>
+                      <input type="text" id="pdTitle" maxlength="160" placeholder="A short headline">
+                    </label>
+                    <input type="hidden" id="pdBody" name="body">
+                    <trix-editor input="pdBody" class="pd-editor" placeholder="Write your entry…"></trix-editor>
+                    <div class="pd-foot">
+                      <button type="submit" class="pbtn pbtn-gold" id="pdSave">Save entry</button>
+                      <span class="pd-hint" id="pdHint">🔒 Private entries are visible only to you.</span>
+                      <span class="pd-msg" id="pdMsg" role="status" aria-live="polite"></span>
+                    </div>
+                  </form>
+                </div>
+              </section>
             </div>
-          </section>
+            <div class="pcol pcol--side">
+              <section class="pcard">
+                <div class="pcard-head"><h2>Your entries</h2><span class="pchip pchip--gray" id="pdCount"><?= count($myEntries) ?></span></div>
+                <div class="pcard-body">
+                  <ul class="pd-list" id="pdList">
+<?php if ($myEntries): foreach ($myEntries as $e) { echo self_diary_item($e); } else: ?>
+                    <li class="pc-empty" id="pdEmpty">No entries yet — write your first above.</li>
+<?php endif; ?>
+                  </ul>
+                </div>
+              </section>
+            </div>
+          </div>
         </section>
 
         <footer class="pfoot">
@@ -843,6 +918,8 @@ $nav['You'] = [
   </script>
   <script src="/portal/team-chat.js" defer></script>
   <script src="/community/community.js" defer></script>
+  <script src="/assets/vendor/trix/trix.min.js" defer></script>
+  <script src="/portal/diary.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

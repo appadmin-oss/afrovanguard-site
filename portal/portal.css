@@ -398,3 +398,56 @@ body.portal-app .read-progress { display:none; }
 .task-due { font-size:11.5px; font-weight:700; color:var(--muted); background:var(--surface-2);
   border:1px solid var(--border); border-radius:999px; padding:2px 9px; white-space:nowrap; }
 .task-due.is-over { color:var(--red); background:var(--red-soft); border-color:var(--red-bd); }
+
+/* ============================================================
+   DIARY — in-portal composer (Trix rich editor) + streams
+   ============================================================ */
+.pcols--diary { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:20px; align-items:start; }
+@media (max-width:1024px){ .pcols--diary { grid-template-columns:1fr; } }
+.pd-form { display:flex; flex-direction:column; gap:14px; }
+.pd-meta { display:grid; grid-template-columns:1.2fr 1fr 0.9fr; gap:12px; }
+@media (max-width:640px){ .pd-meta { grid-template-columns:1fr; } }
+.pd-field { display:flex; flex-direction:column; gap:5px; font-size:11px; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--muted-2); }
+.pd-field em { font-weight:500; text-transform:none; letter-spacing:0; }
+.pd-field select, .pd-field input { border:1px solid var(--border); border-radius:9px; padding:9px 11px;
+  background:var(--surface-2); color:var(--ink); font-size:13.5px; font-weight:500; letter-spacing:0; text-transform:none; }
+.pd-field select:focus, .pd-field input:focus { outline:none; border-color:var(--gold); }
+
+/* Trix editor */
+.pd-editor { min-height:260px; border:1px solid var(--border); border-radius:12px; background:var(--surface);
+  color:var(--ink); padding:14px 16px; font-size:15px; line-height:1.7; }
+.pd-editor:empty::before { color:var(--muted-2); }
+.pd-editor:focus { outline:none; border-color:var(--gold); }
+trix-toolbar { margin-bottom:8px; }
+trix-toolbar .trix-button-group { border:1px solid var(--border); border-radius:8px; background:var(--surface-2); }
+trix-toolbar .trix-button { border-bottom:0; }
+trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
+.pd-editor h1 { font-size:22px; font-weight:800; color:var(--ink); margin:.4em 0 .3em; }
+.pd-editor blockquote { border-left:3px solid var(--gold); margin:.4em 0; padding-left:14px; color:var(--body); }
+.pd-editor a { color:var(--gold-deep); }
+/* dark: Trix icons are black data-URIs → invert the toolbar so they read on dark */
+.portal-app.is-dark trix-toolbar .trix-button--icon::before { filter:invert(1) brightness(1.4); }
+.portal-app.is-dark trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
+
+.pd-foot { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.pd-hint { font-size:12px; color:var(--muted); }
+.pd-msg { font-size:12.5px; margin-left:auto; }
+.pd-msg.is-ok { color:var(--green); } .pd-msg.is-err { color:var(--red); }
+
+/* streams list */
+.pd-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; max-height:70vh; overflow-y:auto; }
+.pd-item { border:1px solid var(--border); border-radius:12px; padding:12px 13px; background:var(--surface); }
+.pd-item-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.pd-kind { font-size:11.5px; font-weight:700; color:var(--muted); }
+.pd-st { font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:2px 7px; border-radius:999px; }
+.pd-st.is-logged { color:var(--muted); background:var(--surface-2); }
+.pd-st.is-pending { color:var(--gold-deeper); background:var(--gold-soft); }
+.pd-st.is-live { color:var(--green); background:var(--green-soft); }
+.pd-st.is-rejected { color:var(--red); background:var(--red-soft); }
+.pd-item-title { font-weight:700; color:var(--ink); font-size:13.5px; margin:0 0 3px; }
+.pd-item-ex { color:var(--muted); font-size:12.5px; line-height:1.5; margin:0 0 8px; }
+.pd-item-foot { display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--muted-2); }
+.pd-share, .pd-del { font:inherit; font-size:11.5px; font-weight:700; background:none; border:0; cursor:pointer; padding:3px 6px; border-radius:7px; }
+.pd-share { margin-left:auto; color:var(--gold-deep); } .pd-share:hover { background:var(--gold-soft); }
+.pd-del { color:var(--red); } .pd-del:hover { background:var(--red-soft); }
