@@ -74,7 +74,7 @@ render_head([
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
-    'css'        => ['/portal/portal.css', '/community/community.css'],
+    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 

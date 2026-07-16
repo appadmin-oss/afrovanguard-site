@@ -23,12 +23,21 @@ $action = (string) ($_GET['action'] ?? 'feed');
 $body = [];
 if ($method === 'POST') { $body = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST; }
 
-/** Same-origin guard for writes (defence-in-depth on top of the Lax cookie). */
+/**
+ * Same-origin guard for writes (defence-in-depth on top of the Lax cookie).
+ * Host-relative — compares the Origin/Referer host to the request host — so it
+ * works on ANY deployment host (production, preview, staging, local), exactly
+ * like require_same_origin() elsewhere in the app. (The old check hardcoded the
+ * production domain, which 403'd every write on any other host.)
+ */
 function comm_same_origin(): bool
 {
-    $o = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if ($o === '') return true; // no Origin header (same-origin GET-style fetch / curl) — cookie+Lax still gates
-    return (bool) preg_match('~^https?://([a-z0-9.-]*\.)?afrovanguard\.org\.ng$~i', $o);
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $o = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
+    if ($o === '') return true; // no Origin/Referer (same-origin fetch / curl) — cookie+Lax still gates
+    $oh = parse_url($o, PHP_URL_HOST) ?: '';
+    if ($oh === '' || $host === '') return true;
+    return stripos($host, $oh) !== false || stripos($oh, $host) !== false;
 }
 
 try {
