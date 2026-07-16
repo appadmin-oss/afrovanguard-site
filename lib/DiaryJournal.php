@@ -68,6 +68,58 @@ final class DiaryJournal
         return $st->rowCount() > 0;
     }
 
+    /* ── Private sharing ──────────────────────────────────────────────────
+       A member can mint a secret link for any of their own entries (even a
+       private one) so a specific person can read it, without publishing it to
+       the world or entering the moderation queue. The link is an unguessable
+       token; clearing it revokes access instantly. ── */
+
+    /** Idempotent: ensure the share_token column exists. */
+    private function ensureShare(): void
+    {
+        try { if (!Database::columnExists('diary_entries', 'share_token')) $this->db->exec("ALTER TABLE diary_entries ADD COLUMN share_token TEXT NOT NULL DEFAULT ''"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
+    }
+
+    /** Mint (or return the existing) share token for the author's own entry. */
+    public function shareToken(int $authorId, int $id): ?string
+    {
+        $this->ensureShare();
+        $st = $this->db->prepare('SELECT share_token FROM diary_entries WHERE id = ? AND author_id = ?');
+        $st->execute([$id, $authorId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) return null;                 // not theirs / missing
+        $tok = (string) ($row['share_token'] ?? '');
+        if ($tok === '') {
+            $tok = bin2hex(random_bytes(12));
+            $this->db->prepare('UPDATE diary_entries SET share_token = ? WHERE id = ? AND author_id = ?')->execute([$tok, $id, $authorId]);
+        }
+        return $tok;
+    }
+
+    /** Revoke a share link. */
+    public function unshare(int $authorId, int $id): bool
+    {
+        $this->ensureShare();
+        $st = $this->db->prepare("UPDATE diary_entries SET share_token = '' WHERE id = ? AND author_id = ?");
+        $st->execute([$id, $authorId]);
+        return $st->rowCount() > 0;
+    }
+
+    /** Fetch a shared entry by its token (read-only public view). Null if unknown. */
+    public function bySharedToken(string $token): ?array
+    {
+        $this->ensureShare();
+        if (!preg_match('/^[a-f0-9]{16,32}$/', $token)) return null;
+        $st = $this->db->prepare(
+            'SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.created_at, u.name AS author_name
+             FROM diary_entries e JOIN lms_users u ON u.id = e.author_id
+             WHERE e.share_token = ? LIMIT 1'
+        );
+        $st->execute([$token]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     /* ── Moderation (admin) ───────────────────────────────────────────────
        Only public submissions are ever exposed here. Private + event entries
        are never returned to the queue — they stay invisible to everyone. ── */

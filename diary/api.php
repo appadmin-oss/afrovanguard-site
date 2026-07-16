@@ -154,6 +154,22 @@ try {
             json_out(['ok' => $ok] + ($ok ? [] : ['error' => 'Entry not found.']), $ok ? 200 : 404);
         }
 
+        case 'entry.share': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $id = (int) ($body['id'] ?? 0);
+            $journal = new DiaryJournal();
+            if (!empty($body['revoke'])) {
+                $journal->unshare((int) $u['id'], $id);
+                json_out(['ok' => true, 'shared' => false]);
+            }
+            $tok = $journal->shareToken((int) $u['id'], $id);
+            if ($tok === null) json_out(['ok' => false, 'error' => 'Entry not found.'], 404);
+            $base = rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/');
+            json_out(['ok' => true, 'shared' => true, 'token' => $tok, 'url' => $base . '/diary/shared.php?t=' . $tok]);
+        }
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }
