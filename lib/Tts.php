@@ -39,6 +39,10 @@ final class Tts
         return 'openai';
     }
 
+    /** Last provider failure (engine + HTTP code + short body), for diagnostics. */
+    private static string $lastError = '';
+    public static function lastError(): string { return self::$lastError; }
+
     /** Non-sensitive status, for the ?probe diagnostic (never returns the key). */
     public static function status(): array
     {
@@ -119,7 +123,10 @@ final class Tts
             ['Authorization: Bearer ' . $key, 'Content-Type: application/json']);
         // Errors come back as JSON; audio comes back as binary.
         if ($code === 200 && $body !== '' && stripos($ctype, 'application/json') === false) return $body;
-        if ($body !== '') error_log('[AV-TTS] OpenAI ' . $code . ': ' . substr($body, 0, 300));
+        if ($body !== '') {   // keep the network error from http() when there was no response
+            self::$lastError = 'openai ' . $code . ': ' . substr(preg_replace('/\s+/', ' ', $body), 0, 200);
+            error_log('[AV-TTS] OpenAI ' . $code . ': ' . substr($body, 0, 300));
+        }
         return null;
     }
 
@@ -152,7 +159,10 @@ final class Tts
             'https://api.elevenlabs.io/v1/text-to-speech/' . rawurlencode($vid) . '?output_format=mp3_44100_128',
             $payload, ['xi-api-key: ' . $key, 'Content-Type: application/json', 'Accept: audio/mpeg']);
         if ($code === 200 && $body !== '' && stripos($ctype, 'application/json') === false) return $body;
-        if ($body !== '') error_log('[AV-TTS] ElevenLabs ' . $code . ': ' . substr($body, 0, 300));
+        if ($body !== '') {   // keep the network error from http() when there was no response
+            self::$lastError = 'elevenlabs ' . $code . ': ' . substr(preg_replace('/\s+/', ' ', $body), 0, 200);
+            error_log('[AV-TTS] ElevenLabs ' . $code . ': ' . substr($body, 0, 300));
+        }
         return null;
     }
 
@@ -167,7 +177,7 @@ final class Tts
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $ctype = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-        if ($body === false) error_log('[AV-TTS] curl: ' . curl_error($ch));
+        if ($body === false) { self::$lastError = 'network: ' . curl_error($ch); error_log('[AV-TTS] curl: ' . curl_error($ch)); }
         curl_close($ch);
         return [$body === false ? '' : $body, $code, $ctype];
     }
