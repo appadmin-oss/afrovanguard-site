@@ -33,7 +33,7 @@ $writeGuard = function () use ($uid) {
 try {
     switch ($action) {
         case 'board':
-            json_out(['ok' => true, 'cols' => Boards::board()]);
+            json_out(['ok' => true, 'cols' => Boards::board($uid)]);
 
         case 'add':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -50,12 +50,12 @@ try {
         case 'rename':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            json_out(['ok' => Boards::rename((int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''))]);
+            json_out(['ok' => Boards::rename($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''))]);
 
         case 'delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            json_out(['ok' => Boards::remove((int) ($body['id'] ?? 0))]);
+            json_out(['ok' => Boards::remove($uid, (int) ($body['id'] ?? 0))]);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

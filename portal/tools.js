@@ -382,7 +382,7 @@
       return '<li class="bcard" draggable="true" data-id="' + c.id + '">'
         + '<span class="bcard-txt">' + esc(c.title) + '</span>'
         + '<span class="bcard-by">' + esc(c.author) + '</span>'
-        + '<button type="button" class="bcard-x" data-del="' + c.id + '" aria-label="Delete">✕</button></li>';
+        + (c.mine ? '<button type="button" class="bcard-x" data-del="' + c.id + '" aria-label="Delete">✕</button>' : '') + '</li>';
     }
     function colHTML(col) {
       return '<div class="bcol" data-col="' + col.key + '">'

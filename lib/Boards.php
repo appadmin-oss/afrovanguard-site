@@ -59,29 +59,29 @@ final class Boards
         return $st->rowCount() > 0;
     }
 
-    /** Rename a card's title. */
-    public static function rename(int $cardId, string $title): bool
+    /** Rename a card's title (author only). */
+    public static function rename(int $uid, int $cardId, string $title): bool
     {
         self::ensure();
         $title = trim(mb_substr(trim($title), 0, 300));
-        if ($cardId <= 0 || $title === '') return false;
-        $st = Database::pdo()->prepare('UPDATE team_cards SET title = ? WHERE id = ?');
-        $st->execute([$title, $cardId]);
+        if ($uid <= 0 || $cardId <= 0 || $title === '') return false;
+        $st = Database::pdo()->prepare('UPDATE team_cards SET title = ? WHERE id = ? AND author_id = ?');
+        $st->execute([$title, $cardId, $uid]);
         return $st->rowCount() > 0;
     }
 
-    /** Delete a card. */
-    public static function remove(int $cardId): bool
+    /** Delete a card (author only). Moving stays open to the whole team. */
+    public static function remove(int $uid, int $cardId): bool
     {
         self::ensure();
-        if ($cardId <= 0) return false;
-        $st = Database::pdo()->prepare('DELETE FROM team_cards WHERE id = ?');
-        $st->execute([$cardId]);
+        if ($uid <= 0 || $cardId <= 0) return false;
+        $st = Database::pdo()->prepare('DELETE FROM team_cards WHERE id = ? AND author_id = ?');
+        $st->execute([$cardId, $uid]);
         return $st->rowCount() > 0;
     }
 
     /** The whole board grouped by column, with counts. */
-    public static function board(): array
+    public static function board(int $viewerId = 0): array
     {
         self::ensure();
         $db = Database::pdo();
@@ -100,6 +100,7 @@ final class Boards
                 'id'     => (int) $r['id'],
                 'title'  => (string) $r['title'],
                 'author' => (string) ($r['author'] ?: 'A member'),
+                'mine'   => (int) $r['author_id'] === $viewerId,
             ];
         }
         return array_values($cols);

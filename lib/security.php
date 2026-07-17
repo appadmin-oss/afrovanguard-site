@@ -265,5 +265,7 @@ function av_rate_ok(string $bucket, int $max, int $window): bool {
     $hits = array_values(array_filter($hits, fn($t) => $t > $now - $window));
     if (count($hits) >= $max) return false;
     $hits[] = $now; @file_put_contents($key, json_encode($hits), LOCK_EX);
+    // Opportunistic prune (~1% of calls) so stale buckets don't accumulate.
+    if (($now % 97) === 0) { foreach ((array) @glob($dir . '/*.json') as $f) { if (@filemtime($f) < $now - 86400) @unlink($f); } }
     return true;
 }

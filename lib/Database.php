@@ -60,6 +60,10 @@ final class Database
             $fresh = !is_file($path);
             $pdo = new PDO('sqlite:' . $path, null, null, $opts);
             $pdo->exec('PRAGMA foreign_keys = ON');
+            // WAL lets readers and a writer work concurrently (SQLite's default
+            // rollback journal locks the whole DB on every write); busy_timeout
+            // makes a blocked write wait briefly instead of failing outright.
+            try { $pdo->exec('PRAGMA journal_mode = WAL'); $pdo->exec('PRAGMA busy_timeout = 5000'); $pdo->exec('PRAGMA synchronous = NORMAL'); } catch (\Throwable $e) {}
             return $pdo;
         };
 
