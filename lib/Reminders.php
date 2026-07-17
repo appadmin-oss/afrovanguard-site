@@ -49,6 +49,17 @@ final class Reminders
         return (int) Database::pdo()->lastInsertId();
     }
 
+    /** Edit a reminder's text/due (owner only). */
+    public static function edit(int $uid, int $id, string $text, string $due = ''): bool
+    {
+        self::ensure();
+        $text = trim(mb_substr(trim($text), 0, 300));
+        if ($uid <= 0 || $id <= 0 || $text === '') return false;
+        $st = Database::pdo()->prepare('UPDATE user_reminders SET text = ?, due = ? WHERE id = ? AND user_id = ?');
+        $st->execute([$text, self::normDue($due), $id, $uid]);
+        return $st->rowCount() > 0;
+    }
+
     /** Toggle (or set) done. Owner only. */
     public static function toggle(int $uid, int $id, ?bool $done = null): bool
     {

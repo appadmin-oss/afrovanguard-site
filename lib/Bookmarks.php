@@ -50,6 +50,19 @@ final class Bookmarks
         return (int) Database::pdo()->lastInsertId();
     }
 
+    /** Edit a link (author only). */
+    public static function edit(int $uid, int $id, string $title, string $url, string $note = ''): bool
+    {
+        self::ensure();
+        $url = self::cleanUrl($url);
+        if ($uid <= 0 || $id <= 0 || $url === '') return false;
+        $title = trim(mb_substr(trim($title), 0, 200));
+        if ($title === '') $title = preg_replace('~^https?://(www\.)?~i', '', $url);
+        $st = Database::pdo()->prepare('UPDATE team_links SET title = ?, url = ?, note = ? WHERE id = ? AND author_id = ?');
+        $st->execute([$title, $url, trim(mb_substr(trim($note), 0, 300)), $id, $uid]);
+        return $st->rowCount() > 0;
+    }
+
     /** Delete a link (author only). */
     public static function remove(int $uid, int $id): bool
     {

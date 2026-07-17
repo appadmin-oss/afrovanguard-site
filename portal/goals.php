@@ -38,6 +38,11 @@ try {
             if (!$id) json_out(['ok' => false, 'error' => 'Add an objective.'], 422);
             json_out(['ok' => true, 'id' => $id]);
 
+        case 'edit':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(['ok' => Goals::edit($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''))]);
+
         case 'progress':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();

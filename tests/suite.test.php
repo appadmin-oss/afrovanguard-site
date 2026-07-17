@@ -104,3 +104,24 @@ ck('prefs: set valid tz', Prefs::setTimezone(1, 'Europe/London'));
 ck('prefs: tz persisted', av_user_tz(1) === 'Europe/London');
 ck('prefs: per-user isolation', av_user_tz(2) === AV_TZ);
 ck('tz: av_now_tz formats', (bool) preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', av_now_tz()));
+
+/* ---- Edit-in-place (F2) ---- */
+reset_users();
+$g2 = Goals::create(1, 'Old title', 'old');
+ck('edit: non-author cannot edit goal', !Goals::edit(2, $g2, 'Hacked', ''));
+ck('edit: author edits goal', Goals::edit(1, $g2, 'New title', 'new target'));
+$gg = Goals::listGoals(1, 10)[0];
+ck('edit: goal title updated', $gg['title'] === 'New title' && $gg['target'] === 'new target');
+$l2 = Bookmarks::add(1, 'Old', 'example.com', '');
+ck('edit: non-author cannot edit link', !Bookmarks::edit(2, $l2, 'x', 'y.com', ''));
+ck('edit: author edits link', Bookmarks::edit(1, $l2, 'New', 'newsite.org', 'n'));
+$ll2 = Bookmarks::listLinks(1, 10)[0];
+ck('edit: link url normalised', $ll2['url'] === 'https://newsite.org' && $ll2['title'] === 'New');
+$rr = Reminders::add(1, 'Old rem', '');
+ck('edit: owner edits reminder', Reminders::edit(1, $rr, 'New rem', '2031-05-05T08:00'));
+ck('edit: non-owner cannot edit reminder', !Reminders::edit(2, $rr, 'x', ''));
+$ev = TeamCalendar::create(1, 'Old ev', '2026-09-09', '10:00');
+ck('edit: author updates event', TeamCalendar::update(1, $ev, 'New ev', '2026-09-09', '11:00', '12:00', 'Hall', 'n'));
+ck('edit: non-author cannot update event', !TeamCalendar::update(2, $ev, 'x', '2026-09-09'));
+$evf = array_values(array_filter(TeamCalendar::feed(1, '2026-09-01', '2026-09-30', true), fn($x) => $x['kind'] === 'event'))[0];
+ck('edit: event updated', $evf['title'] === 'New ev' && $evf['time'] === '11:00' && $evf['location'] === 'Hall');

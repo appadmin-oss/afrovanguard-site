@@ -43,6 +43,18 @@ final class Goals
         return (int) Database::pdo()->lastInsertId();
     }
 
+    /** Edit a goal's title/target (author only). */
+    public static function edit(int $uid, int $goalId, string $title, string $target = ''): bool
+    {
+        self::ensure();
+        $title  = trim(mb_substr(trim($title), 0, 300));
+        $target = trim(mb_substr(trim($target), 0, 200));
+        if ($uid <= 0 || $goalId <= 0 || $title === '') return false;
+        $st = Database::pdo()->prepare('UPDATE team_goals SET title = ?, target = ?, updated_at = ? WHERE id = ? AND author_id = ?');
+        $st->execute([$title, $target, gmdate('Y-m-d H:i:s'), $goalId, $uid]);
+        return $st->rowCount() > 0;
+    }
+
     /** Set progress 0–100. Auto-closes at 100, reopens below. Author only. */
     public static function setProgress(int $uid, int $goalId, int $pct): bool
     {

@@ -28,7 +28,7 @@ function ck(string $label, bool $cond): void {
 /** Fresh set of three users (ids 1-3) for a test file to build on. */
 function reset_users(): void {
     $db = Database::pdo();
-    foreach (['user_notifications','user_reminders','team_cards','team_polls','team_poll_votes','team_goals','team_links','team_events','team_standups','collab_tasks'] as $t) {
+    foreach (['user_notifications','user_reminders','team_cards','team_polls','team_poll_votes','team_goals','team_links','team_events','team_standups','collab_tasks','user_prefs'] as $t) {
         try { $db->exec('DELETE FROM ' . $t); } catch (Throwable $e) {}
     }
     $db->exec('DELETE FROM lms_users');

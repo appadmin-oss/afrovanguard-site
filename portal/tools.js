@@ -345,9 +345,13 @@
         + '<button type="button" class="rem-check" data-toggle="' + r.id + '" aria-label="Toggle done">' + (r.done ? '✓' : '') + '</button>'
         + '<span class="rem-body"><span class="rem-text">' + esc(r.text) + '</span>'
         + (r.due_label ? '<span class="rem-due-tag">' + esc(r.due_label) + '</span>' : '') + '</span>'
+        + '<button type="button" class="rem-del" data-edit="' + r.id + '" aria-label="Edit">✎</button>'
         + '<button type="button" class="rem-del" data-del="' + r.id + '" aria-label="Delete">✕</button></li>';
     }
+    var DATA = [];
+    function findR(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return null; }
     function render(items) {
+      DATA = items || [];
       listEl.innerHTML = items && items.length ? items.map(itemHTML).join('')
         : '<li class="tool-empty">Nothing due — add a reminder above.</li>';
       if (meta) { var open = (items || []).filter(function (x) { return !x.done; }).length; meta.textContent = open ? open + ' open' : ''; }
@@ -365,6 +369,13 @@
     listEl.addEventListener('click', function (e) {
       var tg = e.target.closest('[data-toggle]');
       if (tg) { suitePost('/portal/reminders.php', 'toggle', csrf, { id: +tg.getAttribute('data-toggle') }).then(function (d) { if (d.ok) load(); }); return; }
+      var ed = e.target.closest('[data-edit]');
+      if (ed) {
+        var r = findR(+ed.getAttribute('data-edit')); if (!r) return;
+        var nt = prompt('Reminder:', r.text); if (nt === null || !nt.trim()) return;
+        var nd = prompt('Due (YYYY-MM-DD HH:MM, blank for none):', (r.due || '').replace('T', ' ')); if (nd === null) nd = r.due || '';
+        suitePost('/portal/reminders.php', 'edit', csrf, { id: r.id, text: nt, due: nd.trim() }).then(function (d) { if (d.ok) load(); }); return;
+      }
       var dl = e.target.closest('[data-del]');
       if (dl) { suitePost('/portal/reminders.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
@@ -440,13 +451,15 @@
     var form = document.getElementById('tlGoalForm'), titleEl = document.getElementById('tlGoalTitle'),
         targetEl = document.getElementById('tlGoalTarget'), listEl = document.getElementById('tlGoalList'),
         msg = document.getElementById('tlGoalMsg');
+    var DATA = [];
     function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
     function goalHTML(g) {
+      var edit = g.mine ? '<button type="button" class="goal-step" data-edit="' + g.id + '">Edit</button>' : '';
       var ctrl = g.mine && !g.closed
         ? '<div class="goal-ctrl"><button type="button" class="goal-step" data-dec="' + g.id + '">−10</button>'
-          + '<button type="button" class="goal-step" data-inc="' + g.id + '">+10</button>'
+          + '<button type="button" class="goal-step" data-inc="' + g.id + '">+10</button>' + edit
           + '<button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>'
-        : (g.mine ? '<div class="goal-ctrl"><button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>' : '');
+        : (g.mine ? '<div class="goal-ctrl">' + edit + '<button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>' : '');
       return '<article class="goal' + (g.closed ? ' is-done' : '') + '" data-id="' + g.id + '">'
         + '<div class="goal-top"><h3>' + esc(g.title) + '</h3>' + (g.closed ? '<span class="poll-tag">Done</span>' : '<span class="goal-pct">' + g.progress + '%</span>') + '</div>'
         + (g.target ? '<p class="goal-target">🎯 ' + esc(g.target) + '</p>' : '')
@@ -455,10 +468,12 @@
         + '</article>';
     }
     function render(goals) {
+      DATA = goals || [];
       listEl.innerHTML = goals && goals.length ? goals.map(goalHTML).join('')
         : '<p class="pc-empty">No goals yet — set an objective above.</p>';
     }
     function load() { suiteGet('/portal/goals.php', 'list').then(function (d) { if (d && d.ok) render(d.goals); }).catch(function () {}); }
+    function findG(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return null; }
     function bump(id, delta) {
       var el = listEl.querySelector('.goal[data-id="' + id + '"] .goal-pct');
       var cur = el ? parseInt(el.textContent, 10) || 0 : 0;
@@ -476,6 +491,14 @@
     listEl.addEventListener('click', function (e) {
       var inc = e.target.closest('[data-inc]'); if (inc) { bump(+inc.getAttribute('data-inc'), 10); return; }
       var dec = e.target.closest('[data-dec]'); if (dec) { bump(+dec.getAttribute('data-dec'), -10); return; }
+      var ed = e.target.closest('[data-edit]');
+      if (ed) {
+        var g = findG(+ed.getAttribute('data-edit')); if (!g) return;
+        var nt = prompt('Objective:', g.title); if (nt === null) return;
+        var ng = prompt('Target metric (optional):', g.target || ''); if (ng === null) ng = g.target || '';
+        if (!nt.trim()) return;
+        suitePost('/portal/goals.php', 'edit', csrf, { id: g.id, title: nt, target: ng }).then(function (d) { if (d.ok) load(); }); return;
+      }
       var dl = e.target.closest('[data-del]'); if (dl) { if (confirm('Delete this goal?')) suitePost('/portal/goals.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
     onToolsOpen(load); window.__suiteRefresh['goals'] = load;
@@ -497,10 +520,13 @@
         + '<span class="tlink-host">' + esc(l.host) + '</span></a>'
         + (l.note ? '<p class="tlink-note">' + esc(l.note) + '</p>' : '')
         + '<div class="tlink-foot"><span>' + esc(l.author) + '</span>'
-        + (l.mine ? '<button type="button" class="goal-x" data-del="' + l.id + '">Remove</button>' : '') + '</div>'
+        + (l.mine ? '<span class="tlink-admin"><button type="button" class="goal-x" data-edit="' + l.id + '">Edit</button><button type="button" class="goal-x" data-del="' + l.id + '">Remove</button></span>' : '') + '</div>'
         + '</article>';
     }
+    var DATA = [];
+    function findL(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return null; }
     function render(links) {
+      DATA = links || [];
       listEl.innerHTML = links && links.length ? links.map(linkHTML).join('')
         : '<p class="pc-empty">No links yet — save a useful resource above.</p>';
     }
@@ -515,6 +541,15 @@
       }).catch(function () { say('Network error.', 'err'); });
     });
     listEl.addEventListener('click', function (e) {
+      var ed = e.target.closest('[data-edit]');
+      if (ed) {
+        var l = findL(+ed.getAttribute('data-edit')); if (!l) return;
+        var nu = prompt('URL:', l.url); if (nu === null) return;
+        var nt = prompt('Title:', l.title); if (nt === null) nt = l.title;
+        var nn = prompt('Note (optional):', l.note || ''); if (nn === null) nn = l.note || '';
+        if (!nu.trim()) return;
+        suitePost('/portal/bookmarks.php', 'edit', csrf, { id: l.id, url: nu, title: nt, note: nn }).then(function (d) { if (d.ok) load(); }); return;
+      }
       var dl = e.target.closest('[data-del]');
       if (dl) { if (confirm('Remove this link?')) suitePost('/portal/bookmarks.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
@@ -581,6 +616,7 @@
     function itemHTML(it) {
       var meet = it.url ? '<a class="cal-ev-link" href="' + esc(it.url) + '" target="_blank" rel="noopener noreferrer">'
         + (it.kind === 'session' ? 'Join' : 'Open') + ' ↗</a>' : '';
+      var edit = (it.can_delete && it.kind === 'event') ? '<button type="button" class="cal-ev-del" data-edit="' + it.id + '" aria-label="Edit">✎</button>' : '';
       var del = it.can_delete ? '<button type="button" class="cal-ev-del" data-del="' + it.id + '" aria-label="Delete">✕</button>' : '';
       var meta = [];
       if (it.location) meta.push('📍 ' + esc(it.location));
@@ -590,7 +626,7 @@
         + '<div class="cal-ev-body"><span class="cal-ev-title">' + esc(it.title) + '</span>'
         + (it.note ? '<span class="cal-ev-note">' + esc(it.note) + '</span>' : '')
         + (meta.length ? '<span class="cal-ev-meta">' + meta.join(' · ') + '</span>' : '')
-        + '</div>' + meet + del + '</div>';
+        + '</div>' + meet + edit + del + '</div>';
     }
     function renderAgenda() {
       agendaTitle.textContent = humanDay(sel);
@@ -607,7 +643,18 @@
       if (d.getUTCMonth() !== viewM || d.getUTCFullYear() !== viewY) { viewY = d.getUTCFullYear(); viewM = d.getUTCMonth(); load(); }
       else { [].forEach.call(gridEl.querySelectorAll('.cal-cell'), function (c) { c.classList.toggle('is-sel', c.getAttribute('data-day') === sel); }); renderAgenda(); }
     });
+    function findEv(id) { var a = byDate[sel] || []; for (var i = 0; i < a.length; i++) if (a[i].id === id && a[i].kind === 'event') return a[i]; return null; }
     agendaEl.addEventListener('click', function (e) {
+      var ed = e.target.closest('[data-edit]');
+      if (ed) {
+        var it = findEv(+ed.getAttribute('data-edit')); if (!it) return;
+        var nt = prompt('Event title:', it.title); if (nt === null || !nt.trim()) return;
+        var ns = prompt('Start time (HH:MM, blank for all-day):', it.time || ''); if (ns === null) ns = it.time || '';
+        var ne = prompt('End time (HH:MM, optional):', it.end || ''); if (ne === null) ne = it.end || '';
+        var nl = prompt('Location (optional):', it.location || ''); if (nl === null) nl = it.location || '';
+        var nn = prompt('Note (optional):', it.note || ''); if (nn === null) nn = it.note || '';
+        suitePost('/portal/calendar.php', 'update', csrf, { id: it.id, title: nt, date: it.date, start: ns.trim(), end: ne.trim(), location: nl, note: nn }).then(function (d) { if (d.ok) load(); }); return;
+      }
       var dl = e.target.closest('[data-del]');
       if (dl) { if (confirm('Delete this event?')) suitePost('/portal/calendar.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });

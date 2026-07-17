@@ -67,6 +67,21 @@ final class TeamCalendar
         return (int) Database::pdo()->lastInsertId();
     }
 
+    /** Edit a native event (author only). */
+    public static function update(int $uid, int $id, string $title, string $date, string $start = '', string $end = '', string $location = '', string $note = ''): bool
+    {
+        self::ensure();
+        $title = trim(mb_substr(trim($title), 0, 300));
+        $date  = self::normDate($date);
+        if ($uid <= 0 || $id <= 0 || $title === '' || $date === '') return false;
+        $start = self::normTime($start);
+        $end   = self::normTime($end);
+        if ($end !== '' && $start !== '' && $end < $start) $end = '';
+        $st = Database::pdo()->prepare('UPDATE team_events SET title = ?, event_date = ?, start_time = ?, end_time = ?, location = ?, note = ? WHERE id = ? AND author_id = ?');
+        $st->execute([$title, $date, $start, $end, trim(mb_substr(trim($location), 0, 200)), trim(mb_substr(trim($note), 0, 500)), $id, $uid]);
+        return $st->rowCount() > 0;
+    }
+
     /** Delete a native event (author only). */
     public static function remove(int $uid, int $id): bool
     {

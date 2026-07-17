@@ -36,6 +36,12 @@ try {
             if (!$id) json_out(['ok' => false, 'error' => 'Add a reminder.'], 422);
             json_out(['ok' => true, 'id' => $id]);
 
+        case 'edit':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            if (!Reminders::edit($uid, (int) ($body['id'] ?? 0), (string) ($body['text'] ?? ''), (string) ($body['due'] ?? ''))) json_out(['ok' => false, 'error' => 'Could not update.'], 422);
+            json_out(['ok' => true]);
+
         case 'toggle':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();

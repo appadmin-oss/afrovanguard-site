@@ -48,6 +48,14 @@ try {
             if (!$id) json_out(['ok' => false, 'error' => 'Add a title and a valid date.'], 422);
             json_out(['ok' => true, 'id' => $id]);
 
+        case 'update':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            $ok = TeamCalendar::update($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['date'] ?? ''),
+                (string) ($body['start'] ?? ''), (string) ($body['end'] ?? ''), (string) ($body['location'] ?? ''), (string) ($body['note'] ?? ''));
+            if (!$ok) json_out(['ok' => false, 'error' => 'Could not update.'], 422);
+            json_out(['ok' => true]);
+
         case 'delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
