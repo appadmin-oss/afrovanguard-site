@@ -280,4 +280,201 @@
     window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(maybeLoad, 90); });
     maybeLoad();
   })();
+
+  /* ---- shared helpers for the DB-backed suite apps ---- */
+  function suitePost(url, action, csrf, b) {
+    return fetch(url + '?action=' + action, { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(b || {}) }).then(function (r) { return r.json(); });
+  }
+  function suiteGet(url, action) {
+    return fetch(url + '?action=' + action, { credentials: 'same-origin' }).then(function (r) { return r.json(); });
+  }
+  function onToolsOpen(fn) {
+    document.addEventListener('click', function (e) { if (e.target.closest('[data-view="tools"]')) setTimeout(function () { if (!document.getElementById('view-tools').hidden) fn(); }, 90); });
+    window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(function () { if (!document.getElementById('view-tools').hidden) fn(); }, 90); });
+    if (!document.getElementById('view-tools').hidden) fn();
+  }
+
+  /* ---- Reminders (personal, DB-backed, syncs across devices) ---- */
+  (function () {
+    var card = document.getElementById('tlRem');
+    if (!card) return;
+    var csrf = card.getAttribute('data-csrf') || '';
+    var form = document.getElementById('tlRemForm'), textEl = document.getElementById('tlRemText'),
+        dueEl = document.getElementById('tlRemDue'), listEl = document.getElementById('tlRemList'),
+        meta = document.getElementById('tlRemMeta'), msg = document.getElementById('tlRemMsg');
+    function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+    function itemHTML(r) {
+      return '<li class="rem' + (r.done ? ' is-done' : '') + (r.overdue ? ' is-over' : '') + '" data-id="' + r.id + '">'
+        + '<button type="button" class="rem-check" data-toggle="' + r.id + '" aria-label="Toggle done">' + (r.done ? '✓' : '') + '</button>'
+        + '<span class="rem-body"><span class="rem-text">' + esc(r.text) + '</span>'
+        + (r.due_label ? '<span class="rem-due-tag">' + esc(r.due_label) + '</span>' : '') + '</span>'
+        + '<button type="button" class="rem-del" data-del="' + r.id + '" aria-label="Delete">✕</button></li>';
+    }
+    function render(items) {
+      listEl.innerHTML = items && items.length ? items.map(itemHTML).join('')
+        : '<li class="tool-empty">Nothing due — add a reminder above.</li>';
+      if (meta) { var open = (items || []).filter(function (x) { return !x.done; }).length; meta.textContent = open ? open + ' open' : ''; }
+    }
+    function load() { suiteGet('/portal/reminders.php', 'list').then(function (d) { if (d && d.ok) render(d.reminders); }).catch(function () {}); }
+    form && form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var t = (textEl.value || '').trim();
+      if (!t) { say('Add a reminder.', 'err'); return; }
+      suitePost('/portal/reminders.php', 'add', csrf, { text: t, due: dueEl.value || '' }).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not add.', 'err'); return; }
+        textEl.value = ''; dueEl.value = ''; say(''); load();
+      }).catch(function () { say('Network error.', 'err'); });
+    });
+    listEl.addEventListener('click', function (e) {
+      var tg = e.target.closest('[data-toggle]');
+      if (tg) { suitePost('/portal/reminders.php', 'toggle', csrf, { id: +tg.getAttribute('data-toggle') }).then(function (d) { if (d.ok) load(); }); return; }
+      var dl = e.target.closest('[data-del]');
+      if (dl) { suitePost('/portal/reminders.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+    onToolsOpen(load);
+  })();
+
+  /* ---- Team board (Kanban, org-shared, DB-backed) ---- */
+  (function () {
+    var card = document.getElementById('tlBoard');
+    if (!card) return;                       // org-only (server-gated)
+    var csrf = card.getAttribute('data-csrf') || '';
+    var wrap = document.getElementById('tlBoardCols');
+    var COLS = [{ key: 'todo', label: 'To do' }, { key: 'doing', label: 'Doing' }, { key: 'done', label: 'Done' }];
+    function cardHTML(c) {
+      return '<li class="bcard" draggable="true" data-id="' + c.id + '">'
+        + '<span class="bcard-txt">' + esc(c.title) + '</span>'
+        + '<span class="bcard-by">' + esc(c.author) + '</span>'
+        + '<button type="button" class="bcard-x" data-del="' + c.id + '" aria-label="Delete">✕</button></li>';
+    }
+    function colHTML(col) {
+      return '<div class="bcol" data-col="' + col.key + '">'
+        + '<div class="bcol-head"><span>' + esc(col.label) + '</span><span class="bcol-n">' + col.cards.length + '</span></div>'
+        + '<ul class="bcol-list">' + col.cards.map(cardHTML).join('') + '</ul>'
+        + '<form class="bcol-add" data-col="' + col.key + '"><input placeholder="+ Add card" maxlength="300"></form>'
+        + '</div>';
+    }
+    function render(cols) { wrap.innerHTML = cols.map(colHTML).join(''); bindDnD(); }
+    function load() { suiteGet('/portal/boards.php', 'board').then(function (d) { if (d && d.ok) render(d.cols); }).catch(function () {}); }
+
+    wrap.addEventListener('submit', function (e) {
+      var f = e.target.closest('.bcol-add'); if (!f) return;
+      e.preventDefault();
+      var inp = f.querySelector('input'), t = (inp.value || '').trim();
+      if (!t) return;
+      suitePost('/portal/boards.php', 'add', csrf, { title: t, col: f.getAttribute('data-col') }).then(function (d) { if (d.ok) load(); });
+    });
+    wrap.addEventListener('click', function (e) {
+      var dl = e.target.closest('[data-del]');
+      if (dl) { suitePost('/portal/boards.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+    function bindDnD() {
+      var dragId = null;
+      [].forEach.call(wrap.querySelectorAll('.bcard'), function (el) {
+        el.addEventListener('dragstart', function () { dragId = el.getAttribute('data-id'); el.classList.add('is-drag'); });
+        el.addEventListener('dragend', function () { el.classList.remove('is-drag'); });
+      });
+      [].forEach.call(wrap.querySelectorAll('.bcol'), function (col) {
+        col.addEventListener('dragover', function (e) { e.preventDefault(); col.classList.add('is-over'); });
+        col.addEventListener('dragleave', function () { col.classList.remove('is-over'); });
+        col.addEventListener('drop', function (e) {
+          e.preventDefault(); col.classList.remove('is-over');
+          if (!dragId) return;
+          suitePost('/portal/boards.php', 'move', csrf, { id: +dragId, col: col.getAttribute('data-col') }).then(function (d) { if (d.ok) load(); });
+          dragId = null;
+        });
+      });
+    }
+    onToolsOpen(load);
+  })();
+
+  /* ---- Goals & OKRs (org-shared, DB-backed) ---- */
+  (function () {
+    var card = document.getElementById('tlGoals');
+    if (!card) return;                       // org-only (server-gated)
+    var csrf = card.getAttribute('data-csrf') || '';
+    var form = document.getElementById('tlGoalForm'), titleEl = document.getElementById('tlGoalTitle'),
+        targetEl = document.getElementById('tlGoalTarget'), listEl = document.getElementById('tlGoalList'),
+        msg = document.getElementById('tlGoalMsg');
+    function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+    function goalHTML(g) {
+      var ctrl = g.mine && !g.closed
+        ? '<div class="goal-ctrl"><button type="button" class="goal-step" data-dec="' + g.id + '">−10</button>'
+          + '<button type="button" class="goal-step" data-inc="' + g.id + '">+10</button>'
+          + '<button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>'
+        : (g.mine ? '<div class="goal-ctrl"><button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>' : '');
+      return '<article class="goal' + (g.closed ? ' is-done' : '') + '" data-id="' + g.id + '">'
+        + '<div class="goal-top"><h3>' + esc(g.title) + '</h3>' + (g.closed ? '<span class="poll-tag">Done</span>' : '<span class="goal-pct">' + g.progress + '%</span>') + '</div>'
+        + (g.target ? '<p class="goal-target">🎯 ' + esc(g.target) + '</p>' : '')
+        + '<div class="goal-bar"><span style="width:' + g.progress + '%"></span></div>'
+        + '<div class="goal-foot"><span>' + esc(g.author) + '</span>' + ctrl + '</div>'
+        + '</article>';
+    }
+    function render(goals) {
+      listEl.innerHTML = goals && goals.length ? goals.map(goalHTML).join('')
+        : '<p class="pc-empty">No goals yet — set an objective above.</p>';
+    }
+    function load() { suiteGet('/portal/goals.php', 'list').then(function (d) { if (d && d.ok) render(d.goals); }).catch(function () {}); }
+    function bump(id, delta) {
+      var el = listEl.querySelector('.goal[data-id="' + id + '"] .goal-pct');
+      var cur = el ? parseInt(el.textContent, 10) || 0 : 0;
+      suitePost('/portal/goals.php', 'progress', csrf, { id: id, pct: Math.max(0, Math.min(100, cur + delta)) }).then(function (d) { if (d.ok) load(); });
+    }
+    form && form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var t = (titleEl.value || '').trim();
+      if (!t) { say('Add an objective.', 'err'); return; }
+      suitePost('/portal/goals.php', 'create', csrf, { title: t, target: targetEl.value || '' }).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not add.', 'err'); return; }
+        titleEl.value = ''; targetEl.value = ''; say(''); load();
+      }).catch(function () { say('Network error.', 'err'); });
+    });
+    listEl.addEventListener('click', function (e) {
+      var inc = e.target.closest('[data-inc]'); if (inc) { bump(+inc.getAttribute('data-inc'), 10); return; }
+      var dec = e.target.closest('[data-dec]'); if (dec) { bump(+dec.getAttribute('data-dec'), -10); return; }
+      var dl = e.target.closest('[data-del]'); if (dl) { if (confirm('Delete this goal?')) suitePost('/portal/goals.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+    onToolsOpen(load);
+  })();
+
+  /* ---- Team links (org-shared bookmark hub, DB-backed) ---- */
+  (function () {
+    var card = document.getElementById('tlLinks');
+    if (!card) return;                       // org-only (server-gated)
+    var csrf = card.getAttribute('data-csrf') || '';
+    var form = document.getElementById('tlLinkForm'), urlEl = document.getElementById('tlLinkUrl'),
+        titleEl = document.getElementById('tlLinkTitle'), noteEl = document.getElementById('tlLinkNote'),
+        listEl = document.getElementById('tlLinkList'), msg = document.getElementById('tlLinkMsg');
+    function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+    function linkHTML(l) {
+      return '<article class="tlink" data-id="' + l.id + '">'
+        + '<a class="tlink-main" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer">'
+        + '<span class="tlink-title">' + esc(l.title) + '</span>'
+        + '<span class="tlink-host">' + esc(l.host) + '</span></a>'
+        + (l.note ? '<p class="tlink-note">' + esc(l.note) + '</p>' : '')
+        + '<div class="tlink-foot"><span>' + esc(l.author) + '</span>'
+        + (l.mine ? '<button type="button" class="goal-x" data-del="' + l.id + '">Remove</button>' : '') + '</div>'
+        + '</article>';
+    }
+    function render(links) {
+      listEl.innerHTML = links && links.length ? links.map(linkHTML).join('')
+        : '<p class="pc-empty">No links yet — save a useful resource above.</p>';
+    }
+    function load() { suiteGet('/portal/bookmarks.php', 'list').then(function (d) { if (d && d.ok) render(d.links); }).catch(function () {}); }
+    form && form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var url = (urlEl.value || '').trim();
+      if (!url) { say('Paste a URL.', 'err'); return; }
+      suitePost('/portal/bookmarks.php', 'add', csrf, { url: url, title: titleEl.value || '', note: noteEl.value || '' }).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not save.', 'err'); return; }
+        urlEl.value = titleEl.value = noteEl.value = ''; say(''); load();
+      }).catch(function () { say('Network error.', 'err'); });
+    });
+    listEl.addEventListener('click', function (e) {
+      var dl = e.target.closest('[data-del]');
+      if (dl) { if (confirm('Remove this link?')) suitePost('/portal/bookmarks.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+    onToolsOpen(load);
+  })();
 })();

@@ -113,7 +113,7 @@ $postsToday = (int) ($cPulseToday['posts_today'] ?? 0);
 $nav = [
     'Home' => [
         ['overview', 'Today', 'gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
-        ['tools', 'Tools', 'indigo', ''],
+        ['tools', 'Suite', 'indigo', ''],
         ['community', 'Community', 'green', $postsToday > 0 ? (string) $postsToday : ''],
     ],
 ];
@@ -340,8 +340,9 @@ $nav['You'] = [
         <!-- ============================================================ -->
         <section class="pview" id="view-tools" data-view="tools" hidden data-uid="<?= (int) $u['id'] ?>">
           <div class="view-head">
-            <div><h1>Tools</h1><p class="view-sub">A little suite of Afrovanguard productivity tools — private to you, right in the portal.</p></div>
+            <div><h1>Suite</h1><p class="view-sub">Your Afrovanguard productivity suite — personal tools and shared team apps, right in the portal.</p></div>
           </div>
+          <h2 class="suite-section"><span>◧ Personal</span><small>Private to you, synced to your account</small></h2>
           <div class="tools-grid">
             <section class="pcard tool" id="tlNotes">
               <div class="pcard-head"><h2>✎ Notes</h2><span class="tool-meta" id="tlNotesMeta">Autosaves</span></div>
@@ -390,9 +391,35 @@ $nav['You'] = [
                 </div>
               </div>
             </section>
+
+            <section class="pcard tool tool-rem" id="tlRem" data-csrf="<?= e($collabCsrf) ?>">
+              <div class="pcard-head"><h2>⏰ Reminders</h2><span class="tool-meta" id="tlRemMeta"></span></div>
+              <div class="pcard-body">
+                <form id="tlRemForm" class="rem-form" autocomplete="off">
+                  <input id="tlRemText" class="rem-in" placeholder="Remind me to…" maxlength="300">
+                  <div class="rem-row">
+                    <input type="datetime-local" id="tlRemDue" class="rem-due" aria-label="Due (optional)">
+                    <button type="submit" class="pbtn pbtn-gold">Add</button>
+                  </div>
+                  <span class="poll-msg" id="tlRemMsg" role="status" aria-live="polite"></span>
+                </form>
+                <ul class="rem-list" id="tlRemList"></ul>
+              </div>
+            </section>
           </div>
 
 <?php if ($isOrg): ?>
+          <h2 class="suite-section"><span>◨ Team</span><small>Shared with everyone at Afrovanguard</small></h2>
+
+          <!-- Enterprise: Kanban board — shared team workflow -->
+          <section class="pcard tool-board" id="tlBoard" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>▦ Team board</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <div class="board-cols" id="tlBoardCols"><p class="pc-empty">Loading board…</p></div>
+            </div>
+          </section>
+
+          <div class="tools-grid tools-grid--team">
           <!-- Enterprise: Team Polls — collaborative decisions with live tallies -->
           <section class="pcard tool-polls" id="tlPolls" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>▤ Team polls</h2><span class="pchip pchip--indigo">Members · shared</span></div>
@@ -430,6 +457,40 @@ $nav['You'] = [
               <div class="su-board" id="tlSuBoard"><p class="pc-empty">Loading today's board…</p></div>
             </div>
           </section>
+
+          <!-- Enterprise: Goals & OKRs — shared objectives with progress -->
+          <section class="pcard tool-goals" id="tlGoals" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>◎ Goals &amp; OKRs</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlGoalForm" class="goal-form" autocomplete="off">
+                <input id="tlGoalTitle" class="goal-in" placeholder="Set an objective…" maxlength="300">
+                <div class="goal-row">
+                  <input id="tlGoalTarget" class="goal-in goal-in--sm" placeholder="Target metric (optional)" maxlength="200">
+                  <button type="submit" class="pbtn pbtn-gold">Add goal</button>
+                </div>
+                <span class="poll-msg" id="tlGoalMsg" role="status" aria-live="polite"></span>
+              </form>
+              <div class="goal-list" id="tlGoalList"><p class="pc-empty">Loading goals…</p></div>
+            </div>
+          </section>
+
+          <!-- Enterprise: Team links — shared resource hub -->
+          <section class="pcard tool-links" id="tlLinks" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>🔖 Team links</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlLinkForm" class="link-form" autocomplete="off">
+                <input id="tlLinkUrl" class="link-in" placeholder="Paste a URL…" maxlength="600">
+                <div class="link-row">
+                  <input id="tlLinkTitle" class="link-in link-in--sm" placeholder="Title (optional)" maxlength="200">
+                  <button type="submit" class="pbtn pbtn-gold">Save</button>
+                </div>
+                <input id="tlLinkNote" class="link-in" placeholder="Note (optional)" maxlength="300">
+                <span class="poll-msg" id="tlLinkMsg" role="status" aria-live="polite"></span>
+              </form>
+              <div class="link-list" id="tlLinkList"><p class="pc-empty">Loading links…</p></div>
+            </div>
+          </section>
+          </div><!-- /.tools-grid--team -->
 <?php endif; ?>
         </section>
 
