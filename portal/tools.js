@@ -14,6 +14,40 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function todayKey() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
+  /* ---- App launcher: open one app at a time, with a back button ---- */
+  (function () {
+    var home = document.getElementById('suiteHome'), open = document.getElementById('suiteOpen'),
+        stage = document.getElementById('suiteStage'), titleEl = document.getElementById('suiteOpenTitle'),
+        back = document.getElementById('suiteBack');
+    if (!home || !open || !stage) return;
+    var NAMES = { cal: 'Calendar', notes: 'Notes', focus: 'Focus timer', habits: 'Habits', countdown: 'Countdown',
+      rem: 'Reminders', board: 'Team board', polls: 'Team polls', standup: 'Daily standup', goals: 'Goals & OKRs', links: 'Team links' };
+    var panels = stage.querySelectorAll('.suite-app');
+    function toHome() {
+      open.hidden = true; home.hidden = false;
+      [].forEach.call(panels, function (p) { p.hidden = true; });
+      try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    function openApp(key) {
+      var found = false;
+      [].forEach.call(panels, function (p) { var m = p.getAttribute('data-app') === key; p.hidden = !m; if (m) found = true; });
+      if (!found) return;
+      titleEl.textContent = NAMES[key] || 'App';
+      home.hidden = true; open.hidden = false;
+      // Nudge the just-opened app to refresh its data, if it exposes a loader.
+      if (window.__suiteRefresh && window.__suiteRefresh[key]) { try { window.__suiteRefresh[key](); } catch (e) {} }
+      try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    home.addEventListener('click', function (e) { var t = e.target.closest('[data-app]'); if (t) openApp(t.getAttribute('data-app')); });
+    back.addEventListener('click', toHome);
+    // Reset to the launcher only when the Suite NAV LINK is clicked (the whole
+    // view carries data-view="tools", so scope to the sidebar link itself).
+    document.addEventListener('click', function (e) { if (e.target.closest('a.pnav-link[data-view="tools"]')) setTimeout(toHome, 0); });
+  })();
+
+  // Apps register a refresh fn here so opening a tile re-pulls fresh data.
+  window.__suiteRefresh = window.__suiteRefresh || {};
+
   /* ---- Notes ---- */
   (function () {
     var area = document.getElementById('tlNotesArea'), count = document.getElementById('tlNotesCount'),
@@ -221,6 +255,7 @@
     function maybeLoad() { if (!document.getElementById('view-tools').hidden) load(); }
     document.addEventListener('click', function (e) { if (e.target.closest('[data-view="tools"]')) setTimeout(maybeLoad, 80); });
     window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(maybeLoad, 80); });
+    window.__suiteRefresh['polls'] = load;
     maybeLoad();
   })();
 
@@ -278,6 +313,7 @@
     function maybeLoad() { if (!document.getElementById('view-tools').hidden) load(); }
     document.addEventListener('click', function (e) { if (e.target.closest('[data-view="tools"]')) setTimeout(maybeLoad, 90); });
     window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(maybeLoad, 90); });
+    window.__suiteRefresh['standup'] = load;
     maybeLoad();
   })();
 
@@ -332,7 +368,7 @@
       var dl = e.target.closest('[data-del]');
       if (dl) { suitePost('/portal/reminders.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
-    onToolsOpen(load);
+    onToolsOpen(load); window.__suiteRefresh['rem'] = load;
   })();
 
   /* ---- Team board (Kanban, org-shared, DB-backed) ---- */
@@ -386,7 +422,7 @@
         });
       });
     }
-    onToolsOpen(load);
+    onToolsOpen(load); window.__suiteRefresh['board'] = load;
   })();
 
   /* ---- Goals & OKRs (org-shared, DB-backed) ---- */
@@ -435,7 +471,7 @@
       var dec = e.target.closest('[data-dec]'); if (dec) { bump(+dec.getAttribute('data-dec'), -10); return; }
       var dl = e.target.closest('[data-del]'); if (dl) { if (confirm('Delete this goal?')) suitePost('/portal/goals.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
-    onToolsOpen(load);
+    onToolsOpen(load); window.__suiteRefresh['goals'] = load;
   })();
 
   /* ---- Team links (org-shared bookmark hub, DB-backed) ---- */
@@ -475,7 +511,7 @@
       var dl = e.target.closest('[data-del]');
       if (dl) { if (confirm('Remove this link?')) suitePost('/portal/bookmarks.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
-    onToolsOpen(load);
+    onToolsOpen(load); window.__suiteRefresh['links'] = load;
   })();
 
   /* ---- Integrated Calendar (team events + AFG + sessions + tasks + reminders) ---- */
@@ -591,5 +627,6 @@
     });
     // Pre-fill the add-event date with the selected day when the tab opens.
     onToolsOpen(function () { var di = document.getElementById('tlCalDate'); if (di && !di.value) di.value = sel; load(); });
+    window.__suiteRefresh['cal'] = load;
   })();
 })();

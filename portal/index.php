@@ -343,6 +343,38 @@ $nav['You'] = [
             <div><h1>Suite</h1><p class="view-sub">Your Afrovanguard productivity suite — personal tools and shared team apps, right in the portal.</p></div>
           </div>
 
+          <!-- App launcher: pick one app to open -->
+          <div class="suite-home" id="suiteHome">
+            <h2 class="suite-section"><span>◧ Personal</span><small>Private to you, synced to your account</small></h2>
+            <div class="app-tiles">
+              <button type="button" class="app-tile app-tile--cal" data-app="cal"><span class="app-ic">◗</span><span class="app-tx"><span class="app-nm">Calendar</span><span class="app-desc">Your month, unified</span></span></button>
+              <button type="button" class="app-tile" data-app="notes"><span class="app-ic">✎</span><span class="app-tx"><span class="app-nm">Notes</span><span class="app-desc">Quick private scratchpad</span></span></button>
+              <button type="button" class="app-tile" data-app="focus"><span class="app-ic">◐</span><span class="app-tx"><span class="app-nm">Focus</span><span class="app-desc">Pomodoro timer</span></span></button>
+              <button type="button" class="app-tile" data-app="habits"><span class="app-ic">✓</span><span class="app-tx"><span class="app-nm">Habits</span><span class="app-desc">Build daily streaks</span></span></button>
+              <button type="button" class="app-tile" data-app="countdown"><span class="app-ic">◔</span><span class="app-tx"><span class="app-nm">Countdown</span><span class="app-desc">Days to a date</span></span></button>
+              <button type="button" class="app-tile" data-app="rem"><span class="app-ic">⏰</span><span class="app-tx"><span class="app-nm">Reminders</span><span class="app-desc">Nudges with due dates</span></span></button>
+            </div>
+<?php if ($isOrg): ?>
+            <h2 class="suite-section"><span>◨ Team</span><small>Shared with everyone at Afrovanguard</small></h2>
+            <div class="app-tiles">
+              <button type="button" class="app-tile app-tile--team" data-app="board"><span class="app-ic">▦</span><span class="app-tx"><span class="app-nm">Team board</span><span class="app-desc">Kanban workflow</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="polls"><span class="app-ic">▤</span><span class="app-tx"><span class="app-nm">Team polls</span><span class="app-desc">Quick decisions</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="standup"><span class="app-ic">◷</span><span class="app-tx"><span class="app-nm">Daily standup</span><span class="app-desc">Async check-ins</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="goals"><span class="app-ic">◎</span><span class="app-tx"><span class="app-nm">Goals &amp; OKRs</span><span class="app-desc">Track objectives</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="links"><span class="app-ic">🔖</span><span class="app-tx"><span class="app-nm">Team links</span><span class="app-desc">Shared resources</span></span></button>
+            </div>
+<?php endif; ?>
+          </div>
+
+          <!-- Opened app: back bar + a single app on stage -->
+          <div class="suite-open" id="suiteOpen" hidden>
+            <div class="suite-bar">
+              <button type="button" class="suite-back" id="suiteBack">‹ All apps</button>
+              <h2 class="suite-open-title" id="suiteOpenTitle"></h2>
+            </div>
+            <div class="suite-stage" id="suiteStage">
+
+            <div class="suite-app" data-app="cal" hidden>
           <!-- Integrated calendar: team events + AFG events + sessions + tasks + reminders -->
           <section class="pcard tool-cal" id="tlCal" data-csrf="<?= e($collabCsrf) ?>" data-org="<?= $isOrg ? '1' : '0' ?>">
             <div class="pcard-head cal-head">
@@ -391,9 +423,9 @@ $nav['You'] = [
               </aside>
             </div>
           </section>
+            </div><!-- /cal -->
 
-          <h2 class="suite-section"><span>◧ Personal</span><small>Private to you, synced to your account</small></h2>
-          <div class="tools-grid">
+            <div class="suite-app" data-app="notes" hidden>
             <section class="pcard tool" id="tlNotes">
               <div class="pcard-head"><h2>✎ Notes</h2><span class="tool-meta" id="tlNotesMeta">Autosaves</span></div>
               <div class="pcard-body">
@@ -401,7 +433,9 @@ $nav['You'] = [
                 <div class="tool-row tool-row--foot"><span class="tool-hint" id="tlNotesCount">0 words</span><button type="button" class="pbtn pbtn-ghost" id="tlNotesClear">Clear</button></div>
               </div>
             </section>
+            </div><!-- /notes -->
 
+            <div class="suite-app" data-app="focus" hidden>
             <section class="pcard tool" id="tlFocus">
               <div class="pcard-head"><h2>◐ Focus timer</h2><span class="tool-meta"><b id="tlFocusSessions">0</b> done today</span></div>
               <div class="pcard-body tool-focus">
@@ -417,7 +451,9 @@ $nav['You'] = [
                 </div>
               </div>
             </section>
+            </div><!-- /focus -->
 
+            <div class="suite-app" data-app="habits" hidden>
             <section class="pcard tool" id="tlHabits">
               <div class="pcard-head"><h2>✓ Habits</h2><span class="tool-meta" id="tlHabitsMeta"></span></div>
               <div class="pcard-body">
@@ -425,7 +461,9 @@ $nav['You'] = [
                 <ul class="habit-list" id="tlHabitList"></ul>
               </div>
             </section>
+            </div><!-- /habits -->
 
+            <div class="suite-app" data-app="countdown" hidden>
             <section class="pcard tool" id="tlCountdown">
               <div class="pcard-head"><h2>◔ Countdown</h2></div>
               <div class="pcard-body tool-cd">
@@ -441,7 +479,9 @@ $nav['You'] = [
                 </div>
               </div>
             </section>
+            </div><!-- /countdown -->
 
+            <div class="suite-app" data-app="rem" hidden>
             <section class="pcard tool tool-rem" id="tlRem" data-csrf="<?= e($collabCsrf) ?>">
               <div class="pcard-head"><h2>⏰ Reminders</h2><span class="tool-meta" id="tlRemMeta"></span></div>
               <div class="pcard-body">
@@ -456,11 +496,10 @@ $nav['You'] = [
                 <ul class="rem-list" id="tlRemList"></ul>
               </div>
             </section>
-          </div>
+            </div><!-- /rem -->
 
 <?php if ($isOrg): ?>
-          <h2 class="suite-section"><span>◨ Team</span><small>Shared with everyone at Afrovanguard</small></h2>
-
+            <div class="suite-app" data-app="board" hidden>
           <!-- Enterprise: Kanban board — shared team workflow -->
           <section class="pcard tool-board" id="tlBoard" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>▦ Team board</h2><span class="pchip pchip--indigo">Members · shared</span></div>
@@ -468,8 +507,9 @@ $nav['You'] = [
               <div class="board-cols" id="tlBoardCols"><p class="pc-empty">Loading board…</p></div>
             </div>
           </section>
+            </div><!-- /board -->
 
-          <div class="tools-grid tools-grid--team">
+            <div class="suite-app" data-app="polls" hidden>
           <!-- Enterprise: Team Polls — collaborative decisions with live tallies -->
           <section class="pcard tool-polls" id="tlPolls" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>▤ Team polls</h2><span class="pchip pchip--indigo">Members · shared</span></div>
@@ -489,7 +529,9 @@ $nav['You'] = [
               <div class="poll-list" id="tlPollList"><p class="pc-empty">Loading polls…</p></div>
             </div>
           </section>
+            </div><!-- /polls -->
 
+            <div class="suite-app" data-app="standup" hidden>
           <!-- Enterprise: Async standup — daily team check-ins -->
           <section class="pcard tool-standup" id="tlStandup" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>◷ Daily standup</h2><span class="pchip pchip--indigo">Members · today</span></div>
@@ -507,7 +549,9 @@ $nav['You'] = [
               <div class="su-board" id="tlSuBoard"><p class="pc-empty">Loading today's board…</p></div>
             </div>
           </section>
+            </div><!-- /standup -->
 
+            <div class="suite-app" data-app="goals" hidden>
           <!-- Enterprise: Goals & OKRs — shared objectives with progress -->
           <section class="pcard tool-goals" id="tlGoals" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>◎ Goals &amp; OKRs</h2><span class="pchip pchip--indigo">Members · shared</span></div>
@@ -523,7 +567,9 @@ $nav['You'] = [
               <div class="goal-list" id="tlGoalList"><p class="pc-empty">Loading goals…</p></div>
             </div>
           </section>
+            </div><!-- /goals -->
 
+            <div class="suite-app" data-app="links" hidden>
           <!-- Enterprise: Team links — shared resource hub -->
           <section class="pcard tool-links" id="tlLinks" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head"><h2>🔖 Team links</h2><span class="pchip pchip--indigo">Members · shared</span></div>
@@ -540,8 +586,10 @@ $nav['You'] = [
               <div class="link-list" id="tlLinkList"><p class="pc-empty">Loading links…</p></div>
             </div>
           </section>
-          </div><!-- /.tools-grid--team -->
+            </div><!-- /links -->
 <?php endif; ?>
+            </div><!-- /suiteStage -->
+          </div><!-- /suiteOpen -->
         </section>
 
 <?php if ($isOrg): ?>
