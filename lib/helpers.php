@@ -192,3 +192,28 @@ function require_same_origin(): void {
         json_out(['ok' => false, 'error' => 'Cross-origin request rejected.'], 403);
     }
 }
+
+/**
+ * One-liner guard for a JSON write endpoint: same-origin + CSRF token
+ * (X-CSRF-Token header) + per-user rate limit. json_out()s and exits on any
+ * failure. Replaces the copy-pasted $writeGuard closures across portal/*.php.
+ */
+function av_require_write(int $uid, string $bucket, int $max = 40, int $window = 600): void {
+    require_same_origin();
+    if (!av_csrf_valid((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
+        json_out(['ok' => false, 'error' => 'Bad token.'], 403);
+    }
+    if (!av_rate_ok($bucket . '_' . $uid, $max, $window)) {
+        json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+    }
+}
+
+/** Humanise a UTC 'Y-m-d H:i:s' timestamp as "just now / 5m ago / 3h ago / 2d ago". */
+function av_ago(string $ts): string {
+    $t = strtotime($ts . ' UTC') ?: 0; if (!$t) return '';
+    $d = max(0, time() - $t);
+    if ($d < 60)    return 'just now';
+    if ($d < 3600)  return (int) floor($d / 60) . 'm ago';
+    if ($d < 86400) return (int) floor($d / 3600) . 'h ago';
+    return (int) floor($d / 86400) . 'd ago';
+}

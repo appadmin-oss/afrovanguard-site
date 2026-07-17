@@ -22,11 +22,7 @@ $action = (string) ($_GET['action'] ?? 'board');
 $body = [];
 if ($method === 'POST') { $body = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST; }
 
-$writeGuard = function () use ($uid) {
-    require_same_origin();
-    if (!av_csrf_valid((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) json_out(['ok' => false, 'error' => 'Bad token.'], 403);
-    if (!av_rate_ok('standup_' . $uid, 40, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
-};
+$writeGuard = function () use ($uid) { av_require_write($uid, 'standup', 40); };
 
 try {
     switch ($action) {

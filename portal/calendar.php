@@ -27,9 +27,7 @@ if ($method === 'POST') { $body = json_decode(file_get_contents('php://input') ?
 
 $writeGuard = function () use ($uid, $isOrg) {
     if (!$isOrg) json_out(['ok' => false, 'error' => 'Adding events is for Afrovanguard members.'], 403);
-    require_same_origin();
-    if (!av_csrf_valid((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) json_out(['ok' => false, 'error' => 'Bad token.'], 403);
-    if (!av_rate_ok('calendar_' . $uid, 60, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+    av_require_write($uid, 'calendar', 60);
 };
 
 try {
