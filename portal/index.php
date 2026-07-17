@@ -504,6 +504,14 @@ $nav['You'] = [
                   <span class="poll-msg" id="tlRemMsg" role="status" aria-live="polite"></span>
                 </form>
                 <ul class="rem-list" id="tlRemList"></ul>
+                <div class="rem-tz">
+                  <label for="tlRemTz">Times shown in</label>
+                  <select id="tlRemTz" class="rem-tz-sel" data-csrf="<?= e($collabCsrf) ?>">
+<?php $curTz = av_user_tz((int) $u['id']); foreach (Prefs::TIMEZONES as $tzLabel => $tzId): ?>
+                    <option value="<?= e($tzId) ?>"<?= $tzId === $curTz ? ' selected' : '' ?>><?= e($tzLabel) ?></option>
+<?php endforeach; ?>
+                  </select>
+                </div>
               </div>
             </section>
             </div><!-- /rem -->

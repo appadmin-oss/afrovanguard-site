@@ -155,6 +155,9 @@ if (is_file($cfg)) {
 }
 if (!defined('SITE_URL'))         define('SITE_URL', 'https://afrovanguard.org.ng');
 if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', getenv('AV_DB_PATH') ?: (AV_ROOT . '/db/diary.sqlite'));
+// Organisation timezone. Data is stored UTC; this is the wall-clock members
+// live in (Nigeria = WAT, UTC+1, no DST). Per-user overrides via Prefs.
+if (!defined('AV_TZ'))            define('AV_TZ', getenv('AV_TZ') ?: 'Africa/Lagos');
 
 // Admin token (config.php or AV_ADMIN_TOKEN env). Absent ⇒ admin disabled.
 if (!defined('ADMIN_TOKEN')) {
@@ -243,6 +246,7 @@ require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
+require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AdminAudit.php';
 require_once __DIR__ . '/AdminRoles.php';

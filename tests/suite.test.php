@@ -94,3 +94,13 @@ ck('notif: read clears count', Notifications::unreadCount(1) === 0);
 Reminders::add(1, 'Due now', '2000-01-01T09:00');
 ck('notif: dispatch makes reminder notif', Notifications::dispatchDue()['reminders'] === 1);
 ck('notif: dispatch idempotent', Notifications::dispatchDue()['reminders'] === 0);
+
+/* ---- Prefs + timezone ---- */
+require_once AV_ROOT . '/lib/Prefs.php';
+reset_users();
+ck('prefs: default tz is org default', av_user_tz(1) === AV_TZ);
+ck('prefs: reject unknown tz', !Prefs::setTimezone(1, 'Mars/Olympus'));
+ck('prefs: set valid tz', Prefs::setTimezone(1, 'Europe/London'));
+ck('prefs: tz persisted', av_user_tz(1) === 'Europe/London');
+ck('prefs: per-user isolation', av_user_tz(2) === AV_TZ);
+ck('tz: av_now_tz formats', (bool) preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', av_now_tz()));

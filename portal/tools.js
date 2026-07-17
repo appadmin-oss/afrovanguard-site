@@ -368,6 +368,13 @@
       var dl = e.target.closest('[data-del]');
       if (dl) { suitePost('/portal/reminders.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
     });
+    var tzSel = document.getElementById('tlRemTz');
+    tzSel && tzSel.addEventListener('change', function () {
+      fetch('/portal/prefs.php?action=set_tz', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': tzSel.getAttribute('data-csrf') || '' },
+        body: JSON.stringify({ tz: tzSel.value }) }).then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.ok) load(); }).catch(function () {});
+    });
     onToolsOpen(load); window.__suiteRefresh['rem'] = load;
   })();
 

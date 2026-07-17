@@ -208,6 +208,21 @@ function av_require_write(int $uid, string $bucket, int $max = 40, int $window =
     }
 }
 
+/** Current wall-clock in a timezone (default the org tz), e.g. '2026-07-17 14:05'. */
+function av_now_tz(string $fmt = 'Y-m-d H:i', ?string $tz = null): string {
+    try { return (new DateTime('now', new DateTimeZone($tz ?: (defined('AV_TZ') ? AV_TZ : 'UTC'))))->format($fmt); }
+    catch (Throwable $e) { return gmdate($fmt); }
+}
+
+/** Today's date (Y-m-d) in a timezone (default the org tz). */
+function av_today_tz(?string $tz = null): string { return av_now_tz('Y-m-d', $tz); }
+
+/** A user's timezone: their saved preference, else the org default. */
+function av_user_tz(int $uid): string {
+    if ($uid > 0 && class_exists('Prefs')) { $t = Prefs::get($uid, 'tz', ''); if ($t !== '') return $t; }
+    return defined('AV_TZ') ? AV_TZ : 'UTC';
+}
+
 /** Humanise a UTC 'Y-m-d H:i:s' timestamp as "just now / 5m ago / 3h ago / 2d ago". */
 function av_ago(string $ts): string {
     $t = strtotime($ts . ' UTC') ?: 0; if (!$t) return '';

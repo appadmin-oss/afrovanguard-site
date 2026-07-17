@@ -127,11 +127,14 @@ final class Notifications
         $now = gmdate('Y-m-d H:i:s');
         $made = ['reminders' => 0, 'sessions' => 0];
 
-        // 1) Reminders that have come due (stored as 'Y-m-d H:i' UTC, not done).
+        // 1) Reminders that have come due. Due is the wall-clock the member
+        //    picked (their timezone), so we fire when THEIR clock reaches it —
+        //    not when UTC does (which would be an hour late for WAT users).
         try {
-            $st = $db->prepare("SELECT id, user_id, text FROM user_reminders WHERE done = 0 AND due <> '' AND due <= ? ");
-            $st->execute([gmdate('Y-m-d H:i')]);
+            $st = $db->query("SELECT id, user_id, text, due FROM user_reminders WHERE done = 0 AND due <> ''");
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $tz = function_exists('av_user_tz') ? av_user_tz((int) $r['user_id']) : (defined('AV_TZ') ? AV_TZ : 'UTC');
+                if ((string) $r['due'] > av_now_tz('Y-m-d H:i', $tz)) continue;   // not due yet in their tz
                 $id = self::push((int) $r['user_id'], 'reminder', 'Reminder: ' . (string) $r['text'],
                     'This reminder is due.', '/portal/#tools', 'rem:' . (int) $r['id']);
                 if ($id) { $made['reminders']++; self::email((int) $r['user_id'], 'Reminder: ' . (string) $r['text'], 'This reminder is now due.'); }

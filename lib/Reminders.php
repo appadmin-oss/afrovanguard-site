@@ -88,42 +88,46 @@ final class Reminders
             $st->execute([$uid]);
             $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) { return []; }
-        $now = time();
+        // Compare against the member's own wall-clock so "Today"/overdue line up
+        // with the clock on their wall (WAT), not the server's UTC.
+        $tz         = function_exists('av_user_tz') ? av_user_tz($uid) : (defined('AV_TZ') ? AV_TZ : 'UTC');
+        $nowLocal   = function_exists('av_now_tz') ? av_now_tz('Y-m-d H:i', $tz) : gmdate('Y-m-d H:i');
+        $todayLocal = substr($nowLocal, 0, 10);
         $out = [];
         foreach ($rows as $r) {
             $due = (string) $r['due'];
-            $ts  = $due !== '' ? (strtotime($due . ' UTC') ?: 0) : 0;
             $out[] = [
                 'id'       => (int) $r['id'],
                 'text'     => (string) $r['text'],
                 'due'      => $due,
-                'due_label'=> $ts ? self::dueLabel($ts, $now) : '',
-                'overdue'  => $ts && $ts < $now && (int) $r['done'] === 0,
+                'due_label'=> $due !== '' ? self::dueLabel($due, $todayLocal) : '',
+                'overdue'  => $due !== '' && (int) $r['done'] === 0 && $due < $nowLocal,
                 'done'     => (int) $r['done'] === 1,
-                'sort'     => $ts ?: PHP_INT_MAX,
+                'sort'     => $due !== '' ? $due : '9999-99-99 99:99',
             ];
         }
-        // Open first (by soonest due), done last.
+        // Open first (by soonest due, undated last), done last.
         usort($out, function ($a, $b) {
             if ($a['done'] !== $b['done']) return $a['done'] <=> $b['done'];
-            return $a['sort'] <=> $b['sort'];
+            return strcmp($a['sort'], $b['sort']);
         });
         foreach ($out as &$o) unset($o['sort']);
         return $out;
     }
 
-    private static function dueLabel(int $ts, int $now): string
+    /** Label a 'Y-m-d H:i' wall-clock relative to the member's local today. */
+    private static function dueLabel(string $due, string $todayLocal): string
     {
-        $today = strtotime(gmdate('Y-m-d', $now) . ' UTC');
-        $day   = strtotime(gmdate('Y-m-d', $ts) . ' UTC');
-        $diff  = (int) round(($day - $today) / 86400);
-        $time  = gmdate('H:i', $ts);
-        $hasTime = $time !== '00:00';
-        if ($diff === 0) return $hasTime ? 'Today ' . $time : 'Today';
-        if ($diff === 1) return $hasTime ? 'Tomorrow ' . $time : 'Tomorrow';
+        $dayStr = substr($due, 0, 10);
+        $time   = substr($due, 11, 5);
+        $diff   = (int) round(((strtotime($dayStr . ' UTC') ?: 0) - (strtotime($todayLocal . ' UTC') ?: 0)) / 86400);
+        $hasTime = $time !== '' && $time !== '00:00';
+        $ts = strtotime($dayStr . ' UTC') ?: 0;
+        if ($diff === 0)  return $hasTime ? 'Today ' . $time : 'Today';
+        if ($diff === 1)  return $hasTime ? 'Tomorrow ' . $time : 'Tomorrow';
         if ($diff === -1) return 'Yesterday';
-        if ($diff < 0) return abs($diff) . 'd ago';
-        if ($diff < 7) return gmdate('D', $ts) . ($hasTime ? ' ' . $time : '');
+        if ($diff < 0)    return abs($diff) . 'd ago';
+        if ($diff < 7)    return gmdate('D', $ts) . ($hasTime ? ' ' . $time : '');
         return gmdate('M j', $ts) . ($hasTime ? ' ' . $time : '');
     }
 }
