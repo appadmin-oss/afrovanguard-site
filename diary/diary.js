@@ -535,7 +535,16 @@
       highlight(idx);
       renderCaption(units[idx].text);
       if (neural) { playNeural(idx); return; }
-      var u = new SpeechSynthesisUtterance(units[idx].text);
+      speakBrowser(idx);
+    }
+    // Read one unit with the browser's built-in voice. Used when no neural engine
+    // is configured AND as a fallback when a neural clip fails (e.g. the server
+    // 502s because the TTS provider key/quota is unavailable) — so read-aloud
+    // keeps working with the device voice instead of falling silent.
+    function speakBrowser(i) {
+      if (!hasTTS) { if (playing) { idx++; speakChunk(); } return; }
+      try { synth.cancel(); } catch (e) {}
+      var u = new SpeechSynthesisUtterance(units[i].text);
       u.rate = rate; u.pitch = 1.0; u.volume = 1; u.lang = (voice && voice.lang) || 'en-GB';
       if (voice) u.voice = voice;
       u.onboundary = function (e) { if (e.charIndex != null && (e.name === 'word' || e.name == null)) highlightWord(e.charIndex); };
@@ -566,9 +575,18 @@
           highlightWordByFrac(audioEl.currentTime / d);
         }
       };
-      audioEl.onended = function () { if (!playing) return; elapsedBase += (audioEl.duration && isFinite(audioEl.duration)) ? audioEl.duration : 0; idx++; speakChunk(); };
-      audioEl.onerror = function () { if (!playing) return; idx++; speakChunk(); };
-      var p = audioEl.play(); if (p && p.catch) p.catch(function () {});
+      var settled = false;
+      // A neural clip failed (network/5xx). Stop hammering the endpoint —
+      // switch to the browser voice for the rest of the article — and read THIS
+      // sentence aloud rather than skipping it.
+      function neuralFail() {
+        if (settled || !playing) return; settled = true;
+        neural = false; startKeepAlive();
+        speakBrowser(i);
+      }
+      audioEl.onended = function () { if (settled || !playing) return; settled = true; elapsedBase += (audioEl.duration && isFinite(audioEl.duration)) ? audioEl.duration : 0; idx++; speakChunk(); };
+      audioEl.onerror = neuralFail;
+      var p = audioEl.play(); if (p && p.catch) p.catch(neuralFail);
       prefetchNext();
     }
     function stop() { playing = false; if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); } setUI(false); stopTicker(); stopKeepAlive(); clearHighlight(); }
