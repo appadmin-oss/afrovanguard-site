@@ -861,3 +861,17 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .rem-tz-sel:focus { outline:none; border-color:var(--gold); }
 
 .tlink-admin { display:inline-flex; gap:6px; }
+
+/* ============================================================
+   ACCESSIBILITY — honour reduced-motion for the portal's many
+   animated surfaces (suite tiles, progress/poll bars, calendar,
+   notifications, spinners). Matches the rest of the site.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .portal-app *, .portal-app *::before, .portal-app *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
