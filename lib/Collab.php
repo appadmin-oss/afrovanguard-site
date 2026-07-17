@@ -177,7 +177,15 @@ final class Collab
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
         Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, created_at) VALUES (?,?,?,0,?,?,?)')
             ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), gmdate('Y-m-d H:i:s')]);
-        return (int) Database::pdo()->lastInsertId();
+        $newId = (int) Database::pdo()->lastInsertId();
+        // Notify the assignee when a task is delegated to them (not self-assigned).
+        if ($assignee !== $creatorId && class_exists('Notifications')) {
+            try {
+                Notifications::push($assignee, 'task', 'New task: ' . $title,
+                    'Assigned to you by ' . self::nameOf($creatorId) . '.', '/portal/#tasks', 'task:' . $newId);
+            } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+        }
+        return $newId;
     }
 
     /** Toggle done — only the assignee or creator may. Returns the new state (or null). */

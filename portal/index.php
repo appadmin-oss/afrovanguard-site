@@ -184,7 +184,17 @@ $nav['You'] = [
         <div class="ptop-crumb"><span>Portal</span><span class="ptop-sep">/</span><span class="ptop-here" id="crumbHere">Dashboard</span></div>
         <div class="ptop-actions">
 <?php if ($isOrg): ?>          <span class="ptop-online" id="topOnline"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="dot-live"></span><span id="tbCount"><?= (int) $onlineNow ?></span> online</span>
-<?php endif; ?>          <button type="button" class="ptop-icon" id="portalTheme" aria-label="Light / dark" title="Light / dark">
+<?php endif; ?>          <div class="ptop-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
+            <button type="button" class="ptop-icon" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" title="Notifications">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+              <span class="notif-badge" id="notifBadge" hidden>0</span>
+            </button>
+            <div class="notif-panel" id="notifPanel" hidden role="dialog" aria-label="Notifications">
+              <div class="notif-head"><span>Notifications</span><button type="button" class="notif-readall" id="notifReadAll">Mark all read</button></div>
+              <div class="notif-list" id="notifList"><p class="notif-empty">Loading…</p></div>
+            </div>
+          </div>
+          <button type="button" class="ptop-icon" id="portalTheme" aria-label="Light / dark" title="Light / dark">
             <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
             <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"/></svg>
           </button>
@@ -1192,6 +1202,7 @@ $nav['You'] = [
   </script>
   <script src="/portal/team-chat.js" defer></script>
   <script src="/portal/tools.js" defer></script>
+  <script src="/portal/notifications.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>
