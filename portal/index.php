@@ -342,6 +342,56 @@ $nav['You'] = [
           <div class="view-head">
             <div><h1>Suite</h1><p class="view-sub">Your Afrovanguard productivity suite — personal tools and shared team apps, right in the portal.</p></div>
           </div>
+
+          <!-- Integrated calendar: team events + AFG events + sessions + tasks + reminders -->
+          <section class="pcard tool-cal" id="tlCal" data-csrf="<?= e($collabCsrf) ?>" data-org="<?= $isOrg ? '1' : '0' ?>">
+            <div class="pcard-head cal-head">
+              <h2>◗ Calendar</h2>
+              <div class="cal-ctrls">
+                <button type="button" class="cal-arrow" id="tlCalPrev" aria-label="Previous month">‹</button>
+                <span class="cal-month" id="tlCalMonth">—</span>
+                <button type="button" class="cal-arrow" id="tlCalNext" aria-label="Next month">›</button>
+                <button type="button" class="pbtn pbtn-ghost pbtn-sm" id="tlCalToday">Today</button>
+              </div>
+            </div>
+            <div class="pcard-body cal-body">
+              <div class="cal-main">
+                <div class="cal-dow"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+                <div class="cal-grid" id="tlCalGrid"><p class="pc-empty">Loading calendar…</p></div>
+                <div class="cal-legend">
+                  <span class="cal-key cal-key--event">Team event</span>
+                  <span class="cal-key cal-key--afg">Afrovanguard</span>
+                  <span class="cal-key cal-key--session">Mentorship</span>
+                  <span class="cal-key cal-key--task">Task</span>
+                  <span class="cal-key cal-key--reminder">Reminder</span>
+                </div>
+              </div>
+              <aside class="cal-side">
+                <h3 class="cal-side-title" id="tlCalAgendaTitle">Today</h3>
+                <div class="cal-agenda" id="tlCalAgenda"></div>
+<?php if ($isOrg): ?>
+                <form id="tlCalForm" class="cal-form" autocomplete="off">
+                  <h4>Add an event</h4>
+                  <input id="tlCalTitle" class="cal-in" placeholder="Event title…" maxlength="300">
+                  <div class="cal-row">
+                    <input type="date" id="tlCalDate" class="cal-in" aria-label="Date">
+                  </div>
+                  <div class="cal-row">
+                    <input type="time" id="tlCalStart" class="cal-in" aria-label="Start time">
+                    <input type="time" id="tlCalEnd" class="cal-in" aria-label="End time">
+                  </div>
+                  <input id="tlCalLoc" class="cal-in" placeholder="Location (optional)" maxlength="200">
+                  <input id="tlCalNote" class="cal-in" placeholder="Note (optional)" maxlength="500">
+                  <div class="cal-form-foot">
+                    <button type="submit" class="pbtn pbtn-gold">Add event</button>
+                    <span class="poll-msg" id="tlCalMsg" role="status" aria-live="polite"></span>
+                  </div>
+                </form>
+<?php endif; ?>
+              </aside>
+            </div>
+          </section>
+
           <h2 class="suite-section"><span>◧ Personal</span><small>Private to you, synced to your account</small></h2>
           <div class="tools-grid">
             <section class="pcard tool" id="tlNotes">

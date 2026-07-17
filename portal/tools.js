@@ -477,4 +477,119 @@
     });
     onToolsOpen(load);
   })();
+
+  /* ---- Integrated Calendar (team events + AFG + sessions + tasks + reminders) ---- */
+  (function () {
+    var card = document.getElementById('tlCal');
+    if (!card) return;
+    var csrf = card.getAttribute('data-csrf') || '', isOrg = card.getAttribute('data-org') === '1';
+    var gridEl = document.getElementById('tlCalGrid'), monthEl = document.getElementById('tlCalMonth'),
+        agendaEl = document.getElementById('tlCalAgenda'), agendaTitle = document.getElementById('tlCalAgendaTitle'),
+        msg = document.getElementById('tlCalMsg');
+    var MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function ymd(d) { return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
+    function utc(y, m, day) { return new Date(Date.UTC(y, m, day || 1)); }
+    var now = new Date(), today = ymd(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())));
+    var viewY = now.getUTCFullYear(), viewM = now.getUTCMonth();   // month shown
+    var sel = today;                                              // selected day
+    var byDate = {};                                             // 'Y-m-d' -> [items]
+
+    function gridStart(y, m) { var d1 = utc(y, m, 1); var mi = (d1.getUTCDay() + 6) % 7; return utc(y, m, 1 - mi); }
+    function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+
+    function load() {
+      var gs = gridStart(viewY, viewM), ge = new Date(gs.getTime() + 41 * 86400000);
+      monthEl.textContent = MON[viewM] + ' ' + viewY;
+      suiteGet('/portal/calendar.php', 'feed&from=' + ymd(gs) + '&to=' + ymd(ge)).then(function (d) {
+        byDate = {};
+        if (d && d.ok) (d.items || []).forEach(function (it) { (byDate[it.date] = byDate[it.date] || []).push(it); });
+        renderGrid(gs); renderAgenda();
+      }).catch(function () { gridEl.innerHTML = '<p class="pc-empty">Could not load the calendar.</p>'; });
+    }
+
+    function renderGrid(gs) {
+      var html = '';
+      for (var i = 0; i < 42; i++) {
+        var d = new Date(gs.getTime() + i * 86400000), key = ymd(d), items = byDate[key] || [];
+        var out = d.getUTCMonth() !== viewM;
+        var pills = items.slice(0, 3).map(function (it) {
+          return '<span class="cal-pill cal-pill--' + it.kind + (it.done ? ' is-done' : '') + '" title="' + esc(it.title) + '">'
+            + (it.time ? '<b>' + esc(it.time) + '</b> ' : '') + esc(it.title) + '</span>';
+        }).join('');
+        var more = items.length > 3 ? '<span class="cal-more">+' + (items.length - 3) + '</span>' : '';
+        html += '<button type="button" class="cal-cell' + (out ? ' is-out' : '') + (key === today ? ' is-today' : '')
+          + (key === sel ? ' is-sel' : '') + (items.length ? ' has-ev' : '') + '" data-day="' + key + '">'
+          + '<span class="cal-dnum">' + d.getUTCDate() + '</span>'
+          + '<span class="cal-pills">' + pills + more + '</span></button>';
+      }
+      gridEl.innerHTML = html;
+    }
+
+    function humanDay(key) {
+      if (key === today) return 'Today';
+      var t = new Date(today + 'T00:00:00Z'), d = new Date(key + 'T00:00:00Z');
+      var diff = Math.round((d - t) / 86400000);
+      if (diff === 1) return 'Tomorrow';
+      if (diff === -1) return 'Yesterday';
+      return DOW[d.getUTCDay()] + ', ' + d.getUTCDate() + ' ' + MON[d.getUTCMonth()].slice(0, 3);
+    }
+    function itemHTML(it) {
+      var meet = it.url ? '<a class="cal-ev-link" href="' + esc(it.url) + '" target="_blank" rel="noopener noreferrer">'
+        + (it.kind === 'session' ? 'Join' : 'Open') + ' ↗</a>' : '';
+      var del = it.can_delete ? '<button type="button" class="cal-ev-del" data-del="' + it.id + '" aria-label="Delete">✕</button>' : '';
+      var meta = [];
+      if (it.location) meta.push('📍 ' + esc(it.location));
+      if (it.who && it.kind !== 'reminder') meta.push(esc(it.who));
+      return '<div class="cal-ev cal-ev--' + it.kind + (it.done ? ' is-done' : '') + '">'
+        + '<span class="cal-ev-when">' + (it.all_day || !it.time ? 'All day' : esc(it.time) + (it.end ? '–' + esc(it.end) : '')) + '</span>'
+        + '<div class="cal-ev-body"><span class="cal-ev-title">' + esc(it.title) + '</span>'
+        + (it.note ? '<span class="cal-ev-note">' + esc(it.note) + '</span>' : '')
+        + (meta.length ? '<span class="cal-ev-meta">' + meta.join(' · ') + '</span>' : '')
+        + '</div>' + meet + del + '</div>';
+    }
+    function renderAgenda() {
+      agendaTitle.textContent = humanDay(sel);
+      var items = byDate[sel] || [];
+      agendaEl.innerHTML = items.length ? items.map(itemHTML).join('')
+        : '<p class="pc-empty">Nothing scheduled.</p>';
+    }
+
+    function syncFormDate() { var di = document.getElementById('tlCalDate'); if (di) di.value = sel; }
+    gridEl.addEventListener('click', function (e) {
+      var cell = e.target.closest('[data-day]'); if (!cell) return;
+      sel = cell.getAttribute('data-day'); syncFormDate();
+      var d = new Date(sel + 'T00:00:00Z');
+      if (d.getUTCMonth() !== viewM || d.getUTCFullYear() !== viewY) { viewY = d.getUTCFullYear(); viewM = d.getUTCMonth(); load(); }
+      else { [].forEach.call(gridEl.querySelectorAll('.cal-cell'), function (c) { c.classList.toggle('is-sel', c.getAttribute('data-day') === sel); }); renderAgenda(); }
+    });
+    agendaEl.addEventListener('click', function (e) {
+      var dl = e.target.closest('[data-del]');
+      if (dl) { if (confirm('Delete this event?')) suitePost('/portal/calendar.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+    document.getElementById('tlCalPrev').addEventListener('click', function () { viewM--; if (viewM < 0) { viewM = 11; viewY--; } load(); });
+    document.getElementById('tlCalNext').addEventListener('click', function () { viewM++; if (viewM > 11) { viewM = 0; viewY++; } load(); });
+    document.getElementById('tlCalToday').addEventListener('click', function () { sel = today; viewY = now.getUTCFullYear(); viewM = now.getUTCMonth(); load(); });
+
+    var form = document.getElementById('tlCalForm');
+    form && form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = (document.getElementById('tlCalTitle').value || '').trim();
+      var date = document.getElementById('tlCalDate').value || sel;
+      if (!title) { say('Add a title.', 'err'); return; }
+      if (!date) { say('Pick a date.', 'err'); return; }
+      suitePost('/portal/calendar.php', 'create', csrf, {
+        title: title, date: date,
+        start: document.getElementById('tlCalStart').value || '', end: document.getElementById('tlCalEnd').value || '',
+        location: document.getElementById('tlCalLoc').value || '', note: document.getElementById('tlCalNote').value || ''
+      }).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not add.', 'err'); return; }
+        form.reset(); say('Event added.', 'ok'); setTimeout(function () { say(''); }, 2000);
+        sel = date; var dd = new Date(date + 'T00:00:00Z'); viewY = dd.getUTCFullYear(); viewM = dd.getUTCMonth(); load();
+      }).catch(function () { say('Network error.', 'err'); });
+    });
+    // Pre-fill the add-event date with the selected day when the tab opens.
+    onToolsOpen(function () { var di = document.getElementById('tlCalDate'); if (di && !di.value) di.value = sel; load(); });
+  })();
 })();
