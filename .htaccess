@@ -109,6 +109,28 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # ── Cache control ────────────────────────────────────────────────────────
+  # HTML + the fixed-name CSS/JS keep the same name across deploys, so they must
+  # revalidate every load or a change won't show (browser AND Cloudflare honour
+  # this when set to respect origin headers). Media/fonts are immutable.
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header unset Expires
+  </FilesMatch>
+  <FilesMatch "\.(css|js|mjs)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header unset Expires
+  </FilesMatch>
+  <FilesMatch "\.(png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|otf)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Service worker script: never cached, so a new deploy is always picked up and
+  # the SW then refreshes the app (see the registration in portal/index.php).
+  <FilesMatch "^sw\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header unset Expires
+  </FilesMatch>
 </IfModule>
 
 AddDefaultCharset UTF-8

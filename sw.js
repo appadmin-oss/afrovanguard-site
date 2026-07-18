@@ -7,7 +7,7 @@
    Never caches API responses or authenticated HTML.
    ============================================================ */
 'use strict';
-var VERSION = 'av-pwa-v3';
+var VERSION = 'av-pwa-v4';
 var SHELL = [
   '/assets/site/offline.html',
   '/assets/site/nav.css',
@@ -33,13 +33,25 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) { if (k !== VERSION) return caches.delete(k); }));
-    }).then(function () { return self.clients.claim(); })
+    }).then(function (deleted) {
+      return self.clients.claim().then(function () {
+        // If we replaced an older version, reload open tabs so the fresh build
+        // runs immediately instead of one-load-late. (deleted is an array with
+        // truthy entries only when old caches existed.)
+        var replaced = (deleted || []).some(function (x) { return x; });
+        if (!replaced) return;
+        return self.clients.matchAll({ type: 'window' }).then(function (cl) {
+          cl.forEach(function (c) { try { c.navigate(c.url); } catch (_) {} });
+        });
+      });
+    })
   );
 });
 
-function isStatic(url) {
-  return /\.(css|js|png|jpg|jpeg|webp|svg|woff2?|ico)$/i.test(url.pathname);
-}
+// Fixed-name CODE (CSS/JS) keeps its name across deploys → network-first so a
+// deploy shows immediately. Truly immutable media (images/fonts) → cached.
+function isCode(url) { return /\.(css|js|mjs)$/i.test(url.pathname); }
+function isMedia(url) { return /\.(png|jpg|jpeg|webp|svg|woff2?|ico|gif|avif)$/i.test(url.pathname); }
 
 self.addEventListener('fetch', function (e) {
   var req = e.request;
@@ -48,18 +60,28 @@ self.addEventListener('fetch', function (e) {
   if (url.origin !== self.location.origin) return;          // leave cross-origin (CDNs, APIs) alone
   if (url.pathname.indexOf('/api.php') !== -1 || url.search.indexOf('action=') !== -1) return; // never cache APIs
 
-  // Navigations: try network, fall back to cache, then the offline page.
-  if (req.mode === 'navigate') {
+  // Navigations AND fixed-name CSS/JS: network-first, cache is the offline
+  // fallback only.
+  if (req.mode === 'navigate' || isCode(url)) {
+    var offline = req.mode === 'navigate';
     e.respondWith(
-      fetch(req).catch(function () {
-        return caches.match(req).then(function (hit) { return hit || caches.match('/assets/site/offline.html'); });
+      fetch(req).then(function (res) {
+        if (res && res.status === 200 && res.type === 'basic') {
+          var copy = res.clone();
+          caches.open(VERSION).then(function (c) { c.put(req, copy); });
+        }
+        return res;
+      }).catch(function () {
+        return caches.match(req).then(function (hit) {
+          return hit || (offline ? caches.match('/assets/site/offline.html') : undefined);
+        });
       })
     );
     return;
   }
 
-  // Static assets: stale-while-revalidate.
-  if (isStatic(url)) {
+  // Immutable media: stale-while-revalidate (fast, and refreshes in background).
+  if (isMedia(url)) {
     e.respondWith(
       caches.open(VERSION).then(function (c) {
         return c.match(req).then(function (hit) {

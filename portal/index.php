@@ -751,7 +751,13 @@ if ($isOrg) array_splice($nav['Main'], 3, 0, [[ 'workspace', 'Workspace', 'gray'
   })();
 
   /* PWA — register the service worker. */
-  (function(){ if('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); } })();
+  (function(){ if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+        .then(function(reg){ reg.update(); })
+        .catch(function(){});
+    });
+  } })();
   </script>
   <script src="/portal/team-chat.js" defer></script>
   <script src="/community/community.js" defer></script>
