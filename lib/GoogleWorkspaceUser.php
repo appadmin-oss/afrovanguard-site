@@ -578,6 +578,11 @@ final class GoogleWorkspaceUser
         return is_array($j) ? $j : null;
     }
 
+    /** Last HTTP failure: ['code'=>int,'body'=>string]. For surfacing why a send failed. */
+    private static array $lastHttp = ['code' => 0, 'body' => ''];
+    public static function lastHttpCode(): int { return (int) self::$lastHttp['code']; }
+    public static function lastHttpError(): string { return (string) self::$lastHttp['body']; }
+
     private static function http(string $method, string $url, string $bearer, ?array $jsonBody): ?array
     {
         $ch = curl_init($url);
@@ -597,9 +602,11 @@ final class GoogleWorkspaceUser
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         if (!is_string($res) || $http < 200 || $http >= 300) {
+            self::$lastHttp = ['code' => (int) $http, 'body' => substr((string) $res, 0, 300)];
             error_log('[gws-user] ' . $method . ' ' . $url . ' → HTTP ' . $http . ' ' . substr((string) $res, 0, 200));
             return null;
         }
+        self::$lastHttp = ['code' => (int) $http, 'body' => ''];
         $j = json_decode($res, true);
         return is_array($j) ? $j : ($res === '' ? [] : null);
     }

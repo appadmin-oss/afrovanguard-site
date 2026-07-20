@@ -87,7 +87,7 @@ if (!is_file($fullPath) || filesize($fullPath) === 0) {
         }
         if ($bytes !== '') $buf .= $bytes;   // MP3 frames concatenate cleanly
     }
-    if ($buf === '') audio_fail(502, 'Could not generate the audio.');
+    if ($buf === '') audio_fail(502, 'Could not generate the audio.' . (av_is_prod() ? '' : ' [' . Tts::lastError() . ']'));
     $tmp = $fullPath . '.' . bin2hex(random_bytes(4)) . '.tmp';
     if (@file_put_contents($tmp, $buf) !== false) @rename($tmp, $fullPath);
     $data = $buf;

@@ -186,6 +186,8 @@ render_head([
   .chat-space{position:relative;text-align:left;padding:8px 11px;border:0;background:transparent;color:var(--ws-ink);border-radius:8px;font:inherit;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px}
   .chat-space:hover{background:var(--ws-surface,rgba(255,255,255,.05))}
   .chat-space.is-on{background:var(--ws-accent);color:var(--ws-on-accent);font-weight:700}
+  .ws-chat-note{margin:6px 2px 0;font-size:12.5px;color:#dc2626}
+  .ws-chat-note a{color:var(--ws-accent,#f3b416);font-weight:700;text-decoration:none}
   .chat-space.has-unread .chat-space-name{font-weight:800}
   .chat-unread-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;flex:none}
   .ws-chat-main{display:flex;flex-direction:column;min-width:0}

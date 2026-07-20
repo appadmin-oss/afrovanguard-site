@@ -902,3 +902,8 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .mcard-edit { font: inherit; font-size: 12px; font-weight: 700; background: none; border: 1px solid var(--border);
   border-radius: 8px; padding: 4px 11px; color: var(--gold-deep); cursor: pointer; }
 .mcard-edit:hover { border-color: var(--gold); }
+
+/* Team-chat send notice (reconnect / errors) */
+.ws-chat-note { margin: 6px 2px 0; font-size: 12.5px; color: var(--red); }
+.ws-chat-note a { color: var(--gold-deep); font-weight: 700; text-decoration: none; }
+.ws-chat-note a:hover { text-decoration: underline; }

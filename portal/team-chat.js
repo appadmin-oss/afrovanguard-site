@@ -48,11 +48,23 @@
     clearInterval(poll); poll=setInterval(function(){ if(!document.hidden) loadMsgs(); }, 8000);
   }
   spacesEl.addEventListener('click', function(e){ var b=e.target.closest('.chat-space'); if(b) openSpace(b.getAttribute('data-id')); });
+
+  var noteEl=null;
+  function sayChat(msg, reconnect){
+    if(!form) return;
+    if(!noteEl){ noteEl=document.createElement('p'); noteEl.className='ws-chat-note'; form.parentNode.insertBefore(noteEl, form.nextSibling); }
+    noteEl.innerHTML = esc(msg) + (reconnect ? ' <a href="/auth/google/connect?next=/workspace">Reconnect Google →</a>' : '');
+    noteEl.hidden = !msg;
+  }
   if(form) form.addEventListener('submit', function(e){
     e.preventDefault(); var t=(input.value||'').trim(); if(!t||!curSpace) return;
-    input.value=''; input.disabled=true;
+    input.disabled=true; sayChat('');
     fetch('/portal/workspace.php?action=chat_send',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({space:curSpace,text:t})})
-      .then(function(r){return r.json();}).then(function(d){ input.disabled=false; input.focus(); if(d&&d.ok) loadMsgs(); }).catch(function(){ input.disabled=false; });
+      .then(function(r){return r.json();}).then(function(d){
+        input.disabled=false; input.focus();
+        if(d&&d.ok){ input.value=''; loadMsgs(); return; }   // keep the text if it failed
+        sayChat((d&&d.error)||'Could not send.', !!(d&&d.reconnect));
+      }).catch(function(){ input.disabled=false; sayChat('Network error — try again.', false); });
   });
   // Load spaces, then (non-blocking) their unread state.
   fetch('/portal/workspace.php?action=chat_spaces',{credentials:'same-origin'}).then(function(r){return r.json();})

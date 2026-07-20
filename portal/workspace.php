@@ -64,7 +64,19 @@ try {
             if (!av_rate_ok('chat_send_' . (int) $u['id'], 30, 300)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
             $b = json_decode((string) file_get_contents('php://input'), true) ?: [];
             $ok = GoogleWorkspaceUser::chatSend((int) $u['id'], (string) ($b['space'] ?? ''), (string) ($b['text'] ?? ''));
-            json_out(['ok' => $ok] + ($ok ? [] : ['error' => 'Could not send.']), $ok ? 200 : 502);
+            if ($ok) json_out(['ok' => true]);
+            // Explain WHY. A 401/403 from Google almost always means the member's
+            // Google connection predates the "post to Chat" permission — they need
+            // to reconnect to grant it.
+            $code = GoogleWorkspaceUser::lastHttpCode();
+            $needsReconnect = in_array($code, [401, 403], true);
+            json_out([
+                'ok' => false,
+                'reconnect' => $needsReconnect,
+                'error' => $needsReconnect
+                    ? 'Reconnect your Google account to allow posting to Chat.'
+                    : ('Could not send' . ($code ? ' (Google ' . $code . ').' : '.')),
+            ], 502);
         }
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
