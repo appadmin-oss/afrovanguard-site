@@ -64,7 +64,7 @@ try {
             if (!av_rate_ok('community_post', 20, 900)) json_out(['ok' => false, 'error' => 'You’re posting quickly — give it a moment.'], 429);
             $bodyText = trim((string) ($body['body'] ?? ''));
             if (mb_strlen($bodyText) < 2) json_out(['ok' => false, 'error' => 'Write a little more.'], 422);
-            $id = Community::createPost((int) $u['id'], (string) ($body['space'] ?? 'open-floor'), $bodyText);
+            $id = Community::createPost((int) $u['id'], (string) ($body['space'] ?? 'open-floor'), $bodyText, null, false, (string) ($body['classification'] ?? 'members'));
             if (!$id) json_out(['ok' => false, 'error' => 'Could not post.'], 422);
             json_out(['ok' => true, 'post' => Community::post($id, (int) $u['id'])]);
         }

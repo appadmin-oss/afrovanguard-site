@@ -221,3 +221,13 @@
 #view-community .cm-chat-row:hover .cm-to-task { opacity:1; }
 #view-community .cm-to-task:hover { color:var(--gold-deep); border-color:var(--border); background:var(--surface); }
 #view-community .cm-to-task.is-done { color:var(--green); opacity:1; }
+
+/* Data-classification tags on posts */
+.cm-class { font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; border-radius: 999px;
+  padding: 1px 7px; margin-left: 2px; border: 1px solid transparent; white-space: nowrap; }
+.cm-class--public { color: #0f766e; background: rgba(13,148,136,.12); }
+.cm-class--members { color: var(--afg-gold-deep,#b07e08); background: rgba(243,180,22,.14); }
+.cm-class--confidential { color: #b42318; background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.35); }
+#cmClass { font: inherit; font-size: 12.5px; border: 1px solid var(--cm-line,#e6e2d6); border-radius: 8px; padding: 5px 8px;
+  background: var(--cm-surface,#fff); color: inherit; }
+.portal-app.is-dark .cm-class--public { color:#5eead4; } .portal-app.is-dark .cm-class--confidential { color:#fca5a5; }

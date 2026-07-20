@@ -68,6 +68,9 @@ final class Community
         // Chat channels are a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
+        // Data-classification is a later addition — add the column idempotently.
+        try { if (!Database::columnExists('community_posts', 'classification')) $db->exec("ALTER TABLE community_posts ADD COLUMN classification VARCHAR(16) NOT NULL DEFAULT 'members'"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
         // Set $done BEFORE seeding so the nested ensure() inside botPost short-circuits.
         if ($pdo === null) { self::seedSpaces($db); $done = true; self::seedWelcome($db); }
     }
@@ -75,6 +78,34 @@ final class Community
     /** The members-chat channels (fixed set, keeps the space tidy). */
     const CHAT_CHANNELS = ['general' => 'General', 'announcements' => 'Announcements', 'mentorship' => 'Mentorship', 'random' => 'Random'];
     private static function normChannel(string $c): string { $c = strtolower(trim($c)); return isset(self::CHAT_CHANNELS[$c]) ? $c : 'general'; }
+
+    /** Data-classification levels for posts (least → most sensitive). */
+    const CLASSES = ['public' => 'Public', 'members' => 'Members-only', 'confidential' => 'Confidential'];
+    private static function normClass(string $c): string { $c = strtolower(trim($c)); return isset(self::CLASSES[$c]) ? $c : 'members'; }
+
+    /** A viewer's clearance: 0 = public only, 1 = + members, 2 = + confidential. */
+    public static function clearance(int $uid): int
+    {
+        if ($uid <= 0) return 0;
+        try {
+            $st = Database::pdo()->prepare('SELECT role, email FROM lms_users WHERE id = ?');
+            $st->execute([$uid]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u) return 0;
+            $rank = class_exists('LmsAuth') ? LmsAuth::rank((string) ($u['role'] ?? '')) : 0;
+            if ($rank >= 30) return 2;   // coordinator / admin
+            $isOrg = $rank >= 10 || (class_exists('LmsAuth') && LmsAuth::isOrgEmail((string) ($u['email'] ?? '')));
+            return $isOrg ? 1 : 0;
+        } catch (Throwable $e) { return self::isOrgMember($uid) ? 1 : 0; }
+    }
+
+    /** The classification values a given clearance may see / post. */
+    public static function allowedClasses(int $clearance): array
+    {
+        if ($clearance >= 2) return ['public', 'members', 'confidential'];
+        if ($clearance >= 1) return ['public', 'members'];
+        return ['public'];
+    }
 
     private static function seedWelcome(PDO $db): void
     {
@@ -133,15 +164,19 @@ final class Community
     }
 
     /* ── posting ── */
-    public static function createPost(int $authorId, string $spaceSlug, string $body, ?array $poll = null, bool $pinned = false): int
+    public static function createPost(int $authorId, string $spaceSlug, string $body, ?array $poll = null, bool $pinned = false, string $classification = 'members'): int
     {
         self::ensure();
         $body = trim($body);
         if ($body === '' || $authorId <= 0) return 0;
         $sid = self::spaceId($spaceSlug) ?: self::spaceId('open-floor');
+        // Cap the chosen classification to what the author is cleared to post.
+        $cls = self::normClass($classification);
+        $allowed = self::allowedClasses(self::clearance($authorId));
+        if (!in_array($cls, $allowed, true)) $cls = in_array('members', $allowed, true) ? 'members' : 'public';
         $db = Database::pdo();
-        $db->prepare('INSERT INTO community_posts (author_id, space_id, body, poll_json, pinned, created_at) VALUES (?,?,?,?,?,?)')
-           ->execute([$authorId, $sid, mb_substr($body, 0, 5000), $poll ? json_encode($poll) : null, $pinned ? 1 : 0, gmdate('Y-m-d H:i:s')]);
+        $db->prepare('INSERT INTO community_posts (author_id, space_id, body, poll_json, pinned, classification, created_at) VALUES (?,?,?,?,?,?,?)')
+           ->execute([$authorId, $sid, mb_substr($body, 0, 5000), $poll ? json_encode($poll) : null, $pinned ? 1 : 0, $cls, gmdate('Y-m-d H:i:s')]);
         $id = (int) $db->lastInsertId();
         if (class_exists('Events')) {
             Events::emit('community.post', ['id' => $id, 'space' => $spaceSlug, 'author_id' => $authorId, 'excerpt' => mb_substr($body, 0, 180)]);
@@ -189,9 +224,9 @@ final class Community
 
     /* ── reading ── */
     private const POST_COLS =
-        'p.id, p.body, p.poll_json, p.pinned, p.likes, p.reply_count, p.created_at,
+        'p.id, p.body, p.poll_json, p.pinned, p.likes, p.reply_count, p.created_at, p.classification,
          s.slug AS space_slug, s.name AS space_name, s.color AS space_color,
-         u.name AS author, u.email AS author_email, u.role AS author_role';
+         u.id AS author_id, u.name AS author, u.email AS author_email, u.role AS author_role';
 
     /** Top-level feed. $space = slug|null. $sort = top|latest. */
     public static function feed(?string $space, string $sort = 'latest', int $limit = 15, int $offset = 0, int $viewerId = 0): array
@@ -201,6 +236,10 @@ final class Community
         $where = "p.reply_to IS NULL AND p.status = 'published'";
         $args = [];
         if ($space) { $where .= ' AND s.slug = ?'; $args[] = $space; }
+        // Hide posts above the viewer's clearance (public < members < confidential).
+        $allowed = self::allowedClasses(self::clearance($viewerId));
+        $where .= ' AND p.classification IN (' . implode(',', array_fill(0, count($allowed), '?')) . ')';
+        foreach ($allowed as $a) $args[] = $a;
         $order = $sort === 'top' ? 'p.pinned DESC, p.likes DESC, p.id DESC' : 'p.pinned DESC, p.id DESC';
         $limit = max(1, min(50, $limit)); $offset = max(0, $offset);
         $sql = 'SELECT ' . self::POST_COLS . '
@@ -231,7 +270,10 @@ final class Community
             WHERE p.id = ? AND p.status = \'published\'');
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
-        return $r ? self::shape($r, $viewerId) : null;
+        if (!$r) return null;
+        // Respect classification: don't reveal a post above the viewer's clearance.
+        if (!in_array(self::normClass((string) ($r['classification'] ?? 'members')), self::allowedClasses(self::clearance($viewerId)), true)) return null;
+        return self::shape($r, $viewerId);
     }
 
     /** Normalise a row into a view model (author identity, tier, liked-state, poll). */
@@ -259,7 +301,10 @@ final class Community
             'ago' => self::ago((string) $r['created_at']),
             'space' => ['slug' => (string) $r['space_slug'], 'name' => (string) $r['space_name'], 'color' => (string) $r['space_color']],
             'author' => $name,
+            'author_id' => (int) ($r['author_id'] ?? 0),
             'initial' => mb_strtoupper(mb_substr($name, 0, 1)),
+            'classification' => self::normClass((string) ($r['classification'] ?? 'members')),
+            'class_label' => self::CLASSES[self::normClass((string) ($r['classification'] ?? 'members'))],
             'tier' => $isBot ? 'Official' : ($org ? 'Member' : 'Learner'),
             'verified' => $org || $isBot,
             'is_bot' => $isBot,

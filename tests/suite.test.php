@@ -148,3 +148,30 @@ require_once AV_ROOT . '/lib/MemberDirectory.php';
     ck('dir: name search works', count($q) === 1 && $q[0]['name'] === 'Bode Ade');
     ck('dir: non-org member card is null', MemberDirectory::card(1, 3) === null);
 })();
+
+/* ---- Community data-classification tags ---- */
+require_once AV_ROOT . '/lib/Community.php';
+(function () {
+    $db = Database::pdo();
+    Community::ensure();                       // create tables (+ seed) first
+    $db->exec('DELETE FROM lms_users'); $db->exec('DELETE FROM community_posts');
+    $db->exec("INSERT INTO lms_users (id,name,email,password_hash,role,status) VALUES "
+        . "(1,'Coord','c@afrovanguard.org.ng','x','coordinator','active'),"
+        . "(2,'Memb','m@afrovanguard.org.ng','x','member','active'),"
+        . "(3,'Learn','l@gmail.com','x','learner','active')");
+    ck('class: clearance coordinator=2', Community::clearance(1) === 2);
+    ck('class: clearance member=1', Community::clearance(2) === 1);
+    ck('class: clearance learner=0', Community::clearance(3) === 0);
+    $conf = Community::createPost(1, 'open-floor', 'secret', null, false, 'confidential');
+    Community::createPost(1, 'open-floor', 'team note', null, false, 'members');
+    Community::createPost(1, 'open-floor', 'hello world', null, false, 'public');
+    $seen = fn($vid) => array_map(fn($p) => $p['classification'], Community::feed(null, 'latest', 50, 0, $vid));
+    ck('class: coordinator sees confidential', in_array('confidential', $seen(1), true));
+    ck('class: member cannot see confidential', !in_array('confidential', $seen(2), true) && in_array('members', $seen(2), true));
+    ck('class: learner sees only public', $seen(3) === ['public']);
+    ck('class: member blocked from confidential by id', Community::post($conf, 2) === null);
+    ck('class: coordinator opens confidential by id', Community::post($conf, 1) !== null);
+    $capped = Community::createPost(2, 'open-floor', 'member tries', null, false, 'confidential');
+    ck('class: member post capped to members', Community::post($capped, 1)['classification'] === 'members');
+    ck('class: label present', Community::post($conf, 1)['class_label'] === 'Confidential');
+})();

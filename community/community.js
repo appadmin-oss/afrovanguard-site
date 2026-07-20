@@ -47,6 +47,7 @@
     return '<span class="cm-author">' + esc(p.author) + '</span>'
       + (p.verified ? CHECK : '')
       + '<span class="cm-tier cm-tier--' + esc(String(p.tier).toLowerCase()) + '">' + esc(p.tier) + '</span>'
+      + (p.classification ? '<span class="cm-class cm-class--' + esc(p.classification) + '" title="' + esc(p.class_label || '') + '">' + esc(p.class_label || '') + '</span>' : '')
       + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(p.ago) + '</span>';
   }
 
@@ -111,7 +112,8 @@
       var text = (body.value || '').trim();
       if (text.length < 2) { setMsg(msg, 'Write a little more.', 'err'); return; }
       btn.disabled = true; setMsg(msg, '', '');
-      api('post', { body: { space: space.value, body: text } }).then(function (d) {
+      var clsSel = document.getElementById('cmClass');
+      api('post', { body: { space: space.value, body: text, classification: clsSel ? clsSel.value : 'members' } }).then(function (d) {
         btn.disabled = false;
         if (d.__status === 401) { loginRedirect(); return; }
         if (!d.ok) { setMsg(msg, d.error || 'Could not post.', 'err'); return; }

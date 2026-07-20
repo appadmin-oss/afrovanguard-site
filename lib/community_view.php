@@ -31,6 +31,7 @@ if (!function_exists('av_community_card')) {
             . '<span class="cm-av" style="--c:' . e($p['space']['color']) . '">' . e($p['initial']) . '</span>'
             . '<div class="cm-meta"><div class="cm-line1"><span class="cm-author">' . e($p['author']) . '</span>' . $verified
             . '<span class="cm-tier cm-tier--' . e(strtolower($p['tier'])) . '">' . e($p['tier']) . '</span>'
+            . (isset($p['classification']) ? '<span class="cm-class cm-class--' . e($p['classification']) . '" title="' . e($p['class_label']) . '">' . e($p['class_label']) . '</span>' : '')
             . '<span class="cm-dot">·</span><span class="cm-ago">' . e($p['ago']) . '</span></div>'
             . '<div class="cm-line2"><span class="cm-space" style="--c:' . e($p['space']['color']) . '">' . e($p['space']['name']) . '</span></div></div></div>'
             . '<div class="cm-body">' . $body . '</div>'
@@ -117,6 +118,13 @@ if (!function_exists('av_render_community')) {
                 <option value="<?= e($sp['slug']) ?>"<?= ($activeSp ?: 'open-floor') === $sp['slug'] ? ' selected' : '' ?>><?= e($sp['name']) ?></option>
 <?php endforeach; ?>
               </select>
+<?php $myClasses = Community::allowedClasses(Community::clearance($viewerId)); if (count($myClasses) > 1): ?>
+              <select id="cmClass" aria-label="Who can see this post">
+<?php foreach ($myClasses as $ck): ?>
+                <option value="<?= e($ck) ?>"<?= $ck === 'members' ? ' selected' : '' ?>><?= e(Community::CLASSES[$ck]) ?></option>
+<?php endforeach; ?>
+              </select>
+<?php endif; ?>
               <button type="button" class="cm-ask-btn" id="cmAsk" title="Ask the official Afrovanguard bot">✦ Ask the bot</button>
               <button type="submit" class="cm-post-btn">Post</button>
             </div>
