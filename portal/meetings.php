@@ -25,6 +25,13 @@ if ($action === 'bot_ingest') {
     json_out(Meetings::botIngest((int) ($in['meeting_id'] ?? 0), (string) ($in['token'] ?? ''), (string) ($in['transcript'] ?? '')));
 }
 
+// Recall.ai posts bot status / transcript events here — token-gated service call.
+if ($action === 'recall_webhook') {
+    if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+    $in = json_decode(file_get_contents('php://input') ?: '', true) ?: [];
+    json_out(Meetings::recallWebhook((string) ($_GET['t'] ?? ''), is_array($in) ? $in : []));
+}
+
 $u = LmsAuth::user();
 if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
 $uid = (int) $u['id'];
@@ -40,7 +47,8 @@ try {
             $freq = [];
             foreach (Meetings::FREQ as $k => $v) $freq[$k] = $v[0];
             json_out(['ok' => true, 'meetings' => Meetings::listFor($uid), 'freq' => $freq, 'me' => $uid,
-                'gemini' => class_exists('Gemini') && Gemini::configured(), 'bot' => Meetings::botConfigured()]);
+                'gemini' => class_exists('Gemini') && Gemini::configured(),
+                'bot' => Meetings::botConfigured(), 'bot_provider' => Meetings::botProvider()]);
 
         case 'get':
             $m = Meetings::get($uid, (int) ($_GET['id'] ?? 0));

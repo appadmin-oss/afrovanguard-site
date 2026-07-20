@@ -146,9 +146,9 @@ final class GoogleWorkspace
     }
 
     /** POST/PATCH/DELETE a JSON body to a Google API. Returns the decoded body or null. */
-    private static function apiSend(string $method, string $url, string $scope, bool $impersonate, ?array $body = null): ?array
+    private static function apiSend(string $method, string $url, string $scope, bool $impersonate, ?array $body = null, ?string $asUser = null): ?array
     {
-        $tok = self::accessToken($scope, $impersonate);
+        $tok = self::accessToken($scope, $impersonate, $asUser);
         if (!$tok) return null;
         $res = self::http($method, $url, $tok, null, $body !== null ? json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : ($method === 'DELETE' ? '' : '{}'));
         if (!$res || $res['code'] >= 400) {
@@ -463,6 +463,32 @@ final class GoogleWorkspace
         }
         if (!$res || $res['code'] >= 400 || !is_string($res['body'])) return null;
         return mb_substr($res['body'], 0, $maxBytes);
+    }
+
+    /**
+     * Create a Meet space with Google's NATIVE auto-transcription (and optional
+     * auto-recording) turned on, via the Meet REST API. This is the server-drivable
+     * "Meet media" path: Google itself records/transcribes the call, and we later
+     * read the transcript with meetTranscriptText(). Impersonates the host so the
+     * space is owned by a real user. Returns ['uri','code','space'] or null.
+     */
+    public static function createMeetSpace(string $hostEmail, bool $autoTranscribe = true, bool $autoRecord = false): ?array
+    {
+        if ($hostEmail === '' || !self::meetEnabled()) return null;
+        $cfg = ['accessType' => 'TRUSTED', 'entryPointAccess' => 'ALL'];
+        $artifact = [];
+        if ($autoTranscribe) $artifact['transcriptionConfig'] = ['autoTranscriptionGeneration' => 'ON'];
+        if ($autoRecord)     $artifact['recordingConfig']     = ['autoRecordingGeneration' => 'ON'];
+        if ($artifact) $cfg['artifactConfig'] = $artifact;
+        // meetings.space.created scope is required to create spaces.
+        $scope = 'https://www.googleapis.com/auth/meetings.space.created';
+        $d = self::apiSend('POST', self::meetBase() . '/v2/spaces', $scope, false, ['config' => $cfg], $hostEmail);
+        if (!is_array($d) || empty($d['meetingUri'])) return null;
+        return [
+            'uri'   => (string) $d['meetingUri'],
+            'code'  => (string) ($d['meetingCode'] ?? self::meetCodeFromUrl((string) $d['meetingUri'])),
+            'space' => (string) ($d['name'] ?? ''),
+        ];
     }
 
     /** Extract a Meet code (e.g. "abc-defg-hij") from a Meet URL. */

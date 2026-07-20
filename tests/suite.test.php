@@ -264,3 +264,24 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('meet: bot transcript stored raw', (Meetings::get(1, $mid)['transcript']['has_raw'] ?? false) === true);
     ck('meet: meetCodeFromUrl parses', GoogleWorkspace::meetCodeFromUrl('https://meet.google.com/abc-defg-hij?x=1') === 'abc-defg-hij');
 })();
+
+/* ---- Meetings: bot providers (Recall.ai + Google native) ---- */
+(function () {
+    require_once AV_ROOT . '/lib/RecallBot.php';
+    require_once AV_ROOT . '/lib/Meetings.php';
+    reset_users();
+    ck('recall: not configured without key', RecallBot::configured() === false);
+    ck('recall: createBot clean error unconfigured', empty(RecallBot::createBot('https://meet.google.com/x')['ok']));
+    ck('recall: fetchTranscript empty when unconfigured', RecallBot::fetchTranscript('bot_1') === '');
+
+    // Provider selection honours the explicit override.
+    putenv('AV_MEET_BOT_PROVIDER=none');
+    ck('provider: none disables bot', Meetings::botProvider() === '' && Meetings::botConfigured() === false);
+    putenv('AV_MEET_BOT_PROVIDER=recall');
+    ck('provider: forced recall', Meetings::botProvider() === 'recall');
+    putenv('AV_MEET_BOT_PROVIDER');   // unset
+
+    // recall webhook auth (no token configured → rejects).
+    ck('recall: webhook rejects when no token set', empty(Meetings::recallWebhook('anything', ['event' => 'bot.status_change'])['ok']));
+    ck('recall: ingest unknown bot', empty(Meetings::ingestFromRecall('nope')['ok']));
+})();

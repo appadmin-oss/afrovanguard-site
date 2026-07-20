@@ -86,6 +86,8 @@ final class Meetings
         self::addCol('meetings', 'meet_code', "VARCHAR(60) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'auto_record', 'INTEGER NOT NULL DEFAULT 0');
         self::addCol('meetings', 'bot_state', "VARCHAR(16) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'bot_provider', "VARCHAR(16) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'bot_ref', "VARCHAR(128) NOT NULL DEFAULT ''");
         self::$ready = true;
     }
 
@@ -164,7 +166,20 @@ final class Meetings
            ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $context, (int) ($in['context_id'] ?? 0), $autoRec, 'scheduled', self::now()]);
         $id = (int) $db->lastInsertId();
 
-        $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, $freq, 'mtg-' . $id);
+        $provider = $autoRec ? self::botProvider() : '';
+
+        // For the Google-native provider, create a Meet space with auto-transcription
+        // ON so Google records/transcribes the call itself; otherwise use the shared
+        // Meet-event/built-in-room provisioner.
+        $link = null;
+        if ($provider === 'google' && class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled()) {
+            try {
+                $sp = GoogleWorkspace::createMeetSpace(self::userEmail($uid), true, true);
+                if ($sp && !empty($sp['uri'])) $link = ['url' => $sp['uri'], 'provider' => 'google', 'google_event_id' => ''];
+            } catch (Throwable $e) { error_log('[meetings] meet space: ' . $e->getMessage()); }
+        }
+        if ($link === null) $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, $freq, 'mtg-' . $id);
+
         $code = class_exists('GoogleWorkspace') ? GoogleWorkspace::meetCodeFromUrl($link['url']) : '';
         $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
            ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $id]);
@@ -172,8 +187,8 @@ final class Meetings
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
         foreach ($emails as $e) $ins->execute([$id, $e]);
 
-        // The recording bot: ask the configured recorder to join & transcribe.
-        if ($autoRec) self::requestBot($id, $link['url'], $ts, $dur);
+        // The recording bot: dispatch to the selected provider.
+        if ($autoRec) self::requestBot($id, $link['url'], $provider);
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
@@ -311,11 +326,17 @@ final class Meetings
     {
         self::ensure();
         if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
+        $m = self::get($uid, $id);
+        if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
+        // Recall.ai meeting → pull straight from the bot.
+        if (($m['bot_provider'] ?? '') === 'recall' && ($m['bot_ref'] ?? '') !== '') {
+            $r = self::ingestFromRecall((string) $m['bot_ref']);
+            if (!empty($r['ok'])) return array_merge($r, ['transcript' => self::transcript($id)]);
+            // fall through to Google if Recall isn't ready
+        }
         if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::configured()) {
             return ['ok' => false, 'error' => 'Google Workspace isn’t connected — paste the transcript instead.'];
         }
-        $m = self::get($uid, $id);
-        if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
         try {
             // 1) The official Meet transcript via the Meet REST API (best source).
             $code = (string) ($m['meet_code'] ?? '');
@@ -362,53 +383,114 @@ final class Meetings
 
     /** ── The recording bot ────────────────────────────────────────────── */
 
-    public static function botConfigured(): bool
+    /** A recording bot is available if ANY provider is wired. */
+    public static function botConfigured(): bool { return self::botProvider() !== ''; }
+
+    /**
+     * Which recording-bot backend to use. Forced by AV_MEET_BOT_PROVIDER
+     * (recall|google|webhook|none), else auto-detected: Recall.ai → custom
+     * webhook worker → Google Meet native transcription.
+     */
+    public static function botProvider(): string
     {
-        return trim((string) (getenv('AV_MEET_BOT_JOIN_URL') ?: '')) !== '';
+        $p = strtolower(trim((string) getenv('AV_MEET_BOT_PROVIDER')));
+        if (in_array($p, ['recall', 'google', 'webhook', 'none'], true)) return $p === 'none' ? '' : $p;
+        if (class_exists('RecallBot') && RecallBot::configured()) return 'recall';
+        if (trim((string) getenv('AV_MEET_BOT_JOIN_URL')) !== '') return 'webhook';
+        if (class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled()) return 'google';
+        return '';
     }
 
     /**
-     * Ask the configured recorder bot to join a meeting and capture it. The bot
-     * is an external service (e.g. a Meet media/recorder worker) reachable at
-     * AV_MEET_BOT_JOIN_URL; it later posts the recording/transcript back to
-     * botIngest(). Best-effort and non-blocking-ish; failures just leave the
-     * meeting to the manual paste / Google-transcript paths.
+     * Dispatch the recording bot for a meeting to the chosen provider:
+     *   • recall  — send a Recall.ai bot to join, record & transcribe; it posts
+     *               transcript events back to the recall_webhook endpoint.
+     *   • google  — Google records/transcribes the space natively; nothing to
+     *               request now (we pull the transcript afterwards).
+     *   • webhook — POST the join details to a custom recorder (AV_MEET_BOT_JOIN_URL)
+     *               that calls back into bot_ingest.
+     * Best-effort; on failure the manual paste / Google-transcript paths remain.
      */
-    private static function requestBot(int $id, string $meetUrl, int $startTs, int $durationMin): void
+    private static function requestBot(int $id, string $meetUrl, string $provider): void
     {
         $db = Database::pdo();
-        if (!self::botConfigured()) {
-            // No external recorder wired — mark it queued so the UI can explain
-            // that manual paste / Google transcript still produce the minutes.
-            $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ?')->execute(['unconfigured', $id]);
-            return;
+        $state = 'unconfigured'; $ref = '';
+
+        if ($provider === 'recall' && class_exists('RecallBot') && RecallBot::configured()) {
+            $wh = self::siteUrl('/portal/meetings.php?action=recall_webhook');
+            $wt = RecallBot::webhookToken();
+            if ($wt !== '') $wh .= '&t=' . rawurlencode($wt);
+            $res = RecallBot::createBot($meetUrl, $wh);
+            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
+            else { $state = 'error'; error_log('[meetings] recall: ' . (string) ($res['error'] ?? '')); }
+        } elseif ($provider === 'google') {
+            // Google Meet is recording/transcribing natively (space created with
+            // auto-transcription ON) — pull the transcript after the call.
+            $state = 'native';
+        } elseif ($provider === 'webhook') {
+            $ok = false;
+            try {
+                if (function_exists('curl_init')) {
+                    $payload = [
+                        'meeting_id' => $id, 'join_url' => $meetUrl,
+                        'callback' => self::siteUrl('/portal/meetings.php?action=bot_ingest'),
+                        'token' => self::botToken($id),
+                    ];
+                    $ch = curl_init(trim((string) getenv('AV_MEET_BOT_JOIN_URL')));
+                    curl_setopt_array($ch, [
+                        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
+                        CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5,
+                        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
+                        CURLOPT_HTTPHEADER => ['content-type: application/json'],
+                    ]);
+                    $r = curl_exec($ch); $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+                    $ok = is_string($r) && $code < 400;
+                }
+            } catch (Throwable $e) { error_log('[meetings] bot join: ' . $e->getMessage()); }
+            $state = $ok ? 'requested' : 'error';
         }
-        $token = self::botToken($id);
-        $payload = [
-            'meeting_id'  => $id,
-            'join_url'    => $meetUrl,
-            'start_iso'   => gmdate('c', $startTs),
-            'duration_min'=> $durationMin,
-            'callback'    => rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/portal/meetings.php?action=bot_ingest',
-            'token'       => $token,
-        ];
-        $ok = false;
-        try {
-            if (function_exists('curl_init')) {
-                $ch = curl_init(trim((string) getenv('AV_MEET_BOT_JOIN_URL')));
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
-                    CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5,
-                    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
-                    CURLOPT_HTTPHEADER => ['content-type: application/json'],
-                ]);
-                $r = curl_exec($ch);
-                $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                $ok = is_string($r) && $code < 400;
-            }
-        } catch (Throwable $e) { error_log('[meetings] bot join: ' . $e->getMessage()); }
-        $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ?')->execute([$ok ? 'requested' : 'error', $id]);
+        $db->prepare('UPDATE meetings SET bot_state = ?, bot_provider = ?, bot_ref = ? WHERE id = ?')
+           ->execute([$state, $provider, $ref, $id]);
+    }
+
+    private static function siteUrl(string $path): string
+    {
+        return rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . $path;
+    }
+
+    /**
+     * Recall.ai webhook: on a terminal bot status, fetch the transcript and
+     * store structured minutes. Auth is the shared webhook token (query ?t=).
+     * Returns the API shape.
+     */
+    public static function recallWebhook(string $token, array $payload): array
+    {
+        self::ensure();
+        $expected = class_exists('RecallBot') ? RecallBot::webhookToken() : '';
+        if ($expected === '' || !hash_equals($expected, (string) $token)) return ['ok' => false, 'error' => 'Bad token.'];
+        $event = (string) ($payload['event'] ?? '');
+        $data  = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $botId = (string) ($data['bot_id'] ?? ($data['bot']['id'] ?? ''));
+        if ($botId === '') return ['ok' => true, 'note' => 'no bot id'];
+        // Act on completion; ignore in-progress chatter.
+        $status = (string) ($data['status']['code'] ?? $data['status'] ?? '');
+        $terminal = in_array($status, ['done', 'call_ended', 'analysis_done', 'completed'], true) || strpos($event, 'done') !== false;
+        if (!$terminal) return ['ok' => true, 'note' => 'ignored ' . $event . '/' . $status];
+        return self::ingestFromRecall($botId);
+    }
+
+    /** Find the meeting for a Recall bot id, fetch its transcript, structure it. */
+    public static function ingestFromRecall(string $botId): array
+    {
+        self::ensure();
+        if (!class_exists('RecallBot')) return ['ok' => false, 'error' => 'Recall not available.'];
+        $st = Database::pdo()->prepare('SELECT id FROM meetings WHERE bot_ref = ? ORDER BY id DESC LIMIT 1');
+        $st->execute([$botId]);
+        $mid = (int) ($st->fetchColumn() ?: 0);
+        if ($mid <= 0) return ['ok' => false, 'error' => 'Unknown bot.'];
+        $text = RecallBot::fetchTranscript($botId);
+        if ($text === '') return ['ok' => false, 'error' => 'Transcript not ready.'];
+        return self::botIngest($mid, self::botToken($mid), $text);
     }
 
     /** HMAC token the recorder must echo back when posting a transcript. */
@@ -465,6 +547,8 @@ final class Meetings
             'meet_code'   => (string) ($r['meet_code'] ?? ''),
             'auto_record' => (int) ($r['auto_record'] ?? 0) === 1,
             'bot_state'   => (string) ($r['bot_state'] ?? ''),
+            'bot_provider'=> (string) ($r['bot_provider'] ?? ''),
+            'bot_ref'     => (string) ($r['bot_ref'] ?? ''),
             'status'      => (string) $r['status'],
             'is_owner'    => false,
             'creator_id'  => (int) $r['creator_id'],
