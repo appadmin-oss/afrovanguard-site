@@ -203,3 +203,39 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('mod: admin announces (bot post)', $ann > 0 && Community::post($ann, 1)['is_bot'] === true);
     ck('mod: member cannot announce', Community::announce(2, 'announcements', 'nope') === 0);
 })();
+
+/* ---- Meetings: standardized scheduling + transcripts ---- */
+(function () {
+    require_once AV_ROOT . '/lib/Meetings.php';
+    reset_users();
+    $bad = Meetings::schedule(1, ['title' => '', 'when' => '2030-01-01T10:00']);
+    ck('meet: reject empty title', empty($bad['ok']));
+    $bad2 = Meetings::schedule(1, ['title' => 'Sync', 'when' => '']);
+    ck('meet: reject empty when', empty($bad2['ok']));
+
+    $r = Meetings::schedule(1, ['title' => 'Weekly sync', 'when' => '2030-06-01T09:00', 'duration' => 45, 'frequency' => 'weekly', 'attendees' => 'b@x.co', 'agenda' => 'Plan the week']);
+    ck('meet: schedule ok', !empty($r['ok']) && ($r['id'] ?? 0) > 0);
+    $mid = (int) $r['id'];
+    $m = $r['meeting'];
+    ck('meet: link always attached', ($m['meet_url'] ?? '') !== '');
+    ck('meet: jitsi fallback provider', ($m['provider'] ?? '') === 'jitsi');
+    ck('meet: frequency stored', ($m['frequency'] ?? '') === 'weekly');
+    ck('meet: duration clamped/stored', ($m['duration_min'] ?? 0) === 45);
+
+    $list = Meetings::listFor(1);
+    ck('meet: creator sees meeting', count(array_filter($list, fn($x) => $x['id'] === $mid)) === 1);
+    ck('meet: invited attendee sees meeting', count(array_filter(Meetings::listFor(2), fn($x) => $x['id'] === $mid)) === 1);
+    ck('meet: uninvited does not see it', count(array_filter(Meetings::listFor(3), fn($x) => $x['id'] === $mid)) === 0);
+
+    // Transcript: raw stored even when AI unconfigured (structured=false, ok=true)
+    $ts = Meetings::saveTranscript(1, $mid, "Ada: welcome. Bode: shipped the API. Decision: launch Friday.", 'paste');
+    ck('meet: transcript saved', !empty($ts['ok']));
+    ck('meet: raw persists', (Meetings::get(1, $mid)['transcript']['has_raw'] ?? false) === true);
+    ck('meet: non-participant cannot add transcript', empty(Meetings::saveTranscript(3, $mid, 'x')['ok']));
+
+    ck('meet: non-owner cannot cancel', empty(Meetings::cancel(2, $mid)['ok']));
+    ck('meet: owner cancels', !empty(Meetings::cancel(1, $mid)['ok']));
+    ck('meet: cancelled drops out of list', count(array_filter(Meetings::listFor(1), fn($x) => $x['id'] === $mid)) === 0);
+
+    ck('meet: freq labels present', Meetings::freqLabel('biweekly') === 'Every 2 weeks');
+})();

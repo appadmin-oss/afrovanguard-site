@@ -678,6 +678,12 @@ final class Mentorship
                 }
             } catch (Throwable $e) { error_log('[mentorship] calendar sync: ' . $e->getMessage()); }
         }
+        // Standardised fallback: if no Google Meet link was produced and none was
+        // supplied, attach a stable built-in room so scheduling never dead-ends.
+        $cur = (string) ($db->query('SELECT meet_url FROM mentor_sessions WHERE id = ' . $sid)->fetchColumn() ?: '');
+        if ($cur === '') {
+            $db->prepare('UPDATE mentor_sessions SET meet_url = ? WHERE id = ?')->execute([self::autoRoomUrl($sid), $sid]);
+        }
         if (class_exists('Events')) { try { Events::emit('mentorship.session_scheduled', ['mentorship_id' => $mentorshipId, 'at' => $whenN]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $sid];
     }

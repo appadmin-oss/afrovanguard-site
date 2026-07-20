@@ -240,7 +240,7 @@ final class GoogleWorkspace
      * attendees, and return the ids + join link. Impersonates the subject so
      * the event lives on a real Workspace calendar and Meet is provisioned.
      * Returns ['id','html_link','meet_url'] or null on any failure. */
-    public static function createMeetEvent(string $title, string $startIso, int $durationMin, array $attendeeEmails = [], string $description = '', ?string $calendarId = null, bool $withMeet = true): ?array
+    public static function createMeetEvent(string $title, string $startIso, int $durationMin, array $attendeeEmails = [], string $description = '', ?string $calendarId = null, bool $withMeet = true, array $recurrence = []): ?array
     {
         if (!self::calendarWriteEnabled()) return null;
         $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
@@ -254,6 +254,8 @@ final class GoogleWorkspace
             'start'       => ['dateTime' => gmdate('c', $startTs), 'timeZone' => $tz],
             'end'         => ['dateTime' => gmdate('c', $endTs), 'timeZone' => $tz],
         ];
+        // Recurring meeting: an array of RRULE strings (e.g. ['RRULE:FREQ=WEEKLY']).
+        if ($recurrence) $event['recurrence'] = array_values(array_filter(array_map('strval', $recurrence)));
         $att = [];
         foreach ($attendeeEmails as $e) { $e = trim((string) $e); if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) $att[] = ['email' => $e]; }
         if ($att) $event['attendees'] = $att;

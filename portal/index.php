@@ -367,6 +367,7 @@ $nav['You'] = [
 <?php if ($isOrg): ?>
             <h2 class="suite-section"><span>◨ Team</span><small>Shared with everyone at Afrovanguard</small></h2>
             <div class="app-tiles">
+              <button type="button" class="app-tile app-tile--team" data-app="meet"><span class="app-ic">🎥</span><span class="app-tx"><span class="app-nm">Meetings</span><span class="app-desc">Schedule with a Meet link + AI minutes</span></span></button>
               <button type="button" class="app-tile app-tile--team" data-app="board"><span class="app-ic">▦</span><span class="app-tx"><span class="app-nm">Team board</span><span class="app-desc">Kanban workflow</span></span></button>
               <button type="button" class="app-tile app-tile--team" data-app="polls"><span class="app-ic">▤</span><span class="app-tx"><span class="app-nm">Team polls</span><span class="app-desc">Quick decisions</span></span></button>
               <button type="button" class="app-tile app-tile--team" data-app="standup"><span class="app-ic">◷</span><span class="app-tx"><span class="app-nm">Daily standup</span><span class="app-desc">Async check-ins</span></span></button>
@@ -517,6 +518,49 @@ $nav['You'] = [
             </div><!-- /rem -->
 
 <?php if ($isOrg): ?>
+            <div class="suite-app" data-app="meet" hidden>
+          <!-- Standardized meetings: schedule (with a link + cadence) and get AI minutes -->
+          <section class="pcard tool-meet" id="tlMeet" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlMeetForm" class="meet-form" autocomplete="off">
+                <input id="tlMeetTitle" class="meet-in" placeholder="Meeting title…" maxlength="200">
+                <div class="meet-row">
+                  <label class="meet-f"><span>When</span><input type="datetime-local" id="tlMeetWhen" class="meet-in"></label>
+                  <label class="meet-f"><span>Length</span>
+                    <select id="tlMeetDur" class="meet-in">
+                      <option value="15">15 min</option>
+                      <option value="30" selected>30 min</option>
+                      <option value="45">45 min</option>
+                      <option value="60">1 hour</option>
+                      <option value="90">1.5 hours</option>
+                      <option value="120">2 hours</option>
+                    </select>
+                  </label>
+                  <label class="meet-f"><span>Repeats</span>
+                    <select id="tlMeetFreq" class="meet-in">
+                      <option value="once" selected>One-off</option>
+                      <option value="daily">Every day</option>
+                      <option value="weekdays">Every weekday</option>
+                      <option value="weekly">Every week</option>
+                      <option value="biweekly">Every 2 weeks</option>
+                      <option value="monthly">Every month</option>
+                    </select>
+                  </label>
+                </div>
+                <input id="tlMeetWho" class="meet-in" placeholder="Invite by email (comma-separated, optional)" maxlength="600">
+                <input id="tlMeetAgenda" class="meet-in" placeholder="Agenda / notes (optional)" maxlength="2000">
+                <div class="meet-form-foot">
+                  <button type="submit" class="pbtn pbtn-gold">Schedule meeting</button>
+                  <span class="poll-msg" id="tlMeetMsg" role="status" aria-live="polite"></span>
+                </div>
+                <p class="meet-hint">A join link is created automatically — Google Meet when your Workspace calendar is connected, otherwise a built-in Afrovanguard room. After the meeting, paste (or pull) the transcript to get AI minutes.</p>
+              </form>
+              <div class="meet-list" id="tlMeetList"><p class="pc-empty">Loading meetings…</p></div>
+            </div>
+          </section>
+            </div><!-- /meet -->
+
             <div class="suite-app" data-app="board" hidden>
           <!-- Enterprise: Kanban board — shared team workflow -->
           <section class="pcard tool-board" id="tlBoard" data-csrf="<?= e($collabCsrf) ?>">
@@ -1220,6 +1264,7 @@ $nav['You'] = [
   </script>
   <script src="/portal/team-chat.js" defer></script>
   <script src="/portal/tools.js" defer></script>
+  <script src="/portal/meetings.js" defer></script>
   <script src="/portal/notifications.js" defer></script>
   <script src="/portal/directory.js" defer></script>
   <script src="/community/community.js" defer></script>
