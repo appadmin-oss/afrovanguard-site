@@ -189,3 +189,50 @@
 :root { --afg-nav-offset: 88px; }
 html { scroll-padding-top: var(--afg-nav-offset); }
 :where(h1, h2, h3, h4, [id]) { scroll-margin-top: var(--afg-nav-offset); }
+
+/* ============================================================
+   Text-over-gradient utilities — readable text on brand
+   gradients (opt-in; no effect until a class is applied).
+   ============================================================ */
+
+/* 1) Gradient-clipped headings — the letters become the brand gradient.
+      Solid, AA-on-light fallback first; the gradient only applies where
+      background-clip:text is supported, and reverts to a plain colour under
+      Windows High Contrast so it can never vanish. Use on LARGE headings. */
+.av-gradient-text {
+  color: var(--afg-gold-deep);
+  background-image: linear-gradient(92deg, var(--afg-gold-deep), var(--afg-gold) 55%, var(--afg-gold-deep));
+  background-repeat: no-repeat;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .av-gradient-text {
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+@media (forced-colors: active) {
+  .av-gradient-text { background: none; -webkit-text-fill-color: currentColor; color: CanvasText; }
+}
+
+/* 2) Text scrim — put on the element whose background is a busy/animated
+      gradient; its children sit above a smoky, blurred shield so white text
+      stays legible. Children are auto-raised above the scrim. */
+.av-text-scrim { position: relative; isolation: isolate; }
+.av-text-scrim > * { position: relative; z-index: 1; }
+.av-text-scrim::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit;
+  background: rgba(13, 18, 32, 0.55);           /* navy-tinted, ~55% */
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .av-text-scrim::before { background: rgba(13, 18, 32, 0.82); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* 3) Blend text — auto-inverts against whatever colour shifts beneath it
+      (light->dark, dark->light). Give the element its own stacking context.
+      Reverts to a solid colour under High Contrast. */
+.av-blend-text { color: #fff; mix-blend-mode: difference; isolation: isolate; }
+@media (forced-colors: active) { .av-blend-text { color: CanvasText; mix-blend-mode: normal; } }
