@@ -1,10 +1,9 @@
 <?php
 /**
- * blueprint.php — "Institutional Policy, Operational Blueprint & Continental
- * Scaling Plan". The internal governance charter of the Afrovanguard
- * ecosystem: student & volunteer conduct code, chain of command, crisis and
- * reinstatement protocols, the AV-Incentive Framework, and the 2026–2040
- * continental scaling plan to one million C-Level leaders.
+ * blueprint.php — "Continental Scaling Plan to 1,000,000 C-Level Leaders".
+ * The internal strategic plan of the Afrovanguard ecosystem: the 2026–2040
+ * phase-by-phase path to one million incorruptible (C-Level) leaders, driven
+ * by the CACENTRE production model and the O → A → B → C mentorship chain.
  *
  * MEMBERS ONLY. This document is restricted to verified @afrovanguard members
  * (org accounts and ranked leaders). Learners and the public never see the
@@ -18,8 +17,8 @@ $u     = LmsAuth::user();
 $isOrg = LmsAuth::isOrgMember($u);
 
 render_head([
-    'title'     => 'Institutional Policy & Continental Scaling Plan — Afrovanguard',
-    'desc'      => 'The Afrovanguard institutional charter: conduct code, chain of command, crisis protocols and the 2026–2040 continental scaling plan. Restricted to Afrovanguard members.',
+    'title'     => 'Continental Scaling Plan — Afrovanguard',
+    'desc'      => 'The Afrovanguard 2026–2040 continental scaling plan: the phase-by-phase path to one million incorruptible C-Level leaders. Restricted to Afrovanguard members.',
     'canonical' => rtrim(SITE_URL, '/') . '/blueprint',
     'robots'    => 'noindex, nofollow',
     'body_class' => 'bp-page',
@@ -78,8 +77,6 @@ render_nav('about');
     font-size:clamp(24px,3.4vw,32px);line-height:1.12;margin:4px 0 8px;color:var(--afg-ink,#111827)}
   .bp-part > p{font-size:15.5px;line-height:1.7;margin:0 0 14px}
   .bp-part h3{font-size:17px;font-weight:800;margin:26px 0 10px;color:var(--afg-ink,#111827)}
-  .bp-applies{font-size:12.5px;font-weight:700;color:var(--afg-muted,#6b7280);
-    background:var(--afg-surface-2,#f4f2ec);border-radius:8px;padding:8px 12px;display:inline-block;margin:0 0 6px}
 
   .bp-card{background:var(--afg-surface,#fff);border:1px solid var(--afg-border,#e5e7eb);
     border-radius:var(--afg-radius-md,14px);padding:18px 20px;margin:12px 0 0;
@@ -94,30 +91,10 @@ render_nav('about');
     color:#1a1300;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;
     display:flex;align-items:center;justify-content:center;left:0;top:1px}
 
-  /* strike escalation ladder */
-  .bp-strikes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0 0}
-  .bp-strike{border:1px solid var(--afg-border,#e5e7eb);border-radius:12px;padding:14px 16px;background:var(--afg-surface,#fff)}
-  .bp-strike .bp-strike-n{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--afg-muted,#6b7280)}
-  .bp-strike h4{font-size:15px;margin:2px 0 6px;color:var(--afg-ink,#111827)}
-  .bp-strike p{font-size:13.5px;line-height:1.55;margin:0;color:var(--afg-body,#374151)}
-  .bp-strike--warn{border-top:3px solid #f3b416}
-  .bp-strike--freeze{border-top:3px solid #ea8a00}
-  .bp-strike--out{border-top:3px solid #dc2626}
-
-  /* chain of command */
-  .bp-chain{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0 0;font-size:13.5px;font-weight:700}
-  .bp-chain span{background:var(--afg-surface-2,#f4f2ec);border:1px solid var(--afg-border,#e5e7eb);border-radius:999px;padding:7px 13px;color:var(--afg-ink,#111827)}
-  .bp-chain .bp-arrow{background:none;border:none;color:var(--afg-accent-ink,#b07e08);padding:0 2px}
-  .bp-chain span.bp-top{background:var(--afg-accent,#f3b416);color:#1a1300;border-color:transparent}
-
-  /* callout / covenant */
+  /* callout */
   .bp-callout{border-left:4px solid var(--afg-accent,#f3b416);background:var(--afg-surface-2,#f4f2ec);
     border-radius:0 12px 12px 0;padding:16px 20px;margin:16px 0 0;font-size:15px;line-height:1.65}
   .bp-callout.is-danger{border-left-color:#dc2626}
-  .bp-covenant{text-align:center;background:var(--afg-ink,#111827);color:#f4f2ec;border-radius:16px;padding:34px 30px;margin:20px 0 0}
-  .bp-covenant p{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-size:clamp(19px,2.6vw,24px);
-    line-height:1.4;font-style:italic;margin:0 0 8px}
-  .bp-covenant small{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
 
   /* tables (scaling plan) */
   .bp-tablewrap{overflow-x:auto;margin:12px 0 0;border:1px solid var(--afg-border,#e5e7eb);border-radius:12px}
@@ -144,9 +121,9 @@ render_nav('about');
   @media (max-width:820px){
     .bp-grid{grid-template-columns:1fr;gap:0}
     .bp-toc{display:none}
-    .bp-strikes,.bp-threeup{grid-template-columns:1fr}
+    .bp-threeup{grid-template-columns:1fr}
   }
-  body.is-dark .bp-card,body.is-dark .bp-strike,body.is-dark table.bp-table{background:var(--afg-surface,#fff)}
+  body.is-dark .bp-card,body.is-dark table.bp-table{background:var(--afg-surface,#fff)}
 </style>
 
 <?php if (!$isOrg): ?>
@@ -157,13 +134,13 @@ render_nav('about');
         <span class="bp-gate-badge">🔒 Members only</span>
         <h1>This is an Afrovanguard members' document</h1>
 <?php if (!$u): ?>
-        <p>The Institutional Policy, Operational Blueprint &amp; Continental Scaling Plan is restricted to verified Afrovanguard members. Sign in with your <strong>@afrovanguard.org.ng</strong> account to read it.</p>
+        <p>The Continental Scaling Plan is restricted to verified Afrovanguard members. Sign in with your <strong>@afrovanguard.org.ng</strong> account to read it.</p>
         <div class="bp-gate-actions">
           <a class="bp-btn bp-btn-gold" href="<?= e(av_login_url('/blueprint')) ?>">Sign in →</a>
           <a class="bp-btn bp-btn-ghost" href="/">Back to site</a>
         </div>
 <?php else: ?>
-        <p>You’re signed in as <strong><?= e((string) $u['email']) ?></strong>, but this charter is reserved for Afrovanguard members. If you believe you should have access, contact the executive channel at <a href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a>.</p>
+        <p>You’re signed in as <strong><?= e((string) $u['email']) ?></strong>, but this plan is reserved for Afrovanguard members. If you believe you should have access, contact the executive channel at <a href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a>.</p>
         <div class="bp-gate-actions">
           <a class="bp-btn bp-btn-gold" href="/portal/">Go to your portal →</a>
           <a class="bp-btn bp-btn-ghost" href="/">Back to site</a>
@@ -178,8 +155,8 @@ render_nav('about');
     <header class="bp-hero">
       <div class="bp-in">
         <p class="bp-kicker"><span class="bp-lock">🔒</span> Members only · The Governing Council</p>
-        <h1>Institutional Policy, Operational Blueprint &amp; Continental Scaling Plan</h1>
-        <p class="bp-lead">The internal charter of the Afrovanguard ecosystem — how we hold the line on discipline and order, and how we scale that culture to one million incorruptible leaders by 2040.</p>
+        <h1>Continental Scaling Plan to 1,000,000 C-Level Leaders</h1>
+        <p class="bp-lead">The internal strategic plan of the Afrovanguard ecosystem — the phase-by-phase path (2026–2040) to one million incorruptible leaders, driven by the CACENTRE production model.</p>
         <div class="bp-meta">
           <span class="bp-tag">Authority: The Afrovanguard Governing Council</span>
           <span class="bp-tag">Executive channel: cacentre@afrovanguard.org.ng</span>
@@ -194,174 +171,23 @@ render_nav('about');
         <!-- TOC -->
         <nav class="bp-toc" aria-label="On this page">
           <p class="bp-toc-title">On this page</p>
-          <a href="#students">I · Student Blueprint</a>
-          <a href="#vanguard">II · Volunteer Vanguard Code</a>
-          <a href="#order">III · Order &amp; Crisis Protocol</a>
-          <a href="#reinstatement">IV · Reinstatement</a>
-          <a href="#incentives">V · AV-Incentive Framework</a>
-          <a href="#deadlines">VI · Absolute Lateness Deadlines</a>
-          <a href="#covenant">The Vanguard Covenant</a>
-          <a href="#scaling">Continental Scaling Plan</a>
+          <a href="#principles">Growth principles</a>
+          <a href="#phase1">Phase 1 · Foundation</a>
+          <a href="#phase2">Phase 2 · Nigeria</a>
+          <a href="#phase3">Phase 3 · West Africa</a>
+          <a href="#phase4">Phase 4 · Continental</a>
+          <a href="#cacentre">One CACENTRE’s output</a>
+          <a href="#structure">Org structure</a>
+          <a href="#engine">The cultural engine</a>
         </nav>
 
         <!-- DOCUMENT -->
         <article class="bp-doc">
 
-          <!-- ============ PART I — STUDENTS ============ -->
-          <section class="bp-part first" id="students">
-            <p class="bp-part-eyebrow">Part I</p>
-            <h2>The Student Blueprint</h2>
-            <span class="bp-applies">Applies to all students across Street-To-Stardom and LCASP initiatives.</span>
-            <p>We are building elite Cultural Architects. Passivity and casual attendance are not tolerated — the standards below are enforced by the AI monitoring system, not by verbal discretion on the floor.</p>
-
-            <h3>1.1 Attendance &amp; the “3-Strike” rule</h3>
-            <p>Students are permitted a maximum of <strong>two (2) absences</strong> for the entire programme, and only for valid, verified emergencies.</p>
-            <div class="bp-strikes">
-              <div class="bp-strike bp-strike--warn"><span class="bp-strike-n">Strike 1</span><h4>Warning</h4><p>First absence logged. A formal warning is recorded on the profile.</p></div>
-              <div class="bp-strike bp-strike--freeze"><span class="bp-strike-n">Strike 2</span><h4>Dormancy status</h4><p>Second absence logged. The student moves to the “Dormant Track” — all privileges, special activities and eligibility for the ₦500k Awards are frozen.</p></div>
-              <div class="bp-strike bp-strike--out"><span class="bp-strike-n">Strike 3</span><h4>Immediate eviction</h4><p>On a third missed session the AI flags the profile for permanent expulsion — no re-entry, no certificate, and an absolute forfeit of all project showcases.</p></div>
-            </div>
-
-            <h3>1.2 Lateness &amp; suspension thresholds</h3>
-            <ul class="bp-list">
-              <li><strong>The 7:00 AM standard.</strong> Under the 1-Hour Advance Resumption Protocol, if the programme block opens at 8:00 AM, the student check-in deadline is <strong>7:00 AM sharp</strong>.</li>
-              <li><strong>The lateness cap.</strong> Three (3) instances of lateness trigger an automatic suspension.</li>
-              <li><strong>Post-suspension enforcement.</strong> Two (2) further late arrivals after returning from suspension force an ultimatum: a non-negotiable <strong>₦5,000 fine</strong> or immediate eviction.</li>
-            </ul>
-
-            <h3>1.3 Check-in &amp; AI verification</h3>
-            <ul class="bp-list">
-              <li>Every student must physically scan their digital registration slip or student ID <strong>in and out</strong> at the designated checkpoint, every day.</li>
-              <li>The monitoring AI tracks compliance in real time. A missed scan is logged as a <strong>total absence</strong> for that day — no verbal excuses, no manual overrides.</li>
-              <li><strong>The Musing Period is 100% compulsory.</strong> Arriving late to it, or missing it, automatically downgrades the day to a half-day and accelerates the path to the Dormant Track.</li>
-            </ul>
-          </section>
-
-          <!-- ============ PART II — VOLUNTEERS ============ -->
-          <section class="bp-part" id="vanguard">
-            <p class="bp-part-eyebrow">Part II</p>
-            <h2>The Volunteer Vanguard Code</h2>
-            <span class="bp-applies">Applies to all Volunteers, Instructors, Mentors and Coordinators.</span>
-            <p>Volunteers do not follow the schedule of the public; they set the standard the public follows.</p>
-
-            <h3>2.1 The “Africa Time” paradigm &amp; lateness limits</h3>
-            <ul class="bp-list">
-              <li><strong>Before 7:00 AM resumption.</strong> The Vanguard runs on a strict one-hour advance resumption protocol. If general movement or briefings begin at 8:00 AM, the volunteer check-in window closes <strong>before 7:00 AM sharp</strong>.</li>
-              <li><strong>Lateness cap.</strong> Four (4) instances of lateness trigger an automatic institutional suspension.</li>
-              <li><strong>Post-suspension enforcement.</strong> Two (2) further late arrivals after serving a suspension result in an immediate <strong>₦10,000 fine</strong> or permanent eviction from the Vanguard.</li>
-              <li><strong>Mandatory Review Time.</strong> All volunteers, mentors and instructors must attend the daily/weekly post-programme Review Time. Missing it without written executive clearance is a direct administrative infraction.</li>
-            </ul>
-
-            <h3>2.2 ID credentials &amp; financial penalties</h3>
-            <p>Professional identification is non-negotiable for security and institutional branding.</p>
-            <ul class="bp-list">
-              <li><strong>First-time oversight.</strong> A volunteer arriving without their official ID is issued a temporary Volunteer Emergency Card for that single day only.</li>
-              <li><strong>Second-time fine — ₦1,000.</strong> Forgetting or failing to wear the official ID a second time triggers an automatic, non-negotiable ₦1,000 fine.</li>
-              <li><strong>Lost ID card — ₦2,000.</strong> A lost ID must be replaced immediately at a fee of ₦2,000 to mint a new digital credential.</li>
-            </ul>
-
-            <h3>2.3 Professional dormancy, suspension &amp; eviction</h3>
-            <div class="bp-card">
-              <ul class="bp-list">
-                <li><strong>Dormancy.</strong> Triggered by declining energy, missed Review Times or low engagement. The volunteer is un-deployed from active projects and benched until cleared by management.</li>
-                <li><strong>Suspension.</strong> Triggered by the 4-lateness threshold, severe administrative negligence, failure to enforce student policies, or public insubordination. Result: a <strong>14-day total ban</strong> from CACENTRE premises and digital channels.</li>
-                <li><strong>Eviction.</strong> Triggered by critical post-suspension lateness, financial misconduct, gross subversion of the vision, or unapproved absences. Result: total termination of association and blacklisting.</li>
-              </ul>
-            </div>
-          </section>
-
-          <!-- ============ PART III — ORDER & CRISIS ============ -->
-          <section class="bp-part" id="order">
-            <p class="bp-part-eyebrow">Part III</p>
-            <h2>The Architecture of Order &amp; Crisis Protocol</h2>
-            <span class="bp-applies">Applies equally to everyone within the Afrovanguard ecosystem.</span>
-
-            <h3>3.1 The chain of command — order over age</h3>
-            <p>Authority is determined strictly by organizational structure and visionary lineage — never by biological age. A younger leader holding a superior operational office commands absolute cooperation from everyone beneath them. The ladder is respected without exception:</p>
-            <div class="bp-chain">
-              <span>Student</span><span class="bp-arrow">→</span>
-              <span>Volunteer</span><span class="bp-arrow">→</span>
-              <span>Center Leader</span><span class="bp-arrow">→</span>
-              <span>Group Centre Leaders</span><span class="bp-arrow">→</span>
-              <span>NGV</span><span class="bp-arrow">→</span>
-              <span>Afrovanguard Members</span><span class="bp-arrow">→</span>
-              <span class="bp-top">The Governing Council</span>
-            </div>
-
-            <h3>3.2 The honour &amp; silence mandate</h3>
-            <ul class="bp-list">
-              <li><strong>The Silence Protocol.</strong> Absolute decorum and silence in the immediate presence of superiors or during active strategy sessions.</li>
-              <li><strong>Usurpation.</strong> Talking over a superior officer, arguing directives in public, or bypassing the chain of command is a direct act of dishonour against the vision and our collective sacrifices.</li>
-            </ul>
-
-            <h3>3.3 Crisis resolution &amp; the safety valve</h3>
-            <p>Grievances must never breed gossip or on-site insubordination.</p>
-            <ol class="bp-list is-num">
-              <li><strong>On-ground issues</strong> flow step-by-step up the chain of command (e.g. Student → Volunteer → Center Leader).</li>
-              <li><strong>Formal escalation.</strong> If an action feels unfairly resolved on the floor, causing a scene is strictly prohibited. The aggrieved party must document the case and transmit it digitally to the executive portal at <a href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a>.</li>
-            </ol>
-          </section>
-
-          <!-- ============ PART IV — REINSTATEMENT ============ -->
-          <section class="bp-part" id="reinstatement">
-            <p class="bp-part-eyebrow">Part IV</p>
-            <h2>Reinstatement Protocols After Eviction</h2>
-            <p>Eviction is severe, but not entirely the end of the road for those genuinely broken and willing to submit to structural alignment. To be reintegrated into the ecosystem, an evicted student or volunteer must fulfil <strong>all</strong> of the following:</p>
-            <ol class="bp-list is-num">
-              <li><strong>The 365-day cool-off period.</strong> Complete bar from all premises, digital networks and programmes for one full calendar year from the date of eviction. No appeals are reviewed during this time.</li>
-              <li><strong>Mandatory institutional training.</strong> After the one-year ban, the individual must register for and pass the intensive <strong>CIMC 1</strong> (Community Influencing Master Class 1) track to realign their mindset with our cultural architecture.</li>
-              <li><strong>Reinstatement fine.</strong> A non-negotiable ₦10,000 processing and clearing fine, paid in full to the institutional treasury, before the AI digital profile and access credentials are reactivated.</li>
-            </ol>
-          </section>
-
-          <!-- ============ PART V — INCENTIVES ============ -->
-          <section class="bp-part" id="incentives">
-            <p class="bp-part-eyebrow">Part V</p>
-            <h2>The AV-Incentive Framework &amp; Awards</h2>
-            <p>To prove that character, discipline and integrity pay higher dividends than compromise, the Governing Council has instituted financial awards for students and volunteers who model flawless compliance.</p>
-            <div class="bp-callout">
-              <strong>Eligibility is earned, not given.</strong> Only members in good standing qualify — the ₦500k Awards (Part I) are frozen the moment a student reaches Dormancy status. Flawless attendance, punctuality and conduct are the entry ticket.
-            </div>
-            <h3>5.1 Prize metrics &amp; categories</h3>
-            <p>The full prize schedule and category breakdown is being finalized by the Governing Council and will be published to members here. Awards recognise, at minimum:</p>
-            <ul class="bp-list">
-              <li>Flawless attendance and punctuality across the full programme duration.</li>
-              <li>Exemplary conduct within the chain of command and the honour &amp; silence mandate.</li>
-              <li>Standout project showcases and demonstrated leadership of peers.</li>
-            </ul>
-          </section>
-
-          <!-- ============ PART VI — DEADLINES ============ -->
-          <section class="bp-part" id="deadlines">
-            <p class="bp-part-eyebrow">Part VI</p>
-            <h2>The Absolute Lateness Deadlines</h2>
-            <p>Early resumption is heavily rewarded; these are the exact thresholds where an arrival transitions from “tardy” to an actionable institutional breach.</p>
-            <div class="bp-tablewrap">
-              <table class="bp-table">
-                <thead><tr><th>Cohort</th><th>Redline (flagged LATE)</th><th>Triggers suspension</th></tr></thead>
-                <tbody>
-                  <tr><td>Students</td><td class="bp-num">Scan in at 8:30 AM or later</td><td>3 late logs</td></tr>
-                  <tr><td>Volunteers, Mentors &amp; Instructors</td><td class="bp-num">Scan in at 9:00 AM or later</td><td>4 late logs</td></tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="bp-callout is-danger">
-              <strong>System sync note.</strong> The AI tracking engine is locked to these exact timestamps. No manual overrides, no verbal adjustments. You are either beating the clock, or the system is logging your infractions.
-            </div>
-          </section>
-
-          <!-- ============ COVENANT ============ -->
-          <section class="bp-part" id="covenant">
-            <div class="bp-covenant">
-              <p>“We do not build systems based on convenience; we build them based on character. Every scan, every silent room, and every escalated email is proof that we respect the future we are building. Guard the order, protect the vision.”</p>
-              <small>The Vanguard Covenant</small>
-            </div>
-          </section>
-
           <!-- ============ CONTINENTAL SCALING PLAN ============ -->
-          <section class="bp-part" id="scaling">
-            <p class="bp-part-eyebrow">Strategic Annex</p>
-            <h2>Continental Scaling Plan to 1,000,000 C-Level Leaders (2040)</h2>
+          <section class="bp-part first" id="principles">
+            <p class="bp-part-eyebrow">Strategic Plan</p>
+            <h2>The road to one million incorruptible leaders</h2>
             <p>To reach one million <strong>C-Level (Incorruptible) Vanguards</strong> by 2040, the path is structured exponential growth — not random expansion. The engine of that growth is the <strong>CACENTRE</strong>, because every centre becomes a leadership production hub.</p>
 
             <div class="bp-card">
@@ -379,9 +205,11 @@ render_nav('about');
               <li>A new centre takes <strong>2–3 years to mature</strong>.</li>
               <li>Expansion accelerates once strong systems and culture are built.</li>
             </ul>
+          </section>
 
-            <!-- Phase 1 -->
-            <div class="bp-phase">
+          <!-- Phase 1 -->
+          <section class="bp-part" id="phase1">
+            <div class="bp-phase" style="margin-top:0">
               <span class="bp-phase-tag">Phase 1 · 2026–2028</span>
               <h3>Foundation</h3>
               <p class="bp-goal">Goal: perfect the model before scaling.</p>
@@ -397,9 +225,11 @@ render_nav('about');
                 </table>
               </div>
             </div>
+          </section>
 
-            <!-- Phase 2 -->
-            <div class="bp-phase">
+          <!-- Phase 2 -->
+          <section class="bp-part" id="phase2">
+            <div class="bp-phase" style="margin-top:0">
               <span class="bp-phase-tag">Phase 2 · 2029–2032</span>
               <h3>Nigeria Expansion</h3>
               <p class="bp-goal">Goal: establish national presence.</p>
@@ -416,9 +246,11 @@ render_nav('about');
                 </table>
               </div>
             </div>
+          </section>
 
-            <!-- Phase 3 -->
-            <div class="bp-phase">
+          <!-- Phase 3 -->
+          <section class="bp-part" id="phase3">
+            <div class="bp-phase" style="margin-top:0">
               <span class="bp-phase-tag">Phase 3 · 2033–2036</span>
               <h3>West Africa Expansion</h3>
               <p class="bp-goal">Target countries: Ghana, Benin, Togo, Côte d’Ivoire, Senegal.</p>
@@ -435,9 +267,11 @@ render_nav('about');
                 </table>
               </div>
             </div>
+          </section>
 
-            <!-- Phase 4 -->
-            <div class="bp-phase">
+          <!-- Phase 4 -->
+          <section class="bp-part" id="phase4">
+            <div class="bp-phase" style="margin-top:0">
               <span class="bp-phase-tag">Phase 4 · 2037–2040</span>
               <h3>Continental Expansion</h3>
               <p class="bp-goal">Target regions: East, Southern &amp; North Africa — Kenya, Rwanda, South Africa, Ethiopia, Egypt, Tanzania.</p>
@@ -454,8 +288,11 @@ render_nav('about');
               </div>
               <div class="bp-callout">🎯 <strong>Target achieved: 1 million C-Level leaders.</strong></div>
             </div>
+          </section>
 
-            <h3>What one mature CACENTRE must produce yearly</h3>
+          <!-- CACENTRE output -->
+          <section class="bp-part" id="cacentre">
+            <h3 style="margin-top:0">What one mature CACENTRE must produce yearly</h3>
             <div class="bp-tablewrap">
               <table class="bp-table">
                 <thead><tr><th>Level</th><th>Annual output</th></tr></thead>
@@ -468,8 +305,11 @@ render_nav('about');
               </table>
             </div>
             <p>With the O → A → B → C ladder, leaders are constantly rising.</p>
+          </section>
 
-            <h3>Organizational structure needed to manage 2,000 CACENTREs</h3>
+          <!-- Structure -->
+          <section class="bp-part" id="structure">
+            <h3 style="margin-top:0">Organizational structure needed to manage 2,000 CACENTREs</h3>
             <ol class="bp-list is-num">
               <li><strong>Continental Leadership Council</strong> — guides ideology and structure.</li>
               <li><strong>Regional Directors</strong> — West, East, North and Southern Africa.</li>
@@ -486,8 +326,11 @@ render_nav('about');
               <li>Mentorship relationships</li>
               <li>Leadership scorecard</li>
             </ul>
+          </section>
 
-            <h3>The cultural engine — three things that must never stop</h3>
+          <!-- Cultural engine -->
+          <section class="bp-part" id="engine">
+            <h3 style="margin-top:0">The cultural engine — three things that must never stop</h3>
             <div class="bp-threeup">
               <div class="bp-mini"><span class="bp-mini-ic">📚</span><h4>Book Club</h4><p>12 books yearly, across every CACENTRE.</p></div>
               <div class="bp-mini"><span class="bp-mini-ic">🧠</span><h4>Courses &amp; tech learning</h4><p>Continuous skill and technology development.</p></div>
