@@ -465,6 +465,63 @@ final class GoogleWorkspace
         return mb_substr($res['body'], 0, $maxBytes);
     }
 
+    /** Extract a Meet code (e.g. "abc-defg-hij") from a Meet URL. */
+    public static function meetCodeFromUrl(string $url): string
+    {
+        if (preg_match('~meet\.google\.com/([a-z0-9\-]+)~i', $url, $m)) return strtolower($m[1]);
+        return '';
+    }
+
+    /**
+     * The official Google Meet transcript text for a meeting, via the Meet REST
+     * API (conferenceRecords → transcripts → transcripts.entries). Requires the
+     * meetings.space.readonly scope; impersonates $hostEmail (a participant).
+     * Returns the joined "Speaker: text" transcript, or null if none exists yet.
+     */
+    public static function meetTranscriptText(string $meetingCode, string $hostEmail, int $afterTs = 0): ?string
+    {
+        $code = trim($meetingCode);
+        if ($code === '' || $hostEmail === '' || !self::meetEnabled()) return null;
+        $space = self::apiGet(self::meetBase() . '/v2/spaces/' . rawurlencode($code), self::SCOPE_MEET_RO, false, $hostEmail);
+        $spaceName = is_array($space) ? (string) ($space['name'] ?? '') : '';
+        if ($spaceName === '') return null;
+        $q = http_build_query(['filter' => 'space.name="' . $spaceName . '"', 'pageSize' => 10]);
+        $recs = self::apiGet(self::meetBase() . '/v2/conferenceRecords?' . $q, self::SCOPE_MEET_RO, false, $hostEmail);
+        $items = is_array($recs) ? ($recs['conferenceRecords'] ?? []) : [];
+        // Newest ended conference at/after the session start.
+        $conf = null;
+        foreach ($items as $r) {
+            $s = strtotime((string) ($r['startTime'] ?? '')) ?: 0;
+            if ($afterTs > 0 && $s > 0 && $s < $afterTs - 3600) continue;
+            if ($conf === null) $conf = $r;
+        }
+        $confName = is_array($conf) ? (string) ($conf['name'] ?? '') : '';
+        if ($confName === '') return null;
+        $trs = self::apiGet(self::meetBase() . '/v2/' . $confName . '/transcripts', self::SCOPE_MEET_RO, false, $hostEmail);
+        $tItems = is_array($trs) ? ($trs['transcripts'] ?? []) : [];
+        if (!$tItems) return null;
+        $tName = (string) ($tItems[0]['name'] ?? '');
+        if ($tName === '') return null;
+        // Page through the transcript entries and stitch them into readable text.
+        $out = [];
+        $pageToken = '';
+        for ($i = 0; $i < 20; $i++) {
+            $eq = http_build_query(array_filter(['pageSize' => 1000, 'pageToken' => $pageToken]));
+            $entries = self::apiGet(self::meetBase() . '/v2/' . $tName . '/entries?' . $eq, self::SCOPE_MEET_RO, false, $hostEmail);
+            if (!is_array($entries)) break;
+            foreach (($entries['transcriptEntries'] ?? []) as $en) {
+                $who = (string) ($en['participant'] ?? '');
+                $who = $who !== '' ? (basename($who)) : '';
+                $txt = trim((string) ($en['text'] ?? ''));
+                if ($txt !== '') $out[] = ($who !== '' ? $who . ': ' : '') . $txt;
+            }
+            $pageToken = (string) ($entries['nextPageToken'] ?? '');
+            if ($pageToken === '') break;
+        }
+        $joined = trim(implode("\n", $out));
+        return $joined !== '' ? $joined : null;
+    }
+
     /**
      * Connectivity probe for the Studio → System page. Reports what actually
      * works against live Google, without leaking tokens.

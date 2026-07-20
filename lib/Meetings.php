@@ -53,7 +53,10 @@ final class Meetings
             context_id INTEGER NOT NULL DEFAULT 0,
             provider VARCHAR(12) NOT NULL DEFAULT '',
             meet_url VARCHAR(500) NOT NULL DEFAULT '',
+            meet_code VARCHAR(60) NOT NULL DEFAULT '',
             google_event_id VARCHAR(128) NOT NULL DEFAULT '',
+            auto_record INTEGER NOT NULL DEFAULT 0,
+            bot_state VARCHAR(16) NOT NULL DEFAULT '',
             status VARCHAR(12) NOT NULL DEFAULT 'scheduled',
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         );
@@ -79,7 +82,20 @@ final class Meetings
         );
         CREATE INDEX IF NOT EXISTS idx_mtg_tr ON meeting_transcripts(meeting_id);";
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        // Idempotent column adds for databases created before these fields existed.
+        self::addCol('meetings', 'meet_code', "VARCHAR(60) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'auto_record', 'INTEGER NOT NULL DEFAULT 0');
+        self::addCol('meetings', 'bot_state', "VARCHAR(16) NOT NULL DEFAULT ''");
         self::$ready = true;
+    }
+
+    private static function addCol(string $table, string $col, string $decl): void
+    {
+        try {
+            if (!Database::columnExists($table, $col)) {
+                Database::pdo()->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $col . ' ' . $decl);
+            }
+        } catch (Throwable $e) { /* already exists / race — fine */ }
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -141,18 +157,23 @@ final class Meetings
         $context = (string) ($in['context'] ?? 'workspace');
         if (!in_array($context, ['workspace', 'mentorship'], true)) $context = 'workspace';
         $emails  = self::cleanEmails($in['attendees'] ?? []);
+        $autoRec = !empty($in['auto_record']) ? 1 : 0;
 
         $db = Database::pdo();
-        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-           ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $context, (int) ($in['context_id'] ?? 0), 'scheduled', self::now()]);
+        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+           ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $context, (int) ($in['context_id'] ?? 0), $autoRec, 'scheduled', self::now()]);
         $id = (int) $db->lastInsertId();
 
         $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, $freq, 'mtg-' . $id);
-        $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ? WHERE id = ?')
-           ->execute([$link['url'], $link['provider'], $link['google_event_id'], $id]);
+        $code = class_exists('GoogleWorkspace') ? GoogleWorkspace::meetCodeFromUrl($link['url']) : '';
+        $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
+           ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $id]);
 
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
         foreach ($emails as $e) $ins->execute([$id, $e]);
+
+        // The recording bot: ask the configured recorder to join & transcribe.
+        if ($autoRec) self::requestBot($id, $link['url'], $ts, $dur);
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
         return ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
@@ -244,9 +265,6 @@ final class Meetings
     {
         $rawText = trim($rawText);
         if ($rawText === '') return ['ok' => false, 'error' => 'Empty transcript.'];
-        if (!class_exists('AvBot') || !AvBot::configured()) {
-            return ['ok' => false, 'error' => 'AI summarisation is not configured (set ANTHROPIC_API_KEY).'];
-        }
         $sys = 'You are a meeting-minutes assistant for the Afrovanguard organisation. '
              . 'Read the raw meeting transcript and return STRICT JSON only — no prose, no markdown fences. '
              . 'Schema: {"summary": string (3-5 sentence overview), '
@@ -254,8 +272,19 @@ final class Meetings
              . '"decisions": string[] (decisions made), '
              . '"action_items": [{"task": string, "owner": string}] (owner "" if unassigned)}. '
              . 'Keep it faithful to the transcript; do not invent facts.';
-        $res = AvBot::reply("Transcript:\n\n" . mb_substr($rawText, 0, 11000), [], ['system' => $sys, 'max_tokens' => 1500]);
-        if (empty($res['ok'])) return ['ok' => false, 'error' => (string) ($res['error'] ?? 'AI error.')];
+        $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, 20000);
+
+        // Prefer Gemini Flash for meeting logging; fall back to the Anthropic bot.
+        $res = null;
+        if (class_exists('Gemini') && Gemini::configured()) {
+            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => 2048, 'temperature' => 0.1]);
+        }
+        if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
+            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => 1500]);
+        }
+        if (!$res || empty($res['ok'])) {
+            return ['ok' => false, 'error' => ($res['error'] ?? null) ? (string) $res['error'] : 'AI summarisation is not configured (set AV_GEMINI_API_KEY).'];
+        }
         $json = self::extractJson((string) $res['text']);
         if (!is_array($json)) return ['ok' => false, 'error' => 'Could not parse the AI summary.'];
         $acts = [];
@@ -288,6 +317,15 @@ final class Meetings
         $m = self::get($uid, $id);
         if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
         try {
+            // 1) The official Meet transcript via the Meet REST API (best source).
+            $code = (string) ($m['meet_code'] ?? '');
+            if ($code !== '') {
+                $host = self::userEmail((int) $m['creator_id']);
+                $afterTs = strtotime((string) $m['scheduled_at'] . ' UTC') ?: 0;
+                $t = GoogleWorkspace::meetTranscriptText($code, $host, $afterTs);
+                if ($t) return self::saveTranscript($uid, $id, $t, 'google');
+            }
+            // 2) Fallback: the transcript Doc Meet writes to the host's Drive.
             $files = GoogleWorkspace::driveFiles(null, 60);
             $needle = mb_strtolower($m['title']);
             $best = null;
@@ -304,6 +342,106 @@ final class Meetings
             error_log('[meetings] pull transcript: ' . $e->getMessage());
             return ['ok' => false, 'error' => 'Could not fetch the transcript.'];
         }
+    }
+
+    /**
+     * Transcribe an uploaded recording with Gemini Flash, then structure it.
+     * $mime e.g. audio/mpeg, audio/webm, audio/wav.
+     */
+    public static function transcribeAudio(int $uid, int $id, string $bytes, string $mime): array
+    {
+        self::ensure();
+        if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
+        if (!class_exists('Gemini') || !Gemini::configured()) {
+            return ['ok' => false, 'error' => 'Audio transcription (Gemini) isn’t configured (set AV_GEMINI_API_KEY).'];
+        }
+        $res = Gemini::transcribeAudio($bytes, $mime);
+        if (empty($res['ok'])) return ['ok' => false, 'error' => (string) ($res['error'] ?? 'Transcription failed.')];
+        return self::saveTranscript($uid, $id, (string) $res['text'], 'gemini');
+    }
+
+    /** ── The recording bot ────────────────────────────────────────────── */
+
+    public static function botConfigured(): bool
+    {
+        return trim((string) (getenv('AV_MEET_BOT_JOIN_URL') ?: '')) !== '';
+    }
+
+    /**
+     * Ask the configured recorder bot to join a meeting and capture it. The bot
+     * is an external service (e.g. a Meet media/recorder worker) reachable at
+     * AV_MEET_BOT_JOIN_URL; it later posts the recording/transcript back to
+     * botIngest(). Best-effort and non-blocking-ish; failures just leave the
+     * meeting to the manual paste / Google-transcript paths.
+     */
+    private static function requestBot(int $id, string $meetUrl, int $startTs, int $durationMin): void
+    {
+        $db = Database::pdo();
+        if (!self::botConfigured()) {
+            // No external recorder wired — mark it queued so the UI can explain
+            // that manual paste / Google transcript still produce the minutes.
+            $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ?')->execute(['unconfigured', $id]);
+            return;
+        }
+        $token = self::botToken($id);
+        $payload = [
+            'meeting_id'  => $id,
+            'join_url'    => $meetUrl,
+            'start_iso'   => gmdate('c', $startTs),
+            'duration_min'=> $durationMin,
+            'callback'    => rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/portal/meetings.php?action=bot_ingest',
+            'token'       => $token,
+        ];
+        $ok = false;
+        try {
+            if (function_exists('curl_init')) {
+                $ch = curl_init(trim((string) getenv('AV_MEET_BOT_JOIN_URL')));
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
+                    CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5,
+                    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
+                    CURLOPT_HTTPHEADER => ['content-type: application/json'],
+                ]);
+                $r = curl_exec($ch);
+                $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                $ok = is_string($r) && $code < 400;
+            }
+        } catch (Throwable $e) { error_log('[meetings] bot join: ' . $e->getMessage()); }
+        $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ?')->execute([$ok ? 'requested' : 'error', $id]);
+    }
+
+    /** HMAC token the recorder must echo back when posting a transcript. */
+    public static function botToken(int $id): string
+    {
+        $secret = function_exists('av_secret') ? (string) av_secret() : (defined('APP_KEY') ? (string) APP_KEY : 'av');
+        return hash_hmac('sha256', 'bot|' . $id, $secret);
+    }
+
+    /**
+     * Ingestion endpoint for the recorder bot: it posts back the transcript (and
+     * we structure it) once the meeting ends. Auth is the per-meeting HMAC token
+     * (no user session — the bot is a service). Returns the API shape.
+     */
+    public static function botIngest(int $id, string $token, string $transcript): array
+    {
+        self::ensure();
+        if (!hash_equals(self::botToken($id), (string) $token)) return ['ok' => false, 'error' => 'Bad token.'];
+        $transcript = trim($transcript);
+        if ($transcript === '') return ['ok' => false, 'error' => 'Empty transcript.'];
+        $db = Database::pdo();
+        // Save raw + structured minutes. Ownership check is bypassed (service),
+        // so write directly rather than via saveTranscript (which is user-scoped).
+        $db->prepare('DELETE FROM meeting_transcripts WHERE meeting_id = ?')->execute([$id]);
+        $db->prepare('INSERT INTO meeting_transcripts (meeting_id, source, raw_text, structured, created_at) VALUES (?,?,?,0,?)')
+           ->execute([$id, 'bot', mb_substr($transcript, 0, 60000), self::now()]);
+        $db->prepare('UPDATE meetings SET status = \'done\', bot_state = \'done\' WHERE id = ?')->execute([$id]);
+        $st = self::structure($transcript);
+        if ($st['ok']) {
+            $db->prepare('UPDATE meeting_transcripts SET summary=?, highlights=?, decisions=?, action_items=?, structured=1 WHERE meeting_id=?')
+               ->execute([$st['summary'], json_encode($st['highlights'], JSON_UNESCAPED_UNICODE), json_encode($st['decisions'], JSON_UNESCAPED_UNICODE), json_encode($st['action_items'], JSON_UNESCAPED_UNICODE), $id]);
+        }
+        return ['ok' => true, 'structured' => $st['ok']];
     }
 
     /** ── helpers ──────────────────────────────────────────────────────── */
@@ -324,6 +462,9 @@ final class Meetings
             'context_id'  => (int) $r['context_id'],
             'provider'    => (string) $r['provider'],
             'meet_url'    => (string) $r['meet_url'],
+            'meet_code'   => (string) ($r['meet_code'] ?? ''),
+            'auto_record' => (int) ($r['auto_record'] ?? 0) === 1,
+            'bot_state'   => (string) ($r['bot_state'] ?? ''),
             'status'      => (string) $r['status'],
             'is_owner'    => false,
             'creator_id'  => (int) $r['creator_id'],

@@ -14,7 +14,7 @@
   var listEl = document.getElementById('tlMeetList');
   var msg = document.getElementById('tlMeetMsg');
   var API = '/portal/meetings.php';
-  var ME = 0;
+  var ME = 0, GEMINI = false, BOT = false;
 
   function post(action, body) {
     return fetch(API + '?action=' + action, {
@@ -74,9 +74,12 @@
       wrap += '<textarea class="meet-tr-text" placeholder="Paste the meeting transcript here…"></textarea>';
       wrap += '<div class="meet-tr-btns">';
       wrap += '<button type="button" class="pbtn pbtn-gold pbtn-sm meet-tr-save" data-id="' + m.id + '">Generate minutes</button>';
-      wrap += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-tr-pull" data-id="' + m.id + '">Pull from Google Meet</button>';
+      wrap += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-tr-pull" data-id="' + m.id + '">Pull Google Meet transcript</button>';
+      wrap += '<label class="pbtn pbtn-ghost pbtn-sm meet-tr-uplabel">Upload recording<input type="file" class="meet-tr-file" accept="audio/*,video/mp4,video/webm" data-id="' + m.id + '" hidden></label>';
       wrap += '<span class="meet-tr-msg" role="status" aria-live="polite"></span>';
-      wrap += '</div></details>';
+      wrap += '</div>';
+      wrap += '<p class="meet-tr-help">' + (GEMINI ? 'Recordings are transcribed by Gemini Flash.' : 'Set AV_GEMINI_API_KEY to enable audio transcription &amp; AI minutes.') + '</p>';
+      wrap += '</details>';
     }
     return wrap + '</div>';
   }
@@ -88,7 +91,9 @@
     var h = '<li class="meet-item" data-id="' + m.id + '">';
     h += '<div class="meet-item-main">';
     h += '<div class="meet-item-top"><span class="meet-when">' + esc(fmtWhen(m.when_iso)) + '</span><span class="meet-dur">' + esc(fmtDur(m.duration_min)) + freq + '</span></div>';
-    h += '<p class="meet-title">' + esc(m.title) + '</p>';
+    h += '<p class="meet-title">' + esc(m.title);
+    if (m.auto_record) h += ' <span class="meet-bot-badge" title="Recording bot ' + (m.bot_state === 'unconfigured' ? 'not wired — use paste / Google transcript' : esc(m.bot_state || 'on')) + '">🤖 ' + (m.bot_state === 'unconfigured' ? 'auto (manual)' : 'auto-record') + '</span>';
+    h += '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
     h += '<div class="meet-actions">';
     if (m.meet_url) h += '<a class="pbtn pbtn-soft pbtn-sm" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">▶ Join · ' + esc(prov) + '</a>';
@@ -107,7 +112,7 @@
   function load() {
     get('list').then(function (d) {
       if (!d || !d.ok) { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; return; }
-      ME = d.me || 0;
+      ME = d.me || 0; GEMINI = !!d.gemini; BOT = !!d.bot;
       render(d.meetings);
     }).catch(function () { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; });
   }
@@ -126,6 +131,7 @@
       frequency: document.getElementById('tlMeetFreq').value || 'once',
       attendees: document.getElementById('tlMeetWho').value || '',
       agenda: document.getElementById('tlMeetAgenda').value || '',
+      auto_record: !!(document.getElementById('tlMeetRec') && document.getElementById('tlMeetRec').checked),
       context: 'workspace'
     }).then(function (d) {
       if (!d || !d.ok) { say((d && d.error) || 'Could not schedule.'); return; }
@@ -193,6 +199,26 @@
       }
       return;
     }
+  });
+
+  // Upload a recording → Gemini transcribes → minutes.
+  listEl && listEl.addEventListener('change', function (e) {
+    var file = e.target.closest('.meet-tr-file');
+    if (!file || !file.files || !file.files.length) return;
+    var box = file.closest('.meet-tr');
+    var tmsg = box && box.querySelector('.meet-tr-msg');
+    var f = file.files[0];
+    if (f.size > 19 * 1024 * 1024) { if (tmsg) tmsg.textContent = 'Recording too large (max ~19MB). Use the Google Meet transcript.'; file.value = ''; return; }
+    var fd = new FormData();
+    fd.append('id', file.getAttribute('data-id'));
+    fd.append('audio', f);
+    if (tmsg) tmsg.textContent = 'Transcribing with Gemini…';
+    fetch(API + '?action=transcribe', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrf }, body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) { if (tmsg) tmsg.textContent = (d && d.error) || 'Could not transcribe.'; return; }
+        load();
+      }).catch(function () { if (tmsg) tmsg.textContent = 'Network error.'; });
   });
 
   // Register with the Suite so opening the tile refreshes; also load once now.

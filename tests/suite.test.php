@@ -239,3 +239,28 @@ require_once AV_ROOT . '/lib/Community.php';
 
     ck('meet: freq labels present', Meetings::freqLabel('biweekly') === 'Every 2 weeks');
 })();
+
+/* ---- Meetings: Gemini provider + recording bot ---- */
+(function () {
+    require_once AV_ROOT . '/lib/Gemini.php';
+    require_once AV_ROOT . '/lib/Meetings.php';
+    reset_users();
+    // Gemini gating (no key in test env → not configured, clean error, no crash)
+    ck('gemini: not configured without key', Gemini::configured() === false);
+    $g = Gemini::generate('hi');
+    ck('gemini: clean error when unconfigured', empty($g['ok']) && strpos((string) $g['error'], 'not configured') !== false);
+    $ta = Gemini::transcribeAudio('', 'audio/mpeg');
+    ck('gemini: transcribe rejects empty audio', empty($ta['ok']));
+
+    // Recording bot: token round-trips; ingest is token-authed and stores raw.
+    $r = Meetings::schedule(1, ['title' => 'Recorded standup', 'when' => '2030-07-01T08:00', 'auto_record' => true]);
+    ck('meet: schedule with auto_record', !empty($r['ok']));
+    $mid = (int) $r['id'];
+    ck('meet: auto_record persisted', ($r['meeting']['auto_record'] ?? false) === true);
+    ck('meet: bot marked unconfigured w/o recorder', ($r['meeting']['bot_state'] ?? '') === 'unconfigured');
+    $tok = Meetings::botToken($mid);
+    ck('meet: botIngest rejects bad token', empty(Meetings::botIngest($mid, 'nope', 'x')['ok']));
+    ck('meet: botIngest accepts valid token', !empty(Meetings::botIngest($mid, $tok, 'Speaker 1: hello team.')['ok']));
+    ck('meet: bot transcript stored raw', (Meetings::get(1, $mid)['transcript']['has_raw'] ?? false) === true);
+    ck('meet: meetCodeFromUrl parses', GoogleWorkspace::meetCodeFromUrl('https://meet.google.com/abc-defg-hij?x=1') === 'abc-defg-hij');
+})();
