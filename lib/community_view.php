@@ -57,6 +57,7 @@ if (!function_exists('av_render_community')) {
         $sort     = 'latest';
         $PER      = 12;
 
+        $isAdmin = Community::isAdmin($viewerId);
         $orgDirectory = $isOrg ? Community::directory($viewerId, 60) : [];
         $spaces  = Community::spaces();
         $counts  = Community::spaceCounts();
@@ -65,7 +66,7 @@ if (!function_exists('av_render_community')) {
         $hasMore = count($posts) > $PER;
         $posts   = array_slice($posts, 0, $PER);
 ?>
-<div class="cm cm--embed" data-sort="<?= e($sort) ?>" data-space="<?= e($activeSp) ?>" data-initial-space="<?= e($activeSp) ?>" data-signed-in="1" data-org="<?= $isOrg ? '1' : '0' ?>" data-uid="<?= $viewerId ?>">
+<div class="cm cm--embed" data-sort="<?= e($sort) ?>" data-space="<?= e($activeSp) ?>" data-initial-space="<?= e($activeSp) ?>" data-signed-in="1" data-org="<?= $isOrg ? '1' : '0' ?>" data-admin="<?= $isAdmin ? '1' : '0' ?>" data-uid="<?= $viewerId ?>">
   <div class="cm-wrap">
 <?php if ($hero): ?>
     <header class="cm-hero">
@@ -126,7 +127,8 @@ if (!function_exists('av_render_community')) {
               </select>
 <?php endif; ?>
               <button type="button" class="cm-ask-btn" id="cmAsk" title="Ask the official Afrovanguard bot">✦ Ask the bot</button>
-              <button type="submit" class="cm-post-btn">Post</button>
+<?php if ($isAdmin): ?>              <button type="button" class="cm-ask-btn" id="cmAnnounce" title="Post an official Afrovanguard announcement">📣 Announce</button>
+<?php endif; ?>              <button type="submit" class="cm-post-btn">Post</button>
             </div>
             <p class="cm-msg" role="status" aria-live="polite"></p>
           </form>

@@ -231,3 +231,9 @@
 #cmClass { font: inherit; font-size: 12.5px; border: 1px solid var(--cm-line,#e6e2d6); border-radius: 8px; padding: 5px 8px;
   background: var(--cm-surface,#fff); color: inherit; }
 .portal-app.is-dark .cm-class--public { color:#5eead4; } .portal-app.is-dark .cm-class--confidential { color:#fca5a5; }
+
+/* Moderator controls on posts (admins only) */
+.cm-mod { display:inline-flex; gap:2px; margin-left:auto; }
+.cm-mod-btn { opacity:.5; font-size:13px; padding:4px 6px; line-height:1; }
+.cm-mod-btn:hover { opacity:1; }
+.cm-bar { display:flex; align-items:center; }

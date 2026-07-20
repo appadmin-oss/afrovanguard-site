@@ -88,6 +88,41 @@ try {
             if (!av_rate_ok('community_like', 120, 900)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
             json_out(['ok' => true] + Community::toggleLike((int) ($body['id'] ?? 0), (int) $u['id']));
         }
+        case 'mod_delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!av_rate_ok('community_mod_' . (int) $u['id'], 60, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $ok = Community::moderateDelete((int) $u['id'], (int) ($body['id'] ?? 0));
+            json_out(['ok' => $ok] + ($ok ? [] : ['error' => 'Not allowed.']), $ok ? 200 : 403);
+        }
+        case 'mod_pin': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u || !Community::isAdmin((int) $u['id'])) json_out(['ok' => false, 'error' => 'Moderators only.'], 403);
+            $ok = Community::moderatePin((int) $u['id'], (int) ($body['id'] ?? 0), (bool) ($body['pin'] ?? true));
+            json_out(['ok' => $ok]);
+        }
+        case 'mod_classify': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u || !Community::isAdmin((int) $u['id'])) json_out(['ok' => false, 'error' => 'Moderators only.'], 403);
+            $ok = Community::moderateClassify((int) $u['id'], (int) ($body['id'] ?? 0), (string) ($body['classification'] ?? 'members'));
+            json_out(['ok' => $ok]);
+        }
+        case 'announce': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u || !Community::isAdmin((int) $u['id'])) json_out(['ok' => false, 'error' => 'Moderators only.'], 403);
+            if (!av_rate_ok('community_announce_' . (int) $u['id'], 20, 900)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $id = Community::announce((int) $u['id'], (string) ($body['space'] ?? 'announcements'), (string) ($body['body'] ?? ''), (bool) ($body['pin'] ?? false));
+            if (!$id) json_out(['ok' => false, 'error' => 'Write an announcement.'], 422);
+            json_out(['ok' => true, 'post' => Community::post($id, (int) $u['id'])]);
+        }
         case 'ask': {
             // Ask the official Afrovanguard bot (AI). Posts the member's question,
             // then the bot's Claude-generated reply, in the same thread.

@@ -51,6 +51,17 @@
       + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(p.ago) + '</span>';
   }
 
+  /** Moderator controls (admins/coordinators only) appended to a post's bar. */
+  var ADMIN = main.getAttribute('data-admin') === '1';
+  function modBar(p) {
+    if (!ADMIN) return '';
+    return '<span class="cm-mod">'
+      + '<button type="button" class="cm-act cm-mod-btn" data-mod-pin="' + p.id + '" title="Pin / unpin">📌</button>'
+      + '<button type="button" class="cm-act cm-mod-btn" data-mod-cls="' + p.id + '" title="Change who can see this">🏷</button>'
+      + '<button type="button" class="cm-act cm-mod-btn" data-mod-del="' + p.id + '" title="Remove post">🗑</button>'
+      + '</span>';
+  }
+
   /** Full post card — mirrors comm_card($p, false) in index.php. */
   function renderPost(p) {
     var art = document.createElement('article');
@@ -68,7 +79,7 @@
       + '<button class="cm-act cm-like' + (p.liked ? ' is-liked' : '') + '" data-like="' + p.id + '" aria-pressed="' + (p.liked ? 'true' : 'false') + '">'
       + HEART + '<span class="cm-likes">' + (p.likes | 0) + '</span></button>'
       + '<button class="cm-act cm-reply-toggle" data-reply="' + p.id + '">'
-      + BUBBLE + '<span class="cm-replies">' + (p.reply_count | 0) + '</span></button></div>'
+      + BUBBLE + '<span class="cm-replies">' + (p.reply_count | 0) + '</span></button>' + modBar(p) + '</div>'
       + '<div class="cm-thread" data-thread="' + p.id + '" hidden></div>'
       + '</div>';
     return art;
@@ -542,6 +553,64 @@
     window.addEventListener('hashchange', function () { setTimeout(kick, 60); });
     document.addEventListener('click', function (e) {
       if (e.target.closest('[data-view="community"],[data-goto="community"]')) setTimeout(kick, 80);
+    });
+  }
+
+  /* ── Moderator controls + official announcements (admins/coordinators) ── */
+  if (ADMIN) {
+    var CLABEL = { public: 'Public', members: 'Members-only', confidential: 'Confidential' };
+    // Server-rendered posts on the page don't have the mod bar yet — add it.
+    [].forEach.call(main.querySelectorAll('.cm-post'), function (a) {
+      var bar = a.querySelector('.cm-bar');
+      if (bar && !bar.querySelector('.cm-mod')) bar.insertAdjacentHTML('beforeend', modBar({ id: a.getAttribute('data-id') }));
+    });
+    main.addEventListener('click', function (e) {
+      var pin = e.target.closest('[data-mod-pin]');
+      if (pin) {
+        var art = pin.closest('.cm-post'), isPinned = !!(art && art.querySelector('.cm-pin'));
+        api('mod_pin', { body: { id: +pin.getAttribute('data-mod-pin'), pin: !isPinned } }).then(function (d) {
+          if (!d || !d.ok || !art) return;
+          if (isPinned) { var pn = art.querySelector('.cm-pin'); if (pn) pn.remove(); }
+          else art.insertAdjacentHTML('afterbegin', '<div class="cm-pin">📌 Pinned by the team</div>');
+        });
+        return;
+      }
+      var del = e.target.closest('[data-mod-del]');
+      if (del) {
+        if (!confirm('Remove this post from the community?')) return;
+        var da = del.closest('.cm-post');
+        api('mod_delete', { body: { id: +del.getAttribute('data-mod-del') } }).then(function (d) {
+          if (d && d.ok && da) da.remove(); else if (d && !d.ok) alert(d.error || 'Not allowed.');
+        });
+        return;
+      }
+      var cls = e.target.closest('[data-mod-cls]');
+      if (cls) {
+        var v = (prompt('Who can see this post? public, members, or confidential', 'members') || '').trim().toLowerCase();
+        if (['public', 'members', 'confidential'].indexOf(v) < 0) return;
+        api('mod_classify', { body: { id: +cls.getAttribute('data-mod-cls'), classification: v } }).then(function (d) {
+          if (!d || !d.ok) return;
+          var b = cls.closest('.cm-post').querySelector('.cm-class');
+          if (b) { b.className = 'cm-class cm-class--' + v; b.textContent = CLABEL[v]; b.title = CLABEL[v]; }
+        });
+        return;
+      }
+    });
+    var annBtn = document.getElementById('cmAnnounce');
+    if (annBtn) annBtn.addEventListener('click', function () {
+      var bodyEl = document.getElementById('cmBody'), spaceEl = document.getElementById('cmSpace');
+      var text = ((bodyEl && bodyEl.value) || '').trim();
+      if (text.length < 3) { if (bodyEl) bodyEl.focus(); alert('Type the announcement in the box first.'); return; }
+      var pin = confirm('Pin this announcement to the top of the space?');
+      annBtn.disabled = true;
+      api('announce', { body: { space: spaceEl ? spaceEl.value : 'announcements', body: text, pin: pin } }).then(function (d) {
+        annBtn.disabled = false;
+        if (d && d.ok && d.post) {
+          if (bodyEl) bodyEl.value = '';
+          var empty = feed.querySelector('.cm-empty'); if (empty) empty.remove();
+          feed.insertBefore(renderPost(d.post), feed.firstChild);
+        } else alert((d && d.error) || 'Could not announce.');
+      }).catch(function () { annBtn.disabled = false; });
     });
   }
 })();

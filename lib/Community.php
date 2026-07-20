@@ -688,4 +688,58 @@ final class Community
         self::ensure();
         Database::pdo()->prepare('UPDATE community_posts SET pinned = ? WHERE id = ?')->execute([$pinned ? 1 : 0, $postId]);
     }
+
+    /** Coordinators/admins (clearance ≥ 2) are the community moderators. */
+    public static function isAdmin(int $uid): bool { return self::clearance($uid) >= 2; }
+
+    private static function authorOf(int $postId): int
+    {
+        $st = Database::pdo()->prepare('SELECT author_id FROM community_posts WHERE id = ?');
+        $st->execute([$postId]);
+        $a = $st->fetchColumn();
+        return $a === false ? 0 : (int) $a;
+    }
+
+    /** Remove a post (soft-delete). Admin, or the post's own author. */
+    public static function moderateDelete(int $actorUid, int $postId): bool
+    {
+        self::ensure();
+        if ($actorUid <= 0 || $postId <= 0) return false;
+        if (!self::isAdmin($actorUid) && self::authorOf($postId) !== $actorUid) return false;
+        self::setStatus($postId, 'removed');
+        return true;
+    }
+
+    /** Pin / unpin any post. Admin only. */
+    public static function moderatePin(int $actorUid, int $postId, bool $pin): bool
+    {
+        self::ensure();
+        if (!self::isAdmin($actorUid) || $postId <= 0) return false;
+        self::setPinned($postId, $pin);
+        return true;
+    }
+
+    /** Change a post's data classification. Admin only. */
+    public static function moderateClassify(int $actorUid, int $postId, string $classification): bool
+    {
+        self::ensure();
+        if (!self::isAdmin($actorUid) || $postId <= 0) return false;
+        $cls = self::normClass($classification);
+        $st = Database::pdo()->prepare('UPDATE community_posts SET classification = ? WHERE id = ?');
+        $st->execute([$cls, $postId]);
+        return $st->rowCount() > 0;
+    }
+
+    /**
+     * Publish an official Afrovanguard announcement (posted as the bot voice),
+     * optionally pinned. Admin only — this is the "official / AI" management voice.
+     */
+    public static function announce(int $actorUid, string $spaceSlug, string $body, bool $pin = false): int
+    {
+        self::ensure();
+        if (!self::isAdmin($actorUid)) return 0;
+        $body = trim($body);
+        if ($body === '') return 0;
+        return self::botPost($spaceSlug ?: 'announcements', $body, $pin);
+    }
 }

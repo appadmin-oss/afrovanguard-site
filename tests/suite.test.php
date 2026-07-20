@@ -175,3 +175,31 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('class: member post capped to members', Community::post($capped, 1)['classification'] === 'members');
     ck('class: label present', Community::post($conf, 1)['class_label'] === 'Confidential');
 })();
+
+/* ---- Community admin moderation + announcements ---- */
+(function () {
+    $db = Database::pdo();
+    Community::ensure();
+    $db->exec('DELETE FROM lms_users'); $db->exec('DELETE FROM community_posts');
+    $db->exec("INSERT INTO lms_users (id,name,email,password_hash,role,status) VALUES "
+        . "(1,'Coord','c@afrovanguard.org.ng','x','coordinator','active'),"
+        . "(2,'Memb','m@afrovanguard.org.ng','x','member','active')");
+    ck('mod: coordinator is admin', Community::isAdmin(1) === true);
+    ck('mod: member is not admin', Community::isAdmin(2) === false);
+    $mine = Community::createPost(2, 'open-floor', 'my own post', null, false, 'members');
+    $other = Community::createPost(1, 'open-floor', 'coord post', null, false, 'members');
+    ck('mod: author can delete own', Community::moderateDelete(2, $mine));
+    ck('mod: removed post leaves feed', count(array_filter(Community::feed(null,'latest',50,0,1), fn($p)=>$p['id']===$mine)) === 0);
+    ck('mod: member cannot delete others', !Community::moderateDelete(2, $other));
+    ck('mod: admin can delete any', Community::moderateDelete(1, $other));
+    $p3 = Community::createPost(2, 'open-floor', 'pin me', null, false, 'members');
+    ck('mod: member cannot pin', !Community::moderatePin(2, $p3, true));
+    ck('mod: admin pins', Community::moderatePin(1, $p3, true));
+    ck('mod: pinned reflected', (bool) Community::post($p3, 1)['pinned'] === true);
+    ck('mod: admin reclassifies', Community::moderateClassify(1, $p3, 'confidential'));
+    ck('mod: reclassify reflected', Community::post($p3, 1)['classification'] === 'confidential');
+    ck('mod: member cannot reclassify', !Community::moderateClassify(2, $p3, 'public'));
+    $ann = Community::announce(1, 'announcements', 'Official notice', true);
+    ck('mod: admin announces (bot post)', $ann > 0 && Community::post($ann, 1)['is_bot'] === true);
+    ck('mod: member cannot announce', Community::announce(2, 'announcements', 'nope') === 0);
+})();
