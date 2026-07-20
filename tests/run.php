@@ -12,6 +12,10 @@ declare(strict_types=1);
 
 $dbFile = sys_get_temp_dir() . '/av-test-' . getmypid() . '.db';
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');
+// For SQLite the app reads AV_DB_PATH (AV_DB_DSN is only for MySQL/Postgres),
+// so set BOTH — this keeps the suite in a throwaway DB and never touches the
+// project's db/diary.sqlite.
+putenv('AV_DB_PATH=' . $dbFile);
 putenv('AV_DB_DSN=sqlite:' . $dbFile);
 putenv('APP_KEY=ci_test_key_0123456789abcdefghij');
 

@@ -155,7 +155,7 @@ if (!function_exists('av_render_community')) {
           <p class="cm-rail-h">Members · <span id="cmDirCount"><?= count($orgDirectory) ?></span></p>
           <div class="cm-dir-list" id="cmDirectory">
 <?php foreach ($orgDirectory as $m): ?>
-            <div class="cm-dir-row"<?= $m['is_me'] ? ' data-me="1"' : '' ?>>
+            <div class="cm-dir-row" data-member="<?= (int) $m['id'] ?>" tabindex="0" role="button" aria-label="View <?= e($m['name']) ?>'s profile"<?= $m['is_me'] ? ' data-me="1"' : '' ?>>
               <span class="cm-dir-av"><?= e($m['initial']) ?></span>
               <span class="cm-dir-txt">
                 <span class="cm-dir-name"><?= e($m['name']) ?><?= $m['is_me'] ? ' <em>(you)</em>' : '' ?></span>

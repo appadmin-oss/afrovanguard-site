@@ -1211,6 +1211,7 @@ $nav['You'] = [
   <script src="/portal/team-chat.js" defer></script>
   <script src="/portal/tools.js" defer></script>
   <script src="/portal/notifications.js" defer></script>
+  <script src="/portal/directory.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>

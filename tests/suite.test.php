@@ -125,3 +125,26 @@ ck('edit: author updates event', TeamCalendar::update(1, $ev, 'New ev', '2026-09
 ck('edit: non-author cannot update event', !TeamCalendar::update(2, $ev, 'x', '2026-09-09'));
 $evf = array_values(array_filter(TeamCalendar::feed(1, '2026-09-01', '2026-09-30', true), fn($x) => $x['kind'] === 'event'))[0];
 ck('edit: event updated', $evf['title'] === 'New ev' && $evf['time'] === '11:00' && $evf['location'] === 'Hall');
+
+/* ---- Member directory + profile cards ---- */
+require_once AV_ROOT . '/lib/MemberDirectory.php';
+(function () {
+    $db = Database::pdo();
+    $db->exec('DELETE FROM lms_users');
+    $db->exec('DELETE FROM user_prefs');
+    $db->exec("INSERT INTO lms_users (id,name,email,password_hash,role,status) VALUES "
+        . "(1,'Ada Obi','ada@afrovanguard.org.ng','x','mentor','active'),"
+        . "(2,'Bode Ade','bode@afrovanguard.org.ng','x','member','active'),"
+        . "(3,'Ext Person','ext@gmail.com','x','member','active')");
+    Prefs::setTimezone(1, 'Africa/Lagos');
+    MemberDirectory::setSkills(1, 'writing, leadership, design, a, b, c, d, e, f, g');   // >8, should cap
+    $c = MemberDirectory::card(2, 1);
+    ck('dir: card name/role', $c && $c['name'] === 'Ada Obi' && $c['role'] === 'Mentor');
+    ck('dir: card local time + tz', $c && $c['tz'] === 'Africa/Lagos' && (bool) preg_match('/^\d\d:\d\d$/', $c['local_time']));
+    ck('dir: skills capped at 8', $c && count($c['skills']) === 8);
+    ck('dir: is_me false for other viewer', $c && $c['is_me'] === false);
+    ck('dir: org-only list excludes non-org', count(MemberDirectory::listMembers(1, '')) === 2);
+    $q = MemberDirectory::listMembers(1, 'bode');
+    ck('dir: name search works', count($q) === 1 && $q[0]['name'] === 'Bode Ade');
+    ck('dir: non-org member card is null', MemberDirectory::card(1, 3) === null);
+})();
