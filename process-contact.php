@@ -233,7 +233,7 @@ function wrap(string $badge, string $body, string $note = ''): string {
         . "<tr><td class=\"ft\">"
         . ($note ? "<p>{$note}</p>" : '')
         . "<p>Afrovanguard &middot; CACENTRE, Alimosho, Lagos</p>"
-        . "<p><a href=\"mailto:contact@afrovanguard.org.ng\">contact@afrovanguard.org.ng</a> &middot; <a href=\"https://afrovanguard.org.ng/privacy-policy/\">Privacy Policy</a></p>"
+        . "<p><a href=\"mailto:cacentre@afrovanguard.org.ng\">cacentre@afrovanguard.org.ng</a> &middot; <a href=\"https://afrovanguard.org.ng/privacy-policy/\">Privacy Policy</a></p>"
         . "<p>&copy; {$year} Afrovanguard. All rights reserved.</p>"
         . "</td></tr></table></td></tr></table></center></body></html>";
 }

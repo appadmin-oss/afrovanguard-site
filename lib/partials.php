@@ -209,11 +209,12 @@ function av_nav_model(): array {
                     ['Donate', '/donate.html'], ['Fund a campaign', '/donate.html#campaigns'],
                     ['Become a member', '/academy/#membership'],
                 ]],
-                ['title' => 'Give your time', 'links' => [
+                ['title' => 'Give your time & grow', 'links' => [
                     ['Volunteer', $V], ['Mentor a young leader', '/mentorship/'], ['Partner with us', '/contact.html'],
+                    ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE ↗', 'https://cacentre.afrovanguard.org.ng'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Stand with us', 'title' => 'Be part of the movement', 'text' => 'Give, volunteer, mentor or partner — every hand helps raise a leader.', 'href' => '/donate.html', 'cta' => 'Donate now'],
+            'feature' => ['kicker' => 'Stand with us', 'title' => 'Be part of the movement', 'text' => 'Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.', 'href' => '/donate.html', 'cta' => 'Donate now'],
         ]],
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [

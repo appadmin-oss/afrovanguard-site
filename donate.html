@@ -3265,6 +3265,7 @@
                         <li><a href="/how-it-works">How it works</a></li>
                         <li><a href="/ethos/">Our ethos</a></li>
                         <li><a href="/ethos/#leadership">Leadership &amp; model</a></li>
+                        <li><a href="/franchise">Franchise a CACENTRE</a></li>
                       </ul>
                     </div>
                     <div class="mega-col">
@@ -3276,7 +3277,7 @@
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/ethos/" style="background-image:url('/assets/illustrations/nav-about.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/ethos/">
                     <span class="mf-kicker">Our mission</span>
                     <span class="mf-title">One million incorruptible leaders by 2040</span>
                     <span class="mf-text">The vision, values and creed behind everything we build.</span>
@@ -3308,7 +3309,7 @@
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/academy/" style="background-image:url('/assets/illustrations/nav-academy.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/academy/">
                     <span class="mf-kicker">The Academy</span>
                     <span class="mf-title">Learn. Build. Lead Africa.</span>
                     <span class="mf-text">Free, hands-on programmes in technology, creativity and leadership.</span>
@@ -3339,7 +3340,7 @@
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/projects/" style="background-image:url('/assets/illustrations/nav-projects.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/projects/">
                     <span class="mf-kicker">Our work</span>
                     <span class="mf-title">Programmes changing lives</span>
                     <span class="mf-text">Technology, creative and leadership initiatives across Lagos and beyond.</span>
@@ -3362,18 +3363,20 @@
                       </ul>
                     </div>
                     <div class="mega-col">
-                      <p class="mega-h">Give your time</p>
+                      <p class="mega-h">Give your time &amp; grow</p>
                       <ul role="list">
                         <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>
                         <li><a href="/mentorship/">Mentor a young leader</a></li>
                         <li><a href="/contact.html">Partner with us</a></li>
+                        <li><a href="/franchise">Franchise a CACENTRE</a></li>
+                        <li><a href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE ↗</a></li>
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/donate.html" style="background-image:url('/assets/illustrations/nav-involved.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/donate.html">
                     <span class="mf-kicker">Stand with us</span>
                     <span class="mf-title">Be part of the movement</span>
-                    <span class="mf-text">Give, volunteer, mentor or partner — every hand helps raise a leader.</span>
+                    <span class="mf-text">Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.</span>
                     <span class="mf-cta">Donate now <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
                   </a>
                 </div>
@@ -3403,7 +3406,7 @@
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/diary/" style="background-image:url('/assets/illustrations/nav-diary.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/diary/">
                     <span class="mf-kicker">The Afrovanguard Diary</span>
                     <span class="mf-title">We publish the working</span>
                     <span class="mf-text">Field notes and methodology as we build the movement.</span>
@@ -3531,6 +3534,27 @@
       </div>
     </div>
   </div>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
   <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
     <div class="avd-head">
       <a href="/" class="nav-logo"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span></a>
@@ -3545,6 +3569,7 @@
           <a class="avd-sub" href="/how-it-works">How it works</a>
           <a class="avd-sub" href="/ethos/">Our ethos</a>
           <a class="avd-sub" href="/ethos/#leadership">Leadership &amp; model</a>
+          <a class="avd-sub" href="/franchise">Franchise a CACENTRE</a>
           <a class="avd-sub" href="/contact.html">Contact us</a>
           <a class="avd-sub" href="/diary/">The Diary</a>
           <a class="avd-sub" href="https://afg.afrovanguard.org.ng/events">Events</a>
@@ -3585,6 +3610,8 @@
           <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a>
           <a class="avd-sub" href="/mentorship/">Mentor a young leader</a>
           <a class="avd-sub" href="/contact.html">Partner with us</a>
+          <a class="avd-sub" href="/franchise">Franchise a CACENTRE</a>
+          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE ↗</a>
         </div>
       </div>
       <div class="avd-acc">
@@ -5359,6 +5386,7 @@
             <li><a href="/ethos/">Our Ethos</a></li>
             <li><a href="/academy/">Academy</a></li>
             <li><a href="https://afrovanguard.org.ng/projects/">Projects</a></li>
+            <li><a href="/franchise">Franchise</a></li>
             <li><a href="/diary/">The Diary</a></li>
             <li><a href="https://afg.afrovanguard.org.ng/events">Events</a></li>
             <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>

@@ -870,6 +870,16 @@ $nav['You'] = [
                   <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
                 </div>
               </section>
+<?php if ($isOrg): ?>
+              <!-- Members-only institutional charter -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Institutional charter</h2><span class="pchip pchip--gold">🔒 Members</span></div>
+                <div class="pcard-body">
+                  <p class="pcard-note">The Institutional Policy, Operational Blueprint &amp; Continental Scaling Plan — the conduct code, chain of command, crisis &amp; reinstatement protocols, and the 2026–2040 plan to one million C-Level leaders. Restricted to Afrovanguard members.</p>
+                  <a class="pbtn pbtn-soft" href="/blueprint">Read the blueprint →</a>
+                </div>
+              </section>
+<?php endif; ?>
             </div>
           </div>
         </section>
