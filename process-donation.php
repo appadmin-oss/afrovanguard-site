@@ -518,12 +518,61 @@ if (!rateLimit('all_' . $clientIp, 60, 60)) {
     echo json_encode(['success'=>false,'message'=>'Too many requests. Please wait a moment.']);
     exit;
 }
-if (in_array($action, ['generate_virtual_account','record_donation','record_bank_transfer'])) {
+if (in_array($action, ['init_payment','generate_virtual_account','record_donation','record_bank_transfer'])) {
     if (!rateLimit('pay_' . $clientIp, 10, 60)) {
         http_response_code(429);
         echo json_encode(['success'=>false,'message'=>'Too many payment requests. Please wait one minute.']);
         exit;
     }
+}
+
+/* ── init_payment — start a hosted Paystack checkout (redirect flow) ──────
+ * The card donation uses Paystack's hosted checkout (server-side initialize →
+ * redirect to checkout.paystack.com), NOT the inline popup. This avoids loading
+ * js.paystack.co in the browser (which the site CSP blocks) and mirrors the
+ * working portal dues flow. On return Paystack redirects to /donate?reference=…
+ * where the page calls record_donation to server-verify + store + receipt. */
+if ($action==='init_payment') {
+    $email = trim($input['email']??'');
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { echo json_encode(['success'=>false,'message'=>'A valid email is required.']); exit; }
+    $amount = (float)($input['amount']??0);
+    $cur = strtoupper(preg_replace('/[^A-Za-z]/','',$input['currency']??'NGN'));
+    // Paystack supports these; anything else (e.g. GBP) can't be charged by card —
+    // don't silently convert it to NGN, tell the donor to use NGN or bank transfer.
+    if (!in_array($cur, ['NGN','USD','GHS','ZAR','KES'], true)) {
+        echo json_encode(['success'=>false,'message'=>'Card payment isn’t available in '.$cur.'. Please choose NGN, or use bank transfer.']); exit;
+    }
+    if ($amount <= 0) { echo json_encode(['success'=>false,'message'=>'Choose a valid donation amount.']); exit; }
+    $fn = mb_substr(trim($input['firstName']??''),0,80);
+    $ln = mb_substr(trim($input['lastName']??''),0,80);
+    $camp = preg_replace('/[^a-z0-9_-]/','',strtolower($input['campaign']??'general'));
+    $allowed_freq = ['One-time','Monthly','Annual'];
+    $freq = in_array($input['frequency']??'', $allowed_freq, true) ? $input['frequency'] : 'One-time';
+    $anon = !empty($input['anonymous']);
+    $msg  = mb_substr(trim($input['message']??''),0,500);
+    $ref  = 'AV_'.time().'_'.strtoupper(bin2hex(random_bytes(4)));
+    $callback = rtrim(SITE_URL,'/').'/donate';
+    $r = ps('POST','/transaction/initialize',[
+        'email'        => $email,
+        'amount'       => (int) round($amount * 100),
+        'currency'     => $cur,
+        'reference'    => $ref,
+        'callback_url' => $callback,
+        'metadata'     => [
+            'campaign' => $camp, 'frequency' => $freq, 'anonymous' => $anon ? 'Yes' : 'No',
+            'first_name' => $fn, 'last_name' => $ln, 'message' => $msg ?: '—',
+            'custom_fields' => [
+                ['display_name'=>'Campaign','variable_name'=>'campaign','value'=>$camp],
+                ['display_name'=>'Frequency','variable_name'=>'frequency','value'=>$freq],
+                ['display_name'=>'Anonymous','variable_name'=>'anonymous','value'=>$anon?'Yes':'No'],
+            ],
+        ],
+    ]);
+    if (!($r['status']??false) || empty($r['data']['authorization_url'])) {
+        error_log('[AV] init_payment failed: '.json_encode($r['message']??''));
+        echo json_encode(['success'=>false,'message'=>'Could not start the payment. Please try again in a moment.']); exit;
+    }
+    echo json_encode(['success'=>true,'authorization_url'=>$r['data']['authorization_url'],'reference'=>$ref]); exit;
 }
 
 /* ── record_donation ─────────────────────────────────────── */
