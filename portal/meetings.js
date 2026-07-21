@@ -1,6 +1,6 @@
 /* portal/meetings.js — the standardized Meetings suite app.
  *
- * Schedule a meeting (auto Meet/Jitsi link + cadence), join it, cancel it, and
+ * Schedule a meeting (Google Meet link + calendar invite + cadence), join it, cancel it, and
  * after it runs, paste or pull the transcript to get Otter-style AI minutes.
  * Hooks into the Suite's refresh registry so opening the tile pulls fresh data.
  */
@@ -85,7 +85,7 @@
   }
 
   function meetingCard(m) {
-    var prov = m.provider === 'google' ? 'Google Meet' : (m.provider === 'jitsi' ? 'Afrovanguard room' : 'Meeting');
+    var prov = 'Google Meet';
     var freq = m.frequency && m.frequency !== 'once' ? ' · 🔁 ' + esc(m.frequency_label) : '';
     var isOwner = m.creator_id === ME;
     var h = '<li class="meet-item" data-id="' + m.id + '">';
@@ -97,6 +97,7 @@
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
     h += '<div class="meet-actions">';
     if (m.meet_url) h += '<a class="pbtn pbtn-soft pbtn-sm" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">▶ Join · ' + esc(prov) + '</a>';
+    else h += '<span class="meet-pending">⚠ Meet link pending — connect Google Workspace</span>';
     if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-cancel" data-id="' + m.id + '">Cancel</button>';
     h += '</div>';
     h += transcriptHtml(m);
@@ -135,7 +136,7 @@
       context: 'workspace'
     }).then(function (d) {
       if (!d || !d.ok) { say((d && d.error) || 'Could not schedule.'); return; }
-      say('Scheduled ✓', true);
+      if (d.warning) { say(d.warning); } else { say('Scheduled ✓ — invite sent', true); }
       form.reset();
       document.getElementById('tlMeetDur').value = '30';
       load();

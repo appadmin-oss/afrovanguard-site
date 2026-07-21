@@ -6,9 +6,9 @@
  * portal workspace and mentorship both use this), so every meeting behaves the
  * same:
  *
- *   • A working join link EVERY time — Google Meet when the org's Google
- *     Workspace calendar is connected, otherwise an auto-provisioned built-in
- *     room (Jitsi, no account/config needed). Scheduling never dead-ends.
+ *   • A Google Meet link created via a real Google Calendar event, so the
+ *     meeting syncs to everyone's calendar and an invite is sent. Google Meet
+ *     is the only provider (no fallback).
  *   • A frequency / cadence (one-off, daily, weekdays, weekly, fortnightly,
  *     monthly) carried as a real Google recurrence rule when Google is on.
  *   • Otter-style structured minutes AFTER the meeting: paste (or auto-pull
@@ -106,12 +106,14 @@ final class Meetings
     private static function freqKey(string $f): string { return isset(self::FREQ[$f]) ? $f : 'once'; }
 
     /**
-     * The shared link provisioner — the heart of "standardized". Returns
-     * ['url','provider','google_event_id']. Prefers a real Google Meet event
-     * (and invites attendees, with recurrence); falls back to a stable built-in
-     * room so a link is ALWAYS produced.
+     * Provision a Google Meet link by creating a real Google Calendar event —
+     * this is what syncs the meeting to everyone's calendar and sends the
+     * invite (sendUpdates=all) to the organiser + attendees, with the cadence
+     * as an RRULE. Google Meet is the ONLY provider. Returns
+     * ['url','provider','google_event_id']; url is '' when Google Workspace
+     * Calendar isn't connected (caller surfaces a "connect Google" warning).
      */
-    public static function provisionLink(string $title, string $startIso, int $durationMin, array $emails, string $agenda, string $frequency, string $roomSalt): array
+    public static function provisionLink(string $title, string $startIso, int $durationMin, array $emails, string $agenda, string $frequency): array
     {
         $frequency = self::freqKey($frequency);
         if (class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()) {
@@ -128,17 +130,7 @@ final class Meetings
                 }
             } catch (Throwable $e) { error_log('[meetings] google: ' . $e->getMessage()); }
         }
-        return ['url' => self::roomUrl($roomSalt), 'provider' => 'jitsi', 'google_event_id' => ''];
-    }
-
-    /** A stable, unguessable built-in room URL — same for everyone with the
-     *  link, no Google/account needed. Host overridable via AV_MEET_ROOM_BASE. */
-    public static function roomUrl(string $salt): string
-    {
-        $secret = function_exists('av_secret') ? (string) av_secret() : (defined('APP_KEY') ? (string) APP_KEY : 'av');
-        $room = 'Afrovanguard-' . substr(hash('sha256', 'mtg|' . $salt . '|' . $secret), 0, 22);
-        $base = rtrim((string) (getenv('AV_MEET_ROOM_BASE') ?: 'https://meet.jit.si'), '/');
-        return $base . '/' . $room . '#config.prejoinPageEnabled=false';
+        return ['url' => '', 'provider' => '', 'google_event_id' => ''];
     }
 
     /** ── Schedule a meeting (workspace or mentorship) ─────────────────── */
@@ -158,7 +150,10 @@ final class Meetings
         $agenda = mb_substr(trim((string) ($in['agenda'] ?? '')), 0, 2000);
         $context = (string) ($in['context'] ?? 'workspace');
         if (!in_array($context, ['workspace', 'mentorship'], true)) $context = 'workspace';
-        $emails  = self::cleanEmails($in['attendees'] ?? []);
+        // Invite the organiser too, so everyone involved gets the calendar invite.
+        $emails = self::cleanEmails($in['attendees'] ?? []);
+        $me = self::userEmail($uid);
+        if ($me !== '' && filter_var($me, FILTER_VALIDATE_EMAIL)) { array_unshift($emails, $me); $emails = array_values(array_unique($emails)); }
         $autoRec = !empty($in['auto_record']) ? 1 : 0;
 
         $db = Database::pdo();
@@ -166,20 +161,9 @@ final class Meetings
            ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $context, (int) ($in['context_id'] ?? 0), $autoRec, 'scheduled', self::now()]);
         $id = (int) $db->lastInsertId();
 
-        $provider = $autoRec ? self::botProvider() : '';
-
-        // For the Google-native provider, create a Meet space with auto-transcription
-        // ON so Google records/transcribes the call itself; otherwise use the shared
-        // Meet-event/built-in-room provisioner.
-        $link = null;
-        if ($provider === 'google' && class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled()) {
-            try {
-                $sp = GoogleWorkspace::createMeetSpace(self::userEmail($uid), true, true);
-                if ($sp && !empty($sp['uri'])) $link = ['url' => $sp['uri'], 'provider' => 'google', 'google_event_id' => ''];
-            } catch (Throwable $e) { error_log('[meetings] meet space: ' . $e->getMessage()); }
-        }
-        if ($link === null) $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, $freq, 'mtg-' . $id);
-
+        // Google Meet is the only provider: create the Calendar event (which
+        // syncs calendars + sends the invite) and take its Meet link.
+        $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, $freq);
         $code = class_exists('GoogleWorkspace') ? GoogleWorkspace::meetCodeFromUrl($link['url']) : '';
         $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
            ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $id]);
@@ -187,11 +171,14 @@ final class Meetings
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
         foreach ($emails as $e) $ins->execute([$id, $e]);
 
-        // The recording bot: dispatch to the selected provider.
+        // The recording bot (optional): dispatch to the selected provider.
+        $provider = $autoRec ? self::botProvider() : '';
         if ($autoRec) self::requestBot($id, $link['url'], $provider);
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
-        return ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
+        $out = ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
+        if ($link['url'] === '') $out['warning'] = 'Meeting saved, but no Google Meet link could be created — connect Google Workspace Calendar so links and invites are sent.';
+        return $out;
     }
 
     /** Meetings the user created or is invited to, upcoming first then recent. */

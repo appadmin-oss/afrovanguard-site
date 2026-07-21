@@ -7,16 +7,20 @@ turns transcripts into Otter-style minutes with **Gemini Flash**.
 
 ## Join links
 
-On schedule a link is provisioned in this order:
+**Google Meet is the only provider.** On schedule we create a real Google
+Calendar event (`GoogleWorkspace::createMeetEvent`, `sendUpdates=all`), which:
 
-1. **Google Meet** — when the Workspace service account can write Calendar
-   (`GoogleWorkspace::calendarWriteEnabled()`), a real Meet event is created,
-   attendees invited, and the cadence attached as an RRULE.
-2. **Built-in room** — otherwise a stable Jitsi room
-   (`https://meet.jit.si/Afrovanguard-…`), overridable via `AV_MEET_ROOM_BASE`.
+- attaches a Google Meet link,
+- adds the meeting to the organiser's + every attendee's Google Calendar,
+- sends each of them a calendar **invite**, and
+- carries the cadence as an RRULE for recurring meetings.
 
-Scheduling never dead-ends: some link is always attached (mentorship sessions
-included — `Mentorship::addSession` uses the same fallback).
+The organiser is always added to the invite list alongside the emails entered.
+This needs the Workspace service account to have Calendar write access
+(`GoogleWorkspace::calendarWriteEnabled()`). If Google isn't connected the
+meeting is still saved but no link is created and the response carries a
+`warning` telling the organiser to connect Google Workspace (the UI shows
+"Meet link pending"). There is no non-Google fallback.
 
 ## AI minutes (Gemini Flash)
 

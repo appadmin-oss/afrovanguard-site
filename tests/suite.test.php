@@ -217,8 +217,8 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('meet: schedule ok', !empty($r['ok']) && ($r['id'] ?? 0) > 0);
     $mid = (int) $r['id'];
     $m = $r['meeting'];
-    ck('meet: link always attached', ($m['meet_url'] ?? '') !== '');
-    ck('meet: jitsi fallback provider', ($m['provider'] ?? '') === 'jitsi');
+    ck('meet: google-only, no link without Google', ($m['meet_url'] ?? 'x') === '' && ($m['provider'] ?? 'x') === '');
+    ck('meet: warns to connect Google', isset($r['warning']));
     ck('meet: frequency stored', ($m['frequency'] ?? '') === 'weekly');
     ck('meet: duration clamped/stored', ($m['duration_min'] ?? 0) === 45);
 
