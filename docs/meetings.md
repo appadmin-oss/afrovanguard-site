@@ -97,3 +97,37 @@ The `token` is `hash_hmac('sha256', "bot|<meeting_id>", <app secret>)`
 (`Meetings::botToken()`), so only your worker can post minutes for a meeting.
 `bot_ingest` and `recall_webhook` are service endpoints — no user session — and
 are rejected without a valid token.
+
+#### Free / open-source self-hosted bots
+
+The `webhook` provider is the drop-in point for a **free, self-hosted** recorder
+instead of a paid API. No app code changes — you host the bot, we hand it the
+meeting and receive the transcript. Trade-off: the software is free, but a bot
+that joins a live call must run somewhere (a container with headless Chrome +
+audio capture), so you operate a small always-on worker.
+
+Known open-source options (each exposes a "send a bot to this meeting" API):
+
+- **Attendee** — <https://github.com/attendee-labs/attendee> — meeting-bot API
+  for Meet/Zoom/Teams; positioned as an open-source Recall alternative.
+- **Vexa** — <https://vexa.ai> — self-hostable real-time transcription with
+  join-bots for Meet/Teams.
+- **DIY** — a Playwright/headless-Chromium bot that joins the Meet, captures
+  audio via a virtual mic (PulseAudio), and transcribes with Whisper or by
+  posting the audio to Gemini.
+
+**Wiring (any of the above):**
+
+1. Stand up the bot; note its "join a meeting" HTTP endpoint.
+2. Set `AV_MEET_BOT_PROVIDER=webhook` and `AV_MEET_BOT_JOIN_URL=<that endpoint>`.
+3. On schedule we POST the `{meeting_id, join_url, callback, token}` body above.
+   Map those fields to your bot's expected shape with a thin adapter if needed
+   (e.g. a tiny function that receives our POST and calls Attendee's
+   `POST /bots` with `{meeting_url: join_url, webhook: callback}`).
+4. When the bot finishes, have it POST the transcript to the `callback`
+   (`bot_ingest`) with the same `token`. That's the only contract we require —
+   `{ "meeting_id", "token", "transcript" }`.
+
+Because the contract is just "POST the transcript text back with the token,"
+any recorder — open-source, DIY, or a future paid one — works without touching
+the app. Gemini Flash then produces the minutes from whatever transcript arrives.
