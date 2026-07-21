@@ -65,20 +65,22 @@ function av_embed_hosts(): array {
 function send_security_headers(string $page = 'public'): void {
     if (headers_sent()) return;
     $frame = implode(' ', array_map(fn($h) => 'https://' . $h, av_embed_hosts()));
-    $script = "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com";
+    // Paystack (donations + dues): inline SDK, its API, and the checkout iframe.
+    $paystack = 'https://js.paystack.co https://checkout.paystack.com https://api.paystack.co';
+    $script = "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co";
     $csp = [
         "default-src 'self'",
         "base-uri 'self'",
         "object-src 'none'",
         "frame-ancestors 'self'",
-        "form-action 'self' https://cacentre.afrovanguard.org.ng",
+        "form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com",
         "img-src 'self' data: blob: https:",
         "media-src 'self' https: blob:",
         "font-src 'self' https://fonts.gstatic.com data:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "script-src $script",
-        "connect-src 'self' https://api.cloudinary.com",
-        "frame-src 'self' $frame",
+        "connect-src 'self' https://api.cloudinary.com https://api.paystack.co",
+        "frame-src 'self' https://checkout.paystack.com $frame",
     ];
     header('Content-Security-Policy: ' . implode('; ', $csp));
     header('X-Content-Type-Options: nosniff');
