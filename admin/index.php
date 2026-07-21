@@ -906,7 +906,11 @@
   </main>
 
   <div class="toast" id="toast"></div>
-  <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+  <!-- Self-hosted TinyMCE (same-origin, so it loads under a strict 'self' CSP).
+       Upload the TinyMCE 7 self-hosted package to /assets/vendor/tinymce/ — see
+       assets/vendor/tinymce/README.md. If it's missing, admin/app.js falls back
+       to a plain textarea, so the editor still works (without the toolbar). -->
+  <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
   <script src="/admin/app.js" defer></script>
 </body>
 </html>
