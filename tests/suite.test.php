@@ -285,3 +285,55 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('recall: webhook rejects when no token set', empty(Meetings::recallWebhook('anything', ['event' => 'bot.status_change'])['ok']));
     ck('recall: ingest unknown bot', empty(Meetings::ingestFromRecall('nope')['ok']));
 })();
+
+/* ---- IQ: Incorruptible Quiz (quizzes, grading, leaderboard, shortcode) ---- */
+(function () {
+    require_once AV_ROOT . '/lib/IQ.php';
+    reset_users();
+    // Author a quiz (admin gating is enforced at the API layer; test the data layer)
+    $r = IQ::saveQuiz(1, [
+        'title' => 'Integrity Basics', 'category' => 'Values', 'difficulty' => 'easy', 'published' => 1,
+        'questions' => [
+            ['prompt' => '2+2?', 'points' => 10, 'options' => [['t'=>'3','c'=>0],['t'=>'4','c'=>1],['t'=>'5','c'=>0]]],
+            ['prompt' => 'Sky colour?', 'points' => 10, 'options' => [['t'=>'Blue','c'=>1],['t'=>'Green','c'=>0]]],
+        ],
+    ]);
+    ck('iq: save returns id+slug', !empty($r['ok']) && ($r['id'] ?? 0) > 0 && ($r['slug'] ?? '') !== '');
+    $slug = $r['slug'];
+    ck('iq: reject empty title', empty(IQ::saveQuiz(1, ['title' => ''])['ok']));
+
+    $list = IQ::listQuizzes(0);
+    ck('iq: published quiz listed', count(array_filter($list, fn($q) => $q['slug'] === $slug)) === 1);
+
+    $play = IQ::getForPlay($slug);
+    ck('iq: play view has questions', $play && count($play['questions']) === 2);
+    // Correctness must NOT leak to the player
+    $leak = false;
+    foreach ($play['questions'] as $q) foreach ($q['options'] as $o) if (array_key_exists('c', $o) || array_key_exists('correct', $o)) $leak = true;
+    ck('iq: play view hides correct answers', !$leak);
+
+    // Grade: answer both correctly (map question id -> original option index)
+    $ans = [];
+    $edit = IQ::getForEdit($r['id']);
+    foreach ($edit['questions'] as $q) {
+        foreach ($q['options'] as $i => $o) if (!empty($o['c'])) $ans[(string) $q['id']] = $i;
+    }
+    $g = IQ::grade($slug, $ans, 1, 'Ada', 12);
+    ck('iq: perfect score graded', !empty($g['ok']) && $g['pct'] === 100 && $g['correct'] === 2 && $g['passed']);
+    // Wrong answers
+    $bad = []; foreach ($edit['questions'] as $q) $bad[(string) $q['id']] = 99;
+    $g2 = IQ::grade($slug, $bad, 2, 'Bode', 30);
+    ck('iq: wrong answers score 0', $g2['pct'] === 0 && !$g2['passed']);
+
+    $lb = IQ::quizLeaderboard($slug);
+    ck('iq: leaderboard ranks top scorer first', count($lb) >= 1 && $lb[0]['pct'] === 100);
+    ck('iq: global leaderboard counts signed-in only', count(IQ::globalLeaderboard()) >= 1);
+    $badges = IQ::badges(1);
+    ck('iq: perfect earns Flawless badge', (bool) (array_values(array_filter($badges, fn($b) => $b['key'] === 'perfect'))[0]['earned'] ?? false));
+
+    // Shortcode → iframe embed
+    $html = IQ::embedShortcodes('Intro [iq ' . $slug . '] outro');
+    ck('iq: shortcode becomes an embed iframe', strpos($html, '/IQ/embed.php?quiz=' . $slug) !== false);
+
+    ck('iq: delete removes quiz', IQ::deleteQuiz($r['id']) && count(array_filter(IQ::listQuizzes(0), fn($q) => $q['slug'] === $slug)) === 0);
+})();

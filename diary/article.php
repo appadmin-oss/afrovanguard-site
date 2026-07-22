@@ -155,7 +155,7 @@ render_subbar($a['title'], $a['slug'], $canonical);
               </ol>
             </aside>
 <?php endif; ?>
-<?= $a['body_html'] ?>
+<?= class_exists('IQ') ? IQ::embedShortcodes($a['body_html']) : $a['body_html'] ?>
 
 <?php if (!empty($a['series']) && ($a['series']['prev'] || $a['series']['next'])): $sx = $a['series']; ?>
             <nav class="series-nav" aria-label="Series navigation">

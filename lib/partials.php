@@ -182,6 +182,7 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'Get started', 'links' => [
                     ['Create an account', '/login'], ['Member portal', '/portal/'], ['Mentorship', '/mentorship/'],
+                    ['IQ — Quizzes & games', '/IQ/'],
                 ]],
             ],
             'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
