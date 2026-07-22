@@ -57,11 +57,13 @@
     if (!quizzes || !quizzes.length) { el('iqList').innerHTML = '<p class="iq-empty">No quizzes yet — check back soon.</p>'; return; }
     el('iqList').innerHTML = quizzes.map(function (q) {
       var best = q.best_pct != null ? '<span class="iq-best">Best ' + q.best_pct + '%</span>' : '';
-      return '<button class="iq-card" data-slug="' + esc(q.slug) + '">' +
-        '<span class="iq-card-badge iq-diff--' + esc(q.difficulty) + '">' + esc(q.difficulty_label) + '</span>' +
+      var badge = q.type === 'profile'
+        ? '<span class="iq-card-badge iq-diff--profile">Personality</span>'
+        : '<span class="iq-card-badge iq-diff--' + esc(q.difficulty) + '">' + esc(q.difficulty_label) + '</span>';
+      return '<button class="iq-card" data-slug="' + esc(q.slug) + '">' + badge +
         '<h3>' + esc(q.title) + '</h3>' +
         '<p>' + esc(q.description || '') + '</p>' +
-        '<div class="iq-card-meta"><span>' + q.q_count + ' questions</span><span>' + q.plays + ' plays</span>' + best + '</div>' +
+        '<div class="iq-card-meta"><span>' + q.q_count + (q.type === 'profile' ? ' scenarios' : ' questions') + '</span><span>' + q.plays + ' plays</span>' + best + '</div>' +
         '<span class="iq-card-cta">Play →</span></button>';
     }).join('');
     Array.prototype.forEach.call(el('iqList').querySelectorAll('.iq-card'), function (c) {
@@ -135,12 +137,39 @@
   function submitQuiz() {
     if (STATE.timer) clearInterval(STATE.timer);
     var dur = Math.round((Date.now() - STATE.started) / 1000);
+    var isProfile = STATE.quiz.type === 'profile';
     var nm = MY_NAME;
-    if (!SIGNED) { nm = (window.prompt('Enter a name for the leaderboard (optional):', '') || '').trim(); }
+    if (!SIGNED && !isProfile) { nm = (window.prompt('Enter a name for the leaderboard (optional):', '') || '').trim(); }
     api('submit', { body: { slug: STATE.quiz.slug, answers: STATE.answers, name: nm, duration: dur } }).then(function (r) {
       if (!r || !r.ok) { alert((r && r.error) || 'Could not score the quiz.'); return; }
-      renderResult(r, dur);
+      if (r.type === 'profile') renderProfileResult(r);
+      else renderResult(r, dur);
     });
+  }
+  function renderProfileResult(r) {
+    var q = STATE.quiz, p = r.profile || {}, t = r.tally || {};
+    var keys = Object.keys(t).sort();
+    var tally = keys.map(function (k) { return '<div class="iq-tally"><b>' + (t[k] | 0) + '</b><span>' + esc(k) + '</span></div>'; }).join('');
+    var h = '<div class="iq-player iq-result">' +
+      '<div class="iq-p-top"><button class="iq-back" id="iqQuit">‹ Exit</button></div>' +
+      '<div class="iq-profile">' +
+      '<span class="iq-ptag iq-ptag--' + esc(p.tag_class || 'b') + '">' + esc(p.tag || '') + '</span>' +
+      '<h2 class="iq-ptitle">' + esc(p.title || 'Your profile') + '</h2>' +
+      '<p class="iq-psub">Your grassroots profile, based on ' + q.questions.length + ' scenarios</p>' +
+      (tally ? '<div class="iq-tally-row">' + tally + '</div>' : '') +
+      (p.reality ? '<div class="iq-pblock"><h3>The reality</h3><p>' + esc(p.reality) + '</p></div>' : '') +
+      (p.warning ? '<div class="iq-pblock"><h3>The warning</h3><p>' + esc(p.warning) + '</p></div>' : '') +
+      (p.prescription ? '<div class="iq-pblock"><h3>Vanguard prescription</h3><p>' + esc(p.prescription) + '</p></div>' : '') +
+      '<div class="iq-p-foot"><button class="iq-btn iq-btn-ghost" id="iqRetry">Retake</button>' +
+      (EMBED ? '' : '<button class="iq-btn iq-btn-gold" id="iqMore">More on IQ</button>') + '</div>' +
+      '<p class="iq-note" style="text-align:center;margin-top:14px">Put your best answers into practice — ' +
+      '<a href="/donate" target="_blank" rel="noopener">donate</a> or ' +
+      '<a href="https://next.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener">volunteer</a> with Afrovanguard.</p>' +
+      '</div></div>';
+    el('iqPlayer').innerHTML = h;
+    el('iqQuit').addEventListener('click', exitPlayer);
+    el('iqRetry').addEventListener('click', function () { openQuiz(q.slug); });
+    var more = el('iqMore'); more && more.addEventListener('click', function () { exitPlayer(); loadList(); });
   }
   function renderResult(r, dur) {
     var q = STATE.quiz;

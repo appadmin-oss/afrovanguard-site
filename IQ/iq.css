@@ -114,3 +114,20 @@ body.is-dark .iq, .iq[data-theme="dark"] { color:#d7dae1; }
   .iq:not([data-theme="light"]) .iq-player,
   .iq:not([data-theme="light"]) .iq-lb-row { background:#12141a; border-color:#262a33; }
 }
+
+/* profile ("personality") quiz result */
+.iq-diff--profile { background:#eeecfb; color:#4a4390; }
+.iq-profile { text-align:left; }
+.iq-ptag { display:inline-block; font-size:12px; font-weight:700; padding:4px 12px; border-radius:20px; margin-bottom:12px; }
+.iq-ptag--a { background:#fbeae6; color:#a3401f; }
+.iq-ptag--b { background:#f3efe0; color:#85702c; }
+.iq-ptag--c { background:#e6f0ea; color:#2b6b4a; }
+.iq-ptitle { font-family: var(--afg-font-display,'Cormorant',Georgia,serif); font-size:26px; font-weight:700; margin:0 0 2px; color:var(--afg-ink,#111827); }
+.iq-psub { font-size:13px; color: var(--afg-muted,#6b7280); margin:0 0 16px; }
+.iq-tally-row { display:flex; gap:10px; margin:0 0 18px; }
+.iq-tally { flex:1; text-align:center; background: var(--afg-surface-2,#f4f2ec); border:1px solid var(--line); border-radius:10px; padding:10px 4px; }
+.iq-tally b { display:block; font-size:22px; color: var(--afg-accent-ink,#b07e08); }
+.iq-tally span { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color: var(--afg-muted,#6b7280); }
+.iq-pblock { margin-bottom:14px; }
+.iq-pblock h3 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color: var(--afg-muted,#6b7280); margin:0 0 5px; }
+.iq-pblock p { font-size:15px; line-height:1.6; margin:0; color: var(--afg-body,#374151); }

@@ -64,7 +64,19 @@ final class IQ
         CREATE INDEX IF NOT EXISTS idx_iq_att_quiz ON iq_attempts(quiz_id, score);
         CREATE INDEX IF NOT EXISTS idx_iq_att_user ON iq_attempts(user_id);";
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        // Profile ("personality") quizzes: tally option-tagged profiles → an outcome.
+        self::addCol('iq_quizzes', 'type', "VARCHAR(12) NOT NULL DEFAULT 'scored'");   // scored | profile
+        self::addCol('iq_quizzes', 'profiles', "TEXT NOT NULL DEFAULT '{}'");           // {KEY: {tag,title,…}}
         self::$ready = true;
+        // Seed the flagship profile quiz (self-guards by slug, so it's a no-op
+        // once present — a single cheap SELECT per process).
+        try { self::seedGrassroots(); } catch (Throwable $e) { /* best-effort */ }
+    }
+
+    private static function addCol(string $table, string $col, string $decl): void
+    {
+        try { if (!Database::columnExists($table, $col)) Database::pdo()->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $col . ' ' . $decl); }
+        catch (Throwable $e) { /* exists / race */ }
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -170,6 +182,27 @@ final class IQ
         $qs->execute([$qid]);
         $rows = $qs->fetchAll(PDO::FETCH_ASSOC) ?: [];
         if (!$rows) return ['ok' => false, 'error' => 'This quiz has no questions yet.'];
+        $name = mb_substr(trim($name), 0, 120);
+        if ($name === '' && $uid > 0) $name = self::userName($uid);
+        if ($name === '') $name = 'Anonymous';
+
+        // Profile ("personality") quiz: tally each chosen option's profile key.
+        if ((string) ($q['type'] ?? 'scored') === 'profile') {
+            $tally = [];
+            foreach ($rows as $row) {
+                $opts = json_decode((string) $row['options'], true) ?: [];
+                $chosen = self::answerFor($answers, (int) $row['id']);
+                $key = isset($opts[$chosen]['p']) ? (string) $opts[$chosen]['p'] : '';
+                if ($key !== '') $tally[$key] = ($tally[$key] ?? 0) + 1;
+            }
+            $profiles = json_decode((string) ($q['profiles'] ?? '{}'), true) ?: [];
+            $winner = self::pickProfile($tally, array_keys($profiles));
+            $db->prepare('INSERT INTO iq_attempts (quiz_id, user_id, name, score, max_score, correct, total, duration_sec, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+               ->execute([$qid, max(0, $uid), $name, 0, 0, 0, count($rows), max(0, $durationSec), self::now()]);
+            $prof = $profiles[$winner] ?? [];
+            return ['ok' => true, 'type' => 'profile', 'tally' => $tally, 'winner' => $winner,
+                'profile' => ['key' => $winner] + (is_array($prof) ? $prof : [])];
+        }
 
         $score = 0; $max = 0; $correct = 0; $review = [];
         foreach ($rows as $row) {
@@ -186,9 +219,6 @@ final class IQ
         }
         $total = count($rows);
         $pct = $max > 0 ? (int) round(100 * $score / $max) : 0;
-        $name = mb_substr(trim($name), 0, 120);
-        if ($name === '' && $uid > 0) $name = self::userName($uid);
-        if ($name === '') $name = 'Anonymous';
 
         $db->prepare('INSERT INTO iq_attempts (quiz_id, user_id, name, score, max_score, correct, total, duration_sec, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
            ->execute([$qid, max(0, $uid), $name, $score, $max, $correct, $total, max(0, $durationSec), self::now()]);
@@ -298,7 +328,7 @@ final class IQ
             $questions[] = ['id' => (int) $r['id'], 'prompt' => (string) $r['prompt'], 'image_url' => (string) $r['image_url'],
                 'points' => (int) $r['points'], 'options' => json_decode((string) $r['options'], true) ?: []];
         }
-        return self::shapeQuiz($q) + ['questions' => $questions];
+        return self::shapeQuiz($q) + ['questions' => $questions, 'profiles' => json_decode((string) ($q['profiles'] ?? '{}'), true) ?: []];
     }
 
     /** Create or update a quiz plus its questions (admin only — caller gates). */
@@ -309,11 +339,15 @@ final class IQ
         if ($title === '') return ['ok' => false, 'error' => 'Give the quiz a title.'];
         $id = (int) ($in['id'] ?? 0);
         $difficulty = in_array($in['difficulty'] ?? 'easy', array_keys(self::DIFFICULTY), true) ? (string) $in['difficulty'] : 'easy';
+        $type = (($in['type'] ?? 'scored') === 'profile') ? 'profile' : 'scored';
+        $profiles = is_array($in['profiles'] ?? null) ? $in['profiles'] : [];
         $fields = [
             'title' => $title,
             'description' => mb_substr(trim((string) ($in['description'] ?? '')), 0, 2000),
             'category' => mb_substr(trim((string) ($in['category'] ?? 'General')) ?: 'General', 0, 60),
             'difficulty' => $difficulty,
+            'type' => $type,
+            'profiles' => json_encode($profiles, JSON_UNESCAPED_UNICODE),
             'time_limit_sec' => max(0, min(7200, (int) ($in['time_limit_sec'] ?? 0))),
             'blog_slug' => preg_replace('/[^a-z0-9-]/', '', strtolower((string) ($in['blog_slug'] ?? ''))),
             'published' => !empty($in['published']) ? 1 : 0,
@@ -324,7 +358,7 @@ final class IQ
             $set = implode(', ', array_map(fn($k) => "$k = ?", array_keys($fields)));
             $db->prepare("UPDATE iq_quizzes SET $set WHERE id = ?")->execute([...array_values($fields), $id]);
         } else {
-            $fields['slug'] = self::uniqueSlug($title);
+            $fields['slug'] = self::uniqueSlug((string) ($in['slug'] ?? '') !== '' ? (string) $in['slug'] : $title);
             $fields['created_by'] = $adminUid;
             $fields['created_at'] = self::now();
             $cols = implode(',', array_keys($fields));
@@ -343,10 +377,14 @@ final class IQ
                 foreach (($q['options'] ?? []) as $o) {
                     $t = mb_substr(trim((string) ($o['t'] ?? ($o['text'] ?? ''))), 0, 400);
                     if ($t === '') continue;
-                    $opts[] = ['t' => $t, 'c' => !empty($o['c']) || !empty($o['correct']) ? 1 : 0];
+                    $opt = ['t' => $t, 'c' => !empty($o['c']) || !empty($o['correct']) ? 1 : 0];
+                    $pk = trim((string) ($o['p'] ?? ''));       // profile key (profile quizzes)
+                    if ($pk !== '') $opt['p'] = mb_substr($pk, 0, 12);
+                    $opts[] = $opt;
                 }
                 if ($prompt === '' || count($opts) < 2) continue;
-                if (!array_filter($opts, fn($o) => $o['c'])) $opts[0]['c'] = 1; // ensure a correct answer
+                // Scored quizzes need a correct option; profile quizzes need none.
+                if ($type === 'scored' && !array_filter($opts, fn($o) => $o['c'])) $opts[0]['c'] = 1;
                 $ins->execute([$id, $prompt, mb_substr((string) ($q['image_url'] ?? ''), 0, 400),
                     json_encode($opts, JSON_UNESCAPED_UNICODE), max(1, (int) ($q['points'] ?? 10)), $sort++]);
             }
@@ -385,6 +423,7 @@ final class IQ
             'difficulty' => (string) $r['difficulty'], 'difficulty_label' => self::difficultyLabel((string) $r['difficulty']),
             'time_limit_sec' => (int) $r['time_limit_sec'], 'blog_slug' => (string) ($r['blog_slug'] ?? ''),
             'published' => (int) $r['published'] === 1,
+            'type' => (string) ($r['type'] ?? 'scored'),
         ];
     }
 
@@ -395,5 +434,95 @@ final class IQ
             $st->execute([$uid]);
             return (string) ($st->fetchColumn() ?: '');
         } catch (Throwable $e) { return ''; }
+    }
+
+    private static function answerFor(array $answers, int $qId): int
+    {
+        if (array_key_exists((string) $qId, $answers)) return (int) $answers[(string) $qId];
+        if (array_key_exists($qId, $answers)) return (int) $answers[$qId];
+        return -1;
+    }
+
+    /** Winner profile from a tally. Ties break toward later keys (higher integrity). */
+    private static function pickProfile(array $tally, array $order): string
+    {
+        if (!$order) return (string) (array_keys($tally)[0] ?? '');
+        $best = $order[0]; $bestN = -1;
+        foreach ($order as $k) {
+            $n = (int) ($tally[$k] ?? 0);
+            if ($n >= $bestN) { $bestN = $n; $best = $k; } // >= so later keys win ties
+        }
+        return (string) $best;
+    }
+
+    /**
+     * Seed "The Grassroots Incorruptible Test" — a profile quiz of six real-world
+     * dilemmas that maps A/B/C choices to an integrity profile. Idempotent.
+     */
+    public static function seedGrassroots(): void
+    {
+        $slug = 'grassroots-incorruptible-test';
+        if ((int) (Database::pdo()->query("SELECT COUNT(*) FROM iq_quizzes WHERE slug = " . Database::pdo()->quote($slug))->fetchColumn())) return;
+
+        $profiles = [
+            'A' => ['tag' => 'High vulnerability', 'tag_class' => 'a', 'title' => 'The Rationalized Integrity',
+                'reality' => "You believe you're a good person, but you've accepted that the end justifies the means. You rationalize shortcuts, lying, and murmuring as “survival tactics” against a broken system.",
+                'warning' => "If you're given a parliament, a platform, or a palace today, you will become the very corrupt leader you currently complain about. Power won't change you — it will scale up the rationalizations you're already using.",
+                'prescription' => "Break the habit of self-justification. Start seeing small compromises as poison, not survival."],
+            'B' => ['tag' => 'Moderate vulnerability', 'tag_class' => 'b', 'title' => 'The Passive Bystander',
+                'reality' => "You don't initiate corruption, but you yield to it. You use silence, evasiveness, and self-preservation to navigate uncomfortable situations — surviving toxic environments, but leaving them just as toxic as you found them.",
+                'warning' => "In a corrupt system, neutrality is compliance. If placed on a platform, you won't lead the corruption, but you'll sign off on it out of fear, exhaustion, or peer pressure.",
+                'prescription' => "Move from passive survival to active courage. Integrity isn't the absence of wrongdoing — it's the active presence of responsibility."],
+            'C' => ['tag' => 'A force for good', 'tag_class' => 'c', 'title' => 'The Incorruptible Vanguard',
+                'reality' => "You've done the hard work of killing murmuring with responsibility, conquering deception with radical accountability, and slaying mediocrity with diligence. You don't absorb the toxicity of your environment — you transform it.",
+                'warning' => "You are immune to systemic corruption because your standards aren't dictated by who's watching, who's paying, or how broken the system is. You're ready to hold platforms because you've already mastered the grassroots.",
+                'prescription' => "Build others. Your mission now is to mentor the “B's” around you and show them how to stand firm without fear."],
+        ];
+        $Q = [
+            ['The group project / workplace crisis',
+             "You're part of a team working on a tight deadline. The team leader is disorganized, abrasive, and dropped the ball on a critical section. The project is about to fail, costing everyone their grade or bonus. You saw this coming weeks ago and tried to warn them, but they shut you down.",
+             ["You document every warning you sent, let the project fail, and present the evidence so you don't take the fall.",
+              "You quietly fix just your own section so your work looks clean, then keep your head down.",
+              "You step up quietly, take on the extra workload, and coordinate the team to fix the gap for the collective outcome."]],
+            ['The toxic boss / instructor',
+             "You report to someone notoriously unfair and volatile, who takes credit for your ideas while humiliating junior staff. You're exhausted, underpaid, and can't afford to quit right now.",
+             ["You adapt: stop putting in extra effort, badmouth them behind closed doors, occasionally sabotage minor tasks.",
+              "You fake a smile, agree with everything, do exactly what you're told — no more, no less.",
+              "You refuse to let their toxicity degrade your standard, protect junior colleagues, and build quiet excellence around you."]],
+            ['The “harmless” system shortcut',
+             "You're applying for an urgent document, stuck in bureaucracy for weeks. A friend introduces you to an insider who offers to process it in ten minutes for a small “fee” everyone pays. Skip it, and you miss a critical deadline.",
+             ["You pay immediately. It's not your fault the system is broken.",
+              "You wait as long as you can, then give in as the deadline nears, telling yourself you had no choice.",
+              "You refuse to pay and exhaust every official escalation route, even risking the deadline."]],
+            ["The friend's mistake",
+             "A close friend made a serious record-keeping error that cost the team resources. It was an honest accident, but if discovered, they'll be fired. Your supervisor asks you directly if you know what happened.",
+             ["You cover for your friend, or lie directly to the supervisor. Loyalty comes first.",
+              "You give a vague, evasive answer to protect them without technically lying.",
+              "You tell your friend they must come clean, offer to stand with them, but won't lie if asked directly."]],
+            ['Unearned credit & the easy win',
+             "Due to a mix-up, your superior praises you for solving a problem actually fixed by a shy junior colleague. The praise comes with a possible promotion or scholarship.",
+             ["You accept the praise and the opportunity. They'll get their turn eventually.",
+              "You say “it was a team effort” without naming them, keeping the lion's share of credit.",
+              "You immediately correct the supervisor and name the colleague clearly, in that exact moment."]],
+            ['The unsupervised standard',
+             "You managed a budget for an event with zero oversight, working twenty extra unpaid hours. There's a surplus that will simply vanish back into a general pool if unused.",
+             ["You write off part of the surplus as a “stipend” for yourself. You earned it.",
+              "You spend the surplus on unnecessary extras just so it doesn't look like you under-spent.",
+              "You meticulously report the exact surplus back, down to the last unit."]],
+        ];
+        $questions = [];
+        foreach ($Q as $q) {
+            $opts = [];
+            $keys = ['A', 'B', 'C'];
+            foreach ($q[2] as $i => $text) $opts[] = ['t' => $text, 'p' => $keys[$i], 'c' => 0];
+            $questions[] = ['prompt' => $q[0] . ' — ' . $q[1], 'options' => $opts, 'points' => 0];
+        }
+        self::saveQuiz(0, [
+            'slug' => $slug,
+            'title' => 'The Grassroots Incorruptible Test',
+            'description' => "Six real-world dilemmas. Pick what you'd actually do — not who you hope you are. Discover your integrity profile.",
+            'category' => 'Integrity', 'difficulty' => 'medium', 'type' => 'profile',
+            'profiles' => $profiles, 'questions' => $questions, 'published' => 1,
+        ]);
     }
 }

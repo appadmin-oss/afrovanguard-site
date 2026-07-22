@@ -337,3 +337,41 @@ require_once AV_ROOT . '/lib/Community.php';
 
     ck('iq: delete removes quiz', IQ::deleteQuiz($r['id']) && count(array_filter(IQ::listQuizzes(0), fn($q) => $q['slug'] === $slug)) === 0);
 })();
+
+/* ---- IQ: profile ("personality") quizzes + Grassroots seed ---- */
+(function () {
+    require_once AV_ROOT . '/lib/IQ.php';
+    reset_users();
+    IQ::ensure();  // triggers the one-time Grassroots seed
+    $play = IQ::getForPlay('grassroots-incorruptible-test');
+    ck('iq: grassroots seeded + published', $play !== null && ($play['type'] ?? '') === 'profile');
+    ck('iq: grassroots has 6 scenarios', $play && count($play['questions']) === 6);
+    // profile mapping (p) must NOT leak to the player
+    $leak = false;
+    foreach ($play['questions'] as $q) foreach ($q['options'] as $o) if (array_key_exists('p', $o)) $leak = true;
+    ck('iq: profile keys hidden from player', !$leak);
+
+    // Answer everything "C" (3rd option) → Incorruptible Vanguard
+    $edit = IQ::getForEdit(IQ::adminList()[0]['id'] ?? 0);
+    // find the id of the grassroots quiz precisely
+    $gid = 0; foreach (IQ::adminList() as $qz) if ($qz['slug'] === 'grassroots-incorruptible-test') $gid = $qz['id'];
+    $edit = IQ::getForEdit($gid);
+    $ansC = [];
+    foreach ($edit['questions'] as $q) {
+        foreach ($q['options'] as $i => $o) if (($o['p'] ?? '') === 'C') $ansC[(string) $q['id']] = $i;
+    }
+    $g = IQ::grade('grassroots-incorruptible-test', $ansC, 1, 'Ada', 60);
+    ck('iq: profile grades to a profile', !empty($g['ok']) && ($g['type'] ?? '') === 'profile');
+    ck('iq: all-C → Incorruptible Vanguard', ($g['winner'] ?? '') === 'C' && strpos((string) ($g['profile']['title'] ?? ''), 'Incorruptible') !== false);
+    ck('iq: profile returns reality/warning/prescription', ($g['profile']['reality'] ?? '') !== '' && ($g['profile']['prescription'] ?? '') !== '');
+
+    // Answer everything "A" → Rationalized Integrity
+    $ansA = [];
+    foreach ($edit['questions'] as $q) foreach ($q['options'] as $i => $o) if (($o['p'] ?? '') === 'A') $ansA[(string) $q['id']] = $i;
+    $gA = IQ::grade('grassroots-incorruptible-test', $ansA, 2, 'Bode', 60);
+    ck('iq: all-A → Rationalized Integrity', ($gA['winner'] ?? '') === 'A');
+
+    // Seed is idempotent
+    IQ::seedGrassroots();
+    ck('iq: seed is idempotent', count(array_filter(IQ::adminList(), fn($q) => $q['slug'] === 'grassroots-incorruptible-test')) === 1);
+})();
