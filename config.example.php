@@ -129,6 +129,12 @@ define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
  *   In-portal embeds (read-only): AV_WS_CALENDAR_ID (or a full AV_WS_CALENDAR_EMBED
  *                    src) + AV_WS_TZ (default Africa/Lagos); AV_WS_DRIVE_FOLDER_ID
  *                    (a Drive folder shared "anyone with the link").
+ *   Two-way calendar sync: when Google Workspace is connected with calendar
+ *                    WRITE access (domain-wide delegation), AV_WS_CALENDAR_ID is
+ *                    also the ORG calendar the portal's team calendar syncs with —
+ *                    native team events are mirrored onto it (create/edit/delete)
+ *                    and its events are pulled into the portal's Today agenda.
+ *                    Unset ⇒ the portal calendar still works locally, just not synced.
  *   Communities: managed in the Studio (Communities tab). As a fallback when none
  *                exist there, AV_WS_COMMUNITIES accepts a JSON list, e.g.
  *                '[{"name":"All-hands","url":"https://chat.google.com/room/AAAA"}]'

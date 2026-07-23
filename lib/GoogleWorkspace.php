@@ -177,11 +177,14 @@ final class GoogleWorkspace
         foreach ($d['items'] as $e) {
             $start = $e['start']['dateTime'] ?? ($e['start']['date'] ?? '');
             $out[] = [
+                'id'       => (string) ($e['id'] ?? ''),
                 'title'    => (string) ($e['summary'] ?? '(busy)'),
                 'start'    => $start,
+                'end'      => (string) ($e['end']['dateTime'] ?? ($e['end']['date'] ?? '')),
                 'all_day'  => !isset($e['start']['dateTime']),
                 'location' => (string) ($e['location'] ?? ''),
                 'url'      => (string) ($e['htmlLink'] ?? ''),
+                'meet'     => (string) ($e['hangoutLink'] ?? self::meetFrom($e)),
             ];
         }
         return $out;
@@ -294,6 +297,39 @@ final class GoogleWorkspace
         if ($cal === '') return false;
         $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
         return self::apiSend('PATCH', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $patch) !== null;
+    }
+
+    /**
+     * Create a plain calendar event (no Meet) on the org calendar — used to
+     * mirror native portal team-events to Google Calendar. Supports all-day
+     * ($start === '') and timed events. Naive local times are sent with the org
+     * timeZone so Google interprets them correctly. Returns ['id','html_link']
+     * or null. Dates 'Y-m-d', times 'H:i'.
+     */
+    public static function createEvent(string $title, string $date, string $start = '', string $end = '', string $location = '', string $description = '', ?string $calendarId = null): ?array
+    {
+        if (!self::calendarWriteEnabled()) return null;
+        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        if ($cal === '' || $title === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return null;
+        $tz = (string) Config::get('AV_WS_TZ', 'Africa/Lagos');
+        $event = ['summary' => mb_substr($title, 0, 200)];
+        if ($description !== '') $event['description'] = mb_substr($description, 0, 4000);
+        if ($location !== '')    $event['location']    = mb_substr($location, 0, 300);
+        if ($start === '') {
+            // All-day: Google's end date is exclusive, so it's the next day.
+            $endDate = gmdate('Y-m-d', (strtotime($date . ' UTC') ?: time()) + 86400);
+            $event['start'] = ['date' => $date];
+            $event['end']   = ['date' => $endDate];
+        } else {
+            $endHm = $end;
+            if ($endHm === '') { $t = strtotime($date . ' ' . $start); $endHm = $t ? date('H:i', $t + 3600) : $start; }
+            $event['start'] = ['dateTime' => $date . 'T' . $start . ':00', 'timeZone' => $tz];
+            $event['end']   = ['dateTime' => $date . 'T' . $endHm . ':00', 'timeZone' => $tz];
+        }
+        $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . http_build_query(['sendUpdates' => 'none']);
+        $d = self::apiSend('POST', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '', $event);
+        if (!$d || empty($d['id'])) return null;
+        return ['id' => (string) $d['id'], 'html_link' => (string) ($d['htmlLink'] ?? '')];
     }
 
     /** Cancel/delete an event (e.g. when a session is cancelled). */

@@ -120,6 +120,7 @@ $nav = [
 if ($isOrg) {
     $nav['Work'] = [
         ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
+        ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
 }
@@ -229,7 +230,7 @@ $nav['You'] = [
             </div>
             <div class="phead-actions">
 <?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="#tasks" data-goto="tasks">＋ New task</a>
-              <a class="pbtn pbtn-ghost" href="#tasks" data-goto="tasks">✨ Plan a goal</a>
+              <button type="button" class="pbtn pbtn-ghost" id="openMeetModal">🎥 Schedule meeting</button>
               <a class="pbtn pbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">▶ Start a Meet</a>
 <?php else: ?>              <a class="pbtn pbtn-gold" href="/academy/">Browse the Academy →</a>
 <?php endif; ?>            </div>
@@ -360,6 +361,34 @@ $nav['You'] = [
             </div>
           </div>
         </section>
+
+<?php if ($isOrg): ?>
+        <!-- Schedule-a-meeting modal (creates a Google Meet + calendar invite) -->
+        <div class="pm-scrim" id="meetScrim" hidden>
+          <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="meetModalTitle" id="meetModal" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pm-head"><h2 id="meetModalTitle">Schedule a meeting</h2><button type="button" class="pm-x" id="meetClose" aria-label="Close">✕</button></div>
+            <form id="meetForm" class="pm-body" autocomplete="off">
+              <label class="pm-f"><span>Title</span><input type="text" id="mmTitle" maxlength="200" required placeholder="e.g. Clean-up drive planning"></label>
+              <div class="pm-row">
+                <label class="pm-f"><span>When</span><input type="datetime-local" id="mmWhen" required></label>
+                <label class="pm-f pm-f--sm"><span>Duration</span>
+                  <select id="mmDur"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option></select>
+                </label>
+                <label class="pm-f pm-f--sm"><span>Repeats</span>
+                  <select id="mmFreq"><option value="once" selected>Once</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select>
+                </label>
+              </div>
+              <label class="pm-f"><span>Invite (comma-separated emails)</span><input type="text" id="mmAtt" placeholder="ada@afrovanguard.org.ng, bode@…"></label>
+              <label class="pm-f"><span>Agenda <small>(optional)</small></span><textarea id="mmAgenda" rows="2" maxlength="2000" placeholder="What we’ll cover…"></textarea></label>
+              <p class="pm-msg" id="mmMsg" hidden></p>
+              <div class="pm-actions">
+                <button type="button" class="pbtn pbtn-ghost" id="meetCancel">Cancel</button>
+                <button type="submit" class="pbtn pbtn-gold" id="mmSubmit">Create meeting &amp; Meet link</button>
+              </div>
+            </form>
+          </div>
+        </div>
+<?php endif; ?>
 
         <!-- ============================================================ -->
         <!-- TOOLS  (Afrovanguard first-party productivity apps)          -->
@@ -755,6 +784,39 @@ $nav['You'] = [
                 <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
               </div>
               <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
+            </div>
+          </section>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- TEAM CHAT  (Slack-style native channels)                     -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-chat" data-view="chat" hidden>
+          <div class="view-head">
+            <div><h1>Team Chat</h1><p class="view-sub">Talk to the team in real time. Channels, @mentions and reactions — always on, no app to open.</p></div>
+          </div>
+          <section class="pcard tc-card" id="teamChat" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="tc">
+              <!-- Channel rail -->
+              <aside class="tc-rail" aria-label="Channels">
+                <div class="tc-rail-h">Channels</div>
+                <ul class="tc-channels" id="tcChannels"><li class="pc-empty">Loading…</li></ul>
+                <div class="tc-rail-h tc-rail-h--online">Online <span class="tc-online-n" id="tcOnlineN">0</span></div>
+                <ul class="tc-online" id="tcOnline"><li class="pc-empty">Just you.</li></ul>
+              </aside>
+              <!-- Conversation -->
+              <div class="tc-main">
+                <div class="tc-topbar">
+                  <span class="tc-topic"># <span id="tcChannelName">general</span></span>
+                  <span class="tc-presence"><span class="dot-live"></span><span id="tcPresence">0</span> online</span>
+                </div>
+                <div class="tc-stream" id="tcStream"><p class="pc-empty">Loading messages…</p></div>
+                <form class="tc-compose" id="tcCompose" autocomplete="off">
+                  <div class="tc-mentions" id="tcMentions" hidden></div>
+                  <textarea id="tcInput" rows="1" maxlength="2000" placeholder="Message #general — use @ to mention" aria-label="Message"></textarea>
+                  <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
+                </form>
+              </div>
             </div>
           </section>
         </section>
@@ -1314,7 +1376,7 @@ $nav['You'] = [
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
     var TODAY=ymd(0), TOMORROW=ymd(1), from=TODAY, to=ymd(14);
-    var ICON={event:'📌',afg:'🎟️',session:'🎥',meeting:'🎥',task:'✓',reminder:'⏰'};
+    var ICON={event:'📌',afg:'🎟️',session:'🎥',meeting:'🎥',task:'✓',reminder:'⏰',gcal:'📆'};
     function timeLabel(t){ if(!t) return 'All day'; var p=t.split(':'); var h=+p[0]; var ap=h<12?'AM':'PM'; return ((h%12)||12)+':'+p[1]+' '+ap; }
     function dayHead(d,n){ var dt=new Date(d+'T00:00:00');
       var name=isNaN(dt)?d:dt.toLocaleDateString(undefined,{weekday:'long'});
@@ -1355,9 +1417,158 @@ $nav['You'] = [
         return '<div class="cal-day">'+dayHead(d,groups[d].length)+'<ul class="cal-list">'+groups[d].map(itemHtml).join('')+'</ul></div>';
       }).join('');
     }
-    fetch('/portal/calendar.php?action=feed&from='+from+'&to='+to,{credentials:'same-origin'})
-      .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) render(d.items); else box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; })
-      .catch(function(){ box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; });
+    function loadCal(){
+      fetch('/portal/calendar.php?action=feed&from='+from+'&to='+to,{credentials:'same-origin'})
+        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) render(d.items); else box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; })
+        .catch(function(){ box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; });
+    }
+    window.avReloadCalendar = loadCal;   // let the meeting scheduler refresh the agenda
+    loadCal();
+  })();
+  </script>
+
+  <script>
+  /* Team Chat — Slack-style native channels: message stream (grouped, day
+     dividers), composer with @mention autocomplete, emoji reactions, presence
+     rail, and near-realtime polling via sinceId. */
+  (function () {
+    var root = document.getElementById('teamChat'); if (!root) return;
+    var csrf = root.getAttribute('data-csrf') || '';
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function post(action, body){ return fetch('/portal/chat.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
+    function get(action, qs){ return fetch('/portal/chat.php?action='+action+(qs||''),{credentials:'same-origin'}).then(function(r){return r.json();}); }
+    var streamEl=document.getElementById('tcStream'), chanEl=document.getElementById('tcChannels'),
+        onlineEl=document.getElementById('tcOnline'), onlineNEl=document.getElementById('tcOnlineN'),
+        presEl=document.getElementById('tcPresence'), chanNameEl=document.getElementById('tcChannelName'),
+        input=document.getElementById('tcInput'), mentEl=document.getElementById('tcMentions'),
+        composeForm=document.getElementById('tcCompose');
+    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], poller=null, active=false, ready=false, seenKey='av_chat_seen';
+    // Per-channel last-seen id (localStorage) → unread dots.
+    function seen(){ try{ return JSON.parse(localStorage.getItem(seenKey)||'{}'); }catch(e){ return {}; } }
+    function markSeen(ch, id){ var s=seen(); if(!s[ch]||id>s[ch]){ s[ch]=id; try{ localStorage.setItem(seenKey, JSON.stringify(s)); }catch(e){} } }
+    function fmtTime(iso){ var t=Date.parse((iso||'').replace(' ','T')+'Z'); if(!t) return ''; return new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+    function dayOf(iso){ var t=Date.parse((iso||'').replace(' ','T')+'Z'); if(!t) return ''; var d=new Date(t); var td=new Date(); var y=new Date(td.getTime()-86400000);
+      if(d.toDateString()===td.toDateString()) return 'Today'; if(d.toDateString()===y.toDateString()) return 'Yesterday';
+      return d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }
+    function bodyHtml(m){ var b=esc(m.body);
+      // Turn @handles into chips (mentions resolved server-side; token has no leading @).
+      (m.mentions||[]).forEach(function(mn){ var tok=(mn.token||mn.handle||'').replace(/^@/,''); if(tok){ b=b.split('@'+esc(tok)).join('<span class="tc-at">@'+esc(mn.name||mn.handle||'')+'</span>'); } });
+      return b.replace(/\n/g,'<br>'); }
+    function reactHtml(m){ var rx=m.reactions||[]; var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
+      return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
+    function msgHtml(m, grouped){
+      var head = grouped ? '' : '<span class="tc-avatar">'+esc(m.initial)+'</span>';
+      var meta = grouped ? '' : '<span class="tc-msg-h"><b class="tc-name">'+esc(m.author)+'</b>'+(m.verified?'<span class="tc-badge" title="Verified member">✓</span>':'')+'<span class="tc-time">'+esc(fmtTime(m.created_at))+'</span></span>';
+      return '<div class="tc-msg'+(grouped?' is-grouped':'')+(m.is_me?' is-me':'')+'" data-id="'+m.id+'">'
+        +'<div class="tc-msg-l">'+head+'</div>'
+        +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+'</div>'+reactHtml(m)+'</div></div>'; }
+    function render(){
+      if(!MSGS.length){ streamEl.innerHTML='<p class="pc-empty tc-empty">👋 No messages yet in #'+esc(CHANNEL)+'. Say hello to the team.</p>'; return; }
+      var html='', lastDay='', lastAuthor='', lastT=0;
+      MSGS.forEach(function(m){ var day=dayOf(m.created_at);
+        if(day!==lastDay){ html+='<div class="tc-divider"><span>'+esc(day)+'</span></div>'; lastDay=day; lastAuthor=''; }
+        var t=Date.parse((m.created_at||'').replace(' ','T')+'Z')||0;
+        var grouped = (m.author===lastAuthor) && (t-lastT < 5*60000);
+        html+=msgHtml(m, grouped); lastAuthor=m.author; lastT=t; });
+      streamEl.innerHTML=html; streamEl.scrollTop=streamEl.scrollHeight;
+    }
+    function renderChannels(){
+      var s=seen();
+      chanEl.innerHTML=CHANNELS.map(function(c){ var unread = c.last_id>(s[c.key]||0) && c.key!==CHANNEL;
+        return '<li><button type="button" class="tc-channel'+(c.key===CHANNEL?' is-on':'')+'" data-ch="'+esc(c.key)+'"><span class="tc-hash">#</span>'+esc(c.label)+(unread?'<span class="tc-unread"></span>':'')+'</button></li>'; }).join('');
+    }
+    function renderOnline(users,count){ if(onlineNEl)onlineNEl.textContent=count||0; if(presEl)presEl.textContent=count||0;
+      users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<li class="tc-on"><span class="tc-on-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span>'+esc(u.name)+'</li>'; }).join('') : '<li class="pc-empty">Just you.</li>'; }
+    // Append only strictly-newer messages (id > LAST) so a late/overlapping poll can't duplicate.
+    function applyNew(list){ if(!list||!list.length) return; var added=false; list.forEach(function(m){ if(m.id>LAST){ MSGS.push(m); LAST=m.id; added=true; } }); if(!added) return; if(MSGS.length>200)MSGS=MSGS.slice(-200); markSeen(CHANNEL,LAST); render(); }
+    function bootstrap(){ ready=false; get('bootstrap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(!d||!d.ok){ ready=true; return; }
+        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; MSGS=d.messages||[]; LAST=MSGS.length?MSGS[MSGS.length-1].id:0;
+        markSeen(CHANNEL,LAST); renderChannels(); render(); renderOnline(d.online,d.count); ready=true; }).catch(function(){ ready=true; }); }
+    function poll(){ if(!active || !ready) return; get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since='+LAST).then(function(d){ if(!d||!d.ok) return;
+        CHANNELS=d.channels||CHANNELS; applyNew(d.messages); renderChannels(); renderOnline(d.online,d.count); }).catch(function(){}); }
+    function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.placeholder='Message #'+ch+' — use @ to mention'; renderChannels(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
+
+    chanEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-channel'); if(b) switchChannel(b.getAttribute('data-ch')); });
+
+    // Send
+    composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=(input.value||'').trim(); if(!body) return;
+      input.value=''; autoGrow(); hideMentions();
+      post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
+    input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mentionOpen){ e.preventDefault(); composeForm.requestSubmit(); } });
+
+    // Reactions (event-delegated on the stream)
+    streamEl.addEventListener('click', function(e){
+      var add=e.target.closest('.tc-react-add'); var chip=e.target.closest('.tc-react');
+      var msgEl=e.target.closest('.tc-msg'); if(!msgEl) return; var id=+msgEl.getAttribute('data-id');
+      if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
+      if(add){ openEmojiPicker(add, id); } });
+    function react(id, emoji){ post('react',{id:id, emoji:emoji}).then(function(d){ if(d&&d.ok){ var m=MSGS.filter(function(x){return x.id===id;})[0]; if(m){ m.reactions=d.reactions; render(); } } }); }
+    var pickerEl=null;
+    function openEmojiPicker(anchor, id){ closePicker(); pickerEl=document.createElement('div'); pickerEl.className='tc-picker';
+      pickerEl.innerHTML=EMOJI.map(function(x){ return '<button type="button" data-e="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
+      anchor.parentNode.appendChild(pickerEl);
+      pickerEl.addEventListener('click', function(e){ var b=e.target.closest('button'); if(b){ react(id, b.getAttribute('data-e')); closePicker(); } });
+      setTimeout(function(){ document.addEventListener('click', outside); },0);
+      function outside(ev){ if(pickerEl && !pickerEl.contains(ev.target) && ev.target!==anchor){ closePicker(); document.removeEventListener('click', outside); } } }
+    function closePicker(){ if(pickerEl){ pickerEl.remove(); pickerEl=null; } }
+
+    // Composer autosize
+    function autoGrow(){ input.style.height='auto'; input.style.height=Math.min(140, input.scrollHeight)+'px'; }
+    input.addEventListener('input', function(){ autoGrow(); onMentionType(); });
+
+    // @mention autocomplete
+    var mentionOpen=false, mentTimer=null, mentActive=-1, mentItems=[];
+    function onMentionType(){ var v=input.value, pos=input.selectionStart||v.length; var upto=v.slice(0,pos);
+      var mAt=upto.match(/(?:^|\s)@([\w.\-]*)$/); if(!mAt){ hideMentions(); return; }
+      var q=mAt[1]; clearTimeout(mentTimer); mentTimer=setTimeout(function(){
+        get('mention','&q='+encodeURIComponent(q)).then(function(d){ if(!d||!d.ok||!d.members.length){ hideMentions(); return; }
+          mentItems=d.members; mentActive=0;
+          mentEl.innerHTML=mentItems.map(function(m,i){ return '<button type="button" class="tc-ment'+(i===0?' is-on':'')+'" data-h="'+esc(m.handle)+'" data-name="'+esc(m.name)+'"><span class="tc-ment-ava">'+esc(m.initial)+'</span>'+esc(m.name)+' <span class="tc-ment-h">@'+esc(m.handle)+'</span></button>'; }).join('');
+          mentEl.hidden=false; mentionOpen=true; }).catch(function(){ hideMentions(); }); }, 140); }
+    function hideMentions(){ mentEl.hidden=true; mentionOpen=false; mentActive=-1; mentItems=[]; }
+    function pickMention(h){ var v=input.value, pos=input.selectionStart||v.length; var upto=v.slice(0,pos);
+      var rep=upto.replace(/@([\w.\-]*)$/, '@'+h+' '); input.value=rep+v.slice(pos); input.focus(); hideMentions(); autoGrow(); }
+    mentEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-ment'); if(b) pickMention(b.getAttribute('data-h')); });
+    input.addEventListener('keydown', function(e){ if(!mentionOpen) return;
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); mentActive=(mentActive+(e.key==='ArrowDown'?1:mentItems.length-1))%mentItems.length;
+        [].forEach.call(mentEl.children,function(c,i){ c.classList.toggle('is-on',i===mentActive); }); }
+      else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); var it=mentItems[mentActive]; if(it) pickMention(it.handle); }
+      else if(e.key==='Escape'){ hideMentions(); } });
+
+    // Activate polling only while the Chat view is visible (cheap + fresh).
+    function tick(){ if(document.getElementById('view-chat') && !document.getElementById('view-chat').hidden){ if(!active){ active=true; bootstrap(); } poll(); } else { active=false; } }
+    window.addEventListener('hashchange', function(){ setTimeout(tick, 60); });
+    if(location.hash.indexOf('chat')>-1){ active=true; bootstrap(); }
+    poller=setInterval(tick, 4000);
+  })();
+  </script>
+
+  <script>
+  /* Schedule-a-meeting modal → creates a Google Meet + calendar invite via
+     portal/meetings.php, then refreshes the Today calendar agenda. */
+  (function () {
+    var scrim=document.getElementById('meetScrim'), modal=document.getElementById('meetModal'); if(!scrim||!modal) return;
+    var csrf=modal.getAttribute('data-csrf')||'', msg=document.getElementById('mmMsg');
+    function open(){ scrim.hidden=false; document.body.style.overflow='hidden'; var w=document.getElementById('mmWhen'); if(w&&!w.value){ var d=new Date(Date.now()+3600000); d.setMinutes(0); w.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+'T'+('0'+d.getHours()).slice(-2)+':00'; } document.getElementById('mmTitle').focus(); }
+    function close(){ scrim.hidden=true; document.body.style.overflow=''; if(msg)msg.hidden=true; }
+    function say(t,tone){ if(!msg)return; msg.hidden=!t; msg.textContent=t||''; msg.className='pm-msg'+(tone?' is-'+tone:''); }
+    var openBtn=document.getElementById('openMeetModal'); if(openBtn) openBtn.addEventListener('click', open);
+    document.getElementById('meetClose').addEventListener('click', close);
+    document.getElementById('meetCancel').addEventListener('click', close);
+    scrim.addEventListener('click', function(e){ if(e.target===scrim) close(); });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !scrim.hidden) close(); });
+    document.getElementById('meetForm').addEventListener('submit', function(e){ e.preventDefault();
+      var title=(document.getElementById('mmTitle').value||'').trim(); var when=document.getElementById('mmWhen').value;
+      if(!title||!when){ say('Add a title and a time.','warn'); return; }
+      var atts=(document.getElementById('mmAtt').value||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+      var btn=document.getElementById('mmSubmit'); btn.disabled=true; var old=btn.textContent; btn.textContent='Creating…'; say('Creating the meeting and Meet link…','');
+      fetch('/portal/meetings.php?action=schedule',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
+        body:JSON.stringify({title:title, when:when, duration:+document.getElementById('mmDur').value, frequency:document.getElementById('mmFreq').value, agenda:document.getElementById('mmAgenda').value, attendees:atts, context:'workspace'})})
+        .then(function(r){return r.json();}).then(function(d){ btn.disabled=false; btn.textContent=old;
+          if(d&&d.ok){ say((d.warning||'Meeting scheduled — invites sent. 🎉'), d.warning?'warn':'ok'); if(window.avReloadCalendar) window.avReloadCalendar();
+            setTimeout(close, d.warning?2600:900); document.getElementById('meetForm').reset(); }
+          else { say((d&&d.error)||'Could not schedule the meeting.','warn'); } })
+        .catch(function(){ btn.disabled=false; btn.textContent=old; say('Network error — try again.','warn'); }); });
   })();
   </script>
 

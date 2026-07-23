@@ -68,6 +68,17 @@ final class Community
         // Chat channels are a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
+        // Emoji reactions on chat messages (Slack-style). One row per (message,user,emoji).
+        try {
+            $rddl = "CREATE TABLE IF NOT EXISTS community_chat_reactions (
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                emoji VARCHAR(16) NOT NULL DEFAULT '',
+                created_at VARCHAR(32) NOT NULL DEFAULT '',
+                PRIMARY KEY (chat_id, user_id, emoji)
+            );";
+            $db->exec($drv === 'sqlite' ? $rddl : Database::translateDDL($rddl, $drv));
+        } catch (Throwable $e) { /* already there */ }
         // Data-classification is a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_posts', 'classification')) $db->exec("ALTER TABLE community_posts ADD COLUMN classification VARCHAR(16) NOT NULL DEFAULT 'members'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
@@ -78,6 +89,22 @@ final class Community
     /** The members-chat channels (fixed set, keeps the space tidy). */
     const CHAT_CHANNELS = ['general' => 'General', 'announcements' => 'Announcements', 'mentorship' => 'Mentorship', 'random' => 'Random'];
     private static function normChannel(string $c): string { $c = strtolower(trim($c)); return isset(self::CHAT_CHANNELS[$c]) ? $c : 'general'; }
+
+    /** Channel list with the latest message id in each (for unread dots). */
+    public static function chatChannels(): array
+    {
+        self::ensure();
+        $last = [];
+        try {
+            $rows = Database::pdo()->query('SELECT channel, MAX(id) AS mx FROM community_chat GROUP BY channel')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $r) $last[(string) $r['channel']] = (int) $r['mx'];
+        } catch (Throwable $e) {}
+        $out = [];
+        foreach (self::CHAT_CHANNELS as $key => $label) {
+            $out[] = ['key' => $key, 'label' => $label, 'last_id' => $last[$key] ?? 0];
+        }
+        return $out;
+    }
 
     /** Data-classification levels for posts (least → most sensitive). */
     const CLASSES = ['public' => 'Public', 'members' => 'Members-only', 'confidential' => 'Confidential'];
@@ -518,7 +545,7 @@ final class Community
             error_log('[community] chatList: ' . $e->getMessage());
             return [];
         }
-        return array_map(fn($r) => self::shapeChat($r, $viewerId), $rows);
+        return self::attachReactions(array_map(fn($r) => self::shapeChat($r, $viewerId), $rows), $viewerId);
     }
 
     private const CHAT_SELECT =
@@ -531,7 +558,11 @@ final class Community
             $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.id = ?');
             $st->execute([$id]);
             $r = $st->fetch(PDO::FETCH_ASSOC);
-            return $r ? self::shapeChat($r, $viewerId) : null;
+            if (!$r) return null;
+            $m = self::shapeChat($r, $viewerId);
+            $rx = self::reactionsFor([(int) $m['id']], $viewerId);
+            $m['reactions'] = $rx[(int) $m['id']] ?? [];
+            return $m;
         } catch (Throwable $e) { return null; }
     }
 
@@ -553,7 +584,67 @@ final class Community
             'is_me'      => (int) $r['author_id'] === $viewerId,
             'created_at' => (string) $r['created_at'],
             'ago'        => self::ago((string) $r['created_at']),
+            'reactions'  => [],
         ];
+    }
+
+    /** Emoji allowed as reactions (a curated Slack-style quick set). */
+    const REACT_EMOJI = ['👍', '❤️', '🎉', '🙌', '🔥', '✅', '👀', '😂'];
+
+    /**
+     * Toggle an emoji reaction on a chat message (org-only). Returns the updated
+     * reaction list for that message: [{emoji,count,mine}], or null on failure.
+     */
+    public static function chatReact(int $uid, int $chatId, string $emoji): ?array
+    {
+        self::ensure();
+        if ($uid <= 0 || $chatId <= 0 || !self::isOrgMember($uid)) return null;
+        if (!in_array($emoji, self::REACT_EMOJI, true)) return null;
+        try {
+            $db = Database::pdo();
+            $has = $db->prepare('SELECT 1 FROM community_chat_reactions WHERE chat_id = ? AND user_id = ? AND emoji = ?');
+            $has->execute([$chatId, $uid, $emoji]);
+            if ($has->fetchColumn()) {
+                $db->prepare('DELETE FROM community_chat_reactions WHERE chat_id = ? AND user_id = ? AND emoji = ?')->execute([$chatId, $uid, $emoji]);
+            } else {
+                $db->prepare('INSERT INTO community_chat_reactions (chat_id, user_id, emoji, created_at) VALUES (?,?,?,?)')
+                   ->execute([$chatId, $uid, $emoji, gmdate('Y-m-d H:i:s')]);
+            }
+        } catch (Throwable $e) { error_log('[community] chatReact: ' . $e->getMessage()); return null; }
+        $out = self::reactionsFor([$chatId], $uid);
+        return $out[$chatId] ?? [];
+    }
+
+    /** Batch-load reactions for a set of message ids → [chatId => [{emoji,count,mine}]]. */
+    private static function reactionsFor(array $chatIds, int $viewerId): array
+    {
+        $chatIds = array_values(array_unique(array_map('intval', $chatIds)));
+        if (!$chatIds) return [];
+        $place = implode(',', array_fill(0, count($chatIds), '?'));
+        try {
+            $st = Database::pdo()->prepare(
+                'SELECT chat_id, emoji, COUNT(*) AS n, MAX(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS mine
+                 FROM community_chat_reactions WHERE chat_id IN (' . $place . ') GROUP BY chat_id, emoji ORDER BY n DESC, emoji ASC'
+            );
+            $st->execute(array_merge([$viewerId], $chatIds));
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $cid = (int) $row['chat_id'];
+                $out[$cid][] = ['emoji' => (string) $row['emoji'], 'count' => (int) $row['n'], 'mine' => (int) $row['mine'] === 1];
+            }
+            return $out;
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** Attach reactions to a page of shaped messages (in place). */
+    private static function attachReactions(array $msgs, int $viewerId): array
+    {
+        if (!$msgs) return $msgs;
+        $ids = array_map(fn($m) => (int) $m['id'], $msgs);
+        $byId = self::reactionsFor($ids, $viewerId);
+        foreach ($msgs as &$m) { $m['reactions'] = $byId[(int) $m['id']] ?? []; }
+        unset($m);
+        return $msgs;
     }
 
     /**
