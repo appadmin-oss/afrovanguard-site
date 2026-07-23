@@ -232,20 +232,64 @@ body.portal-app .read-progress { display:none; }
 .task-del:hover { color:var(--red); background:var(--surface-2); }
 .task-empty { text-align:center; padding:22px; }
 /* goal link chip on a task */
-.task-goal { display:inline-block; margin-left:8px; font-size:11px; font-weight:700; color:var(--gold-deeper);
-  background:var(--gold-soft); border:1px solid var(--gold-soft-bd); border-radius:999px; padding:1px 9px; vertical-align:middle; }
+.task-goal { display:inline-flex; align-items:center; font-size:11px; font-weight:700; color:var(--gold-deeper);
+  background:var(--gold-soft); border:1px solid var(--gold-soft-bd); border-radius:999px; padding:1px 9px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* priority flag pill */
+.task-flag { font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; border-radius:999px; padding:2px 8px; }
+.task-flag--high { color:var(--red); background:var(--red-soft); border:1px solid var(--red-bd); }
+.task-flag--low  { color:var(--muted); background:var(--surface-2); border:1px solid var(--border-2); }
 /* return-to-pool button on my open tasks */
-.task-release { width:26px; height:26px; border:none; background:transparent; color:var(--muted-2); font-size:13px; cursor:pointer; border-radius:6px; flex:none; }
+.task-release { width:26px; height:26px; border:none; background:transparent; color:var(--muted-2); font-size:13px; cursor:pointer; border-radius:6px; flex:none; opacity:0; transition:opacity .12s; }
+.task:hover .task-release { opacity:1; }
 .task-release:hover { color:var(--gold-deep); background:var(--gold-soft); }
+.task-del { opacity:0; transition:opacity .12s; }
+.task:hover .task-del { opacity:1; }
+/* priority rail (left edge colour-codes urgency at a glance) */
+.task { border-left:3px solid transparent; transition:border-color .12s, background .12s, box-shadow .12s; }
+.task--pri-high { border-left-color:var(--red); }
+.task--pri-low  { border-left-color:var(--border-3); }
+.task.is-done { border-left-color:transparent; }
+/* relative due pill tones */
+.task-due.is-over  { color:var(--red); background:var(--red-soft); border-color:var(--red-bd); }
+.task-due.is-today { color:var(--gold-deeper); background:var(--gold-soft); border-color:var(--gold-soft-bd); }
+.task-due.is-soon  { color:var(--indigo); background:var(--indigo-soft); border-color:var(--indigo-bd); }
 /* checkbox field in the add form */
 .task-af--check { flex-direction:row; align-items:center; gap:7px; }
 .task-af--check input { width:16px; height:16px; accent-color:var(--gold); }
 .task-af--grow { flex:1 1 auto; min-width:180px; }
 
-/* ---------- task pool ---------- */
-.task-pool-item { border-style:dashed; }
-.task-pool-item .task-title { font-weight:600; }
-.task-claim { flex:none; padding:6px 16px !important; font-size:12.5px; }
+/* ---------- task list: urgency group headers ---------- */
+.task-group { display:flex; align-items:center; gap:8px; list-style:none; margin:14px 0 2px; padding:0 2px; }
+.task-group:first-child { margin-top:2px; }
+.task-group-label { font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); }
+.task-group-n { font-size:10.5px; font-weight:800; color:var(--muted-2); background:var(--surface-2); border-radius:999px; padding:1px 8px; }
+.task-group.is-over .task-group-label { color:var(--red); }
+.task-group.is-today .task-group-label { color:var(--gold-deeper); }
+.task-group--done { cursor:pointer; margin-top:18px; border-top:1px dashed var(--border-2); padding-top:14px; }
+.task-caret { color:var(--muted-2); font-size:10px; }
+
+/* ---------- focus ring (today's momentum) ---------- */
+.task-head { align-items:center; }
+.task-head-l { display:flex; flex-direction:column; gap:2px; }
+.task-head-sub { font-size:12.5px; color:var(--muted); font-weight:500; }
+.task-focus { display:flex; align-items:center; gap:9px; }
+.task-ring { --pct:0; position:relative; width:44px; height:44px; border-radius:50%; flex:none;
+  background:conic-gradient(var(--gold) calc(var(--pct)*1%), var(--surface-2) 0); display:grid; place-items:center; }
+.task-ring::after { content:""; position:absolute; inset:4px; border-radius:50%; background:var(--surface); }
+.task-ring.is-complete { background:conic-gradient(var(--green-dot) 100%, var(--green-dot) 0); }
+.task-ring-n { position:relative; z-index:1; font-size:15px; font-weight:800; color:var(--ink); }
+.task-ring.is-complete .task-ring-n { color:var(--green); }
+.task-focus-cap { font-size:10px; font-weight:700; line-height:1.15; letter-spacing:.04em; text-transform:uppercase; color:var(--muted-2); }
+
+/* ---------- task pool (claimable cards) ---------- */
+.task-pool-list { gap:8px; }
+.task-pool-item { align-items:center; padding:12px 14px; }
+.task-pool-item:hover { border-color:var(--gold); box-shadow:var(--shadow-sm); }
+.task-pool-item .task-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+.task-pool-item .task-title { font-weight:700; }
+.task-pool-item .task-sub { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.task-pool-item .task-who { margin:0; }
+.task-claim { flex:none; padding:7px 18px !important; font-size:12.5px; }
 .task-claim:disabled { opacity:.6; cursor:default; }
 
 /* ---------- AI goal planner ---------- */
@@ -256,19 +300,38 @@ body.portal-app .read-progress { display:none; }
 .task-ai-msg.is-ok   { color:var(--gold-deeper); background:var(--gold-soft); border:1px solid var(--gold-soft-bd); }
 .task-ai-msg.is-warn { color:var(--red); background:var(--surface-2); border:1px solid var(--border-2); }
 
-/* ---------- Today calendar agenda ---------- */
-.cal-head-actions { display:flex; align-items:center; gap:12px; }
-.cal-agenda { display:flex; flex-direction:column; gap:16px; }
-.cal-day-h { font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
-.cal-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
-.cal-item { display:flex; align-items:center; gap:11px; padding:9px 12px; border-radius:10px; border:1px solid var(--border-2); background:var(--surface); }
+/* ---------- Today calendar: week strip + agenda timeline ---------- */
+.cal-week { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:18px; }
+.cal-wd { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 0 6px; border-radius:10px; border:1px solid var(--border-2); background:var(--surface); }
+.cal-wd-l { font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--muted-2); }
+.cal-wd-n { font-size:15px; font-weight:800; color:var(--body); }
+.cal-wd-dot { width:5px; height:5px; border-radius:50%; background:transparent; }
+.cal-wd.has-items .cal-wd-dot { background:var(--gold); }
+.cal-wd.is-today { background:var(--ink); border-color:var(--ink); }
+.cal-wd.is-today .cal-wd-l, .cal-wd.is-today .cal-wd-n { color:#fff; }
+.cal-wd.is-today.has-items .cal-wd-dot { background:var(--gold); }
+.cal-agenda { display:flex; flex-direction:column; gap:20px; }
+.cal-day-h { display:flex; align-items:baseline; gap:9px; margin-bottom:9px; padding-bottom:7px; border-bottom:1px solid var(--border-2); }
+.cal-day-name { font-size:13.5px; font-weight:800; color:var(--ink); }
+.cal-day-date { font-size:12px; color:var(--muted); font-weight:600; }
+.cal-pill { font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--indigo); background:var(--indigo-soft); border:1px solid var(--indigo-bd); border-radius:999px; padding:2px 9px; }
+.cal-pill--today { color:var(--on-gold); background:var(--gold); }
+.cal-day-count { margin-left:auto; font-size:11px; font-weight:800; color:var(--muted-2); }
+.cal-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
+.cal-item { display:flex; align-items:center; gap:12px; padding:10px 13px; border-radius:11px; border:1px solid var(--border-2); background:var(--surface); }
+.cal-item:hover { box-shadow:var(--shadow-sm); }
 .cal-item.cal-meeting, .cal-item.cal-session { border-left:3px solid var(--gold); }
+.cal-item.is-over { border-left:3px solid var(--red); }
+.cal-time { flex:none; width:66px; font-size:11.5px; font-weight:800; color:var(--body); text-align:right; font-variant-numeric:tabular-nums; }
+.cal-time.is-allday { font-weight:700; color:var(--muted-2); text-transform:uppercase; font-size:10px; letter-spacing:.03em; }
 .cal-ico { flex:none; width:22px; text-align:center; font-size:14px; }
 .cal-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.cal-title { font-size:14px; font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cal-title { font-size:14px; font-weight:600; color:var(--ink); line-height:1.3; }
 .cal-meta { font-size:11.5px; color:var(--muted-2); }
-.cal-join { flex:none; font-size:12px; font-weight:700; color:var(--on-gold); background:var(--gold); border-radius:8px; padding:5px 13px; text-decoration:none; }
+.cal-join { flex:none; font-size:12px; font-weight:700; color:var(--on-gold); background:var(--gold); border-radius:8px; padding:6px 15px; text-decoration:none; }
 .cal-join:hover { background:var(--gold-deep); }
+.cal-join--ghost { color:var(--body); background:transparent; border:1px solid var(--border-3); }
+.cal-join--ghost:hover { background:var(--surface-2); border-color:var(--muted-2); }
 
 /* ---------- learning ---------- */
 .learn-list { display:flex; flex-direction:column; gap:8px; }

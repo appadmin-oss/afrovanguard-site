@@ -301,13 +301,14 @@ $nav['You'] = [
               <!-- Your calendar — today + what's coming, with meeting links -->
               <section class="pcard" id="todayCal" data-csrf="<?= e($collabCsrf) ?>">
                 <div class="pcard-head">
-                  <h2>Your calendar</h2>
-                  <div class="cal-head-actions">
-                    <span class="pchip pchip--indigo" id="calRangeLabel">Next 14 days</span>
-                    <a class="pcard-link" href="#tools" data-goto="tools">Open calendar →</a>
+                  <div class="task-head-l">
+                    <h2>Your calendar</h2>
+                    <span class="task-head-sub" id="calSummary">Next 14 days</span>
                   </div>
+                  <a class="pcard-link" href="#tools" data-goto="tools">Open calendar →</a>
                 </div>
                 <div class="pcard-body">
+                  <div class="cal-week" id="calWeek" aria-hidden="true"></div>
                   <div class="cal-agenda" id="calAgenda"><p class="pc-empty">Loading your calendar…</p></div>
                 </div>
               </section>
@@ -717,6 +718,16 @@ $nav['You'] = [
           </section>
 
           <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head task-head">
+              <div class="task-head-l">
+                <h2>My tasks</h2>
+                <span class="task-head-sub" id="taskFocusTxt">Loading…</span>
+              </div>
+              <div class="task-focus" id="taskFocus" title="Today’s progress" hidden>
+                <span class="task-ring" id="taskRing" style="--pct:0"><span class="task-ring-n" id="taskRingN">0</span></span>
+                <span class="task-focus-cap">left<br>today</span>
+              </div>
+            </div>
             <div class="pcard-body">
               <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
                 <input type="text" id="taskInput" name="title" maxlength="300" placeholder="What needs doing?" aria-label="Task">
@@ -1148,35 +1159,50 @@ $nav['You'] = [
     var poolEl=document.getElementById('poolList'), poolCountEl=document.getElementById('poolCount'),
         aiCard=document.getElementById('taskAi'), aiGoalSel=document.getElementById('aiGoal'),
         aiMaxSel=document.getElementById('aiMax'), aiBtn=document.getElementById('aiGenerate'), aiMsgEl=document.getElementById('aiMsg'),
-        poolChk=document.getElementById('taskPool');
-    var TASKS=[], POOL=[], GOALS=[], FILTER='all';
-    var TODAY=new Date().toISOString().slice(0,10);
+        poolChk=document.getElementById('taskPool'),
+        focusWrap=document.getElementById('taskFocus'), ringEl=document.getElementById('taskRing'),
+        ringNEl=document.getElementById('taskRingN'), focusTxt=document.getElementById('taskFocusTxt');
+    var TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false;
+    function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    var TODAY=ymd(0), TOMORROW=ymd(1), WEEK_END=ymd(7);
     function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
     function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open,
         over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
       if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
       if(kpiTasks)kpiTasks.textContent=open; }
-    function dueLabel(t){ if(!t.due) return ''; var d=new Date(t.due+'T00:00:00');
-      return isNaN(d)?t.due:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+    // Relative, urgency-aware due label + tone.
+    function dueMeta(t){ if(!t.due) return null;
+      var tone = isOverdue(t) ? 'over' : (t.due===TODAY ? 'today' : (t.due===TOMORROW ? 'soon' : ''));
+      var label; if(isOverdue(t)) label='Overdue'; else if(t.due===TODAY) label='Today'; else if(t.due===TOMORROW) label='Tomorrow';
+      else { var d=new Date(t.due+'T00:00:00'); label=isNaN(d)?t.due:d.toLocaleDateString(undefined,(t.due<ymd(365)?{weekday:'short',month:'short',day:'numeric'}:{month:'short',day:'numeric',year:'numeric'})); }
+      return {label:label, tone:tone}; }
+    function priTag(t){ if(t.priority==='high') return '<span class="task-flag task-flag--high" title="High priority">High</span>';
+      if(t.priority==='low') return '<span class="task-flag task-flag--low" title="Low priority">Low</span>'; return ''; }
+    // Which urgency bucket an open task belongs in.
+    function bucketOf(t){ if(t.done) return 'done'; if(!t.due) return 'nodate';
+      if(t.due<TODAY) return 'over'; if(t.due===TODAY) return 'today'; if(t.due===TOMORROW) return 'tom';
+      if(t.due<=WEEK_END) return 'week'; return 'later'; }
+    var BUCKETS=[['over','Overdue'],['today','Today'],['tom','Tomorrow'],['week','This week'],['later','Later'],['nodate','No date']];
     function taskHtml(t){
       var who = t.assigned_out ? ('→ '+esc(t.assignee_name)) : (t.mine ? '' : ('from '+esc(t.creator_name)));
-      var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
-      var due = (t.due&&!t.done) ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
+      var dm = (t.due&&!t.done) ? dueMeta(t) : null;
+      var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
       var goal = t.goal_title ? ' <span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
       var rel = (t.mine && !t.done) ? '<button type="button" class="task-release" title="Return to the pool" aria-label="Return to pool">↩</button>' : '';
-      return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
+      return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
-      +pr+'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+'</span>'
-      +due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+      +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+'</span>'
+      +priTag(t)+due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
     function poolHtml(t){
-      var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
-      var due = t.due ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
-      var goal = t.goal_title ? ' <span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
-      var by = (t.creator_name && t.creator_name!=='You') ? ' <span class="task-who">by '+esc(t.creator_name)+'</span>' : '';
-      return '<li class="task task-pool-item" data-id="'+t.id+'">'
-      +pr+'<span class="task-title">'+esc(t.title)+by+goal+'</span>'
-      +due+'<button type="button" class="pbtn pbtn-soft task-claim">Claim</button></li>'; }
+      var dm = t.due ? dueMeta(t) : null;
+      var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
+      var goal = t.goal_title ? '<span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
+      var by = (t.creator_name && t.creator_name!=='You') ? '<span class="task-who">by '+esc(t.creator_name)+'</span>' : '';
+      return '<li class="task task-pool-item task--pri-'+esc(t.priority||'normal')+'" data-id="'+t.id+'">'
+      +'<span class="task-body"><span class="task-title">'+esc(t.title)+'</span>'
+      +'<span class="task-sub">'+priTag(t)+by+goal+due+'</span></span>'
+      +'<button type="button" class="pbtn pbtn-gold task-claim">Claim</button></li>'; }
     function renderPool(){
       if(!poolEl) return;
       poolEl.innerHTML = POOL.length ? POOL.map(poolHtml).join('') : '<li class="pc-empty task-empty">The pool is empty — nice work. Add an open task or plan a goal with AI.</li>';
@@ -1191,11 +1217,44 @@ $nav['You'] = [
     function aiSay(msg,tone){ if(!aiMsgEl) return; aiMsgEl.hidden=!msg; aiMsgEl.textContent=msg||''; aiMsgEl.className='task-ai-msg'+(tone?(' is-'+tone):''); }
     function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
       var cur=sel.value; sel.innerHTML='<option value="0">Me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
-    function render(){ var rows=TASKS.filter(function(t){
-        if(FILTER==='open')return !t.done; if(FILTER==='done')return t.done;
-        if(FILTER==='overdue')return isOverdue(t); if(FILTER==='mine')return t.mine && !t.done; return true; });
-      listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here — you’re all caught up.</li>';
-      counts(); }
+    function groupHtml(label,n,extra){ return '<li class="task-group'+(extra||'')+'"><span class="task-group-label">'+esc(label)+'</span><span class="task-group-n">'+n+'</span></li>'; }
+    function render(){
+      counts(); renderFocus();
+      // Flat lenses: overdue / mine / done render as a simple filtered list.
+      if(FILTER==='overdue'||FILTER==='mine'||FILTER==='done'){
+        var rows=TASKS.filter(function(t){ if(FILTER==='done')return t.done; if(FILTER==='overdue')return isOverdue(t); return t.mine && !t.done; });
+        listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here.</li>';
+        return;
+      }
+      // Default: group open tasks by urgency; completed folds into a collapsible tail.
+      var open=TASKS.filter(function(t){return !t.done;}), done=TASKS.filter(function(t){return t.done;});
+      if(!open.length && !(FILTER==='all'&&done.length)){
+        listEl.innerHTML='<li class="pc-empty task-empty">✳ Inbox zero. Nothing on your plate — grab one from the pool or plan a goal.</li>'; return; }
+      var byB={}; open.forEach(function(t){ var b=bucketOf(t); (byB[b]=byB[b]||[]).push(t); });
+      var html='';
+      BUCKETS.forEach(function(bk){ var arr=byB[bk[0]]; if(!arr||!arr.length) return;
+        html+=groupHtml(bk[1],arr.length,(bk[0]==='over'?' is-over':(bk[0]==='today'?' is-today':'')))+arr.map(taskHtml).join(''); });
+      if(FILTER==='all'&&done.length){
+        html+='<li class="task-group task-group--done" id="doneToggle">'+
+          '<span class="task-group-label">Completed <span class="task-caret">'+(SHOW_DONE?'▾':'▸')+'</span></span>'+
+          '<span class="task-group-n">'+done.length+'</span></li>';
+        if(SHOW_DONE) html+=done.map(taskHtml).join('');
+      }
+      listEl.innerHTML=html;
+    }
+    function renderFocus(){
+      if(!focusWrap) return;
+      // Today's focus = everything due today or already overdue (the actionable set).
+      var set=TASKS.filter(function(t){ return t.due && t.due<=TODAY; });
+      var total=set.length, doneN=set.filter(function(t){return t.done;}).length, left=total-doneN;
+      if(!total){ focusWrap.hidden=true; if(focusTxt)focusTxt.textContent = TASKS.filter(function(t){return !t.done;}).length ? 'Nothing due today — you’re ahead.' : 'All clear. Add a task to get going.'; return; }
+      focusWrap.hidden=false;
+      var pct=Math.round(100*doneN/total);
+      if(ringEl) ringEl.style.setProperty('--pct', pct);
+      if(ringEl) ringEl.classList.toggle('is-complete', left===0);
+      if(ringNEl) ringNEl.textContent = left===0 ? '✓' : left;
+      if(focusTxt) focusTxt.textContent = left===0 ? ('Today’s done — '+doneN+' cleared. 🎉') : (left+' of '+total+' left today · '+pct+'% done');
+    }
     function renderOnline(users,count){ if(onlineCountEl)onlineCountEl.textContent=count||0; if(tbCount)tbCount.textContent=count||0; if(kpiOnline)kpiOnline.textContent=count||0; if(topOnline)topOnline.hidden=!(count>0);
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
@@ -1222,7 +1281,9 @@ $nav['You'] = [
         post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; });
       } });
     // toggle / delete / release
-    listEl.addEventListener('click', function(e){ var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
+    listEl.addEventListener('click', function(e){
+      if(e.target.closest('#doneToggle')){ SHOW_DONE=!SHOW_DONE; render(); return; }
+      var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
       if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }
       else if(e.target.closest('.task-release')){ var rt=TASKS.filter(function(t){return t.id===id;})[0]; post('task_release',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } }); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
@@ -1249,31 +1310,49 @@ $nav['You'] = [
      links), mentorship sessions, due tasks and reminders, next 14 days. */
   (function(){
     var box=document.getElementById('calAgenda'); if(!box) return;
+    var weekEl=document.getElementById('calWeek'), sumEl=document.getElementById('calSummary');
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-    var now=new Date();
-    var from=now.toISOString().slice(0,10);
-    var to=new Date(now.getTime()+14*86400000).toISOString().slice(0,10);
+    function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    var TODAY=ymd(0), TOMORROW=ymd(1), from=TODAY, to=ymd(14);
     var ICON={event:'📌',afg:'🎟️',session:'🎥',meeting:'🎥',task:'✓',reminder:'⏰'};
-    function dayLabel(d){ var dt=new Date(d+'T00:00:00'); var t=new Date();
-      var todayS=t.toISOString().slice(0,10), tm=new Date(t.getTime()+86400000).toISOString().slice(0,10);
-      if(d===todayS) return 'Today'; if(d===tm) return 'Tomorrow';
-      return isNaN(dt)?d:dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
-    function timeLabel(t){ if(!t) return 'All day'; var p=t.split(':'); var h=+p[0]; var ap=h<12?'am':'pm'; return ((h%12)||12)+':'+p[1]+ap; }
+    function timeLabel(t){ if(!t) return 'All day'; var p=t.split(':'); var h=+p[0]; var ap=h<12?'AM':'PM'; return ((h%12)||12)+':'+p[1]+' '+ap; }
+    function dayHead(d,n){ var dt=new Date(d+'T00:00:00');
+      var name=isNaN(dt)?d:dt.toLocaleDateString(undefined,{weekday:'long'});
+      var date=isNaN(dt)?'':dt.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      var pill=d===TODAY?'<span class="cal-pill cal-pill--today">Today</span>':(d===TOMORROW?'<span class="cal-pill">Tomorrow</span>':'');
+      return '<div class="cal-day-h"><span class="cal-day-name">'+esc(name)+'</span><span class="cal-day-date">'+esc(date)+'</span>'+pill+'<span class="cal-day-count">'+n+'</span></div>'; }
+    function itemHtml(it){
+      var ico=ICON[it.kind]||'•';
+      var isMeet=(it.kind==='meeting'||it.kind==='session');
+      var over=it.kind==='task'&&it.date<TODAY;
+      var join = it.url ? '<a class="cal-join'+(isMeet?'':' cal-join--ghost')+'" href="'+esc(it.url)+'" target="_blank" rel="noopener">'+(isMeet?'Join':'Open')+'</a>' : '';
+      var meta=[]; if(it.location)meta.push(esc(it.location)); if(it.who&&it.who!=='You')meta.push(esc(it.who)); if(!meta.length&&it.note)meta.push(esc(it.note));
+      return '<li class="cal-item cal-'+esc(it.kind)+(over?' is-over':'')+'">'
+        +'<span class="cal-time'+(it.time?'':' is-allday')+'">'+esc(timeLabel(it.time))+'</span>'
+        +'<span class="cal-ico">'+ico+'</span>'
+        +'<span class="cal-body"><span class="cal-title">'+esc(it.title)+'</span>'
+        +(meta.length?'<span class="cal-meta">'+meta.join(' · ')+'</span>':'')+'</span>'+join+'</li>';
+    }
+    function renderWeek(items){
+      if(!weekEl) return; var cnt={}; items.forEach(function(it){ cnt[it.date]=(cnt[it.date]||0)+1; });
+      var cells=''; for(var i=0;i<7;i++){ var d=ymd(i); var dt=new Date(d+'T00:00:00');
+        var L=dt.toLocaleDateString(undefined,{weekday:'narrow'}); var num=dt.getDate(); var n=cnt[d]||0;
+        cells+='<div class="cal-wd'+(i===0?' is-today':'')+(n?' has-items':'')+'"><span class="cal-wd-l">'+esc(L)+'</span>'
+          +'<span class="cal-wd-n">'+num+'</span><span class="cal-wd-dot">'+(n?'':'')+'</span></div>'; }
+      weekEl.innerHTML=cells;
+    }
     function render(items){
-      items=(items||[]).filter(function(it){ return !it.done; }).slice(0,40);
-      if(!items.length){ box.innerHTML='<p class="pc-empty">Nothing scheduled in the next 14 days. Plan an event or meeting in Suite.</p>'; return; }
+      items=(items||[]).filter(function(it){ return !it.done; });
+      var meetN=items.filter(function(it){return it.kind==='meeting'||it.kind==='session';}).length;
+      var taskN=items.filter(function(it){return it.kind==='task';}).length;
+      if(sumEl) sumEl.textContent = items.length ? (meetN+' meeting'+(meetN===1?'':'s')+' · '+taskN+' task'+(taskN===1?'':'s')+' · next 14 days') : 'Next 14 days';
+      renderWeek(items);
+      items=items.slice(0,40);
+      if(!items.length){ box.innerHTML='<p class="pc-empty">🗓️ Clear skies for the next two weeks. Schedule a meeting or add an event from the Suite.</p>'; return; }
       var groups={}, order=[];
       items.forEach(function(it){ if(!groups[it.date]){groups[it.date]=[];order.push(it.date);} groups[it.date].push(it); });
       box.innerHTML = order.map(function(d){
-        var rows=groups[d].map(function(it){
-          var ico=ICON[it.kind]||'•';
-          var join = it.url ? '<a class="cal-join" href="'+esc(it.url)+'" target="_blank" rel="noopener">'+((it.kind==='meeting'||it.kind==='session')?'Join':'Open')+'</a>' : '';
-          var meta=[timeLabel(it.time)]; if(it.location)meta.push(esc(it.location)); if(it.who&&it.who!=='You')meta.push(esc(it.who));
-          return '<li class="cal-item cal-'+esc(it.kind)+'"><span class="cal-ico">'+ico+'</span>'
-            +'<span class="cal-body"><span class="cal-title">'+esc(it.title)+'</span>'
-            +'<span class="cal-meta">'+meta.join(' · ')+'</span></span>'+join+'</li>';
-        }).join('');
-        return '<div class="cal-day"><div class="cal-day-h">'+esc(dayLabel(d))+'</div><ul class="cal-list">'+rows+'</ul></div>';
+        return '<div class="cal-day">'+dayHead(d,groups[d].length)+'<ul class="cal-list">'+groups[d].map(itemHtml).join('')+'</ul></div>';
       }).join('');
     }
     fetch('/portal/calendar.php?action=feed&from='+from+'&to='+to,{credentials:'same-origin'})
