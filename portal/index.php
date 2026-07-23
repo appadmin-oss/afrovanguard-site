@@ -228,8 +228,8 @@ $nav['You'] = [
               <p class="phead-sub"><?= $isOrg ? "Here’s what’s happening across your Afrovanguard workspace today." : 'Pick up where you left off in your learning.' ?></p>
             </div>
             <div class="phead-actions">
-<?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">＋ New event</a>
-              <a class="pbtn pbtn-ghost" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer">＋ New doc</a>
+<?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="#tasks" data-goto="tasks">＋ New task</a>
+              <a class="pbtn pbtn-ghost" href="#tasks" data-goto="tasks">✨ Plan a goal</a>
               <a class="pbtn pbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">▶ Start a Meet</a>
 <?php else: ?>              <a class="pbtn pbtn-gold" href="/academy/">Browse the Academy →</a>
 <?php endif; ?>            </div>

@@ -242,10 +242,33 @@ final class Collab
 
     /* ────────────────────── AI: goal → tasks ─────────────────────── */
 
-    /** True when the AI backend (Claude via AvBot) is wired up. */
+    /** True when ANY AI backend is wired up — Claude (AvBot) or Gemini. */
     public static function aiAvailable(): bool
     {
-        return class_exists('AvBot') && AvBot::configured();
+        return (class_exists('AvBot') && AvBot::configured())
+            || (class_exists('Gemini') && Gemini::configured());
+    }
+
+    /**
+     * One text completion through whichever AI key is configured: Claude first
+     * (best instruction-following), else Gemini. Same ['ok','text','error']
+     * shape from either, plus 'via' for diagnostics. Callers don't care which.
+     */
+    private static function aiComplete(string $system, string $prompt, int $maxTokens = 900): array
+    {
+        if (class_exists('AvBot') && AvBot::configured()) {
+            $r = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => $maxTokens]);
+            $r['via'] = 'claude';
+            if (!empty($r['ok'])) return $r;
+            // Fall through to Gemini if Claude errored AND Gemini is available.
+            if (!(class_exists('Gemini') && Gemini::configured())) return $r;
+        }
+        if (class_exists('Gemini') && Gemini::configured()) {
+            $r = Gemini::generate($prompt, ['system' => $system, 'max_tokens' => $maxTokens, 'temperature' => 0.3]);
+            $r['via'] = 'gemini';
+            return $r;
+        }
+        return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).', 'via' => ''];
     }
 
     /**
@@ -259,7 +282,7 @@ final class Collab
     public static function aiTasksFromGoal(int $uid, int $goalId, int $max = 6): array
     {
         if ($uid <= 0) return ['ok' => false, 'created' => [], 'error' => 'Sign in first.'];
-        if (!self::aiAvailable()) return ['ok' => false, 'created' => [], 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).'];
+        if (!self::aiAvailable()) return ['ok' => false, 'created' => [], 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).'];
         if (!class_exists('Goals')) return ['ok' => false, 'created' => [], 'error' => 'Goals are unavailable.'];
         $goal = Goals::get($goalId);
         if (!$goal || $goal['title'] === '') return ['ok' => false, 'created' => [], 'error' => 'Goal not found.'];
@@ -284,8 +307,9 @@ SYS;
             . ($goal['target'] !== '' ? "\nTARGET / SUCCESS METRIC: " . $goal['target'] : '')
             . "\n\nBreak this goal into tasks now.";
 
-        $res = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => 900]);
+        $res = self::aiComplete($system, $prompt, 900);
         if (empty($res['ok'])) return ['ok' => false, 'created' => [], 'error' => (string) ($res['error'] ?? 'AI request failed.')];
+        $via = (string) ($res['via'] ?? '');
 
         $items = self::parseAiTasks((string) $res['text']);
         if (!$items) return ['ok' => false, 'created' => [], 'error' => 'The AI did not return usable tasks. Try again.'];
@@ -301,7 +325,7 @@ SYS;
             if ($id > 0) { $t = self::oneTask($uid, $id); if ($t) $created[] = $t; }
         }
         if (!$created) return ['ok' => false, 'created' => [], 'error' => 'Could not create tasks.'];
-        return ['ok' => true, 'created' => $created, 'error' => null, 'suggested' => count($items)];
+        return ['ok' => true, 'created' => $created, 'error' => null, 'suggested' => count($items), 'via' => $via];
     }
 
     /** Tolerantly parse the AI's JSON task array (handles stray prose / code fences). */
