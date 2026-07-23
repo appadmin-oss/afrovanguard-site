@@ -39,16 +39,16 @@ function av_config_present(string $const): bool {
     return defined($const) && (string) constant($const) !== '';
 }
 
-/* ─── Email (SMTP) ────────────────────────────────────────────
+/* ─── Email (SMTP + fallbacks) ─────────────────────────────────
  * Powers donation receipts, contact replies AND Academy emails
  * (welcome / enrolment / membership / certificate-ready) via the
- * shared lib/Mailer.php. Requires PHPMailer on the server — either
- * vendor/ (composer) or PHPMailer-master/ — same as the donation
- * system; without it, mail falls back to PHP mail() then logging. */
+ * shared lib/Mailer.php. Delivery order (first that works wins):
+ *   PHPMailer/SMTP  →  Resend (HTTPS API)  →  built-in SMTP  →  mail()
+ * PHPMailer is bundled under vendor/ (no Composer install needed). */
 define('SMTP_HOST',     'smtp.gmail.com');
 define('SMTP_PORT',      587);
 define('SMTP_USERNAME', 'donations@afrovanguard.org.ng');
-define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));
+define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));   // 16-char Gmail App Password
 define('FROM_EMAIL',    'donations@afrovanguard.org.ng');
 define('FROM_NAME',     'Afrovanguard');
 define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
@@ -57,6 +57,22 @@ define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
 //   SMTP_VERIFY true   = verify TLS cert (set false only for self-signed relays)
 // define('SMTP_SECURE', 'tls');
 // define('SMTP_VERIFY', true);
+// Reply-To override (defaults to FROM_EMAIL so replies reach a human):
+// define('REPLY_TO', 'cacentre@afrovanguard.org.ng');
+//
+// TLS insecure fallback: some shared hosts ship a stale CA bundle, so an
+// otherwise-correct STARTTLS to smtp.gmail.com fails cert verification — the
+// #1 cause of "the exact same SMTP works elsewhere but not here". When true,
+// a TLS/connect failure is retried once WITHOUT peer verification. Off by
+// default (a downgrade could expose SMTP AUTH credentials); enable only if the
+// Studio email test reports a certificate/TLS error you can't fix on the host.
+// define('SMTP_ALLOW_INSECURE_FALLBACK', true);
+//
+// Resend HTTPS API (https://resend.com — free tier, one key). The most
+// reliable path on locked-down shared hosts that block outbound SMTP ports
+// (587/465): outbound HTTPS almost always still works. Verify the sending
+// domain in Resend first. Set via .htaccess: SetEnv AV_RESEND_KEY re_...
+// define('RESEND_KEY', _av_require_env('AV_RESEND_KEY'));
 
 /* ─── Paystack ──────────────────────────────────────────────────
  * Primary payment provider. The same keys power donations AND the
