@@ -84,6 +84,27 @@ final class Goals
         return $st->rowCount() > 0;
     }
 
+    /** A single goal by id (or null). */
+    public static function get(int $goalId): ?array
+    {
+        self::ensure();
+        if ($goalId <= 0) return null;
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM team_goals WHERE id = ?');
+            $st->execute([$goalId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { return null; }
+        if (!$r) return null;
+        return [
+            'id'       => (int) $r['id'],
+            'title'    => (string) $r['title'],
+            'target'   => (string) $r['target'],
+            'progress' => (int) $r['progress'],
+            'closed'   => (int) $r['closed'] === 1,
+            'author_id'=> (int) $r['author_id'],
+        ];
+    }
+
     /** Recent goals, open first. */
     public static function listGoals(int $viewerId, int $limit = 40): array
     {

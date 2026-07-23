@@ -8,6 +8,7 @@
  *   • AFG published events         (AvEvents — the org's public events calendar)
  *   • mentorship sessions          (Mentorship::upcomingSessions)
  *   • tasks with a due date        (Collab::myTasks)          — org members
+ *   • meetings + their Meet links   (Meetings::listFor)
  *   • personal reminders with a due (Reminders::listFor)
  *
  * so one grid shows the whole picture. All dates are stored/compared in UTC as
@@ -198,7 +199,30 @@ final class TeamCalendar
             }
         } catch (Throwable $e) { error_log('[calendar] tasks: ' . $e->getMessage()); }
 
-        // 5) Personal reminders with a due.
+        // 5) Meetings the user organises or is invited to — these carry the
+        //    Google Meet join link, so the calendar becomes the one place to
+        //    find "what's on and how to join".
+        try {
+            if (class_exists('Meetings')) {
+                foreach (Meetings::listFor($uid, 60) as $m) {
+                    if (($m['status'] ?? '') === 'cancelled') continue;
+                    $at = (string) ($m['scheduled_at'] ?? '');   // UTC 'Y-m-d H:i:s'
+                    $d  = substr($at, 0, 10);
+                    if (!$inRange($d)) continue;
+                    $t = substr($at, 11, 5);
+                    $items[] = [
+                        'kind' => 'meeting', 'id' => (int) $m['id'], 'title' => (string) ($m['title'] ?: 'Meeting'),
+                        'date' => $d, 'time' => $t === '00:00' ? '' : $t, 'end' => '', 'all_day' => false,
+                        'location' => (string) ($m['meet_url'] ?? '') !== '' ? 'Google Meet' : '',
+                        'note' => trim((string) ($m['agenda'] ?? '')) !== '' ? mb_substr((string) $m['agenda'], 0, 140) : 'Meeting',
+                        'url' => (string) ($m['meet_url'] ?? ''), 'who' => '', 'mine' => (int) ($m['creator_id'] ?? 0) === $uid,
+                        'can_delete' => false, 'meet' => (string) ($m['meet_url'] ?? ''),
+                    ];
+                }
+            }
+        } catch (Throwable $e) { error_log('[calendar] meetings: ' . $e->getMessage()); }
+
+        // 6) Personal reminders with a due.
         try {
             if (class_exists('Reminders')) {
                 foreach (Reminders::listFor($uid, 100) as $r) {

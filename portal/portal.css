@@ -231,6 +231,44 @@ body.portal-app .read-progress { display:none; }
 .task-del { width:26px; height:26px; border:none; background:transparent; color:var(--muted-2); font-size:13px; cursor:pointer; border-radius:6px; flex:none; }
 .task-del:hover { color:var(--red); background:var(--surface-2); }
 .task-empty { text-align:center; padding:22px; }
+/* goal link chip on a task */
+.task-goal { display:inline-block; margin-left:8px; font-size:11px; font-weight:700; color:var(--gold-deeper);
+  background:var(--gold-soft); border:1px solid var(--gold-soft-bd); border-radius:999px; padding:1px 9px; vertical-align:middle; }
+/* return-to-pool button on my open tasks */
+.task-release { width:26px; height:26px; border:none; background:transparent; color:var(--muted-2); font-size:13px; cursor:pointer; border-radius:6px; flex:none; }
+.task-release:hover { color:var(--gold-deep); background:var(--gold-soft); }
+/* checkbox field in the add form */
+.task-af--check { flex-direction:row; align-items:center; gap:7px; }
+.task-af--check input { width:16px; height:16px; accent-color:var(--gold); }
+.task-af--grow { flex:1 1 auto; min-width:180px; }
+
+/* ---------- task pool ---------- */
+.task-pool-item { border-style:dashed; }
+.task-pool-item .task-title { font-weight:600; }
+.task-claim { flex:none; padding:6px 16px !important; font-size:12.5px; }
+.task-claim:disabled { opacity:.6; cursor:default; }
+
+/* ---------- AI goal planner ---------- */
+.task-ai { border:1px solid var(--gold-soft-bd); background:linear-gradient(180deg,var(--gold-soft),var(--surface)); }
+.task-ai-row { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:12px; }
+.task-ai-row .task-af select { min-width:120px; }
+.task-ai-msg { margin:12px 0 0; font-size:13px; font-weight:600; padding:9px 12px; border-radius:9px; }
+.task-ai-msg.is-ok   { color:var(--gold-deeper); background:var(--gold-soft); border:1px solid var(--gold-soft-bd); }
+.task-ai-msg.is-warn { color:var(--red); background:var(--surface-2); border:1px solid var(--border-2); }
+
+/* ---------- Today calendar agenda ---------- */
+.cal-head-actions { display:flex; align-items:center; gap:12px; }
+.cal-agenda { display:flex; flex-direction:column; gap:16px; }
+.cal-day-h { font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.cal-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.cal-item { display:flex; align-items:center; gap:11px; padding:9px 12px; border-radius:10px; border:1px solid var(--border-2); background:var(--surface); }
+.cal-item.cal-meeting, .cal-item.cal-session { border-left:3px solid var(--gold); }
+.cal-ico { flex:none; width:22px; text-align:center; font-size:14px; }
+.cal-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.cal-title { font-size:14px; font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cal-meta { font-size:11.5px; color:var(--muted-2); }
+.cal-join { flex:none; font-size:12px; font-weight:700; color:var(--on-gold); background:var(--gold); border-radius:8px; padding:5px 13px; text-decoration:none; }
+.cal-join:hover { background:var(--gold-deep); }
 
 /* ---------- learning ---------- */
 .learn-list { display:flex; flex-direction:column; gap:8px; }

@@ -297,6 +297,21 @@ $nav['You'] = [
 
           <div class="pcols">
             <div class="pcol pcol--main">
+<?php if ($isOrg): ?>
+              <!-- Your calendar — today + what's coming, with meeting links -->
+              <section class="pcard" id="todayCal" data-csrf="<?= e($collabCsrf) ?>">
+                <div class="pcard-head">
+                  <h2>Your calendar</h2>
+                  <div class="cal-head-actions">
+                    <span class="pchip pchip--indigo" id="calRangeLabel">Next 14 days</span>
+                    <a class="pcard-link" href="#tools" data-goto="tools">Open calendar →</a>
+                  </div>
+                </div>
+                <div class="pcard-body">
+                  <div class="cal-agenda" id="calAgenda"><p class="pc-empty">Loading your calendar…</p></div>
+                </div>
+              </section>
+<?php endif; ?>
               <!-- Your journey -->
               <section class="pcard">
                 <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
@@ -323,9 +338,9 @@ $nav['You'] = [
                 <div class="pcard-body"><div class="online-list" id="onlineList"><p class="pc-empty">Just you so far.</p></div></div>
               </section>
 
-              <!-- Recent activity -->
+              <!-- Team activity — task pool, claims and completions -->
               <section class="pcard">
-                <div class="pcard-head"><h2>Recent activity</h2></div>
+                <div class="pcard-head"><h2>Team activity</h2><a class="pcard-link" href="#tasks" data-goto="tasks">Tasks →</a></div>
                 <div class="pcard-body"><ul class="activity-list" id="activityList"><li class="pc-empty">Loading…</li></ul></div>
               </section>
 <?php endif; ?>
@@ -661,8 +676,46 @@ $nav['You'] = [
         <!-- ============================================================ -->
         <section class="pview" id="view-tasks" data-view="tasks" hidden>
           <div class="view-head">
-            <div><h1>Tasks</h1><p class="view-sub">Plan your work, set due dates and priorities, and assign to teammates.</p></div>
+            <div><h1>Tasks</h1><p class="view-sub">Plan the work, share it with the team, and let AI turn goals into a plan. Anyone can claim an open task.</p></div>
           </div>
+
+          <!-- AI: turn a goal into a plan of tasks (dropped into the pool) -->
+          <section class="pcard task-ai" id="taskAi" data-csrf="<?= e($collabCsrf) ?>" hidden>
+            <div class="pcard-head">
+              <h2>✨ Plan a goal with AI</h2>
+              <span class="pchip pchip--indigo">Beta</span>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Pick a team goal — AI breaks it into concrete tasks with deadlines and posts them to the pool for anyone to pick up.</p>
+              <div class="task-ai-row">
+                <label class="task-af task-af--grow"><span>Goal</span>
+                  <select id="aiGoal" aria-label="Goal to plan"><option value="">Loading goals…</option></select>
+                </label>
+                <label class="task-af"><span>Up to</span>
+                  <select id="aiMax" aria-label="How many tasks">
+                    <option value="4">4 tasks</option>
+                    <option value="6" selected>6 tasks</option>
+                    <option value="8">8 tasks</option>
+                  </select>
+                </label>
+                <button type="button" class="pbtn pbtn-gold" id="aiGenerate">Generate tasks</button>
+              </div>
+              <p class="task-ai-msg" id="aiMsg" hidden></p>
+            </div>
+          </section>
+
+          <!-- The shared task pool — open, unclaimed work anyone can take up -->
+          <section class="pcard" id="taskPool" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head">
+              <h2>Task pool</h2>
+              <span class="pchip pchip--gold" id="poolCount">0 open</span>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Unclaimed work the team needs done. Claim one to make it yours — it moves into your list below.</p>
+              <ul class="task-list task-pool-list" id="poolList"><li class="pc-empty task-empty">Loading the pool…</li></ul>
+            </div>
+          </section>
+
           <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-body">
               <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
@@ -679,6 +732,7 @@ $nav['You'] = [
                   <label class="task-af"><span>Assign</span>
                     <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
                   </label>
+                  <label class="task-af task-af--check"><input type="checkbox" id="taskPool"> <span>Open to anyone (pool)</span></label>
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
@@ -1091,7 +1145,11 @@ $nav['You'] = [
         kpiTasks=document.getElementById('kpiTasks'), kpiOnline=document.getElementById('kpiOnline'),
         fcAll=document.getElementById('fcAll'), fcOpen=document.getElementById('fcOpen'), fcDone=document.getElementById('fcDone'),
         fcOver=document.getElementById('fcOver'), fcMine=document.getElementById('fcMine');
-    var TASKS=[], FILTER='all';
+    var poolEl=document.getElementById('poolList'), poolCountEl=document.getElementById('poolCount'),
+        aiCard=document.getElementById('taskAi'), aiGoalSel=document.getElementById('aiGoal'),
+        aiMaxSel=document.getElementById('aiMax'), aiBtn=document.getElementById('aiGenerate'), aiMsgEl=document.getElementById('aiMsg'),
+        poolChk=document.getElementById('taskPool');
+    var TASKS=[], POOL=[], GOALS=[], FILTER='all';
     var TODAY=new Date().toISOString().slice(0,10);
     function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
     function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open,
@@ -1105,10 +1163,32 @@ $nav['You'] = [
       var who = t.assigned_out ? ('→ '+esc(t.assignee_name)) : (t.mine ? '' : ('from '+esc(t.creator_name)));
       var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
       var due = (t.due&&!t.done) ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
+      var goal = t.goal_title ? ' <span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
+      var rel = (t.mine && !t.done) ? '<button type="button" class="task-release" title="Return to the pool" aria-label="Return to pool">↩</button>' : '';
       return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
-      +pr+'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+'</span>'
-      +due+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+      +pr+'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+'</span>'
+      +due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+    function poolHtml(t){
+      var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
+      var due = t.due ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
+      var goal = t.goal_title ? ' <span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
+      var by = (t.creator_name && t.creator_name!=='You') ? ' <span class="task-who">by '+esc(t.creator_name)+'</span>' : '';
+      return '<li class="task task-pool-item" data-id="'+t.id+'">'
+      +pr+'<span class="task-title">'+esc(t.title)+by+goal+'</span>'
+      +due+'<button type="button" class="pbtn pbtn-soft task-claim">Claim</button></li>'; }
+    function renderPool(){
+      if(!poolEl) return;
+      poolEl.innerHTML = POOL.length ? POOL.map(poolHtml).join('') : '<li class="pc-empty task-empty">The pool is empty — nice work. Add an open task or plan a goal with AI.</li>';
+      if(poolCountEl) poolCountEl.textContent = POOL.length + ' open';
+    }
+    function fillGoals(){
+      if(!aiGoalSel) return;
+      if(!GOALS.length){ aiGoalSel.innerHTML='<option value="">No open goals — add one in Suite → Goals</option>'; if(aiBtn)aiBtn.disabled=true; return; }
+      aiGoalSel.innerHTML = GOALS.map(function(g){ return '<option value="'+g.id+'">'+esc(g.title)+'</option>'; }).join('');
+      if(aiBtn)aiBtn.disabled=false;
+    }
+    function aiSay(msg,tone){ if(!aiMsgEl) return; aiMsgEl.hidden=!msg; aiMsgEl.textContent=msg||''; aiMsgEl.className='task-ai-msg'+(tone?(' is-'+tone):''); }
     function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
       var cur=sel.value; sel.innerHTML='<option value="0">Me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
     function render(){ var rows=TASKS.filter(function(t){
@@ -1120,7 +1200,11 @@ $nav['You'] = [
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
-    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return; TASKS=d.tasks||[]; render(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); }).catch(function(){}); }
+    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return;
+        TASKS=d.tasks||[]; POOL=d.pool||[]; GOALS=d.goals||[];
+        render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals();
+        if(aiCard) aiCard.hidden = !d.ai;   // only show the AI planner when Claude is wired up
+      }).catch(function(){}); }
 
     // filter chips
     document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(b){ b.addEventListener('click', function(){ document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(x){x.classList.remove('is-on');}); b.classList.add('is-on'); FILTER=b.getAttribute('data-filter'); render(); }); });
@@ -1130,16 +1214,71 @@ $nav['You'] = [
       var asel=document.getElementById('taskAssignee'); var assignee=asel?(+asel.value||0):0;
       var dsel=document.getElementById('taskDue'); var due=dsel?dsel.value:'';
       var psel=document.getElementById('taskPriority'); var priority=psel?psel.value:'normal';
+      var toPool = poolChk && poolChk.checked;
       input.value=''; input.disabled=true;
-      post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
-    // toggle / delete
+      if(toPool){
+        post('task_add_pool',{title:title, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(dsel)dsel.value=''; if(psel)psel.value='normal'; poolChk.checked=false; if(d&&d.ok&&d.task){ POOL.unshift(d.task); renderPool(); } }).catch(function(){ input.disabled=false; });
+      } else {
+        post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; });
+      } });
+    // toggle / delete / release
     listEl.addEventListener('click', function(e){ var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
       if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }
+      else if(e.target.closest('.task-release')){ var rt=TASKS.filter(function(t){return t.id===id;})[0]; post('task_release',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } }); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
+
+    // claim from the pool
+    if(poolEl) poolEl.addEventListener('click', function(e){ var btn=e.target.closest('.task-claim'); if(!btn) return; var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
+      btn.disabled=true; btn.textContent='Claiming…';
+      post('task_claim',{id:id}).then(function(d){ if(d&&d.ok&&d.task){ POOL=POOL.filter(function(t){return t.id!==id;}); renderPool(); TASKS.unshift(d.task); render(); }
+        else { btn.disabled=false; btn.textContent='Claim'; if(d&&d.error){ btn.textContent='Taken'; POOL=POOL.filter(function(t){return t.id!==id;}); setTimeout(renderPool,900); } } }).catch(function(){ btn.disabled=false; btn.textContent='Claim'; }); });
+
+    // AI: plan a goal into pooled tasks
+    if(aiBtn) aiBtn.addEventListener('click', function(){ var gid=aiGoalSel?(+aiGoalSel.value||0):0; if(!gid){ aiSay('Pick a goal first.','warn'); return; }
+      var max=aiMaxSel?(+aiMaxSel.value||6):6; aiBtn.disabled=true; var old=aiBtn.textContent; aiBtn.textContent='Thinking…'; aiSay('Planning your goal into tasks…','');
+      post('ai_from_goal',{goal_id:gid, max:max}).then(function(d){ aiBtn.disabled=false; aiBtn.textContent=old;
+        if(d&&d.ok&&d.created&&d.created.length){ d.created.forEach(function(t){ POOL.unshift(t); }); renderPool(); aiSay('Added '+d.created.length+' task'+(d.created.length===1?'':'s')+' to the pool — claim what you can take on.','ok'); }
+        else { aiSay((d&&d.error)||'Could not generate tasks. Try again.','warn'); } }).catch(function(){ aiBtn.disabled=false; aiBtn.textContent=old; aiSay('Network error — try again.','warn'); }); });
 
     load();
     setInterval(function(){ post('heartbeat',{}).then(function(d){ if(d&&typeof d.count==='number'){ if(onlineCountEl)onlineCountEl.textContent=d.count; if(tbCount)tbCount.textContent=d.count; if(kpiOnline)kpiOnline.textContent=d.count; if(topOnline)topOnline.hidden=!(d.count>0); } }).catch(function(){}); }, 45000);
     setInterval(load, 90000);
+  })();
+
+  /* Today tab — the general calendar agenda: events, meetings (with Meet join
+     links), mentorship sessions, due tasks and reminders, next 14 days. */
+  (function(){
+    var box=document.getElementById('calAgenda'); if(!box) return;
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    var now=new Date();
+    var from=now.toISOString().slice(0,10);
+    var to=new Date(now.getTime()+14*86400000).toISOString().slice(0,10);
+    var ICON={event:'📌',afg:'🎟️',session:'🎥',meeting:'🎥',task:'✓',reminder:'⏰'};
+    function dayLabel(d){ var dt=new Date(d+'T00:00:00'); var t=new Date();
+      var todayS=t.toISOString().slice(0,10), tm=new Date(t.getTime()+86400000).toISOString().slice(0,10);
+      if(d===todayS) return 'Today'; if(d===tm) return 'Tomorrow';
+      return isNaN(dt)?d:dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+    function timeLabel(t){ if(!t) return 'All day'; var p=t.split(':'); var h=+p[0]; var ap=h<12?'am':'pm'; return ((h%12)||12)+':'+p[1]+ap; }
+    function render(items){
+      items=(items||[]).filter(function(it){ return !it.done; }).slice(0,40);
+      if(!items.length){ box.innerHTML='<p class="pc-empty">Nothing scheduled in the next 14 days. Plan an event or meeting in Suite.</p>'; return; }
+      var groups={}, order=[];
+      items.forEach(function(it){ if(!groups[it.date]){groups[it.date]=[];order.push(it.date);} groups[it.date].push(it); });
+      box.innerHTML = order.map(function(d){
+        var rows=groups[d].map(function(it){
+          var ico=ICON[it.kind]||'•';
+          var join = it.url ? '<a class="cal-join" href="'+esc(it.url)+'" target="_blank" rel="noopener">'+((it.kind==='meeting'||it.kind==='session')?'Join':'Open')+'</a>' : '';
+          var meta=[timeLabel(it.time)]; if(it.location)meta.push(esc(it.location)); if(it.who&&it.who!=='You')meta.push(esc(it.who));
+          return '<li class="cal-item cal-'+esc(it.kind)+'"><span class="cal-ico">'+ico+'</span>'
+            +'<span class="cal-body"><span class="cal-title">'+esc(it.title)+'</span>'
+            +'<span class="cal-meta">'+meta.join(' · ')+'</span></span>'+join+'</li>';
+        }).join('');
+        return '<div class="cal-day"><div class="cal-day-h">'+esc(dayLabel(d))+'</div><ul class="cal-list">'+rows+'</ul></div>';
+      }).join('');
+    }
+    fetch('/portal/calendar.php?action=feed&from='+from+'&to='+to,{credentials:'same-origin'})
+      .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) render(d.items); else box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; })
+      .catch(function(){ box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; });
   })();
   </script>
 
