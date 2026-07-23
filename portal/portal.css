@@ -389,7 +389,36 @@ body.portal-app .read-progress { display:none; }
 .tc-ment.is-on, .tc-ment:hover { background:var(--gold-soft); }
 .tc-ment-ava { width:26px; height:26px; border-radius:7px; background:var(--indigo-soft); color:var(--indigo); font-size:11px; font-weight:800; display:grid; place-items:center; }
 .tc-ment-h { color:var(--muted-2); font-weight:600; }
-@media (max-width:720px){ .tc { grid-template-columns:1fr; height:70vh; } .tc-rail { flex-direction:row; overflow-x:auto; border-right:none; border-bottom:1px solid var(--border-2); } .tc-rail-h--online, .tc-online { display:none; } }
+/* message hover actions (reply / assign) */
+.tc-msg { position:relative; }
+.tc-actions { position:absolute; top:-10px; right:8px; display:flex; gap:2px; background:var(--surface); border:1px solid var(--border-2); border-radius:8px; padding:2px; box-shadow:var(--shadow-sm); opacity:0; transition:opacity .12s; z-index:5; }
+.tc-msg:hover .tc-actions { opacity:1; }
+.tc-act { border:none; background:transparent; font-size:14px; line-height:1; cursor:pointer; border-radius:6px; padding:4px 6px; }
+.tc-act:hover { background:var(--surface-2); }
+/* thread summary chip under a message */
+.tc-thread-sum { margin-top:5px; display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; color:var(--indigo); background:var(--indigo-soft); border:1px solid var(--indigo-bd); border-radius:999px; padding:3px 11px; cursor:pointer; }
+.tc-thread-sum:hover { filter:brightness(0.97); }
+.tc-thread-ago { color:var(--muted); font-weight:500; }
+/* thread drawer (slides over the right of the conversation) */
+.tc-thread { position:absolute; top:0; right:0; bottom:0; width:min(400px,86%); background:var(--surface); border-left:1px solid var(--border-2); box-shadow:-8px 0 24px rgba(16,24,40,0.08); display:flex; flex-direction:column; z-index:12; }
+.tc-thread[hidden] { display:none; }
+.tc-thread-h { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border-2); font-size:14px; font-weight:800; color:var(--ink); }
+.tc-thread-body { flex:1; overflow-y:auto; padding:14px 16px; }
+.tc-thread-parent { padding-bottom:10px; margin-bottom:6px; border-bottom:1px solid var(--border-2); }
+.tc-thread-count { font-size:11px; font-weight:700; color:var(--muted-2); text-transform:uppercase; letter-spacing:.05em; margin:8px 0; }
+.tc-thread-compose { border-top:1px solid var(--border-2); }
+/* assign-as-task popover */
+.tc-assign { position:absolute; top:100%; right:8px; z-index:20; width:290px; background:var(--surface); border:1px solid var(--border-2); border-radius:12px; box-shadow:var(--shadow-md); padding:14px; display:flex; flex-direction:column; gap:9px; }
+.tc-assign-h { font-size:13px; font-weight:800; color:var(--ink); }
+.tc-assign-title { border:1px solid var(--border-2); border-radius:8px; padding:8px 10px; font:inherit; font-size:13.5px; color:var(--ink); background:var(--surface-3); }
+.tc-assign-row { display:flex; gap:8px; }
+.tc-assign-row label { flex:1; display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:700; color:var(--muted); }
+.tc-assign-row select, .tc-assign-row input { border:1px solid var(--border-2); border-radius:8px; padding:7px 8px; font:inherit; font-size:13px; color:var(--ink); background:var(--surface-3); }
+.tc-assign-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:2px; }
+.tc-assign-actions .pbtn { padding:6px 14px !important; font-size:12.5px; }
+.tc-assign-msg { margin:0; font-size:12px; font-weight:600; }
+.tc-assign-msg.is-ok { color:var(--green); } .tc-assign-msg.is-warn { color:var(--red); }
+@media (max-width:720px){ .tc { grid-template-columns:1fr; height:70vh; } .tc-rail { flex-direction:row; overflow-x:auto; border-right:none; border-bottom:1px solid var(--border-2); } .tc-rail-h--online, .tc-online { display:none; } .tc-thread { width:100%; } }
 
 /* ---------- modal (schedule a meeting) ---------- */
 .pm-scrim { position:fixed; inset:0; z-index:200; background:rgba(16,24,40,0.55); display:grid; place-items:center; padding:20px; }

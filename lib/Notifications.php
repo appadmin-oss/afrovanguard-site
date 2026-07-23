@@ -160,19 +160,44 @@ final class Notifications
             }
         } catch (Throwable $e) { error_log('[notif] sessions: ' . $e->getMessage()); }
 
+        // 3) Task deadlines. Remind the assignee once per day about tasks that are
+        //    due today (their tz) or overdue and still open — the webcron tick.
+        try {
+            if (Database::columnExists('collab_tasks', 'due')) {
+                $st = $db->query("SELECT id, assignee_id, title, due FROM collab_tasks WHERE done = 0 AND assignee_id > 0 AND due <> ''");
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                    $uid = (int) $r['assignee_id'];
+                    $tz  = function_exists('av_user_tz') ? av_user_tz($uid) : (defined('AV_TZ') ? AV_TZ : 'UTC');
+                    $today = av_now_tz('Y-m-d', $tz);
+                    if ((string) $r['due'] > $today) continue;                 // not due yet in their tz
+                    $overdue = (string) $r['due'] < $today;
+                    $title = ($overdue ? 'Overdue task: ' : 'Task due today: ') . (string) $r['title'];
+                    // Dedupe per task per day so a 5-minute cron doesn't spam.
+                    $nid = self::push($uid, 'task', $title, $overdue ? 'This task is past its due date.' : 'This task is due today.',
+                        '/portal/#tasks', 'taskdue:' . (int) $r['id'] . ':' . $today);
+                    if ($nid) { $made['tasks'] = ($made['tasks'] ?? 0) + 1; self::email($uid, $title, $overdue ? 'This task is past its due date — a nudge to close it out.' : 'This task is due today.', '/portal/#tasks'); }
+                }
+            }
+        } catch (Throwable $e) { error_log('[notif] task deadlines: ' . $e->getMessage()); }
+
         return $made;
     }
 
-    /** Best-effort email; silently no-ops when no Mailer is configured. */
-    private static function email(int $uid, string $subject, string $line): void
+    /**
+     * Best-effort branded email; silently no-ops when no Mailer is configured.
+     * Public so features (chat @mentions, task assignment) can email a member at
+     * the moment of the action, not just from the cron.
+     */
+    public static function email(int $uid, string $subject, string $line, string $path = '/portal/'): void
     {
         try {
-            if (!class_exists('Mailer') || !Mailer::configured()) return;
+            if ($uid <= 0 || !class_exists('Mailer') || !Mailer::configured()) return;
             $st = Database::pdo()->prepare('SELECT email, name FROM lms_users WHERE id = ?');
             $st->execute([$uid]);
             $u = $st->fetch(PDO::FETCH_ASSOC);
             if (!$u || empty($u['email'])) return;
-            $html = Mailer::shell($subject, [htmlspecialchars($line)], ['text' => 'Open the portal', 'url' => (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '') . '/portal/']);
+            $url = (defined('SITE_URL') ? rtrim(SITE_URL, '/') : '') . $path;
+            $html = Mailer::shell($subject, [htmlspecialchars($line)], ['text' => 'Open the portal', 'url' => $url]);
             Mailer::send((string) $u['email'], $subject, $html);
         } catch (Throwable $e) { error_log('[notif] email: ' . $e->getMessage()); }
     }

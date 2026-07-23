@@ -68,6 +68,9 @@ final class Community
         // Chat channels are a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
+        // Threads: a reply points at its parent message (0 = top-level).
+        try { if (!Database::columnExists('community_chat', 'parent_id')) $db->exec("ALTER TABLE community_chat ADD COLUMN parent_id INTEGER NOT NULL DEFAULT 0"); }
+        catch (Throwable $e) { /* already there */ }
         // Emoji reactions on chat messages (Slack-style). One row per (message,user,emoji).
         try {
             $rddl = "CREATE TABLE IF NOT EXISTS community_chat_reactions (
@@ -490,7 +493,7 @@ final class Community
      * raw body, and notifies each mentioned member best-effort. Returns the
      * shaped message (with resolved mentions) or null on failure — never throws.
      */
-    public static function chatSend(int $authorId, string $body, string $channel = 'general'): ?array
+    public static function chatSend(int $authorId, string $body, string $channel = 'general', int $parentId = 0): ?array
     {
         self::ensure();
         $body = trim($body);
@@ -498,10 +501,21 @@ final class Community
         if (!self::isOrgMember($authorId)) return null; // server-side gate (defence-in-depth)
         $body = mb_substr($body, 0, 2000);
         $channel = self::normChannel($channel);
+        // A reply must point at a real top-level message; it inherits its channel.
+        $parentId = max(0, $parentId);
+        if ($parentId > 0) {
+            try {
+                $p = Database::pdo()->prepare('SELECT channel, parent_id FROM community_chat WHERE id = ?');
+                $p->execute([$parentId]);
+                $pr = $p->fetch(PDO::FETCH_ASSOC);
+                if (!$pr || (int) $pr['parent_id'] !== 0) { $parentId = 0; }   // ignore replies-to-replies / missing
+                else { $channel = self::normChannel((string) $pr['channel']); }
+            } catch (Throwable $e) { $parentId = 0; }
+        }
         try {
             $db = Database::pdo();
-            $db->prepare('INSERT INTO community_chat (author_id, body, channel, created_at) VALUES (?,?,?,?)')
-               ->execute([$authorId, $body, $channel, gmdate('Y-m-d H:i:s')]);
+            $db->prepare('INSERT INTO community_chat (author_id, body, channel, parent_id, created_at) VALUES (?,?,?,?,?)')
+               ->execute([$authorId, $body, $channel, $parentId, gmdate('Y-m-d H:i:s')]);
             $id = (int) $db->lastInsertId();
         } catch (Throwable $e) {
             error_log('[community] chatSend: ' . $e->getMessage());
@@ -532,12 +546,12 @@ final class Community
         try {
             $db = Database::pdo();
             if ($sinceId > 0) {
-                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.parent_id = 0 AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
                 $st->execute([$channel, $sinceId]);
                 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
             } else {
-                // Most recent $limit, returned ascending (oldest→newest) so the UI appends.
-                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? ORDER BY c.id DESC LIMIT ' . $limit);
+                // Most recent $limit top-level messages, ascending (oldest→newest) so the UI appends.
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.parent_id = 0 ORDER BY c.id DESC LIMIT ' . $limit);
                 $st->execute([$channel]);
                 $rows = array_reverse($st->fetchAll(PDO::FETCH_ASSOC) ?: []);
             }
@@ -545,11 +559,47 @@ final class Community
             error_log('[community] chatList: ' . $e->getMessage());
             return [];
         }
+        $msgs = self::attachReactions(array_map(fn($r) => self::shapeChat($r, $viewerId), $rows), $viewerId);
+        return self::attachThreadMeta($msgs);
+    }
+
+    /** A thread: replies to $parentId (ascending). $sinceId for cheap live polling. */
+    public static function chatThread(int $viewerId, int $parentId, int $sinceId = 0, int $limit = 100): array
+    {
+        self::ensure();
+        if (!self::isOrgMember($viewerId) || $parentId <= 0) return [];
+        $limit = max(1, min(200, $limit));
+        try {
+            $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.parent_id = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+            $st->execute([$parentId, max(0, $sinceId)]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatThread: ' . $e->getMessage()); return []; }
         return self::attachReactions(array_map(fn($r) => self::shapeChat($r, $viewerId), $rows), $viewerId);
     }
 
+    /** Attach reply_count + last reply time to a page of top-level messages. */
+    private static function attachThreadMeta(array $msgs): array
+    {
+        if (!$msgs) return $msgs;
+        $ids = array_map(fn($m) => (int) $m['id'], $msgs);
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        $meta = [];
+        try {
+            $st = Database::pdo()->prepare('SELECT parent_id, COUNT(*) AS n, MAX(created_at) AS last FROM community_chat WHERE parent_id IN (' . $place . ') GROUP BY parent_id');
+            $st->execute($ids);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $meta[(int) $r['parent_id']] = ['n' => (int) $r['n'], 'last' => (string) $r['last']];
+        } catch (Throwable $e) {}
+        foreach ($msgs as &$m) {
+            $mm = $meta[(int) $m['id']] ?? null;
+            $m['reply_count'] = $mm ? $mm['n'] : 0;
+            $m['last_reply']  = $mm ? self::ago($mm['last']) : '';
+        }
+        unset($m);
+        return $msgs;
+    }
+
     private const CHAT_SELECT =
-        'SELECT c.id, c.body, c.author_id, c.created_at, u.name AS author, u.email AS author_email
+        'SELECT c.id, c.body, c.author_id, c.created_at, c.parent_id, u.name AS author, u.email AS author_email
          FROM community_chat c JOIN lms_users u ON u.id = c.author_id';
 
     private static function chatOne(int $id, int $viewerId): ?array
@@ -585,6 +635,9 @@ final class Community
             'created_at' => (string) $r['created_at'],
             'ago'        => self::ago((string) $r['created_at']),
             'reactions'  => [],
+            'parent_id'  => (int) ($r['parent_id'] ?? 0),
+            'reply_count'=> 0,
+            'last_reply' => '',
         ];
     }
 
@@ -707,16 +760,23 @@ final class Community
     /** Email each mentioned member (best-effort, reusing Mailer like Mentorship). */
     private static function notifyMentions(array $mentions, int $authorId, string $body, int $msgId): void
     {
-        if (!class_exists('Mailer')) return;
+        // In-app push always fires below; email only when a transport is configured.
+        $canEmail = class_exists('Mailer') && Mailer::configured();
         try {
             $a = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $a->execute([$authorId]);
             $authorName = (string) ($a->fetchColumn() ?: 'A member');
         } catch (Throwable $e) { $authorName = 'A member'; }
         $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
-        $url  = $site . '/portal/#community';
+        $url  = $site . '/portal/#chat';
         $excerpt = mb_substr(trim($body), 0, 240);
         foreach ($mentions as $mn) {
             if ((int) $mn['id'] === $authorId) continue; // no self-notify
+            // In-app notification (the bell), so a tag lands even without email.
+            if (class_exists('Notifications')) {
+                try { Notifications::push((int) $mn['id'], 'mention', $authorName . ' mentioned you', $excerpt, '/portal/#chat', 'chatmention:' . $msgId . ':' . (int) $mn['id']); }
+                catch (Throwable $e) {}
+            }
+            if (!$canEmail) continue;
             try {
                 $s = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
                 $s->execute([(int) $mn['id']]);

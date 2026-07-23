@@ -816,6 +816,15 @@ $nav['You'] = [
                   <textarea id="tcInput" rows="1" maxlength="2000" placeholder="Message #general — use @ to mention" aria-label="Message"></textarea>
                   <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
                 </form>
+                <!-- Thread drawer -->
+                <div class="tc-thread" id="tcThread" hidden aria-label="Thread">
+                  <div class="tc-thread-h"><span>Thread</span><button type="button" class="pm-x" id="tcThreadClose" aria-label="Close thread">✕</button></div>
+                  <div class="tc-thread-body" id="tcThreadBody"></div>
+                  <form class="tc-compose tc-thread-compose" id="tcThreadForm" autocomplete="off">
+                    <textarea id="tcThreadInput" rows="1" maxlength="2000" placeholder="Reply…" aria-label="Reply"></textarea>
+                    <button type="submit" class="pbtn pbtn-gold tc-send">Reply</button>
+                  </form>
+                </div>
               </div>
             </div>
           </section>
@@ -1456,12 +1465,16 @@ $nav['You'] = [
       return b.replace(/\n/g,'<br>'); }
     function reactHtml(m){ var rx=m.reactions||[]; var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
       return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
+    function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
+    function actionsHtml(m){ var reply = (!m.parent_id) ? '<button type="button" class="tc-act" data-act="reply" title="Reply in thread">💬</button>' : '';
+      return '<div class="tc-actions">'+reply+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button></div>'; }
     function msgHtml(m, grouped){
       var head = grouped ? '' : '<span class="tc-avatar">'+esc(m.initial)+'</span>';
       var meta = grouped ? '' : '<span class="tc-msg-h"><b class="tc-name">'+esc(m.author)+'</b>'+(m.verified?'<span class="tc-badge" title="Verified member">✓</span>':'')+'<span class="tc-time">'+esc(fmtTime(m.created_at))+'</span></span>';
       return '<div class="tc-msg'+(grouped?' is-grouped':'')+(m.is_me?' is-me':'')+'" data-id="'+m.id+'">'
+        +actionsHtml(m)
         +'<div class="tc-msg-l">'+head+'</div>'
-        +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+'</div>'+reactHtml(m)+'</div></div>'; }
+        +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+'</div>'+reactHtml(m)+threadSummary(m)+'</div></div>'; }
     function render(){
       if(!MSGS.length){ streamEl.innerHTML='<p class="pc-empty tc-empty">👋 No messages yet in #'+esc(CHANNEL)+'. Say hello to the team.</p>'; return; }
       var html='', lastDay='', lastAuthor='', lastT=0;
@@ -1496,13 +1509,18 @@ $nav['You'] = [
       post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
     input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mentionOpen){ e.preventDefault(); composeForm.requestSubmit(); } });
 
-    // Reactions (event-delegated on the stream)
-    streamEl.addEventListener('click', function(e){
-      var add=e.target.closest('.tc-react-add'); var chip=e.target.closest('.tc-react');
+    // Message interactions (event-delegated) — shared by the stream and thread panel.
+    function onMsgClick(e){
       var msgEl=e.target.closest('.tc-msg'); if(!msgEl) return; var id=+msgEl.getAttribute('data-id');
-      if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
-      if(add){ openEmojiPicker(add, id); } });
-    function react(id, emoji){ post('react',{id:id, emoji:emoji}).then(function(d){ if(d&&d.ok){ var m=MSGS.filter(function(x){return x.id===id;})[0]; if(m){ m.reactions=d.reactions; render(); } } }); }
+      var chip=e.target.closest('.tc-react'); if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
+      var add=e.target.closest('.tc-react-add'); if(add){ openEmojiPicker(add, id); return; }
+      var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act'); if(a==='reply') openThread(id); else if(a==='assign') openAssign(id, msgEl); return; }
+      var sum=e.target.closest('.tc-thread-sum'); if(sum){ openThread(+sum.getAttribute('data-thread')); } }
+    streamEl.addEventListener('click', onMsgClick);
+    function react(id, emoji){ post('react',{id:id, emoji:emoji}).then(function(d){ if(!d||!d.ok) return;
+      var m=MSGS.filter(function(x){return x.id===id;})[0]; if(m){ m.reactions=d.reactions; render(); }
+      var tm=THREAD.filter(function(x){return x.id===id;})[0]; if(tm){ tm.reactions=d.reactions; }
+      if(OPEN_THREAD===id || tm) renderThread(); }); }
     var pickerEl=null;
     function openEmojiPicker(anchor, id){ closePicker(); pickerEl=document.createElement('div'); pickerEl.className='tc-picker';
       pickerEl.innerHTML=EMOJI.map(function(x){ return '<button type="button" data-e="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
@@ -1511,6 +1529,60 @@ $nav['You'] = [
       setTimeout(function(){ document.addEventListener('click', outside); },0);
       function outside(ev){ if(pickerEl && !pickerEl.contains(ev.target) && ev.target!==anchor){ closePicker(); document.removeEventListener('click', outside); } } }
     function closePicker(){ if(pickerEl){ pickerEl.remove(); pickerEl=null; } }
+
+    // ── Threads ──────────────────────────────────────────────────
+    var threadPanel=document.getElementById('tcThread'), threadBody=document.getElementById('tcThreadBody'),
+        threadForm=document.getElementById('tcThreadForm'), threadInput=document.getElementById('tcThreadInput');
+    var OPEN_THREAD=0, THREAD=[], tLast=0, threadReady=false;
+    function renderThread(){ if(!OPEN_THREAD) return;
+      var parent=MSGS.filter(function(x){return x.id===OPEN_THREAD;})[0];
+      var top = parent ? '<div class="tc-thread-parent">'+msgHtml(parent,false)+'</div>' : '';
+      var count = THREAD.length ? '<div class="tc-thread-count">'+THREAD.length+' repl'+(THREAD.length===1?'y':'ies')+'</div>' : '';
+      var reps = THREAD.length ? THREAD.map(function(m){return msgHtml(m,false);}).join('') : '<p class="pc-empty">No replies yet — start the thread.</p>';
+      threadBody.innerHTML = top+count+reps; threadBody.scrollTop=threadBody.scrollHeight; }
+    function openThread(id){ OPEN_THREAD=id; THREAD=[]; tLast=0; threadReady=false; threadPanel.hidden=false;
+      threadBody.innerHTML='<p class="pc-empty">Loading…</p>'; renderThread();
+      get('thread','&parent='+id+'&since=0').then(function(d){ if(!d||!d.ok||OPEN_THREAD!==id) return; THREAD=d.replies||[]; tLast=THREAD.length?THREAD[THREAD.length-1].id:0; threadReady=true; renderThread(); if(threadInput) threadInput.focus(); }); }
+    function closeThread(){ OPEN_THREAD=0; THREAD=[]; threadPanel.hidden=true; }
+    function pollThread(){ if(!OPEN_THREAD||!threadReady) return; get('thread','&parent='+OPEN_THREAD+'&since='+tLast).then(function(d){ if(!d||!d.ok||!d.replies||!d.replies.length) return;
+      var added=false; d.replies.forEach(function(m){ if(m.id>tLast){THREAD.push(m);tLast=m.id;added=true;} }); if(added) renderThread(); }); }
+    document.getElementById('tcThreadClose').addEventListener('click', closeThread);
+    threadBody.addEventListener('click', onMsgClick);
+    threadForm.addEventListener('submit', function(e){ e.preventDefault(); if(!OPEN_THREAD) return; var b=(threadInput.value||'').trim(); if(!b) return;
+      threadInput.value=''; threadInput.style.height='auto';
+      post('send',{channel:CHANNEL, body:b, parent_id:OPEN_THREAD}).then(function(d){ if(!d||!d.ok||!d.message) return;
+        if(d.message.id>tLast){ THREAD.push(d.message); tLast=d.message.id; }
+        var p=MSGS.filter(function(x){return x.id===OPEN_THREAD;})[0]; if(p){ p.reply_count=(p.reply_count||0)+1; p.last_reply='just now'; render(); }
+        renderThread(); }).catch(function(){}); });
+    threadInput.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); threadForm.requestSubmit(); } });
+
+    // ── Assign a message as a task (the @mention → task-assignment bridge) ──
+    var assignPop=null;
+    function closeAssign(){ if(assignPop){ assignPop.remove(); assignPop=null; document.removeEventListener('click', assignOutside); } }
+    function assignOutside(e){ if(assignPop && !assignPop.contains(e.target) && !e.target.closest('[data-act="assign"]')) closeAssign(); }
+    function openAssign(id, anchorEl){ closeAssign();
+      var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; if(!m) return;
+      var mentions=m.mentions||[];
+      var opts='<option value="0">Me</option>'+mentions.map(function(mn){ return '<option value="'+mn.id+'">'+esc(mn.name)+'</option>'; }).join('');
+      var pop=document.createElement('div'); pop.className='tc-assign'; assignPop=pop;
+      pop.innerHTML='<div class="tc-assign-h">Assign as task</div>'
+        +'<input type="text" class="tc-assign-title" maxlength="300" placeholder="Task title">'
+        +'<div class="tc-assign-row"><label>To <select class="tc-assign-who">'+opts+'</select></label><label>Due <input type="date" class="tc-assign-due"></label></div>'
+        +'<div class="tc-assign-actions"><button type="button" class="pbtn pbtn-ghost tc-assign-cancel">Cancel</button><button type="button" class="pbtn pbtn-gold tc-assign-go">Assign</button></div>'
+        +'<p class="tc-assign-msg" hidden></p>';
+      anchorEl.appendChild(pop);
+      pop.querySelector('.tc-assign-title').value = (m.body||'').slice(0,120);
+      var who=pop.querySelector('.tc-assign-who'); if(mentions.length) who.value=String(mentions[0].id);
+      pop.querySelector('.tc-assign-cancel').addEventListener('click', closeAssign);
+      pop.querySelector('.tc-assign-go').addEventListener('click', function(){
+        var title=(pop.querySelector('.tc-assign-title').value||'').trim(); var pmsg=pop.querySelector('.tc-assign-msg');
+        if(!title){ pmsg.hidden=false; pmsg.className='tc-assign-msg is-warn'; pmsg.textContent='Add a title.'; return; }
+        var go=pop.querySelector('.tc-assign-go'); go.disabled=true; go.textContent='Assigning…';
+        post('assign',{title:title, assignee:+who.value||0, due:pop.querySelector('.tc-assign-due').value}).then(function(d){
+          if(d&&d.ok){ pmsg.hidden=false; pmsg.className='tc-assign-msg is-ok'; pmsg.textContent=(+who.value>0?'Assigned — they’ll get an email. ✓':'Added to your tasks. ✓'); setTimeout(closeAssign,1200); }
+          else { go.disabled=false; go.textContent='Assign'; pmsg.hidden=false; pmsg.className='tc-assign-msg is-warn'; pmsg.textContent=(d&&d.error)||'Could not assign.'; } }).catch(function(){ go.disabled=false; go.textContent='Assign'; }); });
+      setTimeout(function(){ document.addEventListener('click', assignOutside); },0);
+    }
 
     // Composer autosize
     function autoGrow(){ input.style.height='auto'; input.style.height=Math.min(140, input.scrollHeight)+'px'; }
@@ -1536,7 +1608,7 @@ $nav['You'] = [
       else if(e.key==='Escape'){ hideMentions(); } });
 
     // Activate polling only while the Chat view is visible (cheap + fresh).
-    function tick(){ if(document.getElementById('view-chat') && !document.getElementById('view-chat').hidden){ if(!active){ active=true; bootstrap(); } poll(); } else { active=false; } }
+    function tick(){ if(document.getElementById('view-chat') && !document.getElementById('view-chat').hidden){ if(!active){ active=true; bootstrap(); } poll(); pollThread(); } else { active=false; } }
     window.addEventListener('hashchange', function(){ setTimeout(tick, 60); });
     if(location.hash.indexOf('chat')>-1){ active=true; bootstrap(); }
     poller=setInterval(tick, 4000);

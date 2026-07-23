@@ -182,11 +182,13 @@ final class Collab
         Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, created_at) VALUES (?,?,?,0,?,?,?,?)')
             ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), gmdate('Y-m-d H:i:s')]);
         $newId = (int) Database::pdo()->lastInsertId();
-        // Notify the assignee when a task is delegated to them (not self-assigned).
+        // Notify + email the assignee when a task is delegated to them (not self-assigned).
         if ($assignee !== $creatorId && class_exists('Notifications')) {
             try {
                 Notifications::push($assignee, 'task', 'New task: ' . $title,
                     'Assigned to you by ' . self::nameOf($creatorId) . '.', '/portal/#tasks', 'task:' . $newId);
+                Notifications::email($assignee, 'You’ve been assigned a task: ' . $title,
+                    self::nameOf($creatorId) . ' assigned you a task' . ($due !== '' ? ' (due ' . $due . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
             } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
         return $newId;
