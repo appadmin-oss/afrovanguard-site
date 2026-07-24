@@ -123,6 +123,11 @@ if ($isOrg) {
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
+} else {
+    // Team Chat is open to every account holder, not just @org members.
+    $nav['Work'] = [
+        ['chat', 'Team Chat', 'green', ''],
+    ];
 }
 $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
@@ -787,9 +792,10 @@ $nav['You'] = [
             </div>
           </section>
         </section>
+<?php endif; /* end org-only Tasks view; Team Chat below is open to all */ ?>
 
         <!-- ============================================================ -->
-        <!-- TEAM CHAT  (Slack-style native channels)                     -->
+        <!-- TEAM CHAT  (Slack-style native channels — open to all)       -->
         <!-- ============================================================ -->
         <section class="pview" id="view-chat" data-view="chat" hidden>
           <div class="view-head">
@@ -799,6 +805,11 @@ $nav['You'] = [
             <div class="tc">
               <!-- Channel rail -->
               <aside class="tc-rail" aria-label="Channels">
+                <div class="tc-search">
+                  <svg class="tc-search-ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.9"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                  <input type="search" id="tcSearch" placeholder="Search messages…" aria-label="Search messages" autocomplete="off">
+                  <div class="tc-search-results" id="tcSearchResults" hidden></div>
+                </div>
                 <div class="tc-rail-h">Channels</div>
                 <ul class="tc-channels" id="tcChannels"><li class="pc-empty">Loading…</li></ul>
                 <button type="button" class="tc-catchup" id="tcCatchup" hidden>
@@ -861,7 +872,6 @@ $nav['You'] = [
             </div>
           </div>
         </section>
-<?php endif; ?>
 
         <!-- ============================================================ -->
         <!-- LEARNING                                                     -->
@@ -1603,6 +1613,21 @@ $nav['You'] = [
     function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.placeholder='Message #'+ch+' — use @ to mention'; renderChannels(); setTopic(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
 
     chanEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-channel'); if(b) switchChannel(b.getAttribute('data-ch')); });
+
+    // ── Message search ──
+    var searchEl=document.getElementById('tcSearch'), searchResEl=document.getElementById('tcSearchResults'), searchTimer=null;
+    function renderSearch(rows){ if(!searchResEl) return; rows=rows||[];
+      if(!rows.length){ searchResEl.hidden=false; searchResEl.innerHTML='<div class="tc-sr-empty">No matches.</div>'; return; }
+      searchResEl.hidden=false;
+      searchResEl.innerHTML=rows.map(function(r){ var t=plainText(r.body); if(t.length>90)t=t.slice(0,90)+'…';
+        return '<button type="button" class="tc-sr" data-ch="'+esc(r.channel||'')+'" data-id="'+r.id+'"><span class="tc-sr-top"><b>'+esc(r.author)+'</b> <span class="tc-sr-ch">#'+esc(r.channel||'')+'</span></span><span class="tc-sr-txt">'+esc(t)+'</span></button>'; }).join(''); }
+    if(searchEl) searchEl.addEventListener('input', function(){ var q=(searchEl.value||'').trim(); clearTimeout(searchTimer);
+      if(q.length<2){ if(searchResEl){searchResEl.hidden=true; searchResEl.innerHTML='';} return; }
+      searchTimer=setTimeout(function(){ get('search','&q='+encodeURIComponent(q)).then(function(d){ if(d&&d.ok) renderSearch(d.results); }).catch(function(){}); }, 220); });
+    if(searchResEl) searchResEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-sr'); if(!b) return; var ch=b.getAttribute('data-ch'), id=+b.getAttribute('data-id');
+      searchResEl.hidden=true; if(searchEl)searchEl.value=''; var switched = ch && ch!==CHANNEL; if(switched) switchChannel(ch);
+      setTimeout(function(){ var el=streamEl.querySelector('.tc-msg[data-id="'+id+'"]'); if(el){ el.scrollIntoView({block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); },1500); } }, switched?650:60); });
+    document.addEventListener('click', function(e){ if(searchResEl && !searchResEl.hidden && !e.target.closest('.tc-search')) searchResEl.hidden=true; });
 
     // Send
     composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=(input.value||'').trim(); if(!body) return;

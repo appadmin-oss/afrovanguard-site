@@ -229,7 +229,7 @@ final class Community
     public static function chatRecap(int $viewerId, string $channel, int $limit = 40): array
     {
         self::ensure();
-        if (!self::isOrgMember($viewerId)) return ['ok' => false, 'summary' => '', 'error' => 'Members only.'];
+        if (!self::canChat($viewerId)) return ['ok' => false, 'summary' => '', 'error' => 'Sign in to use chat.'];
         if (!self::chatAiAvailable()) return ['ok' => false, 'summary' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).'];
         $channel = self::normChannel($channel);
         $msgs = self::chatList($viewerId, 0, max(10, min(80, $limit)), $channel);
@@ -532,6 +532,23 @@ SYS;
         } catch (Throwable $e) { return false; }
     }
 
+    /**
+     * Who may take part in Team Chat / the community. Now open to ANY active
+     * account holder (not just @org members), so learners join the conversation
+     * too. Set AV_CHAT_ORG_ONLY=1 to lock it back down to org members.
+     */
+    public static function canChat(int $uid): bool
+    {
+        if ($uid <= 0) return false;
+        $orgOnly = (defined('AV_CHAT_ORG_ONLY') && AV_CHAT_ORG_ONLY) || in_array(strtolower((string) getenv('AV_CHAT_ORG_ONLY')), ['1', 'true', 'yes', 'on'], true);
+        if ($orgOnly) return self::isOrgMember($uid);
+        try {
+            $s = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
+            $s->execute([$uid]);
+            return (bool) $s->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
     /** The org-domain SQL fragment (driver-portable: '%@domain'). The bot is an
      *  org-domain account but is excluded from the directory (it's not a person). */
     private static function orgEmailLike(): string
@@ -650,7 +667,7 @@ SYS;
         self::ensure();
         $body = trim($body);
         if ($body === '' || $authorId <= 0) return null;
-        if (!self::isOrgMember($authorId)) return null; // server-side gate (defence-in-depth)
+        if (!self::canChat($authorId)) return null; // server-side gate (defence-in-depth)
         $body = mb_substr($body, 0, 2000);
         $channel = self::normChannel($channel);
         // A reply must point at a real top-level message; it inherits its channel.
@@ -674,6 +691,8 @@ SYS;
             return null;
         }
         self::clearTyping($authorId, $channel);   // stop showing "X is typing" once sent
+        // Mirror to Google Chat (best-effort) when a webhook is configured.
+        try { self::mirrorToGoogleChat($channel, $authorId, $body, $parentId); } catch (Throwable $e) { error_log('[community] gchat mirror: ' . $e->getMessage()); }
         // Resolve + notify mentions (best-effort; failure never blocks the send).
         try {
             $mentions = self::resolveMentions($body, $authorId);
@@ -693,7 +712,7 @@ SYS;
     public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50, string $channel = 'general'): array
     {
         self::ensure();
-        if (!self::isOrgMember($viewerId)) return [];
+        if (!self::canChat($viewerId)) return [];
         $limit = max(1, min(100, $limit));
         $channel = self::normChannel($channel);
         try {
@@ -720,7 +739,7 @@ SYS;
     public static function chatThread(int $viewerId, int $parentId, int $sinceId = 0, int $limit = 100): array
     {
         self::ensure();
-        if (!self::isOrgMember($viewerId) || $parentId <= 0) return [];
+        if (!self::canChat($viewerId) || $parentId <= 0) return [];
         $limit = max(1, min(200, $limit));
         try {
             $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.parent_id = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
@@ -799,7 +818,7 @@ SYS;
     public static function chatPin(int $uid, int $chatId, bool $pin): ?bool
     {
         self::ensure();
-        if ($uid <= 0 || $chatId <= 0 || !self::isOrgMember($uid)) return null;
+        if ($uid <= 0 || $chatId <= 0 || !self::canChat($uid)) return null;
         try {
             $st = Database::pdo()->prepare('SELECT parent_id FROM community_chat WHERE id = ?');
             $st->execute([$chatId]);
@@ -814,7 +833,7 @@ SYS;
     public static function chatPins(int $viewerId, string $channel): array
     {
         self::ensure();
-        if (!self::isOrgMember($viewerId)) return [];
+        if (!self::canChat($viewerId)) return [];
         $channel = self::normChannel($channel);
         try {
             $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.pinned = 1 AND c.parent_id = 0 ORDER BY c.id DESC LIMIT 20');
@@ -822,6 +841,75 @@ SYS;
             $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) { return []; }
         return array_map(fn($r) => self::shapeChat($r, $viewerId), $rows);
+    }
+
+    /** Search chat messages by text (optionally within one channel). */
+    public static function chatSearch(int $viewerId, string $q, string $channel = '', int $limit = 30): array
+    {
+        self::ensure();
+        $q = trim($q);
+        if (!self::canChat($viewerId) || mb_strlen($q) < 2) return [];
+        $limit = max(1, min(50, $limit));
+        $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+        try {
+            if ($channel !== '' && isset(self::CHAT_CHANNELS[strtolower($channel)])) {
+                $st = Database::pdo()->prepare(self::CHAT_SELECT . " WHERE c.channel = ? AND c.body LIKE ? ESCAPE '\\' ORDER BY c.id DESC LIMIT " . $limit);
+                $st->execute([self::normChannel($channel), $like]);
+            } else {
+                $st = Database::pdo()->prepare(self::CHAT_SELECT . " WHERE c.body LIKE ? ESCAPE '\\' ORDER BY c.id DESC LIMIT " . $limit);
+                $st->execute([$like]);
+            }
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatSearch: ' . $e->getMessage()); return []; }
+        return array_map(function ($r) use ($viewerId) {
+            $m = self::shapeChat($r, $viewerId);
+            $m['channel'] = (string) ($r['channel'] ?? '');
+            return $m;
+        }, $rows);
+    }
+
+    /* ── Google Chat mirror (outbound webhook) ─────────────────────── */
+    private static function gchatWebhook(string $channel): string
+    {
+        $cfg = fn(string $k) => class_exists('Config') ? Config::str($k, '') : (string) (getenv($k) ?: '');
+        // Per-channel override first, then a single default webhook.
+        $perCh = $cfg('AV_GCHAT_WEBHOOK_' . strtoupper($channel));
+        return trim($perCh !== '' ? $perCh : $cfg('AV_GCHAT_WEBHOOK'));
+    }
+
+    /** True when at least one Google Chat webhook is configured. */
+    public static function googleChatLinked(): bool
+    {
+        foreach (array_keys(self::CHAT_CHANNELS) as $ch) { if (self::gchatWebhook($ch) !== '') return true; }
+        return false;
+    }
+
+    /**
+     * POST a chat message to a Google Chat space via an incoming webhook, so the
+     * portal's Team Chat mirrors into Google Chat. Best-effort, non-blocking.
+     * Configure a webhook per space (AV_GCHAT_WEBHOOK, or AV_GCHAT_WEBHOOK_<CHANNEL>).
+     */
+    private static function mirrorToGoogleChat(string $channel, int $authorId, string $body, int $parentId): void
+    {
+        $hook = self::gchatWebhook($channel);
+        if ($hook === '' || strpos($hook, 'chat.googleapis.com') === false || !function_exists('curl_init')) return;
+        $name = self::nameOfUser($authorId);
+        $text = '*' . $name . '* in #' . $channel . ($parentId > 0 ? ' (thread reply)' : '') . ":\n" . mb_substr($body, 0, 3500);
+        $payload = json_encode(['text' => $text], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $ch = curl_init($hook);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json; charset=UTF-8'],
+            CURLOPT_TIMEOUT => 6, CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    }
+
+    private static function nameOfUser(int $uid): string
+    {
+        try { $s = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $s->execute([$uid]); return (string) ($s->fetchColumn() ?: 'A member'); }
+        catch (Throwable $e) { return 'A member'; }
     }
 
     /** Emoji allowed as reactions (a curated Slack-style quick set). */
@@ -834,7 +922,7 @@ SYS;
     public static function chatReact(int $uid, int $chatId, string $emoji): ?array
     {
         self::ensure();
-        if ($uid <= 0 || $chatId <= 0 || !self::isOrgMember($uid)) return null;
+        if ($uid <= 0 || $chatId <= 0 || !self::canChat($uid)) return null;
         if (!in_array($emoji, self::REACT_EMOJI, true)) return null;
         try {
             $db = Database::pdo();

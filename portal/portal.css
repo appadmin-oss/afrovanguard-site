@@ -429,6 +429,18 @@ body.portal-app .read-progress { display:none; }
 .tc-ch-title b { font-size:17px; font-weight:800; color:var(--ink); }
 .tc-ch-count { font-size:12px; color:var(--muted-2); font-weight:600; }
 .tc-ch-topic { font-size:12.5px; color:var(--muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* message search box in the channel rail */
+.tc-search { position:relative; margin-bottom:12px; }
+.tc-search-ico { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted-2); pointer-events:none; }
+.tc-search input { width:100%; padding:9px 12px 9px 32px; border:1px solid var(--border-2); border-radius:10px; background:var(--surface); font:inherit; font-size:13px; color:var(--ink); }
+.tc-search input:focus { outline:none; border-color:var(--gold); }
+.tc-search-results { position:absolute; left:0; right:0; top:calc(100% + 5px); z-index:25; max-height:320px; overflow-y:auto; background:var(--surface); border:1px solid var(--border-2); border-radius:12px; box-shadow:var(--shadow-md); padding:5px; }
+.tc-sr { display:flex; flex-direction:column; gap:2px; width:100%; text-align:left; border:none; background:transparent; border-radius:8px; padding:8px 10px; cursor:pointer; }
+.tc-sr:hover { background:var(--surface-2); }
+.tc-sr-top { font-size:12px; } .tc-sr-top b { color:var(--ink); }
+.tc-sr-ch { color:var(--indigo); font-weight:700; }
+.tc-sr-txt { font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tc-sr-empty { padding:10px 12px; font-size:13px; color:var(--muted-2); text-align:center; }
 /* "Catch me up" AI button in the channel rail */
 .tc-catchup { margin-top:auto; display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:11px; border:1px solid var(--gold-soft-bd); background:var(--gold-soft); color:var(--gold-deeper); border-radius:12px; font-size:13.5px; font-weight:800; cursor:pointer; }
 .tc-catchup:hover { filter:brightness(0.98); }

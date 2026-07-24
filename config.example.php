@@ -140,6 +140,17 @@ define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
  *                '[{"name":"All-hands","url":"https://chat.google.com/room/AAAA"}]'
  * Anything unset is simply hidden. */
 
+/* ─── Team Chat ─────────────────────────────────────────────────
+ * Team Chat (in the member portal) is open to ANY signed-in account by
+ * default. Lock it to @org members only with:
+ *   SetEnv AV_CHAT_ORG_ONLY 1
+ * Mirror chat messages into a Google Chat space via an incoming webhook
+ * (Google Chat → a space → "Manage webhooks" → copy the URL). Set one default
+ * for all channels, and/or override per channel:
+ *   SetEnv AV_GCHAT_WEBHOOK            https://chat.googleapis.com/v1/spaces/AAAA/messages?key=...&token=...
+ *   SetEnv AV_GCHAT_WEBHOOK_ANNOUNCEMENTS  https://chat.googleapis.com/v1/spaces/BBBB/...
+ * Unset ⇒ no mirroring (the chat still works fully on its own). */
+
 /* ─── Application ───────────────────────────────────────────── */
 define('SITE_URL',            'https://afrovanguard.org.ng');
 define('CURRENCY_DEFAULT',    'NGN');

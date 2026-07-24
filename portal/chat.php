@@ -19,9 +19,11 @@ header('Content-Type: application/json; charset=utf-8');
 
 $u = LmsAuth::user();
 if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
-if (!LmsAuth::isOrgMember($u)) json_out(['ok' => false, 'error' => 'Team chat is for Afrovanguard members.'], 403);
-
 $uid    = (int) $u['id'];
+// Team Chat is open to any signed-in account holder (Community::canChat enforces
+// the same policy server-side, and honours AV_CHAT_ORG_ONLY to lock it down).
+if (!Community::canChat($uid)) json_out(['ok' => false, 'error' => 'Please sign in to use Team Chat.'], 403);
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $action = (string) ($_GET['action'] ?? 'bootstrap');
 $body   = ($method === 'POST') ? (json_decode((string) file_get_contents('php://input'), true) ?: []) : [];
@@ -49,6 +51,7 @@ try {
                 'count'       => Collab::onlineCount(),
                 'react_emoji' => Community::REACT_EMOJI,
                 'ai'          => Community::chatAiAvailable(),
+                'gchat'       => Community::googleChatLinked(),
                 'me'          => ['id' => $uid, 'name' => (string) $u['name']],
             ]);
 
@@ -86,6 +89,9 @@ try {
 
         case 'mention':
             json_out(['ok' => true, 'members' => Community::mentionSearch((string) ($_GET['q'] ?? ''), $uid, 8)]);
+
+        case 'search':
+            json_out(['ok' => true, 'results' => Community::chatSearch($uid, (string) ($_GET['q'] ?? ''), (string) ($_GET['channel'] ?? ''))]);
 
         case 'thread':
             $parent = (int) ($_GET['parent'] ?? 0);
