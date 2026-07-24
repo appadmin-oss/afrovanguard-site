@@ -40,10 +40,14 @@ try {
             json_out([
                 'ok'          => true,
                 'channels'    => Community::chatChannels(),
+                'topics'      => Community::CHAT_TOPICS,
                 'messages'    => Community::chatList($uid, 0, 50, $channel),
+                'members'     => Community::chatMembers($uid),
+                'typing'      => Community::whoTyping($uid, $channel),
                 'online'      => Collab::onlineUsers(40),
                 'count'       => Collab::onlineCount(),
                 'react_emoji' => Community::REACT_EMOJI,
+                'ai'          => Community::chatAiAvailable(),
                 'me'          => ['id' => $uid, 'name' => (string) $u['name']],
             ]);
 
@@ -54,10 +58,21 @@ try {
             json_out([
                 'ok'       => true,
                 'messages' => Community::chatList($uid, $since, 50, $channel),
+                'members'  => Community::chatMembers($uid),
+                'typing'   => Community::whoTyping($uid, $channel),
                 'online'   => Collab::onlineUsers(40),
                 'count'    => Collab::onlineCount(),
                 'channels' => Community::chatChannels(),
             ]);
+
+        case 'typing':
+            $writeGuard();
+            Community::setTyping($uid, (string) ($body['channel'] ?? 'general'));
+            json_out(['ok' => true]);
+
+        case 'recap':
+            if (!av_rate_ok('chat_recap_' . $uid, 6, 120)) json_out(['ok' => false, 'error' => 'Give it a moment before catching up again.'], 429);
+            json_out(Community::chatRecap($uid, (string) ($_GET['channel'] ?? 'general')));
 
         case 'mention':
             json_out(['ok' => true, 'members' => Community::mentionSearch((string) ($_GET['q'] ?? ''), $uid, 8)]);

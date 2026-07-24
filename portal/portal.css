@@ -335,7 +335,8 @@ body.portal-app .read-progress { display:none; }
 
 /* ---------- Team Chat (Slack-style) ---------- */
 .tc-card { padding:0; overflow:hidden; }
-.tc { display:grid; grid-template-columns:232px 1fr; height:min(74vh,760px); min-height:480px; }
+.tc { display:grid; grid-template-columns:224px 1fr 248px; height:min(76vh,780px); min-height:500px; }
+@media (max-width:1180px){ .tc { grid-template-columns:210px 1fr; } .tc-members { display:none; } }
 .tc-rail { border-right:1px solid var(--border-2); background:var(--surface-3); padding:16px 12px; overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:6px; }
 .tc-rail-h { font-size:10.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--muted-2); padding:6px 8px 3px; display:flex; align-items:center; gap:6px; }
 .tc-rail-h--online { margin-top:12px; border-top:1px solid var(--border-2); padding-top:14px; }
@@ -419,6 +420,58 @@ body.portal-app .read-progress { display:none; }
 .tc-assign-msg { margin:0; font-size:12px; font-weight:600; }
 .tc-assign-msg.is-ok { color:var(--green); } .tc-assign-msg.is-warn { color:var(--red); }
 @media (max-width:720px){ .tc { grid-template-columns:1fr; height:70vh; } .tc-rail { flex-direction:row; overflow-x:auto; border-right:none; border-bottom:1px solid var(--border-2); } .tc-rail-h--online, .tc-online { display:none; } .tc-thread { width:100%; } }
+
+/* ---------- chat: channel header, members rail, floating dock, code ---------- */
+/* channel header */
+.tc-ch-ico { flex:none; width:38px; height:38px; border-radius:11px; background:var(--ink); color:var(--gold); display:grid; place-items:center; font-size:19px; font-weight:800; }
+.tc-ch-meta { flex:1; min-width:0; }
+.tc-ch-title { display:flex; align-items:baseline; gap:8px; }
+.tc-ch-title b { font-size:17px; font-weight:800; color:var(--ink); }
+.tc-ch-count { font-size:12px; color:var(--muted-2); font-weight:600; }
+.tc-ch-topic { font-size:12.5px; color:var(--muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* "Catch me up" AI button in the channel rail */
+.tc-catchup { margin-top:auto; display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:11px; border:1px solid var(--gold-soft-bd); background:var(--gold-soft); color:var(--gold-deeper); border-radius:12px; font-size:13.5px; font-weight:800; cursor:pointer; }
+.tc-catchup:hover { filter:brightness(0.98); }
+/* typing indicator bar */
+.tc-typing { flex:none; padding:2px 20px 6px 54px; font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+.tc-typing-dots { display:inline-flex; gap:3px; }
+.tc-typing-dots i { width:6px; height:6px; border-radius:50%; background:var(--muted-2); animation:tcblink 1.2s infinite ease-in-out; }
+.tc-typing-dots i:nth-child(2){ animation-delay:.2s } .tc-typing-dots i:nth-child(3){ animation-delay:.4s }
+@keyframes tcblink { 0%,60%,100%{ opacity:.3; transform:translateY(0) } 30%{ opacity:1; transform:translateY(-2px) } }
+/* floating docked composer (matches the design) */
+.tc-compose--float { margin:0 18px 16px; border:1px solid var(--border-2); border-top:1px solid var(--border-2); border-radius:18px; box-shadow:0 12px 32px -18px rgba(16,24,40,0.45); padding:10px 12px 10px 14px; align-items:center; }
+.tc-compose-ava { flex:none; width:36px; height:36px; border-radius:50%; background:var(--gold); color:var(--on-gold); display:grid; place-items:center; font-size:14px; font-weight:800; }
+.tc-compose--float textarea { border:none; background:transparent; padding:8px 4px; }
+.tc-compose--float textarea:focus { border:none; background:transparent; }
+.tc-compose-tools { display:flex; align-items:center; gap:4px; }
+.tc-tool { width:38px; height:38px; border:none; background:transparent; color:var(--muted); border-radius:10px; display:grid; place-items:center; cursor:pointer; }
+.tc-tool:hover { background:var(--surface-2); color:var(--ink); }
+/* code blocks in messages */
+.tc-code { margin:6px 0 0; background:var(--ink); color:#e8ecfb; border-radius:12px; padding:14px 16px; font-family:ui-monospace,'JetBrains Mono','Courier New',monospace; font-size:12.5px; line-height:1.55; overflow-x:auto; }
+.tc-code code { font:inherit; color:inherit; background:none; }
+.tc-code-inline { background:var(--surface-2); border:1px solid var(--border-2); border-radius:5px; padding:1px 6px; font-family:ui-monospace,'JetBrains Mono',monospace; font-size:12.5px; }
+/* members rail */
+.tc-members { border-left:1px solid var(--border-2); background:var(--surface); overflow-y:auto; min-height:0; padding:18px 14px; }
+.tc-mem-h { font-size:10.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--muted-2); margin-bottom:10px; }
+.tc-mem-h--sp { margin-top:20px; }
+.tc-mem { display:flex; align-items:center; gap:10px; padding:5px 4px; }
+.tc-mem.is-off { opacity:.55; }
+.tc-mem-ava { position:relative; flex:none; width:34px; height:34px; border-radius:50%; background:var(--indigo-soft); color:var(--indigo); display:grid; place-items:center; font-size:13px; font-weight:800; }
+.tc-mem-dot { position:absolute; right:-1px; bottom:-1px; width:10px; height:10px; border-radius:50%; background:var(--green-dot); border:2px solid var(--surface); }
+.tc-mem-b { min-width:0; display:flex; flex-direction:column; gap:1px; }
+.tc-mem-name { font-size:13.5px; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tc-mem-you { font-size:10px; font-weight:800; color:var(--gold-deeper); background:var(--gold-soft); border-radius:999px; padding:0 6px; }
+.tc-role { align-self:flex-start; font-size:9.5px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; border-radius:999px; padding:1px 7px; }
+.tc-role--mentor { color:var(--green); background:var(--green-soft); border:1px solid var(--green-bd); }
+.tc-role--lead { color:var(--indigo); background:var(--indigo-soft); border:1px solid var(--indigo-bd); }
+/* recap modal body */
+.tc-recap h4 { margin:14px 0 6px; font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--gold-deeper); }
+.tc-recap p { margin:0 0 8px; font-size:14px; line-height:1.6; color:var(--body); }
+.tc-recap ul { margin:0 0 10px; padding-left:20px; }
+.tc-recap li { font-size:14px; line-height:1.55; color:var(--body); margin-bottom:3px; }
+.tc-recap-load { text-align:center; }
+.tc-recap-src { margin-top:14px; padding-top:10px; border-top:1px solid var(--border-2); font-size:11.5px; color:var(--muted-2); }
+@media (max-width:1180px){ .tc-ch-topic { display:none; } }
 
 /* ---------- modal (schedule a meeting) ---------- */
 .pm-scrim { position:fixed; inset:0; z-index:200; background:rgba(16,24,40,0.55); display:grid; place-items:center; padding:20px; }

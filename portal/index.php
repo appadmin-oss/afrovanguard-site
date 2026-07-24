@@ -795,26 +795,37 @@ $nav['You'] = [
           <div class="view-head">
             <div><h1>Team Chat</h1><p class="view-sub">Talk to the team in real time. Channels, @mentions and reactions — always on, no app to open.</p></div>
           </div>
-          <section class="pcard tc-card" id="teamChat" data-csrf="<?= e($collabCsrf) ?>">
+          <section class="pcard tc-card" id="teamChat" data-csrf="<?= e($collabCsrf) ?>" data-me="<?= e($pInitials) ?>">
             <div class="tc">
               <!-- Channel rail -->
               <aside class="tc-rail" aria-label="Channels">
                 <div class="tc-rail-h">Channels</div>
                 <ul class="tc-channels" id="tcChannels"><li class="pc-empty">Loading…</li></ul>
-                <div class="tc-rail-h tc-rail-h--online">Online <span class="tc-online-n" id="tcOnlineN">0</span></div>
-                <ul class="tc-online" id="tcOnline"><li class="pc-empty">Just you.</li></ul>
+                <button type="button" class="tc-catchup" id="tcCatchup" hidden>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5 14 8.5 20 10 14 11.5 12 17.5 10 11.5 4 10 10 8.5 12 2.5Z" fill="currentColor"/></svg>
+                  <span>Catch me up</span>
+                </button>
               </aside>
               <!-- Conversation -->
               <div class="tc-main">
                 <div class="tc-topbar">
-                  <span class="tc-topic"># <span id="tcChannelName">general</span></span>
+                  <span class="tc-ch-ico">#</span>
+                  <div class="tc-ch-meta">
+                    <div class="tc-ch-title"><b id="tcChannelName">general</b><span class="tc-ch-count" id="tcMemberCount"></span></div>
+                    <div class="tc-ch-topic" id="tcTopic"></div>
+                  </div>
                   <span class="tc-presence"><span class="dot-live"></span><span id="tcPresence">0</span> online</span>
                 </div>
                 <div class="tc-stream" id="tcStream"><p class="pc-empty">Loading messages…</p></div>
-                <form class="tc-compose" id="tcCompose" autocomplete="off">
+                <div class="tc-typing" id="tcTyping" hidden></div>
+                <form class="tc-compose tc-compose--float" id="tcCompose" autocomplete="off">
                   <div class="tc-mentions" id="tcMentions" hidden></div>
+                  <span class="tc-compose-ava"><?= e($pInitials) ?></span>
                   <textarea id="tcInput" rows="1" maxlength="2000" placeholder="Message #general — use @ to mention" aria-label="Message"></textarea>
-                  <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
+                  <div class="tc-compose-tools">
+                    <button type="button" class="tc-tool" id="tcSnippet" title="Code snippet (wrap in ```)" aria-label="Code snippet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 18-6-6 6-6M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
+                  </div>
                 </form>
                 <!-- Thread drawer -->
                 <div class="tc-thread" id="tcThread" hidden aria-label="Thread">
@@ -827,8 +838,18 @@ $nav['You'] = [
                   </form>
                 </div>
               </div>
+              <!-- Members rail -->
+              <aside class="tc-members" id="tcMembers" aria-label="Members"><p class="pc-empty">Loading…</p></aside>
             </div>
           </section>
+
+          <!-- Catch-me-up recap modal -->
+          <div class="pm-scrim" id="recapScrim" hidden>
+            <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="recapTitle">
+              <div class="pm-head"><h2 id="recapTitle">✨ Catch me up</h2><button type="button" class="pm-x" id="recapClose" aria-label="Close">✕</button></div>
+              <div class="pm-body"><div class="tc-recap" id="recapBody"><p class="pc-empty">Summarising the channel…</p></div></div>
+            </div>
+          </div>
         </section>
 <?php endif; ?>
 
@@ -1448,11 +1469,13 @@ $nav['You'] = [
     function post(action, body){ return fetch('/portal/chat.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
     function get(action, qs){ return fetch('/portal/chat.php?action='+action+(qs||''),{credentials:'same-origin'}).then(function(r){return r.json();}); }
     var streamEl=document.getElementById('tcStream'), chanEl=document.getElementById('tcChannels'),
-        onlineEl=document.getElementById('tcOnline'), onlineNEl=document.getElementById('tcOnlineN'),
+        membersEl=document.getElementById('tcMembers'), typingEl=document.getElementById('tcTyping'),
         presEl=document.getElementById('tcPresence'), chanNameEl=document.getElementById('tcChannelName'),
+        memberCountEl=document.getElementById('tcMemberCount'), topicEl=document.getElementById('tcTopic'),
+        catchupBtn=document.getElementById('tcCatchup'), snippetBtn=document.getElementById('tcSnippet'),
         input=document.getElementById('tcInput'), mentEl=document.getElementById('tcMentions'),
         composeForm=document.getElementById('tcCompose');
-    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], poller=null, active=false, ready=false, seenKey='av_chat_seen';
+    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, AI_OK=false, poller=null, active=false, ready=false, seenKey='av_chat_seen';
     // Per-channel last-seen id (localStorage) → unread dots.
     function seen(){ try{ return JSON.parse(localStorage.getItem(seenKey)||'{}'); }catch(e){ return {}; } }
     function markSeen(ch, id){ var s=seen(); if(!s[ch]||id>s[ch]){ s[ch]=id; try{ localStorage.setItem(seenKey, JSON.stringify(s)); }catch(e){} } }
@@ -1460,10 +1483,20 @@ $nav['You'] = [
     function dayOf(iso){ var t=Date.parse((iso||'').replace(' ','T')+'Z'); if(!t) return ''; var d=new Date(t); var td=new Date(); var y=new Date(td.getTime()-86400000);
       if(d.toDateString()===td.toDateString()) return 'Today'; if(d.toDateString()===y.toDateString()) return 'Yesterday';
       return d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }
-    function bodyHtml(m){ var b=esc(m.body);
-      // Turn @handles into chips (mentions resolved server-side; token has no leading @).
+    function bodyHtml(m){
+      // Extract fenced ``` code blocks FIRST (on the raw text) so their contents
+      // aren't touched by mention/inline formatting, then re-escape each block.
+      var raw=String(m.body==null?'':m.body); var blocks=[];
+      raw=raw.replace(/```([\s\S]*?)```/g, function(_, code){ blocks.push(code.replace(/^\n/,'').replace(/\n$/,'')); return ' CB'+(blocks.length-1)+' '; });
+      var b=esc(raw);
+      // @mentions → chips (resolved server-side; token has no leading @).
       (m.mentions||[]).forEach(function(mn){ var tok=(mn.token||mn.handle||'').replace(/^@/,''); if(tok){ b=b.split('@'+esc(tok)).join('<span class="tc-at">@'+esc(mn.name||mn.handle||'')+'</span>'); } });
-      return b.replace(/\n/g,'<br>'); }
+      // `inline code`
+      b=b.replace(/`([^`\n]+)`/g, function(_, c){ return '<code class="tc-code-inline">'+c+'</code>'; });
+      b=b.replace(/\n/g,'<br>');
+      // Restore fenced blocks as <pre>.
+      b=b.replace(/ CB(\d+) /g, function(_, i){ return '<pre class="tc-code"><code>'+esc(blocks[+i])+'</code></pre>'; });
+      return b; }
     function reactHtml(m){ var rx=m.reactions||[]; var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
       return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
     function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
@@ -1501,16 +1534,31 @@ $nav['You'] = [
       if(n>0){ if(!badge){ badge=document.createElement('span'); badge.className='pnav-badge'; link.appendChild(badge); } badge.textContent=n; badge.hidden=false; }
       else if(badge){ badge.hidden=true; }
     }
-    function renderOnline(users,count){ if(onlineNEl)onlineNEl.textContent=count||0; if(presEl)presEl.textContent=count||0;
-      users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<li class="tc-on"><span class="tc-on-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span>'+esc(u.name)+'</li>'; }).join('') : '<li class="pc-empty">Just you.</li>'; }
+    function updatePresence(count){ if(presEl)presEl.textContent=count||0; }
+    function roleTag(r){ return (r==='mentor'||r==='instructor') ? '<span class="tc-role tc-role--mentor">Mentor</span>'
+      : (r==='coordinator'||r==='admin') ? '<span class="tc-role tc-role--lead">Lead</span>' : ''; }
+    function memberRow(u){ return '<li class="tc-mem'+(u.online?'':' is-off')+'"><span class="tc-mem-ava">'+esc(u.initial)+(u.online?'<span class="tc-mem-dot"></span>':'')+'</span>'
+      +'<span class="tc-mem-b"><span class="tc-mem-name">'+esc(u.name)+(u.is_me?' <span class="tc-mem-you">you</span>':'')+'</span>'+roleTag(u.role)+'</span></li>'; }
+    function renderMembers(){ if(!membersEl) return; var m=MEMBERS||{mentors:[],members:[]}; var html='';
+      if((m.mentors||[]).length){ html+='<div class="tc-mem-h">Mentors · '+m.mentors.length+'</div>'+m.mentors.map(memberRow).join(''); }
+      html+='<div class="tc-mem-h tc-mem-h--sp">Members · '+(m.members||[]).length+'</div>'+((m.members||[]).length?m.members.map(memberRow).join(''):'<p class="pc-empty">No members yet.</p>');
+      membersEl.innerHTML=html;
+      var total=(m.mentors||[]).length+(m.members||[]).length; if(memberCountEl)memberCountEl.textContent=total?('· '+total+' member'+(total===1?'':'s')):''; }
+    function renderTyping(names){ names=names||[]; if(!typingEl) return;
+      if(!names.length){ typingEl.hidden=true; typingEl.innerHTML=''; return; }
+      var label = names.length===1 ? esc(names[0])+' is typing' : names.length===2 ? esc(names[0])+' and '+esc(names[1])+' are typing' : names.length+' people are typing';
+      typingEl.hidden=false; typingEl.innerHTML='<span class="tc-typing-dots"><i></i><i></i><i></i></span>'+label+'…'; }
+    function setTopic(){ if(topicEl) topicEl.textContent = TOPICS[CHANNEL] || ''; }
     // Append only strictly-newer messages (id > LAST) so a late/overlapping poll can't duplicate.
     function applyNew(list){ if(!list||!list.length) return; var added=false; list.forEach(function(m){ if(m.id>LAST){ MSGS.push(m); LAST=m.id; added=true; } }); if(!added) return; if(MSGS.length>200)MSGS=MSGS.slice(-200); markSeen(CHANNEL,LAST); render(); }
     function bootstrap(){ ready=false; get('bootstrap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(!d||!d.ok){ ready=true; return; }
-        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; MSGS=d.messages||[]; LAST=MSGS.length?MSGS[MSGS.length-1].id:0;
-        markSeen(CHANNEL,LAST); renderChannels(); render(); renderOnline(d.online,d.count); ready=true; }).catch(function(){ ready=true; }); }
+        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; TOPICS=d.topics||TOPICS; MEMBERS=d.members||MEMBERS; AI_OK=!!d.ai;
+        MSGS=d.messages||[]; LAST=MSGS.length?MSGS[MSGS.length-1].id:0;
+        markSeen(CHANNEL,LAST); renderChannels(); render(); renderMembers(); renderTyping(d.typing); setTopic(); updatePresence(d.count);
+        if(catchupBtn) catchupBtn.hidden=!AI_OK; ready=true; }).catch(function(){ ready=true; }); }
     function poll(){ if(!active || !ready) return; get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since='+LAST).then(function(d){ if(!d||!d.ok) return;
-        CHANNELS=d.channels||CHANNELS; applyNew(d.messages); renderChannels(); renderOnline(d.online,d.count); }).catch(function(){}); }
-    function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.placeholder='Message #'+ch+' — use @ to mention'; renderChannels(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
+        CHANNELS=d.channels||CHANNELS; if(d.members)MEMBERS=d.members; applyNew(d.messages); renderChannels(); renderMembers(); renderTyping(d.typing); updatePresence(d.count); }).catch(function(){}); }
+    function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.placeholder='Message #'+ch+' — use @ to mention'; renderChannels(); setTopic(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
 
     chanEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-channel'); if(b) switchChannel(b.getAttribute('data-ch')); });
 
@@ -1519,6 +1567,31 @@ $nav['You'] = [
       input.value=''; autoGrow(); mainMentions.hide();
       post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
     input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mainMentions.isOpen()){ e.preventDefault(); composeForm.requestSubmit(); } });
+    // Broadcast "typing" (throttled to once per ~2.5s while composing).
+    var lastTyping=0;
+    input.addEventListener('input', function(){ var now=Date.now(); if((input.value||'').trim() && now-lastTyping>2500){ lastTyping=now; post('typing',{channel:CHANNEL}); } });
+    // Code-snippet button: wrap selection (or insert an empty fence) in ```.
+    if(snippetBtn) snippetBtn.addEventListener('click', function(){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value;
+      var sel=v.slice(s,e2)||'code here'; input.value=v.slice(0,s)+'```\n'+sel+'\n```'+v.slice(e2); input.focus();
+      var pos=s+4; input.setSelectionRange(pos,pos+sel.length); autoGrow(); });
+
+    // ── Catch me up (AI recap) ──
+    var recapScrim=document.getElementById('recapScrim'), recapBody=document.getElementById('recapBody');
+    function mdLite(t){ var lines=String(t||'').split('\n'), out='', inUl=false;
+      function inl(s){ return esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code class="tc-code-inline">$1</code>'); }
+      lines.forEach(function(l){ var t2=l.trim();
+        if(/^[-*•]\s+/.test(t2)){ if(!inUl){ out+='<ul>'; inUl=true; } out+='<li>'+inl(t2.replace(/^[-*•]\s+/,''))+'</li>'; return; }
+        if(inUl){ out+='</ul>'; inUl=false; }
+        if(!t2){ out+=''; return; }
+        if(/^#{1,6}\s/.test(t2)){ out+='<h4>'+inl(t2.replace(/^#{1,6}\s/,''))+'</h4>'; return; }
+        out+='<p>'+inl(t2)+'</p>'; });
+      if(inUl) out+='</ul>'; return out; }
+    function openRecap(){ if(!recapScrim) return; recapScrim.hidden=false; recapBody.innerHTML='<p class="pc-empty tc-recap-load"><span class="tc-typing-dots"><i></i><i></i><i></i></span> Reading #'+esc(CHANNEL)+' and writing your briefing…</p>';
+      get('recap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(d&&d.ok){ recapBody.innerHTML=mdLite(d.summary)+'<div class="tc-recap-src">Summarised by AI'+(d.via?' ('+esc(d.via)+')':'')+' — verify anything important.</div>'; } else { recapBody.innerHTML='<p class="pc-empty">'+esc((d&&d.error)||'Could not generate a recap.')+'</p>'; } }).catch(function(){ recapBody.innerHTML='<p class="pc-empty">Network error — try again.</p>'; }); }
+    function closeRecap(){ if(recapScrim) recapScrim.hidden=true; }
+    if(catchupBtn) catchupBtn.addEventListener('click', openRecap);
+    var recapCloseBtn=document.getElementById('recapClose'); if(recapCloseBtn) recapCloseBtn.addEventListener('click', closeRecap);
+    if(recapScrim) recapScrim.addEventListener('click', function(e){ if(e.target===recapScrim) closeRecap(); });
 
     // Message interactions (event-delegated) — shared by the stream and thread panel.
     function onMsgClick(e){

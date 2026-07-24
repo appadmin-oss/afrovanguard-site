@@ -82,6 +82,17 @@ final class Community
             );";
             $db->exec($drv === 'sqlite' ? $rddl : Database::translateDDL($rddl, $drv));
         } catch (Throwable $e) { /* already there */ }
+        // Typing indicators — one short-lived row per (user,channel), refreshed
+        // while a member is composing. Read back within a few seconds' window.
+        try {
+            $tddl = "CREATE TABLE IF NOT EXISTS community_typing (
+                user_id INTEGER NOT NULL,
+                channel VARCHAR(24) NOT NULL DEFAULT 'general',
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, channel)
+            );";
+            $db->exec($drv === 'sqlite' ? $tddl : Database::translateDDL($tddl, $drv));
+        } catch (Throwable $e) { /* already there */ }
         // Data-classification is a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_posts', 'classification')) $db->exec("ALTER TABLE community_posts ADD COLUMN classification VARCHAR(16) NOT NULL DEFAULT 'members'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
@@ -107,6 +118,144 @@ final class Community
             $out[] = ['key' => $key, 'label' => $label, 'last_id' => $last[$key] ?? 0];
         }
         return $out;
+    }
+
+    /** Short per-channel descriptions shown under the channel title. */
+    const CHAT_TOPICS = [
+        'general'       => 'The whole team — announcements, questions, wins.',
+        'announcements' => 'Official updates from the Afrovanguard team.',
+        'mentorship'    => 'Mentors and mentees — sessions, notes, guidance.',
+        'random'        => 'Off-topic. Say hi, share a link, take a breather.',
+    ];
+
+    /**
+     * Org members for the chat members rail: mentors first, then everyone else,
+     * each with role + live presence. Uses the Collab presence heartbeat so the
+     * green dots match "who's online".
+     */
+    public static function chatMembers(int $viewerId, int $limit = 60): array
+    {
+        self::ensure();
+        try {
+            $like = self::orgEmailLike();
+            $window = class_exists('Collab') ? 180 : 180;   // seconds → "online"
+            $cut = time() - $window;
+            $sql = "SELECT u.id, u.name, u.email, u.role,
+                           (SELECT p.last_seen FROM presence p WHERE p.user_id = u.id) AS last_seen
+                    FROM lms_users u
+                    WHERE u.status = 'active' AND LOWER(u.email) LIKE ? AND u.email <> ?
+                    ORDER BY u.name ASC LIMIT " . max(1, min(200, $limit));
+            $st = Database::pdo()->prepare($sql);
+            $st->execute([$like, self::BOT_EMAIL]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatMembers: ' . $e->getMessage()); return ['mentors' => [], 'members' => [], 'online' => 0]; }
+        $mentorRoles = ['mentor', 'instructor', 'coordinator', 'admin'];
+        $mentors = []; $members = []; $online = 0;
+        foreach ($rows as $r) {
+            $role = strtolower((string) ($r['role'] ?? 'member'));
+            $isOnline = ((int) ($r['last_seen'] ?? 0)) >= $cut;
+            if ($isOnline) $online++;
+            $name = (string) $r['name'];
+            $m = [
+                'id'      => (int) $r['id'],
+                'name'    => $name,
+                'initial' => mb_strtoupper(mb_substr($name, 0, 1)),
+                'role'    => $role,
+                'online'  => $isOnline,
+                'is_me'   => (int) $r['id'] === $viewerId,
+            ];
+            if (in_array($role, $mentorRoles, true)) $mentors[] = $m; else $members[] = $m;
+        }
+        // Online first within each group.
+        $byOnline = fn($a, $b) => ($b['online'] <=> $a['online']) ?: strcmp($a['name'], $b['name']);
+        usort($mentors, $byOnline); usort($members, $byOnline);
+        return ['mentors' => $mentors, 'members' => $members, 'online' => $online];
+    }
+
+    /* ── Typing indicators ─────────────────────────────────────────── */
+    public static function setTyping(int $uid, string $channel): void
+    {
+        if ($uid <= 0) return;
+        self::ensure();
+        $channel = self::normChannel($channel);
+        $now = time();
+        try {
+            $db = Database::pdo();
+            $n = $db->prepare('UPDATE community_typing SET updated_at = ? WHERE user_id = ? AND channel = ?');
+            $n->execute([$now, $uid, $channel]);
+            if ($n->rowCount() === 0) {
+                try { $db->prepare('INSERT INTO community_typing (user_id, channel, updated_at) VALUES (?,?,?)')->execute([$uid, $channel, $now]); }
+                catch (Throwable $e) { /* raced */ }
+            }
+        } catch (Throwable $e) {}
+    }
+
+    /** Names of members typing in $channel within the last few seconds (excl. viewer). */
+    public static function whoTyping(int $viewerId, string $channel): array
+    {
+        self::ensure();
+        $channel = self::normChannel($channel);
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT u.name FROM community_typing t JOIN lms_users u ON u.id = t.user_id
+                 WHERE t.channel = ? AND t.updated_at >= ? AND t.user_id <> ? ORDER BY t.updated_at DESC LIMIT 5"
+            );
+            $st->execute([$channel, time() - 6, $viewerId]);
+            return array_map(fn($n) => (string) $n, $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        } catch (Throwable $e) { return []; }
+    }
+
+    private static function clearTyping(int $uid, string $channel): void
+    {
+        try { Database::pdo()->prepare('DELETE FROM community_typing WHERE user_id = ? AND channel = ?')->execute([$uid, self::normChannel($channel)]); }
+        catch (Throwable $e) {}
+    }
+
+    /* ── "Catch me up" — AI recap of recent channel activity ───────── */
+    public static function chatAiAvailable(): bool
+    {
+        return (class_exists('AvBot') && AvBot::configured()) || (class_exists('Gemini') && Gemini::configured());
+    }
+
+    /**
+     * Summarise the recent conversation in a channel into a few crisp bullets:
+     * decisions, questions still open, and any action items. Returns
+     * ['ok'=>bool, 'summary'=>string, 'error'=>?string]. Uses whichever AI key
+     * is configured (Claude first, else Gemini).
+     */
+    public static function chatRecap(int $viewerId, string $channel, int $limit = 40): array
+    {
+        self::ensure();
+        if (!self::isOrgMember($viewerId)) return ['ok' => false, 'summary' => '', 'error' => 'Members only.'];
+        if (!self::chatAiAvailable()) return ['ok' => false, 'summary' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).'];
+        $channel = self::normChannel($channel);
+        $msgs = self::chatList($viewerId, 0, max(10, min(80, $limit)), $channel);
+        if (count($msgs) < 2) return ['ok' => false, 'summary' => '', 'error' => 'Not enough messages to summarise yet.'];
+        $transcript = '';
+        foreach ($msgs as $m) {
+            $transcript .= $m['author'] . ': ' . trim(mb_substr((string) $m['body'], 0, 500)) . "\n";
+            if (!empty($m['reply_count'])) $transcript .= '  (' . $m['reply_count'] . ' thread replies)' . "\n";
+        }
+        $system = <<<SYS
+You catch a busy member up on a team chat channel. Read the transcript and produce a SHORT briefing in Markdown with these sections (omit a section if it has nothing):
+**TL;DR** — 1-2 sentences.
+**Decisions** — bullets of what was decided.
+**Open questions** — bullets of anything unresolved or awaiting someone.
+**Action items** — bullets as "who — what" when an owner is clear.
+Be concise and factual. Do NOT invent anything not in the transcript. No preamble.
+SYS;
+        $prompt = "Channel: #{$channel}\n\nTranscript (oldest first):\n" . mb_substr($transcript, 0, 11000);
+
+        $res = null; $via = '';
+        if (class_exists('AvBot') && AvBot::configured()) {
+            $res = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => 700]); $via = 'claude';
+            if (empty($res['ok']) && class_exists('Gemini') && Gemini::configured()) $res = null;
+        }
+        if ($res === null && class_exists('Gemini') && Gemini::configured()) {
+            $res = Gemini::generate($prompt, ['system' => $system, 'max_tokens' => 700, 'temperature' => 0.2]); $via = 'gemini';
+        }
+        if (!$res || empty($res['ok'])) return ['ok' => false, 'summary' => '', 'error' => (string) ($res['error'] ?? 'AI request failed.')];
+        return ['ok' => true, 'summary' => trim((string) $res['text']), 'error' => null, 'via' => $via];
     }
 
     /** Data-classification levels for posts (least → most sensitive). */
@@ -521,6 +670,7 @@ final class Community
             error_log('[community] chatSend: ' . $e->getMessage());
             return null;
         }
+        self::clearTyping($authorId, $channel);   // stop showing "X is typing" once sent
         // Resolve + notify mentions (best-effort; failure never blocks the send).
         try {
             $mentions = self::resolveMentions($body, $authorId);
