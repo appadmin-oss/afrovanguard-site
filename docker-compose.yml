@@ -1,0 +1,52 @@
+# Local / single-VM deployment. `docker compose up --build` serves the site on
+# http://localhost:8080. Uncomment the `db` service (and the AV_DB_* vars) to run
+# against MySQL instead of the bundled SQLite — the same switch you'd use to move
+# to a managed cloud database (Cloud SQL, RDS, etc.). See DEPLOY.md.
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      SITE_URL: "http://localhost:8080"
+      AV_ORG_DOMAIN: "afrovanguard.org.ng"
+      APP_KEY: "${APP_KEY:-change-me-32+chars-in-production}"
+      # ── Email (see config.example.php) ─────────────────────────────
+      # SMTP_HOST: "smtp.gmail.com"
+      # SMTP_USERNAME: "donations@afrovanguard.org.ng"
+      # AV_SMTP_PASSWORD: "app-password"
+      # AV_RESEND_KEY: "re_..."          # HTTPS fallback when SMTP ports are blocked
+      # ── AI (either key enables goal-planning + Catch me up) ────────
+      # ANTHROPIC_API_KEY: "sk-ant-..."
+      # AV_GEMINI_API_KEY: "..."
+      # ── Web-cron key (point a scheduler at /tasks/cron.php?key=...) ─
+      # AV_CRON_KEY: "a-long-random-string"
+      # ── Database: default is SQLite on the volume below. To use MySQL,
+      #    uncomment these + the `db` service, and `depends_on` below. ──
+      # AV_DB_HOST: "db"
+      # AV_DB_NAME: "afrovanguard"
+      # AV_DB_USER: "afro"
+      # AV_DB_PASS: "afro"
+      # AV_DB_STRICT: "1"                # fail loudly instead of falling back to SQLite
+    volumes:
+      - app-db:/var/www/html/db         # persist the SQLite DB across restarts
+      - app-uploads:/var/www/html/uploads
+    # depends_on: [db]
+    restart: unless-stopped
+
+  # db:
+  #   image: mysql:8
+  #   environment:
+  #     MYSQL_DATABASE: afrovanguard
+  #     MYSQL_USER: afro
+  #     MYSQL_PASSWORD: afro
+  #     MYSQL_ROOT_PASSWORD: rootpw
+  #   volumes:
+  #     - db-data:/var/lib/mysql
+  #   restart: unless-stopped
+
+volumes:
+  app-db:
+  app-uploads:
+  # db-data:

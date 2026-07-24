@@ -1,0 +1,19 @@
+# Keep the image small and secret-free.
+.git
+.github
+**/*.md
+!db/schema.sql
+node_modules
+tests
+docs
+DESIGN-AUDIT.md
+CODEBASE-AUDIT.md
+# Never bake local secrets or a local DB into the image.
+config.php
+.htaccess.local
+db/*.sqlite
+db/*.sqlite-*
+uploads/*
+data/*
+!uploads/.gitkeep
+!data/.gitkeep
