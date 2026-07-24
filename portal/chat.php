@@ -41,8 +41,8 @@ try {
             $channel = (string) ($_GET['channel'] ?? 'general');
             json_out([
                 'ok'          => true,
-                'channels'    => Community::chatChannels(),
-                'topics'      => Community::CHAT_TOPICS,
+                'channels'    => Community::chatChannels($uid),
+                'topics'      => Community::chatTopics(),
                 'messages'    => Community::chatList($uid, 0, 50, $channel),
                 'pins'        => Community::chatPins($uid, $channel),
                 'members'     => Community::chatMembers($uid),
@@ -52,6 +52,7 @@ try {
                 'react_emoji' => Community::REACT_EMOJI,
                 'ai'          => Community::chatAiAvailable(),
                 'gchat'       => Community::googleChatLinked(),
+                'is_admin'    => Community::isAdmin($uid),
                 'me'          => ['id' => $uid, 'name' => (string) $u['name']],
             ]);
 
@@ -66,7 +67,7 @@ try {
                 'typing'   => Community::whoTyping($uid, $channel),
                 'online'   => Collab::onlineUsers(40),
                 'count'    => Collab::onlineCount(),
-                'channels' => Community::chatChannels(),
+                'channels' => Community::chatChannels($uid),
             ]);
 
         case 'typing':
@@ -118,6 +119,56 @@ try {
             $rx = Community::chatReact($uid, (int) ($body['id'] ?? 0), (string) ($body['emoji'] ?? ''));
             if ($rx === null) json_out(['ok' => false, 'error' => 'Could not react.'], 400);
             json_out(['ok' => true, 'id' => (int) $body['id'], 'reactions' => $rx]);
+
+        case 'edit':
+            $writeGuard();
+            $m = Community::chatEdit($uid, (int) ($body['id'] ?? 0), (string) ($body['body'] ?? ''));
+            if (!$m) json_out(['ok' => false, 'error' => 'Could not edit that message.'], 400);
+            json_out(['ok' => true, 'message' => $m]);
+
+        case 'delete':
+            $writeGuard();
+            $m = Community::chatDelete($uid, (int) ($body['id'] ?? 0));
+            if (!$m) json_out(['ok' => false, 'error' => 'Could not delete that message.'], 400);
+            json_out(['ok' => true, 'message' => $m]);
+
+        case 'save':
+            $writeGuard();
+            $s = Community::chatSave($uid, (int) ($body['id'] ?? 0), !empty($body['saved']));
+            if ($s === null) json_out(['ok' => false, 'error' => 'Could not update saved items.'], 400);
+            json_out(['ok' => true, 'id' => (int) $body['id'], 'saved' => $s]);
+
+        case 'saved':
+            json_out(['ok' => true, 'messages' => Community::chatSaved($uid)]);
+
+        case 'channel_create':
+            $writeGuard();
+            if (!Community::isAdmin($uid)) json_out(['ok' => false, 'error' => 'Admins only.'], 403);
+            $c = Community::chatCreateChannel(
+                $uid,
+                (string) ($body['label'] ?? ''),
+                (string) ($body['topic'] ?? ''),
+                !empty($body['private']),
+                is_array($body['members'] ?? null) ? $body['members'] : [],
+                !empty($body['gchat_on']),
+                (string) ($body['gchat_space'] ?? '')
+            );
+            if (!$c) json_out(['ok' => false, 'error' => 'Enter a channel name.'], 400);
+            json_out(['ok' => true, 'channel' => $c, 'channels' => Community::chatChannels($uid)]);
+
+        case 'channel_update':
+            $writeGuard();
+            if (!Community::isAdmin($uid)) json_out(['ok' => false, 'error' => 'Admins only.'], 403);
+            $patch = [];
+            foreach (['label', 'topic', 'private', 'gchat_on', 'gchat_space'] as $k) if (array_key_exists($k, $body)) $patch[$k] = $body[$k];
+            $c = Community::chatUpdateChannel($uid, (string) ($body['channel'] ?? ''), $patch);
+            if (is_array($body['members'] ?? null)) Community::chatSetMembers($uid, (string) ($body['channel'] ?? ''), $body['members']);
+            if (!$c) json_out(['ok' => false, 'error' => 'Could not update the channel.'], 400);
+            json_out(['ok' => true, 'channel' => $c, 'channels' => Community::chatChannels($uid)]);
+
+        case 'channel_members':
+            if (!Community::isAdmin($uid)) json_out(['ok' => false, 'error' => 'Admins only.'], 403);
+            json_out(['ok' => true, 'members' => Community::chatChannelMembers($uid, (string) ($_GET['channel'] ?? ''))]);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

@@ -141,14 +141,25 @@ define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
  * Anything unset is simply hidden. */
 
 /* ─── Team Chat ─────────────────────────────────────────────────
- * Team Chat (in the member portal) is open to ANY signed-in account by
- * default. Lock it to @org members only with:
- *   SetEnv AV_CHAT_ORG_ONLY 1
- * Mirror chat messages into a Google Chat space via an incoming webhook
- * (Google Chat → a space → "Manage webhooks" → copy the URL). Set one default
- * for all channels, and/or override per channel:
- *   SetEnv AV_GCHAT_WEBHOOK            https://chat.googleapis.com/v1/spaces/AAAA/messages?key=...&token=...
- *   SetEnv AV_GCHAT_WEBHOOK_ANNOUNCEMENTS  https://chat.googleapis.com/v1/spaces/BBBB/...
+ * Team Chat (in the member portal) is STRICTLY for @org members — the same
+ * accounts that hold the Workspace. Channels are dynamic: an admin (coordinator+)
+ * can create channels/spaces from the chat UI, make them private with an explicit
+ * member list, and toggle Google Chat mirroring per channel.
+ *
+ * Google Chat mirroring posts AS THE AUTHOR (not an anonymous webhook bot): the
+ * service account impersonates the member's @org mailbox via domain-wide
+ * delegation — the same delegation used for Calendar/Meet. Add the Chat scope to
+ * the delegation in the Admin console:
+ *   https://www.googleapis.com/auth/chat.messages.create
+ * and set the subject/admin to impersonate through (defaults to ADMIN_EMAIL):
+ *   SetEnv AV_WS_SUBJECT   admin@afrovanguard.org.ng
+ * Then, per channel, an admin flips "Mirror to Google Chat" on and pastes the
+ * target space id (spaces/AAAA… — Google Chat → the space → copy the space id).
+ *
+ * Legacy incoming webhooks are still honoured as a fallback on hosts without
+ * delegation (posts as an app, not the author):
+ *   SetEnv AV_GCHAT_WEBHOOK                 https://chat.googleapis.com/v1/spaces/AAAA/messages?key=...&token=...
+ *   SetEnv AV_GCHAT_WEBHOOK_ANNOUNCEMENTS   https://chat.googleapis.com/v1/spaces/BBBB/...
  * Unset ⇒ no mirroring (the chat still works fully on its own). */
 
 /* ─── Application ───────────────────────────────────────────── */

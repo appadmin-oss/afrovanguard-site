@@ -118,15 +118,11 @@ $nav = [
     ],
 ];
 if ($isOrg) {
+    // Team Chat is strictly for @afrovanguard members.
     $nav['Work'] = [
         ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
-    ];
-} else {
-    // Team Chat is open to every account holder, not just @org members.
-    $nav['Work'] = [
-        ['chat', 'Team Chat', 'green', ''],
     ];
 }
 $nav['Learn'] = [
@@ -792,10 +788,9 @@ $nav['You'] = [
             </div>
           </section>
         </section>
-<?php endif; /* end org-only Tasks view; Team Chat below is open to all */ ?>
 
         <!-- ============================================================ -->
-        <!-- TEAM CHAT  (Slack-style native channels — open to all)       -->
+        <!-- TEAM CHAT  (Slack-style native channels — @afrovanguard only)-->
         <!-- ============================================================ -->
         <section class="pview" id="view-chat" data-view="chat" hidden>
           <div class="view-head">
@@ -810,8 +805,12 @@ $nav['You'] = [
                   <input type="search" id="tcSearch" placeholder="Search messages…" aria-label="Search messages" autocomplete="off">
                   <div class="tc-search-results" id="tcSearchResults" hidden></div>
                 </div>
-                <div class="tc-rail-h">Channels</div>
+                <div class="tc-rail-h">Channels<button type="button" class="tc-addch" id="tcAddChannel" title="New channel" aria-label="New channel" hidden>+</button></div>
                 <ul class="tc-channels" id="tcChannels"><li class="pc-empty">Loading…</li></ul>
+                <button type="button" class="tc-saved-btn" id="tcSavedBtn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 4h12v16l-6-4-6 4V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  <span>Saved items</span>
+                </button>
                 <button type="button" class="tc-catchup" id="tcCatchup" hidden>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5 14 8.5 20 10 14 11.5 12 17.5 10 11.5 4 10 10 8.5 12 2.5Z" fill="currentColor"/></svg>
                   <span>Catch me up</span>
@@ -829,6 +828,9 @@ $nav['You'] = [
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 17v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                     <span id="tcPinCount">0</span>
                   </button>
+                  <button type="button" class="tc-pinbtn tc-chset" id="tcChannelSettings" hidden aria-label="Channel settings" title="Channel settings">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  </button>
                   <span class="tc-presence"><span class="dot-live"></span><span id="tcPresence">0</span> online</span>
                 </div>
                 <div class="tc-pinned" id="tcPinned" hidden></div>
@@ -836,7 +838,8 @@ $nav['You'] = [
                 <div class="tc-typing" id="tcTyping" hidden></div>
                 <form class="tc-compose tc-compose--float" id="tcCompose" autocomplete="off">
                   <div class="tc-mentions" id="tcMentions" hidden></div>
-                  <span class="tc-compose-ava"><?= e($pInitials) ?></span>
+                  <div class="tc-editbar" id="tcEditBar" hidden>Editing message · <button type="button" class="tc-editcancel" id="tcEditCancel">cancel</button></div>
+                  <div class="tc-preview" id="tcPreview" hidden><div class="tc-preview-h">Preview</div><div class="tc-preview-body" id="tcPreviewBody"></div></div>
                   <textarea id="tcInput" rows="1" maxlength="2000" placeholder="Message #general — use @ to mention" aria-label="Message"></textarea>
                   <div class="tc-compose-tools">
                     <button type="button" class="tc-fmt" data-fmt="bold" title="Bold" aria-label="Bold"><b>B</b></button>
@@ -845,6 +848,7 @@ $nav['You'] = [
                     <button type="button" class="tc-fmt" data-fmt="link" title="Link" aria-label="Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                     <button type="button" class="tc-fmt" data-fmt="list" title="Bullet list" aria-label="Bullet list"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1.3" fill="currentColor"/><circle cx="3.5" cy="12" r="1.3" fill="currentColor"/><circle cx="3.5" cy="18" r="1.3" fill="currentColor"/></svg></button>
                     <button type="button" class="tc-tool" id="tcSnippet" title="Code snippet" aria-label="Code snippet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 18-6-6 6-6M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="button" class="tc-tool" id="tcPreviewBtn" title="Toggle preview" aria-label="Toggle preview" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg></button>
                     <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
                   </div>
                 </form>
@@ -871,7 +875,39 @@ $nav['You'] = [
               <div class="pm-body"><div class="tc-recap" id="recapBody"><p class="pc-empty">Summarising the channel…</p></div></div>
             </div>
           </div>
+
+          <!-- Saved items modal -->
+          <div class="pm-scrim" id="savedScrim" hidden>
+            <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="savedTitle">
+              <div class="pm-head"><h2 id="savedTitle">🔖 Saved items</h2><button type="button" class="pm-x" id="savedClose" aria-label="Close">✕</button></div>
+              <div class="pm-body"><div class="tc-saved" id="savedBody"><p class="pc-empty">Loading…</p></div></div>
+            </div>
+          </div>
+
+          <!-- Channel editor modal (admins) -->
+          <div class="pm-scrim" id="chanScrim" hidden>
+            <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="chanTitle">
+              <div class="pm-head"><h2 id="chanTitle">New channel</h2><button type="button" class="pm-x" id="chanClose" aria-label="Close">✕</button></div>
+              <div class="pm-body">
+                <form id="chanForm" autocomplete="off">
+                  <input type="hidden" id="chanKey" value="">
+                  <label class="pm-label">Name<input type="text" id="chanLabel" maxlength="60" placeholder="e.g. Coding practice" required></label>
+                  <label class="pm-label">Topic<input type="text" id="chanTopic" maxlength="200" placeholder="What this channel is for"></label>
+                  <label class="pm-check"><input type="checkbox" id="chanPrivate"> <span>Private — only chosen members can see it</span></label>
+                  <div class="tc-memberpick" id="chanMemberPick" hidden>
+                    <div class="pm-label" style="margin:0 0 4px">Members</div>
+                    <div class="tc-memberpick-list" id="chanMemberList"></div>
+                  </div>
+                  <label class="pm-check"><input type="checkbox" id="chanGchatOn"> <span>Mirror to Google Chat (posts as the author)</span></label>
+                  <label class="pm-label tc-gchat-space" id="chanGchatSpaceWrap" hidden>Google Chat space id<input type="text" id="chanGchatSpace" maxlength="120" placeholder="spaces/AAAA… or AAAA…"></label>
+                  <div class="pm-actions"><button type="submit" class="pbtn pbtn-gold" id="chanSave">Create channel</button></div>
+                  <p class="tc-chan-msg" id="chanMsg" hidden></p>
+                </form>
+              </div>
+            </div>
+          </div>
         </section>
+<?php endif; /* end @afrovanguard-only Tasks + Team Chat */ ?>
 
         <!-- ============================================================ -->
         <!-- LEARNING                                                     -->
@@ -1003,22 +1039,15 @@ $nav['You'] = [
             </div>
           </section>
 
-          <!-- Google Chat — live, in-portal (spaces + messages + send) -->
-          <section class="pcard chat-card" id="chatCard" data-csrf="<?= e($collabCsrf) ?>">
-            <div class="pcard-head"><h2>Team Chat <span class="chat-count" id="chatSpaceCount" hidden></span></h2>
-              <span class="pchip pchip--green"><span class="dot-live"></span>Google Chat <span class="chat-unread" id="chatUnreadBadge" hidden></span></span></div>
+          <!-- Team Chat — the native, in-portal chat (replaces the old Google Chat tile) -->
+          <section class="pcard ws-teamchat-card">
+            <div class="pcard-head"><h2>Team Chat</h2><span class="pchip pchip--green"><span class="dot-live"></span>Live · in-portal</span></div>
             <div class="pcard-body">
-              <div class="chat-wrap">
-                <aside class="chat-spaces" id="chatSpaces" aria-label="Chat spaces"><p class="pc-empty">Loading spaces…</p></aside>
-                <div class="chat-main">
-                  <div class="chat-thread" id="chatThread"><p class="pc-empty">Pick a space to start chatting.</p></div>
-                  <form class="chat-compose" id="chatCompose" autocomplete="off" hidden>
-                    <input type="text" id="chatInput" maxlength="4000" placeholder="Message this space…" aria-label="Message">
-                    <button type="submit" class="pbtn pbtn-gold">Send</button>
-                  </form>
-                </div>
+              <p class="pcard-note">Your team's real-time chat lives right here in the portal — channels, threads, @mentions, reactions, saved items and AI catch-up. Admins can mirror any channel into a Google Chat space, posted as the author.</p>
+              <div class="pws-inline-actions">
+                <a class="pbtn pbtn-gold" href="#chat" data-goto="chat">Open Team Chat →</a>
+                <a class="pbtn pbtn-ghost" href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Google Chat ↗</a>
               </div>
-              <p class="pcard-note chat-hint">Chats are live from Google Chat and sent as you. <a href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Open Chat ↗</a></p>
             </div>
           </section>
 <?php else: /* Google OAuth not configured on this deployment — be honest about why nothing fetches */ ?>
@@ -1036,9 +1065,9 @@ $nav['You'] = [
               <div><h2>Your Workspace apps</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
             </div>
             <div class="pcard-body pws-grid">
-<?php foreach ($wsSurfaces as $s): ?>              <a class="pws-app" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
+<?php foreach ($wsSurfaces as $s): $wsInt = !empty($s['internal']); ?>              <a class="pws-app" href="<?= e($s['url']) ?>"<?= $wsInt ? ' data-goto="chat"' : ' target="_blank" rel="noopener noreferrer"' ?>>
                 <span class="pws-ico pws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
-                <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span></span>
+                <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span><?= $wsInt ? '' : '' ?></span>
               </a>
 <?php endforeach; ?>            </div>
           </section>
@@ -1495,8 +1524,11 @@ $nav['You'] = [
         catchupBtn=document.getElementById('tcCatchup'), snippetBtn=document.getElementById('tcSnippet'),
         pinnedEl=document.getElementById('tcPinned'), pinBtn=document.getElementById('tcPinBtn'), pinCountEl=document.getElementById('tcPinCount'),
         input=document.getElementById('tcInput'), mentEl=document.getElementById('tcMentions'),
-        composeForm=document.getElementById('tcCompose');
-    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, PINS=[], PINS_OPEN=false, AI_OK=false, poller=null, active=false, ready=false, seenKey='av_chat_seen';
+        composeForm=document.getElementById('tcCompose'),
+        previewBtn=document.getElementById('tcPreviewBtn'), previewEl=document.getElementById('tcPreview'), previewBodyEl=document.getElementById('tcPreviewBody'),
+        editBar=document.getElementById('tcEditBar'), editCancel=document.getElementById('tcEditCancel'),
+        savedBtn=document.getElementById('tcSavedBtn'), addChannelBtn=document.getElementById('tcAddChannel'), chSetBtn=document.getElementById('tcChannelSettings');
+    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, PINS=[], PINS_OPEN=false, AI_OK=false, IS_ADMIN=false, EDITING=0, PREVIEW_ON=false, poller=null, active=false, ready=false, seenKey='av_chat_seen';
     // Per-channel last-seen id (localStorage) → unread dots.
     function seen(){ try{ return JSON.parse(localStorage.getItem(seenKey)||'{}'); }catch(e){ return {}; } }
     function markSeen(ch, id){ var s=seen(); if(!s[ch]||id>s[ch]){ s[ch]=id; try{ localStorage.setItem(seenKey, JSON.stringify(s)); }catch(e){} } }
@@ -1536,17 +1568,27 @@ $nav['You'] = [
       return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
     function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
     function actionsHtml(m){
+      if(m.deleted) return '';
       var reply = (!m.parent_id) ? '<button type="button" class="tc-act" data-act="reply" title="Reply in thread">💬</button>' : '';
       var pin = (!m.parent_id) ? '<button type="button" class="tc-act'+(m.pinned?' is-on':'')+'" data-act="pin" title="'+(m.pinned?'Unpin':'Pin to channel')+'">📌</button>' : '';
-      return '<div class="tc-actions">'+reply+pin+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button></div>'; }
+      var save = '<button type="button" class="tc-act'+(m.saved?' is-on':'')+'" data-act="save" title="'+(m.saved?'Remove from saved':'Save for later')+'">'+(m.saved?'🔖':'🏷️')+'</button>';
+      var edit = m.is_me ? '<button type="button" class="tc-act" data-act="edit" title="Edit">✎</button>' : '';
+      var del = (m.is_me || IS_ADMIN) ? '<button type="button" class="tc-act tc-act-del" data-act="delete" title="Delete">🗑</button>' : '';
+      return '<div class="tc-actions">'+reply+pin+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button>'+save+edit+del+'</div>'; }
     function msgHtml(m, grouped){
       var head = grouped ? '' : '<span class="tc-avatar">'+esc(m.initial)+'</span>';
-      var pinMark = m.pinned ? '<span class="tc-pinmark" title="Pinned">📌</span>' : '';
+      var pinMark = m.pinned && !m.deleted ? '<span class="tc-pinmark" title="Pinned">📌</span>' : '';
       var meta = grouped ? '' : '<span class="tc-msg-h"><b class="tc-name">'+esc(m.author)+'</b>'+(m.verified?'<span class="tc-badge" title="Verified member">✓</span>':'')+'<span class="tc-time">'+esc(fmtTime(m.created_at))+'</span>'+pinMark+'</span>';
+      if(m.deleted){
+        return '<div class="tc-msg is-deleted'+(grouped?' is-grouped':'')+'" data-id="'+m.id+'">'
+          +'<div class="tc-msg-l">'+head+'</div>'
+          +'<div class="tc-msg-b">'+meta+'<div class="tc-text tc-tomb"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> This message was deleted</div></div></div>'; }
+      var edited = m.edited ? '<span class="tc-edited" title="Edited">(edited)</span>' : '';
+      var savedMark = m.saved ? '<span class="tc-savemark" title="Saved">🔖</span>' : '';
       return '<div class="tc-msg'+(grouped?' is-grouped':'')+(m.is_me?' is-me':'')+(m.pinned?' is-pinned':'')+'" data-id="'+m.id+'">'
         +actionsHtml(m)
-        +'<div class="tc-msg-l">'+head+'</div>'
-        +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+'</div>'+reactHtml(m)+threadSummary(m)+'</div></div>'; }
+        +'<div class="tc-msg-l">'+head+savedMark+'</div>'
+        +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+edited+'</div>'+reactHtml(m)+threadSummary(m)+'</div></div>'; }
     function render(){
       if(!MSGS.length){ streamEl.innerHTML='<p class="pc-empty tc-empty">👋 No messages yet in #'+esc(CHANNEL)+'. Say hello to the team.</p>'; return; }
       var html='', lastDay='', lastAuthor='', lastT=0;
@@ -1560,7 +1602,9 @@ $nav['You'] = [
     function renderChannels(){
       var s=seen();
       chanEl.innerHTML=CHANNELS.map(function(c){ var unread = c.last_id>(s[c.key]||0) && c.key!==CHANNEL;
-        return '<li><button type="button" class="tc-channel'+(c.key===CHANNEL?' is-on':'')+'" data-ch="'+esc(c.key)+'"><span class="tc-hash">#</span>'+esc(c.label)+(unread?'<span class="tc-unread"></span>':'')+'</button></li>'; }).join('');
+        var hash = c.private ? '<span class="tc-hash" title="Private">🔒</span>' : '<span class="tc-hash">#</span>';
+        var gc = c.gchat ? '<span class="tc-gc" title="Mirrors to Google Chat">↗</span>' : '';
+        return '<li><button type="button" class="tc-channel'+(c.key===CHANNEL?' is-on':'')+'" data-ch="'+esc(c.key)+'">'+hash+esc(c.label)+gc+(unread?'<span class="tc-unread"></span>':'')+'</button></li>'; }).join('');
       updateNavBadge();
     }
     // A count of channels with unread messages, shown on the sidebar "Team Chat" nav.
@@ -1604,10 +1648,10 @@ $nav['You'] = [
     // Append only strictly-newer messages (id > LAST) so a late/overlapping poll can't duplicate.
     function applyNew(list){ if(!list||!list.length) return; var added=false; list.forEach(function(m){ if(m.id>LAST){ MSGS.push(m); LAST=m.id; added=true; } }); if(!added) return; if(MSGS.length>200)MSGS=MSGS.slice(-200); markSeen(CHANNEL,LAST); render(); }
     function bootstrap(){ ready=false; get('bootstrap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(!d||!d.ok){ ready=true; return; }
-        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; TOPICS=d.topics||TOPICS; MEMBERS=d.members||MEMBERS; PINS=d.pins||[]; AI_OK=!!d.ai;
+        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; TOPICS=d.topics||TOPICS; MEMBERS=d.members||MEMBERS; PINS=d.pins||[]; AI_OK=!!d.ai; IS_ADMIN=!!d.is_admin;
         MSGS=d.messages||[]; LAST=MSGS.length?MSGS[MSGS.length-1].id:0;
         markSeen(CHANNEL,LAST); renderChannels(); render(); renderMembers(); renderTyping(d.typing); renderPins(); setTopic(); updatePresence(d.count);
-        if(catchupBtn) catchupBtn.hidden=!AI_OK; ready=true; }).catch(function(){ ready=true; }); }
+        if(catchupBtn) catchupBtn.hidden=!AI_OK; if(addChannelBtn) addChannelBtn.hidden=!IS_ADMIN; if(chSetBtn) chSetBtn.hidden=!IS_ADMIN; ready=true; }).catch(function(){ ready=true; }); }
     function poll(){ if(!active || !ready) return; get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since='+LAST).then(function(d){ if(!d||!d.ok) return;
         CHANNELS=d.channels||CHANNELS; if(d.members)MEMBERS=d.members; applyNew(d.messages); renderChannels(); renderMembers(); renderTyping(d.typing); updatePresence(d.count); }).catch(function(){}); }
     function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.placeholder='Message #'+ch+' — use @ to mention'; renderChannels(); setTopic(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
@@ -1629,11 +1673,31 @@ $nav['You'] = [
       setTimeout(function(){ var el=streamEl.querySelector('.tc-msg[data-id="'+id+'"]'); if(el){ el.scrollIntoView({block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); },1500); } }, switched?650:60); });
     document.addEventListener('click', function(e){ if(searchResEl && !searchResEl.hidden && !e.target.closest('.tc-search')) searchResEl.hidden=true; });
 
-    // Send
+    // ── Live preview (Google-Chat-style formatted preview of what you're typing) ──
+    function updatePreview(){ if(!PREVIEW_ON||!previewBodyEl) return; var v=input.value||'';
+      if(!v.trim()){ previewBodyEl.innerHTML='<span class="tc-preview-empty">Nothing to preview yet.</span>'; return; }
+      previewBodyEl.innerHTML=bodyHtml({body:v, mentions:[]}); }
+    function togglePreview(on){ PREVIEW_ON = (on===undefined)?!PREVIEW_ON:on;
+      if(previewEl) previewEl.hidden=!PREVIEW_ON; if(previewBtn){ previewBtn.setAttribute('aria-pressed', PREVIEW_ON?'true':'false'); previewBtn.classList.toggle('is-on', PREVIEW_ON); }
+      updatePreview(); }
+    if(previewBtn) previewBtn.addEventListener('click', function(){ togglePreview(); });
+
+    // ── Edit mode ──
+    function replaceMsg(nm){ var i; for(i=0;i<MSGS.length;i++){ if(MSGS[i].id===nm.id){ MSGS[i]=nm; } } for(i=0;i<THREAD.length;i++){ if(THREAD[i].id===nm.id){ THREAD[i]=nm; } } render(); if(OPEN_THREAD) renderThread(); }
+    function enterEdit(id){ var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; if(!m||m.deleted) return;
+      EDITING=id; input.value=m.body||''; input.focus(); autoGrow(); updatePreview();
+      if(editBar) editBar.hidden=false; composeForm.classList.add('is-editing'); }
+    function exitEdit(){ EDITING=0; input.value=''; autoGrow(); if(editBar) editBar.hidden=true; composeForm.classList.remove('is-editing'); updatePreview(); }
+    if(editCancel) editCancel.addEventListener('click', exitEdit);
+
+    // Send / save-edit
     composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=(input.value||'').trim(); if(!body) return;
-      input.value=''; autoGrow(); mainMentions.hide();
+      if(EDITING){ var id=EDITING; post('edit',{id:id, body:body}).then(function(d){ if(d&&d.ok&&d.message){ replaceMsg(d.message); } }).catch(function(){}); exitEdit(); return; }
+      input.value=''; autoGrow(); mainMentions.hide(); updatePreview();
       post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
-    input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mainMentions.isOpen()){ e.preventDefault(); composeForm.requestSubmit(); } });
+    input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mainMentions.isOpen()){ e.preventDefault(); composeForm.requestSubmit(); }
+      else if(e.key==='Escape' && EDITING){ exitEdit(); } });
+    input.addEventListener('input', updatePreview);
     // Broadcast "typing" (throttled to once per ~2.5s while composing).
     var lastTyping=0;
     input.addEventListener('input', function(){ var now=Date.now(); if((input.value||'').trim() && now-lastTyping>2500){ lastTyping=now; post('typing',{channel:CHANNEL}); } });
@@ -1677,19 +1741,82 @@ $nav['You'] = [
     var recapCloseBtn=document.getElementById('recapClose'); if(recapCloseBtn) recapCloseBtn.addEventListener('click', closeRecap);
     if(recapScrim) recapScrim.addEventListener('click', function(e){ if(e.target===recapScrim) closeRecap(); });
 
+    // ── Saved items ──────────────────────────────────────────────
+    var savedScrim=document.getElementById('savedScrim'), savedBody=document.getElementById('savedBody'), savedCloseBtn=document.getElementById('savedClose');
+    function openSaved(){ if(!savedScrim) return; savedScrim.hidden=false; savedBody.innerHTML='<p class="pc-empty">Loading…</p>';
+      get('saved').then(function(d){ if(!d||!d.ok){ savedBody.innerHTML='<p class="pc-empty">Couldn’t load saved items.</p>'; return; }
+        var rows=d.messages||[]; if(!rows.length){ savedBody.innerHTML='<p class="pc-empty">🔖 Nothing saved yet. Hover a message and tap 🏷️ to bookmark it.</p>'; return; }
+        savedBody.innerHTML=rows.map(function(m){ return '<div class="tc-saved-item" data-ch="'+esc(m.channel||'')+'" data-id="'+m.id+'"><div class="tc-saved-top"><b>'+esc(m.author)+'</b> <span class="tc-saved-ch">#'+esc(m.channel||'')+'</span> <span class="tc-time">'+esc(fmtTime(m.created_at))+'</span></div><div class="tc-text">'+bodyHtml(m)+'</div><div class="tc-saved-act"><button type="button" class="tc-saved-jump" data-jump="'+m.id+'" data-ch="'+esc(m.channel||'')+'">Jump →</button><button type="button" class="tc-saved-unsave" data-unsave="'+m.id+'">Remove</button></div></div>'; }).join(''); }).catch(function(){ savedBody.innerHTML='<p class="pc-empty">Network error.</p>'; }); }
+    function closeSaved(){ if(savedScrim) savedScrim.hidden=true; }
+    if(savedBtn) savedBtn.addEventListener('click', openSaved);
+    if(savedCloseBtn) savedCloseBtn.addEventListener('click', closeSaved);
+    if(savedScrim) savedScrim.addEventListener('click', function(e){ if(e.target===savedScrim) closeSaved(); });
+    if(savedBody) savedBody.addEventListener('click', function(e){
+      var cp=e.target.closest('.tc-copy'); if(cp){ copyCode(cp); return; }
+      var un=e.target.closest('.tc-saved-unsave'); if(un){ var uid=+un.getAttribute('data-unsave'); post('save',{id:uid, saved:false}).then(function(){ var it=un.closest('.tc-saved-item'); if(it) it.remove(); MSGS.concat(THREAD).forEach(function(x){ if(x.id===uid){ x.saved=false; } }); render(); }); return; }
+      var jp=e.target.closest('.tc-saved-jump'); if(jp){ var jid=+jp.getAttribute('data-jump'), jch=jp.getAttribute('data-ch'); closeSaved();
+        var switched = jch && jch!==CHANNEL; if(switched) switchChannel(jch);
+        setTimeout(function(){ var el=streamEl.querySelector('.tc-msg[data-id="'+jid+'"]'); if(el){ el.scrollIntoView({block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); },1500); } }, switched?650:60); } });
+
+    // ── Channel editor (admins) ──────────────────────────────────
+    var chanScrim=document.getElementById('chanScrim'), chanForm=document.getElementById('chanForm'), chanTitle=document.getElementById('chanTitle'),
+        chanKeyEl=document.getElementById('chanKey'), chanLabelEl=document.getElementById('chanLabel'), chanTopicEl=document.getElementById('chanTopic'),
+        chanPrivEl=document.getElementById('chanPrivate'), chanMemberPick=document.getElementById('chanMemberPick'), chanMemberList=document.getElementById('chanMemberList'),
+        chanGchatOnEl=document.getElementById('chanGchatOn'), chanGchatSpaceWrap=document.getElementById('chanGchatSpaceWrap'), chanGchatSpaceEl=document.getElementById('chanGchatSpace'),
+        chanSaveBtn=document.getElementById('chanSave'), chanMsg=document.getElementById('chanMsg'), chanCloseBtn=document.getElementById('chanClose');
+    function allMembers(){ return (MEMBERS.mentors||[]).concat(MEMBERS.members||[]); }
+    function renderMemberPicker(selected){ selected=selected||[]; if(!chanMemberList) return;
+      chanMemberList.innerHTML=allMembers().filter(function(u){ return !u.is_me; }).map(function(u){ var on=selected.indexOf(u.id)>-1;
+        return '<label class="tc-mp-row"><input type="checkbox" value="'+u.id+'"'+(on?' checked':'')+'> <span class="tc-mp-ava">'+esc(u.initial)+'</span> '+esc(u.name)+'</label>'; }).join('') || '<p class="pc-empty">No other members yet.</p>'; }
+    function chanMsgSay(t,tone){ if(!chanMsg)return; chanMsg.hidden=!t; chanMsg.textContent=t||''; chanMsg.className='tc-chan-msg'+(tone?' is-'+tone:''); }
+    function openChannelEditor(key){ if(!chanScrim||!IS_ADMIN) return; chanScrim.hidden=false; chanMsgSay('');
+      if(key){ var c=CHANNELS.filter(function(x){return x.key===key;})[0]||{}; chanTitle.textContent='Edit #'+key; chanKeyEl.value=key;
+        chanLabelEl.value=c.label||''; chanTopicEl.value=TOPICS[key]||c.topic||''; chanPrivEl.checked=!!c.private; chanGchatOnEl.checked=!!c.gchat; chanGchatSpaceEl.value='';
+        chanSaveBtn.textContent='Save changes'; chanMemberPick.hidden=!c.private; chanGchatSpaceWrap.hidden=!c.gchat; renderMemberPicker([]);
+        if(c.private){ get('channel_members','&channel='+encodeURIComponent(key)).then(function(d){ if(d&&d.ok) renderMemberPicker(d.members||[]); }); }
+      } else { chanTitle.textContent='New channel'; chanKeyEl.value=''; chanLabelEl.value=''; chanTopicEl.value=''; chanPrivEl.checked=false; chanGchatOnEl.checked=false; chanGchatSpaceEl.value='';
+        chanSaveBtn.textContent='Create channel'; chanMemberPick.hidden=true; chanGchatSpaceWrap.hidden=true; renderMemberPicker([]); }
+      setTimeout(function(){ chanLabelEl.focus(); },30); }
+    function closeChannelEditor(){ if(chanScrim) chanScrim.hidden=true; }
+    if(addChannelBtn) addChannelBtn.addEventListener('click', function(){ openChannelEditor(''); });
+    if(chSetBtn) chSetBtn.addEventListener('click', function(){ openChannelEditor(CHANNEL); });
+    if(chanCloseBtn) chanCloseBtn.addEventListener('click', closeChannelEditor);
+    if(chanScrim) chanScrim.addEventListener('click', function(e){ if(e.target===chanScrim) closeChannelEditor(); });
+    if(chanPrivEl) chanPrivEl.addEventListener('change', function(){ chanMemberPick.hidden=!chanPrivEl.checked; if(chanPrivEl.checked) renderMemberPicker(collectMembers()); });
+    if(chanGchatOnEl) chanGchatOnEl.addEventListener('change', function(){ chanGchatSpaceWrap.hidden=!chanGchatOnEl.checked; });
+    function collectMembers(){ if(!chanMemberList) return []; return [].map.call(chanMemberList.querySelectorAll('input:checked'), function(i){ return +i.value; }); }
+    if(chanForm) chanForm.addEventListener('submit', function(e){ e.preventDefault();
+      var label=(chanLabelEl.value||'').trim(); if(!label){ chanMsgSay('Enter a channel name.','warn'); return; }
+      var key=chanKeyEl.value, payload={label:label, topic:(chanTopicEl.value||'').trim(), private:chanPrivEl.checked, gchat_on:chanGchatOnEl.checked};
+      if(chanGchatOnEl.checked && (chanGchatSpaceEl.value||'').trim()) payload.gchat_space=(chanGchatSpaceEl.value||'').trim();
+      if(chanPrivEl.checked) payload.members=collectMembers();
+      chanSaveBtn.disabled=true;
+      var action = key ? 'channel_update' : 'channel_create'; if(key) payload.channel=key;
+      post(action, payload).then(function(d){ chanSaveBtn.disabled=false;
+        if(d&&d.ok){ CHANNELS=d.channels||CHANNELS; renderChannels(); closeChannelEditor(); if(d.channel&&!key){ switchChannel(d.channel.key); } else if(key){ setTopic(); bootstrap(); } }
+        else { chanMsgSay((d&&d.error)||'Could not save the channel.','warn'); } }).catch(function(){ chanSaveBtn.disabled=false; chanMsgSay('Network error.','warn'); }); });
+
     // Message interactions (event-delegated) — shared by the stream and thread panel.
     function onMsgClick(e){
       var cp=e.target.closest('.tc-copy'); if(cp){ copyCode(cp); return; }
       var msgEl=e.target.closest('.tc-msg'); if(!msgEl) return; var id=+msgEl.getAttribute('data-id');
       var chip=e.target.closest('.tc-react'); if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
       var add=e.target.closest('.tc-react-add'); if(add){ openEmojiPicker(add, id); return; }
-      var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act'); if(a==='reply') openThread(id); else if(a==='assign') openAssign(id, msgEl); else if(a==='pin') doPin(id); return; }
+      var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act');
+        if(a==='reply') openThread(id); else if(a==='assign') openAssign(id, msgEl); else if(a==='pin') doPin(id);
+        else if(a==='save') doSave(id); else if(a==='edit') enterEdit(id); else if(a==='delete') doDelete(id); return; }
       var sum=e.target.closest('.tc-thread-sum'); if(sum){ openThread(+sum.getAttribute('data-thread')); } }
     streamEl.addEventListener('click', onMsgClick);
     // Pin / unpin a message; the endpoint returns the fresh pin list.
     function doPin(id){ var m=MSGS.filter(function(x){return x.id===id;})[0]; var want=!(m&&m.pinned);
       post('pin',{id:id, pinned:want, channel:CHANNEL}).then(function(d){ if(!d||!d.ok) return;
         if(m){ m.pinned=d.pinned; } PINS=d.pins||PINS; if(want) PINS_OPEN=true; render(); renderPins(); }); }
+    // Save / unsave (bookmark) a message.
+    function doSave(id){ var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; var want=!(m&&m.saved);
+      post('save',{id:id, saved:want}).then(function(d){ if(!d||!d.ok) return; MSGS.concat(THREAD).forEach(function(x){ if(x.id===id) x.saved=d.saved; }); render(); if(OPEN_THREAD) renderThread(); }); }
+    // Soft-delete a message (retained, compressed, in the trash — never truly gone).
+    function doDelete(id){ if(!window.confirm('Delete this message? It’s retained in the trash and can’t be seen by others.')) return;
+      post('delete',{id:id}).then(function(d){ if(d&&d.ok&&d.message){ replaceMsg(d.message); if(EDITING===id) exitEdit(); } }); }
     // Header pin button toggles the pinned banner.
     if(pinBtn) pinBtn.addEventListener('click', function(){ PINS_OPEN=!PINS_OPEN; renderPins(); });
     // Pinned banner: unpin or jump-to-message.

@@ -31,6 +31,7 @@ final class GoogleWorkspace
     const SCOPE_GROUPS    = 'https://www.googleapis.com/auth/admin.directory.group.readonly';
     const SCOPE_MEET_RO   = 'https://www.googleapis.com/auth/meetings.space.readonly'; // read conference records
     const SCOPE_REPORTS   = 'https://www.googleapis.com/auth/admin.reports.audit.readonly'; // org Meet audit log
+    const SCOPE_CHAT      = 'https://www.googleapis.com/auth/chat.messages.create';         // post messages AS the impersonated member
 
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
     private static array $tokens = [];
@@ -340,6 +341,36 @@ final class GoogleWorkspace
         if ($cal === '') return false;
         $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?sendUpdates=all';
         return self::apiSend('DELETE', $url, self::SCOPE_CALENDAR_RW, self::subject() !== '') !== null;
+    }
+
+    /* ── Google Chat (post AS the member, via domain-wide delegation) ──
+     * The portal's Team Chat mirrors into a Google Chat space authored by the
+     * member — the service account impersonates their @org mailbox (they're
+     * Google-signed), so the message shows THEIR name, not an app/webhook bot.
+     * Needs the Chat scope added to the domain-wide delegation, and each channel
+     * an admin has toggled on with a target space id. */
+
+    private static function chatBase(): string { return rtrim((string) (Config::get('AV_CHAT_BASE_URL', '') ?: 'https://chat.googleapis.com'), '/'); }
+
+    /** True when author-posting to Google Chat is possible (delegation configured). */
+    public static function chatConfigured(): bool
+    {
+        return self::configured() && self::subject() !== '';
+    }
+
+    /**
+     * Post $text to a Google Chat $space AS $authorEmail (impersonated). $space
+     * accepts "spaces/AAAA…" or a bare "AAAA…" id. Returns true on success.
+     */
+    public static function postChatMessage(string $space, string $authorEmail, string $text): bool
+    {
+        if (!self::chatConfigured()) return false;
+        $space = trim($space); $authorEmail = strtolower(trim($authorEmail)); $text = trim($text);
+        if ($space === '' || $authorEmail === '' || $text === '') return false;
+        if (strpos($space, 'spaces/') !== 0) $space = 'spaces/' . $space;
+        $url = self::chatBase() . '/v1/' . $space . '/messages';
+        $res = self::apiSend('POST', $url, self::SCOPE_CHAT, true, ['text' => mb_substr($text, 0, 4000)], $authorEmail);
+        return $res !== null;
     }
 
     /* ── Google Meet REST API + Admin Reports (authoritative attendance) ──
