@@ -828,7 +828,12 @@ $nav['You'] = [
                   <span class="tc-compose-ava"><?= e($pInitials) ?></span>
                   <textarea id="tcInput" rows="1" maxlength="2000" placeholder="Message #general — use @ to mention" aria-label="Message"></textarea>
                   <div class="tc-compose-tools">
-                    <button type="button" class="tc-tool" id="tcSnippet" title="Code snippet (wrap in ```)" aria-label="Code snippet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 18-6-6 6-6M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="button" class="tc-fmt" data-fmt="bold" title="Bold" aria-label="Bold"><b>B</b></button>
+                    <button type="button" class="tc-fmt" data-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+                    <button type="button" class="tc-fmt" data-fmt="strike" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+                    <button type="button" class="tc-fmt" data-fmt="link" title="Link" aria-label="Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <button type="button" class="tc-fmt" data-fmt="list" title="Bullet list" aria-label="Bullet list"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1.3" fill="currentColor"/><circle cx="3.5" cy="12" r="1.3" fill="currentColor"/><circle cx="3.5" cy="18" r="1.3" fill="currentColor"/></svg></button>
+                    <button type="button" class="tc-tool" id="tcSnippet" title="Code snippet" aria-label="Code snippet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 18-6-6 6-6M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                     <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
                   </div>
                 </form>
@@ -1489,20 +1494,34 @@ $nav['You'] = [
     function dayOf(iso){ var t=Date.parse((iso||'').replace(' ','T')+'Z'); if(!t) return ''; var d=new Date(t); var td=new Date(); var y=new Date(td.getTime()-86400000);
       if(d.toDateString()===td.toDateString()) return 'Today'; if(d.toDateString()===y.toDateString()) return 'Yesterday';
       return d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }
+    function codeBlock(code){ return '<div class="tc-codewrap"><pre class="tc-code"><code>'+esc(code)+'</code></pre><button type="button" class="tc-copy" title="Copy code">Copy</button></div>'; }
+    // Lightweight, safe Markdown: fenced/inline code, **bold** *italic* ~~strike~~,
+    // [links](url) + bare URLs, and "- " bullet lists. Everything is escaped first;
+    // mentions resolve to chips. Private-use markers isolate code from formatting.
     function bodyHtml(m){
-      // Extract fenced ``` code blocks FIRST (on the raw text) so their contents
-      // aren't touched by mention/inline formatting, then re-escape each block.
-      var raw=String(m.body==null?'':m.body); var blocks=[];
-      raw=raw.replace(/```([\s\S]*?)```/g, function(_, code){ blocks.push(code.replace(/^\n/,'').replace(/\n$/,'')); return ' CB'+(blocks.length-1)+' '; });
-      var b=esc(raw);
-      // @mentions → chips (resolved server-side; token has no leading @).
-      (m.mentions||[]).forEach(function(mn){ var tok=(mn.token||mn.handle||'').replace(/^@/,''); if(tok){ b=b.split('@'+esc(tok)).join('<span class="tc-at">@'+esc(mn.name||mn.handle||'')+'</span>'); } });
-      // `inline code`
-      b=b.replace(/`([^`\n]+)`/g, function(_, c){ return '<code class="tc-code-inline">'+c+'</code>'; });
-      b=b.replace(/\n/g,'<br>');
-      // Restore fenced blocks as <pre>.
-      b=b.replace(/ CB(\d+) /g, function(_, i){ return '<pre class="tc-code"><code>'+esc(blocks[+i])+'</code></pre>'; });
-      return b; }
+      var raw=String(m.body==null?'':m.body);
+      var S='\ue000', E='\ue001';   // private-use markers: never appear in user text
+      var fen=[]; raw=raw.replace(/```([\s\S]*?)```/g, function(_, c){ fen.push(c.replace(/^\n/,'').replace(/\n+$/,'')); return S+'F'+(fen.length-1)+E; });
+      var inl=[]; raw=raw.replace(/`([^`\n]+)`/g, function(_, c){ inl.push(c); return S+'I'+(inl.length-1)+E; });
+      function inline(s){ s=esc(s);
+        (m.mentions||[]).forEach(function(mn){ var tok=(mn.token||mn.handle||'').replace(/^@/,''); if(tok){ s=s.split('@'+esc(tok)).join('<span class="tc-at">@'+esc(mn.name||mn.handle||'')+'</span>'); } });
+        s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/~~([^~\n]+)~~/g,'<s>$1</s>')
+           .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g,'$1<i>$2</i>').replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g,'$1<i>$2</i>');
+        s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        s=s.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+)/g, function(_, p, u){ return p+'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+u+'</a>'; });
+        s=s.replace(new RegExp(S+'I(\\d+)'+E,'g'), function(_, i){ return '<code class="tc-code-inline">'+esc(inl[+i])+'</code>'; });
+        return s; }
+      var rows=raw.split('\n'), out='', inUl=false, para=[];
+      function flush(){ if(para.length){ out+='<span class="tc-line">'+para.join('<br>')+'</span>'; para=[]; } }
+      var fenRe=new RegExp('^'+S+'F(\\d+)'+E+'$');
+      rows.forEach(function(l){
+        var fm=l.match(fenRe);
+        if(fm){ flush(); if(inUl){out+='</ul>';inUl=false;} out+=codeBlock(fen[+fm[1]]); return; }
+        if(/^\s*[-*]\s+/.test(l)){ flush(); if(!inUl){out+='<ul class="tc-ul">';inUl=true;} out+='<li>'+inline(l.replace(/^\s*[-*]\s+/,''))+'</li>'; return; }
+        if(inUl){ out+='</ul>'; inUl=false; }
+        para.push(inline(l)); });
+      flush(); if(inUl) out+='</ul>';
+      return out; }
     function reactHtml(m){ var rx=m.reactions||[]; var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
       return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
     function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
@@ -1597,6 +1616,23 @@ $nav['You'] = [
     if(snippetBtn) snippetBtn.addEventListener('click', function(){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value;
       var sel=v.slice(s,e2)||'code here'; input.value=v.slice(0,s)+'```\n'+sel+'\n```'+v.slice(e2); input.focus();
       var pos=s+4; input.setSelectionRange(pos,pos+sel.length); autoGrow(); });
+    // Rich-text toolbar → inserts Markdown around the selection.
+    function wrapSel(before, after, placeholder){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value;
+      var sel=v.slice(s,e2)||placeholder||''; input.value=v.slice(0,s)+before+sel+after+v.slice(e2); input.focus();
+      var p=s+before.length; input.setSelectionRange(p, p+sel.length); autoGrow(); }
+    [].forEach.call(document.querySelectorAll('#tcCompose .tc-fmt'), function(btn){ btn.addEventListener('click', function(){
+      var f=btn.getAttribute('data-fmt');
+      if(f==='bold') wrapSel('**','**','bold text');
+      else if(f==='italic') wrapSel('*','*','italic text');
+      else if(f==='strike') wrapSel('~~','~~','struck text');
+      else if(f==='link'){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value, sel=v.slice(s,e2)||'link text';
+        input.value=v.slice(0,s)+'['+sel+'](https://)'+v.slice(e2); input.focus(); var p=s+sel.length+3; input.setSelectionRange(p, p+8); autoGrow(); }
+      else if(f==='list'){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value; var chunk=v.slice(s,e2)||'item';
+        var listed=chunk.split('\n').map(function(x){ return x.trim()? ('- '+x) : x; }).join('\n');
+        // ensure it starts on a new line
+        var pre=v.slice(0,s); if(pre && !/\n$/.test(pre)) listed='\n'+listed;
+        input.value=pre+listed+v.slice(e2); input.focus(); autoGrow(); }
+    }); });
 
     // ── Catch me up (AI recap) ──
     var recapScrim=document.getElementById('recapScrim'), recapBody=document.getElementById('recapBody');
@@ -1618,6 +1654,7 @@ $nav['You'] = [
 
     // Message interactions (event-delegated) — shared by the stream and thread panel.
     function onMsgClick(e){
+      var cp=e.target.closest('.tc-copy'); if(cp){ copyCode(cp); return; }
       var msgEl=e.target.closest('.tc-msg'); if(!msgEl) return; var id=+msgEl.getAttribute('data-id');
       var chip=e.target.closest('.tc-react'); if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
       var add=e.target.closest('.tc-react-add'); if(add){ openEmojiPicker(add, id); return; }
@@ -1638,6 +1675,11 @@ $nav['You'] = [
       var m=MSGS.filter(function(x){return x.id===id;})[0]; if(m){ m.reactions=d.reactions; render(); }
       var tm=THREAD.filter(function(x){return x.id===id;})[0]; if(tm){ tm.reactions=d.reactions; }
       if(OPEN_THREAD===id || tm) renderThread(); }); }
+    function copyCode(btn){ var pre=btn.parentNode.querySelector('.tc-code'); if(!pre) return; var text=pre.textContent||'';
+      var done=function(){ var o=btn.textContent; btn.textContent='Copied ✓'; btn.classList.add('is-done'); setTimeout(function(){ btn.textContent=o; btn.classList.remove('is-done'); },1400); };
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(function(){ fallback(text); done(); }); }
+      else { fallback(text); done(); }
+      function fallback(t){ try{ var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }catch(e){} } }
     var pickerEl=null;
     function openEmojiPicker(anchor, id){ closePicker(); pickerEl=document.createElement('div'); pickerEl.className='tc-picker';
       pickerEl.innerHTML=EMOJI.map(function(x){ return '<button type="button" data-e="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
