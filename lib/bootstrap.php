@@ -237,7 +237,8 @@ require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/Payments.php';
-require_once __DIR__ . '/Smtp.php';
+// Email is sent exclusively through PHPMailer (see lib/Mailer.php). The former
+// hand-rolled SMTP client (lib/Smtp.php) is retired and no longer loaded.
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Events.php';

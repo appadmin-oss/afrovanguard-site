@@ -159,44 +159,19 @@ function rateLimit(string $key, int $max = 5, int $window = 900): bool {
 /* ── mail_send_contact (mirrors process-donation.php) ──────── */
 function mail_send_contact(string $to, string $subject, string $html, ?array $attachment = null): bool {
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
-    if (defined('AV_NO_MAILER')) {
-        error_log("[AV-Contact] mail_send_contact skipped — PHPMailer not installed. To: {$to}");
-        return false;
+    // Deliver through the one shared, battle-tested Mailer (PHPMailer over
+    // authenticated SMTP, with the 587→465 fallback and Resend/HTTPS backstop) —
+    // never a bespoke SMTP block. The submission is already stored, so a mail
+    // failure never breaks the form.
+    if (class_exists('Mailer') && method_exists('Mailer', 'send')) {
+        $opt = [];
+        if ($attachment && !empty($attachment['path'])) $opt['attachment'] = $attachment;
+        $ok = Mailer::send($to, $subject, $html, $opt);
+        if (!$ok) error_log('[AV-Contact] Mailer to ' . $to . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
+        return $ok;
     }
-    // SMTP may be unconfigured on a pure-.env deployment. Skip cleanly rather than
-    // dereferencing undefined SMTP_* constants (a fatal in PHP 8) — the submission
-    // is already stored, so the form still succeeds without email.
-    if (!defined('SMTP_HOST') || (string) SMTP_HOST === '' || !defined('SMTP_USERNAME') || !defined('SMTP_PASSWORD') || !defined('SMTP_PORT')) {
-        error_log("[AV-Contact] mail_send_contact skipped — SMTP not configured. To: {$to}");
-        return false;
-    }
-    $m = new PHPMailer(true);
-    try {
-        $m->isSMTP();
-        $m->Host       = SMTP_HOST;
-        $m->SMTPAuth   = true;
-        $m->Username   = SMTP_USERNAME;
-        $m->Password   = SMTP_PASSWORD;
-        $m->Port       = SMTP_PORT;
-        $m->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $m->CharSet    = 'UTF-8';
-        $m->Timeout    = 20;
-        $m->setFrom(FROM_EMAIL, FROM_NAME);
-        $m->addAddress($to);
-        $m->addReplyTo(FROM_EMAIL, FROM_NAME);
-        $m->isHTML(true);
-        $m->Subject  = $subject;
-        $m->Body     = $html;
-        $m->AltBody  = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $html));
-        if ($attachment && !empty($attachment['path']) && file_exists($attachment['path'])) {
-            $m->addAttachment($attachment['path'], $attachment['name'] ?? basename($attachment['path']));
-        }
-        $m->send();
-        return true;
-    } catch (Exception $e) {
-        error_log('[AV-Contact] Mail to ' . $to . ': ' . $m->ErrorInfo);
-        return false;
-    }
+    error_log("[AV-Contact] mail_send_contact skipped — Mailer unavailable. To: {$to}");
+    return false;
 }
 
 /* ═══════════════════════════════════════════════════════════

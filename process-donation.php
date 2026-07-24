@@ -244,11 +244,13 @@ function esc($v): string {
    ═══════════════════════════════════════════════════════════ */
 function mail_send(string $to, string $sub, string $html): bool {
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
-    // Preferred path: the dependency-free Mailer (authenticated SMTP via lib/Smtp,
-    // falling back to mail()), loaded by bootstrap. This host has no PHPMailer, so
-    // this is what actually delivers receipts and pledge notifications.
+    // Deliver through the one shared Mailer: PHPMailer over authenticated SMTP
+    // (with the 587→465 fallback), then Resend/HTTPS, then mail(). This is what
+    // actually delivers receipts and pledge notifications on every host.
     if (class_exists('Mailer') && method_exists('Mailer', 'send')) {
-        return Mailer::send($to, $sub, $html);
+        $ok = Mailer::send($to, $sub, $html);
+        if (!$ok) error_log('[AV] donation mail to ' . $to . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
+        return $ok;
     }
     if (defined('AV_NO_MAILER')) {
         error_log("[AV] mail_send skipped — no mailer available. To: {$to}, Subject: {$sub}");
