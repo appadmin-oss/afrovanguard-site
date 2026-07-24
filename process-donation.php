@@ -50,8 +50,11 @@ foreach ([
     'BANK_NAME' => 'Zenith Bank', 'BANK_CODE' => '057', 'ACCOUNT_NUMBER' => '1229629683',
     'ACCOUNT_NAME' => 'AMBASSADORS FOR COMMUNITY, TECH AND CULTURAL ADVANCEMENTS',
     'FROM_NAME' => 'Afrovanguard', 'ADMIN_EMAIL' => 'cacentre@afrovanguard.org.ng',
+    'DONATIONS_FROM_EMAIL' => 'donations@afrovanguard.org.ng', 'DONATIONS_FROM_NAME' => 'Afrovanguard',
 ] as $__k => $__v) { if (!defined($__k)) define($__k, $__v); }
-if (!defined('FROM_EMAIL')) define('FROM_EMAIL', defined('SMTP_USERNAME') ? SMTP_USERNAME : 'donations@afrovanguard.org.ng');
+// General site email defaults to the org's main mailbox (cacentre@); only
+// donation receipts send from donations@ (handled in mail_send()).
+if (!defined('FROM_EMAIL')) define('FROM_EMAIL', 'cacentre@afrovanguard.org.ng');
 
 // Donations genuinely need the Paystack secret (charge + webhook verification),
 // so fail this one request cleanly rather than attempting to charge with an empty key.
@@ -245,10 +248,12 @@ function esc($v): string {
 function mail_send(string $to, string $sub, string $html): bool {
     if (!ENABLE_EMAIL_NOTIFICATIONS) return true;
     // Deliver through the one shared Mailer: PHPMailer over authenticated SMTP
-    // (with the 587→465 fallback), then Resend/HTTPS, then mail(). This is what
-    // actually delivers receipts and pledge notifications on every host.
+    // (with the 587→465 fallback), then Resend/HTTPS, then mail(). Donation mail
+    // sends FROM the donations@ mailbox (everything else defaults to cacentre@).
     if (class_exists('Mailer') && method_exists('Mailer', 'send')) {
-        $ok = Mailer::send($to, $sub, $html);
+        $dfrom = defined('DONATIONS_FROM_EMAIL') && DONATIONS_FROM_EMAIL !== '' ? DONATIONS_FROM_EMAIL : 'donations@afrovanguard.org.ng';
+        $dname = defined('DONATIONS_FROM_NAME') && DONATIONS_FROM_NAME !== '' ? DONATIONS_FROM_NAME : (defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
+        $ok = Mailer::send($to, $sub, $html, ['from' => $dfrom, 'fromName' => $dname, 'replyTo' => $dfrom]);
         if (!$ok) error_log('[AV] donation mail to ' . $to . ': ' . (method_exists('Mailer', 'lastError') ? Mailer::lastError() : 'send failed'));
         return $ok;
     }

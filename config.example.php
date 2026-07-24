@@ -47,11 +47,20 @@ function av_config_present(string $const): bool {
  * PHPMailer is bundled under vendor/ (no Composer install needed). */
 define('SMTP_HOST',     'smtp.gmail.com');
 define('SMTP_PORT',      587);
-define('SMTP_USERNAME', 'donations@afrovanguard.org.ng');
+// The mailbox we AUTHENTICATE as. It must be allowed to "send mail as" BOTH
+// cacentre@ (general) and donations@ (receipts) — set those as verified
+// send-as aliases in the Workspace account, or authenticate as the account
+// that owns them. The envelope-sender is aligned to this address for SPF/DMARC.
+define('SMTP_USERNAME', 'cacentre@afrovanguard.org.ng');
 define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));   // 16-char Gmail App Password
-define('FROM_EMAIL',    'donations@afrovanguard.org.ng');
+// Default From for ALL site email (welcome, receipts-not, membership, OTP,
+// contact replies, portal notifications). Donations override this below.
+define('FROM_EMAIL',    'cacentre@afrovanguard.org.ng');
 define('FROM_NAME',     'Afrovanguard');
 define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
+// Donation receipts + pledge notifications send FROM this address instead.
+define('DONATIONS_FROM_EMAIL', 'donations@afrovanguard.org.ng');
+define('DONATIONS_FROM_NAME',  'Afrovanguard');
 // Optional transport overrides (defaults shown):
 //   SMTP_SECURE 'tls' = STARTTLS (587, Gmail) | 'ssl' = SMTPS (465) | '' = none
 //   SMTP_VERIFY true   = verify TLS cert (set false only for self-signed relays)

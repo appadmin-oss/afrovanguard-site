@@ -72,14 +72,25 @@ final class Mailer
         return self::$phpmailer = class_exists('PHPMailer\\PHPMailer\\PHPMailer');
     }
 
-    /** From/reply identity, resolved once from config. */
-    private static function from(): array
+    /**
+     * From/reply identity. Defaults to the general org mailbox
+     * (FROM_EMAIL, e.g. cacentre@…), but a caller may override per message via
+     * $opt['from'] / $opt['fromName'] / $opt['replyTo'] — e.g. donation receipts
+     * send from donations@… while everything else sends from cacentre@….
+     */
+    private static function from(array $opt = []): array
     {
         $domain    = defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng';
-        $fromEmail = defined('FROM_EMAIL') ? FROM_EMAIL : (defined('SMTP_USERNAME') && SMTP_USERNAME !== '' ? SMTP_USERNAME : 'no-reply@' . $domain);
-        $fromName  = defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard';
+        $fromEmail = '';
+        if (!empty($opt['from']) && filter_var((string) $opt['from'], FILTER_VALIDATE_EMAIL)) $fromEmail = (string) $opt['from'];
+        if ($fromEmail === '') {
+            $fromEmail = defined('FROM_EMAIL') && (string) FROM_EMAIL !== '' ? (string) FROM_EMAIL
+                : (defined('SMTP_USERNAME') && SMTP_USERNAME !== '' ? (string) SMTP_USERNAME : 'no-reply@' . $domain);
+        }
+        $fromName  = !empty($opt['fromName']) ? (string) $opt['fromName'] : (defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard');
         // Replies should reach a human even when the From is a no-reply box.
-        $replyTo   = defined('REPLY_TO') && REPLY_TO !== '' ? (string) REPLY_TO : $fromEmail;
+        $replyTo   = (!empty($opt['replyTo']) && filter_var((string) $opt['replyTo'], FILTER_VALIDATE_EMAIL)) ? (string) $opt['replyTo']
+            : (defined('REPLY_TO') && REPLY_TO !== '' ? (string) REPLY_TO : $fromEmail);
         return ['email' => $fromEmail, 'name' => $fromName, 'replyTo' => $replyTo];
     }
 
@@ -89,7 +100,7 @@ final class Mailer
         self::$lastError = ''; self::$lastTransport = '';
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { self::$lastError = 'Invalid recipient address'; return false; }
 
-        $from = self::from();
+        $from = self::from($opt);
         $alt  = trim((string) preg_replace('/\s+/', ' ', strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html))));
         $errors = [];
 
