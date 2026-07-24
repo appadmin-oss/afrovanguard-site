@@ -821,7 +821,8 @@ $nav['You'] = [
                   <div class="tc-thread-h"><span>Thread</span><button type="button" class="pm-x" id="tcThreadClose" aria-label="Close thread">✕</button></div>
                   <div class="tc-thread-body" id="tcThreadBody"></div>
                   <form class="tc-compose tc-thread-compose" id="tcThreadForm" autocomplete="off">
-                    <textarea id="tcThreadInput" rows="1" maxlength="2000" placeholder="Reply…" aria-label="Reply"></textarea>
+                    <div class="tc-mentions" id="tcThreadMentions" hidden></div>
+                    <textarea id="tcThreadInput" rows="1" maxlength="2000" placeholder="Reply… use @ to mention" aria-label="Reply"></textarea>
                     <button type="submit" class="pbtn pbtn-gold tc-send">Reply</button>
                   </form>
                 </div>
@@ -1489,6 +1490,16 @@ $nav['You'] = [
       var s=seen();
       chanEl.innerHTML=CHANNELS.map(function(c){ var unread = c.last_id>(s[c.key]||0) && c.key!==CHANNEL;
         return '<li><button type="button" class="tc-channel'+(c.key===CHANNEL?' is-on':'')+'" data-ch="'+esc(c.key)+'"><span class="tc-hash">#</span>'+esc(c.label)+(unread?'<span class="tc-unread"></span>':'')+'</button></li>'; }).join('');
+      updateNavBadge();
+    }
+    // A count of channels with unread messages, shown on the sidebar "Team Chat" nav.
+    function updateNavBadge(){
+      var link=document.querySelector('.pnav-link[data-view="chat"]'); if(!link) return;
+      var s=seen(), chatVisible=!!(document.getElementById('view-chat') && !document.getElementById('view-chat').hidden);
+      var n=CHANNELS.filter(function(c){ if(c.key===CHANNEL && chatVisible) return false; return c.last_id>(s[c.key]||0); }).length;
+      var badge=link.querySelector('.pnav-badge');
+      if(n>0){ if(!badge){ badge=document.createElement('span'); badge.className='pnav-badge'; link.appendChild(badge); } badge.textContent=n; badge.hidden=false; }
+      else if(badge){ badge.hidden=true; }
     }
     function renderOnline(users,count){ if(onlineNEl)onlineNEl.textContent=count||0; if(presEl)presEl.textContent=count||0;
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<li class="tc-on"><span class="tc-on-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span>'+esc(u.name)+'</li>'; }).join('') : '<li class="pc-empty">Just you.</li>'; }
@@ -1505,9 +1516,9 @@ $nav['You'] = [
 
     // Send
     composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=(input.value||'').trim(); if(!body) return;
-      input.value=''; autoGrow(); hideMentions();
+      input.value=''; autoGrow(); mainMentions.hide();
       post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
-    input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mentionOpen){ e.preventDefault(); composeForm.requestSubmit(); } });
+    input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mainMentions.isOpen()){ e.preventDefault(); composeForm.requestSubmit(); } });
 
     // Message interactions (event-delegated) — shared by the stream and thread panel.
     function onMsgClick(e){
@@ -1548,13 +1559,15 @@ $nav['You'] = [
       var added=false; d.replies.forEach(function(m){ if(m.id>tLast){THREAD.push(m);tLast=m.id;added=true;} }); if(added) renderThread(); }); }
     document.getElementById('tcThreadClose').addEventListener('click', closeThread);
     threadBody.addEventListener('click', onMsgClick);
+    function threadGrow(){ threadInput.style.height='auto'; threadInput.style.height=Math.min(120, threadInput.scrollHeight)+'px'; }
+    var threadMentions = attachMentions(threadInput, document.getElementById('tcThreadMentions'), threadGrow);
     threadForm.addEventListener('submit', function(e){ e.preventDefault(); if(!OPEN_THREAD) return; var b=(threadInput.value||'').trim(); if(!b) return;
-      threadInput.value=''; threadInput.style.height='auto';
+      threadInput.value=''; threadInput.style.height='auto'; threadMentions.hide();
       post('send',{channel:CHANNEL, body:b, parent_id:OPEN_THREAD}).then(function(d){ if(!d||!d.ok||!d.message) return;
         if(d.message.id>tLast){ THREAD.push(d.message); tLast=d.message.id; }
         var p=MSGS.filter(function(x){return x.id===OPEN_THREAD;})[0]; if(p){ p.reply_count=(p.reply_count||0)+1; p.last_reply='just now'; render(); }
         renderThread(); }).catch(function(){}); });
-    threadInput.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); threadForm.requestSubmit(); } });
+    threadInput.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !threadMentions.isOpen()){ e.preventDefault(); threadForm.requestSubmit(); } });
 
     // ── Assign a message as a task (the @mention → task-assignment bridge) ──
     var assignPop=null;
@@ -1586,31 +1599,39 @@ $nav['You'] = [
 
     // Composer autosize
     function autoGrow(){ input.style.height='auto'; input.style.height=Math.min(140, input.scrollHeight)+'px'; }
-    input.addEventListener('input', function(){ autoGrow(); onMentionType(); });
 
-    // @mention autocomplete
-    var mentionOpen=false, mentTimer=null, mentActive=-1, mentItems=[];
-    function onMentionType(){ var v=input.value, pos=input.selectionStart||v.length; var upto=v.slice(0,pos);
-      var mAt=upto.match(/(?:^|\s)@([\w.\-]*)$/); if(!mAt){ hideMentions(); return; }
-      var q=mAt[1]; clearTimeout(mentTimer); mentTimer=setTimeout(function(){
-        get('mention','&q='+encodeURIComponent(q)).then(function(d){ if(!d||!d.ok||!d.members.length){ hideMentions(); return; }
-          mentItems=d.members; mentActive=0;
-          mentEl.innerHTML=mentItems.map(function(m,i){ return '<button type="button" class="tc-ment'+(i===0?' is-on':'')+'" data-h="'+esc(m.handle)+'" data-name="'+esc(m.name)+'"><span class="tc-ment-ava">'+esc(m.initial)+'</span>'+esc(m.name)+' <span class="tc-ment-h">@'+esc(m.handle)+'</span></button>'; }).join('');
-          mentEl.hidden=false; mentionOpen=true; }).catch(function(){ hideMentions(); }); }, 140); }
-    function hideMentions(){ mentEl.hidden=true; mentionOpen=false; mentActive=-1; mentItems=[]; }
-    function pickMention(h){ var v=input.value, pos=input.selectionStart||v.length; var upto=v.slice(0,pos);
-      var rep=upto.replace(/@([\w.\-]*)$/, '@'+h+' '); input.value=rep+v.slice(pos); input.focus(); hideMentions(); autoGrow(); }
-    mentEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-ment'); if(b) pickMention(b.getAttribute('data-h')); });
-    input.addEventListener('keydown', function(e){ if(!mentionOpen) return;
-      if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); mentActive=(mentActive+(e.key==='ArrowDown'?1:mentItems.length-1))%mentItems.length;
-        [].forEach.call(mentEl.children,function(c,i){ c.classList.toggle('is-on',i===mentActive); }); }
-      else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); var it=mentItems[mentActive]; if(it) pickMention(it.handle); }
-      else if(e.key==='Escape'){ hideMentions(); } });
+    // @mention autocomplete — reusable for any (textarea, dropdown) pair so the
+    // main composer AND the thread reply box both get it. Returns { isOpen }.
+    function attachMentions(inputEl, dropEl, onChange){
+      var open=false, timer=null, active=-1, items=[];
+      function hide(){ dropEl.hidden=true; open=false; active=-1; items=[]; }
+      function render(){ dropEl.innerHTML=items.map(function(m,i){ return '<button type="button" class="tc-ment'+(i===0?' is-on':'')+'" data-h="'+esc(m.handle)+'"><span class="tc-ment-ava">'+esc(m.initial)+'</span>'+esc(m.name)+' <span class="tc-ment-h">@'+esc(m.handle)+'</span></button>'; }).join(''); dropEl.hidden=false; open=true; active=0; }
+      function pick(h){ var v=inputEl.value, pos=inputEl.selectionStart||v.length, upto=v.slice(0,pos);
+        inputEl.value=upto.replace(/@([\w.\-]*)$/, '@'+h+' ')+v.slice(pos); inputEl.focus(); hide(); if(onChange)onChange(); }
+      inputEl.addEventListener('input', function(){ if(onChange)onChange();
+        var v=inputEl.value, pos=inputEl.selectionStart||v.length, mAt=v.slice(0,pos).match(/(?:^|\s)@([\w.\-]*)$/);
+        if(!mAt){ hide(); return; } var q=mAt[1]; clearTimeout(timer);
+        timer=setTimeout(function(){ get('mention','&q='+encodeURIComponent(q)).then(function(d){ if(!d||!d.ok||!d.members.length){ hide(); return; } items=d.members; render(); }).catch(hide); }, 140); });
+      dropEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-ment'); if(b) pick(b.getAttribute('data-h')); });
+      inputEl.addEventListener('keydown', function(e){ if(!open) return;
+        if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); active=(active+(e.key==='ArrowDown'?1:items.length-1))%items.length; [].forEach.call(dropEl.children,function(c,i){ c.classList.toggle('is-on',i===active); }); }
+        else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); if(items[active]) pick(items[active].handle); }
+        else if(e.key==='Escape'){ hide(); } });
+      return { isOpen: function(){ return open; }, hide: hide };
+    }
+    var mainMentions = attachMentions(input, mentEl, autoGrow);
 
-    // Activate polling only while the Chat view is visible (cheap + fresh).
-    function tick(){ if(document.getElementById('view-chat') && !document.getElementById('view-chat').hidden){ if(!active){ active=true; bootstrap(); } poll(); pollThread(); } else { active=false; } }
+    // Cheap background refresh of channel state (for the nav unread badge) when
+    // the Chat view ISN'T open — a message-less poll that still returns channels.
+    function refreshChannelsBg(){ get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since=999999999').then(function(d){ if(d&&d.ok){ CHANNELS=d.channels||CHANNELS; updateNavBadge(); } }).catch(function(){}); }
+    // Fast 4s polling while the Chat view is visible; a slower (~24s) background
+    // channel check otherwise, so the unread badge stays roughly live everywhere.
+    var bg=0;
+    function tick(){ var v=document.getElementById('view-chat');
+      if(v && !v.hidden){ if(!active){ active=true; bootstrap(); } poll(); pollThread(); }
+      else { active=false; if((++bg % 6) === 0) refreshChannelsBg(); } }
     window.addEventListener('hashchange', function(){ setTimeout(tick, 60); });
-    if(location.hash.indexOf('chat')>-1){ active=true; bootstrap(); }
+    if(location.hash.indexOf('chat')>-1){ active=true; bootstrap(); } else { refreshChannelsBg(); }
     poller=setInterval(tick, 4000);
   })();
   </script>
