@@ -838,18 +838,23 @@ $nav['You'] = [
                 <div class="tc-typing" id="tcTyping" hidden></div>
                 <form class="tc-compose tc-compose--float" id="tcCompose" autocomplete="off">
                   <div class="tc-mentions" id="tcMentions" hidden></div>
-                  <div class="tc-editbar" id="tcEditBar" hidden>Editing message · <button type="button" class="tc-editcancel" id="tcEditCancel">cancel</button></div>
-                  <div class="tc-preview" id="tcPreview" hidden><div class="tc-preview-h">Preview</div><div class="tc-preview-body" id="tcPreviewBody"></div></div>
-                  <textarea id="tcInput" rows="1" maxlength="2000" placeholder="Message #general — use @ to mention" aria-label="Message"></textarea>
-                  <div class="tc-compose-tools">
-                    <button type="button" class="tc-fmt" data-fmt="bold" title="Bold" aria-label="Bold"><b>B</b></button>
-                    <button type="button" class="tc-fmt" data-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
-                    <button type="button" class="tc-fmt" data-fmt="strike" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
-                    <button type="button" class="tc-fmt" data-fmt="link" title="Link" aria-label="Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                    <button type="button" class="tc-fmt" data-fmt="list" title="Bullet list" aria-label="Bullet list"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1.3" fill="currentColor"/><circle cx="3.5" cy="12" r="1.3" fill="currentColor"/><circle cx="3.5" cy="18" r="1.3" fill="currentColor"/></svg></button>
-                    <button type="button" class="tc-tool" id="tcSnippet" title="Code snippet" aria-label="Code snippet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m9 18-6-6 6-6M15 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                    <button type="button" class="tc-tool" id="tcPreviewBtn" title="Toggle preview" aria-label="Toggle preview" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg></button>
-                    <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send">Send</button>
+                  <div class="tc-editbar" id="tcEditBar" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Editing message <button type="button" class="tc-editcancel" id="tcEditCancel">cancel</button></div>
+                  <div class="tc-rte" id="tcInput" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message" data-ph="Message #general — use @ to mention"></div>
+                  <div class="tc-compose-bar">
+                    <div class="tc-fmtbar" role="toolbar" aria-label="Text formatting">
+                      <button type="button" class="tc-fmt" data-cmd="bold" title="Bold — Ctrl+B" aria-label="Bold"><b>B</b></button>
+                      <button type="button" class="tc-fmt" data-cmd="italic" title="Italic — Ctrl+I" aria-label="Italic"><i>I</i></button>
+                      <button type="button" class="tc-fmt" data-cmd="strike" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+                      <span class="tc-fmtsep" aria-hidden="true"></span>
+                      <button type="button" class="tc-fmt" data-cmd="ul" title="Bulleted list" aria-label="Bulleted list"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="3.6" cy="6" r="1.4" fill="currentColor"/><circle cx="3.6" cy="12" r="1.4" fill="currentColor"/><circle cx="3.6" cy="18" r="1.4" fill="currentColor"/></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="ol" title="Numbered list" aria-label="Numbered list"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M10 6h11M10 12h11M10 18h11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><text x="2" y="8.5" font-size="8" font-weight="700" fill="currentColor">1</text><text x="2" y="14.5" font-size="8" font-weight="700" fill="currentColor">2</text><text x="2" y="20.5" font-size="8" font-weight="700" fill="currentColor">3</text></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="quote" title="Quote" aria-label="Quote"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M6 5v14M10 8h8M10 12h8M10 16h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+                      <span class="tc-fmtsep" aria-hidden="true"></span>
+                      <button type="button" class="tc-fmt" data-cmd="code" title="Inline code" aria-label="Inline code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 8 5 12l4 4M15 8l4 4-4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="codeblock" title="Code block" aria-label="Code block"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M9 9 7 12l2 3M15 9l2 3-2 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="link" title="Link" aria-label="Link"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    </div>
+                    <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send message"><span>Send</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                   </div>
                 </form>
                 <!-- Thread drawer -->
@@ -858,8 +863,16 @@ $nav['You'] = [
                   <div class="tc-thread-body" id="tcThreadBody"></div>
                   <form class="tc-compose tc-thread-compose" id="tcThreadForm" autocomplete="off">
                     <div class="tc-mentions" id="tcThreadMentions" hidden></div>
-                    <textarea id="tcThreadInput" rows="1" maxlength="2000" placeholder="Reply… use @ to mention" aria-label="Reply"></textarea>
-                    <button type="submit" class="pbtn pbtn-gold tc-send">Reply</button>
+                    <div class="tc-rte tc-rte--sm" id="tcThreadInput" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Reply" data-ph="Reply… use @ to mention"></div>
+                    <div class="tc-compose-bar">
+                      <div class="tc-fmtbar" role="toolbar" aria-label="Text formatting">
+                        <button type="button" class="tc-fmt" data-cmd="bold" title="Bold — Ctrl+B" aria-label="Bold"><b>B</b></button>
+                        <button type="button" class="tc-fmt" data-cmd="italic" title="Italic — Ctrl+I" aria-label="Italic"><i>I</i></button>
+                        <button type="button" class="tc-fmt" data-cmd="code" title="Inline code" aria-label="Inline code"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 8 5 12l4 4M15 8l4 4-4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                        <button type="button" class="tc-fmt" data-cmd="link" title="Link" aria-label="Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      </div>
+                      <button type="submit" class="pbtn pbtn-gold tc-send">Reply</button>
+                    </div>
                   </form>
                 </div>
               </div>
@@ -1521,14 +1534,13 @@ $nav['You'] = [
         membersEl=document.getElementById('tcMembers'), typingEl=document.getElementById('tcTyping'),
         presEl=document.getElementById('tcPresence'), chanNameEl=document.getElementById('tcChannelName'),
         memberCountEl=document.getElementById('tcMemberCount'), topicEl=document.getElementById('tcTopic'),
-        catchupBtn=document.getElementById('tcCatchup'), snippetBtn=document.getElementById('tcSnippet'),
+        catchupBtn=document.getElementById('tcCatchup'),
         pinnedEl=document.getElementById('tcPinned'), pinBtn=document.getElementById('tcPinBtn'), pinCountEl=document.getElementById('tcPinCount'),
         input=document.getElementById('tcInput'), mentEl=document.getElementById('tcMentions'),
         composeForm=document.getElementById('tcCompose'),
-        previewBtn=document.getElementById('tcPreviewBtn'), previewEl=document.getElementById('tcPreview'), previewBodyEl=document.getElementById('tcPreviewBody'),
         editBar=document.getElementById('tcEditBar'), editCancel=document.getElementById('tcEditCancel'),
         savedBtn=document.getElementById('tcSavedBtn'), addChannelBtn=document.getElementById('tcAddChannel'), chSetBtn=document.getElementById('tcChannelSettings');
-    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, PINS=[], PINS_OPEN=false, AI_OK=false, IS_ADMIN=false, EDITING=0, PREVIEW_ON=false, poller=null, active=false, ready=false, seenKey='av_chat_seen';
+    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, PINS=[], PINS_OPEN=false, AI_OK=false, IS_ADMIN=false, EDITING=0, poller=null, active=false, ready=false, seenKey='av_chat_seen';
     // Per-channel last-seen id (localStorage) → unread dots.
     function seen(){ try{ return JSON.parse(localStorage.getItem(seenKey)||'{}'); }catch(e){ return {}; } }
     function markSeen(ch, id){ var s=seen(); if(!s[ch]||id>s[ch]){ s[ch]=id; try{ localStorage.setItem(seenKey, JSON.stringify(s)); }catch(e){} } }
@@ -1654,7 +1666,7 @@ $nav['You'] = [
         if(catchupBtn) catchupBtn.hidden=!AI_OK; if(addChannelBtn) addChannelBtn.hidden=!IS_ADMIN; if(chSetBtn) chSetBtn.hidden=!IS_ADMIN; ready=true; }).catch(function(){ ready=true; }); }
     function poll(){ if(!active || !ready) return; get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since='+LAST).then(function(d){ if(!d||!d.ok) return;
         CHANNELS=d.channels||CHANNELS; if(d.members)MEMBERS=d.members; applyNew(d.messages); renderChannels(); renderMembers(); renderTyping(d.typing); updatePresence(d.count); }).catch(function(){}); }
-    function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.placeholder='Message #'+ch+' — use @ to mention'; renderChannels(); setTopic(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
+    function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.setAttribute('data-ph','Message #'+ch+' — use @ to mention'); renderChannels(); setTopic(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
 
     chanEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-channel'); if(b) switchChannel(b.getAttribute('data-ch')); });
 
@@ -1673,55 +1685,30 @@ $nav['You'] = [
       setTimeout(function(){ var el=streamEl.querySelector('.tc-msg[data-id="'+id+'"]'); if(el){ el.scrollIntoView({block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); },1500); } }, switched?650:60); });
     document.addEventListener('click', function(e){ if(searchResEl && !searchResEl.hidden && !e.target.closest('.tc-search')) searchResEl.hidden=true; });
 
-    // ── Live preview (Google-Chat-style formatted preview of what you're typing) ──
-    function updatePreview(){ if(!PREVIEW_ON||!previewBodyEl) return; var v=input.value||'';
-      if(!v.trim()){ previewBodyEl.innerHTML='<span class="tc-preview-empty">Nothing to preview yet.</span>'; return; }
-      previewBodyEl.innerHTML=bodyHtml({body:v, mentions:[]}); }
-    function togglePreview(on){ PREVIEW_ON = (on===undefined)?!PREVIEW_ON:on;
-      if(previewEl) previewEl.hidden=!PREVIEW_ON; if(previewBtn){ previewBtn.setAttribute('aria-pressed', PREVIEW_ON?'true':'false'); previewBtn.classList.toggle('is-on', PREVIEW_ON); }
-      updatePreview(); }
-    if(previewBtn) previewBtn.addEventListener('click', function(){ togglePreview(); });
-
-    // ── Edit mode ──
+    // ── WYSIWYG composer ─────────────────────────────────────────
+    // The composer shows the FORMATTED text as you type (bold/italic/code render
+    // live) — not raw markdown. On send/edit it serialises to markdown so the
+    // stored + mirrored message stays plain, portable text. attachRichEditor()
+    // (defined below) encapsulates the toolbar, @mention chips and md round-trip.
     function replaceMsg(nm){ var i; for(i=0;i<MSGS.length;i++){ if(MSGS[i].id===nm.id){ MSGS[i]=nm; } } for(i=0;i<THREAD.length;i++){ if(THREAD[i].id===nm.id){ THREAD[i]=nm; } } render(); if(OPEN_THREAD) renderThread(); }
-    function enterEdit(id){ var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; if(!m||m.deleted) return;
-      EDITING=id; input.value=m.body||''; input.focus(); autoGrow(); updatePreview();
-      if(editBar) editBar.hidden=false; composeForm.classList.add('is-editing'); }
-    function exitEdit(){ EDITING=0; input.value=''; autoGrow(); if(editBar) editBar.hidden=true; composeForm.classList.remove('is-editing'); updatePreview(); }
-    if(editCancel) editCancel.addEventListener('click', exitEdit);
-
-    // Send / save-edit
-    composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=(input.value||'').trim(); if(!body) return;
-      if(EDITING){ var id=EDITING; post('edit',{id:id, body:body}).then(function(d){ if(d&&d.ok&&d.message){ replaceMsg(d.message); } }).catch(function(){}); exitEdit(); return; }
-      input.value=''; autoGrow(); mainMentions.hide(); updatePreview();
-      post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
-    input.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !mainMentions.isOpen()){ e.preventDefault(); composeForm.requestSubmit(); }
-      else if(e.key==='Escape' && EDITING){ exitEdit(); } });
-    input.addEventListener('input', updatePreview);
-    // Broadcast "typing" (throttled to once per ~2.5s while composing).
     var lastTyping=0;
-    input.addEventListener('input', function(){ var now=Date.now(); if((input.value||'').trim() && now-lastTyping>2500){ lastTyping=now; post('typing',{channel:CHANNEL}); } });
-    // Code-snippet button: wrap selection (or insert an empty fence) in ```.
-    if(snippetBtn) snippetBtn.addEventListener('click', function(){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value;
-      var sel=v.slice(s,e2)||'code here'; input.value=v.slice(0,s)+'```\n'+sel+'\n```'+v.slice(e2); input.focus();
-      var pos=s+4; input.setSelectionRange(pos,pos+sel.length); autoGrow(); });
-    // Rich-text toolbar → inserts Markdown around the selection.
-    function wrapSel(before, after, placeholder){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value;
-      var sel=v.slice(s,e2)||placeholder||''; input.value=v.slice(0,s)+before+sel+after+v.slice(e2); input.focus();
-      var p=s+before.length; input.setSelectionRange(p, p+sel.length); autoGrow(); }
-    [].forEach.call(document.querySelectorAll('#tcCompose .tc-fmt'), function(btn){ btn.addEventListener('click', function(){
-      var f=btn.getAttribute('data-fmt');
-      if(f==='bold') wrapSel('**','**','bold text');
-      else if(f==='italic') wrapSel('*','*','italic text');
-      else if(f==='strike') wrapSel('~~','~~','struck text');
-      else if(f==='link'){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value, sel=v.slice(s,e2)||'link text';
-        input.value=v.slice(0,s)+'['+sel+'](https://)'+v.slice(e2); input.focus(); var p=s+sel.length+3; input.setSelectionRange(p, p+8); autoGrow(); }
-      else if(f==='list'){ var s=input.selectionStart||0, e2=input.selectionEnd||0, v=input.value; var chunk=v.slice(s,e2)||'item';
-        var listed=chunk.split('\n').map(function(x){ return x.trim()? ('- '+x) : x; }).join('\n');
-        // ensure it starts on a new line
-        var pre=v.slice(0,s); if(pre && !/\n$/.test(pre)) listed='\n'+listed;
-        input.value=pre+listed+v.slice(e2); input.focus(); autoGrow(); }
-    }); });
+    var mainRTE = attachRichEditor(input, composeForm, mentEl, {
+      onSubmit: function(){ composeForm.requestSubmit(); },
+      onInput:  function(){ var now=Date.now(); if(!mainRTE.isEmpty() && now-lastTyping>2500){ lastTyping=now; post('typing',{channel:CHANNEL}); } }
+    });
+    // Edit mode — load the message's markdown back into the formatted editor.
+    function enterEdit(id){ var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; if(!m||m.deleted) return;
+      EDITING=id; mainRTE.setMarkdown(m.body||''); mainRTE.focus();
+      if(editBar) editBar.hidden=false; composeForm.classList.add('is-editing'); }
+    function exitEdit(){ EDITING=0; mainRTE.clear(); if(editBar) editBar.hidden=true; composeForm.classList.remove('is-editing'); }
+    if(editCancel) editCancel.addEventListener('click', exitEdit);
+    // Send / save-edit
+    composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=mainRTE.getMarkdown().trim(); if(!body) return;
+      if(EDITING){ var id=EDITING; post('edit',{id:id, body:body}).then(function(d){ if(d&&d.ok&&d.message){ replaceMsg(d.message); } }).catch(function(){}); exitEdit(); return; }
+      mainRTE.clear();
+      post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
+    // Escape cancels an in-progress edit (when mentions aren't open).
+    input.addEventListener('keydown', function(e){ if(e.key==='Escape' && EDITING && !mainRTE.mentionsOpen()){ exitEdit(); } });
 
     // ── Catch me up (AI recap) ──
     var recapScrim=document.getElementById('recapScrim'), recapBody=document.getElementById('recapBody');
@@ -1853,21 +1840,21 @@ $nav['You'] = [
       threadBody.innerHTML = top+count+reps; threadBody.scrollTop=threadBody.scrollHeight; }
     function openThread(id){ OPEN_THREAD=id; THREAD=[]; tLast=0; threadReady=false; threadPanel.hidden=false;
       threadBody.innerHTML='<p class="pc-empty">Loading…</p>'; renderThread();
-      get('thread','&parent='+id+'&since=0').then(function(d){ if(!d||!d.ok||OPEN_THREAD!==id) return; THREAD=d.replies||[]; tLast=THREAD.length?THREAD[THREAD.length-1].id:0; threadReady=true; renderThread(); if(threadInput) threadInput.focus(); }); }
+      get('thread','&parent='+id+'&since=0').then(function(d){ if(!d||!d.ok||OPEN_THREAD!==id) return; THREAD=d.replies||[]; tLast=THREAD.length?THREAD[THREAD.length-1].id:0; threadReady=true; renderThread(); if(threadRTE) threadRTE.focus(); }); }
     function closeThread(){ OPEN_THREAD=0; THREAD=[]; threadPanel.hidden=true; }
     function pollThread(){ if(!OPEN_THREAD||!threadReady) return; get('thread','&parent='+OPEN_THREAD+'&since='+tLast).then(function(d){ if(!d||!d.ok||!d.replies||!d.replies.length) return;
       var added=false; d.replies.forEach(function(m){ if(m.id>tLast){THREAD.push(m);tLast=m.id;added=true;} }); if(added) renderThread(); }); }
     document.getElementById('tcThreadClose').addEventListener('click', closeThread);
     threadBody.addEventListener('click', onMsgClick);
-    function threadGrow(){ threadInput.style.height='auto'; threadInput.style.height=Math.min(120, threadInput.scrollHeight)+'px'; }
-    var threadMentions = attachMentions(threadInput, document.getElementById('tcThreadMentions'), threadGrow);
-    threadForm.addEventListener('submit', function(e){ e.preventDefault(); if(!OPEN_THREAD) return; var b=(threadInput.value||'').trim(); if(!b) return;
-      threadInput.value=''; threadInput.style.height='auto'; threadMentions.hide();
+    var threadRTE = attachRichEditor(threadInput, threadForm, document.getElementById('tcThreadMentions'), {
+      onSubmit: function(){ threadForm.requestSubmit(); }
+    });
+    threadForm.addEventListener('submit', function(e){ e.preventDefault(); if(!OPEN_THREAD) return; var b=threadRTE.getMarkdown().trim(); if(!b) return;
+      threadRTE.clear();
       post('send',{channel:CHANNEL, body:b, parent_id:OPEN_THREAD}).then(function(d){ if(!d||!d.ok||!d.message) return;
         if(d.message.id>tLast){ THREAD.push(d.message); tLast=d.message.id; }
         var p=MSGS.filter(function(x){return x.id===OPEN_THREAD;})[0]; if(p){ p.reply_count=(p.reply_count||0)+1; p.last_reply='just now'; render(); }
         renderThread(); }).catch(function(){}); });
-    threadInput.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey && !threadMentions.isOpen()){ e.preventDefault(); threadForm.requestSubmit(); } });
 
     // ── Assign a message as a task (the @mention → task-assignment bridge) ──
     var assignPop=null;
@@ -1897,29 +1884,135 @@ $nav['You'] = [
       setTimeout(function(){ document.addEventListener('click', assignOutside); },0);
     }
 
-    // Composer autosize
-    function autoGrow(){ input.style.height='auto'; input.style.height=Math.min(140, input.scrollHeight)+'px'; }
+    // ── attachRichEditor — a small WYSIWYG contenteditable editor ────
+    // Shows formatted text live (never raw markdown), a modern formatting
+    // toolbar with active-state highlighting, @mention chips, and clean
+    // markdown serialisation on send/edit. Reused by the main + thread composers.
+    function attachRichEditor(el, form, dropEl, opts){
+      opts=opts||{};
+      function setEmpty(){ var e=isEmpty(); el.classList.toggle('is-empty', e); }
+      function isEmpty(){ return el.textContent.replace(/ /g,' ').trim()==='' && !el.querySelector('pre,ul,ol,li,img,.tc-at,code,a'); }
+      function focus(){ el.focus(); placeCaretEnd(); }
+      function placeCaretEnd(){ try{ var r=document.createRange(); r.selectNodeContents(el); r.collapse(false); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){} }
 
-    // @mention autocomplete — reusable for any (textarea, dropdown) pair so the
-    // main composer AND the thread reply box both get it. Returns { isOpen }.
-    function attachMentions(inputEl, dropEl, onChange){
-      var open=false, timer=null, active=-1, items=[];
-      function hide(){ dropEl.hidden=true; open=false; active=-1; items=[]; }
-      function render(){ dropEl.innerHTML=items.map(function(m,i){ return '<button type="button" class="tc-ment'+(i===0?' is-on':'')+'" data-h="'+esc(m.handle)+'"><span class="tc-ment-ava">'+esc(m.initial)+'</span>'+esc(m.name)+' <span class="tc-ment-h">@'+esc(m.handle)+'</span></button>'; }).join(''); dropEl.hidden=false; open=true; active=0; }
-      function pick(h){ var v=inputEl.value, pos=inputEl.selectionStart||v.length, upto=v.slice(0,pos);
-        inputEl.value=upto.replace(/@([\w.\-]*)$/, '@'+h+' ')+v.slice(pos); inputEl.focus(); hide(); if(onChange)onChange(); }
-      inputEl.addEventListener('input', function(){ if(onChange)onChange();
-        var v=inputEl.value, pos=inputEl.selectionStart||v.length, mAt=v.slice(0,pos).match(/(?:^|\s)@([\w.\-]*)$/);
-        if(!mAt){ hide(); return; } var q=mAt[1]; clearTimeout(timer);
-        timer=setTimeout(function(){ get('mention','&q='+encodeURIComponent(q)).then(function(d){ if(!d||!d.ok||!d.members.length){ hide(); return; } items=d.members; render(); }).catch(hide); }, 140); });
-      dropEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-ment'); if(b) pick(b.getAttribute('data-h')); });
-      inputEl.addEventListener('keydown', function(e){ if(!open) return;
-        if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); active=(active+(e.key==='ArrowDown'?1:items.length-1))%items.length; [].forEach.call(dropEl.children,function(c,i){ c.classList.toggle('is-on',i===active); }); }
-        else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); if(items[active]) pick(items[active].handle); }
-        else if(e.key==='Escape'){ hide(); } });
-      return { isOpen: function(){ return open; }, hide: hide };
+      // Keep pasted content plain — no foreign fonts/colours leaking in.
+      el.addEventListener('paste', function(e){ e.preventDefault(); var t=((e.clipboardData||window.clipboardData).getData('text/plain'))||''; document.execCommand('insertText', false, t); });
+
+      // ── formatting commands ──
+      function surround(tag, ph){ var sel=window.getSelection(); if(!sel.rangeCount){ el.focus(); sel=window.getSelection(); if(!sel.rangeCount) return; }
+        var range=sel.getRangeAt(0); var node=document.createElement(tag);
+        if(range.collapsed){ node.textContent=ph||''; range.insertNode(node); var r=document.createRange(); r.selectNodeContents(node); sel.removeAllRanges(); sel.addRange(r); }
+        else { node.appendChild(range.extractContents()); range.insertNode(node); var r2=document.createRange(); r2.selectNodeContents(node); sel.removeAllRanges(); sel.addRange(r2); } }
+      function insertBlock(node){ var sel=window.getSelection(); if(!sel.rangeCount){ el.appendChild(node); return; }
+        var range=sel.getRangeAt(0); range.deleteContents(); range.insertNode(node);
+        var after=document.createElement('div'); after.appendChild(document.createElement('br')); node.parentNode.insertBefore(after, node.nextSibling);
+        var r=document.createRange(); r.selectNodeContents(node); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+      function ancestor(tagRe){ var sel=window.getSelection(); if(!sel.rangeCount) return null; var n=sel.getRangeAt(0).startContainer;
+        while(n && n!==el){ if(n.nodeType===1 && tagRe.test(n.nodeName)) return n; n=n.parentNode; } return null; }
+      function exec(cmd){ el.focus();
+        if(cmd==='bold'||cmd==='italic') document.execCommand(cmd,false,null);
+        else if(cmd==='strike') document.execCommand('strikeThrough',false,null);
+        else if(cmd==='ul') document.execCommand('insertUnorderedList',false,null);
+        else if(cmd==='ol') document.execCommand('insertOrderedList',false,null);
+        else if(cmd==='quote'){ if(ancestor(/^BLOCKQUOTE$/)) document.execCommand('formatBlock',false,'div'); else document.execCommand('formatBlock',false,'blockquote'); }
+        else if(cmd==='code') surround('code','code');
+        else if(cmd==='codeblock'){ var pre=document.createElement('pre'); var sel=window.getSelection(); var txt=(sel && sel.toString())||''; pre.textContent=txt||'code'; insertBlock(pre); }
+        else if(cmd==='link'){ var sel=window.getSelection(); var text=(sel && sel.toString())||''; var url=window.prompt('Link URL', 'https://'); if(!url) return; url=url.trim(); if(!/^https?:\/\//i.test(url)) url='https://'+url.replace(/^\/+/,'');
+          if(text){ var a=document.createElement('a'); a.href=url; a.textContent=text; if(sel.rangeCount){ var rr=sel.getRangeAt(0); rr.deleteContents(); rr.insertNode(a); } }
+          else { var a2=document.createElement('a'); a2.href=url; a2.textContent=url; insertInline(a2); } }
+        setEmpty(); updateToolbar(); if(opts.onInput) opts.onInput(); }
+      function insertInline(node){ var sel=window.getSelection(); if(!sel.rangeCount){ el.appendChild(node); return; } var r=sel.getRangeAt(0); r.deleteContents(); r.insertNode(node); r.setStartAfter(node); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+
+      // Toolbar buttons live inside the form; highlight the active formats.
+      var btns=[].slice.call(form.querySelectorAll('.tc-fmt'));
+      btns.forEach(function(b){ b.addEventListener('mousedown', function(e){ e.preventDefault(); }); b.addEventListener('click', function(e){ e.preventDefault(); exec(b.getAttribute('data-cmd')); }); });
+      function state(cmd){ try{ return document.queryCommandState(cmd); }catch(e){ return false; } }
+      function updateToolbar(){ if(!btns.length) return; var inEl = (function(){ var s=window.getSelection(); if(!s.rangeCount) return false; var n=s.getRangeAt(0).startContainer; while(n){ if(n===el) return true; n=n.parentNode; } return false; })();
+        btns.forEach(function(b){ var c=b.getAttribute('data-cmd'), on=false; if(inEl){
+          if(c==='bold') on=state('bold'); else if(c==='italic') on=state('italic'); else if(c==='strike') on=state('strikeThrough');
+          else if(c==='ul') on=state('insertUnorderedList'); else if(c==='ol') on=state('insertOrderedList');
+          else if(c==='quote') on=!!ancestor(/^BLOCKQUOTE$/); else if(c==='code') on=!!ancestor(/^CODE$/); else if(c==='codeblock') on=!!ancestor(/^PRE$/); }
+          b.classList.toggle('is-on', on); }); }
+      document.addEventListener('selectionchange', function(){ updateToolbar(); });
+
+      // ── @mention autocomplete (chips) ──
+      var mOpen=false, mTimer=null, mActive=-1, mItems=[], mSaved=null;
+      function mHide(){ if(dropEl){ dropEl.hidden=true; } mOpen=false; mActive=-1; mItems=[]; mSaved=null; }
+      function mRender(){ if(!dropEl) return; dropEl.innerHTML=mItems.map(function(m,i){ return '<button type="button" class="tc-ment'+(i===0?' is-on':'')+'" data-h="'+esc(m.handle)+'" data-n="'+esc(m.name)+'"><span class="tc-ment-ava">'+esc(m.initial)+'</span>'+esc(m.name)+' <span class="tc-ment-h">@'+esc(m.handle)+'</span></button>'; }).join(''); dropEl.hidden=false; mOpen=true; mActive=0; }
+      function caretAt(){ var sel=window.getSelection(); if(!sel.rangeCount) return null; var range=sel.getRangeAt(0); if(!range.collapsed) return null; var node=range.startContainer; if(node.nodeType!==3) return null;
+        var before=node.nodeValue.slice(0, range.startOffset); var m=before.match(/(?:^|\s)@([\w.\-]*)$/); if(!m) return null; return {node:node, end:range.startOffset, start:range.startOffset-m[1].length-1, q:m[1]}; }
+      function mPick(handle, name){ var cq=mSaved; mHide(); if(!cq) return; try{
+        var r=document.createRange(); r.setStart(cq.node, cq.start); r.setEnd(cq.node, cq.end); r.deleteContents();
+        var chip=document.createElement('span'); chip.className='tc-at'; chip.setAttribute('contenteditable','false'); chip.setAttribute('data-h', handle); chip.textContent='@'+name;
+        r.insertNode(chip); var sp=document.createTextNode(' '); chip.parentNode.insertBefore(sp, chip.nextSibling);
+        var nr=document.createRange(); nr.setStartAfter(sp); nr.collapse(true); var s=window.getSelection(); s.removeAllRanges(); s.addRange(nr);
+      }catch(e){} setEmpty(); if(opts.onInput) opts.onInput(); }
+      if(dropEl) dropEl.addEventListener('mousedown', function(e){ var b=e.target.closest('.tc-ment'); if(b){ e.preventDefault(); mPick(b.getAttribute('data-h'), b.getAttribute('data-n')); } });
+
+      el.addEventListener('input', function(){ setEmpty(); if(opts.onInput) opts.onInput();
+        var cq=caretAt(); if(!cq){ mHide(); return; } mSaved=cq; var q=cq.q; clearTimeout(mTimer);
+        mTimer=setTimeout(function(){ get('mention','&q='+encodeURIComponent(q)).then(function(d){ if(!d||!d.ok||!d.members.length){ mHide(); return; } mItems=d.members; mRender(); }).catch(mHide); }, 130); });
+
+      el.addEventListener('keydown', function(e){
+        if(mOpen){ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); mActive=(mActive+(e.key==='ArrowDown'?1:mItems.length-1))%mItems.length; [].forEach.call(dropEl.children,function(c,i){ c.classList.toggle('is-on',i===mActive); }); return; }
+          if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); var it=mItems[mActive]; if(it) mPick(it.handle, it.name); return; }
+          if(e.key==='Escape'){ e.preventDefault(); mHide(); return; } }
+        // Keyboard formatting shortcuts.
+        if((e.ctrlKey||e.metaKey) && !e.shiftKey){ var k=e.key.toLowerCase(); if(k==='b'){ e.preventDefault(); exec('bold'); return; } if(k==='i'){ e.preventDefault(); exec('italic'); return; } }
+        // Enter sends; Shift+Enter is a newline.
+        if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); if(opts.onSubmit) opts.onSubmit(); }
+      });
+
+      // ── markdown round-trip ──
+      var BLOCK={DIV:1,P:1};
+      function ser(node){ var out='';
+        for(var i=0;i<node.childNodes.length;i++){ var ch=node.childNodes[i];
+          if(ch.nodeType===3){ out+=ch.nodeValue.replace(/ /g,' ').replace(/\n/g,' '); continue; }
+          if(ch.nodeType!==1) continue; var tag=ch.nodeName;
+          if(ch.classList && ch.classList.contains('tc-at')){ out+='@'+(ch.getAttribute('data-h')||ch.textContent.replace(/^@/,'')); continue; }
+          if(tag==='BR'){ out+='\n'; continue; }
+          if(tag==='B'||tag==='STRONG'){ var t=ser(ch).trim(); if(t) out+='**'+t+'**'; continue; }
+          if(tag==='I'||tag==='EM'){ var t2=ser(ch).trim(); if(t2) out+='*'+t2+'*'; continue; }
+          if(tag==='S'||tag==='STRIKE'||tag==='DEL'){ var t3=ser(ch).trim(); if(t3) out+='~~'+t3+'~~'; continue; }
+          if(tag==='CODE'){ out+='`'+ch.textContent+'`'; continue; }
+          if(tag==='A'){ out+='['+ser(ch).trim()+']('+(ch.getAttribute('href')||'')+')'; continue; }
+          if(tag==='PRE'){ out=nl(out)+'```\n'+ch.textContent.replace(/\n+$/,'')+'\n```\n'; continue; }
+          if(tag==='BLOCKQUOTE'){ var q=ser(ch).trim().split('\n').map(function(l){return '> '+l;}).join('\n'); out=nl(out)+q+'\n'; continue; }
+          if(tag==='UL'||tag==='OL'){ out=nl(out); var n=1; [].forEach.call(ch.children,function(li){ if(li.nodeName==='LI') out+=(tag==='OL'?(n++)+'. ':'- ')+ser(li).trim()+'\n'; }); continue; }
+          if(BLOCK[tag]){ out=nl(out)+ser(ch); continue; }
+          out+=ser(ch);
+        }
+        return out; }
+      function nl(s){ return (s===''||/\n$/.test(s))? s : s+'\n'; }
+      function getMarkdown(){ return ser(el).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim(); }
+
+      // markdown → editable HTML (used when loading a message to edit).
+      function mdToHtml(md){ var S='', E=''; var raw=String(md||'');
+        var fen=[]; raw=raw.replace(/```([\s\S]*?)```/g, function(_,c){ fen.push(c.replace(/^\n/,'').replace(/\n+$/,'')); return S+'F'+(fen.length-1)+E; });
+        var inl=[]; raw=raw.replace(/`([^`\n]+)`/g, function(_,c){ inl.push(c); return S+'I'+(inl.length-1)+E; });
+        function inline(s){ s=esc(s);
+          s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/~~([^~\n]+)~~/g,'<s>$1</s>')
+             .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g,'$1<i>$2</i>').replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g,'$1<i>$2</i>');
+          s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');
+          s=s.replace(new RegExp(S+'I(\\d+)'+E,'g'), function(_,i){ return '<code>'+esc(inl[+i])+'</code>'; });
+          return s; }
+        var rows=raw.split('\n'), out='', inUl=false, inOl=false; var fenRe=new RegExp('^'+S+'F(\\d+)'+E+'$');
+        function closeL(){ if(inUl){out+='</ul>';inUl=false;} if(inOl){out+='</ol>';inOl=false;} }
+        rows.forEach(function(l){ var fm=l.match(fenRe);
+          if(fm){ closeL(); out+='<pre>'+esc(fen[+fm[1]])+'</pre>'; return; }
+          if(/^\s*[-*]\s+/.test(l)){ if(inOl){out+='</ol>';inOl=false;} if(!inUl){out+='<ul>';inUl=true;} out+='<li>'+inline(l.replace(/^\s*[-*]\s+/,''))+'</li>'; return; }
+          if(/^\s*\d+\.\s+/.test(l)){ if(inUl){out+='</ul>';inUl=false;} if(!inOl){out+='<ol>';inOl=true;} out+='<li>'+inline(l.replace(/^\s*\d+\.\s+/,''))+'</li>'; return; }
+          closeL();
+          if(/^\s*>\s?/.test(l)){ out+='<blockquote>'+inline(l.replace(/^\s*>\s?/,''))+'</blockquote>'; return; }
+          if(l.trim()===''){ out+='<div><br></div>'; return; }
+          out+='<div>'+inline(l)+'</div>'; });
+        closeL(); return out; }
+
+      function setMarkdown(md){ el.innerHTML=mdToHtml(md); setEmpty(); }
+      function clear(){ el.innerHTML=''; setEmpty(); mHide(); }
+      setEmpty();
+      return { getMarkdown:getMarkdown, setMarkdown:setMarkdown, clear:clear, focus:focus, isEmpty:isEmpty, mentionsOpen:function(){ return mOpen; } };
     }
-    var mainMentions = attachMentions(input, mentEl, autoGrow);
 
     // Cheap background refresh of channel state (for the nav unread badge) when
     // the Chat view ISN'T open — a message-less poll that still returns channels.
