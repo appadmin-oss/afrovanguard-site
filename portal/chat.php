@@ -42,6 +42,7 @@ try {
                 'channels'    => Community::chatChannels(),
                 'topics'      => Community::CHAT_TOPICS,
                 'messages'    => Community::chatList($uid, 0, 50, $channel),
+                'pins'        => Community::chatPins($uid, $channel),
                 'members'     => Community::chatMembers($uid),
                 'typing'      => Community::whoTyping($uid, $channel),
                 'online'      => Collab::onlineUsers(40),
@@ -69,6 +70,15 @@ try {
             $writeGuard();
             Community::setTyping($uid, (string) ($body['channel'] ?? 'general'));
             json_out(['ok' => true]);
+
+        case 'pins':
+            json_out(['ok' => true, 'pins' => Community::chatPins($uid, (string) ($_GET['channel'] ?? 'general'))]);
+
+        case 'pin':
+            $writeGuard();
+            $r = Community::chatPin($uid, (int) ($body['id'] ?? 0), !empty($body['pinned']));
+            if ($r === null) json_out(['ok' => false, 'error' => 'Could not pin that message.'], 400);
+            json_out(['ok' => true, 'id' => (int) $body['id'], 'pinned' => $r, 'pins' => Community::chatPins($uid, (string) ($body['channel'] ?? 'general'))]);
 
         case 'recap':
             if (!av_rate_ok('chat_recap_' . $uid, 6, 120)) json_out(['ok' => false, 'error' => 'Give it a moment before catching up again.'], 429);

@@ -814,8 +814,13 @@ $nav['You'] = [
                     <div class="tc-ch-title"><b id="tcChannelName">general</b><span class="tc-ch-count" id="tcMemberCount"></span></div>
                     <div class="tc-ch-topic" id="tcTopic"></div>
                   </div>
+                  <button type="button" class="tc-pinbtn" id="tcPinBtn" hidden aria-label="Pinned messages">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 17v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    <span id="tcPinCount">0</span>
+                  </button>
                   <span class="tc-presence"><span class="dot-live"></span><span id="tcPresence">0</span> online</span>
                 </div>
+                <div class="tc-pinned" id="tcPinned" hidden></div>
                 <div class="tc-stream" id="tcStream"><p class="pc-empty">Loading messages…</p></div>
                 <div class="tc-typing" id="tcTyping" hidden></div>
                 <form class="tc-compose tc-compose--float" id="tcCompose" autocomplete="off">
@@ -1473,9 +1478,10 @@ $nav['You'] = [
         presEl=document.getElementById('tcPresence'), chanNameEl=document.getElementById('tcChannelName'),
         memberCountEl=document.getElementById('tcMemberCount'), topicEl=document.getElementById('tcTopic'),
         catchupBtn=document.getElementById('tcCatchup'), snippetBtn=document.getElementById('tcSnippet'),
+        pinnedEl=document.getElementById('tcPinned'), pinBtn=document.getElementById('tcPinBtn'), pinCountEl=document.getElementById('tcPinCount'),
         input=document.getElementById('tcInput'), mentEl=document.getElementById('tcMentions'),
         composeForm=document.getElementById('tcCompose');
-    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, AI_OK=false, poller=null, active=false, ready=false, seenKey='av_chat_seen';
+    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, PINS=[], PINS_OPEN=false, AI_OK=false, poller=null, active=false, ready=false, seenKey='av_chat_seen';
     // Per-channel last-seen id (localStorage) → unread dots.
     function seen(){ try{ return JSON.parse(localStorage.getItem(seenKey)||'{}'); }catch(e){ return {}; } }
     function markSeen(ch, id){ var s=seen(); if(!s[ch]||id>s[ch]){ s[ch]=id; try{ localStorage.setItem(seenKey, JSON.stringify(s)); }catch(e){} } }
@@ -1500,12 +1506,15 @@ $nav['You'] = [
     function reactHtml(m){ var rx=m.reactions||[]; var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
       return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
     function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
-    function actionsHtml(m){ var reply = (!m.parent_id) ? '<button type="button" class="tc-act" data-act="reply" title="Reply in thread">💬</button>' : '';
-      return '<div class="tc-actions">'+reply+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button></div>'; }
+    function actionsHtml(m){
+      var reply = (!m.parent_id) ? '<button type="button" class="tc-act" data-act="reply" title="Reply in thread">💬</button>' : '';
+      var pin = (!m.parent_id) ? '<button type="button" class="tc-act'+(m.pinned?' is-on':'')+'" data-act="pin" title="'+(m.pinned?'Unpin':'Pin to channel')+'">📌</button>' : '';
+      return '<div class="tc-actions">'+reply+pin+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button></div>'; }
     function msgHtml(m, grouped){
       var head = grouped ? '' : '<span class="tc-avatar">'+esc(m.initial)+'</span>';
-      var meta = grouped ? '' : '<span class="tc-msg-h"><b class="tc-name">'+esc(m.author)+'</b>'+(m.verified?'<span class="tc-badge" title="Verified member">✓</span>':'')+'<span class="tc-time">'+esc(fmtTime(m.created_at))+'</span></span>';
-      return '<div class="tc-msg'+(grouped?' is-grouped':'')+(m.is_me?' is-me':'')+'" data-id="'+m.id+'">'
+      var pinMark = m.pinned ? '<span class="tc-pinmark" title="Pinned">📌</span>' : '';
+      var meta = grouped ? '' : '<span class="tc-msg-h"><b class="tc-name">'+esc(m.author)+'</b>'+(m.verified?'<span class="tc-badge" title="Verified member">✓</span>':'')+'<span class="tc-time">'+esc(fmtTime(m.created_at))+'</span>'+pinMark+'</span>';
+      return '<div class="tc-msg'+(grouped?' is-grouped':'')+(m.is_me?' is-me':'')+(m.pinned?' is-pinned':'')+'" data-id="'+m.id+'">'
         +actionsHtml(m)
         +'<div class="tc-msg-l">'+head+'</div>'
         +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+'</div>'+reactHtml(m)+threadSummary(m)+'</div></div>'; }
@@ -1549,12 +1558,26 @@ $nav['You'] = [
       var label = names.length===1 ? esc(names[0])+' is typing' : names.length===2 ? esc(names[0])+' and '+esc(names[1])+' are typing' : names.length+' people are typing';
       typingEl.hidden=false; typingEl.innerHTML='<span class="tc-typing-dots"><i></i><i></i><i></i></span>'+label+'…'; }
     function setTopic(){ if(topicEl) topicEl.textContent = TOPICS[CHANNEL] || ''; }
+    // Plain-text one-liner from a message body (strip fences/inline code/newlines).
+    function plainText(body){ return String(body||'').replace(/```[\s\S]*?```/g,'[code]').replace(/`([^`]+)`/g,'$1').replace(/\s+/g,' ').trim(); }
+    function renderPins(){
+      if(!pinnedEl) return;
+      var n=PINS.length;
+      if(pinBtn){ pinBtn.hidden = n===0; if(pinCountEl) pinCountEl.textContent=n; pinBtn.classList.toggle('is-on', PINS_OPEN); }
+      if(!n || !PINS_OPEN){ pinnedEl.hidden=true; pinnedEl.innerHTML=''; return; }
+      pinnedEl.hidden=false;
+      pinnedEl.innerHTML='<div class="tc-pinned-h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6Z" fill="currentColor"/></svg> '+n+' pinned</div>'
+        + PINS.map(function(p){ var txt=plainText(p.body); if(txt.length>140) txt=txt.slice(0,140)+'…';
+            return '<div class="tc-pin" data-id="'+p.id+'"><span class="tc-pin-b"><b>'+esc(p.author)+'</b> <span class="tc-pin-txt">'+esc(txt)+'</span></span>'
+              +'<button type="button" class="tc-pin-jump" data-jump="'+p.id+'" title="Jump to message">↧</button>'
+              +'<button type="button" class="tc-pin-x" data-unpin="'+p.id+'" title="Unpin">✕</button></div>'; }).join('');
+    }
     // Append only strictly-newer messages (id > LAST) so a late/overlapping poll can't duplicate.
     function applyNew(list){ if(!list||!list.length) return; var added=false; list.forEach(function(m){ if(m.id>LAST){ MSGS.push(m); LAST=m.id; added=true; } }); if(!added) return; if(MSGS.length>200)MSGS=MSGS.slice(-200); markSeen(CHANNEL,LAST); render(); }
     function bootstrap(){ ready=false; get('bootstrap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(!d||!d.ok){ ready=true; return; }
-        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; TOPICS=d.topics||TOPICS; MEMBERS=d.members||MEMBERS; AI_OK=!!d.ai;
+        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; TOPICS=d.topics||TOPICS; MEMBERS=d.members||MEMBERS; PINS=d.pins||[]; AI_OK=!!d.ai;
         MSGS=d.messages||[]; LAST=MSGS.length?MSGS[MSGS.length-1].id:0;
-        markSeen(CHANNEL,LAST); renderChannels(); render(); renderMembers(); renderTyping(d.typing); setTopic(); updatePresence(d.count);
+        markSeen(CHANNEL,LAST); renderChannels(); render(); renderMembers(); renderTyping(d.typing); renderPins(); setTopic(); updatePresence(d.count);
         if(catchupBtn) catchupBtn.hidden=!AI_OK; ready=true; }).catch(function(){ ready=true; }); }
     function poll(){ if(!active || !ready) return; get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since='+LAST).then(function(d){ if(!d||!d.ok) return;
         CHANNELS=d.channels||CHANNELS; if(d.members)MEMBERS=d.members; applyNew(d.messages); renderChannels(); renderMembers(); renderTyping(d.typing); updatePresence(d.count); }).catch(function(){}); }
@@ -1598,9 +1621,19 @@ $nav['You'] = [
       var msgEl=e.target.closest('.tc-msg'); if(!msgEl) return; var id=+msgEl.getAttribute('data-id');
       var chip=e.target.closest('.tc-react'); if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
       var add=e.target.closest('.tc-react-add'); if(add){ openEmojiPicker(add, id); return; }
-      var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act'); if(a==='reply') openThread(id); else if(a==='assign') openAssign(id, msgEl); return; }
+      var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act'); if(a==='reply') openThread(id); else if(a==='assign') openAssign(id, msgEl); else if(a==='pin') doPin(id); return; }
       var sum=e.target.closest('.tc-thread-sum'); if(sum){ openThread(+sum.getAttribute('data-thread')); } }
     streamEl.addEventListener('click', onMsgClick);
+    // Pin / unpin a message; the endpoint returns the fresh pin list.
+    function doPin(id){ var m=MSGS.filter(function(x){return x.id===id;})[0]; var want=!(m&&m.pinned);
+      post('pin',{id:id, pinned:want, channel:CHANNEL}).then(function(d){ if(!d||!d.ok) return;
+        if(m){ m.pinned=d.pinned; } PINS=d.pins||PINS; if(want) PINS_OPEN=true; render(); renderPins(); }); }
+    // Header pin button toggles the pinned banner.
+    if(pinBtn) pinBtn.addEventListener('click', function(){ PINS_OPEN=!PINS_OPEN; renderPins(); });
+    // Pinned banner: unpin or jump-to-message.
+    if(pinnedEl) pinnedEl.addEventListener('click', function(e){
+      var un=e.target.closest('.tc-pin-x'); if(un){ var uid=+un.getAttribute('data-unpin'); post('pin',{id:uid, pinned:false, channel:CHANNEL}).then(function(d){ if(d&&d.ok){ var mm=MSGS.filter(function(x){return x.id===uid;})[0]; if(mm)mm.pinned=false; PINS=d.pins||[]; render(); renderPins(); } }); return; }
+      var jp=e.target.closest('.tc-pin-jump'); if(jp){ var jid=+jp.getAttribute('data-jump'); var el=streamEl.querySelector('.tc-msg[data-id="'+jid+'"]'); if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); }, 1500); } } });
     function react(id, emoji){ post('react',{id:id, emoji:emoji}).then(function(d){ if(!d||!d.ok) return;
       var m=MSGS.filter(function(x){return x.id===id;})[0]; if(m){ m.reactions=d.reactions; render(); }
       var tm=THREAD.filter(function(x){return x.id===id;})[0]; if(tm){ tm.reactions=d.reactions; }

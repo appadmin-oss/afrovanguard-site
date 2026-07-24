@@ -471,6 +471,29 @@ body.portal-app .read-progress { display:none; }
 .tc-recap li { font-size:14px; line-height:1.55; color:var(--body); margin-bottom:3px; }
 .tc-recap-load { text-align:center; }
 .tc-recap-src { margin-top:14px; padding-top:10px; border-top:1px solid var(--border-2); font-size:11.5px; color:var(--muted-2); }
+/* pinned: header button, banner, per-message marker */
+.tc-pinbtn { flex:none; display:inline-flex; align-items:center; gap:5px; padding:6px 11px; border:1px solid var(--border-2); background:var(--surface); border-radius:9px; font-size:12.5px; font-weight:700; color:var(--body); cursor:pointer; }
+.tc-pinbtn:hover { background:var(--surface-2); }
+.tc-pinbtn.is-on { background:var(--gold-soft); border-color:var(--gold-soft-bd); color:var(--gold-deeper); }
+.tc-pinned { flex:none; margin:12px 18px 0; background:var(--ink); color:#fff; border-radius:14px; padding:12px 14px; }
+.tc-pinned-h { display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); margin-bottom:8px; }
+.tc-pin { display:flex; align-items:center; gap:8px; padding:5px 0; }
+.tc-pin + .tc-pin { border-top:1px solid rgba(255,255,255,.08); }
+.tc-pin-b { flex:1; min-width:0; font-size:13.5px; color:#eef1f8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tc-pin-b b { color:#fff; }
+.tc-pin-txt { color:rgba(255,255,255,.72); }
+.tc-pin-jump, .tc-pin-x { flex:none; width:26px; height:26px; border:none; background:rgba(255,255,255,.08); color:#fff; border-radius:7px; cursor:pointer; font-size:12px; }
+.tc-pin-jump:hover, .tc-pin-x:hover { background:rgba(255,255,255,.18); }
+.tc-act.is-on { background:var(--gold-soft); color:var(--gold-deep); }
+.tc-pinmark { font-size:11px; opacity:.75; }
+.tc-msg.is-pinned { background:var(--gold-soft); border-radius:10px; }
+.tc-msg.is-pinned:hover { background:var(--gold-soft); }
+@keyframes tcflash { 0%{ background:var(--gold-soft); } 100%{ background:transparent; } }
+.tc-flash { animation:tcflash 1.5s ease-out; border-radius:10px; }
+/* small cleanups */
+.tc-topbar { gap:12px; }
+.tc-msg { padding:7px 8px 7px 6px; }
+.tc-msg.is-grouped { padding-top:2px; padding-bottom:2px; }
 @media (max-width:1180px){ .tc-ch-topic { display:none; } }
 
 /* ---------- modal (schedule a meeting) ---------- */

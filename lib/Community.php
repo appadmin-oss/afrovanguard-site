@@ -71,6 +71,9 @@ final class Community
         // Threads: a reply points at its parent message (0 = top-level).
         try { if (!Database::columnExists('community_chat', 'parent_id')) $db->exec("ALTER TABLE community_chat ADD COLUMN parent_id INTEGER NOT NULL DEFAULT 0"); }
         catch (Throwable $e) { /* already there */ }
+        // Pinned messages — a channel keeps a small set of pinned highlights.
+        try { if (!Database::columnExists('community_chat', 'pinned')) $db->exec("ALTER TABLE community_chat ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"); }
+        catch (Throwable $e) { /* already there */ }
         // Emoji reactions on chat messages (Slack-style). One row per (message,user,emoji).
         try {
             $rddl = "CREATE TABLE IF NOT EXISTS community_chat_reactions (
@@ -749,7 +752,7 @@ SYS;
     }
 
     private const CHAT_SELECT =
-        'SELECT c.id, c.body, c.author_id, c.created_at, c.parent_id, u.name AS author, u.email AS author_email
+        'SELECT c.id, c.body, c.author_id, c.created_at, c.parent_id, c.pinned, u.name AS author, u.email AS author_email
          FROM community_chat c JOIN lms_users u ON u.id = c.author_id';
 
     private static function chatOne(int $id, int $viewerId): ?array
@@ -788,7 +791,37 @@ SYS;
             'parent_id'  => (int) ($r['parent_id'] ?? 0),
             'reply_count'=> 0,
             'last_reply' => '',
+            'pinned'     => (int) ($r['pinned'] ?? 0) === 1,
         ];
+    }
+
+    /** Pin / unpin a top-level message in its channel. Returns the new state or null. */
+    public static function chatPin(int $uid, int $chatId, bool $pin): ?bool
+    {
+        self::ensure();
+        if ($uid <= 0 || $chatId <= 0 || !self::isOrgMember($uid)) return null;
+        try {
+            $st = Database::pdo()->prepare('SELECT parent_id FROM community_chat WHERE id = ?');
+            $st->execute([$chatId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r || (int) $r['parent_id'] !== 0) return null;   // only top-level messages
+            Database::pdo()->prepare('UPDATE community_chat SET pinned = ? WHERE id = ?')->execute([$pin ? 1 : 0, $chatId]);
+        } catch (Throwable $e) { error_log('[community] chatPin: ' . $e->getMessage()); return null; }
+        return $pin;
+    }
+
+    /** Pinned messages in a channel, newest first. */
+    public static function chatPins(int $viewerId, string $channel): array
+    {
+        self::ensure();
+        if (!self::isOrgMember($viewerId)) return [];
+        $channel = self::normChannel($channel);
+        try {
+            $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.pinned = 1 AND c.parent_id = 0 ORDER BY c.id DESC LIMIT 20');
+            $st->execute([$channel]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { return []; }
+        return array_map(fn($r) => self::shapeChat($r, $viewerId), $rows);
     }
 
     /** Emoji allowed as reactions (a curated Slack-style quick set). */
