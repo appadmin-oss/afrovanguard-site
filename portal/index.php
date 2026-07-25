@@ -1576,17 +1576,22 @@ $nav['You'] = [
         para.push(inline(l)); });
       flush(); if(inUl) out+='</ul>';
       return out; }
-    function reactHtml(m){ var rx=m.reactions||[]; var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
+    // Only render a reactions row when there ARE reactions — an always-present
+    // (invisible) add button would reserve empty vertical space under every
+    // message. Adding the first reaction happens from the hover actions bar.
+    function reactHtml(m){ var rx=m.reactions||[]; if(!rx.length) return '';
+      var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
       return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
     function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
     function actionsHtml(m){
       if(m.deleted) return '';
       var reply = (!m.parent_id) ? '<button type="button" class="tc-act" data-act="reply" title="Reply in thread">💬</button>' : '';
       var pin = (!m.parent_id) ? '<button type="button" class="tc-act'+(m.pinned?' is-on':'')+'" data-act="pin" title="'+(m.pinned?'Unpin':'Pin to channel')+'">📌</button>' : '';
+      var reactBtn = '<button type="button" class="tc-act" data-act="react" title="Add reaction">😊</button>';
       var save = '<button type="button" class="tc-act'+(m.saved?' is-on':'')+'" data-act="save" title="'+(m.saved?'Remove from saved':'Save for later')+'">'+(m.saved?'🔖':'🏷️')+'</button>';
       var edit = m.is_me ? '<button type="button" class="tc-act" data-act="edit" title="Edit">✎</button>' : '';
       var del = (m.is_me || IS_ADMIN) ? '<button type="button" class="tc-act tc-act-del" data-act="delete" title="Delete">🗑</button>' : '';
-      return '<div class="tc-actions">'+reply+pin+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button>'+save+edit+del+'</div>'; }
+      return '<div class="tc-actions">'+reactBtn+reply+pin+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button>'+save+edit+del+'</div>'; }
     function msgHtml(m, grouped){
       var head = grouped ? '' : '<span class="tc-avatar">'+esc(m.initial)+'</span>';
       var pinMark = m.pinned && !m.deleted ? '<span class="tc-pinmark" title="Pinned">📌</span>' : '';
@@ -1790,7 +1795,7 @@ $nav['You'] = [
       var chip=e.target.closest('.tc-react'); if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
       var add=e.target.closest('.tc-react-add'); if(add){ openEmojiPicker(add, id); return; }
       var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act');
-        if(a==='reply') openThread(id); else if(a==='assign') openAssign(id, msgEl); else if(a==='pin') doPin(id);
+        if(a==='reply') openThread(id); else if(a==='react') openEmojiPicker(act, id); else if(a==='assign') openAssign(id, msgEl); else if(a==='pin') doPin(id);
         else if(a==='save') doSave(id); else if(a==='edit') enterEdit(id); else if(a==='delete') doDelete(id); return; }
       var sum=e.target.closest('.tc-thread-sum'); if(sum){ openThread(+sum.getAttribute('data-thread')); } }
     streamEl.addEventListener('click', onMsgClick);
@@ -1822,7 +1827,11 @@ $nav['You'] = [
     var pickerEl=null;
     function openEmojiPicker(anchor, id){ closePicker(); pickerEl=document.createElement('div'); pickerEl.className='tc-picker';
       pickerEl.innerHTML=EMOJI.map(function(x){ return '<button type="button" data-e="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
-      anchor.parentNode.appendChild(pickerEl);
+      // Anchor the picker inside the message so hovering it keeps the message
+      // (and its action bar) alive; position it just under the clicked button.
+      var host=anchor.closest('.tc-msg')||anchor.parentNode; host.appendChild(pickerEl);
+      try{ var ar=anchor.getBoundingClientRect(), hr=host.getBoundingClientRect();
+        pickerEl.style.top=(ar.bottom-hr.top+4)+'px'; pickerEl.style.left=Math.max(4,(ar.left-hr.left))+'px'; }catch(e){}
       pickerEl.addEventListener('click', function(e){ var b=e.target.closest('button'); if(b){ react(id, b.getAttribute('data-e')); closePicker(); } });
       setTimeout(function(){ document.addEventListener('click', outside); },0);
       function outside(ev){ if(pickerEl && !pickerEl.contains(ev.target) && ev.target!==anchor){ closePicker(); document.removeEventListener('click', outside); } } }
