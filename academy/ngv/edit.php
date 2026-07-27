@@ -139,57 +139,57 @@ a{color:var(--red)}
       {type:'text',path:'hero.cta_secondary_label',label:'Secondary button label',half:1},
       {type:'text',path:'hero.cta_secondary_url',label:'Secondary button URL',half:1},
     ]},
-    {id:'perks',title:'Hero perks',list:'perks',itemTitle:'label',item:[
+    {id:'perks',title:'Hero perks',addLabel:'perk',list:'perks',itemTitle:'label',item:[
       {key:'num',label:'Big text'},{key:'label',label:'Caption'},
     ]},
     {id:'skills',title:'Skills strip',linelist:'marquee',hint:'One skill per line.'},
-    {id:'stats',title:'Stats',list:'stats',itemTitle:'label',item:[{key:'num',label:'Number'},{key:'label',label:'Caption'}]},
+    {id:'stats',title:'Stats',addLabel:'stat',list:'stats',itemTitle:'label',item:[{key:'num',label:'Number'},{key:'label',label:'Caption'}]},
     {id:'about',title:'About',fields:[
       {type:'text',path:'about.title',label:'Heading'},
       {type:'area',path:'about.body',label:'Paragraph 1'},
       {type:'area',path:'about.body2',label:'Paragraph 2'},
     ]},
-    {id:'tracks',title:'Tracks',toggle:'tracks_enabled',fields:[
+    {id:'tracks',title:'Tracks',toggle:'tracks_enabled',addLabel:'track',fields:[
       {type:'text',path:'tracks_title',label:'Heading'},{type:'area',path:'tracks_intro',label:'Intro'},
     ],list:'tracks',itemTitle:'name',item:[{key:'icon',label:'Icon (emoji)',half:1},{key:'name',label:'Name',half:1},{key:'desc',label:'Description',type:'area',full:1}]},
-    {id:'phases',title:'Journey / phases',toggle:'phases_enabled',fields:[
+    {id:'phases',title:'Journey / phases',toggle:'phases_enabled',addLabel:'phase',fields:[
       {type:'text',path:'phases_title',label:'Heading'},
     ],list:'phases',itemTitle:'title',item:[
       {key:'tag',label:'Tag',half:1},{key:'title',label:'Title',half:1},{key:'when',label:'When',full:1},
       {key:'items',label:'Bullet points (one per line)',type:'lines',full:1},
     ]},
-    {id:'plans',title:'Plans',toggle:'plans_enabled',fields:[
+    {id:'plans',title:'Plans',toggle:'plans_enabled',addLabel:'plan',fields:[
       {type:'text',path:'plans_title',label:'Heading'},{type:'area',path:'plans_intro',label:'Intro'},
-    ],list:'plans',itemTitle:'name',item:[
+    ],list:'plans',itemTitle:'name',newItem:{name:'New plan',price:'Free',cta_label:'Apply now',cta_url:'https://bit.ly/ngv',enabled:true,featured:false},item:[
       {key:'name',label:'Plan name',half:1},{key:'duration',label:'Duration (e.g. 6 months)',half:1},
       {key:'price',label:'Price',half:1},{key:'price_note',label:'Price note',half:1},
       {key:'desc',label:'Description',type:'area',full:1},
       {key:'features',label:'Features (one per line)',type:'lines',full:1},
       {key:'cta_label',label:'Button label',half:1},{key:'cta_url',label:'Button URL',half:1},
       {key:'featured',label:'Highlight as “most popular”',type:'bool'},
-      {key:'enabled',label:'Show this plan',type:'bool'},
+      {key:'enabled',label:'Show this plan on the page',type:'bool',default:true},
     ]},
     {id:'why',title:'Why choose us',toggle:'why_enabled',fields:[
       {type:'text',path:'why_title',label:'Heading'},
     ],linelist:'why',hint:'One reason per line.'},
-    {id:'fees',title:'Fees & schedule',toggle:'fees_enabled',fields:[
+    {id:'fees',title:'Fees & schedule',toggle:'fees_enabled',addLabel:'fee',fields:[
       {type:'text',path:'fees_title',label:'Heading'},{type:'area',path:'fees_note',label:'Support note'},
       {type:'text',path:'schedule.days',label:'Attendance',half:1},{type:'text',path:'schedule.time',label:'Daily schedule',half:1},
       {type:'text',path:'schedule.uniform',label:'Dress code',half:1},{type:'text',path:'schedule.payment',label:'Payments to',half:1},
     ],list:'fees',itemTitle:'name',item:[{key:'name',label:'Fee name',half:1},{key:'amount',label:'Amount',half:1},{key:'desc',label:'What it covers',type:'area',full:1}]},
-    {id:'testimonials',title:'Testimonials',toggle:'testimonials_enabled',fields:[
+    {id:'testimonials',title:'Testimonials',toggle:'testimonials_enabled',addLabel:'testimonial',fields:[
       {type:'text',path:'testimonials_title',label:'Heading'},
     ],list:'testimonials',itemTitle:'name',item:[
       {key:'quote',label:'Quote',type:'area',full:1},{key:'name',label:'Name',half:1},{key:'role',label:'Role',half:1},{key:'rating',label:'Rating (e.g. 4.9)',half:1},
     ]},
-    {id:'faq',title:'FAQ',toggle:'faq_enabled',fields:[
+    {id:'faq',title:'FAQ',toggle:'faq_enabled',addLabel:'question',fields:[
       {type:'text',path:'faq_title',label:'Heading'},
     ],list:'faq',itemTitle:'q',item:[{key:'q',label:'Question',full:1},{key:'a',label:'Answer',type:'area',full:1}]},
     {id:'cta',title:'Final call-to-action',fields:[
       {type:'text',path:'cta.title',label:'Heading'},{type:'area',path:'cta.text',label:'Text'},
       {type:'text',path:'cta.button_label',label:'Button label',half:1},{type:'text',path:'cta.button_url',label:'Button URL',half:1},
     ]},
-    {id:'offices',title:'Offices',list:'offices',itemTitle:'name',item:[{key:'name',label:'Office name',half:1},{key:'address',label:'Address',half:1}]},
+    {id:'offices',title:'Offices',addLabel:'office',list:'offices',itemTitle:'name',item:[{key:'name',label:'Office name',half:1},{key:'address',label:'Address',half:1}]},
     {id:'contact',title:'Contact',fields:[
       {type:'text',path:'contact.phone',label:'Phone',half:1},{type:'text',path:'contact.email',label:'Email',half:1},
       {type:'text',path:'contact.apply_url',label:'Apply URL'},
@@ -227,7 +227,7 @@ a{color:var(--red)}
       inner+=`<div class="fld">${sec.hint?`<p class="hint">${esc(sec.hint)}</p>`:''}<textarea data-linelist="${sec.linelist}" style="min-height:120px">${esc(arr.join('\n'))}</textarea></div>`;}
     if(sec.list){const arr=DATA[sec.list]||[];
       inner+=`<div class="reps" data-list="${sec.list}" data-sec="${sec.id}">${arr.map((o,i)=>repItem(sec,o,i)).join('')}</div>`
-        +`<button class="add" type="button" data-add="${sec.id}">+ Add item</button>`;}
+        +`<button class="add" type="button" data-add="${sec.id}">+ Add ${esc(sec.addLabel||'item')}</button>`;}
     const toggle=sec.toggle?sw('data-path="'+sec.toggle+'"',DATA[sec.toggle]!==false,'Show'):'';
     return `<section class="card" id="sec-${sec.id}"><header><h2>${esc(sec.title)}</h2>${toggle}</header><div class="body">${inner}</div></section>`;
   }
@@ -239,7 +239,16 @@ a{color:var(--red)}
     main.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>{
       const sec=SCHEMA.find(s=>s.id===b.dataset.add);
       const reps=main.querySelector(`.reps[data-sec="${b.dataset.add}"]`);
-      reps.insertAdjacentHTML('beforeend',repItem(sec,{},reps.children.length));
+      // Seed a new card with sensible defaults so it's usable (and, for plans,
+      // visible) immediately: explicit newItem template, then any field defaults.
+      const seed=Object.assign({},sec.newItem||{});
+      sec.item.forEach(f=>{if(f.default!==undefined&&seed[f.key]===undefined)seed[f.key]=f.default;});
+      const el=document.createElement('div');
+      el.innerHTML=repItem(sec,seed,reps.children.length);
+      const node=el.firstElementChild;
+      reps.appendChild(node);
+      node.scrollIntoView({behavior:'smooth',block:'center'});
+      node.querySelector('input,textarea')?.focus();
     }));
     // scrollspy
     const links=[...document.querySelectorAll('[data-nav]')];
