@@ -98,9 +98,11 @@ CREATE TABLE IF NOT EXISTS courses (
   sort          INTEGER NOT NULL DEFAULT 0,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  access_type   TEXT NOT NULL DEFAULT 'open',   -- open | tracked | membership | paid (also added by ensureAcademy)
+  access_type   TEXT NOT NULL DEFAULT 'open',   -- open | tracked | membership | paid | restricted (also added by ensureAcademy)
   price_ngn     INTEGER NOT NULL DEFAULT 0,
-  instructor_id INTEGER
+  instructor_id INTEGER,
+  pass_code     VARCHAR(191) NOT NULL DEFAULT '', -- access_type=restricted: any member holding this pass gets in
+  cover_is_dark INTEGER NOT NULL DEFAULT -1       -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX idx_courses_status ON courses(status);
 
@@ -187,6 +189,26 @@ CREATE TABLE IF NOT EXISTS memberships (
   status     TEXT NOT NULL DEFAULT 'active',     -- active | expired | cancelled
   started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at TEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Restricted-course access: an explicit per-member allowlist, and named "passes"
+-- an admin grants that unlock any course requiring that pass (also ensured at runtime).
+CREATE TABLE IF NOT EXISTS course_access (
+  id         INTEGER PRIMARY KEY AUTO_INCREMENT,
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  granted_by INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (course_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS member_passes (
+  id         INTEGER PRIMARY KEY AUTO_INCREMENT,
+  user_id    INTEGER NOT NULL,
+  code       VARCHAR(191) NOT NULL DEFAULT '',
+  label      VARCHAR(191) NOT NULL DEFAULT '',
+  granted_by INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS certificates (
   id         INTEGER PRIMARY KEY AUTO_INCREMENT,

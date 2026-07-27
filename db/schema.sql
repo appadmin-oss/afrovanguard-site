@@ -96,9 +96,11 @@ CREATE TABLE IF NOT EXISTS courses (
   sort          INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  access_type   TEXT NOT NULL DEFAULT 'open',   -- open | tracked | membership | paid (also added by ensureAcademy)
+  access_type   TEXT NOT NULL DEFAULT 'open',   -- open | tracked | membership | paid | restricted (also added by ensureAcademy)
   price_ngn     INTEGER NOT NULL DEFAULT 0,
-  instructor_id INTEGER
+  instructor_id INTEGER,
+  pass_code     TEXT NOT NULL DEFAULT '',        -- access_type=restricted: any member holding this pass gets in
+  cover_is_dark INTEGER NOT NULL DEFAULT -1      -- -1 unknown, 0 light, 1 dark (colour-aware overlay text)
 );
 CREATE INDEX IF NOT EXISTS idx_courses_status ON courses(status);
 
@@ -187,6 +189,26 @@ CREATE TABLE IF NOT EXISTS memberships (
   status     TEXT NOT NULL DEFAULT 'active',     -- active | expired | cancelled
   started_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT
+);
+-- Restricted-course access: an explicit per-member allowlist, and named "passes"
+-- an admin grants that unlock any course requiring that pass (also ensured at runtime).
+CREATE TABLE IF NOT EXISTS course_access (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id  INTEGER NOT NULL,
+  user_id    INTEGER NOT NULL,
+  granted_by INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (course_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS member_passes (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL,
+  code       TEXT NOT NULL DEFAULT '',
+  label      TEXT NOT NULL DEFAULT '',
+  granted_by INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_id, code)
 );
 CREATE TABLE IF NOT EXISTS certificates (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
