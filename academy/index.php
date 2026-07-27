@@ -45,7 +45,7 @@ render_head([
     'desc'  => 'Technology, creative, and leadership programmes raising one million incorruptible leaders for Africa. Learn, build, and lead with Afrovanguard.',
     'canonical' => $canonical, 'og_kind' => 'website',
     'image' => $featured ? rtrim(SITE_URL, '/') . '/academy/og/' . $featured['slug'] . '.png' : null,
-    'keywords' => 'Afrovanguard Academy, free training Lagos, Techome, MediaPro, Africa GATES, youth programmes Nigeria',
+    'keywords' => 'Afrovanguard Academy, NextGen Vanguard, free training Lagos, skills training Alimosho, Egbeda youth programme, NYSC skills Nigeria, learn and earn Nigeria, Techome, MediaPro, Africa GATES, digital marketing training Lagos, tech internship Lagos, youth programmes Nigeria',
     'jsonld' => [schema_org(), schema_website(), $itemList, $crumbs],
     'css' => ['/academy/academy.css'], 'body_class' => 'academy',
 ]);
@@ -61,7 +61,8 @@ render_nav('academy');
         <h1>Learn. Build. Lead Africa.</h1>
         <p class="ac-hero-sub">Free, hands-on programmes in technology, the creative arts and leadership — the formation behind one million incorruptible leaders by 2040.</p>
         <div class="ac-hero-cta">
-          <a class="btn btn-pill" href="#catalogue">Browse courses</a>
+          <a class="btn btn-pill" href="/academy/ngv/">NextGen Vanguard →</a>
+          <a class="btn btn-pill-ghost" href="#catalogue">Browse courses</a>
           <a class="btn btn-pill-ghost" href="/academy/teach/">Teach with us</a>
         </div>
         <dl class="ac-hero-stats" aria-label="Academy at a glance">
@@ -72,6 +73,17 @@ render_nav('academy');
         </dl>
       </div>
     </section>
+
+    <a class="ngv-promo" href="/academy/ngv/" aria-label="NextGen Vanguard — our flagship transformation programme">
+      <div class="container ngv-promo-inner">
+        <div class="ngv-promo-copy">
+          <span class="ngv-promo-tag">★ Flagship programme · Now enrolling</span>
+          <strong>NextGen Vanguard — stop scrolling, start earning.</strong>
+          <span class="ngv-promo-sub">Future-ready tech, media, business &amp; leadership skills for young Africans — with weekly stipends, six global certifications and a real internship.</span>
+        </div>
+        <span class="ngv-promo-cta">Explore NextGen Vanguard →</span>
+      </div>
+    </a>
 
     <div class="container" id="catalogue">
       <div class="ac-toolbar">

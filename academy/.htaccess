@@ -13,6 +13,9 @@ DirectoryIndex index.php index.html
   RewriteRule ^ - [L]
   RewriteRule ^teach/?$ teach.php [L,QSA]
   RewriteRule ^teach/([a-z0-9-]+)/?$ teach.php?course=$1 [L,QSA]
+  # NextGen Vanguard flagship programme (real directory; explicit so the course
+  # catch-all below never treats "ngv" as a course slug).
+  RewriteRule ^ngv/?$ ngv/index.php [L,QSA]
   RewriteRule ^([a-z0-9-]+)/certificate/?$ certificate.php?course=$1 [L,QSA]
   RewriteRule ^([a-z0-9-]+)/learn/?$ learn.php?course=$1 [L,QSA]
   RewriteRule ^([a-z0-9-]+)/learn/([a-z0-9-]+)/?$ learn.php?course=$1&lesson=$2 [L,QSA]

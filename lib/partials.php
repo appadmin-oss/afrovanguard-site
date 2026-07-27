@@ -177,7 +177,8 @@ function av_nav_model(): array {
         'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
-                    ['All programmes', '/academy/'], ['Academy membership', '/academy/#membership'],
+                    ['All programmes', '/academy/'], ['NextGen Vanguard', '/academy/ngv/'],
+                    ['Academy membership', '/academy/#membership'],
                     ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/verify.php'],
                 ]],
                 ['title' => 'Get started', 'links' => [
@@ -185,7 +186,7 @@ function av_nav_model(): array {
                     ['IQ — Quizzes & games', '/IQ/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
+            'feature' => ['kicker' => 'Flagship programme', 'title' => 'NextGen Vanguard — learn, earn & lead', 'text' => 'Future-ready tech, media, business & leadership skills, weekly stipends and six global certifications for young Africans.', 'href' => '/academy/ngv/', 'cta' => 'Explore NextGen Vanguard'],
         ]],
         // WHAT WE DO ON THE GROUND — flagship programmes (distinct from Academy learning)
         'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
@@ -254,6 +255,7 @@ function av_subnav_model(): array {
             'brand'  => ['label' => 'Academy', 'href' => '/academy/'],
             'links'  => [
                 ['Programmes',  '/academy/#catalogue'],
+                ['NextGen Vanguard', '/academy/ngv/'],
                 ['Membership',  '/academy/#membership'],
                 ['Teach',       '/academy/teach/'],
             ],
