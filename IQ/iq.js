@@ -176,7 +176,7 @@
     var badges = (r.badges || []).filter(function (b) { return b.earned; });
     var h = '<div class="iq-player iq-result">' +
       '<div class="iq-result-hero iq-' + (r.passed ? 'pass' : 'fail') + '">' +
-      '<div class="iq-score-ring"><b>' + r.pct + '%</b></div>' +
+      '<div class="iq-score-ring" style="--p:' + (r.pct | 0) + '"><b>' + r.pct + '%</b></div>' +
       '<h2>' + (r.passed ? 'Well done!' : 'Keep going!') + '</h2>' +
       '<p>' + r.correct + ' / ' + r.total + ' correct · ' + r.score + ' pts · ' + fmtTime(dur) + ' · rank #' + r.rank + '</p>' +
       (SIGNED ? '' : '<p class="iq-note">Sign in to save scores and earn badges.</p>') +
