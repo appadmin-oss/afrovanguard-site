@@ -31,7 +31,9 @@ final class AdminAudit
             )");
         } catch (Throwable $e) { /* MySQL/Postgres: table managed elsewhere */ }
         foreach ([['area', "VARCHAR(24) NOT NULL DEFAULT 'admin'"], ['undo', 'TEXT'], ['undone', 'INTEGER NOT NULL DEFAULT 0']] as [$col, $type]) {
-            try { if (!Database::columnExists('lms_audit', $col)) $db->exec('ALTER TABLE lms_audit ADD COLUMN ' . $col . ' ' . $type); }
+            // `undo` is a RESERVED word in MySQL/MariaDB — quote every identifier so
+            // the ADD COLUMN (and the reads/writes below) don't 1064 on those engines.
+            try { if (!Database::columnExists('lms_audit', $col)) $db->exec('ALTER TABLE lms_audit ADD COLUMN ' . Database::quoteIdent($col) . ' ' . $type); }
             catch (Throwable $e) { /* exists / driver quirk */ }
         }
         self::$ready = true;
@@ -47,7 +49,8 @@ final class AdminAudit
         $ip = function_exists('av_client_ip') ? av_client_ip() : '';
         $undoJson = ($undo && in_array($undo['class'] ?? '', self::UNDOABLE, true)) ? json_encode($undo, JSON_UNESCAPED_SLASHES) : null;
         try {
-            Database::pdo()->prepare('INSERT INTO lms_audit (actor, action, target, detail, ip, area, undo, undone) VALUES (?,?,?,?,?,?,?,0)')
+            $U = Database::quoteIdent('undo'); // reserved word in MySQL/MariaDB
+            Database::pdo()->prepare("INSERT INTO lms_audit (actor, action, target, detail, ip, area, {$U}, undone) VALUES (?,?,?,?,?,?,?,0)")
                 ->execute([$actor ?: 'admin', $action, mb_substr($target, 0, 300), mb_substr($detail, 0, 600), $ip, mb_substr($area, 0, 24), $undoJson]);
         } catch (Throwable $e) { error_log('[adminaudit] write skipped: ' . $e->getMessage()); }
     }
@@ -57,7 +60,7 @@ final class AdminAudit
     {
         self::ensure();
         $limit = max(1, min(300, $limit));
-        $sql = 'SELECT id, actor, action, target, detail, area, undo, undone, created_at FROM lms_audit';
+        $sql = 'SELECT id, actor, action, target, detail, area, ' . Database::quoteIdent('undo') . ', undone, created_at FROM lms_audit';
         $args = [];
         if ($area !== '' && $area !== 'all') { $sql .= ' WHERE area = ?'; $args[] = $area; }
         $sql .= ' ORDER BY id DESC LIMIT ' . $limit;

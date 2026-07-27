@@ -36,14 +36,15 @@ final class Ngv
             ],
 
             'hero' => [
+                'promo_tagline'        => 'Stop scrolling — start earning',
                 'eyebrow'              => 'NextGen Vanguard · Afrovanguard Academy',
-                'audience'             => 'Young school leaver, NYSC corper or IT student?',
-                'title_top'            => 'Stop Scrolling.',
-                'title_bottom'         => 'Start Earning.',
-                'sub'                  => 'Join the movement turning Alimosho youths into skilled creators, tech stars and digital bosses. An elite transformation programme equipping you with future-ready skills, leadership and real income — in months, not years.',
+                'audience'             => 'For young school leavers, NYSC corpers & IT students',
+                'title_top'            => 'Future-ready skills for',
+                'title_bottom'         => 'Africa\'s next generation',
+                'sub'                  => 'An elite Afrovanguard Academy programme that turns raw talent into real skills, income and leadership — with mentorship, weekly stipends and globally recognised certifications.',
                 'cta_primary_label'    => 'Apply now',
                 'cta_primary_url'      => 'https://bit.ly/ngv',
-                'cta_secondary_label'  => 'Talk to us on WhatsApp',
+                'cta_secondary_label'  => 'Chat on WhatsApp',
                 'cta_secondary_url'    => 'https://wa.me/2349037776318',
                 'image'                => '/assets/site/ngv/ngv-flyer.png',
             ],
@@ -106,28 +107,28 @@ final class Ngv
             ],
 
             'plans_enabled' => true,
-            'plans_title'   => 'Programme options',
-            'plans_intro'   => 'Start where you are. No one is turned away for lack — committed applicants who need support can write to their track lead.',
+            'plans_title'   => 'Choose the plan that fits you',
+            'plans_intro'   => 'Each plan runs for a different length of time at a different fee — pick your entry point. No one is turned away for lack; committed applicants who need support can write to their track lead.',
             'plans' => [
                 [
-                    'name' => 'Training Only', 'price' => 'Free', 'price_note' => 'Limited slots',
-                    'desc' => 'Full learning access with classes three times a day.',
-                    'features' => ['All core courses & your chosen track', 'Three certification milestones', 'Weekly workshops & panels'],
-                    'cta_label' => 'Apply now', 'cta_url' => 'https://bit.ly/ngv',
+                    'name' => 'Training Only', 'duration' => '6 months', 'price' => 'Free', 'price_note' => 'Limited slots',
+                    'desc' => 'Phase 1 — full learning access with classes three times a day.',
+                    'features' => ['All core courses & your chosen track', 'Three global certifications', 'Weekly workshops & panels', '24-book leadership reading challenge'],
+                    'cta_label' => 'Apply free', 'cta_url' => 'https://bit.ly/ngv',
                     'featured' => false, 'enabled' => true,
                 ],
                 [
-                    'name' => 'Full Programme', 'price' => '₦240,000', 'price_note' => 'per year · training + service',
-                    'desc' => 'The complete transformation: training plus a guided internship and stipends.',
-                    'features' => ['Everything in Training', 'Guided internship on real projects', 'Six global certifications', 'Portfolio & final showcase'],
+                    'name' => 'Full Programme', 'duration' => '12 months', 'price' => '₦240,000', 'price_note' => 'per year',
+                    'desc' => 'The complete transformation — six months of training plus a guided, paid internship.',
+                    'features' => ['Everything in Training', 'Guided internship on real projects', 'Six global certifications', 'Weekly stipends', 'Portfolio & final showcase'],
                     'cta_label' => 'Start your application', 'cta_url' => 'https://bit.ly/ngv',
                     'featured' => true, 'enabled' => true,
                 ],
                 [
-                    'name' => 'Internship Only', 'price' => 'Free', 'price_note' => 'Limited slots',
-                    'desc' => 'Serve on Afrovanguard projects and earn stipends while you build experience.',
-                    'features' => ['Real project placement', 'Weekly stipends', 'Mentorship & references'],
-                    'cta_label' => 'Apply now', 'cta_url' => 'https://bit.ly/ngv',
+                    'name' => 'Internship Only', 'duration' => '6 months', 'price' => 'Free', 'price_note' => 'Limited slots',
+                    'desc' => 'Phase 2 — serve on real Afrovanguard projects and earn stipends as you build experience.',
+                    'features' => ['Real project placement', 'Weekly stipends', 'Mentorship & references', 'Three global certifications'],
+                    'cta_label' => 'Apply free', 'cta_url' => 'https://bit.ly/ngv',
                     'featured' => false, 'enabled' => true,
                 ],
             ],
@@ -183,8 +184,14 @@ final class Ngv
             'contact' => [
                 'phone'     => '+234 903 777 6318',
                 'email'     => 'academy@afrovanguard.org.ng',
-                'address'   => 'CACENTRE Egbeda — 2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos',
                 'apply_url' => 'https://bit.ly/ngv',
+            ],
+
+            // Afrovanguard's two offices (editable list). Rendered on the page and
+            // used in the Course location schema.
+            'offices' => [
+                ['name' => 'CACENTRE Egbeda', 'address' => '2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos'],
+                ['name' => 'CACENTRE Okun Alimosho', 'address' => 'Okun Alimosho, Alimosho, Lagos'],
             ],
         ];
     }

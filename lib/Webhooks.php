@@ -52,10 +52,11 @@ final class Webhooks
             next_attempt_at VARCHAR(32) NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_wh_deliv_status ON webhook_deliveries(status, next_attempt_at);";
+        );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        // Index created separately + idempotently (MySQL lacks CREATE INDEX IF NOT EXISTS).
+        Database::ensureIndex($db, 'idx_wh_deliv_status', 'webhook_deliveries', 'status, next_attempt_at');
         if ($pdo === null) $done = true;
     }
 

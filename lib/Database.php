@@ -495,6 +495,30 @@ final class Database
         return (bool) $st->fetchColumn();
     }
 
+    /**
+     * Idempotently create an index, portably. MySQL/MariaDB have no reliable
+     * `CREATE INDEX IF NOT EXISTS` (plain MySQL lacks it entirely; re-running a
+     * bare CREATE INDEX errors 1061 "Duplicate key name"), so on the mysql driver
+     * we check information_schema first. SQLite/Postgres use IF NOT EXISTS. Safe to
+     * call on every boot — this is how runtime ensure() steps add their indexes
+     * without 1061-spamming the log on server databases.
+     */
+    public static function ensureIndex(PDO $db, string $name, string $table, string $cols, bool $unique = false): void
+    {
+        $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $kind = $unique ? 'UNIQUE INDEX' : 'INDEX';
+        try {
+            if ($drv === 'mysql') {
+                $st = $db->prepare('SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1');
+                $st->execute([$table, $name]);
+                if ($st->fetchColumn()) return;
+                $db->exec("CREATE {$kind} {$name} ON {$table} ({$cols})");
+            } else {
+                $db->exec("CREATE {$kind} IF NOT EXISTS {$name} ON {$table} ({$cols})");
+            }
+        } catch (Throwable $e) { error_log('[db] ensureIndex ' . $name . ': ' . $e->getMessage()); }
+    }
+
     /** Portable "current timestamp" SQL expression for runtime queries. */
     public static function nowExpr(): string
     {
