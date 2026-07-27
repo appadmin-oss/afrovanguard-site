@@ -32,6 +32,8 @@
   --iq-shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px -22px rgba(0,0,0,.7);
 }
 .iq .iq-in{max-width:1060px;margin:0 auto;padding:0 20px}
+/* [hidden] must win over display:grid/flex set on toggled containers (e.g. the games grid) */
+.iq [hidden]{display:none!important}
 
 /* ── Hero ────────────────────────────────────────────────────────────── */
 .iq-hero{position:relative;overflow:hidden;padding:clamp(30px,5vw,56px) 20px clamp(26px,4vw,40px);
@@ -192,6 +194,56 @@
   border:1.5px solid var(--iq-line);border-radius:13px;margin:10px 0;background:var(--iq-surface);color:var(--iq-text)}
 .iq-scr-in:focus{outline:0;border-color:var(--iq-gold);box-shadow:0 0 0 3px rgba(243,180,22,.2)}
 .iq-scr-msg{min-height:22px;font-weight:800}
+
+/* ── Game guide (rules) + game-over ──────────────────────────────────── */
+.iq-tile-best{color:var(--iq-gold-deep);font-weight:800}
+:root[data-theme="dark"] .iq-tile-best{color:var(--iq-gold)}
+.iq-guide{text-align:center;max-width:540px}
+.iq-guide .iq-back{display:block;text-align:left;margin-bottom:8px}
+.iq-guide-ico{font-size:42px;width:78px;height:78px;border-radius:20px;display:grid;place-items:center;margin:2px auto 14px;
+  background:linear-gradient(135deg,var(--iq-surface-2),color-mix(in srgb,var(--iq-gold) 16%,var(--iq-surface-2)))}
+.iq-guide .iq-card-badge{display:inline-block}
+.iq-guide-title{font-family:var(--afg-font-display,'Cormorant',serif);font-size:27px;font-weight:700;margin:10px 0 4px;color:var(--iq-text)}
+.iq-guide-blurb{color:var(--iq-muted);margin:0 0 20px}
+.iq-guide-h{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--iq-gold-deep);margin:0 0 12px}
+:root[data-theme="dark"] .iq-guide-h{color:var(--iq-gold)}
+.iq-guide-rules{text-align:left;max-width:440px;margin:0 auto 20px;padding:0;list-style:none;counter-reset:step;display:grid;gap:10px}
+.iq-guide-rules li{position:relative;padding:13px 15px 13px 50px;background:var(--iq-surface-2);border:1px solid var(--iq-line);border-radius:12px;line-height:1.45;font-size:14.5px;color:var(--iq-text);counter-increment:step}
+.iq-guide-rules li::before{content:counter(step);position:absolute;left:13px;top:11px;width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,var(--iq-gold),#ffd569);color:#1a1300;font-weight:800;font-size:13px;display:grid;place-items:center}
+.iq-guide-best{display:inline-block;background:var(--iq-surface-2);border:1px solid var(--iq-line);border-radius:999px;padding:9px 18px;font-size:13.5px;margin-bottom:20px;color:var(--iq-text)}
+.iq-guide-start{min-width:220px}
+.iq-gover{text-align:center;max-width:480px}
+.iq-gover-ic{font-size:52px;line-height:1;margin-bottom:6px;animation:iq-pop .4s ease}
+.iq-gover-title{font-family:var(--afg-font-display,'Cormorant',serif);font-size:29px;margin:0 0 8px;color:var(--iq-text)}
+.iq-gover-score{font-size:19px;margin-bottom:8px;color:var(--iq-text)}
+.iq-game-title2{font-weight:800;color:var(--iq-text)}
+.iq-game-meta{font-variant-numeric:tabular-nums;color:var(--iq-muted);font-weight:700;background:var(--iq-surface-2);border-radius:999px;padding:5px 12px}
+
+/* ── Sequence (Recall Ladder) ────────────────────────────────────────── */
+.iq-seq-status{text-align:center;font-weight:700;color:var(--iq-muted);min-height:22px;margin:8px 0 18px}
+.iq-seq{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:360px;margin:0 auto}
+.iq-pad{aspect-ratio:1;border:0;border-radius:20px;cursor:pointer;opacity:.5;color:#e4573e;
+  transition:opacity .1s,transform .1s,box-shadow .12s}
+.iq-pad:hover{opacity:.72}
+.iq-pad.is-lit{opacity:1;transform:scale(1.04);box-shadow:inset 0 0 0 5px rgba(255,255,255,.4),0 12px 34px -10px currentColor}
+.iq-pad--0{background:#e4573e;color:#e4573e}.iq-pad--1{background:#f3b416;color:#f3b416}
+.iq-pad--2{background:#2f9e64;color:#2f9e64}.iq-pad--3{background:#3b7dd8;color:#3b7dd8}
+
+/* ── Reaction (Sharp Focus) ──────────────────────────────────────────── */
+.iq-react{width:100%;border:0;border-radius:18px;min-height:240px;display:grid;place-items:center;cursor:pointer;
+  font:800 26px var(--afg-font-body,system-ui,sans-serif);color:#fff;text-align:center;padding:20px;transition:background .1s;user-select:none}
+.iq-react.is-idle{background:linear-gradient(135deg,var(--iq-navy),#243352)}
+.iq-react.is-wait{background:linear-gradient(135deg,#c9721b,#e8952b)}
+.iq-react.is-early{background:linear-gradient(135deg,#b42318,#d1493c)}
+.iq-react.is-go{background:linear-gradient(135deg,#12915b,#25c47f)}
+.iq-react.is-done{background:linear-gradient(135deg,var(--iq-navy),#243352)}
+
+/* ── Mental math (Number Vanguard) ───────────────────────────────────── */
+.iq-math{text-align:center;padding:10px 0}
+.iq-math-q{font-family:var(--afg-font-display,'Cormorant',serif);font-size:50px;font-weight:700;margin:6px 0 6px;color:var(--iq-text);font-variant-numeric:tabular-nums}
+.iq-math-streak{min-height:24px;font-weight:800;margin:12px 0 0}
+.iq-math-streak.is-ok{color:var(--iq-ok)}.iq-math-streak.is-no{color:var(--iq-no)}
 
 /* ── Embed ───────────────────────────────────────────────────────────── */
 .iq--embed{padding:16px}.iq--embed .iq-player{border:none;box-shadow:none;padding:8px}

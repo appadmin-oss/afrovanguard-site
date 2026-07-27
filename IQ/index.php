@@ -41,7 +41,7 @@ render_nav('academy');
       <div class="iq-stats" role="list">
         <div class="iq-stat" role="listitem"><b><?= (int) $quizCount ?></b><span>Quiz<?= $quizCount === 1 ? '' : 'zes' ?></span></div>
         <div class="iq-stat" role="listitem"><b><?= number_format((int) $playCount) ?></b><span>Plays</span></div>
-        <div class="iq-stat" role="listitem"><b>2</b><span>Games</span></div>
+        <div class="iq-stat" role="listitem"><b id="iqStatGames">5</b><span>Games</span></div>
         <div class="iq-stat" role="listitem"><b>Free</b><span>To play</span></div>
       </div>
     </div>
@@ -71,22 +71,7 @@ render_nav('academy');
 
     <!-- GAMES -->
     <section class="iq-view" id="iqGames" hidden>
-      <div class="iq-grid">
-        <button class="iq-card iq-game-tile" data-game="memory">
-          <span class="iq-game-ico" aria-hidden="true">🧠</span>
-          <span class="iq-card-badge">Game · Memory</span>
-          <h3>Integrity Memory</h3>
-          <p>Match the pairs before the clock runs out. Train focus and recall.</p>
-          <span class="iq-card-cta">Play <span aria-hidden="true">→</span></span>
-        </button>
-        <button class="iq-card iq-game-tile" data-game="scramble">
-          <span class="iq-game-ico" aria-hidden="true">🔤</span>
-          <span class="iq-card-badge">Game · Word</span>
-          <h3>Word Vanguard</h3>
-          <p>Unscramble Afrovanguard’s values against the clock.</p>
-          <span class="iq-card-cta">Play <span aria-hidden="true">→</span></span>
-        </button>
-      </div>
+      <div class="iq-grid" id="iqGamesGrid"><p class="iq-empty">Loading games…</p></div>
       <div id="iqGameStage" hidden></div>
     </section>
 
