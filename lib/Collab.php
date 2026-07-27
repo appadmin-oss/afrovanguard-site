@@ -30,7 +30,7 @@ final class Collab
             last_seen INTEGER NOT NULL DEFAULT 0
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /** Record a heartbeat for the user. status: online | away | busy. */
@@ -98,7 +98,7 @@ final class Collab
             created_at TEXT NOT NULL DEFAULT ''
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /** Append a team-activity entry (best-effort). */
@@ -158,7 +158,7 @@ final class Collab
             created_at TEXT NOT NULL DEFAULT ''
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
         // Priority is a later addition — add it idempotently.
         try { if (!Database::columnExists('collab_tasks', 'priority')) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN priority VARCHAR(8) NOT NULL DEFAULT 'normal'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }

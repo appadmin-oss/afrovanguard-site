@@ -64,7 +64,7 @@ final class Community
         );
         CREATE INDEX IF NOT EXISTS idx_cchat_feed ON community_chat(id);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         // Chat channels are a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
@@ -85,7 +85,7 @@ final class Community
                 user_id INTEGER NOT NULL, chat_id INTEGER NOT NULL, created_at VARCHAR(32) NOT NULL DEFAULT '',
                 PRIMARY KEY (user_id, chat_id)
             );";
-            $db->exec($drv === 'sqlite' ? $sddl : Database::translateDDL($sddl, $drv));
+            Database::execSchema($db, $sddl);
         } catch (Throwable $e) {}
         // Trash — a deleted message's ORIGINAL body, gzip-compressed and retained
         // (compliance: nothing is ever truly deleted). Live row keeps deleted=1.
@@ -94,7 +94,7 @@ final class Community
                 chat_id INTEGER PRIMARY KEY, channel VARCHAR(24) NOT NULL DEFAULT '', author_id INTEGER NOT NULL DEFAULT 0,
                 body_gz BLOB, deleted_by INTEGER NOT NULL DEFAULT 0, deleted_at VARCHAR(32) NOT NULL DEFAULT ''
             );";
-            $db->exec($drv === 'sqlite' ? $tddl2 : Database::translateDDL($tddl2, $drv));
+            Database::execSchema($db, $tddl2);
         } catch (Throwable $e) {}
         // Dynamic chat channels (admin-managed spaces). Seeded with the built-in
         // set; admins can add more, restrict membership, and toggle Google Chat.
@@ -106,13 +106,13 @@ final class Community
                 gchat_space VARCHAR(120) NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0,
                 created_at VARCHAR(32) NOT NULL DEFAULT ''
             );";
-            $db->exec($drv === 'sqlite' ? $cddl : Database::translateDDL($cddl, $drv));
+            Database::execSchema($db, $cddl);
             // Membership for private channels — one row per (channel,user).
             $cmddl = "CREATE TABLE IF NOT EXISTS community_chat_channel_members (
                 channel VARCHAR(32) NOT NULL, user_id INTEGER NOT NULL,
                 created_at VARCHAR(32) NOT NULL DEFAULT '', PRIMARY KEY (channel, user_id)
             );";
-            $db->exec($drv === 'sqlite' ? $cmddl : Database::translateDDL($cmddl, $drv));
+            Database::execSchema($db, $cmddl);
             // Seed the built-in channels once (idempotent per key).
             if ((int) $db->query('SELECT COUNT(*) FROM community_chat_channels')->fetchColumn() === 0) {
                 $seed = $db->prepare('INSERT INTO community_chat_channels (ckey,label,topic,sort,is_private,created_at) VALUES (?,?,?,?,0,?)');
@@ -131,7 +131,7 @@ final class Community
                 created_at VARCHAR(32) NOT NULL DEFAULT '',
                 PRIMARY KEY (chat_id, user_id, emoji)
             );";
-            $db->exec($drv === 'sqlite' ? $rddl : Database::translateDDL($rddl, $drv));
+            Database::execSchema($db, $rddl);
         } catch (Throwable $e) { /* already there */ }
         // Typing indicators — one short-lived row per (user,channel), refreshed
         // while a member is composing. Read back within a few seconds' window.
@@ -142,7 +142,7 @@ final class Community
                 updated_at INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (user_id, channel)
             );";
-            $db->exec($drv === 'sqlite' ? $tddl : Database::translateDDL($tddl, $drv));
+            Database::execSchema($db, $tddl);
         } catch (Throwable $e) { /* already there */ }
         // Data-classification is a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_posts', 'classification')) $db->exec("ALTER TABLE community_posts ADD COLUMN classification VARCHAR(16) NOT NULL DEFAULT 'members'"); }

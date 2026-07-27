@@ -139,7 +139,7 @@ final class DiaryJournal
                 created_at TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY (entry_id, user_id)
             )";
-            $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+            Database::execSchema($this->db, $ddl);
         } catch (Throwable $e) { /* best-effort */ }
     }
 

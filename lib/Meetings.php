@@ -81,7 +81,7 @@ final class Meetings
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_mtg_tr ON meeting_transcripts(meeting_id);";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         // Idempotent column adds for databases created before these fields existed.
         self::addCol('meetings', 'meet_code', "VARCHAR(60) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'auto_record', 'INTEGER NOT NULL DEFAULT 0');

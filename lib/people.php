@@ -46,7 +46,7 @@ function av_team_ensure(PDO $pdo): void
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )";
     $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-    $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+    Database::execSchema($pdo, $ddl);
     // Columns added after the initial release (idempotent — ADD COLUMN errors if
     // it already exists, which we swallow). `email` powers birthday emails;
     // `grp` lets admins group members; `synced` marks rows auto-created from an

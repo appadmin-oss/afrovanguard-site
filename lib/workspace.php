@@ -126,7 +126,7 @@ function av_communities_ensure(PDO $pdo): void
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )";
     $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-    $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+    Database::execSchema($pdo, $ddl);
 }
 
 /** All communities (admin view, any enabled state). */

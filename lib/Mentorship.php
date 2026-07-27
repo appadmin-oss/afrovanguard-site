@@ -64,7 +64,7 @@ final class Mentorship
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
 
         // Idempotent column additions (segment keeps ORG and EXTERNAL pools apart;
         // approval gates org mentors; cohort_id/programme make structure admin-defined).

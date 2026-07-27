@@ -32,7 +32,7 @@ final class Polls
         );
         CREATE INDEX IF NOT EXISTS idx_poll_votes ON team_poll_votes(poll_id);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         $done = true;
     }
 

@@ -163,7 +163,7 @@ final class DiaryRepository
             status VARCHAR(16) NOT NULL DEFAULT 'published',
             created_at TEXT NOT NULL DEFAULT ''
         )";
-        try { $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv)); }
+        try { Database::execSchema($this->db, $ddl); }
         catch (Throwable $e) { error_log('[diary] ensureComments: ' . $e->getMessage()); }
     }
 
@@ -220,7 +220,7 @@ final class DiaryRepository
             description VARCHAR(500) NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT ''
         )";
-        $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($this->db, $ddl);
         $intType = $drv === 'sqlite' ? 'INTEGER' : 'INT';
         foreach (['series_id', 'series_part'] as $col) {
             if (!Database::columnExists('articles', $col)) {

@@ -59,7 +59,7 @@ final class IQ
             duration_sec INTEGER NOT NULL DEFAULT 0,
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         );";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         // Indexes created separately + idempotently (MySQL lacks CREATE [UNIQUE] INDEX IF NOT EXISTS).
         Database::ensureIndex($db, 'idx_iq_slug', 'iq_quizzes', 'slug', true);
         Database::ensureIndex($db, 'idx_iq_q', 'iq_questions', 'quiz_id, sort');

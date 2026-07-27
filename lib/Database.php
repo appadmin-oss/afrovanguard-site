@@ -519,6 +519,44 @@ final class Database
         } catch (Throwable $e) { error_log('[db] ensureIndex ' . $name . ': ' . $e->getMessage()); }
     }
 
+    /**
+     * Run a multi-statement schema DDL portably + IDEMPOTENTLY.
+     *
+     * The app's subsystems each ensure() their own tables/indexes at boot by
+     * exec()-ing a canonical SQLite DDL (translated per driver). That is safe to
+     * repeat on SQLite/Postgres (IF NOT EXISTS everywhere) but NOT on MySQL, where
+     * `CREATE INDEX IF NOT EXISTS` isn't supported — translateDDL strips the guard,
+     * so the second request onward errors 1061 "Duplicate key name" and can break
+     * the feature. This executes each statement individually and swallows the
+     * benign "already exists" family, so re-running an ensure() is always a no-op
+     * on every engine. Non-benign errors are logged, never thrown (ensures are
+     * best-effort). Use this instead of `$db->exec($drv==='sqlite'?$ddl:translate)`.
+     */
+    public static function execSchema(PDO $db, string $ddl): void
+    {
+        $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $sql = $drv === 'sqlite' ? $ddl : self::translateDDL($ddl, $drv);
+        // These schema DDLs never contain ';' inside a literal, so a plain split is
+        // safe (same approach as applyServerSchema()).
+        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
+            try { $db->exec($stmt); }
+            catch (Throwable $e) {
+                if (self::isBenignSchemaError($e)) continue;
+                error_log('[db] execSchema: ' . $e->getMessage() . ' :: ' . substr(preg_replace('/\s+/', ' ', $stmt), 0, 90));
+            }
+        }
+    }
+
+    /** True for "object already exists / duplicate" DDL errors that make an ensure() re-run a no-op. */
+    private static function isBenignSchemaError(Throwable $e): bool
+    {
+        $m = $e->getMessage();
+        // MySQL: 1050 table exists · 1060 dup column · 1061 dup key/index · 1826 dup FK.
+        // Postgres: 42P07 dup table · 42701 dup column · 42710 dup object.
+        // SQLite: "already exists".
+        return (bool) preg_match('/\b(1050|1060|1061|1826)\b|already exists|duplicate key name|duplicate column name|42P07|42701|42710/i', $m);
+    }
+
     /** Portable "current timestamp" SQL expression for runtime queries. */
     public static function nowExpr(): string
     {

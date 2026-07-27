@@ -26,7 +26,7 @@ final class Goals
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         $done = true;
     }
 

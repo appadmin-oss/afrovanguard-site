@@ -39,7 +39,7 @@ final class GoogleWatch
             created_at TEXT NOT NULL DEFAULT ''
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /** Public https endpoint Google will POST change notifications to. */

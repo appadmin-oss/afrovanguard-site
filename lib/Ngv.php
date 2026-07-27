@@ -20,6 +20,8 @@ declare(strict_types=1);
 final class Ngv
 {
     private const KEY = 'ngv_content';
+    private const PREV_KEY = 'ngv_content_prev'; // one-step backup for undo/restore
+    private const MAX_LIST = 60;                 // cap items per list (runaway/abuse guard)
     private static ?array $cache = null;
 
     /** Canonical defaults, sourced from the NextGen Vanguard brochure + flyer. */
@@ -211,7 +213,9 @@ final class Ngv
     /** Validate a (partial or full) patch, persist the merged document, return it. */
     public static function save(array $patch): array
     {
-        $merged = self::merge(self::get(), self::clean($patch));
+        $before = self::get(); // effective content BEFORE this patch → the restore point
+        $merged = self::capLists(self::merge($before, self::clean($patch)));
+        try { Database::metaSet(self::PREV_KEY, json_encode($before, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); } catch (Throwable $e) {}
         Database::metaSet(self::KEY, json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         self::$cache = $merged;
         if (class_exists('Sitemap')) { try { Sitemap::rebuild(); } catch (Throwable $e) {} }
@@ -219,12 +223,55 @@ final class Ngv
         return $merged;
     }
 
-    /** Reset to shipped defaults (clears the stored override). */
+    /** Reset to shipped defaults (clears the stored override; keeps a restore point). */
     public static function reset(): array
     {
-        try { Database::metaSet(self::KEY, ''); } catch (Throwable $e) {}
+        try {
+            $before = self::get();
+            Database::metaSet(self::PREV_KEY, json_encode($before, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            Database::metaSet(self::KEY, '');
+        } catch (Throwable $e) {}
         self::$cache = null;
         return self::get();
+    }
+
+    /** Is there a previous version to restore to? */
+    public static function hasPrevious(): bool
+    {
+        try { $r = Database::metaGet(self::PREV_KEY); return is_string($r) && $r !== ''; }
+        catch (Throwable $e) { return false; }
+    }
+
+    /**
+     * Restore the previous saved version (one-step undo of the last save/reset).
+     * The swap is itself undoable — the version being replaced becomes the new
+     * restore point — so an admin can toggle back and forth. Returns null if
+     * there is no backup to restore.
+     */
+    public static function restorePrevious(): ?array
+    {
+        $raw = null;
+        try { $raw = Database::metaGet(self::PREV_KEY); } catch (Throwable $e) {}
+        if (!is_string($raw) || $raw === '') return null;
+        $prev = json_decode($raw, true);
+        if (!is_array($prev)) return null;
+        $current = self::get();
+        Database::metaSet(self::KEY, json_encode(self::capLists($prev), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        try { Database::metaSet(self::PREV_KEY, json_encode($current, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); } catch (Throwable $e) {}
+        self::$cache = null;
+        if (class_exists('Sitemap')) { try { Sitemap::rebuild(); } catch (Throwable $e) {} }
+        return self::get();
+    }
+
+    /** Cap every list to MAX_LIST items so a bad/abusive save can't balloon the blob. */
+    private static function capLists(array $doc): array
+    {
+        foreach ($doc as $k => $v) {
+            if (is_array($v) && $v !== [] && array_keys($v) === range(0, count($v) - 1) && count($v) > self::MAX_LIST) {
+                $doc[$k] = array_slice($v, 0, self::MAX_LIST);
+            }
+        }
+        return $doc;
     }
 
     /* ── Convenience for the view ─────────────────────────────────────── */

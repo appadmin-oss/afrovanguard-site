@@ -36,7 +36,7 @@ final class TeamCalendar
         );
         CREATE INDEX IF NOT EXISTS idx_events_date ON team_events(event_date);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         // Google Calendar sync: the id of the mirrored event on the org calendar.
         try { if (!Database::columnExists('team_events', 'google_event_id')) $db->exec("ALTER TABLE team_events ADD COLUMN google_event_id VARCHAR(128) NOT NULL DEFAULT ''"); }
         catch (Throwable $e) { /* already there / driver quirk */ }

@@ -121,7 +121,7 @@ final class GoogleWorkspaceUser
             updated_at TEXT NOT NULL DEFAULT ''
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /* ── signed state (carries uid + next; doubles as CSRF for the callback) ── */

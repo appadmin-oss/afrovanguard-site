@@ -48,7 +48,7 @@ final class AvAutomation
             PRIMARY KEY (user_id, akey)
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /** True the FIRST time (uid, key) is seen; false thereafter. */

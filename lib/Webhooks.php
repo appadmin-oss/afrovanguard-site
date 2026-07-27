@@ -54,7 +54,7 @@ final class Webhooks
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         // Index created separately + idempotently (MySQL lacks CREATE INDEX IF NOT EXISTS).
         Database::ensureIndex($db, 'idx_wh_deliv_status', 'webhook_deliveries', 'status, next_attempt_at');
         if ($pdo === null) $done = true;

@@ -14,6 +14,7 @@ require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
 $role    = function_exists('av_admin_role') ? av_admin_role() : '';
 $isAdmin = $role !== '';
 $csrf    = $isAdmin && function_exists('av_csrf_token') ? av_csrf_token() : '';
+$hasPrev = $isAdmin ? Ngv::hasPrevious() : false;
 header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex, nofollow');
 ?><!doctype html>
@@ -105,6 +106,7 @@ a{color:var(--red)}
     <span class="sp"></span>
     <span class="status" id="status"></span>
     <a class="btn btn-ghost btn-sm" href="/academy/ngv/" target="_blank" rel="noopener">View ↗</a>
+    <button class="btn btn-ghost btn-sm" id="restoreBtn" type="button"<?= $hasPrev ? '' : ' style="display:none"' ?>>Undo last save</button>
     <button class="btn btn-ghost btn-sm" id="resetBtn" type="button">Reset</button>
     <button class="btn btn-primary" id="saveBtn" type="button">Save changes</button>
   </div>
@@ -116,6 +118,8 @@ a{color:var(--red)}
   <script>
   const CSRF=<?= json_encode($csrf) ?>, API='/admin/api.php';
   let DATA=<?= json_encode(Ngv::get(), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+  let dirty=false;
+  const setDirty=v=>{dirty=v;};
 
   const SCHEMA=[
     {id:'visibility',title:'Page visibility',fields:[
@@ -256,7 +260,9 @@ a{color:var(--red)}
       links.forEach(l=>l.classList.toggle('on',l.dataset.nav===e.target.id.replace('sec-','')));}}),
       {rootMargin:'-40% 0px -55% 0px'});
     SCHEMA.forEach(s=>{const el=document.getElementById('sec-'+s.id);if(el)io.observe(el);});
+    setDirty(false); // a fresh render reflects the saved state
   }
+  const updateRestore=has=>{const b=document.getElementById('restoreBtn');if(b)b.style.display=has?'':'none';};
 
   function collect(){
     const main=document.getElementById('main');
@@ -280,15 +286,27 @@ a{color:var(--red)}
     const b=document.getElementById('saveBtn');b.disabled=true;st('Saving…');
     try{const r=await fetch(API+'?action=ngv_save',{method:'POST',credentials:'same-origin',
       headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF},body:JSON.stringify({content:collect()})});
-      const d=await r.json();if(d.ok){DATA=d.content;render();st('Saved ✓',true);}else st(d.error||'Save failed');}
+      const d=await r.json();if(d.ok){DATA=d.content;render();updateRestore(true);st('Saved ✓',true);}else st(d.error||'Save failed');}
     catch(e){st('Network error');}b.disabled=false;}
   async function reset(){
-    if(!confirm('Reset the whole NextGen Vanguard page to the shipped defaults? Your edits will be lost.'))return;st('Resetting…');
+    if(!confirm('Reset the whole NextGen Vanguard page to the shipped defaults? You can still Undo this afterwards.'))return;st('Resetting…');
     try{const r=await fetch(API+'?action=ngv_reset',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF}});
-      const d=await r.json();if(d.ok){DATA=d.content;render();st('Reset ✓',true);}else st(d.error||'Reset failed');}
+      const d=await r.json();if(d.ok){DATA=d.content;render();updateRestore(d.has_previous);st('Reset ✓',true);}else st(d.error||'Reset failed');}
+    catch(e){st('Network error');}}
+  async function restore(){
+    if(!confirm('Restore the previous saved version? The current content is kept as the new restore point, so you can toggle back.'))return;st('Restoring…');
+    try{const r=await fetch(API+'?action=ngv_restore',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':CSRF}});
+      const d=await r.json();if(d.ok){DATA=d.content;render();updateRestore(d.has_previous);st('Restored ✓',true);}else st(d.error||'Nothing to restore');}
     catch(e){st('Network error');}}
   document.getElementById('saveBtn').addEventListener('click',save);
   document.getElementById('resetBtn').addEventListener('click',reset);
+  document.getElementById('restoreBtn').addEventListener('click',restore);
+  // Unsaved-changes guard: any edit marks the form dirty; add/remove count too.
+  const mainEl=document.getElementById('main');
+  mainEl.addEventListener('input',()=>setDirty(true));
+  mainEl.addEventListener('change',()=>setDirty(true));
+  mainEl.addEventListener('click',e=>{if(e.target.closest('.rep-x')||e.target.closest('.add'))setDirty(true);});
+  window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
   render();
   </script>
 <?php endif; ?>

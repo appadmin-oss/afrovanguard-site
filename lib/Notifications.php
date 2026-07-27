@@ -34,7 +34,7 @@ final class Notifications
         CREATE INDEX IF NOT EXISTS idx_notif_user ON user_notifications(user_id, read_at);
         CREATE INDEX IF NOT EXISTS idx_notif_dedupe ON user_notifications(user_id, dedupe_key);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         $done = true;
     }
 
