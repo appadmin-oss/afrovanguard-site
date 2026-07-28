@@ -86,5 +86,19 @@ if (preg_match('~^/([a-z0-9_-]+)/?$~', $uri, $m)) {
     if (is_file(__DIR__ . '/' . $m[1] . '.php'))  { require __DIR__ . '/' . $m[1] . '.php'; return true; }
 }
 
-// Fallback: let the built-in server handle it (404 for missing files).
-return false;
+// Real directories carry their own index (index.html / index.php) — let the
+// built-in server serve it, mirroring Apache's DirectoryIndex.
+if ($uri !== '/' && is_dir($path)) { return false; }
+
+// The homepage is the docroot index.
+if ($uri === '/') { return false; }
+
+// Anything still here matched no route and no real file — a genuine 404.
+// PHP's built-in server would otherwise serve the docroot index.html with a
+// 200 for every unknown URL: a soft-404 that both masks missing-page bugs in
+// local testing and diverges from production, where `ErrorDocument 404` (see
+// .htaccess) renders the branded error page with a real 404 status. Emulate
+// that here so dev matches prod.
+$_GET['code'] = '404';
+require __DIR__ . '/error.php';
+return true;
