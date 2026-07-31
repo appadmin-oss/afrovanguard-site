@@ -219,7 +219,13 @@ foreach (['AV_GDRIVE_SERVICE_ACCOUNT', 'AV_GDRIVE_FOLDER_ID'] as $k) {
 foreach (['SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_SECURE', 'FROM_EMAIL', 'FROM_NAME', 'ADMIN_EMAIL'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
-if (!defined('SMTP_PASSWORD')) { $v = getenv('SMTP_PASSWORD'); if ($v === false || $v === '') $v = getenv('AV_SMTP_PASSWORD'); if ($v !== false && $v !== '') define('SMTP_PASSWORD', $v); }
+// Accept the Africa GATES / NextGenGen (Brevo) env naming too, so one .env style
+// works across the sister apps: SMTP_USER, SMTP_PASS, MAIL_FROM_ADDRESS/NAME.
+$__envfirst = static function (array $keys) { foreach ($keys as $k) { $v = getenv($k); if ($v !== false && $v !== '') return (string) $v; } return null; };
+if (!defined('SMTP_USERNAME')) { $v = $__envfirst(['SMTP_USERNAME', 'SMTP_USER']); if ($v !== null) define('SMTP_USERNAME', $v); }
+if (!defined('SMTP_PASSWORD')) { $v = $__envfirst(['SMTP_PASSWORD', 'SMTP_PASS', 'AV_SMTP_PASSWORD']); if ($v !== null) define('SMTP_PASSWORD', $v); }
+if (!defined('FROM_EMAIL'))    { $v = $__envfirst(['FROM_EMAIL', 'MAIL_FROM_ADDRESS']); if ($v !== null) define('FROM_EMAIL', $v); }
+if (!defined('FROM_NAME'))     { $v = $__envfirst(['FROM_NAME', 'MAIL_FROM_NAME']); if ($v !== null) define('FROM_NAME', $v); }
 if (!defined('SMTP_VERIFY')) { $v = getenv('SMTP_VERIFY'); if ($v !== false && $v !== '') define('SMTP_VERIFY', !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true)); }
 
 // The Workspace domain whose VERIFIED accounts are recognised as real org members.

@@ -375,3 +375,11 @@ require_once AV_ROOT . '/lib/Community.php';
     IQ::seedGrassroots();
     ck('iq: seed is idempotent', count(array_filter(IQ::adminList(), fn($q) => $q['slug'] === 'grassroots-incorruptible-test')) === 1);
 })();
+
+/* ---- Mailer: vendored PHPMailer is the transport ---- */
+(function () {
+    require_once AV_ROOT . '/lib/Mailer.php';
+    $m = new ReflectionMethod('Mailer', 'loadPhpMailer'); $m->setAccessible(true);
+    ck('mail: vendored PHPMailer loads', $m->invoke(null) === true && class_exists('PHPMailer\\PHPMailer\\PHPMailer'));
+    ck('mail: invalid recipient rejected', Mailer::send('not-an-email', 'x', '<p>x</p>') === false);
+})();
