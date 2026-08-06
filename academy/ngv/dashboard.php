@@ -42,21 +42,14 @@ if ($method === 'POST') {
     $in = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
 
-    if (array_key_exists('track', $in)) {
-        $t = trim((string) $in['track']);
-        if ($t === '' || in_array($t, $trackNames, true)) Prefs::set($uid, 'ngv_track', $t);
-    }
-    if (array_key_exists('phase', $in)) {
-        $p = (string) $in['phase'];
-        if (in_array($p, ['', '1', '2', 'done'], true)) Prefs::set($uid, 'ngv_phase', $p);
-    }
-    if (array_key_exists('books', $in)) {
-        $b = (string) $in['books'];
-        if (preg_match('/^[01]{0,24}$/', $b)) Prefs::set($uid, 'ngv_books', str_pad(substr($b, 0, 24), 24, '0'));
-    }
-    if (array_key_exists('note', $in)) {
-        Prefs::set($uid, 'ngv_note', mb_substr(trim((string) $in['note']), 0, 200));
-    }
+    // Map the client payload onto the participant's self-editable fields and
+    // persist to the SEPARATE NGV database (validation lives in NgvMember).
+    $patch = [];
+    if (array_key_exists('track', $in)) $patch['track'] = (string) $in['track'];
+    if (array_key_exists('phase', $in)) $patch['phase'] = (string) $in['phase'];
+    if (array_key_exists('books', $in)) $patch['books'] = (string) $in['books'];
+    if (array_key_exists('note',  $in)) $patch['focus_note'] = (string) $in['note'];
+    if ($patch) NgvMember::saveSelf($uid, $patch);
     json_out(['ok' => true]);
 }
 
@@ -75,13 +68,29 @@ $uid   = (int) $u['id'];
 $first = trim(explode(' ', trim((string) ($u['name'] ?? 'Vanguard')))[0]) ?: 'Vanguard';
 $csrf  = function_exists('av_csrf_token') ? av_csrf_token(43200) : ''; // 12h — matches "leave the tab open" use
 
-/* Member state */
-$myTrack = Prefs::get($uid, 'ngv_track', '');
-$myPhase = Prefs::get($uid, 'ngv_phase', '');
-$myBooks = str_pad(substr(Prefs::get($uid, 'ngv_books', ''), 0, 24), 24, '0');
-$myNote  = Prefs::get($uid, 'ngv_note', '');
+/* Member state — from the SEPARATE NGV database. On first visit we enrol the
+ * member and migrate any progress they saved before this lived in its own DB
+ * (the old Prefs keys), so nobody loses what they'd tracked. */
+$seed = ['name' => (string) ($u['name'] ?? ''), 'email' => (string) ($u['email'] ?? '')];
+if (!NgvMember::participant($uid)) {
+    $seed['track']      = Prefs::get($uid, 'ngv_track', '');
+    $seed['phase']      = Prefs::get($uid, 'ngv_phase', '');
+    $seed['books']      = Prefs::get($uid, 'ngv_books', '');
+    $seed['focus_note'] = Prefs::get($uid, 'ngv_note', '');
+}
+$p = NgvMember::ensureParticipant($uid, $seed);
+
+$myTrack = (string) ($p['track'] ?? '');
+$myPhase = (string) ($p['phase'] ?? '');
+$myBooks = str_pad(substr((string) ($p['books'] ?? ''), 0, 24), 24, '0');
+$myNote  = (string) ($p['focus_note'] ?? '');
 $booksRead = substr_count($myBooks, '1');
 $BOOKS_TOTAL = 24;
+
+/* Real fee status + certifications from the NGV DB. */
+$feeStatus = NgvMember::feeStatus($uid);
+$myCerts   = NgvMember::certifications($uid);
+$myPayments = NgvMember::payments($uid);
 
 /* Content slices */
 $g       = static fn(array $a, string $k, string $d = ''): string => (string) ($a[$k] ?? $d);
@@ -193,6 +202,9 @@ textarea:focus{outline:none;border-color:var(--orange)}
 .row b{display:block}
 .row .amt{margin-left:auto;font-weight:800;white-space:nowrap;color:var(--red)}
 .row .d{font-size:.84rem;color:var(--muted)}
+.badge{font-size:.72rem;font-weight:800;padding:3px 10px;border-radius:999px}
+.badge.ok{background:#e6f7ec;color:#137a3a}
+.badge.due{background:#fdecec;color:#c0322b}
 .note-box{font-size:.82rem;color:var(--muted);background:#fbfbfc;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px}
 .pills{display:flex;flex-wrap:wrap;gap:8px}
 .pill{background:#fff4ec;color:#b5480f;border:1px solid #ffe0cc;border-radius:999px;padding:5px 12px;font-size:.82rem;font-weight:600}
@@ -232,7 +244,7 @@ textarea:focus{outline:none;border-color:var(--orange)}
     <div class="tile"><div class="k">Current phase</div><div class="v" id="tilePhase"><?= $e($phaseLabel) ?></div><div class="s">of the <?= count($phases) ?: 2 ?>-phase journey</div></div>
     <div class="tile"><div class="k">My track</div><div class="v" style="font-size:1.05rem" id="tileTrack"><?= $myTrack !== '' ? $e($myTrack) : '—' ?></div><div class="s"><?= $myTrack !== '' ? 'Locked in' : 'Pick one below' ?></div></div>
     <div class="tile"><div class="k">Reading challenge</div><div class="v"><span id="tileBooks"><?= $booksRead ?></span> / <?= $BOOKS_TOTAL ?></div><div class="s">books this year</div></div>
-    <div class="tile"><div class="k">Certifications</div><div class="v"><?= $e((string)($stats[1]['num'] ?? '6')) ?></div><div class="s">available per year</div></div>
+    <div class="tile"><div class="k">Certifications</div><div class="v"><?= count($myCerts) ?></div><div class="s"><?= count($myCerts) === 1 ? 'earned so far' : 'earned so far' ?></div></div>
   </div>
 
   <div class="grid">
@@ -305,24 +317,49 @@ textarea:focus{outline:none;border-color:var(--orange)}
       </div>
     </div>
 
-    <!-- Fees & commitment -->
-    <?php if (Ngv::section('fees') && $fees): ?>
+    <!-- Fees & commitment (real, from the NGV DB) -->
     <div class="card">
-      <header><h2>Fees &amp; commitment</h2></header>
+      <header><h2>My fees</h2><span class="hint">recorded by your team</span></header>
       <div class="body">
         <div class="rows">
-          <?php foreach ($fees as $f): ?>
+          <?php foreach ($feeStatus['lines'] as $ln): ?>
           <div class="row">
-            <div><b><?= $e((string)($f['name'] ?? '')) ?></b><span class="d"><?= $e((string)($f['desc'] ?? '')) ?></span></div>
-            <span class="amt"><?= $e((string)($f['amount'] ?? '')) ?></span>
+            <div><b><?= $e((string)$ln['label']) ?></b><span class="d"><?= $e((string)$ln['detail']) ?></span></div>
+            <span class="amt"><span class="badge <?= $ln['ok'] ? 'ok' : 'due' ?>"><?= $ln['ok'] ? 'Paid' : 'Due' ?></span></span>
+          </div>
+          <?php endforeach; ?>
+          <div class="row"><div><b>Total recorded</b><span class="d">across all fees</span></div><span class="amt">₦<?= number_format((int)$feeStatus['total']) ?></span></div>
+        </div>
+        <?php if (!empty($myPayments)): ?>
+        <div class="note-box"><b>Recent payments</b><br>
+          <?php foreach (array_slice($myPayments, 0, 4) as $pay): ?>
+          • ₦<?= number_format((int)($pay['amount'] ?? 0)) ?> <?= $e((string)($pay['kind'] ?? '')) ?><?= !empty($pay['period']) ? ' ('.$e((string)$pay['period']).')' : '' ?> — <?= $e(substr((string)($pay['created_at'] ?? ''), 0, 10)) ?><br>
+          <?php endforeach; ?>
+        </div>
+        <?php else: ?>
+        <div class="note-box">No payments recorded yet. When your team logs a payment it shows here. Need help? Speak to your track lead.</div>
+        <?php endif; ?>
+        <?php if (!empty($sched['payment'])): ?><div class="note-box"><?= $e((string)$sched['payment']) ?></div><?php endif; ?>
+      </div>
+    </div>
+
+    <!-- Certifications (real, from the NGV DB) -->
+    <div class="card">
+      <header><h2>My certifications</h2><span class="hint"><?= count($myCerts) ?> earned</span></header>
+      <div class="body">
+        <?php if (!empty($myCerts)): ?>
+        <div class="rows">
+          <?php foreach ($myCerts as $cert): ?>
+          <div class="row">
+            <div><b>🏅 <?= $e((string)($cert['title'] ?? '')) ?></b><span class="d"><?= $e(trim(((string)($cert['issued_by'] ?? '')) . (!empty($cert['issued_on']) ? ' · ' . substr((string)$cert['issued_on'],0,10) : ''), ' ·')) ?></span></div>
           </div>
           <?php endforeach; ?>
         </div>
-        <?php if (!empty($sched['payment'])): ?><div class="note-box"><?= $e((string)$sched['payment']) ?></div><?php endif; ?>
-        <div class="note-box">Your personal payment status isn't tracked here yet — if you need support or want to confirm a payment, speak to your track lead.</div>
+        <?php else: ?>
+        <div class="note-box">No certifications yet — earn them by completing your track milestones. The programme offers up to <?= $e((string)($stats[1]['num'] ?? '6')) ?> per year.</div>
+        <?php endif; ?>
       </div>
     </div>
-    <?php endif; ?>
 
     <!-- Schedule & where -->
     <div class="card">

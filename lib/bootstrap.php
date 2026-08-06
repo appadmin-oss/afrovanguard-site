@@ -232,6 +232,8 @@ require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/DiaryJournal.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/Ngv.php';
+require_once __DIR__ . '/NgvDb.php';       // separate NextGen Vanguard database (isolated connection)
+require_once __DIR__ . '/NgvMember.php';   // NGV participant/fees/certifications domain
 require_once __DIR__ . '/AuthPolicy.php';
 require_once __DIR__ . '/Otp.php';
 require_once __DIR__ . '/LmsAuth.php';
