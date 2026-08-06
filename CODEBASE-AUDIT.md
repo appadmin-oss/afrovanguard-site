@@ -1,8 +1,18 @@
 # Afrovanguard-Site Codebase Audit
 
-_Repository:_ `appadmin-oss/afrovanguard-site` · _Audit date:_ 2026-07-12 · _Scope:_ full repository (~362 tracked files)
+_Repository:_ `appadmin-oss/afrovanguard-site` · _Audit date:_ 2026-07-12 · _Re-indexed:_ 2026-08-06 · _Scope:_ full repository (**584 tracked files**, was ~362)
 
 This audit maps the components, composition, and infrastructure of the Afrovanguard main website so the team has an accurate mental model of what runs where, how the pieces connect, and where the risks are.
+
+> **2026-08-06 re-index.** The repo has grown ~362 → 584 files. `lib/` is now
+> **68 classes** (was ~47) and five new subsystems have landed — **Team Chat**,
+> **Meetings** (Google Meet + AI minutes + recorder bots), **NextGen Vanguard**
+> (NGV), **IQ** (Incorruptible Quiz + brain games), and a **Portal
+> collaboration / org task pool**. Email is now **PHPMailer-only** (the
+> hand-rolled `lib/Smtp.php` is retired) and the app ships **Docker + a
+> health-check probe + CI**. Every remediation the 2026-07-12 pass claimed
+> (S-1…S-5) is now **confirmed done in the live code**. Sections below carry the
+> update inline; §9 findings are re-ranked with the current live items on top.
 
 ---
 
@@ -10,18 +20,18 @@ This audit maps the components, composition, and infrastructure of the Afrovangu
 
 **What it is.** `afrovanguard-site` is the main public website and back-office for Afrovanguard ("the Studio") — a Nigerian youth-empowerment nonprofit. It is a **PHP 8 monolith** running on **shared cPanel/Apache hosting**, deliberately built to need no Composer, no Node, and no managed database: it defaults to **SQLite** and ships its own `.env` parser. Large hand-authored **static HTML** marketing pages coexist with server-rendered dynamic modules (Diary/blog, Academy LMS, Community, Mentorship, Member Portal, People, Projects), all funnelling through a single backend entry point, `lib/bootstrap.php`.
 
-**How it is composed.** The dynamic backend is a ~47-file class-per-concern service layer under `lib/`, fronted by module directories that each begin by including `bootstrap.php`. Cross-cutting concerns — a portable PDO database layer, HMAC-signed admin sessions, stateless CSRF, rate limiting, security headers, events/webhooks — live in `lib/`. The site is currently in a documented **transition off a legacy WordPress install** (`WORDPRESS-COEXISTENCE.md`).
+**How it is composed.** The dynamic backend is a **~68-file** class-per-concern service layer under `lib/`, fronted by module directories that each begin by including `bootstrap.php`. Cross-cutting concerns — a portable PDO database layer, HMAC-signed admin sessions, stateless CSRF, rate limiting, security headers, events/webhooks — live in `lib/`. On top of the original modules (Diary/blog, Academy LMS, Community, Mentorship, Member Portal, People) it now also runs an **org Team Chat**, a **Meetings** system, the **NextGen Vanguard** programme page, the **IQ** quiz/games hub, and a **Portal collaboration** suite (org task pool, boards, goals, polls, standups, calendar). The site is still in a documented **transition off a legacy WordPress install** (`WORDPRESS-COEXISTENCE.md`).
 
 **Top takeaways:**
 
 1. **Mature, security-conscious, well-documented.** `declare(strict_types=1)` throughout, prepared statements everywhere, server-side payment verification, HMAC webhook validation, CSRF, rate limiting, and a `docs/` folder with real handoff notes. This is not a typical brochure site.
-2. **Graceful degradation is a core design principle.** The public site stays up even when secrets (SMTP, Paystack, admin) are absent; only the features that need them switch off. The trade-off is that failures can be **silent** (see #3, #4).
-3. **⚠️ PII files live in the web root.** `contacts.json` and `donations.json` (donor + contact PII) are written to the site root and protected **only** by a name-based `.htaccess` deny — fragile during the WordPress transition.
-4. **⚠️ Silent database fallback.** If a configured MySQL/Postgres server is unreachable, the app silently falls back to an (empty) local SQLite DB; this is only visible on the Studio System page.
-5. **One secret does two jobs.** `ADMIN_TOKEN` is both the break-glass superadmin credential **and** the HMAC key that signs admin cookies and CSRF tokens; rotating it invalidates all sessions.
-6. **Rich integration surface.** Paystack (payments), Google OAuth + Workspace API, Cloudinary, Google Drive, Anthropic Claude (two AI assistants), optional Flutterwave/TTS/Gemini — all optional and env-gated.
-7. **An inbound integrations API** (`integrations/api.php`) shares data (including mentor emails) server-to-server with a sister site (NextGenGen) via scoped Bearer tokens.
-8. **Some fragmentation / tech debt:** duplicated routing (`.htaccess` + `router.php`), an orphaned second admin-auth implementation, no autoloader for the domain layer, and self-contained sub-apps under `projects/` (an Astro build + a Google Apps Script backend) that bypass the shared security layer.
+2. **Graceful degradation is a core design principle.** The public site stays up even when secrets (SMTP, Paystack, admin) are absent; only the features that need them switch off. Silent-degradation risk is now mitigated by `AV_DB_STRICT` and a `health.php` probe (see #4).
+3. **✅ PII now stored outside the web root.** `contacts.json` and `donations.json` are written via `av_private_path()` (`lib/security.php:197`) under `AV_PRIVATE_DIR` or the already-denied `db/private/`, with legacy web-root files migrated on first use. (Was the top risk in 2026-07; confirmed fixed in code.)
+4. **✅ Database fallback is now loud on request.** `AV_DB_STRICT` / `Database::dbStrict()` turns an unreachable primary DB into a hard error instead of a silent SQLite fallback, and `fellBack()` is surfaced by `health.php` + the Studio System tab.
+5. **✅ Signing key decoupled from the break-glass token.** `av_secret()` prefers a dedicated `APP_KEY`/`AV_APP_KEY` and only falls back to `ADMIN_TOKEN`, so credential rotation no longer invalidates every session.
+6. **Rich, expanded integration surface.** Paystack, Google OAuth + Workspace API, Cloudinary, Google Drive, Anthropic Claude (two assistants), plus now **first-class Gemini** (meeting minutes/transcription), **Recall.ai** + Google Meet REST/Calendar writes, a **Google Chat incoming-webhook mirror**, and **Google push/watch channels** — all optional and env-gated.
+7. **An inbound integrations API** (`integrations/api.php`) shares data (mentor directory — email now gated by `AV_MENTORS_SHARE_EMAIL`) and exposes billable AI actions (`bot.ask`/`chioma.ask`) to sister sites via scoped Bearer tokens, over a wildcard-CORS endpoint (see finding M-2).
+8. **Surviving fragmentation / tech debt:** two **divergent admin-authorization models** (Studio `admin_users` roles vs Community clearance for IQ/chat — see M-1), duplicated routing (`.htaccess` now diverges from `router.php`), no autoloader for the growing `lib/` (~50 eager requires), new secrets undocumented in `.env.example`, and the self-contained `projects/sts` Astro+PHP+Apps Script island that bypasses the shared security layer.
 
 ---
 
@@ -45,39 +55,42 @@ Static .html  ──OR──  Module index.php / api.php
                      lib/bootstrap.php   ← single backend entry point
                           │  • parse .env  • conditionally load config.php
                           │  • promote AV_* env → constants (safe fallbacks)
-                          │  • require_once ~35 lib/*.php classes
+                          │  • require_once ~50 lib/*.php classes (no autoloader)
                           ▼
                      lib/ service layer (Database, Diary*, Lms*, Community,
-                     Mentorship, Google*, Payments, Mailer, Webhooks, AvBot…)
+                     Mentorship, Google*, Payments, Mailer, Webhooks, AvBot,
+                     Meetings, IQ, Ngv, Collab, Gemini, RecallBot…)
 ```
 
-`router.php` re-implements the `.htaccess` rewrite rules so `php -S … router.php` behaves like production Apache for local dev.
+`router.php` re-implements the `.htaccess` rewrite rules so `php -S … router.php` behaves like production Apache for local dev — but it is now **materially stale**: it has no explicit routes for IQ, NGV, `/workspace`, `/franchise`, `/how-it-works`, or `/blueprint`, which work only via its generic `.php` fallback. Dev no longer faithfully mirrors prod (finding S-7).
 
 ### Directory map
 
 | Path | Role |
 |---|---|
-| `lib/` | The domain layer — ~47 class-per-concern files + `bootstrap.php`, `security.php`, `helpers.php`, `partials.php` (41 KB shared page chrome). |
-| `db/` | SQLite DB (`diary.sqlite`), SQL schemas (`schema.sql` / `.mysql.sql` / `.pgsql.sql`), seeders, `migrate.php`, `webhooks_run.php`. Web-denied. |
+| `lib/` | The domain layer — **68** class-per-concern files + `bootstrap.php`, `security.php`, `helpers.php`, `partials.php` (631 LOC shared page chrome), plus `Config.php`, `Migrator.php`. |
+| `db/` | SQLite DB (`diary.sqlite`), SQL schemas (`schema.sql` / `.mysql.sql` / `.pgsql.sql`), seeders, `migrate.php`, `webhooks_run.php`, and generated `private/` (PII stores) + `cache/rl/` (rate-limit). Web-denied. |
 | `data/` | Runtime caches (e.g. TTS audio). Web-denied. |
-| `admin/` | The Studio back-office: `api.php` (63 KB dispatcher), `index.php` (64 KB), `app.js` (115 KB SPA), `admin.css`. |
-| `integrations/` | `api.php` — inbound scoped Bearer-token API for sister sites/bots. |
-| `auth/`, `login/`, `portal/` | Google OAuth start/callback, password/OTP sign-in, and the Google Workspace member launchpad. |
-| `diary/`, `academy/`, `community/`, `mentorship/`, `people/`, `events/`, `projects/` | Server-rendered dynamic modules (each `index.php` + often `api.php`). |
-| `*.html` (root) | Large hand-authored static marketing pages + custom error pages. |
-| `js/` | `site.js`, `onboarding.js` (public front-end enhancement). |
-| `docs/` | HANDOFF, db-portability, integrations, webhooks, workspace, configuration docs. |
+| `admin/` | The Studio back-office: `api.php` (942 LOC, **103 action cases**), `index.php` (916 LOC), `app.js` (1,725 LOC SPA), `admin.css`. |
+| `IQ/` | Incorruptible Quiz hub: `index.php`, `api.php`, `admin.php`, `embed.php`, `iq.js` (449 LOC — brain games + personality quizzes), `iq.css`. **No per-dir `.htaccess`.** |
+| `integrations/` | `api.php` — inbound scoped Bearer-token API for sister sites/bots (wildcard CORS). |
+| `auth/`, `login/`, `portal/` | Google OAuth start/callback, password/OTP sign-in, and the Workspace launchpad — `portal/` now hosts **16 endpoints** (chat, meetings, collab, boards, goals, polls, reminders, standup, notifications, calendar, bookmarks, directory, prefs, dues, workspace). |
+| `diary/`, `academy/`, `community/`, `mentorship/`, `people/`, `events/`, `blog/`, `ethos/`, `terms/`, `privacy-policy/`, `webhooks/`, `projects/` | Server-rendered dynamic modules (each `index.php` + often `api.php`); `academy/ngv/` and `academy/studio/` are new. |
+| `*.html` / `*.php` (root) | Large hand-authored static marketing pages + custom error pages; new root PHP pages `how-it-works.php`, `franchise.php`, `blueprint.php` (members-only), `workspace.php`, `process-wish.php`, `health.php`. |
+| `js/`, `assets/` | `site.js`, `onboarding.js` + 117 static-page enhancer scripts under `assets/`. |
+| `docs/` | 26 markdown docs incl. HANDOFF, db-portability, integrations, webhooks, workspace, meetings, chat-roadmap, configuration. |
 | `vendor/` | Composer install (PHPMailer only). |
-| `tasks/`, `tools/` | `cron.php` web-cron runner + operator tooling. |
+| `tasks/`, `tools/`, `deploy/`, `tests/` | `cron.php` web-cron runner + operator tooling; `deploy/docker-entrypoint.sh`; `tests/run.php` + `suite.test.php` (377 LOC). |
 
 ### Tech stack
 
 - **Language/runtime:** PHP 8, `declare(strict_types=1)` throughout.
 - **Web server:** Apache + `mod_rewrite` / `mod_headers` (shared cPanel target); Cloudflare-aware.
 - **Database:** SQLite by default; MySQL/MariaDB and PostgreSQL supported via a portable PDO layer (`docs/db-portability.md`).
-- **Dependencies:** Composer with a **single** dependency — `phpmailer/phpmailer ^6.9`. Everything else is hand-rolled (SMTP client, `.env` parser, router).
+- **Dependencies:** Composer with a **single** dependency — `phpmailer/phpmailer ^6.9`, now the **sole SMTP transport** (`lib/Mailer.php`); the hand-rolled `lib/Smtp.php` has been retired. `.env` parser and router are still hand-rolled.
 - **Front-end:** static HTML/CSS/vanilla JS (no SPA framework on the public site); a PWA layer (`sw.js`, `manifest.webmanifest`).
 - **Nested sub-apps:** `projects/sts` ships a built **Astro** site plus its own PHP mini-backend and a **Google Apps Script**.
+- **Ops/portability (new):** `Dockerfile` + `docker-compose.yml` + `deploy/docker-entrypoint.sh`, a `health.php` liveness/readiness probe (503 on DB down), and a `.github/workflows/ci.yml` that lints every PHP file and runs `php tests/run.php`.
 
 ---
 
@@ -95,15 +108,22 @@ Static .html  ──OR──  Module index.php / api.php
 | `events-feed.php` | GET | Events feed. | Public. |
 | `chioma.php` | POST | "Chioma" AI assistant proxy. | Public (rate-limited). |
 | `error.php` | — | Shared error renderer. | — |
-| `admin-auth.php` | — | **Orphaned/legacy** admin middleware (see Findings). | (unreferenced) |
-| `router.php` | — | Dev-server routing mirror of `.htaccess`. | — |
+| `health.php` | GET | Liveness/readiness probe; **503 on DB down**. | Public. |
+| `how-it-works.php` / `franchise.php` | GET | Public framework pages (Progressive Growth / Social Franchise). | Public. |
+| `blueprint.php` / `workspace.php` | GET | Continental Scaling Plan / Workspace hub. | **Members-only** (`LmsAuth::isOrgMember`). |
+| `process-wish.php` | POST | Private birthday note (honeypot + today-only guard). | Public (guarded). |
+| `router.php` | — | Dev-server routing mirror of `.htaccess` (now stale). | — |
+
+_(The orphaned `admin-auth.php` middleware has been **deleted** — old finding S-4.)_
 
 ### Module APIs
 
 | Endpoint | Purpose |
 |---|---|
-| `admin/api.php` | Authenticated Studio dispatcher (~63 KB): role-gated actions for articles, team, celebrations, enrollments, subscribers, audit log, WordPress import, etc. |
-| `integrations/api.php` | Inbound Bearer-token API: `community.feed/post/reply`, `event`, `mentors.directory`, `bot.ask`, `chioma.ask`. |
+| `admin/api.php` | Authenticated Studio dispatcher (**103 action cases**): role-gated actions for articles, team, celebrations, enrollments, subscribers, audit log, WordPress import, mentorship (×16), webhooks + app tokens, **NGV (`ngv_*`)**, auth policy, superadmin reveal, system/DB health, mail test. |
+| `integrations/api.php` | Inbound Bearer-token API: `community.feed/post/reply`, `event`, `mentors.directory`, `bot.ask`, `chioma.ask`. Wildcard CORS (finding M-2). |
+| `IQ/api.php` | Quizzes/games/leaderboard reads + `submit`; **authoring gated by `Community::isAdmin` (clearance ≥ 2)** — a different model than the Studio (finding M-1). |
+| `portal/chat.php` + 15 others | Team Chat, meetings, collab/task-pool, boards, goals, polls, reminders, standup, notifications, calendar, bookmarks, directory, prefs, dues, workspace. All `LmsAuth::user()`-gated. |
 | `diary/api.php` | Diary/blog CRUD + reactions. |
 | `academy/api.php` | LMS: courses, lessons, enrolment, progress, certificates. |
 | `community/api.php` | Community spaces/posts feed + bot identity. |
@@ -113,8 +133,44 @@ Static .html  ──OR──  Module index.php / api.php
 
 - **`lib/Database.php`** — a PDO **singleton**, driver-selectable (sqlite/mysql/pgsql), with `ERRMODE_EXCEPTION`, emulated prepares off. It **self-provisions**: on first use it creates + migrates + seeds SQLite from `db/schema.sql` (revision-gated auto-migration), or auto-applies `schema.mysql.sql` / `schema.pgsql.sql` when the core table is absent. If a configured server DB is unreachable it **silently falls back to SQLite** (recorded in `fellBack()`).
 - **`db/migrate.php`** — FK-safe cross-engine data copy with row-count verification.
-- **Core tables** (`db/schema.sql`): `articles`, `categories`, `related`, `reactions`, `diary_entries`, `auth_illustrations`, `courses`, `modules`, `sections`, `lessons`, `lesson_progress`, `quiz_attempts`, `course_enrolment`, `enrollments`, `certificates`, `memberships`, `payments`, `lms_users`, `lms_sessions`, `lms_audit`, `subscribers`.
-- **File-based stores in the web root:** `donations.json` (donor records) and `contacts.json` (contact/newsletter PII) — file-locked (`LOCK_EX`), history-capped at 500, `chmod 0600` on creation.
+- **Core tables** (`db/schema.sql`, ~24): `articles`, `categories`, `related`, `reactions`, `diary_entries`, `auth_illustrations`, `courses`, `modules`, `sections`, `lessons`, `lesson_progress`, `quiz_attempts`, `course_enrolment`, `enrollments`, `certificates`, `memberships`, `payments`, `lms_users`, `lms_sessions`, `lms_audit`, `subscribers`.
+- **Runtime-provisioned tables** (~36 more via `ensure*` helpers, total ~60): chat (`community_chat`, `community_chat_channels`, `community_chat_channel_members`, `community_chat_reactions`, `community_chat_saves`, `community_chat_trash`, `community_typing`, `presence`), meetings (`meetings`, `meeting_attendees`, `meeting_transcripts`), IQ (`iq_quizzes`, `iq_questions`, `iq_attempts`), portal/collab (`collab_tasks`, `team_cards`, `team_goals`, `team_events`, `team_links`, `team_polls`, `team_poll_votes`, `team_standups`, `user_notifications`, `user_prefs`, `user_reminders`, `activity`, `automation_runs`, `member_referrals`), `app_meta` (NGV content doc), `app_tokens`, `admin_users`, `communities`, `google_connections`, `google_channels`, `mentor_*`.
+- **File-based PII stores are now outside the web root:** `donations.json` and `contacts.json` are written via `av_private_path()` under `AV_PRIVATE_DIR` or the already-denied `db/private/` — file-locked (`LOCK_EX`), history-capped at 500, `chmod 0600`, with legacy web-root files migrated on first use (old finding S-1, confirmed fixed).
+
+---
+
+## 3A. New subsystems (landed since 2026-07-12)
+
+`lib/` grew from ~47 to **68 classes**. The additions cluster into five
+subsystems; each is real, wired, and gated, but none was covered by the prior
+audit.
+
+### A. Team Chat — org Slack-style chat + Google Chat mirror
+- **UI:** `#teamChat` in `portal/index.php` + `portal/team-chat.js` + `.tc-*` styles. **API:** `portal/chat.php`. **Backend:** `lib/Community.php` (~600 LOC of its 1,528 host the chat), with `lib/Collab.php` (presence/heartbeat), `lib/AvBot.php`+`lib/Gemini.php` ("Catch-me-up" recap), `lib/Notify.php`/`Notifications.php` (mention email).
+- **Tables:** `community_chat`, `community_chat_channels`, `community_chat_channel_members`, `community_chat_reactions`, `community_chat_saves`, `community_chat_trash`, `community_typing`, `presence`.
+- **Gate:** any signed-in org member (`Community::canChat`); writes are same-origin + CSRF + rate-limited; channel admin needs Community clearance ≥ 2. Outbound **Google Chat incoming-webhook mirror** (`Community.php:1252`, host-checked `chat.googleapis.com`) — message bodies leave the org per `gchat_on` channel (finding L-3).
+
+### B. Meetings — Google Meet scheduling, AI minutes, recorder bots
+- **UI/API:** `portal/meetings.php` + `portal/meetings.js`. **Backend:** `lib/Meetings.php` (627 LOC) + `lib/RecallBot.php`, using `lib/GoogleWorkspace.php` (`createMeetEvent`, `meetTranscriptText`) and `lib/Gemini.php` (minutes/audio transcription).
+- **Tables:** `meetings`, `meeting_attendees`, `meeting_transcripts`.
+- **Integrations:** Google Calendar/Meet (service account, domain-wide delegation), **Recall.ai**, custom webhook recorder, Gemini Flash.
+- **Gate:** user endpoints behind `LmsAuth::user()` + `av_require_write`. Two pre-auth **service endpoints** — `bot_ingest` (per-meeting HMAC, `Meetings.php:498`) and `recall_webhook` (`?t=AV_RECALL_WEBHOOK_TOKEN`, rejects empty token, `:457`) — see finding L-2. Their secrets (`AV_RECALL_*`, `AV_MEET_BOT_*`, `AV_GEMINI_*`) are **not in `.env.example`** (finding M-3).
+
+### C. NextGen Vanguard (NGV) — DB-driven, admin-editable programme page
+- **Entry:** `academy/ngv/index.php` (public, SEO/JSON-LD) + `academy/ngv/edit.php` (two-pane admin editor). **Backend:** `lib/Ngv.php` (345 LOC) — content document in the **`app_meta`** table with version backup/restore (`get`/`save`/`reset`/`restorePrevious`).
+- **Gate:** editor admin-gated (`av_admin_role()`); persists through `admin/api.php` actions `ngv_get/save/reset/restore` with `AdminAudit::log`.
+
+### D. IQ — Incorruptible Quiz, brain games, leaderboard, authoring
+- **Entry:** `IQ/index.php` (hub), `IQ/api.php` (JSON), `IQ/admin.php` (authoring), `IQ/embed.php`; `IQ/iq.js` (449 LOC — 3 brain games + personality quizzes, client-side). Served at `/IQ/` (capital-I path; **no per-dir `.htaccess`**). **Backend:** `lib/IQ.php` (529 LOC).
+- **Tables:** `iq_quizzes`, `iq_questions`, `iq_attempts`.
+- **Gate:** public reads open; `submit` same-origin + rate-limited; **authoring gated by `Community::isAdmin` (clearance ≥ 2)** — a different model than the Studio's `admin_users` roles, and not wired into `admin/api.php` at all (finding M-1).
+
+### E. Portal collaboration / org task pool / calendar sync
+- **Entry:** 16 `portal/*.php` endpoints (`collab`, `boards`, `goals`, `polls`, `reminders`, `standup`, `notifications`, `calendar`, `bookmarks`, `directory`, `prefs`, `dues`, `workspace`, …), all `LmsAuth::user()`-gated. **Backend:** `lib/Collab.php`, `Boards.php`, `Goals.php`, `Polls.php`, `Reminders.php`, `Standup.php`, `Notifications.php`, `Bookmarks.php`, `TeamCalendar.php`, `Prefs.php`, `MemberDirectory.php`, `AvAutomation.php`, `AvEvents.php`, `Levels.php`, `AiKnowledge.php`.
+- **Tables:** `collab_tasks`, `team_cards`, `team_goals`, `team_events`, `team_links`, `team_polls`, `team_poll_votes`, `team_standups`, `user_notifications`, `user_prefs`, `user_reminders`, `activity`, `automation_runs`, `member_referrals`.
+
+### Also: Google Workspace deepening
+`lib/GoogleWorkspaceUser.php` (per-user OAuth connect), `lib/GoogleWatch.php` + `webhooks/google.php` (Calendar/Drive push channels → `google_channels`/`google_connections`), root `workspace.php` + `lib/workspace.php` ("the site IS Workspace" hub).
 
 ---
 
@@ -124,10 +180,10 @@ The public site is **static-first**: large hand-authored HTML pages, enhanced wi
 
 | Page | Notes |
 |---|---|
-| `index.html` (317 KB) | Homepage. |
-| `about.html` (170 KB) | About / mission. |
-| `contact.html` (166 KB) | Contact form → `process-contact.php`. |
-| `donate.html` (356 KB) | Donation flow → `get-config.php` + `process-donation.php` (Paystack inline). |
+| `index.html` (331 KB) | Homepage. |
+| `about.html` (195 KB) | About / mission. |
+| `contact.html` (179 KB) | Contact form → `process-contact.php`. |
+| `donate.html` (369 KB) | Donation flow → `get-config.php` + `process-donation.php` (Paystack hosted checkout redirect). |
 | `donor-dashboard.html` | Donor wall / admin donation view. |
 | `member.html` | Member landing. |
 | `403/404/429/500/503.html` | Custom branded error pages. |
@@ -178,7 +234,7 @@ The site runs **four layered auth mechanisms**, all keyed off `lib/security.php`
 
 **Member portal** (`portal/`) is a Google Workspace launchpad (mail/chat/meet/calendar/drive tiles), optionally backed by real Workspace API reads via a service account with domain-wide delegation.
 
-**Access-control notes:** see Findings S-3 (overloaded signing key), S-4 (weak 8-char minimum on the superadmin break-glass token / orphaned `admin-auth.php` that expects ≥32).
+**Access-control notes:** S-3 (signing key) and S-4 (token minimum + orphaned `admin-auth.php`) are now **resolved**. The live authorization concern is **M-1** — two divergent admin-authorization models: the Studio's `admin_users` roles vs Community clearance (`Community::isAdmin`) used to gate IQ authoring and chat channel management.
 
 ---
 
@@ -195,8 +251,11 @@ The site runs **four layered auth mechanisms**, all keyed off `lib/security.php`
 | **Anthropic Claude** | `lib/AvBot.php`, `lib/Chioma.php`, `integrations/api.php` | `ANTHROPIC_API_KEY`, `AV_AI_MODEL` | Two assistants: `@Afrovanguard` community bot + "Chioma" site guide. |
 | **Chioma agent webhook** | `lib/Chioma.php` | `AV_CHIOMA_AGENT_URL` / `_KEY` | Optional external agent can *be* Chioma. |
 | **TTS (OpenAI/ElevenLabs)** | `lib/Tts.php` | `AV_TTS_ENGINE/API_KEY/VOICE` | Diary "Listen" neural narration; optional. |
-| **Gemini** | `projects/sts/ceo/api/ai.php` | `GEMINI_API_KEY`, `STS_AI_ACCESS_KEY` | Isolated STS sub-app only. |
-| **SMTP (Gmail/Workspace)** | `lib/Smtp.php`, `lib/Mailer.php` | `SMTP_*` / `AV_SMTP_PASSWORD` | Dependency-free authenticated mail; degrades to `mail()`. |
+| **Gemini** (first-class) | `lib/Gemini.php` (+ `projects/sts/ceo/api/ai.php`) | `AV_GEMINI_*`, `GEMINI_API_KEY` | Meeting minutes + audio transcription; also the isolated STS sub-app. Keys **not in `.env.example`** (M-3). |
+| **Recall.ai + Google Meet writes** | `lib/RecallBot.php`, `lib/GoogleWorkspace.php` (`createMeetEvent`) | `AV_RECALL_*`, `AV_MEET_BOT_*` | Meeting recorder bots + Calendar/Meet event creation. Keys **not in `.env.example`** (M-3). |
+| **Google Chat mirror** | `lib/Community.php:1252` | per-channel incoming-webhook URL | Outbound chat mirror to `chat.googleapis.com` (host-checked); content leaves the org (L-3). |
+| **Google push/watch** | `lib/GoogleWatch.php`, `webhooks/google.php` | service account | Calendar/Drive change notification channels. |
+| **SMTP (Gmail/Workspace)** | `lib/Mailer.php` (PHPMailer) | `SMTP_*` / `AV_SMTP_PASSWORD` | **PHPMailer is now the sole transport** (`lib/Smtp.php` retired); default From `cacentre@`, donations from `donations@`; degrades to `mail()`. |
 | **Cloudflare** | `lib/security.php` | (built-in CIDR ranges) | Trusted-proxy client-IP resolution. |
 | **Inbound integrations API** | `integrations/api.php` | `av_int_…` Bearer app tokens (scoped) | Sister-site sync (NextGenGen mirrors the mentor directory). |
 | **Webhooks (outbound)** | `lib/Webhooks.php`, `lib/Events.php`, `db/webhooks_run.php` | `AV_CRON_KEY` (falls back to `ADMIN_TOKEN`) | Retry queue w/ exponential backoff; web-cron runner. |
@@ -205,7 +264,7 @@ The site runs **four layered auth mechanisms**, all keyed off `lib/security.php`
 
 ## 8. Infrastructure & Deployment
 
-- **Hosting model:** shared **cPanel + Apache**, PHP 8. No build step required for the core site; `git pull` / upload-and-run. Cloudflare in front.
+- **Hosting model:** shared **cPanel + Apache**, PHP 8. No build step required for the core site; `git pull` / upload-and-run. Cloudflare in front. Now **also containerizable**: `Dockerfile` + `docker-compose.yml` + `deploy/docker-entrypoint.sh`, with `health.php` as the container health probe and `.github/workflows/ci.yml` linting every PHP file + running `php tests/run.php` on push.
 - **Routing:** `.htaccess` in production (must be activated only once WordPress is removed from the web root — see `WORDPRESS-COEXISTENCE.md`); `router.php` for local dev.
 - **Config & secrets:** three-tier — real Apache `SetEnv`/PHP-FPM env (wins) → a `.env` file (parser prefers one **above** the web root) → `config.php` constants. `config.example.php` and `.env.example` are the templates; **only four secrets are required** (`AV_ADMIN_TOKEN`, `AV_SMTP_PASSWORD`, `AV_PAYSTACK_PK`, `AV_PAYSTACK_SK`). `config.php` is git-ignored and denied by `.htaccess`.
 - **Dependencies:** Composer (PHPMailer only) in `vendor/`; everything else vendored/hand-rolled.
@@ -221,56 +280,80 @@ The site runs **four layered auth mechanisms**, all keyed off `lib/security.php`
 
 Sorted by severity. The codebase is **notably hardened**; most findings are defense-in-depth or maintainability, not active exploits.
 
-> **Remediation status (2026-07-12).** S-1, S-2, S-3, S-4, S-5 are **fixed** in this branch. S-6 (CSP `unsafe-inline`) and S-7 (routing duplication) are **deferred** — both are large, cross-cutting refactors on live-serving surfaces (300 KB+ of inline HTML / the routing front door) where a hasty change risks breakage; they are best done as focused, individually-verified follow-ups. See the "Status" column below.
+> **Remediation status (confirmed in code, 2026-08-06).** S-1…S-5 are **fixed and verified in the live source** (not merely claimed). S-6 (CSP) and S-7 (routing) remain **open and have worsened** — the CSP now also carries `'unsafe-eval'` in `.htaccess` (promoted to **H-1** below), and `router.php` has drifted further from `.htaccess`. Four **new** findings (M-1…M-3, L-1…L-3) come from the subsystems added since. See the re-ranked table below.
 >
-> | # | Status | What changed |
+> | # | Status | Verified in code |
 > |---|---|---|
-> | S-1 | ✅ Fixed | `av_private_path()` (`lib/security.php`) stores `donations.json`/`contacts.json` under `AV_PRIVATE_DIR` (above web root) or the already-denied `db/private/`, and migrates any legacy web-root file on first use. Wired into `process-donation.php` + `process-contact.php`; `db/private/` gitignored. |
-> | S-2 | ✅ Fixed | `AV_DB_STRICT=1` makes an unreachable primary DB a hard error instead of a silent SQLite fallback (`Database::dbStrict()`). |
-> | S-3 | ✅ Fixed | `av_secret()` now prefers a dedicated `APP_KEY`/`AV_APP_KEY` for signing, falling back to `ADMIN_TOKEN` only when unset — credential rotation no longer invalidates sessions. |
-> | S-4 | ✅ Fixed | Break-glass token minimum raised to 32 chars via `av_admin_token_configured()` (used by `security.php`, `bootstrap.php`, `admin/api.php`); orphaned `admin-auth.php` deleted. ⚠️ **Action:** if your live `AV_ADMIN_TOKEN` is shorter than 32 chars, regenerate it (`php -r "echo bin2hex(random_bytes(32));"`). |
-> | S-5 | ✅ Fixed | Mentor email in `mentors.directory` is now gated by `AV_MENTORS_SHARE_EMAIL` (defaults on for NextGenGen back-compat; set `0` to share only the stable `ref`). |
-> | S-6 | ⏸ Deferred | CSP `unsafe-inline` removal needs nonces threaded through every inline script across the static pages + admin SPA. |
-> | S-7 | ⏸ Deferred | De-duplicating `.htaccess`/`router.php` needs a route-parity test harness to change safely. |
+> | S-1 | ✅ Fixed | `av_private_path()` (`lib/security.php:197`) stores `donations.json`/`contacts.json` under `AV_PRIVATE_DIR` or the denied `db/private/`, migrating legacy files. Wired into `process-donation.php` + `process-contact.php`; `db/private/` gitignored. |
+> | S-2 | ✅ Fixed | `AV_DB_STRICT` / `Database::dbStrict()` (`Database.php:21`) makes an unreachable primary DB a hard error; `fellBack()` surfaced in `health.php` + System tab. |
+> | S-3 | ✅ Fixed | `av_secret()` prefers `APP_KEY`/`AV_APP_KEY` for signing, falling back to `ADMIN_TOKEN` only when unset (`security.php:22`, `bootstrap.php:171`). |
+> | S-4 | ✅ Fixed | `AV_ADMIN_TOKEN_MIN = 32` enforced by `av_admin_token_configured()` (`security.php:32`); orphaned `admin-auth.php` **deleted** (confirmed absent). ⚠️ **Action:** if your live `AV_ADMIN_TOKEN` is < 32 chars, regenerate it. ⚠️ `docs/configuration.md:744` still says "≥ 8" — stale, correct it. |
+> | S-5 | ✅ Fixed | Mentor email in `mentors.directory` gated by `AV_MENTORS_SHARE_EMAIL` (`bootstrap.php:179`). |
+> | S-6→H-1 | ⏸ Open, worse | CSP now has `'unsafe-inline'` **and** `'unsafe-eval'` in `.htaccess:119` (the winning header in prod). Promoted to HIGH. |
+> | S-7 | ⏸ Open, worse | `router.php` no longer mirrors `.htaccess` (≥6 route families missing). |
+
+Re-ranked 2026-08-06 with the current live items on top. S-1…S-5 are resolved
+(see the status banner); the items below are the open ones.
 
 | # | Severity | Area | Location | Issue | Recommendation |
 |---|---|---|---|---|---|
-| S-1 | **Medium** | Data / PII | `process-donation.php:86`, `process-contact.php` (`CONTACT_FILE`), root `.htaccess:91-101` | `donations.json` & `contacts.json` (donor/contact PII) are written to the **web root**, protected only by a name-based `.htaccess` `FilesMatch` deny. If that `.htaccess` isn't honored (server misconfig, or during the WordPress-coexistence swap) the PII becomes directly fetchable. | Move both stores **outside the web root** (or into the already-denied `db/`), like the SQLite DB. Don't rely on a single by-name deny for PII. |
-| S-2 | **Medium** | Availability / integrity | `lib/Database.php:73-82` | Silent fallback from a configured MySQL/Postgres to a local (possibly empty) SQLite DB when the server DB is unreachable — the live site can quietly run on the wrong/empty database; only visible on the Studio System page. | Make production DB failure **loud** (alert/500 on a hard flag `AV_DB_STRICT=1`) instead of silently degrading; surface `fellBack()` in monitoring. |
-| S-3 | **Low** | Cryptography / auth | `lib/security.php:14-18` | `ADMIN_TOKEN` is overloaded: it is both the break-glass credential **and** the HMAC signing key for the admin cookie and all CSRF tokens. Rotating the credential invalidates every session and outstanding CSRF token; a credential doubles as a crypto key. | Use a **dedicated `APP_KEY`** (already a supported fallback) as the signing key so credential rotation is decoupled from session/CSRF validity. |
-| S-4 | **Low** | Auth | `lib/bootstrap.php:257`, `admin/api.php:41`, `admin-auth.php:36` | The live admin gate accepts `ADMIN_TOKEN` as short as **8 chars**, while the orphaned `admin-auth.php` expects **≥32**. Two inconsistent rules, and 8 chars is weak for a superadmin break-glass credential. | Enforce a **single, high minimum** (≥32) for the break-glass token and delete/retire `admin-auth.php` to remove the ambiguity. |
-| S-5 | **Low** | Data sharing / PII | `integrations/api.php:101-128` | `mentors.directory` returns mentor **name + email** cross-site to a sister app (NextGenGen). Token-scoped (`mentors:read`) and intentional, but it is real PII leaving the system over a `CORS: *` endpoint. | Confirm the data-sharing is covered by the privacy policy; consider omitting email or hashing a stable ref unless the mirror truly needs it. |
-| S-6 | **Low** | XSS surface | `lib/security.php:51-62` | CSP uses `'unsafe-inline'` for both `script-src` and `style-src` (needed by the large inline static pages and the admin SPA), weakening XSS protection. | Longer term, move inline scripts to files + nonces/hashes so `'unsafe-inline'` can be dropped, at least for authenticated pages. |
-| S-7 | **Low** | Maintainability | `.htaccess` vs `router.php:26-83` | Routing rules are hand-maintained in two places and can drift; a route added to one must be added to the other. | Generate one from the other, or add a smoke test that asserts both resolve the same set of routes. |
-| S-8 | **Info** | Architecture | `projects/sts/` (Astro + `ceo/api/*.php` + Apps Script) | Self-contained sub-apps bypass the shared `bootstrap.php`/`security.php` layer and carry their own config + keys (`GEMINI_API_KEY`, `STS_APPS_SCRIPT_KEY`). | Audit `projects/sts` separately; it is out of scope of the shared hardening and should be reviewed on its own. |
-| S-9 | **Info** | Config safety | `lib/bootstrap.php:140-155`, root `.htaccess:74-84` | The entire secret-protection model rests on a single `FilesMatch` block plus keeping `config.php`/`.env` out of (or denied in) the web root — brittle during the WordPress transition. | Keep `.env` **above** the web root (as the docs recommend) and verify the deny block is active immediately after WordPress removal. |
+| **H-1** | **High** | XSS surface | root `.htaccess:119` (wins in prod); `lib/security.php:70,80` | CSP `script-src` allows **both `'unsafe-inline'` and `'unsafe-eval'`** (the `.htaccess` copy that ships in prod has both; the PHP header has `unsafe-inline` only). With 300 KB+ of inline HTML and the admin SPA, this is the weakest control on the app, and `unsafe-eval` is new since the last audit. | Move inline scripts to files + nonces/hashes; drop `unsafe-eval` first (nothing in the core app needs `eval`), then `unsafe-inline` at least for authenticated pages. |
+| **M-1** | **Medium** | AuthZ model | `IQ/api.php:27-28`, `portal/chat.php:146,161,170` vs `admin/api.php` | **Two divergent admin-authorization models.** Studio uses `admin_users` roles; IQ authoring and chat channel management gate on `Community::isAdmin` (community **clearance ≥ 2**), a different table/scale. Someone with community clearance but no Studio `admin_users` row can author public IQ quizzes. | Reconcile onto one authorization source; at minimum document which surfaces use which gate. |
+| **M-2** | **Medium** | Data sharing / cost | `integrations/api.php:28-30` (`Access-Control-Allow-Origin: *`) | The inbound API is wildcard-CORS and can return mentor name+email (`mentors.directory`) and invoke **billable AI** (`bot.ask`, `chioma.ask`) / post as the official bot. Token-scoped and email now gated (S-5), but a credentialed data+AI surface reachable from any origin warrants confirmation against policy + cost caps. | Restrict CORS to known sister-site origins; rate-limit/cap the AI actions per token; confirm the PII share is covered by the privacy policy. |
+| **M-3** | **Medium** | Config / ops | `.env.example` vs `lib/Meetings.php:383`, `lib/Gemini.php:30`, `Config.php` | New secrets are read in code but **absent from `.env.example`**: `AV_RECALL_*`, `AV_MEET_BOT_PROVIDER/JOIN_URL`, `AV_GEMINI_*`, `AV_CHAT/MEET/REPORTS_BASE_URL`, `AV_GWS_*`. Operators can't discover them; the meeting-bot / Gemini keys are the most sensitive new secrets. `docs/configuration.md:744` also still says the admin-token min is 8 (code enforces 32). | Document every new `AV_*` key in `.env.example`; fix the stale 8→32 min in `docs/configuration.md`. |
+| S-7 | **Medium** | Maintainability | `.htaccess` vs `router.php:26-87` | Routing is hand-maintained in two places and has now **drifted** — `router.php` lacks IQ, NGV, `/workspace`, `/franchise`, `/how-it-works`, `/blueprint`; dev doesn't mirror prod, so route bugs won't surface locally. | Generate one from the other, or add a route-parity smoke test; at minimum add the missing dev routes. |
+| **L-1** | **Low** | Perf / maintainability | `lib/bootstrap.php:228-275` | No autoloader; **~50 classes eager-required** on every request, including near-static pages. Grows linearly with `lib/`. | Add a lightweight PSR-4-style autoloader so a page loads only what it uses. |
+| **L-2** | **Low** | Auth (service endpoints) | `portal/meetings.php:22-33`, `Meetings.php:457,498` | The `bot_ingest` / `recall_webhook` endpoints run before the auth wall. Correctly HMAC/token-gated and reject empty tokens — but if `AV_RECALL_WEBHOOK_TOKEN` is unset the webhook path silently no-ops. | Verify operators set the token; log/alert when a webhook arrives with the token unconfigured. |
+| **L-3** | **Low** | Data egress | `lib/Community.php:805,1252` | The Google Chat mirror posts message bodies to an external `chat.googleapis.com` webhook (host checked). Content leaves the org per `gchat_on` channel. | Confirm the mirror is intended per channel; make the egress visible in channel settings. |
+| S-8 | **Info** | Architecture | `projects/sts/` (Astro + `ceo/api/*.php` + Apps Script) | Self-contained sub-apps bypass the shared `bootstrap.php`/`security.php` layer and carry their own config + keys (`GEMINI_API_KEY`, `STS_APPS_SCRIPT_KEY`). | Audit `projects/sts` separately; out of scope of the shared hardening. |
+| S-9 | **Info** | Config safety | `lib/bootstrap.php:140-155`, root `.htaccess:78-105` | Secret/PII protection still rests on `.htaccess` `FilesMatch` denies plus keeping `config.php`/`.env` out of the web root — brittle during the WordPress transition. | Keep `.env` above the web root; verify the deny block is active the moment WordPress leaves. |
 
-**Positive controls worth recording:** parameterised PDO (no string-built SQL on user input), `hash_equals` for all secret comparisons, server-side payment verification, HMAC webhook signatures, CSRF on cookie-auth writes, per-IP rate limiting, honeypot on the contact form, httpOnly/SameSite/Secure cookies, OAuth state pinning, upload size caps (25 MB WXR import), and Cloudflare-aware IP resolution that refuses to trust forwarded headers from untrusted peers.
+**Positive controls worth recording:** parameterised PDO (no string-built SQL on user input), `hash_equals` for all secret comparisons, server-side payment verification, HMAC webhook signatures, CSRF on cookie-auth writes, per-IP rate limiting, honeypot on the contact form, httpOnly/SameSite/Secure cookies, OAuth state pinning, upload size caps, Cloudflare-aware IP resolution that refuses untrusted forwarded headers, and — new since the last audit — a `health.php` liveness/readiness probe, `AV_DB_STRICT`, per-meeting HMAC bot tokens, uniform `require_same_origin()` + CSRF on chat writes, and a CI workflow that lints every PHP file and runs the data-layer suite.
 
 ---
 
 ## 10. Risks, Tech Debt & Prioritized Recommendations
 
-**Priority 1 — do before/around the WordPress cutover**
-1. **Relocate `donations.json` and `contacts.json` out of the web root** (S-1). This is the single highest-value hardening change.
-2. **Verify the `.htaccess` deny/secret protection is live the moment WordPress leaves the web root** (S-9); confirm `.env` sits above the web root in production.
-3. **Make production DB failure loud, not silent** (S-2) — add a strict-mode flag and monitoring on `fellBack()`.
+The 2026-07 Priority-1/2 list (relocate PII, loud DB failure, dedicated
+`APP_KEY`, token minimum, mentor-PII gate — S-1…S-5) is **done and confirmed in
+code**. The current priorities are:
 
-**Priority 2 — auth & crypto hygiene**
-4. **Introduce a dedicated `APP_KEY`** for HMAC signing, separate from `ADMIN_TOKEN` (S-3).
-5. **Raise the break-glass token minimum to ≥32 and delete the orphaned `admin-auth.php`** (S-4).
-6. **Review the cross-site mentor PII share** against the privacy policy (S-5).
+**Priority 1 — the live risk**
+1. **Drop `'unsafe-eval'` from the production CSP, then work toward removing `'unsafe-inline'`** (H-1) — nothing in the core app needs `eval`; this is the single highest-value hardening step now.
+2. **Reconcile the two admin-authorization models** (M-1) — decide whether IQ authoring / chat channel admin should key off `admin_users` roles or Community clearance, and make it one source of truth.
+
+**Priority 2 — integration & config hygiene**
+3. **Lock down the inbound API** (M-2) — restrict CORS to sister-site origins and cap the billable `bot.ask`/`chioma.ask` actions per token.
+4. **Document every new `AV_*` secret in `.env.example`** and fix the stale 8→32 admin-token minimum in `docs/configuration.md` (M-3).
+5. **Verify the meeting-bot webhook token is set** in production (L-2) and confirm the Google Chat mirror egress is intended per channel (L-3).
 
 **Priority 3 — maintainability & performance**
-7. **De-duplicate routing** (`.htaccess`/`router.php`) or add a route-parity test (S-7).
-8. **Add a lightweight autoloader** for `lib/` so a simple page doesn't eager-load ~35 classes (`bootstrap.php:199-231`).
-9. **Tighten CSP** toward nonces/hashes to remove `'unsafe-inline'`, at least for authenticated surfaces (S-6).
-10. **Audit `projects/sts` as its own project** (S-8) — it has independent config, an AI proxy, and an Apps Script backend.
+6. **De-duplicate routing** or add a route-parity test, and at minimum add the missing dev routes to `router.php` (S-7).
+7. **Add a lightweight autoloader** for `lib/` so a page doesn't eager-load ~50 classes (L-1).
+8. **Audit `projects/sts` as its own project** (S-8); verify the `.htaccess` secret/PII denies stay live through the WordPress cutover (S-9).
 
-**Overall assessment.** This is a well-engineered, deliberately dependency-light monolith with strong security fundamentals and unusually good internal documentation. The residual risks are concentrated in **operational fragility during the WordPress transition** and in **silent-degradation** behaviours, rather than in the application logic itself. Addressing the Priority 1 items materially de-risks the platform.
+**Overall assessment.** This remains a well-engineered, deliberately
+dependency-light monolith with strong security fundamentals and unusually good
+internal documentation — and it has visibly matured: last cycle's top data/PII
+and availability risks are genuinely closed. The residual risks have shifted
+from *data-at-rest fragility* to **front-end XSS surface (the `unsafe-eval` CSP)**
+and to the **governance of a much larger surface** — two authorization models,
+a wildcard-CORS AI/PII endpoint, and a growing set of undocumented secrets —
+introduced by the five new subsystems. Addressing Priority 1 materially de-risks
+the platform.
 
 ---
 
 ### Appendix — Audit method
 
-This audit was produced by dispatching parallel workflow agents (one per lens: architecture, backend/data, frontend, security, infrastructure, integrations, donations/payments, auth/admin/members). The architecture lens completed via the automated run; the remaining lenses were completed by direct source review after a session usage limit interrupted the automated pass. All findings cite files verified to exist in the repository at audit time.
+The original 2026-07-12 audit was produced by dispatching parallel workflow
+agents (one per lens: architecture, backend/data, frontend, security,
+infrastructure, integrations, donations/payments, auth/admin/members).
+
+The **2026-08-06 re-index** re-verified every section against current source
+(repo grown ~362 → 584 files): each prior claim was checked STILL-TRUE /
+CHANGED / NOW-WRONG, the five new subsystems (§3A) were mapped to their entry
+points, `lib/` classes, and tables, and the findings were re-ranked — S-1…S-5
+confirmed fixed in code, S-6/S-7 confirmed open-and-worse, and M-1…M-3 / L-1…L-3
+raised from the new surface. All findings cite files verified to exist in the
+repository at the stated date.
