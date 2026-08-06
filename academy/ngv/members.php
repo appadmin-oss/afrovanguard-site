@@ -69,6 +69,14 @@ if ($method === 'POST') {
         ]);
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'A title is required.']);
     }
+    if ($act === 'app_status') {
+        $ok = NgvMember::setApplicationStatus((int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''), $adminUid);
+        json_out(['ok' => $ok, 'error' => $ok ? '' : 'Bad application/status.']);
+    }
+    if ($act === 'app_enroll') {
+        $r = NgvMember::enrollApplication((int) ($in['app_id'] ?? 0), $adminUid);
+        json_out($r + ['ok' => (bool) ($r['ok'] ?? false)]);
+    }
     json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
 }
 
@@ -78,8 +86,9 @@ $e = 'e';
 $csrf = $isAdmin && function_exists('av_csrf_token') ? av_csrf_token() : '';
 
 /* Data for the view */
-$stats = $isAdmin ? NgvMember::stats() : ['total' => 0, 'by_status' => [], 'collected' => 0, 'certs' => 0];
+$stats = $isAdmin ? NgvMember::stats() : ['total' => 0, 'by_status' => [], 'collected' => 0, 'certs' => 0, 'apps_pending' => 0, 'apps_total' => 0];
 $roster = $isAdmin ? NgvMember::roster('', 300) : [];
+$apps   = $isAdmin ? NgvMember::applications('', 100) : [];
 $sel = null; $selPayments = []; $selCerts = [];
 $mid = (int) ($_GET['m'] ?? 0);
 if ($isAdmin && $mid > 0) {
@@ -158,7 +167,39 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
     <div class="stat"><div class="k">Participants</div><div class="v"><?= (int)$stats['total'] ?></div></div>
     <div class="stat"><div class="k">Active</div><div class="v"><?= (int)($stats['by_status']['active'] ?? 0) ?></div></div>
     <div class="stat"><div class="k">Collected</div><div class="v">₦<?= number_format((int)$stats['collected']) ?></div></div>
-    <div class="stat"><div class="k">Certifications</div><div class="v"><?= (int)$stats['certs'] ?></div></div>
+    <div class="stat"><div class="k">Applications</div><div class="v"><?= (int)($stats['apps_pending'] ?? 0) ?><?php if ((int)($stats['apps_total'] ?? 0) > 0): ?> <span class="sub" style="font-size:.8rem">pending</span><?php endif; ?></div></div>
+  </div>
+
+  <!-- Applications inbox -->
+  <div class="card" style="margin-bottom:18px">
+    <header>Applications <span class="sp"></span><span class="sub"><?= count($apps) ?> shown · <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page ↗</a></span></header>
+    <div class="body">
+      <?php if (!$apps): ?>
+        <p class="sub">No applications yet. Share the <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page</a> to start collecting them.</p>
+      <?php else: ?>
+      <table>
+        <thead><tr><th>Applicant</th><th>Interest</th><th>Status</th><th>When</th><th>Action</th></tr></thead>
+        <tbody>
+        <?php foreach ($apps as $a): $st = (string)$a['status']; ?>
+          <tr>
+            <td><b><?= $e((string)($a['name'] ?: '—')) ?></b><br><span class="sub"><?= $e((string)$a['email']) ?><?= !empty($a['phone']) ? ' · '.$e((string)$a['phone']) : '' ?></span></td>
+            <td class="sub"><?= $e(trim(((string)($a['track'] ?: '')).' '.((string)($a['plan'] ? '· '.$a['plan'] : '')), ' ·')) ?: '—' ?><?= !empty($a['location']) ? '<br>'.$e((string)$a['location']) : '' ?></td>
+            <td><span class="badge b-<?= $st==='enrolled'?'active':($st==='rejected'?'withdrawn':($st==='accepted'?'completed':'applicant')) ?>"><?= $e($st) ?></span></td>
+            <td class="sub"><?= $e(substr((string)$a['created_at'],0,10)) ?></td>
+            <td>
+              <?php if ($st !== 'enrolled'): ?>
+                <button class="btn sm primary" data-act="app_enroll" data-app="<?= (int)$a['id'] ?>">Enrol</button>
+                <?php if ($st !== 'rejected'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="rejected">Reject</button><?php endif; ?>
+              <?php else: ?>
+                <?php if ((int)$a['member_id'] > 0): ?><a class="btn sm" href="?m=<?= (int)$a['member_id'] ?>">Open</a><?php endif; ?>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php endif; ?>
+    </div>
   </div>
 
   <div class="shell">
@@ -286,6 +327,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
       else if(act==='payment'){ body.kind=val('p_kind'); body.amount=val('p_amount'); body.period=val('p_period'); body.method=val('p_method'); body.reference=val('p_ref'); if(!body.amount){ toast('Enter an amount', false); return; } }
       else if(act==='cert'){ body.title=val('c_title'); body.issued_by=val('c_by'); body.issued_on=val('c_on'); if(!body.title){ toast('Title required', false); return; } }
       else if(act==='void'){ body.payment_id=parseInt(btn.getAttribute('data-pid')||'0',10); if(!confirm('Void this payment?')) return; }
+      else if(act==='app_status'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); body.status=btn.getAttribute('data-status')||''; if(body.status==='rejected' && !confirm('Reject this application?')) return; }
+      else if(act==='app_enroll'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); }
       post(body).then(function(j){ if(j.ok){ toast('Saved ✓'); setTimeout(function(){location.reload();},350); } else toast(j.error||'Failed', false); });
     });
   });

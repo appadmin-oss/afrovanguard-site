@@ -106,6 +106,7 @@ a{color:var(--red)}
     <span class="sp"></span>
     <span class="status" id="status"></span>
     <a class="btn btn-ghost btn-sm" href="/academy/ngv/" target="_blank" rel="noopener">View ↗</a>
+    <a class="btn btn-ghost btn-sm" href="/academy/ngv/members.php">Vanguards</a>
     <button class="btn btn-ghost btn-sm" id="restoreBtn" type="button"<?= $hasPrev ? '' : ' style="display:none"' ?>>Undo last save</button>
     <button class="btn btn-ghost btn-sm" id="resetBtn" type="button">Reset</button>
     <button class="btn btn-primary" id="saveBtn" type="button">Save changes</button>

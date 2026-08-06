@@ -249,10 +249,114 @@ final class NgvMember
         $total     = (int) $pdo->query('SELECT COUNT(*) FROM ngv_participants')->fetchColumn();
         $collected = (int) $pdo->query('SELECT COALESCE(SUM(amount),0) FROM ngv_payments WHERE voided = 0')->fetchColumn();
         $certs     = (int) $pdo->query('SELECT COUNT(*) FROM ngv_certifications')->fetchColumn();
-        return ['total' => $total, 'by_status' => $byStatus, 'collected' => $collected, 'certs' => $certs];
+        $appsNew   = (int) $pdo->query("SELECT COUNT(*) FROM ngv_applications WHERE status IN ('new','reviewing')")->fetchColumn();
+        $appsTotal = (int) $pdo->query('SELECT COUNT(*) FROM ngv_applications')->fetchColumn();
+        return ['total' => $total, 'by_status' => $byStatus, 'collected' => $collected, 'certs' => $certs,
+                'apps_pending' => $appsNew, 'apps_total' => $appsTotal];
+    }
+
+    /* ── applications (public registration intake) ───────────────────── */
+    public const APP_STATUSES = ['new', 'reviewing', 'accepted', 'rejected', 'enrolled'];
+
+    /**
+     * Store a public registration. Returns the new id, or 0 on invalid input
+     * (missing name/email). Callers own spam/rate defenses; this validates and
+     * sanitises. track/plan are accepted only when they match live content.
+     */
+    public static function submitApplication(array $d): int
+    {
+        $name  = mb_substr(trim((string) ($d['name'] ?? '')), 0, 120);
+        $email = mb_substr(trim((string) ($d['email'] ?? '')), 0, 160);
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return 0;
+        $now = NgvDb::nowExpr();
+        $st = NgvDb::pdo()->prepare(
+            "INSERT INTO ngv_applications (name,email,phone,age,gender,location,track,plan,education,message,status,source,created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, {$now})"
+        );
+        $st->execute([
+            $name, $email,
+            mb_substr(trim((string) ($d['phone'] ?? '')), 0, 40),
+            mb_substr(trim((string) ($d['age'] ?? '')), 0, 12),
+            mb_substr(trim((string) ($d['gender'] ?? '')), 0, 24),
+            mb_substr(trim((string) ($d['location'] ?? '')), 0, 120),
+            self::validTrack((string) ($d['track'] ?? '')),
+            self::validPlan((string) ($d['plan'] ?? '')),
+            mb_substr(trim((string) ($d['education'] ?? '')), 0, 80),
+            mb_substr(trim((string) ($d['message'] ?? '')), 0, 1500),
+            mb_substr(trim((string) ($d['source'] ?? 'web')), 0, 24),
+        ]);
+        return (int) NgvDb::pdo()->lastInsertId();
+    }
+
+    public static function applications(string $status = '', int $limit = 300): array
+    {
+        $limit = max(1, min(1000, $limit));
+        $sql = 'SELECT * FROM ngv_applications';
+        $args = [];
+        if ($status !== '' && in_array($status, self::APP_STATUSES, true)) { $sql .= ' WHERE status = ?'; $args[] = $status; }
+        $sql .= ' ORDER BY created_at DESC, id DESC LIMIT ' . $limit;
+        $st = NgvDb::pdo()->prepare($sql); $st->execute($args);
+        return $st->fetchAll() ?: [];
+    }
+
+    public static function application(int $id): ?array
+    {
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_applications WHERE id = ?');
+        $st->execute([$id]);
+        return $st->fetch() ?: null;
+    }
+
+    public static function setApplicationStatus(int $id, string $status, int $byUid): bool
+    {
+        if ($id <= 0 || !in_array($status, self::APP_STATUSES, true)) return false;
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET status = ?, reviewed_by = ? WHERE id = ?')
+            ->execute([$status, max(0, $byUid), $id]);
+        return true;
+    }
+
+    /**
+     * Turn an application into an enrolled participant. Requires the applicant to
+     * already have a member (lms_users) account with the same email — that's the
+     * only cross-database lookup, done against the MAIN db. If none exists yet we
+     * mark the application 'accepted' and report back so staff can ask them to
+     * create an account. On success the participant is created/activated in the
+     * NGV db and the application is linked + marked 'enrolled'.
+     */
+    public static function enrollApplication(int $id, int $byUid): array
+    {
+        $app = self::application($id);
+        if (!$app) return ['ok' => false, 'error' => 'Application not found.'];
+        $email = (string) $app['email'];
+        $member = null;
+        if (class_exists('Database') && $email !== '') {
+            try {
+                $st = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE email = ?');
+                $st->execute([$email]);
+                $member = $st->fetch() ?: null;
+            } catch (Throwable $e) { error_log('[ngv] enrollApplication lookup: ' . $e->getMessage()); }
+        }
+        if (!$member) {
+            self::setApplicationStatus($id, 'accepted', $byUid);
+            return ['ok' => false, 'error' => 'No member account for ' . $email . ' yet — accepted. Ask them to create an account with this email, then enrol.'];
+        }
+        $mid = (int) $member['id'];
+        self::ensureParticipant($mid, ['name' => (string) $member['name'], 'email' => $email]);
+        self::setAdmin($mid, ['status' => 'active', 'track' => (string) $app['track']]);
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET status = ?, member_id = ?, reviewed_by = ? WHERE id = ?')
+            ->execute(['enrolled', $mid, max(0, $byUid), $id]);
+        return ['ok' => true, 'member_id' => $mid];
     }
 
     /* ── validation ──────────────────────────────────────────────────── */
+    private static function validPlan(string $p): string
+    {
+        $p = trim($p);
+        if ($p === '') return '';
+        $names = [];
+        if (class_exists('Ngv')) { foreach ((Ngv::get()['plans'] ?? []) as $pl) { if (!empty($pl['name'])) $names[] = (string) $pl['name']; } }
+        return ($names === [] || in_array($p, $names, true)) ? mb_substr($p, 0, 80) : '';
+    }
+
     private static function validTrack(string $t): string
     {
         $t = trim($t);

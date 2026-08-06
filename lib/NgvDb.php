@@ -159,6 +159,26 @@ final class NgvDb
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_cert_member ON ngv_certifications (member_id);
+        CREATE TABLE IF NOT EXISTS ngv_applications (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          name        TEXT NOT NULL DEFAULT '',
+          email       TEXT NOT NULL DEFAULT '',
+          phone       TEXT NOT NULL DEFAULT '',
+          age         TEXT NOT NULL DEFAULT '',
+          gender      TEXT NOT NULL DEFAULT '',
+          location    TEXT NOT NULL DEFAULT '',
+          track       TEXT NOT NULL DEFAULT '',
+          plan        TEXT NOT NULL DEFAULT '',
+          education   TEXT NOT NULL DEFAULT '',
+          message     TEXT NOT NULL DEFAULT '',
+          status      TEXT NOT NULL DEFAULT 'new',
+          source      TEXT NOT NULL DEFAULT 'web',
+          member_id   INTEGER NOT NULL DEFAULT 0,
+          reviewed_by INTEGER NOT NULL DEFAULT 0,
+          created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);
+        CREATE INDEX IF NOT EXISTS idx_ngv_app_email  ON ngv_applications (email);
         ";
         try {
             if (class_exists('Database')) {

@@ -18,6 +18,8 @@ Sitemap::ensureFresh();
 $c       = Ngv::get();
 $canon   = rtrim(SITE_URL, '/') . '/academy/ngv/';
 $isAdmin = function_exists('av_admin_role') && av_admin_role() !== '';
+$ngvMember = class_exists('LmsAuth') ? LmsAuth::user() : null;
+$ngvFirst  = $ngvMember ? (trim(explode(' ', trim((string) ($ngvMember['name'] ?? '')))[0]) ?: 'Vanguard') : '';
 $g = static fn(array $a, string $k, string $d = ''): string => (string) ($a[$k] ?? $d);
 
 // ── SEO / structured data ────────────────────────────────────────────────
@@ -73,8 +75,15 @@ $hero = $c['hero'] ?? [];
 <?php if ($isAdmin): ?>
   <div class="ngv-adminbar"><div class="ngv-wrap">
     <span>✏️ <b>Admin</b> — every part of this page is editable.</span>
-    <a href="/academy/ngv/edit.php">Open the editor →</a>
+    <a href="/academy/ngv/edit.php">Edit page →</a>
+    <a href="/academy/ngv/members.php">Vanguards &amp; applications →</a>
+    <a href="/academy/ngv/dashboard.php">Member dashboard →</a>
     <span class="tag"><?= Ngv::isEnabled() ? 'Published' : 'Hidden (draft)' ?></span>
+  </div></div>
+<?php elseif ($ngvMember): ?>
+  <div class="ngv-adminbar"><div class="ngv-wrap">
+    <span>👋 Signed in as <b><?= e($ngvFirst) ?></b></span>
+    <a href="/academy/ngv/dashboard.php">Go to my dashboard →</a>
   </div></div>
 <?php endif; ?>
 
@@ -83,7 +92,7 @@ $hero = $c['hero'] ?? [];
     <span class="ngv-pill"><span class="dot"></span> NextGen Vanguard</span>
     <h1>Something big is <span class="ngv-grad-text">on the way.</span></h1>
     <p class="ngv-hero-sub">Our next cohort is being prepared. Register your interest to be first to know.</p>
-    <div class="ngv-hero-cta"><a class="ngv-btn ngv-btn-primary ngv-btn-lg" href="<?= e($g($ct, 'apply_url', 'https://bit.ly/ngv')) ?>">Register your interest</a></div>
+    <div class="ngv-hero-cta"><a class="ngv-btn ngv-btn-primary ngv-btn-lg" href="<?= e($g($ct, 'apply_url', '/academy/ngv/register.php')) ?>">Register your interest</a></div>
   </div></section>
 <?php else: ?>
 
