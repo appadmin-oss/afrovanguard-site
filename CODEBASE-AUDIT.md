@@ -21,6 +21,7 @@ This audit maps the components, composition, and infrastructure of the Afrovangu
 | 2026-07-12 | Initial full-repository audit (~362 files). S-1…S-5 remediated in-branch. |
 | 2026-08-06 | Re-indexed at 584 files: verified S-1…S-5 fixed in code, documented the five new subsystems (§3A), refreshed the `lib`/table/integration inventories, and re-ranked findings. |
 | 2026-08-06 | **Remediated the CSP:** removed `'unsafe-eval'` from the production `.htaccess` `script-src` (former H-1). Residual `'unsafe-inline'` tracked as M-4. |
+| 2026-08-06 | **NGV became a full member programme on its own database** — `lib/NgvDb.php` (isolated connection) + `lib/NgvMember.php` (participants, fee ledger, certifications, applications); a member dashboard, a public registration page, and a staff console (§3A.C). |
 
 ---
 
@@ -164,9 +165,13 @@ audit.
 - **Integrations:** Google Calendar/Meet (service account, domain-wide delegation), **Recall.ai**, custom webhook recorder, Gemini Flash.
 - **Gate:** user endpoints behind `LmsAuth::user()` + `av_require_write`. Two pre-auth **service endpoints** — `bot_ingest` (per-meeting HMAC, `Meetings.php:498`) and `recall_webhook` (`?t=AV_RECALL_WEBHOOK_TOKEN`, rejects empty token, `:457`) — see finding L-2. Their secrets (`AV_RECALL_*`, `AV_MEET_BOT_*`, `AV_GEMINI_*`) are **not in `.env.example`** (finding M-3).
 
-### C. NextGen Vanguard (NGV) — DB-driven, admin-editable programme page
-- **Entry:** `academy/ngv/index.php` (public, SEO/JSON-LD) + `academy/ngv/edit.php` (two-pane admin editor). **Backend:** `lib/Ngv.php` (345 LOC) — content document in the **`app_meta`** table with version backup/restore (`get`/`save`/`reset`/`restorePrevious`).
-- **Gate:** editor admin-gated (`av_admin_role()`); persists through `admin/api.php` actions `ngv_get/save/reset/restore` with `AdminAudit::log`.
+### C. NextGen Vanguard (NGV) — programme page **+ member programme on its own DB**
+- **Content page:** `academy/ngv/index.php` (public, SEO/JSON-LD) + `academy/ngv/edit.php` (two-pane admin editor). **Backend:** `lib/Ngv.php` — content document in the **`app_meta`** table (main DB) with version backup/restore; edited via `admin/api.php` actions `ngv_*` with `AdminAudit::log`.
+- **⚠️ Separate database.** NGV *participant* data lives in its **own DB**, isolated from the main site DB — `lib/NgvDb.php` is an independent PDO connection (`AV_NGV_DB_*` config; defaults to `db/ngv.sqlite`, portable to a separate MySQL/Postgres), self-provisioning its own schema via the shared `Database::execSchema()` translator. Tables: `ngv_participants`, `ngv_payments` (append-only fee ledger — void, never delete), `ngv_certifications`, `ngv_applications`. It shares **no** tables with the main DB.
+- **Domain:** `lib/NgvMember.php` — enrolment (status/cohort/track), the fee ledger + computed fee status (membership/year, commitment/month), certifications, and the public-registration applications intake + enrol-from-application (the only cross-DB step: matches applicant email → `lms_users`).
+- **Member dashboard:** `academy/ngv/dashboard.php` — signed-in vanguard's home (phase, track, 24-book challenge, focus note, real fee status + certs). Gated on `LmsAuth::user()`; self-saves via same-origin + CSRF + rate-limited POST; migrates prior `Prefs`-based state on first visit.
+- **Public registration:** `academy/ngv/register.php` — no-login application form (honeypot + same-origin + per-IP rate limit); default Apply CTAs now point here instead of the old external `bit.ly` link.
+- **Staff console:** `academy/ngv/members.php` (`av_admin_role`) — roster, applications inbox (enrol/reject), record/void payments, add certifications; JSON actions guarded by admin + same-origin + CSRF.
 
 ### D. IQ — Incorruptible Quiz, brain games, leaderboard, authoring
 - **Entry:** `IQ/index.php` (hub), `IQ/api.php` (JSON), `IQ/admin.php` (authoring), `IQ/embed.php`; `IQ/iq.js` (449 LOC — 3 brain games + personality quizzes, client-side). Served at `/IQ/` (capital-I path; **no per-dir `.htaccess`**). **Backend:** `lib/IQ.php` (529 LOC).
