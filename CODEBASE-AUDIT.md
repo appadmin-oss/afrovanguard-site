@@ -14,6 +14,14 @@ This audit maps the components, composition, and infrastructure of the Afrovangu
 > (S-1…S-5) is now **confirmed done in the live code**. Sections below carry the
 > update inline; §9 findings are re-ranked with the current live items on top.
 
+**Change log**
+
+| Date | Change |
+|---|---|
+| 2026-07-12 | Initial full-repository audit (~362 files). S-1…S-5 remediated in-branch. |
+| 2026-08-06 | Re-indexed at 584 files: verified S-1…S-5 fixed in code, documented the five new subsystems (§3A), refreshed the `lib`/table/integration inventories, and re-ranked findings. |
+| 2026-08-06 | **Remediated the CSP:** removed `'unsafe-eval'` from the production `.htaccess` `script-src` (former H-1). Residual `'unsafe-inline'` tracked as M-4. |
+
 ---
 
 ## 1. Executive Summary
@@ -280,7 +288,7 @@ The site runs **four layered auth mechanisms**, all keyed off `lib/security.php`
 
 Sorted by severity. The codebase is **notably hardened**; most findings are defense-in-depth or maintainability, not active exploits.
 
-> **Remediation status (confirmed in code, 2026-08-06).** S-1…S-5 are **fixed and verified in the live source** (not merely claimed). S-6 (CSP) and S-7 (routing) remain **open and have worsened** — the CSP now also carries `'unsafe-eval'` in `.htaccess` (promoted to **H-1** below), and `router.php` has drifted further from `.htaccess`. Four **new** findings (M-1…M-3, L-1…L-3) come from the subsystems added since. See the re-ranked table below.
+> **Remediation status (confirmed in code, 2026-08-06).** S-1…S-5 are **fixed and verified in the live source** (not merely claimed). **S-6 is now partially fixed (2026-08-06):** `'unsafe-eval'` has been removed from the production `.htaccess` CSP — the earlier HIGH item (the `unsafe-eval` addition) is closed; the residual `'unsafe-inline'` is tracked as **M-4**. S-7 (routing) remains **open and has worsened** — `router.php` has drifted further from `.htaccess`. Four other findings (M-1…M-3, L-1…L-3) come from the subsystems added since. See the re-ranked table below.
 >
 > | # | Status | Verified in code |
 > |---|---|---|
@@ -289,7 +297,7 @@ Sorted by severity. The codebase is **notably hardened**; most findings are defe
 > | S-3 | ✅ Fixed | `av_secret()` prefers `APP_KEY`/`AV_APP_KEY` for signing, falling back to `ADMIN_TOKEN` only when unset (`security.php:22`, `bootstrap.php:171`). |
 > | S-4 | ✅ Fixed | `AV_ADMIN_TOKEN_MIN = 32` enforced by `av_admin_token_configured()` (`security.php:32`); orphaned `admin-auth.php` **deleted** (confirmed absent). ⚠️ **Action:** if your live `AV_ADMIN_TOKEN` is < 32 chars, regenerate it. ⚠️ `docs/configuration.md:744` still says "≥ 8" — stale, correct it. |
 > | S-5 | ✅ Fixed | Mentor email in `mentors.directory` gated by `AV_MENTORS_SHARE_EMAIL` (`bootstrap.php:179`). |
-> | S-6→H-1 | ⏸ Open, worse | CSP now has `'unsafe-inline'` **and** `'unsafe-eval'` in `.htaccess:119` (the winning header in prod). Promoted to HIGH. |
+> | S-6 | ◑ Partially fixed (2026-08-06) | `'unsafe-eval'` **removed** from the `.htaccess` `script-src`, so both CSP copies now match the eval-free `lib/security.php` policy. `'unsafe-inline'` remains (the 300 KB+ inline static pages need it) — tracked as the residual **M-4**. |
 > | S-7 | ⏸ Open, worse | `router.php` no longer mirrors `.htaccess` (≥6 route families missing). |
 
 Re-ranked 2026-08-06 with the current live items on top. S-1…S-5 are resolved
@@ -297,7 +305,8 @@ Re-ranked 2026-08-06 with the current live items on top. S-1…S-5 are resolved
 
 | # | Severity | Area | Location | Issue | Recommendation |
 |---|---|---|---|---|---|
-| **H-1** | **High** | XSS surface | root `.htaccess:119` (wins in prod); `lib/security.php:70,80` | CSP `script-src` allows **both `'unsafe-inline'` and `'unsafe-eval'`** (the `.htaccess` copy that ships in prod has both; the PHP header has `unsafe-inline` only). With 300 KB+ of inline HTML and the admin SPA, this is the weakest control on the app, and `unsafe-eval` is new since the last audit. | Move inline scripts to files + nonces/hashes; drop `unsafe-eval` first (nothing in the core app needs `eval`), then `unsafe-inline` at least for authenticated pages. |
+| ~~H-1~~ | ✅ **Fixed 2026-08-06** | XSS surface | root `.htaccess:119` | CSP `script-src` no longer allows `'unsafe-eval'` — removed after confirming no `eval`/`Function()` use in the app's own JS/HTML and that the `lib/security.php` policy already ran eval-free. Both CSP copies now match. |
+| **M-4** | **Medium** | XSS surface | root `.htaccess:119`; `lib/security.php:70,80` | Residual: CSP still uses `'unsafe-inline'` for `script-src` and `style-src`, required by the 300 KB+ of hand-authored inline HTML and the admin SPA. This remains the weakest single control on the app. | Move inline scripts/styles to files + per-response nonces (or hashes) so `'unsafe-inline'` can be dropped, at least for authenticated pages; do it page-family by page-family to avoid breaking the large static pages. |
 | **M-1** | **Medium** | AuthZ model | `IQ/api.php:27-28`, `portal/chat.php:146,161,170` vs `admin/api.php` | **Two divergent admin-authorization models.** Studio uses `admin_users` roles; IQ authoring and chat channel management gate on `Community::isAdmin` (community **clearance ≥ 2**), a different table/scale. Someone with community clearance but no Studio `admin_users` row can author public IQ quizzes. | Reconcile onto one authorization source; at minimum document which surfaces use which gate. |
 | **M-2** | **Medium** | Data sharing / cost | `integrations/api.php:28-30` (`Access-Control-Allow-Origin: *`) | The inbound API is wildcard-CORS and can return mentor name+email (`mentors.directory`) and invoke **billable AI** (`bot.ask`, `chioma.ask`) / post as the official bot. Token-scoped and email now gated (S-5), but a credentialed data+AI surface reachable from any origin warrants confirmation against policy + cost caps. | Restrict CORS to known sister-site origins; rate-limit/cap the AI actions per token; confirm the PII share is covered by the privacy policy. |
 | **M-3** | **Medium** | Config / ops | `.env.example` vs `lib/Meetings.php:383`, `lib/Gemini.php:30`, `Config.php` | New secrets are read in code but **absent from `.env.example`**: `AV_RECALL_*`, `AV_MEET_BOT_PROVIDER/JOIN_URL`, `AV_GEMINI_*`, `AV_CHAT/MEET/REPORTS_BASE_URL`, `AV_GWS_*`. Operators can't discover them; the meeting-bot / Gemini keys are the most sensitive new secrets. `docs/configuration.md:744` also still says the admin-token min is 8 (code enforces 32). | Document every new `AV_*` key in `.env.example`; fix the stale 8→32 min in `docs/configuration.md`. |
@@ -319,7 +328,7 @@ The 2026-07 Priority-1/2 list (relocate PII, loud DB failure, dedicated
 code**. The current priorities are:
 
 **Priority 1 — the live risk**
-1. **Drop `'unsafe-eval'` from the production CSP, then work toward removing `'unsafe-inline'`** (H-1) — nothing in the core app needs `eval`; this is the single highest-value hardening step now.
+1. ✅ **Done (2026-08-06):** `'unsafe-eval'` removed from the production CSP. **Next:** work toward removing the residual `'unsafe-inline'` via file-based scripts + nonces/hashes, page-family by page-family (M-4).
 2. **Reconcile the two admin-authorization models** (M-1) — decide whether IQ authoring / chat channel admin should key off `admin_users` roles or Community clearance, and make it one source of truth.
 
 **Priority 2 — integration & config hygiene**
@@ -336,8 +345,9 @@ code**. The current priorities are:
 dependency-light monolith with strong security fundamentals and unusually good
 internal documentation — and it has visibly matured: last cycle's top data/PII
 and availability risks are genuinely closed. The residual risks have shifted
-from *data-at-rest fragility* to **front-end XSS surface (the `unsafe-eval` CSP)**
-and to the **governance of a much larger surface** — two authorization models,
+from *data-at-rest fragility* to **front-end XSS surface (the CSP still relies on
+`unsafe-inline`, though `unsafe-eval` was removed 2026-08-06)** and to the
+**governance of a much larger surface** — two authorization models,
 a wildcard-CORS AI/PII endpoint, and a growing set of undocumented secrets —
 introduced by the five new subsystems. Addressing Priority 1 materially de-risks
 the platform.
