@@ -937,6 +937,50 @@ $nav['You'] = [
             <div><h1>My Diary</h1><p class="view-sub">Write with a rich editor. Private stays yours; public is reviewed before it joins the Diary.</p></div>
             <a class="pcard-link" href="/diary/" target="_blank" rel="noopener">Open the public Diary →</a>
           </div>
+          <!-- ── Notebooks rail + finder ──────────────────────────────────
+               The rail is the diary's spine: buckets, notebooks, tags. Rendered
+               client-side from /portal/notebooks.php rather than server-side,
+               because every action on it (file, pin, archive, tag) changes the
+               counts and a full reload per action would make organising the
+               diary feel like paperwork. -->
+          <div class="nb-shell">
+            <aside class="nb-side" id="nbRail" aria-label="Notebooks"></aside>
+
+            <div class="nb-main">
+              <div class="nb-finder">
+                <input type="search" id="nbSearch" class="nb-search"
+                       placeholder="Search your diary — titles, bodies, and every tab"
+                       aria-label="Search your diary">
+                <span class="nb-msg" id="nbMsg" role="status" aria-live="polite"></span>
+              </div>
+              <div class="nb-bulk" id="nbBulk" hidden></div>
+
+              <!-- An open entry, as a document with tabs. -->
+              <section class="pcard nb-doc" id="nbDoc" hidden>
+                <div class="pcard-head">
+                  <h2>Entry</h2>
+                  <button type="button" class="pbtn pbtn-ghost pbtn-sm" id="nbDocClose">Close</button>
+                </div>
+                <div class="pcard-body">
+                  <div class="nb-tabstrip" id="nbTabStrip" role="tablist" aria-label="Tabs in this entry"></div>
+                  <label class="pd-field"><span>Tab name</span>
+                    <input type="text" id="nbTabTitle" maxlength="80" placeholder="Entry">
+                  </label>
+                  <textarea id="nbTabBody" class="nb-tabbody" rows="12" placeholder="Write this tab…"></textarea>
+                  <div class="nb-docfoot">
+                    <button type="button" class="pbtn pbtn-gold" id="nbTabSave">Save tab</button>
+                    <span class="nb-hint" id="nbTabHint"></span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="pcard">
+                <div class="pcard-head"><h2>Entries</h2></div>
+                <div class="pcard-body"><ul class="nb-entries" id="nbList"></ul></div>
+              </section>
+            </div>
+          </div>
+
           <div class="pcols pcols--diary">
             <div class="pcol pcol--main">
               <section class="pcard" id="pdiary">
@@ -1271,6 +1315,7 @@ $nav['You'] = [
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>
+  <script src="/portal/notebooks.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

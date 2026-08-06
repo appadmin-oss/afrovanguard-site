@@ -67,7 +67,12 @@ function av_brand_css(): string {
 }
 
 function render_head(array $o): void {
-    $title = $o['title']; $desc = $o['desc']; $canonical = $o['canonical'];
+    // `??` on all three. A by-link page (diary/shared.php, diary/notebook.php)
+    // has no canonical BY DEFINITION — it is noindex and unlisted — and the bare
+    // access emitted an "Undefined array key" warning into the error log on every
+    // one of those requests. A page with no canonical is a legitimate page, not a
+    // caller mistake.
+    $title = $o['title'] ?? ''; $desc = $o['desc'] ?? ''; $canonical = $o['canonical'] ?? '';
     $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
     $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
     $imageAlt = $o['image_alt'] ?? $title;
