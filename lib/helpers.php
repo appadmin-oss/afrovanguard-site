@@ -232,3 +232,54 @@ function av_ago(string $ts): string {
     if ($d < 86400) return (int) floor($d / 3600) . 'h ago';
     return (int) floor($d / 86400) . 'd ago';
 }
+
+/**
+ * May this member READ this diary entry?
+ *
+ * Three ways in, and they are genuinely different rights:
+ *
+ *   1. they wrote it
+ *   2. it was shared with them directly (diary_shares — one entry, one person)
+ *   3. it sits in a notebook that is shared with them (diary_notebook_members)
+ *
+ * (3) is the one that needs saying out loud: notebook access covers entries
+ * that did not exist when the share was granted. That is the entire reason
+ * notebook sharing exists — a mentor given the mentoring notebook should not
+ * need re-granting every time a session is written up.
+ *
+ * Lives here rather than in DiaryTabs or DiaryNotebooks because it is a
+ * question about an ENTRY that spans both, and burying it in either would mean
+ * the other one answers it differently one day.
+ */
+function av_diary_may_read(int $uid, int $entryId): bool {
+    if ($uid <= 0 || $entryId <= 0) return false;
+
+    // Each route gets its OWN guard. One try around all three means a missing
+    // `diary_shares` — created lazily, so it genuinely does not exist until
+    // somebody first shares an entry — throws on route 2 and skips route 3
+    // entirely, silently denying every notebook member. That is exactly what it
+    // did on the first run of this function's own tests.
+    try {
+        $st = Database::pdo()->prepare('SELECT author_id, notebook_id FROM diary_entries WHERE id = ?');
+        $st->execute([$entryId]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return false;
+    } catch (Throwable $e) { return false; }
+
+    if ((int) $r['author_id'] === $uid) return true;
+
+    try {
+        $s = Database::pdo()->prepare('SELECT 1 FROM diary_shares WHERE entry_id = ? AND user_id = ?');
+        $s->execute([$entryId, $uid]);
+        if ($s->fetchColumn()) return true;
+    } catch (Throwable $e) { /* table not created yet: a "no", not a stop */ }
+
+    try {
+        $nbId = (int) ($r['notebook_id'] ?? 0);
+        if ($nbId > 0 && class_exists('DiaryNotebooks')) {
+            return (new DiaryNotebooks(Database::pdo()))->canRead($uid, $nbId);
+        }
+    } catch (Throwable $e) { /* ditto */ }
+
+    return false;
+}

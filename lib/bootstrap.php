@@ -236,6 +236,12 @@ require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/DiaryJournal.php';
+// Notebooks, entry tabs and the finding half (tags / pin / archive / search).
+// Loaded beside DiaryJournal because all three reach into diary_entries and
+// have to agree with it about the columns they each add.
+require_once __DIR__ . '/DiaryNotebooks.php';
+require_once __DIR__ . '/DiaryTabs.php';
+require_once __DIR__ . '/DiaryOrganise.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/AuthPolicy.php';
 require_once __DIR__ . '/Otp.php';

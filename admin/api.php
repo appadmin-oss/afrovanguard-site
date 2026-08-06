@@ -248,6 +248,58 @@ try {
                 'label'      => $mailReady ? ('SMTP ready · ' . ($mailHost ?: 'configured')) : 'SMTP not configured',
             ], 'health' => $health]);
         }
+        /**
+         * The mail configuration, WITHOUT sending anything.
+         *
+         * `mail_test` already proves whether delivery works, and says so well
+         * when it fails. What it cannot say is WHY, because by then the failure
+         * is a transport error string. This reports the inputs: which constants
+         * are present, which transports this host actually has, and which one a
+         * send would reach for first.
+         *
+         * The password is reported only as set/not-set plus its LENGTH — enough
+         * to catch the single most common misconfiguration on this stack (a
+         * Gmail App Password pasted with the spaces Google displays, so 19
+         * characters instead of 16) without putting a live credential in a JSON
+         * response an admin might paste into a chat.
+         */
+        case 'mail_status': {
+            $pass     = defined('SMTP_PASSWORD') ? (string) SMTP_PASSWORD : '';
+            $bundled  = is_file(AV_ROOT . '/lib/vendor/phpmailer/PHPMailer.php');
+            $composer = is_file(AV_ROOT . '/vendor/autoload.php');
+            $transports = [
+                'phpmailer' => $bundled || $composer,
+                'own_smtp'  => class_exists('Smtp'),
+                'php_mail'  => function_exists('mail'),
+            ];
+            $would = Mailer::configured() && $transports['phpmailer']
+                ? 'PHPMailer over authenticated SMTP'
+                : (Mailer::configured() && $transports['own_smtp']
+                    ? 'the built-in SMTP client'
+                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing'));
+
+            json_out([
+                'ok'         => true,
+                'configured' => Mailer::configured(),
+                'notifications_enabled' => !defined('ENABLE_EMAIL_NOTIFICATIONS') || (bool) ENABLE_EMAIL_NOTIFICATIONS,
+                'from'       => defined('FROM_EMAIL') ? FROM_EMAIL : '(unset — falls back to SMTP_USERNAME)',
+                'from_name'  => defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard',
+                'host'       => defined('SMTP_HOST') ? SMTP_HOST : '',
+                'port'       => defined('SMTP_PORT') ? (int) SMTP_PORT : 587,
+                'secure'     => defined('SMTP_SECURE') ? SMTP_SECURE : 'tls (default)',
+                'username'   => defined('SMTP_USERNAME') ? SMTP_USERNAME : '',
+                'password_set'    => $pass !== '',
+                'password_length' => strlen($pass),
+                'password_note'   => ($pass !== '' && strlen($pass) !== 16)
+                    ? 'A Gmail App Password is exactly 16 characters; this one is ' . strlen($pass)
+                      . '. If you pasted it with the spaces Google shows, remove them.'
+                    : '',
+                'transports'  => $transports,
+                'would_use'   => $would,
+                'admin_email' => defined('ADMIN_EMAIL') ? ADMIN_EMAIL : '',
+            ]);
+        }
+
         case 'mail_test':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
