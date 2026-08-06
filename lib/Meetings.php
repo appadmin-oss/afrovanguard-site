@@ -171,6 +171,21 @@ final class Meetings
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
         foreach ($emails as $e) $ins->execute([$id, $e]);
 
+        // ── Tell the humans. ─────────────────────────────────────────────
+        //
+        // Until now the ONLY notification was Google Calendar's own invite, sent
+        // as a side effect of creating the event. So on any deployment where
+        // Google Workspace Calendar was not connected — which is the default —
+        // a meeting was scheduled and NOBODY WAS TOLD. The row existed, the
+        // portal listed it for people who thought to look, and that was the
+        // whole of it. That is the bug behind "the issues with meetings".
+        //
+        // The invite now goes out from us as well, always. When Google did
+        // create the event this is a second touch rather than the only one,
+        // which is the correct trade: a duplicate invite is a minor annoyance,
+        // a missed meeting is not.
+        self::sendInvites($id, $title, $ts, $dur, $freq, $agenda, $emails, $link['url'], $uid);
+
         // The recording bot (optional): dispatch to the selected provider.
         $provider = $autoRec ? self::botProvider() : '';
         if ($autoRec) self::requestBot($id, $link['url'], $provider);
@@ -187,25 +202,68 @@ final class Meetings
         self::ensure();
         $email = self::userEmail($uid);
         $db = Database::pdo();
+        // The limit is interpolated, not bound. It is clamped to an int on the
+        // line above, so this is not an injection surface — and it has to be:
+        // the connection runs with ATTR_EMULATE_PREPARES = false, where a bound
+        // parameter in LIMIT is sent as a STRING and MySQL/Postgres reject
+        // `LIMIT '60'` outright. On SQLite it happens to work, which is why the
+        // whole meetings list would have died the day this moved to MySQL and
+        // not one moment sooner.
+        $lim = max(1, min(200, $limit));
         $st = $db->prepare(
             'SELECT DISTINCT m.* FROM meetings m
              LEFT JOIN meeting_attendees a ON a.meeting_id = m.id
              WHERE m.status <> \'cancelled\' AND (m.creator_id = ? OR a.email = ?)
-             ORDER BY m.scheduled_at DESC LIMIT ?'
+             ORDER BY m.scheduled_at DESC LIMIT ' . $lim
         );
-        $st->execute([$uid, $email, max(1, min(200, $limit))]);
+        $st->execute([$uid, $email]);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        return array_map(fn($r) => self::shape($r), $rows);
+        $out  = array_map(fn($r) => self::shape($r, $uid), $rows);
+
+        // ── Upcoming first, soonest at the top; then the past, most recent
+        // first. The SQL cannot express this in one ORDER BY without dialect-
+        // specific tricks, and the docblock has always claimed it: a plain
+        // `scheduled_at DESC` put next month's catch-up above this afternoon's
+        // stand-up, so the list was least useful exactly when it mattered.
+        $now = time();
+        // Sorted on next_at, not scheduled_at — otherwise a weekly meeting sorts
+        // by the day the series began and sinks into the past forever.
+        $ts  = static fn (array $m): int => strtotime($m['next_at'] . ' UTC') ?: 0;
+        usort($out, static function (array $a, array $b) use ($now, $ts): int {
+            $fa = $ts($a) >= $now; $fb = $ts($b) >= $now;
+            if ($fa !== $fb) return $fa ? -1 : 1;          // future block before past block
+            return $fa ? $ts($a) <=> $ts($b)               // soonest upcoming first
+                       : $ts($b) <=> $ts($a);              // most recent past first
+        });
+        return $out;
     }
 
+    /**
+     * One meeting, for somebody entitled to see it.
+     *
+     * ── THIS TOOK $uid AND IGNORED IT ────────────────────────────────────
+     *
+     * The signature always promised an authorisation check and the body never
+     * performed one, so `portal/meetings.php?action=get&id=N` handed ANY signed-in
+     * member ANY meeting by guessing an integer: the agenda, the whole attendee
+     * list, and — the part that matters — the transcript, with its summary,
+     * decisions and assigned action items. A private conversation about somebody's
+     * performance was one URL away from everyone with a login.
+     *
+     * `isParticipant()` already existed and {@see saveTranscript} already called
+     * it. This path simply never did. Returning null rather than a distinct error
+     * keeps the endpoint's 404 honest: a member who is not on a meeting should not
+     * even be able to learn that it exists.
+     */
     public static function get(int $uid, int $id): ?array
     {
         self::ensure();
+        if (!self::isParticipant($uid, $id)) return null;
         $st = Database::pdo()->prepare('SELECT * FROM meetings WHERE id = ?');
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if (!$r) return null;
-        $m = self::shape($r);
+        $m = self::shape($r, $uid);
         $m['attendees'] = self::attendees($id);
         $m['transcript'] = self::transcript($id);
         return $m;
@@ -515,15 +573,79 @@ final class Meetings
 
     /** ── helpers ──────────────────────────────────────────────────────── */
 
-    private static function shape(array $r): array
+    /**
+     * A row → the API shape.
+     *
+     * `$viewerId` is what makes `is_owner` true. It used to be hardcoded `false`
+     * for every meeting and every viewer, so the field was not a fact about the
+     * meeting, it was a constant — an organiser reading their own meeting was
+     * told they did not own it. Nothing in the current UI trusted it (the JS
+     * compares `creator_id` itself), which is precisely why it stayed wrong: a
+     * lie nobody consults is a lie waiting for the next caller.
+     */
+    /**
+     * For a repeating meeting, the next occurrence at or after now.
+     *
+     * ── WHY THIS IS COMPUTED AND NOT STORED ──────────────────────────────
+     *
+     * `scheduled_at` is the FIRST occurrence and never moves; the cadence goes
+     * to Google as an RRULE and Google expands it on its side. Nothing expanded
+     * it on ours, so a weekly stand-up set up in March showed "12 March" for the
+     * rest of the year and sorted into the past the week after it started —
+     * the recurring meetings, the ones people actually depend on, were the ones
+     * the list handled worst.
+     *
+     * Deriving it keeps a single source of truth (the series start + the rule)
+     * instead of a stored "next" that drifts whenever a job fails to run.
+     * Month steps use DateTime's own arithmetic so a series that starts on the
+     * 31st behaves the same way Google's does.
+     */
+    private static function nextOccurrence(string $startUtc, string $freq, ?int $now = null): string
+    {
+        $now = $now ?? time();
+        $ts  = strtotime($startUtc . ' UTC');
+        if ($ts === false) return $startUtc;
+        if ($freq === 'once' || $ts >= $now) return $startUtc;
+
+        $dt = (new DateTime('@' . $ts))->setTimezone(new DateTimeZone('UTC'));
+        $step = match ($freq) {
+            'daily'    => '+1 day',
+            'weekly'   => '+1 week',
+            'biweekly' => '+2 weeks',
+            'monthly'  => '+1 month',
+            'weekdays' => '+1 day',
+            default    => '',
+        };
+        if ($step === '') return $startUtc;
+
+        // Bounded walk: a series started years ago must not spin. 800 steps
+        // covers two years of daily and far more of anything else; past that we
+        // hand back the start rather than guess.
+        for ($i = 0; $i < 800 && $dt->getTimestamp() < $now; $i++) {
+            $dt->modify($step);
+            if ($freq === 'weekdays') {
+                while (in_array((int) $dt->format('N'), [6, 7], true)) $dt->modify('+1 day');
+            }
+        }
+        return $dt->getTimestamp() >= $now ? $dt->format('Y-m-d H:i:s') : $startUtc;
+    }
+
+    private static function shape(array $r, int $viewerId = 0): array
     {
         $freq = self::freqKey((string) ($r['frequency'] ?? 'once'));
+        $next = self::nextOccurrence((string) $r['scheduled_at'], $freq);
         return [
             'id'          => (int) $r['id'],
             'title'       => (string) $r['title'],
             'agenda'      => (string) $r['agenda'],
             'scheduled_at'=> (string) $r['scheduled_at'],
-            'when_iso'    => gmdate('c', strtotime((string) $r['scheduled_at'] . ' UTC') ?: time()),
+            // `next_at` is what a reader wants: for a one-off it is the meeting,
+            // for a series it is the occurrence that has not happened yet.
+            // `scheduled_at` stays as the series start so nothing downstream
+            // that already relies on it changes meaning.
+            'next_at'     => $next,
+            'is_series'   => $freq !== 'once',
+            'when_iso'    => gmdate('c', strtotime($next . ' UTC') ?: time()),
             'duration_min'=> (int) $r['duration_min'],
             'frequency'   => $freq,
             'frequency_label' => self::freqLabel($freq),
@@ -537,9 +659,83 @@ final class Meetings
             'bot_provider'=> (string) ($r['bot_provider'] ?? ''),
             'bot_ref'     => (string) ($r['bot_ref'] ?? ''),
             'status'      => (string) $r['status'],
-            'is_owner'    => false,
+            'is_owner'    => $viewerId > 0 && (int) $r['creator_id'] === $viewerId,
             'creator_id'  => (int) $r['creator_id'],
         ];
+    }
+
+    /**
+     * Email everyone the meeting details. Best-effort, never fatal.
+     *
+     * ── WHY IT SENDS EVEN WHEN GOOGLE ALREADY DID ────────────────────────
+     *
+     * Google's invite only reaches people whose address Calendar accepted, and
+     * only while Workspace stays connected. Making our own send conditional on
+     * Google having failed would mean the notification path that matters most is
+     * the one that is never exercised — it would sit untested until the day
+     * Calendar was disconnected, and then be discovered by someone missing a
+     * meeting. Sending both ways means the path is warm.
+     *
+     * Times are rendered in each recipient's own timezone where the platform
+     * knows it, because "14:00" without a zone is how a Lagos meeting gets
+     * missed by somebody in Nairobi.
+     *
+     * @param list<string> $emails
+     */
+    private static function sendInvites(
+        int $id, string $title, int $ts, int $durationMin, string $freq,
+        string $agenda, array $emails, string $meetUrl, int $organiserId
+    ): void {
+        if (!class_exists('Mailer') || $emails === []) return;
+
+        $organiser = '';
+        try {
+            $st = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?');
+            $st->execute([$organiserId]);
+            $organiser = trim((string) ($st->fetchColumn() ?: ''));
+        } catch (Throwable $e) {}
+
+        $site  = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+        $cad   = self::freqLabel($freq);
+        $subj  = 'Meeting: ' . $title;
+
+        foreach ($emails as $to) {
+            try {
+                // Per-recipient timezone when we know the member; the organiser's
+                // otherwise. av_user_tz() falls back to Africa/Lagos itself.
+                $tz = 'Africa/Lagos';
+                try {
+                    $u = Database::pdo()->prepare('SELECT id FROM lms_users WHERE LOWER(email) = ?');
+                    $u->execute([strtolower($to)]);
+                    $rid = (int) ($u->fetchColumn() ?: 0);
+                    if ($rid > 0 && function_exists('av_user_tz')) $tz = av_user_tz($rid);
+                } catch (Throwable $e) {}
+
+                $when = (new DateTime('@' . $ts))->setTimezone(new DateTimeZone($tz));
+                $whenLine = $when->format('l j F Y, H:i') . ' (' . $tz . ')';
+
+                $lines = [
+                    ($organiser !== '' ? htmlspecialchars($organiser) . ' has' : 'You have been') . ' invited you to <strong>' . htmlspecialchars($title) . '</strong>.',
+                    '<strong>When:</strong> ' . htmlspecialchars($whenLine) . '<br>'
+                        . '<strong>Length:</strong> ' . $durationMin . ' minutes<br>'
+                        . '<strong>Repeats:</strong> ' . htmlspecialchars($cad),
+                ];
+                if ($agenda !== '') $lines[] = '<strong>Agenda</strong><br>' . nl2br(htmlspecialchars($agenda));
+                if ($meetUrl === '') {
+                    $lines[] = 'A video link has not been attached to this meeting yet — the organiser will share one before it starts.';
+                }
+
+                $cta = $meetUrl !== ''
+                    ? ['text' => 'Join the meeting', 'url' => $meetUrl]
+                    : ['text' => 'Open it in the portal', 'url' => $site . '/portal/#meetings'];
+
+                $html = Mailer::shell('You’re invited: ' . $title, $lines, $cta,
+                    'Meeting invitation from Afrovanguard.');
+                Mailer::send($to, $subj, $html);
+            } catch (Throwable $e) {
+                error_log('[meetings] invite to ' . $to . ': ' . $e->getMessage());
+            }
+        }
     }
 
     private static function attendees(int $id): array
