@@ -30,7 +30,7 @@ final class Prefs
             PRIMARY KEY (user_id, pref_key)
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         $done = true;
     }
 

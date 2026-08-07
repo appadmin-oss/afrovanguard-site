@@ -39,34 +39,58 @@ function av_config_present(string $const): bool {
     return defined($const) && (string) constant($const) !== '';
 }
 
-/* ─── Email (SMTP) ────────────────────────────────────────────
+/* ─── Email (SMTP + fallbacks) ─────────────────────────────────
  * Powers donation receipts, contact replies AND Academy emails
  * (welcome / enrolment / membership / certificate-ready) via the
- * shared lib/Mailer.php, which sends through the battle-tested
- * PHPMailer bundled at lib/vendor/phpmailer/ (same transport as
- * Africa GATES / NextGenGen — no Composer needed on the host).
+ * shared lib/Mailer.php. Delivery order (first that works wins):
+ *   PHPMailer/SMTP  →  Resend (HTTPS API)  →  built-in SMTP  →  mail()
+ * PHPMailer is bundled (no Composer install needed on the host).
  *
- * RECOMMENDED: a dedicated relay like Brevo (free tier: 300/day) —
- * shared-host Gmail/Workspace SMTP is often blocked and silently
- * drops mail. Brevo: app.brevo.com → SMTP & API → SMTP.
- *   SMTP_HOST=smtp-relay.brevo.com  SMTP_PORT=587
- *   SMTP_USERNAME=<your brevo login>  SMTP_PASSWORD=<brevo SMTP key>
+ * RECOMMENDED on shared hosting: a dedicated relay like Brevo (free tier
+ * 300/day) — shared-host Gmail/Workspace SMTP is often blocked and silently
+ * drops mail. Brevo: app.brevo.com → SMTP & API → SMTP, then set
+ *   SMTP_HOST=smtp-relay.brevo.com  SMTP_USERNAME=<brevo login>  SMTP_PASSWORD=<brevo key>
  *
- * You can set these as constants here, OR as env / .env using either
- * name style — SMTP_USERNAME|SMTP_USER, SMTP_PASSWORD|SMTP_PASS,
- * FROM_EMAIL|MAIL_FROM_ADDRESS, FROM_NAME|MAIL_FROM_NAME. */
-define('SMTP_HOST',     'smtp-relay.brevo.com');
+ * Set these as constants here, OR as env / .env using either name style —
+ * SMTP_USERNAME|SMTP_USER, SMTP_PASSWORD|SMTP_PASS, FROM_EMAIL|MAIL_FROM_ADDRESS,
+ * FROM_NAME|MAIL_FROM_NAME. */
+define('SMTP_HOST',     'smtp.gmail.com');
 define('SMTP_PORT',      587);
-define('SMTP_USERNAME', getenv('AV_SMTP_USER') ?: 'your_brevo_login');  // Brevo login
-define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));           // Brevo SMTP key
+// The mailbox we AUTHENTICATE as. It must be allowed to "send mail as" BOTH
+// cacentre@ (general) and donations@ (receipts) — set those as verified
+// send-as aliases in the Workspace account, or authenticate as the account
+// that owns them. The envelope-sender is aligned to this address for SPF/DMARC.
+define('SMTP_USERNAME', 'cacentre@afrovanguard.org.ng');
+define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));   // Gmail App Password or relay key
+// Default From for ALL site email (welcome, membership, OTP, contact replies,
+// portal notifications). Donations override this below.
 define('FROM_EMAIL',    'cacentre@afrovanguard.org.ng');
 define('FROM_NAME',     'Afrovanguard');
 define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
+// Donation receipts + pledge notifications send FROM this address instead.
+define('DONATIONS_FROM_EMAIL', 'donations@afrovanguard.org.ng');
+define('DONATIONS_FROM_NAME',  'Afrovanguard');
 // Optional transport overrides (defaults shown):
 //   SMTP_SECURE 'tls' = STARTTLS (587, Gmail) | 'ssl' = SMTPS (465) | '' = none
 //   SMTP_VERIFY true   = verify TLS cert (set false only for self-signed relays)
 // define('SMTP_SECURE', 'tls');
 // define('SMTP_VERIFY', true);
+// Reply-To override (defaults to FROM_EMAIL so replies reach a human):
+// define('REPLY_TO', 'cacentre@afrovanguard.org.ng');
+//
+// TLS insecure fallback: some shared hosts ship a stale CA bundle, so an
+// otherwise-correct STARTTLS to smtp.gmail.com fails cert verification — the
+// #1 cause of "the exact same SMTP works elsewhere but not here". When true,
+// a TLS/connect failure is retried once WITHOUT peer verification. Off by
+// default (a downgrade could expose SMTP AUTH credentials); enable only if the
+// Studio email test reports a certificate/TLS error you can't fix on the host.
+// define('SMTP_ALLOW_INSECURE_FALLBACK', true);
+//
+// Resend HTTPS API (https://resend.com — free tier, one key). The most
+// reliable path on locked-down shared hosts that block outbound SMTP ports
+// (587/465): outbound HTTPS almost always still works. Verify the sending
+// domain in Resend first. Set via .htaccess: SetEnv AV_RESEND_KEY re_...
+// define('RESEND_KEY', _av_require_env('AV_RESEND_KEY'));
 
 /* ─── Paystack ──────────────────────────────────────────────────
  * Primary payment provider. The same keys power donations AND the
@@ -123,10 +147,38 @@ define('AV_GOOGLE_CLIENT_SECRET', getenv('AV_GOOGLE_CLIENT_SECRET') ?: '');
  *   In-portal embeds (read-only): AV_WS_CALENDAR_ID (or a full AV_WS_CALENDAR_EMBED
  *                    src) + AV_WS_TZ (default Africa/Lagos); AV_WS_DRIVE_FOLDER_ID
  *                    (a Drive folder shared "anyone with the link").
+ *   Two-way calendar sync: when Google Workspace is connected with calendar
+ *                    WRITE access (domain-wide delegation), AV_WS_CALENDAR_ID is
+ *                    also the ORG calendar the portal's team calendar syncs with —
+ *                    native team events are mirrored onto it (create/edit/delete)
+ *                    and its events are pulled into the portal's Today agenda.
+ *                    Unset ⇒ the portal calendar still works locally, just not synced.
  *   Communities: managed in the Studio (Communities tab). As a fallback when none
  *                exist there, AV_WS_COMMUNITIES accepts a JSON list, e.g.
  *                '[{"name":"All-hands","url":"https://chat.google.com/room/AAAA"}]'
  * Anything unset is simply hidden. */
+
+/* ─── Team Chat ─────────────────────────────────────────────────
+ * Team Chat (in the member portal) is STRICTLY for @org members — the same
+ * accounts that hold the Workspace. Channels are dynamic: an admin (coordinator+)
+ * can create channels/spaces from the chat UI, make them private with an explicit
+ * member list, and toggle Google Chat mirroring per channel.
+ *
+ * Google Chat mirroring posts AS THE AUTHOR (not an anonymous webhook bot): the
+ * service account impersonates the member's @org mailbox via domain-wide
+ * delegation — the same delegation used for Calendar/Meet. Add the Chat scope to
+ * the delegation in the Admin console:
+ *   https://www.googleapis.com/auth/chat.messages.create
+ * and set the subject/admin to impersonate through (defaults to ADMIN_EMAIL):
+ *   SetEnv AV_WS_SUBJECT   admin@afrovanguard.org.ng
+ * Then, per channel, an admin flips "Mirror to Google Chat" on and pastes the
+ * target space id (spaces/AAAA… — Google Chat → the space → copy the space id).
+ *
+ * Legacy incoming webhooks are still honoured as a fallback on hosts without
+ * delegation (posts as an app, not the author):
+ *   SetEnv AV_GCHAT_WEBHOOK                 https://chat.googleapis.com/v1/spaces/AAAA/messages?key=...&token=...
+ *   SetEnv AV_GCHAT_WEBHOOK_ANNOUNCEMENTS   https://chat.googleapis.com/v1/spaces/BBBB/...
+ * Unset ⇒ no mirroring (the chat still works fully on its own). */
 
 /* ─── Application ───────────────────────────────────────────── */
 define('SITE_URL',            'https://afrovanguard.org.ng');

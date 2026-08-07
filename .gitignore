@@ -12,6 +12,11 @@ db/diary.sqlite
 db/diary.sqlite-wal
 db/diary.sqlite-shm
 
+# ── NextGen Vanguard runtime database (separate, auto-created by lib/NgvDb.php) ──
+db/ngv.sqlite
+db/ngv.sqlite-wal
+db/ngv.sqlite-shm
+
 # ── Donor / submission data ────────────────────────────────────────────
 donations.json
 contacts.json

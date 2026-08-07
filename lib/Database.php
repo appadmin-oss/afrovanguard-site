@@ -119,6 +119,7 @@ final class Database
                     self::applyServerSchema($driver);
                     self::seedIfEmpty();
                 }
+                self::autoMigrateServer(); // additive column/table sync for already-deployed server DBs
             }
         } catch (Throwable $e) {
             error_log('[db] provision (' . $driver . '): ' . $e->getMessage());
@@ -134,23 +135,23 @@ final class Database
     private static function ensureDiaryEntries(): void
     {
         if (self::tableExists('diary_entries')) return;
-        self::$pdo->exec(
+        $ddl =
             "CREATE TABLE IF NOT EXISTS diary_entries (
                id             INTEGER PRIMARY KEY AUTOINCREMENT,
                author_id      INTEGER NOT NULL,
-               kind           TEXT NOT NULL DEFAULT 'private',
+               kind           VARCHAR(32) NOT NULL DEFAULT 'private',
                title          TEXT NOT NULL DEFAULT '',
                body           TEXT NOT NULL,
                entry_date     TEXT NOT NULL,
-               status         TEXT NOT NULL DEFAULT 'logged',
+               status         VARCHAR(32) NOT NULL DEFAULT 'logged',
                published_slug TEXT,
                review_note    TEXT,
                created_at     TEXT NOT NULL DEFAULT (datetime('now')),
                updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
              );
              CREATE INDEX IF NOT EXISTS idx_diary_entries_author ON diary_entries(author_id, entry_date DESC);
-             CREATE INDEX IF NOT EXISTS idx_diary_entries_mod    ON diary_entries(kind, status);"
-        );
+             CREATE INDEX IF NOT EXISTS idx_diary_entries_mod    ON diary_entries(kind, status);";
+        self::$pdo->exec(self::driver() === 'sqlite' ? $ddl : self::translateDDL($ddl));
     }
 
     /**
@@ -255,58 +256,102 @@ final class Database
         return $out;
     }
 
-    /** Create the Academy tables (idempotent) and seed them once. */
+    /**
+     * Create the Academy tables + additive columns (idempotent) and seed once.
+     *
+     * Driver-aware: every ADD COLUMN / CREATE TABLE here works on SQLite, MySQL
+     * and Postgres. This matters because the fresh-provision path for a server DB
+     * (applyServerSchema) only runs when the DB is empty, so already-deployed
+     * MySQL/Postgres databases rely on THIS step to pick up columns/tables added
+     * after their first deploy — notably courses.pass_code / cover_is_dark and the
+     * course_access / member_passes tables, whose absence otherwise makes every
+     * Academy query fail (the catalogue SELECTs those columns) and 500 the site.
+     */
     private static function ensureAcademy(): void
     {
-        if (!self::tableExists('courses')) {
-            self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql'));
+        $drv = self::driver();
+        // Fresh SQLite bootstrap only — server DBs are provisioned from
+        // schema.<driver>.sql before this runs, so never load the SQLite DDL there.
+        if ($drv === 'sqlite') {
+            if (!self::tableExists('courses') || !self::tableExists('lessons')) {
+                self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql'));
+            }
         }
-        // Course access columns (additive)
-        $ccols = [];
-        foreach (self::$pdo->query('PRAGMA table_info(courses)') as $r) { $ccols[$r['name']] = true; }
+        // Course access columns (additive, driver-aware types). TEXT can't carry a
+        // DEFAULT on some MySQL builds, so short string columns use VARCHAR there.
+        $str = $drv === 'mysql' ? 'VARCHAR(191)' : 'TEXT';
         $cadd = [
-            'access_type'   => "ALTER TABLE courses ADD COLUMN access_type TEXT NOT NULL DEFAULT 'open'", // open|tracked|membership|paid|restricted
-            'price_ngn'     => "ALTER TABLE courses ADD COLUMN price_ngn INTEGER NOT NULL DEFAULT 0",
-            'instructor_id' => "ALTER TABLE courses ADD COLUMN instructor_id INTEGER",
-            'pass_code'     => "ALTER TABLE courses ADD COLUMN pass_code TEXT NOT NULL DEFAULT ''", // for access_type=restricted: any member holding this pass gets in
-            'cover_is_dark' => "ALTER TABLE courses ADD COLUMN cover_is_dark INTEGER NOT NULL DEFAULT -1", // -1 unknown, 0 light, 1 dark (for colour-aware overlay text)
+            'access_type'   => "$str NOT NULL DEFAULT 'open'",      // open|tracked|membership|paid|restricted
+            'price_ngn'     => 'INTEGER NOT NULL DEFAULT 0',
+            'instructor_id' => 'INTEGER',
+            'pass_code'     => "$str NOT NULL DEFAULT ''",          // access_type=restricted: any member holding this pass gets in
+            'cover_is_dark' => 'INTEGER NOT NULL DEFAULT -1',       // -1 unknown, 0 light, 1 dark (colour-aware overlay text)
         ];
-        foreach ($cadd as $name => $sql) { if (!isset($ccols[$name])) self::$pdo->exec($sql); }
-        // Restricted-course access: an explicit per-member allowlist, and named
-        // "passes" an admin grants that unlock any course requiring that pass.
-        if (!self::tableExists('course_access')) {
-            self::$pdo->exec("CREATE TABLE IF NOT EXISTS course_access (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER NOT NULL, user_id INTEGER NOT NULL, granted_by INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(course_id, user_id))");
+        if (self::tableExists('courses')) {
+            foreach ($cadd as $name => $decl) {
+                if (self::columnExists('courses', $name)) continue;
+                try { self::$pdo->exec("ALTER TABLE courses ADD COLUMN {$name} {$decl}"); }
+                catch (Throwable $e) { error_log('[db] add courses.' . $name . ': ' . $e->getMessage()); }
+            }
         }
-        if (!self::tableExists('member_passes')) {
-            self::$pdo->exec("CREATE TABLE IF NOT EXISTS member_passes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, code TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '', granted_by INTEGER NOT NULL DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, code))");
-        }
-        // LMS tables (idempotent)
-        if (!self::tableExists('lessons')) { self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql')); }
-        // Tables added after the LMS shipped (idempotent for deployed DBs)
-        if (!self::tableExists('certificates')) {
-            self::$pdo->exec("CREATE TABLE IF NOT EXISTS certificates (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, course_id INTEGER NOT NULL, serial TEXT UNIQUE NOT NULL, issued_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, course_id))");
-        }
-        if (!self::tableExists('quiz_attempts')) {
-            self::$pdo->exec("CREATE TABLE IF NOT EXISTS quiz_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0, passed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')))");
-        }
-        if (!self::tableExists('payments')) {
-            self::$pdo->exec("CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT UNIQUE NOT NULL, user_id INTEGER NOT NULL, provider TEXT NOT NULL DEFAULT 'paystack', kind TEXT NOT NULL, course_id INTEGER, amount_kobo INTEGER NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'NGN', status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT)");
+        // Tables added after the LMS shipped (idempotent for deployed DBs). Written
+        // as canonical SQLite DDL and translated per driver so they land correctly
+        // on MySQL/Postgres too. Restricted-course access = an explicit per-member
+        // allowlist (course_access) + named admin-granted passes (member_passes).
+        $tables = [
+            'course_access' => "CREATE TABLE IF NOT EXISTS course_access (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER NOT NULL, user_id INTEGER NOT NULL, granted_by INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(course_id, user_id));",
+            'member_passes' => "CREATE TABLE IF NOT EXISTS member_passes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, code VARCHAR(191) NOT NULL DEFAULT '', label VARCHAR(191) NOT NULL DEFAULT '', granted_by INTEGER NOT NULL DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, code));",
+            'certificates'  => "CREATE TABLE IF NOT EXISTS certificates (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, course_id INTEGER NOT NULL, serial VARCHAR(191) UNIQUE NOT NULL, issued_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, course_id));",
+            'quiz_attempts' => "CREATE TABLE IF NOT EXISTS quiz_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, score INTEGER NOT NULL DEFAULT 0, passed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')));",
+            'payments'      => "CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, reference VARCHAR(191) UNIQUE NOT NULL, user_id INTEGER NOT NULL, provider VARCHAR(32) NOT NULL DEFAULT 'paystack', kind VARCHAR(32) NOT NULL, course_id INTEGER, amount_kobo INTEGER NOT NULL DEFAULT 0, currency VARCHAR(8) NOT NULL DEFAULT 'NGN', status VARCHAR(32) NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')), paid_at TEXT);",
+        ];
+        foreach ($tables as $name => $ddl) {
+            if (self::tableExists($name)) continue;
+            try { self::$pdo->exec($drv === 'sqlite' ? $ddl : self::translateDDL($ddl, $drv)); }
+            catch (Throwable $e) { error_log('[db] create ' . $name . ': ' . $e->getMessage()); }
         }
         // lessons.quiz_json (additive)
-        $lcols = [];
-        foreach (self::$pdo->query('PRAGMA table_info(lessons)') as $r) { $lcols[$r['name']] = true; }
-        if (!isset($lcols['quiz_json'])) { self::$pdo->exec("ALTER TABLE lessons ADD COLUMN quiz_json TEXT"); }
+        if (self::tableExists('lessons') && !self::columnExists('lessons', 'quiz_json')) {
+            try { self::$pdo->exec('ALTER TABLE lessons ADD COLUMN quiz_json TEXT'); }
+            catch (Throwable $e) { error_log('[db] add lessons.quiz_json: ' . $e->getMessage()); }
+        }
 
-        $n = (int) self::$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
-        if ($n === 0 && is_file(AV_ROOT . '/db/academy_content.php')) {
-            require_once AV_ROOT . '/db/academy_seed.php';
-            av_seed_courses(self::$pdo);
+        // Seed the starter catalogue once — best-effort, so a seed hiccup never
+        // aborts the schema migration above (which is what actually keeps the site up).
+        try {
+            $n = (int) self::$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
+            if ($n === 0 && is_file(AV_ROOT . '/db/academy_content.php')) {
+                require_once AV_ROOT . '/db/academy_seed.php';
+                av_seed_courses(self::$pdo);
+            }
+            $lc = (int) self::$pdo->query('SELECT COUNT(*) FROM lessons')->fetchColumn();
+            if ($lc === 0 && is_file(AV_ROOT . '/db/lessons_seed.php')) {
+                require_once AV_ROOT . '/db/lessons_seed.php';
+                av_seed_lessons(self::$pdo);
+            }
+        } catch (Throwable $e) { error_log('[db] academy seed skipped: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Additive schema sync for already-deployed MySQL/Postgres databases.
+     *
+     * applyServerSchema() only runs when the DB is empty (a fresh install), so a
+     * server database provisioned before a column/table was introduced would never
+     * pick it up — and any query touching the new column/table would 500. This runs
+     * the driver-aware ensure* steps (which use portable DDL) to fill those gaps.
+     * Version-gated on (SCHEMA_REV + schema.sql hash) so it is a single cheap SELECT
+     * once applied, and every step is wrapped so a hiccup is logged, never fatal.
+     */
+    private static function autoMigrateServer(): void
+    {
+        $stamp = 'srv:' . self::SCHEMA_REV . ':' . (@md5_file(AV_ROOT . '/db/schema.sql') ?: '0');
+        try { if (self::metaGet('schema_state') === $stamp) return; } catch (Throwable $e) { return; /* meta not ready */ }
+
+        foreach (['ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
+            try { self::$step(); } catch (Throwable $e) { error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
         }
-        $lc = (int) self::$pdo->query('SELECT COUNT(*) FROM lessons')->fetchColumn();
-        if ($lc === 0 && is_file(AV_ROOT . '/db/lessons_seed.php')) {
-            require_once AV_ROOT . '/db/lessons_seed.php';
-            av_seed_lessons(self::$pdo);
-        }
+        try { self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c')); }
+        catch (Throwable $e) { error_log('[db] record server schema_state: ' . $e->getMessage()); }
     }
 
     /** Add columns introduced after the first release (idempotent). */
@@ -450,6 +495,68 @@ final class Database
         return (bool) $st->fetchColumn();
     }
 
+    /**
+     * Idempotently create an index, portably. MySQL/MariaDB have no reliable
+     * `CREATE INDEX IF NOT EXISTS` (plain MySQL lacks it entirely; re-running a
+     * bare CREATE INDEX errors 1061 "Duplicate key name"), so on the mysql driver
+     * we check information_schema first. SQLite/Postgres use IF NOT EXISTS. Safe to
+     * call on every boot — this is how runtime ensure() steps add their indexes
+     * without 1061-spamming the log on server databases.
+     */
+    public static function ensureIndex(PDO $db, string $name, string $table, string $cols, bool $unique = false): void
+    {
+        $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $kind = $unique ? 'UNIQUE INDEX' : 'INDEX';
+        try {
+            if ($drv === 'mysql') {
+                $st = $db->prepare('SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1');
+                $st->execute([$table, $name]);
+                if ($st->fetchColumn()) return;
+                $db->exec("CREATE {$kind} {$name} ON {$table} ({$cols})");
+            } else {
+                $db->exec("CREATE {$kind} IF NOT EXISTS {$name} ON {$table} ({$cols})");
+            }
+        } catch (Throwable $e) { error_log('[db] ensureIndex ' . $name . ': ' . $e->getMessage()); }
+    }
+
+    /**
+     * Run a multi-statement schema DDL portably + IDEMPOTENTLY.
+     *
+     * The app's subsystems each ensure() their own tables/indexes at boot by
+     * exec()-ing a canonical SQLite DDL (translated per driver). That is safe to
+     * repeat on SQLite/Postgres (IF NOT EXISTS everywhere) but NOT on MySQL, where
+     * `CREATE INDEX IF NOT EXISTS` isn't supported — translateDDL strips the guard,
+     * so the second request onward errors 1061 "Duplicate key name" and can break
+     * the feature. This executes each statement individually and swallows the
+     * benign "already exists" family, so re-running an ensure() is always a no-op
+     * on every engine. Non-benign errors are logged, never thrown (ensures are
+     * best-effort). Use this instead of `$db->exec($drv==='sqlite'?$ddl:translate)`.
+     */
+    public static function execSchema(PDO $db, string $ddl): void
+    {
+        $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $sql = $drv === 'sqlite' ? $ddl : self::translateDDL($ddl, $drv);
+        // These schema DDLs never contain ';' inside a literal, so a plain split is
+        // safe (same approach as applyServerSchema()).
+        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
+            try { $db->exec($stmt); }
+            catch (Throwable $e) {
+                if (self::isBenignSchemaError($e)) continue;
+                error_log('[db] execSchema: ' . $e->getMessage() . ' :: ' . substr(preg_replace('/\s+/', ' ', $stmt), 0, 90));
+            }
+        }
+    }
+
+    /** True for "object already exists / duplicate" DDL errors that make an ensure() re-run a no-op. */
+    private static function isBenignSchemaError(Throwable $e): bool
+    {
+        $m = $e->getMessage();
+        // MySQL: 1050 table exists · 1060 dup column · 1061 dup key/index · 1826 dup FK.
+        // Postgres: 42P07 dup table · 42701 dup column · 42710 dup object.
+        // SQLite: "already exists".
+        return (bool) preg_match('/\b(1050|1060|1061|1826)\b|already exists|duplicate key name|duplicate column name|42P07|42701|42710/i', $m);
+    }
+
     /** Portable "current timestamp" SQL expression for runtime queries. */
     public static function nowExpr(): string
     {
@@ -525,7 +632,8 @@ final class Database
             // engine — frequently latin1 + MyISAM on shared cPanel hosting, which
             // truncates 4-byte emoji and drops foreign keys.
             $sql = preg_replace('/\n([ \t]*)\);/', "\n\$1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", $sql);
-            $sql = preg_replace('/CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE INDEX', $sql); // MySQL lacks IF NOT EXISTS on indexes
+            // MySQL lacks IF NOT EXISTS on indexes — strip it for both plain and UNIQUE indexes.
+            $sql = preg_replace('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE $1INDEX', $sql);
         }
         return $sql;
     }

@@ -309,7 +309,7 @@ final class LmsAuth
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
         );";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        try { $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv)); } catch (Throwable $e) {}
+        try { Database::execSchema($db, $ddl); } catch (Throwable $e) {}
         $done = true;
     }
 

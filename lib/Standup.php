@@ -26,7 +26,7 @@ final class Standup
         );
         CREATE INDEX IF NOT EXISTS idx_standup_day ON team_standups(day);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         $done = true;
     }
 

@@ -193,7 +193,7 @@ try {
             $u = LmsAuth::user();
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
             if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
-            json_out(['ok' => true, 'channels' => Community::CHAT_CHANNELS, 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0), 50, (string) ($_GET['channel'] ?? 'general'))]);
+            json_out(['ok' => true, 'channels' => Community::chatChannelLabels(), 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0), 50, (string) ($_GET['channel'] ?? 'general'))]);
         }
         case 'chat_send': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

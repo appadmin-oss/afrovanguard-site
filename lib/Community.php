@@ -64,10 +64,86 @@ final class Community
         );
         CREATE INDEX IF NOT EXISTS idx_cchat_feed ON community_chat(id);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         // Chat channels are a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
+        // Threads: a reply points at its parent message (0 = top-level).
+        try { if (!Database::columnExists('community_chat', 'parent_id')) $db->exec("ALTER TABLE community_chat ADD COLUMN parent_id INTEGER NOT NULL DEFAULT 0"); }
+        catch (Throwable $e) { /* already there */ }
+        // Pinned messages — a channel keeps a small set of pinned highlights.
+        try { if (!Database::columnExists('community_chat', 'pinned')) $db->exec("ALTER TABLE community_chat ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"); }
+        catch (Throwable $e) { /* already there */ }
+        // Edited marker + soft-delete flag (messages are never truly removed).
+        try { if (!Database::columnExists('community_chat', 'edited_at')) $db->exec("ALTER TABLE community_chat ADD COLUMN edited_at VARCHAR(32) NOT NULL DEFAULT ''"); }
+        catch (Throwable $e) {}
+        try { if (!Database::columnExists('community_chat', 'deleted')) $db->exec("ALTER TABLE community_chat ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0"); }
+        catch (Throwable $e) {}
+        // Saved items (bookmarks) — one row per (user,message).
+        try {
+            $sddl = "CREATE TABLE IF NOT EXISTS community_chat_saves (
+                user_id INTEGER NOT NULL, chat_id INTEGER NOT NULL, created_at VARCHAR(32) NOT NULL DEFAULT '',
+                PRIMARY KEY (user_id, chat_id)
+            );";
+            Database::execSchema($db, $sddl);
+        } catch (Throwable $e) {}
+        // Trash — a deleted message's ORIGINAL body, gzip-compressed and retained
+        // (compliance: nothing is ever truly deleted). Live row keeps deleted=1.
+        try {
+            $tddl2 = "CREATE TABLE IF NOT EXISTS community_chat_trash (
+                chat_id INTEGER PRIMARY KEY, channel VARCHAR(24) NOT NULL DEFAULT '', author_id INTEGER NOT NULL DEFAULT 0,
+                body_gz BLOB, deleted_by INTEGER NOT NULL DEFAULT 0, deleted_at VARCHAR(32) NOT NULL DEFAULT ''
+            );";
+            Database::execSchema($db, $tddl2);
+        } catch (Throwable $e) {}
+        // Dynamic chat channels (admin-managed spaces). Seeded with the built-in
+        // set; admins can add more, restrict membership, and toggle Google Chat.
+        try {
+            $cddl = "CREATE TABLE IF NOT EXISTS community_chat_channels (
+                ckey VARCHAR(32) PRIMARY KEY, label VARCHAR(60) NOT NULL DEFAULT '',
+                topic VARCHAR(200) NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 100,
+                is_private INTEGER NOT NULL DEFAULT 0, gchat_on INTEGER NOT NULL DEFAULT 0,
+                gchat_space VARCHAR(120) NOT NULL DEFAULT '', created_by INTEGER NOT NULL DEFAULT 0,
+                created_at VARCHAR(32) NOT NULL DEFAULT ''
+            );";
+            Database::execSchema($db, $cddl);
+            // Membership for private channels — one row per (channel,user).
+            $cmddl = "CREATE TABLE IF NOT EXISTS community_chat_channel_members (
+                channel VARCHAR(32) NOT NULL, user_id INTEGER NOT NULL,
+                created_at VARCHAR(32) NOT NULL DEFAULT '', PRIMARY KEY (channel, user_id)
+            );";
+            Database::execSchema($db, $cmddl);
+            // Seed the built-in channels once (idempotent per key).
+            if ((int) $db->query('SELECT COUNT(*) FROM community_chat_channels')->fetchColumn() === 0) {
+                $seed = $db->prepare('INSERT INTO community_chat_channels (ckey,label,topic,sort,is_private,created_at) VALUES (?,?,?,?,0,?)');
+                $now = gmdate('Y-m-d H:i:s'); $i = 0;
+                foreach (self::CHAT_CHANNELS_SEED as $k => $meta) {
+                    try { $seed->execute([$k, $meta[0], $meta[1], $i++, $now]); } catch (Throwable $e) {}
+                }
+            }
+        } catch (Throwable $e) {}
+        // Emoji reactions on chat messages (Slack-style). One row per (message,user,emoji).
+        try {
+            $rddl = "CREATE TABLE IF NOT EXISTS community_chat_reactions (
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                emoji VARCHAR(16) NOT NULL DEFAULT '',
+                created_at VARCHAR(32) NOT NULL DEFAULT '',
+                PRIMARY KEY (chat_id, user_id, emoji)
+            );";
+            Database::execSchema($db, $rddl);
+        } catch (Throwable $e) { /* already there */ }
+        // Typing indicators — one short-lived row per (user,channel), refreshed
+        // while a member is composing. Read back within a few seconds' window.
+        try {
+            $tddl = "CREATE TABLE IF NOT EXISTS community_typing (
+                user_id INTEGER NOT NULL,
+                channel VARCHAR(24) NOT NULL DEFAULT 'general',
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, channel)
+            );";
+            Database::execSchema($db, $tddl);
+        } catch (Throwable $e) { /* already there */ }
         // Data-classification is a later addition — add the column idempotently.
         try { if (!Database::columnExists('community_posts', 'classification')) $db->exec("ALTER TABLE community_posts ADD COLUMN classification VARCHAR(16) NOT NULL DEFAULT 'members'"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
@@ -75,9 +151,231 @@ final class Community
         if ($pdo === null) { self::seedSpaces($db); $done = true; self::seedWelcome($db); }
     }
 
-    /** The members-chat channels (fixed set, keeps the space tidy). */
-    const CHAT_CHANNELS = ['general' => 'General', 'announcements' => 'Announcements', 'mentorship' => 'Mentorship', 'random' => 'Random'];
-    private static function normChannel(string $c): string { $c = strtolower(trim($c)); return isset(self::CHAT_CHANNELS[$c]) ? $c : 'general'; }
+    /** Built-in channels used to seed the dynamic table on first run. */
+    const CHAT_CHANNELS_SEED = [
+        'general'       => ['General',       'The whole team — announcements, questions, wins.'],
+        'announcements' => ['Announcements', 'Official updates from the Afrovanguard team.'],
+        'mentorship'    => ['Mentorship',    'Mentors and mentees — sessions, notes, guidance.'],
+        'random'        => ['Random',        'Off-topic. Say hi, share a link, take a breather.'],
+    ];
+
+    /** Per-request cache of the channel table → [ckey => row]. */
+    private static ?array $channelCache = null;
+    private static function channelMap(): array
+    {
+        if (self::$channelCache !== null) return self::$channelCache;
+        self::ensure();
+        $map = [];
+        try {
+            $rows = Database::pdo()->query('SELECT ckey,label,topic,sort,is_private,gchat_on,gchat_space FROM community_chat_channels ORDER BY sort ASC, ckey ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $r) $map[(string) $r['ckey']] = $r;
+        } catch (Throwable $e) {}
+        if (!$map) { // pre-migration fallback: expose the built-ins
+            $i = 0;
+            foreach (self::CHAT_CHANNELS_SEED as $k => $meta) $map[$k] = ['ckey' => $k, 'label' => $meta[0], 'topic' => $meta[1], 'sort' => $i++, 'is_private' => 0, 'gchat_on' => 0, 'gchat_space' => ''];
+        }
+        return self::$channelCache = $map;
+    }
+
+    /** A valid channel key, defaulting to the first available channel. */
+    private static function normChannel(string $c): string
+    {
+        $c = strtolower(trim($c));
+        $map = self::channelMap();
+        if (isset($map[$c])) return $c;
+        return array_key_first($map) ?: 'general';
+    }
+
+    /** True when $uid may read/post in $channel (public, member, or admin). */
+    public static function canAccessChannel(int $uid, string $channel): bool
+    {
+        $channel = self::normChannel($channel);
+        $map = self::channelMap();
+        $row = $map[$channel] ?? null;
+        if (!$row || (int) ($row['is_private'] ?? 0) !== 1) return true;   // public
+        if (self::isAdmin($uid)) return true;
+        try {
+            $st = Database::pdo()->prepare('SELECT 1 FROM community_chat_channel_members WHERE channel = ? AND user_id = ?');
+            $st->execute([$channel, $uid]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** Channel list the viewer can see, each with latest message id (for unread dots). */
+    public static function chatChannels(int $viewerId = 0): array
+    {
+        $map = self::channelMap();
+        $last = [];
+        try {
+            $rows = Database::pdo()->query('SELECT channel, MAX(id) AS mx FROM community_chat GROUP BY channel')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $r) $last[(string) $r['channel']] = (int) $r['mx'];
+        } catch (Throwable $e) {}
+        $admin = $viewerId > 0 && self::isAdmin($viewerId);
+        $out = [];
+        foreach ($map as $key => $row) {
+            $private = (int) ($row['is_private'] ?? 0) === 1;
+            if ($private && !$admin && !self::canAccessChannel($viewerId, $key)) continue;
+            $out[] = [
+                'key'     => $key,
+                'label'   => (string) $row['label'],
+                'topic'   => (string) ($row['topic'] ?? ''),
+                'private' => $private,
+                'gchat'   => (int) ($row['gchat_on'] ?? 0) === 1,
+                'last_id' => $last[$key] ?? 0,
+                'can_admin' => $admin,
+            ];
+        }
+        return $out;
+    }
+
+    /** Topic map (ckey => topic) for the UI, derived from the channel table. */
+    public static function chatTopics(): array
+    {
+        $out = [];
+        foreach (self::channelMap() as $k => $row) $out[$k] = (string) ($row['topic'] ?? '');
+        return $out;
+    }
+
+    /** Legacy key=>label map (public channels only) for the older community view. */
+    public static function chatChannelLabels(): array
+    {
+        $out = [];
+        foreach (self::channelMap() as $k => $row) {
+            if ((int) ($row['is_private'] ?? 0) === 1) continue;
+            $out[$k] = (string) $row['label'];
+        }
+        return $out;
+    }
+
+    /**
+     * Org members for the chat members rail: mentors first, then everyone else,
+     * each with role + live presence. Uses the Collab presence heartbeat so the
+     * green dots match "who's online".
+     */
+    public static function chatMembers(int $viewerId, int $limit = 60): array
+    {
+        self::ensure();
+        try {
+            $like = self::orgEmailLike();
+            $window = class_exists('Collab') ? 180 : 180;   // seconds → "online"
+            $cut = time() - $window;
+            $sql = "SELECT u.id, u.name, u.email, u.role,
+                           (SELECT p.last_seen FROM presence p WHERE p.user_id = u.id) AS last_seen
+                    FROM lms_users u
+                    WHERE u.status = 'active' AND LOWER(u.email) LIKE ? AND u.email <> ?
+                    ORDER BY u.name ASC LIMIT " . max(1, min(200, $limit));
+            $st = Database::pdo()->prepare($sql);
+            $st->execute([$like, self::BOT_EMAIL]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatMembers: ' . $e->getMessage()); return ['mentors' => [], 'members' => [], 'online' => 0]; }
+        $mentorRoles = ['mentor', 'instructor', 'coordinator', 'admin'];
+        $mentors = []; $members = []; $online = 0;
+        foreach ($rows as $r) {
+            $role = strtolower((string) ($r['role'] ?? 'member'));
+            $isOnline = ((int) ($r['last_seen'] ?? 0)) >= $cut;
+            if ($isOnline) $online++;
+            $name = (string) $r['name'];
+            $m = [
+                'id'      => (int) $r['id'],
+                'name'    => $name,
+                'initial' => mb_strtoupper(mb_substr($name, 0, 1)),
+                'role'    => $role,
+                'online'  => $isOnline,
+                'is_me'   => (int) $r['id'] === $viewerId,
+            ];
+            if (in_array($role, $mentorRoles, true)) $mentors[] = $m; else $members[] = $m;
+        }
+        // Online first within each group.
+        $byOnline = fn($a, $b) => ($b['online'] <=> $a['online']) ?: strcmp($a['name'], $b['name']);
+        usort($mentors, $byOnline); usort($members, $byOnline);
+        return ['mentors' => $mentors, 'members' => $members, 'online' => $online];
+    }
+
+    /* ── Typing indicators ─────────────────────────────────────────── */
+    public static function setTyping(int $uid, string $channel): void
+    {
+        if ($uid <= 0) return;
+        self::ensure();
+        $channel = self::normChannel($channel);
+        $now = time();
+        try {
+            $db = Database::pdo();
+            $n = $db->prepare('UPDATE community_typing SET updated_at = ? WHERE user_id = ? AND channel = ?');
+            $n->execute([$now, $uid, $channel]);
+            if ($n->rowCount() === 0) {
+                try { $db->prepare('INSERT INTO community_typing (user_id, channel, updated_at) VALUES (?,?,?)')->execute([$uid, $channel, $now]); }
+                catch (Throwable $e) { /* raced */ }
+            }
+        } catch (Throwable $e) {}
+    }
+
+    /** Names of members typing in $channel within the last few seconds (excl. viewer). */
+    public static function whoTyping(int $viewerId, string $channel): array
+    {
+        self::ensure();
+        $channel = self::normChannel($channel);
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT u.name FROM community_typing t JOIN lms_users u ON u.id = t.user_id
+                 WHERE t.channel = ? AND t.updated_at >= ? AND t.user_id <> ? ORDER BY t.updated_at DESC LIMIT 5"
+            );
+            $st->execute([$channel, time() - 6, $viewerId]);
+            return array_map(fn($n) => (string) $n, $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        } catch (Throwable $e) { return []; }
+    }
+
+    private static function clearTyping(int $uid, string $channel): void
+    {
+        try { Database::pdo()->prepare('DELETE FROM community_typing WHERE user_id = ? AND channel = ?')->execute([$uid, self::normChannel($channel)]); }
+        catch (Throwable $e) {}
+    }
+
+    /* ── "Catch me up" — AI recap of recent channel activity ───────── */
+    public static function chatAiAvailable(): bool
+    {
+        return (class_exists('AvBot') && AvBot::configured()) || (class_exists('Gemini') && Gemini::configured());
+    }
+
+    /**
+     * Summarise the recent conversation in a channel into a few crisp bullets:
+     * decisions, questions still open, and any action items. Returns
+     * ['ok'=>bool, 'summary'=>string, 'error'=>?string]. Uses whichever AI key
+     * is configured (Claude first, else Gemini).
+     */
+    public static function chatRecap(int $viewerId, string $channel, int $limit = 40): array
+    {
+        self::ensure();
+        if (!self::canChat($viewerId)) return ['ok' => false, 'summary' => '', 'error' => 'Sign in to use chat.'];
+        if (!self::chatAiAvailable()) return ['ok' => false, 'summary' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).'];
+        $channel = self::normChannel($channel);
+        $msgs = self::chatList($viewerId, 0, max(10, min(80, $limit)), $channel);
+        if (count($msgs) < 2) return ['ok' => false, 'summary' => '', 'error' => 'Not enough messages to summarise yet.'];
+        $transcript = '';
+        foreach ($msgs as $m) {
+            $transcript .= $m['author'] . ': ' . trim(mb_substr((string) $m['body'], 0, 500)) . "\n";
+            if (!empty($m['reply_count'])) $transcript .= '  (' . $m['reply_count'] . ' thread replies)' . "\n";
+        }
+        $system = <<<SYS
+You catch a busy member up on a team chat channel. Read the transcript and produce a SHORT briefing in Markdown with these sections (omit a section if it has nothing):
+**TL;DR** — 1-2 sentences.
+**Decisions** — bullets of what was decided.
+**Open questions** — bullets of anything unresolved or awaiting someone.
+**Action items** — bullets as "who — what" when an owner is clear.
+Be concise and factual. Do NOT invent anything not in the transcript. No preamble.
+SYS;
+        $prompt = "Channel: #{$channel}\n\nTranscript (oldest first):\n" . mb_substr($transcript, 0, 11000);
+
+        $res = null; $via = '';
+        if (class_exists('AvBot') && AvBot::configured()) {
+            $res = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => 700]); $via = 'claude';
+            if (empty($res['ok']) && class_exists('Gemini') && Gemini::configured()) $res = null;
+        }
+        if ($res === null && class_exists('Gemini') && Gemini::configured()) {
+            $res = Gemini::generate($prompt, ['system' => $system, 'max_tokens' => 700, 'temperature' => 0.2]); $via = 'gemini';
+        }
+        if (!$res || empty($res['ok'])) return ['ok' => false, 'summary' => '', 'error' => (string) ($res['error'] ?? 'AI request failed.')];
+        return ['ok' => true, 'summary' => trim((string) $res['text']), 'error' => null, 'via' => $via];
+    }
 
     /** Data-classification levels for posts (least → most sensitive). */
     const CLASSES = ['public' => 'Public', 'members' => 'Members-only', 'confidential' => 'Confidential'];
@@ -350,6 +648,17 @@ final class Community
         } catch (Throwable $e) { return false; }
     }
 
+    /**
+     * Who may take part in Team Chat — strictly @afrovanguard members (verified
+     * org accounts / role ≥ member). The community forum stays public; chat does
+     * not. (Kept as its own method so callers read intent, and so the policy can
+     * evolve without touching every call site.)
+     */
+    public static function canChat(int $uid): bool
+    {
+        return self::isOrgMember($uid);
+    }
+
     /** The org-domain SQL fragment (driver-portable: '%@domain'). The bot is an
      *  org-domain account but is excluded from the directory (it's not a person). */
     private static function orgEmailLike(): string
@@ -463,23 +772,38 @@ final class Community
      * raw body, and notifies each mentioned member best-effort. Returns the
      * shaped message (with resolved mentions) or null on failure — never throws.
      */
-    public static function chatSend(int $authorId, string $body, string $channel = 'general'): ?array
+    public static function chatSend(int $authorId, string $body, string $channel = 'general', int $parentId = 0): ?array
     {
         self::ensure();
         $body = trim($body);
         if ($body === '' || $authorId <= 0) return null;
-        if (!self::isOrgMember($authorId)) return null; // server-side gate (defence-in-depth)
+        if (!self::canChat($authorId)) return null; // server-side gate (defence-in-depth)
         $body = mb_substr($body, 0, 2000);
         $channel = self::normChannel($channel);
+        if (!self::canAccessChannel($authorId, $channel)) return null;   // private channel gate
+        // A reply must point at a real top-level message; it inherits its channel.
+        $parentId = max(0, $parentId);
+        if ($parentId > 0) {
+            try {
+                $p = Database::pdo()->prepare('SELECT channel, parent_id FROM community_chat WHERE id = ?');
+                $p->execute([$parentId]);
+                $pr = $p->fetch(PDO::FETCH_ASSOC);
+                if (!$pr || (int) $pr['parent_id'] !== 0) { $parentId = 0; }   // ignore replies-to-replies / missing
+                else { $channel = self::normChannel((string) $pr['channel']); }
+            } catch (Throwable $e) { $parentId = 0; }
+        }
         try {
             $db = Database::pdo();
-            $db->prepare('INSERT INTO community_chat (author_id, body, channel, created_at) VALUES (?,?,?,?)')
-               ->execute([$authorId, $body, $channel, gmdate('Y-m-d H:i:s')]);
+            $db->prepare('INSERT INTO community_chat (author_id, body, channel, parent_id, created_at) VALUES (?,?,?,?,?)')
+               ->execute([$authorId, $body, $channel, $parentId, gmdate('Y-m-d H:i:s')]);
             $id = (int) $db->lastInsertId();
         } catch (Throwable $e) {
             error_log('[community] chatSend: ' . $e->getMessage());
             return null;
         }
+        self::clearTyping($authorId, $channel);   // stop showing "X is typing" once sent
+        // Mirror to Google Chat (best-effort) when a webhook is configured.
+        try { self::mirrorToGoogleChat($channel, $authorId, $body, $parentId); } catch (Throwable $e) { error_log('[community] gchat mirror: ' . $e->getMessage()); }
         // Resolve + notify mentions (best-effort; failure never blocks the send).
         try {
             $mentions = self::resolveMentions($body, $authorId);
@@ -499,18 +823,19 @@ final class Community
     public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50, string $channel = 'general'): array
     {
         self::ensure();
-        if (!self::isOrgMember($viewerId)) return [];
+        if (!self::canChat($viewerId)) return [];
         $limit = max(1, min(100, $limit));
         $channel = self::normChannel($channel);
+        if (!self::canAccessChannel($viewerId, $channel)) return [];
         try {
             $db = Database::pdo();
             if ($sinceId > 0) {
-                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.parent_id = 0 AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
                 $st->execute([$channel, $sinceId]);
                 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
             } else {
-                // Most recent $limit, returned ascending (oldest→newest) so the UI appends.
-                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? ORDER BY c.id DESC LIMIT ' . $limit);
+                // Most recent $limit top-level messages, ascending (oldest→newest) so the UI appends.
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.parent_id = 0 ORDER BY c.id DESC LIMIT ' . $limit);
                 $st->execute([$channel]);
                 $rows = array_reverse($st->fetchAll(PDO::FETCH_ASSOC) ?: []);
             }
@@ -518,11 +843,47 @@ final class Community
             error_log('[community] chatList: ' . $e->getMessage());
             return [];
         }
-        return array_map(fn($r) => self::shapeChat($r, $viewerId), $rows);
+        $msgs = self::attachReactions(array_map(fn($r) => self::shapeChat($r, $viewerId), $rows), $viewerId);
+        return self::attachSaves(self::attachThreadMeta($msgs), $viewerId);
+    }
+
+    /** A thread: replies to $parentId (ascending). $sinceId for cheap live polling. */
+    public static function chatThread(int $viewerId, int $parentId, int $sinceId = 0, int $limit = 100): array
+    {
+        self::ensure();
+        if (!self::canChat($viewerId) || $parentId <= 0) return [];
+        $limit = max(1, min(200, $limit));
+        try {
+            $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.parent_id = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+            $st->execute([$parentId, max(0, $sinceId)]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatThread: ' . $e->getMessage()); return []; }
+        return self::attachSaves(self::attachReactions(array_map(fn($r) => self::shapeChat($r, $viewerId), $rows), $viewerId), $viewerId);
+    }
+
+    /** Attach reply_count + last reply time to a page of top-level messages. */
+    private static function attachThreadMeta(array $msgs): array
+    {
+        if (!$msgs) return $msgs;
+        $ids = array_map(fn($m) => (int) $m['id'], $msgs);
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        $meta = [];
+        try {
+            $st = Database::pdo()->prepare('SELECT parent_id, COUNT(*) AS n, MAX(created_at) AS last FROM community_chat WHERE parent_id IN (' . $place . ') GROUP BY parent_id');
+            $st->execute($ids);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $meta[(int) $r['parent_id']] = ['n' => (int) $r['n'], 'last' => (string) $r['last']];
+        } catch (Throwable $e) {}
+        foreach ($msgs as &$m) {
+            $mm = $meta[(int) $m['id']] ?? null;
+            $m['reply_count'] = $mm ? $mm['n'] : 0;
+            $m['last_reply']  = $mm ? self::ago($mm['last']) : '';
+        }
+        unset($m);
+        return $msgs;
     }
 
     private const CHAT_SELECT =
-        'SELECT c.id, c.body, c.author_id, c.created_at, u.name AS author, u.email AS author_email
+        'SELECT c.id, c.body, c.author_id, c.created_at, c.parent_id, c.pinned, c.edited_at, c.deleted, u.name AS author, u.email AS author_email
          FROM community_chat c JOIN lms_users u ON u.id = c.author_id';
 
     private static function chatOne(int $id, int $viewerId): ?array
@@ -531,7 +892,11 @@ final class Community
             $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.id = ?');
             $st->execute([$id]);
             $r = $st->fetch(PDO::FETCH_ASSOC);
-            return $r ? self::shapeChat($r, $viewerId) : null;
+            if (!$r) return null;
+            $m = self::shapeChat($r, $viewerId);
+            $rx = self::reactionsFor([(int) $m['id']], $viewerId);
+            $m['reactions'] = $rx[(int) $m['id']] ?? [];
+            return $m;
         } catch (Throwable $e) { return null; }
     }
 
@@ -541,19 +906,430 @@ final class Community
         $name  = (string) $r['author'];
         $email = (string) $r['author_email'];
         $org   = class_exists('LmsAuth') && LmsAuth::isOrgEmail($email);
-        $body  = (string) $r['body'];
+        $deleted = (int) ($r['deleted'] ?? 0) === 1;
+        $body  = $deleted ? '' : (string) $r['body'];
         return [
             'id'         => (int) $r['id'],
             'author_id'  => (int) $r['author_id'],
             'author'     => $name,
             'initial'    => mb_strtoupper(mb_substr($name, 0, 1)),
             'body'       => $body,
-            'mentions'   => self::resolveMentions($body, 0),
+            'mentions'   => $deleted ? [] : self::resolveMentions($body, 0),
             'verified'   => $org,
             'is_me'      => (int) $r['author_id'] === $viewerId,
             'created_at' => (string) $r['created_at'],
             'ago'        => self::ago((string) $r['created_at']),
+            'reactions'  => [],
+            'parent_id'  => (int) ($r['parent_id'] ?? 0),
+            'reply_count'=> 0,
+            'last_reply' => '',
+            'pinned'     => (int) ($r['pinned'] ?? 0) === 1,
+            'edited'     => !$deleted && (string) ($r['edited_at'] ?? '') !== '',
+            'deleted'    => $deleted,
+            'saved'      => false,
         ];
+    }
+
+    /** Attach per-viewer 'saved' flags to a page of shaped messages. */
+    private static function attachSaves(array $msgs, int $viewerId): array
+    {
+        if (!$msgs || $viewerId <= 0) return $msgs;
+        $ids = array_map(fn($m) => (int) $m['id'], $msgs);
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        $saved = [];
+        try {
+            $st = Database::pdo()->prepare('SELECT chat_id FROM community_chat_saves WHERE user_id = ? AND chat_id IN (' . $place . ')');
+            $st->execute(array_merge([$viewerId], $ids));
+            foreach (($st->fetchAll(PDO::FETCH_COLUMN) ?: []) as $cid) $saved[(int) $cid] = true;
+        } catch (Throwable $e) {}
+        foreach ($msgs as &$m) { $m['saved'] = isset($saved[(int) $m['id']]); }
+        unset($m);
+        return $msgs;
+    }
+
+    /** Pin / unpin a top-level message in its channel. Returns the new state or null. */
+    public static function chatPin(int $uid, int $chatId, bool $pin): ?bool
+    {
+        self::ensure();
+        if ($uid <= 0 || $chatId <= 0 || !self::canChat($uid)) return null;
+        try {
+            $st = Database::pdo()->prepare('SELECT parent_id FROM community_chat WHERE id = ?');
+            $st->execute([$chatId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r || (int) $r['parent_id'] !== 0) return null;   // only top-level messages
+            Database::pdo()->prepare('UPDATE community_chat SET pinned = ? WHERE id = ?')->execute([$pin ? 1 : 0, $chatId]);
+        } catch (Throwable $e) { error_log('[community] chatPin: ' . $e->getMessage()); return null; }
+        return $pin;
+    }
+
+    /** Pinned messages in a channel, newest first. */
+    public static function chatPins(int $viewerId, string $channel): array
+    {
+        self::ensure();
+        if (!self::canChat($viewerId)) return [];
+        $channel = self::normChannel($channel);
+        try {
+            $st = Database::pdo()->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.pinned = 1 AND c.parent_id = 0 ORDER BY c.id DESC LIMIT 20');
+            $st->execute([$channel]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { return []; }
+        return array_map(fn($r) => self::shapeChat($r, $viewerId), $rows);
+    }
+
+    /** Search chat messages by text (optionally within one channel). */
+    public static function chatSearch(int $viewerId, string $q, string $channel = '', int $limit = 30): array
+    {
+        self::ensure();
+        $q = trim($q);
+        if (!self::canChat($viewerId) || mb_strlen($q) < 2) return [];
+        $limit = max(1, min(50, $limit));
+        $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+        try {
+            if ($channel !== '' && isset(self::channelMap()[strtolower($channel)])) {
+                $st = Database::pdo()->prepare(self::CHAT_SELECT . " WHERE c.channel = ? AND c.body LIKE ? ESCAPE '\\' ORDER BY c.id DESC LIMIT " . $limit);
+                $st->execute([self::normChannel($channel), $like]);
+            } else {
+                $st = Database::pdo()->prepare(self::CHAT_SELECT . " WHERE c.body LIKE ? ESCAPE '\\' ORDER BY c.id DESC LIMIT " . $limit);
+                $st->execute([$like]);
+            }
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatSearch: ' . $e->getMessage()); return []; }
+        return array_map(function ($r) use ($viewerId) {
+            $m = self::shapeChat($r, $viewerId);
+            $m['channel'] = (string) ($r['channel'] ?? '');
+            return $m;
+        }, $rows);
+    }
+
+    /* ── Edit / save / soft-delete ─────────────────────────────────── */
+
+    /**
+     * Edit a message's body. Author-only (or admin). Records an edited_at marker.
+     * Returns the reshaped message or null. Deleted messages can't be edited.
+     */
+    public static function chatEdit(int $uid, int $chatId, string $newBody): ?array
+    {
+        self::ensure();
+        $newBody = trim(mb_substr(trim($newBody), 0, 2000));
+        if ($uid <= 0 || $chatId <= 0 || $newBody === '' || !self::canChat($uid)) return null;
+        try {
+            $st = Database::pdo()->prepare('SELECT author_id, deleted FROM community_chat WHERE id = ?');
+            $st->execute([$chatId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r || (int) ($r['deleted'] ?? 0) === 1) return null;
+            if ((int) $r['author_id'] !== $uid && !self::isAdmin($uid)) return null;   // author or admin
+            Database::pdo()->prepare('UPDATE community_chat SET body = ?, edited_at = ? WHERE id = ?')
+                ->execute([$newBody, gmdate('Y-m-d H:i:s'), $chatId]);
+        } catch (Throwable $e) { error_log('[community] chatEdit: ' . $e->getMessage()); return null; }
+        return self::chatOne($chatId, $uid);
+    }
+
+    /** Bookmark / un-bookmark a message for the viewer. Returns the new saved state or null. */
+    public static function chatSave(int $uid, int $chatId, bool $save): ?bool
+    {
+        self::ensure();
+        if ($uid <= 0 || $chatId <= 0 || !self::canChat($uid)) return null;
+        try {
+            $db = Database::pdo();
+            if ($save) {
+                $ex = $db->prepare('SELECT 1 FROM community_chat_saves WHERE user_id = ? AND chat_id = ?');
+                $ex->execute([$uid, $chatId]);
+                if (!$ex->fetchColumn()) {
+                    try { $db->prepare('INSERT INTO community_chat_saves (user_id, chat_id, created_at) VALUES (?,?,?)')->execute([$uid, $chatId, gmdate('Y-m-d H:i:s')]); }
+                    catch (Throwable $e) { /* raced */ }
+                }
+            } else {
+                $db->prepare('DELETE FROM community_chat_saves WHERE user_id = ? AND chat_id = ?')->execute([$uid, $chatId]);
+            }
+        } catch (Throwable $e) { error_log('[community] chatSave: ' . $e->getMessage()); return null; }
+        return $save;
+    }
+
+    /** The viewer's saved (bookmarked) messages, newest-saved first. */
+    public static function chatSaved(int $uid, int $limit = 100): array
+    {
+        self::ensure();
+        if ($uid <= 0 || !self::canChat($uid)) return [];
+        $limit = max(1, min(200, $limit));
+        try {
+            $sql = 'SELECT c.id, c.body, c.author_id, c.created_at, c.parent_id, c.pinned, c.edited_at, c.deleted, c.channel,
+                           u.name AS author, u.email AS author_email
+                    FROM community_chat_saves s
+                    JOIN community_chat c ON c.id = s.chat_id
+                    JOIN lms_users u ON u.id = c.author_id
+                    WHERE s.user_id = ? ORDER BY s.created_at DESC LIMIT ' . $limit;
+            $st = Database::pdo()->prepare($sql);
+            $st->execute([$uid]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[community] chatSaved: ' . $e->getMessage()); return []; }
+        $msgs = self::attachReactions(array_map(function ($r) use ($uid) {
+            $m = self::shapeChat($r, $uid);
+            $m['channel'] = (string) ($r['channel'] ?? '');
+            $m['saved']   = true;
+            return $m;
+        }, $rows), $uid);
+        return $msgs;
+    }
+
+    /**
+     * Soft-delete a message. Nothing is ever truly removed: the original body is
+     * gzip-compressed into community_chat_trash and the live row is flagged
+     * deleted=1 (its body cleared, so it renders as a tombstone). Author or admin.
+     */
+    public static function chatDelete(int $uid, int $chatId): ?array
+    {
+        self::ensure();
+        if ($uid <= 0 || $chatId <= 0 || !self::canChat($uid)) return null;
+        try {
+            $db = Database::pdo();
+            $st = $db->prepare('SELECT author_id, body, channel, deleted FROM community_chat WHERE id = ?');
+            $st->execute([$chatId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return null;
+            if ((int) ($r['deleted'] ?? 0) === 1) return self::chatOne($chatId, $uid);   // already gone
+            if ((int) $r['author_id'] !== $uid && !self::isAdmin($uid)) return null;
+            // Retain the original, compressed, in the trash (compliance).
+            $gz = function_exists('gzencode') ? gzencode((string) $r['body'], 6) : (string) $r['body'];
+            try {
+                $ins = $db->prepare('INSERT INTO community_chat_trash (chat_id, channel, author_id, body_gz, deleted_by, deleted_at) VALUES (?,?,?,?,?,?)');
+                $ins->bindValue(1, $chatId, PDO::PARAM_INT);
+                $ins->bindValue(2, (string) $r['channel']);
+                $ins->bindValue(3, (int) $r['author_id'], PDO::PARAM_INT);
+                $ins->bindValue(4, $gz, PDO::PARAM_LOB);
+                $ins->bindValue(5, $uid, PDO::PARAM_INT);
+                $ins->bindValue(6, gmdate('Y-m-d H:i:s'));
+                $ins->execute();
+            } catch (Throwable $e) { /* trash row may already exist — keep going */ }
+            $db->prepare("UPDATE community_chat SET deleted = 1, body = '' WHERE id = ?")->execute([$chatId]);
+        } catch (Throwable $e) { error_log('[community] chatDelete: ' . $e->getMessage()); return null; }
+        return self::chatOne($chatId, $uid);
+    }
+
+    /* ── Admin: dynamic channel management ─────────────────────────── */
+
+    /** Slugify a proposed channel name into a safe, unique-ish key. */
+    private static function slugChannel(string $name): string
+    {
+        $s = strtolower(trim($name));
+        $s = preg_replace('/[^a-z0-9]+/', '-', $s) ?? $s;
+        $s = trim($s, '-');
+        return mb_substr($s === '' ? 'channel' : $s, 0, 32);
+    }
+
+    /**
+     * Create a channel (admin-only). Optionally private with an explicit member
+     * list, and optionally wired to a Google Chat space. Returns the channel row
+     * (as chatChannels() shape) or null.
+     */
+    public static function chatCreateChannel(int $uid, string $label, string $topic = '', bool $private = false, array $memberIds = [], bool $gchatOn = false, string $gchatSpace = ''): ?array
+    {
+        self::ensure();
+        if (!self::isAdmin($uid)) return null;
+        $label = trim(mb_substr(trim($label), 0, 60));
+        if ($label === '') return null;
+        $key = self::slugChannel($label);
+        try {
+            $db = Database::pdo();
+            // Ensure uniqueness — append a numeric suffix on collision.
+            $base = $key; $n = 1;
+            while (true) {
+                $ex = $db->prepare('SELECT 1 FROM community_chat_channels WHERE ckey = ?');
+                $ex->execute([$key]);
+                if (!$ex->fetchColumn()) break;
+                $key = mb_substr($base, 0, 28) . '-' . (++$n);
+                if ($n > 50) return null;
+            }
+            $sort = (int) $db->query('SELECT COALESCE(MAX(sort),0)+1 FROM community_chat_channels')->fetchColumn();
+            $db->prepare('INSERT INTO community_chat_channels (ckey,label,topic,sort,is_private,gchat_on,gchat_space,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+               ->execute([$key, $label, trim(mb_substr($topic, 0, 200)), $sort, $private ? 1 : 0, $gchatOn ? 1 : 0, trim(mb_substr($gchatSpace, 0, 120)), $uid, gmdate('Y-m-d H:i:s')]);
+        } catch (Throwable $e) { error_log('[community] chatCreateChannel: ' . $e->getMessage()); return null; }
+        self::$channelCache = null;
+        if ($private) {
+            $ids = array_values(array_unique(array_map('intval', $memberIds)));
+            if (!in_array($uid, $ids, true)) $ids[] = $uid;   // creator is always a member
+            self::chatSetMembers($uid, $key, $ids);
+        }
+        foreach (self::chatChannels($uid) as $c) if ($c['key'] === $key) return $c;
+        return ['key' => $key, 'label' => $label, 'topic' => $topic, 'private' => $private, 'gchat' => $gchatOn, 'last_id' => 0, 'can_admin' => true];
+    }
+
+    /** Update a channel's topic / privacy / Google Chat wiring (admin-only). */
+    public static function chatUpdateChannel(int $uid, string $channel, array $patch): ?array
+    {
+        self::ensure();
+        if (!self::isAdmin($uid)) return null;
+        $channel = strtolower(trim($channel));
+        if (!isset(self::channelMap()[$channel])) return null;
+        $sets = []; $args = [];
+        if (array_key_exists('label', $patch) && trim((string) $patch['label']) !== '') { $sets[] = 'label = ?'; $args[] = trim(mb_substr((string) $patch['label'], 0, 60)); }
+        if (array_key_exists('topic', $patch)) { $sets[] = 'topic = ?'; $args[] = trim(mb_substr((string) $patch['topic'], 0, 200)); }
+        if (array_key_exists('private', $patch)) { $sets[] = 'is_private = ?'; $args[] = !empty($patch['private']) ? 1 : 0; }
+        if (array_key_exists('gchat_on', $patch)) { $sets[] = 'gchat_on = ?'; $args[] = !empty($patch['gchat_on']) ? 1 : 0; }
+        if (array_key_exists('gchat_space', $patch)) { $sets[] = 'gchat_space = ?'; $args[] = trim(mb_substr((string) $patch['gchat_space'], 0, 120)); }
+        if (!$sets) return null;
+        $args[] = $channel;
+        try { Database::pdo()->prepare('UPDATE community_chat_channels SET ' . implode(', ', $sets) . ' WHERE ckey = ?')->execute($args); }
+        catch (Throwable $e) { error_log('[community] chatUpdateChannel: ' . $e->getMessage()); return null; }
+        self::$channelCache = null;
+        foreach (self::chatChannels($uid) as $c) if ($c['key'] === $channel) return $c;
+        return null;
+    }
+
+    /** Replace a private channel's member set (admin-only). */
+    public static function chatSetMembers(int $uid, string $channel, array $memberIds): bool
+    {
+        self::ensure();
+        if (!self::isAdmin($uid)) return false;
+        $channel = strtolower(trim($channel));
+        if (!isset(self::channelMap()[$channel])) return false;
+        $ids = array_values(array_unique(array_filter(array_map('intval', $memberIds), fn($v) => $v > 0)));
+        try {
+            $db = Database::pdo();
+            $db->prepare('DELETE FROM community_chat_channel_members WHERE channel = ?')->execute([$channel]);
+            $ins = $db->prepare('INSERT INTO community_chat_channel_members (channel, user_id, created_at) VALUES (?,?,?)');
+            $now = gmdate('Y-m-d H:i:s');
+            foreach ($ids as $id) { try { $ins->execute([$channel, $id, $now]); } catch (Throwable $e) {} }
+        } catch (Throwable $e) { error_log('[community] chatSetMembers: ' . $e->getMessage()); return false; }
+        return true;
+    }
+
+    /** The user ids that are members of a private channel (admin-only view). */
+    public static function chatChannelMembers(int $uid, string $channel): array
+    {
+        self::ensure();
+        if (!self::isAdmin($uid)) return [];
+        $channel = strtolower(trim($channel));
+        try {
+            $st = Database::pdo()->prepare('SELECT user_id FROM community_chat_channel_members WHERE channel = ?');
+            $st->execute([$channel]);
+            return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        } catch (Throwable $e) { return []; }
+    }
+
+    /* ── Google Chat mirror (post AS the author, via the Chat API) ─────
+     * Posting is done through Google Workspace domain-wide delegation, so the
+     * message appears in the space authored by the member (who is signed in via
+     * Google) — NOT by an anonymous webhook bot. It is enabled per channel by an
+     * admin (community_chat_channels.gchat_on + gchat_space). A legacy incoming
+     * webhook is still honoured as a fallback for hosts without delegation. */
+
+    /** Whether author-posting to Google Chat is possible at all (delegation set up). */
+    public static function googleChatLinked(): bool
+    {
+        if (class_exists('GoogleWorkspace') && method_exists('GoogleWorkspace', 'chatConfigured') && GoogleWorkspace::chatConfigured()) return true;
+        // Legacy webhook fallback.
+        $cfg = fn(string $k) => class_exists('Config') ? Config::str($k, '') : (string) (getenv($k) ?: '');
+        return trim($cfg('AV_GCHAT_WEBHOOK')) !== '';
+    }
+
+    /** The Google Chat space configured for a channel by an admin, or ''. */
+    private static function channelGchatSpace(string $channel): string
+    {
+        $row = self::channelMap()[self::normChannel($channel)] ?? null;
+        if (!$row || (int) ($row['gchat_on'] ?? 0) !== 1) return '';
+        return trim((string) ($row['gchat_space'] ?? ''));
+    }
+
+    /**
+     * Mirror a chat message into its channel's Google Chat space, posting AS the
+     * author (domain-wide delegation impersonates the member's @org address).
+     * Best-effort, non-blocking. Only fires when an admin has toggled Google Chat
+     * on for the channel and set a space id. Falls back to a legacy webhook.
+     */
+    private static function mirrorToGoogleChat(string $channel, int $authorId, string $body, int $parentId): void
+    {
+        $space = self::channelGchatSpace($channel);
+        if ($space === '') return;
+        $text = mb_substr($body, 0, 3500) . ($parentId > 0 ? "\n_(thread reply)_" : '');
+        // Preferred path: post as the author via the Chat API (member is Google-signed).
+        if (class_exists('GoogleWorkspace') && method_exists('GoogleWorkspace', 'postChatMessage') && GoogleWorkspace::chatConfigured()) {
+            $email = self::emailOfUser($authorId);
+            if ($email !== '') { try { GoogleWorkspace::postChatMessage($space, $email, $text); return; } catch (Throwable $e) { error_log('[community] gchat author post: ' . $e->getMessage()); } }
+        }
+        // Legacy fallback: an incoming webhook (posts as an app, not the author).
+        $cfg = fn(string $k) => class_exists('Config') ? Config::str($k, '') : (string) (getenv($k) ?: '');
+        $hook = trim($cfg('AV_GCHAT_WEBHOOK_' . strtoupper($channel))) ?: trim($cfg('AV_GCHAT_WEBHOOK'));
+        if ($hook === '' || strpos($hook, 'chat.googleapis.com') === false || !function_exists('curl_init')) return;
+        $payload = json_encode(['text' => '*' . self::nameOfUser($authorId) . '* in #' . $channel . ":\n" . $text], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $ch = curl_init($hook);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json; charset=UTF-8'],
+            CURLOPT_TIMEOUT => 6, CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    }
+
+    private static function emailOfUser(int $uid): string
+    {
+        try { $s = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?'); $s->execute([$uid]); return strtolower(trim((string) ($s->fetchColumn() ?: ''))); }
+        catch (Throwable $e) { return ''; }
+    }
+
+    private static function nameOfUser(int $uid): string
+    {
+        try { $s = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $s->execute([$uid]); return (string) ($s->fetchColumn() ?: 'A member'); }
+        catch (Throwable $e) { return 'A member'; }
+    }
+
+    /** Emoji allowed as reactions (a curated Slack-style quick set). */
+    const REACT_EMOJI = ['👍', '❤️', '🎉', '🙌', '🔥', '✅', '👀', '😂'];
+
+    /**
+     * Toggle an emoji reaction on a chat message (org-only). Returns the updated
+     * reaction list for that message: [{emoji,count,mine}], or null on failure.
+     */
+    public static function chatReact(int $uid, int $chatId, string $emoji): ?array
+    {
+        self::ensure();
+        if ($uid <= 0 || $chatId <= 0 || !self::canChat($uid)) return null;
+        if (!in_array($emoji, self::REACT_EMOJI, true)) return null;
+        try {
+            $db = Database::pdo();
+            $has = $db->prepare('SELECT 1 FROM community_chat_reactions WHERE chat_id = ? AND user_id = ? AND emoji = ?');
+            $has->execute([$chatId, $uid, $emoji]);
+            if ($has->fetchColumn()) {
+                $db->prepare('DELETE FROM community_chat_reactions WHERE chat_id = ? AND user_id = ? AND emoji = ?')->execute([$chatId, $uid, $emoji]);
+            } else {
+                $db->prepare('INSERT INTO community_chat_reactions (chat_id, user_id, emoji, created_at) VALUES (?,?,?,?)')
+                   ->execute([$chatId, $uid, $emoji, gmdate('Y-m-d H:i:s')]);
+            }
+        } catch (Throwable $e) { error_log('[community] chatReact: ' . $e->getMessage()); return null; }
+        $out = self::reactionsFor([$chatId], $uid);
+        return $out[$chatId] ?? [];
+    }
+
+    /** Batch-load reactions for a set of message ids → [chatId => [{emoji,count,mine}]]. */
+    private static function reactionsFor(array $chatIds, int $viewerId): array
+    {
+        $chatIds = array_values(array_unique(array_map('intval', $chatIds)));
+        if (!$chatIds) return [];
+        $place = implode(',', array_fill(0, count($chatIds), '?'));
+        try {
+            $st = Database::pdo()->prepare(
+                'SELECT chat_id, emoji, COUNT(*) AS n, MAX(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS mine
+                 FROM community_chat_reactions WHERE chat_id IN (' . $place . ') GROUP BY chat_id, emoji ORDER BY n DESC, emoji ASC'
+            );
+            $st->execute(array_merge([$viewerId], $chatIds));
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $cid = (int) $row['chat_id'];
+                $out[$cid][] = ['emoji' => (string) $row['emoji'], 'count' => (int) $row['n'], 'mine' => (int) $row['mine'] === 1];
+            }
+            return $out;
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** Attach reactions to a page of shaped messages (in place). */
+    private static function attachReactions(array $msgs, int $viewerId): array
+    {
+        if (!$msgs) return $msgs;
+        $ids = array_map(fn($m) => (int) $m['id'], $msgs);
+        $byId = self::reactionsFor($ids, $viewerId);
+        foreach ($msgs as &$m) { $m['reactions'] = $byId[(int) $m['id']] ?? []; }
+        unset($m);
+        return $msgs;
     }
 
     /**
@@ -616,16 +1392,23 @@ final class Community
     /** Email each mentioned member (best-effort, reusing Mailer like Mentorship). */
     private static function notifyMentions(array $mentions, int $authorId, string $body, int $msgId): void
     {
-        if (!class_exists('Mailer')) return;
+        // In-app push always fires below; email only when a transport is configured.
+        $canEmail = class_exists('Mailer') && Mailer::configured();
         try {
             $a = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?'); $a->execute([$authorId]);
             $authorName = (string) ($a->fetchColumn() ?: 'A member');
         } catch (Throwable $e) { $authorName = 'A member'; }
         $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
-        $url  = $site . '/portal/#community';
+        $url  = $site . '/portal/#chat';
         $excerpt = mb_substr(trim($body), 0, 240);
         foreach ($mentions as $mn) {
             if ((int) $mn['id'] === $authorId) continue; // no self-notify
+            // In-app notification (the bell), so a tag lands even without email.
+            if (class_exists('Notifications')) {
+                try { Notifications::push((int) $mn['id'], 'mention', $authorName . ' mentioned you', $excerpt, '/portal/#chat', 'chatmention:' . $msgId . ':' . (int) $mn['id']); }
+                catch (Throwable $e) {}
+            }
+            if (!$canEmail) continue;
             try {
                 $s = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
                 $s->execute([(int) $mn['id']]);

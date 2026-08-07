@@ -30,7 +30,7 @@ final class Collab
             last_seen INTEGER NOT NULL DEFAULT 0
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /** Record a heartbeat for the user. status: online | away | busy. */
@@ -98,7 +98,7 @@ final class Collab
             created_at TEXT NOT NULL DEFAULT ''
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
     }
 
     /** Append a team-activity entry (best-effort). */
@@ -158,9 +158,13 @@ final class Collab
             created_at TEXT NOT NULL DEFAULT ''
         )";
         $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($pdo, $ddl);
         // Priority is a later addition — add it idempotently.
         try { if (!Database::columnExists('collab_tasks', 'priority')) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN priority VARCHAR(8) NOT NULL DEFAULT 'normal'"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
+        // goal_id links a task back to the goal it advances (AI-generated tasks
+        // set this); 0 = standalone. Added idempotently.
+        try { if (!Database::columnExists('collab_tasks', 'goal_id')) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN goal_id INTEGER NOT NULL DEFAULT 0"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
     }
 
@@ -168,24 +172,184 @@ final class Collab
     private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
 
     /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal'): int
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0): int
     {
         $title = trim(mb_substr(trim($title), 0, 300));
         if ($creatorId <= 0 || $title === '') return 0;
         self::ensureTasks();
         $assignee = $assigneeId > 0 ? $assigneeId : $creatorId;
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
-        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, created_at) VALUES (?,?,?,0,?,?,?)')
-            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), gmdate('Y-m-d H:i:s')]);
+        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, created_at) VALUES (?,?,?,0,?,?,?,?)')
+            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), gmdate('Y-m-d H:i:s')]);
         $newId = (int) Database::pdo()->lastInsertId();
-        // Notify the assignee when a task is delegated to them (not self-assigned).
+        // Notify + email the assignee when a task is delegated to them (not self-assigned).
         if ($assignee !== $creatorId && class_exists('Notifications')) {
             try {
                 Notifications::push($assignee, 'task', 'New task: ' . $title,
                     'Assigned to you by ' . self::nameOf($creatorId) . '.', '/portal/#tasks', 'task:' . $newId);
+                Notifications::email($assignee, 'You’ve been assigned a task: ' . $title,
+                    self::nameOf($creatorId) . ' assigned you a task' . ($due !== '' ? ' (due ' . $due . ')' : '') . '. Open the portal to pick it up.', '/portal/#tasks');
             } catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
         return $newId;
+    }
+
+    /**
+     * Post a task to the shared org pool — unassigned (assignee_id = 0), so any
+     * member can claim it. Returns the new id or 0. Logs to the team activity
+     * feed so the pool feels alive.
+     */
+    public static function addPoolTask(int $creatorId, string $title, string $due = '', string $priority = 'normal', int $goalId = 0): int
+    {
+        $title = trim(mb_substr(trim($title), 0, 300));
+        if ($creatorId <= 0 || $title === '') return 0;
+        self::ensureTasks();
+        $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
+        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, created_at) VALUES (?,0,?,0,?,?,?,?)')
+            ->execute([$creatorId, $title, $due, self::normPriority($priority), max(0, $goalId), gmdate('Y-m-d H:i:s')]);
+        $newId = (int) Database::pdo()->lastInsertId();
+        self::log($creatorId, self::nameOf($creatorId), 'posted a task to the pool', $title, '/portal/#tasks');
+        return $newId;
+    }
+
+    /**
+     * Claim an open pool task for a member. Atomic: only succeeds if the task is
+     * still unassigned and not done, so two members can't grab the same one.
+     * Returns the claimed task (shaped) or null.
+     */
+    public static function claimTask(int $uid, int $taskId): ?array
+    {
+        self::ensureTasks();
+        if ($uid <= 0 || $taskId <= 0) return null;
+        $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ? WHERE id = ? AND assignee_id = 0 AND done = 0');
+        $st->execute([$uid, $taskId]);
+        if ($st->rowCount() === 0) return null;   // already claimed / done / gone
+        $task = self::oneTask($uid, $taskId);
+        if ($task) self::log($uid, self::nameOf($uid), 'claimed a task', $task['title'], '/portal/#tasks');
+        return $task;
+    }
+
+    /**
+     * Release a task back to the pool (assignee_id = 0). Allowed for the current
+     * assignee or the creator. Returns true if it went back.
+     */
+    public static function releaseTask(int $uid, int $taskId): bool
+    {
+        self::ensureTasks();
+        if ($uid <= 0 || $taskId <= 0) return false;
+        $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = 0 WHERE id = ? AND done = 0 AND (assignee_id = ? OR creator_id = ?)');
+        $st->execute([$taskId, $uid, $uid]);
+        return $st->rowCount() > 0;
+    }
+
+    /* ────────────────────── AI: goal → tasks ─────────────────────── */
+
+    /** True when ANY AI backend is wired up — Claude (AvBot) or Gemini. */
+    public static function aiAvailable(): bool
+    {
+        return (class_exists('AvBot') && AvBot::configured())
+            || (class_exists('Gemini') && Gemini::configured());
+    }
+
+    /**
+     * One text completion through whichever AI key is configured: Claude first
+     * (best instruction-following), else Gemini. Same ['ok','text','error']
+     * shape from either, plus 'via' for diagnostics. Callers don't care which.
+     */
+    private static function aiComplete(string $system, string $prompt, int $maxTokens = 900): array
+    {
+        if (class_exists('AvBot') && AvBot::configured()) {
+            $r = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => $maxTokens]);
+            $r['via'] = 'claude';
+            if (!empty($r['ok'])) return $r;
+            // Fall through to Gemini if Claude errored AND Gemini is available.
+            if (!(class_exists('Gemini') && Gemini::configured())) return $r;
+        }
+        if (class_exists('Gemini') && Gemini::configured()) {
+            $r = Gemini::generate($prompt, ['system' => $system, 'max_tokens' => $maxTokens, 'temperature' => 0.3]);
+            $r['via'] = 'gemini';
+            return $r;
+        }
+        return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).', 'via' => ''];
+    }
+
+    /**
+     * Ask the AI to break a goal into concrete, actionable tasks and drop them
+     * into the shared pool (linked to the goal). Returns
+     * ['ok'=>bool, 'created'=>[…shaped tasks…], 'error'=>?string, 'suggested'=>N].
+     *
+     * The tasks are posted UNCLAIMED so the team can divide the work — exactly
+     * the "AI creates tasks from goals, anyone can take them up" flow.
+     */
+    public static function aiTasksFromGoal(int $uid, int $goalId, int $max = 6): array
+    {
+        if ($uid <= 0) return ['ok' => false, 'created' => [], 'error' => 'Sign in first.'];
+        if (!self::aiAvailable()) return ['ok' => false, 'created' => [], 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).'];
+        if (!class_exists('Goals')) return ['ok' => false, 'created' => [], 'error' => 'Goals are unavailable.'];
+        $goal = Goals::get($goalId);
+        if (!$goal || $goal['title'] === '') return ['ok' => false, 'created' => [], 'error' => 'Goal not found.'];
+        $max = max(1, min(10, $max));
+
+        $today = gmdate('Y-m-d');
+        $system = <<<SYS
+You are an operations planner for Afrovanguard, a Pan-African nonprofit. You turn a team GOAL into a short list of concrete, actionable tasks the team can divide up and complete.
+
+Rules:
+- Return BETWEEN 3 AND {$max} tasks. Each must be a single, clearly-scoped action a member could pick up and finish — start the title with a verb (e.g. "Draft…", "Contact…", "Design…").
+- Order them in the sensible sequence to do the work.
+- Set a realistic "days" value: the number of days FROM TODAY the task should be done by (spread them out; earlier tasks get smaller numbers). Today is {$today}.
+- priority is one of: high, normal, low.
+- Do NOT invent specific external facts, names, or figures. Keep titles under 120 characters.
+
+Respond with ONLY a JSON array, no prose, no code fences. Shape:
+[{"title":"...","priority":"high|normal|low","days":<integer 1-60>}]
+SYS;
+
+        $prompt = 'GOAL: ' . $goal['title']
+            . ($goal['target'] !== '' ? "\nTARGET / SUCCESS METRIC: " . $goal['target'] : '')
+            . "\n\nBreak this goal into tasks now.";
+
+        $res = self::aiComplete($system, $prompt, 900);
+        if (empty($res['ok'])) return ['ok' => false, 'created' => [], 'error' => (string) ($res['error'] ?? 'AI request failed.')];
+        $via = (string) ($res['via'] ?? '');
+
+        $items = self::parseAiTasks((string) $res['text']);
+        if (!$items) return ['ok' => false, 'created' => [], 'error' => 'The AI did not return usable tasks. Try again.'];
+
+        $created = [];
+        foreach (array_slice($items, 0, $max) as $it) {
+            $title = trim(mb_substr((string) ($it['title'] ?? ''), 0, 300));
+            if ($title === '') continue;
+            $days = (int) ($it['days'] ?? 0);
+            $due  = ($days > 0 && $days <= 400) ? gmdate('Y-m-d', strtotime($today . ' +' . $days . ' days') ?: time()) : '';
+            $pri  = self::normPriority((string) ($it['priority'] ?? 'normal'));
+            $id = self::addPoolTask($uid, $title, $due, $pri, $goalId);
+            if ($id > 0) { $t = self::oneTask($uid, $id); if ($t) $created[] = $t; }
+        }
+        if (!$created) return ['ok' => false, 'created' => [], 'error' => 'Could not create tasks.'];
+        return ['ok' => true, 'created' => $created, 'error' => null, 'suggested' => count($items), 'via' => $via];
+    }
+
+    /** Tolerantly parse the AI's JSON task array (handles stray prose / code fences). */
+    private static function parseAiTasks(string $text): array
+    {
+        $text = trim($text);
+        // Strip ```json … ``` fences if the model added them.
+        $text = (string) preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $text);
+        $decoded = json_decode($text, true);
+        if (!is_array($decoded)) {
+            // Last resort: grab the first [...] block.
+            if (preg_match('/\[.*\]/s', $text, $m)) $decoded = json_decode($m[0], true);
+        }
+        if (!is_array($decoded)) return [];
+        // Accept either a bare array or {"tasks":[...]}.
+        if (isset($decoded['tasks']) && is_array($decoded['tasks'])) $decoded = $decoded['tasks'];
+        $out = [];
+        foreach ($decoded as $row) {
+            if (is_string($row)) { $out[] = ['title' => $row, 'priority' => 'normal', 'days' => 0]; continue; }
+            if (is_array($row) && isset($row['title'])) $out[] = $row;
+        }
+        return $out;
     }
 
     /** Toggle done — only the assignee or creator may. Returns the new state (or null). */
@@ -196,6 +360,7 @@ final class Collab
         if (!$t) return null;
         $new = $t['done'] ? 0 : 1;
         Database::pdo()->prepare('UPDATE collab_tasks SET done = ? WHERE id = ?')->execute([$new, $taskId]);
+        if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
         return (bool) $new;
     }
 
@@ -218,28 +383,76 @@ final class Collab
              ORDER BY done ASC, CASE WHEN due = '' THEN 1 ELSE 0 END ASC, due ASC, id DESC LIMIT " . $limit
         );
         $st->execute([$uid, $uid]);
-        $out = [];
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $assignee = (int) $r['assignee_id'];
-            $creator  = (int) $r['creator_id'];
-            $due = (string) $r['due'];
-            $overdue = $due !== '' && !$r['done'] && $due < gmdate('Y-m-d');
-            $out[] = [
-                'id'       => (int) $r['id'],
-                'title'    => (string) $r['title'],
-                'done'     => (bool) $r['done'],
-                'due'      => $due,
-                'overdue'  => $overdue,
-                'priority' => self::normPriority((string) ($r['priority'] ?? 'normal')),
-                'mine'     => $assignee === $uid,
-                // Allocation context for the UI.
-                'assignee_id'   => $assignee,
-                'assignee_name' => $assignee === $uid ? 'You' : self::nameOf($assignee),
-                'assigned_out'  => $creator === $uid && $assignee !== $uid, // I gave this to someone
-                'creator_name'  => $creator === $uid ? 'You' : self::nameOf($creator),
-            ];
-        }
-        return $out;
+        return array_map(fn($r) => self::shapeTask($r, $uid), $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /**
+     * The shared org task pool — unclaimed, still-open tasks anyone can pick up.
+     * High priority and soonest deadlines first. This is the org-wide view, not
+     * scoped to one member.
+     */
+    public static function poolTasks(int $limit = 60): array
+    {
+        self::ensureTasks();
+        $limit = max(1, min(200, $limit));
+        // Priority weight high→normal→low, then soonest due (undated last).
+        $st = Database::pdo()->prepare(
+            "SELECT * FROM collab_tasks WHERE assignee_id = 0 AND done = 0
+             ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END ASC,
+                      CASE WHEN due = '' THEN 1 ELSE 0 END ASC, due ASC, id DESC LIMIT " . $limit
+        );
+        $st->execute();
+        return array_map(fn($r) => self::shapeTask($r, 0), $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /** One shaped task, visible to $uid (pool tasks are visible to everyone). */
+    public static function oneTask(int $uid, int $taskId): ?array
+    {
+        self::ensureTasks();
+        $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ?');
+        $st->execute([$taskId]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        return $r ? self::shapeTask($r, $uid) : null;
+    }
+
+    /** Turn a raw collab_tasks row into the shape the portal UI expects. */
+    private static function shapeTask(array $r, int $uid): array
+    {
+        $assignee = (int) $r['assignee_id'];
+        $creator  = (int) $r['creator_id'];
+        $due = (string) $r['due'];
+        $goalId = (int) ($r['goal_id'] ?? 0);
+        $overdue = $due !== '' && !$r['done'] && $due < gmdate('Y-m-d');
+        return [
+            'id'       => (int) $r['id'],
+            'title'    => (string) $r['title'],
+            'done'     => (bool) $r['done'],
+            'due'      => $due,
+            'overdue'  => $overdue,
+            'priority' => self::normPriority((string) ($r['priority'] ?? 'normal')),
+            'open'     => $assignee === 0,                       // in the pool, unclaimed
+            'mine'     => $assignee === $uid && $assignee !== 0,
+            // Allocation context for the UI.
+            'assignee_id'   => $assignee,
+            'assignee_name' => $assignee === 0 ? 'Unclaimed' : ($assignee === $uid ? 'You' : self::nameOf($assignee)),
+            'assigned_out'  => $creator === $uid && $assignee !== $uid && $assignee !== 0, // I gave this to someone
+            'creator_id'    => $creator,
+            'creator_name'  => $creator === $uid ? 'You' : self::nameOf($creator),
+            'goal_id'       => $goalId,
+            'goal_title'    => $goalId > 0 ? self::goalTitle($goalId) : '',
+        ];
+    }
+
+    /** Title of a linked goal (cached per request). */
+    private static function goalTitle(int $goalId): string
+    {
+        static $cache = [];
+        if (isset($cache[$goalId])) return $cache[$goalId];
+        try {
+            $st = Database::pdo()->prepare('SELECT title FROM team_goals WHERE id = ?');
+            $st->execute([$goalId]);
+            return $cache[$goalId] = (string) ($st->fetchColumn() ?: '');
+        } catch (Throwable $e) { return $cache[$goalId] = ''; }
     }
 
     /** Members who can be assigned a task (org members), for the allocation picker. */

@@ -40,7 +40,7 @@ final class AppTokens
         );
         CREATE INDEX IF NOT EXISTS idx_apptokens_hash ON app_tokens(token_hash);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        Database::execSchema($db, $ddl);
         $done = true;
     }
 

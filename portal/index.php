@@ -118,8 +118,10 @@ $nav = [
     ],
 ];
 if ($isOrg) {
+    // Team Chat is strictly for @afrovanguard members.
     $nav['Work'] = [
         ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
+        ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
 }
@@ -228,8 +230,8 @@ $nav['You'] = [
               <p class="phead-sub"><?= $isOrg ? "Here’s what’s happening across your Afrovanguard workspace today." : 'Pick up where you left off in your learning.' ?></p>
             </div>
             <div class="phead-actions">
-<?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">＋ New event</a>
-              <a class="pbtn pbtn-ghost" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer">＋ New doc</a>
+<?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="#tasks" data-goto="tasks">＋ New task</a>
+              <button type="button" class="pbtn pbtn-ghost" id="openMeetModal">🎥 Schedule meeting</button>
               <a class="pbtn pbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">▶ Start a Meet</a>
 <?php else: ?>              <a class="pbtn pbtn-gold" href="/academy/">Browse the Academy →</a>
 <?php endif; ?>            </div>
@@ -297,6 +299,22 @@ $nav['You'] = [
 
           <div class="pcols">
             <div class="pcol pcol--main">
+<?php if ($isOrg): ?>
+              <!-- Your calendar — today + what's coming, with meeting links -->
+              <section class="pcard" id="todayCal" data-csrf="<?= e($collabCsrf) ?>">
+                <div class="pcard-head">
+                  <div class="task-head-l">
+                    <h2>Your calendar</h2>
+                    <span class="task-head-sub" id="calSummary">Next 14 days</span>
+                  </div>
+                  <a class="pcard-link" href="#tools" data-goto="tools">Open calendar →</a>
+                </div>
+                <div class="pcard-body">
+                  <div class="cal-week" id="calWeek" aria-hidden="true"></div>
+                  <div class="cal-agenda" id="calAgenda"><p class="pc-empty">Loading your calendar…</p></div>
+                </div>
+              </section>
+<?php endif; ?>
               <!-- Your journey -->
               <section class="pcard">
                 <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
@@ -323,9 +341,9 @@ $nav['You'] = [
                 <div class="pcard-body"><div class="online-list" id="onlineList"><p class="pc-empty">Just you so far.</p></div></div>
               </section>
 
-              <!-- Recent activity -->
+              <!-- Team activity — task pool, claims and completions -->
               <section class="pcard">
-                <div class="pcard-head"><h2>Recent activity</h2></div>
+                <div class="pcard-head"><h2>Team activity</h2><a class="pcard-link" href="#tasks" data-goto="tasks">Tasks →</a></div>
                 <div class="pcard-body"><ul class="activity-list" id="activityList"><li class="pc-empty">Loading…</li></ul></div>
               </section>
 <?php endif; ?>
@@ -344,6 +362,34 @@ $nav['You'] = [
             </div>
           </div>
         </section>
+
+<?php if ($isOrg): ?>
+        <!-- Schedule-a-meeting modal (creates a Google Meet + calendar invite) -->
+        <div class="pm-scrim" id="meetScrim" hidden>
+          <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="meetModalTitle" id="meetModal" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pm-head"><h2 id="meetModalTitle">Schedule a meeting</h2><button type="button" class="pm-x" id="meetClose" aria-label="Close">✕</button></div>
+            <form id="meetForm" class="pm-body" autocomplete="off">
+              <label class="pm-f"><span>Title</span><input type="text" id="mmTitle" maxlength="200" required placeholder="e.g. Clean-up drive planning"></label>
+              <div class="pm-row">
+                <label class="pm-f"><span>When</span><input type="datetime-local" id="mmWhen" required></label>
+                <label class="pm-f pm-f--sm"><span>Duration</span>
+                  <select id="mmDur"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option></select>
+                </label>
+                <label class="pm-f pm-f--sm"><span>Repeats</span>
+                  <select id="mmFreq"><option value="once" selected>Once</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select>
+                </label>
+              </div>
+              <label class="pm-f"><span>Invite (comma-separated emails)</span><input type="text" id="mmAtt" placeholder="ada@afrovanguard.org.ng, bode@…"></label>
+              <label class="pm-f"><span>Agenda <small>(optional)</small></span><textarea id="mmAgenda" rows="2" maxlength="2000" placeholder="What we’ll cover…"></textarea></label>
+              <p class="pm-msg" id="mmMsg" hidden></p>
+              <div class="pm-actions">
+                <button type="button" class="pbtn pbtn-ghost" id="meetCancel">Cancel</button>
+                <button type="submit" class="pbtn pbtn-gold" id="mmSubmit">Create meeting &amp; Meet link</button>
+              </div>
+            </form>
+          </div>
+        </div>
+<?php endif; ?>
 
         <!-- ============================================================ -->
         <!-- TOOLS  (Afrovanguard first-party productivity apps)          -->
@@ -661,9 +707,57 @@ $nav['You'] = [
         <!-- ============================================================ -->
         <section class="pview" id="view-tasks" data-view="tasks" hidden>
           <div class="view-head">
-            <div><h1>Tasks</h1><p class="view-sub">Plan your work, set due dates and priorities, and assign to teammates.</p></div>
+            <div><h1>Tasks</h1><p class="view-sub">Plan the work, share it with the team, and let AI turn goals into a plan. Anyone can claim an open task.</p></div>
           </div>
+
+          <!-- AI: turn a goal into a plan of tasks (dropped into the pool) -->
+          <section class="pcard task-ai" id="taskAi" data-csrf="<?= e($collabCsrf) ?>" hidden>
+            <div class="pcard-head">
+              <h2>✨ Plan a goal with AI</h2>
+              <span class="pchip pchip--indigo">Beta</span>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Pick a team goal — AI breaks it into concrete tasks with deadlines and posts them to the pool for anyone to pick up.</p>
+              <div class="task-ai-row">
+                <label class="task-af task-af--grow"><span>Goal</span>
+                  <select id="aiGoal" aria-label="Goal to plan"><option value="">Loading goals…</option></select>
+                </label>
+                <label class="task-af"><span>Up to</span>
+                  <select id="aiMax" aria-label="How many tasks">
+                    <option value="4">4 tasks</option>
+                    <option value="6" selected>6 tasks</option>
+                    <option value="8">8 tasks</option>
+                  </select>
+                </label>
+                <button type="button" class="pbtn pbtn-gold" id="aiGenerate">Generate tasks</button>
+              </div>
+              <p class="task-ai-msg" id="aiMsg" hidden></p>
+            </div>
+          </section>
+
+          <!-- The shared task pool — open, unclaimed work anyone can take up -->
+          <section class="pcard" id="taskPool" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head">
+              <h2>Task pool</h2>
+              <span class="pchip pchip--gold" id="poolCount">0 open</span>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Unclaimed work the team needs done. Claim one to make it yours — it moves into your list below.</p>
+              <ul class="task-list task-pool-list" id="poolList"><li class="pc-empty task-empty">Loading the pool…</li></ul>
+            </div>
+          </section>
+
           <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head task-head">
+              <div class="task-head-l">
+                <h2>My tasks</h2>
+                <span class="task-head-sub" id="taskFocusTxt">Loading…</span>
+              </div>
+              <div class="task-focus" id="taskFocus" title="Today’s progress" hidden>
+                <span class="task-ring" id="taskRing" style="--pct:0"><span class="task-ring-n" id="taskRingN">0</span></span>
+                <span class="task-focus-cap">left<br>today</span>
+              </div>
+            </div>
             <div class="pcard-body">
               <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
                 <input type="text" id="taskInput" name="title" maxlength="300" placeholder="What needs doing?" aria-label="Task">
@@ -679,6 +773,7 @@ $nav['You'] = [
                   <label class="task-af"><span>Assign</span>
                     <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
                   </label>
+                  <label class="task-af task-af--check"><input type="checkbox" id="taskPool"> <span>Open to anyone (pool)</span></label>
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
@@ -693,7 +788,139 @@ $nav['You'] = [
             </div>
           </section>
         </section>
-<?php endif; ?>
+
+        <!-- ============================================================ -->
+        <!-- TEAM CHAT  (Slack-style native channels — @afrovanguard only)-->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-chat" data-view="chat" hidden>
+          <div class="view-head">
+            <div><h1>Team Chat</h1><p class="view-sub">Talk to the team in real time. Channels, @mentions and reactions — always on, no app to open.</p></div>
+          </div>
+          <section class="pcard tc-card" id="teamChat" data-csrf="<?= e($collabCsrf) ?>" data-me="<?= e($pInitials) ?>">
+            <div class="tc">
+              <!-- Channel rail -->
+              <aside class="tc-rail" aria-label="Channels">
+                <div class="tc-search">
+                  <svg class="tc-search-ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.9"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                  <input type="search" id="tcSearch" placeholder="Search messages…" aria-label="Search messages" autocomplete="off">
+                  <div class="tc-search-results" id="tcSearchResults" hidden></div>
+                </div>
+                <div class="tc-rail-h">Channels<button type="button" class="tc-addch" id="tcAddChannel" title="New channel" aria-label="New channel" hidden>+</button></div>
+                <ul class="tc-channels" id="tcChannels"><li class="pc-empty">Loading…</li></ul>
+                <button type="button" class="tc-saved-btn" id="tcSavedBtn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 4h12v16l-6-4-6 4V4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  <span>Saved items</span>
+                </button>
+                <button type="button" class="tc-catchup" id="tcCatchup" hidden>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5 14 8.5 20 10 14 11.5 12 17.5 10 11.5 4 10 10 8.5 12 2.5Z" fill="currentColor"/></svg>
+                  <span>Catch me up</span>
+                </button>
+              </aside>
+              <!-- Conversation -->
+              <div class="tc-main">
+                <div class="tc-topbar">
+                  <span class="tc-ch-ico">#</span>
+                  <div class="tc-ch-meta">
+                    <div class="tc-ch-title"><b id="tcChannelName">general</b><span class="tc-ch-count" id="tcMemberCount"></span></div>
+                    <div class="tc-ch-topic" id="tcTopic"></div>
+                  </div>
+                  <button type="button" class="tc-pinbtn" id="tcPinBtn" hidden aria-label="Pinned messages">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 17v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    <span id="tcPinCount">0</span>
+                  </button>
+                  <button type="button" class="tc-pinbtn tc-chset" id="tcChannelSettings" hidden aria-label="Channel settings" title="Channel settings">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  </button>
+                  <span class="tc-presence"><span class="dot-live"></span><span id="tcPresence">0</span> online</span>
+                </div>
+                <div class="tc-pinned" id="tcPinned" hidden></div>
+                <div class="tc-stream" id="tcStream"><p class="pc-empty">Loading messages…</p></div>
+                <div class="tc-typing" id="tcTyping" hidden></div>
+                <form class="tc-compose tc-compose--float" id="tcCompose" autocomplete="off">
+                  <div class="tc-mentions" id="tcMentions" hidden></div>
+                  <div class="tc-editbar" id="tcEditBar" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg> Editing message <button type="button" class="tc-editcancel" id="tcEditCancel">cancel</button></div>
+                  <div class="tc-rte" id="tcInput" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message" data-ph="Message #general — use @ to mention"></div>
+                  <div class="tc-compose-bar">
+                    <div class="tc-fmtbar" role="toolbar" aria-label="Text formatting">
+                      <button type="button" class="tc-fmt" data-cmd="bold" title="Bold — Ctrl+B" aria-label="Bold"><b>B</b></button>
+                      <button type="button" class="tc-fmt" data-cmd="italic" title="Italic — Ctrl+I" aria-label="Italic"><i>I</i></button>
+                      <button type="button" class="tc-fmt" data-cmd="strike" title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+                      <span class="tc-fmtsep" aria-hidden="true"></span>
+                      <button type="button" class="tc-fmt" data-cmd="ul" title="Bulleted list" aria-label="Bulleted list"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="3.6" cy="6" r="1.4" fill="currentColor"/><circle cx="3.6" cy="12" r="1.4" fill="currentColor"/><circle cx="3.6" cy="18" r="1.4" fill="currentColor"/></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="ol" title="Numbered list" aria-label="Numbered list"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M10 6h11M10 12h11M10 18h11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><text x="2" y="8.5" font-size="8" font-weight="700" fill="currentColor">1</text><text x="2" y="14.5" font-size="8" font-weight="700" fill="currentColor">2</text><text x="2" y="20.5" font-size="8" font-weight="700" fill="currentColor">3</text></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="quote" title="Quote" aria-label="Quote"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M6 5v14M10 8h8M10 12h8M10 16h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+                      <span class="tc-fmtsep" aria-hidden="true"></span>
+                      <button type="button" class="tc-fmt" data-cmd="code" title="Inline code" aria-label="Inline code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 8 5 12l4 4M15 8l4 4-4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="codeblock" title="Code block" aria-label="Code block"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M9 9 7 12l2 3M15 9l2 3-2 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      <button type="button" class="tc-fmt" data-cmd="link" title="Link" aria-label="Link"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    </div>
+                    <button type="submit" class="pbtn pbtn-gold tc-send" aria-label="Send message"><span>Send</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                  </div>
+                </form>
+                <!-- Thread drawer -->
+                <div class="tc-thread" id="tcThread" hidden aria-label="Thread">
+                  <div class="tc-thread-h"><span>Thread</span><button type="button" class="pm-x" id="tcThreadClose" aria-label="Close thread">✕</button></div>
+                  <div class="tc-thread-body" id="tcThreadBody"></div>
+                  <form class="tc-compose tc-thread-compose" id="tcThreadForm" autocomplete="off">
+                    <div class="tc-mentions" id="tcThreadMentions" hidden></div>
+                    <div class="tc-rte tc-rte--sm" id="tcThreadInput" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Reply" data-ph="Reply… use @ to mention"></div>
+                    <div class="tc-compose-bar">
+                      <div class="tc-fmtbar" role="toolbar" aria-label="Text formatting">
+                        <button type="button" class="tc-fmt" data-cmd="bold" title="Bold — Ctrl+B" aria-label="Bold"><b>B</b></button>
+                        <button type="button" class="tc-fmt" data-cmd="italic" title="Italic — Ctrl+I" aria-label="Italic"><i>I</i></button>
+                        <button type="button" class="tc-fmt" data-cmd="code" title="Inline code" aria-label="Inline code"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 8 5 12l4 4M15 8l4 4-4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                        <button type="button" class="tc-fmt" data-cmd="link" title="Link" aria-label="Link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                      </div>
+                      <button type="submit" class="pbtn pbtn-gold tc-send">Reply</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              <!-- Members rail -->
+              <aside class="tc-members" id="tcMembers" aria-label="Members"><p class="pc-empty">Loading…</p></aside>
+            </div>
+          </section>
+
+          <!-- Catch-me-up recap modal -->
+          <div class="pm-scrim" id="recapScrim" hidden>
+            <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="recapTitle">
+              <div class="pm-head"><h2 id="recapTitle">✨ Catch me up</h2><button type="button" class="pm-x" id="recapClose" aria-label="Close">✕</button></div>
+              <div class="pm-body"><div class="tc-recap" id="recapBody"><p class="pc-empty">Summarising the channel…</p></div></div>
+            </div>
+          </div>
+
+          <!-- Saved items modal -->
+          <div class="pm-scrim" id="savedScrim" hidden>
+            <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="savedTitle">
+              <div class="pm-head"><h2 id="savedTitle">🔖 Saved items</h2><button type="button" class="pm-x" id="savedClose" aria-label="Close">✕</button></div>
+              <div class="pm-body"><div class="tc-saved" id="savedBody"><p class="pc-empty">Loading…</p></div></div>
+            </div>
+          </div>
+
+          <!-- Channel editor modal (admins) -->
+          <div class="pm-scrim" id="chanScrim" hidden>
+            <div class="pm-modal" role="dialog" aria-modal="true" aria-labelledby="chanTitle">
+              <div class="pm-head"><h2 id="chanTitle">New channel</h2><button type="button" class="pm-x" id="chanClose" aria-label="Close">✕</button></div>
+              <div class="pm-body">
+                <form id="chanForm" autocomplete="off">
+                  <input type="hidden" id="chanKey" value="">
+                  <label class="pm-label">Name<input type="text" id="chanLabel" maxlength="60" placeholder="e.g. Coding practice" required></label>
+                  <label class="pm-label">Topic<input type="text" id="chanTopic" maxlength="200" placeholder="What this channel is for"></label>
+                  <label class="pm-check"><input type="checkbox" id="chanPrivate"> <span>Private — only chosen members can see it</span></label>
+                  <div class="tc-memberpick" id="chanMemberPick" hidden>
+                    <div class="pm-label" style="margin:0 0 4px">Members</div>
+                    <div class="tc-memberpick-list" id="chanMemberList"></div>
+                  </div>
+                  <label class="pm-check"><input type="checkbox" id="chanGchatOn"> <span>Mirror to Google Chat (posts as the author)</span></label>
+                  <label class="pm-label tc-gchat-space" id="chanGchatSpaceWrap" hidden>Google Chat space id<input type="text" id="chanGchatSpace" maxlength="120" placeholder="spaces/AAAA… or AAAA…"></label>
+                  <div class="pm-actions"><button type="submit" class="pbtn pbtn-gold" id="chanSave">Create channel</button></div>
+                  <p class="tc-chan-msg" id="chanMsg" hidden></p>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+<?php endif; /* end @afrovanguard-only Tasks + Team Chat */ ?>
 
         <!-- ============================================================ -->
         <!-- LEARNING                                                     -->
@@ -825,22 +1052,15 @@ $nav['You'] = [
             </div>
           </section>
 
-          <!-- Google Chat — live, in-portal (spaces + messages + send) -->
-          <section class="pcard chat-card" id="chatCard" data-csrf="<?= e($collabCsrf) ?>">
-            <div class="pcard-head"><h2>Team Chat <span class="chat-count" id="chatSpaceCount" hidden></span></h2>
-              <span class="pchip pchip--green"><span class="dot-live"></span>Google Chat <span class="chat-unread" id="chatUnreadBadge" hidden></span></span></div>
+          <!-- Team Chat — the native, in-portal chat (replaces the old Google Chat tile) -->
+          <section class="pcard ws-teamchat-card">
+            <div class="pcard-head"><h2>Team Chat</h2><span class="pchip pchip--green"><span class="dot-live"></span>Live · in-portal</span></div>
             <div class="pcard-body">
-              <div class="chat-wrap">
-                <aside class="chat-spaces" id="chatSpaces" aria-label="Chat spaces"><p class="pc-empty">Loading spaces…</p></aside>
-                <div class="chat-main">
-                  <div class="chat-thread" id="chatThread"><p class="pc-empty">Pick a space to start chatting.</p></div>
-                  <form class="chat-compose" id="chatCompose" autocomplete="off" hidden>
-                    <input type="text" id="chatInput" maxlength="4000" placeholder="Message this space…" aria-label="Message">
-                    <button type="submit" class="pbtn pbtn-gold">Send</button>
-                  </form>
-                </div>
+              <p class="pcard-note">Your team's real-time chat lives right here in the portal — channels, threads, @mentions, reactions, saved items and AI catch-up. Admins can mirror any channel into a Google Chat space, posted as the author.</p>
+              <div class="pws-inline-actions">
+                <a class="pbtn pbtn-gold" href="#chat" data-goto="chat">Open Team Chat →</a>
+                <a class="pbtn pbtn-ghost" href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Google Chat ↗</a>
               </div>
-              <p class="pcard-note chat-hint">Chats are live from Google Chat and sent as you. <a href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Open Chat ↗</a></p>
             </div>
           </section>
 <?php else: /* Google OAuth not configured on this deployment — be honest about why nothing fetches */ ?>
@@ -858,9 +1078,9 @@ $nav['You'] = [
               <div><h2>Your Workspace apps</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
             </div>
             <div class="pcard-body pws-grid">
-<?php foreach ($wsSurfaces as $s): ?>              <a class="pws-app" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
+<?php foreach ($wsSurfaces as $s): $wsInt = !empty($s['internal']); ?>              <a class="pws-app" href="<?= e($s['url']) ?>"<?= $wsInt ? ' data-goto="chat"' : ' target="_blank" rel="noopener noreferrer"' ?>>
                 <span class="pws-ico pws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
-                <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span></span>
+                <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span><?= $wsInt ? '' : '' ?></span>
               </a>
 <?php endforeach; ?>            </div>
           </section>
@@ -1135,36 +1355,114 @@ $nav['You'] = [
         kpiTasks=document.getElementById('kpiTasks'), kpiOnline=document.getElementById('kpiOnline'),
         fcAll=document.getElementById('fcAll'), fcOpen=document.getElementById('fcOpen'), fcDone=document.getElementById('fcDone'),
         fcOver=document.getElementById('fcOver'), fcMine=document.getElementById('fcMine');
-    var TASKS=[], FILTER='all';
-    var TODAY=new Date().toISOString().slice(0,10);
+    var poolEl=document.getElementById('poolList'), poolCountEl=document.getElementById('poolCount'),
+        aiCard=document.getElementById('taskAi'), aiGoalSel=document.getElementById('aiGoal'),
+        aiMaxSel=document.getElementById('aiMax'), aiBtn=document.getElementById('aiGenerate'), aiMsgEl=document.getElementById('aiMsg'),
+        poolChk=document.getElementById('taskPool'),
+        focusWrap=document.getElementById('taskFocus'), ringEl=document.getElementById('taskRing'),
+        ringNEl=document.getElementById('taskRingN'), focusTxt=document.getElementById('taskFocusTxt');
+    var TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false;
+    function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    var TODAY=ymd(0), TOMORROW=ymd(1), WEEK_END=ymd(7);
     function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
     function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open,
         over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
       if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
       if(kpiTasks)kpiTasks.textContent=open; }
-    function dueLabel(t){ if(!t.due) return ''; var d=new Date(t.due+'T00:00:00');
-      return isNaN(d)?t.due:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+    // Relative, urgency-aware due label + tone.
+    function dueMeta(t){ if(!t.due) return null;
+      var tone = isOverdue(t) ? 'over' : (t.due===TODAY ? 'today' : (t.due===TOMORROW ? 'soon' : ''));
+      var label; if(isOverdue(t)) label='Overdue'; else if(t.due===TODAY) label='Today'; else if(t.due===TOMORROW) label='Tomorrow';
+      else { var d=new Date(t.due+'T00:00:00'); label=isNaN(d)?t.due:d.toLocaleDateString(undefined,(t.due<ymd(365)?{weekday:'short',month:'short',day:'numeric'}:{month:'short',day:'numeric',year:'numeric'})); }
+      return {label:label, tone:tone}; }
+    function priTag(t){ if(t.priority==='high') return '<span class="task-flag task-flag--high" title="High priority">High</span>';
+      if(t.priority==='low') return '<span class="task-flag task-flag--low" title="Low priority">Low</span>'; return ''; }
+    // Which urgency bucket an open task belongs in.
+    function bucketOf(t){ if(t.done) return 'done'; if(!t.due) return 'nodate';
+      if(t.due<TODAY) return 'over'; if(t.due===TODAY) return 'today'; if(t.due===TOMORROW) return 'tom';
+      if(t.due<=WEEK_END) return 'week'; return 'later'; }
+    var BUCKETS=[['over','Overdue'],['today','Today'],['tom','Tomorrow'],['week','This week'],['later','Later'],['nodate','No date']];
     function taskHtml(t){
       var who = t.assigned_out ? ('→ '+esc(t.assignee_name)) : (t.mine ? '' : ('from '+esc(t.creator_name)));
-      var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
-      var due = (t.due&&!t.done) ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
-      return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
+      var dm = (t.due&&!t.done) ? dueMeta(t) : null;
+      var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
+      var goal = t.goal_title ? ' <span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
+      var rel = (t.mine && !t.done) ? '<button type="button" class="task-release" title="Return to the pool" aria-label="Return to pool">↩</button>' : '';
+      return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
-      +pr+'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+'</span>'
-      +due+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+      +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+'</span>'
+      +priTag(t)+due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+    function poolHtml(t){
+      var dm = t.due ? dueMeta(t) : null;
+      var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
+      var goal = t.goal_title ? '<span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
+      var by = (t.creator_name && t.creator_name!=='You') ? '<span class="task-who">by '+esc(t.creator_name)+'</span>' : '';
+      return '<li class="task task-pool-item task--pri-'+esc(t.priority||'normal')+'" data-id="'+t.id+'">'
+      +'<span class="task-body"><span class="task-title">'+esc(t.title)+'</span>'
+      +'<span class="task-sub">'+priTag(t)+by+goal+due+'</span></span>'
+      +'<button type="button" class="pbtn pbtn-gold task-claim">Claim</button></li>'; }
+    function renderPool(){
+      if(!poolEl) return;
+      poolEl.innerHTML = POOL.length ? POOL.map(poolHtml).join('') : '<li class="pc-empty task-empty">The pool is empty — nice work. Add an open task or plan a goal with AI.</li>';
+      if(poolCountEl) poolCountEl.textContent = POOL.length + ' open';
+    }
+    function fillGoals(){
+      if(!aiGoalSel) return;
+      if(!GOALS.length){ aiGoalSel.innerHTML='<option value="">No open goals — add one in Suite → Goals</option>'; if(aiBtn)aiBtn.disabled=true; return; }
+      aiGoalSel.innerHTML = GOALS.map(function(g){ return '<option value="'+g.id+'">'+esc(g.title)+'</option>'; }).join('');
+      if(aiBtn)aiBtn.disabled=false;
+    }
+    function aiSay(msg,tone){ if(!aiMsgEl) return; aiMsgEl.hidden=!msg; aiMsgEl.textContent=msg||''; aiMsgEl.className='task-ai-msg'+(tone?(' is-'+tone):''); }
     function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
       var cur=sel.value; sel.innerHTML='<option value="0">Me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
-    function render(){ var rows=TASKS.filter(function(t){
-        if(FILTER==='open')return !t.done; if(FILTER==='done')return t.done;
-        if(FILTER==='overdue')return isOverdue(t); if(FILTER==='mine')return t.mine && !t.done; return true; });
-      listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here — you’re all caught up.</li>';
-      counts(); }
+    function groupHtml(label,n,extra){ return '<li class="task-group'+(extra||'')+'"><span class="task-group-label">'+esc(label)+'</span><span class="task-group-n">'+n+'</span></li>'; }
+    function render(){
+      counts(); renderFocus();
+      // Flat lenses: overdue / mine / done render as a simple filtered list.
+      if(FILTER==='overdue'||FILTER==='mine'||FILTER==='done'){
+        var rows=TASKS.filter(function(t){ if(FILTER==='done')return t.done; if(FILTER==='overdue')return isOverdue(t); return t.mine && !t.done; });
+        listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here.</li>';
+        return;
+      }
+      // Default: group open tasks by urgency; completed folds into a collapsible tail.
+      var open=TASKS.filter(function(t){return !t.done;}), done=TASKS.filter(function(t){return t.done;});
+      if(!open.length && !(FILTER==='all'&&done.length)){
+        listEl.innerHTML='<li class="pc-empty task-empty">✳ Inbox zero. Nothing on your plate — grab one from the pool or plan a goal.</li>'; return; }
+      var byB={}; open.forEach(function(t){ var b=bucketOf(t); (byB[b]=byB[b]||[]).push(t); });
+      var html='';
+      BUCKETS.forEach(function(bk){ var arr=byB[bk[0]]; if(!arr||!arr.length) return;
+        html+=groupHtml(bk[1],arr.length,(bk[0]==='over'?' is-over':(bk[0]==='today'?' is-today':'')))+arr.map(taskHtml).join(''); });
+      if(FILTER==='all'&&done.length){
+        html+='<li class="task-group task-group--done" id="doneToggle">'+
+          '<span class="task-group-label">Completed <span class="task-caret">'+(SHOW_DONE?'▾':'▸')+'</span></span>'+
+          '<span class="task-group-n">'+done.length+'</span></li>';
+        if(SHOW_DONE) html+=done.map(taskHtml).join('');
+      }
+      listEl.innerHTML=html;
+    }
+    function renderFocus(){
+      if(!focusWrap) return;
+      // Today's focus = everything due today or already overdue (the actionable set).
+      var set=TASKS.filter(function(t){ return t.due && t.due<=TODAY; });
+      var total=set.length, doneN=set.filter(function(t){return t.done;}).length, left=total-doneN;
+      if(!total){ focusWrap.hidden=true; if(focusTxt)focusTxt.textContent = TASKS.filter(function(t){return !t.done;}).length ? 'Nothing due today — you’re ahead.' : 'All clear. Add a task to get going.'; return; }
+      focusWrap.hidden=false;
+      var pct=Math.round(100*doneN/total);
+      if(ringEl) ringEl.style.setProperty('--pct', pct);
+      if(ringEl) ringEl.classList.toggle('is-complete', left===0);
+      if(ringNEl) ringNEl.textContent = left===0 ? '✓' : left;
+      if(focusTxt) focusTxt.textContent = left===0 ? ('Today’s done — '+doneN+' cleared. 🎉') : (left+' of '+total+' left today · '+pct+'% done');
+    }
     function renderOnline(users,count){ if(onlineCountEl)onlineCountEl.textContent=count||0; if(tbCount)tbCount.textContent=count||0; if(kpiOnline)kpiOnline.textContent=count||0; if(topOnline)topOnline.hidden=!(count>0);
       users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
-    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return; TASKS=d.tasks||[]; render(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); }).catch(function(){}); }
+    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return;
+        TASKS=d.tasks||[]; POOL=d.pool||[]; GOALS=d.goals||[];
+        render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals();
+        if(aiCard) aiCard.hidden = !d.ai;   // only show the AI planner when Claude is wired up
+      }).catch(function(){}); }
 
     // filter chips
     document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(b){ b.addEventListener('click', function(){ document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(x){x.classList.remove('is-on');}); b.classList.add('is-on'); FILTER=b.getAttribute('data-filter'); render(); }); });
@@ -1174,16 +1472,642 @@ $nav['You'] = [
       var asel=document.getElementById('taskAssignee'); var assignee=asel?(+asel.value||0):0;
       var dsel=document.getElementById('taskDue'); var due=dsel?dsel.value:'';
       var psel=document.getElementById('taskPriority'); var priority=psel?psel.value:'normal';
+      var toPool = poolChk && poolChk.checked;
       input.value=''; input.disabled=true;
-      post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
-    // toggle / delete
-    listEl.addEventListener('click', function(e){ var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
+      if(toPool){
+        post('task_add_pool',{title:title, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(dsel)dsel.value=''; if(psel)psel.value='normal'; poolChk.checked=false; if(d&&d.ok&&d.task){ POOL.unshift(d.task); renderPool(); } }).catch(function(){ input.disabled=false; });
+      } else {
+        post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; });
+      } });
+    // toggle / delete / release
+    listEl.addEventListener('click', function(e){
+      if(e.target.closest('#doneToggle')){ SHOW_DONE=!SHOW_DONE; render(); return; }
+      var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
       if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }
+      else if(e.target.closest('.task-release')){ var rt=TASKS.filter(function(t){return t.id===id;})[0]; post('task_release',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } }); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
+
+    // claim from the pool
+    if(poolEl) poolEl.addEventListener('click', function(e){ var btn=e.target.closest('.task-claim'); if(!btn) return; var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
+      btn.disabled=true; btn.textContent='Claiming…';
+      post('task_claim',{id:id}).then(function(d){ if(d&&d.ok&&d.task){ POOL=POOL.filter(function(t){return t.id!==id;}); renderPool(); TASKS.unshift(d.task); render(); }
+        else { btn.disabled=false; btn.textContent='Claim'; if(d&&d.error){ btn.textContent='Taken'; POOL=POOL.filter(function(t){return t.id!==id;}); setTimeout(renderPool,900); } } }).catch(function(){ btn.disabled=false; btn.textContent='Claim'; }); });
+
+    // AI: plan a goal into pooled tasks
+    if(aiBtn) aiBtn.addEventListener('click', function(){ var gid=aiGoalSel?(+aiGoalSel.value||0):0; if(!gid){ aiSay('Pick a goal first.','warn'); return; }
+      var max=aiMaxSel?(+aiMaxSel.value||6):6; aiBtn.disabled=true; var old=aiBtn.textContent; aiBtn.textContent='Thinking…'; aiSay('Planning your goal into tasks…','');
+      post('ai_from_goal',{goal_id:gid, max:max}).then(function(d){ aiBtn.disabled=false; aiBtn.textContent=old;
+        if(d&&d.ok&&d.created&&d.created.length){ d.created.forEach(function(t){ POOL.unshift(t); }); renderPool(); aiSay('Added '+d.created.length+' task'+(d.created.length===1?'':'s')+' to the pool — claim what you can take on.','ok'); }
+        else { aiSay((d&&d.error)||'Could not generate tasks. Try again.','warn'); } }).catch(function(){ aiBtn.disabled=false; aiBtn.textContent=old; aiSay('Network error — try again.','warn'); }); });
 
     load();
     setInterval(function(){ post('heartbeat',{}).then(function(d){ if(d&&typeof d.count==='number'){ if(onlineCountEl)onlineCountEl.textContent=d.count; if(tbCount)tbCount.textContent=d.count; if(kpiOnline)kpiOnline.textContent=d.count; if(topOnline)topOnline.hidden=!(d.count>0); } }).catch(function(){}); }, 45000);
     setInterval(load, 90000);
+  })();
+
+  /* Today tab — the general calendar agenda: events, meetings (with Meet join
+     links), mentorship sessions, due tasks and reminders, next 14 days. */
+  (function(){
+    var box=document.getElementById('calAgenda'); if(!box) return;
+    var weekEl=document.getElementById('calWeek'), sumEl=document.getElementById('calSummary');
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    var TODAY=ymd(0), TOMORROW=ymd(1), from=TODAY, to=ymd(14);
+    var ICON={event:'📌',afg:'🎟️',session:'🎥',meeting:'🎥',task:'✓',reminder:'⏰',gcal:'📆'};
+    function timeLabel(t){ if(!t) return 'All day'; var p=t.split(':'); var h=+p[0]; var ap=h<12?'AM':'PM'; return ((h%12)||12)+':'+p[1]+' '+ap; }
+    function dayHead(d,n){ var dt=new Date(d+'T00:00:00');
+      var name=isNaN(dt)?d:dt.toLocaleDateString(undefined,{weekday:'long'});
+      var date=isNaN(dt)?'':dt.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      var pill=d===TODAY?'<span class="cal-pill cal-pill--today">Today</span>':(d===TOMORROW?'<span class="cal-pill">Tomorrow</span>':'');
+      return '<div class="cal-day-h"><span class="cal-day-name">'+esc(name)+'</span><span class="cal-day-date">'+esc(date)+'</span>'+pill+'<span class="cal-day-count">'+n+'</span></div>'; }
+    function itemHtml(it){
+      var ico=ICON[it.kind]||'•';
+      var isMeet=(it.kind==='meeting'||it.kind==='session');
+      var over=it.kind==='task'&&it.date<TODAY;
+      var join = it.url ? '<a class="cal-join'+(isMeet?'':' cal-join--ghost')+'" href="'+esc(it.url)+'" target="_blank" rel="noopener">'+(isMeet?'Join':'Open')+'</a>' : '';
+      var meta=[]; if(it.location)meta.push(esc(it.location)); if(it.who&&it.who!=='You')meta.push(esc(it.who)); if(!meta.length&&it.note)meta.push(esc(it.note));
+      return '<li class="cal-item cal-'+esc(it.kind)+(over?' is-over':'')+'">'
+        +'<span class="cal-time'+(it.time?'':' is-allday')+'">'+esc(timeLabel(it.time))+'</span>'
+        +'<span class="cal-ico">'+ico+'</span>'
+        +'<span class="cal-body"><span class="cal-title">'+esc(it.title)+'</span>'
+        +(meta.length?'<span class="cal-meta">'+meta.join(' · ')+'</span>':'')+'</span>'+join+'</li>';
+    }
+    function renderWeek(items){
+      if(!weekEl) return; var cnt={}; items.forEach(function(it){ cnt[it.date]=(cnt[it.date]||0)+1; });
+      var cells=''; for(var i=0;i<7;i++){ var d=ymd(i); var dt=new Date(d+'T00:00:00');
+        var L=dt.toLocaleDateString(undefined,{weekday:'narrow'}); var num=dt.getDate(); var n=cnt[d]||0;
+        cells+='<div class="cal-wd'+(i===0?' is-today':'')+(n?' has-items':'')+'"><span class="cal-wd-l">'+esc(L)+'</span>'
+          +'<span class="cal-wd-n">'+num+'</span><span class="cal-wd-dot">'+(n?'':'')+'</span></div>'; }
+      weekEl.innerHTML=cells;
+    }
+    function render(items){
+      items=(items||[]).filter(function(it){ return !it.done; });
+      var meetN=items.filter(function(it){return it.kind==='meeting'||it.kind==='session';}).length;
+      var taskN=items.filter(function(it){return it.kind==='task';}).length;
+      if(sumEl) sumEl.textContent = items.length ? (meetN+' meeting'+(meetN===1?'':'s')+' · '+taskN+' task'+(taskN===1?'':'s')+' · next 14 days') : 'Next 14 days';
+      renderWeek(items);
+      items=items.slice(0,40);
+      if(!items.length){ box.innerHTML='<p class="pc-empty">🗓️ Clear skies for the next two weeks. Schedule a meeting or add an event from the Suite.</p>'; return; }
+      var groups={}, order=[];
+      items.forEach(function(it){ if(!groups[it.date]){groups[it.date]=[];order.push(it.date);} groups[it.date].push(it); });
+      box.innerHTML = order.map(function(d){
+        return '<div class="cal-day">'+dayHead(d,groups[d].length)+'<ul class="cal-list">'+groups[d].map(itemHtml).join('')+'</ul></div>';
+      }).join('');
+    }
+    function loadCal(){
+      fetch('/portal/calendar.php?action=feed&from='+from+'&to='+to,{credentials:'same-origin'})
+        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok) render(d.items); else box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; })
+        .catch(function(){ box.innerHTML='<p class="pc-empty">Couldn’t load your calendar.</p>'; });
+    }
+    window.avReloadCalendar = loadCal;   // let the meeting scheduler refresh the agenda
+    loadCal();
+  })();
+  </script>
+
+  <script>
+  /* Team Chat — Slack-style native channels: message stream (grouped, day
+     dividers), composer with @mention autocomplete, emoji reactions, presence
+     rail, and near-realtime polling via sinceId. */
+  (function () {
+    var root = document.getElementById('teamChat'); if (!root) return;
+    var csrf = root.getAttribute('data-csrf') || '';
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function post(action, body){ return fetch('/portal/chat.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
+    function get(action, qs){ return fetch('/portal/chat.php?action='+action+(qs||''),{credentials:'same-origin'}).then(function(r){return r.json();}); }
+    var streamEl=document.getElementById('tcStream'), chanEl=document.getElementById('tcChannels'),
+        membersEl=document.getElementById('tcMembers'), typingEl=document.getElementById('tcTyping'),
+        presEl=document.getElementById('tcPresence'), chanNameEl=document.getElementById('tcChannelName'),
+        memberCountEl=document.getElementById('tcMemberCount'), topicEl=document.getElementById('tcTopic'),
+        catchupBtn=document.getElementById('tcCatchup'),
+        pinnedEl=document.getElementById('tcPinned'), pinBtn=document.getElementById('tcPinBtn'), pinCountEl=document.getElementById('tcPinCount'),
+        input=document.getElementById('tcInput'), mentEl=document.getElementById('tcMentions'),
+        composeForm=document.getElementById('tcCompose'),
+        editBar=document.getElementById('tcEditBar'), editCancel=document.getElementById('tcEditCancel'),
+        savedBtn=document.getElementById('tcSavedBtn'), addChannelBtn=document.getElementById('tcAddChannel'), chSetBtn=document.getElementById('tcChannelSettings');
+    var CHANNEL='general', MSGS=[], LAST=0, EMOJI=[], ME={id:0}, CHANNELS=[], TOPICS={}, MEMBERS={mentors:[],members:[]}, PINS=[], PINS_OPEN=false, AI_OK=false, IS_ADMIN=false, EDITING=0, poller=null, active=false, ready=false, seenKey='av_chat_seen';
+    // Per-channel last-seen id (localStorage) → unread dots.
+    function seen(){ try{ return JSON.parse(localStorage.getItem(seenKey)||'{}'); }catch(e){ return {}; } }
+    function markSeen(ch, id){ var s=seen(); if(!s[ch]||id>s[ch]){ s[ch]=id; try{ localStorage.setItem(seenKey, JSON.stringify(s)); }catch(e){} } }
+    function fmtTime(iso){ var t=Date.parse((iso||'').replace(' ','T')+'Z'); if(!t) return ''; return new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+    function dayOf(iso){ var t=Date.parse((iso||'').replace(' ','T')+'Z'); if(!t) return ''; var d=new Date(t); var td=new Date(); var y=new Date(td.getTime()-86400000);
+      if(d.toDateString()===td.toDateString()) return 'Today'; if(d.toDateString()===y.toDateString()) return 'Yesterday';
+      return d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }
+    function codeBlock(code){ return '<div class="tc-codewrap"><pre class="tc-code"><code>'+esc(code)+'</code></pre><button type="button" class="tc-copy" title="Copy code">Copy</button></div>'; }
+    // Lightweight, safe Markdown: fenced/inline code, **bold** *italic* ~~strike~~,
+    // [links](url) + bare URLs, and "- " bullet lists. Everything is escaped first;
+    // mentions resolve to chips. Private-use markers isolate code from formatting.
+    function bodyHtml(m){
+      var raw=String(m.body==null?'':m.body);
+      var S='\ue000', E='\ue001';   // private-use markers: never appear in user text
+      var fen=[]; raw=raw.replace(/```([\s\S]*?)```/g, function(_, c){ fen.push(c.replace(/^\n/,'').replace(/\n+$/,'')); return S+'F'+(fen.length-1)+E; });
+      var inl=[]; raw=raw.replace(/`([^`\n]+)`/g, function(_, c){ inl.push(c); return S+'I'+(inl.length-1)+E; });
+      function inline(s){ s=esc(s);
+        (m.mentions||[]).forEach(function(mn){ var tok=(mn.token||mn.handle||'').replace(/^@/,''); if(tok){ s=s.split('@'+esc(tok)).join('<span class="tc-at">@'+esc(mn.name||mn.handle||'')+'</span>'); } });
+        s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/~~([^~\n]+)~~/g,'<s>$1</s>')
+           .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g,'$1<i>$2</i>').replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g,'$1<i>$2</i>');
+        s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        s=s.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+)/g, function(_, p, u){ return p+'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+u+'</a>'; });
+        s=s.replace(new RegExp(S+'I(\\d+)'+E,'g'), function(_, i){ return '<code class="tc-code-inline">'+esc(inl[+i])+'</code>'; });
+        return s; }
+      var rows=raw.split('\n'), out='', inUl=false, para=[];
+      function flush(){ if(para.length){ out+='<span class="tc-line">'+para.join('<br>')+'</span>'; para=[]; } }
+      var fenRe=new RegExp('^'+S+'F(\\d+)'+E+'$');
+      rows.forEach(function(l){
+        var fm=l.match(fenRe);
+        if(fm){ flush(); if(inUl){out+='</ul>';inUl=false;} out+=codeBlock(fen[+fm[1]]); return; }
+        if(/^\s*[-*]\s+/.test(l)){ flush(); if(!inUl){out+='<ul class="tc-ul">';inUl=true;} out+='<li>'+inline(l.replace(/^\s*[-*]\s+/,''))+'</li>'; return; }
+        if(inUl){ out+='</ul>'; inUl=false; }
+        para.push(inline(l)); });
+      flush(); if(inUl) out+='</ul>';
+      return out; }
+    // Only render a reactions row when there ARE reactions — an always-present
+    // (invisible) add button would reserve empty vertical space under every
+    // message. Adding the first reaction happens from the hover actions bar.
+    function reactHtml(m){ var rx=m.reactions||[]; if(!rx.length) return '';
+      var chips=rx.map(function(r){ return '<button type="button" class="tc-react'+(r.mine?' is-mine':'')+'" data-emoji="'+esc(r.emoji)+'">'+esc(r.emoji)+' '+r.count+'</button>'; }).join('');
+      return '<span class="tc-reacts">'+chips+'<button type="button" class="tc-react-add" title="Add reaction">＋</button></span>'; }
+    function threadSummary(m){ if(!m.reply_count) return ''; return '<button type="button" class="tc-thread-sum" data-thread="'+m.id+'">🧵 '+m.reply_count+' repl'+(m.reply_count===1?'y':'ies')+(m.last_reply?' <span class="tc-thread-ago">· last '+esc(m.last_reply)+'</span>':'')+'</button>'; }
+    function actionsHtml(m){
+      if(m.deleted) return '';
+      var reply = (!m.parent_id) ? '<button type="button" class="tc-act" data-act="reply" title="Reply in thread">💬</button>' : '';
+      var pin = (!m.parent_id) ? '<button type="button" class="tc-act'+(m.pinned?' is-on':'')+'" data-act="pin" title="'+(m.pinned?'Unpin':'Pin to channel')+'">📌</button>' : '';
+      var reactBtn = '<button type="button" class="tc-act" data-act="react" title="Add reaction">😊</button>';
+      var save = '<button type="button" class="tc-act'+(m.saved?' is-on':'')+'" data-act="save" title="'+(m.saved?'Remove from saved':'Save for later')+'">'+(m.saved?'🔖':'🏷️')+'</button>';
+      var edit = m.is_me ? '<button type="button" class="tc-act" data-act="edit" title="Edit">✎</button>' : '';
+      var del = (m.is_me || IS_ADMIN) ? '<button type="button" class="tc-act tc-act-del" data-act="delete" title="Delete">🗑</button>' : '';
+      return '<div class="tc-actions">'+reactBtn+reply+pin+'<button type="button" class="tc-act" data-act="assign" title="Assign as task">⌗</button>'+save+edit+del+'</div>'; }
+    function msgHtml(m, grouped){
+      var head = grouped ? '' : '<span class="tc-avatar">'+esc(m.initial)+'</span>';
+      var pinMark = m.pinned && !m.deleted ? '<span class="tc-pinmark" title="Pinned">📌</span>' : '';
+      var meta = grouped ? '' : '<span class="tc-msg-h"><b class="tc-name">'+esc(m.author)+'</b>'+(m.verified?'<span class="tc-badge" title="Verified member">✓</span>':'')+'<span class="tc-time">'+esc(fmtTime(m.created_at))+'</span>'+pinMark+'</span>';
+      if(m.deleted){
+        return '<div class="tc-msg is-deleted'+(grouped?' is-grouped':'')+'" data-id="'+m.id+'">'
+          +'<div class="tc-msg-l">'+head+'</div>'
+          +'<div class="tc-msg-b">'+meta+'<div class="tc-text tc-tomb"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg> This message was deleted</div></div></div>'; }
+      var edited = m.edited ? '<span class="tc-edited" title="Edited">(edited)</span>' : '';
+      var savedMark = m.saved ? '<span class="tc-savemark" title="Saved">🔖</span>' : '';
+      return '<div class="tc-msg'+(grouped?' is-grouped':'')+(m.is_me?' is-me':'')+(m.pinned?' is-pinned':'')+'" data-id="'+m.id+'">'
+        +actionsHtml(m)
+        +'<div class="tc-msg-l">'+head+savedMark+'</div>'
+        +'<div class="tc-msg-b">'+meta+'<div class="tc-text">'+bodyHtml(m)+edited+'</div>'+reactHtml(m)+threadSummary(m)+'</div></div>'; }
+    function render(){
+      if(!MSGS.length){ streamEl.innerHTML='<p class="pc-empty tc-empty">👋 No messages yet in #'+esc(CHANNEL)+'. Say hello to the team.</p>'; return; }
+      var html='', lastDay='', lastAuthor='', lastT=0;
+      MSGS.forEach(function(m){ var day=dayOf(m.created_at);
+        if(day!==lastDay){ html+='<div class="tc-divider"><span>'+esc(day)+'</span></div>'; lastDay=day; lastAuthor=''; }
+        var t=Date.parse((m.created_at||'').replace(' ','T')+'Z')||0;
+        var grouped = (m.author===lastAuthor) && (t-lastT < 5*60000);
+        html+=msgHtml(m, grouped); lastAuthor=m.author; lastT=t; });
+      streamEl.innerHTML=html; streamEl.scrollTop=streamEl.scrollHeight;
+    }
+    function renderChannels(){
+      var s=seen();
+      chanEl.innerHTML=CHANNELS.map(function(c){ var unread = c.last_id>(s[c.key]||0) && c.key!==CHANNEL;
+        var hash = c.private ? '<span class="tc-hash" title="Private">🔒</span>' : '<span class="tc-hash">#</span>';
+        var gc = c.gchat ? '<span class="tc-gc" title="Mirrors to Google Chat">↗</span>' : '';
+        return '<li><button type="button" class="tc-channel'+(c.key===CHANNEL?' is-on':'')+'" data-ch="'+esc(c.key)+'">'+hash+esc(c.label)+gc+(unread?'<span class="tc-unread"></span>':'')+'</button></li>'; }).join('');
+      updateNavBadge();
+    }
+    // A count of channels with unread messages, shown on the sidebar "Team Chat" nav.
+    function updateNavBadge(){
+      var link=document.querySelector('.pnav-link[data-view="chat"]'); if(!link) return;
+      var s=seen(), chatVisible=!!(document.getElementById('view-chat') && !document.getElementById('view-chat').hidden);
+      var n=CHANNELS.filter(function(c){ if(c.key===CHANNEL && chatVisible) return false; return c.last_id>(s[c.key]||0); }).length;
+      var badge=link.querySelector('.pnav-badge');
+      if(n>0){ if(!badge){ badge=document.createElement('span'); badge.className='pnav-badge'; link.appendChild(badge); } badge.textContent=n; badge.hidden=false; }
+      else if(badge){ badge.hidden=true; }
+    }
+    function updatePresence(count){ if(presEl)presEl.textContent=count||0; }
+    function roleTag(r){ return (r==='mentor'||r==='instructor') ? '<span class="tc-role tc-role--mentor">Mentor</span>'
+      : (r==='coordinator'||r==='admin') ? '<span class="tc-role tc-role--lead">Lead</span>' : ''; }
+    function memberRow(u){ return '<li class="tc-mem'+(u.online?'':' is-off')+'"><span class="tc-mem-ava">'+esc(u.initial)+(u.online?'<span class="tc-mem-dot"></span>':'')+'</span>'
+      +'<span class="tc-mem-b"><span class="tc-mem-name">'+esc(u.name)+(u.is_me?' <span class="tc-mem-you">you</span>':'')+'</span>'+roleTag(u.role)+'</span></li>'; }
+    function renderMembers(){ if(!membersEl) return; var m=MEMBERS||{mentors:[],members:[]}; var html='';
+      if((m.mentors||[]).length){ html+='<div class="tc-mem-h">Mentors · '+m.mentors.length+'</div>'+m.mentors.map(memberRow).join(''); }
+      html+='<div class="tc-mem-h tc-mem-h--sp">Members · '+(m.members||[]).length+'</div>'+((m.members||[]).length?m.members.map(memberRow).join(''):'<p class="pc-empty">No members yet.</p>');
+      membersEl.innerHTML=html;
+      var total=(m.mentors||[]).length+(m.members||[]).length; if(memberCountEl)memberCountEl.textContent=total?('· '+total+' member'+(total===1?'':'s')):''; }
+    function renderTyping(names){ names=names||[]; if(!typingEl) return;
+      if(!names.length){ typingEl.hidden=true; typingEl.innerHTML=''; return; }
+      var label = names.length===1 ? esc(names[0])+' is typing' : names.length===2 ? esc(names[0])+' and '+esc(names[1])+' are typing' : names.length+' people are typing';
+      typingEl.hidden=false; typingEl.innerHTML='<span class="tc-typing-dots"><i></i><i></i><i></i></span>'+label+'…'; }
+    function setTopic(){ if(topicEl) topicEl.textContent = TOPICS[CHANNEL] || ''; }
+    // Plain-text one-liner from a message body (strip fences/inline code/newlines).
+    function plainText(body){ return String(body||'').replace(/```[\s\S]*?```/g,'[code]').replace(/`([^`]+)`/g,'$1').replace(/\s+/g,' ').trim(); }
+    function renderPins(){
+      if(!pinnedEl) return;
+      var n=PINS.length;
+      if(pinBtn){ pinBtn.hidden = n===0; if(pinCountEl) pinCountEl.textContent=n; pinBtn.classList.toggle('is-on', PINS_OPEN); }
+      if(!n || !PINS_OPEN){ pinnedEl.hidden=true; pinnedEl.innerHTML=''; return; }
+      pinnedEl.hidden=false;
+      pinnedEl.innerHTML='<div class="tc-pinned-h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6Z" fill="currentColor"/></svg> '+n+' pinned</div>'
+        + PINS.map(function(p){ var txt=plainText(p.body); if(txt.length>140) txt=txt.slice(0,140)+'…';
+            return '<div class="tc-pin" data-id="'+p.id+'"><span class="tc-pin-b"><b>'+esc(p.author)+'</b> <span class="tc-pin-txt">'+esc(txt)+'</span></span>'
+              +'<button type="button" class="tc-pin-jump" data-jump="'+p.id+'" title="Jump to message">↧</button>'
+              +'<button type="button" class="tc-pin-x" data-unpin="'+p.id+'" title="Unpin">✕</button></div>'; }).join('');
+    }
+    // Append only strictly-newer messages (id > LAST) so a late/overlapping poll can't duplicate.
+    function applyNew(list){ if(!list||!list.length) return; var added=false; list.forEach(function(m){ if(m.id>LAST){ MSGS.push(m); LAST=m.id; added=true; } }); if(!added) return; if(MSGS.length>200)MSGS=MSGS.slice(-200); markSeen(CHANNEL,LAST); render(); }
+    function bootstrap(){ ready=false; get('bootstrap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(!d||!d.ok){ ready=true; return; }
+        CHANNELS=d.channels||[]; EMOJI=d.react_emoji||[]; ME=d.me||ME; TOPICS=d.topics||TOPICS; MEMBERS=d.members||MEMBERS; PINS=d.pins||[]; AI_OK=!!d.ai; IS_ADMIN=!!d.is_admin;
+        MSGS=d.messages||[]; LAST=MSGS.length?MSGS[MSGS.length-1].id:0;
+        markSeen(CHANNEL,LAST); renderChannels(); render(); renderMembers(); renderTyping(d.typing); renderPins(); setTopic(); updatePresence(d.count);
+        if(catchupBtn) catchupBtn.hidden=!AI_OK; if(addChannelBtn) addChannelBtn.hidden=!IS_ADMIN; if(chSetBtn) chSetBtn.hidden=!IS_ADMIN; ready=true; }).catch(function(){ ready=true; }); }
+    function poll(){ if(!active || !ready) return; get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since='+LAST).then(function(d){ if(!d||!d.ok) return;
+        CHANNELS=d.channels||CHANNELS; if(d.members)MEMBERS=d.members; applyNew(d.messages); renderChannels(); renderMembers(); renderTyping(d.typing); updatePresence(d.count); }).catch(function(){}); }
+    function switchChannel(ch){ if(ch===CHANNEL) return; CHANNEL=ch; MSGS=[]; LAST=0; if(chanNameEl)chanNameEl.textContent=ch; if(input)input.setAttribute('data-ph','Message #'+ch+' — use @ to mention'); renderChannels(); setTopic(); streamEl.innerHTML='<p class="pc-empty">Loading…</p>'; bootstrap(); }
+
+    chanEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-channel'); if(b) switchChannel(b.getAttribute('data-ch')); });
+
+    // ── Message search ──
+    var searchEl=document.getElementById('tcSearch'), searchResEl=document.getElementById('tcSearchResults'), searchTimer=null;
+    function renderSearch(rows){ if(!searchResEl) return; rows=rows||[];
+      if(!rows.length){ searchResEl.hidden=false; searchResEl.innerHTML='<div class="tc-sr-empty">No matches.</div>'; return; }
+      searchResEl.hidden=false;
+      searchResEl.innerHTML=rows.map(function(r){ var t=plainText(r.body); if(t.length>90)t=t.slice(0,90)+'…';
+        return '<button type="button" class="tc-sr" data-ch="'+esc(r.channel||'')+'" data-id="'+r.id+'"><span class="tc-sr-top"><b>'+esc(r.author)+'</b> <span class="tc-sr-ch">#'+esc(r.channel||'')+'</span></span><span class="tc-sr-txt">'+esc(t)+'</span></button>'; }).join(''); }
+    if(searchEl) searchEl.addEventListener('input', function(){ var q=(searchEl.value||'').trim(); clearTimeout(searchTimer);
+      if(q.length<2){ if(searchResEl){searchResEl.hidden=true; searchResEl.innerHTML='';} return; }
+      searchTimer=setTimeout(function(){ get('search','&q='+encodeURIComponent(q)).then(function(d){ if(d&&d.ok) renderSearch(d.results); }).catch(function(){}); }, 220); });
+    if(searchResEl) searchResEl.addEventListener('click', function(e){ var b=e.target.closest('.tc-sr'); if(!b) return; var ch=b.getAttribute('data-ch'), id=+b.getAttribute('data-id');
+      searchResEl.hidden=true; if(searchEl)searchEl.value=''; var switched = ch && ch!==CHANNEL; if(switched) switchChannel(ch);
+      setTimeout(function(){ var el=streamEl.querySelector('.tc-msg[data-id="'+id+'"]'); if(el){ el.scrollIntoView({block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); },1500); } }, switched?650:60); });
+    document.addEventListener('click', function(e){ if(searchResEl && !searchResEl.hidden && !e.target.closest('.tc-search')) searchResEl.hidden=true; });
+
+    // ── WYSIWYG composer ─────────────────────────────────────────
+    // The composer shows the FORMATTED text as you type (bold/italic/code render
+    // live) — not raw markdown. On send/edit it serialises to markdown so the
+    // stored + mirrored message stays plain, portable text. attachRichEditor()
+    // (defined below) encapsulates the toolbar, @mention chips and md round-trip.
+    function replaceMsg(nm){ var i; for(i=0;i<MSGS.length;i++){ if(MSGS[i].id===nm.id){ MSGS[i]=nm; } } for(i=0;i<THREAD.length;i++){ if(THREAD[i].id===nm.id){ THREAD[i]=nm; } } render(); if(OPEN_THREAD) renderThread(); }
+    var lastTyping=0;
+    var mainRTE = attachRichEditor(input, composeForm, mentEl, {
+      onSubmit: function(){ composeForm.requestSubmit(); },
+      onInput:  function(){ var now=Date.now(); if(!mainRTE.isEmpty() && now-lastTyping>2500){ lastTyping=now; post('typing',{channel:CHANNEL}); } }
+    });
+    // Edit mode — load the message's markdown back into the formatted editor.
+    function enterEdit(id){ var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; if(!m||m.deleted) return;
+      EDITING=id; mainRTE.setMarkdown(m.body||''); mainRTE.focus();
+      if(editBar) editBar.hidden=false; composeForm.classList.add('is-editing'); }
+    function exitEdit(){ EDITING=0; mainRTE.clear(); if(editBar) editBar.hidden=true; composeForm.classList.remove('is-editing'); }
+    if(editCancel) editCancel.addEventListener('click', exitEdit);
+    // Send / save-edit
+    composeForm.addEventListener('submit', function(e){ e.preventDefault(); var body=mainRTE.getMarkdown().trim(); if(!body) return;
+      if(EDITING){ var id=EDITING; post('edit',{id:id, body:body}).then(function(d){ if(d&&d.ok&&d.message){ replaceMsg(d.message); } }).catch(function(){}); exitEdit(); return; }
+      mainRTE.clear();
+      post('send',{channel:CHANNEL, body:body}).then(function(d){ if(d&&d.ok&&d.message){ applyNew([d.message]); renderChannels(); } }).catch(function(){}); });
+    // Escape cancels an in-progress edit (when mentions aren't open).
+    input.addEventListener('keydown', function(e){ if(e.key==='Escape' && EDITING && !mainRTE.mentionsOpen()){ exitEdit(); } });
+
+    // ── Catch me up (AI recap) ──
+    var recapScrim=document.getElementById('recapScrim'), recapBody=document.getElementById('recapBody');
+    function mdLite(t){ var lines=String(t||'').split('\n'), out='', inUl=false;
+      function inl(s){ return esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code class="tc-code-inline">$1</code>'); }
+      lines.forEach(function(l){ var t2=l.trim();
+        if(/^[-*•]\s+/.test(t2)){ if(!inUl){ out+='<ul>'; inUl=true; } out+='<li>'+inl(t2.replace(/^[-*•]\s+/,''))+'</li>'; return; }
+        if(inUl){ out+='</ul>'; inUl=false; }
+        if(!t2){ out+=''; return; }
+        if(/^#{1,6}\s/.test(t2)){ out+='<h4>'+inl(t2.replace(/^#{1,6}\s/,''))+'</h4>'; return; }
+        out+='<p>'+inl(t2)+'</p>'; });
+      if(inUl) out+='</ul>'; return out; }
+    function openRecap(){ if(!recapScrim) return; recapScrim.hidden=false; recapBody.innerHTML='<p class="pc-empty tc-recap-load"><span class="tc-typing-dots"><i></i><i></i><i></i></span> Reading #'+esc(CHANNEL)+' and writing your briefing…</p>';
+      get('recap','&channel='+encodeURIComponent(CHANNEL)).then(function(d){ if(d&&d.ok){ recapBody.innerHTML=mdLite(d.summary)+'<div class="tc-recap-src">Summarised by AI'+(d.via?' ('+esc(d.via)+')':'')+' — verify anything important.</div>'; } else { recapBody.innerHTML='<p class="pc-empty">'+esc((d&&d.error)||'Could not generate a recap.')+'</p>'; } }).catch(function(){ recapBody.innerHTML='<p class="pc-empty">Network error — try again.</p>'; }); }
+    function closeRecap(){ if(recapScrim) recapScrim.hidden=true; }
+    if(catchupBtn) catchupBtn.addEventListener('click', openRecap);
+    var recapCloseBtn=document.getElementById('recapClose'); if(recapCloseBtn) recapCloseBtn.addEventListener('click', closeRecap);
+    if(recapScrim) recapScrim.addEventListener('click', function(e){ if(e.target===recapScrim) closeRecap(); });
+
+    // ── Saved items ──────────────────────────────────────────────
+    var savedScrim=document.getElementById('savedScrim'), savedBody=document.getElementById('savedBody'), savedCloseBtn=document.getElementById('savedClose');
+    function openSaved(){ if(!savedScrim) return; savedScrim.hidden=false; savedBody.innerHTML='<p class="pc-empty">Loading…</p>';
+      get('saved').then(function(d){ if(!d||!d.ok){ savedBody.innerHTML='<p class="pc-empty">Couldn’t load saved items.</p>'; return; }
+        var rows=d.messages||[]; if(!rows.length){ savedBody.innerHTML='<p class="pc-empty">🔖 Nothing saved yet. Hover a message and tap 🏷️ to bookmark it.</p>'; return; }
+        savedBody.innerHTML=rows.map(function(m){ return '<div class="tc-saved-item" data-ch="'+esc(m.channel||'')+'" data-id="'+m.id+'"><div class="tc-saved-top"><b>'+esc(m.author)+'</b> <span class="tc-saved-ch">#'+esc(m.channel||'')+'</span> <span class="tc-time">'+esc(fmtTime(m.created_at))+'</span></div><div class="tc-text">'+bodyHtml(m)+'</div><div class="tc-saved-act"><button type="button" class="tc-saved-jump" data-jump="'+m.id+'" data-ch="'+esc(m.channel||'')+'">Jump →</button><button type="button" class="tc-saved-unsave" data-unsave="'+m.id+'">Remove</button></div></div>'; }).join(''); }).catch(function(){ savedBody.innerHTML='<p class="pc-empty">Network error.</p>'; }); }
+    function closeSaved(){ if(savedScrim) savedScrim.hidden=true; }
+    if(savedBtn) savedBtn.addEventListener('click', openSaved);
+    if(savedCloseBtn) savedCloseBtn.addEventListener('click', closeSaved);
+    if(savedScrim) savedScrim.addEventListener('click', function(e){ if(e.target===savedScrim) closeSaved(); });
+    if(savedBody) savedBody.addEventListener('click', function(e){
+      var cp=e.target.closest('.tc-copy'); if(cp){ copyCode(cp); return; }
+      var un=e.target.closest('.tc-saved-unsave'); if(un){ var uid=+un.getAttribute('data-unsave'); post('save',{id:uid, saved:false}).then(function(){ var it=un.closest('.tc-saved-item'); if(it) it.remove(); MSGS.concat(THREAD).forEach(function(x){ if(x.id===uid){ x.saved=false; } }); render(); }); return; }
+      var jp=e.target.closest('.tc-saved-jump'); if(jp){ var jid=+jp.getAttribute('data-jump'), jch=jp.getAttribute('data-ch'); closeSaved();
+        var switched = jch && jch!==CHANNEL; if(switched) switchChannel(jch);
+        setTimeout(function(){ var el=streamEl.querySelector('.tc-msg[data-id="'+jid+'"]'); if(el){ el.scrollIntoView({block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); },1500); } }, switched?650:60); } });
+
+    // ── Channel editor (admins) ──────────────────────────────────
+    var chanScrim=document.getElementById('chanScrim'), chanForm=document.getElementById('chanForm'), chanTitle=document.getElementById('chanTitle'),
+        chanKeyEl=document.getElementById('chanKey'), chanLabelEl=document.getElementById('chanLabel'), chanTopicEl=document.getElementById('chanTopic'),
+        chanPrivEl=document.getElementById('chanPrivate'), chanMemberPick=document.getElementById('chanMemberPick'), chanMemberList=document.getElementById('chanMemberList'),
+        chanGchatOnEl=document.getElementById('chanGchatOn'), chanGchatSpaceWrap=document.getElementById('chanGchatSpaceWrap'), chanGchatSpaceEl=document.getElementById('chanGchatSpace'),
+        chanSaveBtn=document.getElementById('chanSave'), chanMsg=document.getElementById('chanMsg'), chanCloseBtn=document.getElementById('chanClose');
+    function allMembers(){ return (MEMBERS.mentors||[]).concat(MEMBERS.members||[]); }
+    function renderMemberPicker(selected){ selected=selected||[]; if(!chanMemberList) return;
+      chanMemberList.innerHTML=allMembers().filter(function(u){ return !u.is_me; }).map(function(u){ var on=selected.indexOf(u.id)>-1;
+        return '<label class="tc-mp-row"><input type="checkbox" value="'+u.id+'"'+(on?' checked':'')+'> <span class="tc-mp-ava">'+esc(u.initial)+'</span> '+esc(u.name)+'</label>'; }).join('') || '<p class="pc-empty">No other members yet.</p>'; }
+    function chanMsgSay(t,tone){ if(!chanMsg)return; chanMsg.hidden=!t; chanMsg.textContent=t||''; chanMsg.className='tc-chan-msg'+(tone?' is-'+tone:''); }
+    function openChannelEditor(key){ if(!chanScrim||!IS_ADMIN) return; chanScrim.hidden=false; chanMsgSay('');
+      if(key){ var c=CHANNELS.filter(function(x){return x.key===key;})[0]||{}; chanTitle.textContent='Edit #'+key; chanKeyEl.value=key;
+        chanLabelEl.value=c.label||''; chanTopicEl.value=TOPICS[key]||c.topic||''; chanPrivEl.checked=!!c.private; chanGchatOnEl.checked=!!c.gchat; chanGchatSpaceEl.value='';
+        chanSaveBtn.textContent='Save changes'; chanMemberPick.hidden=!c.private; chanGchatSpaceWrap.hidden=!c.gchat; renderMemberPicker([]);
+        if(c.private){ get('channel_members','&channel='+encodeURIComponent(key)).then(function(d){ if(d&&d.ok) renderMemberPicker(d.members||[]); }); }
+      } else { chanTitle.textContent='New channel'; chanKeyEl.value=''; chanLabelEl.value=''; chanTopicEl.value=''; chanPrivEl.checked=false; chanGchatOnEl.checked=false; chanGchatSpaceEl.value='';
+        chanSaveBtn.textContent='Create channel'; chanMemberPick.hidden=true; chanGchatSpaceWrap.hidden=true; renderMemberPicker([]); }
+      setTimeout(function(){ chanLabelEl.focus(); },30); }
+    function closeChannelEditor(){ if(chanScrim) chanScrim.hidden=true; }
+    if(addChannelBtn) addChannelBtn.addEventListener('click', function(){ openChannelEditor(''); });
+    if(chSetBtn) chSetBtn.addEventListener('click', function(){ openChannelEditor(CHANNEL); });
+    if(chanCloseBtn) chanCloseBtn.addEventListener('click', closeChannelEditor);
+    if(chanScrim) chanScrim.addEventListener('click', function(e){ if(e.target===chanScrim) closeChannelEditor(); });
+    if(chanPrivEl) chanPrivEl.addEventListener('change', function(){ chanMemberPick.hidden=!chanPrivEl.checked; if(chanPrivEl.checked) renderMemberPicker(collectMembers()); });
+    if(chanGchatOnEl) chanGchatOnEl.addEventListener('change', function(){ chanGchatSpaceWrap.hidden=!chanGchatOnEl.checked; });
+    function collectMembers(){ if(!chanMemberList) return []; return [].map.call(chanMemberList.querySelectorAll('input:checked'), function(i){ return +i.value; }); }
+    if(chanForm) chanForm.addEventListener('submit', function(e){ e.preventDefault();
+      var label=(chanLabelEl.value||'').trim(); if(!label){ chanMsgSay('Enter a channel name.','warn'); return; }
+      var key=chanKeyEl.value, payload={label:label, topic:(chanTopicEl.value||'').trim(), private:chanPrivEl.checked, gchat_on:chanGchatOnEl.checked};
+      if(chanGchatOnEl.checked && (chanGchatSpaceEl.value||'').trim()) payload.gchat_space=(chanGchatSpaceEl.value||'').trim();
+      if(chanPrivEl.checked) payload.members=collectMembers();
+      chanSaveBtn.disabled=true;
+      var action = key ? 'channel_update' : 'channel_create'; if(key) payload.channel=key;
+      post(action, payload).then(function(d){ chanSaveBtn.disabled=false;
+        if(d&&d.ok){ CHANNELS=d.channels||CHANNELS; renderChannels(); closeChannelEditor(); if(d.channel&&!key){ switchChannel(d.channel.key); } else if(key){ setTopic(); bootstrap(); } }
+        else { chanMsgSay((d&&d.error)||'Could not save the channel.','warn'); } }).catch(function(){ chanSaveBtn.disabled=false; chanMsgSay('Network error.','warn'); }); });
+
+    // Message interactions (event-delegated) — shared by the stream and thread panel.
+    function onMsgClick(e){
+      var cp=e.target.closest('.tc-copy'); if(cp){ copyCode(cp); return; }
+      var msgEl=e.target.closest('.tc-msg'); if(!msgEl) return; var id=+msgEl.getAttribute('data-id');
+      var chip=e.target.closest('.tc-react'); if(chip){ react(id, chip.getAttribute('data-emoji')); return; }
+      var add=e.target.closest('.tc-react-add'); if(add){ openEmojiPicker(add, id); return; }
+      var act=e.target.closest('.tc-act'); if(act){ var a=act.getAttribute('data-act');
+        if(a==='reply') openThread(id); else if(a==='react') openEmojiPicker(act, id); else if(a==='assign') openAssign(id, msgEl); else if(a==='pin') doPin(id);
+        else if(a==='save') doSave(id); else if(a==='edit') enterEdit(id); else if(a==='delete') doDelete(id); return; }
+      var sum=e.target.closest('.tc-thread-sum'); if(sum){ openThread(+sum.getAttribute('data-thread')); } }
+    streamEl.addEventListener('click', onMsgClick);
+    // Pin / unpin a message; the endpoint returns the fresh pin list.
+    function doPin(id){ var m=MSGS.filter(function(x){return x.id===id;})[0]; var want=!(m&&m.pinned);
+      post('pin',{id:id, pinned:want, channel:CHANNEL}).then(function(d){ if(!d||!d.ok) return;
+        if(m){ m.pinned=d.pinned; } PINS=d.pins||PINS; if(want) PINS_OPEN=true; render(); renderPins(); }); }
+    // Save / unsave (bookmark) a message.
+    function doSave(id){ var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; var want=!(m&&m.saved);
+      post('save',{id:id, saved:want}).then(function(d){ if(!d||!d.ok) return; MSGS.concat(THREAD).forEach(function(x){ if(x.id===id) x.saved=d.saved; }); render(); if(OPEN_THREAD) renderThread(); }); }
+    // Soft-delete a message (retained, compressed, in the trash — never truly gone).
+    function doDelete(id){ if(!window.confirm('Delete this message? It’s retained in the trash and can’t be seen by others.')) return;
+      post('delete',{id:id}).then(function(d){ if(d&&d.ok&&d.message){ replaceMsg(d.message); if(EDITING===id) exitEdit(); } }); }
+    // Header pin button toggles the pinned banner.
+    if(pinBtn) pinBtn.addEventListener('click', function(){ PINS_OPEN=!PINS_OPEN; renderPins(); });
+    // Pinned banner: unpin or jump-to-message.
+    if(pinnedEl) pinnedEl.addEventListener('click', function(e){
+      var un=e.target.closest('.tc-pin-x'); if(un){ var uid=+un.getAttribute('data-unpin'); post('pin',{id:uid, pinned:false, channel:CHANNEL}).then(function(d){ if(d&&d.ok){ var mm=MSGS.filter(function(x){return x.id===uid;})[0]; if(mm)mm.pinned=false; PINS=d.pins||[]; render(); renderPins(); } }); return; }
+      var jp=e.target.closest('.tc-pin-jump'); if(jp){ var jid=+jp.getAttribute('data-jump'); var el=streamEl.querySelector('.tc-msg[data-id="'+jid+'"]'); if(el){ el.scrollIntoView({behavior:'smooth', block:'center'}); el.classList.add('tc-flash'); setTimeout(function(){ el.classList.remove('tc-flash'); }, 1500); } } });
+    function react(id, emoji){ post('react',{id:id, emoji:emoji}).then(function(d){ if(!d||!d.ok) return;
+      var m=MSGS.filter(function(x){return x.id===id;})[0]; if(m){ m.reactions=d.reactions; render(); }
+      var tm=THREAD.filter(function(x){return x.id===id;})[0]; if(tm){ tm.reactions=d.reactions; }
+      if(OPEN_THREAD===id || tm) renderThread(); }); }
+    function copyCode(btn){ var pre=btn.parentNode.querySelector('.tc-code'); if(!pre) return; var text=pre.textContent||'';
+      var done=function(){ var o=btn.textContent; btn.textContent='Copied ✓'; btn.classList.add('is-done'); setTimeout(function(){ btn.textContent=o; btn.classList.remove('is-done'); },1400); };
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(function(){ fallback(text); done(); }); }
+      else { fallback(text); done(); }
+      function fallback(t){ try{ var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }catch(e){} } }
+    var pickerEl=null;
+    function openEmojiPicker(anchor, id){ closePicker(); pickerEl=document.createElement('div'); pickerEl.className='tc-picker';
+      pickerEl.innerHTML=EMOJI.map(function(x){ return '<button type="button" data-e="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
+      // Anchor the picker inside the message so hovering it keeps the message
+      // (and its action bar) alive; position it just under the clicked button.
+      var host=anchor.closest('.tc-msg')||anchor.parentNode; host.appendChild(pickerEl);
+      try{ var ar=anchor.getBoundingClientRect(), hr=host.getBoundingClientRect();
+        pickerEl.style.top=(ar.bottom-hr.top+4)+'px'; pickerEl.style.left=Math.max(4,(ar.left-hr.left))+'px'; }catch(e){}
+      pickerEl.addEventListener('click', function(e){ var b=e.target.closest('button'); if(b){ react(id, b.getAttribute('data-e')); closePicker(); } });
+      setTimeout(function(){ document.addEventListener('click', outside); },0);
+      function outside(ev){ if(pickerEl && !pickerEl.contains(ev.target) && ev.target!==anchor){ closePicker(); document.removeEventListener('click', outside); } } }
+    function closePicker(){ if(pickerEl){ pickerEl.remove(); pickerEl=null; } }
+
+    // ── Threads ──────────────────────────────────────────────────
+    var threadPanel=document.getElementById('tcThread'), threadBody=document.getElementById('tcThreadBody'),
+        threadForm=document.getElementById('tcThreadForm'), threadInput=document.getElementById('tcThreadInput');
+    var OPEN_THREAD=0, THREAD=[], tLast=0, threadReady=false;
+    function renderThread(){ if(!OPEN_THREAD) return;
+      var parent=MSGS.filter(function(x){return x.id===OPEN_THREAD;})[0];
+      var top = parent ? '<div class="tc-thread-parent">'+msgHtml(parent,false)+'</div>' : '';
+      var count = THREAD.length ? '<div class="tc-thread-count">'+THREAD.length+' repl'+(THREAD.length===1?'y':'ies')+'</div>' : '';
+      var reps = THREAD.length ? THREAD.map(function(m){return msgHtml(m,false);}).join('') : '<p class="pc-empty">No replies yet — start the thread.</p>';
+      threadBody.innerHTML = top+count+reps; threadBody.scrollTop=threadBody.scrollHeight; }
+    function openThread(id){ OPEN_THREAD=id; THREAD=[]; tLast=0; threadReady=false; threadPanel.hidden=false;
+      threadBody.innerHTML='<p class="pc-empty">Loading…</p>'; renderThread();
+      get('thread','&parent='+id+'&since=0').then(function(d){ if(!d||!d.ok||OPEN_THREAD!==id) return; THREAD=d.replies||[]; tLast=THREAD.length?THREAD[THREAD.length-1].id:0; threadReady=true; renderThread(); if(threadRTE) threadRTE.focus(); }); }
+    function closeThread(){ OPEN_THREAD=0; THREAD=[]; threadPanel.hidden=true; }
+    function pollThread(){ if(!OPEN_THREAD||!threadReady) return; get('thread','&parent='+OPEN_THREAD+'&since='+tLast).then(function(d){ if(!d||!d.ok||!d.replies||!d.replies.length) return;
+      var added=false; d.replies.forEach(function(m){ if(m.id>tLast){THREAD.push(m);tLast=m.id;added=true;} }); if(added) renderThread(); }); }
+    document.getElementById('tcThreadClose').addEventListener('click', closeThread);
+    threadBody.addEventListener('click', onMsgClick);
+    var threadRTE = attachRichEditor(threadInput, threadForm, document.getElementById('tcThreadMentions'), {
+      onSubmit: function(){ threadForm.requestSubmit(); }
+    });
+    threadForm.addEventListener('submit', function(e){ e.preventDefault(); if(!OPEN_THREAD) return; var b=threadRTE.getMarkdown().trim(); if(!b) return;
+      threadRTE.clear();
+      post('send',{channel:CHANNEL, body:b, parent_id:OPEN_THREAD}).then(function(d){ if(!d||!d.ok||!d.message) return;
+        if(d.message.id>tLast){ THREAD.push(d.message); tLast=d.message.id; }
+        var p=MSGS.filter(function(x){return x.id===OPEN_THREAD;})[0]; if(p){ p.reply_count=(p.reply_count||0)+1; p.last_reply='just now'; render(); }
+        renderThread(); }).catch(function(){}); });
+
+    // ── Assign a message as a task (the @mention → task-assignment bridge) ──
+    var assignPop=null;
+    function closeAssign(){ if(assignPop){ assignPop.remove(); assignPop=null; document.removeEventListener('click', assignOutside); } }
+    function assignOutside(e){ if(assignPop && !assignPop.contains(e.target) && !e.target.closest('[data-act="assign"]')) closeAssign(); }
+    function openAssign(id, anchorEl){ closeAssign();
+      var m=MSGS.concat(THREAD).filter(function(x){return x.id===id;})[0]; if(!m) return;
+      var mentions=m.mentions||[];
+      var opts='<option value="0">Me</option>'+mentions.map(function(mn){ return '<option value="'+mn.id+'">'+esc(mn.name)+'</option>'; }).join('');
+      var pop=document.createElement('div'); pop.className='tc-assign'; assignPop=pop;
+      pop.innerHTML='<div class="tc-assign-h">Assign as task</div>'
+        +'<input type="text" class="tc-assign-title" maxlength="300" placeholder="Task title">'
+        +'<div class="tc-assign-row"><label>To <select class="tc-assign-who">'+opts+'</select></label><label>Due <input type="date" class="tc-assign-due"></label></div>'
+        +'<div class="tc-assign-actions"><button type="button" class="pbtn pbtn-ghost tc-assign-cancel">Cancel</button><button type="button" class="pbtn pbtn-gold tc-assign-go">Assign</button></div>'
+        +'<p class="tc-assign-msg" hidden></p>';
+      anchorEl.appendChild(pop);
+      pop.querySelector('.tc-assign-title').value = (m.body||'').slice(0,120);
+      var who=pop.querySelector('.tc-assign-who'); if(mentions.length) who.value=String(mentions[0].id);
+      pop.querySelector('.tc-assign-cancel').addEventListener('click', closeAssign);
+      pop.querySelector('.tc-assign-go').addEventListener('click', function(){
+        var title=(pop.querySelector('.tc-assign-title').value||'').trim(); var pmsg=pop.querySelector('.tc-assign-msg');
+        if(!title){ pmsg.hidden=false; pmsg.className='tc-assign-msg is-warn'; pmsg.textContent='Add a title.'; return; }
+        var go=pop.querySelector('.tc-assign-go'); go.disabled=true; go.textContent='Assigning…';
+        post('assign',{title:title, assignee:+who.value||0, due:pop.querySelector('.tc-assign-due').value}).then(function(d){
+          if(d&&d.ok){ pmsg.hidden=false; pmsg.className='tc-assign-msg is-ok'; pmsg.textContent=(+who.value>0?'Assigned — they’ll get an email. ✓':'Added to your tasks. ✓'); setTimeout(closeAssign,1200); }
+          else { go.disabled=false; go.textContent='Assign'; pmsg.hidden=false; pmsg.className='tc-assign-msg is-warn'; pmsg.textContent=(d&&d.error)||'Could not assign.'; } }).catch(function(){ go.disabled=false; go.textContent='Assign'; }); });
+      setTimeout(function(){ document.addEventListener('click', assignOutside); },0);
+    }
+
+    // ── attachRichEditor — a small WYSIWYG contenteditable editor ────
+    // Shows formatted text live (never raw markdown), a modern formatting
+    // toolbar with active-state highlighting, @mention chips, and clean
+    // markdown serialisation on send/edit. Reused by the main + thread composers.
+    function attachRichEditor(el, form, dropEl, opts){
+      opts=opts||{};
+      function setEmpty(){ var e=isEmpty(); el.classList.toggle('is-empty', e); }
+      function isEmpty(){ return el.textContent.replace(/ /g,' ').trim()==='' && !el.querySelector('pre,ul,ol,li,img,.tc-at,code,a'); }
+      function focus(){ el.focus(); placeCaretEnd(); }
+      function placeCaretEnd(){ try{ var r=document.createRange(); r.selectNodeContents(el); r.collapse(false); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){} }
+
+      // Keep pasted content plain — no foreign fonts/colours leaking in.
+      el.addEventListener('paste', function(e){ e.preventDefault(); var t=((e.clipboardData||window.clipboardData).getData('text/plain'))||''; document.execCommand('insertText', false, t); });
+
+      // ── formatting commands ──
+      function surround(tag, ph){ var sel=window.getSelection(); if(!sel.rangeCount){ el.focus(); sel=window.getSelection(); if(!sel.rangeCount) return; }
+        var range=sel.getRangeAt(0); var node=document.createElement(tag);
+        if(range.collapsed){ node.textContent=ph||''; range.insertNode(node); var r=document.createRange(); r.selectNodeContents(node); sel.removeAllRanges(); sel.addRange(r); }
+        else { node.appendChild(range.extractContents()); range.insertNode(node); var r2=document.createRange(); r2.selectNodeContents(node); sel.removeAllRanges(); sel.addRange(r2); } }
+      function insertBlock(node){ var sel=window.getSelection(); if(!sel.rangeCount){ el.appendChild(node); return; }
+        var range=sel.getRangeAt(0); range.deleteContents(); range.insertNode(node);
+        var after=document.createElement('div'); after.appendChild(document.createElement('br')); node.parentNode.insertBefore(after, node.nextSibling);
+        var r=document.createRange(); r.selectNodeContents(node); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+      function ancestor(tagRe){ var sel=window.getSelection(); if(!sel.rangeCount) return null; var n=sel.getRangeAt(0).startContainer;
+        while(n && n!==el){ if(n.nodeType===1 && tagRe.test(n.nodeName)) return n; n=n.parentNode; } return null; }
+      function exec(cmd){ el.focus();
+        if(cmd==='bold'||cmd==='italic') document.execCommand(cmd,false,null);
+        else if(cmd==='strike') document.execCommand('strikeThrough',false,null);
+        else if(cmd==='ul') document.execCommand('insertUnorderedList',false,null);
+        else if(cmd==='ol') document.execCommand('insertOrderedList',false,null);
+        else if(cmd==='quote'){ if(ancestor(/^BLOCKQUOTE$/)) document.execCommand('formatBlock',false,'div'); else document.execCommand('formatBlock',false,'blockquote'); }
+        else if(cmd==='code') surround('code','code');
+        else if(cmd==='codeblock'){ var pre=document.createElement('pre'); var sel=window.getSelection(); var txt=(sel && sel.toString())||''; pre.textContent=txt||'code'; insertBlock(pre); }
+        else if(cmd==='link'){ var sel=window.getSelection(); var text=(sel && sel.toString())||''; var url=window.prompt('Link URL', 'https://'); if(!url) return; url=url.trim(); if(!/^https?:\/\//i.test(url)) url='https://'+url.replace(/^\/+/,'');
+          if(text){ var a=document.createElement('a'); a.href=url; a.textContent=text; if(sel.rangeCount){ var rr=sel.getRangeAt(0); rr.deleteContents(); rr.insertNode(a); } }
+          else { var a2=document.createElement('a'); a2.href=url; a2.textContent=url; insertInline(a2); } }
+        setEmpty(); updateToolbar(); if(opts.onInput) opts.onInput(); }
+      function insertInline(node){ var sel=window.getSelection(); if(!sel.rangeCount){ el.appendChild(node); return; } var r=sel.getRangeAt(0); r.deleteContents(); r.insertNode(node); r.setStartAfter(node); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+
+      // Toolbar buttons live inside the form; highlight the active formats.
+      var btns=[].slice.call(form.querySelectorAll('.tc-fmt'));
+      btns.forEach(function(b){ b.addEventListener('mousedown', function(e){ e.preventDefault(); }); b.addEventListener('click', function(e){ e.preventDefault(); exec(b.getAttribute('data-cmd')); }); });
+      function state(cmd){ try{ return document.queryCommandState(cmd); }catch(e){ return false; } }
+      function updateToolbar(){ if(!btns.length) return; var inEl = (function(){ var s=window.getSelection(); if(!s.rangeCount) return false; var n=s.getRangeAt(0).startContainer; while(n){ if(n===el) return true; n=n.parentNode; } return false; })();
+        btns.forEach(function(b){ var c=b.getAttribute('data-cmd'), on=false; if(inEl){
+          if(c==='bold') on=state('bold'); else if(c==='italic') on=state('italic'); else if(c==='strike') on=state('strikeThrough');
+          else if(c==='ul') on=state('insertUnorderedList'); else if(c==='ol') on=state('insertOrderedList');
+          else if(c==='quote') on=!!ancestor(/^BLOCKQUOTE$/); else if(c==='code') on=!!ancestor(/^CODE$/); else if(c==='codeblock') on=!!ancestor(/^PRE$/); }
+          b.classList.toggle('is-on', on); }); }
+      document.addEventListener('selectionchange', function(){ updateToolbar(); });
+
+      // ── @mention autocomplete (chips) ──
+      var mOpen=false, mTimer=null, mActive=-1, mItems=[], mSaved=null;
+      function mHide(){ if(dropEl){ dropEl.hidden=true; } mOpen=false; mActive=-1; mItems=[]; mSaved=null; }
+      function mRender(){ if(!dropEl) return; dropEl.innerHTML=mItems.map(function(m,i){ return '<button type="button" class="tc-ment'+(i===0?' is-on':'')+'" data-h="'+esc(m.handle)+'" data-n="'+esc(m.name)+'"><span class="tc-ment-ava">'+esc(m.initial)+'</span>'+esc(m.name)+' <span class="tc-ment-h">@'+esc(m.handle)+'</span></button>'; }).join(''); dropEl.hidden=false; mOpen=true; mActive=0; }
+      function caretAt(){ var sel=window.getSelection(); if(!sel.rangeCount) return null; var range=sel.getRangeAt(0); if(!range.collapsed) return null; var node=range.startContainer; if(node.nodeType!==3) return null;
+        var before=node.nodeValue.slice(0, range.startOffset); var m=before.match(/(?:^|\s)@([\w.\-]*)$/); if(!m) return null; return {node:node, end:range.startOffset, start:range.startOffset-m[1].length-1, q:m[1]}; }
+      function mPick(handle, name){ var cq=mSaved; mHide(); if(!cq) return; try{
+        var r=document.createRange(); r.setStart(cq.node, cq.start); r.setEnd(cq.node, cq.end); r.deleteContents();
+        var chip=document.createElement('span'); chip.className='tc-at'; chip.setAttribute('contenteditable','false'); chip.setAttribute('data-h', handle); chip.textContent='@'+name;
+        r.insertNode(chip); var sp=document.createTextNode(' '); chip.parentNode.insertBefore(sp, chip.nextSibling);
+        var nr=document.createRange(); nr.setStartAfter(sp); nr.collapse(true); var s=window.getSelection(); s.removeAllRanges(); s.addRange(nr);
+      }catch(e){} setEmpty(); if(opts.onInput) opts.onInput(); }
+      if(dropEl) dropEl.addEventListener('mousedown', function(e){ var b=e.target.closest('.tc-ment'); if(b){ e.preventDefault(); mPick(b.getAttribute('data-h'), b.getAttribute('data-n')); } });
+
+      el.addEventListener('input', function(){ setEmpty(); if(opts.onInput) opts.onInput();
+        var cq=caretAt(); if(!cq){ mHide(); return; } mSaved=cq; var q=cq.q; clearTimeout(mTimer);
+        mTimer=setTimeout(function(){ get('mention','&q='+encodeURIComponent(q)).then(function(d){ if(!d||!d.ok||!d.members.length){ mHide(); return; } mItems=d.members; mRender(); }).catch(mHide); }, 130); });
+
+      el.addEventListener('keydown', function(e){
+        if(mOpen){ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); mActive=(mActive+(e.key==='ArrowDown'?1:mItems.length-1))%mItems.length; [].forEach.call(dropEl.children,function(c,i){ c.classList.toggle('is-on',i===mActive); }); return; }
+          if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); var it=mItems[mActive]; if(it) mPick(it.handle, it.name); return; }
+          if(e.key==='Escape'){ e.preventDefault(); mHide(); return; } }
+        // Keyboard formatting shortcuts.
+        if((e.ctrlKey||e.metaKey) && !e.shiftKey){ var k=e.key.toLowerCase(); if(k==='b'){ e.preventDefault(); exec('bold'); return; } if(k==='i'){ e.preventDefault(); exec('italic'); return; } }
+        // Enter sends; Shift+Enter is a newline.
+        if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); if(opts.onSubmit) opts.onSubmit(); }
+      });
+
+      // ── markdown round-trip ──
+      var BLOCK={DIV:1,P:1};
+      function ser(node){ var out='';
+        for(var i=0;i<node.childNodes.length;i++){ var ch=node.childNodes[i];
+          if(ch.nodeType===3){ out+=ch.nodeValue.replace(/ /g,' ').replace(/\n/g,' '); continue; }
+          if(ch.nodeType!==1) continue; var tag=ch.nodeName;
+          if(ch.classList && ch.classList.contains('tc-at')){ out+='@'+(ch.getAttribute('data-h')||ch.textContent.replace(/^@/,'')); continue; }
+          if(tag==='BR'){ out+='\n'; continue; }
+          if(tag==='B'||tag==='STRONG'){ var t=ser(ch).trim(); if(t) out+='**'+t+'**'; continue; }
+          if(tag==='I'||tag==='EM'){ var t2=ser(ch).trim(); if(t2) out+='*'+t2+'*'; continue; }
+          if(tag==='S'||tag==='STRIKE'||tag==='DEL'){ var t3=ser(ch).trim(); if(t3) out+='~~'+t3+'~~'; continue; }
+          if(tag==='CODE'){ out+='`'+ch.textContent+'`'; continue; }
+          if(tag==='A'){ out+='['+ser(ch).trim()+']('+(ch.getAttribute('href')||'')+')'; continue; }
+          if(tag==='PRE'){ out=nl(out)+'```\n'+ch.textContent.replace(/\n+$/,'')+'\n```\n'; continue; }
+          if(tag==='BLOCKQUOTE'){ var q=ser(ch).trim().split('\n').map(function(l){return '> '+l;}).join('\n'); out=nl(out)+q+'\n'; continue; }
+          if(tag==='UL'||tag==='OL'){ out=nl(out); var n=1; [].forEach.call(ch.children,function(li){ if(li.nodeName==='LI') out+=(tag==='OL'?(n++)+'. ':'- ')+ser(li).trim()+'\n'; }); continue; }
+          if(BLOCK[tag]){ out=nl(out)+ser(ch); continue; }
+          out+=ser(ch);
+        }
+        return out; }
+      function nl(s){ return (s===''||/\n$/.test(s))? s : s+'\n'; }
+      function getMarkdown(){ return ser(el).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim(); }
+
+      // markdown → editable HTML (used when loading a message to edit).
+      function mdToHtml(md){ var S='', E=''; var raw=String(md||'');
+        var fen=[]; raw=raw.replace(/```([\s\S]*?)```/g, function(_,c){ fen.push(c.replace(/^\n/,'').replace(/\n+$/,'')); return S+'F'+(fen.length-1)+E; });
+        var inl=[]; raw=raw.replace(/`([^`\n]+)`/g, function(_,c){ inl.push(c); return S+'I'+(inl.length-1)+E; });
+        function inline(s){ s=esc(s);
+          s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>').replace(/~~([^~\n]+)~~/g,'<s>$1</s>')
+             .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g,'$1<i>$2</i>').replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g,'$1<i>$2</i>');
+          s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');
+          s=s.replace(new RegExp(S+'I(\\d+)'+E,'g'), function(_,i){ return '<code>'+esc(inl[+i])+'</code>'; });
+          return s; }
+        var rows=raw.split('\n'), out='', inUl=false, inOl=false; var fenRe=new RegExp('^'+S+'F(\\d+)'+E+'$');
+        function closeL(){ if(inUl){out+='</ul>';inUl=false;} if(inOl){out+='</ol>';inOl=false;} }
+        rows.forEach(function(l){ var fm=l.match(fenRe);
+          if(fm){ closeL(); out+='<pre>'+esc(fen[+fm[1]])+'</pre>'; return; }
+          if(/^\s*[-*]\s+/.test(l)){ if(inOl){out+='</ol>';inOl=false;} if(!inUl){out+='<ul>';inUl=true;} out+='<li>'+inline(l.replace(/^\s*[-*]\s+/,''))+'</li>'; return; }
+          if(/^\s*\d+\.\s+/.test(l)){ if(inUl){out+='</ul>';inUl=false;} if(!inOl){out+='<ol>';inOl=true;} out+='<li>'+inline(l.replace(/^\s*\d+\.\s+/,''))+'</li>'; return; }
+          closeL();
+          if(/^\s*>\s?/.test(l)){ out+='<blockquote>'+inline(l.replace(/^\s*>\s?/,''))+'</blockquote>'; return; }
+          if(l.trim()===''){ out+='<div><br></div>'; return; }
+          out+='<div>'+inline(l)+'</div>'; });
+        closeL(); return out; }
+
+      function setMarkdown(md){ el.innerHTML=mdToHtml(md); setEmpty(); }
+      function clear(){ el.innerHTML=''; setEmpty(); mHide(); }
+      setEmpty();
+      return { getMarkdown:getMarkdown, setMarkdown:setMarkdown, clear:clear, focus:focus, isEmpty:isEmpty, mentionsOpen:function(){ return mOpen; } };
+    }
+
+    // Cheap background refresh of channel state (for the nav unread badge) when
+    // the Chat view ISN'T open — a message-less poll that still returns channels.
+    function refreshChannelsBg(){ get('poll','&channel='+encodeURIComponent(CHANNEL)+'&since=999999999').then(function(d){ if(d&&d.ok){ CHANNELS=d.channels||CHANNELS; updateNavBadge(); } }).catch(function(){}); }
+    // Fast 4s polling while the Chat view is visible; a slower (~24s) background
+    // channel check otherwise, so the unread badge stays roughly live everywhere.
+    var bg=0;
+    function tick(){ var v=document.getElementById('view-chat');
+      if(v && !v.hidden){ if(!active){ active=true; bootstrap(); } poll(); pollThread(); }
+      else { active=false; if((++bg % 6) === 0) refreshChannelsBg(); } }
+    window.addEventListener('hashchange', function(){ setTimeout(tick, 60); });
+    if(location.hash.indexOf('chat')>-1){ active=true; bootstrap(); } else { refreshChannelsBg(); }
+    poller=setInterval(tick, 4000);
+  })();
+  </script>
+
+  <script>
+  /* Schedule-a-meeting modal → creates a Google Meet + calendar invite via
+     portal/meetings.php, then refreshes the Today calendar agenda. */
+  (function () {
+    var scrim=document.getElementById('meetScrim'), modal=document.getElementById('meetModal'); if(!scrim||!modal) return;
+    var csrf=modal.getAttribute('data-csrf')||'', msg=document.getElementById('mmMsg');
+    function open(){ scrim.hidden=false; document.body.style.overflow='hidden'; var w=document.getElementById('mmWhen'); if(w&&!w.value){ var d=new Date(Date.now()+3600000); d.setMinutes(0); w.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+'T'+('0'+d.getHours()).slice(-2)+':00'; } document.getElementById('mmTitle').focus(); }
+    function close(){ scrim.hidden=true; document.body.style.overflow=''; if(msg)msg.hidden=true; }
+    function say(t,tone){ if(!msg)return; msg.hidden=!t; msg.textContent=t||''; msg.className='pm-msg'+(tone?' is-'+tone:''); }
+    var openBtn=document.getElementById('openMeetModal'); if(openBtn) openBtn.addEventListener('click', open);
+    document.getElementById('meetClose').addEventListener('click', close);
+    document.getElementById('meetCancel').addEventListener('click', close);
+    scrim.addEventListener('click', function(e){ if(e.target===scrim) close(); });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !scrim.hidden) close(); });
+    document.getElementById('meetForm').addEventListener('submit', function(e){ e.preventDefault();
+      var title=(document.getElementById('mmTitle').value||'').trim(); var when=document.getElementById('mmWhen').value;
+      if(!title||!when){ say('Add a title and a time.','warn'); return; }
+      var atts=(document.getElementById('mmAtt').value||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+      var btn=document.getElementById('mmSubmit'); btn.disabled=true; var old=btn.textContent; btn.textContent='Creating…'; say('Creating the meeting and Meet link…','');
+      fetch('/portal/meetings.php?action=schedule',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
+        body:JSON.stringify({title:title, when:when, duration:+document.getElementById('mmDur').value, frequency:document.getElementById('mmFreq').value, agenda:document.getElementById('mmAgenda').value, attendees:atts, context:'workspace'})})
+        .then(function(r){return r.json();}).then(function(d){ btn.disabled=false; btn.textContent=old;
+          if(d&&d.ok){ say((d.warning||'Meeting scheduled — invites sent. 🎉'), d.warning?'warn':'ok'); if(window.avReloadCalendar) window.avReloadCalendar();
+            setTimeout(close, d.warning?2600:900); document.getElementById('meetForm').reset(); }
+          else { say((d&&d.error)||'Could not schedule the meeting.','warn'); } })
+        .catch(function(){ btn.disabled=false; btn.textContent=old; say('Network error — try again.','warn'); }); });
   })();
   </script>
 

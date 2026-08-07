@@ -42,7 +42,7 @@ function av_workspace_surfaces(bool $isAdmin = false): array
     $d = av_workspace_domain();
     $s = [
         ['key' => 'mail',     'label' => 'Gmail',    'desc' => 'Your @' . $d . ' inbox',      'icon' => 'mail',     'url' => av_ws_link('AV_WS_MAIL_URL',     "https://mail.google.com/a/$d")],
-        ['key' => 'chat',     'label' => 'Chat',     'desc' => 'Team chat & spaces',          'icon' => 'chat',     'url' => av_ws_link('AV_WS_CHAT_URL',     'https://chat.google.com')],
+        ['key' => 'chat',     'label' => 'Team Chat', 'desc' => 'Channels, threads & mentions', 'icon' => 'chat',    'url' => av_ws_link('AV_WS_CHAT_URL',     '/portal/#chat'), 'internal' => true],
         ['key' => 'meet',     'label' => 'Meet',     'desc' => 'Start or join a video call',  'icon' => 'meet',     'url' => av_ws_link('AV_WS_MEET_URL',     'https://meet.google.com')],
         ['key' => 'calendar', 'label' => 'Calendar', 'desc' => 'Team schedule & events',      'icon' => 'calendar', 'url' => av_ws_link('AV_WS_CALENDAR_URL', "https://calendar.google.com/a/$d")],
         ['key' => 'drive',    'label' => 'Drive',    'desc' => 'Shared files & documents',    'icon' => 'drive',    'url' => av_ws_link('AV_WS_DRIVE_URL',    "https://drive.google.com/a/$d")],
@@ -126,7 +126,7 @@ function av_communities_ensure(PDO $pdo): void
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )";
     $drv = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-    $pdo->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+    Database::execSchema($pdo, $ddl);
 }
 
 /** All communities (admin view, any enabled state). */

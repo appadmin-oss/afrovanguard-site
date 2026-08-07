@@ -64,7 +64,7 @@ try {
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
-        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save'], true);
+        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -76,6 +76,7 @@ try {
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
+        'ngv_reset', 'ngv_restore',
         'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
         'activity', 'activity_undo',
         'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
@@ -581,6 +582,32 @@ try {
             Database::metaSet('brand_theme', json_encode($brand));
             AdminAudit::log('design', 'brand_save', 'brand', 'Accent ' . $a . ' / ' . $brand['accent_deep']);
             json_out(['ok' => true, 'brand' => $brand]);
+        }
+
+        // ---- NextGen Vanguard programme page (admin-editable content + plans) ----
+        // The whole /academy/ngv/ page is DB-driven; these read/write the JSON
+        // content document (lib/Ngv.php → app_meta). Available to any admin role.
+        case 'ngv_get':
+            json_out(['ok' => true, 'content' => Ngv::get(), 'defaults' => Ngv::defaults(), 'has_previous' => Ngv::hasPrevious()]);
+        case 'ngv_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $patch = is_array($body['content'] ?? null) ? $body['content'] : $body;
+            if (!$patch) json_out(['ok' => false, 'error' => 'Nothing to save.'], 422);
+            $saved = Ngv::save($patch);
+            AdminAudit::log('content', 'ngv_save', 'ngv', 'NextGen Vanguard page updated' . (empty($saved['enabled']) ? ' (hidden)' : ''));
+            json_out(['ok' => true, 'content' => $saved]);
+        }
+        case 'ngv_reset': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            AdminAudit::log('content', 'ngv_reset', 'ngv', 'NextGen Vanguard page reset to defaults');
+            json_out(['ok' => true, 'content' => Ngv::reset(), 'has_previous' => Ngv::hasPrevious()]);
+        }
+        case 'ngv_restore': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $restored = Ngv::restorePrevious();
+            if ($restored === null) json_out(['ok' => false, 'error' => 'No previous version to restore.'], 404);
+            AdminAudit::log('content', 'ngv_restore', 'ngv', 'NextGen Vanguard page restored to previous version');
+            json_out(['ok' => true, 'content' => $restored, 'has_previous' => Ngv::hasPrevious()]);
         }
 
         // ---- Sign-in security policy (superadmin) ----

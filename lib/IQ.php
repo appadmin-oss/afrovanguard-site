@@ -38,7 +38,6 @@ final class IQ
             created_at VARCHAR(32) NOT NULL DEFAULT '',
             updated_at VARCHAR(32) NOT NULL DEFAULT ''
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_iq_slug ON iq_quizzes(slug);
         CREATE TABLE IF NOT EXISTS iq_questions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             quiz_id INTEGER NOT NULL,
@@ -48,7 +47,6 @@ final class IQ
             points INTEGER NOT NULL DEFAULT 10,
             sort INTEGER NOT NULL DEFAULT 0
         );
-        CREATE INDEX IF NOT EXISTS idx_iq_q ON iq_questions(quiz_id, sort);
         CREATE TABLE IF NOT EXISTS iq_attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             quiz_id INTEGER NOT NULL,
@@ -60,10 +58,13 @@ final class IQ
             total INTEGER NOT NULL DEFAULT 0,
             duration_sec INTEGER NOT NULL DEFAULT 0,
             created_at VARCHAR(32) NOT NULL DEFAULT ''
-        );
-        CREATE INDEX IF NOT EXISTS idx_iq_att_quiz ON iq_attempts(quiz_id, score);
-        CREATE INDEX IF NOT EXISTS idx_iq_att_user ON iq_attempts(user_id);";
-        $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        );";
+        Database::execSchema($db, $ddl);
+        // Indexes created separately + idempotently (MySQL lacks CREATE [UNIQUE] INDEX IF NOT EXISTS).
+        Database::ensureIndex($db, 'idx_iq_slug', 'iq_quizzes', 'slug', true);
+        Database::ensureIndex($db, 'idx_iq_q', 'iq_questions', 'quiz_id, sort');
+        Database::ensureIndex($db, 'idx_iq_att_quiz', 'iq_attempts', 'quiz_id, score');
+        Database::ensureIndex($db, 'idx_iq_att_user', 'iq_attempts', 'user_id');
         // Profile ("personality") quizzes: tally option-tagged profiles → an outcome.
         self::addCol('iq_quizzes', 'type', "VARCHAR(12) NOT NULL DEFAULT 'scored'");   // scored | profile
         self::addCol('iq_quizzes', 'profiles', "TEXT NOT NULL DEFAULT '{}'");           // {KEY: {tag,title,…}}
