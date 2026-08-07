@@ -140,8 +140,17 @@ try {
                 (string) ($body['kind'] ?? 'private'),
                 (string) ($body['title'] ?? ''),
                 (string) ($body['body'] ?? ''),
-                (string) ($body['entry_date'] ?? date('Y-m-d'))
+                (string) ($body['entry_date'] ?? date('Y-m-d')),
+                (string) ($body['font'] ?? 'default')
             );
+            json_out($res, $res['ok'] ? 200 : 422);
+        }
+        case 'entry.update': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            if (!av_rate_ok('diary_edit_' . (int) $u['id'], 60, 3600)) json_out(['ok' => false, 'error' => 'You’re editing quickly — give it a moment.'], 429);
+            $res = (new DiaryJournal())->updateOwn((int) $u['id'], (int) ($body['id'] ?? 0), $body);
             json_out($res, $res['ok'] ? 200 : 422);
         }
 

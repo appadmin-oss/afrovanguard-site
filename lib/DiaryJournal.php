@@ -24,12 +24,20 @@ final class DiaryJournal
 
     public const KINDS = ['event', 'private', 'public'];
 
+    /* The diary's free handwriting/serif font library (all Google-Fonts OFL —
+     * the id is stored per entry; the CSS family + web-font link live on the
+     * diary pages). 'default' keeps the site's reading face. */
+    public const FONTS = ['default', 'caveat', 'kalam', 'patrick', 'shadows', 'dancing', 'gochi', 'indie', 'architects', 'special'];
+    public static function validFont(string $f): string { return in_array($f, self::FONTS, true) ? $f : 'default'; }
+
     /** The category approved member voices publish under, on the public feed. */
     private const PUBLIC_CATEGORY = 'Vanguard Voices';
 
     /** Create an entry for a member. Public entries enter the moderation queue. */
-    public function create(int $authorId, string $kind, string $title, string $body, string $entryDate): array
+    public function create(int $authorId, string $kind, string $title, string $body, string $entryDate, string $font = 'default'): array
     {
+        $this->ensureFontColumn();
+        $font  = self::validFont($font);
         $kind  = in_array($kind, self::KINDS, true) ? $kind : 'private';
         $title = trim(mb_substr(trim($title), 0, 160));
         $body  = trim($body);
@@ -46,18 +54,61 @@ final class DiaryJournal
         $status = in_array($kind, ['public', 'event'], true) ? 'pending' : 'logged';
         $now = date('Y-m-d H:i:s');
         $this->db->prepare(
-            'INSERT INTO diary_entries (author_id, kind, title, body, entry_date, status, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?)'
-        )->execute([$authorId, $kind, $title, $body, $entryDate, $status, $now, $now]);
+            'INSERT INTO diary_entries (author_id, kind, title, body, entry_date, status, font, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?)'
+        )->execute([$authorId, $kind, $title, $body, $entryDate, $status, $font, $now, $now]);
 
-        return ['ok' => true, 'id' => (int) $this->db->lastInsertId(), 'kind' => $kind, 'status' => $status];
+        return ['ok' => true, 'id' => (int) $this->db->lastInsertId(), 'kind' => $kind, 'status' => $status, 'font' => $font];
+    }
+
+    /** Idempotently add the per-entry `font` column (portable: VARCHAR keeps a
+     *  default on MySQL, which TEXT cannot). Old databases pick it up on the
+     *  next write/read; a duplicate ALTER just no-ops. */
+    private function ensureFontColumn(): void
+    {
+        static $done = false; if ($done) return; $done = true;
+        try { $this->db->exec("ALTER TABLE diary_entries ADD COLUMN font VARCHAR(24) DEFAULT 'default'"); }
+        catch (Throwable $e) { /* column already exists */ }
+    }
+
+    /**
+     * Edit a member's OWN entry (title / body / date / kind / font). Scoped to
+     * the author. Re-sanitises HTML, and — because an edit changes what the
+     * public would see — sends public/event entries back through moderation.
+     */
+    public function updateOwn(int $authorId, int $id, array $f): array
+    {
+        $this->ensureFontColumn();
+        $st = $this->db->prepare('SELECT * FROM diary_entries WHERE id = ? AND author_id = ?');
+        $st->execute([$id, $authorId]);
+        $row = $st->fetch();
+        if (!$row) return ['ok' => false, 'error' => 'That entry is not yours, or no longer exists.'];
+
+        $kind  = array_key_exists('kind', $f) && in_array((string) $f['kind'], self::KINDS, true) ? (string) $f['kind'] : (string) $row['kind'];
+        $title = array_key_exists('title', $f) ? trim(mb_substr(trim((string) $f['title']), 0, 160)) : (string) $row['title'];
+        $body  = array_key_exists('body', $f) ? trim((string) $f['body']) : (string) $row['body'];
+        if (self::isHtml($body)) $body = self::sanitizeHtml($body);
+        $plain = trim(strip_tags(str_replace('<', ' <', $body)));
+        if ($plain === '')            return ['ok' => false, 'error' => 'Write something before saving.'];
+        if (mb_strlen($body) > 40000) return ['ok' => false, 'error' => 'That entry is a little long — trim it down.'];
+        $entryDate = array_key_exists('entry_date', $f) ? self::normalizeDate((string) $f['entry_date']) : (string) $row['entry_date'];
+        $font  = array_key_exists('font', $f) ? self::validFont((string) $f['font']) : self::validFont((string) ($row['font'] ?? 'default'));
+        $status = in_array($kind, ['public', 'event'], true) ? 'pending' : 'logged';
+        $now = date('Y-m-d H:i:s');
+
+        $this->db->prepare(
+            'UPDATE diary_entries SET kind = ?, title = ?, body = ?, entry_date = ?, font = ?, status = ?, updated_at = ?
+             WHERE id = ? AND author_id = ?'
+        )->execute([$kind, $title, $body, $entryDate, $font, $status, $now, $id, $authorId]);
+        return ['ok' => true, 'id' => $id, 'kind' => $kind, 'status' => $status, 'font' => $font];
     }
 
     /** A member's own stream (all kinds, newest entry-date first). */
     public function mine(int $authorId): array
     {
+        $this->ensureFontColumn();
         $st = $this->db->prepare(
-            'SELECT id, kind, title, body, entry_date, status, published_slug, review_note, created_at
+            'SELECT id, kind, title, body, entry_date, status, published_slug, review_note, created_at, font
              FROM diary_entries WHERE author_id = ? ORDER BY entry_date DESC, id DESC'
         );
         $st->execute([$authorId]);
