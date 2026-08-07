@@ -102,6 +102,21 @@ render_nav('diary');
           <input type="text" name="title" maxlength="160" placeholder="A short headline" />
         </label>
         <label class="vd-field">
+          <span>Handwriting <span class="vd-opt">(optional — how your words look)</span></span>
+          <select name="font" id="vd-font">
+            <option value="default">Default — clean &amp; readable</option>
+            <option value="caveat">Caveat — casual hand</option>
+            <option value="kalam">Kalam — natural pen</option>
+            <option value="patrick">Patrick Hand — neat print</option>
+            <option value="shadows">Shadows Into Light — light hand</option>
+            <option value="dancing">Dancing Script — flowing</option>
+            <option value="gochi">Gochi Hand — marker</option>
+            <option value="indie">Indie Flower — bubbly</option>
+            <option value="architects">Architects Daughter — sketchy</option>
+            <option value="special">Special Elite — typewriter</option>
+          </select>
+        </label>
+        <label class="vd-field">
           <span>Your entry</span>
           <textarea name="body" rows="6" required placeholder="Share your entry here…"></textarea>
         </label>
@@ -118,19 +133,20 @@ render_nav('diary');
     <section class="vd-card vd-streams" aria-labelledby="vd-streams-h">
       <h2 id="vd-streams-h">📂 Past diary streams</h2>
       <ul class="vd-list" id="vd-list">
-<?php foreach ($entries as $e): [$icon, $kindLabel, $st, $stCls, $slug] = vd_badge($e); ?>
-        <li class="vd-item" data-id="<?= (int) $e['id'] ?>">
+<?php foreach ($entries as $e): [$icon, $kindLabel, $st, $stCls, $slug] = vd_badge($e); $ef = DiaryJournal::validFont((string) ($e['font'] ?? 'default')); ?>
+        <li class="vd-item" data-id="<?= (int) $e['id'] ?>" data-kind="<?= e($e['kind']) ?>" data-font="<?= e($ef) ?>" data-date="<?= e($e['entry_date']) ?>" data-title="<?= e($e['title']) ?>" data-body="<?= e($e['body']) ?>">
           <div class="vd-item-head">
             <span class="vd-kind"><?= $icon ?> <?= e($kindLabel) ?></span>
             <span class="vd-status <?= e($stCls) ?>"><?= e($st) ?></span>
           </div>
 <?php if ($e['title'] !== ''): ?>          <p class="vd-item-title"><?= e($e['title']) ?></p>
-<?php endif; ?>          <p class="vd-item-body"><?= e(DiaryJournal::excerpt($e['body'], 220)) ?></p>
+<?php endif; ?>          <p class="vd-item-body<?= $ef !== 'default' ? ' vd-font-' . e($ef) : '' ?>"><?= e(DiaryJournal::excerpt($e['body'], 220)) ?></p>
           <div class="vd-item-foot">
             <time datetime="<?= e($e['entry_date']) ?>"><?= e(date('M j, Y', strtotime($e['entry_date']) ?: time())) ?></time>
 <?php if ($slug): ?>            · <a href="/diary/<?= e($slug) ?>/">View on the Diary →</a>
 <?php endif; ?><?php if (($e['kind'] === 'public' || $e['kind'] === 'event') && $e['status'] === 'rejected' && !empty($e['review_note'])): ?>            · <span class="vd-note"><?= e($e['review_note']) ?></span>
-<?php endif; ?>            <button type="button" class="vd-share" data-id="<?= (int) $e['id'] ?>">Share</button>
+<?php endif; ?>            <button type="button" class="vd-edit" data-id="<?= (int) $e['id'] ?>">Edit</button>
+            <button type="button" class="vd-share" data-id="<?= (int) $e['id'] ?>">Share</button>
             <button type="button" class="vd-del" data-id="<?= (int) $e['id'] ?>" aria-label="Delete this entry">Delete</button>
           </div>
         </li>
@@ -143,6 +159,19 @@ render_nav('diary');
 </main>
 
 <style>
+/* Free handwriting/typewriter font library (Google Fonts, OFL). style-src in
+   the site CSP already allows fonts.googleapis.com; font-src allows gstatic. */
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=Dancing+Script:wght@500;700&family=Gochi+Hand&family=Indie+Flower&family=Kalam:wght@400;700&family=Patrick+Hand&family=Shadows+Into+Light&family=Special+Elite&display=swap');
+.vd-font-caveat    { font-family:"Caveat",cursive;        font-size:1.32em; line-height:1.45; }
+.vd-font-kalam     { font-family:"Kalam",cursive; }
+.vd-font-patrick   { font-family:"Patrick Hand",cursive;  font-size:1.12em; }
+.vd-font-shadows   { font-family:"Shadows Into Light",cursive; font-size:1.22em; }
+.vd-font-dancing   { font-family:"Dancing Script",cursive; font-size:1.3em; }
+.vd-font-gochi     { font-family:"Gochi Hand",cursive;    font-size:1.18em; }
+.vd-font-indie     { font-family:"Indie Flower",cursive;  font-size:1.18em; }
+.vd-font-architects{ font-family:"Architects Daughter",cursive; }
+.vd-font-special   { font-family:"Special Elite",monospace; }
+#vd-compose-form textarea.vd-font-caveat,#vd-compose-form textarea.vd-font-dancing,#vd-compose-form textarea.vd-font-shadows{ line-height:1.5; }
   /* Vanguard Diary — member composer (scoped .vd-*; reuses site tokens). */
   .vd-hero { padding-bottom: 8px; }
   .vd-wrap { max-width: 760px; padding-bottom: 64px; }
@@ -290,14 +319,53 @@ render_nav('diary');
     var s = statusFor(en.kind);
     var d = new Date(en.entry_date + 'T00:00:00');
     var date = isNaN(d) ? en.entry_date : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    return '<li class="vd-item" data-id="' + en.id + '">'
+    var font = en.font || 'default';
+    return '<li class="vd-item" data-id="' + en.id + '" data-kind="' + esc(en.kind) + '" data-font="' + esc(font)
+      + '" data-date="' + esc(en.entry_date) + '" data-title="' + esc(en.title || '') + '" data-body="' + esc(en.body || '') + '">'
       + '<div class="vd-item-head"><span class="vd-kind">' + m.icon + ' ' + esc(m.label) + '</span>'
       + '<span class="vd-status ' + s.cls + '">' + s.txt + '</span></div>'
       + (en.title ? '<p class="vd-item-title">' + esc(en.title) + '</p>' : '')
-      + '<p class="vd-item-body">' + esc(en.body.length > 220 ? en.body.slice(0, 219) + '…' : en.body) + '</p>'
+      + '<p class="vd-item-body' + (font !== 'default' ? ' vd-font-' + font : '') + '">' + esc(en.body.length > 220 ? en.body.slice(0, 219) + '…' : en.body) + '</p>'
       + '<div class="vd-item-foot"><time datetime="' + esc(en.entry_date) + '">' + esc(date) + '</time>'
+      + '<button type="button" class="vd-edit" data-id="' + en.id + '">Edit</button>'
       + '<button type="button" class="vd-share" data-id="' + en.id + '">Share</button>'
       + '<button type="button" class="vd-del" data-id="' + en.id + '" aria-label="Delete this entry">Delete</button></div></li>';
+  }
+
+  /* ── Handwriting font preview + edit mode ── */
+  var fontEl = document.getElementById('vd-font');
+  var editingId = 0;
+  var submitBtn = form.querySelector('button[type=submit]');
+  function applyComposerFont() { if (bodyEl) bodyEl.className = 'vd-font-' + ((fontEl && fontEl.value) || 'default'); }
+  if (fontEl) fontEl.addEventListener('change', function () { applyComposerFont(); saveDraft(); });
+  applyComposerFont();
+
+  function resetComposer() {
+    editingId = 0; titleEl.value = ''; bodyEl.value = '';
+    if (fontEl) fontEl.value = 'default';
+    applyComposerFont();
+    if (submitBtn) submitBtn.textContent = 'Save entry';
+    var ec = document.getElementById('vd-editing'); if (ec) ec.remove();
+  }
+  function startEdit(li) {
+    if (!li) return;
+    editingId = parseInt(li.getAttribute('data-id'), 10) || 0;
+    titleEl.value = li.getAttribute('data-title') || '';
+    bodyEl.value = li.getAttribute('data-body') || '';
+    if (kind) kind.value = li.getAttribute('data-kind') || kind.value;
+    if (dateEl) dateEl.value = li.getAttribute('data-date') || dateEl.value;
+    if (fontEl) fontEl.value = li.getAttribute('data-font') || 'default';
+    applyComposerFont(); updateCount();
+    if (hint) hint.textContent = HINTS[kind.value] || '';
+    if (submitBtn) submitBtn.textContent = 'Update entry';
+    if (!document.getElementById('vd-editing')) {
+      var note = document.createElement('p');
+      note.id = 'vd-editing'; note.className = 'vd-hint'; note.style.color = 'var(--gold,#b8860b)';
+      note.innerHTML = '✎ Editing an existing entry — <a href="#" id="vd-cancel-edit">cancel</a>';
+      form.insertBefore(note, form.querySelector('.vd-actions'));
+      note.querySelector('#vd-cancel-edit').addEventListener('click', function (ev) { ev.preventDefault(); resetComposer(); });
+    }
+    try { form.scrollIntoView({ behavior: 'smooth', block: 'start' }); bodyEl.focus(); } catch (e) {}
   }
 
   form.addEventListener('submit', function (e) {
@@ -305,24 +373,29 @@ render_nav('diary');
     var msg = form.querySelector('.vd-msg');
     var btn = form.querySelector('button[type=submit]');
     var fd = new FormData(form);
-    var payload = { kind: fd.get('kind'), title: fd.get('title'), body: fd.get('body'), entry_date: fd.get('entry_date') };
+    var payload = { kind: fd.get('kind'), title: fd.get('title'), body: fd.get('body'), entry_date: fd.get('entry_date'), font: (fontEl && fontEl.value) || 'default' };
     if (!String(payload.body || '').trim()) { msg.textContent = 'Write something before saving.'; msg.className = 'vd-msg is-err'; return; }
-    btn.disabled = true; msg.textContent = 'Saving…'; msg.className = 'vd-msg';
-    post('entry.create', payload).then(function (d) {
+    var action = editingId ? 'entry.update' : 'entry.create';
+    if (editingId) payload.id = editingId;
+    btn.disabled = true; msg.textContent = editingId ? 'Updating…' : 'Saving…'; msg.className = 'vd-msg';
+    post(action, payload).then(function (d) {
       btn.disabled = false;
       if (!d.ok) { msg.textContent = d.error || 'Could not save.'; msg.className = 'vd-msg is-err'; return; }
-      var en = { id: d.id, kind: d.kind, title: payload.title, body: payload.body, entry_date: payload.entry_date };
+      var en = { id: d.id || editingId, kind: d.kind, title: payload.title, body: payload.body, entry_date: payload.entry_date, font: d.font || payload.font };
       if (empty) empty.hidden = true;
-      list.insertAdjacentHTML('afterbegin', itemHTML(en));
-      msg.textContent = (d.kind === 'public' || d.kind === 'event') ? 'Submitted for review — you’ll see it here once approved.' : 'Saved.';
+      var wasEditing = editingId;
+      var existing = wasEditing ? list.querySelector('.vd-item[data-id="' + wasEditing + '"]') : null;
+      if (existing) existing.outerHTML = itemHTML(en);
+      else list.insertAdjacentHTML('afterbegin', itemHTML(en));
+      msg.textContent = (en.kind === 'public' || en.kind === 'event') ? 'Submitted for review — you’ll see it here once approved.' : (wasEditing ? 'Updated.' : 'Saved.');
       msg.className = 'vd-msg is-ok';
-      titleEl.value = '';
-      bodyEl.value = '';
-      clearDraft(); updateCount();
+      resetComposer(); clearDraft(); updateCount();
     }).catch(function () { btn.disabled = false; msg.textContent = 'Network error — try again.'; msg.className = 'vd-msg is-err'; });
   });
 
   list && list.addEventListener('click', function (e) {
+    var editBtn = e.target.closest('.vd-edit');
+    if (editBtn) { startEdit(editBtn.closest('.vd-item')); return; }
     var share = e.target.closest('.vd-share');
     if (share) {
       var sid = share.getAttribute('data-id'); var was = share.textContent;
