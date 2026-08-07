@@ -1164,7 +1164,7 @@ $nav['You'] = [
                counts and a full reload per action would make organising the
                diary feel like paperwork. -->
           <div class="nb-shell">
-            <aside class="nb-side" id="nbRail" aria-label="Notebooks"></aside>
+            <aside class="nb-side" id="nbRail" aria-label="Notebooks" data-csrf="<?= e($collabCsrf) ?>"></aside>
 
             <div class="nb-main">
               <div class="nb-finder">

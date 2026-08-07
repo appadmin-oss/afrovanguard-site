@@ -20,6 +20,10 @@
   if (!rail) return;                              // diary view not on this page
 
   var API = '/portal/notebooks.php';
+  // Writes go through av_require_write (same-origin + CSRF). The token is
+  // stamped onto the rail element by the page; without it every write 403s with
+  // "Bad token." — which is exactly the bug this reads it to fix.
+  var CSRF = rail.getAttribute('data-csrf') || '';
 
   /* ── State ──────────────────────────────────────────────────────────── */
   var S = {
@@ -51,7 +55,7 @@
   function jpost(action, payload) {
     return fetch(API + '?action=' + action, {
       method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
       body: JSON.stringify(payload || {})
     }).then(function (r) { return r.json(); })
       .catch(function () { return { ok: false, error: 'Network error.' }; });
