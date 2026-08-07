@@ -349,9 +349,10 @@ textarea:focus{outline:none;border-color:var(--orange)}
       <div class="body">
         <?php if (!empty($myCerts)): ?>
         <div class="rows">
-          <?php foreach ($myCerts as $cert): ?>
+          <?php foreach ($myCerts as $cert): $certUrl = '/academy/ngv/certificate.php?id=' . (int)$cert['id'] . '&c=' . rawurlencode((string)($cert['code'] ?? '')); ?>
           <div class="row">
             <div><b>🏅 <?= $e((string)($cert['title'] ?? '')) ?></b><span class="d"><?= $e(trim(((string)($cert['issued_by'] ?? '')) . (!empty($cert['issued_on']) ? ' · ' . substr((string)$cert['issued_on'],0,10) : ''), ' ·')) ?></span></div>
+            <a class="amt" style="font-weight:700" href="<?= $e($certUrl) ?>" target="_blank" rel="noopener">View / print ↗</a>
           </div>
           <?php endforeach; ?>
         </div>

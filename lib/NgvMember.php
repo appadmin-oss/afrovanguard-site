@@ -61,7 +61,8 @@ final class NgvMember
         if ($p) return $p;
 
         $track = self::validTrack((string) ($seed['track'] ?? ''));
-        $phase = in_array((string) ($seed['phase'] ?? ''), self::PHASES, true) ? (string) $seed['phase'] : '';
+        $phaseIn = (string) ($seed['phase'] ?? '');
+        $phase = in_array($phaseIn, self::PHASES, true) ? $phaseIn : '';
         $books = self::validBooks((string) ($seed['books'] ?? ''));
         $note  = mb_substr(trim((string) ($seed['focus_note'] ?? '')), 0, 300);
         $now   = NgvDb::nowExpr();
@@ -155,12 +156,45 @@ final class NgvMember
         return $st->fetchAll() ?: [];
     }
 
-    /** Certifications, newest first. */
+    /** Secret backing the unforgeable, storage-free certificate verification code. */
+    private static function certSecret(): string
+    {
+        if (function_exists('av_secret')) { $s = (string) av_secret(); if ($s !== '') return $s; }
+        return 'ngv-cert-fallback';
+    }
+
+    /** A short, shareable verification code derived from the cert id (HMAC). */
+    public static function certCode(int $id): string
+    {
+        return 'NGV-' . strtoupper(substr(hash_hmac('sha256', 'ngv-cert:' . $id, self::certSecret()), 0, 10));
+    }
+
+    /** Certifications, newest first — each row carries its verification `code`. */
     public static function certifications(int $memberId): array
     {
         $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_certifications WHERE member_id = ? ORDER BY issued_on DESC, id DESC');
         $st->execute([$memberId]);
-        return $st->fetchAll() ?: [];
+        $rows = $st->fetchAll() ?: [];
+        foreach ($rows as &$r) $r['code'] = self::certCode((int) $r['id']);
+        return $rows;
+    }
+
+    /**
+     * Verify + fetch a certificate for the public certificate page. Returns the
+     * cert row + the holder's name only when the code matches the id (constant
+     * time). Null otherwise — an invalid or tampered link reveals nothing.
+     */
+    public static function certForVerify(int $id, string $code): ?array
+    {
+        if ($id <= 0) return null;
+        if (!hash_equals(self::certCode($id), strtoupper(trim($code)))) return null;
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_certifications WHERE id = ?');
+        $st->execute([$id]);
+        $cert = $st->fetch();
+        if (!$cert) return null;
+        $p = self::participant((int) $cert['member_id']);
+        $cert['code'] = self::certCode($id);
+        return ['cert' => $cert, 'name' => $p ? (string) ($p['name'] ?: '') : '', 'cohort' => $p ? (string) ($p['cohort'] ?? '') : ''];
     }
 
     public static function addCertification(int $memberId, array $c): bool
