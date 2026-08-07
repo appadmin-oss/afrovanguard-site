@@ -46,6 +46,7 @@ if ($method === 'POST') {
     // persist to the SEPARATE NGV database (validation lives in NgvMember).
     $patch = [];
     if (array_key_exists('track', $in)) $patch['track'] = (string) $in['track'];
+    if (array_key_exists('plan',  $in)) $patch['plan']  = (string) $in['plan'];
     if (array_key_exists('phase', $in)) $patch['phase'] = (string) $in['phase'];
     if (array_key_exists('books', $in)) $patch['books'] = (string) $in['books'];
     if (array_key_exists('note',  $in)) $patch['focus_note'] = (string) $in['note'];
@@ -87,10 +88,14 @@ $myNote  = (string) ($p['focus_note'] ?? '');
 $booksRead = substr_count($myBooks, '1');
 $BOOKS_TOTAL = 24;
 
-/* Real fee status + certifications from the NGV DB. */
-$feeStatus = NgvMember::feeStatus($uid);
+/* Real account (training fee + membership + commitment), certifications and the
+ * payment ledger — all from the NGV DB. The account mirrors the NGG member
+ * dashboard's "Your account" card so the two feel like one programme. */
+$account   = NgvMember::account($uid);
+$myPlan    = (string) ($p['plan'] ?? '');
+$planOpts  = NgvMember::planOptions();
 $myCerts   = NgvMember::certifications($uid);
-$myPayments = NgvMember::payments($uid);
+$myPayments = $account['entries'];
 
 /* Content slices */
 $g       = static fn(array $a, string $k, string $d = ''): string => (string) ($a[$k] ?? $d);
@@ -288,6 +293,20 @@ textarea:focus{outline:none;border-color:var(--orange)}
           <?php endforeach; ?>
         </div>
         <?php if ($myTrack !== ''): ?><div class="note-box" id="trackNote">You're on <b><?= $e($myTrack) ?></b>. <?= $e($myTrackDesc) ?></div><?php endif; ?>
+
+        <?php if (!empty($planOpts)): ?>
+        <h3 style="margin:18px 0 8px;font-size:1rem">My plan</h3>
+        <div class="tracks">
+          <?php foreach ($planOpts as $pl): $pn = (string)$pl['name']; ?>
+          <div class="trk <?= $myPlan === $pn ? 'on' : '' ?>" data-plan="<?= $e($pn) ?>">
+            <div class="i">💳</div>
+            <div class="n"><?= $e($pn) ?> · <?= $e((string)$pl['priceLabel']) ?></div>
+            <div class="d"><?= $e((string)$pl['desc']) ?></div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div class="note-box">Your plan sets your <b>training fee</b> below. Free tracks stay free — no one is turned away for lack.</div>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -317,29 +336,67 @@ textarea:focus{outline:none;border-color:var(--orange)}
       </div>
     </div>
 
-    <!-- Fees & commitment (real, from the NGV DB) -->
+    <!-- Your account — training fee, membership, commitment + the full ledger.
+         Mirrors the NGG member dashboard: one plain figure, never in red, no
+         deadline, and the money conversation pointed at a person, not a threat. -->
+    <?php
+      $kindLabel = ['membership' => 'Membership fee', 'commitment' => 'Monthly commitment',
+                    'programme' => 'Training fee', 'other' => 'Other'];
+      $owed = (int) $account['payable'];
+    ?>
     <div class="card">
-      <header><h2>My fees</h2><span class="hint">recorded by your team</span></header>
+      <header><h2>Your account</h2><span class="hint">recorded by your team</span></header>
       <div class="body">
+        <?php if ($owed > 0): ?>
+          <div style="font-size:2rem;font-weight:800;line-height:1.1">₦<?= number_format($owed) ?></div>
+          <div style="color:var(--muted);font-size:.86rem;margin-bottom:6px">outstanding</div>
+        <?php else: ?>
+          <div style="font-size:1.6rem;font-weight:800;color:var(--ok,#1a9d5a)">All clear</div>
+          <div style="color:var(--muted);font-size:.86rem;margin-bottom:6px">nothing outstanding</div>
+        <?php endif; ?>
+
+        <?php if ($account['planLabel'] !== ''): ?>
+          <div class="note-box">
+            You're on the <b><?= $e((string)$account['planLabel']) ?></b> plan.
+            <?php if ($account['planFree']): ?>Your training is <b>free</b> — only membership and commitment apply.
+            <?php else: ?>Its training fee is shown below; free tracks stay free.<?php endif; ?>
+          </div>
+        <?php endif; ?>
+
         <div class="rows">
-          <?php foreach ($feeStatus['lines'] as $ln): ?>
+          <?php foreach ($account['lines'] as $ln): ?>
           <div class="row">
             <div><b><?= $e((string)$ln['label']) ?></b><span class="d"><?= $e((string)$ln['detail']) ?></span></div>
-            <span class="amt"><span class="badge <?= $ln['ok'] ? 'ok' : 'due' ?>"><?= $ln['ok'] ? 'Paid' : 'Due' ?></span></span>
+            <span class="amt">
+              <?php if (!empty($ln['free'])): ?><span class="badge ok">Free</span>
+              <?php else: ?><span class="badge <?= $ln['ok'] ? 'ok' : 'due' ?>"><?= $ln['ok'] ? 'Paid' : 'Due' ?></span><?php endif; ?>
+            </span>
           </div>
           <?php endforeach; ?>
-          <div class="row"><div><b>Total recorded</b><span class="d">across all fees</span></div><span class="amt">₦<?= number_format((int)$feeStatus['total']) ?></span></div>
+          <div class="row"><div><b>Total recorded</b><span class="d">across all fees</span></div><span class="amt">₦<?= number_format((int)$account['total']) ?></span></div>
         </div>
+
         <?php if (!empty($myPayments)): ?>
-        <div class="note-box"><b>Recent payments</b><br>
-          <?php foreach (array_slice($myPayments, 0, 4) as $pay): ?>
-          • ₦<?= number_format((int)($pay['amount'] ?? 0)) ?> <?= $e((string)($pay['kind'] ?? '')) ?><?= !empty($pay['period']) ? ' ('.$e((string)$pay['period']).')' : '' ?> — <?= $e(substr((string)($pay['created_at'] ?? ''), 0, 10)) ?><br>
-          <?php endforeach; ?>
-        </div>
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;font-weight:700">See every entry (<?= count($myPayments) ?>)</summary>
+          <div class="rows" style="margin-top:8px">
+            <?php foreach ($myPayments as $pay): ?>
+            <div class="row">
+              <div>
+                <b><?= $e($kindLabel[(string)($pay['kind'] ?? '')] ?? ucfirst((string)($pay['kind'] ?? ''))) ?></b>
+                <span class="d"><?= $e(substr((string)($pay['created_at'] ?? ''), 0, 10)) ?><?= !empty($pay['period']) ? ' · '.$e((string)$pay['period']) : '' ?><?= !empty($pay['reference']) ? ' · '.$e((string)$pay['reference']) : '' ?></span>
+              </div>
+              <span class="amt">₦<?= number_format((int)($pay['amount'] ?? 0)) ?></span>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </details>
         <?php else: ?>
-        <div class="note-box">No payments recorded yet. When your team logs a payment it shows here. Need help? Speak to your track lead.</div>
+        <div class="note-box">No payments recorded yet. When your team logs one it shows here.</div>
         <?php endif; ?>
+
         <?php if (!empty($sched['payment'])): ?><div class="note-box"><?= $e((string)$sched['payment']) ?></div><?php endif; ?>
+        <div class="note-box">Something look wrong, or is this a difficult month? Speak to your track lead — they'd rather hear from you. No one is turned away for lack.</div>
       </div>
     </div>
 
@@ -413,12 +470,12 @@ textarea:focus{outline:none;border-color:var(--orange)}
       .catch(function(){ toast('Offline — not saved'); });
   }
 
-  // Track picker
-  document.querySelectorAll('.trk').forEach(function(el){
+  // Track picker (scoped to track tiles — the plan tiles below reuse .trk)
+  document.querySelectorAll('.trk[data-track]').forEach(function(el){
     el.addEventListener('click', function(){
       var name = el.getAttribute('data-track');
       var wasOn = el.classList.contains('on');
-      document.querySelectorAll('.trk').forEach(function(x){ x.classList.remove('on'); });
+      document.querySelectorAll('.trk[data-track]').forEach(function(x){ x.classList.remove('on'); });
       var val = wasOn ? '' : name;
       if(!wasOn) el.classList.add('on');
       save({track: val}, function(){
@@ -426,6 +483,20 @@ textarea:focus{outline:none;border-color:var(--orange)}
         if(tile){ tile.textContent = val || '—'; }
         var tsub = tile && tile.nextElementSibling; if(tsub) tsub.textContent = val ? 'Locked in' : 'Pick one below';
       });
+    });
+  });
+
+  // Plan picker — sets the training fee shown in "Your account". A reload
+  // follows a change so the account figure and the fee line recompute server-
+  // side (the money is computed there, never in the browser).
+  document.querySelectorAll('.trk[data-plan]').forEach(function(el){
+    el.addEventListener('click', function(){
+      var name = el.getAttribute('data-plan');
+      var wasOn = el.classList.contains('on');
+      document.querySelectorAll('.trk[data-plan]').forEach(function(x){ x.classList.remove('on'); });
+      var val = wasOn ? '' : name;
+      if(!wasOn) el.classList.add('on');
+      save({plan: val}, function(){ setTimeout(function(){ location.reload(); }, 500); });
     });
   });
 

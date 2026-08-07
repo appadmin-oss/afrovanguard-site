@@ -61,37 +61,39 @@ final class NgvMember
         if ($p) return $p;
 
         $track = self::validTrack((string) ($seed['track'] ?? ''));
+        $plan  = self::validPlan((string) ($seed['plan'] ?? ''));
         $phaseIn = (string) ($seed['phase'] ?? '');
         $phase = in_array($phaseIn, self::PHASES, true) ? $phaseIn : '';
         $books = self::validBooks((string) ($seed['books'] ?? ''));
         $note  = mb_substr(trim((string) ($seed['focus_note'] ?? '')), 0, 300);
         $now   = NgvDb::nowExpr();
-        $sql = "INSERT INTO ngv_participants (member_id,name,email,track,phase,books,focus_note,status,start_date,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?, 'active', ?, {$now}, {$now})";
+        $sql = "INSERT INTO ngv_participants (member_id,name,email,track,plan,phase,books,focus_note,status,start_date,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?, 'active', ?, {$now}, {$now})";
         try {
             NgvDb::pdo()->prepare($sql)->execute([
                 $memberId,
                 mb_substr(trim((string) ($seed['name'] ?? '')), 0, 120),
                 mb_substr(trim((string) ($seed['email'] ?? '')), 0, 160),
-                $track, $phase, $books, $note, self::today(),
+                $track, $plan, $phase, $books, $note, self::today(),
             ]);
         } catch (Throwable $e) {
             // Unique race: another request created it — just read it back.
             error_log('[ngv] ensureParticipant: ' . $e->getMessage());
         }
         return self::participant($memberId) ?? [
-            'member_id' => $memberId, 'track' => $track, 'phase' => $phase,
+            'member_id' => $memberId, 'track' => $track, 'plan' => $plan, 'phase' => $phase,
             'books' => $books, 'focus_note' => $note, 'status' => 'active',
         ];
     }
 
-    /** Member-editable self fields: track, phase, books, focus_note. */
+    /** Member-editable self fields: track, plan, phase, books, focus_note. */
     public static function saveSelf(int $memberId, array $patch): void
     {
         self::ensureParticipant($memberId);
         $set = [];
         $args = [];
         if (array_key_exists('track', $patch))      { $set[] = 'track = ?';      $args[] = self::validTrack((string) $patch['track']); }
+        if (array_key_exists('plan', $patch))       { $set[] = 'plan = ?';       $args[] = self::validPlan((string) $patch['plan']); }
         if (array_key_exists('phase', $patch))      { $v = (string) $patch['phase']; if (in_array($v, self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = $v; } }
         if (array_key_exists('books', $patch))      { $set[] = 'books = ?';      $args[] = self::validBooks((string) $patch['books']); }
         if (array_key_exists('focus_note', $patch)) { $set[] = 'focus_note = ?'; $args[] = mb_substr(trim((string) $patch['focus_note']), 0, 300); }
@@ -425,5 +427,115 @@ final class NgvMember
     {
         if (!preg_match('/^[01]{0,24}$/', $b)) return str_repeat('0', 24);
         return str_pad(substr($b, 0, 24), 24, '0');
+    }
+
+    /* ── plans (the programme / training fee) ────────────────────────────
+     * A participant's plan is the single fact that says whether they owe a
+     * training fee at all: "Training Only" and "Internship Only" are free,
+     * "Full Programme" carries the yearly tuition. The catalogue and its prices
+     * are the same ones the public NGV page shows — parsed from the live content
+     * so the dashboard and the page can never quote different money. */
+    private static function planCatalogue(): array
+    {
+        $out = [];
+        if (class_exists('Ngv')) {
+            foreach ((Ngv::get()['plans'] ?? []) as $pl) {
+                $name = trim((string) ($pl['name'] ?? ''));
+                if ($name === '') continue;
+                $fee = (int) preg_replace('/\D/', '', (string) ($pl['price'] ?? '')); // "₦240,000" → 240000, "Free" → 0
+                $out[$name] = [
+                    'name' => $name, 'fee' => $fee,
+                    'priceLabel' => (string) ($pl['price'] ?? ''),
+                    'note'  => trim((string) ($pl['price_note'] ?? '')),
+                    'duration' => (string) ($pl['duration'] ?? ''),
+                    'desc'  => (string) ($pl['desc'] ?? ''),
+                ];
+            }
+        }
+        return $out;
+    }
+    public static function planNames(): array { return array_keys(self::planCatalogue()); }
+    /** Plan options for the dashboard picker: name + price label + one-line desc. */
+    public static function planOptions(): array { return array_values(self::planCatalogue()); }
+
+    /**
+     * The member's account — one plain figure of what is outstanding, the fee
+     * lines it is made of (training / membership / commitment), and the full
+     * ledger behind it. This is the NGV mirror of the NGG "Your account" card:
+     * the training fee is the participant's plan tuition, and — unlike NGG —
+     * there is no earn-off, because NGV's Phase 2 is a *paid* internship, not a
+     * service that writes a fee down. Read-only and non-destructive: it only
+     * ever compares the append-only payment ledger to the expected commitments.
+     */
+    public static function account(int $memberId): array
+    {
+        $year  = self::today('Y');
+        $month = self::today('Y-m');
+        $rows  = self::payments($memberId);
+        $p     = self::participant($memberId) ?: [];
+        $plan  = (string) ($p['plan'] ?? '');
+        $cat   = self::planCatalogue();
+        $planRow = $cat[$plan] ?? null;
+
+        $sum = static function (array $rows, string $kind, ?string $period): int {
+            $t = 0;
+            foreach ($rows as $r) {
+                if (($r['kind'] ?? '') !== $kind) continue;
+                if ($period !== null && (string) ($r['period'] ?? '') !== $period) continue;
+                $t += (int) ($r['amount'] ?? 0);
+            }
+            return $t;
+        };
+
+        // Training / programme fee — only owed on a paid plan.
+        $trainingExpected = $planRow ? (int) $planRow['fee'] : 0;
+        $trainingPaid     = $sum($rows, 'programme', $year);
+        $trainingDetail   = $planRow === null
+            ? 'No plan chosen yet — pick one below, or speak to your track lead.'
+            : ($trainingExpected === 0
+                ? self::money($trainingPaid) . ' paid · ' . $plan . ' is free' . ($planRow['note'] !== '' ? ' (' . $planRow['note'] . ')' : '')
+                : self::money($trainingPaid) . ' of ' . self::money($trainingExpected) . ' — ' . $plan
+                    . ($planRow['note'] !== '' ? ' (' . $planRow['note'] . ')' : ''));
+
+        $memberPaid = $sum($rows, 'membership', $year);
+        $commPaid   = $sum($rows, 'commitment', $month);
+
+        $lines = [
+            [
+                'key' => 'programme', 'label' => 'Training fee',
+                'expected' => $trainingExpected, 'paid' => $trainingPaid,
+                'ok' => $trainingExpected === 0 || $trainingPaid >= $trainingExpected,
+                'free' => $trainingExpected === 0,
+                'detail' => $trainingDetail,
+            ],
+            [
+                'key' => 'membership', 'label' => 'Membership (' . $year . ')',
+                'expected' => self::MEMBERSHIP_YEARLY, 'paid' => $memberPaid,
+                'ok' => $memberPaid >= self::MEMBERSHIP_YEARLY, 'free' => false,
+                'detail' => self::money($memberPaid) . ' of ' . self::money(self::MEMBERSHIP_YEARLY) . ' this year',
+            ],
+            [
+                'key' => 'commitment', 'label' => 'Commitment (this month)',
+                'expected' => self::COMMITMENT_MONTHLY, 'paid' => $commPaid,
+                'ok' => $commPaid >= self::COMMITMENT_MONTHLY, 'free' => false,
+                'detail' => self::money($commPaid) . ' of ' . self::money(self::COMMITMENT_MONTHLY) . ' for ' . $month,
+            ],
+        ];
+
+        $payable = 0;
+        foreach ($lines as $ln) $payable += max(0, (int) $ln['expected'] - (int) $ln['paid']);
+        $total = 0; foreach ($rows as $r) $total += (int) ($r['amount'] ?? 0);
+
+        return [
+            'payable'  => $payable,
+            'plan'     => $plan,
+            'planLabel'=> $planRow ? ($planRow['name'] . ($planRow['duration'] !== '' ? ' · ' . $planRow['duration'] : '')) : '',
+            'planFree' => $planRow ? ((int) $planRow['fee'] === 0) : false,
+            'lines'    => $lines,
+            'entries'  => $rows,
+            'total'    => $total,
+            'count'    => count($rows),
+            'has_any'  => $rows !== [],
+        ];
     }
 }

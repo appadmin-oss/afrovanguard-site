@@ -126,6 +126,7 @@ final class NgvDb
           email       TEXT NOT NULL DEFAULT '',
           cohort      TEXT NOT NULL DEFAULT '',
           track       TEXT NOT NULL DEFAULT '',
+          plan        TEXT NOT NULL DEFAULT '',
           status      TEXT NOT NULL DEFAULT 'active',
           phase       TEXT NOT NULL DEFAULT '',
           books       TEXT NOT NULL DEFAULT '',
@@ -191,6 +192,13 @@ final class NgvDb
         } catch (Throwable $e) {
             error_log('[ngvdb] provision: ' . $e->getMessage());
         }
+
+        /* `plan` arrived after the first participants table shipped, so existing
+         * databases need it added. Idempotent: a duplicate-column ALTER throws
+         * and is swallowed, which is cheaper and more portable than probing the
+         * schema on every engine. */
+        try { self::$pdo->exec("ALTER TABLE ngv_participants ADD COLUMN plan TEXT NOT NULL DEFAULT ''"); }
+        catch (Throwable $e) { /* already present */ }
     }
 
     /** Portable "current timestamp" expression for runtime inserts. */
