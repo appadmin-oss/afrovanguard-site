@@ -15,6 +15,42 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 
+/**
+ * Acknowledge the applicant + alert staff on a new application. Best-effort:
+ * wrapped so a mail hiccup never blocks the form (matches the site's
+ * graceful-degradation posture — the application is already saved).
+ */
+function ngv_notify_application(int $id, array $d): void
+{
+    if (!class_exists('Mailer')) return;
+    $esc   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    $name  = trim((string) ($d['name'] ?? '')) ?: 'there';
+    $first = $esc(explode(' ', $name)[0]);
+    $email = trim((string) ($d['email'] ?? ''));
+    $site  = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $html = "<p>Hi {$first},</p>"
+              . '<p>Thank you for applying to <b>NextGen Vanguard</b> — we\'ve received your application and our team will review it and be in touch.</p>'
+              . '<p><b>Next step:</b> if you don\'t already have an Afrovanguard account, create one with this same email so we can enrol you and open your dashboard.</p>'
+              . '<p>— Afrovanguard Academy</p>';
+        try { Mailer::send($email, 'We received your NextGen Vanguard application', $html); } catch (Throwable $e) {}
+    }
+
+    $admin = defined('ADMIN_EMAIL') && ADMIN_EMAIL ? (string) ADMIN_EMAIL : (defined('FROM_EMAIL') ? (string) FROM_EMAIL : '');
+    if ($admin !== '') {
+        $rows = '';
+        foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'age' => 'Age', 'location' => 'Location', 'education' => 'Status', 'track' => 'Track', 'plan' => 'Plan', 'message' => 'Message'] as $k => $lbl) {
+            $v = trim((string) ($d[$k] ?? '')); if ($v === '') continue;
+            $rows .= '<tr><td style="padding:2px 12px 2px 0;color:#5f6874;vertical-align:top">' . $esc($lbl) . '</td><td>' . nl2br($esc($v)) . '</td></tr>';
+        }
+        $html = '<p>New NextGen Vanguard application (#' . (int) $id . ').</p>'
+              . '<table style="border-collapse:collapse">' . $rows . '</table>'
+              . ($site ? '<p style="margin-top:14px"><a href="' . $esc($site . '/academy/ngv/members.php') . '">Review in the Vanguards console →</a></p>' : '');
+        try { Mailer::send($admin, 'New NGV application: ' . $name, $html); } catch (Throwable $e) {}
+    }
+}
+
 $c        = Ngv::get();
 $e        = 'e';
 $tracks   = is_array($c['tracks'] ?? null) ? $c['tracks'] : [];
@@ -44,6 +80,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $id = NgvMember::submitApplication($old + ['source' => 'register']);
         if ($id > 0) {
             $done = true;
+            try { NgvMember::autolinkApplication($id); } catch (Throwable $e2) {}   // pre-link if they already have an account
+            try { ngv_notify_application($id, $old); } catch (Throwable $e2) {}      // acknowledge + alert staff (graceful)
             if (class_exists('Events')) { try { Events::emit('ngv.application', ['id' => $id]); } catch (Throwable $e2) {} }
         } else {
             $err = 'Something went wrong saving your application. Please try again.';

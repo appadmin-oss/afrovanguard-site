@@ -340,6 +340,29 @@ final class NgvMember
         return $st->fetch() ?: null;
     }
 
+    /**
+     * If the applicant already has a member (lms_users) account with the same
+     * email, link the application to it — without enrolling. Reduces later
+     * friction: staff can enrol in one click and the "no account yet" case is
+     * pre-resolved. Keeps status 'new' so a human still reviews. Returns whether
+     * a link was made.
+     */
+    public static function autolinkApplication(int $id): bool
+    {
+        $app = self::application($id);
+        if (!$app || (int) ($app['member_id'] ?? 0) > 0) return false;
+        $email = trim((string) ($app['email'] ?? ''));
+        if ($email === '' || !class_exists('Database')) return false;
+        try {
+            $st = Database::pdo()->prepare('SELECT id FROM lms_users WHERE email = ?');
+            $st->execute([$email]);
+            $m = $st->fetch();
+        } catch (Throwable $e) { return false; }
+        if (!$m) return false;
+        NgvDb::pdo()->prepare('UPDATE ngv_applications SET member_id = ? WHERE id = ?')->execute([(int) $m['id'], $id]);
+        return true;
+    }
+
     public static function setApplicationStatus(int $id, string $status, int $byUid): bool
     {
         if ($id <= 0 || !in_array($status, self::APP_STATUSES, true)) return false;
