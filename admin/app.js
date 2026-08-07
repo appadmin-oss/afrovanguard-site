@@ -238,8 +238,9 @@
   /* ---- Diary editor ---- */
   function openEditor(slug) {
     resetForm();
-    Promise.all([api('articles'), api('categories')]).then(function (res) {
+    Promise.all([api('articles'), api('categories'), api('diary_series')]).then(function (res) {
       $('#catList').innerHTML = (res[1].data.categories || []).map(function (c) { return '<option value="' + escapeHtml(c.name) + '">'; }).join('');
+      if ($('#seriesList')) $('#seriesList').innerHTML = ((res[2] && res[2].data && res[2].data.series) || []).map(function (s) { return '<option value="' + escapeHtml(s.title) + '">'; }).join('');
       buildRelated(res[0].data.articles || [], slug, []);
       if (slug) api('get&slug=' + encodeURIComponent(slug)).then(function (r) { if (r.data.ok) { fillForm(r.data.article); buildRelated(res[0].data.articles || [], slug, r.data.article.related || []); } });
       else initTiny('f_body', '<p></p>');
@@ -247,7 +248,7 @@
     show('editor');
   }
   function resetForm() {
-    ['f_title', 'f_dek', 'f_slug', 'f_authors', 'f_read'].forEach(function (id) { $('#' + id).value = ''; });
+    ['f_title', 'f_dek', 'f_slug', 'f_authors', 'f_read', 'f_series', 'f_series_part'].forEach(function (id) { var el = $('#' + id); if (el) el.value = ''; });
     $('#f_status').value = 'draft'; $('#f_category').value = ''; $('#f_gradient').value = 'g-gold';
     $('#f_format').value = 'standard';
     $('#f_featured').checked = false; $('#f_date').value = new Date().toISOString().slice(0, 10);
@@ -256,6 +257,8 @@
   function fillForm(a) {
     $('#f_title').value = a.title || ''; $('#f_dek').value = a.dek || ''; $('#f_slug').value = a.slug || '';
     $('#f_authors').value = stripTags(a.authors_html || ''); $('#f_read').value = a.read_minutes || '';
+    if ($('#f_series')) $('#f_series').value = a.series_title || '';
+    if ($('#f_series_part')) $('#f_series_part').value = a.series_part || '';
     $('#f_status').value = a.status || 'draft'; $('#f_category').value = a.category || ''; $('#f_gradient').value = a.gradient || 'g-gold';
     $('#f_format').value = a.format || 'standard';
     $('#f_featured').checked = a.featured == 1; $('#f_date').value = (a.published_at || '').slice(0, 10);
@@ -301,6 +304,7 @@
   function collect(status) {
     return { slug: $('#f_slug').value.trim(), title: $('#f_title').value.trim(), dek: $('#f_dek').value.trim(),
       category: $('#f_category').value.trim() || 'Dispatch', authors_html: $('#f_authors').value.trim() || 'The Afrovanguard Team',
+      series: ($('#f_series') ? $('#f_series').value.trim() : ''), series_part: ($('#f_series_part') ? $('#f_series_part').value : ''),
       published_at: $('#f_date').value, read_minutes: $('#f_read').value, gradient: $('#f_gradient').value,
       cover_url: coverUrl, audio_url: ($('#f_audio').value || '').trim(), body_html: getBody('f_body'), featured: $('#f_featured').checked, status: status, format: $('#f_format').value, related: selectedRelated() };
   }
@@ -462,6 +466,8 @@
   function openCourse(slug) {
     ['c_title', 'c_summary', 'c_slug', 'c_category', 'c_level', 'c_duration', 'c_price', 'c_location', 'c_cta', 'c_outcomes'].forEach(function (id) { $('#' + id).value = ''; });
     $('#c_status').value = 'draft'; $('#c_format').value = 'In-person'; $('#c_gradient').value = 'g-gold'; $('#c_featured').checked = false; $('#c_sort').value = '0';
+    $('#c_access').value = 'open'; $('#c_price_ngn').value = '0'; if ($('#c_pass_code')) $('#c_pass_code').value = '';
+    renderGrants([]); syncAccess();
     setCCover(''); $('#acPreviewLink').hidden = true;
     if (slug) api('ac_get&slug=' + encodeURIComponent(slug)).then(function (r) { if (r.data.ok) fillCourse(r.data.course); });
     else initTiny('c_body', '<p></p>');
@@ -474,19 +480,66 @@
     $('#c_cta').value = c.cta_url || ''; $('#c_outcomes').value = c.outcomes || ''; $('#c_gradient').value = c.gradient || 'g-gold';
     $('#c_status').value = c.status || 'draft'; $('#c_featured').checked = c.featured == 1; $('#c_sort').value = c.sort || 0;
     $('#c_access').value = c.access_type || 'open'; $('#c_price_ngn').value = c.price_ngn || 0;
+    if ($('#c_pass_code')) $('#c_pass_code').value = c.pass_code || '';
     $('#c_instructor').value = c.instructor_email || ''; syncAccess();
     setCCover(c.cover_url || ''); initTiny('c_body', c.body_html || '<p></p>');
     var pl = $('#acPreviewLink'); pl.hidden = false; pl.href = '/academy/' + c.slug + '/';
+    loadGrants();
   }
-  function syncAccess() { var w = $('#c_price_ngn_wrap'); if (w) w.hidden = $('#c_access').value !== 'paid'; }
+  function syncAccess() {
+    var access = $('#c_access').value;
+    var w = $('#c_price_ngn_wrap'); if (w) w.hidden = access !== 'paid';
+    var pw = $('#c_pass_wrap'); if (pw) pw.hidden = access !== 'restricted';
+    var gw = $('#c_access_grants_wrap'); if (gw) gw.hidden = access !== 'restricted';
+    if (access === 'restricted') loadGrants();
+  }
   if ($('#c_access')) { $('#c_access').addEventListener('change', syncAccess); syncAccess(); }
+  /* ---- Restricted-course access grants ---- */
+  function renderGrants(grants) {
+    var ul = $('#c_grant_list'); if (!ul) return;
+    if (!grants || !grants.length) { ul.innerHTML = '<li class="muted" style="font-size:12px">No members added yet.</li>'; return; }
+    ul.innerHTML = grants.map(function (g) {
+      return '<li style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 8px;background:var(--surface-2,#f6f6f4);border-radius:8px">' +
+        '<span style="min-width:0"><strong style="font-size:13px">' + escapeHtml(g.name || g.email) + '</strong>' +
+        '<span class="muted" style="display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(g.email) + '</span></span>' +
+        '<button type="button" class="btn btn-outline btn-sm" data-revoke="' + g.id + '">Remove</button></li>';
+    }).join('');
+  }
+  function loadGrants() {
+    if ($('#c_access').value !== 'restricted') return;
+    var slug = $('#c_slug').value.trim();
+    if (!slug) { renderGrants([]); return; }
+    api('ac_grants&slug=' + encodeURIComponent(slug)).then(function (r) { if (r.data && r.data.ok) renderGrants(r.data.grants); });
+  }
+  if ($('#c_grant_btn')) {
+    $('#c_grant_btn').addEventListener('click', function () {
+      var slug = $('#c_slug').value.trim();
+      if (!slug) { toast('Save the course first, then add members.'); return; }
+      var email = $('#c_grant_email').value.trim();
+      if (!email) { toast('Enter a member email.'); return; }
+      post('ac_grant', { slug: slug, email: email }).then(function (r) {
+        if (!r.data.ok) { toast(r.data.error || 'Could not grant access.'); return; }
+        $('#c_grant_email').value = ''; renderGrants(r.data.grants); toast('Access granted ✓');
+      }).catch(function () { toast('Network error'); });
+    });
+  }
+  if ($('#c_grant_list')) {
+    $('#c_grant_list').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-revoke]'); if (!b) return;
+      var slug = $('#c_slug').value.trim();
+      post('ac_revoke', { slug: slug, user_id: parseInt(b.getAttribute('data-revoke'), 10) }).then(function (r) {
+        if (r.data.ok) renderGrants(r.data.grants);
+      });
+    });
+  }
   function collectCourse(status) {
     return { slug: $('#c_slug').value.trim(), title: $('#c_title').value.trim(), summary: $('#c_summary').value.trim(),
       body_html: getBody('c_body'), outcomes: $('#c_outcomes').value.trim(), category: $('#c_category').value.trim() || 'Programme',
       level: $('#c_level').value.trim() || 'All levels', format: $('#c_format').value, duration: $('#c_duration').value.trim(),
       price: $('#c_price').value.trim() || 'Free', location: $('#c_location').value.trim() || 'Alimosho, Lagos',
       cta_url: $('#c_cta').value.trim(), gradient: $('#c_gradient').value, cover_url: cCoverUrl,
-      access_type: $('#c_access').value, price_ngn: parseInt($('#c_price_ngn').value, 10) || 0, instructor_email: $('#c_instructor').value.trim(),
+      access_type: $('#c_access').value, price_ngn: parseInt($('#c_price_ngn').value, 10) || 0,
+      pass_code: $('#c_pass_code') ? $('#c_pass_code').value.trim() : '', instructor_email: $('#c_instructor').value.trim(),
       featured: $('#c_featured').checked, status: status, sort: $('#c_sort').value };
   }
   function saveCourse(status) {
@@ -579,7 +632,9 @@
       $('#p_location').value = m.location || ''; $('#p_tier').value = m.tier || 'volunteer';
       $('#p_featured').checked = !!m.featured; $('#p_operations').checked = !!m.operations;
       $('#p_active').checked = m.active !== false; $('#p_position').value = m.position || 0;
+      if ($('#p_grp')) $('#p_grp').value = m.grp || '';
       $('#p_birthday').value = m.birthday || '';
+      if ($('#p_notice_email')) $('#p_notice_email').value = m.email || '';
       $('#p_votm_month').value = m.votm_month || m.votmMonth || '';
       $('#p_votm_reason').value = m.votm_reason || ''; $('#p_votm_quote').value = m.votm_quote || '';
       $('#p_li').value = s.li || ''; $('#p_tw').value = s.tw || ''; $('#p_ig').value = s.ig || '';
@@ -595,9 +650,11 @@
     var payload = {
       id: editingPerson || 0, name: name, role: $('#p_role').value.trim(),
       tier: $('#p_tier').value, featured: $('#p_featured').checked, operations: $('#p_operations').checked,
+      grp: ($('#p_grp') ? $('#p_grp').value.trim() : ''),
       active: $('#p_active').checked, position: +$('#p_position').value || 0,
       tagline: $('#p_tagline').value.trim(), bio: $('#p_bio').value.trim(), location: $('#p_location').value.trim(),
       photo: pPhoto, socials: socials, birthday: $('#p_birthday').value.trim(),
+      email: ($('#p_notice_email') ? $('#p_notice_email').value.trim() : ''),
       votm_month: $('#p_votm_month').value.trim(), votm_reason: $('#p_votm_reason').value.trim(), votm_quote: $('#p_votm_quote').value.trim()
     };
     post('team_save', payload).then(function (r) {
@@ -1589,6 +1646,9 @@
       + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
       + '<div class="entry-meta">' + escapeHtml(m.email) + ' · joined ' + escapeHtml(String(m.created_at || '').slice(0, 10)) + seen + '</div></div>'
       + '<div class="entry-ops">'
+      + '<select class="mem-level" data-id="' + m.id + '" title="Membership level (progression)">'
+      + ['O', 'A', 'B', 'C'].map(function (L) { return '<option value="' + L + '"' + ((m.level || 'O') === L ? ' selected' : '') + '>Level ' + L + '</option>'; }).join('')
+      + '</select>'
       + '<select class="mem-role" data-id="' + m.id + '" title="Access level">' + opts + '</select>'
       + '<button class="btn btn-outline btn-sm mem-status" data-id="' + m.id + '" data-to="' + (m.status === 'suspended' ? 'active' : 'suspended') + '">' + (m.status === 'suspended' ? 'Reactivate' : 'Suspend') + '</button>'
       + '</div></div>';
@@ -1629,10 +1689,19 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { $('#memCreateSave').disabled = false; });
     });
     $('#memList').addEventListener('change', function (e) {
-      var sel = e.target.closest('.mem-role'); if (!sel) return;
-      post('mem_save', { id: sel.getAttribute('data-id'), role: sel.value }).then(function (r) {
-        if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
-      });
+      var roleSel = e.target.closest('.mem-role');
+      if (roleSel) {
+        post('mem_save', { id: roleSel.getAttribute('data-id'), role: roleSel.value }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+        });
+        return;
+      }
+      var lvlSel = e.target.closest('.mem-level');
+      if (lvlSel) {
+        post('mem_save', { id: lvlSel.getAttribute('data-id'), level: lvlSel.value }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Membership level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+        });
+      }
     });
     $('#memList').addEventListener('click', function (e) {
       var b = e.target.closest('.mem-status'); if (!b) return;

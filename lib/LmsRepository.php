@@ -15,8 +15,15 @@ final class LmsRepository
         $mods = $this->db->prepare('SELECT * FROM modules WHERE course_id = ? ORDER BY position, id');
         $mods->execute([$courseId]);
         $modules = $mods->fetchAll();
-        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position FROM lessons WHERE module_id = ? ORDER BY position, id');
-        foreach ($modules as &$m) { $ls->execute([$m['id']]); $m['lessons'] = $ls->fetchAll(); }
+        // Also fetch video_url / quiz_json so the UI can label each lesson's type
+        // (video · reading · quiz) with an icon — a cheap read; both are small.
+        $ls = $this->db->prepare('SELECT id, slug, title, duration_min, is_preview, position, video_url, quiz_json FROM lessons WHERE module_id = ? ORDER BY position, id');
+        foreach ($modules as &$m) {
+            $ls->execute([$m['id']]);
+            $lessons = $ls->fetchAll();
+            foreach ($lessons as &$l) { $l['type'] = self::lessonType($l); }
+            $m['lessons'] = $lessons;
+        }
         return $modules;
     }
 
@@ -33,15 +40,26 @@ final class LmsRepository
         return $s->fetch() ?: null;
     }
 
-    /** Ordered lesson list (for prev/next). */
+    /** Ordered lesson list (for prev/next + the "up next" card). */
     public function orderedLessons(int $courseId): array
     {
         $s = $this->db->prepare(
-            'SELECT l.id, l.slug, l.title, l.is_preview FROM lessons l JOIN modules m ON m.id = l.module_id
+            'SELECT l.id, l.slug, l.title, l.is_preview, l.duration_min, l.video_url, l.quiz_json
+             FROM lessons l JOIN modules m ON m.id = l.module_id
              WHERE l.course_id = ? ORDER BY m.position, m.id, l.position, l.id'
         );
         $s->execute([$courseId]);
-        return $s->fetchAll();
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) { $r['type'] = self::lessonType($r); }
+        return $rows;
+    }
+
+    /** Classify a lesson row as 'video' | 'quiz' | 'reading' from its content. */
+    public static function lessonType(array $l): string
+    {
+        if (!empty($l['video_url'])) return 'video';
+        if (!empty($l['quiz_json']) && trim((string) $l['quiz_json']) !== '') return 'quiz';
+        return 'reading';
     }
 
     public function isMember(int $userId): bool
@@ -56,6 +74,13 @@ final class LmsRepository
         $s = $this->db->prepare('SELECT 1 FROM course_enrolment WHERE user_id = ? AND course_id = ?');
         $s->execute([$userId, $courseId]);
         return (bool) $s->fetchColumn();
+    }
+    /** Enrolled-learner count for a course (catalogue social proof). */
+    public function enrolledCount(int $courseId): int
+    {
+        $s = $this->db->prepare('SELECT COUNT(*) FROM course_enrolment WHERE course_id = ?');
+        $s->execute([$courseId]);
+        return (int) $s->fetchColumn();
     }
     public function enrol(int $userId, int $courseId): void
     {
@@ -77,9 +102,46 @@ final class LmsRepository
         foreach ($rows as &$r) {
             $pr = $this->progress($userId, (int) $r['id']);
             $r['pct'] = $pr['pct']; $r['complete'] = $pr['complete'];
+            $r['done'] = $pr['completed']; $r['total'] = $pr['total'];
             $r['certified'] = (bool) $this->getCertificate($userId, (int) $r['id']);
+            $r['next'] = $r['complete'] ? null : $this->nextLesson((int) $r['id'], $pr['ids']);
+            // Most recent activity in this course (last completed lesson) — used to
+            // surface the freshest "continue learning" course first.
+            $la = $this->db->prepare('SELECT MAX(completed_at) FROM lesson_progress WHERE user_id = ? AND course_id = ?');
+            $la->execute([$userId, (int) $r['id']]);
+            $r['last_active'] = $la->fetchColumn() ?: null;
         }
         return $rows;
+    }
+
+    /** First not-yet-completed lesson for a course (given the done id set), or null. */
+    public function nextLesson(int $courseId, array $doneIds): ?array
+    {
+        foreach ($this->orderedLessons($courseId) as $l) {
+            if (!in_array((int) $l['id'], $doneIds, true)) {
+                return ['slug' => $l['slug'], 'title' => $l['title'], 'type' => $l['type'] ?? 'reading'];
+            }
+        }
+        return null;
+    }
+
+    /** A learner's most recently edited notes, with course + lesson context (portal recap). */
+    public function recentNotes(int $userId, int $limit = 4): array
+    {
+        $this->ensureNotes();
+        $s = $this->db->prepare(
+            "SELECT n.body, n.updated_at, l.title AS lesson_title, l.slug AS lesson_slug,
+                    c.title AS course_title, c.slug AS course_slug
+             FROM lesson_notes n
+             JOIN lessons l ON l.id = n.lesson_id
+             JOIN courses c ON c.id = n.course_id
+             WHERE n.user_id = ? AND n.body <> ''
+             ORDER BY n.updated_at DESC, l.id DESC LIMIT ?"
+        );
+        $s->bindValue(1, $userId, PDO::PARAM_INT);
+        $s->bindValue(2, $limit, PDO::PARAM_INT);
+        $s->execute();
+        return $s->fetchAll();
     }
 
     /** Can this (maybe-null) user open this lesson? */
@@ -95,7 +157,109 @@ final class LmsRepository
         $member = $this->isMember((int) $user['id']) || LmsAuth::isOrgMember($user);
         if ($access === 'membership') return $member;
         if ($access === 'paid') return $this->isEnrolled((int) $user['id'], (int) $course['id']) || $member;
+        if ($access === 'restricted') {
+            // Locked: only an explicit per-member grant, or holding the course's pass.
+            if ($this->hasCourseAccess((int) $user['id'], (int) $course['id'])) return true;
+            $pass = trim((string) ($course['pass_code'] ?? ''));
+            return $pass !== '' && $this->hasActivePass((int) $user['id'], $pass);
+        }
         return false;
+    }
+
+    /* ── Restricted courses: per-member allowlist + named passes ──────────── */
+
+    /** Does this member have an explicit grant to this course? */
+    public function hasCourseAccess(int $userId, int $courseId): bool
+    {
+        if ($userId <= 0 || $courseId <= 0) return false;
+        try {
+            $s = $this->db->prepare('SELECT 1 FROM course_access WHERE user_id = ? AND course_id = ?');
+            $s->execute([$userId, $courseId]);
+            return (bool) $s->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** Grant a member access to a restricted course (idempotent). */
+    public function grantCourseAccess(int $courseId, int $userId, int $by = 0): bool
+    {
+        if ($courseId <= 0 || $userId <= 0) return false;
+        $this->db->prepare(Database::insertIgnore('course_access', ['course_id', 'user_id', 'granted_by', 'created_at']))
+            ->execute([$courseId, $userId, $by, gmdate('Y-m-d H:i:s')]);
+        return true;
+    }
+
+    public function revokeCourseAccess(int $courseId, int $userId): bool
+    {
+        $this->db->prepare('DELETE FROM course_access WHERE course_id = ? AND user_id = ?')->execute([$courseId, $userId]);
+        return true;
+    }
+
+    /** Members explicitly granted a course: [{id,name,email,created_at}]. */
+    public function courseAccessList(int $courseId): array
+    {
+        $s = $this->db->prepare(
+            'SELECT u.id, u.name, u.email, ca.created_at
+             FROM course_access ca JOIN lms_users u ON u.id = ca.user_id
+             WHERE ca.course_id = ? ORDER BY ca.id DESC'
+        );
+        $s->execute([$courseId]);
+        return $s->fetchAll() ?: [];
+    }
+
+    /** Does the member hold an unexpired pass with this code? */
+    public function hasActivePass(int $userId, string $code): bool
+    {
+        $code = trim($code);
+        if ($userId <= 0 || $code === '') return false;
+        try {
+            $s = $this->db->prepare(
+                "SELECT 1 FROM member_passes WHERE user_id = ? AND code = ?
+                 AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)"
+            );
+            $s->execute([$userId, $code, gmdate('Y-m-d H:i:s')]);
+            return (bool) $s->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** Grant a member a pass by code (idempotent; refreshes label/expiry). */
+    public function grantPass(int $userId, string $code, string $label = '', string $expiresAt = '', int $by = 0): bool
+    {
+        $code = preg_replace('/[^a-z0-9\-]/', '', strtolower(trim($code)));
+        if ($userId <= 0 || $code === '') return false;
+        $exp = trim($expiresAt) !== '' ? $expiresAt : null;
+        $now = gmdate('Y-m-d H:i:s');
+        $n = $this->db->prepare('UPDATE member_passes SET label = ?, expires_at = ?, granted_by = ? WHERE user_id = ? AND code = ?');
+        $n->execute([$label, $exp, $by, $userId, $code]);
+        if ($n->rowCount() === 0) {
+            try { $this->db->prepare('INSERT INTO member_passes (user_id, code, label, granted_by, expires_at, created_at) VALUES (?,?,?,?,?,?)')
+                ->execute([$userId, $code, $label, $by, $exp, $now]); }
+            catch (Throwable $e) { /* raced */ }
+        }
+        return true;
+    }
+
+    public function revokePass(int $userId, string $code): bool
+    {
+        $this->db->prepare('DELETE FROM member_passes WHERE user_id = ? AND code = ?')->execute([$userId, trim($code)]);
+        return true;
+    }
+
+    /** A member's passes: [{code,label,expires_at,created_at}]. */
+    public function memberPasses(int $userId): array
+    {
+        try {
+            $s = $this->db->prepare('SELECT code, label, expires_at, created_at FROM member_passes WHERE user_id = ? ORDER BY id DESC');
+            $s->execute([$userId]);
+            return $s->fetchAll() ?: [];
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** Resolve a member by email (for admin grant-by-email). */
+    public function userByEmail(string $email): ?array
+    {
+        $s = $this->db->prepare('SELECT id, name, email FROM lms_users WHERE email = ?');
+        $s->execute([strtolower(trim($email))]);
+        return $s->fetch() ?: null;
     }
 
     /** Decode a lesson's quiz, or null. Shape: {pass:int, questions:[{q,options[],answer}]} */
@@ -143,6 +307,70 @@ final class LmsRepository
         $done = array_map('intval', array_column($s->fetchAll(), 'lesson_id'));
         $pct = $total ? (int) round(count($done) / $total * 100) : 0;
         return ['total' => $total, 'completed' => count($done), 'pct' => $pct, 'ids' => $done, 'complete' => $total > 0 && count($done) >= $total];
+    }
+
+    /* ── Lesson notes (cross-device for signed-in learners) ── */
+    private static bool $notesEnsured = false;
+    private function ensureNotes(): void
+    {
+        if (self::$notesEnsured) return;
+        self::$notesEnsured = true;
+        // Provisioned from the schema files on MySQL/Postgres; this is only a
+        // safety net for older SQLite databases created before this table existed.
+        if ($this->db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+            $this->db->exec(
+                "CREATE TABLE IF NOT EXISTS lesson_notes (
+                   user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, course_id INTEGER NOT NULL,
+                   body TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                   PRIMARY KEY (user_id, lesson_id)
+                 );"
+            );
+        }
+    }
+
+    public function getNote(int $userId, int $lessonId): string
+    {
+        $this->ensureNotes();
+        $s = $this->db->prepare('SELECT body FROM lesson_notes WHERE user_id = ? AND lesson_id = ?');
+        $s->execute([$userId, $lessonId]);
+        $v = $s->fetchColumn();
+        return $v === false ? '' : (string) $v;
+    }
+
+    /** Upsert a note; an empty body removes it. Portable (no ON CONFLICT). */
+    public function saveNote(int $userId, int $lessonId, int $courseId, string $body): void
+    {
+        $this->ensureNotes();
+        $body = mb_substr($body, 0, 20000);
+        $now = gmdate('Y-m-d H:i:s');
+        $ex = $this->db->prepare('SELECT 1 FROM lesson_notes WHERE user_id = ? AND lesson_id = ?');
+        $ex->execute([$userId, $lessonId]);
+        $exists = (bool) $ex->fetchColumn();
+        if (trim($body) === '') {
+            if ($exists) $this->db->prepare('DELETE FROM lesson_notes WHERE user_id = ? AND lesson_id = ?')->execute([$userId, $lessonId]);
+            return;
+        }
+        if ($exists) {
+            $this->db->prepare('UPDATE lesson_notes SET body = ?, course_id = ?, updated_at = ? WHERE user_id = ? AND lesson_id = ?')
+                ->execute([$body, $courseId, $now, $userId, $lessonId]);
+        } else {
+            $this->db->prepare('INSERT INTO lesson_notes (user_id, lesson_id, course_id, body, updated_at) VALUES (?,?,?,?,?)')
+                ->execute([$userId, $lessonId, $courseId, $body, $now]);
+        }
+    }
+
+    /** Every note a learner has for a course, joined to lesson titles, in curriculum order. */
+    public function notesForCourse(int $userId, int $courseId): array
+    {
+        $this->ensureNotes();
+        $s = $this->db->prepare(
+            "SELECT n.body, l.title, l.slug
+             FROM lesson_notes n JOIN lessons l ON l.id = n.lesson_id JOIN modules m ON m.id = l.module_id
+             WHERE n.user_id = ? AND n.course_id = ? AND n.body <> ''
+             ORDER BY m.position, m.id, l.position, l.id"
+        );
+        $s->execute([$userId, $courseId]);
+        return $s->fetchAll();
     }
 
     /* ── Authoring: modules ── */
@@ -260,10 +488,21 @@ final class LmsRepository
         $s->execute([$userId, $courseId]); return $s->fetch() ?: null;
     }
     /* ── Payments ── */
-    public function createPayment(int $userId, string $kind, ?int $courseId, int $amountKobo, string $reference, string $provider = 'paystack'): void
+    /** Idempotently ensure the payments.months column exists (added post-release). */
+    private static bool $monthsEnsured = false;
+    private function ensurePaymentsMonths(): void
     {
-        $this->db->prepare('INSERT INTO payments (reference, user_id, provider, kind, course_id, amount_kobo) VALUES (?,?,?,?,?,?)')
-            ->execute([$reference, $userId, $provider, $kind, $courseId, $amountKobo]);
+        if (self::$monthsEnsured) return;
+        self::$monthsEnsured = true;
+        try { $this->db->exec("ALTER TABLE payments ADD COLUMN months INTEGER NOT NULL DEFAULT 12"); }
+        catch (\Throwable $e) { /* column already present */ }
+    }
+
+    public function createPayment(int $userId, string $kind, ?int $courseId, int $amountKobo, string $reference, string $provider = 'paystack', int $months = 12): void
+    {
+        $this->ensurePaymentsMonths();
+        $this->db->prepare('INSERT INTO payments (reference, user_id, provider, kind, course_id, amount_kobo, months) VALUES (?,?,?,?,?,?,?)')
+            ->execute([$reference, $userId, $provider, $kind, $courseId, $amountKobo, max(1, $months)]);
     }
     public function paymentByRef(string $reference): ?array
     {
@@ -296,16 +535,107 @@ final class LmsRepository
                 if ($c) Notify::enrolled($user, $c);
             }
         } elseif ($p['kind'] === 'membership') {
-            $this->grantMembership((int) $p['user_id']);
+            $this->grantMembership((int) $p['user_id'], (int) ($p['months'] ?? 12) ?: 12);
             if ($user && class_exists('Notify')) Notify::membership($user);
         }
         return true;
     }
     public function grantMembership(int $userId, int $months = 12): void
     {
-        $exp = date('Y-m-d H:i:s', strtotime("+$months months"));
+        // Renewals extend from the LATER of now or the member's current paid-through
+        // date, so paying dues early (or twice) never forfeits time already paid for.
+        $base = time();
+        $cur  = $this->latestMembership($userId);
+        if ($cur && !empty($cur['expires_at'])) {
+            $curTs = strtotime((string) $cur['expires_at']);
+            if ($curTs && $curTs > $base) $base = $curTs;
+        }
+        $exp = date('Y-m-d H:i:s', strtotime("+$months months", $base));
         $this->db->prepare("INSERT INTO memberships (user_id, tier, status, expires_at) VALUES (?, 'member', 'active', ?)")
             ->execute([$userId, $exp]);
+    }
+
+    /** Extend a member's membership by N months, found by email (recurring dues). */
+    public function grantMembershipByEmail(string $email, int $months = 1): bool
+    {
+        $s = $this->db->prepare('SELECT id FROM lms_users WHERE email = ? LIMIT 1');
+        $s->execute([$email]);
+        $id = (int) ($s->fetchColumn() ?: 0);
+        if ($id <= 0) return false;
+        $this->grantMembership($id, max(1, $months));
+        return true;
+    }
+
+    /** The member's most recent membership row (lifetime rows first, then latest expiry). */
+    public function latestMembership(int $userId): ?array
+    {
+        $s = $this->db->prepare(
+            "SELECT * FROM memberships WHERE user_id = ?
+             ORDER BY (expires_at IS NULL) DESC, expires_at DESC, id DESC LIMIT 1"
+        );
+        $s->execute([$userId]);
+        return $s->fetch() ?: null;
+    }
+
+    /**
+     * Membership-dues status for the member dashboard. "Dues" are the annual
+     * membership fee (AV_MEMBERSHIP_NGN). Returns a render-ready shape:
+     *   state: active | due_soon | overdue | none
+     */
+    public function duesStatus(int $userId): array
+    {
+        $annualNgn  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
+        $monthlyNgn = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+        $amountNgn = $annualNgn;
+        $m = $this->latestMembership($userId);
+        $paidThrough = $m['expires_at'] ?? null;
+        $lifetime = $m && empty($paidThrough);
+
+        $daysLeft = null;
+        if ($paidThrough) {
+            $ts = strtotime((string) $paidThrough);
+            if ($ts) $daysLeft = (int) floor(($ts - time()) / 86400);
+        }
+
+        if ($lifetime)               $state = 'active';
+        elseif ($daysLeft === null)  $state = 'none';     // never paid dues
+        elseif ($daysLeft < 0)       $state = 'overdue';  // lapsed
+        elseif ($daysLeft <= 30)     $state = 'due_soon'; // within renewal window
+        else                         $state = 'active';
+
+        $lastPaid = null;
+        $lp = $this->db->prepare(
+            "SELECT paid_at FROM payments
+             WHERE user_id = ? AND kind = 'membership' AND status = 'paid'
+             ORDER BY paid_at DESC, id DESC LIMIT 1"
+        );
+        $lp->execute([$userId]);
+        if ($row = $lp->fetch()) $lastPaid = $row['paid_at'] ?? null;
+
+        // Total dues ever paid (sum of confirmed membership payments), plus a count.
+        $tp = $this->db->prepare(
+            "SELECT COALESCE(SUM(amount_kobo), 0) AS kobo, COUNT(*) AS n
+             FROM payments WHERE user_id = ? AND kind = 'membership' AND status = 'paid'"
+        );
+        $tp->execute([$userId]);
+        $totRow = $tp->fetch() ?: ['kobo' => 0, 'n' => 0];
+        $totalPaidNgn = (int) round(((int) $totRow['kobo']) / 100);
+
+        return [
+            'amount_ngn'    => $amountNgn,        // annual (kept for back-compat)
+            'annual_ngn'    => $annualNgn,
+            'monthly_ngn'   => $monthlyNgn,
+            'currency'      => 'NGN',
+            'period'        => 'year',
+            'state'         => $state,
+            'lifetime'      => $lifetime,
+            'paid_through'  => $paidThrough ? gmdate('c', (int) strtotime((string) $paidThrough)) : null,
+            'days_left'     => $daysLeft,
+            'last_paid_at'  => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
+            'total_paid_ngn' => $totalPaidNgn,   // cumulative dues contributed
+            'payments_count' => (int) $totRow['n'],
+            'payable'       => class_exists('Payments') && Payments::configured('paystack'),
+        ];
     }
     private function userRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lms_users WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
     private function courseRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM courses WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
@@ -388,6 +718,29 @@ final class LmsRepository
         return $rows;
     }
 
+    /**
+     * Per-lesson completion funnel for a course: how many enrolled learners
+     * have completed each lesson, in curriculum order. Reveals where learners
+     * drop off. Returns [{title, module, done, pct}] (pct of enrolled).
+     */
+    public function lessonFunnel(int $courseId): array
+    {
+        $enrolled = (int) $this->db->query('SELECT COUNT(*) FROM course_enrolment WHERE course_id = ' . (int) $courseId)->fetchColumn();
+        $s = $this->db->prepare(
+            "SELECT l.id, l.title, m.title AS module,
+                    (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.lesson_id = l.id) AS done
+             FROM lessons l JOIN modules m ON m.id = l.module_id
+             WHERE l.course_id = ? ORDER BY m.position, m.id, l.position, l.id"
+        );
+        $s->execute([$courseId]);
+        $rows = $s->fetchAll();
+        foreach ($rows as &$r) {
+            $r['done'] = (int) $r['done'];
+            $r['pct'] = $enrolled ? (int) round(min(100, $r['done'] / $enrolled * 100)) : 0;
+        }
+        return $rows;
+    }
+
     public function ownsCourse(int $userId, string $slug): ?array
     {
         $s = $this->db->prepare('SELECT * FROM courses WHERE slug = ? AND instructor_id = ?');
@@ -462,16 +815,17 @@ final class LmsRepository
     /** Filtered member list for the admin console. */
     public function membersForAdmin(string $q = '', string $role = '', string $status = '', int $limit = 200): array
     {
+        if (class_exists('Levels')) Levels::ensure(); // guarantees the level column
         $w = []; $p = [];
         if ($q !== '')      { $w[] = '(name LIKE ? OR email LIKE ?)'; $p[] = "%$q%"; $p[] = "%$q%"; }
         if ($role !== '')   { $w[] = 'role = ?';   $p[] = $role; }
         if ($status !== '') { $w[] = 'status = ?'; $p[] = $status; }
-        $sql = "SELECT id, name, email, role, status, created_at, last_login FROM lms_users";
+        $sql = "SELECT id, name, email, role, status, created_at, last_login, level FROM lms_users";
         if ($w) $sql .= ' WHERE ' . implode(' AND ', $w);
         $sql .= ' ORDER BY id DESC LIMIT ' . (int) $limit;
         $s = $this->db->prepare($sql); $s->execute($p);
         $rows = $s->fetchAll();
-        foreach ($rows as &$r) { $r['org'] = LmsAuth::isOrgMember($r); $r['rank'] = LmsAuth::rank((string) $r['role']); }
+        foreach ($rows as &$r) { $r['org'] = LmsAuth::isOrgMember($r); $r['rank'] = LmsAuth::rank((string) $r['role']); $r['level'] = $r['level'] ?? 'O'; }
         return $rows;
     }
 

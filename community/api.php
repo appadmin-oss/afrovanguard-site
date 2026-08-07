@@ -23,12 +23,21 @@ $action = (string) ($_GET['action'] ?? 'feed');
 $body = [];
 if ($method === 'POST') { $body = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST; }
 
-/** Same-origin guard for writes (defence-in-depth on top of the Lax cookie). */
+/**
+ * Same-origin guard for writes (defence-in-depth on top of the Lax cookie).
+ * Host-relative — compares the Origin/Referer host to the request host — so it
+ * works on ANY deployment host (production, preview, staging, local), exactly
+ * like require_same_origin() elsewhere in the app. (The old check hardcoded the
+ * production domain, which 403'd every write on any other host.)
+ */
 function comm_same_origin(): bool
 {
-    $o = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if ($o === '') return true; // no Origin header (same-origin GET-style fetch / curl) — cookie+Lax still gates
-    return (bool) preg_match('~^https?://([a-z0-9.-]*\.)?afrovanguard\.org\.ng$~i', $o);
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $o = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
+    if ($o === '') return true; // no Origin/Referer (same-origin fetch / curl) — cookie+Lax still gates
+    $oh = parse_url($o, PHP_URL_HOST) ?: '';
+    if ($oh === '' || $host === '') return true;
+    return stripos($host, $oh) !== false || stripos($oh, $host) !== false;
 }
 
 try {
@@ -55,7 +64,7 @@ try {
             if (!av_rate_ok('community_post', 20, 900)) json_out(['ok' => false, 'error' => 'You’re posting quickly — give it a moment.'], 429);
             $bodyText = trim((string) ($body['body'] ?? ''));
             if (mb_strlen($bodyText) < 2) json_out(['ok' => false, 'error' => 'Write a little more.'], 422);
-            $id = Community::createPost((int) $u['id'], (string) ($body['space'] ?? 'open-floor'), $bodyText);
+            $id = Community::createPost((int) $u['id'], (string) ($body['space'] ?? 'open-floor'), $bodyText, null, false, (string) ($body['classification'] ?? 'members'));
             if (!$id) json_out(['ok' => false, 'error' => 'Could not post.'], 422);
             json_out(['ok' => true, 'post' => Community::post($id, (int) $u['id'])]);
         }
@@ -78,6 +87,41 @@ try {
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
             if (!av_rate_ok('community_like', 120, 900)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
             json_out(['ok' => true] + Community::toggleLike((int) ($body['id'] ?? 0), (int) $u['id']));
+        }
+        case 'mod_delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!av_rate_ok('community_mod_' . (int) $u['id'], 60, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $ok = Community::moderateDelete((int) $u['id'], (int) ($body['id'] ?? 0));
+            json_out(['ok' => $ok] + ($ok ? [] : ['error' => 'Not allowed.']), $ok ? 200 : 403);
+        }
+        case 'mod_pin': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u || !Community::isAdmin((int) $u['id'])) json_out(['ok' => false, 'error' => 'Moderators only.'], 403);
+            $ok = Community::moderatePin((int) $u['id'], (int) ($body['id'] ?? 0), (bool) ($body['pin'] ?? true));
+            json_out(['ok' => $ok]);
+        }
+        case 'mod_classify': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u || !Community::isAdmin((int) $u['id'])) json_out(['ok' => false, 'error' => 'Moderators only.'], 403);
+            $ok = Community::moderateClassify((int) $u['id'], (int) ($body['id'] ?? 0), (string) ($body['classification'] ?? 'members'));
+            json_out(['ok' => $ok]);
+        }
+        case 'announce': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u || !Community::isAdmin((int) $u['id'])) json_out(['ok' => false, 'error' => 'Moderators only.'], 403);
+            if (!av_rate_ok('community_announce_' . (int) $u['id'], 20, 900)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $id = Community::announce((int) $u['id'], (string) ($body['space'] ?? 'announcements'), (string) ($body['body'] ?? ''), (bool) ($body['pin'] ?? false));
+            if (!$id) json_out(['ok' => false, 'error' => 'Write an announcement.'], 422);
+            json_out(['ok' => true, 'post' => Community::post($id, (int) $u['id'])]);
         }
         case 'ask': {
             // Ask the official Afrovanguard bot (AI). Posts the member's question,
@@ -149,7 +193,7 @@ try {
             $u = LmsAuth::user();
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
             if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
-            json_out(['ok' => true, 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0))]);
+            json_out(['ok' => true, 'channels' => Community::CHAT_CHANNELS, 'messages' => Community::chatList((int) $u['id'], (int) ($_GET['since'] ?? 0), 50, (string) ($_GET['channel'] ?? 'general'))]);
         }
         case 'chat_send': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
@@ -158,9 +202,23 @@ try {
             if (!$u) json_out(['ok' => false, 'error' => 'Please sign in to chat.'], 401);
             if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'The members chat is for Afrovanguard members.'], 403);
             if (!av_rate_ok('community_chat', 60, 300)) json_out(['ok' => false, 'error' => 'Slow down a touch.'], 429);
-            $msg = Community::chatSend((int) $u['id'], (string) ($body['body'] ?? ''));
+            $msg = Community::chatSend((int) $u['id'], (string) ($body['body'] ?? ''), (string) ($body['channel'] ?? 'general'));
             if (!$msg) json_out(['ok' => false, 'error' => 'Write a message first.'], 422);
             json_out(['ok' => true, 'message' => $msg]);
+        }
+        case 'to_task': {
+            // Turn a chat message or post into a task (org members) — chat ⇄ work bridge.
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!comm_same_origin()) json_out(['ok' => false, 'error' => 'Bad origin.'], 403);
+            $u = LmsAuth::user();
+            if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
+            if (!Community::isOrgMember((int) $u['id'])) json_out(['ok' => false, 'error' => 'Members-only.'], 403);
+            if (!class_exists('Collab')) { require_once AV_ROOT . '/lib/Collab.php'; }
+            if (!av_rate_ok('community_totask_' . (int) $u['id'], 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $title = trim(mb_substr((string) ($body['body'] ?? ''), 0, 300));
+            $id = $title !== '' ? Collab::addTask((int) $u['id'], $title) : 0;
+            if (!$id) json_out(['ok' => false, 'error' => 'Nothing to turn into a task.'], 422);
+            json_out(['ok' => true, 'task_id' => $id]);
         }
 
         default:

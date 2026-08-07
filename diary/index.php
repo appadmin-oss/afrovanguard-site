@@ -14,6 +14,7 @@ $articles  = $first['items'];
 $total     = $first['total'];
 $facets    = $repo->facets();
 $featured  = $repo->featured();
+$seriesList = array_values(array_filter($repo->seriesList(), fn($s) => (int) ($s['n'] ?? 0) > 0));
 $canonical = diary_url();
 $q         = trim((string) ($_GET['q'] ?? ''));
 
@@ -93,6 +94,27 @@ render_nav('diary');
         </div>
       </div>
       <script type="application/json" id="diaryFacets"><?= json_encode($facets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+
+<?php if ($seriesList): ?>
+      <!-- Series highlight — multi-part collections, each linking to its landing page -->
+      <section class="diary-series" aria-label="Series in the Diary">
+        <div class="diary-series-head">
+          <h2>Series</h2>
+          <p>Multi-part collections — read them start to finish.</p>
+        </div>
+        <div class="diary-series-row">
+<?php foreach ($seriesList as $s): ?>
+          <a class="series-card" href="/diary/series/<?= e($s['slug']) ?>">
+            <span class="series-card-kicker"><?= (int) $s['n'] ?>-part series</span>
+            <span class="series-card-title"><?= e($s['title']) ?></span>
+<?php if (!empty($s['description'])): ?>            <span class="series-card-dek"><?= e($s['description']) ?></span>
+<?php endif; ?>
+            <span class="series-card-go">Start reading →</span>
+          </a>
+<?php endforeach; ?>
+        </div>
+      </section>
+<?php endif; ?>
 
 <?php if ($total === 0): ?>
       <section class="diary-grid" aria-label="All diary entries">

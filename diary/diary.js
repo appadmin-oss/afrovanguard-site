@@ -21,6 +21,35 @@
     clearTimeout(toast._t); toast._t = setTimeout(function () { toastEl.classList.remove('show'); }, 2400);
   }
 
+  /* ---- Audio download (content-type checked) ----
+     The narration links point at /diary/audio.php with a `download` attr; on
+     any failure that endpoint returns JSON, and the browser would happily save
+     that JSON as a file. Intercept: fetch first, save only real audio, and
+     surface the error message otherwise. */
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href*="/diary/audio.php"]');
+    if (!a) return;
+    e.preventDefault();
+    var url = a.getAttribute('href');
+    var label = a.getAttribute('title') || '';
+    a.setAttribute('aria-busy', 'true'); toast('Preparing audio…');
+    fetch(url, { credentials: 'same-origin' }).then(function (r) {
+      var ct = r.headers.get('Content-Type') || '';
+      if (!r.ok || ct.indexOf('audio') === -1) {
+        return r.json().then(function (d) { toast((d && d.error) || 'Audio isn’t available yet.'); })
+                       .catch(function () { toast('Audio isn’t available yet.'); });
+      }
+      return r.blob().then(function (blob) {
+        var m = /slug=([a-z0-9\-]+)/i.exec(url); var name = (m ? m[1] : 'article') + '.mp3';
+        var dl = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = dl; link.download = name; document.body.appendChild(link); link.click();
+        setTimeout(function () { URL.revokeObjectURL(dl); link.remove(); }, 1500);
+        toast('Audio downloaded.');
+      });
+    }).catch(function () { toast('Could not download audio.'); })
+      .then(function () { a.removeAttribute('aria-busy'); });
+  });
+
   /* ---- Theme (light/dark) ---- */
   var root = document.documentElement;
   function applyTheme(t) { root.setAttribute('data-theme', t); set('av.theme', t); }
@@ -65,6 +94,15 @@
   var toTop = document.querySelector('.to-top');
   var article = document.querySelector('.article-body');
   var listenBar = document.querySelector('.listen-bar');
+  /* Tables: wrap each in a horizontal-scroll container so wide tables never
+     break the reading column or overflow the page on small screens. */
+  if (article) {
+    [].slice.call(article.querySelectorAll('table')).forEach(function (t) {
+      if (t.parentElement && t.parentElement.classList.contains('table-scroll')) return;
+      var w = document.createElement('div'); w.className = 'table-scroll';
+      t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+  }
   function onScroll() {
     var y = window.scrollY || window.pageYOffset;
     if (header) header.classList.toggle('scrolled', y > 8);
@@ -206,6 +244,57 @@
     });
   });
 
+  /* ---- Comments: load + post (works for guests and signed-in members) ---- */
+  (function () {
+    var box = document.getElementById('comments'); if (!box) return;
+    var slug = box.getAttribute('data-slug') || '';
+    var listEl = document.getElementById('commentList');
+    var emptyEl = document.getElementById('commentEmpty');
+    var countEl = document.getElementById('commentsCount');
+    var form = document.getElementById('commentForm');
+    var msg = form ? form.querySelector('.comment-msg') : null;
+    function cesc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function initials(n) { var p = String(n || '?').trim().split(/\s+/); return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase(); }
+    function ago(iso) { var t = Date.parse((iso || '').replace(' ', 'T') + 'Z'); if (!t) return ''; var s = (Date.now() - t) / 1000; if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; if (s < 604800) return Math.floor(s / 86400) + 'd ago'; return new Date(t).toLocaleDateString(); }
+    function row(c) {
+      return '<li class="comment"><span class="comment-ava">' + cesc(initials(c.name)) + '</span>'
+        + '<div class="comment-main"><div class="comment-head"><strong>' + cesc(c.name) + '</strong>'
+        + '<span class="comment-when">' + cesc(ago(c.created_at)) + '</span></div>'
+        + '<p class="comment-body">' + cesc(c.body).replace(/\n/g, '<br>') + '</p></div></li>';
+    }
+    function setCount(n) { if (countEl) { countEl.textContent = n; countEl.hidden = !n; } }
+    function render(list) {
+      list = list || [];
+      listEl.innerHTML = list.map(row).join('');
+      if (emptyEl) emptyEl.hidden = list.length > 0;
+      setCount(list.length);
+    }
+    fetch('/diary/api.php?action=comments&slug=' + encodeURIComponent(slug), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (d) { if (d && d.ok) render(d.comments); }).catch(function () {});
+    if (form) form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var nameEl = document.getElementById('cName'), bodyEl = document.getElementById('cBody');
+      var payload = { slug: slug, body: bodyEl ? bodyEl.value : '', hp: (form.querySelector('[name=hp]') || {}).value || '' };
+      if (nameEl) payload.name = nameEl.value;
+      if (!payload.body.trim()) { if (msg) { msg.textContent = 'Write a comment first.'; msg.className = 'comment-msg err'; } return; }
+      var btn = form.querySelector('button[type=submit]'); if (btn) btn.disabled = true;
+      if (msg) { msg.textContent = 'Posting…'; msg.className = 'comment-msg'; }
+      fetch('/diary/api.php?action=comment', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (btn) btn.disabled = false;
+          if (d && d.ok && d.comment) {
+            if (emptyEl) emptyEl.hidden = true;
+            listEl.insertAdjacentHTML('beforeend', row(d.comment));
+            setCount(listEl.children.length);
+            if (bodyEl) bodyEl.value = '';
+            if (msg) { msg.textContent = 'Posted — thank you.'; msg.className = 'comment-msg ok'; }
+          } else if (msg) { msg.textContent = (d && d.error) || 'Could not post.'; msg.className = 'comment-msg err'; }
+        })
+        .catch(function () { if (btn) btn.disabled = false; if (msg) { msg.textContent = 'Network error.'; msg.className = 'comment-msg err'; } });
+    });
+  })();
+
   /* ---- Scholar Reader — free, human-like read-aloud (neural Web Speech)
          sentence-by-sentence with a karaoke caption that lights each word. ---- */
   var lb = listenBar;
@@ -221,7 +310,7 @@
     var prefetch = {};
     var elapsedBase = 0;
     function ttsUrl(t) { return '/diary/tts.php?slug=' + encodeURIComponent(ttsSlug) + '&t=' + encodeURIComponent(t); }
-    var playBtns = [].slice.call(document.querySelectorAll('.listen-play, .mini-play'));
+    var playBtns = [].slice.call(document.querySelectorAll('.listen-play, .mini-play, [data-listen]'));
     var iconPlay = lb.querySelector('.icon-play');
     var iconPause = lb.querySelector('.icon-pause');
     var curEl = lb.querySelector('.listen-cur');
@@ -301,53 +390,80 @@
 
     /* ---- floating karaoke caption (teleprompter) ---- */
     var cap = document.createElement('div');
-    cap.className = 'av-reader'; cap.setAttribute('aria-hidden', 'true');
-    cap.innerHTML = '<div class="avr-inner"><div class="avr-eq"><span></span><span></span><span></span></div>'
-      + '<p class="avr-text"></p>'
-      + '<div class="avr-controls">'
-      + '<button class="avr-btn avr-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg></button>'
+    cap.className = 'av-reader av-reader--controls'; cap.setAttribute('aria-hidden', 'true');
+    // Controls-only pill — NO teleprompter text. While reading, the words are
+    // highlighted on the article page itself and the page follows along, so the
+    // reader never floats a separate "player with words" over the content/nav.
+    // Full-width reading bar (docs-style): Close · speed · section nav · play ·
+    // time · a progress track pinned to the bottom edge.
+    cap.innerHTML = '<div class="avr-inner">'
+      + '<button class="avr-close" aria-label="Close player"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg><span>Close player</span></button>'
+      + '<div class="avr-speed" role="group" aria-label="Playback speed">'
+      +   '<button class="avr-sp is-on" data-rate="1">1.0x</button>'
+      +   '<button class="avr-sp" data-rate="1.5">1.5x</button>'
+      +   '<button class="avr-sp" data-rate="2">2.0x</button>'
+      + '</div>'
+      + '<div class="avr-sec">'
+      +   '<button class="avr-btn avr-secprev" aria-label="Previous section"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>'
+      +   '<span class="avr-seclabel"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H2zM22 4h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H22z"/></svg><span class="avr-secname">Overview</span></span>'
+      +   '<button class="avr-btn avr-secnext" aria-label="Next section"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>'
+      + '</div>'
       + '<button class="avr-btn avr-play" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></button>'
-      + '<button class="avr-btn avr-fwd" aria-label="Forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg></button>'
-      + '<button class="avr-btn avr-rate" aria-label="Speed">1.0x</button>'
       + '<span class="avr-time"><b class="avr-cur">0:00</b> / <span class="avr-tot">0:00</span></span>'
-      + '<button class="avr-btn avr-close" aria-label="Stop reading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
-      + '</div></div>';
+      + '<div class="avr-track" role="slider" tabindex="0" aria-label="Seek"><span class="avr-fill"></span></div>'
+      + '</div>';
     document.body.appendChild(cap);
-    var capText = cap.querySelector('.avr-text');
-    var capRate = cap.querySelector('.avr-rate');
+    var capText = null;
     var capCur = cap.querySelector('.avr-cur');
     var capTot = cap.querySelector('.avr-tot');
+    var capFill = cap.querySelector('.avr-fill');
+    var capSecName = cap.querySelector('.avr-secname');
     capTot.textContent = fmt(totalSecs());
 
-    function renderCaption(s) {
-      var html = '', pos = 0; capRanges = [];
-      s.split(/(\s+)/).forEach(function (tok) {
-        if (/\S/.test(tok)) { html += '<span class="cw" data-a="' + pos + '" data-b="' + (pos + tok.length) + '">' + esc(tok) + '</span>'; }
-        else { html += tok; }
-        pos += tok.length;
-      });
-      capText.innerHTML = html;
-      capWords = [].slice.call(capText.querySelectorAll('.cw'));
-      capRanges = capWords.map(function (w) { return [+w.getAttribute('data-a'), +w.getAttribute('data-b'), w]; });
-      activeWord = null;
+    /* ---- Section model: map each unit to the nearest preceding H2 ---- */
+    var sections = [];
+    units.forEach(function (u, i) {
+      if (u.node && u.node.tagName === 'H2') sections.push({ idx: i, label: (u.node.textContent || '').replace(/\s+/g, ' ').trim() });
+    });
+    var introLabel = ((document.querySelector('.article-title, .feature-hero h1') || {}).textContent || 'Overview').replace(/\s+/g, ' ').trim();
+    function sectionIndexFor(i) { var s = -1; for (var k = 0; k < sections.length; k++) { if (sections[k].idx <= i) s = k; else break; } return s; }
+    function updateSection(i) {
+      if (!capSecName) return;
+      var s = sectionIndexFor(i);
+      capSecName.textContent = s < 0 ? introLabel : sections[s].label;
     }
-    function highlightWord(ci) {
-      for (var k = 0; k < capRanges.length; k++) {
-        if (ci >= capRanges[k][0] && ci < capRanges[k][1]) {
-          if (activeWord) activeWord.classList.remove('on');
-          activeWord = capRanges[k][2]; activeWord.classList.add('on'); return;
-        }
-      }
+    function gotoSection(dir) {
+      var cur = sectionIndexFor(idx);
+      var t = cur + dir;
+      var target = t < 0 ? 0 : (sections[t] ? sections[t].idx : (dir > 0 ? units.length - 1 : 0));
+      if (playing) speakFrom(target); else { idx = Math.max(0, Math.min(target, units.length - 1)); highlight(idx); updateSection(idx); updateProgress(); }
     }
+    function updateProgress() {
+      if (!capFill) return;
+      var pct = units.length > 1 ? (idx / (units.length - 1)) * 100 : 0;
+      capFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    }
+    updateSection(0); updateProgress();
+
+    // Teleprompter removed — reading is shown on the page itself (see highlight()).
+    // These remain as safe no-ops so the speak/neural code paths are unchanged.
+    function renderCaption(s) { capWords = []; capRanges = []; activeWord = null; }
+    function highlightWord(ci) {}
 
     /* ---- voices: prefer natural/neural ---- */
     function scoreVoice(v) {
       var n = (v.name + ' ' + (v.voiceURI || '')).toLowerCase(); var s = 0;
       if (/^en[-_]/i.test(v.lang)) s += 5;
-      if (/en[-_]gb/i.test(v.lang)) s += 3; else if (/en[-_](us|ng|au|ie)/i.test(v.lang)) s += 2;
+      // Prefer a Nigerian English voice above all other accents — the Diary should
+      // read in a professional Nigerian voice wherever the device offers one.
+      if (/en[-_]ng/i.test(v.lang) || /niger/i.test(n)) s += 12;
+      else if (/en[-_](gb|ie)/i.test(v.lang)) s += 3;
+      else if (/en[-_](us|au|za|gh|ke)/i.test(v.lang)) s += 2;
       if (/natural|neural|enhanced|premium|wavenet|siri/.test(n)) s += 6;
       if (/google/.test(n)) s += 4;
       if (/microsoft/.test(n)) s += 2;
+      // Known Nigerian / West-African voice names, then other clear English names.
+      if (/(nigeria|ezinne|abeo|femi|funmi|ngozi|chinwe|tunde|ada)/.test(n)) s += 8;
       if (/(daniel|samantha|serena|aria|libby|sonia|ryan|arthur|george|jenny|guy)/.test(n)) s += 3;
       if (v.localService === false) s += 1;
       return s;
@@ -382,6 +498,7 @@
     function setUI(on) {
       playing = on;
       cap.classList.toggle('show', on);
+      document.body.classList.toggle('reading-open', on); // lift floating launchers above the bar
       var pp = on ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
                   : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
       var avrPlay = cap.querySelector('.avr-play'); if (avrPlay) avrPlay.innerHTML = pp;
@@ -400,6 +517,7 @@
         var r = highlighted.getBoundingClientRect();
         if (r.top < 90 || r.bottom > window.innerHeight - 180) highlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+      updateSection(i); updateProgress();
     }
     function clearHighlight() { if (highlighted) { highlighted.classList.remove('speaking'); highlighted = null; } }
 
@@ -417,7 +535,16 @@
       highlight(idx);
       renderCaption(units[idx].text);
       if (neural) { playNeural(idx); return; }
-      var u = new SpeechSynthesisUtterance(units[idx].text);
+      speakBrowser(idx);
+    }
+    // Read one unit with the browser's built-in voice. Used when no neural engine
+    // is configured AND as a fallback when a neural clip fails (e.g. the server
+    // 502s because the TTS provider key/quota is unavailable) — so read-aloud
+    // keeps working with the device voice instead of falling silent.
+    function speakBrowser(i) {
+      if (!hasTTS) { if (playing) { idx++; speakChunk(); } return; }
+      try { synth.cancel(); } catch (e) {}
+      var u = new SpeechSynthesisUtterance(units[i].text);
       u.rate = rate; u.pitch = 1.0; u.volume = 1; u.lang = (voice && voice.lang) || 'en-GB';
       if (voice) u.voice = voice;
       u.onboundary = function (e) { if (e.charIndex != null && (e.name === 'word' || e.name == null)) highlightWord(e.charIndex); };
@@ -448,9 +575,18 @@
           highlightWordByFrac(audioEl.currentTime / d);
         }
       };
-      audioEl.onended = function () { if (!playing) return; elapsedBase += (audioEl.duration && isFinite(audioEl.duration)) ? audioEl.duration : 0; idx++; speakChunk(); };
-      audioEl.onerror = function () { if (!playing) return; idx++; speakChunk(); };
-      var p = audioEl.play(); if (p && p.catch) p.catch(function () {});
+      var settled = false;
+      // A neural clip failed (network/5xx). Stop hammering the endpoint —
+      // switch to the browser voice for the rest of the article — and read THIS
+      // sentence aloud rather than skipping it.
+      function neuralFail() {
+        if (settled || !playing) return; settled = true;
+        neural = false; startKeepAlive();
+        speakBrowser(i);
+      }
+      audioEl.onended = function () { if (settled || !playing) return; settled = true; elapsedBase += (audioEl.duration && isFinite(audioEl.duration)) ? audioEl.duration : 0; idx++; speakChunk(); };
+      audioEl.onerror = neuralFail;
+      var p = audioEl.play(); if (p && p.catch) p.catch(neuralFail);
       prefetchNext();
     }
     function stop() { playing = false; if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); } setUI(false); stopTicker(); stopKeepAlive(); clearHighlight(); }
@@ -459,26 +595,44 @@
     cap.querySelector('.avr-play').addEventListener('click', toggle);
     cap.querySelector('.avr-close').addEventListener('click', stop);
 
-    function setRate() {
-      rateIdx = (rateIdx + 1) % rates.length; rate = rates[rateIdx]; set('av.read.rate', String(rate));
+    // Speed: explicit 1.0 / 1.5 / 2.0 buttons (docs-style), plus the inline
+    // listen-bar rate button which cycles through the same set.
+    var SPEEDS = [1, 1.5, 2];
+    function applyRate(r) {
+      rate = r; set('av.read.rate', String(rate));
       var lbl = (rate % 1 === 0 ? rate.toFixed(1) : rate) + 'x';
-      if (rateBtn) rateBtn.textContent = lbl; if (capRate) capRate.textContent = lbl;
+      if (rateBtn) rateBtn.textContent = lbl;
+      [].forEach.call(cap.querySelectorAll('.avr-sp'), function (b) { b.classList.toggle('is-on', parseFloat(b.getAttribute('data-rate')) === rate); });
       var t = fmt(totalSecs()); if (totalEl) totalEl.textContent = t; if (capTot) capTot.textContent = t;
       if (playing) speakFrom(idx);
     }
-    if (rateBtn) rateBtn.addEventListener('click', setRate);
-    capRate.addEventListener('click', setRate);
-    capRate.textContent = (rate % 1 === 0 ? rate.toFixed(1) : rate) + 'x';
+    [].forEach.call(cap.querySelectorAll('.avr-sp'), function (b) {
+      b.addEventListener('click', function () { applyRate(parseFloat(b.getAttribute('data-rate')) || 1); });
+    });
+    if (rateBtn) rateBtn.addEventListener('click', function () {
+      var i = SPEEDS.indexOf(rate); applyRate(SPEEDS[(i + 1) % SPEEDS.length]);
+    });
+    applyRate(SPEEDS.indexOf(rate) >= 0 ? rate : 1);
 
+    // Section navigation (docs-style ◀ / ▶).
+    cap.querySelector('.avr-secprev').addEventListener('click', function () { gotoSection(-1); });
+    cap.querySelector('.avr-secnext').addEventListener('click', function () { gotoSection(1); });
+
+    // 10-second-equivalent skip stays on the inline listen-bar buttons.
     function jump(d) {
-      elapsed = Math.max(0, elapsed + d * 8);
       var t = Math.max(0, Math.min(idx + d, units.length - 1));
-      if (playing) speakFrom(t); else { idx = t; highlight(idx); renderCaption(units[idx].text); }
+      if (playing) speakFrom(t); else { idx = t; highlight(idx); updateSection(idx); updateProgress(); }
     }
     if (backBtn) backBtn.addEventListener('click', function () { jump(-1); });
     if (fwdBtn) fwdBtn.addEventListener('click', function () { jump(1); });
-    cap.querySelector('.avr-back').addEventListener('click', function () { jump(-1); });
-    cap.querySelector('.avr-fwd').addEventListener('click', function () { jump(1); });
+
+    // Seek by clicking the progress track.
+    var track = cap.querySelector('.avr-track');
+    if (track) track.addEventListener('click', function (e) {
+      var r = track.getBoundingClientRect(); var frac = r.width ? (e.clientX - r.left) / r.width : 0;
+      var t = Math.max(0, Math.min(Math.round(frac * (units.length - 1)), units.length - 1));
+      if (playing) speakFrom(t); else { idx = t; highlight(idx); updateSection(idx); updateProgress(); }
+    });
     window.addEventListener('beforeunload', function () { if (neural && audioEl) { try { audioEl.pause(); } catch (e) {} } else { synth.cancel(); } });
     window.__avListen = { toggle: function () { toggle(); } };
   } else if (lb) {
@@ -608,6 +762,72 @@
     ov.addEventListener('click', function (e) { if (e.target === ov || e.target.hasAttribute('data-close')) ov.remove(); });
     document.body.appendChild(ov);
   }
+
+  /* ---- Human narration player (author-uploaded audio) ---- */
+  (function () {
+    var fig = document.querySelector('[data-narration]');
+    if (!fig) return;
+    var audio = fig.querySelector('audio');
+    var playBtn = fig.querySelector('.na-play');
+    var icPlay = fig.querySelector('.na-ic-play');
+    var icPause = fig.querySelector('.na-ic-pause');
+    var bar = fig.querySelector('.na-bar');
+    var prog = fig.querySelector('.na-progress');
+    var timeEl = fig.querySelector('.na-time');
+    var speedBtn = fig.querySelector('.na-speed');
+    if (!audio || !playBtn) return;
+    var speeds = [1, 1.25, 1.5, 0.75];
+    var si = 0;
+    function fmt(s) {
+      if (!isFinite(s) || s < 0) s = 0;
+      var m = Math.floor(s / 60), r = Math.floor(s % 60);
+      return m + ':' + (r < 10 ? '0' : '') + r;
+    }
+    function setPlaying(on) {
+      fig.classList.toggle('is-playing', on);
+      if (icPlay) icPlay.hidden = on;
+      if (icPause) icPause.hidden = !on;
+      playBtn.setAttribute('aria-label', on ? 'Pause narration' : 'Play narration');
+    }
+    playBtn.addEventListener('click', function () {
+      if (audio.paused) { audio.play().catch(function () {}); } else { audio.pause(); }
+    });
+    audio.addEventListener('play', function () { setPlaying(true); });
+    audio.addEventListener('pause', function () { setPlaying(false); });
+    audio.addEventListener('ended', function () { setPlaying(false); if (prog) prog.style.width = '0%'; });
+    audio.addEventListener('timeupdate', function () {
+      var d = audio.duration || 0;
+      if (prog && d) prog.style.width = (audio.currentTime / d * 100) + '%';
+      if (timeEl) timeEl.textContent = fmt(d ? d - audio.currentTime : audio.currentTime);
+      if (bar) bar.setAttribute('aria-valuenow', String(Math.floor(audio.currentTime)));
+    });
+    audio.addEventListener('loadedmetadata', function () {
+      if (timeEl) timeEl.textContent = fmt(audio.duration);
+      if (bar) { bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', String(Math.floor(audio.duration || 0))); }
+    });
+    function seekFromEvent(e) {
+      var rect = bar.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      var ratio = Math.max(0, Math.min(1, x / rect.width));
+      if (audio.duration) audio.currentTime = ratio * audio.duration;
+    }
+    if (bar) {
+      bar.addEventListener('click', seekFromEvent);
+      bar.addEventListener('keydown', function (e) {
+        if (!audio.duration) return;
+        if (e.key === 'ArrowRight') { e.preventDefault(); audio.currentTime = Math.min(audio.duration, audio.currentTime + 10); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 10); }
+        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); playBtn.click(); }
+      });
+    }
+    if (speedBtn) {
+      speedBtn.addEventListener('click', function () {
+        si = (si + 1) % speeds.length;
+        audio.playbackRate = speeds[si];
+        speedBtn.textContent = speeds[si] + '×';
+      });
+    }
+  })();
 
   /* ---- Keyboard shortcuts ---- */
   document.addEventListener('keydown', function (e) {

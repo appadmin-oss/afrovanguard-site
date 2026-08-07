@@ -43,6 +43,7 @@ RewriteRule ^diary/sitemap\.xml$ diary/sitemap.php [L]
 RewriteRule ^diary/feed\.xml$ diary/feed.php [L]
 RewriteRule ^diary/og/([a-z0-9-]+)\.png$ diary/og.php?slug=$1 [L,QSA]
 RewriteRule ^diary/me/?$ diary/me.php [L,QSA]
+RewriteRule ^diary/series/([a-z0-9-]+)/?$ diary/series.php?slug=$1 [L,QSA]
 RewriteRule ^diary/([a-z0-9-]+)/?$ diary/article.php?slug=$1 [L,QSA]
 
 # Academy  (/academy/ and /academy/studio/ are real dirs → served above)
@@ -59,7 +60,10 @@ RewriteRule ^academy/([a-z0-9-]+)/?$ academy/course.php?slug=$1 [L,QSA]
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
 
 # Google sign-in endpoints
-RewriteRule ^auth/google/(start|callback)/?$ auth/google.php?action=$1 [L,QSA]
+RewriteRule ^auth/google/(start|callback|connect|disconnect)/?$ auth/google.php?action=$1 [L,QSA]
+
+# Google real-time push receiver (Calendar/Drive watch channels)
+RewriteRule ^webhooks/google/?$ webhooks/google.php [L,QSA]
 
 # Extension-less root pages: /about → about.html, /donate → donate.html, …
 RewriteCond %{DOCUMENT_ROOT}/$1.html -f
@@ -100,11 +104,19 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   </FilesMatch>
 </IfModule>
 
-# ── Conservative security headers (Cloudflare may also set some; harmless) ──
+# ── Security headers + Content-Security-Policy ──────────────────────────────
+# The CSP allows exactly what the site loads: same-origin + inline (for the
+# app's own inline scripts/styles) plus the specific third parties in use —
+# jsdelivr (CDN/TinyMCE), Google/AJAX libs, Paystack (payments), Cloudinary
+# (uploads) and the whitelisted embed hosts (see lib/security.php::av_embed_hosts).
+# `unset` before `set` guarantees this replaces any CSP a host security suite
+# (e.g. Imunify360/ModSecurity) injects upstream.
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always unset Content-Security-Policy
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com; img-src 'self' data: blob: https:; media-src 'self' https: blob:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co; connect-src 'self' https://api.cloudinary.com https://api.paystack.co https://cdn.jsdelivr.net; frame-src 'self' https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.soundcloud.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://www.google.com https://maps.google.com https://docs.google.com https://drive.google.com https://calendar.google.com https://flo.uri.sh https://public.flourish.studio https://www.facebook.com https://web.facebook.com https://anchor.fm https://embed.music.apple.com https://www.canva.com https://datawrapper.dwcdn.net"
 </IfModule>
 
 AddDefaultCharset UTF-8

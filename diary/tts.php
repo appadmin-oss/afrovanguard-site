@@ -18,6 +18,23 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 
 header('X-Content-Type-Options: nosniff');
 
+// Diagnostic: /diary/tts.php?probe=1 → which engine/key the server detects
+// (never returns the key itself). Lets an admin confirm setup at a glance.
+if (isset($_GET['probe'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $out = ['ok' => true, 'tts' => Tts::status()];
+    // Live self-test: try to synthesise one word so an admin can see WHY the
+    // reader is failing (e.g. "elevenlabs 401" = bad key, "429" = quota,
+    // "network: …" = egress blocked) instead of an opaque 502.
+    if (Tts::available()) {
+        $sample = Tts::synthesize('Afrovanguard.');
+        $out['test'] = ['ok' => ($sample !== null && $sample !== ''), 'bytes' => $sample ? strlen($sample) : 0];
+        if (!$out['test']['ok']) $out['test']['error'] = Tts::lastError();
+    }
+    echo json_encode($out);
+    exit;
+}
+
 function tts_fail(int $code, string $msg): void
 {
     http_response_code($code);
@@ -59,7 +76,9 @@ $path = $dir . '/' . $key . '.' . $ext;
 $bytes = is_file($path) ? (string) file_get_contents($path) : null;
 if ($bytes === null || $bytes === '') {
     $bytes = Tts::synthesize($text);
-    if ($bytes === null || $bytes === '') tts_fail(502, 'Could not generate audio.');
+    if ($bytes === null || $bytes === '') {
+        tts_fail(502, 'Could not generate audio.' . (av_is_prod() ? '' : ' [' . Tts::lastError() . ']'));
+    }
     // Atomic write so a concurrent request never serves a half-written file.
     $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
     if (@file_put_contents($tmp, $bytes) !== false) @rename($tmp, $path);

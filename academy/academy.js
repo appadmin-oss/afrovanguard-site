@@ -28,6 +28,38 @@
   // Reveal the in-player "course complete → get your certificate" banner.
   function revealDone() { var cd = document.getElementById('courseDone'); if (cd && cd.hidden) { cd.hidden = false; try { cd.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {} } }
 
+  /* ---- "Up next" auto-continue card (Coursera/YouTube-style) ----
+     Shown when a lesson is completed and another lesson follows. Counts
+     down, then advances — cancelable so a learner can linger. */
+  var _upNextTimer = null;
+  function cancelUpNext() {
+    if (_upNextTimer) { clearInterval(_upNextTimer); _upNextTimer = null; }
+    var el = document.getElementById('upNext'); if (el) { el.hidden = true; el.classList.remove('show'); }
+  }
+  function showUpNext() {
+    var el = document.getElementById('upNext');
+    if (!el) return false;
+    var url = el.getAttribute('data-next-url'); if (!url) return false;
+    var countEl = el.querySelector('[data-upnext-count]');
+    var go = function () { cancelUpNext(); window.location.href = url; };
+    el.hidden = false;
+    requestAnimationFrame(function () { el.classList.add('show'); });
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+    var left = 6;
+    if (countEl) countEl.textContent = '(' + left + ')';
+    if (_upNextTimer) clearInterval(_upNextTimer);
+    _upNextTimer = setInterval(function () {
+      left--;
+      if (countEl) countEl.textContent = left > 0 ? '(' + left + ')' : '';
+      if (left <= 0) go();
+    }, 1000);
+    var goBtn = el.querySelector('[data-upnext-go]');
+    var cancelBtn = el.querySelector('[data-upnext-cancel]');
+    if (goBtn && !goBtn._wired) { goBtn._wired = 1; goBtn.addEventListener('click', go); }
+    if (cancelBtn && !cancelBtn._wired) { cancelBtn._wired = 1; cancelBtn.addEventListener('click', cancelUpNext); }
+    return true;
+  }
+
   /* ---- Scroll reveal (matches the Diary) ---- */
   var revealAll = function () { document.querySelectorAll('[data-reveal], .reveal-stagger').forEach(function (n) { n.classList.add('in'); }); };
   if ('IntersectionObserver' in window) {
@@ -205,9 +237,27 @@
       .catch(function () { note('Network error — please try again.', false); t.disabled = false; t.textContent = label; });
   });
 
+  /* ---- Restricted course: redeem a pass code ---- */
+  (function () {
+    var form = document.querySelector('.pass-form[data-course]');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = form.querySelector('button[type=submit]'); var label = btn ? btn.textContent : '';
+      var code = (form.querySelector('[name="code"]') || {}).value || '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+      api('pass_redeem', { method: 'POST', body: { slug: form.getAttribute('data-course'), code: code } })
+        .then(function (d) {
+          if (d && d.ok) { toast(d.message || 'Unlocked ✓'); setTimeout(function () { window.location.reload(); }, 700); }
+          else { toast((d && d.error) || 'That pass code is not valid.'); if (btn) { btn.disabled = false; btn.textContent = label; } }
+        })
+        .catch(function () { toast('Network error — please try again.'); if (btn) { btn.disabled = false; btn.textContent = label; } });
+    });
+  })();
+
   /* ---- Lead-capture application form (open courses with no lessons yet) ---- */
   (function () {
-    var form = document.querySelector('.enroll-form[data-course]');
+    var form = document.querySelector('.enroll-form[data-course]:not(.pass-form)');
     if (!form) return;
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -249,7 +299,7 @@
           out.textContent = 'You scored ' + d.score + '%. ' + (d.passed ? 'Passed — lesson complete!' : 'You need ' + d.pass + '% to pass. Try again.');
           var st = document.getElementById('quizStatus'); if (st && d.passed) { st.textContent = '✓ Completed'; st.classList.add('done'); }
           var row = document.querySelector('.lesson-side a.lp.active'); if (row && d.passed) { row.classList.add('done'); var dot = row.querySelector('.dot'); if (dot) dot.textContent = '✓'; }
-          if (d.progress) { updateSideProgress(d.progress); if (d.progress.complete) { revealDone(); toast('Course complete! 🎉 Claim your certificate.'); } }
+          if (d.progress) { updateSideProgress(d.progress); if (d.progress.complete) { revealDone(); toast('Course complete! 🎉 Claim your certificate.'); } else if (d.passed) { showUpNext(); } }
         }).catch(function () { out.className = 'quiz-result err'; out.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
@@ -290,9 +340,175 @@
           var row = document.querySelector('.lesson-side a.lp.active');
           if (row) { row.classList.toggle('done', done); var dot = row.querySelector('.dot'); if (dot) dot.textContent = done ? '✓' : ''; }
           if (d.progress) { updateSideProgress(d.progress); if (d.progress.complete) { revealDone(); toast('Course complete! 🎉'); } else { var cd = document.getElementById('courseDone'); if (cd) cd.hidden = true; } }
-          // Coursera-style: just-completed → advance to the next lesson.
-          if (done && next) { setTimeout(function () { window.location.href = next; }, 450); }
-        }).catch(function () { toast('Network error'); }).finally(function () { if (btn.getAttribute('data-done') !== '1' || !next) btn.disabled = false; });
+          // Coursera-style: just-completed → surface the "up next" card (which
+          // counts down and advances), instead of an abrupt redirect.
+          if (done && next) { if (!showUpNext()) setTimeout(function () { window.location.href = next; }, 500); }
+          else { cancelUpNext(); }
+        }).catch(function () { toast('Network error'); }).finally(function () { btn.disabled = false; });
     });
   }
+
+  /* ---- Lesson: reading-progress bar (tracks scroll through the lesson) ---- */
+  (function () {
+    var bar = document.getElementById('readBar');
+    var main = document.querySelector('.lesson-main');
+    if (!bar || !main) return;
+    function update() {
+      var rect = main.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var total = rect.height - vh;
+      var scrolled = -rect.top;
+      var pct = total > 0 ? Math.max(0, Math.min(1, scrolled / total)) : (rect.bottom <= vh ? 1 : 0);
+      bar.style.width = (pct * 100).toFixed(1) + '%';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update, { passive: true });
+    update();
+  })();
+
+  /* ---- Lesson: personal notes ----
+     Signed-in learners sync to their account (cross-device) via the API;
+     anonymous readers fall back to on-device localStorage. */
+  (function () {
+    var panel = document.querySelector('.l-notes[data-notes-key]');
+    if (!panel) return;
+    var area = panel.querySelector('[data-notes-area]');
+    var statusEl = panel.querySelector('[data-notes-status]');
+    var dlBtn = panel.querySelector('[data-notes-download]');
+    var key = panel.getAttribute('data-notes-key');
+    var course = panel.getAttribute('data-notes-course') || 'course';
+    var lessonSlug = panel.getAttribute('data-notes-lesson') || '';
+    var lessonTitle = panel.getAttribute('data-lesson-title') || '';
+    var remote = panel.getAttribute('data-notes-remote') === '1';
+    var LS = window.localStorage;
+    function get(k) { try { return LS.getItem(k); } catch (e) { return null; } }
+    function set(k, v) { try { LS.setItem(k, v); } catch (e) {} }
+    function flash(msg) { if (statusEl) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(flash._t); flash._t = setTimeout(function () { statusEl.classList.remove('show'); }, 1600); } }
+    // Local mode loads the saved value (remote mode is prefilled server-side).
+    if (area && !remote) { var saved = get(key); if (saved != null) area.value = saved; }
+
+    var t;
+    if (area) area.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () {
+        var v = area.value;
+        if (remote) {
+          flash('Saving…');
+          api('note_save', { method: 'POST', body: { course: course, lesson: lessonSlug, body: v } })
+            .then(function (d) { flash(d && d.ok ? 'Saved' : 'Not saved'); })
+            .catch(function () { flash('Offline'); });
+        } else {
+          if (v.trim() === '') { try { LS.removeItem(key); } catch (e) {} } else { set(key, v); }
+          flash('Saved');
+        }
+      }, remote ? 600 : 350);
+    });
+
+    function downloadMd(items) {
+      if (!items.length) { toast('No notes saved yet — start typing to capture your first note.'); return; }
+      var md = '# My notes — ' + course + '\n\n';
+      items.forEach(function (it) { md += '## ' + it.title + '\n\n' + it.body.trim() + '\n\n'; });
+      var blob = new Blob([md], { type: 'text/markdown' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = course + '-notes.md';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      flash('Downloaded');
+    }
+    if (dlBtn) dlBtn.addEventListener('click', function () {
+      if (remote) {
+        fetch('/academy/api.php?action=notes_all&course=' + encodeURIComponent(course), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d || !d.ok) { toast('Could not load your notes.'); return; }
+            downloadMd((d.notes || []).map(function (n) { return { title: n.title, body: n.body }; }));
+          })
+          .catch(function () { toast('Network error — please try again.'); });
+        return;
+      }
+      var prefix = 'av.notes.' + course + '.';
+      var items = [];
+      for (var i = 0; i < LS.length; i++) {
+        var k = LS.key(i);
+        if (k && k.indexOf(prefix) === 0) {
+          var body = get(k) || '';
+          if (body.trim() === '') continue;
+          var s = k.slice(prefix.length);
+          items.push({ slug: s, title: s === lessonSlug ? lessonTitle : s.replace(/-/g, ' '), body: body });
+        }
+      }
+      items.sort(function (a, b) { return a.slug.localeCompare(b.slug); });
+      downloadMd(items);
+    });
+  })();
+
+  /* ---- Lesson: keyboard shortcuts (N/P next-prev, K complete, S contents) ---- */
+  (function () {
+    if (!document.body.classList.contains('learn-mode')) return;
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var tag = (e.target && e.target.tagName) || '';
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (e.target && e.target.isContentEditable)) return;
+      var k = e.key.toLowerCase();
+      if (k === 'n') { var nx = document.querySelector('.lesson-nav-next a'); if (nx) { e.preventDefault(); window.location.href = nx.href; } }
+      else if (k === 'p') { var pv = document.querySelector('.lesson-nav-prev a'); if (pv) { e.preventDefault(); window.location.href = pv.href; } }
+      else if (k === 'k') { var cb = document.getElementById('completeBtn'); if (cb) { e.preventDefault(); cb.click(); } }
+      else if (k === 's') { var tg = document.getElementById('lsToggle'); var side = document.getElementById('lessonSide'); if (tg && getComputedStyle(tg).display !== 'none') { e.preventDefault(); tg.click(); } else if (side) { e.preventDefault(); side.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
+    });
+  })();
+
+  /* ---- Instructor roster: search + status filter + column sort ---- */
+  (function () {
+    var root = document.querySelector('[data-teach-roster]');
+    if (!root) return;
+    var table = root.querySelector('[data-roster-table]');
+    var tbody = table && table.querySelector('tbody');
+    if (!tbody) return;
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var search = root.querySelector('[data-roster-search]');
+    var chips = Array.prototype.slice.call(root.querySelectorAll('[data-roster-filter]'));
+    var emptyEl = root.querySelector('[data-roster-empty]');
+    var filter = 'all', query = '';
+
+    function apply() {
+      var shown = 0;
+      rows.forEach(function (r) {
+        var okF = filter === 'all' || r.getAttribute('data-status') === filter;
+        var okQ = !query || (r.getAttribute('data-name') || '').indexOf(query) !== -1;
+        var show = okF && okQ; r.hidden = !show; if (show) shown++;
+      });
+      if (emptyEl) emptyEl.hidden = shown !== 0;
+    }
+    if (search) { var t; search.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { query = search.value.trim().toLowerCase(); apply(); }, 110); }); }
+    chips.forEach(function (c) {
+      c.addEventListener('click', function () {
+        filter = c.getAttribute('data-roster-filter') || 'all';
+        chips.forEach(function (x) { var on = x === c; x.classList.toggle('active', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+        apply();
+      });
+    });
+
+    var sortHeads = Array.prototype.slice.call(table.querySelectorAll('.th-sort[data-sort]'));
+    function sortBy(key, dir) {
+      var arr = rows.slice();
+      arr.sort(function (a, b) {
+        var av, bv, cmp;
+        if (key === 'name') { av = a.getAttribute('data-name'); bv = b.getAttribute('data-name'); cmp = av.localeCompare(bv); }
+        else { av = parseInt(a.getAttribute('data-' + key) || '0', 10); bv = parseInt(b.getAttribute('data-' + key) || '0', 10); cmp = av - bv; }
+        return dir === 'asc' ? cmp : -cmp;
+      });
+      arr.forEach(function (r) { tbody.appendChild(r); });
+    }
+    sortHeads.forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-sort');
+        var cur = th.getAttribute('aria-sort');
+        var dir = cur === 'ascending' ? 'desc' : 'asc';
+        sortHeads.forEach(function (h) { h.removeAttribute('aria-sort'); });
+        th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending');
+        sortBy(key, dir);
+      });
+    });
+  })();
 })();

@@ -67,17 +67,29 @@ final class GoogleAuth
         return $next === false ? '/portal/' : self::safeNext($next);
     }
 
-    public static function authUrl(string $state, string $loginHint = ''): string
+    /**
+     * Build the consent URL. With $extraScopes (space-separated) the flow also
+     * asks for OFFLINE access so a refresh token comes back — used to connect the
+     * member's Workspace during ordinary sign-in (no separate step). openid/email/
+     * profile are always included and de-duplicated against $extraScopes.
+     */
+    public static function authUrl(string $state, string $loginHint = '', string $extraScopes = ''): string
     {
+        $scopes = ['openid', 'email', 'profile'];
+        if (trim($extraScopes) !== '') {
+            foreach (preg_split('/\s+/', trim($extraScopes)) as $s) { if ($s !== '' && !in_array($s, $scopes, true)) $scopes[] = $s; }
+        }
         $params = [
             'client_id'     => AV_GOOGLE_CLIENT_ID,
             'redirect_uri'  => self::redirectUri(),
             'response_type' => 'code',
-            'scope'         => 'openid email profile',
+            'scope'         => implode(' ', $scopes),
             'state'         => $state,
-            'access_type'   => 'online',
+            'access_type'   => trim($extraScopes) !== '' ? 'offline' : 'online',
             'prompt'        => 'select_account',
         ];
+        // Merge with any access the user already granted, so re-consent stays minimal.
+        if (trim($extraScopes) !== '') $params['include_granted_scopes'] = 'true';
         // Pre-fill the account chooser with the address the member typed.
         if ($loginHint !== '' && filter_var($loginHint, FILTER_VALIDATE_EMAIL)) {
             $params['login_hint'] = $loginHint;
@@ -93,6 +105,24 @@ final class GoogleAuth
      * ['email','name','verified','sub'] — or null on any failure.
      */
     public static function exchange(string $code): ?array
+    {
+        $tok = self::exchangeTokens($code);
+        return $tok === null ? null : self::profileFromTokens($tok);
+    }
+
+    /** The verified profile from an already-fetched token bundle (id_token). */
+    public static function profileFromTokens(array $tok): ?array
+    {
+        return empty($tok['id_token']) ? null : self::readIdToken((string) $tok['id_token']);
+    }
+
+    /**
+     * Exchange an authorization code and return the RAW token bundle
+     * (access_token, refresh_token, id_token, scope, expires_in) — or null.
+     * Callers that only need the profile use exchange(); the sign-in flow uses
+     * this to also capture a Workspace connection (refresh token).
+     */
+    public static function exchangeTokens(string $code): ?array
     {
         if (!self::configured() || $code === '') return null;
         $ch = curl_init(self::TOKEN_URL);
@@ -124,7 +154,7 @@ final class GoogleAuth
             error_log('[google] token response missing id_token: ' . substr($res, 0, 300));
             return null;
         }
-        return self::readIdToken((string) $tok['id_token']);
+        return $tok;
     }
 
     /** Decode + minimally validate the id_token from the token endpoint. */

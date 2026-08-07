@@ -155,11 +155,30 @@ if (is_file($cfg)) {
 }
 if (!defined('SITE_URL'))         define('SITE_URL', 'https://afrovanguard.org.ng');
 if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', getenv('AV_DB_PATH') ?: (AV_ROOT . '/db/diary.sqlite'));
+// Organisation timezone. Data is stored UTC; this is the wall-clock members
+// live in (Nigeria = WAT, UTC+1, no DST). Per-user overrides via Prefs.
+if (!defined('AV_TZ'))            define('AV_TZ', getenv('AV_TZ') ?: 'Africa/Lagos');
 
 // Admin token (config.php or AV_ADMIN_TOKEN env). Absent ⇒ admin disabled.
 if (!defined('ADMIN_TOKEN')) {
     $t = getenv('AV_ADMIN_TOKEN');
     if ($t !== false && $t !== '') define('ADMIN_TOKEN', $t);
+}
+// Dedicated signing key for admin cookies + CSRF tokens (config.php or
+// APP_KEY / AV_APP_KEY env). Keeping this separate from ADMIN_TOKEN lets the
+// break-glass credential be rotated without logging every admin out. Absent ⇒
+// av_secret() falls back to ADMIN_TOKEN (legacy single-secret behaviour).
+if (!defined('APP_KEY')) {
+    $k = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
+    if ($k !== false && $k !== '') define('APP_KEY', $k);
+}
+// Whether the scoped integrations API may share mentor EMAIL addresses with a
+// trusted sister site (mentors.directory). Defaults to on for back-compat with
+// the existing NextGenGen mirror; set AV_MENTORS_SHARE_EMAIL=0 to share only a
+// stable cross-site `ref` (the mirror can dedupe on that) and omit the PII.
+if (!defined('AV_MENTORS_SHARE_EMAIL')) {
+    $v = getenv('AV_MENTORS_SHARE_EMAIL');
+    define('AV_MENTORS_SHARE_EMAIL', $v === false || $v === '' ? true : !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true));
 }
 // Cloudinary (config.php or env). Absent ⇒ uploads fall back to local /uploads.
 foreach (['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as $k) {
@@ -174,6 +193,16 @@ foreach (['FLW_PUBLIC_KEY', 'FLW_SECRET_KEY'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
 if (!defined('AV_MEMBERSHIP_NGN')) { $v = getenv('AV_MEMBERSHIP_NGN'); define('AV_MEMBERSHIP_NGN', $v !== false && $v !== '' ? (int) $v : 5000); }
+// Membership DUES (the "How Afrovanguard Works" framework contribution) — distinct
+// from the Academy membership price above. Voluntary from Level A: ₦1,000/month
+// or ₦12,000/year (mandatory from Level C).
+if (!defined('AV_DUES_MONTHLY_NGN')) { $v = getenv('AV_DUES_MONTHLY_NGN'); define('AV_DUES_MONTHLY_NGN', $v !== false && $v !== '' ? (int) $v : 1000); }
+if (!defined('AV_DUES_ANNUAL_NGN'))  { $v = getenv('AV_DUES_ANNUAL_NGN');  define('AV_DUES_ANNUAL_NGN',  $v !== false && $v !== '' ? (int) $v : 12000); }
+// Optional Paystack Plan code for AUTO-RENEWING monthly dues. Create a monthly
+// plan in the Paystack dashboard (amount = AV_DUES_MONTHLY_NGN) and put its
+// plan_code (PLN_…) here. When set, the "Pay a month" button starts a recurring
+// subscription; when empty, it falls back to a one-time monthly charge.
+if (!defined('AV_DUES_PLAN_CODE')) { $v = getenv('AV_DUES_PLAN_CODE'); if ($v !== false && $v !== '') define('AV_DUES_PLAN_CODE', $v); }
 // Google sign-in (config.php or env). Absent ⇒ the "Continue with Google" button stays disabled.
 foreach (['AV_GOOGLE_CLIENT_ID', 'AV_GOOGLE_CLIENT_SECRET'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
@@ -190,7 +219,13 @@ foreach (['AV_GDRIVE_SERVICE_ACCOUNT', 'AV_GDRIVE_FOLDER_ID'] as $k) {
 foreach (['SMTP_HOST', 'SMTP_PORT', 'SMTP_USERNAME', 'SMTP_SECURE', 'FROM_EMAIL', 'FROM_NAME', 'ADMIN_EMAIL'] as $k) {
     if (!defined($k)) { $v = getenv($k); if ($v !== false && $v !== '') define($k, $v); }
 }
-if (!defined('SMTP_PASSWORD')) { $v = getenv('SMTP_PASSWORD'); if ($v === false || $v === '') $v = getenv('AV_SMTP_PASSWORD'); if ($v !== false && $v !== '') define('SMTP_PASSWORD', $v); }
+// Accept the Africa GATES / NextGenGen (Brevo) env naming too, so one .env style
+// works across the sister apps: SMTP_USER, SMTP_PASS, MAIL_FROM_ADDRESS/NAME.
+$__envfirst = static function (array $keys) { foreach ($keys as $k) { $v = getenv($k); if ($v !== false && $v !== '') return (string) $v; } return null; };
+if (!defined('SMTP_USERNAME')) { $v = $__envfirst(['SMTP_USERNAME', 'SMTP_USER']); if ($v !== null) define('SMTP_USERNAME', $v); }
+if (!defined('SMTP_PASSWORD')) { $v = $__envfirst(['SMTP_PASSWORD', 'SMTP_PASS', 'AV_SMTP_PASSWORD']); if ($v !== null) define('SMTP_PASSWORD', $v); }
+if (!defined('FROM_EMAIL'))    { $v = $__envfirst(['FROM_EMAIL', 'MAIL_FROM_ADDRESS']); if ($v !== null) define('FROM_EMAIL', $v); }
+if (!defined('FROM_NAME'))     { $v = $__envfirst(['FROM_NAME', 'MAIL_FROM_NAME']); if ($v !== null) define('FROM_NAME', $v); }
 if (!defined('SMTP_VERIFY')) { $v = getenv('SMTP_VERIFY'); if ($v !== false && $v !== '') define('SMTP_VERIFY', !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true)); }
 
 // The Workspace domain whose VERIFIED accounts are recognised as real org members.
@@ -201,6 +236,12 @@ require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/DiaryJournal.php';
+// Notebooks, entry tabs and the finding half (tags / pin / archive / search).
+// Loaded beside DiaryJournal because all three reach into diary_entries and
+// have to agree with it about the columns they each add.
+require_once __DIR__ . '/DiaryNotebooks.php';
+require_once __DIR__ . '/DiaryTabs.php';
+require_once __DIR__ . '/DiaryOrganise.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/AuthPolicy.php';
 require_once __DIR__ . '/Otp.php';
@@ -215,8 +256,11 @@ require_once __DIR__ . '/Events.php';
 require_once __DIR__ . '/Webhooks.php';
 require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
+require_once __DIR__ . '/Gemini.php';
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
+require_once __DIR__ . '/Prefs.php';
+require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AdminAudit.php';
 require_once __DIR__ . '/AdminRoles.php';
 require_once __DIR__ . '/SuperAdmin.php';
@@ -226,11 +270,37 @@ require_once __DIR__ . '/AuthArt.php';
 require_once __DIR__ . '/Cloudinary.php';
 require_once __DIR__ . '/Drive.php';
 require_once __DIR__ . '/GoogleWorkspace.php';
+require_once __DIR__ . '/GoogleWorkspaceUser.php';
+require_once __DIR__ . '/GoogleWatch.php';
+require_once __DIR__ . '/AvAutomation.php';
+require_once __DIR__ . '/Collab.php';
+require_once __DIR__ . '/RecallBot.php';
+require_once __DIR__ . '/Meetings.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
+require_once __DIR__ . '/AiKnowledge.php';
+require_once __DIR__ . '/Levels.php';
+require_once __DIR__ . '/IQ.php';
+require_once __DIR__ . '/ErrorPoem.php';
 
 av_harden_errors();
+
+// Keep the AI assistants' knowledge fresh: every domain event invalidates the
+// cached "site brief" so Chioma / AvBot are re-fed on the next reply.
+AiKnowledge::boot();
+// Membership progression: capture referrals on sign-up.
+Levels::boot();
+// Workspace automation: subscribe event handlers (onboarding, real-time, etc.).
+AvAutomation::register();
+// Collaboration: feed domain events into the team activity stream.
+Collab::bootEvents();
+
+// Referral links (/…?ref=<memberId>) drop a short-lived cookie that is consumed
+// when the invited person creates their account (see Levels::boot()).
+if (isset($_GET['ref']) && ctype_digit((string) $_GET['ref']) && empty($_COOKIE['av_ref']) && !headers_sent()) {
+    @setcookie('av_ref', (string) (int) $_GET['ref'], ['expires' => time() + 2592000, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+}
 
 /** Academy base URL (subdomain-ready). Defaults to the /academy path. */
 if (!defined('ACADEMY_URL')) {
@@ -254,7 +324,7 @@ function portal_url(string $path = ''): string { return rtrim(PORTAL_URL, '/') .
  * also carry a valid CSRF header (call av_csrf_require() in the route).
  */
 function require_admin(): void {
-    if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) {
+    if (!av_admin_token_configured()) {
         json_out(['ok' => false, 'error' => 'Admin is not configured on this server.'], 503);
     }
     // Role-aware: break-glass token = superadmin; member-admins (admin_users) get

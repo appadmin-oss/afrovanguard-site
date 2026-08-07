@@ -84,6 +84,26 @@ try {
             $count = (int) ($body['count'] ?? 1);
             json_out(['ok' => true, 'slug' => $slug, 'claps' => $repo->addClaps($slug, $count)]);
 
+        case 'comments':
+            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
+            json_out(['ok' => true, 'slug' => $slug, 'comments' => $repo->comments($slug)]);
+
+        case 'comment':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
+            if (trim((string) ($body['hp'] ?? '')) !== '') json_out(['ok' => true, 'comment' => null]); // honeypot
+            if (!av_rate_ok('diary_comment', 8, 600)) json_out(['ok' => false, 'error' => 'You’re commenting quickly — give it a moment.'], 429);
+            // Signed-in members comment under their real name; guests provide one.
+            $me   = LmsAuth::user();
+            $name = $me ? (string) $me['name'] : (string) ($body['name'] ?? '');
+            $text = (string) ($body['body'] ?? '');
+            if (trim($text) === '') json_out(['ok' => false, 'error' => 'Write a comment first.'], 422);
+            if (!$me && trim($name) === '') json_out(['ok' => false, 'error' => 'Add your name.'], 422);
+            $c = $repo->addComment($slug, $name, $text, $me ? (int) $me['id'] : 0);
+            if (!$c) json_out(['ok' => false, 'error' => 'Could not post your comment.'], 422);
+            json_out(['ok' => true, 'comment' => $c]);
+
         case 'subscribe':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();
@@ -132,6 +152,65 @@ try {
             $id = (int) ($body['id'] ?? 0);
             $ok = (new DiaryJournal())->deleteOwn((int) $u['id'], $id);
             json_out(['ok' => $ok] + ($ok ? [] : ['error' => 'Entry not found.']), $ok ? 200 : 404);
+        }
+
+        case 'entry.share': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $id = (int) ($body['id'] ?? 0);
+            $journal = new DiaryJournal();
+            if (!empty($body['revoke'])) {
+                $journal->unshare((int) $u['id'], $id);
+                json_out(['ok' => true, 'shared' => false]);
+            }
+            $tok = $journal->shareToken((int) $u['id'], $id);
+            if ($tok === null) json_out(['ok' => false, 'error' => 'Entry not found.'], 404);
+            $base = rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/');
+            json_out(['ok' => true, 'shared' => true, 'token' => $tok, 'url' => $base . '/diary/shared.php?t=' . $tok]);
+        }
+
+        /* ── Share with specific people (Google-Workspace style) ── */
+        case 'entry.people': {
+            $u = LmsAuth::require();
+            json_out(['ok' => true, 'people' => (new DiaryJournal())->shareRecipients((int) $u['id'], (int) ($_GET['id'] ?? 0))]);
+        }
+        case 'entry.share_add': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            if (!av_rate_ok('diary_share_' . (int) $u['id'], 40, 900)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $res = (new DiaryJournal())->shareWith((int) $u['id'], (int) ($body['id'] ?? 0), (string) ($body['email'] ?? ''));
+            json_out($res, $res['ok'] ? 200 : 422);
+        }
+        case 'entry.share_remove': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            $u = LmsAuth::require();
+            $ok = (new DiaryJournal())->unshareWith((int) $u['id'], (int) ($body['id'] ?? 0), (int) ($body['user_id'] ?? 0));
+            json_out(['ok' => $ok]);
+        }
+        case 'mine.shared': {
+            $u = LmsAuth::require();
+            $rows = (new DiaryJournal())->sharedWithMe((int) $u['id']);
+            $out = array_map(fn($e) => [
+                'id' => (int) $e['id'], 'kind' => (string) $e['kind'], 'title' => (string) $e['title'],
+                'author' => (string) $e['author_name'],
+                'excerpt' => DiaryJournal::excerpt((string) $e['body'], 140),
+                'entry_date' => (string) $e['entry_date'],
+            ], $rows);
+            json_out(['ok' => true, 'entries' => $out]);
+        }
+        case 'entry.read': {
+            $u = LmsAuth::require();
+            $e = (new DiaryJournal())->readable((int) $u['id'], (int) ($_GET['id'] ?? 0));
+            if (!$e) json_out(['ok' => false, 'error' => 'Not available.'], 404);
+            json_out(['ok' => true, 'entry' => [
+                'title' => (string) ($e['title'] ?: 'Untitled entry'),
+                'author' => (string) $e['author_name'],
+                'entry_date' => (string) $e['entry_date'],
+                'body_html' => DiaryJournal::bodyToHtml((string) $e['body']),
+            ]]);
         }
 
         default:

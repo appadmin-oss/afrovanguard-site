@@ -134,18 +134,22 @@ function av_celebrations_save(PDO $pdo, array $in): int
         // Quote each column ( `key` is reserved on MySQL ); placeholders stay bare.
         $set = implode(', ', array_map(fn($k) => Database::quoteIdent($k) . " = :$k", array_keys($f)));
         $pdo->prepare("UPDATE celebrations SET $set WHERE id = :id")->execute($f + ['id' => $id]);
+        if (class_exists('Events')) Events::emit('celebration.updated', ['id' => $id]);
         return $id;
     }
     $cols = implode(', ', array_map(fn($k) => Database::quoteIdent($k), array_keys($f)));
     $ph = implode(', ', array_map(fn($k) => ":$k", array_keys($f)));
     $pdo->prepare("INSERT INTO celebrations ($cols) VALUES ($ph)")->execute($f);
-    return (int) $pdo->lastInsertId();
+    $newId = (int) $pdo->lastInsertId();
+    if (class_exists('Events')) Events::emit('celebration.updated', ['id' => $newId]);
+    return $newId;
 }
 
 function av_celebrations_delete(PDO $pdo, int $id): void
 {
     av_celebrations_ensure($pdo);
     $pdo->prepare('DELETE FROM celebrations WHERE id = ?')->execute([$id]);
+    if (class_exists('Events')) Events::emit('celebration.updated', ['id' => $id, 'deleted' => true]);
 }
 
 /* ── Movable feasts (computed per year) ─────────────────────────────

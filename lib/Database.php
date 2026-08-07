@@ -18,6 +18,11 @@ final class Database
      *  on the wrong database. null = no fallback (running on the chosen driver). */
     private static ?string $fellBackFrom = null;
     public static function fellBack(): ?string { return self::$fellBackFrom; }
+    /** When true, an unreachable primary DB is a hard error rather than a silent SQLite fallback. */
+    public static function dbStrict(): bool {
+        $v = getenv('AV_DB_STRICT');
+        return $v !== false && $v !== '' && !in_array(strtolower((string) $v), ['0', 'false', 'no', 'off'], true);
+    }
 
     /** Bump to force a schema re-sync even when db/schema.sql is byte-identical
      *  (e.g. after changing one of the ensure/grandfathering steps). Normally you
@@ -55,6 +60,10 @@ final class Database
             $fresh = !is_file($path);
             $pdo = new PDO('sqlite:' . $path, null, null, $opts);
             $pdo->exec('PRAGMA foreign_keys = ON');
+            // WAL lets readers and a writer work concurrently (SQLite's default
+            // rollback journal locks the whole DB on every write); busy_timeout
+            // makes a blocked write wait briefly instead of failing outright.
+            try { $pdo->exec('PRAGMA journal_mode = WAL'); $pdo->exec('PRAGMA busy_timeout = 5000'); $pdo->exec('PRAGMA synchronous = NORMAL'); } catch (\Throwable $e) {}
             return $pdo;
         };
 
@@ -73,9 +82,17 @@ final class Database
             try {
                 $pdo = new PDO($dsn, getenv('AV_DB_USER') ?: null, getenv('AV_DB_PASS') ?: null, $opts);
             } catch (Throwable $e) {
-                // Configured MySQL/Postgres unreachable → fall back to SQLite so the
-                // site stays up (logged + surfaced in System Health), not a hard 500.
-                error_log('[db] ' . $driver . ' connection failed (' . $e->getMessage() . ') — falling back to SQLite');
+                // Configured MySQL/Postgres unreachable. By default we fall back to
+                // SQLite so the public site stays up (logged + surfaced in System
+                // Health). But silently serving the LIVE site from an empty/stale
+                // local SQLite file can mask a real outage and risk data divergence,
+                // so AV_DB_STRICT=1 makes the failure LOUD (re-throw → hard error)
+                // instead of degrading. Recommended for production.
+                error_log('[db] ' . $driver . ' connection failed (' . $e->getMessage() . ')'
+                    . (self::dbStrict() ? ' — AV_DB_STRICT is set, refusing to fall back to SQLite' : ' — falling back to SQLite'));
+                if (self::dbStrict()) {
+                    throw new RuntimeException('Primary ' . $driver . ' database is unreachable and AV_DB_STRICT is set.', 0, $e);
+                }
                 self::$fellBackFrom = $driver;
                 $driver = 'sqlite';
                 $pdo = $connectSqlite();
@@ -248,11 +265,21 @@ final class Database
         $ccols = [];
         foreach (self::$pdo->query('PRAGMA table_info(courses)') as $r) { $ccols[$r['name']] = true; }
         $cadd = [
-            'access_type'   => "ALTER TABLE courses ADD COLUMN access_type TEXT NOT NULL DEFAULT 'open'", // open|tracked|membership|paid
+            'access_type'   => "ALTER TABLE courses ADD COLUMN access_type TEXT NOT NULL DEFAULT 'open'", // open|tracked|membership|paid|restricted
             'price_ngn'     => "ALTER TABLE courses ADD COLUMN price_ngn INTEGER NOT NULL DEFAULT 0",
             'instructor_id' => "ALTER TABLE courses ADD COLUMN instructor_id INTEGER",
+            'pass_code'     => "ALTER TABLE courses ADD COLUMN pass_code TEXT NOT NULL DEFAULT ''", // for access_type=restricted: any member holding this pass gets in
+            'cover_is_dark' => "ALTER TABLE courses ADD COLUMN cover_is_dark INTEGER NOT NULL DEFAULT -1", // -1 unknown, 0 light, 1 dark (for colour-aware overlay text)
         ];
         foreach ($cadd as $name => $sql) { if (!isset($ccols[$name])) self::$pdo->exec($sql); }
+        // Restricted-course access: an explicit per-member allowlist, and named
+        // "passes" an admin grants that unlock any course requiring that pass.
+        if (!self::tableExists('course_access')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS course_access (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER NOT NULL, user_id INTEGER NOT NULL, granted_by INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(course_id, user_id))");
+        }
+        if (!self::tableExists('member_passes')) {
+            self::$pdo->exec("CREATE TABLE IF NOT EXISTS member_passes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, code TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '', granted_by INTEGER NOT NULL DEFAULT 0, expires_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(user_id, code))");
+        }
         // LMS tables (idempotent)
         if (!self::tableExists('lessons')) { self::$pdo->exec(file_get_contents(AV_ROOT . '/db/schema.sql')); }
         // Tables added after the LMS shipped (idempotent for deployed DBs)
@@ -377,6 +404,9 @@ final class Database
             'status'     => "ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'",
             'updated_at' => "ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
             'format'     => "ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'standard'",
+            'series_id'  => "ALTER TABLE articles ADD COLUMN series_id INTEGER NOT NULL DEFAULT 0",
+            'series_part'=> "ALTER TABLE articles ADD COLUMN series_part INTEGER NOT NULL DEFAULT 0",
+            'cover_is_dark' => "ALTER TABLE articles ADD COLUMN cover_is_dark INTEGER NOT NULL DEFAULT -1", // colour-aware hero text
         ];
         foreach ($add as $name => $sql) {
             if (!isset($cols[$name])) { self::$pdo->exec($sql); }

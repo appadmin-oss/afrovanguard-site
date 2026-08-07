@@ -29,12 +29,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
     $event = json_decode($raw, true) ?: [];
     if (($event['event'] ?? '') === 'charge.success') {
-        $reference = (string) ($event['data']['reference'] ?? '');
+        $data = $event['data'] ?? [];
+        $reference = (string) ($data['reference'] ?? '');
         if ($reference !== '') {
             // Re-verify with Paystack before granting (defence in depth). The
             // verified amount is passed so finalizePayment can reject underpayment.
             $v = Payments::paystackVerify($reference);
-            if (!empty($v['paid'])) { $lms->finalizePayment($reference, (int) ($v['amount'] ?? 0)); }
+            if (!empty($v['paid'])) {
+                $granted = $lms->finalizePayment($reference, (int) ($v['amount'] ?? 0));
+                // Recurring dues renewal: a plan subscription charge has no local
+                // payment row (finalize returns false). Extend by one month.
+                if (!$granted && (!empty($data['plan']) || !empty($data['plan_object']))) {
+                    $email = strtolower(trim((string) ($data['customer']['email'] ?? '')));
+                    if ($email !== '' && method_exists($lms, 'grantMembershipByEmail')) {
+                        $lms->grantMembershipByEmail($email, 1);
+                    }
+                }
+            }
         }
     }
     http_response_code(200);

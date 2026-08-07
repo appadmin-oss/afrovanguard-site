@@ -1,66 +1,272 @@
 /* ============================================================
    assets/site/celebrations.js — the site that celebrates itself.
-   Fetches today's auto-celebrations (holidays / birthdays / VOTM data
-   from api.php?action=celebrations) and, when there's something to
-   celebrate, shows a festive banner, a Google-style logo doodle and a
-   burst of confetti. Fully automatic; no per-day editing.
+
+   Fetches today's celebrations (holidays / birthdays / observances from
+   api.php?action=celebrations) and honours them intentionally:
+
+     • BIRTHDAYS → a dignified, focus-trapped POPUP that honours the person
+       (photo, name, role, a warm message, and a way to celebrate them).
+       One honoree gets a portrait treatment; several get an honour roll.
+       Shown once per day, never nagging.
+     • Holidays / observances → a refined festive banner + logo doodle.
+     • A gentle, on-brand confetti flourish (respecting reduced-motion).
+
+   Design tokens (--afg-*) are used with literal fallbacks so it renders
+   correctly on both token-aware pages and plain static pages.
    ============================================================ */
 (function () {
   'use strict';
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var GOLD = '#f3b416';
 
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  /* ── Styles (injected once) ─────────────────────────────────── */
   function injectStyles(theme) {
     if (document.getElementById('av-celebrate-css')) return;
     var s = document.createElement('style'); s.id = 'av-celebrate-css';
-    s.textContent =
-      '.av-celebrate{--cc:' + theme + ';position:relative;z-index:210;overflow:hidden;'
-      + 'background:linear-gradient(100deg,var(--cc),color-mix(in srgb,var(--cc) 55%,#0b0f1a));color:#fff;'
-      + 'box-shadow:0 2px 18px rgba(0,0,0,.18)}'
-      + '.av-celebrate .avc-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:11px 20px;font-family:Montserrat,system-ui,sans-serif}'
-      + '.av-celebrate .avc-emoji{font-size:24px;line-height:1;animation:avcPop .6s cubic-bezier(.22,1,.36,1) both}'
-      + '.av-celebrate .avc-txt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}'
-      + '.av-celebrate .avc-txt strong{font-size:14.5px;font-weight:800;letter-spacing:.01em}'
-      + '.av-celebrate .avc-txt span{font-size:12.5px;opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
-      + '.av-celebrate .avc-avatars{display:flex;margin-right:2px}'
-      + '.av-celebrate .avc-av{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:#fff center/cover;margin-left:-10px;display:flex;align-items:center;justify-content:center;color:var(--cc);font-weight:800;font-size:13px}'
-      + '.av-celebrate .avc-av:first-child{margin-left:0}'
-      + '.av-celebrate .avc-x{margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0}'
-      + '.av-celebrate .avc-x:hover{background:rgba(255,255,255,.3)}'
-      + '.av-celebrate .avc-shine{position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.25) 50%,transparent 70%);transform:translateX(-100%);animation:avcShine 3.4s ease-in-out infinite}'
-      + '@keyframes avcPop{0%{transform:scale(0) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}'
-      + '@keyframes avcShine{0%,100%{transform:translateX(-120%)}55%{transform:translateX(120%)}}'
-      + '.brand-wordmark.av-doodled,.nav-logo-mark.av-doodled{position:relative}'
-      + '.brand-wordmark.av-doodled::after,.nav-logo-mark.av-doodled::after{content:attr(data-emoji);position:absolute;top:-12px;right:-18px;font-size:15px;animation:avcBob 2.2s ease-in-out infinite}'
-      + '.brand-wordmark.av-doodled .wm-2,.nav-logo-mark.av-doodled .van{background:linear-gradient(90deg,var(--cc),#fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}'
-      + '.nav-logo-doodle-img{height:30px;width:auto;vertical-align:middle;display:block}'
-      + '@keyframes avcBob{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-3px) rotate(8deg)}}'
-      + '@media(prefers-reduced-motion:reduce){.av-celebrate .avc-shine,.nav-logo-mark.av-doodled::after,.av-celebrate .avc-emoji{animation:none}}';
+    s.textContent = [
+      ':root{--avc-accent:' + theme + '}',
+      /* Refined holiday banner */
+      '.av-celebrate{position:relative;z-index:210;overflow:hidden;color:#fff;',
+      'background:linear-gradient(100deg,var(--avc-accent),color-mix(in srgb,var(--avc-accent) 55%,#0b0f1a));',
+      'box-shadow:0 2px 18px rgba(0,0,0,.18)}',
+      '.av-celebrate .avc-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:11px 20px;',
+      "font-family:var(--afg-font-body,'Montserrat',system-ui,sans-serif)}",
+      '.av-celebrate .avc-emoji{font-size:26px;line-height:1;animation:avcPop .6s cubic-bezier(.22,1,.36,1) both}',
+      '.av-celebrate .avc-txt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}',
+      '.av-celebrate .avc-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;opacity:.82}',
+      '.av-celebrate .avc-txt strong{font-size:14.5px;font-weight:800;letter-spacing:.01em}',
+      '.av-celebrate .avc-txt span.avc-sub{font-size:12.5px;opacity:.92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.av-celebrate .avc-x{margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;',
+      'border-radius:50%;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0}',
+      '.av-celebrate .avc-x:hover{background:rgba(255,255,255,.3)}',
+      '.av-celebrate .avc-shine{position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.22) 50%,transparent 70%);',
+      'transform:translateX(-100%);animation:avcShine 3.4s ease-in-out infinite}',
+      /* Birthday popup */
+      '.avc-modal{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;',
+      'background:rgba(9,12,20,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .28s ease}',
+      '.avc-modal.is-open{opacity:1}',
+      '.avc-card{position:relative;width:min(460px,100%);max-height:calc(100vh - 40px);overflow:auto;',
+      'background:var(--afg-surface,#fff);color:var(--afg-ink,#111827);',
+      'border-radius:var(--afg-radius-lg,22px);box-shadow:0 40px 90px -30px rgba(0,0,0,.6);padding:40px 32px 30px;text-align:center;',
+      "font-family:var(--afg-font-body,'Montserrat',system-ui,sans-serif);transform:translateY(14px) scale(.98);opacity:0;",
+      'transition:transform .34s cubic-bezier(.22,.61,.36,1),opacity .34s ease}',
+      '.avc-modal.is-open .avc-card{transform:none;opacity:1}',
+      '.avc-card::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;',
+      'background:linear-gradient(90deg,var(--avc-accent),color-mix(in srgb,var(--avc-accent) 40%,#fff))}',
+      '.avc-seal{font-size:40px;line-height:1;display:inline-block;animation:avcPop .6s cubic-bezier(.22,1,.36,1) both}',
+      '.avc-eyebrow{margin:12px 0 4px;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;',
+      'color:var(--afg-accent-ink,#b07e08)}',
+      /* avatar (shared) */
+      '.avc-av{position:relative;border-radius:50%;background:var(--afg-surface-2,#f4f2ec) center/cover no-repeat;',
+      'border:3px solid var(--avc-accent);box-shadow:0 10px 30px -12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;',
+      "font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-weight:700;color:var(--avc-accent);overflow:hidden;flex-shrink:0}",
+      '.avc-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}',
+      /* single-portrait */
+      '.avc-avatars{display:flex;justify-content:center;margin:14px 0 6px}',
+      '.avc-avatars .avc-av{width:96px;height:96px;font-size:38px}',
+      '.avc-name{margin:6px 0 2px;font-family:var(--afg-font-display,\'Cormorant\',Georgia,serif);font-weight:700;',
+      'font-size:30px;line-height:1.15;color:var(--afg-ink,#111827)}',
+      '.avc-role{font-size:13px;color:var(--afg-muted,#6b7280);margin:0 0 12px}',
+      /* honour roll (several) */
+      '.avc-people{display:flex;flex-direction:column;gap:10px;margin:16px 0 6px;text-align:left}',
+      '.avc-prow{display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid var(--afg-border,#e5e7eb);',
+      'border-radius:var(--afg-radius-md,14px);background:var(--afg-surface-2,#f7f6f2)}',
+      '.avc-prow .avc-av{width:46px;height:46px;font-size:20px}',
+      '.avc-prow .avc-pn{font-family:var(--afg-font-display,\'Cormorant\',Georgia,serif);font-weight:700;font-size:19px;line-height:1.1;color:var(--afg-ink,#111827)}',
+      '.avc-prow .avc-pr{font-size:12px;color:var(--afg-muted,#6b7280)}',
+      '.avc-heading{margin:14px 0 2px;font-family:var(--afg-font-display,\'Cormorant\',Georgia,serif);font-weight:700;font-size:26px;color:var(--afg-ink,#111827)}',
+      /* message + actions */
+      '.avc-message{font-size:15px;line-height:1.6;color:var(--afg-body,#374151);margin:12px auto 22px;max-width:36ch}',
+      '.avc-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}',
+      '.avc-btn{display:inline-flex;align-items:center;gap:6px;padding:11px 18px;border-radius:var(--afg-radius-pill,999px);',
+      'font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;border:1px solid transparent}',
+      '.avc-btn-primary{background:var(--avc-accent);color:#111827}',
+      '.avc-btn-primary:hover{filter:brightness(.96)}',
+      '.avc-btn-ghost{background:transparent;color:var(--afg-ink,#111827);border-color:var(--afg-border,#e5e7eb)}',
+      '.avc-btn-ghost:hover{background:var(--afg-surface-2,#f4f2ec)}',
+      '.avc-foot{margin:16px 0 0;font-size:11.5px;letter-spacing:.02em;color:var(--afg-muted,#6b7280)}',
+      '.avc-foot a{color:var(--afg-accent-ink,#b07e08);text-decoration:none;font-weight:700}',
+      /* private-note form */
+      '.avc-wish{margin:14px auto 0;max-width:340px;text-align:left;display:flex;flex-direction:column;gap:8px}',
+      '.avc-wish input,.avc-wish textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--afg-border,#e5e7eb);',
+      "border-radius:var(--afg-radius-sm,8px);font-family:inherit;font-size:14px;background:var(--afg-surface,#fff);color:var(--afg-ink,#111827)}",
+      '.avc-wish textarea{resize:vertical;min-height:74px}',
+      '.avc-wish input:focus,.avc-wish textarea:focus{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:1px;border-color:transparent}',
+      '.avc-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}',
+      '.avc-wish-row{display:flex;justify-content:flex-end}',
+      '.avc-wish-status{font-size:13px;margin:2px 0 0;text-align:center;color:var(--afg-muted,#6b7280)}',
+      '.avc-wish-status.is-ok{color:var(--afg-success,#16a34a)}',
+      '.avc-wish-status.is-err{color:var(--afg-danger,#b91c1c)}',
+      '.avc-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;',
+      'background:var(--afg-surface-2,#f1f1ee);color:var(--afg-muted,#6b7280);font-size:20px;line-height:1}',
+      '.avc-close:hover{background:var(--afg-border,#e5e7eb);color:var(--afg-ink,#111827)}',
+      '.avc-btn:focus-visible,.avc-close:focus-visible{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:2px}',
+      /* doodle */
+      '.brand-wordmark.av-doodled,.nav-logo-mark.av-doodled{position:relative}',
+      '.brand-wordmark.av-doodled::after,.nav-logo-mark.av-doodled::after{content:attr(data-emoji);position:absolute;top:-12px;right:-18px;font-size:15px;animation:avcBob 2.2s ease-in-out infinite}',
+      '.brand-wordmark.av-doodled .wm-2,.nav-logo-mark.av-doodled .van{background:linear-gradient(90deg,var(--avc-accent),#fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}',
+      '.nav-logo-doodle-img{height:30px;width:auto;vertical-align:middle;display:block}',
+      /* keyframes */
+      '@keyframes avcPop{0%{transform:scale(0) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}',
+      '@keyframes avcShine{0%,100%{transform:translateX(-120%)}55%{transform:translateX(120%)}}',
+      '@keyframes avcBob{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-3px) rotate(8deg)}}',
+      '@media(prefers-reduced-motion:reduce){.av-celebrate .avc-shine,.nav-logo-mark.av-doodled::after,.avc-seal,.avc-emoji{animation:none}',
+      '.avc-modal,.avc-card{transition:none}}'
+    ].join('');
     document.head.appendChild(s);
   }
 
-  function avatarsHtml(people) {
-    if (!people || !people.length) return '';
-    var h = '<div class="avc-avatars">';
-    people.slice(0, 4).forEach(function (p) {
-      var ini = (p.name || '?').trim().charAt(0).toUpperCase();
-      h += p.photo
-        ? '<span class="avc-av" style="background-image:url(\'' + String(p.photo).replace(/'/g, '') + '\')"></span>'
-        : '<span class="avc-av">' + ini + '</span>';
-    });
-    return h + '</div>';
+  /* ── Avatar: photo with a graceful initials fallback ────────── */
+  function avatarHtml(p) {
+    var ini = (p && p.name ? p.name : '?').trim().charAt(0).toUpperCase();
+    var img = (p && p.photo)
+      ? '<img src="' + String(p.photo).replace(/["<>]/g, '') + '" alt="" onerror="this.remove()">'
+      : '';
+    return '<span class="avc-av" aria-hidden="true">' + esc(ini) + img + '</span>';
   }
 
+  function firstName(name) { return String(name || '').trim().split(/\s+/)[0] || 'friend'; }
+
+  /* ── Birthday: an honourable popup ──────────────────────────── */
+  function showBirthday(c) {
+    var p = c.primary, theme = p.theme || GOLD;
+    var people = (p.people && p.people.length) ? p.people : [{ name: 'our team' }];
+    var single = people.length === 1 ? people[0] : null;
+    injectStyles(theme);
+
+    var lastFocus = document.activeElement;
+    var modal = document.createElement('div');
+    modal.className = 'avc-modal';
+    modal.style.setProperty('--avc-accent', theme);
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'avcName');
+
+    var body, actions, wishForm = '', foot = 'With gratitude, the whole movement 💛';
+    if (single) {
+      var first = firstName(single.name);
+      body = '<div class="avc-avatars">' + avatarHtml(single) + '</div>'
+        + '<h2 class="avc-name" id="avcName">' + esc(single.name) + '</h2>'
+        + (single.role ? '<p class="avc-role">' + esc(single.role) + '</p>' : '');
+      // Two ways to celebrate: a PRIVATE note (emailed to them) or a PUBLIC post.
+      actions = (single.id ? '<button type="button" class="avc-btn avc-btn-primary" data-wish-private>Send a private note</button>' : '')
+        + '<a class="avc-btn avc-btn-ghost" href="/community/?wish=' + encodeURIComponent(first) + '">Post in the community</a>';
+      if (single.id) {
+        wishForm = '<form class="avc-wish" hidden novalidate data-wish-id="' + esc(String(single.id)) + '">'
+          + '<input class="avc-wish-from" type="text" maxlength="60" autocomplete="name" placeholder="Your name" />'
+          + '<textarea class="avc-wish-text" maxlength="1000" placeholder="Write a birthday note to ' + esc(first) + '…"></textarea>'
+          + '<input class="avc-hp" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />'
+          + '<div class="avc-wish-row"><button type="submit" class="avc-btn avc-btn-primary">Send privately</button></div>'
+          + '<p class="avc-wish-status" role="status" aria-live="polite"></p>'
+          + '</form>';
+        foot += ' · <a href="/member?id=' + encodeURIComponent(single.id) + '">View profile</a>';
+      }
+    } else {
+      body = '<h2 class="avc-heading" id="avcName">Happy Birthday to our own</h2>'
+        + '<div class="avc-people">'
+        + people.slice(0, 6).map(function (pp) {
+            return '<div class="avc-prow">' + avatarHtml(pp)
+              + '<div><div class="avc-pn">' + esc(pp.name) + '</div>'
+              + (pp.role ? '<div class="avc-pr">' + esc(pp.role) + '</div>' : '') + '</div></div>';
+          }).join('')
+        + '</div>';
+      actions = '<a class="avc-btn avc-btn-primary" href="/community/">Send warm wishes</a>';
+    }
+
+    modal.innerHTML =
+      '<div class="avc-card" role="document">'
+      + '<button class="avc-close" type="button" aria-label="Close">&times;</button>'
+      + '<span class="avc-seal" aria-hidden="true">' + esc(p.emoji || '🎂') + '</span>'
+      + '<p class="avc-eyebrow">Today the movement celebrates</p>'
+      + body
+      + '<p class="avc-message">' + esc(p.message || 'Wishing you a wonderful birthday from the whole Afrovanguard family.') + '</p>'
+      + '<div class="avc-actions">' + actions + '</div>'
+      + wishForm
+      + '<p class="avc-foot">' + foot + '</p>'
+      + '</div>';
+
+    document.body.appendChild(modal);
+    document.documentElement.style.overflow = 'hidden';
+    requestAnimationFrame(function () { modal.classList.add('is-open'); });
+    if (!REDUCED) setTimeout(function () { confetti(theme); }, 240);
+
+    function close() {
+      modal.classList.remove('is-open');
+      document.documentElement.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
+      setTimeout(function () { modal.remove(); }, 300);
+      try { if (lastFocus && lastFocus.focus) lastFocus.focus(); } catch (e) {}
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key === 'Tab') {
+        var f = modal.querySelectorAll('a[href],button,input:not([tabindex="-1"]),textarea,select');
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
+    modal.querySelector('.avc-close').addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', onKey);
+
+    // Private-note flow: reveal the form, then POST it to process-wish.php.
+    var toggle = modal.querySelector('[data-wish-private]');
+    var wform = modal.querySelector('.avc-wish');
+    if (toggle && wform) {
+      toggle.addEventListener('click', function () {
+        var showing = !wform.hasAttribute('hidden');
+        if (showing) { wform.setAttribute('hidden', ''); return; }
+        wform.removeAttribute('hidden');
+        var ta = wform.querySelector('.avc-wish-text');
+        if (ta && !ta.value) ta.value = 'Happy birthday, ' + firstName(single.name) + '! ';
+        try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+      });
+      wform.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var status = wform.querySelector('.avc-wish-status');
+        var sendBtn = wform.querySelector('button[type="submit"]');
+        var text = (wform.querySelector('.avc-wish-text').value || '').trim();
+        var fromName = (wform.querySelector('.avc-wish-from').value || '').trim();
+        var hp = (wform.querySelector('.avc-hp').value || '').trim();
+        function say(t, kind) { if (status) { status.textContent = t; status.className = 'avc-wish-status' + (kind ? ' is-' + kind : ''); } }
+        if (text.length < 2) { say('Write a short note first.', 'err'); return; }
+        sendBtn.disabled = true; say('Sending…', '');
+        fetch('/process-wish.php', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: wform.getAttribute('data-wish-id'), from: fromName, message: text, company: hp })
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (d && d.ok) {
+            wform.innerHTML = '<p class="avc-wish-status is-ok">Your note is on its way — thank you 💛</p>';
+          } else { sendBtn.disabled = false; say((d && d.error) || 'Could not send just now.', 'err'); }
+        }).catch(function () { sendBtn.disabled = false; say('Network error — please try again.', 'err'); });
+      });
+    }
+
+    var focusBtn = modal.querySelector('.avc-close'); if (focusBtn) focusBtn.focus();
+  }
+
+  /* ── Holidays / observances: a refined banner ───────────────── */
   function showBanner(c) {
-    var p = c.primary, theme = p.theme || '#f3b416';
+    var p = c.primary, theme = p.theme || GOLD;
     injectStyles(theme);
     var bar = document.createElement('div');
     bar.className = 'av-celebrate'; bar.setAttribute('data-key', p.key || '');
-    bar.style.setProperty('--cc', theme);
-    bar.innerHTML = '<div class="avc-shine"></div><div class="avc-inner">'
-      + (p.type === 'birthday' ? avatarsHtml(p.people) : '<span class="avc-emoji">' + (p.emoji || '🎉') + '</span>')
-      + '<div class="avc-txt"><strong>' + esc(p.title || 'Celebrating today') + '</strong>'
-      + '<span>' + esc(p.message || '') + '</span></div>'
-      + '<button class="avc-x" aria-label="Dismiss">&times;</button></div>';
+    bar.setAttribute('role', 'status');
+    bar.style.setProperty('--avc-accent', theme);
+    bar.innerHTML = '<div class="avc-shine" aria-hidden="true"></div><div class="avc-inner">'
+      + '<span class="avc-emoji" aria-hidden="true">' + esc(p.emoji || '🎉') + '</span>'
+      + '<div class="avc-txt"><span class="avc-kicker">Afrovanguard celebrates</span>'
+      + '<strong>' + esc(p.title || 'Celebrating today') + '</strong>'
+      + '<span class="avc-sub">' + esc(p.message || '') + '</span></div>'
+      + '<button class="avc-x" type="button" aria-label="Dismiss">&times;</button></div>';
     document.body.insertBefore(bar, document.body.firstChild);
     bar.querySelector('.avc-x').addEventListener('click', function () {
       try { localStorage.setItem('av.celebrate.dismissed', c.date + ':' + (p.key || '')); } catch (e) {}
@@ -71,32 +277,31 @@
   }
 
   function doodleLogo(p) {
-    // new Cormorant wordmark (.brand-wordmark) with a legacy fallback
     var mark = document.querySelector('.nav-logo .brand-wordmark') || document.querySelector('.nav-logo-mark');
     if (!mark) return;
+    injectStyles(p.theme || GOLD);
     if (p.doodle) {
-      // admin-uploaded / built-in art replaces the wordmark for the day
       mark.innerHTML = '<img class="nav-logo-doodle-img" src="' + String(p.doodle).replace(/"/g, '') + '" alt="Afrovanguard" />';
       return;
     }
-    // otherwise keep the live brand wordmark and dress it festively
     mark.classList.add('av-doodled');
     mark.setAttribute('data-emoji', p.emoji || '🎉');
-    mark.style.setProperty('--cc', p.theme || '#f3b416');
+    mark.style.setProperty('--avc-accent', p.theme || GOLD);
   }
 
   function confetti(theme) {
     if (REDUCED) return;
     var cv = document.createElement('canvas');
-    cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:400';
+    cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483001';
     document.body.appendChild(cv);
     var ctx = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight;
-    var cols = [theme || '#f3b416', '#16a34a', '#ffffff', '#0ea5e9', '#ec4899'];
-    var parts = [], N = Math.min(160, Math.round(W / 8));
+    // On-brand palette: gold, deep gold, white, movement green, navy.
+    var cols = [theme || GOLD, '#d49a0e', '#ffffff', '#16a34a', '#0d1220'];
+    var parts = [], N = Math.min(150, Math.round(W / 9));
     for (var i = 0; i < N; i++) parts.push({
       x: Math.random() * W, y: -20 - Math.random() * H * 0.5,
       r: 4 + Math.random() * 6, c: cols[i % cols.length],
-      vy: 2 + Math.random() * 3.5, vx: -1.5 + Math.random() * 3,
+      vy: 2 + Math.random() * 3.2, vx: -1.4 + Math.random() * 2.8,
       rot: Math.random() * 6.28, vr: -0.2 + Math.random() * 0.4
     });
     var t0 = performance.now();
@@ -112,23 +317,33 @@
     })(t0);
   }
 
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-
+  /* ── Fetch + dispatch ───────────────────────────────────────── */
   fetch('/api.php?action=celebrations', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
       var c = d && d.celebration; if (!c || !c.primary) return;
       var p = c.primary;
-      doodleLogo(p); // the doodle always shows on a celebration day
+      doodleLogo(p);
+      var tag = c.date + ':' + (p.key || '');
+
+      if (p.type === 'birthday') {
+        var bseen = '';
+        try { bseen = localStorage.getItem('av.celebrate.bday') || ''; } catch (e) {}
+        if (bseen === tag) return;
+        try { localStorage.setItem('av.celebrate.bday', tag); } catch (e) {}
+        showBirthday(c);
+        return;
+      }
+
       var dismissed = '';
       try { dismissed = localStorage.getItem('av.celebrate.dismissed') || ''; } catch (e) {}
-      if (dismissed === c.date + ':' + (p.key || '')) return; // already dismissed today
+      if (dismissed === tag) return;
       showBanner(c);
       var seen = '';
       try { seen = localStorage.getItem('av.celebrate.seen') || ''; } catch (e) {}
-      if (seen !== c.date + ':' + (p.key || '')) {
+      if (seen !== tag) {
         confetti(p.theme);
-        try { localStorage.setItem('av.celebrate.seen', c.date + ':' + (p.key || '')); } catch (e) {}
+        try { localStorage.setItem('av.celebrate.seen', tag); } catch (e) {}
       }
     })
     .catch(function () {});

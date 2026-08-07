@@ -9,7 +9,7 @@ final class AcademyRepository
     private PDO $db;
     public function __construct(?PDO $pdo = null) { $this->db = $pdo ?? Database::pdo(); }
 
-    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort';
+    private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark';
 
     public function all(): array
     {
@@ -68,11 +68,21 @@ final class AcademyRepository
         ];
         // Access model (only overwrite when provided, so partial saves are safe)
         if (array_key_exists('access_type', $d)) {
-            $at = in_array($d['access_type'], ['open', 'tracked', 'membership', 'paid'], true) ? $d['access_type'] : 'open';
+            $at = in_array($d['access_type'], ['open', 'tracked', 'membership', 'paid', 'restricted'], true) ? $d['access_type'] : 'open';
             $f['access_type'] = $at;
             $f['price_ngn'] = $at === 'paid' ? max(0, (int) ($d['price_ngn'] ?? 0)) : 0;
+            // Restricted courses may name a pass that unlocks them (else access is
+            // the explicit allowlist only). Slugified for tidy, shareable codes.
+            if (Database::columnExists('courses', 'pass_code')) {
+                $f['pass_code'] = $at === 'restricted' ? slugify((string) ($d['pass_code'] ?? '')) : '';
+            }
         }
         if (array_key_exists('instructor_id', $d)) { $f['instructor_id'] = $d['instructor_id'] !== null ? (int) $d['instructor_id'] : null; }
+        // Colour-aware cover: precompute luminance of the chip region (top) so the
+        // catalogue overlay text picks a legible colour with no client work.
+        if (array_key_exists('cover_url', $d) && Database::columnExists('courses', 'cover_is_dark')) {
+            $f['cover_is_dark'] = $f['cover_url'] ? (av_cover_is_dark((string) $f['cover_url'], 'top') ?? -1) : -1;
+        }
         // Resolve create-vs-edit by the ORIGINAL slug the editor was opened with,
         // so a new course can never silently overwrite an existing one, and an
         // edit can rename safely. De-dup the slug against OTHER courses.

@@ -2,19 +2,29 @@
 /**
  * portal/index.php — the member / learning portal.
  *
- * Two experiences from one dashboard, decided by the account:
- *   @afrovanguard.org.ng  → MEMBER       — learning + mentorship + member status + diary
- *   everyone else         → LEARNING ONLY — learning + diary (mentorship locked)
+ * A clean, single-page workspace dashboard (Public-Sans SaaS look): a white
+ * sidebar with grouped nav + search + a user card, a breadcrumb top bar, a KPI
+ * chip row, and cards for tasks, Workspace, journey, presence, activity, dues,
+ * membership, mentorship and the Diary. The sidebar smooth-scrolls to each
+ * section and scroll-spy highlights the active one.
  *
- * Served at /portal (a real folder, so WordPress never intercepts it);
- * subdomain-ready via PORTAL_URL. Its own slim chrome (member bar + footer).
+ * Two experiences from one dashboard, decided by the account:
+ *   @afrovanguard.org.ng  → MEMBER       — learning + mentorship + members + diary
+ *   everyone else         → LEARNING ONLY — learning + diary (org spaces locked)
+ *
+ * Served at /portal (a real folder, so WordPress never intercepts it).
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once AV_ROOT . '/lib/community_view.php';
 
 $u = LmsAuth::user();
 if (!$u) { header('Location: ' . av_login_url('/portal/')); exit; }
+
+// Community lives inside the portal now (a tab). A ?space= param deep-links to a
+// space, and #community opens the tab (see the view switcher below).
+$communitySpace = ($_GET['space'] ?? '') !== '' ? preg_replace('/[^a-z0-9\-]/', '', strtolower((string) $_GET['space'])) : '';
 
 $lms        = new LmsRepository();
 $courses    = $lms->enrolledCourses((int) $u['id']);
@@ -25,14 +35,65 @@ $first      = explode(' ', trim((string) $u['name']))[0] ?: 'there';
 $roleLabel  = ucfirst((string) $u['role']);
 $certs      = count(array_filter($courses, fn($c) => !empty($c['certified'])));
 $inProgress = count(array_filter($courses, fn($c) => empty($c['complete'])));
-$tag        = $isOrg ? 'Member portal' : 'Learning';
-$showRole   = $isOrg && LmsAuth::rank((string) $u['role']) > LmsAuth::ROLE_RANK['member']; // mentor+
-// Org members are at least "Member" even if their stored role is still learner
-// (org status comes from the verified email domain). Never show below Member.
+$tag        = $isOrg ? 'Member Portal' : 'Learning';
+$showRole   = $isOrg && LmsAuth::rank((string) $u['role']) > LmsAuth::ROLE_RANK['member'];
 $accessLevel = (LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['member']) ? $roleLabel : 'Member';
-// The portal has its OWN theme (dark by default, with a light toggle) — server-set
-// from a cookie so there's no flash.
-$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
+$dues     = $isOrg ? $lms->duesStatus((int) $u['id']) : null;
+$duesCsrf = $dues ? av_csrf_token() : '';
+$journey  = Levels::progress((int) $u['id']);
+$collabCsrf = av_csrf_token();
+$upcoming = class_exists('Mentorship') ? Mentorship::upcomingSessions((int) $u['id'], 6) : [];
+// Mentorship hours logged (attended sessions, as mentor or mentee) + consistency.
+$mentorStats = class_exists('Mentorship') ? Mentorship::memberConsistency((int) $u['id']) : ['held' => 0, 'attended' => 0, 'rate' => null, 'minutes' => 0, 'hours' => 0.0];
+$mentorHours = (float) ($mentorStats['hours'] ?? 0);
+$mentorHoursLabel = (fmod($mentorHours, 1.0) === 0.0 ? (string) (int) $mentorHours : rtrim(rtrim(number_format($mentorHours, 1), '0'), '.')) . 'h';
+if (!function_exists('self_fmt_dur')) {
+    function self_fmt_dur(int $m): string { $m = max(0, $m); $h = intdiv($m, 60); $r = $m % 60; return $h ? ($h . 'h' . ($r ? ' ' . $r . 'm' : '')) : ($r . 'm'); }
+}
+if (!function_exists('self_diary_item')) {
+    // One entry row for the portal Diary streams (mirrors portal/diary.js).
+    function self_diary_item(array $e): string {
+        $icon = ['event' => '📅', 'private' => '🔒', 'public' => '🌐'][$e['kind']] ?? '📝';
+        $klabel = ['event' => 'Event', 'private' => 'Private', 'public' => 'Public'][$e['kind']] ?? 'Entry';
+        if ($e['kind'] === 'public' || $e['kind'] === 'event') {
+            $map = ['pending' => ['Pending review', 'is-pending'], 'approved' => ['Published', 'is-live'], 'rejected' => ['Not approved', 'is-rejected']];
+            [$stTxt, $stCls] = $map[$e['status']] ?? ['Logged', 'is-logged'];
+        } else { [$stTxt, $stCls] = ['Logged', 'is-logged']; }
+        $slug = ($e['status'] === 'approved') ? (string) ($e['published_slug'] ?? '') : '';
+        $date = date('M j, Y', strtotime((string) $e['entry_date']) ?: time());
+        $h  = '<li class="pd-item" data-id="' . (int) $e['id'] . '">';
+        $h .= '<div class="pd-item-top"><span class="pd-kind">' . $icon . ' ' . e($klabel) . '</span><span class="pd-st ' . $stCls . '">' . e($stTxt) . '</span></div>';
+        if (($e['title'] ?? '') !== '') $h .= '<p class="pd-item-title">' . e($e['title']) . '</p>';
+        $h .= '<p class="pd-item-ex">' . e(DiaryJournal::excerpt((string) $e['body'], 140)) . '</p>';
+        $h .= '<div class="pd-item-foot"><time>' . e($date) . '</time>';
+        if ($slug !== '') $h .= ' · <a href="/diary/' . e($slug) . '/" target="_blank" rel="noopener">View →</a>';
+        $h .= '<button type="button" class="pd-share" data-id="' . (int) $e['id'] . '">Share</button>';
+        $h .= '<button type="button" class="pd-del" data-id="' . (int) $e['id'] . '">Delete</button></div></li>';
+        return $h;
+    }
+}
+if (!function_exists('self_meet_source')) {
+    // How the logged hours were confirmed → a trust label for transparency.
+    function self_meet_source(string $src): string {
+        switch ($src) {
+            case 'meet':    return 'Verified by Google Meet';
+            case 'reports': return 'Verified · Meet audit log';
+            default:        return 'Provisional · confirming with Google';
+        }
+    }
+}
+// KPI seeds (client refreshes online + tasks live).
+$myTasks    = $isOrg && class_exists('Collab') ? Collab::myTasks((int) $u['id']) : [];
+$openTasks  = count(array_filter($myTasks, fn($t) => empty($t['done'])));
+$onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
+// Productivity "Today" aggregates — what genuinely needs attention now.
+$todayStr   = gmdate('Y-m-d');
+$tasksDue   = array_values(array_filter($myTasks, fn($t) => empty($t['done']) && $t['due'] !== '' && $t['due'] <= $todayStr));
+$tasksOverdue = count(array_filter($tasksDue, fn($t) => !empty($t['overdue'])));
+$nextSession = $upcoming[0] ?? null; // upcoming is ordered live-first, then soonest
+$cPulseToday = class_exists('Community') ? Community::pulse() : ['posts_today' => 0];
+
+$ptheme    = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 $parts     = preg_split('/\s+/', trim((string) $u['name'])) ?: [];
 $pInitials = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 
@@ -41,300 +102,1220 @@ render_head([
     'desc'       => 'Your Afrovanguard portal — learning, and (for members) mentorship and members-only spaces.',
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
-    'body_class' => 'portal-page' . ($ptheme === 'light' ? ' is-light' : ''),
-    'css'        => ['/portal/portal.css'],
+    'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
+    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
+
+/* Nav model — grouped for flow (Home · Work · Learn · You), with dot colours
+   + optional live badges. Related productivity tools sit together. */
+$postsToday = (int) ($cPulseToday['posts_today'] ?? 0);
+$nav = [
+    'Home' => [
+        ['overview', 'Today', 'gold', ($tasksDue || $nextSession) ? (string) (count($tasksDue) + ($nextSession ? 1 : 0)) : ''],
+        ['tools', 'Suite', 'indigo', ''],
+        ['community', 'Community', 'green', $postsToday > 0 ? (string) $postsToday : ''],
+    ],
+];
+if ($isOrg) {
+    $nav['Work'] = [
+        ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
+        ['workspace', 'Workspace', 'gray', ''],
+    ];
+}
+$nav['Learn'] = [
+    ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
+    ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
+];
+$nav['You'] = [
+    ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
+    ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
+];
 ?>
-  <header class="portal-bar">
-    <div class="container portal-bar-inner">
-      <a class="portal-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard — home">
-        <span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
-        <span class="portal-tag"><?= e($tag) ?></span>
+  <div class="portal-shell">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="pside" id="portalSide" aria-label="Portal navigation">
+      <a class="pside-brand" href="<?= e(rtrim(SITE_URL, '/')) ?>/" aria-label="Afrovanguard home">
+        <span class="pside-mark">A</span>
+        <span class="pside-brand-text"><span class="pb-name">Afrovanguard</span><span class="pb-sub"><?= e($tag) ?></span></span>
       </a>
-      <nav class="portal-bar-actions" aria-label="Member navigation">
-        <a class="portal-bar-link" href="/academy/">Academy</a>
-        <a class="portal-bar-link" href="/diary/me/">Diary</a>
-        <button type="button" class="portal-icon-btn" id="portalTheme" aria-label="Switch theme" title="Light / dark">
-          <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
-          <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"/></svg>
-        </button>
-        <div class="portal-user">
-          <span class="portal-avatar" aria-hidden="true"><?= e($pInitials) ?></span>
-          <a class="portal-bar-link portal-signout" href="#" data-logout>Sign out</a>
+
+      <div class="pside-search">
+        <span class="pside-search-ico" aria-hidden="true">⌕</span>
+        <input type="search" id="pSearch" placeholder="Search…" aria-label="Search the portal" autocomplete="off">
+      </div>
+
+      <nav class="pside-nav" aria-label="Sections">
+<?php foreach ($nav as $group => $items): ?>
+        <div class="pnav-group">
+          <div class="pnav-title"><?= e($group) ?></div>
+<?php foreach ($items as [$id, $label, $dot, $badge]): ?>
+          <a class="pnav-link" href="#<?= e($id) ?>" data-view="<?= e($id) ?>">
+            <span class="pnav-dot pnav-dot--<?= e($dot) ?>"></span>
+            <span class="pnav-label"><?= e($label) ?></span>
+<?php if ($badge !== ''): ?>            <span class="pnav-badge"><?= e($badge) ?></span>
+<?php endif; ?>          </a>
+<?php endforeach; ?>
+        </div>
+<?php endforeach; ?>
+        <div class="pnav-group">
+          <div class="pnav-title">More</div>
+          <a class="pnav-link" href="/academy/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Academy</span><span class="pnav-ext">↗</span></a>
+          <a class="pnav-link" href="<?= e(rtrim(SITE_URL, '/')) ?>/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Main site</span><span class="pnav-ext">↗</span></a>
         </div>
       </nav>
-    </div>
-  </header>
-  <main id="main-content" class="portal portal--<?= $isOrg ? 'member' : 'learner' ?>">
-    <div class="container">
-      <header class="portal-head">
-        <div>
-          <span class="portal-eyebrow"><?= $isOrg ? 'Member portal' : 'Your learning' ?></span>
-          <h1>Welcome back, <?= e($first) ?>.</h1>
-          <p class="portal-badges">
-<?php if ($isOrg): ?>            <span class="portal-badge org">✦ Afrovanguard member</span>
-<?php if ($showRole): ?>            <span class="portal-badge"><?= e($roleLabel) ?></span>
-<?php endif; ?>
-<?php else: ?>            <span class="portal-badge">Learning access</span>
-<?php endif; ?>          </p>
+
+      <div class="pside-user">
+        <span class="pside-avatar"><?= e($pInitials) ?></span>
+        <span class="pside-user-meta"><span class="pu-name"><?= e($first . ' ' . (($parts[1] ?? ''))) ?></span><span class="pu-role"><?= $isOrg ? e($accessLevel) : 'Learner' ?></span></span>
+        <a class="pside-signout" href="#" data-logout title="Sign out" aria-label="Sign out">⋯</a>
+      </div>
+    </aside>
+
+    <div class="portal-scrim" id="portalScrim" hidden></div>
+
+    <!-- ============ MAIN ============ -->
+    <main class="portal-main" id="main-content">
+      <header class="ptop">
+        <button type="button" class="ptop-burger" id="sideToggle" aria-label="Open navigation" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div class="ptop-crumb"><span>Portal</span><span class="ptop-sep">/</span><span class="ptop-here" id="crumbHere">Dashboard</span></div>
+        <div class="ptop-actions">
+<?php if ($isOrg): ?>          <span class="ptop-online" id="topOnline"<?= $onlineNow > 0 ? '' : ' hidden' ?>><span class="dot-live"></span><span id="tbCount"><?= (int) $onlineNow ?></span> online</span>
+<?php endif; ?>          <div class="ptop-notif" id="notifWrap" data-csrf="<?= e($collabCsrf) ?>">
+            <button type="button" class="ptop-icon" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" title="Notifications">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+              <span class="notif-badge" id="notifBadge" hidden>0</span>
+            </button>
+            <div class="notif-panel" id="notifPanel" hidden role="dialog" aria-label="Notifications">
+              <div class="notif-head"><span>Notifications</span><button type="button" class="notif-readall" id="notifReadAll">Mark all read</button></div>
+              <div class="notif-list" id="notifList"><p class="notif-empty">Loading…</p></div>
+            </div>
+          </div>
+          <button type="button" class="ptop-icon" id="portalTheme" aria-label="Light / dark" title="Light / dark">
+            <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+            <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 109.8 9.8z"/></svg>
+          </button>
+          <a class="ptop-icon" href="/diary/me/" title="Your Diary" aria-label="Your Diary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+          </a>
         </div>
-        <a class="btn btn-outline btn-sm" href="#" data-logout>Sign out</a>
       </header>
 
-<?php
-      // "Coming up" — live countdowns to the next major event (from the AFG
-      // events feed, client-side) and the member's next mentorship session.
-      $cdSession = null;
-      try {
-          $pairs = array_merge(Mentorship::myMentors((int) $u['id']), Mentorship::myMentees((int) $u['id']));
-          $nowTs = time();
-          foreach ($pairs as $pp) foreach (($pp['sessions'] ?? []) as $s) {
-              $ts = !empty($s['when']) ? (int) strtotime((string) $s['when']) : 0;
-              if ($ts && $ts >= $nowTs && (!$cdSession || $ts < $cdSession['ts'])) {
-                  $cdSession = ['ts' => $ts, 'iso' => gmdate('c', $ts), 'title' => ($s['title'] ?: 'Mentorship session'), 'with' => (string) ($pp['name'] ?? '')];
-              }
-          }
-      } catch (Throwable $e) { $cdSession = null; }
-?>
-      <section class="portal-coming" id="portalComing" hidden aria-label="Coming up">
-        <h2 class="pc-coming-h">Coming up</h2>
-        <div class="pc-coming-grid">
-          <div class="cd-card" id="cdEvent" hidden data-iso="">
-            <span class="cd-kicker">Next event</span>
-            <span class="cd-title"></span>
-            <div class="cd-timer"></div>
-            <a class="cd-link" href="<?= e(defined('AV_EVENTS_URL') ? AV_EVENTS_URL : 'https://afg.afrovanguard.org.ng/events') ?>" target="_blank" rel="noopener">All events →</a>
-          </div>
-<?php if ($cdSession): ?>
-          <div class="cd-card" id="cdSession" data-iso="<?= e($cdSession['iso']) ?>">
-            <span class="cd-kicker">Your next session</span>
-            <span class="cd-title"><?= e($cdSession['title']) . ($cdSession['with'] !== '' ? ' · with ' . e($cdSession['with']) : '') ?></span>
-            <div class="cd-timer"></div>
-            <a class="cd-link" href="/mentorship/">Open mentorship →</a>
-          </div>
-<?php endif; ?>
-        </div>
-      </section>
+      <div class="portal-scroll">
 
-      <div class="portal-grid">
+<?php
+        // Precompute view data used across tabs.
+        $stageCode = (string) ($journey['level'] ?? 'O');
+        $duesState = $dues ? (string) $dues['state'] : 'none';
+        $duesVal   = $dues ? ((!empty($dues['lifetime'])) ? 'Lifetime' : ($duesState === 'active' ? 'Current' : ($duesState === 'none' ? 'Not paid' : ucfirst(str_replace('_', ' ', $duesState))))) : '—';
+        $duesTotal = $dues ? (int) ($dues['total_paid_ngn'] ?? 0) : 0;
+        $jOrder = $journey['order']; $jHere = array_search($journey['level'], $jOrder, true);
+        $jPct = min(100, (int) round(100 * ($journey['referrals'] ?? 0) / max(1, (int) ($journey['referrals_needed'] ?? 2))));
+?>
+
+        <!-- ============================================================ -->
+        <!-- DASHBOARD                                                    -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-overview" data-view="overview">
+
+          <!-- Welcome + quick actions -->
+          <div class="phead">
+            <div>
+              <h1>Welcome back, <?= e($first) ?>.</h1>
+              <p class="phead-sub"><?= $isOrg ? "Here’s what’s happening across your Afrovanguard workspace today." : 'Pick up where you left off in your learning.' ?></p>
+            </div>
+            <div class="phead-actions">
+<?php if ($isOrg): ?>              <a class="pbtn pbtn-ghost" href="https://calendar.google.com/calendar/u/0/r/eventedit" target="_blank" rel="noopener noreferrer">＋ New event</a>
+              <a class="pbtn pbtn-ghost" href="https://docs.google.com/document/create" target="_blank" rel="noopener noreferrer">＋ New doc</a>
+              <a class="pbtn pbtn-gold" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer">▶ Start a Meet</a>
+<?php else: ?>              <a class="pbtn pbtn-gold" href="/academy/">Browse the Academy →</a>
+<?php endif; ?>            </div>
+          </div>
+
+          <!-- Needs your attention — the productivity focus of "Today" -->
+<?php
+            $attn = [];
+            if ($nextSession) {
+                $ns = $nextSession;
+                $when = !empty($ns['live']) ? 'Live now' : date('D g:ia', strtotime((string) $ns['when'] . ' UTC') ?: time());
+                $attn[] = ['ico' => '🎥', 'tone' => !empty($ns['live']) ? 'green' : 'indigo',
+                    'title' => (!empty($ns['live']) ? 'Meeting live — ' : 'Next meeting — ') . e($ns['title']),
+                    'sub' => e($ns['role']) . ' ' . e($ns['with']) . ' · ' . e($when), 'cta' => 'Go', 'goto' => 'mentorship'];
+            }
+            if ($isOrg && $tasksDue) {
+                $n = count($tasksDue);
+                $attn[] = ['ico' => '✓', 'tone' => $tasksOverdue ? 'red' : 'gold',
+                    'title' => $n . ' task' . ($n === 1 ? '' : 's') . ' due' . ($tasksOverdue ? ' · ' . $tasksOverdue . ' overdue' : ''),
+                    'sub' => 'Due today or earlier', 'cta' => 'Open', 'goto' => 'tasks'];
+            }
+            if ($postsToday) {
+                $attn[] = ['ico' => '💬', 'tone' => 'indigo',
+                    'title' => $postsToday . ' new community post' . ($postsToday === 1 ? '' : 's') . ' today',
+                    'sub' => 'Catch up with members', 'cta' => 'Open', 'goto' => 'community'];
+            }
+            if ($attn):
+?>          <section class="pcard today-attn">
+            <div class="pcard-head"><h2>Needs your attention</h2><span class="pchip pchip--gold"><?= e(date('D, M j')) ?></span></div>
+            <div class="pcard-body">
+              <ul class="attn-list">
+<?php foreach ($attn as $a): ?>                <li class="attn-item attn--<?= e($a['tone']) ?>">
+                  <span class="attn-ico"><?= $a['ico'] ?></span>
+                  <span class="attn-txt"><span class="attn-title"><?= $a['title'] ?></span><span class="attn-sub"><?= $a['sub'] ?></span></span>
+                  <a class="pbtn pbtn-soft attn-cta" href="#<?= e($a['goto']) ?>" data-goto="<?= e($a['goto']) ?>"><?= e($a['cta']) ?> →</a>
+                </li>
+<?php endforeach; ?>              </ul>
+            </div>
+          </section>
+<?php endif; ?>
+
+          <!-- KPI chip row -->
+          <div class="pkpis" aria-label="At a glance">
+<?php
+            $kpis = [];
+            if ($isOrg) {
+                $kpis[] = ['label' => 'Tasks open', 'value' => (string) $openTasks, 'id' => 'kpiTasks', 'sub' => 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
+                $kpis[] = ['label' => 'Members online', 'value' => (string) $onlineNow, 'id' => 'kpiOnline', 'sub' => 'right now', 'chip' => 'Live', 'tone' => 'green'];
+            }
+            $kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
+            $kpis[] = ['label' => 'Mentorship hours', 'value' => $mentorHoursLabel, 'sub' => ((int) $mentorStats['attended']) . ' session' . (((int) $mentorStats['attended']) === 1 ? '' : 's') . ' attended', 'chip' => 'Logged', 'tone' => 'gold'];
+            if ($dues) {
+                $kpis[] = ['label' => 'Total dues paid', 'value' => '₦' . number_format($duesTotal), 'sub' => $duesVal, 'chip' => ($duesState === 'active' || !empty($dues['lifetime'])) ? 'Current' : 'Due', 'tone' => ($duesState === 'active' || !empty($dues['lifetime'])) ? 'green' : 'red'];
+            } else {
+                $kpis[] = ['label' => 'Certificates', 'value' => (string) $certs, 'sub' => $inProgress . ' in progress', 'chip' => 'Learning', 'tone' => 'indigo'];
+            }
+            foreach ($kpis as $k):
+?>            <div class="pkpi">
+              <div class="pkpi-top"><span class="pkpi-label"><?= e($k['label']) ?></span><span class="pchip pchip--<?= e($k['tone']) ?>"><?= e($k['chip']) ?></span></div>
+              <div class="pkpi-value"<?= isset($k['id']) ? ' id="' . e($k['id']) . '"' : '' ?>><?= e($k['value']) ?></div>
+              <div class="pkpi-sub"><?= e($k['sub']) ?></div>
+            </div>
+<?php endforeach; ?>
+          </div>
+
+          <div class="pcols">
+            <div class="pcol pcol--main">
+              <!-- Your journey -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
+                <div class="pcard-body">
+                  <div class="jl-track">
+<?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? 'is-here' : ($i < $jHere ? 'is-done' : ''); ?>                    <span class="jl-chip <?= $st ?>"><span class="jl-badge"><?= e($code) ?></span><?= e(Levels::LADDER[$code]['label'] ?? $code) ?></span>
+<?php endforeach; ?>                  </div>
+<?php if ($journey['level'] === 'O'): ?>
+                  <div class="jl-progress"><div class="jl-bar" aria-hidden="true"><span style="width:<?= $jPct ?>%"></span></div><span class="jl-count"><?= (int) $journey['referrals'] ?> / <?= (int) $journey['referrals_needed'] ?> introduced</span></div>
+                  <p class="pcard-note">Toward <strong>Level A</strong> — personally introduce committed members and mentor them as they settle in.</p>
+                  <div class="jl-invite"><div class="jl-invite-url" title="Your invite link"><?= e($journey['invite_url']) ?></div><button type="button" class="pbtn pbtn-ghost" id="copyInvite" data-url="<?= e($journey['invite_url']) ?>">Copy</button></div>
+<?php else: ?>
+                  <p class="pcard-note">You’re at <strong><?= e($journey['label']) ?></strong>. <?= e($journey['blurb']) ?></p>
+<?php endif; ?>
+                </div>
+              </section>
+            </div>
+
+            <div class="pcol pcol--side">
+<?php if ($isOrg): ?>
+              <!-- Who's online -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Who’s online</h2><span class="pchip pchip--green" id="onlinePill"><span class="dot-live"></span><span id="onlineCount"><?= (int) $onlineNow ?></span> now</span></div>
+                <div class="pcard-body"><div class="online-list" id="onlineList"><p class="pc-empty">Just you so far.</p></div></div>
+              </section>
+
+              <!-- Recent activity -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Recent activity</h2></div>
+                <div class="pcard-body"><ul class="activity-list" id="activityList"><li class="pc-empty">Loading…</li></ul></div>
+              </section>
+<?php endif; ?>
+              <!-- Mentorship snapshot -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Mentorship</h2><span class="pchip pchip--gold"><?= e($mentorHoursLabel) ?> logged</span></div>
+                <div class="pcard-body">
+                  <div class="mentor-stats">
+                    <div class="mstat"><span class="mstat-n"><?= e($mentorHoursLabel) ?></span><span class="mstat-l">Hours logged</span></div>
+                    <div class="mstat"><span class="mstat-n"><?= (int) $mentorStats['attended'] ?></span><span class="mstat-l">Attended</span></div>
+                    <div class="mstat"><span class="mstat-n"><?= $mentorStats['rate'] !== null ? (int) $mentorStats['rate'] . '%' : '—' ?></span><span class="mstat-l">Consistency</span></div>
+                  </div>
+                  <a class="pbtn pbtn-soft" href="#mentorship" data-goto="mentorship">View mentorship →</a>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- TOOLS  (Afrovanguard first-party productivity apps)          -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-tools" data-view="tools" hidden data-uid="<?= (int) $u['id'] ?>">
+          <div class="view-head">
+            <div><h1>Suite</h1><p class="view-sub">Your Afrovanguard productivity suite — personal tools and shared team apps, right in the portal.</p></div>
+          </div>
+
+          <!-- App launcher: pick one app to open -->
+          <div class="suite-home" id="suiteHome">
+            <h2 class="suite-section"><span>◧ Personal</span><small>Private to you, synced to your account</small></h2>
+            <div class="app-tiles">
+              <button type="button" class="app-tile app-tile--cal" data-app="cal"><span class="app-ic">◗</span><span class="app-tx"><span class="app-nm">Calendar</span><span class="app-desc">Your month, unified</span></span></button>
+              <button type="button" class="app-tile" data-app="notes"><span class="app-ic">✎</span><span class="app-tx"><span class="app-nm">Notes</span><span class="app-desc">Quick private scratchpad</span></span></button>
+              <button type="button" class="app-tile" data-app="focus"><span class="app-ic">◐</span><span class="app-tx"><span class="app-nm">Focus</span><span class="app-desc">Pomodoro timer</span></span></button>
+              <button type="button" class="app-tile" data-app="habits"><span class="app-ic">✓</span><span class="app-tx"><span class="app-nm">Habits</span><span class="app-desc">Build daily streaks</span></span></button>
+              <button type="button" class="app-tile" data-app="countdown"><span class="app-ic">◔</span><span class="app-tx"><span class="app-nm">Countdown</span><span class="app-desc">Days to a date</span></span></button>
+              <button type="button" class="app-tile" data-app="rem"><span class="app-ic">⏰</span><span class="app-tx"><span class="app-nm">Reminders</span><span class="app-desc">Nudges with due dates</span></span></button>
+            </div>
+<?php if ($isOrg): ?>
+            <h2 class="suite-section"><span>◨ Team</span><small>Shared with everyone at Afrovanguard</small></h2>
+            <div class="app-tiles">
+              <button type="button" class="app-tile app-tile--team" data-app="meet"><span class="app-ic">🎥</span><span class="app-tx"><span class="app-nm">Meetings</span><span class="app-desc">Schedule with a Meet link + AI minutes</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="board"><span class="app-ic">▦</span><span class="app-tx"><span class="app-nm">Team board</span><span class="app-desc">Kanban workflow</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="polls"><span class="app-ic">▤</span><span class="app-tx"><span class="app-nm">Team polls</span><span class="app-desc">Quick decisions</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="standup"><span class="app-ic">◷</span><span class="app-tx"><span class="app-nm">Daily standup</span><span class="app-desc">Async check-ins</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="goals"><span class="app-ic">◎</span><span class="app-tx"><span class="app-nm">Goals &amp; OKRs</span><span class="app-desc">Track objectives</span></span></button>
+              <button type="button" class="app-tile app-tile--team" data-app="links"><span class="app-ic">🔖</span><span class="app-tx"><span class="app-nm">Team links</span><span class="app-desc">Shared resources</span></span></button>
+            </div>
+<?php endif; ?>
+          </div>
+
+          <!-- Opened app: back bar + a single app on stage -->
+          <div class="suite-open" id="suiteOpen" hidden>
+            <div class="suite-bar">
+              <button type="button" class="suite-back" id="suiteBack">‹ All apps</button>
+              <h2 class="suite-open-title" id="suiteOpenTitle"></h2>
+            </div>
+            <div class="suite-stage" id="suiteStage">
+
+            <div class="suite-app" data-app="cal" hidden>
+          <!-- Integrated calendar: team events + AFG events + sessions + tasks + reminders -->
+          <section class="pcard tool-cal" id="tlCal" data-csrf="<?= e($collabCsrf) ?>" data-org="<?= $isOrg ? '1' : '0' ?>">
+            <div class="pcard-head cal-head">
+              <h2>◗ Calendar</h2>
+              <div class="cal-ctrls">
+                <button type="button" class="cal-arrow" id="tlCalPrev" aria-label="Previous month">‹</button>
+                <span class="cal-month" id="tlCalMonth">—</span>
+                <button type="button" class="cal-arrow" id="tlCalNext" aria-label="Next month">›</button>
+                <button type="button" class="pbtn pbtn-ghost pbtn-sm" id="tlCalToday">Today</button>
+              </div>
+            </div>
+            <div class="pcard-body cal-body">
+              <div class="cal-main">
+                <div class="cal-dow"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+                <div class="cal-grid" id="tlCalGrid"><p class="pc-empty">Loading calendar…</p></div>
+                <div class="cal-legend">
+                  <span class="cal-key cal-key--event">Team event</span>
+                  <span class="cal-key cal-key--afg">Afrovanguard</span>
+                  <span class="cal-key cal-key--session">Mentorship</span>
+                  <span class="cal-key cal-key--task">Task</span>
+                  <span class="cal-key cal-key--reminder">Reminder</span>
+                </div>
+              </div>
+              <aside class="cal-side">
+                <h3 class="cal-side-title" id="tlCalAgendaTitle">Today</h3>
+                <div class="cal-agenda" id="tlCalAgenda"></div>
+<?php if ($isOrg): ?>
+                <form id="tlCalForm" class="cal-form" autocomplete="off">
+                  <h4>Add an event</h4>
+                  <input id="tlCalTitle" class="cal-in" placeholder="Event title…" maxlength="300">
+                  <div class="cal-row">
+                    <input type="date" id="tlCalDate" class="cal-in" aria-label="Date">
+                  </div>
+                  <div class="cal-row">
+                    <input type="time" id="tlCalStart" class="cal-in" aria-label="Start time">
+                    <input type="time" id="tlCalEnd" class="cal-in" aria-label="End time">
+                  </div>
+                  <input id="tlCalLoc" class="cal-in" placeholder="Location (optional)" maxlength="200">
+                  <input id="tlCalNote" class="cal-in" placeholder="Note (optional)" maxlength="500">
+                  <div class="cal-form-foot">
+                    <button type="submit" class="pbtn pbtn-gold">Add event</button>
+                    <span class="poll-msg" id="tlCalMsg" role="status" aria-live="polite"></span>
+                  </div>
+                </form>
+<?php endif; ?>
+              </aside>
+            </div>
+          </section>
+            </div><!-- /cal -->
+
+            <div class="suite-app" data-app="notes" hidden>
+            <section class="pcard tool" id="tlNotes">
+              <div class="pcard-head"><h2>✎ Notes</h2><span class="tool-meta" id="tlNotesMeta">Autosaves</span></div>
+              <div class="pcard-body">
+                <textarea id="tlNotesArea" class="tool-notes" placeholder="Jot anything… it autosaves as you type."></textarea>
+                <div class="tool-row tool-row--foot"><span class="tool-hint" id="tlNotesCount">0 words</span><button type="button" class="pbtn pbtn-ghost" id="tlNotesClear">Clear</button></div>
+              </div>
+            </section>
+            </div><!-- /notes -->
+
+            <div class="suite-app" data-app="focus" hidden>
+            <section class="pcard tool" id="tlFocus">
+              <div class="pcard-head"><h2>◐ Focus timer</h2><span class="tool-meta"><b id="tlFocusSessions">0</b> done today</span></div>
+              <div class="pcard-body tool-focus">
+                <div class="focus-mode" id="tlFocusMode">
+                  <button type="button" class="fm-btn is-on" data-min="25" data-mode="Focus">Focus · 25</button>
+                  <button type="button" class="fm-btn" data-min="5" data-mode="Break">Break · 5</button>
+                  <button type="button" class="fm-btn" data-min="15" data-mode="Long break">Long · 15</button>
+                </div>
+                <div class="focus-clock" id="tlFocusClock">25:00</div>
+                <div class="focus-actions">
+                  <button type="button" class="pbtn pbtn-gold" id="tlFocusStart">Start</button>
+                  <button type="button" class="pbtn pbtn-ghost" id="tlFocusReset">Reset</button>
+                </div>
+              </div>
+            </section>
+            </div><!-- /focus -->
+
+            <div class="suite-app" data-app="habits" hidden>
+            <section class="pcard tool" id="tlHabits">
+              <div class="pcard-head"><h2>✓ Habits</h2><span class="tool-meta" id="tlHabitsMeta"></span></div>
+              <div class="pcard-body">
+                <form id="tlHabitAdd" class="tool-row" autocomplete="off"><input id="tlHabitInput" placeholder="Add a daily habit…" maxlength="60"><button class="pbtn pbtn-gold" type="submit">Add</button></form>
+                <ul class="habit-list" id="tlHabitList"></ul>
+              </div>
+            </section>
+            </div><!-- /habits -->
+
+            <div class="suite-app" data-app="countdown" hidden>
+            <section class="pcard tool" id="tlCountdown">
+              <div class="pcard-head"><h2>◔ Countdown</h2></div>
+              <div class="pcard-body tool-cd">
+                <div class="cd-set" id="tlCdSet">
+                  <input id="tlCdLabel" placeholder="Counting down to…" maxlength="60">
+                  <input type="date" id="tlCdDate">
+                  <button type="button" class="pbtn pbtn-gold" id="tlCdSave">Set</button>
+                </div>
+                <div class="cd-view" id="tlCdView" hidden>
+                  <div class="cd-big"><b id="tlCdNum">0</b><span id="tlCdUnit">days</span></div>
+                  <p class="cd-label" id="tlCdShow"></p>
+                  <button type="button" class="pbtn pbtn-ghost" id="tlCdClear">Clear</button>
+                </div>
+              </div>
+            </section>
+            </div><!-- /countdown -->
+
+            <div class="suite-app" data-app="rem" hidden>
+            <section class="pcard tool tool-rem" id="tlRem" data-csrf="<?= e($collabCsrf) ?>">
+              <div class="pcard-head"><h2>⏰ Reminders</h2><span class="tool-meta" id="tlRemMeta"></span></div>
+              <div class="pcard-body">
+                <form id="tlRemForm" class="rem-form" autocomplete="off">
+                  <input id="tlRemText" class="rem-in" placeholder="Remind me to…" maxlength="300">
+                  <div class="rem-row">
+                    <input type="datetime-local" id="tlRemDue" class="rem-due" aria-label="Due (optional)">
+                    <button type="submit" class="pbtn pbtn-gold">Add</button>
+                  </div>
+                  <span class="poll-msg" id="tlRemMsg" role="status" aria-live="polite"></span>
+                </form>
+                <ul class="rem-list" id="tlRemList"></ul>
+                <div class="rem-tz">
+                  <label for="tlRemTz">Times shown in</label>
+                  <select id="tlRemTz" class="rem-tz-sel" data-csrf="<?= e($collabCsrf) ?>">
+<?php $curTz = av_user_tz((int) $u['id']); foreach (Prefs::TIMEZONES as $tzLabel => $tzId): ?>
+                    <option value="<?= e($tzId) ?>"<?= $tzId === $curTz ? ' selected' : '' ?>><?= e($tzLabel) ?></option>
+<?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            </section>
+            </div><!-- /rem -->
+
+<?php if ($isOrg): ?>
+            <div class="suite-app" data-app="meet" hidden>
+          <!-- Standardized meetings: schedule (with a link + cadence) and get AI minutes -->
+          <section class="pcard tool-meet" id="tlMeet" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlMeetForm" class="meet-form" autocomplete="off">
+                <input id="tlMeetTitle" class="meet-in" placeholder="Meeting title…" maxlength="200">
+                <div class="meet-row">
+                  <label class="meet-f"><span>When</span><input type="datetime-local" id="tlMeetWhen" class="meet-in"></label>
+                  <label class="meet-f"><span>Length</span>
+                    <select id="tlMeetDur" class="meet-in">
+                      <option value="15">15 min</option>
+                      <option value="30" selected>30 min</option>
+                      <option value="45">45 min</option>
+                      <option value="60">1 hour</option>
+                      <option value="90">1.5 hours</option>
+                      <option value="120">2 hours</option>
+                    </select>
+                  </label>
+                  <label class="meet-f"><span>Repeats</span>
+                    <select id="tlMeetFreq" class="meet-in">
+                      <option value="once" selected>One-off</option>
+                      <option value="daily">Every day</option>
+                      <option value="weekdays">Every weekday</option>
+                      <option value="weekly">Every week</option>
+                      <option value="biweekly">Every 2 weeks</option>
+                      <option value="monthly">Every month</option>
+                    </select>
+                  </label>
+                </div>
+                <input id="tlMeetWho" class="meet-in" placeholder="Invite by email (comma-separated, optional)" maxlength="600">
+                <input id="tlMeetAgenda" class="meet-in" placeholder="Agenda / notes (optional)" maxlength="2000">
+                <label class="meet-bot"><input type="checkbox" id="tlMeetRec"> <span>🤖 Add the recording bot — auto-capture &amp; transcribe this meeting</span></label>
+                <div class="meet-form-foot">
+                  <button type="submit" class="pbtn pbtn-gold">Schedule meeting</button>
+                  <span class="poll-msg" id="tlMeetMsg" role="status" aria-live="polite"></span>
+                </div>
+                <p class="meet-hint">A Google Meet link is created and the meeting is added to everyone’s Google Calendar with an invite. Minutes are generated by Gemini Flash from the Google Meet transcript, an uploaded recording, or pasted text.</p>
+              </form>
+              <div class="meet-list" id="tlMeetList"><p class="pc-empty">Loading meetings…</p></div>
+            </div>
+          </section>
+            </div><!-- /meet -->
+
+            <div class="suite-app" data-app="board" hidden>
+          <!-- Enterprise: Kanban board — shared team workflow -->
+          <section class="pcard tool-board" id="tlBoard" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>▦ Team board</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <div class="board-cols" id="tlBoardCols"><p class="pc-empty">Loading board…</p></div>
+            </div>
+          </section>
+            </div><!-- /board -->
+
+            <div class="suite-app" data-app="polls" hidden>
+          <!-- Enterprise: Team Polls — collaborative decisions with live tallies -->
+          <section class="pcard tool-polls" id="tlPolls" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>▤ Team polls</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlPollForm" class="poll-new" autocomplete="off">
+                <input id="tlPollQ" class="poll-q" placeholder="Ask the team a question…" maxlength="300">
+                <div class="poll-opts" id="tlPollOpts">
+                  <input class="poll-opt" placeholder="Option 1" maxlength="120">
+                  <input class="poll-opt" placeholder="Option 2" maxlength="120">
+                </div>
+                <div class="poll-new-foot">
+                  <button type="button" class="pbtn pbtn-ghost" id="tlPollAddOpt">+ Add option</button>
+                  <button type="submit" class="pbtn pbtn-gold">Create poll</button>
+                  <span class="poll-msg" id="tlPollMsg" role="status" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="poll-list" id="tlPollList"><p class="pc-empty">Loading polls…</p></div>
+            </div>
+          </section>
+            </div><!-- /polls -->
+
+            <div class="suite-app" data-app="standup" hidden>
+          <!-- Enterprise: Async standup — daily team check-ins -->
+          <section class="pcard tool-standup" id="tlStandup" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>◷ Daily standup</h2><span class="pchip pchip--indigo">Members · today</span></div>
+            <div class="pcard-body">
+              <form id="tlSuForm" class="su-form" autocomplete="off">
+                <label class="su-field"><span>✅ What I did</span><textarea id="tlSuDone" class="su-in" rows="2" maxlength="1000" placeholder="Yesterday / recently…"></textarea></label>
+                <label class="su-field"><span>▶ What's next</span><textarea id="tlSuNext" class="su-in" rows="2" maxlength="1000" placeholder="Today's focus…"></textarea></label>
+                <label class="su-field"><span>⛔ Blockers</span><textarea id="tlSuBlk" class="su-in" rows="1" maxlength="1000" placeholder="Anything in the way? (optional)"></textarea></label>
+                <div class="su-foot">
+                  <button type="submit" class="pbtn pbtn-gold" id="tlSuSave">Post update</button>
+                  <button type="button" class="pbtn pbtn-ghost" id="tlSuClear" hidden>Clear mine</button>
+                  <span class="poll-msg" id="tlSuMsg" role="status" aria-live="polite"></span>
+                </div>
+              </form>
+              <div class="su-board" id="tlSuBoard"><p class="pc-empty">Loading today's board…</p></div>
+            </div>
+          </section>
+            </div><!-- /standup -->
+
+            <div class="suite-app" data-app="goals" hidden>
+          <!-- Enterprise: Goals & OKRs — shared objectives with progress -->
+          <section class="pcard tool-goals" id="tlGoals" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>◎ Goals &amp; OKRs</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlGoalForm" class="goal-form" autocomplete="off">
+                <input id="tlGoalTitle" class="goal-in" placeholder="Set an objective…" maxlength="300">
+                <div class="goal-row">
+                  <input id="tlGoalTarget" class="goal-in goal-in--sm" placeholder="Target metric (optional)" maxlength="200">
+                  <button type="submit" class="pbtn pbtn-gold">Add goal</button>
+                </div>
+                <span class="poll-msg" id="tlGoalMsg" role="status" aria-live="polite"></span>
+              </form>
+              <div class="goal-list" id="tlGoalList"><p class="pc-empty">Loading goals…</p></div>
+            </div>
+          </section>
+            </div><!-- /goals -->
+
+            <div class="suite-app" data-app="links" hidden>
+          <!-- Enterprise: Team links — shared resource hub -->
+          <section class="pcard tool-links" id="tlLinks" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>🔖 Team links</h2><span class="pchip pchip--indigo">Members · shared</span></div>
+            <div class="pcard-body">
+              <form id="tlLinkForm" class="link-form" autocomplete="off">
+                <input id="tlLinkUrl" class="link-in" placeholder="Paste a URL…" maxlength="600">
+                <div class="link-row">
+                  <input id="tlLinkTitle" class="link-in link-in--sm" placeholder="Title (optional)" maxlength="200">
+                  <button type="submit" class="pbtn pbtn-gold">Save</button>
+                </div>
+                <input id="tlLinkNote" class="link-in" placeholder="Note (optional)" maxlength="300">
+                <span class="poll-msg" id="tlLinkMsg" role="status" aria-live="polite"></span>
+              </form>
+              <div class="link-list" id="tlLinkList"><p class="pc-empty">Loading links…</p></div>
+            </div>
+          </section>
+            </div><!-- /links -->
+<?php endif; ?>
+            </div><!-- /suiteStage -->
+          </div><!-- /suiteOpen -->
+        </section>
+
+<?php if ($isOrg): ?>
+        <!-- ============================================================ -->
+        <!-- TASKS  (dedicated productivity view)                         -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-tasks" data-view="tasks" hidden>
+          <div class="view-head">
+            <div><h1>Tasks</h1><p class="view-sub">Plan your work, set due dates and priorities, and assign to teammates.</p></div>
+          </div>
+          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-body">
+              <form class="task-add task-add--full" id="taskAdd" autocomplete="off">
+                <input type="text" id="taskInput" name="title" maxlength="300" placeholder="What needs doing?" aria-label="Task">
+                <div class="task-add-meta">
+                  <label class="task-af"><span>Due</span><input type="date" id="taskDue" aria-label="Due date"></label>
+                  <label class="task-af"><span>Priority</span>
+                    <select id="taskPriority" aria-label="Priority">
+                      <option value="normal" selected>Normal</option>
+                      <option value="high">High</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </label>
+                  <label class="task-af"><span>Assign</span>
+                    <select id="taskAssignee" class="task-assignee" aria-label="Assign to"><option value="0">Me</option></select>
+                  </label>
+                  <button type="submit" class="pbtn pbtn-gold">Add task</button>
+                </div>
+              </form>
+              <div class="pseg task-filters" id="taskFilters" role="tablist">
+                <button type="button" class="pseg-btn is-on" data-filter="all">All <span class="pseg-n" id="fcAll">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="open">Open <span class="pseg-n" id="fcOpen">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="overdue">Overdue <span class="pseg-n" id="fcOver">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="mine">Mine <span class="pseg-n" id="fcMine">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
+              </div>
+              <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
+            </div>
+          </section>
+        </section>
+<?php endif; ?>
+
+        <!-- ============================================================ -->
+        <!-- LEARNING                                                     -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-learning" data-view="learning" hidden>
+          <div class="view-head"><h1>Learning</h1><a class="pcard-link" href="/academy/">Browse the Academy →</a></div>
+          <section class="pcard">
+            <div class="pcard-head"><h2>My learning</h2><span class="pchip pchip--indigo"><?= count($courses) ?> enrolled</span></div>
+            <div class="pcard-body">
+<?php if ($courses): ?>
+              <p class="pcard-note"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
+              <div class="learn-list">
+<?php foreach ($courses as $c): ?>                <a class="learn-row" href="/academy/<?= e($c['slug']) ?>/learn/">
+                  <div class="learn-info"><span class="learn-title"><?= e($c['title']) ?></span><span class="learn-meta"><?= $c['complete'] ? '✓ Complete' : ((int) $c['pct']) . '% complete' ?><?= $c['certified'] ? ' · 🎓 Certified' : '' ?></span></div>
+                  <div class="learn-bar" aria-hidden="true"><span style="width:<?= (int) $c['pct'] ?>%"></span></div>
+                </a>
+<?php endforeach; ?>              </div>
+<?php else: ?>
+              <p class="pc-empty">You haven’t joined a programme yet. <a href="/academy/">Explore the Academy →</a></p>
+<?php endif; ?>
+            </div>
+          </section>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- COMMUNITY  (the members' social space, embedded)             -->
+        <!-- ============================================================ -->
+        <section class="pview pview--community" id="view-community" data-view="community" hidden>
+          <div class="view-head">
+            <div>
+              <h1>Community</h1>
+              <p class="view-sub"><?= $isOrg ? 'Talk with members, share field notes, and ask the Afrovanguard bot.' : 'Share field notes and learn alongside the wider community.' ?></p>
+            </div>
+            <span class="ptop-online view-live"><span class="dot-live"></span>Live</span>
+          </div>
+<?php av_render_community((int) $u['id'], $isOrg, ['hero' => false, 'space' => $communitySpace]); ?>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- MENTORSHIP                                                   -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-mentorship" data-view="mentorship" hidden>
+          <div class="view-head"><h1>Mentorship</h1><a class="pcard-link" href="/mentorship/">Open the mentor network →</a></div>
+
+          <!-- Hours logged + consistency -->
+          <section class="pcard">
+            <div class="pcard-head"><h2>Your mentorship</h2><span class="pchip pchip--gold"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
+            <div class="pcard-body">
+              <div class="mentor-stats mentor-stats--lg">
+                <div class="mstat"><span class="mstat-n"><?= e($mentorHoursLabel) ?></span><span class="mstat-l">Hours logged</span></div>
+                <div class="mstat"><span class="mstat-n"><?= (int) $mentorStats['attended'] ?></span><span class="mstat-l">Sessions attended</span></div>
+                <div class="mstat"><span class="mstat-n"><?= (int) $mentorStats['held'] ?></span><span class="mstat-l">Sessions held</span></div>
+                <div class="mstat"><span class="mstat-n"><?= $mentorStats['rate'] !== null ? (int) $mentorStats['rate'] . '%' : '—' ?></span><span class="mstat-l">Consistency</span></div>
+              </div>
+              <p class="pcard-note"><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others. Attended sessions are counted toward your logged hours.' : 'Get paired with an Afrovanguard mentor for guidance on your journey. Attended sessions count toward your logged hours.' ?></p>
+              <a class="pbtn pbtn-soft" href="/mentorship/">Open mentor network →</a>
+            </div>
+          </section>
+
+          <!-- Upcoming schedule — start the Meet from here; start/end auto-logged -->
+          <section class="pcard" id="mentorSchedule" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>Your schedule</h2><a class="pcard-link" href="/mentorship/">Manage →</a></div>
+            <div class="pcard-body">
+<?php if ($upcoming): ?>              <ul class="mini-sched">
+<?php foreach (array_slice($upcoming, 0, 6) as $s): $sd = strtotime((string) $s['when'] . ' UTC') ?: time();
+                $mst = $s['ended_at'] !== '' ? 'done' : ($s['live'] ? 'live' : 'idle'); ?>
+                <li class="msi" data-session="<?= (int) $s['id'] ?>" data-meet="<?= e($s['meet_url']) ?>" data-state="<?= $mst ?>" data-started="<?= e($s['started_at']) ?>" data-source="<?= e((string) ($s['source'] ?? '')) ?>">
+                  <div class="msi-top">
+                    <span class="ms-when"><?= e(date('j M', $sd)) ?> · <?= e(date('g:ia', $sd)) ?></span>
+                    <span class="ms-title"><?= e($s['title']) ?> <span class="ms-with">· <?= e($s['role']) ?> <?= e($s['with']) ?></span></span>
+                  </div>
+                  <div class="msi-meet">
+                    <button type="button" class="pbtn pbtn-gold msi-start"<?= $mst === 'done' ? ' hidden' : '' ?>><?= $s['live'] ? 'Join meeting' : 'Start meeting' ?></button>
+                    <span class="msi-log"><?php
+                      if ($s['ended_at'] !== '') {
+                          $src = (string) ($s['source'] ?? '');
+                          $vcls = in_array($src, ['meet', 'reports'], true) ? 'msi-verified' : 'msi-provisional';
+                          echo '✓ Logged ' . e(self_fmt_dur((int) $s['duration_min'])) . ' · ' . e(date('g:ia', strtotime($s['started_at'] . ' UTC') ?: time())) . '–' . e(date('g:ia', strtotime($s['ended_at'] . ' UTC') ?: time()));
+                          echo ' <span class="msi-src ' . $vcls . '">' . e(self_meet_source($src)) . '</span>';
+                      }
+                      elseif ($s['live']) { echo '<span class="msi-live"><span class="dot-live"></span>Live · <span class="msi-timer" aria-label="Elapsed meeting time">…</span></span>'; }
+                    ?></span>
+                  </div>
+                </li>
+<?php endforeach; ?>              </ul>
+              <p class="msi-note">Start the meeting from here — the system logs the hours automatically. Times are reconciled against Google Meet’s own record for complete transparency, so the logged hours reflect the real call.</p>
+<?php else: ?>              <p class="pc-empty">No upcoming sessions. <a href="/mentorship/">Book one with your mentor →</a></p>
+<?php endif; ?>
+            </div>
+          </section>
+        </section>
+
 <?php if ($isOrg):
         require_once AV_ROOT . '/lib/workspace.php';
-        $wsAdmin     = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
-        $wsSurfaces  = av_workspace_surfaces($wsAdmin);
-        $communities = av_workspace_communities();
-        $wsEmbeds    = av_workspace_embeds();
+        $wsAdmin    = LmsAuth::rank((string) $u['role']) >= LmsAuth::ROLE_RANK['admin'];
+        $wsSurfaces = av_workspace_surfaces($wsAdmin);
+        $wsOauth    = class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured();
+        $wsConn     = $wsOauth && GoogleWorkspaceUser::connected((int) $u['id']);
 ?>
-        <!-- Your Workspace — SSO launchpad into Google Workspace (members only) -->
-        <section class="portal-card span-2 ws-hub">
-          <div class="pc-head"><h2>Your Workspace</h2><span class="pc-tag ws-domain">@<?= e(av_workspace_domain()) ?></span></div>
-          <p class="pc-summary">You’re signed in with Google — jump straight into the Afrovanguard Workspace.</p>
-          <div class="ws-grid">
-<?php foreach ($wsSurfaces as $s): ?>
-            <a class="ws-tile" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
-              <span class="ws-ico ws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
-              <span class="ws-text"><span class="ws-label"><?= e($s['label']) ?></span><span class="ws-desc"><?= e($s['desc']) ?></span></span>
-            </a>
-<?php endforeach; ?>
-          </div>
-        </section>
-<?php if (GoogleWorkspace::configured()): ?>
-        <!-- Workspace · live — REAL data pulled from the Google APIs (progressive) -->
-        <section class="portal-card span-2 ws-live" id="wsLive">
-          <div class="pc-head"><h2>Workspace · live</h2><span class="pc-tag">From Google</span></div>
-          <div class="ws-live-grid">
-            <div class="ws-live-col">
-              <h3 class="ws-live-h">Upcoming events</h3>
-              <div class="ws-live-list" id="wsEvents"><p class="pc-summary">Loading…</p></div>
-            </div>
-            <div class="ws-live-col">
-              <h3 class="ws-live-h">Recent shared files</h3>
-              <div class="ws-live-list" id="wsFiles"><p class="pc-summary">Loading…</p></div>
-            </div>
-          </div>
-        </section>
-        <script>
-        (function () {
-          function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-          function when(iso, allDay){ if(!iso) return ''; var d=new Date(iso); if(isNaN(d)) return esc(iso);
-            var o=allDay?{weekday:'short',month:'short',day:'numeric'}:{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
-            try{return d.toLocaleString(undefined,o);}catch(e){return d.toISOString().slice(0,16).replace('T',' ');} }
-          function fill(id, html){ var el=document.getElementById(id); if(el) el.innerHTML=html; }
-          fetch('/portal/workspace.php?action=events',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-            if(!d.ok){ fill('wsEvents','<p class="pc-empty">Couldn’t load events.</p>'); return; }
-            if(!d.events||!d.events.length){ fill('wsEvents','<p class="pc-empty">No upcoming events.</p>'); return; }
-            fill('wsEvents', d.events.map(function(e){
-              return '<a class="ws-live-row" '+(e.url?'href="'+esc(e.url)+'" target="_blank" rel="noopener"':'')+'>'
-                +'<span class="ws-live-title">'+esc(e.title)+'</span>'
-                +'<span class="ws-live-sub">'+esc(when(e.start,e.all_day))+(e.location?' · '+esc(e.location):'')+'</span></a>';
-            }).join(''));
-          }).catch(function(){ fill('wsEvents','<p class="pc-empty">Couldn’t load events.</p>'); });
-          fetch('/portal/workspace.php?action=files',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
-            if(!d.ok){ fill('wsFiles','<p class="pc-empty">Couldn’t load files.</p>'); return; }
-            if(!d.files||!d.files.length){ fill('wsFiles','<p class="pc-empty">No files shared yet.</p>'); return; }
-            fill('wsFiles', d.files.map(function(f){
-              return '<a class="ws-live-row" '+(f.url?'href="'+esc(f.url)+'" target="_blank" rel="noopener"':'')+'>'
-                +'<span class="ws-live-title">'+esc(f.name)+'</span>'
-                +'<span class="ws-live-sub">'+esc(when(f.modified,false))+'</span></a>';
-            }).join(''));
-          }).catch(function(){ fill('wsFiles','<p class="pc-empty">Couldn’t load files.</p>'); });
-        })();
-        </script>
-<?php endif; ?>
-<?php if ($communities): ?>
-        <!-- Communities — Google Chat Spaces / Groups (configurable via AV_WS_COMMUNITIES) -->
-        <section class="portal-card span-2 ws-communities">
-          <div class="pc-head"><h2>Communities</h2><span class="pc-tag"><?= count($communities) ?> space<?= count($communities) === 1 ? '' : 's' ?></span></div>
-          <div class="ws-comm-list">
-<?php foreach ($communities as $c): ?>
-            <a class="ws-comm" href="<?= e($c['url']) ?>" target="_blank" rel="noopener noreferrer">
-              <span class="ws-comm-name"><?= e($c['name']) ?></span>
-<?php if ($c['desc'] !== ''): ?>              <span class="ws-comm-desc"><?= e($c['desc']) ?></span>
-<?php endif; ?>            </a>
-<?php endforeach; ?>
-          </div>
-        </section>
-<?php endif; ?>
-<?php if (!empty($wsEmbeds['calendar'])): ?>
-        <!-- Team calendar (read-only embed) -->
-        <section class="portal-card span-2 ws-embed">
-          <div class="pc-head"><h2>Team calendar</h2><a class="pc-link" href="<?= e(av_ws_link('AV_WS_CALENDAR_URL', 'https://calendar.google.com/a/' . av_workspace_domain())) ?>" target="_blank" rel="noopener noreferrer">Open in Calendar →</a></div>
-          <div class="ws-frame"><iframe src="<?= e($wsEmbeds['calendar']) ?>" title="Team calendar" loading="lazy" referrerpolicy="no-referrer"></iframe></div>
-        </section>
-<?php endif; ?>
-<?php if (!empty($wsEmbeds['drive'])): ?>
-        <!-- Shared files (read-only Drive folder embed) -->
-        <section class="portal-card span-2 ws-embed">
-          <div class="pc-head"><h2>Shared files</h2><a class="pc-link" href="<?= e(av_ws_link('AV_WS_DRIVE_URL', 'https://drive.google.com/a/' . av_workspace_domain())) ?>" target="_blank" rel="noopener noreferrer">Open in Drive →</a></div>
-          <div class="ws-frame ws-frame--drive"><iframe src="<?= e($wsEmbeds['drive']) ?>" title="Shared files" loading="lazy" referrerpolicy="no-referrer"></iframe></div>
-        </section>
-<?php endif; ?>
-<?php endif; ?>
+        <!-- ============================================================ -->
+        <!-- WORKSPACE                                                    -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-workspace" data-view="workspace" hidden>
+          <div class="view-head"><h1>Workspace</h1><a class="pcard-link" href="/workspace">Open all →</a></div>
 
-        <!-- My learning -->
-        <section class="portal-card span-2">
-          <div class="pc-head"><h2>My learning</h2><a href="/academy/" class="pc-link">Browse the Academy →</a></div>
-<?php if ($courses): ?>
-          <p class="pc-summary"><b><?= count($courses) ?></b> programme<?= count($courses) === 1 ? '' : 's' ?><?= $inProgress ? ' · ' . $inProgress . ' in progress' : '' ?><?= $certs ? ' · ' . $certs . ' 🎓 certificate' . ($certs === 1 ? '' : 's') : '' ?></p>
-          <div class="learn-list">
-<?php foreach ($courses as $c): ?>
-            <a class="learn-row" href="/academy/<?= e($c['slug']) ?>/learn/">
-              <div class="learn-info">
-                <span class="learn-title"><?= e($c['title']) ?></span>
-                <span class="learn-meta"><?= $c['complete'] ? '✓ Complete' : ((int) $c['pct']) . '% complete' ?><?= $c['certified'] ? ' · 🎓 Certified' : '' ?></span>
+<?php if ($wsOauth && !$wsConn): ?>
+          <!-- Not connected → clear call to action -->
+          <section class="pcard ws-connect-card">
+            <div class="pcard-body">
+              <h2>Connect your Google Workspace</h2>
+              <p class="pcard-note">Bring your Gmail, Calendar and Drive into the portal. You’ll sign in with Google once and can disconnect anytime.</p>
+              <a class="pbtn pbtn-gold" href="/auth/google/connect?next=<?= rawurlencode('/portal/#workspace') ?>">Connect Google →</a>
+            </div>
+          </section>
+<?php elseif ($wsConn): ?>
+          <!-- Connected → live snapshot (fetched from /portal/workspace.php?action=me) -->
+          <section class="pcard" id="wsLive" data-live>
+            <div class="pcard-head"><h2>Your Google Workspace</h2><span class="pchip pchip--green"><span class="dot-live"></span>Connected</span></div>
+            <div class="pcard-body">
+              <div class="pkpis ws-live-kpis">
+                <div class="pkpi"><div class="pkpi-top"><span class="pkpi-label">Unread mail</span></div><div class="pkpi-value" id="wsUnread">—</div><div class="pkpi-sub">in your inbox</div></div>
+                <div class="pkpi"><div class="pkpi-top"><span class="pkpi-label">Next event</span></div><div class="pkpi-value" id="wsNextC" style="font-size:16px;line-height:1.3">—</div><div class="pkpi-sub" id="wsNextW"></div></div>
+                <div class="pkpi"><div class="pkpi-top"><span class="pkpi-label">Recent files</span></div><div class="pkpi-value" id="wsFiles">—</div><div class="pkpi-sub">in your Drive</div></div>
               </div>
-              <div class="learn-bar" aria-hidden="true"><span style="width:<?= (int) $c['pct'] ?>%"></span></div>
-            </a>
-<?php endforeach; ?>
-          </div>
-<?php else: ?>
-          <p class="pc-empty">You haven’t joined a programme yet. <a href="/academy/">Explore the Academy →</a></p>
+              <div class="ws-live-cols">
+                <div><h3 class="ws-live-h">Recent mail</h3><ul class="ws-live-list" id="wsMail"><li class="pc-empty">Loading…</li></ul></div>
+                <div><h3 class="ws-live-h">Upcoming</h3><ul class="ws-live-list" id="wsEvents"><li class="pc-empty">Loading…</li></ul></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Google Chat — live, in-portal (spaces + messages + send) -->
+          <section class="pcard chat-card" id="chatCard" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head"><h2>Team Chat <span class="chat-count" id="chatSpaceCount" hidden></span></h2>
+              <span class="pchip pchip--green"><span class="dot-live"></span>Google Chat <span class="chat-unread" id="chatUnreadBadge" hidden></span></span></div>
+            <div class="pcard-body">
+              <div class="chat-wrap">
+                <aside class="chat-spaces" id="chatSpaces" aria-label="Chat spaces"><p class="pc-empty">Loading spaces…</p></aside>
+                <div class="chat-main">
+                  <div class="chat-thread" id="chatThread"><p class="pc-empty">Pick a space to start chatting.</p></div>
+                  <form class="chat-compose" id="chatCompose" autocomplete="off" hidden>
+                    <input type="text" id="chatInput" maxlength="4000" placeholder="Message this space…" aria-label="Message">
+                    <button type="submit" class="pbtn pbtn-gold">Send</button>
+                  </form>
+                </div>
+              </div>
+              <p class="pcard-note chat-hint">Chats are live from Google Chat and sent as you. <a href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Open Chat ↗</a></p>
+            </div>
+          </section>
+<?php else: /* Google OAuth not configured on this deployment — be honest about why nothing fetches */ ?>
+          <section class="pcard ws-connect-card">
+            <div class="pcard-body">
+              <h2>Live Google Workspace isn’t enabled yet</h2>
+              <p class="pcard-note">Your Gmail, Calendar and Drive can appear here live — but this site first needs its Google Workspace connection switched on by an administrator (the Google OAuth credentials). Until then, use the app launchpad below to jump straight into each tool.</p>
+              <a class="pbtn pbtn-soft" href="/workspace">Open the Workspace hub →</a>
+            </div>
+          </section>
 <?php endif; ?>
-        </section>
 
-        <!-- Mentorship — find a mentor (everyone); members can also mentor -->
-        <section class="portal-card accent-green">
-          <div class="pc-head"><h2>Mentorship</h2><span class="pc-tag"><?= $isOrg ? 'Member' : 'Open' ?></span></div>
-          <p><?= $isOrg ? 'Find a mentor, run your mentee inbox, and give back by mentoring others.' : 'Get paired with an Afrovanguard mentor for guidance on your journey.' ?></p>
-          <a class="btn btn-primary btn-sm" href="/mentorship/">Open the mentor network →</a>
+          <section class="pcard">
+            <div class="pcard-head">
+              <div><h2>Your Workspace apps</h2><p class="pcard-sub">Signed in via Google · @<?= e(av_workspace_domain()) ?></p></div>
+            </div>
+            <div class="pcard-body pws-grid">
+<?php foreach ($wsSurfaces as $s): ?>              <a class="pws-app" href="<?= e($s['url']) ?>" target="_blank" rel="noopener noreferrer">
+                <span class="pws-ico pws-ico--<?= e($s['key']) ?>"><?= av_workspace_icon($s['icon']) ?></span>
+                <span class="pws-text"><span class="pws-name"><?= e($s['label']) ?></span><span class="pws-desc"><?= e($s['desc']) ?></span></span>
+              </a>
+<?php endforeach; ?>            </div>
+          </section>
         </section>
+<?php endif; ?>
 
-        <!-- Status & profile -->
-        <section class="portal-card">
-          <div class="pc-head"><h2><?= $isOrg ? 'Membership' : 'Your account' ?></h2><?= $isOrg ? '<span class="pc-tag">Member</span>' : '' ?></div>
+        <!-- ============================================================ -->
+        <!-- MEMBERSHIP / ACCOUNT                                         -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-membership" data-view="membership" hidden>
+          <div class="view-head"><h1><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
+          <div class="pcols">
+            <div class="pcol pcol--main">
+<?php if ($isOrg && $dues):
+              // Dues fee amounts are intentionally NOT shown on the portal or the
+              // public site — only the member's own "Total dues paid" and status.
+              $duesPT   = $dues['paid_through'] ? date('j M Y', (int) strtotime((string) $dues['paid_through'])) : null;
+              $duesPill = ['active' => 'Current', 'due_soon' => 'Due soon', 'overdue' => 'Overdue', 'none' => 'Not paid'][$duesState] ?? 'Dues';
+              if (!empty($dues['lifetime'])) $duesPill = 'Lifetime';
+              $duesTone = (!empty($dues['lifetime']) || $duesState === 'active') ? 'green' : ($duesState === 'overdue' ? 'red' : 'gold');
+              $duesCanPay = !empty($dues['payable']) && empty($dues['lifetime']);
+              $duesRecurring = defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE;
+              $duesN = (int) ($dues['payments_count'] ?? 0);
+?>
+              <!-- Membership dues -->
+              <section class="pcard dues-card dues-<?= e($duesState) ?>" id="membership" data-csrf="<?= e($duesCsrf) ?>">
+                <div class="pcard-head"><h2>Membership dues</h2><span class="pchip pchip--<?= e($duesTone) ?>"><?= e($duesPill) ?></span></div>
+                <div class="pcard-body">
+<?php if ($duesTotal > 0): ?>                  <div class="dues-total-row"><span>Total dues paid</span><strong>₦<?= number_format($duesTotal) ?></strong><span class="dues-total-n">· <?= $duesN ?> payment<?= $duesN === 1 ? '' : 's' ?></span></div>
+<?php endif; ?>
+<?php if (!empty($dues['lifetime'])): ?>                  <p class="dues-line ok">✓ <strong>Lifetime membership</strong> — no dues due.</p>
+<?php elseif ($duesState === 'active'): ?>                  <p class="dues-line ok">✓ Paid<?= $duesPT ? ' through <strong>' . e($duesPT) . '</strong>' : '' ?>.</p>
+<?php elseif ($duesState === 'overdue'): ?>                  <p class="dues-line warn">⚠ Lapsed<?= $duesPT ? ' on <strong>' . e($duesPT) . '</strong>' : '' ?> — please renew.</p>
+<?php elseif ($duesState === 'due_soon'): ?>                  <p class="dues-line warn">⏳ Renew soon to stay current.</p>
+<?php endif; ?>
+<?php if ($duesCanPay): ?>                  <div class="dues-actions">
+                    <button type="button" class="pbtn <?= $duesState === 'active' ? 'pbtn-ghost' : 'pbtn-gold' ?>" data-dues-pay data-period="year"><?= $duesState === 'active' ? 'Renew a year' : 'Pay a year' ?></button>
+                    <button type="button" class="pbtn pbtn-ghost" data-dues-pay data-period="month"><?= $duesRecurring ? 'Monthly' : 'Pay a month' ?></button>
+                  </div>
+                  <p class="enroll-msg dues-msg" hidden></p>
+<?php else: ?>                  <div class="dues-note-box">Online payment isn’t available yet — <a href="mailto:cacentre@afrovanguard.org.ng">contact us to pay</a>.</div>
+<?php endif; ?>
+                </div>
+              </section>
+<?php endif; ?>
+              <!-- Membership / account details -->
+              <section class="pcard"<?= $isOrg ? '' : ' id="membership"' ?>>
+                <div class="pcard-head"><h2><?= $isOrg ? 'Membership' : 'Account' ?></h2><span class="pchip pchip--<?= $isOrg ? 'green' : 'indigo' ?>"><?= $isOrg ? 'Active' : 'Learner' ?></span></div>
+                <div class="pcard-body pdl">
+                  <div class="pdl-row"><span>Name</span><strong><?= e($u['name']) ?></strong></div>
+                  <div class="pdl-row"><span>Email</span><strong><?= e($u['email']) ?></strong></div>
+                  <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
+                </div>
+              </section>
 <?php if ($isOrg): ?>
-          <p class="portal-status-line">✓ You’re an <strong>Afrovanguard member</strong> — full access to mentorship and members-only programmes.</p>
-<?php else: ?>
-          <p class="portal-status-line">You have <strong>learning access</strong>. Mentorship and members-only spaces are for Afrovanguard members.</p>
+              <!-- Members-only continental scaling plan -->
+              <section class="pcard">
+                <div class="pcard-head"><h2>Continental Scaling Plan</h2><span class="pchip pchip--gold">🔒 Members</span></div>
+                <div class="pcard-body">
+                  <p class="pcard-note">The 2026–2040 strategic plan to one million incorruptible C-Level leaders — the phase-by-phase CACENTRE growth path, output targets and org structure. Restricted to Afrovanguard members.</p>
+                  <a class="pbtn pbtn-soft" href="/blueprint">Read the plan →</a>
+                </div>
+              </section>
 <?php endif; ?>
-          <dl class="profile-dl">
-            <dt>Name</dt><dd><?= e($u['name']) ?></dd>
-            <dt>Email</dt><dd><?= e($u['email']) ?></dd>
-            <dt><?= $isOrg ? 'Access level' : 'Account' ?></dt><dd><?= $isOrg ? e($accessLevel) : 'Learner' ?></dd>
-          </dl>
+            </div>
+          </div>
         </section>
 
-        <!-- My Diary -->
-        <section class="portal-card accent-blue">
-          <div class="pc-head"><h2>My Diary</h2><a href="/diary/me/" class="pc-link">Open →</a></div>
-          <p class="portal-stat"><b><?= count($myEntries) ?></b> diary <?= count($myEntries) === 1 ? 'entry' : 'entries' ?></p>
-          <a class="btn btn-primary btn-sm" href="/diary/me/">Write an entry</a>
+        <!-- ============================================================ -->
+        <!-- DIARY                                                        -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-diary" data-view="diary" hidden>
+          <div class="view-head">
+            <div><h1>My Diary</h1><p class="view-sub">Write with a rich editor. Private stays yours; public is reviewed before it joins the Diary.</p></div>
+            <a class="pcard-link" href="/diary/" target="_blank" rel="noopener">Open the public Diary →</a>
+          </div>
+          <!-- ── Notebooks rail + finder ──────────────────────────────────
+               The rail is the diary's spine: buckets, notebooks, tags. Rendered
+               client-side from /portal/notebooks.php rather than server-side,
+               because every action on it (file, pin, archive, tag) changes the
+               counts and a full reload per action would make organising the
+               diary feel like paperwork. -->
+          <div class="nb-shell">
+            <aside class="nb-side" id="nbRail" aria-label="Notebooks"></aside>
+
+            <div class="nb-main">
+              <div class="nb-finder">
+                <input type="search" id="nbSearch" class="nb-search"
+                       placeholder="Search your diary — titles, bodies, and every tab"
+                       aria-label="Search your diary">
+                <span class="nb-msg" id="nbMsg" role="status" aria-live="polite"></span>
+              </div>
+              <div class="nb-bulk" id="nbBulk" hidden></div>
+
+              <!-- An open entry, as a document with tabs. -->
+              <section class="pcard nb-doc" id="nbDoc" hidden>
+                <div class="pcard-head">
+                  <h2>Entry</h2>
+                  <button type="button" class="pbtn pbtn-ghost pbtn-sm" id="nbDocClose">Close</button>
+                </div>
+                <div class="pcard-body">
+                  <div class="nb-tabstrip" id="nbTabStrip" role="tablist" aria-label="Tabs in this entry"></div>
+                  <label class="pd-field"><span>Tab name</span>
+                    <input type="text" id="nbTabTitle" maxlength="80" placeholder="Entry">
+                  </label>
+                  <textarea id="nbTabBody" class="nb-tabbody" rows="12" placeholder="Write this tab…"></textarea>
+                  <div class="nb-docfoot">
+                    <button type="button" class="pbtn pbtn-gold" id="nbTabSave">Save tab</button>
+                    <span class="nb-hint" id="nbTabHint"></span>
+                  </div>
+                </div>
+              </section>
+
+              <section class="pcard">
+                <div class="pcard-head"><h2>Entries</h2></div>
+                <div class="pcard-body"><ul class="nb-entries" id="nbList"></ul></div>
+              </section>
+            </div>
+          </div>
+
+          <div class="pcols pcols--diary">
+            <div class="pcol pcol--main">
+              <section class="pcard" id="pdiary">
+                <div class="pcard-body">
+                  <form id="pdCompose" class="pd-form" autocomplete="off">
+                    <div class="pd-meta">
+                      <label class="pd-field"><span>Category</span>
+                        <select id="pdKind">
+                          <option value="private" selected>🔒 Private — only you</option>
+                          <option value="public">🌐 Public — submit to the Diary</option>
+                          <option value="event">📅 Event — a public happening</option>
+                        </select>
+                      </label>
+                      <label class="pd-field"><span>Template</span>
+                        <select id="pdTemplate">
+                          <option value="">Blank page</option>
+                          <option value="daily">Daily reflection</option>
+                          <option value="field">Field note</option>
+                          <option value="project">Project log</option>
+                          <option value="meeting">Meeting notes</option>
+                          <option value="gratitude">Gratitude</option>
+                          <option value="weekly">Weekly review</option>
+                          <option value="idea">Idea / proposal</option>
+                        </select>
+                      </label>
+                      <label class="pd-field"><span>Date</span>
+                        <input type="date" id="pdDate" value="<?= e(date('Y-m-d')) ?>" max="<?= e(date('Y-m-d')) ?>">
+                      </label>
+                    </div>
+                    <label class="pd-field pd-field--title"><span>Title <em>(optional)</em></span>
+                      <input type="text" id="pdTitle" maxlength="160" placeholder="A short headline">
+                    </label>
+                    <input type="hidden" id="pdBody" name="body">
+                    <trix-editor input="pdBody" class="pd-editor" placeholder="Write your entry…"></trix-editor>
+                    <div class="pd-foot">
+                      <button type="submit" class="pbtn pbtn-gold" id="pdSave">Save entry</button>
+                      <span class="pd-hint" id="pdHint">🔒 Private entries are visible only to you.</span>
+                      <span class="pd-msg" id="pdMsg" role="status" aria-live="polite"></span>
+                    </div>
+                  </form>
+                </div>
+              </section>
+            </div>
+            <div class="pcol pcol--side">
+              <section class="pcard">
+                <div class="pcard-head"><h2>Your entries</h2><span class="pchip pchip--gray" id="pdCount"><?= count($myEntries) ?></span></div>
+                <div class="pcard-body">
+                  <ul class="pd-list" id="pdList">
+<?php if ($myEntries): foreach ($myEntries as $e) { echo self_diary_item($e); } else: ?>
+                    <li class="pc-empty" id="pdEmpty">No entries yet — write your first above.</li>
+<?php endif; ?>
+                  </ul>
+                </div>
+              </section>
+              <section class="pcard" id="pdSharedCard" hidden>
+                <div class="pcard-head"><h2>Shared with me</h2><span class="pchip pchip--indigo" id="pdSharedCount">0</span></div>
+                <div class="pcard-body"><ul class="pd-list" id="pdShared"></ul></div>
+              </section>
+            </div>
+          </div>
+
+          <!-- read modal for shared-with-me entries -->
+          <div class="pd-modal" id="pdModal" hidden>
+            <div class="pd-modal-back" data-pdclose></div>
+            <div class="pd-modal-card" role="dialog" aria-modal="true" aria-labelledby="pdModalTitle">
+              <button type="button" class="pd-modal-x" data-pdclose aria-label="Close">✕</button>
+              <h2 id="pdModalTitle"></h2>
+              <p class="pd-modal-meta" id="pdModalMeta"></p>
+              <div class="pd-modal-body" id="pdModalBody"></div>
+            </div>
+          </div>
         </section>
+
+        <footer class="pfoot">
+          <span>© 2026 Afrovanguard</span>
+          <span><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a></span>
+        </footer>
       </div>
-    </div>
-  </main>
+    </main>
+  </div>
 
-  <footer class="portal-foot">
-    <div class="container portal-foot-inner">
-      <span class="brand-wordmark portal-foot-mark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>
-      <span class="portal-foot-links"><a href="<?= e(rtrim(SITE_URL, '/')) ?>/">Main site ↗</a> · <a href="mailto:cacentre@afrovanguard.org.ng">Support</a></span>
-      <span class="portal-foot-legal">© 2026 Afrovanguard</span>
-    </div>
-  </footer>
   <script>
   (function () {
-    var btn = document.getElementById('portalTheme'); if (!btn) return;
-    btn.addEventListener('click', function () {
-      var light = document.body.classList.toggle('is-light');
-      document.cookie = 'av_portal_theme=' + (light ? 'light' : 'dark') + ';path=/;max-age=31536000;samesite=Lax';
-    });
-  })();
-  </script>
-  <script>
-  /* PWA — register the service worker and offer an install button. */
-  (function () {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+    /* Theme toggle — also mirror onto <html data-theme> so the embedded
+       Community (community.css keys off [data-theme]) follows the portal. */
+    var tbtn = document.getElementById('portalTheme');
+    function syncTheme(){ var dark=document.body.classList.contains('is-dark'); document.documentElement.setAttribute('data-theme', dark?'dark':'light'); }
+    function paintTheme(){ var dark=document.body.classList.contains('is-dark'); var s=tbtn&&tbtn.querySelector('.ico-sun'), m=tbtn&&tbtn.querySelector('.ico-moon'); if(s)s.style.display=dark?'block':'none'; if(m)m.style.display=dark?'none':'block'; syncTheme(); }
+    if (tbtn) tbtn.addEventListener('click', function(){ var dark=document.body.classList.toggle('is-dark'); document.cookie='av_portal_theme='+(dark?'dark':'light')+';path=/;max-age=31536000;samesite=Lax'; paintTheme(); });
+    paintTheme();
+
+    /* Sidebar drawer (mobile) */
+    var toggle=document.getElementById('sideToggle'), scrim=document.getElementById('portalScrim');
+    function setOpen(on){ document.body.classList.toggle('side-open', on); if(scrim) scrim.hidden=!on; if(toggle) toggle.setAttribute('aria-expanded', on?'true':'false'); }
+    if (toggle) toggle.addEventListener('click', function(){ setOpen(!document.body.classList.contains('side-open')); });
+    if (scrim) scrim.addEventListener('click', function(){ setOpen(false); });
+
+    /* Sidebar: multi-tab view switcher (show one .pview at a time) + breadcrumb.
+       Hash-routed so tabs are linkable and the back button works. */
+    var links = [].slice.call(document.querySelectorAll('.pnav-link[data-view]'));
+    var views = [].slice.call(document.querySelectorAll('.pview'));
+    var scroller = document.querySelector('.portal-scroll');
+    var crumb = document.getElementById('crumbHere');
+    var labelFor = {}; links.forEach(function(a){ labelFor[a.getAttribute('data-view')] = (a.querySelector('.pnav-label')||a).textContent.trim(); });
+
+    function showView(name, push){
+      var found = false;
+      views.forEach(function(v){ var on = v.getAttribute('data-view') === name; v.hidden = !on; if(on) found = true; });
+      if (!found) { name = 'overview'; views.forEach(function(v){ v.hidden = v.getAttribute('data-view') !== 'overview'; }); }
+      links.forEach(function(l){ l.classList.toggle('is-active', l.getAttribute('data-view') === name); });
+      if (crumb) crumb.textContent = labelFor[name] || 'Dashboard';
+      if (scroller) scroller.scrollTop = 0;
+      if (push && ('#'+name) !== location.hash) { try { history.pushState(null, '', '#'+name); } catch(e) { location.hash = name; } }
     }
-    var deferred = null;
-    window.addEventListener('beforeinstallprompt', function (e) {
-      e.preventDefault(); deferred = e;
-      var b = document.createElement('button');
-      b.type = 'button'; b.id = 'pwaInstall';
-      b.textContent = '⤓ Install the app';
-      b.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:300;background:#f3b416;color:#111827;border:0;border-radius:9999px;padding:13px 22px;font:700 14px/1 Montserrat,sans-serif;box-shadow:0 12px 30px rgba(0,0,0,.35);cursor:pointer';
-      b.addEventListener('click', function () {
-        b.remove();
-        if (!deferred) return;
-        deferred.prompt(); deferred.userChoice.finally(function () { deferred = null; });
+
+    links.forEach(function(a){
+      a.addEventListener('click', function(e){
+        e.preventDefault();
+        showView(a.getAttribute('data-view'), true);
+        if (window.innerWidth < 960) setOpen(false);
       });
-      document.body.appendChild(b);
     });
-    window.addEventListener('appinstalled', function () { var b = document.getElementById('pwaInstall'); if (b) b.remove(); });
+    // Non-view nav links (Academy / Main site) just close the mobile drawer.
+    document.querySelectorAll('.pnav-link:not([data-view])').forEach(function(a){ a.addEventListener('click', function(){ if(window.innerWidth<960) setOpen(false); }); });
+    // In-page "View mentorship →" style jumps.
+    document.querySelectorAll('[data-goto]').forEach(function(a){ a.addEventListener('click', function(e){ e.preventDefault(); showView(a.getAttribute('data-goto'), true); }); });
+    // Deep-link + back/forward support.
+    window.addEventListener('hashchange', function(){ showView((location.hash||'').replace('#',''), false); });
+    showView((location.hash||'').replace('#','') || 'overview', false);
+
+    /* Sidebar search → filter nav items */
+    var search=document.getElementById('pSearch');
+    if (search) search.addEventListener('input', function(){ var q=this.value.trim().toLowerCase();
+      document.querySelectorAll('.pnav-link').forEach(function(a){ var t=a.textContent.toLowerCase(); a.style.display=(!q||t.indexOf(q)>=0)?'':'none'; }); });
+
+    /* Copy invite link */
+    var ci=document.getElementById('copyInvite');
+    if (ci) ci.addEventListener('click', function(){ var u=ci.getAttribute('data-url')||''; if(navigator.clipboard) navigator.clipboard.writeText(u).catch(function(){}); var t=ci.textContent; ci.textContent='Copied'; ci.classList.add('is-ok'); setTimeout(function(){ci.textContent=t; ci.classList.remove('is-ok');},1500); });
   })();
   </script>
+
   <script>
-  /* "Coming up" live countdowns — next AFG event + next mentorship session. */
+  /* Collaboration — presence, activity, tasks (with the filter chips). */
   (function () {
-    var wrap = document.getElementById('portalComing'); if (!wrap) return;
-    var cards = [];
-    function fmt(ms) {
-      if (ms <= 0) return 'Starting now';
-      var s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
-      var p = function (n) { return (n < 10 ? '0' : '') + n; };
-      return (d ? d + 'd ' : '') + p(h) + 'h ' + p(m) + 'm ' + p(x) + 's';
-    }
-    function reg(card) {
-      if (!card) return; var iso = card.getAttribute('data-iso'); if (!iso) return;
-      var t = Date.parse(iso); if (isNaN(t)) return;
-      cards.push({ t: t, el: card.querySelector('.cd-timer'), card: card }); card.hidden = false;
-    }
-    function tick() {
-      var now = Date.now(), anyVisible = false;
-      cards.forEach(function (c) { var ms = c.t - now; if (c.el) c.el.textContent = fmt(ms); if (ms < -3600000) c.card.hidden = true; if (!c.card.hidden) anyVisible = true; });
-      if (anyVisible) wrap.hidden = false;
-    }
-    reg(document.getElementById('cdSession'));
-    fetch('/events-feed.php', { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var ev = ((d && d.events) || []).filter(function (e) { return e.iso && Date.parse(e.iso) > Date.now(); })
-          .sort(function (a, b) { return Date.parse(a.iso) - Date.parse(b.iso); })[0];
-        if (ev) { var c = document.getElementById('cdEvent'); c.setAttribute('data-iso', ev.iso); var ti = c.querySelector('.cd-title'); if (ti) ti.textContent = ev.title || 'Upcoming event'; reg(c); tick(); }
-      }).catch(function () {});
-    tick(); setInterval(tick, 1000);
+    var root = document.getElementById('tasks'); if (!root) return;
+    var csrf = root.getAttribute('data-csrf') || '';
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function post(action, body){ return fetch('/portal/collab.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
+    var listEl=document.getElementById('taskList'), actEl=document.getElementById('activityList'),
+        onlineEl=document.getElementById('onlineList'), onlineCountEl=document.getElementById('onlineCount'),
+        topOnline=document.getElementById('topOnline'), tbCount=document.getElementById('tbCount'),
+        kpiTasks=document.getElementById('kpiTasks'), kpiOnline=document.getElementById('kpiOnline'),
+        fcAll=document.getElementById('fcAll'), fcOpen=document.getElementById('fcOpen'), fcDone=document.getElementById('fcDone'),
+        fcOver=document.getElementById('fcOver'), fcMine=document.getElementById('fcMine');
+    var TASKS=[], FILTER='all';
+    var TODAY=new Date().toISOString().slice(0,10);
+    function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
+    function counts(){ var open=TASKS.filter(function(t){return !t.done;}).length, done=TASKS.length-open,
+        over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
+      if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
+      if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
+      if(kpiTasks)kpiTasks.textContent=open; }
+    function dueLabel(t){ if(!t.due) return ''; var d=new Date(t.due+'T00:00:00');
+      return isNaN(d)?t.due:d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+    function taskHtml(t){
+      var who = t.assigned_out ? ('→ '+esc(t.assignee_name)) : (t.mine ? '' : ('from '+esc(t.creator_name)));
+      var pr = (t.priority&&t.priority!=='normal') ? '<span class="task-pri task-pri--'+esc(t.priority)+'" title="'+esc(t.priority)+' priority"></span>' : '';
+      var due = (t.due&&!t.done) ? '<span class="task-due'+(isOverdue(t)?' is-over':'')+'">'+esc(dueLabel(t))+'</span>' : '';
+      return '<li class="task'+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
+      +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
+      +pr+'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+'</span>'
+      +due+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+    function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
+      var cur=sel.value; sel.innerHTML='<option value="0">Me</option>'+roster.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join(''); sel.value=cur; }
+    function render(){ var rows=TASKS.filter(function(t){
+        if(FILTER==='open')return !t.done; if(FILTER==='done')return t.done;
+        if(FILTER==='overdue')return isOverdue(t); if(FILTER==='mine')return t.mine && !t.done; return true; });
+      listEl.innerHTML = rows.length ? rows.map(taskHtml).join('') : '<li class="pc-empty task-empty">Nothing here — you’re all caught up.</li>';
+      counts(); }
+    function renderOnline(users,count){ if(onlineCountEl)onlineCountEl.textContent=count||0; if(tbCount)tbCount.textContent=count||0; if(kpiOnline)kpiOnline.textContent=count||0; if(topOnline)topOnline.hidden=!(count>0);
+      users=users||[]; onlineEl.innerHTML = users.length ? users.map(function(u){ return '<div class="online-row"><span class="online-ava is-'+esc(u.status)+'">'+esc(u.initials)+'</span><span class="online-name">'+esc(u.name)+'</span></div>'; }).join('') : '<p class="pc-empty">Just you so far.</p>'; }
+    function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
+
+    function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return; TASKS=d.tasks||[]; render(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); }).catch(function(){}); }
+
+    // filter chips
+    document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(b){ b.addEventListener('click', function(){ document.querySelectorAll('#taskFilters .pseg-btn').forEach(function(x){x.classList.remove('is-on');}); b.classList.add('is-on'); FILTER=b.getAttribute('data-filter'); render(); }); });
+    // add
+    var form=document.getElementById('taskAdd'), input=document.getElementById('taskInput');
+    form.addEventListener('submit', function(e){ e.preventDefault(); var title=(input.value||'').trim(); if(!title) return;
+      var asel=document.getElementById('taskAssignee'); var assignee=asel?(+asel.value||0):0;
+      var dsel=document.getElementById('taskDue'); var due=dsel?dsel.value:'';
+      var psel=document.getElementById('taskPriority'); var priority=psel?psel.value:'normal';
+      input.value=''; input.disabled=true;
+      post('task_add',{title:title, assignee:assignee, due:due, priority:priority}).then(function(d){ input.disabled=false; input.focus(); if(asel)asel.value='0'; if(dsel)dsel.value=''; if(psel)psel.value='normal'; if(d&&d.ok&&d.task){ TASKS.unshift(d.task); render(); } }).catch(function(){ input.disabled=false; }); });
+    // toggle / delete
+    listEl.addEventListener('click', function(e){ var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
+      if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }
+      else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
+
+    load();
+    setInterval(function(){ post('heartbeat',{}).then(function(d){ if(d&&typeof d.count==='number'){ if(onlineCountEl)onlineCountEl.textContent=d.count; if(tbCount)tbCount.textContent=d.count; if(kpiOnline)kpiOnline.textContent=d.count; if(topOnline)topOnline.hidden=!(d.count>0); } }).catch(function(){}); }, 45000);
+    setInterval(load, 90000);
   })();
   </script>
+
+  <script>
+  /* Membership dues — Paystack checkout (unchanged behaviour). */
+  (function () {
+    var card=document.getElementById('membership'); if(!card) return;
+    var btns=card.querySelectorAll('[data-dues-pay]'); if(!btns.length) return;
+    var msg=card.querySelector('.dues-msg');
+    function say(t){ if(msg){ msg.hidden=false; msg.textContent=t; } }
+    [].forEach.call(btns, function(btn){ btn.addEventListener('click', function(){
+      var period=btn.getAttribute('data-period')||'year'; [].forEach.call(btns,function(b){b.disabled=true;}); say('Starting secure checkout…');
+      fetch('/portal/dues.php?action=pay_init',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':card.getAttribute('data-csrf')||''},body:JSON.stringify({period:period})})
+        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&d.authorization_url){ window.location.href=d.authorization_url; return; } [].forEach.call(btns,function(b){b.disabled=false;}); say((d&&d.error)||'Could not start payment.'); })
+        .catch(function(){ [].forEach.call(btns,function(b){b.disabled=false;}); say('Network error — please try again.'); }); }); });
+  })();
+  </script>
+
+  <script>
+  /* Google Workspace — live snapshot once connected (real difference post-connect). */
+  (function () {
+    var box = document.getElementById('wsLive'); if (!box) return;
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function whenFmt(iso){ var t=Date.parse(iso); if(!t) return esc(iso||''); var d=new Date(t); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+    var $=function(id){return document.getElementById(id);};
+    fetch('/portal/workspace.php?action=me',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok||!d.mine) return; var m=d.mine;
+      if($('wsUnread')) $('wsUnread').textContent = (m.unread==null?'—':m.unread);
+      if($('wsFiles')) $('wsFiles').textContent = (m.files?m.files.length:0);
+      var ev=(m.events||[])[0];
+      if(ev){ if($('wsNextC')) $('wsNextC').textContent=ev.title||'Event'; if($('wsNextW')) $('wsNextW').textContent=whenFmt(ev.start); }
+      else { if($('wsNextC')) $('wsNextC').textContent='Nothing scheduled'; if($('wsNextW')) $('wsNextW').textContent=''; }
+      var mail=$('wsMail'); if(mail){ var ms=m.mail||[]; mail.innerHTML = ms.length ? ms.map(function(x){ return '<li class="ws-li'+(x.unread?' is-unread':'')+'"><a href="'+esc(x.url)+'" target="_blank" rel="noopener"><span class="ws-li-from">'+esc(x.from)+'</span><span class="ws-li-sub">'+esc(x.subject)+'</span></a></li>'; }).join('') : '<li class="pc-empty">Inbox is clear.</li>'; }
+      var evl=$('wsEvents'); if(evl){ var es=m.events||[]; evl.innerHTML = es.length ? es.map(function(x){ return '<li class="ws-li"><a href="'+esc(x.url||x.meet_url||'#')+'" target="_blank" rel="noopener"><span class="ws-li-sub">'+esc(x.title)+'</span><span class="ws-li-when">'+whenFmt(x.start)+'</span></a></li>'; }).join('') : '<li class="pc-empty">No upcoming events.</li>'; }
+    }).catch(function(){});
+  })();
+
+  /* Mentorship meetings — trigger the Meet link + auto-log start/end times. */
+  (function () {
+    var root = document.getElementById('mentorSchedule'); if (!root) return;
+    var csrf = root.getAttribute('data-csrf') || '';
+    function post(action, body) { return fetch('/mentorship/api.php?action=' + action, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }); }
+    function parseUTC(s) { return Date.parse((s || '').replace(' ', 'T') + 'Z') || 0; }
+    function hhmm(iso) { var t = parseUTC(iso); if (!t) return ''; return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+    function fmtDur(m) { m = Math.max(0, m || 0); var h = Math.floor(m / 60), r = m % 60; return h ? (h + 'h' + (r ? ' ' + r + 'm' : '')) : (r + 'm'); }
+    function srcLabel(s) {
+      var v = s === 'meet' || s === 'reports';
+      var t = s === 'meet' ? 'Verified by Google Meet' : (s === 'reports' ? 'Verified · Meet audit log' : 'Provisional · confirming with Google');
+      return ' <span class="msi-src ' + (v ? 'msi-verified' : 'msi-provisional') + '">' + t + '</span>';
+    }
+    function doneMsg(d) { return '✓ Logged ' + fmtDur(d.duration_min) + ' · ' + hhmm(d.started_at) + '–' + hhmm(d.ended_at) + srcLabel(d.source || ''); }
+    // Live elapsed as H:MM:SS (or M:SS under an hour).
+    function fmtElapsed(sec) { sec = Math.max(0, sec | 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60, p = function (n) { return (n < 10 ? '0' : '') + n; }; return h ? (h + ':' + p(m) + ':' + p(s)) : (m + ':' + p(s)); }
+    var pingTimers = {};
+    var liveHtml = '<span class="msi-live"><span class="dot-live"></span>Live · <span class="msi-timer">0:00</span></span>';
+    function tickAll() {
+      var now = Date.now();
+      [].forEach.call(root.querySelectorAll('.msi[data-state="live"]'), function (li) {
+        var t = parseUTC(li.getAttribute('data-started') || ''); var el = li.querySelector('.msi-timer');
+        if (t && el) el.textContent = fmtElapsed((now - t) / 1000);
+      });
+    }
+    setInterval(tickAll, 1000); tickAll();
+    function setState(li, state, log) {
+      li.setAttribute('data-state', state);
+      var start = li.querySelector('.msi-start'), logEl = li.querySelector('.msi-log');
+      if (state === 'live') { if (start) { start.hidden = false; start.textContent = 'Join meeting'; } }
+      else if (state === 'done') { if (start) start.hidden = true; }
+      else { if (start) { start.hidden = false; start.textContent = 'Start meeting'; } }
+      if (log != null && logEl) logEl.innerHTML = log;
+      if (state === 'live') tickAll();
+    }
+    // One beat every 60s keeps a live meeting fresh; the server closes it (and
+    // logs the hours) automatically once the beats stop — nobody presses "end".
+    function startPing(li, id) {
+      stopPing(id);
+      pingTimers[id] = setInterval(function () { if (!document.hidden) post('meet_ping', { session_id: id }); }, 60000);
+    }
+    function stopPing(id) { if (pingTimers[id]) { clearInterval(pingTimers[id]); delete pingTimers[id]; } }
+    // Fire one last beat on leave so the auto-logged end time ≈ when they left.
+    function beat(id) {
+      var url = '/mentorship/api.php?action=meet_ping';
+      var payload = JSON.stringify({ session_id: id });
+      try {
+        if (navigator.sendBeacon) { navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' })); return; }
+      } catch (e) {}
+      fetch(url, { method: 'POST', credentials: 'same-origin', keepalive: true, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: payload }).catch(function () {});
+    }
+    function farewell() {
+      Object.keys(pingTimers).forEach(function (id) { beat(+id); });
+    }
+    document.addEventListener('visibilitychange', function () { if (document.hidden) farewell(); });
+    window.addEventListener('pagehide', farewell);
+    root.addEventListener('click', function (e) {
+      if (!e.target.closest('.msi-start')) return;
+      var li = e.target.closest('.msi'); if (!li) return;
+      var id = +li.getAttribute('data-session');
+      var meet = li.getAttribute('data-meet') || '';
+      // Open a tab synchronously (user gesture → not blocked); we'll point it at
+      // the room. If there's no link yet, meet_start generates one and returns it.
+      var w = window.open(meet || '', '_blank');
+      post('meet_start', { session_id: id }).then(function (d) {
+        if (d && d.ok) {
+          if (d.url) { li.setAttribute('data-meet', d.url); if (w) { try { w.location = d.url; } catch (e) {} } else window.open(d.url, '_blank'); }
+          else if (w && !meet) { try { w.close(); } catch (e) {} }
+          li.setAttribute('data-started', d.started_at || ''); setState(li, 'live', liveHtml); startPing(li, id);
+        } else { if (w) { try { w.close(); } catch (e) {} } }
+      }).catch(function () { if (w) { try { w.close(); } catch (e) {} } });
+    });
+    // Keep already-live rows pinging and reflect the meeting being auto-closed.
+    [].forEach.call(root.querySelectorAll('.msi[data-state="live"]'), function (li) {
+      var id = +li.getAttribute('data-session'); startPing(li, id);
+      var poll = setInterval(function () {
+        post('meet_state', { session_id: id }).then(function (d) {
+          if (d && d.ok && !d.live && d.ended_at) { clearInterval(poll); stopPing(id); setState(li, 'done', doneMsg(d)); }
+        });
+      }, 30000);
+    });
+  })();
+
+  /* PWA — register the service worker. */
+  (function(){ if('serviceWorker' in navigator){ window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); }); } })();
+  </script>
+  <script src="/portal/team-chat.js" defer></script>
+  <script src="/portal/tools.js" defer></script>
+  <script src="/portal/meetings.js" defer></script>
+  <script src="/portal/notifications.js" defer></script>
+  <script src="/portal/directory.js" defer></script>
+  <script src="/community/community.js" defer></script>
+  <script src="/assets/vendor/trix/trix.min.js" defer></script>
+  <script src="/portal/diary.js" defer></script>
+  <script src="/portal/notebooks.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

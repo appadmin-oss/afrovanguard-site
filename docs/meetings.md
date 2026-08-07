@@ -1,0 +1,137 @@
+# Meetings — scheduling, transcripts & the recording bot
+
+The standardized meeting system (`lib/Meetings.php`, `portal/meetings.php`, the
+**Meetings** app in the portal Suite) is used by both the workspace and
+mentorship. It always produces a working join link, carries a cadence, and
+turns transcripts into Otter-style minutes with **Gemini Flash**.
+
+## Join links
+
+**Google Meet is the only provider.** On schedule we create a real Google
+Calendar event (`GoogleWorkspace::createMeetEvent`, `sendUpdates=all`), which:
+
+- attaches a Google Meet link,
+- adds the meeting to the organiser's + every attendee's Google Calendar,
+- sends each of them a calendar **invite**, and
+- carries the cadence as an RRULE for recurring meetings.
+
+The organiser is always added to the invite list alongside the emails entered.
+This needs the Workspace service account to have Calendar write access
+(`GoogleWorkspace::calendarWriteEnabled()`). If Google isn't connected the
+meeting is still saved but no link is created and the response carries a
+`warning` telling the organiser to connect Google Workspace (the UI shows
+"Meet link pending"). There is no non-Google fallback.
+
+## AI minutes (Gemini Flash)
+
+`Meetings::structure()` sends the transcript to Gemini Flash and stores a
+summary, key points, decisions and assigned action items. Falls back to the
+Anthropic bot if Gemini isn't configured.
+
+| Env | Default | Purpose |
+|-----|---------|---------|
+| `AV_GEMINI_API_KEY` (or `GEMINI_API_KEY`, `GOOGLE_AI_API_KEY`) | — | Enables Gemini |
+| `AV_GEMINI_MODEL` | `gemini-2.0-flash` | Flash model id |
+| `AV_GEMINI_BASE_URL` | Google endpoint | Gateway / test override |
+
+Transcripts reach the system three ways: **paste**, **upload a recording**
+(Gemini Flash transcribes the audio), or **the recording bot** (below).
+
+## The recording bot
+
+Turn on **“Add the recording bot”** when scheduling. The provider is chosen by
+`AV_MEET_BOT_PROVIDER` (`recall` | `google` | `webhook` | `none`), or
+auto-detected: Recall.ai → custom webhook worker → Google native.
+
+### Provider: `recall` (Recall.ai)
+
+A hosted bot joins the meeting, records and transcribes it.
+
+| Env | Default | Purpose |
+|-----|---------|---------|
+| `AV_RECALL_API_KEY` | — | Enables Recall.ai |
+| `AV_RECALL_REGION` | `us-west-2` | API region host prefix |
+| `AV_RECALL_BOT_NAME` | `Afrovanguard Notetaker` | Name shown in the meeting |
+| `AV_RECALL_WEBHOOK_TOKEN` | — | Shared token guarding the webhook |
+| `AV_RECALL_BOT_CONFIG` | — | Optional JSON merged into the create-bot body |
+
+Flow: on schedule we `POST {region}.recall.ai/api/v1/bot/` with the meeting URL
+and a realtime webhook pointing at
+`SITE_URL/portal/meetings.php?action=recall_webhook&t=<AV_RECALL_WEBHOOK_TOKEN>`.
+When Recall reports a terminal status we fetch the transcript
+(`GET /bot/{id}/transcript/`), store it, and structure it with Gemini. The bot
+id is saved on the meeting (`bot_ref`), so “Pull transcript” also works on
+demand. Point Recall's dashboard webhook at the same URL for redundancy.
+
+### Provider: `google` (Google Meet native)
+
+We create a Meet **space** with Google's own auto-transcription (and recording)
+turned on via the Meet REST API (`POST /v2/spaces` with
+`config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration = ON`),
+impersonating the organiser. Google records/transcribes the call; afterwards
+`GoogleWorkspace::meetTranscriptText()` reads the transcript
+(`conferenceRecords → transcripts → entries`), with the Drive transcript Doc as
+a fallback. Requires the service account to have domain-wide delegation for the
+`meetings.space.created` and `meetings.space.readonly` scopes.
+
+> The low-level **Google Meet Media API** (raw WebRTC media streams) needs an
+> out-of-process media client and cannot run inside PHP. The `google` provider
+> uses Google's own managed recording/transcription — the practical,
+> server-drivable equivalent. Use `recall` when you need a bot that captures
+> raw media itself.
+
+### Provider: `webhook` (bring your own recorder)
+
+Set `AV_MEET_BOT_JOIN_URL`. On schedule we POST:
+
+```json
+{ "meeting_id": 123, "join_url": "https://…",
+  "callback": "SITE_URL/portal/meetings.php?action=bot_ingest",
+  "token": "<hmac>" }
+```
+
+Your worker joins, records, and when done POSTs the transcript back:
+
+```
+POST SITE_URL/portal/meetings.php?action=bot_ingest
+{ "meeting_id": 123, "token": "<hmac from above>", "transcript": "Speaker 1: …" }
+```
+
+The `token` is `hash_hmac('sha256', "bot|<meeting_id>", <app secret>)`
+(`Meetings::botToken()`), so only your worker can post minutes for a meeting.
+`bot_ingest` and `recall_webhook` are service endpoints — no user session — and
+are rejected without a valid token.
+
+#### Free / open-source self-hosted bots
+
+The `webhook` provider is the drop-in point for a **free, self-hosted** recorder
+instead of a paid API. No app code changes — you host the bot, we hand it the
+meeting and receive the transcript. Trade-off: the software is free, but a bot
+that joins a live call must run somewhere (a container with headless Chrome +
+audio capture), so you operate a small always-on worker.
+
+Known open-source options (each exposes a "send a bot to this meeting" API):
+
+- **Attendee** — <https://github.com/attendee-labs/attendee> — meeting-bot API
+  for Meet/Zoom/Teams; positioned as an open-source Recall alternative.
+- **Vexa** — <https://vexa.ai> — self-hostable real-time transcription with
+  join-bots for Meet/Teams.
+- **DIY** — a Playwright/headless-Chromium bot that joins the Meet, captures
+  audio via a virtual mic (PulseAudio), and transcribes with Whisper or by
+  posting the audio to Gemini.
+
+**Wiring (any of the above):**
+
+1. Stand up the bot; note its "join a meeting" HTTP endpoint.
+2. Set `AV_MEET_BOT_PROVIDER=webhook` and `AV_MEET_BOT_JOIN_URL=<that endpoint>`.
+3. On schedule we POST the `{meeting_id, join_url, callback, token}` body above.
+   Map those fields to your bot's expected shape with a thin adapter if needed
+   (e.g. a tiny function that receives our POST and calls Attendee's
+   `POST /bots` with `{meeting_url: join_url, webhook: callback}`).
+4. When the bot finishes, have it POST the transcript to the `callback`
+   (`bot_ingest`) with the same `token`. That's the only contract we require —
+   `{ "meeting_id", "token", "transcript" }`.
+
+Because the contract is just "POST the transcript text back with the token,"
+any recorder — open-source, DIY, or a future paid one — works without touching
+the app. Gemini Flash then produces the minutes from whatever transcript arrives.

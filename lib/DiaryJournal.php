@@ -33,8 +33,12 @@ final class DiaryJournal
         $kind  = in_array($kind, self::KINDS, true) ? $kind : 'private';
         $title = trim(mb_substr(trim($title), 0, 160));
         $body  = trim($body);
-        if ($body === '')               return ['ok' => false, 'error' => 'Write something before saving.'];
-        if (mb_strlen($body) > 20000)    return ['ok' => false, 'error' => 'That entry is a little long — trim it under 20,000 characters.'];
+        // Rich-editor entries arrive as HTML → sanitise to the allowlist before
+        // storing; plain-text entries are stored as-is (back-compat).
+        if (self::isHtml($body)) $body = self::sanitizeHtml($body);
+        $plain = trim(strip_tags(str_replace('<', ' <', $body)));
+        if ($plain === '')              return ['ok' => false, 'error' => 'Write something before saving.'];
+        if (mb_strlen($body) > 40000)    return ['ok' => false, 'error' => 'That entry is a little long — trim it down.'];
         $entryDate = self::normalizeDate($entryDate);
 
         // Event + Public are public BY DEFAULT — they enter the moderation queue
@@ -66,6 +70,154 @@ final class DiaryJournal
         $st = $this->db->prepare('DELETE FROM diary_entries WHERE id = ? AND author_id = ?');
         $st->execute([$id, $authorId]);
         return $st->rowCount() > 0;
+    }
+
+    /* ── Private sharing ──────────────────────────────────────────────────
+       A member can mint a secret link for any of their own entries (even a
+       private one) so a specific person can read it, without publishing it to
+       the world or entering the moderation queue. The link is an unguessable
+       token; clearing it revokes access instantly. ── */
+
+    /** Idempotent: ensure the share_token column exists. */
+    private function ensureShare(): void
+    {
+        try { if (!Database::columnExists('diary_entries', 'share_token')) $this->db->exec("ALTER TABLE diary_entries ADD COLUMN share_token TEXT NOT NULL DEFAULT ''"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
+    }
+
+    /** Mint (or return the existing) share token for the author's own entry. */
+    public function shareToken(int $authorId, int $id): ?string
+    {
+        $this->ensureShare();
+        $st = $this->db->prepare('SELECT share_token FROM diary_entries WHERE id = ? AND author_id = ?');
+        $st->execute([$id, $authorId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) return null;                 // not theirs / missing
+        $tok = (string) ($row['share_token'] ?? '');
+        if ($tok === '') {
+            $tok = bin2hex(random_bytes(12));
+            $this->db->prepare('UPDATE diary_entries SET share_token = ? WHERE id = ? AND author_id = ?')->execute([$tok, $id, $authorId]);
+        }
+        return $tok;
+    }
+
+    /** Revoke a share link. */
+    public function unshare(int $authorId, int $id): bool
+    {
+        $this->ensureShare();
+        $st = $this->db->prepare("UPDATE diary_entries SET share_token = '' WHERE id = ? AND author_id = ?");
+        $st->execute([$id, $authorId]);
+        return $st->rowCount() > 0;
+    }
+
+    /** Fetch a shared entry by its token (read-only public view). Null if unknown. */
+    public function bySharedToken(string $token): ?array
+    {
+        $this->ensureShare();
+        if (!preg_match('/^[a-f0-9]{16,32}$/', $token)) return null;
+        $st = $this->db->prepare(
+            'SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.created_at, u.name AS author_name
+             FROM diary_entries e JOIN lms_users u ON u.id = e.author_id
+             WHERE e.share_token = ? LIMIT 1'
+        );
+        $st->execute([$token]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /* ── Share with specific people (Google-Workspace style) ───────────────
+       Beyond the secret link, an author can grant named members read access to
+       one of their entries. Recipients see it in "Shared with me" and can open
+       it read-only. Access is revocable per person. ── */
+
+    private function ensureShares(): void
+    {
+        try {
+            $drv = $this->db->getAttribute(PDO::ATTR_DRIVER_NAME);
+            $ddl = "CREATE TABLE IF NOT EXISTS diary_shares (
+                entry_id INTEGER NOT NULL,
+                user_id  INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (entry_id, user_id)
+            )";
+            $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        } catch (Throwable $e) { /* best-effort */ }
+    }
+
+    /** Author grants a member (by email) read access to their entry. */
+    public function shareWith(int $authorId, int $entryId, string $email): array
+    {
+        $this->ensureShares();
+        $own = $this->db->prepare('SELECT title FROM diary_entries WHERE id = ? AND author_id = ?');
+        $own->execute([$entryId, $authorId]);
+        if ($own->fetch() === false) return ['ok' => false, 'error' => 'Entry not found.'];
+        $email = strtolower(trim($email));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Enter a valid email.'];
+        $u = $this->db->prepare('SELECT id, name FROM lms_users WHERE LOWER(email) = ?');
+        $u->execute([$email]);
+        $target = $u->fetch(PDO::FETCH_ASSOC);
+        if (!$target) return ['ok' => false, 'error' => 'No member has that email.'];
+        if ((int) $target['id'] === $authorId) return ['ok' => false, 'error' => 'That entry is already yours.'];
+        $this->db->prepare('INSERT OR IGNORE INTO diary_shares (entry_id,user_id,created_at) VALUES (?,?,?)')
+                 ->execute([$entryId, (int) $target['id'], gmdate('Y-m-d H:i:s')]);
+        return ['ok' => true, 'user' => ['id' => (int) $target['id'], 'name' => (string) $target['name'], 'email' => $email]];
+    }
+
+    /** Author revokes a member's access. */
+    public function unshareWith(int $authorId, int $entryId, int $userId): bool
+    {
+        $this->ensureShares();
+        $own = $this->db->prepare('SELECT 1 FROM diary_entries WHERE id = ? AND author_id = ?');
+        $own->execute([$entryId, $authorId]);
+        if (!$own->fetchColumn()) return false;
+        $this->db->prepare('DELETE FROM diary_shares WHERE entry_id = ? AND user_id = ?')->execute([$entryId, $userId]);
+        return true;
+    }
+
+    /** Who an entry is shared with (author view). */
+    public function shareRecipients(int $authorId, int $entryId): array
+    {
+        $this->ensureShares();
+        $st = $this->db->prepare(
+            'SELECT u.id, u.name, u.email FROM diary_shares s
+             JOIN diary_entries e ON e.id = s.entry_id AND e.author_id = ?
+             JOIN lms_users u ON u.id = s.user_id
+             WHERE s.entry_id = ? ORDER BY u.name'
+        );
+        $st->execute([$authorId, $entryId]);
+        return array_map(fn($r) => ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'email' => (string) $r['email']], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    /** Entries shared WITH this member (read-only), newest first. */
+    public function sharedWithMe(int $userId): array
+    {
+        $this->ensureShares();
+        try {
+            $st = $this->db->prepare(
+                'SELECT e.id, e.kind, e.title, e.body, e.entry_date, u.name AS author_name
+                 FROM diary_shares s JOIN diary_entries e ON e.id = s.entry_id
+                 JOIN lms_users u ON u.id = e.author_id
+                 WHERE s.user_id = ? ORDER BY e.entry_date DESC, e.id DESC LIMIT 50'
+            );
+            $st->execute([$userId]);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** A single entry the viewer may read (author or granted). Null otherwise. */
+    public function readable(int $viewerId, int $entryId): ?array
+    {
+        $this->ensureShares();
+        $st = $this->db->prepare(
+            'SELECT e.id, e.kind, e.title, e.body, e.entry_date, e.author_id, u.name AS author_name
+             FROM diary_entries e JOIN lms_users u ON u.id = e.author_id WHERE e.id = ?'
+        );
+        $st->execute([$entryId]);
+        $e = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$e) return null;
+        if ((int) $e['author_id'] === $viewerId) return $e;
+        $g = $this->db->prepare('SELECT 1 FROM diary_shares WHERE entry_id = ? AND user_id = ?');
+        $g->execute([$entryId, $viewerId]);
+        return $g->fetchColumn() ? $e : null;
     }
 
     /* ── Moderation (admin) ───────────────────────────────────────────────
@@ -160,9 +312,67 @@ final class DiaryJournal
         return date('Y-m-d', $ts);
     }
 
-    /** Plain text → safe HTML: escape, blank-line paragraphs, single newlines → <br>. */
+    /* ── Rich text ────────────────────────────────────────────────────────
+       Entries may now be written in a rich editor (Trix), so a body can be
+       either legacy plain text OR a constrained set of HTML. We sanitise HTML
+       to a strict allowlist on the way in and out, and keep the plain-text path
+       for older/plain entries. ── */
+
+    /** Does this body already contain (rich-editor) HTML markup? */
+    public static function isHtml(string $s): bool
+    {
+        return (bool) preg_match('~<(p|div|br|h1|h2|blockquote|strong|em|b|i|u|del|a|ul|ol|li|pre)\b[^>]*>~i', $s);
+    }
+
+    private const ALLOWED_TAGS = ['p','br','div','h1','h2','blockquote','strong','em','b','i','u','del','a','ul','ol','li','pre'];
+
+    /** Strip a rich-editor HTML string down to a safe allowlist of tags/attrs. */
+    public static function sanitizeHtml(string $html): string
+    {
+        $html = trim($html);
+        if ($html === '') return '';
+        if (!class_exists('DOMDocument')) return e(strip_tags($html)); // conservative fallback
+        $doc = new DOMDocument();
+        libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="UTF-8"><div id="__r">' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        $root = $doc->getElementById('__r');
+        if (!$root) return '';
+        self::cleanNode($root);
+        $out = '';
+        foreach (iterator_to_array($root->childNodes) as $c) { $out .= $doc->saveHTML($c); }
+        return trim($out);
+    }
+
+    private static function cleanNode(DOMNode $node): void
+    {
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child->nodeType !== XML_ELEMENT_NODE) continue;
+            $tag = strtolower($child->nodeName);
+            if (!in_array($tag, self::ALLOWED_TAGS, true)) {
+                if (in_array($tag, ['script', 'style', 'iframe', 'object', 'embed'], true)) { $node->removeChild($child); continue; }
+                self::cleanNode($child);                                   // sanitise subtree first
+                while ($child->firstChild) { $node->insertBefore($child->firstChild, $child); } // then unwrap
+                $node->removeChild($child);
+                continue;
+            }
+            if ($child->hasAttributes()) {
+                foreach (iterator_to_array($child->attributes) as $attr) {
+                    $keep = ($tag === 'a' && strtolower($attr->name) === 'href'
+                             && preg_match('~^\s*(https?:|mailto:|/)~i', (string) $attr->value));
+                    if (!$keep) $child->removeAttribute($attr->name);
+                }
+                if ($tag === 'a' && $child->getAttribute('href') !== '') { $child->setAttribute('rel', 'noopener noreferrer'); $child->setAttribute('target', '_blank'); }
+            }
+            self::cleanNode($child);
+        }
+    }
+
+    /** Body → safe HTML. Rich HTML is sanitised; plain text keeps the old
+     *  escape + blank-line paragraph behaviour. */
     public static function bodyToHtml(string $text): string
     {
+        if (self::isHtml($text)) { $h = self::sanitizeHtml($text); return $h !== '' ? $h : '<p></p>'; }
         $text = str_replace(["\r\n", "\r"], "\n", trim($text));
         $out = [];
         foreach (preg_split('/\n{2,}/', $text) ?: [] as $block) {
@@ -172,9 +382,10 @@ final class DiaryJournal
         return $out ? implode("\n", $out) : '<p></p>';
     }
 
+    /** Plain-text excerpt — strips any HTML first so previews/deks stay clean. */
     public static function excerpt(string $text, int $len = 180): string
     {
-        $t = trim((string) preg_replace('/\s+/', ' ', $text));
+        $t = trim((string) preg_replace('/\s+/', ' ', strip_tags(str_replace('<', ' <', $text))));
         return mb_strlen($t) <= $len ? $t : rtrim(mb_substr($t, 0, $len - 1)) . '…';
     }
 

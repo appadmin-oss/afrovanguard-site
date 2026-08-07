@@ -34,6 +34,20 @@ final class Payments
         return ($res && ($res['status'] ?? false) && !empty($res['data']['authorization_url'])) ? $res['data']['authorization_url'] : null;
     }
 
+    /**
+     * Initialise a RECURRING transaction against a Paystack Plan. On success the
+     * first charge is taken and Paystack creates a subscription that auto-charges
+     * each interval. Returns the hosted authorization_url or null.
+     */
+    public static function paystackInitPlan(string $email, string $planCode, string $reference, string $callbackUrl, array $meta = []): ?string
+    {
+        $res = self::curl('https://api.paystack.co/transaction/initialize', [
+            'email' => $email, 'plan' => $planCode, 'reference' => $reference,
+            'callback_url' => $callbackUrl, 'metadata' => $meta,
+        ], 'Bearer ' . PAYSTACK_SECRET_KEY);
+        return ($res && ($res['status'] ?? false) && !empty($res['data']['authorization_url'])) ? $res['data']['authorization_url'] : null;
+    }
+
     /** Verify a transaction. Returns ['paid'=>bool,'amount'=>kobo,'reference'=>...]. */
     public static function paystackVerify(string $reference): array
     {

@@ -85,6 +85,19 @@ render_nav('diary');
           </label>
         </div>
         <label class="vd-field">
+          <span>Template <span class="vd-opt">(optional starter)</span></span>
+          <select id="vd-template">
+            <option value="">Blank page</option>
+            <option value="daily">Daily reflection</option>
+            <option value="field">Field note</option>
+            <option value="project">Project log</option>
+            <option value="meeting">Meeting notes</option>
+            <option value="gratitude">Gratitude</option>
+            <option value="weekly">Weekly review</option>
+            <option value="idea">Idea / proposal</option>
+          </select>
+        </label>
+        <label class="vd-field">
           <span>Title <span class="vd-opt">(optional)</span></span>
           <input type="text" name="title" maxlength="160" placeholder="A short headline" />
         </label>
@@ -117,7 +130,8 @@ render_nav('diary');
             <time datetime="<?= e($e['entry_date']) ?>"><?= e(date('M j, Y', strtotime($e['entry_date']) ?: time())) ?></time>
 <?php if ($slug): ?>            · <a href="/diary/<?= e($slug) ?>/">View on the Diary →</a>
 <?php endif; ?><?php if (($e['kind'] === 'public' || $e['kind'] === 'event') && $e['status'] === 'rejected' && !empty($e['review_note'])): ?>            · <span class="vd-note"><?= e($e['review_note']) ?></span>
-<?php endif; ?>            <button type="button" class="vd-del" data-id="<?= (int) $e['id'] ?>" aria-label="Delete this entry">Delete</button>
+<?php endif; ?>            <button type="button" class="vd-share" data-id="<?= (int) $e['id'] ?>">Share</button>
+            <button type="button" class="vd-del" data-id="<?= (int) $e['id'] ?>" aria-label="Delete this entry">Delete</button>
           </div>
         </li>
 <?php endforeach; ?>
@@ -173,6 +187,10 @@ render_nav('diary');
   .vd-item-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12.5px; color: var(--muted, #6b6b6b); }
   .vd-item-foot a { color: var(--gold, #b8860b); font-weight: 600; }
   .vd-note { font-style: italic; }
+  .vd-share { margin-left: auto; background: none; border: 0; color: var(--gold-deep, #b4791a); font: inherit; font-size: 12.5px;
+            font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+  .vd-share:hover { background: var(--gold-soft, #fdf6e3); }
+  .vd-share + .vd-del { margin-left: 0; }
   .vd-del { margin-left: auto; background: none; border: 0; color: #b3261e; font: inherit; font-size: 12.5px;
             cursor: pointer; padding: 4px 6px; border-radius: 8px; }
   .vd-del:hover { background: #fde7e5; }
@@ -232,6 +250,27 @@ render_nav('diary');
   hint.textContent = HINTS[kind.value] || hint.textContent;
   updateCount();
 
+  /* ── Templates — structured starters so a standard entry is quick to write ── */
+  var TEMPLATES = {
+    daily:    "How today went\n\n\nWhat went well\n- \n\nWhat was hard\n- \n\nOne thing for tomorrow\n- ",
+    field:    "Context\n\n\nWhat I observed\n- \n\nWhat it means\n- \n\nNext step\n- ",
+    project:  "Project\n\n\nProgress this session\n- \n\nBlockers\n- \n\nNext up\n- ",
+    meeting:  "Meeting\n\nDate: \nAttendees: \n\nAgenda\n- \n\nDecisions\n- \n\nAction items\n- [ ] ",
+    gratitude:"Three things I'm grateful for today\n1. \n2. \n3. \n\nWhy it mattered\n",
+    weekly:   "Week in review\n\nWins\n- \n\nLessons\n- \n\nFocus next week\n- ",
+    idea:     "The idea\n\n\nWhy it matters\n- \n\nHow it could work\n- \n\nWhat I'd need\n- "
+  };
+  var tpl = document.getElementById('vd-template');
+  var TITLES = { daily:'Daily reflection', field:'Field note', project:'Project log', meeting:'Meeting notes', gratitude:'Gratitude', weekly:'Weekly review', idea:'Idea / proposal' };
+  if (tpl) tpl.addEventListener('change', function () {
+    var key = tpl.value; if (!key || !TEMPLATES[key]) return;
+    if (bodyEl.value.trim() && !confirm('Replace what you’ve written with this template?')) { tpl.value = ''; return; }
+    bodyEl.value = TEMPLATES[key];
+    if (!titleEl.value.trim() && TITLES[key]) titleEl.value = TITLES[key] + ' · ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    updateCount(); saveDraft();
+    try { bodyEl.focus(); bodyEl.setSelectionRange(bodyEl.value.length, bodyEl.value.length); } catch (e) {}
+  });
+
   kind.addEventListener('change', function () { hint.textContent = HINTS[kind.value] || ''; saveDraft(); });
   bodyEl.addEventListener('input', function () { updateCount(); saveDraft(); });
   titleEl.addEventListener('input', saveDraft);
@@ -257,6 +296,7 @@ render_nav('diary');
       + (en.title ? '<p class="vd-item-title">' + esc(en.title) + '</p>' : '')
       + '<p class="vd-item-body">' + esc(en.body.length > 220 ? en.body.slice(0, 219) + '…' : en.body) + '</p>'
       + '<div class="vd-item-foot"><time datetime="' + esc(en.entry_date) + '">' + esc(date) + '</time>'
+      + '<button type="button" class="vd-share" data-id="' + en.id + '">Share</button>'
       + '<button type="button" class="vd-del" data-id="' + en.id + '" aria-label="Delete this entry">Delete</button></div></li>';
   }
 
@@ -283,6 +323,19 @@ render_nav('diary');
   });
 
   list && list.addEventListener('click', function (e) {
+    var share = e.target.closest('.vd-share');
+    if (share) {
+      var sid = share.getAttribute('data-id'); var was = share.textContent;
+      share.disabled = true; share.textContent = 'Linking…';
+      post('entry.share', { id: sid }).then(function (d) {
+        share.disabled = false; share.textContent = was;
+        if (!d.ok || !d.url) { alert(d.error || 'Could not create a share link.'); return; }
+        var copied = false;
+        if (navigator.clipboard) { navigator.clipboard.writeText(d.url).then(function(){}, function(){}); copied = true; }
+        window.prompt(copied ? 'Share link copied — anyone with it can read this entry:' : 'Share link — anyone with it can read this entry:', d.url);
+      }).catch(function () { share.disabled = false; share.textContent = was; alert('Network error — try again.'); });
+      return;
+    }
     var del = e.target.closest('.vd-del'); if (!del) return;
     if (!confirm('Delete this entry? This cannot be undone.')) return;
     var li = del.closest('.vd-item'); var id = del.getAttribute('data-id');

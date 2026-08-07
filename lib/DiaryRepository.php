@@ -88,6 +88,7 @@ final class DiaryRepository
         $a['sections'] = $sec->fetchAll();
 
         $a['claps'] = $this->claps($slug);
+        $a['series'] = $this->seriesContext($a);
         return $a;
     }
 
@@ -126,6 +127,9 @@ final class DiaryRepository
         $rel = $this->db->prepare('SELECT related_slug FROM related WHERE article_id = ? ORDER BY position');
         $rel->execute([$a['id']]);
         $a['related'] = array_column($rel->fetchAll(), 'related_slug');
+        // Editor convenience: expose the series title + part at the top level.
+        $a['series_title'] = $a['series']['title'] ?? '';
+        $a['series_part'] = (int) ($a['series_part'] ?? 0);
         return $a;
     }
 
@@ -136,6 +140,186 @@ final class DiaryRepository
         $f = $this->db->prepare('SELECT id FROM categories WHERE slug = ?');
         $f->execute([$slug]);
         return (int) $f->fetchColumn();
+    }
+
+    /* ── Series: group posts into an ordered, numbered series ─────────────── */
+    private bool $seriesReady = false;
+    private bool $commentsReady = false;
+
+    /* ── Comments ──────────────────────────────────────────────────────────
+       Lazily-created so the feature needs no migration step. Comments are
+       published on submit (status 'published') but carry a status column so an
+       admin can hide/spam them later. */
+    private function ensureComments(): void
+    {
+        if ($this->commentsReady) return; $this->commentsReady = true;
+        $drv = Database::driver();
+        $ddl = "CREATE TABLE IF NOT EXISTS diary_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id INTEGER NOT NULL DEFAULT 0,
+            user_id INTEGER NOT NULL DEFAULT 0,
+            name VARCHAR(120) NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            status VARCHAR(16) NOT NULL DEFAULT 'published',
+            created_at TEXT NOT NULL DEFAULT ''
+        )";
+        try { $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv)); }
+        catch (Throwable $e) { error_log('[diary] ensureComments: ' . $e->getMessage()); }
+    }
+
+    /** Published comments for an article slug, oldest first. */
+    public function comments(string $slug): array
+    {
+        $this->ensureComments();
+        $a = $this->bySlug($slug);
+        if (!$a) return [];
+        try {
+            $st = $this->db->prepare(
+                "SELECT id, name, body, created_at FROM diary_comments
+                 WHERE article_id = ? AND status = 'published' ORDER BY id ASC"
+            );
+            $st->execute([(int) $a['id']]);
+            return $st->fetchAll() ?: [];
+        } catch (Throwable $e) { return []; }
+    }
+
+    public function commentCount(int $articleId): int
+    {
+        $this->ensureComments();
+        try {
+            $st = $this->db->prepare("SELECT COUNT(*) FROM diary_comments WHERE article_id = ? AND status = 'published'");
+            $st->execute([$articleId]);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /** Add a comment to a published article. Returns the stored row or null. */
+    public function addComment(string $slug, string $name, string $body, int $userId = 0): ?array
+    {
+        $this->ensureComments();
+        $a = $this->bySlug($slug);
+        if (!$a) return null;
+        $name = trim(preg_replace('/\s+/u', ' ', strip_tags($name)));
+        $body = trim(strip_tags($body));
+        $name = mb_substr($name, 0, 120);
+        $body = mb_substr($body, 0, 4000);
+        if ($name === '' || mb_strlen($body) < 2) return null;
+        $now = gmdate('Y-m-d H:i:s');
+        $this->db->prepare('INSERT INTO diary_comments (article_id, user_id, name, body, status, created_at) VALUES (?,?,?,?,?,?)')
+            ->execute([(int) $a['id'], $userId, $name, $body, 'published', $now]);
+        return ['id' => (int) $this->db->lastInsertId(), 'name' => $name, 'body' => $body, 'created_at' => $now];
+    }
+    private function ensureSeries(): void
+    {
+        if ($this->seriesReady) return; $this->seriesReady = true;
+        $drv = Database::driver();
+        $ddl = "CREATE TABLE IF NOT EXISTS diary_series (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug VARCHAR(191) NOT NULL DEFAULT '',
+            title VARCHAR(200) NOT NULL DEFAULT '',
+            description VARCHAR(500) NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT ''
+        )";
+        $this->db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        $intType = $drv === 'sqlite' ? 'INTEGER' : 'INT';
+        foreach (['series_id', 'series_part'] as $col) {
+            if (!Database::columnExists('articles', $col)) {
+                try { $this->db->exec("ALTER TABLE articles ADD COLUMN $col $intType NOT NULL DEFAULT 0"); }
+                catch (Throwable $e) { error_log('[diary] add ' . $col . ': ' . $e->getMessage()); }
+            }
+        }
+    }
+
+    /** Whether the series columns are usable on this engine. */
+    private function seriesEnabled(): bool
+    {
+        $this->ensureSeries();
+        return Database::columnExists('articles', 'series_id');
+    }
+
+    /** Find-or-create a series by title; returns its id (0 for an empty title). */
+    public function seriesResolve(string $title, string $description = ''): int
+    {
+        $title = trim($title);
+        if ($title === '') return 0;
+        $this->ensureSeries();
+        $slug = slugify($title);
+        $f = $this->db->prepare('SELECT id FROM diary_series WHERE slug = ?');
+        $f->execute([$slug]);
+        $id = (int) ($f->fetchColumn() ?: 0);
+        if ($id) {
+            if ($description !== '') $this->db->prepare('UPDATE diary_series SET description = ? WHERE id = ?')->execute([mb_substr($description, 0, 500), $id]);
+            return $id;
+        }
+        $this->db->prepare('INSERT INTO diary_series (slug, title, description, created_at) VALUES (?,?,?,?)')
+            ->execute([$slug, mb_substr($title, 0, 200), mb_substr($description, 0, 500), date('Y-m-d H:i:s')]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    /** All series with their published-post counts (for editor pickers + index). */
+    public function seriesList(): array
+    {
+        if (!$this->seriesEnabled()) return [];
+        return $this->db->query(
+            "SELECT s.id, s.slug, s.title, s.description,
+                    (SELECT COUNT(*) FROM articles a WHERE a.series_id = s.id AND a.status = 'published') AS n
+             FROM diary_series s ORDER BY s.title"
+        )->fetchAll() ?: [];
+    }
+
+    /** A series by slug + its published posts in order. Null if unknown. */
+    public function seriesBySlug(string $slug): ?array
+    {
+        if (!$this->seriesEnabled()) return null;
+        $st = $this->db->prepare('SELECT * FROM diary_series WHERE slug = ?');
+        $st->execute([$slug]);
+        $s = $st->fetch();
+        if (!$s) return null;
+        $s['posts'] = $this->seriesPosts((int) $s['id']);
+        return $s;
+    }
+
+    /** Published posts in a series, ordered by part then date. */
+    private function seriesPosts(int $seriesId): array
+    {
+        $st = $this->db->prepare(
+            "SELECT a.slug, a.title, a.dek, a.series_part, a.published, a.published_at
+             FROM articles a
+             WHERE a.series_id = ? AND a.status = 'published'
+             ORDER BY a.series_part ASC, a.published_at ASC, a.id ASC"
+        );
+        $st->execute([$seriesId]);
+        return $st->fetchAll() ?: [];
+    }
+
+    /**
+     * Series context for a single article row (needs series_id/series_part):
+     * ['title','slug','part','count','posts'[],'prev','next'] or null.
+     */
+    public function seriesContext(array $a): ?array
+    {
+        if (!$this->seriesEnabled()) return null;
+        $sid = (int) ($a['series_id'] ?? 0);
+        if ($sid <= 0) return null;
+        $st = $this->db->prepare('SELECT slug, title, description FROM diary_series WHERE id = ?');
+        $st->execute([$sid]);
+        $s = $st->fetch();
+        if (!$s) return null;
+        $posts = $this->seriesPosts($sid);
+        $prev = $next = null;
+        foreach ($posts as $i => $p) {
+            if ($p['slug'] === ($a['slug'] ?? '')) {
+                if ($i > 0) $prev = $posts[$i - 1];
+                if ($i < count($posts) - 1) $next = $posts[$i + 1];
+                break;
+            }
+        }
+        return [
+            'title' => (string) $s['title'], 'slug' => (string) $s['slug'],
+            'description' => (string) $s['description'],
+            'part' => (int) ($a['series_part'] ?? 0), 'count' => count($posts),
+            'posts' => $posts, 'prev' => $prev, 'next' => $next,
+        ];
     }
 
     /**
@@ -171,6 +355,17 @@ final class DiaryRepository
         // "no audio" instead of throwing on the INSERT/UPDATE).
         if (array_key_exists('audio_url', $d) && Database::columnExists('articles', 'audio_url')) {
             $fields['audio_url'] = trim((string) $d['audio_url']) ?: null;
+        }
+        // Colour-aware feature hero: precompute luminance of the bottom region
+        // (where the title sits) so the hero text picks a legible colour.
+        if (Database::columnExists('articles', 'cover_is_dark')) {
+            $fields['cover_is_dark'] = $fields['cover_url'] ? (av_cover_is_dark((string) $fields['cover_url'], 'bottom') ?? -1) : -1;
+        }
+        // Series: a post can belong to an ordered, numbered series. The series is
+        // created on first use (by title). Guarded so un-migrated engines degrade.
+        if ($this->seriesEnabled()) {
+            $fields['series_id'] = $this->seriesResolve((string) ($d['series'] ?? ''), (string) ($d['series_desc'] ?? ''));
+            $fields['series_part'] = max(0, (int) ($d['series_part'] ?? 0));
         }
 
         $this->db->beginTransaction();

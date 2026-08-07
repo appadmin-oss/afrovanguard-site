@@ -4,9 +4,14 @@
  *
  *   GET ?q=<query>[&ai=1]
  *
- * Returns keyword matches across pages, the Diary and the Academy, plus an
- * optional AI answer (the Afrovanguard assistant) when ai=1 and configured.
- * Read-only, same-origin friendly, fail-safe (never throws to the client).
+ * Ranked keyword search across key pages, the Diary, the Academy and the People
+ * directory, plus an optional AI answer (grounded on the live site knowledge).
+ *
+ * Ranking: the query is tokenised; a result must match ALL terms (AND) to rank,
+ * falling back to ANY-term matches only if nothing matches everything. Title
+ * hits and whole-query title matches score highest, then a per-type weight, so
+ * the most relevant, most authoritative results come first. Read-only,
+ * same-origin friendly, and fail-safe (never throws to the client).
  */
 declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
@@ -15,16 +20,53 @@ header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
 $q = trim((string) ($_GET['q'] ?? ''));
-if (function_exists('mb_strlen') ? mb_strlen($q) < 2 : strlen($q) < 2) {
+$qlen = function_exists('mb_strlen') ? mb_strlen($q) : strlen($q);
+if ($qlen < 2) {
     echo json_encode(['ok' => true, 'q' => $q, 'results' => [], 'ai' => null]);
     exit;
 }
-$needle = function (string $hay) use ($q): bool { return $hay !== '' && stripos($hay, $q) !== false; };
-$clip   = function (string $s, int $n = 130): string { $s = trim(preg_replace('/\s+/', ' ', strip_tags($s))); return mb_strlen($s) > $n ? mb_substr($s, 0, $n - 1) . '…' : $s; };
 
-$results = [];
+/* ── Tokenise the query into search terms (>=2 chars, delimiter-split) ────── */
+$terms = array_values(array_filter(
+    preg_split('/[\s,]+/', mb_strtolower($q)) ?: [],
+    fn($t) => mb_strlen($t) >= 2
+));
+if (!$terms) $terms = [mb_strtolower($q)];
+$qlc = mb_strtolower($q);
 
-// 1) Key pages (always available).
+$clip = function (string $s, int $n = 140): string {
+    $s = trim(preg_replace('/\s+/', ' ', strip_tags($s)) ?? '');
+    return (function_exists('mb_strlen') ? mb_strlen($s) : strlen($s)) > $n ? mb_substr($s, 0, $n - 1) . '…' : $s;
+};
+
+/**
+ * Score a candidate. $title is weighted heaviest, then $body, then $meta.
+ * Returns [matchedAll, score]. matchedAll = every term appears somewhere.
+ */
+$scoreOf = function (string $title, string $body, string $meta, int $typeWeight) use ($terms, $qlc): array {
+    $tl = mb_strtolower($title); $bl = mb_strtolower($body); $ml = mb_strtolower($meta);
+    $score = 0; $matchedAll = true; $anyHit = false;
+    foreach ($terms as $t) {
+        $inTitle = mb_strpos($tl, $t) !== false;
+        $inBody  = mb_strpos($bl, $t) !== false;
+        $inMeta  = mb_strpos($ml, $t) !== false;
+        if ($inTitle) { $score += 12; $anyHit = true; }
+        elseif ($inBody) { $score += 4; $anyHit = true; }
+        elseif ($inMeta) { $score += 3; $anyHit = true; }
+        else { $matchedAll = false; }
+    }
+    if ($tl !== '' && mb_strpos($tl, $qlc) !== false) $score += 25;     // whole query in title
+    elseif ($bl !== '' && mb_strpos($bl, $qlc) !== false) $score += 8;  // whole query in body
+    if ($score > 0) $score += $typeWeight;
+    return [$matchedAll, $anyHit ? $score : 0];
+};
+
+$all = [];   // each: [matchedAll, score, result]
+$add = function (bool $matchedAll, int $score, array $r) use (&$all) {
+    if ($score > 0) $all[] = [$matchedAll, $score, $r];
+};
+
+/* 1) Key pages (always available). */
 foreach ([
     ['Home', '/', 'The Afrovanguard movement'],
     ['About', '/about.html', 'Our story, ethos and people'],
@@ -34,38 +76,60 @@ foreach ([
     ['Donate', '/donate.html', 'Give funds, materials, skills or time'],
     ['Events', 'https://afg.afrovanguard.org.ng/events', 'Latest and upcoming events'],
     ['Contact', '/contact.html', 'Reach the team'],
+    ['Member portal', '/portal/', 'Your learning, mentorship and membership dues'],
 ] as [$t, $h, $d]) {
-    if ($needle($t) || $needle($d)) $results[] = ['type' => 'Page', 'title' => $t, 'url' => $h, 'excerpt' => $d];
+    [$ok, $sc] = $scoreOf($t, $d, '', 5);
+    $add($ok, $sc, ['type' => 'Page', 'title' => $t, 'url' => $h, 'excerpt' => $d]);
 }
 
-// 2) Diary entries.
+/* 2) Diary entries. */
 try {
     foreach ((new DiaryRepository())->all() as $a) {
-        $hay = (string) ($a['title'] ?? '') . ' ' . (string) ($a['dek'] ?? '') . ' ' . (string) ($a['category'] ?? '');
-        if ($needle($hay)) {
-            $results[] = ['type' => 'Diary', 'title' => (string) $a['title'], 'url' => '/diary/' . (string) $a['slug'] . '/', 'excerpt' => $clip((string) ($a['dek'] ?? ''))];
-            if (count($results) > 24) break;
-        }
+        $title = (string) ($a['title'] ?? '');
+        $dek = (string) ($a['dek'] ?? '');
+        [$ok, $sc] = $scoreOf($title, $dek, (string) ($a['category'] ?? ''), 3);
+        $add($ok, $sc, ['type' => 'Diary', 'title' => $title, 'url' => '/diary/' . (string) ($a['slug'] ?? '') . '/', 'excerpt' => $clip($dek)]);
     }
 } catch (\Throwable $e) { error_log('[search] diary: ' . $e->getMessage()); }
 
-// 3) Academy courses.
+/* 3) Academy courses. */
 try {
     foreach ((new AcademyRepository())->all() as $c) {
-        $hay = (string) ($c['title'] ?? '') . ' ' . (string) ($c['blurb'] ?? $c['dek'] ?? $c['summary'] ?? '') . ' ' . (string) ($c['category'] ?? '');
-        if ($needle($hay)) {
-            $results[] = ['type' => 'Academy', 'title' => (string) $c['title'], 'url' => '/academy/' . (string) $c['slug'] . '/', 'excerpt' => $clip((string) ($c['blurb'] ?? $c['dek'] ?? $c['summary'] ?? ''))];
-        }
+        $title = (string) ($c['title'] ?? '');
+        $blurb = (string) ($c['blurb'] ?? $c['dek'] ?? $c['summary'] ?? '');
+        [$ok, $sc] = $scoreOf($title, $blurb, (string) ($c['category'] ?? ''), 4);
+        $add($ok, $sc, ['type' => 'Academy', 'title' => $title, 'url' => '/academy/' . (string) ($c['slug'] ?? '') . '/', 'excerpt' => $clip($blurb)]);
     }
 } catch (\Throwable $e) { error_log('[search] academy: ' . $e->getMessage()); }
 
-$results = array_slice($results, 0, 12);
+/* 4) People directory (public profiles). */
+try {
+    if (function_exists('av_team_rows') && function_exists('av_team_member_dict')) {
+        foreach (av_team_rows(Database::pdo(), true) as $row) {
+            $m = av_team_member_dict($row);
+            $name = (string) ($m['name'] ?? '');
+            if ($name === '') continue;
+            $role = (string) ($m['role'] ?? '');
+            $bio = (string) ($m['bio'] ?? '');
+            [$ok, $sc] = $scoreOf($name, $role . ' ' . $bio, 'people team', 3);
+            $url = function_exists('av_person_url') ? av_person_url($m) : ('/people/' . (int) ($m['id'] ?? 0));
+            $add($ok, $sc, ['type' => 'People', 'title' => $name, 'url' => $url, 'excerpt' => $clip($role !== '' ? $role : $bio, 90)]);
+        }
+    }
+} catch (\Throwable $e) { error_log('[search] people: ' . $e->getMessage()); }
 
-// 4) Optional AI answer (the integrated assistant).
+/* ── Rank: prefer results that matched every term, then by score. ────────── */
+$matchedAll = array_filter($all, fn($x) => $x[0]);
+$pool = $matchedAll ?: $all;                         // relax to any-term only if needed
+usort($pool, fn($a, $b) => $b[1] <=> $a[1]);
+$results = array_map(fn($x) => $x[2], array_slice($pool, 0, 12));
+
+/* ── Optional AI answer, grounded on the live site knowledge. ────────────── */
 $ai = null;
 if ((string) ($_GET['ai'] ?? '') === '1' && class_exists('AvBot')) {
     if (AvBot::configured()) {
-        $sys = "You are the Afrovanguard website search assistant. Answer the visitor's query in 2–3 concise, warm sentences and, when relevant, point them to the right place using these paths: Academy /academy/, the Diary /diary/, Donate /donate.html, Projects /projects/, About /about.html, Contact /contact.html, Events https://afg.afrovanguard.org.ng/events. Don't invent pages. If you don't know, say so and suggest Contact.";
+        $sys = "You are the Afrovanguard website search assistant. Answer the visitor's query in 2-3 concise, warm sentences and, when relevant, point them to the right place using these paths: Academy /academy/, the Diary /diary/, Donate /donate.html, Projects /projects/, About /about.html, Contact /contact.html, the member Portal /portal/, Events https://afg.afrovanguard.org.ng/events. Don't invent pages or facts. If you don't know, say so and suggest Contact.";
+        if (class_exists('AiKnowledge')) $sys .= AiKnowledge::asPromptBlock();
         try {
             $r = AvBot::reply($q, [], ['system' => $sys]);
             $ai = ['ok' => (bool) ($r['ok'] ?? false), 'text' => !empty($r['ok']) ? (string) $r['text'] : ''];

@@ -1,0 +1,64 @@
+/* ============================================================================
+ * assets/site/page.css — the canonical PAGE HEADER pattern.
+ * ----------------------------------------------------------------------------
+ * One consistent treatment for a page's heading across the site, so every page's
+ * H1 sits on the same rhythm (spacing below the sticky nav), the same type scale
+ * and the same eyebrow/lead styling — instead of each page inventing its own.
+ *
+ *   <header class="page-head">                 (add --center to centre it)
+ *     <p class="page-eyebrow">Section</p>       (optional)
+ *     <h1 class="page-title">Title</h1>
+ *     <p class="page-lead">One-line intro.</p>  (optional)
+ *     <div class="page-actions"> … </div>       (optional)
+ *   </header>
+ *
+ * Tiers (shared tokens, so future pages stay consistent):
+ *   --afg-title-size    standard page title (content / app / utility pages)
+ *   --afg-display-size  large marketing hero (home/ethos/academy/diary tier)
+ * Marketing heroes keep their bespoke layouts but should reference the display
+ * scale; standard pages use .page-head.
+ * ========================================================================== */
+
+:root {
+  --afg-title-size:   clamp(30px, 4.2vw, 44px);
+  --afg-title-lh:     1.1;
+  --afg-display-size: clamp(44px, 7vw, 84px);
+  --afg-page-top:     clamp(28px, 5vw, 56px);
+  --afg-page-bottom:  clamp(20px, 3vw, 32px);
+}
+
+.page-head {
+  padding: var(--afg-page-top) 0 var(--afg-page-bottom);
+}
+.page-head--center { text-align: center; }
+
+.page-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--afg-accent-ink, #b07e08);
+}
+
+.page-title {
+  margin: 0;
+  font-family: var(--afg-font-display, 'Cormorant', Georgia, serif);
+  font-weight: 700;
+  font-size: var(--afg-title-size);
+  line-height: var(--afg-title-lh);
+  letter-spacing: -.01em;
+  color: var(--afg-ink, #111827);
+}
+
+.page-lead {
+  margin: 14px 0 0;
+  max-width: 64ch;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--afg-body, #374151);
+}
+.page-head--center .page-lead { margin-left: auto; margin-right: auto; }
+
+.page-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 22px 0 0; }
+.page-head--center .page-actions { justify-content: center; }

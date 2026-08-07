@@ -19,6 +19,7 @@ function ac_access_meta(string $access): array
         'tracked'    => ['label' => 'Free',          'cls' => 'tracked'],
         'membership' => ['label' => 'Members only',  'cls' => 'membership'],
         'paid'       => ['label' => 'Paid',          'cls' => 'paid'],
+        'restricted' => ['label' => 'Restricted',    'cls' => 'restricted'],
     ][$access] ?? ['label' => 'Free', 'cls' => 'open'];
 }
 
@@ -31,6 +32,7 @@ function ac_price_label(array $c): string
         return $n > 0 ? '₦' . number_format($n) : ($c['price'] ?: 'Paid');
     }
     if ($access === 'membership') return 'Members';
+    if ($access === 'restricted') return 'Restricted';
     return 'Free';
 }
 
@@ -69,21 +71,22 @@ function ac_course_card(array $c, array $opts = []): void
                  data-title="<?= e(strtolower((string) $c['title'])) ?>"
                  data-featured="<?= $featured ?>"
                  data-lessons="<?= $lessons ?>">
-          <a class="ac-thumb <?= $cover ? 'has-cover' : e($c['gradient'] ?: 'g-gold') . ' g-grain' ?>" href="<?= $url ?>" aria-label="<?= e($c['title']) ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
+<?php $cid = (int) ($c['cover_is_dark'] ?? -1); $coverTone = $cover ? ($cid === 1 ? ' is-on-dark' : ($cid === 0 ? ' is-on-light' : '')) : ''; ?>
+          <a class="ac-thumb <?= $cover ? 'has-cover' : e($c['gradient'] ?: 'g-gold') . ' g-grain' ?><?= $coverTone ?>" href="<?= $url ?>" aria-label="<?= e($c['title']) ?>"<?= $cover ? ' style="background-image:url(\'' . e($cover) . '\')"' : '' ?>>
             <span class="ac-cat"><?= e($c['category']) ?></span>
 <?php if ($state === 'done'): ?>            <span class="ac-state ac-state-done">✓ Completed</span>
 <?php elseif ($state === 'continue' || $state === 'enrolled'): ?>            <span class="ac-state ac-state-go">In progress</span>
 <?php endif; ?>
-<?php if (!$cover): ?>            <span class="ac-mark"><?= e($c['title']) ?></span>
-<?php endif; ?>          </a>
+          </a>
           <div class="ac-body">
             <a class="ac-title" href="<?= $url ?>"><?= e($c['title']) ?></a>
             <p class="ac-summary"><?= e($c['summary']) ?></p>
+<?php $enrolled = (int) ($opts['enrolled'] ?? 0); ?>
             <div class="ac-meta">
               <span class="ac-meta-item" title="Level"><?= e($c['level']) ?></span>
-<?php if (!empty($c['duration'])): ?>              <span class="ac-meta-item" title="Duration"><?= e($c['duration']) ?></span>
+<?php if (!empty($c['duration'])): ?>              <span class="ac-dot" aria-hidden="true">·</span><span class="ac-meta-item" title="Duration"><?= e($c['duration']) ?></span>
 <?php endif; ?>
-<?php if ($lessons): ?>              <span class="ac-meta-item" title="Lessons"><?= $lessons ?> lesson<?= $lessons === 1 ? '' : 's' ?></span>
+<?php if ($lessons): ?>              <span class="ac-dot" aria-hidden="true">·</span><span class="ac-meta-item" title="Lessons"><?= $lessons ?> lesson<?= $lessons === 1 ? '' : 's' ?></span>
 <?php endif; ?>            </div>
 <?php if (($state === 'continue' || $state === 'enrolled' || $state === 'done') && $lessons): ?>
             <div class="ac-progress" aria-label="<?= $pct ?>% complete">
@@ -93,7 +96,7 @@ function ac_course_card(array $c, array $opts = []): void
 <?php endif; ?>
             <div class="ac-foot">
               <span class="ac-price ac-price-<?= e($am['cls']) ?>"><?= e(ac_price_label($c)) ?></span>
-              <a class="ac-link" href="<?= $url ?>"><?= e($cta) ?> →</a>
+              <span class="ac-foot-note"><?= $enrolled > 0 ? number_format($enrolled) . ' enrolled' : 'New' ?></span>
             </div>
           </div>
         </article>
@@ -109,7 +112,7 @@ function ac_decorate_courses(array $courses, LmsRepository $lms, ?array $user): 
     foreach ($courses as $c) {
         $id = (int) $c['id'];
         $lessons = $lms->lessonCount($id);
-        $opt = ['lessons' => $lessons];
+        $opt = ['lessons' => $lessons, 'enrolled' => $lms->enrolledCount($id)];
         if ($user && $lessons) {
             $access = $c['access_type'] ?? 'open';
             // "Enrolled" = explicit paid enrolment, OR any access where the

@@ -46,6 +46,22 @@ if (class_exists('Webhooks')) {
     catch (Throwable $e) { $result['ok'] = false; $result['error'] = $e->getMessage(); error_log('[cron] webhooks: ' . $e->getMessage()); }
 }
 
+// Every tick: turn due reminders + imminent sessions into notifications
+// (idempotent via dedupe keys; emails too when a Mailer is configured).
+if (class_exists('Notifications')) {
+    try { $result['notifications'] = Notifications::dispatchDue(); }
+    catch (Throwable $e) { error_log('[cron] notifications: ' . $e->getMessage()); }
+}
+
+// Daily: email today's birthday people (idempotent — safe to run every tick).
+if (is_file(AV_ROOT . '/lib/people.php')) {
+    require_once AV_ROOT . '/lib/people.php';
+    if (function_exists('av_birthday_emails_run')) {
+        try { $result['birthdays'] = av_birthday_emails_run(Database::pdo()); }
+        catch (Throwable $e) { error_log('[cron] birthdays: ' . $e->getMessage()); }
+    }
+}
+
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }
 else { echo json_encode($result); }
 exit(0);

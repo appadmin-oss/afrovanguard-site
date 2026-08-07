@@ -1,0 +1,238 @@
+/* ============================================================================
+ * assets/site/tokens.css — Afrovanguard design tokens (single source of truth)
+ * ----------------------------------------------------------------------------
+ * The canonical `--afg-*` design-token layer for the whole product. Loaded
+ * FIRST on every server-rendered page (via lib/partials.php → render_head),
+ * so it is always available and never fights module CSS: it introduces a NEW
+ * namespace (`--afg-*`) rather than redefining any module's private variables.
+ *
+ * Modules migrate their private namespaces onto these tokens over time — see
+ * docs/design-system.md for the map and the migration playbook:
+ *     --p-*   (portal)  --auth-*  (login)   --cc  (admin)   --ch-*  (chioma)
+ *     --m-*   (nav)     --gold / --bg / --surface / --ink (diary base)
+ *
+ * THEMING CONTRACT
+ *   THEME_BOOT (partials.php) sets <html data-theme="light|dark">, defaulting
+ *   from the OS `prefers-color-scheme` and honoring a persisted `av.theme`.
+ *   Tokens resolve in this order:
+ *     1. :root                        → light defaults
+ *     2. @media (prefers-color-scheme: dark) on :root:not([data-theme=light])
+ *                                     → OS dark for surfaces without THEME_BOOT
+ *     3. :root[data-theme="dark"]     → explicit dark (wins)
+ *     4. :root[data-theme="light"]    → explicit light (wins)
+ *
+ * DECISIONS BAKED IN (resolving audit findings)
+ *   • ONE brand gold: #f3b416, with a text-safe deep variant #b07e08 (AA on
+ *     light). Never use #f3b416 for text on light — use --afg-accent-ink.
+ *   • ONE body font: Montserrat (Inter is dropped — see design-system.md).
+ *   • ONE display font: Cormorant. ONE mono: JetBrains Mono.
+ *   • 4px spacing scale, tokenized radii/shadows, documented breakpoints.
+ * ==========================================================================*/
+
+:root {
+  /* ── Brand primitives (theme-independent) ─────────────────────────────── */
+  --afg-navy:          #0d1220;
+  --afg-navy-2:        #131c2e;
+  --afg-gold:          #f3b416;   /* brand gold — fills, large marks, accents */
+  --afg-gold-deep:     #b07e08;   /* text-safe gold (AA on light surfaces)    */
+  --afg-gold-soft:     rgba(243, 180, 22, 0.14);
+  --afg-white:         #ffffff;
+  --afg-black:         #0b0e14;
+
+  /* ── Semantic colour — LIGHT (default) ────────────────────────────────── */
+  --afg-bg:            #fdfcf8;   /* app background            */
+  --afg-surface:       #ffffff;   /* cards / panels            */
+  --afg-surface-2:     #f4f2ec;   /* subtle raised / hover     */
+  --afg-border:        #e5e7eb;
+  --afg-border-strong: #d8dbe0;
+  --afg-ink:           #111827;   /* primary text              */
+  --afg-body:          #374151;   /* body text                 */
+  --afg-muted:         #6b7280;   /* secondary / captions      */
+
+  /* Accent (semantic wrappers over the brand gold) */
+  --afg-accent:        var(--afg-gold);        /* fills, active bars       */
+  --afg-accent-ink:    var(--afg-gold-deep);   /* accent TEXT (AA)         */
+  --afg-accent-soft:   var(--afg-gold-soft);
+  --afg-on-accent:     #111827;                /* text on a gold fill      */
+
+  /* Status */
+  --afg-success:       #16a34a;  --afg-success-soft: rgba(34, 197, 94, 0.15);
+  --afg-danger:        #b91c1c;  --afg-danger-soft:  rgba(220, 38, 38, 0.12);
+  --afg-warning:       var(--afg-gold-deep);
+  --afg-warning-soft:  rgba(243, 180, 22, 0.16);
+  --afg-info:          #1d4ed8;  --afg-info-soft:    rgba(29, 78, 216, 0.10);
+
+  /* Focus — a high-contrast ring distinct from the brand gold */
+  --afg-focus:         #1d4ed8;
+  --afg-focus-ring:    0 0 0 2px var(--afg-surface), 0 0 0 4px var(--afg-focus);
+
+  /* ── Typography ───────────────────────────────────────────────────────── */
+  --afg-font-display:  'Cormorant', Georgia, 'Times New Roman', serif;
+  --afg-font-body:     'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --afg-font-mono:     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Type scale (1.200 minor-third-ish, tuned) */
+  --afg-text-xs:   0.75rem;   /* 12 */
+  --afg-text-sm:   0.875rem;  /* 14 */
+  --afg-text-md:   1rem;      /* 16 — base */
+  --afg-text-lg:   1.125rem;  /* 18 */
+  --afg-text-xl:   1.375rem;  /* 22 */
+  --afg-text-2xl:  1.75rem;   /* 28 */
+  --afg-text-3xl:  2.25rem;   /* 36 */
+  --afg-leading-tight: 1.2;
+  --afg-leading-body:  1.6;
+  --afg-weight-regular: 400;
+  --afg-weight-medium:  500;
+  --afg-weight-semibold:600;
+  --afg-weight-bold:    700;
+
+  /* ── Spacing (4px base) ───────────────────────────────────────────────── */
+  --afg-space-1:  4px;
+  --afg-space-2:  8px;
+  --afg-space-3:  12px;
+  --afg-space-4:  16px;
+  --afg-space-5:  24px;
+  --afg-space-6:  32px;
+  --afg-space-7:  48px;
+  --afg-space-8:  64px;
+
+  /* ── Radius ───────────────────────────────────────────────────────────── */
+  --afg-radius-sm:   8px;
+  --afg-radius-md:   14px;
+  --afg-radius-lg:   22px;
+  --afg-radius-pill: 999px;
+
+  /* ── Elevation ────────────────────────────────────────────────────────── */
+  --afg-shadow-sm: 0 10px 30px -20px rgba(17, 24, 39, 0.28);
+  --afg-shadow-md: 0 24px 60px rgba(17, 24, 39, 0.10);
+  --afg-shadow-lg: 0 28px 64px -26px rgba(15, 23, 42, 0.45);
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --afg-ease:      cubic-bezier(0.22, 0.61, 0.36, 1);
+  --afg-dur-fast:  120ms;
+  --afg-dur:       220ms;
+  --afg-dur-slow:  320ms;
+
+  /* ── Breakpoints (reference — CSS custom props can't be used in @media,
+   *    so these document the shared scale; use the px values directly):
+   *      --afg-bp-sm: 640px;   --afg-bp-md: 768px;
+   *      --afg-bp-lg: 1024px;  --afg-bp-xl: 1280px;                        */
+}
+
+/* OS dark default for surfaces that never run THEME_BOOT (e.g. injected
+ * static-page chrome). Skipped when the user has explicitly chosen light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --afg-bg:            #0b1120;
+    --afg-surface:       #131c2e;
+    --afg-surface-2:     #1b2536;
+    --afg-border:        #283349;
+    --afg-border-strong: #36425c;
+    --afg-ink:           #f3f4f6;
+    --afg-body:          #c3cad6;
+    --afg-muted:         #8a93a3;
+    --afg-accent-ink:    #f3b416;              /* gold is AA on dark, so text can use it */
+    --afg-success:       #34d399;
+    --afg-danger:        #f87171;
+    --afg-on-accent:     #111827;
+    --afg-shadow-md:     0 24px 60px rgba(0, 0, 0, 0.5);
+    --afg-focus-ring:    0 0 0 2px var(--afg-surface), 0 0 0 4px var(--afg-focus);
+  }
+}
+
+/* Explicit dark (THEME_BOOT / user toggle) — always wins over the OS default. */
+:root[data-theme="dark"] {
+  --afg-bg:            #0b1120;
+  --afg-surface:       #131c2e;
+  --afg-surface-2:     #1b2536;
+  --afg-border:        #283349;
+  --afg-border-strong: #36425c;
+  --afg-ink:           #f3f4f6;
+  --afg-body:          #c3cad6;
+  --afg-muted:         #8a93a3;
+  --afg-accent-ink:    #f3b416;
+  --afg-success:       #34d399;
+  --afg-danger:        #f87171;
+  --afg-on-accent:     #111827;
+  --afg-shadow-md:     0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Explicit light — wins over the OS dark default above. */
+:root[data-theme="light"] {
+  --afg-bg:            #fdfcf8;
+  --afg-surface:       #ffffff;
+  --afg-surface-2:     #f4f2ec;
+  --afg-border:        #e5e7eb;
+  --afg-border-strong: #d8dbe0;
+  --afg-ink:           #111827;
+  --afg-body:          #374151;
+  --afg-muted:         #6b7280;
+  --afg-accent-ink:    var(--afg-gold-deep);
+  --afg-success:       #16a34a;
+  --afg-danger:        #b91c1c;
+}
+
+/* ── Global focus ring (accessibility) ──────────────────────────────────────
+ * Zero-specificity (:where) so any module style still overrides it, but every
+ * interactive element gets a visible, consistent, keyboard-only focus ring by
+ * default. Resolves the "only 14 focus-visible rules" audit finding. */
+:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--afg-focus);
+  outline-offset: 2px;
+  border-radius: var(--afg-radius-sm);
+}
+
+/* ── Sticky-nav offset ───────────────────────────────────────────────────────
+ * The site header is sticky on every page. Reserve its height when jumping to
+ * an in-page anchor so headings/sections never land hidden behind the nav, and
+ * give headings the same safety margin. Site-wide and consistent. */
+:root { --afg-nav-offset: 88px; }
+html { scroll-padding-top: var(--afg-nav-offset); }
+:where(h1, h2, h3, h4, [id]) { scroll-margin-top: var(--afg-nav-offset); }
+
+/* ============================================================
+   Text-over-gradient utilities — readable text on brand
+   gradients (opt-in; no effect until a class is applied).
+   ============================================================ */
+
+/* 1) Gradient-clipped headings — the letters become the brand gradient.
+      Solid, AA-on-light fallback first; the gradient only applies where
+      background-clip:text is supported, and reverts to a plain colour under
+      Windows High Contrast so it can never vanish. Use on LARGE headings. */
+.av-gradient-text {
+  color: var(--afg-gold-deep);
+  background-image: linear-gradient(92deg, var(--afg-gold-deep), var(--afg-gold) 55%, var(--afg-gold-deep));
+  background-repeat: no-repeat;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .av-gradient-text {
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+@media (forced-colors: active) {
+  .av-gradient-text { background: none; -webkit-text-fill-color: currentColor; color: CanvasText; }
+}
+
+/* 2) Text scrim — put on the element whose background is a busy/animated
+      gradient; its children sit above a smoky, blurred shield so white text
+      stays legible. Children are auto-raised above the scrim. */
+.av-text-scrim { position: relative; isolation: isolate; }
+.av-text-scrim > * { position: relative; z-index: 1; }
+.av-text-scrim::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit;
+  background: rgba(13, 18, 32, 0.55);           /* navy-tinted, ~55% */
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .av-text-scrim::before { background: rgba(13, 18, 32, 0.82); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* 3) Blend text — auto-inverts against whatever colour shifts beneath it
+      (light->dark, dark->light). Give the element its own stacking context.
+      Reverts to a solid colour under High Contrast. */
+.av-blend-text { color: #fff; mix-blend-mode: difference; isolation: isolate; }
+@media (forced-colors: active) { .av-blend-text { color: CanvasText; mix-blend-mode: normal; } }

@@ -38,7 +38,7 @@ try {
     if ($action === 'login') {
         if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
         if (!av_rate_ok('admin_login', 8, 900)) json_out(['ok' => false, 'error' => 'Too many attempts. Try again later.'], 429);
-        if (!defined('ADMIN_TOKEN') || strlen((string) ADMIN_TOKEN) < 8) json_out(['ok' => false, 'error' => 'Admin isn’t configured. Set AV_ADMIN_TOKEN (a random string, 8+ characters) via .htaccess SetEnv or config.php, then reload.'], 503);
+        if (!av_admin_token_configured()) json_out(['ok' => false, 'error' => 'Admin isn’t configured. Set AV_ADMIN_TOKEN (a random string, 32+ characters — e.g. php -r "echo bin2hex(random_bytes(32));") via .htaccess SetEnv or config.php, then reload.'], 503);
         $tok = (string) ($body['token'] ?? '');
         if ($tok === '' || !hash_equals((string) ADMIN_TOKEN, $tok)) {
             try { (new LmsRepository())->audit('admin_login_failed', '', 'bad token'); } catch (Throwable $e) {}
@@ -124,6 +124,7 @@ try {
             ], $repo));
         }
         case 'articles':     json_out(['ok' => true, 'articles' => array_map(fn($a) => ['slug' => $a['slug'], 'title' => $a['title']], $repo->allForAdmin())]);
+        case 'diary_series': json_out(['ok' => true, 'series' => $repo->seriesList()]);
         case 'enrollments':  json_out(['ok' => true, 'enrollments' => Database::pdo()->query('SELECT * FROM enrollments ORDER BY created_at DESC LIMIT 200')->fetchAll()]);
         case 'audit_log':    json_out(['ok' => true, 'audit' => $lms->recentAudit(min(200, max(1, (int) ($_GET['limit'] ?? 120))))]);
         case 'subscribers':  json_out(['ok' => true, 'subscribers' => Database::pdo()->query('SELECT email, source, created_at FROM subscribers ORDER BY created_at DESC LIMIT 500')->fetchAll(), 'count' => (int) Database::pdo()->query('SELECT COUNT(*) FROM subscribers')->fetchColumn()]);
@@ -247,6 +248,58 @@ try {
                 'label'      => $mailReady ? ('SMTP ready · ' . ($mailHost ?: 'configured')) : 'SMTP not configured',
             ], 'health' => $health]);
         }
+        /**
+         * The mail configuration, WITHOUT sending anything.
+         *
+         * `mail_test` already proves whether delivery works, and says so well
+         * when it fails. What it cannot say is WHY, because by then the failure
+         * is a transport error string. This reports the inputs: which constants
+         * are present, which transports this host actually has, and which one a
+         * send would reach for first.
+         *
+         * The password is reported only as set/not-set plus its LENGTH — enough
+         * to catch the single most common misconfiguration on this stack (a
+         * Gmail App Password pasted with the spaces Google displays, so 19
+         * characters instead of 16) without putting a live credential in a JSON
+         * response an admin might paste into a chat.
+         */
+        case 'mail_status': {
+            $pass     = defined('SMTP_PASSWORD') ? (string) SMTP_PASSWORD : '';
+            $bundled  = is_file(AV_ROOT . '/lib/vendor/phpmailer/PHPMailer.php');
+            $composer = is_file(AV_ROOT . '/vendor/autoload.php');
+            $transports = [
+                'phpmailer' => $bundled || $composer,
+                'own_smtp'  => class_exists('Smtp'),
+                'php_mail'  => function_exists('mail'),
+            ];
+            $would = Mailer::configured() && $transports['phpmailer']
+                ? 'PHPMailer over authenticated SMTP'
+                : (Mailer::configured() && $transports['own_smtp']
+                    ? 'the built-in SMTP client'
+                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing'));
+
+            json_out([
+                'ok'         => true,
+                'configured' => Mailer::configured(),
+                'notifications_enabled' => !defined('ENABLE_EMAIL_NOTIFICATIONS') || (bool) ENABLE_EMAIL_NOTIFICATIONS,
+                'from'       => defined('FROM_EMAIL') ? FROM_EMAIL : '(unset — falls back to SMTP_USERNAME)',
+                'from_name'  => defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard',
+                'host'       => defined('SMTP_HOST') ? SMTP_HOST : '',
+                'port'       => defined('SMTP_PORT') ? (int) SMTP_PORT : 587,
+                'secure'     => defined('SMTP_SECURE') ? SMTP_SECURE : 'tls (default)',
+                'username'   => defined('SMTP_USERNAME') ? SMTP_USERNAME : '',
+                'password_set'    => $pass !== '',
+                'password_length' => strlen($pass),
+                'password_note'   => ($pass !== '' && strlen($pass) !== 16)
+                    ? 'A Gmail App Password is exactly 16 characters; this one is ' . strlen($pass)
+                      . '. If you pasted it with the spaces Google shows, remove them.'
+                    : '',
+                'transports'  => $transports,
+                'would_use'   => $would,
+                'admin_email' => defined('ADMIN_EMAIL') ? ADMIN_EMAIL : '',
+            ]);
+        }
+
         case 'mail_test':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $to = trim((string) ($body['to'] ?? '')) ?: (string) (defined('ADMIN_EMAIL') ? ADMIN_EMAIL : (defined('FROM_EMAIL') ? FROM_EMAIL : ''));
@@ -578,7 +631,15 @@ try {
                 $lms->audit($body['status'] === 'suspended' ? 'suspend' : 'reactivate', $m['email']);
                 $changed[] = 'status';
             }
-            json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid)]);
+            if (isset($body['level']) && class_exists('Levels')) {
+                $newLevel = (string) $body['level'];
+                if (Levels::of($mid) !== $newLevel) {
+                    if (!Levels::set($mid, $newLevel)) json_out(['ok' => false, 'error' => 'Unknown level.'], 422);
+                    $lms->audit('level_change', $m['email'], 'Level → ' . $newLevel);
+                    $changed[] = 'level';
+                }
+            }
+            json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null]);
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = $lms->createMember((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'member'));
@@ -637,6 +698,7 @@ try {
                 'audio_url' => trim((string) ($body['audio_url'] ?? '')),
                 'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
                 'format' => (string) ($body['format'] ?? 'standard'),
+                'series' => trim((string) ($body['series'] ?? '')), 'series_part' => (int) ($body['series_part'] ?? 0),
                 'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
             ]);
             Sitemap::rebuild();
@@ -777,6 +839,7 @@ try {
                 'cta_url' => trim((string) ($body['cta_url'] ?? '')), 'featured' => !empty($body['featured']),
                 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft', 'sort' => (int) ($body['sort'] ?? 0),
                 'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),
+                'pass_code' => (string) ($body['pass_code'] ?? ''),
             ];
             // Resolve an instructor by email (must already have an Academy account).
             $instructorMsg = null;
@@ -793,6 +856,31 @@ try {
             $slug = $ac->save($fields);
             Sitemap::rebuild();
             json_out(['ok' => true, 'slug' => $slug, 'url' => rtrim(SITE_URL, '/') . '/academy/' . $slug . '/', 'notice' => $instructorMsg]);
+        case 'ac_grants': {
+            // List members explicitly granted access to a restricted course.
+            $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? $body['slug'] ?? '')));
+            $gc = $gslug ? $ac->bySlug($gslug, true) : null;
+            if (!$gc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            json_out(['ok' => true, 'grants' => $lms->courseAccessList((int) $gc['id'])]);
+        }
+        case 'ac_grant': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $gc = $gslug ? $ac->bySlug($gslug, true) : null;
+            if (!$gc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $gu = $lms->userByEmail((string) ($body['email'] ?? ''));
+            if (!$gu) json_out(['ok' => false, 'error' => 'No account exists for that email yet — ask them to sign in once, then grant access.'], 404);
+            $lms->grantCourseAccess((int) $gc['id'], (int) $gu['id'], 0);
+            json_out(['ok' => true, 'grants' => $lms->courseAccessList((int) $gc['id'])]);
+        }
+        case 'ac_revoke': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $gslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));
+            $gc = $gslug ? $ac->bySlug($gslug, true) : null;
+            if (!$gc) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
+            $lms->revokeCourseAccess((int) $gc['id'], (int) ($body['user_id'] ?? 0));
+            json_out(['ok' => true, 'grants' => $lms->courseAccessList((int) $gc['id'])]);
+        }
         case 'ac_delete': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $dslug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($body['slug'] ?? '')));

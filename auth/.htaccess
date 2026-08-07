@@ -4,8 +4,11 @@ DirectoryIndex google.php
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /auth/
-  # /auth/google/start and /auth/google/callback → google.php?action=…
-  RewriteRule ^google/(start|callback)/?$ google.php?action=$1 [L,QSA]
+  # /auth/google/{start,callback,connect,disconnect} → google.php?action=…
+  # NOTE: this per-directory file shadows the root .htaccess for requests that
+  # resolve into /auth/, so it MUST list every action the root rule does — or the
+  # missing ones (e.g. connect) 404. Keep this in sync with the root .htaccess.
+  RewriteRule ^google/(start|callback|connect|disconnect)/?$ google.php?action=$1 [L,QSA]
   # real files served directly
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d

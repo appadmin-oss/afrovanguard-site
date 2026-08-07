@@ -168,6 +168,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke
 .les .les-grip{color:var(--muted);font-size:13px}
 .les .les-title{flex:1;font-weight:600}
 .les .les-tags{display:flex;gap:6px}
+.les-type{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:9999px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.les-type.t-video{background:rgba(243,180,22,.14);color:var(--gold-deep);border-color:transparent}
+.les-type.t-quiz{background:rgba(26,127,55,.13);color:var(--ok);border-color:transparent}
 .les-empty{padding:12px;color:var(--muted);font-size:13px}
 .mod-foot{padding:6px 10px 12px}
 

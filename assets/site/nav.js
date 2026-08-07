@@ -17,6 +17,11 @@
     if (scrim) scrim.classList.toggle('open', open);
     if (burger) burger.setAttribute('aria-expanded', String(open));
     if (open) { drawer.removeAttribute('inert'); } else { drawer.setAttribute('inert', ''); }
+    // Mark the document so site-wide CSS can lift floating overlays (e.g. the
+    // homepage contact/AI dock, z-index 900) out of the way — otherwise they
+    // sit ON TOP of the open drawer and swallow taps on its footer buttons
+    // ("the sign in link on the mobile menu is not clicking").
+    root.classList.toggle('av-drawer-open', open);
     document.body.style.overflow = open ? 'hidden' : '';
     if (open) {
       var first = drawer.querySelector('.avd-close');
@@ -28,9 +33,17 @@
     document.querySelectorAll('[data-close-drawer]').forEach(function (el) {
       el.addEventListener('click', function () { setDrawer(false); });
     });
-    // close when a real navigation link (not an accordion toggle) is tapped
+    // close when a real navigation link (not an accordion toggle) is tapped.
+    // In-page anchors (#hash) close immediately; links that navigate away are
+    // left to navigate untouched and the drawer is closed on the next tick, so
+    // setting `inert` / moving focus mid-click can never cancel the navigation
+    // on touch browsers ("tapping the sign in did nothing").
     drawer.querySelectorAll('a[href]').forEach(function (a) {
-      a.addEventListener('click', function () { setDrawer(false); });
+      a.addEventListener('click', function () {
+        var href = a.getAttribute('href') || '';
+        if (href === '' || href.charAt(0) === '#') { setDrawer(false); return; }
+        setTimeout(function () { setDrawer(false); }, 0);
+      });
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && drawer.classList.contains('open')) setDrawer(false);
@@ -170,6 +183,27 @@
     if (sl) { sl.textContent = 'Hi, ' + first; sl.setAttribute('href', '/portal/'); sl.removeAttribute('data-login-link'); }
     var subLogin = document.getElementById('navSubLogin');
     if (subLogin) { subLogin.textContent = first; subLogin.setAttribute('href', '/portal/'); }
+    // Mobile drawer: reflect the signed-in member (identity + portal link + sign out).
+    var df = document.querySelector('.avd-foot');
+    if (df) {
+      var mSignin = df.querySelector('[data-login-link]');
+      if (mSignin) {
+        mSignin.textContent = 'Hi, ' + first + ' — your portal';
+        mSignin.setAttribute('href', '/portal/');
+        mSignin.removeAttribute('data-login-link');
+      }
+      if (!df.querySelector('[data-logout]')) {
+        var so = document.createElement('a');
+        so.href = '#'; so.className = 'btn btn-outline'; so.style.width = '100%';
+        so.setAttribute('data-logout', ''); so.textContent = 'Sign out';
+        df.insertBefore(so, df.querySelector('.avd-social'));
+      }
+      var mid = document.createElement('div');
+      mid.className = 'avd-me';
+      mid.innerHTML = '<span class="avd-me-av">' + initial + '</span><span class="avd-me-id"><span class="avd-me-name">' + esc(name) + '</span>' + (email ? '<span class="avd-me-email">' + email + '</span>' : '') + '</span>';
+      var scroll = document.querySelector('.avd-scroll');
+      if (scroll && !document.querySelector('.avd-me')) scroll.insertBefore(mid, scroll.firstChild);
+    }
   }
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-logout]')) {
@@ -194,7 +228,18 @@
     var hint = document.getElementById('avSearchHint');
     if (!modal || !input || !resultsEl) return;
     var opener = null, tDeb = null, lastReq = 0;
-    var TYPE_BADGE = { Page: 'Page', Diary: 'Diary', Academy: 'Academy' };
+    var TYPE_BADGE = { Page: 'Page', Diary: 'Diary', Academy: 'Academy', People: 'Person' };
+    var curQuery = '';
+    // Escape text, then wrap the current query terms in <mark> for highlighting.
+    function hilite(text) {
+        var safe = esc(text == null ? '' : text);
+        var terms = curQuery.toLowerCase().split(/[\s,]+/).filter(function (t) { return t.length >= 2; });
+        if (!terms.length) return safe;
+        var rx = new RegExp('(' + terms.map(function (t) {
+            return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }).join('|') + ')', 'ig');
+        return safe.replace(rx, '<mark class="avs-hl">$1</mark>');
+    }
 
     function open() {
       opener = document.activeElement;
@@ -216,8 +261,8 @@
       a.className = 'avs-result'; a.href = r.url; a.setAttribute('role', 'option');
       if (/^https?:/.test(r.url)) { a.target = '_blank'; a.rel = 'noopener'; }
       a.innerHTML = '<span class="avs-type">' + esc(TYPE_BADGE[r.type] || r.type) + '</span>'
-        + '<span class="avs-rt"><span class="avs-rtitle">' + esc(r.title) + '</span>'
-        + (r.excerpt ? '<span class="avs-rex">' + esc(r.excerpt) + '</span>' : '') + '</span>';
+        + '<span class="avs-rt"><span class="avs-rtitle">' + hilite(r.title) + '</span>'
+        + (r.excerpt ? '<span class="avs-rex">' + hilite(r.excerpt) + '</span>' : '') + '</span>';
       a.addEventListener('click', function () { close(); });
       return a;
     }
@@ -241,6 +286,7 @@
     function search(withAi) {
       var q = input.value.trim();
       if (q.length < 2) { resultsEl.innerHTML = ''; if (aiBox) aiBox.hidden = true; if (hint) hint.hidden = false; return; }
+      curQuery = q;
       var req = ++lastReq;
       if (withAi && aiBox && aiText) { aiBox.hidden = false; aiText.textContent = 'Thinking…'; }
       fetch('/search.php?q=' + encodeURIComponent(q) + (withAi ? '&ai=1' : ''), { credentials: 'same-origin' })

@@ -15,23 +15,26 @@
    ============================================================ */
 
 /* ── Design tokens ─────────────────────────────────────────────────── */
+/* Nav palette now flows from the shared --afg-* token layer (assets/site/tokens.css),
+   which flips light/dark under html[data-theme]. Only the chrome-specific strip
+   and shadow stay per-theme here. Harmonises the nav gold to the one brand gold. */
 :root {
-  --m-surface: #ffffff; --m-surface-2: #f6f6f2; --m-ink: #141821;
-  --m-muted: #5b6472; --m-divider: #e7e7e1;
-  --m-gold: #e8a317; --m-gold-deep: #9c6906; --m-strip: #0f1b2d;
+  --m-surface: var(--afg-surface, #ffffff); --m-surface-2: var(--afg-surface-2, #f6f6f2); --m-ink: var(--afg-ink, #141821);
+  --m-muted: var(--afg-muted, #5b6472); --m-divider: var(--afg-border, #e7e7e1);
+  --m-gold: var(--afg-accent, #f3b416); --m-gold-deep: var(--afg-accent-ink, #b07e08); --m-strip: #0f1b2d;
   --m-shadow: 0 28px 64px -30px rgba(15,23,42,0.45);
   --nav-h: 64px;
 }
 html[data-theme="dark"] {
-  --m-surface: #14151b; --m-surface-2: #1d1f27; --m-ink: #f4f5f7;
-  --m-muted: #9aa1ad; --m-divider: rgba(255,255,255,0.10);
-  --m-gold: #f3b416; --m-gold-deep: #f3b416; --m-strip: #0a0f18;
+  --m-strip: #0a0f18;
   --m-shadow: 0 28px 64px -26px rgba(0,0,0,0.7);
 }
 
 /* ── Header shell ──────────────────────────────────────────────────── */
 .site-header {
-  position: relative; z-index: 100;
+  /* Sticky on EVERY breakpoint so the nav sits in the same place on every page
+     (previously sticky only >=1100px, so it scrolled away on mobile/module pages). */
+  position: sticky; top: 0; z-index: 100;
   background: var(--m-surface);
   border-bottom: 1px solid var(--m-divider);
   -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -308,6 +311,10 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
   transform: translateX(100%); transition: transform .38s cubic-bezier(.22,1,.36,1); box-shadow: var(--m-shadow);
 }
 .av-drawer.open { transform: translateX(0); }
+/* While the mobile drawer is open, get floating overlays (the contact/AI dock,
+   z-index 900) out of its way — they'd otherwise cover the drawer footer and
+   intercept taps on Sign in / Join / Donate. */
+html.av-drawer-open .dock { opacity: 0; visibility: hidden; pointer-events: none; }
 .avd-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--m-divider); }
 .avd-head .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 24px; font-weight: 600; }
 .avd-head .brand-wordmark .wm-1 { color: var(--m-ink); } .avd-head .brand-wordmark .wm-2 { color: var(--m-gold-deep); }
@@ -399,3 +406,13 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
 .av-search kbd { font: inherit; font-size: 11.5px; background: var(--m-surface-2); border: 1px solid var(--m-divider); border-radius: 5px; padding: 1px 6px; }
 @media (max-width: 520px) { .av-search-dialog { margin-top: 0; height: 100%; max-height: 100%; width: 100%; border-radius: 0; } }
 @media (prefers-reduced-motion: reduce) { .av-search-backdrop, .av-search-dialog { transition: none; } }
+
+/* Search: matched-term highlight */
+.avs-hl { background: var(--afg-warning-soft, rgba(243,180,22,.22)); color: inherit; border-radius: 3px; padding: 0 1px; font-weight: 700; }
+
+/* Mobile drawer — signed-in member card (added by nav.js reflectMember) */
+.avd-me{display:flex;align-items:center;gap:11px;padding:12px 14px;margin:0 0 8px;border:1px solid var(--divider,#e6e6e6);border-radius:12px;background:var(--surface-2,#f6f6f4)}
+.avd-me-av{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--gold,#e0a82e),var(--gold-deep,#b4791a))}
+.avd-me-id{display:flex;flex-direction:column;min-width:0}
+.avd-me-name{font-weight:700;color:var(--ink,#111);font-size:14px}
+.avd-me-email{font-size:12px;color:var(--muted,#666);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

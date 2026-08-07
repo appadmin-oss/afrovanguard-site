@@ -13,6 +13,14 @@
   var feed = document.getElementById('cmFeed');
   var signedIn = main.getAttribute('data-signed-in') === '1';
 
+  /* When embedded in the portal the community lives in a tab that may be
+     hidden; pause live polling until it's on screen. On the standalone page
+     there's no such wrapper, so it's always "visible". */
+  var portalView = document.getElementById('view-community');
+  function communityVisible() { return !portalView || !portalView.hidden; }
+  var kickers = []; // functions to run when the tab is (re)opened
+  function kick() { if (communityVisible()) kickers.forEach(function (f) { try { f(); } catch (e) {} }); }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -39,7 +47,19 @@
     return '<span class="cm-author">' + esc(p.author) + '</span>'
       + (p.verified ? CHECK : '')
       + '<span class="cm-tier cm-tier--' + esc(String(p.tier).toLowerCase()) + '">' + esc(p.tier) + '</span>'
+      + (p.classification ? '<span class="cm-class cm-class--' + esc(p.classification) + '" title="' + esc(p.class_label || '') + '">' + esc(p.class_label || '') + '</span>' : '')
       + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(p.ago) + '</span>';
+  }
+
+  /** Moderator controls (admins/coordinators only) appended to a post's bar. */
+  var ADMIN = main.getAttribute('data-admin') === '1';
+  function modBar(p) {
+    if (!ADMIN) return '';
+    return '<span class="cm-mod">'
+      + '<button type="button" class="cm-act cm-mod-btn" data-mod-pin="' + p.id + '" title="Pin / unpin">📌</button>'
+      + '<button type="button" class="cm-act cm-mod-btn" data-mod-cls="' + p.id + '" title="Change who can see this">🏷</button>'
+      + '<button type="button" class="cm-act cm-mod-btn" data-mod-del="' + p.id + '" title="Remove post">🗑</button>'
+      + '</span>';
   }
 
   /** Full post card — mirrors comm_card($p, false) in index.php. */
@@ -59,7 +79,7 @@
       + '<button class="cm-act cm-like' + (p.liked ? ' is-liked' : '') + '" data-like="' + p.id + '" aria-pressed="' + (p.liked ? 'true' : 'false') + '">'
       + HEART + '<span class="cm-likes">' + (p.likes | 0) + '</span></button>'
       + '<button class="cm-act cm-reply-toggle" data-reply="' + p.id + '">'
-      + BUBBLE + '<span class="cm-replies">' + (p.reply_count | 0) + '</span></button></div>'
+      + BUBBLE + '<span class="cm-replies">' + (p.reply_count | 0) + '</span></button>' + modBar(p) + '</div>'
       + '<div class="cm-thread" data-thread="' + p.id + '" hidden></div>'
       + '</div>';
     return art;
@@ -84,12 +104,27 @@
     var space = document.getElementById('cmSpace');
     var msg = form.querySelector('.cm-msg');
     var btn = form.querySelector('.cm-post-btn');
+
+    /* Deep-link from a birthday celebration ("Send warm wishes"): prefill the
+     * composer with a birthday message for the honoree and bring it into view. */
+    (function () {
+      var m = /[?&]wish=([^&]+)/.exec(location.search);
+      if (!m || !body) return;
+      var who = '';
+      try { who = decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); } catch (e) { who = ''; }
+      who = who.replace(/[<>]/g, '').slice(0, 60);
+      if (!body.value) body.value = 'Happy birthday' + (who ? ', ' + who : '') + '! 🎉 ';
+      var comp = document.querySelector('.cm-composer');
+      if (comp && comp.scrollIntoView) comp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      try { body.focus(); body.setSelectionRange(body.value.length, body.value.length); } catch (e) {}
+    })();
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var text = (body.value || '').trim();
       if (text.length < 2) { setMsg(msg, 'Write a little more.', 'err'); return; }
       btn.disabled = true; setMsg(msg, '', '');
-      api('post', { body: { space: space.value, body: text } }).then(function (d) {
+      var clsSel = document.getElementById('cmClass');
+      api('post', { body: { space: space.value, body: text, classification: clsSel ? clsSel.value : 'members' } }).then(function (d) {
         btn.disabled = false;
         if (d.__status === 401) { loginRedirect(); return; }
         if (!d.ok) { setMsg(msg, d.error || 'Could not post.', 'err'); return; }
@@ -230,6 +265,97 @@
   }
 
   /* ============================================================
+     LIVE FEED · switch spaces/sort without a reload, and surface new
+     posts as they arrive (a "N new posts" pill). Works on the page and
+     inside the portal tab. Polling pauses when the tab isn't visible.
+     ============================================================ */
+  var moreBtn = document.getElementById('cmMore');
+  var feedLabel = main.querySelector('.cm-feed-label');
+  var pending = [], pill = null;
+
+  function inFeed(id) { return !!feed.querySelector('.cm-post[data-id="' + id + '"]'); }
+  function feedTopId() { var a = feed.querySelector('.cm-post[data-id]'); return a ? +a.getAttribute('data-id') : 0; }
+
+  function renderPill() {
+    if (!pending.length) { if (pill) { pill.remove(); pill = null; } return; }
+    if (!pill) {
+      pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'cm-live-pill';
+      pill.addEventListener('click', flushPending);
+      feed.parentNode.insertBefore(pill, feed);
+    }
+    pill.textContent = '▲ ' + pending.length + ' new post' + (pending.length > 1 ? 's' : '');
+  }
+  function flushPending() {
+    pending.sort(function (a, b) { return a.id - b.id; }); // oldest first → newest ends on top
+    var empty = feed.querySelector('.cm-empty'); if (empty) empty.remove();
+    pending.forEach(function (p) { if (!inFeed(p.id)) feed.insertBefore(renderPost(p), feed.firstChild); });
+    pending = []; renderPill();
+    if (feed.scrollIntoView) feed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  var feedPolling = false;
+  function feedPoll() {
+    if (feedPolling || document.hidden || !communityVisible()) return;
+    if ((main.getAttribute('data-sort') || 'latest') !== 'latest') return; // only "Latest" streams
+    var sp = main.getAttribute('data-space') || '';
+    var q = '&sort=latest&offset=0' + (sp ? '&space=' + encodeURIComponent(sp) : '');
+    feedPolling = true;
+    api('feed', { query: q }).then(function (d) {
+      feedPolling = false;
+      if (!d || !d.ok) return;
+      var top = feedTopId();
+      (d.posts || []).forEach(function (p) {
+        if (p.id > top && !inFeed(p.id) && !pending.some(function (x) { return x.id === p.id; })) pending.push(p);
+      });
+      renderPill();
+    }).catch(function () { feedPolling = false; });
+  }
+
+  /* switch space / sort in place */
+  function loadFeed(space, sort) {
+    main.setAttribute('data-space', space || '');
+    main.setAttribute('data-sort', sort || 'latest');
+    pending = []; renderPill();
+    // reflect active states
+    [].forEach.call(main.querySelectorAll('.cm-space-link'), function (a) {
+      a.classList.toggle('is-active', (a.getAttribute('data-space') || '') === (space || ''));
+    });
+    [].forEach.call(main.querySelectorAll('.cm-sort-tab'), function (a) {
+      a.classList.toggle('is-active', (a.getAttribute('data-sort') || 'latest') === (sort || 'latest'));
+    });
+    if (feedLabel) feedLabel.textContent = space ? space.replace(/-/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : 'All activity';
+    var compSpace = document.getElementById('cmSpace');
+    if (compSpace && space) { try { compSpace.value = space; } catch (e) {} }
+    feed.innerHTML = '<div class="cm-empty">Loading…</div>';
+    var q = '&sort=' + encodeURIComponent(sort || 'latest') + '&offset=0' + (space ? '&space=' + encodeURIComponent(space) : '');
+    api('feed', { query: q }).then(function (d) {
+      feed.innerHTML = '';
+      if (!d || !d.ok || !(d.posts || []).length) {
+        feed.innerHTML = '<div class="cm-empty">No posts here yet. Be the first to share something.</div>';
+      } else {
+        d.posts.forEach(function (p) { feed.appendChild(renderPost(p)); });
+      }
+      if (moreBtn) {
+        if (d && d.has_more) { moreBtn.removeAttribute('hidden'); moreBtn.setAttribute('data-offset', d.offset); }
+        else moreBtn.setAttribute('hidden', '');
+      }
+    }).catch(function () { feed.innerHTML = '<div class="cm-empty">Could not load posts.</div>'; });
+  }
+
+  main.addEventListener('click', function (e) {
+    var sl = e.target.closest('.cm-space-link');
+    if (sl && sl.hasAttribute('data-space')) { e.preventDefault(); loadFeed(sl.getAttribute('data-space') || '', main.getAttribute('data-sort') || 'latest'); return; }
+    var st = e.target.closest('.cm-sort-tab');
+    if (st && st.hasAttribute('data-sort')) { e.preventDefault(); loadFeed(main.getAttribute('data-space') || '', st.getAttribute('data-sort') || 'latest'); return; }
+  });
+
+  kickers.push(feedPoll);
+  setInterval(feedPoll, 15000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) feedPoll(); });
+
+  /* ============================================================
      ORG-ONLY · members chat + directory + @mention autocomplete.
      Org members "see each other" (the directory, SSR'd) and chat
      live; external members never get here (data-org="0"). Polling
@@ -246,6 +372,7 @@
     var cMsg = chatEl.querySelector('.cm-chat-msg');
     var lastId = 0;
     var polling = false;
+    var channel = chatEl.getAttribute('data-channel') || 'general';
 
     /* Highlight resolved @mentions inside an (escaped) body. The server
        returns the resolved member list, so we only chip real org members —
@@ -271,7 +398,8 @@
         + '<div class="cm-chat-bd">'
         + '<div class="cm-chat-l1"><span class="cm-chat-who">' + esc(m.author) + '</span>'
         + (m.verified ? CHECK : '')
-        + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(m.ago) + '</span></div>'
+        + '<span class="cm-dot">·</span><span class="cm-ago">' + esc(m.ago) + '</span>'
+        + '<button type="button" class="cm-to-task" title="Turn into a task" data-task="' + esc(m.body) + '">+ Task</button></div>'
         + '<div class="cm-chat-text">' + withMentions(m.body, m.mentions) + '</div></div>';
       return row;
     }
@@ -294,13 +422,37 @@
     }
 
     function poll() {
-      if (polling || document.hidden) return;
+      if (polling || document.hidden || !communityVisible()) return;
       polling = true;
-      api('chat_list', { query: '&since=' + lastId }).then(function (d) {
+      api('chat_list', { query: '&channel=' + encodeURIComponent(channel) + '&since=' + lastId }).then(function (d) {
         polling = false;
         if (d && d.ok) paint(d.messages, { force: lastId === 0 });
       }).catch(function () { polling = false; });
     }
+
+    /* ── channel switching (# General / Announcements / …) ── */
+    var chanBar = document.getElementById('cmChan');
+    if (chanBar) chanBar.addEventListener('click', function (e) {
+      var btn = e.target.closest('.cm-chan-btn'); if (!btn) return;
+      var ch = btn.getAttribute('data-chan') || 'general';
+      if (ch === channel) return;
+      channel = ch; chatEl.setAttribute('data-channel', ch); lastId = 0;
+      [].forEach.call(chanBar.querySelectorAll('.cm-chan-btn'), function (b) { b.classList.toggle('is-on', b === btn); });
+      log.innerHTML = '<div class="cm-chat-empty">Loading #' + esc(ch) + '…</div>';
+      poll();
+    });
+
+    /* ── message → task (chat ⇄ work bridge) ── */
+    log.addEventListener('click', function (e) {
+      var b = e.target.closest('.cm-to-task'); if (!b) return;
+      var body = b.getAttribute('data-task') || ''; if (!body) return;
+      b.disabled = true;
+      api('to_task', { body: { body: body } }).then(function (d) {
+        b.disabled = false;
+        if (d && d.ok) { b.textContent = '✓ Task'; b.classList.add('is-done'); setMsg(cMsg, 'Added to your tasks.', 'ok'); setTimeout(function(){ setMsg(cMsg,'',''); }, 2500); }
+        else { setMsg(cMsg, (d && d.error) || 'Could not create task.', 'err'); }
+      }).catch(function () { b.disabled = false; setMsg(cMsg, 'Network error — try again.', 'err'); });
+    });
 
     /* ── send ── */
     cForm.addEventListener('submit', function (e) {
@@ -309,7 +461,7 @@
       var text = (cInput.value || '').trim();
       if (!text) return;
       cSend.disabled = true; setMsg(cMsg, '', '');
-      api('chat_send', { body: { body: text } }).then(function (d) {
+      api('chat_send', { body: { body: text, channel: channel } }).then(function (d) {
         cSend.disabled = false;
         if (d.__status === 401) { loginRedirect(); return; }
         if (!d.ok) { setMsg(cMsg, d.error || 'Could not send.', 'err'); return; }
@@ -389,8 +541,76 @@
 
     /* ── boot: initial load, then poll; pause when hidden ── */
     poll();
+    kickers.push(poll);
     var pollTimer = setInterval(poll, 5000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
     if (location.hash === '#chat') { try { chatEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }
+  }
+
+  /* When the portal switches to the Community tab, resume live polling at once
+     (hashchange fires for #community; also cover in-portal nav clicks). */
+  if (portalView) {
+    window.addEventListener('hashchange', function () { setTimeout(kick, 60); });
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-view="community"],[data-goto="community"]')) setTimeout(kick, 80);
+    });
+  }
+
+  /* ── Moderator controls + official announcements (admins/coordinators) ── */
+  if (ADMIN) {
+    var CLABEL = { public: 'Public', members: 'Members-only', confidential: 'Confidential' };
+    // Server-rendered posts on the page don't have the mod bar yet — add it.
+    [].forEach.call(main.querySelectorAll('.cm-post'), function (a) {
+      var bar = a.querySelector('.cm-bar');
+      if (bar && !bar.querySelector('.cm-mod')) bar.insertAdjacentHTML('beforeend', modBar({ id: a.getAttribute('data-id') }));
+    });
+    main.addEventListener('click', function (e) {
+      var pin = e.target.closest('[data-mod-pin]');
+      if (pin) {
+        var art = pin.closest('.cm-post'), isPinned = !!(art && art.querySelector('.cm-pin'));
+        api('mod_pin', { body: { id: +pin.getAttribute('data-mod-pin'), pin: !isPinned } }).then(function (d) {
+          if (!d || !d.ok || !art) return;
+          if (isPinned) { var pn = art.querySelector('.cm-pin'); if (pn) pn.remove(); }
+          else art.insertAdjacentHTML('afterbegin', '<div class="cm-pin">📌 Pinned by the team</div>');
+        });
+        return;
+      }
+      var del = e.target.closest('[data-mod-del]');
+      if (del) {
+        if (!confirm('Remove this post from the community?')) return;
+        var da = del.closest('.cm-post');
+        api('mod_delete', { body: { id: +del.getAttribute('data-mod-del') } }).then(function (d) {
+          if (d && d.ok && da) da.remove(); else if (d && !d.ok) alert(d.error || 'Not allowed.');
+        });
+        return;
+      }
+      var cls = e.target.closest('[data-mod-cls]');
+      if (cls) {
+        var v = (prompt('Who can see this post? public, members, or confidential', 'members') || '').trim().toLowerCase();
+        if (['public', 'members', 'confidential'].indexOf(v) < 0) return;
+        api('mod_classify', { body: { id: +cls.getAttribute('data-mod-cls'), classification: v } }).then(function (d) {
+          if (!d || !d.ok) return;
+          var b = cls.closest('.cm-post').querySelector('.cm-class');
+          if (b) { b.className = 'cm-class cm-class--' + v; b.textContent = CLABEL[v]; b.title = CLABEL[v]; }
+        });
+        return;
+      }
+    });
+    var annBtn = document.getElementById('cmAnnounce');
+    if (annBtn) annBtn.addEventListener('click', function () {
+      var bodyEl = document.getElementById('cmBody'), spaceEl = document.getElementById('cmSpace');
+      var text = ((bodyEl && bodyEl.value) || '').trim();
+      if (text.length < 3) { if (bodyEl) bodyEl.focus(); alert('Type the announcement in the box first.'); return; }
+      var pin = confirm('Pin this announcement to the top of the space?');
+      annBtn.disabled = true;
+      api('announce', { body: { space: spaceEl ? spaceEl.value : 'announcements', body: text, pin: pin } }).then(function (d) {
+        annBtn.disabled = false;
+        if (d && d.ok && d.post) {
+          if (bodyEl) bodyEl.value = '';
+          var empty = feed.querySelector('.cm-empty'); if (empty) empty.remove();
+          feed.insertBefore(renderPost(d.post), feed.firstChild);
+        } else alert((d && d.error) || 'Could not announce.');
+      }).catch(function () { annBtn.disabled = false; });
+    });
   }
 })();

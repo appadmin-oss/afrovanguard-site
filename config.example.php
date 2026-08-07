@@ -42,14 +42,24 @@ function av_config_present(string $const): bool {
 /* ─── Email (SMTP) ────────────────────────────────────────────
  * Powers donation receipts, contact replies AND Academy emails
  * (welcome / enrolment / membership / certificate-ready) via the
- * shared lib/Mailer.php. Requires PHPMailer on the server — either
- * vendor/ (composer) or PHPMailer-master/ — same as the donation
- * system; without it, mail falls back to PHP mail() then logging. */
-define('SMTP_HOST',     'smtp.gmail.com');
+ * shared lib/Mailer.php, which sends through the battle-tested
+ * PHPMailer bundled at lib/vendor/phpmailer/ (same transport as
+ * Africa GATES / NextGenGen — no Composer needed on the host).
+ *
+ * RECOMMENDED: a dedicated relay like Brevo (free tier: 300/day) —
+ * shared-host Gmail/Workspace SMTP is often blocked and silently
+ * drops mail. Brevo: app.brevo.com → SMTP & API → SMTP.
+ *   SMTP_HOST=smtp-relay.brevo.com  SMTP_PORT=587
+ *   SMTP_USERNAME=<your brevo login>  SMTP_PASSWORD=<brevo SMTP key>
+ *
+ * You can set these as constants here, OR as env / .env using either
+ * name style — SMTP_USERNAME|SMTP_USER, SMTP_PASSWORD|SMTP_PASS,
+ * FROM_EMAIL|MAIL_FROM_ADDRESS, FROM_NAME|MAIL_FROM_NAME. */
+define('SMTP_HOST',     'smtp-relay.brevo.com');
 define('SMTP_PORT',      587);
-define('SMTP_USERNAME', 'donations@afrovanguard.org.ng');
-define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));
-define('FROM_EMAIL',    'donations@afrovanguard.org.ng');
+define('SMTP_USERNAME', getenv('AV_SMTP_USER') ?: 'your_brevo_login');  // Brevo login
+define('SMTP_PASSWORD', _av_require_env('AV_SMTP_PASSWORD'));           // Brevo SMTP key
+define('FROM_EMAIL',    'cacentre@afrovanguard.org.ng');
 define('FROM_NAME',     'Afrovanguard');
 define('ADMIN_EMAIL',   'cacentre@afrovanguard.org.ng');
 // Optional transport overrides (defaults shown):

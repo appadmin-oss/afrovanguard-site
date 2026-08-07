@@ -48,6 +48,9 @@ $isMember = $user ? ($lms->isMember((int) $user['id']) || LmsAuth::isOrgMember($
 $hasAccess = $user && $lms->canAccess($user, $c, ['is_preview' => 0]);
 $price = (int) ($c['price_ngn'] ?? 0);
 $fmtNgn = fn(int $n) => '₦' . number_format($n);
+// Coursera-style trust signals for the hero.
+$enrolledCount  = $lms->enrolledCount((int) $c['id']);
+$instructorName = $lms->instructorName($c['instructor_id'] ?? null);
 
 // Primary CTA target / label depends on access + progress.
 $resumeUrl = $firstLesson ? academy_url($c['slug'] . '/learn/' . $firstLesson) : '#enroll';
@@ -99,7 +102,9 @@ render_nav('academy');
             <div class="course-hero-copy">
               <p class="ac-hero-eyebrow"><?= e($c['category']) ?></p>
               <h1><?= e($c['title']) ?></h1>
+              <p class="course-partner">Afrovanguard Academy<?= $instructorName ? ' · Taught by ' . e($instructorName) : '' ?></p>
               <p class="course-dek"><?= e($c['summary']) ?></p>
+              <p class="course-trust"><?= $enrolledCount > 0 ? '<strong>' . number_format($enrolledCount) . '</strong> already enrolled' : 'New programme — be among the first' ?> · Certificate on completion</p>
               <div class="course-badges">
                 <span class="cb"><?= e($c['level']) ?></span>
                 <span class="cb"><?= e($c['format']) ?></span>
@@ -147,6 +152,38 @@ render_nav('academy');
 <?php endif; ?>
               <div class="article-body course-about">
 <?= $c['body_html'] ?>
+              </div>
+
+              <div class="instructor-card">
+                <h2>Your instructor</h2>
+                <div class="instructor-row">
+                  <span class="instructor-avatar" aria-hidden="true"><?= e(mb_substr($instructorName ?: 'Afrovanguard', 0, 1)) ?></span>
+                  <div class="instructor-info">
+                    <span class="instructor-name"><?= e($instructorName ?: 'The Afrovanguard Academy Faculty') ?></span>
+                    <span class="instructor-role"><?= $instructorName ? 'Programme instructor · Afrovanguard Academy' : 'Practitioners and mentors raising one million incorruptible leaders' ?></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="faq-card">
+                <h2>Frequently asked questions</h2>
+<?php
+                $faqs = [
+                    ['Do I earn a certificate?', 'Yes. Complete every lesson to earn a verifiable Afrovanguard Academy certificate with a unique serial you can share on LinkedIn and your CV.'],
+                    ['How much does it cost?', $access === 'paid'
+                        ? 'This programme is ' . ($price > 0 ? $fmtNgn($price) . ' (one-time)' : 'paid') . '. Academy members get it included — see membership.'
+                        : ($access === 'membership'
+                            ? 'This is a members’ programme, unlocked by Academy membership (' . $fmtNgn((int) AV_MEMBERSHIP_NGN) . '/year).'
+                            : 'This programme is free. ' . ($access === 'tracked' ? 'Create a free account to save your progress and earn your certificate.' : 'You can start straight away.'))],
+                    ['How long does it take?', ($c['duration'] ? 'About ' . $c['duration'] . '. ' : '') . 'It’s self-paced' . ($lessonTotal ? ' across ' . $lessonTotal . ' lesson' . ($lessonTotal === 1 ? '' : 's') : '') . ', so you can learn on your own schedule.'],
+                    ['Do I need any prior experience?', 'This programme is pitched at ' . strtolower((string) $c['level']) . '. Come curious and ready to build — we take it step by step.'],
+                ];
+                foreach ($faqs as $fi => $f): ?>
+                <details class="faq-item"<?= $fi === 0 ? ' open' : '' ?>>
+                  <summary><?= e($f[0]) ?><span class="faq-ico" aria-hidden="true"></span></summary>
+                  <p><?= e(str_replace('’', '’', $f[1])) ?></p>
+                </details>
+<?php endforeach; ?>
               </div>
             </section>
 
@@ -227,6 +264,9 @@ render_nav('academy');
                 } elseif ($access === 'membership') {
                     $priceTxt = $fmtNgn((int) AV_MEMBERSHIP_NGN);
                     $priceSub = 'per year';
+                } elseif ($access === 'restricted') {
+                    $priceTxt = 'Restricted';
+                    $priceSub = $hasAccess ? 'access unlocked' : 'invite or pass required';
                 } else {
                     $priceTxt = 'Free';
                     $priceSub = $access === 'tracked' ? 'sign in to track progress' : 'open programme';
@@ -263,6 +303,23 @@ render_nav('academy');
 <?php else: ?>
                 <button type="button" class="btn btn-pill" data-auth="register">Create an account to join →</button>
                 <p class="enroll-tiny">Already a member? <a href="#" data-auth="login">Sign in</a></p>
+<?php endif; ?>
+<?php elseif ($access === 'restricted'): ?>
+<?php if ($hasAccess): ?>
+                <p class="enroll-state">✓ You have access to this restricted programme.</p>
+<?php if ($firstLesson): ?>                <a class="btn btn-pill enroll-go" href="<?= e($resumeUrl) ?>"><?= $progress && !empty($progress['completed']) ? 'Continue learning' : 'Start learning' ?> →</a><?php endif; ?>
+<?php elseif ($user): ?>
+                <p class="enroll-state">🔒 This programme is restricted. If you were given a pass code, enter it below — otherwise ask an Academy admin to grant you access.</p>
+<?php if (trim((string) ($c['pass_code'] ?? '')) !== ''): ?>
+                <form class="enroll-form pass-form" data-course="<?= e($c['slug']) ?>">
+                  <input name="code" placeholder="Enter your pass code" autocomplete="off" required />
+                  <button type="submit" class="btn btn-pill">Unlock →</button>
+                </form>
+<?php endif; ?>
+<?php else: ?>
+                <p class="enroll-state">🔒 This is a restricted programme.</p>
+                <button type="button" class="btn btn-pill" data-auth="login">Sign in to continue →</button>
+                <p class="enroll-tiny">Access is limited to invited members or those holding a pass.</p>
 <?php endif; ?>
 <?php else: /* open / tracked */ ?>
 <?php if ($lessonTotal && $firstLesson): ?>
@@ -306,7 +363,7 @@ render_nav('academy');
           <h2>More programmes</h2>
           <section class="ac-grid">
 <?php foreach ($others as $o): ?>
-<?php ac_course_card($o, ['lessons' => $lms->lessonCount((int) $o['id'])]); ?>
+<?php ac_course_card($o, ['lessons' => $lms->lessonCount((int) $o['id']), 'enrolled' => $lms->enrolledCount((int) $o['id'])]); ?>
 <?php endforeach; ?>
           </section>
         </div>

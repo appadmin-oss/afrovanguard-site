@@ -109,12 +109,16 @@ try {
             $segment = in_array(($_GET['segment'] ?? ''), ['org', 'external'], true) ? (string) $_GET['segment'] : '';
             $limit   = max(1, min(500, (int) ($_GET['limit'] ?? 500)));
             $rows = Mentorship::adminMentors($segment, 'approved', (string) ($_GET['q'] ?? ''), $limit);
-            $mentors = array_map(static function (array $m): array {
+            // Only share email PII when explicitly enabled (default on for
+            // back-compat). The `ref` is always a stable cross-site key the
+            // mirror can dedupe on, so email can be withheld without breaking sync.
+            $shareEmail = !defined('AV_MENTORS_SHARE_EMAIL') || AV_MENTORS_SHARE_EMAIL;
+            $mentors = array_map(static function (array $m) use ($shareEmail): array {
                 return [
                     // A stable cross-site reference the mirror can dedupe on.
                     'ref'           => 'av-mentor-' . $m['user_id'],
                     'name'          => $m['name'],
-                    'email'         => $m['email'],
+                    'email'         => $shareEmail ? $m['email'] : null,
                     'segment'       => $m['segment'],          // org | external
                     'headline'      => $m['headline'],
                     'focus'         => $m['focus'],            // free-text skills/tracks

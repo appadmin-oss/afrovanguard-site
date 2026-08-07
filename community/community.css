@@ -26,7 +26,7 @@
   box-shadow: 0 0 0 0 rgba(26,157,63,0.5); animation: cmPulse 2.4s infinite;
 }
 @keyframes cmPulse { 0% { box-shadow: 0 0 0 0 rgba(26,157,63,0.5); } 70% { box-shadow: 0 0 0 8px rgba(26,157,63,0); } 100% { box-shadow: 0 0 0 0 rgba(26,157,63,0); } }
-.cm-hero-txt h1 { font-family: var(--font-heading); font-size: clamp(38px, 5.5vw, 60px); line-height: 1; color: var(--ink); letter-spacing: -0.01em; }
+.cm-hero-txt h1 { font-family: var(--font-heading); font-size: var(--afg-title-size, clamp(38px, 5.5vw, 60px)); line-height: var(--afg-title-lh, 1.1); color: var(--ink); letter-spacing: -0.01em; }
 .cm-hero-txt p { color: var(--muted); font-size: 15.5px; line-height: 1.6; margin: 14px 0 0; }
 .cm-hero-stats { display: flex; gap: 30px; padding-bottom: 6px; }
 .cm-hero-stats div { text-align: center; }
@@ -267,3 +267,19 @@
 .cm-mention-nm small { font-weight: 600; font-size: 11px; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { .cm-chat-send { transition: none; } }
+
+/* Data-classification tags on posts */
+.cm-class { font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; border-radius: 999px;
+  padding: 1px 7px; margin-left: 2px; border: 1px solid transparent; white-space: nowrap; }
+.cm-class--public { color: #0f766e; background: rgba(13,148,136,.12); }
+.cm-class--members { color: var(--afg-gold-deep,#b07e08); background: rgba(243,180,22,.14); }
+.cm-class--confidential { color: #b42318; background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.35); }
+#cmClass { font: inherit; font-size: 12.5px; border: 1px solid var(--cm-line,#e6e2d6); border-radius: 8px; padding: 5px 8px;
+  background: var(--cm-surface,#fff); color: inherit; }
+.portal-app.is-dark .cm-class--public { color:#5eead4; } .portal-app.is-dark .cm-class--confidential { color:#fca5a5; }
+
+/* Moderator controls on posts (admins only) */
+.cm-mod { display:inline-flex; gap:2px; margin-left:auto; }
+.cm-mod-btn { opacity:.5; font-size:13px; padding:4px 6px; line-height:1; }
+.cm-mod-btn:hover { opacity:1; }
+.cm-bar { display:flex; align-items:center; }

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite, mbstring
+          coverage: none
+
+      - name: Lint all PHP
+        run: |
+          set -e
+          find . -type f -name '*.php' \
+            -not -path './vendor/*' -not -path './node_modules/*' \
+            -print0 | xargs -0 -n1 -P4 php -l >/dev/null
+
+      - name: Run data-layer tests
+        run: php tests/run.php
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax-check JavaScript
+        run: |
+          set -e
+          shopt -s nullglob
+          for f in portal/*.js assets/site/*.js academy/*.js; do
+            node --check "$f" && echo "ok: $f"
+          done

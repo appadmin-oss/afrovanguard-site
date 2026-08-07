@@ -8,6 +8,7 @@
   <script>(function(){try{var t=localStorage.getItem('av.theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/admin/admin.css" rel="stylesheet" />
 </head>
@@ -191,6 +192,8 @@
         <div class="side-card">
           <h3>Classification</h3>
           <label class="fld"><span>Category</span><input id="f_category" list="catList" placeholder="e.g. Field Notes" /><datalist id="catList"></datalist></label>
+          <label class="fld"><span>Series (optional)</span><input id="f_series" list="seriesList" placeholder="e.g. Building Alimosho" /><datalist id="seriesList"></datalist></label>
+          <label class="fld"><span>Part # in series</span><input id="f_series_part" type="number" min="0" placeholder="e.g. 1" /></label>
           <label class="fld"><span>Author(s)</span><input id="f_authors" placeholder="The Afrovanguard Team" /></label>
           <label class="fld"><span>Read time (min, optional)</span><input id="f_read" type="number" min="1" placeholder="auto" /></label>
           <label class="fld"><span>Card gradient</span><select id="f_gradient">
@@ -268,8 +271,19 @@
             <option value="tracked">Tracked · free, sign in to track</option>
             <option value="membership">Members only</option>
             <option value="paid">Paid programme</option>
+            <option value="restricted">Restricted · locked to selected members / pass</option>
           </select></label>
           <label class="fld" id="c_price_ngn_wrap" hidden><span>Price (₦, one-time)</span><input id="c_price_ngn" type="number" min="0" step="500" value="0" placeholder="e.g. 15000" /></label>
+          <label class="fld" id="c_pass_wrap" hidden><span>Pass code (optional)</span><input id="c_pass_code" placeholder="e.g. cohort-2026" />
+            <span class="muted" style="font-size:12px">Any member holding this pass can open the course. Leave blank to allow only the members you add below.</span></label>
+          <div class="fld" id="c_access_grants_wrap" hidden>
+            <span>Members with access</span>
+            <div class="grant-add" style="display:flex;gap:8px;margin:4px 0 8px">
+              <input id="c_grant_email" type="email" placeholder="member@email.com" style="flex:1" />
+              <button type="button" class="btn btn-outline btn-sm" id="c_grant_btn">Grant</button>
+            </div>
+            <ul id="c_grant_list" class="grant-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px"></ul>
+          </div>
           <label class="fld"><span>Instructor email</span><input id="c_instructor" type="email" placeholder="instructor@afrovanguard.org.ng" /></label>
           <p class="muted" style="font-size:12px;margin:2px 0 0">They need an Academy account first. They’ll get a dashboard at <code>/academy/teach/</code>.</p>
         </div>
@@ -411,6 +425,9 @@
             <option value="management">Management</option><option value="director">Director</option>
             <option value="patron">Patron</option><option value="ngv">NGV</option>
             <option value="ngg">NGG</option><option value="volunteer">Volunteer</option></select></label>
+          <label class="fld"><span>Group</span><input id="p_grp" list="p_grp_list" placeholder="e.g. Media, Programmes, Alimosho chapter" />
+            <datalist id="p_grp_list"></datalist>
+            <span class="muted" style="font-size:12px">A free-form group for the People directory filter. Members from @afrovanguard.org.ng are auto-added; group them here.</span></label>
           <label class="fld checkbox"><input type="checkbox" id="p_featured" /> <span>Feature in Leadership spotlight</span></label>
           <label class="fld checkbox"><input type="checkbox" id="p_operations" /> <span>Operations team</span></label>
           <label class="fld checkbox"><input type="checkbox" id="p_active" checked /> <span>Active (visible)</span></label>
@@ -426,6 +443,7 @@
         <div class="side-card">
           <h3>Celebrations</h3>
           <label class="fld"><span>Birthday (auto-celebrated)</span><input id="p_birthday" type="text" placeholder="MM-DD e.g. 06-22" pattern="\d{2}-\d{2}" /></label>
+          <label class="fld"><span>Contact email (for a birthday wish)</span><input id="p_notice_email" type="email" placeholder="name@example.com" autocomplete="off" /></label>
           <label class="fld"><span>Volunteer of the Month (YYYY-MM)</span><input id="p_votm_month" type="text" placeholder="e.g. 2026-06" pattern="\d{4}-\d{2}" /></label>
           <label class="fld"><span>VOTM tribute / reason</span><textarea id="p_votm_reason" rows="2" placeholder="Why they were chosen."></textarea></label>
           <label class="fld"><span>VOTM quote</span><input id="p_votm_quote" placeholder="e.g. A heart for people." /></label>
@@ -888,7 +906,11 @@
   </main>
 
   <div class="toast" id="toast"></div>
-  <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+  <!-- Self-hosted TinyMCE (same-origin, so it loads under a strict 'self' CSP).
+       Upload the TinyMCE 7 self-hosted package to /assets/vendor/tinymce/ — see
+       assets/vendor/tinymce/README.md. If it's missing, admin/app.js falls back
+       to a plain textarea, so the editor still works (without the toolbar). -->
+  <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
   <script src="/admin/app.js" defer></script>
 </body>
 </html>

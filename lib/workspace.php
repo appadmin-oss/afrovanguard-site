@@ -46,6 +46,14 @@ function av_workspace_surfaces(bool $isAdmin = false): array
         ['key' => 'meet',     'label' => 'Meet',     'desc' => 'Start or join a video call',  'icon' => 'meet',     'url' => av_ws_link('AV_WS_MEET_URL',     'https://meet.google.com')],
         ['key' => 'calendar', 'label' => 'Calendar', 'desc' => 'Team schedule & events',      'icon' => 'calendar', 'url' => av_ws_link('AV_WS_CALENDAR_URL', "https://calendar.google.com/a/$d")],
         ['key' => 'drive',    'label' => 'Drive',    'desc' => 'Shared files & documents',    'icon' => 'drive',    'url' => av_ws_link('AV_WS_DRIVE_URL',    "https://drive.google.com/a/$d")],
+        ['key' => 'docs',     'label' => 'Docs',     'desc' => 'Write & collaborate',         'icon' => 'docs',     'url' => av_ws_link('AV_WS_DOCS_URL',     'https://docs.google.com/document/')],
+        ['key' => 'sheets',   'label' => 'Sheets',   'desc' => 'Spreadsheets & data',         'icon' => 'sheets',   'url' => av_ws_link('AV_WS_SHEETS_URL',   'https://docs.google.com/spreadsheets/')],
+        ['key' => 'slides',   'label' => 'Slides',   'desc' => 'Decks & presentations',       'icon' => 'slides',   'url' => av_ws_link('AV_WS_SLIDES_URL',   'https://docs.google.com/presentation/')],
+        ['key' => 'forms',    'label' => 'Forms',    'desc' => 'Surveys & sign-ups',          'icon' => 'forms',    'url' => av_ws_link('AV_WS_FORMS_URL',    'https://docs.google.com/forms/')],
+        ['key' => 'tasks',    'label' => 'Tasks',    'desc' => 'Your Google to-dos',          'icon' => 'tasks',    'url' => av_ws_link('AV_WS_TASKS_URL',    'https://tasks.google.com/embed/')],
+        ['key' => 'keep',     'label' => 'Keep',     'desc' => 'Notes & checklists',          'icon' => 'keep',     'url' => av_ws_link('AV_WS_KEEP_URL',     'https://keep.google.com')],
+        ['key' => 'contacts', 'label' => 'Contacts', 'desc' => 'Team directory',              'icon' => 'contacts', 'url' => av_ws_link('AV_WS_CONTACTS_URL', 'https://contacts.google.com')],
+        ['key' => 'sites',    'label' => 'Sites',    'desc' => 'Internal sites & wikis',      'icon' => 'sites',    'url' => av_ws_link('AV_WS_SITES_URL',    "https://sites.google.com/a/$d")],
         ['key' => 'groups',   'label' => 'Groups',   'desc' => 'Mailing lists & communities', 'icon' => 'groups',   'url' => av_ws_link('AV_WS_GROUPS_URL',   "https://groups.google.com/a/$d")],
     ];
     if ($isAdmin) {
@@ -200,6 +208,14 @@ function av_workspace_icon(string $key): string
         'drive'    => '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
         'groups'   => '<path d="M17 20v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9.5" cy="7" r="3.5"/><path d="M22 20v-2a4 4 0 00-3-3.87M16 3.13A4 4 0 0118 7"/>',
         'admin'    => '<path d="M12 2l8 4v6c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/>',
+        'docs'     => '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/>',
+        'sheets'   => '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/>',
+        'slides'   => '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>',
+        'forms'    => '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h.01M8 12h.01M8 16h.01M12 8h4M12 12h4M12 16h4"/>',
+        'tasks'    => '<path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 5l2 2 3-3"/>',
+        'keep'     => '<path d="M12 3a7 7 0 00-4 12.7V18h8v-2.3A7 7 0 0012 3z"/><path d="M9 21h6"/>',
+        'contacts' => '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="10" cy="10" r="2.2"/><path d="M6.5 16a3.5 3.5 0 017 0M16 9h3M16 13h3"/>',
+        'sites'    => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 4v5"/>',
     ];
     $p = $paths[$key] ?? '<circle cx="12" cy="12" r="9"/>';
     return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $p . '</svg>';

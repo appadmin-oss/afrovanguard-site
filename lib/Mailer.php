@@ -34,10 +34,18 @@ final class Mailer
     {
         if (self::$phpmailer !== null) return self::$phpmailer;
         if (class_exists('PHPMailer\\PHPMailer\\PHPMailer')) return self::$phpmailer = true;
-        $vendor = AV_ROOT . '/vendor/autoload.php';
-        $manual = AV_ROOT . '/PHPMailer-master/src/PHPMailer.php';
-        if (is_file($vendor)) { require_once $vendor; }
-        elseif (is_file($manual)) {
+        // Committed, dependency-free PHPMailer (the battle-tested transport, like
+        // Africa GATES / NextGenGen). No Composer needed on the host.
+        $bundled = AV_ROOT . '/lib/vendor/phpmailer/PHPMailer.php';
+        $vendor  = AV_ROOT . '/vendor/autoload.php';                 // Composer, if present
+        $manual  = AV_ROOT . '/PHPMailer-master/src/PHPMailer.php';  // legacy manual drop
+        if (is_file($bundled)) {
+            require_once AV_ROOT . '/lib/vendor/phpmailer/Exception.php';
+            require_once $bundled;
+            require_once AV_ROOT . '/lib/vendor/phpmailer/SMTP.php';
+        } elseif (is_file($vendor)) {
+            require_once $vendor;
+        } elseif (is_file($manual)) {
             require_once $manual;
             require_once AV_ROOT . '/PHPMailer-master/src/SMTP.php';
             require_once AV_ROOT . '/PHPMailer-master/src/Exception.php';

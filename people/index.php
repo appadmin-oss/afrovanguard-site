@@ -83,11 +83,14 @@ if ($id) {
 }
 
 /* ============================================================ DIRECTORY */
+// Auto-enrol @afrovanguard.org.ng members so they appear here automatically.
+av_team_sync_org_members($pdo);
 $rows = av_team_rows($pdo, true);
 $people = array_map('av_team_member_dict', $rows);
 $leaders = array_values(array_filter($people, fn($m) => $m['featured'] && in_array($m['tier'], AV_TEAM_LEAD_TIERS, true)));
 $tiersPresent = [];
 foreach ($people as $m) { $tiersPresent[$m['tier']] = true; }
+$groups = av_team_groups($pdo);   // admin-defined groups, if any
 
 render_head([
     'title' => 'Our People — The Vanguard Behind the Movement · Afrovanguard',
@@ -99,7 +102,7 @@ render_nav('about');
 /** Render one directory card. */
 $card = function (array $m) use ($initials, $socIcon, $socHref) {
     ob_start(); ?>
-        <a class="pcard" href="<?= e(av_person_url($m)) ?>" data-name="<?= e(strtolower($m['name'] . ' ' . $m['role'] . ' ' . $m['tier'])) ?>" data-tier="<?= e($m['tier']) ?>" data-reveal>
+        <a class="pcard" href="<?= e(av_person_url($m)) ?>" data-name="<?= e(strtolower($m['name'] . ' ' . $m['role'] . ' ' . $m['tier'])) ?>" data-tier="<?= e($m['tier']) ?>" data-grp="<?= e($m['grp']) ?>" data-reveal>
           <div class="pcard-photo<?= $m['photo'] ? ' has' : '' ?>"<?= $m['photo'] ? ' style="background-image:url(\'' . e($m['photo']) . '\')"' : '' ?>>
 <?php if (!$m['photo']): ?>            <span><?= e($initials($m['name'])) ?></span>
 <?php endif; ?>            <span class="pcard-tier"><?= e(av_tier_label($m['tier'])) ?></span>
@@ -133,12 +136,18 @@ $card = function (array $m) use ($initials, $socIcon, $socHref) {
 <?php if ($people): ?>
       <div class="ppl-label"><span>Full Team Directory</span></div>
       <div class="ppl-controls">
-        <div class="ppl-filters" role="group" aria-label="Filter by group">
+        <div class="ppl-filters" role="group" aria-label="Filter by tier">
           <button class="ppl-pill on" data-f="all">Everyone</button>
 <?php foreach (AV_TEAM_TIERS as $t): if (empty($tiersPresent[$t])) continue; ?>          <button class="ppl-pill" data-f="<?= e($t) ?>"><?= e(av_tier_label($t)) ?></button>
 <?php endforeach; ?>        </div>
         <input type="search" id="pplSearch" class="ppl-search" placeholder="Search by name or role…" aria-label="Search people" />
       </div>
+<?php if ($groups): ?>
+      <div class="ppl-filters ppl-groups" role="group" aria-label="Filter by group">
+        <button class="ppl-pill ppl-gpill on" data-g="all">All groups</button>
+<?php foreach ($groups as $g): ?>        <button class="ppl-pill ppl-gpill" data-g="<?= e($g) ?>"><?= e($g) ?></button>
+<?php endforeach; ?>      </div>
+<?php endif; ?>
       <div class="pcard-grid" id="pplGrid">
 <?php foreach ($people as $m) echo $card($m); ?>
       </div>
@@ -153,19 +162,27 @@ $card = function (array $m) use ($initials, $socIcon, $socHref) {
   (function(){
     var grid=document.getElementById('pplGrid'); if(!grid) return;
     var cards=[].slice.call(grid.querySelectorAll('.pcard'));
-    var empty=document.getElementById('pplEmpty'); var f='all', q='';
+    var empty=document.getElementById('pplEmpty'); var f='all', g='all', q='';
     function apply(){
       var n=0;
       cards.forEach(function(c){
-        var ok=(f==='all'||c.getAttribute('data-tier')===f) && (!q||c.getAttribute('data-name').indexOf(q)!==-1);
+        var ok=(f==='all'||c.getAttribute('data-tier')===f)
+             && (g==='all'||c.getAttribute('data-grp')===g)
+             && (!q||c.getAttribute('data-name').indexOf(q)!==-1);
         c.style.display=ok?'':'none'; if(ok)n++;
       });
       if(empty) empty.hidden=n!==0;
     }
-    document.querySelectorAll('.ppl-pill').forEach(function(b){
+    document.querySelectorAll('.ppl-pill[data-f]').forEach(function(b){
       b.addEventListener('click',function(){
-        document.querySelectorAll('.ppl-pill').forEach(function(x){x.classList.remove('on');});
+        document.querySelectorAll('.ppl-pill[data-f]').forEach(function(x){x.classList.remove('on');});
         b.classList.add('on'); f=b.getAttribute('data-f'); apply();
+      });
+    });
+    document.querySelectorAll('.ppl-gpill[data-g]').forEach(function(b){
+      b.addEventListener('click',function(){
+        document.querySelectorAll('.ppl-gpill[data-g]').forEach(function(x){x.classList.remove('on');});
+        b.classList.add('on'); g=b.getAttribute('data-g'); apply();
       });
     });
     var s=document.getElementById('pplSearch');

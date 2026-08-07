@@ -23,11 +23,46 @@ declare(strict_types=1);
 
 final class Tts
 {
-    public static function engine(): string { return strtolower(trim((string) (getenv('AV_TTS_ENGINE') ?: 'openai'))); }
+    /**
+     * Selected engine. If AV_TTS_ENGINE is set explicitly it wins; otherwise we
+     * auto-detect from which key/voice is configured, so simply "adding the
+     * ElevenLabs key" turns on ElevenLabs without a second setting.
+     */
+    public static function engine(): string
+    {
+        $e = strtolower(trim((string) getenv('AV_TTS_ENGINE')));
+        if ($e !== '') return $e;
+        if (self::elevenKey() !== '' || trim((string) getenv('AV_TTS_VOICE_ID')) !== '') return 'elevenlabs';
+        // A generic key: ElevenLabs keys start "sk_"; OpenAI's start "sk-".
+        $k = trim((string) getenv('AV_TTS_API_KEY'));
+        if ($k !== '') return str_starts_with($k, 'sk_') ? 'elevenlabs' : 'openai';
+        return 'openai';
+    }
 
+    /** Last provider failure (engine + HTTP code + short body), for diagnostics. */
+    private static string $lastError = '';
+    public static function lastError(): string { return self::$lastError; }
+
+    /** Non-sensitive status, for the ?probe diagnostic (never returns the key). */
+    public static function status(): array
+    {
+        return ['engine' => self::engine(), 'available' => self::available(), 'has_key' => self::key() !== '',
+                'voice' => self::voice(), 'ext' => self::ext(), 'model' => (string) (getenv('AV_TTS_MODEL') ?: '')];
+    }
+
+    /** ElevenLabs key under any of the common variable names. */
+    private static function elevenKey(): string
+    {
+        return (string) (getenv('AV_ELEVENLABS_API_KEY') ?: getenv('ELEVENLABS_API_KEY') ?: getenv('ELEVEN_API_KEY') ?: '');
+    }
+
+    /** The API key for the active engine. */
     private static function key(): string
     {
-        return (string) (getenv('AV_TTS_API_KEY') ?: getenv('AV_OPENAI_API_KEY') ?: '');
+        if (self::engine() === 'elevenlabs') {
+            return (string) (self::elevenKey() ?: getenv('AV_TTS_API_KEY') ?: '');
+        }
+        return (string) (getenv('AV_TTS_API_KEY') ?: getenv('AV_OPENAI_API_KEY') ?: getenv('OPENAI_API_KEY') ?: '');
     }
 
     /** Is the reader's neural voice usable right now? Drives graceful fallback. */
@@ -43,9 +78,14 @@ final class Tts
 
     public static function voice(): string
     {
+        if (self::engine() === 'elevenlabs') {
+            // ElevenLabs addresses voices by ID, not name. Default to "Rachel"
+            // (a warm, clear narration voice). Override with AV_TTS_VOICE_ID.
+            $vid = trim((string) getenv('AV_TTS_VOICE_ID'));
+            return $vid !== '' ? $vid : '21m00Tcm4TlvDq8ikWAM';
+        }
         $v = trim((string) getenv('AV_TTS_VOICE'));
-        if ($v !== '') return $v;
-        return self::engine() === 'elevenlabs' ? (string) (getenv('AV_TTS_VOICE_ID') ?: 'Rachel') : 'nova';
+        return $v !== '' ? $v : 'nova';
     }
 
     /** Content-Type for the produced audio. */
@@ -83,22 +123,46 @@ final class Tts
             ['Authorization: Bearer ' . $key, 'Content-Type: application/json']);
         // Errors come back as JSON; audio comes back as binary.
         if ($code === 200 && $body !== '' && stripos($ctype, 'application/json') === false) return $body;
-        if ($body !== '') error_log('[AV-TTS] OpenAI ' . $code . ': ' . substr($body, 0, 300));
+        if ($body !== '') {   // keep the network error from http() when there was no response
+            self::$lastError = 'openai ' . $code . ': ' . substr(preg_replace('/\s+/', ' ', $body), 0, 200);
+            error_log('[AV-TTS] OpenAI ' . $code . ': ' . substr($body, 0, 300));
+        }
         return null;
     }
 
-    /* ── ElevenLabs (https://elevenlabs.io/docs) ── */
+    /* ── ElevenLabs (https://elevenlabs.io/docs/api-reference/text-to-speech) ──
+       Voice, model and voice_settings are all env-tunable so the narration can be
+       dialed in without code changes:
+         AV_TTS_VOICE_ID    the voice (default "Rachel" 21m00Tcm4TlvDq8ikWAM)
+         AV_TTS_MODEL       eleven_turbo_v2_5 (fast/cheap, default) |
+                            eleven_multilingual_v2 (highest quality)
+         AV_TTS_STABILITY   0..1  (default 0.5)   — steadiness vs. expressiveness
+         AV_TTS_SIMILARITY  0..1  (default 0.75)  — closeness to the source voice
+         AV_TTS_STYLE       0..1  (default 0.0)   — style exaggeration           */
     private static function elevenlabs(string $text, string $voice): ?string
     {
         $key = self::key();
         if ($key === '') return null;
-        $vid = getenv('AV_TTS_VOICE_ID') ?: $voice;
-        $payload = json_encode(['text' => $text, 'model_id' => getenv('AV_TTS_MODEL') ?: 'eleven_turbo_v2_5']);
+        $vid = trim((string) getenv('AV_TTS_VOICE_ID')) ?: ($voice ?: '21m00Tcm4TlvDq8ikWAM');
+        $clamp = static fn($v, $d) => is_numeric($v) ? max(0.0, min(1.0, (float) $v)) : $d;
+        $payload = json_encode([
+            'text'     => $text,
+            'model_id' => getenv('AV_TTS_MODEL') ?: 'eleven_turbo_v2_5',
+            'voice_settings' => [
+                'stability'        => $clamp(getenv('AV_TTS_STABILITY'), 0.5),
+                'similarity_boost' => $clamp(getenv('AV_TTS_SIMILARITY'), 0.75),
+                'style'            => $clamp(getenv('AV_TTS_STYLE'), 0.0),
+                'use_speaker_boost' => true,
+            ],
+        ]);
         [$body, $code, $ctype] = self::http(
             'https://api.elevenlabs.io/v1/text-to-speech/' . rawurlencode($vid) . '?output_format=mp3_44100_128',
             $payload, ['xi-api-key: ' . $key, 'Content-Type: application/json', 'Accept: audio/mpeg']);
         if ($code === 200 && $body !== '' && stripos($ctype, 'application/json') === false) return $body;
-        if ($body !== '') error_log('[AV-TTS] ElevenLabs ' . $code . ': ' . substr($body, 0, 300));
+        if ($body !== '') {   // keep the network error from http() when there was no response
+            self::$lastError = 'elevenlabs ' . $code . ': ' . substr(preg_replace('/\s+/', ' ', $body), 0, 200);
+            error_log('[AV-TTS] ElevenLabs ' . $code . ': ' . substr($body, 0, 300));
+        }
         return null;
     }
 
@@ -113,7 +177,7 @@ final class Tts
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $ctype = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-        if ($body === false) error_log('[AV-TTS] curl: ' . curl_error($ch));
+        if ($body === false) { self::$lastError = 'network: ' . curl_error($ch); error_log('[AV-TTS] curl: ' . curl_error($ch)); }
         curl_close($ch);
         return [$body === false ? '' : $body, $code, $ctype];
     }

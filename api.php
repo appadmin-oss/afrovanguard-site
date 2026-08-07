@@ -41,6 +41,12 @@ try {
         if (is_file(AV_ROOT . '/lib/celebrations.php')) {
             require_once AV_ROOT . '/lib/celebrations.php';
             $out = ['status' => 'ok', 'celebration' => av_celebration_today($pdo)];
+            // Best-effort lazy trigger so birthday emails still go out on hosts
+            // without a configured cron. Idempotent (once per person per day),
+            // and wrapped so it can never affect this response.
+            if (function_exists('av_birthday_emails_run')) {
+                try { av_birthday_emails_run($pdo); } catch (Throwable $e) { error_log('[api] bday: ' . $e->getMessage()); }
+            }
         } else {
             $out = ['status' => 'ok', 'celebration' => null];
         }

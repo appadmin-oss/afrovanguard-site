@@ -58,13 +58,21 @@ function av_brand_css(): string {
         $d = $hex($b['accent_deep'] ?? null);
         if (!$a && !$d) return $cache;
         $a = $a ?: $d; $d = $d ?: $a;
-        $cache = ':root{--gold:' . $a . ';--gold-deep:' . $d . ';--m-gold:' . $a . ';--m-gold-deep:' . $d . ';}';
+        // Repoint the brand accent across every namespace, including the shared
+        // --afg-* token layer, so a custom Studio brand colour flows everywhere.
+        $cache = ':root{--gold:' . $a . ';--gold-deep:' . $d . ';--m-gold:' . $a . ';--m-gold-deep:' . $d
+            . ';--afg-gold:' . $a . ';--afg-accent:' . $a . ';--afg-accent-ink:' . $d . ';}';
     } catch (Throwable $e) { $cache = ''; }
     return $cache;
 }
 
 function render_head(array $o): void {
-    $title = $o['title']; $desc = $o['desc']; $canonical = $o['canonical'];
+    // `??` on all three. A by-link page (diary/shared.php, diary/notebook.php)
+    // has no canonical BY DEFINITION — it is noindex and unlisted — and the bare
+    // access emitted an "Undefined array key" warning into the error log on every
+    // one of those requests. A page with no canonical is a legitimate page, not a
+    // caller mistake.
+    $title = $o['title'] ?? ''; $desc = $o['desc'] ?? ''; $canonical = $o['canonical'] ?? '';
     $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
     $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
     $imageAlt = $o['image_alt'] ?? $title;
@@ -115,8 +123,10 @@ function render_head(array $o): void {
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/assets/site/nav.css" rel="stylesheet" />
+  <link href="/assets/site/page.css" rel="stylesheet" />
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
 <?php endforeach;
   // Studio Design panel brand override — last, so it re-points the accent vars
@@ -154,32 +164,35 @@ function av_nav_model(): array {
     // off-site subdomains (cacentre/next/…) stay absolute.
     $V = AV_VOLUNTEER_URL;
     return [
+        // WHO WE ARE
         'about'   => ['label' => 'About', 'href' => '/about.html', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
-                    ['About us', '/about.html'], ['Our ethos', '/ethos/'],
-                    ['Leadership & model', '/ethos/#leadership'], ['Our story', '/about.html#our-story'],
+                    ['About us', '/about.html'], ['How it works', '/how-it-works'],
+                    ['Our ethos', '/ethos/'], ['Leadership & model', '/ethos/#leadership'],
+                    ['Franchise a CACENTRE', '/franchise'],
                 ]],
-                ['title' => 'Get involved', 'links' => [
-                    ['Volunteer', $V], ['Donate', '/donate.html'],
-                    ['Events', AV_EVENTS_URL], ['Contact us', '/contact.html'],
+                ['title' => 'Connect', 'links' => [
+                    ['Contact us', '/contact.html'], ['The Diary', '/diary/'], ['Events', AV_EVENTS_URL],
                 ]],
             ],
             'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
         ]],
+        // LEARN — the Academy platform (learning only; on-the-ground programmes live under Projects)
         'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
                     ['All programmes', '/academy/'], ['Academy membership', '/academy/#membership'],
-                    ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/'],
+                    ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/verify.php'],
                 ]],
-                ['title' => 'Featured programmes', 'links' => [
-                    ['Techome', '/academy/techome/'], ['MediaPro', '/academy/mediapro/'],
-                    ['Africa GATES', '/academy/africa-gates/'], ['NGV Academy', '/academy/ngv-academy/'],
+                ['title' => 'Get started', 'links' => [
+                    ['Create an account', '/login'], ['Member portal', '/portal/'], ['Mentorship', '/mentorship/'],
+                    ['IQ — Quizzes & games', '/IQ/'],
                 ]],
             ],
             'feature' => ['kicker' => 'The Academy', 'title' => 'Learn. Build. Lead Africa.', 'text' => 'Free, hands-on programmes in technology, creativity and leadership.', 'href' => '/academy/', 'cta' => 'Explore the Academy'],
         ]],
+        // WHAT WE DO ON THE GROUND — flagship programmes (distinct from Academy learning)
         'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
             'cols' => [
                 ['title' => 'Flagship programmes', 'links' => [
@@ -190,10 +203,24 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'More', 'links' => [
                     ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
-                    ['All projects', '/projects/'], ['Volunteer', $V], ['Events', AV_EVENTS_URL],
+                    ['All projects', '/projects/'],
                 ]],
             ],
             'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all projects'],
+        ]],
+        // HOW TO HELP — one clear home for every conversion path
+        'involved' => ['label' => 'Get involved', 'href' => '/donate.html', 'mega' => [
+            'cols' => [
+                ['title' => 'Give', 'links' => [
+                    ['Donate', '/donate.html'], ['Fund a campaign', '/donate.html#campaigns'],
+                    ['Become a member', '/academy/#membership'],
+                ]],
+                ['title' => 'Give your time & grow', 'links' => [
+                    ['Volunteer', $V], ['Mentor a young leader', '/mentorship/'], ['Partner with us', '/contact.html'],
+                    ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE ↗', 'https://cacentre.afrovanguard.org.ng'],
+                ]],
+            ],
+            'feature' => ['kicker' => 'Stand with us', 'title' => 'Be part of the movement', 'text' => 'Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.', 'href' => '/donate.html', 'cta' => 'Donate now'],
         ]],
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [
@@ -208,7 +235,6 @@ function av_nav_model(): array {
             ],
             'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
         ]],
-        'contact' => ['label' => 'Contact', 'href' => '/contact.html'],
     ];
 }
 
@@ -310,7 +336,9 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     $model = av_nav_model();
     $sub = av_subnav_model()[$active] ?? null;
     $cur = fn($n) => $n === $active ? ' aria-current="page"' : '';
-    $illo = fn($k) => '/assets/illustrations/nav-' . $k . '.webp';
+    // Only reference a mega-feature illustration when the file actually exists —
+    // otherwise the browser 404s on a missing background image.
+    $illo = function ($k) { $rel = '/assets/illustrations/nav-' . $k . '.webp'; return is_file(AV_ROOT . $rel) ? $rel : ''; };
 ?>
   <header class="site-header<?= $sub ? ' has-subnav' : '' ?>" id="site-header" role="banner" data-section="<?= e($active) ?>">
     <!-- Tier 0 · thin utility strip (secondary actions) -->
@@ -360,7 +388,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 <?php endforeach; ?>                      </ul>
                     </div>
 <?php endforeach; ?>                  </div>
-<?php $f = $it['mega']['feature']; ?>                  <a class="mega-feature" href="<?= e($f['href']) ?>" style="background-image:url('<?= e($illo($k)) ?>')">
+<?php $f = $it['mega']['feature']; $fimg = $illo($k); ?>                  <a class="mega-feature<?= $fimg === '' ? ' mega-feature--plain' : '' ?>" href="<?= e($f['href']) ?>"<?= $fimg !== '' ? ' style="background-image:url(\'' . e($fimg) . '\')"' : '' ?>>
                     <span class="mf-kicker"><?= e($f['kicker']) ?></span>
                     <span class="mf-title"><?= e($f['title']) ?></span>
                     <span class="mf-text"><?= e($f['text']) ?></span>
@@ -497,16 +525,7 @@ function render_course_card(array $c): void {
 
 function render_listen_bar(string $slug, string $canonical): void { ?>
         <div class="listen-bar" aria-label="Listen to this article and reading controls" data-slug="<?= e($slug) ?>" data-tts="<?= (class_exists('Tts') && Tts::available()) ? '1' : '0' ?>">
-          <div class="listen-core">
-            <button class="listen-play" aria-label="Listen to this article" title="Listen (l)"><?= Icons::PLAY ?></button>
-            <div class="listen-readout">
-              <span class="listen-time"><b class="listen-cur">0:00</b> / <span class="listen-total">0:00</span></span>
-              <button class="listen-skip listen-back" aria-label="Back 10 seconds"><?= Icons::BACK ?><span>10</span></button>
-              <button class="listen-skip listen-fwd" aria-label="Forward 10 seconds"><?= Icons::FWD ?><span>10</span></button>
-              <button class="listen-rate" aria-label="Playback speed">1.0x</button>
-              <select class="listen-voice" aria-label="Reader voice" title="Choose a voice" hidden></select>
-            </div>
-          </div>
+          <button class="listen-play" aria-label="Listen to this article" title="Listen (l)"><?= Icons::PLAY ?><span class="listen-label">Listen</span></button>
           <div class="reader-tools">
             <div class="tool-group" role="group" aria-label="Text size">
               <button data-font="dec" aria-label="Decrease text size">A−</button>
@@ -514,6 +533,9 @@ function render_listen_bar(string $slug, string $canonical): void { ?>
             </div>
             <button class="tool-btn" data-bookmark="<?= e($slug) ?>" aria-label="Save for later" title="Save (b)"><?= Icons::BOOKMARK ?></button>
             <button class="tool-btn" data-share="<?= e($canonical) ?>" aria-label="Share or copy link" title="Share"><?= Icons::SHARE ?></button>
+<?php if (class_exists('Tts') && Tts::available() && Tts::ext() === 'mp3' && Tts::engine() !== 'mock'): ?>
+            <a class="tool-btn tool-dl" href="/diary/audio.php?slug=<?= e($slug) ?>" download aria-label="Download the audio narration" title="Download audio"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></a>
+<?php endif; ?>
             <button class="tool-btn" onclick="window.print()" aria-label="Print this article" title="Print"><?= Icons::PRINTER ?></button>
           </div>
         </div>
@@ -567,6 +589,7 @@ function av_footer_inner(): void {
             <li><a href="/ethos/">Our Ethos</a></li>
             <li><a href="/academy/">Academy</a></li>
             <li><a href="<?= $S ?>/projects/">Projects</a></li>
+            <li><a href="/franchise">Franchise</a></li>
             <li><a href="/diary/">The Diary</a></li>
             <li><a href="<?= e(AV_EVENTS_URL) ?>">Events</a></li>
             <li><a href="<?= e(AV_VOLUNTEER_URL) ?>">Volunteer</a></li>
@@ -603,6 +626,7 @@ function render_footer(): void { ?>
 <?php av_footer_inner(); ?>
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
+  <script src="/assets/site/color-aware.js" defer></script>
   <script src="/diary/diary.js" defer></script>
   <script src="/assets/site/chioma.js" defer></script>
 </body>

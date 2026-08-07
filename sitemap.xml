@@ -54,6 +54,18 @@
     <image:image><image:loc>https://afrovanguard.org.ng/academy/og/techome.png</image:loc><image:title>Techome</image:title></image:image>
   </url>
   <url>
+    <loc>https://afrovanguard.org.ng/academy/leadership-on-a-light-cover/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <image:image><image:loc>https://afrovanguard.org.ng/academy/og/leadership-on-a-light-cover.png</image:loc><image:title>Leadership on a Light Cover</image:title></image:image>
+  </url>
+  <url>
+    <loc>https://afrovanguard.org.ng/academy/strategy-on-a-dark-cover/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <image:image><image:loc>https://afrovanguard.org.ng/academy/og/strategy-on-a-dark-cover.png</image:loc><image:title>Strategy on a Dark Cover</image:title></image:image>
+  </url>
+  <url>
     <loc>https://afrovanguard.org.ng/academy/mediapro/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>

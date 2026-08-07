@@ -65,8 +65,46 @@ final class Community
         CREATE INDEX IF NOT EXISTS idx_cchat_feed ON community_chat(id);";
         $drv = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         $db->exec($drv === 'sqlite' ? $ddl : Database::translateDDL($ddl, $drv));
+        // Chat channels are a later addition — add the column idempotently.
+        try { if (!Database::columnExists('community_chat', 'channel')) $db->exec("ALTER TABLE community_chat ADD COLUMN channel VARCHAR(24) NOT NULL DEFAULT 'general'"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
+        // Data-classification is a later addition — add the column idempotently.
+        try { if (!Database::columnExists('community_posts', 'classification')) $db->exec("ALTER TABLE community_posts ADD COLUMN classification VARCHAR(16) NOT NULL DEFAULT 'members'"); }
+        catch (Throwable $e) { /* already there / driver quirk */ }
         // Set $done BEFORE seeding so the nested ensure() inside botPost short-circuits.
         if ($pdo === null) { self::seedSpaces($db); $done = true; self::seedWelcome($db); }
+    }
+
+    /** The members-chat channels (fixed set, keeps the space tidy). */
+    const CHAT_CHANNELS = ['general' => 'General', 'announcements' => 'Announcements', 'mentorship' => 'Mentorship', 'random' => 'Random'];
+    private static function normChannel(string $c): string { $c = strtolower(trim($c)); return isset(self::CHAT_CHANNELS[$c]) ? $c : 'general'; }
+
+    /** Data-classification levels for posts (least → most sensitive). */
+    const CLASSES = ['public' => 'Public', 'members' => 'Members-only', 'confidential' => 'Confidential'];
+    private static function normClass(string $c): string { $c = strtolower(trim($c)); return isset(self::CLASSES[$c]) ? $c : 'members'; }
+
+    /** A viewer's clearance: 0 = public only, 1 = + members, 2 = + confidential. */
+    public static function clearance(int $uid): int
+    {
+        if ($uid <= 0) return 0;
+        try {
+            $st = Database::pdo()->prepare('SELECT role, email FROM lms_users WHERE id = ?');
+            $st->execute([$uid]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u) return 0;
+            $rank = class_exists('LmsAuth') ? LmsAuth::rank((string) ($u['role'] ?? '')) : 0;
+            if ($rank >= 30) return 2;   // coordinator / admin
+            $isOrg = $rank >= 10 || (class_exists('LmsAuth') && LmsAuth::isOrgEmail((string) ($u['email'] ?? '')));
+            return $isOrg ? 1 : 0;
+        } catch (Throwable $e) { return self::isOrgMember($uid) ? 1 : 0; }
+    }
+
+    /** The classification values a given clearance may see / post. */
+    public static function allowedClasses(int $clearance): array
+    {
+        if ($clearance >= 2) return ['public', 'members', 'confidential'];
+        if ($clearance >= 1) return ['public', 'members'];
+        return ['public'];
     }
 
     private static function seedWelcome(PDO $db): void
@@ -126,15 +164,19 @@ final class Community
     }
 
     /* ── posting ── */
-    public static function createPost(int $authorId, string $spaceSlug, string $body, ?array $poll = null, bool $pinned = false): int
+    public static function createPost(int $authorId, string $spaceSlug, string $body, ?array $poll = null, bool $pinned = false, string $classification = 'members'): int
     {
         self::ensure();
         $body = trim($body);
         if ($body === '' || $authorId <= 0) return 0;
         $sid = self::spaceId($spaceSlug) ?: self::spaceId('open-floor');
+        // Cap the chosen classification to what the author is cleared to post.
+        $cls = self::normClass($classification);
+        $allowed = self::allowedClasses(self::clearance($authorId));
+        if (!in_array($cls, $allowed, true)) $cls = in_array('members', $allowed, true) ? 'members' : 'public';
         $db = Database::pdo();
-        $db->prepare('INSERT INTO community_posts (author_id, space_id, body, poll_json, pinned, created_at) VALUES (?,?,?,?,?,?)')
-           ->execute([$authorId, $sid, mb_substr($body, 0, 5000), $poll ? json_encode($poll) : null, $pinned ? 1 : 0, gmdate('Y-m-d H:i:s')]);
+        $db->prepare('INSERT INTO community_posts (author_id, space_id, body, poll_json, pinned, classification, created_at) VALUES (?,?,?,?,?,?,?)')
+           ->execute([$authorId, $sid, mb_substr($body, 0, 5000), $poll ? json_encode($poll) : null, $pinned ? 1 : 0, $cls, gmdate('Y-m-d H:i:s')]);
         $id = (int) $db->lastInsertId();
         if (class_exists('Events')) {
             Events::emit('community.post', ['id' => $id, 'space' => $spaceSlug, 'author_id' => $authorId, 'excerpt' => mb_substr($body, 0, 180)]);
@@ -182,9 +224,9 @@ final class Community
 
     /* ── reading ── */
     private const POST_COLS =
-        'p.id, p.body, p.poll_json, p.pinned, p.likes, p.reply_count, p.created_at,
+        'p.id, p.body, p.poll_json, p.pinned, p.likes, p.reply_count, p.created_at, p.classification,
          s.slug AS space_slug, s.name AS space_name, s.color AS space_color,
-         u.name AS author, u.email AS author_email, u.role AS author_role';
+         u.id AS author_id, u.name AS author, u.email AS author_email, u.role AS author_role';
 
     /** Top-level feed. $space = slug|null. $sort = top|latest. */
     public static function feed(?string $space, string $sort = 'latest', int $limit = 15, int $offset = 0, int $viewerId = 0): array
@@ -194,6 +236,10 @@ final class Community
         $where = "p.reply_to IS NULL AND p.status = 'published'";
         $args = [];
         if ($space) { $where .= ' AND s.slug = ?'; $args[] = $space; }
+        // Hide posts above the viewer's clearance (public < members < confidential).
+        $allowed = self::allowedClasses(self::clearance($viewerId));
+        $where .= ' AND p.classification IN (' . implode(',', array_fill(0, count($allowed), '?')) . ')';
+        foreach ($allowed as $a) $args[] = $a;
         $order = $sort === 'top' ? 'p.pinned DESC, p.likes DESC, p.id DESC' : 'p.pinned DESC, p.id DESC';
         $limit = max(1, min(50, $limit)); $offset = max(0, $offset);
         $sql = 'SELECT ' . self::POST_COLS . '
@@ -224,7 +270,10 @@ final class Community
             WHERE p.id = ? AND p.status = \'published\'');
         $st->execute([$id]);
         $r = $st->fetch(PDO::FETCH_ASSOC);
-        return $r ? self::shape($r, $viewerId) : null;
+        if (!$r) return null;
+        // Respect classification: don't reveal a post above the viewer's clearance.
+        if (!in_array(self::normClass((string) ($r['classification'] ?? 'members')), self::allowedClasses(self::clearance($viewerId)), true)) return null;
+        return self::shape($r, $viewerId);
     }
 
     /** Normalise a row into a view model (author identity, tier, liked-state, poll). */
@@ -252,7 +301,10 @@ final class Community
             'ago' => self::ago((string) $r['created_at']),
             'space' => ['slug' => (string) $r['space_slug'], 'name' => (string) $r['space_name'], 'color' => (string) $r['space_color']],
             'author' => $name,
+            'author_id' => (int) ($r['author_id'] ?? 0),
             'initial' => mb_strtoupper(mb_substr($name, 0, 1)),
+            'classification' => self::normClass((string) ($r['classification'] ?? 'members')),
+            'class_label' => self::CLASSES[self::normClass((string) ($r['classification'] ?? 'members'))],
             'tier' => $isBot ? 'Official' : ($org ? 'Member' : 'Learner'),
             'verified' => $org || $isBot,
             'is_bot' => $isBot,
@@ -411,17 +463,18 @@ final class Community
      * raw body, and notifies each mentioned member best-effort. Returns the
      * shaped message (with resolved mentions) or null on failure — never throws.
      */
-    public static function chatSend(int $authorId, string $body): ?array
+    public static function chatSend(int $authorId, string $body, string $channel = 'general'): ?array
     {
         self::ensure();
         $body = trim($body);
         if ($body === '' || $authorId <= 0) return null;
         if (!self::isOrgMember($authorId)) return null; // server-side gate (defence-in-depth)
         $body = mb_substr($body, 0, 2000);
+        $channel = self::normChannel($channel);
         try {
             $db = Database::pdo();
-            $db->prepare('INSERT INTO community_chat (author_id, body, created_at) VALUES (?,?,?)')
-               ->execute([$authorId, $body, gmdate('Y-m-d H:i:s')]);
+            $db->prepare('INSERT INTO community_chat (author_id, body, channel, created_at) VALUES (?,?,?,?)')
+               ->execute([$authorId, $body, $channel, gmdate('Y-m-d H:i:s')]);
             $id = (int) $db->lastInsertId();
         } catch (Throwable $e) {
             error_log('[community] chatSend: ' . $e->getMessage());
@@ -443,21 +496,22 @@ final class Community
      * Poll the chat channel. ORG-only (caller gates). $sinceId returns only
      * messages with id > sinceId (ascending) for cheap incremental polling;
      * $sinceId = 0 returns the most recent page (ascending). Fail-safe: []. */
-    public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50): array
+    public static function chatList(int $viewerId, int $sinceId = 0, int $limit = 50, string $channel = 'general'): array
     {
         self::ensure();
         if (!self::isOrgMember($viewerId)) return [];
         $limit = max(1, min(100, $limit));
+        $channel = self::normChannel($channel);
         try {
             $db = Database::pdo();
             if ($sinceId > 0) {
-                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
-                $st->execute([$sinceId]);
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? AND c.id > ? ORDER BY c.id ASC LIMIT ' . $limit);
+                $st->execute([$channel, $sinceId]);
                 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
             } else {
                 // Most recent $limit, returned ascending (oldest→newest) so the UI appends.
-                $st = $db->prepare(self::CHAT_SELECT . ' ORDER BY c.id DESC LIMIT ' . $limit);
-                $st->execute();
+                $st = $db->prepare(self::CHAT_SELECT . ' WHERE c.channel = ? ORDER BY c.id DESC LIMIT ' . $limit);
+                $st->execute([$channel]);
                 $rows = array_reverse($st->fetchAll(PDO::FETCH_ASSOC) ?: []);
             }
         } catch (Throwable $e) {
@@ -568,7 +622,7 @@ final class Community
             $authorName = (string) ($a->fetchColumn() ?: 'A member');
         } catch (Throwable $e) { $authorName = 'A member'; }
         $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://afrovanguard.org.ng';
-        $url  = $site . '/community/#chat';
+        $url  = $site . '/portal/#community';
         $excerpt = mb_substr(trim($body), 0, 240);
         foreach ($mentions as $mn) {
             if ((int) $mn['id'] === $authorId) continue; // no self-notify
@@ -633,5 +687,59 @@ final class Community
     {
         self::ensure();
         Database::pdo()->prepare('UPDATE community_posts SET pinned = ? WHERE id = ?')->execute([$pinned ? 1 : 0, $postId]);
+    }
+
+    /** Coordinators/admins (clearance ≥ 2) are the community moderators. */
+    public static function isAdmin(int $uid): bool { return self::clearance($uid) >= 2; }
+
+    private static function authorOf(int $postId): int
+    {
+        $st = Database::pdo()->prepare('SELECT author_id FROM community_posts WHERE id = ?');
+        $st->execute([$postId]);
+        $a = $st->fetchColumn();
+        return $a === false ? 0 : (int) $a;
+    }
+
+    /** Remove a post (soft-delete). Admin, or the post's own author. */
+    public static function moderateDelete(int $actorUid, int $postId): bool
+    {
+        self::ensure();
+        if ($actorUid <= 0 || $postId <= 0) return false;
+        if (!self::isAdmin($actorUid) && self::authorOf($postId) !== $actorUid) return false;
+        self::setStatus($postId, 'removed');
+        return true;
+    }
+
+    /** Pin / unpin any post. Admin only. */
+    public static function moderatePin(int $actorUid, int $postId, bool $pin): bool
+    {
+        self::ensure();
+        if (!self::isAdmin($actorUid) || $postId <= 0) return false;
+        self::setPinned($postId, $pin);
+        return true;
+    }
+
+    /** Change a post's data classification. Admin only. */
+    public static function moderateClassify(int $actorUid, int $postId, string $classification): bool
+    {
+        self::ensure();
+        if (!self::isAdmin($actorUid) || $postId <= 0) return false;
+        $cls = self::normClass($classification);
+        $st = Database::pdo()->prepare('UPDATE community_posts SET classification = ? WHERE id = ?');
+        $st->execute([$cls, $postId]);
+        return $st->rowCount() > 0;
+    }
+
+    /**
+     * Publish an official Afrovanguard announcement (posted as the bot voice),
+     * optionally pinned. Admin only — this is the "official / AI" management voice.
+     */
+    public static function announce(int $actorUid, string $spaceSlug, string $body, bool $pin = false): int
+    {
+        self::ensure();
+        if (!self::isAdmin($actorUid)) return 0;
+        $body = trim($body);
+        if ($body === '') return 0;
+        return self::botPost($spaceSlug ?: 'announcements', $body, $pin);
     }
 }

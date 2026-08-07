@@ -172,6 +172,14 @@ CREATE TABLE IF NOT EXISTS course_enrolment (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id, course_id)
 );
+CREATE TABLE IF NOT EXISTS lesson_notes (
+  user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,
+  lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  course_id  INTEGER NOT NULL,
+  body       TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, lesson_id)
+);
 CREATE TABLE IF NOT EXISTS memberships (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES lms_users(id) ON DELETE CASCADE,

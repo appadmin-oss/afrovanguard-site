@@ -22,7 +22,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://js.paystack.co/v1/inline.js"></script>
 
   <style>
     /* ================================================================
@@ -3178,7 +3177,9 @@
     .contribute-success strong { color: var(--color-gold); font-size: 16px; }
 </style>
   <link rel="stylesheet" href="/assets/site/chrome.css" />
+  <link rel="stylesheet" href="/assets/site/tokens.css" />
   <link rel="stylesheet" href="/assets/site/nav.css" />
+  <link rel="stylesheet" href="/assets/site/page.css" />
 </head>
 <body>
 
@@ -3260,22 +3261,22 @@
                       <p class="mega-h">The organisation</p>
                       <ul role="list">
                         <li><a href="/about.html">About us</a></li>
+                        <li><a href="/how-it-works">How it works</a></li>
                         <li><a href="/ethos/">Our ethos</a></li>
                         <li><a href="/ethos/#leadership">Leadership &amp; model</a></li>
-                        <li><a href="/about.html#our-story">Our story</a></li>
+                        <li><a href="/franchise">Franchise a CACENTRE</a></li>
                       </ul>
                     </div>
                     <div class="mega-col">
-                      <p class="mega-h">Get involved</p>
+                      <p class="mega-h">Connect</p>
                       <ul role="list">
-                        <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>
-                        <li><a href="/donate.html">Donate</a></li>
-                        <li><a href="https://afg.afrovanguard.org.ng/events">Events</a></li>
                         <li><a href="/contact.html">Contact us</a></li>
+                        <li><a href="/diary/">The Diary</a></li>
+                        <li><a href="https://afg.afrovanguard.org.ng/events">Events</a></li>
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/ethos/" style="background-image:url('/assets/illustrations/nav-about.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/ethos/">
                     <span class="mf-kicker">Our mission</span>
                     <span class="mf-title">One million incorruptible leaders by 2040</span>
                     <span class="mf-text">The vision, values and creed behind everything we build.</span>
@@ -3295,20 +3296,19 @@
                         <li><a href="/academy/">All programmes</a></li>
                         <li><a href="/academy/#membership">Academy membership</a></li>
                         <li><a href="/academy/teach/">Teach with us</a></li>
-                        <li><a href="/academy/">Verify a certificate</a></li>
+                        <li><a href="/academy/verify.php">Verify a certificate</a></li>
                       </ul>
                     </div>
                     <div class="mega-col">
-                      <p class="mega-h">Featured programmes</p>
+                      <p class="mega-h">Get started</p>
                       <ul role="list">
-                        <li><a href="/academy/techome/">Techome</a></li>
-                        <li><a href="/academy/mediapro/">MediaPro</a></li>
-                        <li><a href="/academy/africa-gates/">Africa GATES</a></li>
-                        <li><a href="/academy/ngv-academy/">NGV Academy</a></li>
+                        <li><a href="/login">Create an account</a></li>
+                        <li><a href="/portal/">Member portal</a></li>
+                        <li><a href="/mentorship/">Mentorship</a></li>
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/academy/" style="background-image:url('/assets/illustrations/nav-academy.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/academy/">
                     <span class="mf-kicker">The Academy</span>
                     <span class="mf-title">Learn. Build. Lead Africa.</span>
                     <span class="mf-text">Free, hands-on programmes in technology, creativity and leadership.</span>
@@ -3336,16 +3336,47 @@
                       <ul role="list">
                         <li><a href="https://cacentre.afrovanguard.org.ng/africa-gates/">Africa GATES</a></li>
                         <li><a href="/projects/">All projects</a></li>
-                        <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>
-                        <li><a href="https://afg.afrovanguard.org.ng/events">Events</a></li>
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/projects/" style="background-image:url('/assets/illustrations/nav-projects.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/projects/">
                     <span class="mf-kicker">Our work</span>
                     <span class="mf-title">Programmes changing lives</span>
                     <span class="mf-text">Technology, creative and leadership initiatives across Lagos and beyond.</span>
                     <span class="mf-cta">See all projects <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+                  </a>
+                </div>
+              </div>
+            </li>
+            <li class="has-mega" data-mega="involved">
+              <a href="/donate.html" aria-haspopup="true" aria-expanded="false">Get involved <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></a>
+              <div class="mega" role="region" aria-label="Get involved menu">
+                <div class="mega-inner">
+                  <div class="mega-cols">
+                    <div class="mega-col">
+                      <p class="mega-h">Give</p>
+                      <ul role="list">
+                        <li><a href="/donate.html">Donate</a></li>
+                        <li><a href="/donate.html#campaigns">Fund a campaign</a></li>
+                        <li><a href="/academy/#membership">Become a member</a></li>
+                      </ul>
+                    </div>
+                    <div class="mega-col">
+                      <p class="mega-h">Give your time &amp; grow</p>
+                      <ul role="list">
+                        <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>
+                        <li><a href="/mentorship/">Mentor a young leader</a></li>
+                        <li><a href="/contact.html">Partner with us</a></li>
+                        <li><a href="/franchise">Franchise a CACENTRE</a></li>
+                        <li><a href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE ↗</a></li>
+                      </ul>
+                    </div>
+                  </div>
+                  <a class="mega-feature mega-feature--plain" href="/donate.html">
+                    <span class="mf-kicker">Stand with us</span>
+                    <span class="mf-title">Be part of the movement</span>
+                    <span class="mf-text">Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.</span>
+                    <span class="mf-cta">Donate now <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
                   </a>
                 </div>
               </div>
@@ -3374,7 +3405,7 @@
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature" href="/diary/" style="background-image:url('/assets/illustrations/nav-diary.webp')">
+                  <a class="mega-feature mega-feature--plain" href="/diary/">
                     <span class="mf-kicker">The Afrovanguard Diary</span>
                     <span class="mf-title">We publish the working</span>
                     <span class="mf-text">Field notes and methodology as we build the movement.</span>
@@ -3383,7 +3414,6 @@
                 </div>
               </div>
             </li>
-            <li><a href="/contact.html">Contact</a></li>
           </ul>
           <div class="nav-actions">
             <a class="nav-search-btn" id="navSearchBtn" href="/diary/" data-search-open aria-haspopup="dialog" aria-label="Search Afrovanguard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span></a>
@@ -3419,6 +3449,111 @@
       </div>
     </div>
   </div>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
+    </div>
+  </div>
   <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
     <div class="avd-head">
       <a href="/" class="nav-logo"><span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span></a>
@@ -3430,13 +3565,13 @@
         <div class="avd-acc-panel">
           <a class="avd-sub avd-sub-lead" href="/about.html">About home</a>
           <a class="avd-sub" href="/about.html">About us</a>
+          <a class="avd-sub" href="/how-it-works">How it works</a>
           <a class="avd-sub" href="/ethos/">Our ethos</a>
           <a class="avd-sub" href="/ethos/#leadership">Leadership &amp; model</a>
-          <a class="avd-sub" href="/about.html#our-story">Our story</a>
-          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a>
-          <a class="avd-sub" href="/donate.html">Donate</a>
-          <a class="avd-sub" href="https://afg.afrovanguard.org.ng/events">Events</a>
+          <a class="avd-sub" href="/franchise">Franchise a CACENTRE</a>
           <a class="avd-sub" href="/contact.html">Contact us</a>
+          <a class="avd-sub" href="/diary/">The Diary</a>
+          <a class="avd-sub" href="https://afg.afrovanguard.org.ng/events">Events</a>
         </div>
       </div>
       <div class="avd-acc">
@@ -3446,11 +3581,10 @@
           <a class="avd-sub" href="/academy/">All programmes</a>
           <a class="avd-sub" href="/academy/#membership">Academy membership</a>
           <a class="avd-sub" href="/academy/teach/">Teach with us</a>
-          <a class="avd-sub" href="/academy/">Verify a certificate</a>
-          <a class="avd-sub" href="/academy/techome/">Techome</a>
-          <a class="avd-sub" href="/academy/mediapro/">MediaPro</a>
-          <a class="avd-sub" href="/academy/africa-gates/">Africa GATES</a>
-          <a class="avd-sub" href="/academy/ngv-academy/">NGV Academy</a>
+          <a class="avd-sub" href="/academy/verify.php">Verify a certificate</a>
+          <a class="avd-sub" href="/login">Create an account</a>
+          <a class="avd-sub" href="/portal/">Member portal</a>
+          <a class="avd-sub" href="/mentorship/">Mentorship</a>
         </div>
       </div>
       <div class="avd-acc">
@@ -3463,8 +3597,20 @@
           <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/mediapro/">MediaPro</a>
           <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/africa-gates/">Africa GATES</a>
           <a class="avd-sub" href="/projects/">All projects</a>
+        </div>
+      </div>
+      <div class="avd-acc">
+        <button class="avd-acc-btn" aria-expanded="false"><span>Get involved</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="avd-acc-panel">
+          <a class="avd-sub avd-sub-lead" href="/donate.html">Get involved home</a>
+          <a class="avd-sub" href="/donate.html">Donate</a>
+          <a class="avd-sub" href="/donate.html#campaigns">Fund a campaign</a>
+          <a class="avd-sub" href="/academy/#membership">Become a member</a>
           <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a>
-          <a class="avd-sub" href="https://afg.afrovanguard.org.ng/events">Events</a>
+          <a class="avd-sub" href="/mentorship/">Mentor a young leader</a>
+          <a class="avd-sub" href="/contact.html">Partner with us</a>
+          <a class="avd-sub" href="/franchise">Franchise a CACENTRE</a>
+          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE ↗</a>
         </div>
       </div>
       <div class="avd-acc">
@@ -3481,7 +3627,6 @@
           <a class="avd-sub" href="/academy/">Academy</a>
         </div>
       </div>
-      <a class="avd-link" href="/contact.html">Contact</a>
     </div>
     <div class="avd-foot">
       <a href="/login" class="btn btn-outline" data-login-link style="width:100%;">Sign in</a>
@@ -5240,6 +5385,7 @@
             <li><a href="/ethos/">Our Ethos</a></li>
             <li><a href="/academy/">Academy</a></li>
             <li><a href="https://afrovanguard.org.ng/projects/">Projects</a></li>
+            <li><a href="/franchise">Franchise</a></li>
             <li><a href="/diary/">The Diary</a></li>
             <li><a href="https://afg.afrovanguard.org.ng/events">Events</a></li>
             <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>
@@ -5273,7 +5419,7 @@
   <!-- ================================================================
        JAVASCRIPT
        ================================================================ -->
-  <div class="toast" id="toast" role="alert" aria-live="assertive"></div><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  <div class="toast" id="toast" role="alert" aria-live="assertive"></div><script>
     /* ════════════════════════════════════════════════════════════════════
        CONFIG — Public key loaded from server (secret key stays in config.php)
        ════════════════════════════════════════════════════════════════════ */
@@ -5646,15 +5792,10 @@
     /* ════════════════════════════════════════════════════════════════════
        CARD PAYMENT (Paystack popup)
        ════════════════════════════════════════════════════════════════════ */
-    function initiateDonation() {  /* I-04: removed async — no await inside, Paystack.setup is sync */
+    function initiateDonation() {
       if (!validate()) { showToast('Please fill in all required fields correctly', 'error'); return; }
       if (!selectedAmount || selectedAmount <= 0) {
         showToast('Please select or enter a valid donation amount', 'error'); return;
-      }
-      if (!PAYSTACK_KEY) {
-        showToast('Payment system loading, please try again in a moment.', 'error');
-        fetchConfig();  // retry
-        return;
       }
       setFormStep(3);
 
@@ -5664,84 +5805,106 @@
       const phone = document.getElementById('phone').value.trim();
       const anon  = document.getElementById('anonymous').checked;
       const msg   = document.getElementById('message').value.trim();
-      const ref   = 'AV_' + Date.now() + '_' + Math.random().toString(36).substr(2,6).toUpperCase();
+      const freqLabel = frequency === 'once' ? 'One-time' : frequency === 'monthly' ? 'Monthly' : 'Annual';
 
       const btn = document.getElementById('submitBtn');
       btn.disabled = true;
       document.getElementById('btnText').textContent = 'Processing…';
       document.getElementById('btnIcon').innerHTML = '<span aria-hidden="true" style="font-size:17px;line-height:1">⏳</span>';
       document.getElementById('processingOverlay').classList.add('show');
-      document.getElementById('submitBtn').classList.add('loading');
+      btn.classList.add('loading');
 
-      try {
-        const handler = PaystackPop.setup({
-          key:       PAYSTACK_KEY,
-          email,
-          amount:    Math.round(selectedAmount * 100),
-          currency,
-          ref,
-          firstname: fn,
-          lastname:  ln,
-          phone:     phone || undefined,
-          channels:  ['card','bank','ussd','qr'],  /* M-01: mobile_money removed — only valid in Ghana/Kenya */
-          label:     `${fn} ${ln} — Afrovanguard Donation`,
-          metadata: {
-            custom_fields: [
-              { display_name:'Campaign',  variable_name:'campaign',  value: selectedCampaign },
-              { display_name:'Frequency', variable_name:'frequency', value: frequency },
-              { display_name:'Anonymous', variable_name:'anonymous', value: anon ? 'Yes' : 'No' },
-              { display_name:'Message',   variable_name:'message',   value: msg || '—' },
-            ]
-          },
-          callback: function(response) {
-            document.getElementById('processingOverlay').classList.remove('show');
-            // Server-verify + store + send receipt — updates live stats on success
-            fetch('process-donation.php', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action:     'record_donation',
-                firstName:  fn,
-                lastName:   ln,
-                email:      email,
-                amount:     selectedAmount,
-                currency:   sym[currency],
-                campaign:   selectedCampaign,
-                anonymous:  anon,
-                frequency:  frequency === 'once' ? 'One-time' : frequency === 'monthly' ? 'Monthly' : 'Annual',
-                reference:  ref
-              })
-            })
-            .then(r => r.json())
-            .then(data => {
-              // Update campaign UI with fresh server figures
-              if (data.campaigns) updateCampaignUI(data.campaigns);
-              if (data.totals && data.totals.donors) {
-                const badge = document.getElementById('donorCountBadge');
-                if (badge) badge.textContent = data.totals.donors.toLocaleString() + '+ Vanguard donors';
-              }
-            })
-            .catch(() => {});  // Fail silently — payment already confirmed by Paystack
-            onSuccess(fn, ln, email, anon);
-          },
-          onClose: function() {
-            btn.disabled = false;
-            document.getElementById('btnIcon').innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>';
-            updateBtn();
-            document.getElementById('processingOverlay').classList.remove('show');
-            showToast("Payment cancelled. Your gift is still waiting when you're ready 💛", 'error');
-          }
-        });
-        handler.openIframe();
-      } catch (err) {
-        console.error(err);
+      const resetBtn = function () {
         btn.disabled = false;
         document.getElementById('btnIcon').innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>';
         updateBtn();
         document.getElementById('processingOverlay').classList.remove('show');
+        btn.classList.remove('loading');
+      };
+
+      // Hosted checkout (redirect) — server initialises the transaction and we
+      // send the donor to Paystack. No in-browser Paystack script needed.
+      fetch('process-donation.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action:    'init_payment',
+          firstName: fn, lastName: ln, email, phone,
+          amount:    selectedAmount,
+          currency,
+          campaign:  selectedCampaign,
+          frequency: freqLabel,
+          anonymous: anon,
+          message:   msg
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.success && data.authorization_url) {
+          // Remember the donor so the thank-you screen is personal on return.
+          try {
+            sessionStorage.setItem('av_donation', JSON.stringify({
+              fn, ln, email, anon, ref: data.reference,
+              amount: selectedAmount, currency, campaign: selectedCampaign, frequency: freqLabel
+            }));
+          } catch (e) {}
+          window.location.href = data.authorization_url;   // → checkout.paystack.com
+          return;
+        }
+        resetBtn();
+        showToast((data && data.message) || 'Could not start the payment. Please try again or use bank transfer.', 'error');
+      })
+      .catch(() => {
+        resetBtn();
         showToast('Payment error. Please try again or use bank transfer.', 'error');
-      }
+      });
     }
+
+    /* On return from Paystack hosted checkout: ?reference=…&trxref=… →
+       server-verify + store + receipt, then show the thank-you screen. */
+    function handlePaystackReturn() {
+      const qs = new URLSearchParams(window.location.search);
+      const ref = qs.get('reference') || qs.get('trxref');
+      if (!ref) return;
+      let saved = {};
+      try { saved = JSON.parse(sessionStorage.getItem('av_donation') || '{}'); } catch (e) {}
+      // Clean the URL so a refresh doesn't re-trigger.
+      try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
+      sessionStorage.removeItem('av_donation');
+      document.getElementById('processingOverlay') && document.getElementById('processingOverlay').classList.add('show');
+      fetch('process-donation.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'record_donation',
+          reference: ref,
+          firstName: saved.fn || '', lastName: saved.ln || '', email: saved.email || '',
+          amount: saved.amount || 0, currency: sym[saved.currency || 'NGN'] || '₦',
+          campaign: saved.campaign || 'general',
+          anonymous: !!saved.anon,
+          frequency: saved.frequency || 'One-time'
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('processingOverlay') && document.getElementById('processingOverlay').classList.remove('show');
+        if (data && data.campaigns) updateCampaignUI(data.campaigns);
+        if (data && data.totals && data.totals.donors) {
+          const badge = document.getElementById('donorCountBadge');
+          if (badge) badge.textContent = data.totals.donors.toLocaleString() + '+ Vanguard donors';
+        }
+        if (data && data.success === false) {
+          showToast(data.message || 'We could not confirm the payment yet — your receipt will arrive once confirmed.', 'error');
+          return;
+        }
+        onSuccess(saved.fn || '', saved.ln || '', saved.email || '', !!saved.anon);
+      })
+      .catch(() => {
+        document.getElementById('processingOverlay') && document.getElementById('processingOverlay').classList.remove('show');
+        showToast('We could not confirm the payment right now. If you were charged, your receipt will still arrive.', 'error');
+      });
+    }
+    document.addEventListener('DOMContentLoaded', handlePaystackReturn);
 
     /* ════════════════════════════════════════════════════════════════════
        VIRTUAL ACCOUNT — SELAR-STYLE BANK TRANSFER
