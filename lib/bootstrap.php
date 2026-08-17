@@ -284,6 +284,11 @@ require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
 require_once __DIR__ . '/AiKnowledge.php';
+// The editable brain: operating rules, written doctrine and prompt templates.
+// Loaded before Levels, which reads its criteria from AvRules.
+require_once __DIR__ . '/AvRules.php';
+require_once __DIR__ . '/AvKnowledge.php';
+require_once __DIR__ . '/AvPrompts.php';
 require_once __DIR__ . '/Levels.php';
 require_once __DIR__ . '/IQ.php';
 require_once __DIR__ . '/ErrorPoem.php';

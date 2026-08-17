@@ -460,11 +460,98 @@ final class Mentorship
         return ['ok' => true, 'profile' => self::profile($uid)];
     }
 
+    /** Pairings currently in the 'active' state — a CAPACITY check, not a measure
+     *  of whether those relationships are alive. For that, see
+     *  verifiedActiveMentees(), which requires sessions to have actually happened. */
     private static function activeMenteeCount(int $mentorId): int
     {
         $s = Database::pdo()->prepare("SELECT COUNT(*) FROM mentorships WHERE mentor_id = ? AND status = 'active'");
         $s->execute([$mentorId]);
         return (int) $s->fetchColumn();
+    }
+
+    /**
+     * Mentees who genuinely meet the "active" bar set in the operating rules:
+     * an active pairing with at least N sessions actually held inside the window.
+     *
+     * This is the distinction the concept report insists on (§4A, §17) — listing
+     * two names must not qualify anyone for advancement. A pairing that exists on
+     * paper but has never met contributes nothing here.
+     *
+     * A session with a recorded duration shorter than the minimum is excluded. A
+     * session with NO recorded duration is kept: unknown length is not evidence of
+     * a short meeting, and most manually-marked sessions carry no timing.
+     *
+     * Returns the qualifying mentee user IDs.
+     */
+    public static function verifiedActiveMentees(int $mentorId, int $windowDays = 0, int $minSessions = 0): array
+    {
+        if ($mentorId <= 0) return [];
+        self::ensure();
+        $windowDays  = $windowDays  > 0 ? $windowDays  : (class_exists('AvRules') ? AvRules::int('levels.active_window_days', 60) : 60);
+        $minSessions = $minSessions > 0 ? $minSessions : (class_exists('AvRules') ? AvRules::int('levels.active_min_sessions', 2) : 2);
+        $minLen      = class_exists('AvRules') ? AvRules::int('mentorship.min_session_minutes', 15) : 15;
+        $cut         = gmdate('Y-m-d H:i:s', time() - $windowDays * 86400);
+
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT m.mentee_id, COUNT(s.id) AS held
+                   FROM mentorships m
+                   LEFT JOIN mentor_sessions s
+                     ON s.mentorship_id = m.id
+                    AND s.attendance = 'attended'
+                    AND s.scheduled_at >= :cut
+                    AND (s.duration_min = 0 OR s.duration_min >= :minlen)
+                  WHERE m.mentor_id = :mentor AND m.status = 'active'
+                  GROUP BY m.mentee_id
+                 HAVING COUNT(s.id) >= :minsess"
+            );
+            // Bind the numerics as integers explicitly. PDO sends parameters as
+            // strings by default, and SQLite's type affinity rules make an
+            // INTEGER >= TEXT comparison false regardless of the values — which
+            // would silently report that nobody is active.
+            $st->bindValue(':cut', $cut, PDO::PARAM_STR);
+            $st->bindValue(':minlen', $minLen, PDO::PARAM_INT);
+            $st->bindValue(':mentor', $mentorId, PDO::PARAM_INT);
+            $st->bindValue(':minsess', $minSessions, PDO::PARAM_INT);
+            $st->execute();
+            return array_map('intval', array_column($st->fetchAll(PDO::FETCH_ASSOC) ?: [], 'mentee_id'));
+        } catch (Throwable $e) {
+            error_log('[mentorship] verifiedActiveMentees: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * The multiplication picture for one member, as the level engine needs it:
+     * how many pairings exist, how many are genuinely active, and how many of
+     * those active mentees are themselves actively mentoring someone.
+     *
+     * That last number is the one that matters — it is the difference between
+     * recruiting people and raising people who can raise people.
+     */
+    public static function multiplication(int $mentorId): array
+    {
+        $window = class_exists('AvRules') ? AvRules::int('levels.active_window_days', 60) : 60;
+        $minSes = class_exists('AvRules') ? AvRules::int('levels.active_min_sessions', 2) : 2;
+        $out = [
+            'pairings'     => 0,
+            'active'       => 0,
+            'multiplying'  => 0,
+            'window_days'  => $window,
+            'min_sessions' => $minSes,
+        ];
+        if ($mentorId <= 0) return $out;
+        try {
+            self::ensure();
+            $out['pairings'] = self::activeMenteeCount($mentorId);
+            $active = self::verifiedActiveMentees($mentorId, $window, $minSes);
+            $out['active'] = count($active);
+            foreach ($active as $menteeId) {
+                if (self::verifiedActiveMentees($menteeId, $window, $minSes)) $out['multiplying']++;
+            }
+        } catch (Throwable $e) { error_log('[mentorship] multiplication: ' . $e->getMessage()); }
+        return $out;
     }
 
     /** Accepting mentors with capacity left (excludes the viewer). */

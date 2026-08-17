@@ -325,22 +325,27 @@ final class Meetings
     {
         $rawText = trim($rawText);
         if ($rawText === '') return ['ok' => false, 'error' => 'Empty transcript.'];
-        $sys = 'You are a meeting-minutes assistant for the Afrovanguard organisation. '
-             . 'Read the raw meeting transcript and return STRICT JSON only — no prose, no markdown fences. '
-             . 'Schema: {"summary": string (3-5 sentence overview), '
-             . '"highlights": string[] (key discussion points), '
-             . '"decisions": string[] (decisions made), '
-             . '"action_items": [{"task": string, "owner": string}] (owner "" if unassigned)}. '
-             . 'Keep it faithful to the transcript; do not invent facts.';
-        $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, 20000);
+
+        // Instructions, thresholds and doctrine all come from the editable stores
+        // (AvPrompts / AvRules / AvKnowledge) so leadership can change how minutes
+        // are taken without a deploy. Coded defaults apply when nothing is set.
+        $maxItems = class_exists('AvRules') ? AvRules::int('commitments.max_per_meeting', 12) : 12;
+        $chars    = class_exists('AvRules') ? AvRules::int('meetings.transcript_char_limit', 20000) : 20000;
+        $maxTok   = class_exists('AvRules') ? AvRules::int('ai.max_tokens', 2048) : 2048;
+        $temp     = class_exists('AvRules') ? AvRules::int('ai.temperature_pct', 10) / 100 : 0.1;
+
+        $sys = class_exists('AvPrompts')
+            ? AvPrompts::render('meeting.minutes', ['today' => gmdate('Y-m-d'), 'max_items' => $maxItems])
+            : 'You are a meeting-minutes assistant for the Afrovanguard organisation. Return STRICT JSON only.';
+        $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, max(1000, $chars));
 
         // Prefer Gemini Flash for meeting logging; fall back to the Anthropic bot.
         $res = null;
         if (class_exists('Gemini') && Gemini::configured()) {
-            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => 2048, 'temperature' => 0.1]);
+            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => $temp]);
         }
         if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
-            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => 1500]);
+            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
         }
         if (!$res || empty($res['ok'])) {
             return ['ok' => false, 'error' => ($res['error'] ?? null) ? (string) $res['error'] : 'AI summarisation is not configured (set AV_GEMINI_API_KEY).'];
@@ -349,9 +354,20 @@ final class Meetings
         if (!is_array($json)) return ['ok' => false, 'error' => 'Could not parse the AI summary.'];
         $acts = [];
         foreach (($json['action_items'] ?? []) as $a) {
-            if (is_array($a)) $acts[] = ['task' => (string) ($a['task'] ?? ''), 'owner' => (string) ($a['owner'] ?? '')];
-            elseif (is_string($a)) $acts[] = ['task' => $a, 'owner' => ''];
+            // `due` is optional and only present when the transcript actually stated
+            // a date — an empty string means "no deadline was agreed", not "today".
+            if (is_array($a)) {
+                $due = trim((string) ($a['due'] ?? ''));
+                $acts[] = [
+                    'task'  => (string) ($a['task'] ?? ''),
+                    'owner' => (string) ($a['owner'] ?? ''),
+                    'due'   => preg_match('/^\d{4}-\d{2}-\d{2}$/', $due) ? $due : '',
+                ];
+            } elseif (is_string($a)) {
+                $acts[] = ['task' => $a, 'owner' => '', 'due' => ''];
+            }
         }
+        $acts = array_slice($acts, 0, max(1, $maxItems));
         return [
             'ok'           => true,
             'summary'      => (string) ($json['summary'] ?? ''),

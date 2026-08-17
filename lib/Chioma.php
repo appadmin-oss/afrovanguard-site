@@ -42,7 +42,10 @@ final class Chioma
         $ctxLine = ($t !== '' || $p !== '')
             ? "\n\nContext — the visitor is currently on: \"{$t}\" ({$p})" . ($s !== '' ? " in the \"{$s}\" section." : '.') . " Tailor your help to where they are when it's relevant."
             : '';
+        // Derived site facts, then leadership's written doctrine. Both are live:
+        // editing an entry in Studio changes Chioma's next reply.
         $knowledge = class_exists('AiKnowledge') ? AiKnowledge::asPromptBlock() : '';
+        if (class_exists('AvKnowledge')) $knowledge .= AvKnowledge::asPromptBlock();
         return <<<SYS
 You are Chioma — Afrovanguard's friendly, capable operations assistant for the website. Think of yourself as the warm, knowledgeable Nigerian big-sister on the front desk: you make every visitor feel at home, anticipate what they need, and get them to the right place quickly. You are lively but never fake; you're proud of the movement and genuinely glad to help.
 

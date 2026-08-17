@@ -11,7 +11,7 @@
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
-    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin' };
+    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', rules: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin' };
   function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
@@ -32,7 +32,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), rules: $('#rulesView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -78,6 +78,7 @@
     else if (which === 'members') { show('members'); loadMembers(); }
     else if (which === 'guide') { show('guide'); }
     else if (which === 'mentorship') { show('mentorship'); loadMentorship(); }
+    else if (which === 'rules') { show('rules'); if (!rlLoaded.rules) loadRules(); rlShowPane(rlPane); }
     else if (which === 'activity') { show('activity'); loadActivity(); }
     else if (which === 'admins') { show('admins'); loadAdmins(); }
     else if (which === 'database') { show('database'); loadDatabase(); }
@@ -1193,6 +1194,235 @@
       if (!e.target.closest('#coCreate')) return;
       post('mentorship_cohort_create', { name: ($('#coName') || {}).value || '', programme: ($('#coProg') || {}).value || '', starts: ($('#coStart') || {}).value || '', ends: ($('#coEnd') || {}).value || '', segment: mtSeg }).then(function (r) {
         if (r.data && r.data.ok) { toast('Cohort created.'); mtCohorts(); mtLoadCohortOptions(); } else toast((r.data && r.data.error) || 'Could not create.');
+      });
+    });
+  })();
+
+  /* ---- Rules & AI (operating rules · doctrine · prompt templates) ----
+     Everything the accountability engine and the assistants read is editable
+     here. Saves are per-field so a mistake never takes the whole page with it. */
+  var rlPane = 'rules', rlLoaded = {};
+
+  function rlShowPane(which) {
+    rlPane = which;
+    document.querySelectorAll('#rulesView .seg-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-rl') === which);
+    });
+    $('#rlPaneRules').hidden = which !== 'rules';
+    $('#rlPaneKnowledge').hidden = which !== 'knowledge';
+    $('#rlPanePrompts').hidden = which !== 'prompts';
+    if (which === 'knowledge' && !rlLoaded.knowledge) loadKnowledge();
+    if (which === 'prompts' && !rlLoaded.prompts) loadPrompts();
+  }
+
+  function rlConflicts(list) {
+    var box = $('#rlConflicts'); if (!box) return;
+    if (!list || !list.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<strong>These settings disagree with each other</strong><ul>'
+      + list.map(function (c) { return '<li>' + escapeHtml(c) + '</li>'; }).join('') + '</ul>';
+  }
+
+  function rlField(r) {
+    var id = 'rl_' + r.key.replace(/[^a-z0-9]/gi, '_');
+    var input;
+    if (r.type === 'bool') {
+      input = '<select id="' + id + '" data-key="' + escapeHtml(r.key) + '">'
+        + '<option value="1"' + (r.value === '1' ? ' selected' : '') + '>On</option>'
+        + '<option value="0"' + (r.value !== '1' ? ' selected' : '') + '>Off</option></select>';
+    } else if (r.type === 'enum') {
+      input = '<select id="' + id + '" data-key="' + escapeHtml(r.key) + '">'
+        + (r.options || []).map(function (o) {
+            return '<option value="' + escapeHtml(o) + '"' + (o === r.value ? ' selected' : '') + '>' + escapeHtml(o.replace(/_/g, ' ')) + '</option>';
+          }).join('') + '</select>';
+    } else if (r.type === 'text') {
+      input = '<textarea id="' + id + '" rows="4" data-key="' + escapeHtml(r.key) + '">' + escapeHtml(r.value) + '</textarea>';
+    } else {
+      input = '<input id="' + id + '" type="' + (r.type === 'int' ? 'number' : 'text') + '"'
+        + (r.min != null ? ' min="' + r.min + '"' : '') + (r.max != null ? ' max="' + r.max + '"' : '')
+        + ' value="' + escapeHtml(r.value) + '" data-key="' + escapeHtml(r.key) + '" />';
+    }
+    var badge = r.overridden
+      ? '<span class="rl-pill rl-pill-on">edited</span>'
+      : (r.source === 'config' ? '<span class="rl-pill">from config</span>' : '<span class="rl-pill">default</span>');
+    return '<div class="rl-rule">'
+      + '<div class="rl-rule-h"><label for="' + id + '">' + escapeHtml(r.label) + '</label>' + badge + '</div>'
+      + '<p class="rl-help">' + escapeHtml(r.help) + '</p>'
+      + '<div class="rl-rule-f">' + input
+      + '<button class="btn btn-primary btn-sm rl-save" data-key="' + escapeHtml(r.key) + '">Save</button>'
+      + (r.overridden ? '<button class="btn btn-outline btn-sm rl-reset" data-key="' + escapeHtml(r.key) + '">Reset</button>' : '')
+      + '</div>'
+      + '<p class="rl-def">Default: <code>' + escapeHtml(r.default || '—') + '</code></p></div>';
+  }
+
+  function renderRules(d) {
+    rlConflicts(d.conflicts);
+    var host = $('#rlRules'); if (!host) return;
+    var groups = d.groups || [];
+    if (!groups.length) { host.innerHTML = '<p class="muted">No rules available.</p>'; return; }
+    host.innerHTML = groups.map(function (g) {
+      return '<section class="rl-group"><h2>' + escapeHtml(g.group) + '</h2><div class="rl-rules">'
+        + (g.rules || []).map(rlField).join('') + '</div></section>';
+    }).join('');
+  }
+
+  function loadRules() {
+    rlLoaded.rules = true;
+    api('rules_get').then(function (r) {
+      if (!r.data || !r.data.ok) { $('#rlRules').innerHTML = '<p class="muted">Could not load the rules.</p>'; return; }
+      renderRules(r.data);
+    });
+  }
+
+  function saveRule(key, value) {
+    post('rules_save', { key: key, value: value }).then(function (r) {
+      if (r.data && r.data.ok) { toast('Saved.'); renderRules(r.data); }
+      else toast((r.data && r.data.error) || 'Could not save that rule.');
+    });
+  }
+
+  function loadKnowledge() {
+    rlLoaded.knowledge = true;
+    var host = $('#rlKnowledge'); if (host) host.innerHTML = '<p class="muted">Loading…</p>';
+    api('knowledge_list').then(function (r) {
+      if (!r.data || !r.data.ok) { host.innerHTML = '<p class="muted">Could not load the doctrine.</p>'; return; }
+      renderKnowledge(r.data.entries || []);
+    });
+  }
+
+  function renderKnowledge(entries) {
+    var host = $('#rlKnowledge'); if (!host) return;
+    if (!entries.length) { host.innerHTML = '<p class="muted">Nothing here yet. Add an entry, or restore the defaults.</p>'; return; }
+    host.innerHTML = entries.map(function (k) {
+      return '<div class="rl-k' + (k.enabled ? '' : ' is-off') + '" data-id="' + k.id + '">'
+        + '<div class="rl-k-h">'
+        + '<input class="rl-k-title" value="' + escapeHtml(k.title) + '" placeholder="Title" />'
+        + '<span class="rl-pill">' + (k.enabled ? 'live' : 'off') + '</span>'
+        + '</div>'
+        + '<textarea class="rl-k-body" rows="5" placeholder="What the AI should know…">' + escapeHtml(k.body) + '</textarea>'
+        + '<div class="rl-k-f">'
+        + '<label>Topic <input class="rl-k-topic" value="' + escapeHtml(k.topic) + '" /></label>'
+        + '<label>Tags <input class="rl-k-tags" value="' + escapeHtml(k.tags) + '" /></label>'
+        + '<label>Priority <input class="rl-k-pri" type="number" min="0" max="100" value="' + k.priority + '" /></label>'
+        + '<label>Live <select class="rl-k-on"><option value="1"' + (k.enabled ? ' selected' : '') + '>Yes</option><option value="0"' + (k.enabled ? '' : ' selected') + '>No</option></select></label>'
+        + '<button class="btn btn-primary btn-sm rl-k-save">Save</button>'
+        + '<button class="btn btn-outline btn-sm rl-k-del">Delete</button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  function loadPrompts() {
+    rlLoaded.prompts = true;
+    var host = $('#rlPrompts'); if (host) host.innerHTML = '<p class="muted">Loading…</p>';
+    api('prompts_get').then(function (r) {
+      if (!r.data || !r.data.ok) { host.innerHTML = '<p class="muted">Could not load the prompts.</p>'; return; }
+      renderPrompts(r.data.groups || []);
+    });
+  }
+
+  function renderPrompts(groups) {
+    var host = $('#rlPrompts'); if (!host) return;
+    host.innerHTML = groups.map(function (g) {
+      return '<section class="rl-group"><h2>' + escapeHtml(g.group) + '</h2>'
+        + (g.prompts || []).map(function (p) {
+            var vars = Object.keys(p.vars || {});
+            return '<div class="rl-p" data-key="' + escapeHtml(p.key) + '">'
+              + '<div class="rl-rule-h"><label>' + escapeHtml(p.label) + '</label>'
+              + (p.overridden ? '<span class="rl-pill rl-pill-on">edited</span>' : '<span class="rl-pill">default</span>') + '</div>'
+              + '<p class="rl-help">' + escapeHtml(p.help) + '</p>'
+              + (vars.length ? '<p class="rl-vars">Placeholders: ' + vars.map(function (v) {
+                  return '<code>{{' + escapeHtml(v) + '}}</code> <span class="muted">' + escapeHtml(p.vars[v]) + '</span>';
+                }).join(' · ') + '</p>' : '')
+              + ((p.context || []).length ? '<p class="rl-vars">Appended automatically: ' + p.context.map(function (c) {
+                  return '<code>' + escapeHtml(c === 'rules' ? 'operating rules' : 'doctrine') + '</code>';
+                }).join(' · ') + '</p>' : '')
+              + '<textarea class="rl-p-body" rows="12">' + escapeHtml(p.system) + '</textarea>'
+              + '<div class="rl-rule-f">'
+              + '<button class="btn btn-primary btn-sm rl-p-save">Save</button>'
+              + (p.overridden ? '<button class="btn btn-outline btn-sm rl-p-reset">Restore default</button>' : '')
+              + '</div></div>';
+          }).join('')
+        + '</section>';
+    }).join('');
+  }
+
+  (function bindRules() {
+    var view = $('#rulesView'); if (!view) return;
+    view.addEventListener('click', function (e) {
+      var seg = e.target.closest('.seg-btn[data-rl]');
+      if (seg) { rlShowPane(seg.getAttribute('data-rl')); return; }
+
+      var save = e.target.closest('.rl-save');
+      if (save) {
+        var k = save.getAttribute('data-key');
+        var f = view.querySelector('[data-key="' + k + '"]:not(button)');
+        if (f) saveRule(k, f.value);
+        return;
+      }
+      var reset = e.target.closest('.rl-reset');
+      if (reset) { saveRule(reset.getAttribute('data-key'), ''); return; }
+
+      var ks = e.target.closest('.rl-k-save');
+      if (ks) {
+        var row = ks.closest('.rl-k');
+        post('knowledge_save', {
+          id: parseInt(row.getAttribute('data-id'), 10) || 0,
+          title: row.querySelector('.rl-k-title').value,
+          body: row.querySelector('.rl-k-body').value,
+          topic: row.querySelector('.rl-k-topic').value,
+          tags: row.querySelector('.rl-k-tags').value,
+          priority: parseInt(row.querySelector('.rl-k-pri').value, 10) || 50,
+          enabled: row.querySelector('.rl-k-on').value === '1'
+        }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Saved.'); renderKnowledge(r.data.entries || []); }
+          else toast((r.data && r.data.error) || 'Could not save that entry.');
+        });
+        return;
+      }
+      var kd = e.target.closest('.rl-k-del');
+      if (kd) {
+        var drow = kd.closest('.rl-k');
+        if (!confirm('Delete this doctrine entry? The AI will stop being taught it.')) return;
+        post('knowledge_delete', { id: parseInt(drow.getAttribute('data-id'), 10) || 0 }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Removed.'); renderKnowledge(r.data.entries || []); }
+          else toast((r.data && r.data.error) || 'Could not remove that entry.');
+        });
+        return;
+      }
+
+      var ps = e.target.closest('.rl-p-save');
+      if (ps) {
+        var pw = ps.closest('.rl-p');
+        post('prompts_save', { key: pw.getAttribute('data-key'), system: pw.querySelector('.rl-p-body').value })
+          .then(function (r) {
+            if (r.data && r.data.ok) { toast('Saved.'); renderPrompts(r.data.groups || []); }
+            else toast((r.data && r.data.error) || 'Could not save that prompt.');
+          });
+        return;
+      }
+      var pr = e.target.closest('.rl-p-reset');
+      if (pr) {
+        var pw2 = pr.closest('.rl-p');
+        post('prompts_save', { key: pw2.getAttribute('data-key'), system: '' }).then(function (r) {
+          if (r.data && r.data.ok) { toast('Restored the default.'); renderPrompts(r.data.groups || []); }
+          else toast((r.data && r.data.error) || 'Could not restore that prompt.');
+        });
+        return;
+      }
+    });
+
+    $('#rlRefresh').addEventListener('click', function () { rlLoaded = {}; loadRules(); rlShowPane(rlPane); });
+    $('#rlkNew').addEventListener('click', function () {
+      post('knowledge_save', { id: 0, title: 'New entry', body: 'What the AI should know.', topic: '', tags: '', priority: 50, enabled: false })
+        .then(function (r) {
+          if (r.data && r.data.ok) { toast('Added — edit it, then set it live.'); renderKnowledge(r.data.entries || []); }
+          else toast((r.data && r.data.error) || 'Could not add an entry.');
+        });
+    });
+    $('#rlkRestore').addEventListener('click', function () {
+      post('knowledge_restore', {}).then(function (r) {
+        if (r.data && r.data.ok) { toast(r.data.restored ? ('Restored ' + r.data.restored + '.') : 'Nothing was missing.'); renderKnowledge(r.data.entries || []); }
+        else toast((r.data && r.data.error) || 'Could not restore the defaults.');
       });
     });
   })();

@@ -54,7 +54,10 @@ final class AvBot
     public static function systemPrompt(): string
     {
         $org = class_exists('Config') ? Config::str('AV_ORG_DOMAIN', 'afrovanguard.org.ng') : 'afrovanguard.org.ng';
+        // Derived site facts, then leadership's written doctrine. Both are live:
+        // editing an entry in Studio changes the bot's next reply.
         $knowledge = class_exists('AiKnowledge') ? AiKnowledge::asPromptBlock() : '';
+        if (class_exists('AvKnowledge')) $knowledge .= AvKnowledge::asPromptBlock();
         return <<<SYS
 You are the official Afrovanguard community bot — a warm, encouraging Pan-African voice for Afrovanguard, a Nigerian-rooted nonprofit whose mission is to raise one million incorruptible African leaders by 2040 through community, technology and cultural advancement.
 

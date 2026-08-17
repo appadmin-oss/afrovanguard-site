@@ -89,12 +89,29 @@ final class AiKnowledge
             if ($ngn > 0) $lines[] = 'Academy membership / annual dues: ₦' . number_format($ngn) . ' per year (pay or renew in the member Portal).';
         } catch (\Throwable $e) {}
 
-        // How Afrovanguard works — the membership progression framework.
-        $lines[] = 'Membership progression (see /how-it-works): members grow by commitment, service and leadership — not length of membership. '
-            . 'Level O (Foundation Member): pick a mentor, join programmes, complete a weekly task, live the values. '
-            . 'Level A: introduce and mentor two committed members + consistent service; you then get an official Afrovanguard email, an accountability mentor and leadership opportunities. '
-            . 'Membership contribution from Level A is voluntary at ₦' . number_format(defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000) . '/month or ₦' . number_format(defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000) . '/year (pay or renew in the member Portal); from Level C upward, dues are mandatory. '
-            . 'Servant-leadership culture: arrive early (30 min, or 2–3 hours for major events) and serve before attending.';
+        // Membership progression. Derived from the live ladder and the operating
+        // rules rather than restated here — a hardcoded copy of the criteria drifts
+        // out of step with Levels the moment leadership changes a threshold.
+        try {
+            $bits = [];
+            if (class_exists('Levels')) {
+                foreach (Levels::ladder() as $code => $l) {
+                    $bits[] = 'Level ' . $code . ' (' . $l['label'] . '): ' . $l['blurb'];
+                }
+            }
+            $line = 'Membership progression (see /how-it-works): members grow by commitment, service and leadership multiplication — not by length of membership.';
+            if ($bits) $line .= ' ' . implode(' ', $bits);
+            if (class_exists('AvRules')) {
+                $line .= ' A mentee counts as active only with at least ' . AvRules::int('levels.active_min_sessions')
+                       . ' held sessions in the last ' . AvRules::int('levels.active_window_days') . ' days;'
+                       . ' Level A requires ' . AvRules::int('levels.mentees_for_a') . ' active mentees.'
+                       . ' Advancement is recommended to leadership, never applied automatically.';
+            }
+            $line .= ' Membership contribution from Level A is voluntary at ₦' . number_format(defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000)
+                   . '/month or ₦' . number_format(defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000)
+                   . '/year (pay or renew in the member Portal); from Level C upward, dues are mandatory.';
+            $lines[] = $line;
+        } catch (\Throwable $e) { error_log('[ai-knowledge] progression: ' . $e->getMessage()); }
 
         // Academy programmes (title · access · path).
         try {
@@ -157,7 +174,9 @@ final class AiKnowledge
         if (!$lines) return '';
         $block = "\n\nCURRENT SITE KNOWLEDGE (auto-updated " . gmdate('Y-m-d') . " — these are real, current facts; use them and never contradict them):\n- "
             . implode("\n- ", $lines);
-        // Hard size bound so the system prompt never balloons.
-        return mb_strlen($block) > 3200 ? mb_substr($block, 0, 3200) . '…' : $block;
+        // Hard size bound so the system prompt never balloons. The limit is itself
+        // a rule, so it can be raised or lowered without touching this file.
+        $limit = class_exists('AvRules') ? AvRules::int('ai.knowledge_char_limit', 3200) : 3200;
+        return mb_strlen($block) > $limit ? mb_substr($block, 0, $limit) . '…' : $block;
     }
 }

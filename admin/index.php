@@ -60,6 +60,7 @@
         <button class="tab" data-tab="webhooks"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Webhooks</span></button>
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
+        <button class="tab" data-tab="rules"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M8.5 11.5h7M8.5 14.5h4"/></svg><span>Rules &amp; AI</span></button>
         <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
         <button class="tab" data-tab="database"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Database</span></button>
         <button class="tab" data-tab="design"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.7-1.5H17a5 5 0 0 0 5-5c0-5-4.5-9-10-9z"/></svg><span>Design</span></button>
@@ -742,6 +743,46 @@
   </main>
 
   <!-- ACTIVITY (per-area admin audit trail + undo) -->
+  <!-- RULES & AI — the organisation's operating rules, written doctrine and the
+       AI's own instructions. Afrovanguard defines these; the AI enforces them.
+       Nothing here is hardcoded: every change takes effect on the next AI call. -->
+  <main class="studio-main" id="rulesView" hidden>
+    <div class="studio-head">
+      <div><h1>Rules &amp; AI</h1><p class="muted">The thresholds the organisation runs on, the doctrine the assistants are taught, and the instructions they follow. Edits apply immediately — no deploy.</p></div>
+      <button class="btn btn-outline btn-sm" id="rlRefresh">Refresh</button>
+    </div>
+
+    <div class="seg-toggle" role="tablist" aria-label="Section">
+      <button class="seg-btn active" role="tab" data-rl="rules">Operating rules</button>
+      <button class="seg-btn" role="tab" data-rl="knowledge">Doctrine</button>
+      <button class="seg-btn" role="tab" data-rl="prompts">AI instructions</button>
+    </div>
+
+    <div class="rl-warn" id="rlConflicts" hidden></div>
+
+    <!-- Operating rules -->
+    <section class="rl-pane" id="rlPaneRules">
+      <p class="muted rl-lede">Every threshold the accountability engine reads. A rule showing <span class="rl-pill">default</span> is running on its shipped value; clear a field to return it to that.</p>
+      <div id="rlRules"><p class="muted">Loading…</p></div>
+    </section>
+
+    <!-- Doctrine -->
+    <section class="rl-pane" id="rlPaneKnowledge" hidden>
+      <p class="muted rl-lede">What the assistants are taught about Afrovanguard — the things the system cannot work out from data. Highest priority is read first.</p>
+      <div class="editor-actions" style="margin-bottom:14px">
+        <button class="btn btn-primary btn-sm" id="rlkNew">+ Add an entry</button>
+        <button class="btn btn-outline btn-sm" id="rlkRestore">Restore defaults</button>
+      </div>
+      <div id="rlKnowledge"><p class="muted">Loading…</p></div>
+    </section>
+
+    <!-- AI instructions -->
+    <section class="rl-pane" id="rlPanePrompts" hidden>
+      <p class="muted rl-lede">The system prompts behind each AI feature. Placeholders in <code>{{braces}}</code> are filled in at run time; the live rules and doctrine are appended automatically where marked. Clear a prompt to restore its default.</p>
+      <div id="rlPrompts"><p class="muted">Loading…</p></div>
+    </section>
+  </main>
+
   <main class="studio-main" id="activityView" hidden>
     <div class="studio-head">
       <div><h1>Activity</h1><p class="muted">Every admin action, by area — with one-click undo on reversible ones.</p></div>

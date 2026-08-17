@@ -13,7 +13,7 @@ declare(strict_types=1);
 final class AdminAudit
 {
     /** Domain classes allowed to receive an undo dispatch. */
-    private const UNDOABLE = ['Mentorship'];
+    private const UNDOABLE = ['Mentorship', 'AvRules', 'AvKnowledge', 'AvPrompts'];
 
     private static bool $ready = false;
 
