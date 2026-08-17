@@ -197,3 +197,101 @@ $brules();
 $db->exec('DELETE FROM meetings');
 $db->exec('DELETE FROM meeting_attendees');
 reset_users();
+
+/* ════════════════════════════════════════════════════════════════
+   Mentorship sessions — minutes and their own notetaker.
+   These sessions used to be the only Afrovanguard meeting with no record of
+   what was said: they could hold a LINK to a transcript, so the text lived
+   elsewhere and nothing could read it.
+   ════════════════════════════════════════════════════════════════ */
+require_once AV_ROOT . '/lib/Mentorship.php';
+reset_users();
+$brules();
+Mentorship::ensure();
+$db->exec('DELETE FROM mentorships');
+$db->exec('DELETE FROM mentor_sessions');
+try { $db->exec('DELETE FROM mentor_session_minutes'); } catch (Throwable $e) {}
+
+$db->exec("INSERT INTO mentorships (mentor_id, mentee_id, status, created_at, updated_at) VALUES (1,2,'active','2026-01-01','2026-01-01')");
+$pairId = (int) $db->query('SELECT id FROM mentorships WHERE mentor_id=1')->fetchColumn();
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, meet_url, attendance, created_at) VALUES (?,?,?,?,'scheduled',?)")
+   ->execute([$pairId, 'Check-in', gmdate('Y-m-d H:i:s', time() + 3600), 'https://meet.google.com/abc-defg-hij', gmdate('Y-m-d H:i:s')]);
+$sesId = (int) $db->lastInsertId();
+
+// Only the two people in the relationship may touch its record.
+ck('session: a stranger cannot save a transcript', empty(Mentorship::saveSessionTranscript(3, $sesId, 'hello')['ok']));
+ck('session: a stranger cannot read the minutes', Mentorship::sessionMinutes(3, $sesId) === null);
+ck('session: a stranger cannot add the notetaker', empty(Mentorship::inviteSessionBot(3, $sesId)['ok']));
+ck('session: a stranger cannot remove the notetaker', empty(Mentorship::removeSessionBot(3, $sesId)['ok']));
+ck('session: an empty transcript is refused', empty(Mentorship::saveSessionTranscript(1, $sesId, '   ')['ok']));
+
+// Either party may save one — a mentee is as entitled to the record as the mentor.
+$sv = Mentorship::saveSessionTranscript(2, $sesId, "Mentor: How did it go?\nMentee: I finished the course.");
+ck('session: the mentee may save a transcript', !empty($sv['ok']));
+// No AI provider in the suite, so the raw text stands and structuring reports why.
+ck('session: unstructured without AI', empty($sv['structured']));
+ck('session: it says why it could not structure', trim((string) ($sv['note'] ?? '')) !== '');
+
+$min = Mentorship::sessionMinutes(1, $sesId);
+ck('session: the mentor can read what the mentee saved', is_array($min));
+ck('session: the raw transcript is kept', strpos((string) $min['raw_text'], 'finished the course') !== false);
+ck('session: minutes report their source', (string) $min['source'] === 'paste');
+
+// Saving again replaces rather than accumulating.
+Mentorship::saveSessionTranscript(1, $sesId, 'Second version of the transcript.');
+$rows = (int) $db->query('SELECT COUNT(*) FROM mentor_session_minutes WHERE session_id = ' . $sesId)->fetchColumn();
+ck('session: re-saving replaces the previous minutes', $rows === 1);
+
+ck('session: structureSession refuses an empty transcript', empty(Mentorship::structureSession('')['ok']));
+ck('session: structureSession explains a missing provider', !empty(Mentorship::structureSession('Some words.')['error']));
+
+// sessions() must expose enough for the UI to offer the right controls.
+$list = Mentorship::sessions($pairId);
+ck('session: sessions() returns the row', count($list) === 1);
+ck('session: sessions() reports has_minutes', $list[0]['has_minutes'] === true);
+ck('session: sessions() reports bot_state', array_key_exists('bot_state', $list[0]));
+
+// The notetaker needs a provider AND leadership's switch, exactly as meetings do.
+putenv('AV_MEET_BOT_PROVIDER=none');
+ck('session: no provider means the notetaker is refused', empty(Mentorship::inviteSessionBot(1, $sesId)['ok']));
+putenv('AV_MEET_BOT_PROVIDER=webhook');
+putenv('AV_MEET_BOT_JOIN_URL=https://example.invalid/join');
+AvRules::save(['meetings.ai_notetaker' => '0'], 'test');
+ck('session: the master switch blocks the notetaker', empty(Mentorship::inviteSessionBot(1, $sesId)['ok']));
+$brules();
+
+// A session with no Meet link has nothing for a bot to join.
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, meet_url, attendance, created_at) VALUES (?,?,?,'','scheduled',?)")
+   ->execute([$pairId, 'No link', gmdate('Y-m-d H:i:s', time() + 3600), gmdate('Y-m-d H:i:s')]);
+$noLinkSes = (int) $db->lastInsertId();
+$nl = Mentorship::inviteSessionBot(1, $noLinkSes);
+ck('session: a session with no Meet link is refused', empty($nl['ok']) && strpos((string) $nl['error'], 'no Google Meet link') !== false);
+
+// A live bot is not sent twice.
+$db->prepare("UPDATE mentor_sessions SET bot_state='in_call' WHERE id=?")->execute([$sesId]);
+ck('session: a live notetaker is not re-sent', !empty(Mentorship::inviteSessionBot(1, $sesId)['already']));
+// Either party may remove it.
+ck('session: the mentee may remove the notetaker', !empty(Mentorship::removeSessionBot(2, $sesId)['ok']));
+ck('session: removal is recorded', (string) $db->query('SELECT bot_state FROM mentor_sessions WHERE id=' . $sesId)->fetchColumn() === 'removed');
+
+// The sweep picks up pending sessions the same way meetings are swept.
+$db->exec('DELETE FROM mentor_sessions');
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, meet_url, attendance, bot_state, created_at) VALUES (?,?,?,?,'scheduled','pending',?)")
+   ->execute([$pairId, 'Due soon', gmdate('Y-m-d H:i:s', time() + 120), 'https://meet.google.com/abc-defg-hij', gmdate('Y-m-d H:i:s')]);
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, meet_url, attendance, bot_state, created_at) VALUES (?,?,?,?,'scheduled','pending',?)")
+   ->execute([$pairId, 'Far off', gmdate('Y-m-d H:i:s', time() + 7 * 86400), 'https://meet.google.com/abc-defg-hij', gmdate('Y-m-d H:i:s')]);
+ck('session: the sweep dispatches only the due session', Mentorship::dispatchDueSessionBots() === 1);
+
+// A cancelled session must never get a notetaker.
+$db->exec('DELETE FROM mentor_sessions');
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, meet_url, attendance, bot_state, created_at) VALUES (?,?,?,?,'cancelled','pending',?)")
+   ->execute([$pairId, 'Cancelled', gmdate('Y-m-d H:i:s', time() + 120), 'https://meet.google.com/abc-defg-hij', gmdate('Y-m-d H:i:s')]);
+ck('session: a cancelled session is never swept', Mentorship::dispatchDueSessionBots() === 0);
+
+// An unknown bot id is refused rather than silently attaching to something.
+ck('session: an unknown bot id is refused', empty(Mentorship::ingestSessionFromRecall('bot_does_not_exist')['ok']));
+
+putenv('AV_MEET_BOT_PROVIDER');
+putenv('AV_MEET_BOT_JOIN_URL');
+$brules();
+reset_users();
