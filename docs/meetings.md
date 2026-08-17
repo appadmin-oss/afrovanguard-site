@@ -39,9 +39,73 @@ Transcripts reach the system three ways: **paste**, **upload a recording**
 
 ## The recording bot
 
-Turn on **“Add the recording bot”** when scheduling. The provider is chosen by
-`AV_MEET_BOT_PROVIDER` (`recall` | `google` | `webhook` | `none`), or
+Turn on **“Add the recording bot”** when scheduling — or add it to a meeting
+that is already running, from the meeting card in the portal. The provider is
+chosen by `AV_MEET_BOT_PROVIDER` (`recall` | `google` | `webhook` | `none`), or
 auto-detected: Recall.ai → custom webhook worker → Google native.
+
+### Adding and removing it on demand
+
+`🤖 Add the AI` sends the notetaker into a meeting that was not scheduled with
+recording; `Remove the AI` takes it back out. Both are open to **anyone in the
+meeting**, not just the organiser — someone who wants a conversation off the
+record should not have to find whoever booked the room first.
+
+`Meetings::inviteBot()` is idempotent, so a double-tap cannot put two notetakers
+in a room. `removeBot()` also clears `auto_record`, or the cron sweep would send
+the bot straight back in.
+
+### When the bot joins
+
+The bot is always given a **join time** — the meeting start, pulled forward by
+`meetings.bot_join_lead_min` (default 2 minutes) so it is present before the
+first person, and clamped so it is never in the past (providers reject a past
+join time outright). Without this a bot created for next Tuesday's meeting joins
+an empty room the day it is scheduled and gives up long before anyone arrives.
+
+A custom `webhook` worker cannot be told to join later, so a meeting more than an
+hour out is left `pending` and dispatched by the sweep instead.
+
+### The sweep
+
+`Meetings::dispatchDueBots()` runs on every `tasks/cron.php` tick. It picks up
+meetings starting within the lead window whose bot state is empty, `pending` or
+`error`, and looks back 30 minutes so a meeting that started between ticks is
+still covered. This is what makes a **failed dispatch recoverable** — provider
+down, key missing, Meet link not yet provisioned — instead of the bot silently
+never arriving.
+
+### Leadership controls (Studio → Rules & AI → Meetings)
+
+Which backend joins is deployment configuration; *whether the organisation
+records its meetings* is a leadership decision.
+
+| Rule | Default | Controls |
+|---|---|---|
+| `meetings.ai_notetaker` | on | Master switch. Off, no bot can be sent by any route. |
+| `meetings.bot_on_demand` | on | Whether participants can add it mid-meeting. |
+| `meetings.bot_join_lead_min` | 2 | How many minutes early it joins. |
+| `meetings.bot_announce` | on | Whether the invite says the meeting will be transcribed. |
+
+`meetings.bot_announce` does **not** hide the bot when switched off — it appears
+in the participant list by name regardless, and no setting conceals it. All the
+switch removes is the advance notice, so people find out by noticing rather than
+by being told. Leave it on.
+
+### Bot states
+
+`bot_state` on a meeting, as the portal renders it:
+
+| State | Meaning |
+|---|---|
+| `pending` | Wanted, queued for the sweep to dispatch |
+| `requested` | Sent to the provider; will join at its join time |
+| `joining` / `in_call` | Live in the meeting |
+| `native` | Google is transcribing the space itself; no bot to remove |
+| `done` | Attended and finished |
+| `removed` | Taken out by a participant |
+| `error` | Dispatch failed — the sweep will retry |
+| `unconfigured` | No provider wired; use Google's transcript or paste one |
 
 ### Provider: `recall` (Recall.ai)
 
