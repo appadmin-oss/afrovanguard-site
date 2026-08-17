@@ -1322,18 +1322,153 @@
     t.addEventListener('click', function () {
       var which = t.getAttribute('data-rt');
       document.querySelectorAll('.rt-tab').forEach(function (x) { x.classList.toggle('active', x === t); });
+      $('#rtSetup').hidden = which !== 'setup';
       $('#rtRules').hidden = which !== 'rules';
       $('#rtKb').hidden = which !== 'kb';
       $('#rtPrompts').hidden = which !== 'prompts';
       $('#rtLab').hidden = which !== 'lab';
       $('#rtChat').hidden = which !== 'chat';
       $('#rtProps').hidden = which !== 'props';
+      if (which === 'setup') loadSetup();
       if (which === 'kb') loadKb();
       if (which === 'prompts') loadPrompts();
       if (which === 'lab') loadAiStatus();
       if (which === 'chat') loadAiStatus();
       if (which === 'props') loadProposals();
     });
+  });
+
+  /* ============================================================
+     Setup — connecting the AI without editing a file on the server.
+
+     A stored key is never sent back here, so the field for one is always empty
+     with the masked tail shown beside it. Typing replaces it; leaving it blank
+     leaves it alone; the Clear button removes it.
+     ============================================================ */
+  var setupDirty = {};
+
+  function loadSetup() {
+    var host = $('#setupGroups'); if (!host) return;
+    host.innerHTML = '<p class="muted">Loading…</p>';
+    setupDirty = {};
+    api('setup_get').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { host.innerHTML = '<p class="muted">Could not load the setup.</p>'; return; }
+      renderSetup(d);
+    });
+  }
+
+  function renderSetup(d) {
+    var warn = $('#setupCrypto');
+    var c = d.crypto || {};
+    if (warn) {
+      warn.hidden = !!c.ok;
+      warn.innerHTML = c.ok ? '' : '<strong>Keys cannot be stored yet</strong><p>' + escapeHtml(c.reason) + '</p>';
+    }
+
+    var tests = $('#setupTests');
+    if (tests) {
+      tests.innerHTML = (d.testable || []).map(function (t) {
+        return '<button type="button" class="btn btn-outline btn-sm setup-test" data-what="' + escapeHtml(t.key) + '"'
+          + (t.ready ? '' : ' disabled title="Nothing configured to test yet"') + '>Test ' + escapeHtml(t.label) + '</button>'
+          + '<span class="setup-test-out" id="stout_' + escapeHtml(t.key) + '"></span>';
+      }).join('');
+    }
+
+    var host = $('#setupGroups'); if (!host) return;
+    host.innerHTML = (d.groups || []).map(function (g) {
+      return '<section class="setup-group"><h3>' + escapeHtml(g.group) + '</h3>'
+        + g.fields.map(setupField).join('') + '</section>';
+    }).join('');
+  }
+
+  function setupField(f) {
+    var id = 'set_' + f.key;
+    var input;
+    if (f.type === 'enum') {
+      input = '<select id="' + id + '" data-skey="' + escapeHtml(f.key) + '">'
+        + f.options.map(function (o) {
+            return '<option value="' + escapeHtml(o) + '"' + (o === f.value ? ' selected' : '') + '>'
+              + escapeHtml(o === '' ? 'Auto-detect' : o) + '</option>';
+          }).join('') + '</select>';
+    } else {
+      input = '<input id="' + id + '" type="' + (f.secret ? 'password' : 'text') + '" spellcheck="false" autocomplete="off"'
+        + ' data-skey="' + escapeHtml(f.key) + '"'
+        + ' value="' + escapeHtml(f.secret ? '' : f.value) + '"'
+        + ' placeholder="' + escapeHtml(f.secret && f.is_set ? 'Stored — type to replace' : f.placeholder) + '" />';
+    }
+    var badge = { studio: 'set here', config: 'from config.php', env: 'from the environment', unset: 'not set' }[f.source] || f.source;
+    var cls = f.source === 'unset' ? 'setup-src-unset' : (f.source === 'studio' ? 'setup-src-studio' : 'setup-src-env');
+    return '<div class="setup-field">'
+      + '<div class="setup-f-h"><label for="' + id + '">' + escapeHtml(f.label) + '</label>'
+      + '<span class="setup-src ' + cls + '">' + escapeHtml(badge) + '</span>'
+      + (f.secret && f.preview ? '<code class="setup-mask">' + escapeHtml(f.preview) + '</code>' : '')
+      + '</div>'
+      + '<p class="setup-help">' + escapeHtml(f.help) + '</p>'
+      + (f.shadowing
+          ? '<p class="setup-shadow">This is overriding a value from ' + escapeHtml(f.shadowing === 'config' ? 'config.php' : 'the environment') + '. Clear it to go back to that.</p>'
+          : '')
+      + '<div class="setup-f-row">' + input
+      + (f.source === 'studio' ? '<button type="button" class="btn btn-outline btn-sm setup-clear" data-skey="' + escapeHtml(f.key) + '">Clear</button>' : '')
+      + '</div></div>';
+  }
+
+  $('#setupGroups') && $('#setupGroups').addEventListener('input', function (e) {
+    var el = e.target.closest('[data-skey]'); if (!el) return;
+    setupDirty[el.getAttribute('data-skey')] = el.value;
+  });
+  $('#setupGroups') && $('#setupGroups').addEventListener('change', function (e) {
+    var el = e.target.closest('select[data-skey]'); if (!el) return;
+    setupDirty[el.getAttribute('data-skey')] = el.value;
+  });
+
+  $('#setupGroups') && $('#setupGroups').addEventListener('click', function (e) {
+    var b = e.target.closest('.setup-clear'); if (!b) return;
+    var key = b.getAttribute('data-skey');
+    if (!confirm('Remove this value? Anything set in the environment will apply again.')) return;
+    var vals = {}; vals[key] = '';
+    post('setup_save', { values: vals }).then(function (r) {
+      var d = r.data || {};
+      if (d.saved) { toast('Cleared.'); renderSetup(d); setupDirty = {}; }
+      else toast('Could not clear that.');
+    });
+  });
+
+  $('#setupSave') && $('#setupSave').addEventListener('click', function () {
+    if (!Object.keys(setupDirty).length) { $('#setupMsg').textContent = 'Nothing changed.'; return; }
+    $('#setupSave').disabled = true;
+    $('#setupMsg').textContent = 'Saving…';
+    post('setup_save', { values: setupDirty }).then(function (r) {
+      $('#setupSave').disabled = false;
+      var d = r.data || {};
+      var errs = d.errors || {};
+      var names = Object.keys(errs);
+      if (names.length) {
+        $('#setupMsg').textContent = names.map(function (k) { return k + ': ' + errs[k]; }).join(' · ');
+      } else {
+        $('#setupMsg').textContent = 'Saved.';
+        toast('Setup saved.');
+      }
+      // Re-render either way: the successful fields have landed and their
+      // source badges need to reflect that.
+      if (d.groups) { renderSetup(d); setupDirty = {}; }
+    }).catch(function () { $('#setupSave').disabled = false; $('#setupMsg').textContent = 'Could not save.'; });
+  });
+
+  $('#setupRefresh') && $('#setupRefresh').addEventListener('click', loadSetup);
+
+  $('#setupTests') && $('#setupTests').addEventListener('click', function (e) {
+    var b = e.target.closest('.setup-test'); if (!b) return;
+    var what = b.getAttribute('data-what');
+    var out = $('#stout_' + what);
+    b.disabled = true; if (out) { out.className = 'setup-test-out'; out.textContent = 'testing…'; }
+    post('setup_test', { what: what }).then(function (r) {
+      b.disabled = false;
+      var d = r.data || {};
+      if (!out) return;
+      out.className = 'setup-test-out ' + (d.ok ? 'is-ok' : 'is-bad');
+      out.textContent = (d.ok ? '✓ ' : '✗ ') + (d.detail || '') + (d.ms != null ? ' (' + d.ms + 'ms)' : '');
+    }).catch(function () { b.disabled = false; if (out) { out.className = 'setup-test-out is-bad'; out.textContent = 'The test failed.'; } });
   });
 
   /* ============================================================

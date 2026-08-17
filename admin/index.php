@@ -760,6 +760,7 @@
     </div>
 
     <div class="rules-tabs">
+      <button class="rt-tab" data-rt="setup">Setup</button>
       <button class="rt-tab active" data-rt="rules">Rules</button>
       <button class="rt-tab" data-rt="kb">Knowledge</button>
       <button class="rt-tab" data-rt="prompts">Prompts</button>
@@ -767,6 +768,21 @@
       <button class="rt-tab" data-rt="chat">Talk to the AI</button>
       <button class="rt-tab" data-rt="props">Proposals<span class="tab-badge" id="propBadge" hidden></span></button>
     </div>
+
+    <!-- Setup — provider credentials, editable here instead of in a file -->
+    <section class="rt-pane" id="rtSetup" hidden>
+      <div class="studio-head">
+        <div><h2>Setup</h2><p class="muted">Connect the AI, the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
+        <button class="btn btn-outline btn-sm" id="setupRefresh">Refresh</button>
+      </div>
+      <div class="setup-warn" id="setupCrypto" hidden></div>
+      <div class="setup-tests" id="setupTests"></div>
+      <div id="setupGroups"><p class="muted">Loading…</p></div>
+      <div class="rules-foot">
+        <button class="btn btn-primary btn-sm" id="setupSave">Save setup</button>
+        <span class="muted" id="setupMsg"></span>
+      </div>
+    </section>
 
     <!-- Rules -->
     <section class="rt-pane" id="rtRules">

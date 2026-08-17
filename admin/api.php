@@ -66,7 +66,7 @@ try {
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
-        'ai_run', 'ai_chat', 'ai_proposal_decide'], true);
+        'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -81,7 +81,9 @@ try {
         'rules_get', 'rules_save', 'rules_reset', 'prompts_list', 'prompts_save', 'prompts_reset',
         // Approving a proposal WRITES a rule or a prompt, so it is gated exactly
         // as editing one directly is — the AI having suggested it changes nothing.
-        'ai_proposal_decide'];
+        'ai_proposal_decide',
+        // Provider credentials. Super Admin only — these are the organisation's keys.
+        'setup_get', 'setup_save', 'setup_test'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -421,6 +423,33 @@ try {
             $out = fopen('php://output', 'w');
             foreach ($rows as $r) fputcsv($out, $r);
             fclose($out); exit;
+        }
+
+        /* ════ Setting the AI up, from the Studio ════
+           Credentials used to live only in .env or config.php — a file above the
+           web root on shared hosting, which most administrators will never edit.
+           Keys are encrypted at rest and NEVER returned to the browser: the
+           Studio sees a masked preview and nothing more. */
+        case 'setup_get':
+            json_out(array_merge(['ok' => true], AvSettings::describe(), ['testable' => AvSettings::testable()]));
+
+        case 'setup_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $vals = (array) ($body['values'] ?? []);
+            $res = AvSettings::save($vals, av_admin_role() ?: 'admin');
+            // Audit the KEYS that changed, never the values — an audit trail that
+            // records a credential is a credential store nobody remembers exists.
+            if (($res['saved'] ?? 0) > 0) {
+                AdminAudit::log('rules', 'setup_saved', implode(',', array_keys($vals)),
+                    'Updated ' . (int) $res['saved'] . ' AI setup value(s)');
+            }
+            json_out(array_merge($res, AvSettings::describe(), ['testable' => AvSettings::testable()]));
+        }
+
+        case 'setup_test': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!av_rate_ok('setup_test', 30, 300)) json_out(['ok' => false, 'error' => 'Too many tests — wait a moment.'], 429);
+            json_out(array_merge(['ok' => true], AvSettings::test((string) ($body['what'] ?? ''))));
         }
 
         /* ════ The AI bench, the chat console, and the approval queue ════

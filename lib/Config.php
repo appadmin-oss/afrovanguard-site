@@ -20,9 +20,21 @@ declare(strict_types=1);
 
 final class Config
 {
-    /** Constant (if defined & non-empty) → env var → default. */
+    /**
+     * Studio setting → constant (if defined & non-empty) → env var → default.
+     *
+     * The Studio comes first so an administrator who sets a key on the Setup
+     * screen does not have to also discover that a stale variable somewhere is
+     * quietly beating them. AvSettings only answers for keys in its own
+     * registry and is fully guarded, so this stays safe on the early paths where
+     * the database may not exist yet.
+     */
     public static function get(string $key, $default = null)
     {
+        if (class_exists('AvSettings')) {
+            $s = AvSettings::get($key);
+            if ($s !== null && $s !== '') return $s;
+        }
         if (defined($key)) { $v = constant($key); if ($v !== '' && $v !== null) return $v; }
         $e = getenv($key);
         return ($e !== false && $e !== '') ? $e : $default;

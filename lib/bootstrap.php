@@ -291,6 +291,11 @@ require_once __DIR__ . '/AvWeb.php';
 require_once __DIR__ . '/AvTools.php';
 require_once __DIR__ . '/AvAgent.php';
 require_once __DIR__ . '/AvLab.php';
+require_once __DIR__ . '/AvSettings.php';
+// Publish Studio-managed credentials into the process environment, so classes
+// that read a bare getenv() (Meetings::botProvider() among them) see them without
+// any change of their own. Config::get() consults the same store first.
+AvSettings::apply();
 require_once __DIR__ . '/AiKnowledge.php';
 require_once __DIR__ . '/Levels.php';
 require_once __DIR__ . '/IQ.php';
