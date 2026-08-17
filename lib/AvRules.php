@@ -236,6 +236,28 @@ final class AvRules
             'label' => 'Assistant tone',
             'help'  => 'How the assistants address members.',
         ],
+
+        /* ── Tools, skills and the web ── */
+        'ai.tools' => [
+            'type' => 'bool', 'default' => true, 'group' => 'AI',
+            'label' => 'Let the AI use tools',
+            'help'  => 'When on, the assistant can look things up for itself — a member\'s mentorship record, the live rules, the doctrine — instead of answering from whatever was pasted into the prompt. Off, it can only reason about what it is given.',
+        ],
+        'ai.web_access' => [
+            'type' => 'bool', 'default' => false, 'group' => 'AI',
+            'label' => 'Let the AI search and read the web',
+            'help'  => 'Ships OFF, deliberately. Reading a page needs no API key, so leaving this on by default would put arbitrary web fetching into every deployment the moment it updated. Turn it on when you want the AI to research and propose new doctrine — and note that search additionally needs a provider key.',
+        ],
+        'ai.self_improve' => [
+            'type' => 'bool', 'default' => true, 'group' => 'AI',
+            'label' => 'Let the AI propose changes to itself',
+            'help'  => 'When on, the assistant can file proposals to add doctrine, adjust a rule or rewrite one of its own prompts. A proposal never takes effect on its own — an administrator approves or rejects it in Rules & AI → Proposals. Off, the AI can read its configuration but not suggest changes to it.',
+        ],
+        'ai.max_tool_turns' => [
+            'type' => 'int', 'default' => 6, 'min' => 1, 'max' => 20, 'group' => 'AI',
+            'label' => 'Maximum tool round-trips per request',
+            'help'  => 'How many times the AI may call a tool and think again before it must answer. This is a cost and latency ceiling as much as a safety one — each round-trip is another model call.',
+        ],
     ];
 
     /* ════════════════════════════════════════════════════════════════

@@ -223,19 +223,29 @@ final class AvPrompts
      *
      * @return array{ok:bool, error:string, cleared:bool}
      */
-    public static function save(string $key, string $text, string $actor = ''): array
+    /**
+     * Check a proposed template without storing it.
+     *
+     * Split out of save() so a caller can find out whether text WOULD be accepted
+     * — the AI's propose_prompt tool needs exactly that, and duplicating these
+     * checks there would let the two drift apart.
+     *
+     * @return array{ok:bool, error:string, cleared:bool}
+     */
+    public static function validate(string $key, string $text): array
     {
         if (!isset(self::DEFS[$key])) return ['ok' => false, 'error' => 'Unknown prompt.', 'cleared' => false];
         $text = trim($text);
 
+        // Empty (or identical to the default) is valid: it means "use the default".
         if ($text === '' || $text === trim(self::defaultText($key))) {
-            return ['ok' => self::reset($key), 'error' => '', 'cleared' => true];
+            return ['ok' => true, 'error' => '', 'cleared' => true];
         }
         if (mb_strlen($text) > 8000) {
             return ['ok' => false, 'error' => 'Too long (max 8000 characters).', 'cleared' => false];
         }
-        // A template that drops every declared variable will silently produce a
-        // prompt with no input — catch it here rather than at 3am in the cron.
+        // A template that drops a declared variable will silently produce a prompt
+        // with no input — catch it here rather than at 3am in the cron.
         $missing = [];
         foreach (self::vars($key) as $v) {
             if (strpos($text, '{{' . $v . '}}') === false) $missing[] = $v;
@@ -243,6 +253,17 @@ final class AvPrompts
         if ($missing) {
             return ['ok' => false, 'cleared' => false,
                     'error' => 'This prompt must still use {{' . implode('}}, {{', $missing) . '}} — without it the AI receives no input to work from.'];
+        }
+        return ['ok' => true, 'error' => '', 'cleared' => false];
+    }
+
+    public static function save(string $key, string $text, string $actor = ''): array
+    {
+        $v = self::validate($key, $text);
+        if (empty($v['ok'])) return $v;
+        $text = trim($text);
+        if (!empty($v['cleared'])) {
+            return ['ok' => self::reset($key), 'error' => '', 'cleared' => true];
         }
 
         try {
@@ -279,6 +300,13 @@ final class AvPrompts
     }
 
     /** Every template with provenance, for the Studio editor. */
+    /** One template's full picture — for the AI's prompt_read tool and the Studio. */
+    public static function describeOne(string $key): array
+    {
+        foreach (self::describe() as $row) if ($row['key'] === $key) return $row;
+        return [];
+    }
+
     public static function describe(): array
     {
         $ov = self::overrides();
