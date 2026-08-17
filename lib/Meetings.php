@@ -360,6 +360,9 @@ final class Meetings
         if (class_exists('Gemini') && Gemini::configured()) {
             $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => 2048, 'temperature' => 0.1]);
         }
+        if ((!$res || empty($res['ok'])) && class_exists('OpenAi') && OpenAi::configured()) {
+            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => 2048, 'temperature' => 0.1]);
+        }
         if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
             $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => 1500]);
         }
@@ -448,12 +451,26 @@ final class Meetings
     {
         self::ensure();
         if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
-        if (!class_exists('Gemini') || !Gemini::configured()) {
-            return ['ok' => false, 'error' => 'Audio transcription (Gemini) isn’t configured (set AV_GEMINI_API_KEY).'];
+
+        // Whisper first when it is available: it is a real multipart upload, so
+        // it takes the ~25MB the API allows where Gemini's base64 inlining stops
+        // around 19MB — which is the difference between "most meetings" and
+        // "short ones". Gemini remains the fallback and the cheaper option.
+        $via = ''; $res = null;
+        if (class_exists('OpenAi') && OpenAi::configured()) {
+            $res = OpenAi::transcribeAudio($bytes, $mime);
+            $via = 'whisper';
         }
-        $res = Gemini::transcribeAudio($bytes, $mime);
+        if ((!$res || empty($res['ok'])) && class_exists('Gemini') && Gemini::configured()) {
+            $g = Gemini::transcribeAudio($bytes, $mime);
+            // Only let Gemini's error replace Whisper's if Gemini was actually tried.
+            if (!empty($g['ok']) || !$res) { $res = $g; $via = 'gemini'; }
+        }
+        if (!$res) {
+            return ['ok' => false, 'error' => 'Audio transcription isn’t configured (set OPENAI_API_KEY for Whisper, or AV_GEMINI_API_KEY).'];
+        }
         if (empty($res['ok'])) return ['ok' => false, 'error' => (string) ($res['error'] ?? 'Transcription failed.')];
-        return self::saveTranscript($uid, $id, (string) $res['text'], 'gemini');
+        return self::saveTranscript($uid, $id, (string) $res['text'], $via);
     }
 
     /** ── The AI notetaker ─────────────────────────────────────────────── */

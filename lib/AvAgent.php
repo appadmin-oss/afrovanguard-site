@@ -11,12 +11,13 @@
  * model asks for a tool it executes it, feeds the result back, and asks again —
  * until the model answers in prose or the turn ceiling is reached.
  *
- * Both providers are supported because deployments have one or the other:
- * Anthropic tool-use is preferred (it handles multi-step tool chains better),
- * with Gemini function-calling as the fallback. The two wire formats are
+ * All three providers are supported because deployments have one or another:
+ * Anthropic tool-use is preferred (it handles multi-step tool chains best), then
+ * OpenAI tool-calling, then Gemini function-calling. The wire formats are
  * genuinely different — different envelopes, different names for the same idea,
- * different schema dialects — so each has its own translation, and AvTools stays
- * provider-neutral above them.
+ * arguments as a JSON string in one and an object in the others, and Gemini
+ * refuses a schema with no properties — so each has its own translation and
+ * AvTools stays provider-neutral above them.
  *
  * Everything the model did is returned in `steps`, so the Studio can show the
  * working rather than only the conclusion. An assistant that says "Ada isn't
@@ -38,6 +39,7 @@ final class AvAgent
     {
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return false;
         return (class_exists('AvBot') && AvBot::configured())
+            || (class_exists('OpenAi') && OpenAi::configured())
             || (class_exists('Gemini') && Gemini::configured());
     }
 
@@ -46,8 +48,11 @@ final class AvAgent
     {
         $forced = class_exists('Config') ? strtolower(Config::str('AV_AGENT_PROVIDER', '')) : '';
         if ($forced === 'anthropic' && class_exists('AvBot') && AvBot::configured()) return 'anthropic';
+        if ($forced === 'openai' && class_exists('OpenAi') && OpenAi::configured()) return 'openai';
         if ($forced === 'gemini' && class_exists('Gemini') && Gemini::configured()) return 'gemini';
+        // Claude first (best multi-step tool chains), then OpenAI, then Gemini.
         if (class_exists('AvBot') && AvBot::configured()) return 'anthropic';
+        if (class_exists('OpenAi') && OpenAi::configured()) return 'openai';
         if (class_exists('Gemini') && Gemini::configured()) return 'gemini';
         return '';
     }
@@ -89,7 +94,7 @@ final class AvAgent
         $provider = self::provider();
         $out['provider'] = $provider;
         if ($provider === '') {
-            $out['error'] = 'No AI provider is configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).';
+            $out['error'] = 'No AI provider is configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY or AV_GEMINI_API_KEY).';
             return $out;
         }
 
@@ -104,9 +109,10 @@ final class AvAgent
         $ctx = ['actor' => (string) ($opts['actor'] ?? 'ai'), 'tiers' => $tiers];
         $system = trim((string) ($opts['system'] ?? '')) !== '' ? (string) $opts['system'] : self::defaultSystem();
 
-        return $provider === 'anthropic'
-            ? self::runAnthropic($userText, $system, $specs, $ctx, $maxTurns, (array) ($opts['history'] ?? []), $out)
-            : self::runGemini($userText, $system, $specs, $ctx, $maxTurns, (array) ($opts['history'] ?? []), $out);
+        $history = (array) ($opts['history'] ?? []);
+        if ($provider === 'anthropic') return self::runAnthropic($userText, $system, $specs, $ctx, $maxTurns, $history, $out);
+        if ($provider === 'openai')    return self::runOpenAi($userText, $system, $specs, $ctx, $maxTurns, $history, $out);
+        return self::runGemini($userText, $system, $specs, $ctx, $maxTurns, $history, $out);
     }
 
     /** The persona used when a caller does not supply one. */
@@ -183,6 +189,73 @@ final class AvAgent
 
         // Out of turns. Say so honestly rather than presenting partial work as
         // a finished answer.
+        $out['error'] = 'Reached the tool limit (' . $maxTurns . ' round-trips) without a final answer. '
+                      . 'Raise ai.max_tool_turns, or ask something narrower.';
+        return $out;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       OpenAI — tool_calls / role:tool messages
+       ════════════════════════════════════════════════════════════════ */
+
+    private static function runOpenAi(string $userText, string $system, array $specs, array $ctx, int $maxTurns, array $history, array $out): array
+    {
+        $messages = [['role' => 'system', 'content' => $system]];
+        foreach (self::trimHistory($history) as $h) {
+            $messages[] = ['role' => $h['role'], 'content' => $h['text']];
+        }
+        $messages[] = ['role' => 'user', 'content' => $userText];
+
+        $tools = [];
+        foreach ($specs as $s) {
+            $tools[] = ['type' => 'function', 'function' => [
+                'name'        => $s['name'],
+                'description' => $s['description'],
+                'parameters'  => $s['input_schema'],
+            ]];
+        }
+        $maxTok = class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048;
+
+        for ($turn = 0; $turn < $maxTurns; $turn++) {
+            $out['turns'] = $turn + 1;
+            $payload = [
+                'messages'   => $messages,
+                'max_tokens' => max(256, min(16384, $maxTok)),
+            ];
+            if ($tools) $payload['tools'] = $tools;
+
+            $res = OpenAi::rawChat($payload);
+            if (isset($res['__error'])) { $out['error'] = (string) $res['__error']; return $out; }
+
+            $msg = (array) ($res['choices'][0]['message'] ?? []);
+            $calls = (array) ($msg['tool_calls'] ?? []);
+
+            if (!$calls) {
+                $refusal = (string) ($msg['refusal'] ?? '');
+                if ($refusal !== '') { $out['error'] = 'The model declined: ' . $refusal; return $out; }
+                $out['ok'] = true;
+                $out['text'] = trim((string) ($msg['content'] ?? ''));
+                if ($out['text'] === '') { $out['ok'] = false; $out['error'] = 'The model returned nothing.'; }
+                return $out;
+            }
+
+            // The assistant turn carrying the tool_calls must be echoed back
+            // before their results, or the API rejects the follow-up.
+            $messages[] = ['role' => 'assistant', 'content' => $msg['content'] ?? null, 'tool_calls' => $calls];
+
+            foreach ($calls as $c) {
+                $name = (string) ($c['function']['name'] ?? '');
+                // Arguments arrive as a JSON *string*, unlike the other two providers.
+                $args = json_decode((string) ($c['function']['arguments'] ?? '{}'), true);
+                if (!is_array($args)) $args = [];
+                $messages[] = [
+                    'role'         => 'tool',
+                    'tool_call_id' => (string) ($c['id'] ?? ''),
+                    'content'      => self::execute($name, $args, $ctx, $out),
+                ];
+            }
+        }
+
         $out['error'] = 'Reached the tool limit (' . $maxTurns . ' round-trips) without a final answer. '
                       . 'Raise ai.max_tool_turns, or ask something narrower.';
         return $out;

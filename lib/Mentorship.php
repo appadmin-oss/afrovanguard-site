@@ -849,6 +849,9 @@ final class Mentorship
         if (class_exists('Gemini') && Gemini::configured()) {
             $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
         }
+        if ((!$res || empty($res['ok'])) && class_exists('OpenAi') && OpenAi::configured()) {
+            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
+        }
         if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
             $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
         }

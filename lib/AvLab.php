@@ -110,8 +110,10 @@ final class AvLab
     {
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return 'AI is switched off (ai.enabled).';
         if ($key === 'tool') return '';
-        $haveAi = (class_exists('Gemini') && Gemini::configured()) || (class_exists('AvBot') && AvBot::configured());
-        if (!$haveAi) return 'No AI provider configured (set AV_GEMINI_API_KEY or ANTHROPIC_API_KEY).';
+        $haveAi = (class_exists('Gemini') && Gemini::configured())
+               || (class_exists('OpenAi') && OpenAi::configured())
+               || (class_exists('AvBot') && AvBot::configured());
+        if (!$haveAi) return 'No AI provider configured (set AV_GEMINI_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY).';
         if ($key === 'assistant.console' && !AvAgent::available()) return 'No provider available for tool use.';
         if ($key === 'knowledge.distil' && (!class_exists('AvWeb') || !AvWeb::available('web_fetch'))) {
             return 'Web fetching unavailable: ' . AvWeb::whyUnavailable('web_fetch') . '.';
@@ -286,6 +288,11 @@ final class AvLab
             $r = Gemini::generate($user, ['system' => $system, 'max_tokens' => 2048, 'temperature' => 0.2]);
             if (!empty($r['ok'])) return ['ok' => true, 'text' => (string) $r['text'], 'via' => 'gemini'];
             $err = (string) ($r['error'] ?? '');
+        }
+        if (class_exists('OpenAi') && OpenAi::configured()) {
+            $r = OpenAi::generate($user, ['system' => $system, 'max_tokens' => 2048, 'temperature' => 0.2]);
+            if (!empty($r['ok'])) return ['ok' => true, 'text' => (string) $r['text'], 'via' => 'openai'];
+            $err = (string) ($r['error'] ?? ($err ?? ''));
         }
         if (class_exists('AvBot') && AvBot::configured()) {
             $r = AvBot::reply(mb_substr($user, 0, 11000), [], ['system' => $system, 'max_tokens' => 1500]);

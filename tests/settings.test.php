@@ -173,7 +173,8 @@ ck('settings: get() refuses a key outside the registry', AvSettings::get('EVIL_I
 /* ---- Connection tests ---- */
 $setreset();
 $t = AvSettings::testable();
-ck('settings: the testable providers are listed', count($t) === 4);
+$testKeys = array_column($t, 'key');
+ck('settings: every provider is testable', $testKeys === ['anthropic', 'gemini', 'openai', 'recall', 'search']);
 $notReady = true;
 foreach ($t as $x) if ($x['key'] === 'anthropic' && $x['ready']) $notReady = false;
 ck('settings: an unconfigured provider is not offered as ready', $notReady);

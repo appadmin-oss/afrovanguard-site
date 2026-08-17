@@ -91,11 +91,33 @@ final class AvSettings
             'help' => 'Leave blank for the default.',
         ],
 
+        /* ── OpenAI ───────────────────────────────────────────────────── */
+        'OPENAI_API_KEY' => [
+            'group' => 'OpenAI', 'label' => 'API key', 'secret' => true, 'type' => 'text',
+            'ph' => 'sk-…',
+            'help' => 'Brings two things the others do not: a very cheap tier for the meeting pipeline, and Whisper — a dedicated transcription endpoint that takes an uploaded recording up to ~25MB, where Gemini\'s inline path stops around 19MB. Get one at platform.openai.com.',
+        ],
+        'AV_OPENAI_MODEL' => [
+            'group' => 'OpenAI', 'label' => 'Model', 'secret' => false, 'type' => 'text',
+            'ph' => 'gpt-4o-mini',
+            'help' => 'Leave blank for gpt-4o-mini, which is cheap and good enough for minutes. Use a larger model only where you have found the small one wanting.',
+        ],
+        'AV_OPENAI_TRANSCRIBE_MODEL' => [
+            'group' => 'OpenAI', 'label' => 'Transcription model', 'secret' => false, 'type' => 'text',
+            'ph' => 'whisper-1',
+            'help' => 'Used when a recording is uploaded rather than transcribed live.',
+        ],
+        'AV_OPENAI_BASE_URL' => [
+            'group' => 'OpenAI', 'label' => 'Endpoint override', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://api.openai.com/v1',
+            'help' => 'Point this at any OpenAI-compatible endpoint — Azure, a gateway, Groq, OpenRouter, or a model you host yourself. That is the cheapest route of all if you already run one.',
+        ],
+
         /* ── Which provider does what ─────────────────────────────────── */
         'AV_AGENT_PROVIDER' => [
             'group' => 'Assistant', 'label' => 'Provider for tool use', 'secret' => false, 'type' => 'enum',
-            'options' => ['', 'anthropic', 'gemini'],
-            'help' => 'Which model runs the tool-using assistant. Blank auto-detects, preferring Claude — it handles multi-step tool chains better.',
+            'options' => ['', 'anthropic', 'openai', 'gemini'],
+            'help' => 'Which model runs the tool-using assistant. Blank auto-detects in the order Claude → OpenAI → Gemini, because that is the order they handle multi-step tool chains well in.',
         ],
 
         /* ── The meeting notetaker ────────────────────────────────────── */
@@ -515,6 +537,7 @@ final class AvSettings
         return [
             ['key' => 'anthropic', 'label' => 'Claude', 'ready' => class_exists('AvBot') && AvBot::configured()],
             ['key' => 'gemini',    'label' => 'Gemini', 'ready' => class_exists('Gemini') && Gemini::configured()],
+            ['key' => 'openai',    'label' => 'OpenAI', 'ready' => class_exists('OpenAi') && OpenAi::configured()],
             ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
         ];
@@ -533,6 +556,7 @@ final class AvSettings
             switch ($what) {
                 case 'anthropic': $r = self::testAnthropic(); break;
                 case 'gemini':    $r = self::testGemini(); break;
+                case 'openai':    $r = self::testOpenAi(); break;
                 case 'recall':    $r = self::testRecall(); break;
                 case 'search':    $r = self::testSearch(); break;
             }
@@ -562,6 +586,14 @@ final class AvSettings
         $res = Gemini::generate('Reply with the single word: ok', ['max_tokens' => 64, 'temperature' => 0]);
         if (empty($res['ok'])) return ['ok' => false, 'detail' => self::humanise((string) ($res['error'] ?? 'Failed.'))];
         return ['ok' => true, 'detail' => 'Connected · model ' . Gemini::model()];
+    }
+
+    private static function testOpenAi(): array
+    {
+        if (!class_exists('OpenAi') || !OpenAi::configured()) return ['ok' => false, 'detail' => 'No OpenAI API key is set.'];
+        $res = OpenAi::generate('Reply with the single word: ok', ['max_tokens' => 8, 'temperature' => 0]);
+        if (empty($res['ok'])) return ['ok' => false, 'detail' => self::humanise((string) ($res['error'] ?? 'Failed.'))];
+        return ['ok' => true, 'detail' => 'Connected · model ' . OpenAi::model()];
     }
 
     private static function testRecall(): array

@@ -261,6 +261,7 @@ require_once __DIR__ . '/Webhooks.php';
 require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
 require_once __DIR__ . '/Gemini.php';
+require_once __DIR__ . '/OpenAi.php';
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/Prefs.php';
