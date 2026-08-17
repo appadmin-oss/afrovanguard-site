@@ -957,6 +957,10 @@ final class Mentorship
             $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
             if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
             else { $state = 'error'; error_log('[mentorship] recall: ' . (string) ($res['error'] ?? '')); }
+        } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
+            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso);
+            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
+            else { $state = 'error'; error_log('[mentorship] attendee: ' . (string) ($res['error'] ?? '')); }
         } elseif ($provider === 'google') {
             $state = 'native';
         }
@@ -977,10 +981,13 @@ final class Mentorship
         self::ensure();
         $s = self::participantSession($uid, $sessionId);
         if (!$s) return ['ok' => false, 'error' => 'Not your session.'];
-        $ref = (string) ($s['bot_ref'] ?? '');
-        if ((string) ($s['bot_provider'] ?? '') === 'recall' && $ref !== '' && class_exists('RecallBot')) {
-            $r = RecallBot::removeBot($ref);
-            if (empty($r['ok'])) return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
+        $ref  = (string) ($s['bot_ref'] ?? '');
+        $prov = (string) ($s['bot_provider'] ?? '');
+        if ($ref !== '') {
+            $r = null;
+            if ($prov === 'recall' && class_exists('RecallBot'))         $r = RecallBot::removeBot($ref);
+            elseif ($prov === 'attendee' && class_exists('AttendeeBot')) $r = AttendeeBot::removeBot($ref);
+            if ($r !== null && empty($r['ok'])) return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
         }
         try {
             Database::pdo()->prepare("UPDATE mentor_sessions SET bot_state = 'removed' WHERE id = ?")->execute([$sessionId]);

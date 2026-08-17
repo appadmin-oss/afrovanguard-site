@@ -61,6 +61,13 @@ if (class_exists('Meetings')) {
     try { $result['meeting_bots'] = Meetings::dispatchDueBots(); }
     catch (Throwable $e) { error_log('[cron] meeting bots: ' . $e->getMessage()); }
 }
+// Collect transcripts from bots that have finished. Polling rather than waiting
+// for a webhook means a site on shared hosting needs no public callback URL.
+if (class_exists('Meetings')) {
+    try { $result['bot_transcripts'] = Meetings::pollBotTranscripts(); }
+    catch (Throwable $e) { error_log('[cron] bot transcripts: ' . $e->getMessage()); }
+}
+
 // Mentorship sessions run their own Meet links, so they need the same sweep.
 if (class_exists('Mentorship')) {
     try { $result['session_bots'] = Mentorship::dispatchDueSessionBots(); }

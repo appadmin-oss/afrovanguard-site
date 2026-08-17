@@ -193,7 +193,10 @@ final class Meetings
         // the bot when the meeting is actually about to start.
         if ($autoRec && self::botAllowed() && $link['url'] !== '') {
             $provider = self::botProvider();
-            if ($provider === 'webhook' && $ts > time() + 3600) {
+            // Recall and Google can be told about a meeting well ahead. Attendee
+            // has no dependable join-later field across versions and a custom
+            // worker cannot schedule at all, so both wait for the sweep.
+            if (in_array($provider, ['webhook', 'attendee'], true) && $ts > time() + 3600) {
                 $db->prepare("UPDATE meetings SET bot_state = 'pending', bot_provider = ? WHERE id = ?")->execute([$provider, $id]);
             } else {
                 self::requestBot($id, $link['url'], $provider, self::botJoinAtIso($whenUtc));
@@ -566,9 +569,12 @@ final class Meetings
         if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
 
         $ref = (string) $m['bot_ref'];
-        if ((string) $m['bot_provider'] === 'recall' && $ref !== '' && class_exists('RecallBot')) {
-            $r = RecallBot::removeBot($ref);
-            if (empty($r['ok'])) {
+        $prov = (string) $m['bot_provider'];
+        if ($ref !== '') {
+            $r = null;
+            if ($prov === 'recall' && class_exists('RecallBot'))          $r = RecallBot::removeBot($ref);
+            elseif ($prov === 'attendee' && class_exists('AttendeeBot'))  $r = AttendeeBot::removeBot($ref);
+            if ($r !== null && empty($r['ok'])) {
                 error_log('[meetings] removeBot: ' . (string) ($r['error'] ?? ''));
                 return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
             }
@@ -632,7 +638,10 @@ final class Meetings
     public static function botProvider(): string
     {
         $p = strtolower(trim((string) getenv('AV_MEET_BOT_PROVIDER')));
-        if (in_array($p, ['recall', 'google', 'webhook', 'none'], true)) return $p === 'none' ? '' : $p;
+        if (in_array($p, ['recall', 'attendee', 'google', 'webhook', 'none'], true)) return $p === 'none' ? '' : $p;
+        // Attendee before Recall when both are configured: same capability, and
+        // self-hosted it costs nothing per meeting-hour.
+        if (class_exists('AttendeeBot') && AttendeeBot::configured()) return 'attendee';
         if (class_exists('RecallBot') && RecallBot::configured()) return 'recall';
         if (trim((string) getenv('AV_MEET_BOT_JOIN_URL')) !== '') return 'webhook';
         if (class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled()) return 'google';
@@ -663,6 +672,12 @@ final class Meetings
             $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
             if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
             else { $state = 'error'; error_log('[meetings] recall: ' . (string) ($res['error'] ?? '')); }
+        } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
+            // No webhook is passed: the cron sweep polls for the transcript, so a
+            // site on shared hosting needs no publicly reachable callback at all.
+            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso);
+            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
+            else { $state = 'error'; error_log('[meetings] attendee: ' . (string) ($res['error'] ?? '')); }
         } elseif ($provider === 'google') {
             // Google Meet is recording/transcribing natively (space created with
             // auto-transcription ON) — pull the transcript after the call.
@@ -692,6 +707,71 @@ final class Meetings
         }
         $db->prepare('UPDATE meetings SET bot_state = ?, bot_provider = ?, bot_ref = ? WHERE id = ?')
            ->execute([$state, $provider, $ref, $id]);
+    }
+
+    /**
+     * Collect transcripts for bots that have finished.
+     *
+     * The webhook path still works, but it requires the site to be publicly
+     * reachable at a stable URL — which a shared-hosting deployment behind a
+     * staging domain, or one that has just moved, often is not. Polling removes
+     * that requirement entirely: the cron asks each bot in flight whether it is
+     * done, and ingests when it is. A self-hosted notetaker therefore needs no
+     * inbound callback at all.
+     *
+     * Only bots that are actually in flight are polled, and each is tried a
+     * bounded number of times, so a bot that dies mid-call cannot be polled
+     * forever. Returns how many transcripts were ingested.
+     */
+    public static function pollBotTranscripts(int $limit = 20): int
+    {
+        self::ensure();
+        if (!self::botAllowed()) return 0;
+        $n = 0;
+        try {
+            $db = Database::pdo();
+            // Look back a day: a meeting that ran long or a transcription queue
+            // that was slow should still be collected, but yesterday's is stale.
+            $since = gmdate('Y-m-d H:i:s', time() - 86400);
+            $st = $db->prepare(
+                "SELECT id, bot_provider, bot_ref FROM meetings
+                  WHERE bot_ref <> '' AND bot_provider IN ('recall','attendee')
+                    AND bot_state IN ('requested','joining','in_call')
+                    AND scheduled_at >= ?
+                  ORDER BY scheduled_at ASC"
+            );
+            $st->execute([$since]);
+            foreach (array_slice($st->fetchAll(PDO::FETCH_ASSOC) ?: [], 0, max(1, $limit)) as $r) {
+                $id   = (int) $r['id'];
+                $prov = (string) $r['bot_provider'];
+                $ref  = (string) $r['bot_ref'];
+
+                $state = $prov === 'attendee' && class_exists('AttendeeBot')
+                    ? AttendeeBot::botStatus($ref)
+                    : (class_exists('RecallBot') ? RecallBot::botStatus($ref) : '');
+
+                // Keep the stored state honest even before the transcript lands,
+                // so the portal shows "in the meeting" rather than "will join".
+                if ($state !== '' && $state !== 'done') {
+                    $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ?')->execute([$state, $id]);
+                    continue;
+                }
+                if ($state === 'error') {
+                    $db->prepare("UPDATE meetings SET bot_state = 'error' WHERE id = ?")->execute([$id]);
+                    continue;
+                }
+                if ($state !== 'done') continue;   // unknown: leave it for the next tick
+
+                $text = $prov === 'attendee' && class_exists('AttendeeBot')
+                    ? AttendeeBot::fetchTranscript($ref)
+                    : (class_exists('RecallBot') ? RecallBot::fetchTranscript($ref) : '');
+                if ($text === '') continue;        // ended but still transcribing
+
+                $res = self::botIngest($id, self::botToken($id), $text);
+                if (!empty($res['ok'])) $n++;
+            }
+        } catch (Throwable $e) { error_log('[meetings] pollBotTranscripts: ' . $e->getMessage()); }
+        return $n;
     }
 
     private static function siteUrl(string $path): string

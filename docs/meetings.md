@@ -25,8 +25,9 @@ meeting is still saved but no link is created and the response carries a
 ## AI minutes (Gemini Flash)
 
 `Meetings::structure()` sends the transcript to Gemini Flash and stores a
-summary, key points, decisions and assigned action items. Falls back to the
-Anthropic bot if Gemini isn't configured.
+summary, key points, decisions and assigned action items. It falls back to
+OpenAI and then to the Anthropic bot, so whichever provider is configured is
+the one used.
 
 | Env | Default | Purpose |
 |-----|---------|---------|
@@ -34,15 +35,20 @@ Anthropic bot if Gemini isn't configured.
 | `AV_GEMINI_MODEL` | `gemini-2.0-flash` | Flash model id |
 | `AV_GEMINI_BASE_URL` | Google endpoint | Gateway / test override |
 
-Transcripts reach the system three ways: **paste**, **upload a recording**
-(Gemini Flash transcribes the audio), or **the recording bot** (below).
+Transcripts reach the system three ways: **paste**, **upload a recording**, or
+**the recording bot** (below).
+
+An uploaded recording goes to **Whisper** when `OPENAI_API_KEY` is set and to
+Gemini otherwise. Whisper is preferred because it is a real multipart upload and
+takes the ~25MB the API allows, where Gemini inlines the audio as base64 and
+stops around 19MB — the difference between most meetings and short ones.
 
 ## The recording bot
 
 Turn on **“Add the recording bot”** when scheduling — or add it to a meeting
 that is already running, from the meeting card in the portal. The provider is
-chosen by `AV_MEET_BOT_PROVIDER` (`recall` | `google` | `webhook` | `none`), or
-auto-detected: Recall.ai → custom webhook worker → Google native.
+chosen by `AV_MEET_BOT_PROVIDER` (`attendee` | `recall` | `google` | `webhook` |
+`none`), or auto-detected preferring the free options — see the cost table below.
 
 ### Adding and removing it on demand
 
@@ -106,6 +112,52 @@ by being told. Leave it on.
 | `removed` | Taken out by a participant |
 | `error` | Dispatch failed — the sweep will retry |
 | `unconfigured` | No provider wired; use Google's transcript or paste one |
+
+### Which backend, and what it costs
+
+| Backend | Cost | What it is |
+|---|---|---|
+| `google` | **Free** | Google Meet transcribes the call itself. No bot joins. Needs Workspace + the Meet scopes. **Start here** if you are already on Workspace. |
+| `attendee` | **Free self-hosted** | An open-source bot you run yourself. Whisper bundled. You pay for a small always-on container and nothing per meeting. |
+| `webhook` | **Free self-hosted** | Your own recorder, any implementation. |
+| `recall` | **Per meeting-hour** | Hosted, no infrastructure to run, broadest platform support. |
+
+Auto-detection prefers the free options: Attendee before Recall when both are
+configured, and Google native when neither bot is. An explicit
+`AV_MEET_BOT_PROVIDER` always wins over that preference.
+
+The honest summary: for an organisation already on Google Workspace, `google`
+costs nothing and is already wired — use it. Reach for a bot only when you need
+Zoom or Teams too, or want the transcript without depending on Workspace scopes.
+Between the bots, Attendee self-hosted is free where Recall is metered, and
+Recall is the one to pick if you would rather pay than operate a container.
+
+### Provider: `attendee` (open source, self-hostable)
+
+[Attendee](https://github.com/attendee-labs/attendee) is a bot that joins Meet,
+Zoom or Teams, records and transcribes with Whisper built in. Self-hosted it
+costs nothing per meeting.
+
+| Env | Default | Purpose |
+|-----|---------|---------|
+| `AV_ATTENDEE_API_KEY` | — | Enables it |
+| `AV_ATTENDEE_BASE_URL` | `https://app.attendee.dev` | **Set this to your own instance.** The default is the hosted service, which is billed per meeting — leaving it blank defeats the point. |
+| `AV_ATTENDEE_BOT_NAME` | `Afrovanguard Notetaker` | Name shown in the meeting |
+
+All three are editable in Studio → Rules & AI → Setup, with a Test button that
+distinguishes "reachable" from "key rejected" from "instance not running".
+
+Two behaviours differ from Recall, both deliberate:
+
+- **No public webhook is needed.** `Meetings::pollBotTranscripts()` runs on every
+  cron tick and asks each bot in flight whether it has finished, then ingests.
+  A site on shared hosting, behind a staging domain, or one that has just moved
+  therefore needs no inbound callback at all. (Recall bots are polled the same
+  way, so its webhook is now a speed-up rather than a requirement.)
+- **The bot is dispatched when the meeting starts**, not when it is scheduled.
+  Attendee has no dependable join-later field across versions, so a meeting more
+  than an hour out is left `pending` for the sweep — which is correct whatever
+  the instance supports.
 
 ### Provider: `recall` (Recall.ai)
 

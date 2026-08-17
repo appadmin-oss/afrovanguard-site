@@ -295,3 +295,106 @@ putenv('AV_MEET_BOT_PROVIDER');
 putenv('AV_MEET_BOT_JOIN_URL');
 $brules();
 reset_users();
+
+/* ════════════════════════════════════════════════════════════════
+   Attendee — the free, self-hostable notetaker.
+
+   Recall is billed per meeting-hour, which for a movement running weekly
+   mentorship sessions is a bill that grows with exactly the behaviour the
+   system exists to encourage. Attendee is the same capability as an open
+   project you host yourself.
+   ════════════════════════════════════════════════════════════════ */
+require_once AV_ROOT . '/lib/AttendeeBot.php';
+$brules();
+putenv('AV_MEET_BOT_PROVIDER');
+putenv('AV_MEET_BOT_JOIN_URL');
+putenv('AV_ATTENDEE_API_KEY');
+
+ck('attendee: unconfigured without a key', !AttendeeBot::configured());
+ck('attendee: createBot refuses without a key', empty(AttendeeBot::createBot('https://meet.google.com/x')['ok']));
+ck('attendee: removeBot refuses without a key', empty(AttendeeBot::removeBot('bot_1')['ok']));
+ck('attendee: botStatus is empty without a key', AttendeeBot::botStatus('bot_1') === '');
+ck('attendee: fetchTranscript is empty without a key', AttendeeBot::fetchTranscript('bot_1') === '');
+ck('attendee: transcript is not ready without a key', !AttendeeBot::transcriptReady('bot_1'));
+
+putenv('AV_ATTENDEE_API_KEY=test-key-not-real');
+ck('attendee: a key configures it', AttendeeBot::configured());
+ck('attendee: createBot refuses an empty URL', empty(AttendeeBot::createBot('')['ok']));
+
+// The hosted service is NOT free, so the distinction has to be visible.
+putenv('AV_ATTENDEE_BASE_URL');
+ck('attendee: defaults to the hosted service', !AttendeeBot::selfHosted());
+ck('attendee: the hosted base is used', strpos(AttendeeBot::base(), 'attendee.dev') !== false);
+putenv('AV_ATTENDEE_BASE_URL=https://meetbot.example.org');
+ck('attendee: a custom instance reads as self-hosted', AttendeeBot::selfHosted());
+ck('attendee: the custom base carries the API path', AttendeeBot::base() === 'https://meetbot.example.org/api/v1');
+putenv('AV_ATTENDEE_BASE_URL=https://meetbot.example.org/');
+ck('attendee: a trailing slash is tolerated', AttendeeBot::base() === 'https://meetbot.example.org/api/v1');
+
+// Auto-detection must prefer the free option when both are configured.
+putenv('AV_MEET_BOT_PROVIDER');
+putenv('AV_RECALL_API_KEY=recall-key-not-real');
+ck('attendee: preferred over Recall when both are set', Meetings::botProvider() === 'attendee');
+putenv('AV_ATTENDEE_API_KEY');
+ck('attendee: Recall is still used when Attendee is absent', Meetings::botProvider() === 'recall');
+putenv('AV_RECALL_API_KEY');
+putenv('AV_ATTENDEE_API_KEY=test-key-not-real');
+
+// An explicit choice still wins over the preference.
+putenv('AV_MEET_BOT_PROVIDER=google');
+ck('attendee: an explicit provider overrides the preference', Meetings::botProvider() === 'google');
+putenv('AV_MEET_BOT_PROVIDER=attendee');
+ck('attendee: it can be chosen explicitly', Meetings::botProvider() === 'attendee');
+
+// Attendee has no dependable join-later field, so a distant meeting waits for
+// the sweep rather than being dispatched at schedule time.
+$db->exec('DELETE FROM meetings');
+$far = $mk(['scheduled_at' => gmdate('Y-m-d H:i:s', time() + 7 * 86400), 'auto_record' => 1, 'bot_state' => 'pending']);
+ck('attendee: a distant meeting is left for the sweep', Meetings::dispatchDueBots() === 0);
+$due = $mk(['scheduled_at' => gmdate('Y-m-d H:i:s', time() + 120), 'auto_record' => 1, 'bot_state' => 'pending']);
+ck('attendee: a due meeting is dispatched', Meetings::dispatchDueBots() === 1);
+// The instance is unreachable in the suite, so dispatch fails — and that must be
+// recorded so the sweep can retry rather than the bot silently never arriving.
+ck('attendee: a failed dispatch is recorded',
+   in_array((string) $db->query('SELECT bot_state FROM meetings WHERE id = ' . $due)->fetchColumn(), ['error', 'unconfigured'], true));
+
+/* ---- Polling: no public webhook required ---- */
+$db->exec('DELETE FROM meetings');
+ck('poll: nothing to do with no bots in flight', Meetings::pollBotTranscripts() === 0);
+
+// Only bots actually in flight are polled. A finished, a removed and a
+// never-dispatched meeting must all be left alone.
+$done    = $mk(['bot_state' => 'done', 'auto_record' => 1]);
+$removed = $mk(['bot_state' => 'removed', 'auto_record' => 1]);
+$never   = $mk(['bot_state' => '', 'auto_record' => 1]);
+ck('poll: finished and untouched meetings are skipped', Meetings::pollBotTranscripts() === 0);
+
+// A bot in flight IS polled — the instance is unreachable here, so nothing is
+// ingested, but it must not throw and must not corrupt the row.
+$db->exec('DELETE FROM meetings');
+$flying = $mk(['bot_state' => 'requested', 'auto_record' => 1]);
+$db->prepare("UPDATE meetings SET bot_provider='attendee', bot_ref='bot-abc' WHERE id=?")->execute([$flying]);
+ck('poll: an unreachable bot ingests nothing', Meetings::pollBotTranscripts() === 0);
+ck('poll: the row survives an unreachable poll',
+   (string) $db->query('SELECT bot_state FROM meetings WHERE id = ' . $flying)->fetchColumn() === 'requested');
+
+// A meeting older than a day is stale and must not be polled forever.
+$db->exec('DELETE FROM meetings');
+$stale = $mk(['scheduled_at' => gmdate('Y-m-d H:i:s', time() - 3 * 86400), 'bot_state' => 'requested', 'auto_record' => 1]);
+$db->prepare("UPDATE meetings SET bot_provider='attendee', bot_ref='bot-old' WHERE id=?")->execute([$stale]);
+ck('poll: a stale meeting is not polled', Meetings::pollBotTranscripts() === 0);
+
+// The master switch stops polling as well as dispatch.
+$db->exec('DELETE FROM meetings');
+$f2 = $mk(['bot_state' => 'requested', 'auto_record' => 1]);
+$db->prepare("UPDATE meetings SET bot_provider='attendee', bot_ref='bot-xyz' WHERE id=?")->execute([$f2]);
+AvRules::save(['meetings.ai_notetaker' => '0'], 'test');
+ck('poll: the master switch stops polling too', Meetings::pollBotTranscripts() === 0);
+$brules();
+
+putenv('AV_MEET_BOT_PROVIDER');
+putenv('AV_ATTENDEE_API_KEY');
+putenv('AV_ATTENDEE_BASE_URL');
+$db->exec('DELETE FROM meetings');
+$db->exec('DELETE FROM meeting_attendees');
+reset_users();

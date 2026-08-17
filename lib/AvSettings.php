@@ -46,6 +46,8 @@ final class AvSettings
     /** @var array<string,string>|null decrypted values, memoised per request */
     private static ?array $memo = null;
     private static bool $applied = false;
+    /** @var array<string,true> keys this class has putenv()'d, so it can withdraw them */
+    private static array $published = [];
     /** Guards against Config::get() → AvSettings → Config::get() recursion. */
     private static bool $reading = false;
 
@@ -123,8 +125,22 @@ final class AvSettings
         /* ── The meeting notetaker ────────────────────────────────────── */
         'AV_MEET_BOT_PROVIDER' => [
             'group' => 'Meeting notetaker', 'label' => 'Backend', 'secret' => false, 'type' => 'enum',
-            'options' => ['', 'recall', 'google', 'webhook', 'none'],
-            'help' => 'Blank auto-detects. "google" uses Meet\'s own transcription and costs nothing. "recall" puts a named bot in the room and is billed per meeting-hour. "none" disables it here regardless of keys.',
+            'options' => ['', 'attendee', 'recall', 'google', 'webhook', 'none'],
+            'help' => 'Blank auto-detects, preferring the free options. "google" uses Meet\'s own transcription and costs nothing at all. "attendee" runs an open-source bot you host yourself — free per meeting, you pay only for the container. "recall" is the hosted equivalent, billed per meeting-hour. "none" disables it regardless of keys.',
+        ],
+        'AV_ATTENDEE_API_KEY' => [
+            'group' => 'Meeting notetaker', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
+            'help' => 'Attendee is the open-source notetaker (github.com/attendee-labs/attendee). Self-hosted it is free per meeting and bundles Whisper, so it costs you a small always-on container and nothing else. There is a hosted service too if you would rather not run it.',
+        ],
+        'AV_ATTENDEE_BASE_URL' => [
+            'group' => 'Meeting notetaker', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://meetbot.your-domain.org',
+            'help' => 'Your own instance. Leave blank to use the hosted service at app.attendee.dev — which is not free, so set this if the point was to avoid a per-meeting bill.',
+        ],
+        'AV_ATTENDEE_BOT_NAME' => [
+            'group' => 'Meeting notetaker', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
+            'ph' => 'Afrovanguard Notetaker',
+            'help' => 'The name participants see in the meeting.',
         ],
         'AV_RECALL_API_KEY' => [
             'group' => 'Meeting notetaker', 'label' => 'Recall.ai API key', 'secret' => true, 'type' => 'text',
@@ -267,10 +283,31 @@ final class AvSettings
     {
         if (self::$applied) return;
         self::$applied = true;
+
+        $now = [];
         foreach (self::all() as $k => $v) {
             if (!isset(self::DEFS[$k]) || $v === '') continue;
+            $now[$k] = $v;
+        }
+
+        // Withdraw anything we published earlier that is no longer stored.
+        // Without this, clearing a key in the Studio leaves the old value live
+        // for the rest of the request — so the Setup screen would say "unset"
+        // while the provider it belongs to still reported itself configured.
+        foreach (self::$published as $k => $_) {
+            if (isset($now[$k])) continue;
+            // Hand the key back to the real environment if it had one, rather
+            // than deleting a value we never owned.
+            $orig = isset($_SERVER[$k]) ? (string) $_SERVER[$k] : '';
+            if ($orig !== '') { putenv($k . '=' . $orig); $_ENV[$k] = $orig; }
+            else { putenv($k); unset($_ENV[$k]); }
+            unset(self::$published[$k]);
+        }
+
+        foreach ($now as $k => $v) {
             putenv($k . '=' . $v);
             $_ENV[$k] = $v;
+            self::$published[$k] = true;
         }
     }
 
@@ -538,6 +575,7 @@ final class AvSettings
             ['key' => 'anthropic', 'label' => 'Claude', 'ready' => class_exists('AvBot') && AvBot::configured()],
             ['key' => 'gemini',    'label' => 'Gemini', 'ready' => class_exists('Gemini') && Gemini::configured()],
             ['key' => 'openai',    'label' => 'OpenAI', 'ready' => class_exists('OpenAi') && OpenAi::configured()],
+            ['key' => 'attendee',  'label' => 'Attendee notetaker', 'ready' => class_exists('AttendeeBot') && AttendeeBot::configured()],
             ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
         ];
@@ -558,6 +596,7 @@ final class AvSettings
                 case 'gemini':    $r = self::testGemini(); break;
                 case 'openai':    $r = self::testOpenAi(); break;
                 case 'recall':    $r = self::testRecall(); break;
+                case 'attendee':  $r = self::testAttendee(); break;
                 case 'search':    $r = self::testSearch(); break;
             }
         } catch (Throwable $e) {
@@ -610,6 +649,22 @@ final class AvSettings
             ? ' — but no webhook token is set, so the callback URL is unauthenticated'
             : '';
         return ['ok' => true, 'detail' => 'Recall.ai reachable' . $warn];
+    }
+
+    private static function testAttendee(): array
+    {
+        if (!class_exists('AttendeeBot') || !AttendeeBot::configured()) return ['ok' => false, 'detail' => 'No Attendee API key is set.'];
+        // Ask about a bot id that cannot exist. A reachable instance with a good
+        // key answers 404 ("no such bot"), which is the pass; anything else — a
+        // rejected key, a wrong URL, a container that is not running — is a fail.
+        // Reporting "reachable" for all three, as an earlier version did, is
+        // exactly the false green this screen exists to prevent.
+        $p = AttendeeBot::ping();
+        if (empty($p['ok'])) return ['ok' => false, 'detail' => self::humanise((string) ($p['error'] ?? 'Could not reach Attendee.'))];
+        $where = AttendeeBot::selfHosted()
+            ? 'your own instance — free per meeting'
+            : 'the hosted service at app.attendee.dev, which is billed per meeting. Set an instance URL to self-host it instead.';
+        return ['ok' => true, 'detail' => 'Connected · ' . $where];
     }
 
     private static function testSearch(): array

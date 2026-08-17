@@ -19,6 +19,7 @@
 declare(strict_types=1);
 
 require_once AV_ROOT . '/lib/AvSettings.php';
+require_once AV_ROOT . '/lib/AttendeeBot.php';
 
 /**
  * Clear the store AND the process environment.
@@ -140,6 +141,30 @@ ck('settings: an unmodified getenv() consumer sees it', Meetings::botProvider() 
 AvSettings::clear('AV_MEET_BOT_PROVIDER', 't');
 putenv('AV_MEET_BOT_PROVIDER');
 
+/* ---- Clearing a key must withdraw it from the process too ----
+   apply() publishes with putenv(). If it only ever ADDS, clearing a key in the
+   Studio leaves the old value live for the rest of the request — so the Setup
+   screen says "unset" while the provider it belongs to still reports itself
+   configured. That is the confusing kind of wrong. ---- */
+$setreset();
+AvSettings::save(['AV_ATTENDEE_API_KEY' => 'att-key-not-real'], 't');
+ck('settings: a saved key reaches the provider class', AttendeeBot::configured());
+AvSettings::save(['AV_ATTENDEE_API_KEY' => ''], 't');
+ck('settings: clearing withdraws it from getenv()', getenv('AV_ATTENDEE_API_KEY') === false || getenv('AV_ATTENDEE_API_KEY') === '');
+ck('settings: the provider class sees it gone', !AttendeeBot::configured());
+
+// Clearing must hand the key BACK to the environment, not delete a value we
+// never owned.
+$_SERVER['AV_ATTENDEE_API_KEY'] = 'from-the-server-env';
+putenv('AV_ATTENDEE_API_KEY=from-the-server-env');
+AvSettings::save(['AV_ATTENDEE_API_KEY' => 'studio-wins'], 't');
+ck('settings: the Studio value takes over', getenv('AV_ATTENDEE_API_KEY') === 'studio-wins');
+AvSettings::save(['AV_ATTENDEE_API_KEY' => ''], 't');
+ck('settings: clearing restores the environment value', getenv('AV_ATTENDEE_API_KEY') === 'from-the-server-env');
+unset($_SERVER['AV_ATTENDEE_API_KEY']);
+putenv('AV_ATTENDEE_API_KEY');
+$setreset();
+
 /* ---- Source reporting ---- */
 $setreset();
 ck('settings: an unset key reports unset', AvSettings::sourceOf('AV_TAVILY_API_KEY')['source'] === 'unset');
@@ -174,7 +199,7 @@ ck('settings: get() refuses a key outside the registry', AvSettings::get('EVIL_I
 $setreset();
 $t = AvSettings::testable();
 $testKeys = array_column($t, 'key');
-ck('settings: every provider is testable', $testKeys === ['anthropic', 'gemini', 'openai', 'recall', 'search']);
+ck('settings: every provider is testable', $testKeys === ['anthropic', 'gemini', 'openai', 'attendee', 'recall', 'search']);
 $notReady = true;
 foreach ($t as $x) if ($x['key'] === 'anthropic' && $x['ready']) $notReady = false;
 ck('settings: an unconfigured provider is not offered as ready', $notReady);
