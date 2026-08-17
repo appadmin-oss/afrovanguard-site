@@ -60,6 +60,7 @@
         <button class="tab" data-tab="webhooks"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Webhooks</span></button>
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
+        <button class="tab" data-tab="rules"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M7 7l-3 6h6L7 7z"/><path d="M17 7l-3 6h6l-3-6z"/></svg><span>Rules &amp; AI</span></button>
         <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
         <button class="tab" data-tab="database"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Database</span></button>
         <button class="tab" data-tab="design"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.7-1.5H17a5 5 0 0 0 5-5c0-5-4.5-9-10-9z"/></svg><span>Design</span></button>
@@ -749,6 +750,62 @@
     </div>
     <div class="act-areas" id="actAreas"></div>
     <div class="act-list" id="actList"></div>
+  </main>
+
+  <!-- RULES & AI (superadmin · the accountability constitution, as data) -->
+  <main class="studio-main" id="rulesView" hidden>
+    <div class="studio-head">
+      <div><h1>Rules &amp; AI</h1><p class="muted">The thresholds the accountability engine obeys, the knowledge the assistants are fed, and the instructions they follow. Afrovanguard defines these — the AI only enforces them.</p></div>
+      <button class="btn btn-outline btn-sm" id="rulesRefresh">Refresh</button>
+    </div>
+
+    <div class="rules-tabs">
+      <button class="rt-tab active" data-rt="rules">Rules</button>
+      <button class="rt-tab" data-rt="kb">Knowledge</button>
+      <button class="rt-tab" data-rt="prompts">Prompts</button>
+    </div>
+
+    <!-- Rules -->
+    <section class="rt-pane" id="rtRules">
+      <div class="rules-warn" id="rulesConflicts" hidden></div>
+      <div id="rulesGroups"></div>
+      <div class="rules-foot">
+        <button class="btn btn-primary btn-sm" id="rulesSave">Save rules</button>
+        <button class="btn btn-outline btn-sm" id="rulesResetAll">Reset all to defaults</button>
+        <span class="muted" id="rulesVer"></span>
+      </div>
+    </section>
+
+    <!-- Knowledge base -->
+    <section class="rt-pane" id="rtKb" hidden>
+      <div class="studio-head">
+        <div><h2>Knowledge</h2><p class="muted">What the assistants should know that no table can tell them. Entries are fed to the AI by scope, highest priority first.</p></div>
+        <button class="btn btn-primary btn-sm" id="kbNew">New entry</button>
+      </div>
+      <div id="kbList"></div>
+      <div class="kb-edit" id="kbEdit" hidden>
+        <input type="hidden" id="kb_id" value="0" />
+        <label class="fld"><span>Title</span><input id="kb_title" maxlength="200" placeholder="e.g. What we mean by an incorruptible lifestyle" /></label>
+        <label class="fld"><span>Body</span><textarea id="kb_body" rows="7" maxlength="4000" placeholder="Write it as guidance the assistant should follow."></textarea></label>
+        <div class="fld-row">
+          <label class="fld"><span>Scope</span><select id="kb_scope"></select></label>
+          <label class="fld"><span>Priority (0–100)</span><input id="kb_priority" type="number" min="0" max="100" step="1" value="50" /></label>
+          <label class="fld fld-check"><input id="kb_active" type="checkbox" checked /><span>Active</span></label>
+        </div>
+        <div class="rules-foot">
+          <button class="btn btn-primary btn-sm" id="kbSave">Save entry</button>
+          <button class="btn btn-outline btn-sm" id="kbCancel">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Prompts -->
+    <section class="rt-pane" id="rtPrompts" hidden>
+      <div class="studio-head">
+        <div><h2>Prompts</h2><p class="muted">The instructions each AI job follows. The live rules and knowledge are appended automatically, so you never have to restate them here.</p></div>
+      </div>
+      <div id="promptList"></div>
+    </section>
   </main>
 
   <!-- DATABASE (superadmin · SQLite → MySQL/Postgres migration, no SSH) -->

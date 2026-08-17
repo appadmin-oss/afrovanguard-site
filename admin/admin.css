@@ -306,3 +306,56 @@ body.studio-authed .studio-side { display: block; }
 .bpv-avatar { width: 40px; height: 40px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 800; color: #1a1205; }
 .bpv-link { font-weight: 700; font-size: 13.5px; text-decoration: none; }
 .bpv-link:hover { text-decoration: underline; }
+
+/* ── Rules & AI — the accountability constitution, as data ── */
+.rules-tabs { display: flex; gap: 6px; margin-bottom: 18px; border-bottom: 1px solid var(--divider); }
+.rt-tab { appearance: none; border: none; background: none; padding: 9px 16px; font-family: var(--font-body); font-size: 13.5px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+.rt-tab:hover { color: var(--ink); }
+.rt-tab.active { color: var(--ink); border-bottom-color: var(--gold); }
+
+.rules-warn { background: rgba(210,34,34,0.07); border: 1px solid rgba(210,34,34,0.35); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 18px; font-size: 13px; color: var(--ink); }
+.rules-warn ul { margin: 8px 0 0; padding-left: 20px; }
+.rules-warn li { margin-bottom: 4px; }
+
+.rule-group { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 6px 20px 14px; margin-bottom: 16px; }
+.rule-group h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 16px 0 10px; }
+.rule-row { display: grid; grid-template-columns: 1fr 220px; gap: 18px; align-items: start; padding: 14px 0; border-top: 1px solid var(--divider); }
+.rule-row:first-of-type { border-top: none; }
+.rule-label label { font-size: 14px; font-weight: 700; color: var(--ink); margin-right: 8px; }
+.rule-help { font-size: 12.5px; color: var(--muted); margin: 5px 0 0; line-height: 1.55; }
+.rule-help code { font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+.rule-input { display: flex; align-items: center; gap: 8px; }
+.rule-input input[type="number"], .rule-input input[type="text"], .rule-input select { flex: 1; min-width: 0; padding: 9px 11px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; }
+.rule-input input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--gold); }
+.rule-row-check .rule-input { justify-content: flex-start; }
+
+.rule-src { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: var(--radius-full, 999px); vertical-align: middle; }
+.rule-src-default { background: var(--bg); color: var(--muted); }
+.rule-src-config { background: rgba(224,161,6,0.16); color: #8a6200; }
+.rule-src-studio { background: rgba(46,160,67,0.16); color: #1c6b2b; }
+.rule-by { font-size: 11.5px; color: var(--muted); margin-left: 7px; }
+
+.rules-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.btn-xs { padding: 5px 11px; font-size: 12px; }
+
+.kb-item { display: flex; gap: 16px; align-items: flex-start; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 15px 18px; margin-bottom: 10px; }
+.kb-item.is-off { opacity: .62; }
+.kb-item-main { flex: 1; min-width: 0; }
+.kb-item-title { font-weight: 800; font-size: 15px; color: var(--ink); }
+.kb-item-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.kb-item-body { font-size: 13px; color: var(--muted); margin: 8px 0 0; line-height: 1.6; }
+.kb-item-act { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.kb-edit { background: var(--surface); border: 1px solid var(--divider); border-top: 3px solid var(--gold); border-radius: var(--radius-md); padding: 20px; margin-top: 16px; }
+.fld-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.fld-row .fld { flex: 1; min-width: 150px; }
+.fld-check { flex-direction: row !important; align-items: center; gap: 8px; }
+.fld-check input { width: 18px; height: 18px; accent-color: var(--gold); }
+
+.prompt-item { background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md); padding: 18px 20px; margin-bottom: 14px; }
+.prompt-item textarea { width: 100%; margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.65; resize: vertical; }
+
+@media (max-width: 720px) {
+  .rule-row { grid-template-columns: 1fr; gap: 8px; }
+  .kb-item { flex-direction: column; }
+  .kb-item-act { flex-direction: row; }
+}

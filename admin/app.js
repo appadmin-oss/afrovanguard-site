@@ -11,7 +11,10 @@
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
-    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin' };
+    mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
+    // The rules decide promotions and escalations movement-wide, and the prompts
+    // steer every AI reply — Super Admin only, matching the API's own gate.
+    rules: 'superadmin' };
   function roleAllows(tab) { var need = TAB_MIN[tab] || 'admin'; return (ROLE_RANK[currentRole] || 0) >= (ROLE_RANK[need] || 99); }
   function applyRoleVisibility() {
     document.querySelectorAll('.tab[data-tab]').forEach(function (t) {
@@ -32,7 +35,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -82,6 +85,7 @@
     else if (which === 'admins') { show('admins'); loadAdmins(); }
     else if (which === 'database') { show('database'); loadDatabase(); }
     else if (which === 'design') { show('design'); loadDesign(); }
+    else if (which === 'rules') { show('rules'); loadRules(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -1302,6 +1306,236 @@
       post('admin_remove', { email: em }).then(function (r) { if (r.data && r.data.ok) { toast('Access revoked.'); loadAdmins(); } else { toast((r.data && r.data.error) || 'Could not revoke.'); b.disabled = false; } });
     });
   })();
+
+  /* ============================================================
+     Rules & AI — Afrovanguard's constitution as editable data.
+
+     Three panes over three endpoints: the rules registry (typed, validated
+     server-side), the knowledge base fed to the assistants, and the prompt
+     templates. Every value shows where it came from — default, config/env or
+     set here — because "why is this rule behaving like that" is the question
+     this screen exists to answer.
+     ============================================================ */
+  var rulesState = { groups: {}, dirty: {} };
+
+  document.querySelectorAll('.rt-tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var which = t.getAttribute('data-rt');
+      document.querySelectorAll('.rt-tab').forEach(function (x) { x.classList.toggle('active', x === t); });
+      $('#rtRules').hidden = which !== 'rules';
+      $('#rtKb').hidden = which !== 'kb';
+      $('#rtPrompts').hidden = which !== 'prompts';
+      if (which === 'kb') loadKb();
+      if (which === 'prompts') loadPrompts();
+    });
+  });
+
+  function sourceBadge(src) {
+    var label = { studio: 'set here', config: 'from config/env', 'default': 'default' }[src] || src;
+    return '<span class="rule-src rule-src-' + escapeHtml(src) + '">' + escapeHtml(label) + '</span>';
+  }
+
+  function ruleField(r) {
+    var id = 'rule_' + r.key.replace(/\./g, '_');
+    var input;
+    if (r.type === 'bool') {
+      input = '<input type="checkbox" id="' + id + '" data-key="' + escapeHtml(r.key) + '"' + (r.value ? ' checked' : '') + ' />';
+    } else if (r.type === 'enum') {
+      input = '<select id="' + id + '" data-key="' + escapeHtml(r.key) + '">' +
+        (r.options || []).map(function (o) {
+          return '<option value="' + escapeHtml(o) + '"' + (String(o) === String(r.value) ? ' selected' : '') + '>' + escapeHtml(o) + '</option>';
+        }).join('') + '</select>';
+    } else if (r.type === 'int') {
+      input = '<input type="number" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '"' +
+        (r.min !== null && r.min !== undefined ? ' min="' + escapeHtml(r.min) + '"' : '') +
+        (r.max !== null && r.max !== undefined ? ' max="' + escapeHtml(r.max) + '"' : '') + ' step="1" />';
+    } else {
+      input = '<input type="text" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '" />';
+    }
+    var meta = r.source === 'studio' && r.updated_by
+      ? '<span class="rule-by">by ' + escapeHtml(r.updated_by) + '</span>' : '';
+    return '<div class="rule-row' + (r.type === 'bool' ? ' rule-row-check' : '') + '">' +
+      '<div class="rule-label"><label for="' + id + '">' + escapeHtml(r.label) + '</label>' + sourceBadge(r.source) + meta +
+      '<p class="rule-help">' + escapeHtml(r.help || '') + '</p></div>' +
+      '<div class="rule-input">' + input +
+      '<button type="button" class="btn btn-ghost btn-xs rule-reset" data-key="' + escapeHtml(r.key) + '" title="Back to the default">Default</button>' +
+      '</div></div>';
+  }
+
+  function renderRules(d) {
+    rulesState.groups = d.groups || {};
+    rulesState.dirty = {};
+    var wrap = $('#rulesGroups');
+    var html = '';
+    Object.keys(rulesState.groups).forEach(function (g) {
+      html += '<section class="rule-group"><h3>' + escapeHtml(g) + '</h3>' +
+        rulesState.groups[g].map(ruleField).join('') + '</section>';
+    });
+    wrap.innerHTML = html || '<p class="muted">No rules registered.</p>';
+
+    var warn = $('#rulesConflicts');
+    if ((d.conflicts || []).length) {
+      warn.hidden = false;
+      warn.innerHTML = '<strong>These rules contradict each other:</strong><ul>' +
+        d.conflicts.map(function (c) { return '<li>' + escapeHtml(c) + '</li>'; }).join('') + '</ul>';
+    } else { warn.hidden = true; warn.innerHTML = ''; }
+    $('#rulesVer').textContent = 'v' + (d.version || '0');
+
+    wrap.querySelectorAll('.rule-reset').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Reset this rule to its built-in default?')) return;
+        post('rules_reset', { key: b.getAttribute('data-key') }).then(function (r) {
+          if (!r.data.ok) return toast(r.data.error || 'Could not reset.');
+          renderRules(r.data); toast('Reset to default.');
+        });
+      });
+    });
+    wrap.querySelectorAll('[data-key]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        rulesState.dirty[el.getAttribute('data-key')] = (el.type === 'checkbox') ? (el.checked ? '1' : '0') : el.value;
+      });
+    });
+  }
+
+  function loadRules() {
+    api('rules_get').then(function (r) {
+      if (!r.data.ok) return toast(r.data.error || 'Could not load the rules.');
+      renderRules(r.data);
+    });
+  }
+
+  $('#rulesRefresh').addEventListener('click', function () { loadRules(); });
+  $('#rulesSave').addEventListener('click', function () {
+    var keys = Object.keys(rulesState.dirty);
+    if (!keys.length) return toast('Nothing changed.');
+    post('rules_save', { rules: rulesState.dirty }).then(function (r) {
+      if (!r.data.ok) {
+        // Field-level rejections are the useful half — show them, not just a code.
+        var errs = r.data.errors || {};
+        var first = Object.keys(errs)[0];
+        return toast(first ? (first + ': ' + errs[first]) : (r.data.error || 'Could not save.'));
+      }
+      renderRules(r.data);
+      toast('Saved ' + keys.length + ' rule(s).');
+    });
+  });
+  $('#rulesResetAll').addEventListener('click', function () {
+    if (!confirm('Reset EVERY rule to its built-in default? Escalation, promotion and health thresholds all go back to the shipped values.')) return;
+    post('rules_reset', {}).then(function (r) {
+      if (!r.data.ok) return toast(r.data.error || 'Could not reset.');
+      renderRules(r.data); toast('All rules reset.');
+    });
+  });
+
+  /* ---- Knowledge base ---- */
+  function loadKb() {
+    api('kb_list').then(function (r) {
+      if (!r.data.ok) return toast(r.data.error || 'Could not load the knowledge base.');
+      var sel = $('#kb_scope');
+      if (sel && !sel.options.length) {
+        sel.innerHTML = (r.data.scopes || []).map(function (s) { return '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>'; }).join('');
+      }
+      renderKb(r.data.entries || []);
+    });
+  }
+  function renderKb(entries) {
+    $('#kbList').innerHTML = entries.length ? entries.map(function (e) {
+      return '<div class="kb-item' + (e.active ? '' : ' is-off') + '">' +
+        '<div class="kb-item-main"><div class="kb-item-title">' + escapeHtml(e.title) + '</div>' +
+        '<div class="kb-item-meta"><span class="badge">' + escapeHtml(e.scope) + '</span> priority ' + (e.priority | 0) +
+        (e.active ? '' : ' · <em>inactive</em>') + (e.updated_by ? ' · ' + escapeHtml(e.updated_by) : '') + '</div>' +
+        '<p class="kb-item-body">' + escapeHtml(e.body.length > 220 ? e.body.slice(0, 220) + '…' : e.body) + '</p></div>' +
+        '<div class="kb-item-act"><button class="btn btn-outline btn-xs kb-ed" data-id="' + (e.id | 0) + '">Edit</button>' +
+        '<button class="btn btn-ghost btn-xs kb-del" data-id="' + (e.id | 0) + '">Delete</button></div></div>';
+    }).join('') : '<p class="muted">Nothing yet. Add what the assistants should know that the database cannot tell them.</p>';
+
+    $('#kbList').querySelectorAll('.kb-ed').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var e = entries.filter(function (x) { return x.id === +b.getAttribute('data-id'); })[0];
+        if (e) kbEdit(e);
+      });
+    });
+    $('#kbList').querySelectorAll('.kb-del').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Delete this entry? Activity → Undo can restore it.')) return;
+        post('kb_delete', { id: +b.getAttribute('data-id') }).then(function (r) {
+          if (!r.data.ok) return toast(r.data.error || 'Could not delete.');
+          renderKb(r.data.entries || []); toast('Deleted.');
+        });
+      });
+    });
+  }
+  function kbEdit(e) {
+    $('#kb_id').value = e ? e.id : 0;
+    $('#kb_title').value = e ? e.title : '';
+    $('#kb_body').value = e ? e.body : '';
+    $('#kb_scope').value = e ? e.scope : 'all';
+    $('#kb_priority').value = e ? e.priority : 50;
+    $('#kb_active').checked = e ? !!e.active : true;
+    $('#kbEdit').hidden = false;
+  }
+  $('#kbNew').addEventListener('click', function () { kbEdit(null); });
+  $('#kbCancel').addEventListener('click', function () { $('#kbEdit').hidden = true; });
+  $('#kbSave').addEventListener('click', function () {
+    post('kb_save', {
+      id: +$('#kb_id').value || 0,
+      title: $('#kb_title').value,
+      body: $('#kb_body').value,
+      scope: $('#kb_scope').value,
+      priority: +$('#kb_priority').value || 0,
+      active: $('#kb_active').checked
+    }).then(function (r) {
+      if (!r.data.ok) return toast(r.data.error || 'Could not save.');
+      $('#kbEdit').hidden = true;
+      renderKb(r.data.entries || []); toast('Saved.');
+    });
+  });
+
+  /* ---- Prompt templates ---- */
+  function loadPrompts() {
+    api('prompts_list').then(function (r) {
+      if (!r.data.ok) return toast(r.data.error || 'Could not load the prompts.');
+      renderPrompts(r.data.prompts || []);
+    });
+  }
+  function renderPrompts(list) {
+    $('#promptList').innerHTML = list.map(function (p) {
+      var id = 'pr_' + p.key.replace(/\./g, '_');
+      var vars = (p.vars || []).length
+        ? '<p class="rule-help">Must keep these placeholders: ' + p.vars.map(function (v) { return '<code>{{' + escapeHtml(v) + '}}</code>'; }).join(', ') + '</p>'
+        : '';
+      var appends = [];
+      if (p.appends_rules) appends.push('the live rules');
+      if (p.scope) appends.push('knowledge scoped “' + p.scope + '”');
+      return '<section class="prompt-item"><div class="rule-label"><label for="' + id + '">' + escapeHtml(p.label) + '</label>' +
+        sourceBadge(p.source) + (p.updated_by ? '<span class="rule-by">by ' + escapeHtml(p.updated_by) + '</span>' : '') +
+        (appends.length ? '<p class="rule-help">' + escapeHtml(appends.join(' and ')) + ' are appended automatically.</p>' : '') + vars + '</div>' +
+        '<textarea id="' + id + '" rows="10" data-key="' + escapeHtml(p.key) + '">' + escapeHtml(p.text) + '</textarea>' +
+        '<div class="rules-foot"><button class="btn btn-primary btn-xs pr-save" data-key="' + escapeHtml(p.key) + '">Save</button>' +
+        '<button class="btn btn-outline btn-xs pr-reset" data-key="' + escapeHtml(p.key) + '">Revert to built-in</button></div></section>';
+    }).join('');
+
+    $('#promptList').querySelectorAll('.pr-save').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var key = b.getAttribute('data-key');
+        var ta = $('#promptList').querySelector('textarea[data-key="' + key + '"]');
+        post('prompts_save', { key: key, text: ta ? ta.value : '' }).then(function (r) {
+          if (!r.data.ok) return toast(r.data.error || 'Could not save.');
+          renderPrompts(r.data.prompts || []);
+          toast(r.data.cleared ? 'Matched the built-in prompt — reverted.' : 'Prompt saved.');
+        });
+      });
+    });
+    $('#promptList').querySelectorAll('.pr-reset').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Revert this prompt to the built-in version?')) return;
+        post('prompts_reset', { key: b.getAttribute('data-key') }).then(function (r) {
+          if (!r.data.ok) return toast(r.data.error || 'Could not reset.');
+          renderPrompts(r.data.prompts || []); toast('Reverted.');
+        });
+      });
+    });
+  }
 
   /* ---- Database (superadmin · SQLite → MySQL/Postgres migration) ---- */
   function loadDatabase() {

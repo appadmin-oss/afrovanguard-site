@@ -215,7 +215,12 @@ $nav['You'] = [
         $duesVal   = $dues ? ((!empty($dues['lifetime'])) ? 'Lifetime' : ($duesState === 'active' ? 'Current' : ($duesState === 'none' ? 'Not paid' : ucfirst(str_replace('_', ' ', $duesState))))) : '—';
         $duesTotal = $dues ? (int) ($dues['total_paid_ngn'] ?? 0) : 0;
         $jOrder = $journey['order']; $jHere = array_search($journey['level'], $jOrder, true);
-        $jPct = min(100, (int) round(100 * ($journey['referrals'] ?? 0) / max(1, (int) ($journey['referrals_needed'] ?? 2))));
+        // Progress toward the next level tracks ACTIVE mentees (pairings that
+        // actually meet), which is what the engine now tests — not how many
+        // people were introduced.
+        $jPct = min(100, (int) round(100 * ($journey['active_mentees'] ?? 0) / max(1, (int) ($journey['mentees_needed'] ?? 2))));
+        $jBase = class_exists('Levels') ? Levels::base() : 'O';
+        $jNextLabel = (string) ($journey['next_label'] ?? 'the next level');
 ?>
 
         <!-- ============================================================ -->
@@ -320,11 +325,11 @@ $nav['You'] = [
                 <div class="pcard-head"><h2>Your journey</h2><a class="pcard-link" href="/how-it-works">How progression works →</a></div>
                 <div class="pcard-body">
                   <div class="jl-track">
-<?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? 'is-here' : ($i < $jHere ? 'is-done' : ''); ?>                    <span class="jl-chip <?= $st ?>"><span class="jl-badge"><?= e($code) ?></span><?= e(Levels::LADDER[$code]['label'] ?? $code) ?></span>
+<?php foreach ($jOrder as $i => $code): $st = $i === $jHere ? 'is-here' : ($i < $jHere ? 'is-done' : ''); ?>                    <span class="jl-chip <?= $st ?>"><span class="jl-badge"><?= e($code) ?></span><?= e(Levels::labelOf($code)) ?></span>
 <?php endforeach; ?>                  </div>
-<?php if ($journey['level'] === 'O'): ?>
-                  <div class="jl-progress"><div class="jl-bar" aria-hidden="true"><span style="width:<?= $jPct ?>%"></span></div><span class="jl-count"><?= (int) $journey['referrals'] ?> / <?= (int) $journey['referrals_needed'] ?> introduced</span></div>
-                  <p class="pcard-note">Toward <strong>Level A</strong> — personally introduce committed members and mentor them as they settle in.</p>
+<?php if ($journey['level'] === $jBase): ?>
+                  <div class="jl-progress"><div class="jl-bar" aria-hidden="true"><span style="width:<?= $jPct ?>%"></span></div><span class="jl-count"><?= (int) ($journey['active_mentees'] ?? 0) ?> / <?= (int) ($journey['mentees_needed'] ?? 2) ?> actively mentored</span></div>
+                  <p class="pcard-note">Toward <strong><?= e($jNextLabel) ?></strong> — introduce members, then mentor them for real. Only mentees you actually meet count toward advancement.</p>
                   <div class="jl-invite"><div class="jl-invite-url" title="Your invite link"><?= e($journey['invite_url']) ?></div><button type="button" class="pbtn pbtn-ghost" id="copyInvite" data-url="<?= e($journey['invite_url']) ?>">Copy</button></div>
 <?php else: ?>
                   <p class="pcard-note">You’re at <strong><?= e($journey['label']) ?></strong>. <?= e($journey['blurb']) ?></p>

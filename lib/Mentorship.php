@@ -460,7 +460,14 @@ final class Mentorship
         return ['ok' => true, 'profile' => self::profile($uid)];
     }
 
-    private static function activeMenteeCount(int $mentorId): int
+    /**
+     * How many mentees are PAIRED with this mentor — the capacity check.
+     *
+     * Deliberately not called "active": it counts rows with status='active',
+     * which says nothing about whether the pair ever meets. The report's sense of
+     * an active mentee — one actually being mentored — is activeMenteeCount().
+     */
+    private static function pairedMenteeCount(int $mentorId): int
     {
         $s = Database::pdo()->prepare("SELECT COUNT(*) FROM mentorships WHERE mentor_id = ? AND status = 'active'");
         $s->execute([$mentorId]);
@@ -524,7 +531,7 @@ final class Mentorship
         if ($menteeId <= 0 || $mentorId <= 0 || $menteeId === $mentorId) return ['ok' => false, 'error' => 'Invalid request.'];
         $p = self::profile($mentorId);
         if (!$p || (int) $p['accepting'] !== 1) return ['ok' => false, 'error' => 'This mentor isn’t accepting requests right now.'];
-        if (self::activeMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'This mentor is at capacity. Try another mentor.'];
+        if (self::pairedMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'This mentor is at capacity. Try another mentor.'];
         if (self::relation($menteeId, $mentorId)) return ['ok' => false, 'error' => 'You already have a request or active mentorship with this mentor.'];
         $db = Database::pdo(); $now = self::now();
         $db->prepare('INSERT INTO mentorships (mentor_id, mentee_id, status, message, created_at, updated_at) VALUES (?,?,?,?,?,?)')
@@ -546,7 +553,7 @@ final class Mentorship
         if (!$m) return ['ok' => false, 'error' => 'Request not found.'];
         if ($accept) {
             $p = self::profile($mentorId);
-            if ($p && self::activeMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'You’re at capacity — end a mentorship or raise your capacity first.'];
+            if ($p && self::pairedMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'You’re at capacity — end a mentorship or raise your capacity first.'];
         }
         $status = $accept ? 'active' : 'declined';
         $db->prepare('UPDATE mentorships SET status=?, updated_at=? WHERE id=?')->execute([$status, self::now(), $mentorshipId]);
@@ -872,6 +879,141 @@ final class Mentorship
     }
 
     /* ════════════════════════════════════════════════════════════════
+       MULTIPLICATION — the signals the leadership ladder is built on.
+
+       The distinction these methods encode is the whole point of the model:
+       a name on a list is not a mentee. "Active" means the pairing has actually
+       met inside a window leadership defines (AvRules
+       mentorship.active_mentee_requires_days), and "multiplying" means that
+       mentee is themselves actively mentoring someone.
+       ════════════════════════════════════════════════════════════════ */
+
+    /** The window, in days, inside which a pairing must have met to count as active. */
+    private static function activeWindow(?int $withinDays = null): int
+    {
+        if ($withinDays !== null && $withinDays > 0) return $withinDays;
+        return class_exists('AvRules') ? max(1, AvRules::int('mentorship.active_mentee_requires_days')) : 30;
+    }
+
+    /**
+     * Mentees this mentor is genuinely working with: an active pairing WITH an
+     * attended session inside the window. Sessions that were merely scheduled do
+     * not count — otherwise a mentor could earn advancement by filling a calendar.
+     */
+    public static function activeMenteeIds(int $mentorId, ?int $withinDays = null): array
+    {
+        if ($mentorId <= 0) return [];
+        self::ensure();
+        $cut = gmdate('Y-m-d H:i:s', time() - self::activeWindow($withinDays) * 86400);
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT DISTINCT m.mentee_id
+                   FROM mentorships m
+                   JOIN mentor_sessions s ON s.mentorship_id = m.id
+                  WHERE m.mentor_id = ? AND m.status = 'active'
+                    AND s.attendance = 'attended' AND s.scheduled_at >= ?"
+            );
+            $st->execute([$mentorId, $cut]);
+            return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        } catch (Throwable $e) { error_log('[mentorship] activeMenteeIds: ' . $e->getMessage()); return []; }
+    }
+
+    public static function activeMenteeCount(int $mentorId, ?int $withinDays = null): int
+    {
+        return count(self::activeMenteeIds($mentorId, $withinDays));
+    }
+
+    /**
+     * Of this mentor's active mentees, how many are themselves actively mentoring
+     * at least one person. This is the second generation — the report's B-level
+     * test (1 → 2 → 4).
+     */
+    public static function multiplyingMenteeCount(int $mentorId, ?int $withinDays = null): int
+    {
+        $n = 0;
+        foreach (self::activeMenteeIds($mentorId, $withinDays) as $mid) {
+            if (self::activeMenteeCount($mid, $withinDays) > 0) $n++;
+        }
+        return $n;
+    }
+
+    /**
+     * How many generations deep this member's multiplication network runs.
+     * 0 = no active mentees, 1 = has active mentees, 2 = those mentees mentor, …
+     *
+     * Walks breadth-first with a visited set, so a cycle in the data (A mentors B
+     * mentors A — possible, since pairings are created by hand) terminates instead
+     * of recursing forever. $maxDepth is a second, independent backstop.
+     */
+    public static function multiplicationDepth(int $mentorId, ?int $withinDays = null, int $maxDepth = 12): int
+    {
+        if ($mentorId <= 0) return 0;
+        $win = self::activeWindow($withinDays);
+        $seen = [$mentorId => true];
+        $frontier = [$mentorId];
+        $depth = 0;
+
+        while ($frontier && $depth < $maxDepth) {
+            $next = [];
+            foreach ($frontier as $uid) {
+                foreach (self::activeMenteeIds($uid, $win) as $mid) {
+                    if (isset($seen[$mid])) continue;
+                    $seen[$mid] = true;
+                    $next[] = $mid;
+                }
+            }
+            if (!$next) break;
+            $depth++;
+            $frontier = $next;
+        }
+        return $depth;
+    }
+
+    /**
+     * Everyone below this member in the active network, and how deep it goes —
+     * one walk instead of the several the individual accessors would cost.
+     *
+     * @return array{active:int, multiplying:int, descendants:int, depth:int}
+     */
+    public static function multiplicationSummary(int $mentorId, ?int $withinDays = null, int $maxDepth = 12): array
+    {
+        $win = self::activeWindow($withinDays);
+        $direct = self::activeMenteeIds($mentorId, $win);
+
+        $seen = [$mentorId => true];
+        foreach ($direct as $d) $seen[$d] = true;
+        $frontier = $direct;
+        $depth = $direct ? 1 : 0;
+        $multiplying = 0;
+
+        // The first generation doubles as the "multiplying" test.
+        foreach ($direct as $d) {
+            if (self::activeMenteeCount($d, $win) > 0) $multiplying++;
+        }
+
+        while ($frontier && $depth < $maxDepth) {
+            $next = [];
+            foreach ($frontier as $uid) {
+                foreach (self::activeMenteeIds($uid, $win) as $mid) {
+                    if (isset($seen[$mid])) continue;
+                    $seen[$mid] = true;
+                    $next[] = $mid;
+                }
+            }
+            if (!$next) break;
+            $depth++;
+            $frontier = $next;
+        }
+
+        return [
+            'active'      => count($direct),
+            'multiplying' => $multiplying,
+            'descendants' => max(0, count($seen) - 1),   // exclude the member themselves
+            'depth'       => $depth,
+        ];
+    }
+
+    /* ════════════════════════════════════════════════════════════════
        ADMIN — staff management of mentors, mentees, pairings & cohorts.
        Org and External pools are kept strictly separate throughout.
        ════════════════════════════════════════════════════════════════ */
@@ -1034,7 +1176,7 @@ final class Mentorship
         if (($p['approval'] ?? '') !== 'approved') return ['ok' => false, 'error' => 'Approve the mentor before assigning mentees.'];
         if (self::segmentOf($mentorId) !== self::segmentOf($menteeId)) return ['ok' => false, 'error' => 'Org and external members can’t be paired together.'];
         if (self::relation($menteeId, $mentorId)) return ['ok' => false, 'error' => 'These two already have a pending/active mentorship.'];
-        if (self::activeMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'That mentor is at capacity.'];
+        if (self::pairedMenteeCount($mentorId) >= (int) $p['capacity']) return ['ok' => false, 'error' => 'That mentor is at capacity.'];
         $seg = self::segmentOf($mentorId); $now = self::now();
         $db = Database::pdo();
         $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, message, segment, cohort_id, programme, origin, created_at, updated_at) VALUES (?,?, 'active','', ?,?,?, 'admin', ?,?)")

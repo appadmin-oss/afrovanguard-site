@@ -101,3 +101,23 @@ final class AdminRoles
 
 /** Global helper used by require_admin() and the API. */
 function av_admin_role(): string { return class_exists('AdminRoles') ? AdminRoles::current() : (av_admin_cookie_valid() || av_admin_bearer_ok() ? 'superadmin' : ''); }
+
+/**
+ * Who is acting, for provenance on records that outlive the session — "who set
+ * this rule" is the first question anyone asks of a policy change.
+ *
+ * A bridged member-admin is identified by email. A break-glass token sign-in has
+ * no identity beyond its role, so it reports that honestly rather than borrowing
+ * a name it cannot prove.
+ */
+function av_admin_actor(): string
+{
+    try {
+        if (class_exists('LmsAuth')) {
+            $u = LmsAuth::user();
+            if ($u && !empty($u['email'])) return (string) $u['email'];
+        }
+    } catch (Throwable $e) { /* fall through to the role */ }
+    $role = av_admin_role();
+    return $role !== '' ? $role . ' (token)' : 'admin';
+}

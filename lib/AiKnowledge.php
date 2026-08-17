@@ -90,11 +90,35 @@ final class AiKnowledge
         } catch (\Throwable $e) {}
 
         // How Afrovanguard works — the membership progression framework.
-        $lines[] = 'Membership progression (see /how-it-works): members grow by commitment, service and leadership — not length of membership. '
-            . 'Level O (Foundation Member): pick a mentor, join programmes, complete a weekly task, live the values. '
-            . 'Level A: introduce and mentor two committed members + consistent service; you then get an official Afrovanguard email, an accountability mentor and leadership opportunities. '
-            . 'Membership contribution from Level A is voluntary at ₦' . number_format(defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000) . '/month or ₦' . number_format(defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000) . '/year (pay or renew in the member Portal); from Level C upward, dues are mandatory. '
-            . 'Servant-leadership culture: arrive early (30 min, or 2–3 hours for major events) and serve before attending.';
+        //
+        // Derived from Levels (the live ladder) and AvRules (leadership's own
+        // thresholds) rather than restated here. This paragraph used to hardcode
+        // "two committed members" and the ladder's shape, which meant every
+        // change to the rules silently left the assistants describing the old
+        // policy to members.
+        try {
+            $ladder = class_exists('Levels') ? Levels::order() : ['O', 'A', 'B', 'C'];
+            $needA  = class_exists('AvRules') ? AvRules::int('levels.active_mentees_for_a') : 2;
+            $multi  = class_exists('AvRules') ? AvRules::bool('levels.require_multiplication') : false;
+            $prog = 'Membership progression (see /how-it-works): members grow by commitment, service and leadership — not length of membership. '
+                . 'The ladder is ' . implode(' → ', $ladder) . '. '
+                . 'Level ' . ($ladder[0] ?? 'O') . ': pick a mentor, join programmes, complete a weekly task, live the values. '
+                . 'Level ' . ($ladder[1] ?? 'A') . ': actively mentor ' . $needA . ' member(s) — meeting them, not merely listing them — plus consistent service; '
+                . 'you then get an official Afrovanguard email, an accountability mentor and leadership opportunities.';
+            if ($multi && count($ladder) > 2) {
+                $prog .= ' Levels above ' . ($ladder[1] ?? 'A') . ' require multiplication: your mentees must themselves be mentoring.';
+            }
+            $lines[] = $prog;
+        } catch (\Throwable $e) { error_log('[ai-knowledge] progression: ' . $e->getMessage()); }
+
+        // Dues (kept separate from progression so one failing never hides the other).
+        try {
+            $monthly = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+            $annual  = defined('AV_DUES_ANNUAL_NGN') ? (int) AV_DUES_ANNUAL_NGN : 12000;
+            $lines[] = 'Membership contribution from Level A is voluntary at ₦' . number_format($monthly) . '/month or ₦'
+                . number_format($annual) . '/year (pay or renew in the member Portal); from Level C upward, dues are mandatory. '
+                . 'Servant-leadership culture: arrive early (30 min, or 2–3 hours for major events) and serve before attending.';
+        } catch (\Throwable $e) {}
 
         // Academy programmes (title · access · path).
         try {
@@ -154,10 +178,21 @@ final class AiKnowledge
             }
         } catch (\Throwable $e) {}
 
-        if (!$lines) return '';
-        $block = "\n\nCURRENT SITE KNOWLEDGE (auto-updated " . gmdate('Y-m-d') . " — these are real, current facts; use them and never contradict them):\n- "
-            . implode("\n- ", $lines);
-        // Hard size bound so the system prompt never balloons.
-        return mb_strlen($block) > 3200 ? mb_substr($block, 0, 3200) . '…' : $block;
+        $block = '';
+        if ($lines) {
+            $block = "\n\nCURRENT SITE KNOWLEDGE (auto-updated " . gmdate('Y-m-d') . " — these are real, current facts; use them and never contradict them):\n- "
+                . implode("\n- ", $lines);
+            // Hard size bound so the system prompt never balloons.
+            if (mb_strlen($block) > 3200) $block = mb_substr($block, 0, 3200) . '…';
+        }
+
+        // Leadership's own written knowledge, appended under its own heading and
+        // its own budget (AvKnowledge bounds itself), so a long knowledge base
+        // can never squeeze out the derived facts above or vice versa.
+        try {
+            if (class_exists('AvKnowledge')) $block .= AvKnowledge::asPromptBlock('assistant');
+        } catch (\Throwable $e) { error_log('[ai-knowledge] kb: ' . $e->getMessage()); }
+
+        return $block;
     }
 }

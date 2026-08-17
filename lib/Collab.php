@@ -247,6 +247,9 @@ final class Collab
     /** True when ANY AI backend is wired up — Claude (AvBot) or Gemini. */
     public static function aiAvailable(): bool
     {
+        // The Studio master switch wins over a configured key: leadership can
+        // stop every AI call without pulling credentials out of the environment.
+        if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return false;
         return (class_exists('AvBot') && AvBot::configured())
             || (class_exists('Gemini') && Gemini::configured());
     }
@@ -291,19 +294,15 @@ final class Collab
         $max = max(1, min(10, $max));
 
         $today = gmdate('Y-m-d');
-        $system = <<<SYS
-You are an operations planner for Afrovanguard, a Pan-African nonprofit. You turn a team GOAL into a short list of concrete, actionable tasks the team can divide up and complete.
-
-Rules:
-- Return BETWEEN 3 AND {$max} tasks. Each must be a single, clearly-scoped action a member could pick up and finish — start the title with a verb (e.g. "Draft…", "Contact…", "Design…").
-- Order them in the sensible sequence to do the work.
-- Set a realistic "days" value: the number of days FROM TODAY the task should be done by (spread them out; earlier tasks get smaller numbers). Today is {$today}.
-- priority is one of: high, normal, low.
-- Do NOT invent specific external facts, names, or figures. Keep titles under 120 characters.
-
-Respond with ONLY a JSON array, no prose, no code fences. Shape:
-[{"title":"...","priority":"high|normal|low","days":<integer 1-60>}]
-SYS;
+        // Instructions live in the Studio (AvPrompts), which also appends the
+        // organisation's live rules and knowledge — so the planner follows
+        // Afrovanguard's current policy, not a policy frozen at deploy time.
+        $system = class_exists('AvPrompts')
+            ? AvPrompts::render('goal.tasks', ['max' => (string) $max, 'today' => $today])
+            : "You are an operations planner for Afrovanguard, a Pan-African nonprofit. Turn the GOAL into 3–{$max} "
+              . "concrete tasks, each starting with a verb, ordered sensibly, with a realistic \"days\" value from today ({$today}) "
+              . "and a priority of high, normal or low. Do not invent external facts. Respond with ONLY a JSON array: "
+              . '[{"title":"...","priority":"high|normal|low","days":<integer 1-60>}]';
 
         $prompt = 'GOAL: ' . $goal['title']
             . ($goal['target'] !== '' ? "\nTARGET / SUCCESS METRIC: " . $goal['target'] : '')

@@ -64,7 +64,8 @@ try {
     $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
-        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore'], true);
+        'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
+        'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -72,7 +73,11 @@ try {
        destructive purge or the security policy. editor: content only. */
     $role = function_exists('av_admin_role') ? av_admin_role() : 'superadmin';
     $superadminOnly = ['purge_demo', 'admins_list', 'admin_add', 'admin_remove', 'superadmin_reveal', 'auth_policy_save', 'auth_policy_get',
-        'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save'];
+        'db_status', 'db_test', 'db_migrate', 'brand_get', 'brand_save',
+        // The rules ARE the organisation's constitution — they decide promotions
+        // and escalations movement-wide — and the prompts steer every AI reply.
+        // Both stay with the Super Admin. The knowledge base is management-level.
+        'rules_get', 'rules_save', 'rules_reset', 'prompts_list', 'prompts_save', 'prompts_reset'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -82,6 +87,7 @@ try {
         'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
+        'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
     ];
     if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
         json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
@@ -616,6 +622,94 @@ try {
         case 'auth_policy_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             json_out(['ok' => true, 'policy' => AuthPolicy::save(is_array($body['policy'] ?? null) ? $body['policy'] : $body)]);
+
+        /* ---- The rules engine: Afrovanguard's constitution, as data ----
+           Every threshold the accountability engine obeys. Superadmin-only:
+           these govern promotions and escalations across the whole movement. */
+        case 'rules_get':
+            json_out(['ok' => true] + AvRules::describe());
+        case 'rules_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $vals = is_array($body['rules'] ?? null) ? $body['rules'] : [];
+            if (!$vals) json_out(['ok' => false, 'error' => 'Nothing to save.'], 422);
+            $before = AvRules::all();
+            $res = AvRules::save($vals, av_admin_actor());
+            if (!$res['ok']) {
+                json_out(['ok' => false, 'error' => $res['conflicts']
+                    ? implode(' ', $res['conflicts'])
+                    : 'Some values were rejected.', 'errors' => $res['errors'], 'conflicts' => $res['conflicts']], 422);
+            }
+            $changed = [];
+            foreach (array_keys($vals) as $k) {
+                if (($before[$k] ?? null) !== (AvRules::all()[$k] ?? null)) {
+                    $changed[$k] = ['from' => $before[$k] ?? null, 'to' => AvRules::all()[$k] ?? null];
+                }
+            }
+            AdminAudit::log('rules', 'rules_saved', implode(',', array_keys($changed)),
+                $changed ? 'Changed ' . count($changed) . ' rule(s)' : 'Saved with no effective change',
+                ['class' => 'AvRules', 'op' => 'save', 'args' => ['values' => array_map(
+                    static fn($c) => is_bool($c['from']) ? ($c['from'] ? '1' : '0') : (string) $c['from'], $changed
+                )], 'label' => 'Undo rule change']);
+            json_out(['ok' => true, 'changed' => $changed] + AvRules::describe());
+        }
+        case 'rules_reset': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $key = trim((string) ($body['key'] ?? ''));
+            if ($key === '') {
+                AvRules::resetAll(av_admin_actor());
+                AdminAudit::log('rules', 'rules_reset_all', '', 'Reset every rule to its default');
+            } else {
+                if (!AvRules::reset($key, av_admin_actor())) json_out(['ok' => false, 'error' => 'Unknown rule.'], 422);
+                AdminAudit::log('rules', 'rules_reset', $key, 'Reset ' . $key . ' to its default');
+            }
+            json_out(['ok' => true] + AvRules::describe());
+        }
+
+        /* ---- The knowledge base the assistants are fed ---- */
+        case 'kb_list':
+            json_out(['ok' => true, 'entries' => AvKnowledge::listAll((string) ($_GET['scope'] ?? '')), 'scopes' => AvKnowledge::SCOPES]);
+        case 'kb_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0);
+            $res = AvKnowledge::save($id, $body, av_admin_actor());
+            if (!$res['ok']) json_out(['ok' => false, 'error' => $res['error']], 422);
+            AdminAudit::log('knowledge', $id > 0 ? 'kb_updated' : 'kb_created', (string) $res['id'],
+                trim((string) ($body['title'] ?? '')));
+            json_out(['ok' => true, 'id' => $res['id'], 'entries' => AvKnowledge::listAll()]);
+        }
+        case 'kb_delete': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0);
+            $prev = AvKnowledge::get($id);
+            if (!$prev) json_out(['ok' => false, 'error' => 'That entry no longer exists.'], 404);
+            AvKnowledge::remove($id);
+            AdminAudit::log('knowledge', 'kb_deleted', (string) $id, $prev['title'],
+                ['class' => 'AvKnowledge', 'op' => 'restore', 'args' => ['fields' => $prev], 'label' => 'Restore entry']);
+            json_out(['ok' => true, 'entries' => AvKnowledge::listAll()]);
+        }
+
+        /* ---- AI prompt templates ---- */
+        case 'prompts_list':
+            json_out(['ok' => true, 'prompts' => AvPrompts::describe()]);
+        case 'prompts_save': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $key = trim((string) ($body['key'] ?? ''));
+            $res = AvPrompts::save($key, (string) ($body['text'] ?? ''), av_admin_actor());
+            if (!$res['ok']) json_out(['ok' => false, 'error' => $res['error'] ?: 'Unknown prompt.'], 422);
+            AdminAudit::log('prompts', $res['cleared'] ? 'prompt_reset' : 'prompt_saved', $key,
+                $res['cleared'] ? 'Reverted to the built-in prompt' : 'Edited the prompt');
+            json_out(['ok' => true, 'cleared' => $res['cleared'], 'prompts' => AvPrompts::describe()]);
+        }
+        case 'prompts_reset': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $key = trim((string) ($body['key'] ?? ''));
+            if (!AvPrompts::reset($key)) json_out(['ok' => false, 'error' => 'Unknown prompt.'], 422);
+            AdminAudit::log('prompts', 'prompt_reset', $key, 'Reverted to the built-in prompt');
+            json_out(['ok' => true, 'prompts' => AvPrompts::describe()]);
+        }
+        /* ---- Promotion recommendations (evidence for leadership, never a decision) ---- */
+        case 'level_recommend':
+            json_out(['ok' => true, 'recommendation' => Levels::recommend((int) ($_GET['user_id'] ?? 0))]);
 
         // ---- Sign-in illustrations (admin-managed + schedulable) ----
         case 'art_list':

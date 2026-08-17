@@ -325,13 +325,19 @@ final class Meetings
     {
         $rawText = trim($rawText);
         if ($rawText === '') return ['ok' => false, 'error' => 'Empty transcript.'];
-        $sys = 'You are a meeting-minutes assistant for the Afrovanguard organisation. '
-             . 'Read the raw meeting transcript and return STRICT JSON only — no prose, no markdown fences. '
-             . 'Schema: {"summary": string (3-5 sentence overview), '
-             . '"highlights": string[] (key discussion points), '
-             . '"decisions": string[] (decisions made), '
-             . '"action_items": [{"task": string, "owner": string}] (owner "" if unassigned)}. '
-             . 'Keep it faithful to the transcript; do not invent facts.';
+        if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
+            return ['ok' => false, 'error' => 'AI assistance is switched off in the Studio rules.'];
+        }
+        // The instructions, the organisation's rules and its own knowledge all
+        // come from the Studio (AvPrompts → AvRules + AvKnowledge), so leadership
+        // can change how minutes are written without a deployment.
+        $sys = class_exists('AvPrompts')
+            ? AvPrompts::render('meeting.minutes')
+            : 'You are a meeting-minutes assistant for the Afrovanguard organisation. '
+              . 'Read the raw meeting transcript and return STRICT JSON only — no prose, no markdown fences. '
+              . 'Schema: {"summary": string, "highlights": string[], "decisions": string[], '
+              . '"action_items": [{"task": string, "owner": string, "due_days": integer|null}]}. '
+              . 'Keep it faithful to the transcript; do not invent facts.';
         $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, 20000);
 
         // Prefer Gemini Flash for meeting logging; fall back to the Anthropic bot.
@@ -347,10 +353,19 @@ final class Meetings
         }
         $json = self::extractJson((string) $res['text']);
         if (!is_array($json)) return ['ok' => false, 'error' => 'Could not parse the AI summary.'];
+        // due_days is optional and advisory: the model only sets it when the
+        // transcript actually stated a deadline. Anything out of range is dropped
+        // rather than clamped — an invented "due in 900 days" is not a deadline.
         $acts = [];
         foreach (($json['action_items'] ?? []) as $a) {
-            if (is_array($a)) $acts[] = ['task' => (string) ($a['task'] ?? ''), 'owner' => (string) ($a['owner'] ?? '')];
-            elseif (is_string($a)) $acts[] = ['task' => $a, 'owner' => ''];
+            if (is_array($a)) {
+                $days = $a['due_days'] ?? null;
+                $days = (is_int($days) || (is_string($days) && ctype_digit($days))) ? (int) $days : null;
+                if ($days !== null && ($days < 1 || $days > 365)) $days = null;
+                $acts[] = ['task' => (string) ($a['task'] ?? ''), 'owner' => (string) ($a['owner'] ?? ''), 'due_days' => $days];
+            } elseif (is_string($a)) {
+                $acts[] = ['task' => $a, 'owner' => '', 'due_days' => null];
+            }
         }
         return [
             'ok'           => true,
