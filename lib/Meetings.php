@@ -711,7 +711,12 @@ final class Meetings
         $st = Database::pdo()->prepare('SELECT id FROM meetings WHERE bot_ref = ? ORDER BY id DESC LIMIT 1');
         $st->execute([$botId]);
         $mid = (int) ($st->fetchColumn() ?: 0);
-        if ($mid <= 0) return ['ok' => false, 'error' => 'Unknown bot.'];
+        if ($mid <= 0) {
+            // Mentorship sessions dispatch their own bots through the same webhook,
+            // so a bot id that matches no meeting may still be one of theirs.
+            if (class_exists('Mentorship')) return Mentorship::ingestSessionFromRecall($botId);
+            return ['ok' => false, 'error' => 'Unknown bot.'];
+        }
         $text = RecallBot::fetchTranscript($botId);
         if ($text === '') return ['ok' => false, 'error' => 'Transcript not ready.'];
         return self::botIngest($mid, self::botToken($mid), $text);

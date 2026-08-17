@@ -101,6 +101,11 @@ final class Mentorship
         self::addCol('mentor_sessions', 'hours_source', "VARCHAR(12) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'reconciled_at', "VARCHAR(32) NOT NULL DEFAULT ''");
         self::addCol('mentor_sessions', 'reconcile_tries', 'INTEGER NOT NULL DEFAULT 0');
+        // The AI notetaker, mirroring the columns workspace meetings carry.
+        self::addCol('mentor_sessions', 'bot_state', "VARCHAR(16) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'bot_provider', "VARCHAR(16) NOT NULL DEFAULT ''");
+        self::addCol('mentor_sessions', 'bot_ref', "VARCHAR(128) NOT NULL DEFAULT ''");
+        self::ensureMinutes();
         $done = true;
     }
 
@@ -743,6 +748,316 @@ final class Mentorship
         return ['ok' => true, 'attendance' => $status];
     }
 
+    /* ════════════════════════════════════════════════════════════════
+       Session transcripts, AI minutes, and the notetaker
+       ────────────────────────────────────────────────────────────────
+       A mentorship session was, until now, the only kind of Afrovanguard
+       meeting with no record of what was said. It could carry a LINK to a
+       transcript, which meant the text lived somewhere else and nothing could
+       read it — so the AI minutes that workspace meetings had were simply
+       absent from the relationship the whole system exists to support.
+
+       These sessions are also the most sensitive conversations the
+       organisation holds. The minutes prompt is deliberately minutes and not
+       an assessment, and the schema has no field for judging anyone.
+       ════════════════════════════════════════════════════════════════ */
+
+    /** Idempotently provision session-minutes storage. Called from ensure(). */
+    private static function ensureMinutes(): void
+    {
+        static $done = false; if ($done) return; $done = true;
+        try {
+            Database::execSchema(Database::pdo(), "CREATE TABLE IF NOT EXISTS mentor_session_minutes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                source VARCHAR(16) NOT NULL DEFAULT 'paste',
+                raw_text TEXT NOT NULL DEFAULT '',
+                summary TEXT NOT NULL DEFAULT '',
+                progress TEXT NOT NULL DEFAULT '',
+                obstacles TEXT NOT NULL DEFAULT '',
+                commitments TEXT NOT NULL DEFAULT '',
+                next_focus TEXT NOT NULL DEFAULT '',
+                structured INTEGER NOT NULL DEFAULT 0,
+                created_at VARCHAR(32) NOT NULL DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_msm ON mentor_session_minutes(session_id);");
+        } catch (Throwable $e) { error_log('[mentorship] ensureMinutes: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Store a session transcript and turn it into minutes.
+     *
+     * Either party may do this — a mentee is as entitled to record what was
+     * agreed as the mentor is.
+     */
+    public static function saveSessionTranscript(int $uid, int $sessionId, string $text, string $source = 'paste'): array
+    {
+        self::ensure();
+        self::ensureMinutes();
+        if (!self::participantSession($uid, $sessionId)) return ['ok' => false, 'error' => 'Not your session.'];
+        $text = trim($text);
+        if ($text === '') return ['ok' => false, 'error' => 'Paste the transcript first.'];
+
+        try {
+            $db = Database::pdo();
+            $db->prepare('DELETE FROM mentor_session_minutes WHERE session_id = ?')->execute([$sessionId]);
+            $db->prepare('INSERT INTO mentor_session_minutes (session_id, source, raw_text, structured, created_at) VALUES (?,?,?,0,?)')
+               ->execute([$sessionId, mb_substr($source, 0, 16), $text, self::now()]);
+
+            $st = self::structureSession($text);
+            if (!empty($st['ok'])) {
+                $db->prepare('UPDATE mentor_session_minutes SET summary=?, progress=?, obstacles=?, commitments=?, next_focus=?, structured=1 WHERE session_id=?')
+                   ->execute([
+                       $st['summary'],
+                       json_encode($st['progress'], JSON_UNESCAPED_UNICODE),
+                       json_encode($st['obstacles'], JSON_UNESCAPED_UNICODE),
+                       json_encode($st['commitments'], JSON_UNESCAPED_UNICODE),
+                       $st['next_focus'],
+                       $sessionId,
+                   ]);
+            }
+            if (class_exists('Events')) { try { Events::emit('mentorship.session_minutes', ['session_id' => $sessionId]); } catch (Throwable $e) {} }
+            return [
+                'ok' => true,
+                'structured' => !empty($st['ok']),
+                'note' => !empty($st['ok']) ? '' : (string) ($st['error'] ?? ''),
+                'minutes' => self::sessionMinutes($uid, $sessionId),
+            ];
+        } catch (Throwable $e) {
+            error_log('[mentorship] saveSessionTranscript: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not save that transcript.'];
+        }
+    }
+
+    /**
+     * Transcript → structured minutes, using the editable session.minutes prompt.
+     * Best-effort: without AI the raw transcript still stands on its own.
+     */
+    public static function structureSession(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') return ['ok' => false, 'error' => 'Empty transcript.'];
+
+        $sys = class_exists('AvPrompts')
+            ? AvPrompts::render('session.minutes', [])
+            : 'Summarise this mentorship session as STRICT JSON with summary, progress, obstacles, commitments and next_focus.';
+        $chars  = class_exists('AvRules') ? AvRules::int('meetings.transcript_char_limit') : 20000;
+        $maxTok = class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048;
+        $prompt = "Transcript:\n\n" . mb_substr($raw, 0, max(1000, $chars));
+
+        $res = null;
+        if (class_exists('Gemini') && Gemini::configured()) {
+            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
+        }
+        if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
+            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
+        }
+        if (!$res || empty($res['ok'])) {
+            return ['ok' => false, 'error' => (string) ($res['error'] ?? 'AI is not configured (set AV_GEMINI_API_KEY).')];
+        }
+
+        $j = self::extractJson((string) $res['text']);
+        if (!is_array($j)) return ['ok' => false, 'error' => 'Could not parse the AI minutes.'];
+
+        $commits = [];
+        foreach ((array) ($j['commitments'] ?? []) as $c) {
+            if (!is_array($c)) continue;
+            $task = trim((string) ($c['task'] ?? ''));
+            if ($task === '') continue;
+            $owner = (string) ($c['owner'] ?? '');
+            $days  = $c['due_days'] ?? null;
+            $commits[] = [
+                'task'     => $task,
+                'owner'    => in_array($owner, ['mentor', 'mentee'], true) ? $owner : '',
+                'due_days' => is_numeric($days) ? max(0, min(400, (int) $days)) : null,
+            ];
+        }
+        return [
+            'ok'          => true,
+            'summary'     => (string) ($j['summary'] ?? ''),
+            'progress'    => array_values(array_filter(array_map('strval', (array) ($j['progress'] ?? '')))),
+            'obstacles'   => array_values(array_filter(array_map('strval', (array) ($j['obstacles'] ?? '')))),
+            'commitments' => $commits,
+            'next_focus'  => (string) ($j['next_focus'] ?? ''),
+        ];
+    }
+
+    /** The stored minutes for a session, or null. Participants only. */
+    public static function sessionMinutes(int $uid, int $sessionId): ?array
+    {
+        self::ensure();
+        self::ensureMinutes();
+        if (!self::participantSession($uid, $sessionId)) return null;
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM mentor_session_minutes WHERE session_id = ? ORDER BY id DESC LIMIT 1');
+            $st->execute([$sessionId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return null;
+            return [
+                'session_id'  => $sessionId,
+                'source'      => (string) $r['source'],
+                'structured'  => (int) $r['structured'] === 1,
+                'summary'     => (string) $r['summary'],
+                'progress'    => json_decode((string) ($r['progress'] ?: '[]'), true) ?: [],
+                'obstacles'   => json_decode((string) ($r['obstacles'] ?: '[]'), true) ?: [],
+                'commitments' => json_decode((string) ($r['commitments'] ?: '[]'), true) ?: [],
+                'next_focus'  => (string) $r['next_focus'],
+                'raw_text'    => (string) $r['raw_text'],
+                'created_at'  => (string) $r['created_at'],
+            ];
+        } catch (Throwable $e) { error_log('[mentorship] sessionMinutes: ' . $e->getMessage()); return null; }
+    }
+
+    /** Tolerant JSON extraction — models wrap strict JSON in fences anyway. */
+    private static function extractJson(string $s): ?array
+    {
+        $s = trim($s);
+        $s = preg_replace('/^```(?:json)?|```$/m', '', $s) ?? $s;
+        $a = strpos($s, '{');
+        $b = strrpos($s, '}');
+        if ($a === false || $b === false || $b <= $a) return null;
+        $j = json_decode(substr($s, $a, $b - $a + 1), true);
+        return is_array($j) ? $j : null;
+    }
+
+    /* ── the notetaker in a mentorship session ────────────────────── */
+
+    /**
+     * Send the AI notetaker into a session's Meet. Either party may do it, and
+     * either may remove it — a mentee who wants a conversation off the record
+     * should not have to ask their mentor's permission.
+     */
+    public static function inviteSessionBot(int $uid, int $sessionId): array
+    {
+        self::ensure();
+        $s = self::participantSession($uid, $sessionId);
+        if (!$s) return ['ok' => false, 'error' => 'Not your session.'];
+        if (!class_exists('Meetings') || !Meetings::botOnDemandAllowed()) {
+            return ['ok' => false, 'error' => 'The AI notetaker is not available for this organisation.'];
+        }
+        $url = (string) ($s['meet_url'] ?? '');
+        if ($url === '') return ['ok' => false, 'error' => 'This session has no Google Meet link for the notetaker to join.'];
+        if (in_array((string) ($s['bot_state'] ?? ''), ['requested', 'joining', 'in_call'], true)) {
+            return ['ok' => true, 'already' => true];
+        }
+        return self::requestSessionBot((int) $s['id'], $url, gmdate('c', time() + 10));
+    }
+
+    /** Dispatch a bot for a session and record its state. */
+    private static function requestSessionBot(int $sessionId, string $meetUrl, string $joinAtIso): array
+    {
+        $state = 'unconfigured'; $ref = ''; $provider = Meetings::botProvider();
+        if ($provider === 'recall' && class_exists('RecallBot') && RecallBot::configured()) {
+            $wh = rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/portal/meetings.php?action=recall_webhook';
+            $wt = RecallBot::webhookToken();
+            if ($wt !== '') $wh .= '&t=' . rawurlencode($wt);
+            $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
+            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
+            else { $state = 'error'; error_log('[mentorship] recall: ' . (string) ($res['error'] ?? '')); }
+        } elseif ($provider === 'google') {
+            $state = 'native';
+        }
+        try {
+            Database::pdo()->prepare('UPDATE mentor_sessions SET bot_state = ?, bot_provider = ?, bot_ref = ? WHERE id = ?')
+                ->execute([$state, $provider, $ref, $sessionId]);
+        } catch (Throwable $e) { error_log('[mentorship] requestSessionBot: ' . $e->getMessage()); }
+
+        if ($state === 'error' || $state === 'unconfigured') {
+            return ['ok' => false, 'error' => 'The notetaker could not join. You can still paste the transcript afterwards.'];
+        }
+        return ['ok' => true, 'bot_state' => $state];
+    }
+
+    /** Take the notetaker out of a session. */
+    public static function removeSessionBot(int $uid, int $sessionId): array
+    {
+        self::ensure();
+        $s = self::participantSession($uid, $sessionId);
+        if (!$s) return ['ok' => false, 'error' => 'Not your session.'];
+        $ref = (string) ($s['bot_ref'] ?? '');
+        if ((string) ($s['bot_provider'] ?? '') === 'recall' && $ref !== '' && class_exists('RecallBot')) {
+            $r = RecallBot::removeBot($ref);
+            if (empty($r['ok'])) return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
+        }
+        try {
+            Database::pdo()->prepare("UPDATE mentor_sessions SET bot_state = 'removed' WHERE id = ?")->execute([$sessionId]);
+        } catch (Throwable $e) { error_log('[mentorship] removeSessionBot: ' . $e->getMessage()); }
+        return ['ok' => true];
+    }
+
+    /**
+     * A Recall bot reported in for a SESSION rather than a workspace meeting.
+     * Called by Meetings::ingestFromRecall when the bot id matches no meeting.
+     */
+    public static function ingestSessionFromRecall(string $botId): array
+    {
+        self::ensure();
+        self::ensureMinutes();
+        if (!class_exists('RecallBot')) return ['ok' => false, 'error' => 'Recall not available.'];
+        try {
+            $st = Database::pdo()->prepare('SELECT id FROM mentor_sessions WHERE bot_ref = ? ORDER BY id DESC LIMIT 1');
+            $st->execute([$botId]);
+            $sid = (int) ($st->fetchColumn() ?: 0);
+            if ($sid <= 0) return ['ok' => false, 'error' => 'Unknown bot.'];
+
+            $text = RecallBot::fetchTranscript($botId);
+            if ($text === '') return ['ok' => false, 'error' => 'Transcript not ready.'];
+
+            // A service callback has no signed-in user, so the ownership check
+            // that saveSessionTranscript() performs cannot apply. The bot id is
+            // the credential here: it was issued by us for this session.
+            $db = Database::pdo();
+            $db->prepare('DELETE FROM mentor_session_minutes WHERE session_id = ?')->execute([$sid]);
+            $db->prepare('INSERT INTO mentor_session_minutes (session_id, source, raw_text, structured, created_at) VALUES (?,?,?,0,?)')
+               ->execute([$sid, 'bot', $text, self::now()]);
+
+            $s = self::structureSession($text);
+            if (!empty($s['ok'])) {
+                $db->prepare('UPDATE mentor_session_minutes SET summary=?, progress=?, obstacles=?, commitments=?, next_focus=?, structured=1 WHERE session_id=?')
+                   ->execute([$s['summary'], json_encode($s['progress'], JSON_UNESCAPED_UNICODE),
+                              json_encode($s['obstacles'], JSON_UNESCAPED_UNICODE), json_encode($s['commitments'], JSON_UNESCAPED_UNICODE),
+                              $s['next_focus'], $sid]);
+            }
+            $db->prepare("UPDATE mentor_sessions SET bot_state = 'done' WHERE id = ?")->execute([$sid]);
+            return ['ok' => true, 'session_id' => $sid, 'structured' => !empty($s['ok'])];
+        } catch (Throwable $e) {
+            error_log('[mentorship] ingestSessionFromRecall: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not ingest that transcript.'];
+        }
+    }
+
+    /**
+     * Dispatch notetakers for sessions about to start, and retry failures —
+     * the same job Meetings::dispatchDueBots() does for workspace meetings.
+     */
+    public static function dispatchDueSessionBots(int $withinMin = 0): int
+    {
+        self::ensure();
+        if (!class_exists('Meetings') || !Meetings::botAllowed()) return 0;
+        $lead = class_exists('AvRules') ? AvRules::int('meetings.bot_join_lead_min') : 2;
+        $withinMin = $withinMin > 0 ? $withinMin : max(5, $lead + 3);
+
+        $now   = time();
+        $until = gmdate('Y-m-d H:i:s', $now + $withinMin * 60);
+        $from  = gmdate('Y-m-d H:i:s', $now - 30 * 60);
+        $n = 0;
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT id, meet_url, scheduled_at FROM mentor_sessions
+                  WHERE bot_state = 'pending' AND meet_url <> '' AND attendance <> 'cancelled'
+                    AND scheduled_at >= ? AND scheduled_at <= ?
+                  ORDER BY scheduled_at ASC"
+            );
+            $st->execute([$from, $until]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $ts = strtotime((string) $r['scheduled_at'] . ' UTC') ?: time();
+                self::requestSessionBot((int) $r['id'], (string) $r['meet_url'], gmdate('c', max(time() + 10, $ts - $lead * 60)));
+                $n++;
+            }
+        } catch (Throwable $e) { error_log('[mentorship] dispatchDueSessionBots: ' . $e->getMessage()); }
+        return $n;
+    }
+
     /** Attach (or clear) a transcript link for a session. */
     public static function attachTranscript(int $mentorId, int $sessionId, string $url): array
     {
@@ -754,7 +1069,16 @@ final class Mentorship
 
     public static function sessions(int $mentorshipId): array
     {
-        $st = Database::pdo()->prepare('SELECT id, title, scheduled_at, notes, status, meet_url, attendance, attended_at, transcript_url, duration_min, session_type, outcome FROM mentor_sessions WHERE mentorship_id = ? ORDER BY scheduled_at ASC, id ASC');
+        self::ensure();
+        // `has_minutes` is a correlated EXISTS rather than a second query per
+        // session — the UI needs to know whether to offer "read the minutes" for
+        // every row it renders.
+        $st = Database::pdo()->prepare(
+            'SELECT s.id, s.title, s.scheduled_at, s.notes, s.status, s.meet_url, s.attendance, s.attended_at,
+                    s.transcript_url, s.duration_min, s.session_type, s.outcome, s.bot_state,
+                    (SELECT COUNT(*) FROM mentor_session_minutes m WHERE m.session_id = s.id) AS minute_rows
+               FROM mentor_sessions s WHERE s.mentorship_id = ? ORDER BY s.scheduled_at ASC, s.id ASC'
+        );
         $st->execute([$mentorshipId]);
         return array_map(fn($r) => [
             'id'         => (int) $r['id'],
@@ -769,6 +1093,8 @@ final class Mentorship
             'type'       => (string) ($r['session_type'] ?? 'checkin'),
             'outcome'    => (string) ($r['outcome'] ?? ''),
             'past'       => ($r['scheduled_at'] ?? '') !== '' && strtotime((string) $r['scheduled_at']) < time(),
+            'bot_state'  => (string) ($r['bot_state'] ?? ''),
+            'has_minutes'=> (int) ($r['minute_rows'] ?? 0) > 0,
         ], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
     }
 

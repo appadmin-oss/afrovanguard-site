@@ -61,6 +61,11 @@ if (class_exists('Meetings')) {
     try { $result['meeting_bots'] = Meetings::dispatchDueBots(); }
     catch (Throwable $e) { error_log('[cron] meeting bots: ' . $e->getMessage()); }
 }
+// Mentorship sessions run their own Meet links, so they need the same sweep.
+if (class_exists('Mentorship')) {
+    try { $result['session_bots'] = Mentorship::dispatchDueSessionBots(); }
+    catch (Throwable $e) { error_log('[cron] session bots: ' . $e->getMessage()); }
+}
 
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {

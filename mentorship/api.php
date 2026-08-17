@@ -112,6 +112,33 @@ try {
             require_same_origin();
             json_out(Mentorship::attachTranscript($uid, (int) ($body['session_id'] ?? 0), (string) ($body['url'] ?? '')));
 
+        /* ── Session minutes and the AI notetaker ──
+           Either party may do any of these. A mentee is as entitled to a record
+           of what was agreed — and as entitled to take the notetaker out of the
+           room — as their mentor is. */
+        case 'session_transcript':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::saveSessionTranscript(
+                $uid, (int) ($body['session_id'] ?? 0), (string) ($body['text'] ?? ''), 'paste'
+            ));
+
+        case 'session_minutes': {
+            $m = Mentorship::sessionMinutes($uid, (int) ($_GET['session_id'] ?? $body['session_id'] ?? 0));
+            if (!$m) json_out(['ok' => false, 'error' => 'No minutes for that session.'], 404);
+            json_out(['ok' => true, 'minutes' => $m]);
+        }
+
+        case 'session_add_bot':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::inviteSessionBot($uid, (int) ($body['session_id'] ?? 0)));
+
+        case 'session_remove_bot':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            require_same_origin();
+            json_out(Mentorship::removeSessionBot($uid, (int) ($body['session_id'] ?? 0)));
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }
