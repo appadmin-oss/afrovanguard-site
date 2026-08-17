@@ -368,12 +368,190 @@ $db->exec('DELETE FROM av_rules');
 AvRules::invalidate();
 
 /* ════════════════════════════════════════════════════════════════
-   The AI master switch
+   The AI master switch — enforced at the network call, so it covers
+   every caller and not just the ones that remember to ask.
    ════════════════════════════════════════════════════════════════ */
 
 AvRules::save(['ai.enabled' => '0'], 'tester');
 ck('ai switch: off makes Collab report AI unavailable', Collab::aiAvailable() === false);
 $mres = Meetings::structure('Some transcript text.');
 ck('ai switch: off refuses to structure minutes', $mres['ok'] === false && stripos($mres['error'], 'switched off') !== false);
+
+$botRes = AvBot::reply('hello');
+ck('ai switch: off blocks AvBot at the network call', $botRes['ok'] === false && stripos($botRes['error'], 'switched off') !== false);
+$gemRes = Gemini::generate('hello');
+ck('ai switch: off blocks Gemini at the network call', $gemRes['ok'] === false && stripos($gemRes['error'], 'switched off') !== false);
+// configured() must stay truthful about CREDENTIALS — the System health page
+// reports on keys, and "switched off" is not the same as "not set up".
+ck('ai switch: off does not lie about AvBot credentials', AvBot::configured() === (trim((string) Config::get('ANTHROPIC_API_KEY', '')) !== ''));
+
+$db->exec('DELETE FROM av_rules');
+AvRules::invalidate();
+
+/* ════════════════════════════════════════════════════════════════
+   Review fixes — each of these was a real defect; they stay fixed.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Undo must restore the OVERRIDE state, not the resolved value ──
+   A rule running on its default or on an AV_* env value has no override. If undo
+   recorded the resolved number as "previous", it would pin that number into the
+   database forever and silently shadow config. */
+$db->exec('DELETE FROM av_rules');
+AvRules::invalidate();
+ck('undo: no override reads as null, not as the resolved default', AvRules::rawOverride('escalation.steps') === null);
+ck('undo: resolved value is still the default', AvRules::int('escalation.steps') === 3);
+
+$rawBefore = AvRules::rawOverrides(['escalation.steps']);
+ck('undo: rawOverrides omits keys with no override', !array_key_exists('escalation.steps', $rawBefore));
+AvRules::save(['escalation.steps' => '7'], 'tester');
+ck('undo: the override took effect', AvRules::int('escalation.steps') === 7);
+ck('undo: rawOverride now returns the stored string', AvRules::rawOverride('escalation.steps') === '7');
+
+// Replay what the API records: previous raw state, null where there was none.
+AvRules::applyUndo('save', ['values' => ['escalation.steps' => $rawBefore['escalation.steps'] ?? null]]);
+ck('undo: the value is back to the default', AvRules::int('escalation.steps') === 3);
+ck('undo: and NO override was pinned in its place', AvRules::rawOverride('escalation.steps') === null);
+
+$dsc = AvRules::describe();
+$step = null;
+foreach ($dsc['groups']['Escalation'] as $row) { if ($row['key'] === 'escalation.steps') $step = $row; }
+ck('undo: provenance is "default" again, not "studio"', $step && $step['source'] === 'default');
+
+// Same guarantee when the underlying value came from config/env rather than a default.
+putenv('AV_ESCALATION_STEPS=5');
+AvRules::invalidate();
+ck('undo: config/env value resolves', AvRules::int('escalation.steps') === 5);
+$rawBefore2 = AvRules::rawOverrides(['escalation.steps']);
+AvRules::save(['escalation.steps' => '9'], 'tester');
+AvRules::applyUndo('save', ['values' => ['escalation.steps' => $rawBefore2['escalation.steps'] ?? null]]);
+ck('undo: falls back to config/env, not to a pinned copy', AvRules::int('escalation.steps') === 5);
+ck('undo: config/env is not shadowed by an override', AvRules::rawOverride('escalation.steps') === null);
+putenv('AV_ESCALATION_STEPS');
+AvRules::invalidate();
+
+/* ── describe() must not report a rejected override as "set here" ── */
+$db->exec('DELETE FROM av_rules');
+$db->prepare('INSERT INTO av_rules (rule_key, value, updated_by, updated_at) VALUES (?,?,?,?)')
+   ->execute(['escalation.steps', '9999', 'legacy', gmdate('c')]);
+AvRules::invalidate();
+$dsc2 = AvRules::describe();
+$step2 = null;
+foreach ($dsc2['groups']['Escalation'] as $row) { if ($row['key'] === 'escalation.steps') $step2 = $row; }
+ck('describe: a rejected override is not reported as "studio"', $step2 && $step2['source'] === 'default');
+ck('describe: the ignored value is surfaced as stale', $step2 && $step2['stale'] === '9999');
+ck('describe: the reported value is the one actually in force', $step2 && (int) $step2['value'] === 3);
+ck('describe: no actor is credited for a value not in force', $step2 && $step2['updated_by'] === '');
+$db->exec('DELETE FROM av_rules');
+AvRules::invalidate();
+
+/* ── A reset obeys the same coherence gate as a save ──
+   Amber pinned low, Red pinned just under it: resetting Amber alone would restore
+   a default of 70 and leave Red (65) below it — fine — but resetting RED would
+   restore 40 while Amber sits at 30, which save() would have refused. */
+AvRules::save(['health.amber_attendance_pct' => '30', 'health.red_attendance_pct' => '20'], 'tester');
+ck('reset: the pinned pair is coherent', AvRules::int('health.amber_attendance_pct') === 30);
+$badReset = AvRules::resetChecked('health.red_attendance_pct');
+ck('reset: an incoherent single reset is refused', $badReset['ok'] === false && count($badReset['conflicts']) > 0);
+ck('reset: the refused reset changed nothing', AvRules::int('health.red_attendance_pct') === 20);
+$okReset = AvRules::resetChecked('health.amber_attendance_pct');
+ck('reset: a coherent reset is allowed', $okReset['ok'] === true);
+ck('reset: it fell back to the default', AvRules::int('health.amber_attendance_pct') === 70);
+$all = AvRules::resetAll('tester');
+ck('reset: resetAll reports success and coherence', $all['ok'] === true && $all['conflicts'] === []);
+ck('reset: everything is back to defaults', AvRules::int('health.red_attendance_pct') === 40);
+
+/* ── Ladder codes are constrained: they reach a DDL default and a UI badge ── */
+ck('ladder: an over-long code is rejected', AvRules::cast('levels.ladder', 'O,ABCDEFGH') === null);
+ck('ladder: a code with punctuation is rejected', AvRules::cast('levels.ladder', "O,A';DROP") === null);
+ck('ladder: a code with a space is rejected', AvRules::cast('levels.ladder', 'O,A B') === null);
+ck('ladder: ordinary codes still pass', AvRules::cast('levels.ladder', 'O,A,B1,ZZ') === 'O,A,B1,ZZ');
+ck('ladder: the expected-value hint mentions the constraint', stripos(AvRules::expected('levels.ladder'), 'short codes') !== false);
+ck('ladder: an unconstrained csv rule is unaffected', AvRules::cast('meetings.warn_minutes', '30,15,5') === '30,15,5');
+
+/* ── The prompt block must not announce thresholds nothing enforces ── */
+$pb = AvRules::asPromptBlock();
+ck('prompt block: states the enforced consistency threshold', strpos($pb, '85% meeting consistency') !== false);
+ck('prompt block: does NOT claim commitment completion is checked', stripos($pb, 'commitment completion') === false);
+
+/* ── Rules with no consumer are declared as such ── */
+$dsc3 = AvRules::describe();
+$pendingCount = 0; $livePending = null;
+foreach ($dsc3['groups'] as $rows) {
+    foreach ($rows as $row) {
+        if ($row['pending'] !== '') $pendingCount++;
+        if ($row['key'] === 'mentorship.active_mentee_requires_days') $livePending = $row;
+    }
+}
+ck('pending: unenforced rules are flagged for the Studio', $pendingCount >= 10);
+ck('pending: an enforced rule is NOT flagged', $livePending && $livePending['pending'] === '');
+ck('pending: commitment completion is flagged as awaiting its subsystem', (function (array $g): bool {
+    foreach ($g['Levels'] as $r) { if ($r['key'] === 'levels.min_commitment_pct') return $r['pending'] !== ''; }
+    return false;
+})($dsc3['groups']));
+
+$promptDesc = AvPrompts::describe();
+$byKey = [];
+foreach ($promptDesc as $p) $byKey[$p['key']] = $p;
+ck('pending: an unwired prompt template is flagged', ($byKey['leadership.brief']['pending'] ?? '') !== '');
+ck('pending: a live prompt template is not flagged', ($byKey['meeting.minutes']['pending'] ?? 'x') === '');
+
+/* ── inactivePairs() follows the rule instead of a hardcoded 21 ── */
+Mentorship::ensure();
+$db->exec('DELETE FROM mentorships');
+$db->exec('DELETE FROM mentor_sessions');
+$stale = gmdate('Y-m-d H:i:s', time() - 40 * 86400);
+$db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, created_at, updated_at) VALUES (1,2,'active',?,?)")
+   ->execute([$stale, $stale]);
+$pid = (int) $db->lastInsertId();
+$db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, attendance, created_at) VALUES (?,'Old',?,'attended',?)")
+   ->execute([$pid, $stale, $stale]);
+
+AvRules::save(['mentorship.inactive_days' => '30'], 'tester');
+ck('inactive: a 40-day gap is inactive at a 30-day threshold', count(Mentorship::inactivePairs()) === 1);
+AvRules::save(['mentorship.inactive_days' => '60'], 'tester');
+ck('inactive: the same pairing is fine at a 60-day threshold', count(Mentorship::inactivePairs()) === 0);
+ck('inactive: an explicit argument still overrides the rule', count(Mentorship::inactivePairs(30)) === 1);
+$db->exec('DELETE FROM av_rules');
+AvRules::invalidate();
+
+/* ── recommend() is read-only: it must not reconcile ──
+   memberConsistency() finalises stale sessions and can call Google. That is fine
+   on a member's own portal visit; it is not fine on an assessment that runs for
+   every member in a report loop. */
+$snapshot = function () use ($db): string {
+    $rows = $db->query('SELECT id, attendance, started_at, ended_at, hours_source, reconciled_at, reconcile_tries FROM mentor_sessions ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return md5(json_encode($rows));
+};
+$before = $snapshot();
+Levels::recommend(1);
+ck('read-only: recommend() left mentor_sessions untouched', $snapshot() === $before);
+Levels::progress(1);
+ck('read-only: progress() left mentor_sessions untouched', $snapshot() === $before);
+$c1 = Mentorship::memberConsistency(1, false);
+$c2 = Mentorship::memberConsistency(1, true);
+ck('read-only: both forms agree on the figures', $c1['held'] === $c2['held'] && $c1['attended'] === $c2['attended']);
+
+/* ── AvKnowledge: "all" means every scope ── */
+AvKnowledge::ensure();
+$db->exec('DELETE FROM av_knowledge');
+AvKnowledge::invalidate();
+AvKnowledge::save(0, ['title' => 'Global note', 'body' => 'Applies everywhere.', 'scope' => 'all', 'priority' => 50, 'active' => true], 'tester');
+AvKnowledge::save(0, ['title' => 'Mentor note', 'body' => 'Mentorship only.', 'scope' => 'mentorship', 'priority' => 50, 'active' => true], 'tester');
+AvKnowledge::save(0, ['title' => 'Meeting note', 'body' => 'Meetings only.', 'scope' => 'meetings', 'priority' => 50, 'active' => true], 'tester');
+AvKnowledge::invalidate();
+
+$allBlock = AvKnowledge::asPromptBlock('all');
+ck('kb all: includes the globally-scoped entry', strpos($allBlock, 'Global note') !== false);
+ck('kb all: includes a mentorship-scoped entry', strpos($allBlock, 'Mentor note') !== false);
+ck('kb all: includes a meetings-scoped entry', strpos($allBlock, 'Meeting note') !== false);
+ck('kb all: countActive("all") counts every active entry', AvKnowledge::countActive('all') === 3);
+
+$mOnly = AvKnowledge::asPromptBlock('mentorship');
+ck('kb scoped: still gets its own plus global', strpos($mOnly, 'Mentor note') !== false && strpos($mOnly, 'Global note') !== false);
+ck('kb scoped: still excludes another scope', strpos($mOnly, 'Meeting note') === false);
+ck('kb scoped: countActive is scoped', AvKnowledge::countActive('mentorship') === 2);
+
+$db->exec('DELETE FROM av_knowledge');
+AvKnowledge::invalidate();
 $db->exec('DELETE FROM av_rules');
 AvRules::invalidate();

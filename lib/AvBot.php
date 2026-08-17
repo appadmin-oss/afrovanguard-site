@@ -83,6 +83,13 @@ SYS;
     {
         $userText = trim($userText);
         if ($userText === '') return ['ok' => false, 'text' => '', 'error' => 'Empty prompt.'];
+        // The Studio master switch is enforced at the network call, so it covers
+        // EVERY caller rather than only the ones that remember to ask. It is
+        // deliberately not folded into configured(), which must keep reporting
+        // truthfully on credentials for the System health page.
+        if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
+            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
+        }
         if (!self::configured()) {
             return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).'];
         }

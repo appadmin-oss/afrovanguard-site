@@ -45,6 +45,12 @@ final class Gemini
      */
     public static function generate(string $prompt, array $opts = []): array
     {
+        // Master switch enforced at the network call so it covers every caller.
+        // Kept out of configured(), which must stay truthful about credentials for
+        // the System health page.
+        if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
+            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
+        }
         if (!self::configured()) return ['ok' => false, 'text' => '', 'error' => 'Gemini is not configured (set AV_GEMINI_API_KEY).'];
 
         $parts = [];

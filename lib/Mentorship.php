@@ -855,11 +855,20 @@ final class Mentorship
     }
 
     /** A member's overall consistency across all their active/ended pairings. */
-    public static function memberConsistency(int $userId): array
+    /**
+     * @param bool $reconcile Whether to finalise stale sessions and reconcile
+     *   pending hours against Google first. That is a WRITE, plus up to a few
+     *   outbound API calls, so read-only callers (promotion assessments, reports,
+     *   anything that runs per-member in a loop) pass false and read what has
+     *   already been reconciled by the member's own portal visit or the cron.
+     */
+    public static function memberConsistency(int $userId, bool $reconcile = true): array
     {
         self::ensure();
-        self::finalizeStale($userId);
-        self::reconcilePending($userId);
+        if ($reconcile) {
+            self::finalizeStale($userId);
+            self::reconcilePending($userId);
+        }
         try {
             $st = Database::pdo()->prepare(
                 "SELECT COUNT(*) held,
@@ -938,63 +947,86 @@ final class Mentorship
     }
 
     /**
+     * The whole active-mentorship graph as mentor_id => [mentee_id, …].
+     *
+     * One query for the entire network. Walking the tree with a query per member
+     * is fine for a demo and quietly quadratic in production — these walks run on
+     * page renders and in per-member loops, so the graph is fetched once and
+     * traversed in memory.
+     *
+     * Deliberately NOT memoised across the request: attendance and pairings change
+     * inside a request (markAttendance, finalizeStale, the reconcile path), and a
+     * cached graph would answer from before the write. Collapsing N queries to one
+     * is the win worth having; staleness is not a price worth paying for it.
+     */
+    private static function activeGraph(int $withinDays): array
+    {
+        self::ensure();
+        $cut = gmdate('Y-m-d H:i:s', time() - $withinDays * 86400);
+        $graph = [];
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT DISTINCT m.mentor_id, m.mentee_id
+                   FROM mentorships m
+                   JOIN mentor_sessions s ON s.mentorship_id = m.id
+                  WHERE m.status = 'active'
+                    AND s.attendance = 'attended' AND s.scheduled_at >= ?"
+            );
+            $st->execute([$cut]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $graph[(int) $r['mentor_id']][] = (int) $r['mentee_id'];
+            }
+        } catch (Throwable $e) { error_log('[mentorship] activeGraph: ' . $e->getMessage()); }
+        return $graph;
+    }
+
+    /**
      * How many generations deep this member's multiplication network runs.
      * 0 = no active mentees, 1 = has active mentees, 2 = those mentees mentor, …
      *
      * Walks breadth-first with a visited set, so a cycle in the data (A mentors B
      * mentors A — possible, since pairings are created by hand) terminates instead
      * of recursing forever. $maxDepth is a second, independent backstop.
+     *
+     * Depth is shortest-path, so a "diamond" does not inflate it: if you mentor
+     * both B and C and B also mentors C, the network below you is still one
+     * generation deep, because C is already reached directly.
      */
     public static function multiplicationDepth(int $mentorId, ?int $withinDays = null, int $maxDepth = 12): int
     {
         if ($mentorId <= 0) return 0;
-        $win = self::activeWindow($withinDays);
-        $seen = [$mentorId => true];
-        $frontier = [$mentorId];
-        $depth = 0;
-
-        while ($frontier && $depth < $maxDepth) {
-            $next = [];
-            foreach ($frontier as $uid) {
-                foreach (self::activeMenteeIds($uid, $win) as $mid) {
-                    if (isset($seen[$mid])) continue;
-                    $seen[$mid] = true;
-                    $next[] = $mid;
-                }
-            }
-            if (!$next) break;
-            $depth++;
-            $frontier = $next;
-        }
-        return $depth;
+        return self::multiplicationSummary($mentorId, $withinDays, $maxDepth)['depth'];
     }
 
     /**
      * Everyone below this member in the active network, and how deep it goes —
-     * one walk instead of the several the individual accessors would cost.
+     * one graph fetch and one traversal.
      *
      * @return array{active:int, multiplying:int, descendants:int, depth:int}
      */
     public static function multiplicationSummary(int $mentorId, ?int $withinDays = null, int $maxDepth = 12): array
     {
-        $win = self::activeWindow($withinDays);
-        $direct = self::activeMenteeIds($mentorId, $win);
+        $empty = ['active' => 0, 'multiplying' => 0, 'descendants' => 0, 'depth' => 0];
+        if ($mentorId <= 0) return $empty;
+
+        $win   = self::activeWindow($withinDays);
+        $graph = self::activeGraph($win);
+        $direct = $graph[$mentorId] ?? [];
+        if (!$direct) return $empty;
+
+        // A direct mentee who mentors anyone is the second generation (§4B).
+        $multiplying = 0;
+        foreach ($direct as $d) { if (!empty($graph[$d])) $multiplying++; }
 
         $seen = [$mentorId => true];
         foreach ($direct as $d) $seen[$d] = true;
         $frontier = $direct;
-        $depth = $direct ? 1 : 0;
-        $multiplying = 0;
-
-        // The first generation doubles as the "multiplying" test.
-        foreach ($direct as $d) {
-            if (self::activeMenteeCount($d, $win) > 0) $multiplying++;
-        }
+        $depth = 1;
 
         while ($frontier && $depth < $maxDepth) {
             $next = [];
             foreach ($frontier as $uid) {
-                foreach (self::activeMenteeIds($uid, $win) as $mid) {
+                foreach ($graph[$uid] ?? [] as $mid) {
                     if (isset($seen[$mid])) continue;
                     $seen[$mid] = true;
                     $next[] = $mid;
@@ -1036,7 +1068,7 @@ final class Mentorship
             'pairs_active'     => $bySeg("SELECT segment, COUNT(*) n FROM mentorships WHERE status='active' GROUP BY segment"),
             'pairs_pending'    => $bySeg("SELECT segment, COUNT(*) n FROM mentorships WHERE status='pending' GROUP BY segment"),
             'sessions'         => $c("SELECT COUNT(*) FROM mentor_sessions"),
-            'inactive'         => count(self::inactivePairs(21)),
+            'inactive'         => count(self::inactivePairs()),
         ];
     }
 
@@ -1202,10 +1234,19 @@ final class Mentorship
         return ['ok' => true, 'prev_mentor' => $prev];
     }
 
-    /** Active pairings with no session in the last $days days. */
-    public static function inactivePairs(int $days = 21): array
+    /**
+     * Active pairings with no session in the last $days days.
+     *
+     * $days = 0 (the default) means "use the rule" — mentorship.inactive_days, so
+     * leadership's own threshold governs. Pass an explicit number to override it
+     * for a one-off report.
+     */
+    public static function inactivePairs(int $days = 0): array
     {
         self::ensure();
+        if ($days <= 0) {
+            $days = class_exists('AvRules') ? max(1, AvRules::int('mentorship.inactive_days')) : 21;
+        }
         $cut = gmdate('Y-m-d H:i:s', time() - $days * 86400);
         $sql = "SELECT m.*, mu.name AS mentor_name, eu.name AS mentee_name,
                        (SELECT MAX(scheduled_at) FROM mentor_sessions s WHERE s.mentorship_id=m.id) AS last_session

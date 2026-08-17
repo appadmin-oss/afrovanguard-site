@@ -2,7 +2,16 @@
 
 _Source document:_ "Afrovanguard AI-Powered Meeting, Mentorship & Incorruptible Leadership Operating System — Comprehensive Concept & Implementation Report" (30pp, 42 sections)
 _Assessed against:_ `appadmin-oss/afrovanguard-site` @ `claude/new-session-8pjvx6` · 602 tracked files · 73 `lib/` classes
-_Date:_ 2026-08-17
+_Date:_ 2026-08-17 · _Updated:_ 2026-08-17 after building the rules/knowledge/prompt layer
+
+> **Update — the dynamic layer is built.** Step 1 of §5 is done, and it turned out
+> to be more than configuration plumbing: it also closed **G-5** and **G-13**.
+> Afrovanguard's thresholds, the assistants' knowledge and their prompts are now
+> editable data (`lib/AvRules.php`, `lib/AvKnowledge.php`, `lib/AvPrompts.php`,
+> Studio → Rules & AI — see `docs/rules-engine.md`), and `Levels` was rebuilt on
+> verified multiplication instead of referral count. The gap table in §3 carries
+> the current status inline. **G-1 (commitments) is still the recommended next
+> build**, and it is now cheaper, because its thresholds and prompts already exist.
 
 ---
 
@@ -164,23 +173,24 @@ Member directory (`lib/MemberDirectory.php`), portal surfaces (`portal/goals.php
 
 Effort is **estimated dev-days for one developer familiar with this codebase**, assuming the existing patterns are followed (portable DDL, fail-safe reads, `Events`, `Notifications` dedupe). Treat as planning figures, not quotes.
 
-| # | Gap | Report § | Value | Effort | Notes |
+| # | Gap | Report § | Value | Effort | Status / notes |
 |---|---|---|---|---|---|
-| **G-1** | **Commitments are never tracked.** AI-extracted `action_items` sit in a JSON blob. | §11, §39.2 | 🔴 Critical | **3–4d** | Highest value-to-effort ratio in the whole report. `Collab::aiTasksFromGoal()` is the template; `collab_tasks` is the destination. Needs owner-name → `user_id` resolution (fuzzy match against `lms_users`, confirm-before-assign). |
-| **G-2** | **No escalation ladder.** Missed meetings notify nobody. | §14 | 🔴 Critical | **3–4d** | 1st = gentle nudge, 2nd = firmer, 3rd+ = notify mentor's mentor. Needs a `mentorship_escalations` table for history. Rides `Notifications::push()` + `dedupe_key`. |
-| **G-3** | **No relationship health (Green/Amber/Red).** | §15 | 🟠 High | **2d** | Pure derivation over data that already exists: `consistency().rate`, `.streak`, `inactivePairs()`, goal freshness. Thresholds must be config, not hardcoded (§27). |
-| **G-4** | **No mentorship tree.** Flat edge list; no depth, generations, or descendants. | §16 | 🟠 High | **3–4d** | Recursive walk over `mentorships` with cycle protection + depth cap. Prerequisite for G-5. Cache per sweep; do not compute per page view. |
-| **G-5** | **Levels stop at C and reward headcount.** | §4, §17, §20 | 🟠 High | **4–5d** | Extend `ORDER` to `O..G`; replace `REFERRALS_FOR_A` with verified-active-mentee criteria; add `recommendation()` returning evidence, **not** an auto-promotion. Also fix the SQLite-only DDL. |
-| **G-6** | **No leadership exception brief.** | §21, §37, §38 | 🟠 High | **2–3d** | Composed from G-1…G-5 outputs. Weekly digest + an admin panel. Cheap once the engine exists — this is a read-model over the sweep. |
-| **G-7** | **No agenda auto-proposal.** | §7 | 🟡 Medium | **2d** | `meetings.agenda` column already there. Inputs: previous minutes + open commitments for these attendees. Chair approves/edits — never auto-publish. |
-| **G-8** | **No per-member personal goals.** `Goals` is org-wide. | §3B, §18 | 🟡 Medium | **3d** | New `member_goals` (category, target, due, status, review cadence). Don't overload `team_goals` — different owner semantics. |
+| **G-1** | **Commitments are never tracked.** AI-extracted `action_items` sit in a JSON blob. | §11, §39.2 | 🔴 Critical | **2–3d** | **Next up.** Cheaper than first estimated: its thresholds (`commitments.*`) and the `goal.tasks` prompt already exist, and `structure()` now also returns `due_days`. `Collab::aiTasksFromGoal()` is the template; `collab_tasks` the destination. Owner-name → `user_id` stays confirm-before-assign (`commitments.auto_assign_owner` ships off). |
+| **G-2** | **No escalation ladder.** Missed meetings notify nobody. | §14 | 🔴 Critical | **2–3d** | Rules and wording done (`escalation.*`, `accountability.nudge`); the ladder and `mentorship_escalations` history are not. Rides `Notifications::push()` + `dedupe_key`. |
+| **G-3** | **No relationship health (Green/Amber/Red).** | §15 | 🟠 High | **1–2d** | Thresholds now configurable and coherence-checked (`health.*`, red must sit below amber). The classifier itself is still to write — pure derivation over `consistency()` + `inactivePairs()`. |
+| **G-4** | **No mentorship tree.** | §16 | 🟠 High | ~~3–4d~~ | ✅ **Done.** `Mentorship::multiplicationSummary()` / `multiplicationDepth()` / `activeMenteeIds()` — one-query graph, BFS with a visited set and a depth cap, shortest-path depth so a diamond cannot inflate reach. |
+| **G-5** | **Levels stop at C and reward headcount.** | §4, §17, §20 | 🟠 High | ~~4–5d~~ | ✅ **Done.** Ladder is `levels.ladder` (O–G by default, any progression allowed). Promotion tests *verified active* mentorship — an **attended** session inside the window — not referrals. `recommend()` returns evidence and never writes; `auto_promote` ships off. |
+| **G-6** | **No leadership exception brief.** | §21, §37, §38 | 🟠 High | **2–3d** | The `leadership.brief` prompt exists; the metrics feeding it need G-1…G-3. Read-model over the sweep. |
+| **G-7** | **No agenda auto-proposal.** | §7 | 🟡 Medium | **1–2d** | `meetings.agenda` column and the `meeting.agenda` prompt both exist, gated by `meetings.ai_agenda`. Only the caller is missing. Chair approves — never auto-publish (`agenda_source` records which). |
+| **G-8** | **No per-member personal goals.** `Goals` is org-wide. | §3B, §18 | 🟡 Medium | **3d** | New `member_goals`. Don't overload `team_goals` — different owner semantics. |
 | **G-9** | **No pre-meeting pack.** | §8 | 🟡 Medium | **1–2d** | Trivial once G-1 exists (the pack is mostly "open commitments for these people"). |
-| **G-10** | **No four-dimension scorecard.** | §19 | 🟡 Medium | **2–3d** | Read-model over G-1…G-5. **§3A constraint: show behavioural evidence, not a character number.** |
-| **G-11** | **No in-meeting duration warnings.** | §10 | 🟢 Low | **2–3d** | Needs a live client-side timer in `portal/meetings.js` against `duration_min`. Low value; the report itself calls the warning points configurable. |
-| **G-12** | **No NL Q&A over accountability data.** | §22 | 🟢 Low | **4–5d+** | `AvBot`/`Chioma` exist but have no structured accountability context. Do this **last** — it's only as good as G-1…G-5. Needs care: never let the model invent a fact about a real person. |
-| **G-13** | `Levels.php` uses SQLite-only DDL | — | 🔧 Debt | **0.5d** | Fold into G-5. Breaks MySQL/Postgres portability the rest of the app maintains. |
+| **G-10** | **No four-dimension scorecard.** | §19 | 🟡 Medium | **2–3d** | Read-model over G-1…G-5. `ai.character_scores` ships off, so the surface must show behavioural evidence, not a character number (§3A). |
+| **G-11** | **No in-meeting duration warnings.** | §10 | 🟢 Low | **2–3d** | Warning points are now configurable (`meetings.warn_minutes`); the client-side timer in `portal/meetings.js` is not built. |
+| **G-12** | **No NL Q&A over accountability data.** | §22 | 🟢 Low | **4–5d+** | Still last. `AvBot`/`Chioma` now receive the live rules and knowledge, which is the groundwork — but it is only as good as G-1…G-3 underneath. |
+| **G-13** | `Levels.php` uses SQLite-only DDL | — | 🔧 Debt | ~~0.5d~~ | ✅ **Done.** Now on `Database::execSchema()` / `columnExists()`, and the ladder is no longer interpolated into DDL. |
 
-**Total for G-1…G-6 (the accountability core): ~17–22 dev-days.**
+**Remaining for the accountability core (G-1, G-2, G-3, G-6): ~7–11 dev-days**
+(was ~17–22 for G-1…G-6; G-4 and G-5 are built).
 
 ---
 
@@ -259,41 +269,51 @@ The report's Phase 1 (audit) is **complete — this document is its deliverable*
 
 So the real sequence starts at Phase 3 and is shorter than the report's eight phases.
 
-### Step 1 — Rules first, in config (report §27) · ~1d + leadership time
+### Step 1 — Rules first ✅ **built** (report §27)
 
 > §27: "AI should not invent Afrovanguard's constitution. Afrovanguard defines the rules. AI enforces and monitors them."
 
-Before code: get leadership to fix the numbers. Meeting cadence. Reminder lead time. How many misses before escalation, and to whom. What "active mentee" means. Level A→G criteria. Minimum tenure per level.
+Done, and it went further than configuration. `lib/AvRules.php` holds 30 typed rules resolved as **Studio override → `AV_*` config/env → documented default**, with rejection-not-coercion, atomic batches, cross-rule coherence checks and audited undo. `lib/AvKnowledge.php` and `lib/AvPrompts.php` do the same for the assistants' knowledge and their instructions. Editable at Studio → Rules & AI; see `docs/rules-engine.md`.
 
-Land these as **config with documented defaults** (`config.example.php` + `.env.example`), never hardcoded constants. Every threshold in G-2/G-3/G-5 reads from here. This is the single highest-leverage hour in the project and it costs no development.
+**What still needs leadership rather than development:** the actual numbers. Cadence, reminder lead time, how many misses before escalation and to whom, what "active mentee" means for Afrovanguard, the Level A→G criteria, minimum tenure. The shipped defaults are the report's own figures — a starting point, not a decision. This remains the highest-leverage hour in the project, and it now costs no development at all.
 
-### Step 2 — G-1 Commitments · 3–4d
+Rules whose subsystem is not built yet (relationship health, commitments, agenda drafting, in-meeting timing) are stored and editable but labelled *awaiting …* in the Studio, and are deliberately left out of the AI prompt block — announcing a threshold nothing checks would invite the model to report compliance that was never measured.
 
-The keystone. Wire `Meetings::structure()` → `commitments`, following `Collab::aiTasksFromGoal()`. Owner resolution must be **confirm-before-assign**: propose the match, let the chair approve. An AI silently assigning work to the wrong person is worse than no automation.
+### Step 2 — G-1 Commitments · 2–3d ← **next**
+
+The keystone. Wire `Meetings::structure()` → `commitments`, following `Collab::aiTasksFromGoal()`. Owner resolution must be **confirm-before-assign**: propose the match, let the chair approve. An AI silently assigning work to the wrong person is worse than no automation — `commitments.auto_assign_owner` already exists for this and ships **off**.
+
+Cheaper than first estimated, because Step 1 landed the groundwork: the thresholds (`commitments.*`) are configurable, `structure()` now also returns a `due_days` per action item when the transcript stated one, and `meeting_transcripts.commitments_created` is specified for idempotency so re-structuring a transcript cannot double-create.
 
 Add the daily sweep to `tasks/cron.php` — due today, overdue, needs follow-up — via `Notifications::push()` with a per-day `dedupe_key`, exactly as the existing task-deadline sweep does.
 
 **This step alone delivers the report's §28 claim: *"This alone could produce a major improvement."*** It is worth shipping and living with before building anything else.
 
-### Step 3 — G-3 Health + G-2 Escalation · 5–6d
+### Step 3 — G-3 Health + G-2 Escalation · 3–5d
 
-Health first (it's a pure derivation and makes escalation legible), then the ladder. Escalation targets come from Step 1's rules.
+Health first (it's a pure derivation and makes escalation legible), then the ladder. Both sets of thresholds already exist from Step 1 — including the coherence guard that stops Red being set at or above Amber — so this is the classifier and the ladder, not the configuration. The escalation wording comes from the `accountability.nudge` prompt, already written and editable.
 
 Two constraints from the report, both worth honouring literally:
 - §14: *"The objective is not punishment. The objective is early intervention."* Word every notification accordingly.
 - §23: the AI escalates; it does not judge. Every escalation carries its evidence so a human can disagree with it.
 
-### Step 4 — G-4 Tree + G-5 O–G levels · 7–9d
+### Step 4 — G-4 Tree + G-5 O–G levels ✅ **built**
 
-Tree first, then rebuild `Levels` on top of it. Promotion becomes `recommendation()` — evidence and a suggested level, surfaced to leadership in `admin/`, **never** an automatic write. Per §20:
+The tree is `Mentorship::multiplicationSummary()`: one query for the active graph, BFS with a visited set and a depth cap so hand-created pairings that form a cycle terminate, and **shortest-path** depth so a diamond cannot inflate a leader's apparent reach.
+
+`Levels` sits on top of it. Advancement tests an **attended** session inside the configured window — a merely scheduled one does not count, or a mentor could earn advancement by filling a calendar. `recommend()` returns `reasons`, `gaps` and `metrics` and writes nothing; `promoteIfEligible()` acts only when `levels.auto_promote` is deliberately on, which it is not by default. Per §20:
 
 > "Promotion should be automated as a recommendation, not blindly automated."
 
-Fix the portable-DDL debt (G-13) in the same pass.
+The portable-DDL debt (G-13) went in the same pass, and the ladder is no longer interpolated into DDL.
+
+**Still to build here:** the leadership-facing surface. `level_recommend` exists as an API action but there is no Studio panel listing who is approaching which level — that belongs with Step 5.
 
 ### Step 5 — G-6 Leadership brief · 2–3d
 
-The weekly digest of §21/§38. Cheap now, because it's a read-model over Steps 2–4. This is what converts leadership from chasing people to managing exceptions — and it's what makes the whole investment visible to the people who approved it.
+The weekly digest of §21/§38, plus the promotion-review panel Step 4 left unbuilt (`level_recommend` already returns the evidence; nothing lists who is approaching which level). Cheap now, because it's a read-model over Steps 2–4 and the `leadership.brief` prompt is already written and editable.
+
+This is what converts leadership from chasing people to managing exceptions — and it's what makes the whole investment visible to the people who approved it.
 
 ### Step 6 — Pilot (report §32) · 6–8 weeks, no new development
 
@@ -301,11 +321,15 @@ The weekly digest of §21/§38. Cheap now, because it's a read-model over Steps 
 
 **Do not build Steps 7–8 during the pilot.** The pilot's job is to tell you which thresholds from Step 1 were wrong. They will be wrong — that's expected, and it's much cheaper to discover before more surface area is built on them.
 
+This is now much cheaper than it was: correcting a threshold is an edit in Studio → Rules & AI, audited and revertible, rather than a code change and a deploy. That is the main practical payoff of building Step 1 first — the pilot can retune itself weekly without a developer in the loop.
+
 ### Step 7 — Everything else, in value order · as needed
 
 G-7 agenda → G-9 pre-meeting pack → G-8 personal goals → G-10 scorecard → G-11 timer → G-12 NL Q&A.
 
-G-12 deliberately last. It is the most demo-friendly feature and the least useful one: a natural-language interface over incomplete data produces confident wrong answers about real people's character. It needs G-1…G-5 underneath it to be worth anything.
+G-7 and G-11 are now mostly wiring: their rules and prompts exist, only the callers are missing.
+
+G-12 deliberately last. It is the most demo-friendly feature and the least useful one: a natural-language interface over incomplete data produces confident wrong answers about real people's character. It needs G-1…G-3 underneath it to be worth anything — the assistants now receive the live rules and knowledge, which is groundwork, not data.
 
 ### Step 8 — Org-wide rollout (report §33)
 
@@ -354,6 +378,8 @@ The report's three-level cost framing (§35) is sound. Its cost *drivers* need c
 
 A `character_score` column would be easy to add and would quietly undermine the entire premise. The schema in §4 deliberately has no such column. The scorecard (G-10) should render evidence — *"attended 11 of 12, completed 92%, voluntarily reported 2 misses"* — because that sentence is both more useful to a leader and more honest than `85%`. The `self_reported` flag exists precisely so that honesty registers as a positive signal rather than a dent in a completion rate.
 
+This is now also enforced at the prompt layer: `ai.character_scores` ships off, and while it is off every AI system prompt carries the instruction *"Never reduce a person's character to a score or a percentage. Report observable behaviour and let a human interpret it."* The rule exists so that turning this on is a deliberate, audited decision by leadership rather than something that arrives by accident in a later feature.
+
 **7.2 An accountability system is a surveillance system pointed at volunteers.**
 
 The report doesn't raise this, and it should be decided by leadership before Step 2 ships, not after:
@@ -370,13 +396,17 @@ The report doesn't raise this, and it should be decided by leadership before Ste
 | | |
 |---|---|
 | **Report's premise** | Afrovanguard has dashboards; add an AI accountability layer. |
-| **Actual state** | ~60% built, including the parts the report treats as advanced (AI minutes, Google Meet integration, consistency tracking, mentorship sessions with server-stamped attendance). |
-| **The three real gaps** | Commitments aren't tracked · nothing escalates · the level ladder rewards headcount (the exact §17 anti-pattern) and stops at C. |
-| **Recommended first build** | G-1 Commitments (3–4d), after leadership fixes the §27 rules. |
-| **Accountability core** | G-1…G-6, ~17–22 dev-days. |
+| **State at first assessment** | ~60% built, including the parts the report treats as advanced (AI minutes, Google Meet integration, consistency tracking, mentorship sessions with server-stamped attendance). |
+| **Built since** | The dynamic layer (rules, knowledge, prompts — all editable data), the mentorship tree, and the O–G ladder rebuilt on verified multiplication. **G-4, G-5, G-13 closed.** |
+| **The gaps that remain** | Commitments still aren't tracked · nothing still escalates · no relationship health · no leadership brief. |
+| **Recommended next build** | G-1 Commitments (2–3d). |
+| **Accountability core remaining** | G-1, G-2, G-3, G-6 — ~7–11 dev-days (was ~17–22). |
+| **Needs leadership, not code** | The actual numbers. Defaults are the report's figures, which is a starting point, not a decision. |
 | **Cost correction** | No Zapier, no OpenAI, no Sheets, no new platform. Recurring AI spend is controlled largely by `AV_AI_MODEL`. |
 | **Do last** | G-12 NL Q&A — most demo-friendly, least useful without the data underneath. |
 | **Do not build yet** | Level 3 "full AI OS" (§35), per the report's own §36. |
+
+Three switches ship **off** on purpose, and should stay off unless leadership decides otherwise: `levels.auto_promote`, `ai.character_scores`, `commitments.auto_assign_owner`. Each of them changes the character of the system rather than its configuration — see §7.
 
 The report's closing question is the right one to hold the build to:
 

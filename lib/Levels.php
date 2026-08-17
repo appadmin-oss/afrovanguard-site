@@ -91,7 +91,14 @@ final class Levels
             // SQLite syntax (TEXT columns, datetime('now')) failed on the
             // MySQL/Postgres targets the app otherwise supports.
             if (!Database::columnExists('lms_users', 'level')) {
-                try { $pdo->exec("ALTER TABLE lms_users ADD COLUMN level VARCHAR(4) NOT NULL DEFAULT '" . self::base() . "'"); }
+                // The DDL default is a fixed literal, never the configurable
+                // ladder: base() derives from a rule, and interpolating a rule
+                // value into schema text is an injection path (and would bake
+                // today's ladder into the column forever). of() already treats an
+                // unrecognised stored level as the base, so a plain 'O' default is
+                // both safe and correct. VARCHAR(8) leaves room for the longer
+                // codes the csv validator permits.
+                try { $pdo->exec("ALTER TABLE lms_users ADD COLUMN level VARCHAR(8) NOT NULL DEFAULT 'O'"); }
                 catch (\Throwable $e) { /* raced or already present */ }
             }
             foreach (['level_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'level_by' => "VARCHAR(191) NOT NULL DEFAULT ''"] as $col => $decl) {
@@ -196,8 +203,10 @@ final class Levels
     /**
      * Assess readiness for the next level and return the evidence for it.
      *
-     * Never writes. Nothing here promotes anybody — promote() does, and only when
-     * leadership calls it or auto_promote is deliberately on.
+     * Read-only: it promotes nobody and writes nothing (not even via the
+     * mentorship reconcile path — see the memberConsistency call below).
+     * promoteIfEligible() is the one that can act, and only when leadership calls
+     * it or auto_promote is deliberately on.
      *
      * @return array{recommend:bool, level:string, next:?string, reasons:string[], gaps:string[], metrics:array}
      */
@@ -219,7 +228,9 @@ final class Levels
         $mult = class_exists('Mentorship')
             ? Mentorship::multiplicationSummary($userId)
             : ['active' => 0, 'multiplying' => 0, 'descendants' => 0, 'depth' => 0];
-        $cons = class_exists('Mentorship') ? Mentorship::memberConsistency($userId) : ['rate' => null, 'held' => 0];
+        // Read-only: recommend() is called from page renders and from per-member
+        // loops, so it must not reconcile (a write plus outbound Google calls).
+        $cons = class_exists('Mentorship') ? Mentorship::memberConsistency($userId, false) : ['rate' => null, 'held' => 0];
         $days = self::daysAtLevel($userId);
 
         $out['metrics'] = [

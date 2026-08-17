@@ -65,7 +65,7 @@ try {
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
-        'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset'], true);
+        'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -350,7 +350,7 @@ try {
         case 'mentorship_stats':    json_out(['ok' => true, 'stats' => Mentorship::adminStats()]);
         case 'mentorship_mentors':  json_out(['ok' => true, 'mentors' => Mentorship::adminMentors((string) ($_GET['segment'] ?? ''), (string) ($_GET['approval'] ?? ''), (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_pairings': json_out(['ok' => true, 'pairings' => Mentorship::adminPairings((string) ($_GET['segment'] ?? ''), (string) ($_GET['status'] ?? ''), isset($_GET['cohort']) && $_GET['cohort'] !== '' ? (int) $_GET['cohort'] : -1, (string) ($_GET['q'] ?? ''))]);
-        case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 21))]);
+        case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 0))]);
         case 'mentorship_cohorts':  json_out(['ok' => true, 'cohorts' => Mentorship::listCohorts((string) ($_GET['segment'] ?? ''))]);
         case 'mentorship_find_users': json_out(['ok' => true, 'users' => Mentorship::findUsers((string) ($_GET['q'] ?? ''), (string) ($_GET['segment'] ?? ''))]);
         case 'mentorship_approve': {
@@ -632,35 +632,56 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $vals = is_array($body['rules'] ?? null) ? $body['rules'] : [];
             if (!$vals) json_out(['ok' => false, 'error' => 'Nothing to save.'], 422);
-            $before = AvRules::all();
+            // Undo must restore the previous OVERRIDE state, not the previous
+            // resolved value: a rule that was running on its default or on an
+            // AV_* env value has no override, and recording the resolved number
+            // as "from" would make undo pin it into the database forever.
+            $keys      = array_keys($vals);
+            $rawBefore = AvRules::rawOverrides($keys);
+            $before    = AvRules::all();
+
             $res = AvRules::save($vals, av_admin_actor());
             if (!$res['ok']) {
                 json_out(['ok' => false, 'error' => $res['conflicts']
                     ? implode(' ', $res['conflicts'])
                     : 'Some values were rejected.', 'errors' => $res['errors'], 'conflicts' => $res['conflicts']], 422);
             }
+
+            $after = AvRules::all();
             $changed = [];
-            foreach (array_keys($vals) as $k) {
-                if (($before[$k] ?? null) !== (AvRules::all()[$k] ?? null)) {
-                    $changed[$k] = ['from' => $before[$k] ?? null, 'to' => AvRules::all()[$k] ?? null];
-                }
+            $undoValues = [];
+            foreach ($keys as $k) {
+                if (($before[$k] ?? null) === ($after[$k] ?? null)) continue;
+                $changed[$k] = ['from' => $before[$k] ?? null, 'to' => $after[$k] ?? null];
+                // null here means "there was no override" → undo removes it.
+                $undoValues[$k] = $rawBefore[$k] ?? null;
             }
             AdminAudit::log('rules', 'rules_saved', implode(',', array_keys($changed)),
                 $changed ? 'Changed ' . count($changed) . ' rule(s)' : 'Saved with no effective change',
-                ['class' => 'AvRules', 'op' => 'save', 'args' => ['values' => array_map(
-                    static fn($c) => is_bool($c['from']) ? ($c['from'] ? '1' : '0') : (string) $c['from'], $changed
-                )], 'label' => 'Undo rule change']);
+                $changed ? ['class' => 'AvRules', 'op' => 'save', 'args' => ['values' => $undoValues], 'label' => 'Undo rule change'] : null);
             json_out(['ok' => true, 'changed' => $changed] + AvRules::describe());
         }
         case 'rules_reset': {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $key = trim((string) ($body['key'] ?? ''));
             if ($key === '') {
-                AvRules::resetAll(av_admin_actor());
-                AdminAudit::log('rules', 'rules_reset_all', '', 'Reset every rule to its default');
+                $prev = AvRules::rawOverrides();
+                $r = AvRules::resetAll(av_admin_actor());
+                if (!$r['ok']) json_out(['ok' => false, 'error' => 'Could not reset.'], 500);
+                AdminAudit::log('rules', 'rules_reset_all', '', 'Reset every rule to its default',
+                    $prev ? ['class' => 'AvRules', 'op' => 'save', 'args' => ['values' => $prev], 'label' => 'Restore previous rules'] : null);
             } else {
-                if (!AvRules::reset($key, av_admin_actor())) json_out(['ok' => false, 'error' => 'Unknown rule.'], 422);
-                AdminAudit::log('rules', 'rules_reset', $key, 'Reset ' . $key . ' to its default');
+                $prevRaw = AvRules::rawOverride($key);
+                // A reset shifts policy as much as a save, so it obeys the same
+                // coherence gate rather than sneaking past it.
+                $r = AvRules::resetChecked($key);
+                if (!$r['ok']) {
+                    json_out(['ok' => false, 'error' => $r['conflicts']
+                        ? implode(' ', $r['conflicts'])
+                        : 'Unknown rule.', 'conflicts' => $r['conflicts']], 422);
+                }
+                AdminAudit::log('rules', 'rules_reset', $key, 'Reset ' . $key . ' to its default',
+                    $prevRaw !== null ? ['class' => 'AvRules', 'op' => 'save', 'args' => ['values' => [$key => $prevRaw]], 'label' => 'Restore previous value'] : null);
             }
             json_out(['ok' => true] + AvRules::describe());
         }
@@ -707,9 +728,16 @@ try {
             AdminAudit::log('prompts', 'prompt_reset', $key, 'Reverted to the built-in prompt');
             json_out(['ok' => true, 'prompts' => AvPrompts::describe()]);
         }
-        /* ---- Promotion recommendations (evidence for leadership, never a decision) ---- */
-        case 'level_recommend':
-            json_out(['ok' => true, 'recommendation' => Levels::recommend((int) ($_GET['user_id'] ?? 0))]);
+        /* ---- Promotion recommendations (evidence for leadership, never a decision) ----
+           POST, and in the $writing list: assessing a member reconciles their
+           mentorship sessions, which finalises stale ones and can call Google. A
+           GET that mutates state for a caller-chosen user_id is not a read. */
+        case 'level_recommend': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $uid = (int) ($body['user_id'] ?? 0);
+            if ($uid <= 0) json_out(['ok' => false, 'error' => 'A member id is required.'], 422);
+            json_out(['ok' => true, 'recommendation' => Levels::recommend($uid)]);
+        }
 
         // ---- Sign-in illustrations (admin-managed + schedulable) ----
         case 'art_list':

@@ -74,16 +74,19 @@ final class AvRules
 
         /* ── Relationship health (report §15) ── */
         'health.amber_attendance_pct' => [
+            'pending' => 'relationship health',
             'type' => 'int', 'default' => 70, 'min' => 0, 'max' => 100, 'group' => 'Health',
             'label' => 'Amber below attendance (%)',
             'help'  => 'Attendance rate under this puts a relationship in Amber.',
         ],
         'health.red_attendance_pct' => [
+            'pending' => 'relationship health',
             'type' => 'int', 'default' => 40, 'min' => 0, 'max' => 100, 'group' => 'Health',
             'label' => 'Red below attendance (%)',
             'help'  => 'Attendance rate under this puts a relationship in Red. Must be below the Amber threshold.',
         ],
         'health.red_missed_streak' => [
+            'pending' => 'relationship health',
             'type' => 'int', 'default' => 3, 'min' => 1, 'max' => 20, 'group' => 'Health',
             'label' => 'Red after consecutive misses',
             'help'  => 'Consecutive missed meetings that force Red regardless of the overall rate.',
@@ -101,6 +104,7 @@ final class AvRules
             'help'  => 'On the final step, inform the next level up (Mentor → Mentor\'s leader).',
         ],
         'escalation.cooldown_days' => [
+            'pending' => 'the escalation ladder',
             'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 90, 'group' => 'Escalation',
             'label' => 'Cooldown between escalations (days)',
             'help'  => 'Minimum gap between two escalations on the same relationship, so a quiet month cannot produce a pile of notices.',
@@ -114,7 +118,11 @@ final class AvRules
 
         /* ── The O–G leadership ladder (report §4, §17, §20) ── */
         'levels.ladder' => [
+            // Ladder codes are concatenated into DDL defaults and rendered as
+            // badges, so they are restricted to short alphanumerics rather than
+            // arbitrary text.
             'type' => 'csv', 'default' => 'O,A,B,C,D,E,F,G', 'group' => 'Levels',
+            'item_pattern' => '/^[A-Za-z0-9]{1,4}$/', 'item_hint' => 'short codes (letters or digits, up to 4 characters)',
             'label' => 'Level ladder (in order)',
             'help'  => 'The progression, lowest first. The report proposes O→G; a shorter ladder is valid if leadership prefers one.',
         ],
@@ -140,8 +148,9 @@ final class AvRules
         ],
         'levels.min_commitment_pct' => [
             'type' => 'int', 'default' => 90, 'min' => 0, 'max' => 100, 'group' => 'Levels',
+            'pending' => 'commitment tracking',
             'label' => 'Minimum commitment completion (%)',
-            'help'  => 'Commitment completion required for a promotion recommendation (§20 uses 90%).',
+            'help'  => 'Commitment completion required for a promotion recommendation (§20 uses 90%). Stored now, enforced once commitments are tracked as first-class records — until then promotion recommendations ignore it.',
         ],
         'levels.auto_promote' => [
             'type' => 'bool', 'default' => false, 'group' => 'Levels',
@@ -151,21 +160,25 @@ final class AvRules
 
         /* ── Commitments (report §11, §39.2) ── */
         'commitments.default_due_days' => [
+            'pending' => 'commitment tracking',
             'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 180, 'group' => 'Commitments',
             'label' => 'Default deadline (days)',
             'help'  => 'Deadline given to an action item the meeting did not date.',
         ],
         'commitments.overdue_grace_days' => [
+            'pending' => 'commitment tracking',
             'type' => 'int', 'default' => 1, 'min' => 0, 'max' => 30, 'group' => 'Commitments',
             'label' => 'Grace before "overdue" (days)',
             'help'  => 'How long past its deadline a commitment waits before it is chased.',
         ],
         'commitments.require_miss_reason' => [
+            'pending' => 'commitment tracking',
             'type' => 'bool', 'default' => true, 'group' => 'Commitments',
             'label' => 'Ask why, on a miss',
             'help'  => 'Implements the report\'s §13 step 5 — "What did you fail to accomplish? Why?"',
         ],
         'commitments.auto_assign_owner' => [
+            'pending' => 'commitment tracking',
             'type' => 'bool', 'default' => false, 'group' => 'Commitments',
             'label' => 'Assign owners without confirmation',
             'help'  => 'Leave OFF. The AI matches an action item\'s owner NAME to a member; silently assigning work to the wrong person is worse than no automation. Off means the chair confirms.',
@@ -173,11 +186,13 @@ final class AvRules
 
         /* ── Meetings (report §7–10) ── */
         'meetings.ai_agenda' => [
+            'pending' => 'agenda drafting',
             'type' => 'bool', 'default' => true, 'group' => 'Meetings',
             'label' => 'Propose agendas with AI',
             'help'  => 'Draft an agenda for a meeting that has none, from prior minutes and open commitments. Always a draft for the chair to approve (§7).',
         ],
         'meetings.warn_minutes' => [
+            'pending' => 'in-meeting timing',
             'type' => 'csv', 'default' => '20,10,5', 'group' => 'Meetings',
             'label' => 'Time warnings (minutes remaining)',
             'help'  => 'When to warn that a meeting is nearing its scheduled end (§10). The report calls these configurable.',
@@ -195,6 +210,7 @@ final class AvRules
             'help'  => 'Leave OFF. The report\'s §3A is explicit that character must not be reduced to a number; the scorecard shows behavioural evidence instead.',
         ],
         'ai.tone' => [
+            'pending' => 'assistant tone',
             'type' => 'enum', 'default' => 'warm', 'group' => 'AI',
             'options' => ['warm', 'neutral', 'formal'],
             'label' => 'Assistant tone',
@@ -251,6 +267,39 @@ final class AvRules
             $out[$key] = $env ?? $def['default'];
         }
         return self::$memo = $out;
+    }
+
+    /**
+     * The RAW stored override for a key, or null when there is none.
+     *
+     * Distinct from get(), which resolves through config and defaults. Callers
+     * that need to restore prior state — undo, in particular — must use this:
+     * recording a resolved value as the "previous" one would turn a default or an
+     * env-provided value into a permanent database override on undo.
+     */
+    public static function rawOverride(string $key): ?string
+    {
+        try {
+            self::ensure();
+            $st = Database::pdo()->prepare('SELECT value FROM av_rules WHERE rule_key = ?');
+            $st->execute([$key]);
+            $v = $st->fetchColumn();
+            return $v === false ? null : (string) $v;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /** Raw stored overrides for many keys at once: key => value (absent = no override). */
+    public static function rawOverrides(array $keys = []): array
+    {
+        $out = [];
+        try {
+            self::ensure();
+            foreach (Database::pdo()->query('SELECT rule_key, value FROM av_rules') as $r) {
+                $k = (string) $r['rule_key'];
+                if (!$keys || in_array($k, $keys, true)) $out[$k] = (string) $r['value'];
+            }
+        } catch (Throwable $e) { /* best-effort */ }
+        return $out;
     }
 
     /** One resolved rule value, or the declared default for an unknown key. */
@@ -321,7 +370,15 @@ final class AvRules
 
             case 'csv':
                 $parts = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn($p) => $p !== ''));
-                return $parts ? implode(',', $parts) : null;
+                if (!$parts) return null;
+                // Some csv rules feed places where arbitrary text is unsafe or
+                // meaningless (ladder codes reach a DDL default and a UI badge),
+                // so a rule may constrain its own items.
+                $pattern = (string) ($def['item_pattern'] ?? '');
+                if ($pattern !== '') {
+                    foreach ($parts as $p) { if (!preg_match($pattern, $p)) return null; }
+                }
+                return implode(',', $parts);
 
             case 'str':
             default:
@@ -425,7 +482,31 @@ final class AvRules
         return ['ok' => true, 'saved' => $saved, 'errors' => [], 'conflicts' => []];
     }
 
-    /** Drop an override so the rule falls back to Config/default. */
+    /**
+     * Drop an override so the rule falls back to Config/default.
+     *
+     * A reset changes the effective policy just as much as a save, so it goes
+     * through the same coherence gate: dropping one override can leave the set
+     * in a combination save() would have refused (resetting Amber back to a
+     * default that sits below the pinned Red, say). Returns a reason on refusal.
+     *
+     * @return array{ok:bool, conflicts:array}
+     */
+    public static function resetChecked(string $key): array
+    {
+        if (!isset(self::DEFS[$key])) return ['ok' => false, 'conflicts' => ['Unknown rule.']];
+
+        // What the set would become without this override.
+        $would = self::all();
+        $env = self::fromConfig($key);
+        $would[$key] = $env ?? self::DEFS[$key]['default'];
+        $conflicts = self::conflicts($would);
+        if ($conflicts) return ['ok' => false, 'conflicts' => $conflicts];
+
+        return ['ok' => self::reset($key), 'conflicts' => []];
+    }
+
+    /** Drop an override unconditionally. Prefer resetChecked() for admin actions. */
     public static function reset(string $key, string $actor = ''): bool
     {
         if (!isset(self::DEFS[$key])) return false;
@@ -437,15 +518,27 @@ final class AvRules
         } catch (Throwable $e) { error_log('[rules] reset: ' . $e->getMessage()); return false; }
     }
 
-    /** Drop every override at once. */
-    public static function resetAll(string $actor = ''): bool
+    /**
+     * Drop every override at once.
+     *
+     * Always safe to allow: the declared defaults are coherent by construction,
+     * so clearing everything cannot land in a contradictory state the way a
+     * single-key reset can. Config/env values still apply underneath, so the
+     * result is re-checked and reported rather than assumed.
+     *
+     * @return array{ok:bool, conflicts:array}
+     */
+    public static function resetAll(string $actor = ''): array
     {
         try {
             self::ensure();
             Database::pdo()->exec('DELETE FROM av_rules');
             self::invalidate();
-            return true;
-        } catch (Throwable $e) { error_log('[rules] resetAll: ' . $e->getMessage()); return false; }
+            return ['ok' => true, 'conflicts' => self::conflicts()];
+        } catch (Throwable $e) {
+            error_log('[rules] resetAll: ' . $e->getMessage());
+            return ['ok' => false, 'conflicts' => []];
+        }
     }
 
     /** Forget caches and tell the rest of the app the constitution moved. */
@@ -510,7 +603,9 @@ final class AvRules
                 return 'A whole number.';
             case 'bool': return 'On or off.';
             case 'enum': return 'One of: ' . implode(', ', (array) ($def['options'] ?? [])) . '.';
-            case 'csv':  return 'A comma-separated list.';
+            case 'csv':
+                $hint = (string) ($def['item_hint'] ?? '');
+                return 'A comma-separated list' . ($hint !== '' ? ' of ' . $hint . '.' : '.');
             default:     return 'Text.';
         }
     }
@@ -531,10 +626,18 @@ final class AvRules
             }
         } catch (Throwable $e) { /* fall back to no provenance */ }
 
+        $raw = self::rawOverrides();
+
         $groups = [];
         foreach (self::DEFS as $key => $def) {
+            // A stored override that no longer validates is NOT in force — all()
+            // skipped it — so reporting it as "set here" would show the Studio a
+            // provenance that does not match the value beside it.
+            $stored  = $raw[$key] ?? null;
+            $inForce = $stored !== null && self::cast($key, $stored) !== null;
+
             $source = 'default';
-            if (isset($overrides[$key]))            $source = 'studio';
+            if ($inForce)                            $source = 'studio';
             elseif (self::fromConfig($key) !== null) $source = 'config';
 
             $groups[$def['group']][] = [
@@ -547,9 +650,14 @@ final class AvRules
                 'min'        => $def['min'] ?? null,
                 'max'        => $def['max'] ?? null,
                 'options'    => $def['options'] ?? null,
+                'expected'   => self::expected($key),
                 'source'     => $source,
-                'updated_by' => $overrides[$key]['by'] ?? '',
-                'updated_at' => $overrides[$key]['at'] ?? '',
+                // Named subsystem that will enforce this rule, when none does yet.
+                // The Studio says so plainly rather than implying it is live.
+                'pending'    => (string) ($def['pending'] ?? ''),
+                'stale'      => $stored !== null && !$inForce ? $stored : '',
+                'updated_by' => $inForce ? ($overrides[$key]['by'] ?? '') : '',
+                'updated_at' => $inForce ? ($overrides[$key]['at'] ?? '') : '',
             ];
         }
         return ['groups' => $groups, 'conflicts' => self::conflicts($values), 'version' => self::version()];
@@ -576,10 +684,11 @@ final class AvRules
                 'Leadership ladder: ' . implode(' → ', self::list('levels.ladder'))
                     . '. Level A needs ' . (int) $r['levels.active_mentees_for_a'] . ' active mentee(s).'
                     . (!empty($r['levels.require_multiplication']) ? ' Levels above A require mentees who are themselves mentoring.' : ''),
-                'Promotion thresholds: at least ' . (int) $r['levels.min_days_at_level'] . ' days at the current level, '
-                    . (int) $r['levels.min_attendance_pct'] . '% meeting consistency, '
-                    . (int) $r['levels.min_commitment_pct'] . '% commitment completion.',
-                'Commitments default to a ' . (int) $r['commitments.default_due_days'] . '-day deadline when none is stated.',
+                // Only thresholds the engine actually enforces are stated. Telling
+                // the model about a rule nothing checks invites it to report
+                // compliance that was never measured.
+                'Promotion thresholds: at least ' . (int) $r['levels.min_days_at_level'] . ' days at the current level and '
+                    . (int) $r['levels.min_attendance_pct'] . '% meeting consistency.',
             ];
             if (empty($r['levels.auto_promote'])) {
                 $lines[] = 'You may RECOMMEND a promotion with its evidence. You may never decide one — leadership approves every advancement.';

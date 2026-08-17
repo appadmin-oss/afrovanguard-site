@@ -164,7 +164,12 @@ final class AvKnowledge
 
     /**
      * Active entries for a scope, highest priority first, as a bounded block.
-     * `all`-scoped entries are always included alongside the requested scope.
+     *
+     * A specific scope gets its own entries plus the `all`-scoped ones. Asking for
+     * `all` gets EVERY entry regardless of scope — that is what the name means,
+     * and it is what a cross-cutting job like the leadership brief needs; binding
+     * the query to 'all' twice would instead have returned only the entries
+     * literally tagged 'all'.
      *
      * Truncation drops whole entries rather than cutting one mid-sentence — half
      * an instruction is worse than none, because the model will still act on it.
@@ -177,10 +182,17 @@ final class AvKnowledge
         $text = '';
         try {
             self::ensure();
-            $st = Database::pdo()->prepare(
-                'SELECT title, body FROM av_knowledge WHERE active = 1 AND (scope = ? OR scope = ?) ORDER BY priority DESC, id ASC'
-            );
-            $st->execute([$scope, 'all']);
+            if ($scope === 'all') {
+                $st = Database::pdo()->prepare(
+                    'SELECT title, body FROM av_knowledge WHERE active = 1 ORDER BY priority DESC, id ASC'
+                );
+                $st->execute();
+            } else {
+                $st = Database::pdo()->prepare(
+                    'SELECT title, body FROM av_knowledge WHERE active = 1 AND (scope = ? OR scope = ?) ORDER BY priority DESC, id ASC'
+                );
+                $st->execute([$scope, 'all']);
+            }
             $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             $parts = [];
@@ -207,8 +219,12 @@ final class AvKnowledge
     {
         try {
             self::ensure();
+            $s = self::scope($scope);
+            if ($s === 'all') {
+                return (int) Database::pdo()->query('SELECT COUNT(*) FROM av_knowledge WHERE active = 1')->fetchColumn();
+            }
             $st = Database::pdo()->prepare('SELECT COUNT(*) FROM av_knowledge WHERE active = 1 AND (scope = ? OR scope = ?)');
-            $st->execute([self::scope($scope), 'all']);
+            $st->execute([$s, 'all']);
             return (int) $st->fetchColumn();
         } catch (Throwable $e) { return 0; }
     }

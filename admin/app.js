@@ -1354,9 +1354,16 @@
     }
     var meta = r.source === 'studio' && r.updated_by
       ? '<span class="rule-by">by ' + escapeHtml(r.updated_by) + '</span>' : '';
+    // Be honest about a rule nothing reads yet, and about a stored value that
+      // failed validation and is therefore NOT the value in force.
+    var pending = r.pending
+      ? '<span class="rule-pending" title="Stored now, enforced when this ships">awaiting ' + escapeHtml(r.pending) + '</span>' : '';
+    var stale = r.stale
+      ? '<p class="rule-stale">A saved value (<code>' + escapeHtml(r.stale) + '</code>) is no longer valid and is being ignored. ' +
+        escapeHtml(r.expected || '') + ' Save a new value or reset to clear it.</p>' : '';
     return '<div class="rule-row' + (r.type === 'bool' ? ' rule-row-check' : '') + '">' +
-      '<div class="rule-label"><label for="' + id + '">' + escapeHtml(r.label) + '</label>' + sourceBadge(r.source) + meta +
-      '<p class="rule-help">' + escapeHtml(r.help || '') + '</p></div>' +
+      '<div class="rule-label"><label for="' + id + '">' + escapeHtml(r.label) + '</label>' + sourceBadge(r.source) + pending + meta +
+      '<p class="rule-help">' + escapeHtml(r.help || '') + '</p>' + stale + '</div>' +
       '<div class="rule-input">' + input +
       '<button type="button" class="btn btn-ghost btn-xs rule-reset" data-key="' + escapeHtml(r.key) + '" title="Back to the default">Default</button>' +
       '</div></div>';
@@ -1507,8 +1514,10 @@
       var appends = [];
       if (p.appends_rules) appends.push('the live rules');
       if (p.scope) appends.push('knowledge scoped “' + p.scope + '”');
-      return '<section class="prompt-item"><div class="rule-label"><label for="' + id + '">' + escapeHtml(p.label) + '</label>' +
-        sourceBadge(p.source) + (p.updated_by ? '<span class="rule-by">by ' + escapeHtml(p.updated_by) + '</span>' : '') +
+      var pending = p.pending
+        ? '<span class="rule-pending" title="Nothing calls this template yet">awaiting ' + escapeHtml(p.pending) + '</span>' : '';
+      return '<section class="prompt-item' + (p.pending ? ' is-pending' : '') + '"><div class="rule-label"><label for="' + id + '">' + escapeHtml(p.label) + '</label>' +
+        sourceBadge(p.source) + pending + (p.updated_by ? '<span class="rule-by">by ' + escapeHtml(p.updated_by) + '</span>' : '') +
         (appends.length ? '<p class="rule-help">' + escapeHtml(appends.join(' and ')) + ' are appended automatically.</p>' : '') + vars + '</div>' +
         '<textarea id="' + id + '" rows="10" data-key="' + escapeHtml(p.key) + '">' + escapeHtml(p.text) + '</textarea>' +
         '<div class="rules-foot"><button class="btn btn-primary btn-xs pr-save" data-key="' + escapeHtml(p.key) + '">Save</button>' +

@@ -97,9 +97,11 @@ final class AiKnowledge
         // change to the rules silently left the assistants describing the old
         // policy to members.
         try {
-            $ladder = class_exists('Levels') ? Levels::order() : ['O', 'A', 'B', 'C'];
+            // Fallbacks match the AvRules defaults (and Levels' own fallbacks), so
+            // a deployment without the rules class still describes the same policy.
+            $ladder = class_exists('Levels') ? Levels::order() : Levels::ORDER;
             $needA  = class_exists('AvRules') ? AvRules::int('levels.active_mentees_for_a') : 2;
-            $multi  = class_exists('AvRules') ? AvRules::bool('levels.require_multiplication') : false;
+            $multi  = class_exists('AvRules') ? AvRules::bool('levels.require_multiplication') : true;
             $prog = 'Membership progression (see /how-it-works): members grow by commitment, service and leadership — not length of membership. '
                 . 'The ladder is ' . implode(' → ', $ladder) . '. '
                 . 'Level ' . ($ladder[0] ?? 'O') . ': pick a mentor, join programmes, complete a weekly task, live the values. '

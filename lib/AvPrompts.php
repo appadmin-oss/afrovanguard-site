@@ -52,6 +52,7 @@ final class AvPrompts
         ],
 
         'meeting.agenda' => [
+            'pending' => 'agenda drafting',
             'label' => 'Meeting agenda proposal',
             'scope' => 'meetings',
             'rules' => true,
@@ -87,6 +88,7 @@ final class AvPrompts
         ],
 
         'accountability.nudge' => [
+            'pending' => 'the escalation ladder',
             'label' => 'Accountability nudge / escalation wording',
             'scope' => 'mentorship',
             'rules' => true,
@@ -101,6 +103,7 @@ final class AvPrompts
         ],
 
         'leadership.brief' => [
+            'pending' => 'the leadership brief',
             'label' => 'Leadership weekly brief',
             'scope' => 'all',
             'rules' => true,
@@ -115,6 +118,7 @@ final class AvPrompts
         ],
 
         'promotion.recommendation' => [
+            'pending' => 'AI-assisted promotion review',
             'label' => 'Promotion recommendation',
             'scope' => 'levels',
             'rules' => true,
@@ -295,6 +299,10 @@ final class AvPrompts
                 'scope'      => (string) ($def['scope'] ?? ''),
                 'appends_rules' => !empty($def['rules']),
                 'vars'       => (array) ($def['vars'] ?? []),
+                // Named subsystem that will use this template, when nothing calls
+                // it yet. Editing an unused prompt has no effect, and the Studio
+                // says so rather than letting someone tune it for nothing.
+                'pending'    => (string) ($def['pending'] ?? ''),
                 'text'       => self::template($key),
                 'default'    => (string) $def['text'],
                 'source'     => $isOverridden ? 'studio' : 'default',
