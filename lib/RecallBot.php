@@ -38,8 +38,14 @@ final class RecallBot
     /**
      * Send a bot to a meeting. Returns ['ok'=>bool,'bot_id'=>string,'error'=>?].
      * $webhookUrl (optional) is where Recall posts status/transcript events.
+     *
+     * $joinAtIso (optional, RFC3339) is when the bot should join. Without it the
+     * bot tries to join THE MOMENT IT IS CREATED — so a bot created when a
+     * meeting is scheduled for next Tuesday sits in an empty room now and gives
+     * up long before anyone arrives. Every caller scheduling ahead must pass
+     * this; Meetings does.
      */
-    public static function createBot(string $meetingUrl, string $webhookUrl = ''): array
+    public static function createBot(string $meetingUrl, string $webhookUrl = '', string $joinAtIso = ''): array
     {
         if (!self::configured()) return ['ok' => false, 'bot_id' => '', 'error' => 'Recall.ai is not configured (set AV_RECALL_API_KEY).'];
         if (trim($meetingUrl) === '') return ['ok' => false, 'bot_id' => '', 'error' => 'No meeting URL.'];
@@ -51,6 +57,7 @@ final class RecallBot
             'bot_name'           => self::botName(),
             'recording_config'   => ['transcript' => ['provider' => ['meeting_captions' => new stdClass()]]],
         ];
+        if (trim($joinAtIso) !== '') $body['join_at'] = trim($joinAtIso);
         if ($webhookUrl !== '') {
             $body['recording_config']['realtime_endpoints'] = [[
                 'type'   => 'webhook',
@@ -66,6 +73,58 @@ final class RecallBot
         $id = (string) ($res['id'] ?? '');
         if ($id === '') return ['ok' => false, 'bot_id' => '', 'error' => 'Recall did not return a bot id.'];
         return ['ok' => true, 'bot_id' => $id, 'error' => null];
+    }
+
+    /**
+     * Take the bot back out of a meeting.
+     *
+     * A bot that has not joined yet is deleted outright; one already in the call
+     * is asked to leave. Recall exposes those as different endpoints, so try the
+     * leave call first and fall back to delete — either outcome means the bot is
+     * no longer in the room, which is what the caller asked for.
+     */
+    public static function removeBot(string $botId): array
+    {
+        if (!self::configured()) return ['ok' => false, 'error' => 'Recall.ai is not configured.'];
+        if (trim($botId) === '') return ['ok' => false, 'error' => 'No bot id.'];
+
+        $leave = self::http('POST', self::base() . '/bot/' . rawurlencode($botId) . '/leave_call/', []);
+        if (!isset($leave['__error'])) return ['ok' => true, 'error' => null];
+
+        $del = self::http('DELETE', self::base() . '/bot/' . rawurlencode($botId) . '/');
+        if (!isset($del['__error'])) return ['ok' => true, 'error' => null];
+
+        return ['ok' => false, 'error' => (string) $del['__error']];
+    }
+
+    /**
+     * The bot's current status word, normalised to something we can store:
+     * scheduled | joining | in_call | done | error | '' (unknown).
+     */
+    public static function botStatus(string $botId): string
+    {
+        if (!self::configured() || trim($botId) === '') return '';
+        $bot = self::http('GET', self::base() . '/bot/' . rawurlencode($botId) . '/');
+        if (isset($bot['__error'])) return '';
+
+        // Recall reports a history of status changes; the last one is current.
+        $code = '';
+        if (isset($bot['status_changes']) && is_array($bot['status_changes']) && $bot['status_changes']) {
+            $last = end($bot['status_changes']);
+            $code = is_array($last) ? (string) ($last['code'] ?? '') : '';
+        }
+        if ($code === '') $code = (string) ($bot['status']['code'] ?? '');
+
+        switch ($code) {
+            case 'ready': case 'scheduled':                 return 'scheduled';
+            case 'joining_call':                            return 'joining';
+            case 'in_waiting_room':                         return 'joining';
+            case 'in_call_not_recording':
+            case 'in_call_recording':                       return 'in_call';
+            case 'call_ended': case 'done':                 return 'done';
+            case 'fatal': case 'media_expired':             return 'error';
+            default:                                        return $code !== '' ? 'joining' : '';
+        }
     }
 
     /** Fetch and flatten a bot's transcript into "Speaker: text" lines, or ''. */
@@ -128,6 +187,10 @@ final class RecallBot
             error_log('[recall] ' . $code . ': ' . substr($resp, 0, 300));
             return ['__error' => is_array($d) ? (string) ($d['detail'] ?? ('HTTP ' . $code)) : ('HTTP ' . $code)];
         }
+        // A 204 (or any 2xx with an empty body) is success, not a bad response —
+        // leave_call and DELETE both answer that way, and treating it as an error
+        // would report every successful removal as a failure.
+        if (trim($resp) === '') return [];
         return is_array($d) ? $d : ['__error' => 'bad response (HTTP ' . $code . ')'];
     }
 }

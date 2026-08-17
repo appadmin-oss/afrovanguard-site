@@ -264,7 +264,53 @@ its configuration:
 
 ---
 
+## 5a. The AI notetaker in Google Meet
+
+Four rules govern whether the AI may join a meeting at all. They sit under
+**Meetings** in the Studio, and none of them is an env variable — which backend
+does the joining is deployment configuration (`.env.example`), but *whether the
+organisation records its meetings* is a leadership decision.
+
+| Rule | Default | What it controls |
+|---|---|---|
+| `meetings.ai_notetaker` | on | Master switch. Off, no bot can be sent by any route; meetings fall back to Google's own transcript or a pasted one. |
+| `meetings.bot_on_demand` | on | Whether a participant can add the notetaker to a meeting that was not scheduled with recording. |
+| `meetings.bot_join_lead_min` | 2 | How many minutes early the bot joins, so it is present before the first person. |
+| `meetings.bot_announce` | on | Whether the invite email says the meeting will be transcribed. |
+
+`meetings.bot_announce` deserves a note: turning it off does **not** hide the
+bot — it still appears in the participant list by name, and there is no setting
+that conceals it. All the switch does is remove the advance notice, which means
+people find out by noticing rather than by being told. Leave it on.
+
+Two properties are worth knowing because their absence was a real defect:
+
+- **The bot is given a join time.** A bot created without one joins the instant
+  it is created, so a bot for next Tuesday's meeting sat in an empty room the
+  day it was scheduled and gave up long before anyone arrived. `join_at` is now
+  always sent, pulled forward by the lead rule and clamped so it is never in the
+  past (providers reject a past join time outright).
+- **A failed dispatch is retried.** `Meetings::dispatchDueBots()` runs on every
+  cron tick and picks up meetings starting soon whose bot state is empty,
+  `pending` or `error`. Without it, a bot that could not be created — provider
+  down, key missing, Meet link not yet provisioned — simply never arrived and
+  nothing said so.
+
+Anyone in a meeting can add or remove the notetaker, not just the organiser.
+Someone who wants a conversation off the record should not have to find the
+person who booked the room first. Removing it also clears `auto_record`, or the
+next sweep would send it straight back in.
+
+---
+
 ## 6. Testing
+
+`tests/meetbot.test.php` pins the notetaker: availability (a provider **and**
+the master switch), participant gating on both add and remove, idempotency so a
+double-tap cannot put two bots in a room, retryability after a failure, join-time
+calculation including the past-meeting clamp, and the sweep's window — due
+meetings in, distant ones left pending, opted-out ones untouched, live ones not
+re-sent. No provider is configured in the suite, so nothing reaches a vendor.
 
 `tests/rules.test.php` pins the behaviour that would silently corrupt policy:
 resolution order, rejection-not-coercion, batch atomicity, cross-rule coherence,

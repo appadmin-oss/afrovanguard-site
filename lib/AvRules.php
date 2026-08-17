@@ -197,6 +197,26 @@ final class AvRules
             'label' => 'Time warnings (minutes remaining)',
             'help'  => 'When to warn that a meeting is nearing its scheduled end (§10). The report calls these configurable.',
         ],
+        'meetings.ai_notetaker' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Meetings',
+            'label' => 'Allow the AI notetaker in meetings',
+            'help'  => 'Master switch for the notetaker that joins a Google Meet to capture the transcript. Off, no bot can be sent — on demand or otherwise — and meetings fall back to Google\'s own transcript or a pasted one.',
+        ],
+        'meetings.bot_on_demand' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Meetings',
+            'label' => 'Let participants add the AI mid-meeting',
+            'help'  => 'When on, anyone in a meeting can send the notetaker in from the portal without having ticked auto-record when it was scheduled. Off, only meetings scheduled with recording get it.',
+        ],
+        'meetings.bot_join_lead_min' => [
+            'type' => 'int', 'default' => 2, 'min' => 0, 'max' => 60, 'group' => 'Meetings',
+            'label' => 'Notetaker joins this many minutes early',
+            'help'  => 'How far ahead of the start time the bot is asked to join, so it is already present when the first person arrives.',
+        ],
+        'meetings.bot_announce' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Meetings',
+            'label' => 'Announce the notetaker to participants',
+            'help'  => 'Keep this ON. The bot appears in the participant list by name, but people deserve to be told in the invite that a meeting is being transcribed, not to discover it. Turning this off does not hide the bot — it only removes the notice.',
+        ],
 
         /* ── The AI itself (report §23) ── */
         'ai.enabled' => [

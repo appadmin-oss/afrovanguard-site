@@ -14,7 +14,7 @@
   var listEl = document.getElementById('tlMeetList');
   var msg = document.getElementById('tlMeetMsg');
   var API = '/portal/meetings.php';
-  var ME = 0, GEMINI = false, BOT = false;
+  var ME = 0, GEMINI = false, BOT = false, BOT_ALLOWED = false, BOT_ON_DEMAND = false;
 
   function post(action, body) {
     return fetch(API + '?action=' + action, {
@@ -84,6 +84,35 @@
     return wrap + '</div>';
   }
 
+  /* The notetaker's state, as a person would read it. 'native' means Google is
+     transcribing the space itself — there is no bot to remove in that case. */
+  function botLive(m) {
+    return ['requested', 'joining', 'in_call', 'native'].indexOf(m.bot_state || '') !== -1;
+  }
+  function botLabel(m) {
+    switch (m.bot_state) {
+      case 'in_call':      return 'AI in the meeting';
+      case 'joining':      return 'AI joining…';
+      case 'requested':    return 'AI will join';
+      case 'native':       return 'Google transcript';
+      case 'done':         return 'AI attended';
+      case 'removed':      return 'AI removed';
+      case 'error':        return 'AI could not join';
+      case 'pending':      return 'AI queued';
+      case 'unconfigured': return 'auto (manual)';
+      default:             return 'auto-record';
+    }
+  }
+  function botTitle(m) {
+    switch (m.bot_state) {
+      case 'error':        return 'The notetaker could not join. Google’s transcript or a pasted one still works.';
+      case 'unconfigured': return 'No notetaker is wired up — use the Google transcript or paste one.';
+      case 'native':       return 'Google Meet is transcribing this meeting itself; pull the transcript afterwards.';
+      case 'removed':      return 'The notetaker was removed from this meeting.';
+      default:             return 'The AI notetaker captures a transcript and turns it into minutes and action items.';
+    }
+  }
+
   function meetingCard(m) {
     var prov = 'Google Meet';
     var freq = m.frequency && m.frequency !== 'once' ? ' · 🔁 ' + esc(m.frequency_label) : '';
@@ -92,12 +121,19 @@
     h += '<div class="meet-item-main">';
     h += '<div class="meet-item-top"><span class="meet-when">' + esc(fmtWhen(m.when_iso)) + '</span><span class="meet-dur">' + esc(fmtDur(m.duration_min)) + freq + '</span></div>';
     h += '<p class="meet-title">' + esc(m.title);
-    if (m.auto_record) h += ' <span class="meet-bot-badge" title="Recording bot ' + (m.bot_state === 'unconfigured' ? 'not wired — use paste / Google transcript' : esc(m.bot_state || 'on')) + '">🤖 ' + (m.bot_state === 'unconfigured' ? 'auto (manual)' : 'auto-record') + '</span>';
+    if (m.auto_record || botLive(m)) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
     h += '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
     h += '<div class="meet-actions">';
     if (m.meet_url) h += '<a class="pbtn pbtn-soft pbtn-sm" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">▶ Join · ' + esc(prov) + '</a>';
     else h += '<span class="meet-pending">⚠ Meet link pending — connect Google Workspace</span>';
+    // Anyone in the meeting can add or remove the notetaker — not just the owner.
+    // Somebody who wants a conversation off the record should not have to find
+    // the organiser first.
+    if (m.meet_url && BOT_ALLOWED) {
+      if (botLive(m)) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-off" data-id="' + m.id + '">Remove the AI</button>';
+      else if (BOT_ON_DEMAND) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-on" data-id="' + m.id + '">🤖 Add the AI</button>';
+    }
     if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-cancel" data-id="' + m.id + '">Cancel</button>';
     h += '</div>';
     h += transcriptHtml(m);
@@ -114,6 +150,7 @@
     get('list').then(function (d) {
       if (!d || !d.ok) { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; return; }
       ME = d.me || 0; GEMINI = !!d.gemini; BOT = !!d.bot;
+      BOT_ALLOWED = !!d.bot_allowed; BOT_ON_DEMAND = !!d.bot_on_demand;
       render(d.meetings);
     }).catch(function () { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; });
   }
@@ -152,6 +189,26 @@
     if (cancel) {
       if (!confirm('Cancel this meeting?')) return;
       post('cancel', { id: +cancel.getAttribute('data-id') }).then(function (d) { if (d && d.ok) load(); else alert((d && d.error) || 'Could not cancel.'); });
+      return;
+    }
+
+    var botOn = t.closest('.meet-bot-on');
+    if (botOn) {
+      botOn.disabled = true; botOn.textContent = 'Sending…';
+      post('add_bot', { id: +botOn.getAttribute('data-id') }).then(function (d) {
+        if (d && d.ok) { say(d.already ? 'The AI is already in that meeting.' : 'The AI is joining — it appears in the participant list.', true); load(); }
+        else { alert((d && d.error) || 'Could not add the AI.'); load(); }
+      }).catch(function () { load(); });
+      return;
+    }
+
+    var botOff = t.closest('.meet-bot-off');
+    if (botOff) {
+      botOff.disabled = true; botOff.textContent = 'Removing…';
+      post('remove_bot', { id: +botOff.getAttribute('data-id') }).then(function (d) {
+        if (d && d.ok) { say('The AI has left the meeting.', true); load(); }
+        else { alert((d && d.error) || 'Could not remove the AI.'); load(); }
+      }).catch(function () { load(); });
       return;
     }
 

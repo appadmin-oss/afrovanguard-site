@@ -53,6 +53,15 @@ if (class_exists('Notifications')) {
     catch (Throwable $e) { error_log('[cron] notifications: ' . $e->getMessage()); }
 }
 
+// Every tick: send the AI notetaker into meetings that are about to start.
+// Covers providers that cannot be told to join later, and retries any dispatch
+// that failed when the meeting was scheduled — otherwise a bot that could not be
+// created (provider down, link not yet provisioned) would simply never arrive.
+if (class_exists('Meetings')) {
+    try { $result['meeting_bots'] = Meetings::dispatchDueBots(); }
+    catch (Throwable $e) { error_log('[cron] meeting bots: ' . $e->getMessage()); }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';

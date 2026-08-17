@@ -48,7 +48,8 @@ try {
             foreach (Meetings::FREQ as $k => $v) $freq[$k] = $v[0];
             json_out(['ok' => true, 'meetings' => Meetings::listFor($uid), 'freq' => $freq, 'me' => $uid,
                 'gemini' => class_exists('Gemini') && Gemini::configured(),
-                'bot' => Meetings::botConfigured(), 'bot_provider' => Meetings::botProvider()]);
+                'bot' => Meetings::botConfigured(), 'bot_provider' => Meetings::botProvider(),
+                'bot_allowed' => Meetings::botAllowed(), 'bot_on_demand' => Meetings::botOnDemandAllowed()]);
 
         case 'get':
             $m = Meetings::get($uid, (int) ($_GET['id'] ?? 0));
@@ -64,6 +65,20 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             json_out(Meetings::cancel($uid, (int) ($body['id'] ?? 0)));
+
+        // Send the AI notetaker into a meeting, or take it back out. Both are
+        // participant-gated inside Meetings — anyone in the call can do either,
+        // because someone who wants a conversation off the record should not
+        // have to find the organiser first.
+        case 'add_bot':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(Meetings::inviteBot($uid, (int) ($body['id'] ?? 0)));
+
+        case 'remove_bot':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(Meetings::removeBot($uid, (int) ($body['id'] ?? 0)));
 
         case 'transcript':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

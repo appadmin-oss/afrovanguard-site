@@ -184,11 +184,26 @@ final class Meetings
         // create the event this is a second touch rather than the only one,
         // which is the correct trade: a duplicate invite is a minor annoyance,
         // a missed meeting is not.
-        self::sendInvites($id, $title, $ts, $dur, $freq, $agenda, $emails, $link['url'], $uid);
+        self::sendInvites($id, $title, $ts, $dur, $freq, $agenda, $emails, $link['url'], $uid, (bool) $autoRec && self::botAllowed());
 
-        // The recording bot (optional): dispatch to the selected provider.
-        $provider = $autoRec ? self::botProvider() : '';
-        if ($autoRec) self::requestBot($id, $link['url'], $provider);
+        // The AI notetaker (optional). Recall and Google can be told about a
+        // meeting well ahead of time — Recall holds the bot until join_at, Google
+        // transcribes the space natively. A custom webhook worker cannot be, so
+        // for that provider the meeting is left PENDING and the cron sweep sends
+        // the bot when the meeting is actually about to start.
+        if ($autoRec && self::botAllowed() && $link['url'] !== '') {
+            $provider = self::botProvider();
+            if ($provider === 'webhook' && $ts > time() + 3600) {
+                $db->prepare("UPDATE meetings SET bot_state = 'pending', bot_provider = ? WHERE id = ?")->execute([$provider, $id]);
+            } else {
+                self::requestBot($id, $link['url'], $provider, self::botJoinAtIso($whenUtc));
+            }
+        } elseif ($autoRec) {
+            // Asked for, but not possible yet (no Meet link, or the notetaker is
+            // switched off). Record that rather than leaving the state blank.
+            $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ?')
+               ->execute([self::botAllowed() ? 'pending' : 'unconfigured', $id]);
+        }
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
         $out = ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
@@ -441,10 +456,156 @@ final class Meetings
         return self::saveTranscript($uid, $id, (string) $res['text'], 'gemini');
     }
 
-    /** ── The recording bot ────────────────────────────────────────────── */
+    /** ── The AI notetaker ─────────────────────────────────────────────── */
 
     /** A recording bot is available if ANY provider is wired. */
     public static function botConfigured(): bool { return self::botProvider() !== ''; }
+
+    /** Leadership's master switch (rules) AND a wired provider. Both must hold. */
+    public static function botAllowed(): bool
+    {
+        if (class_exists('AvRules') && !AvRules::bool('meetings.ai_notetaker')) return false;
+        return self::botConfigured();
+    }
+
+    /** Whether a participant may add the notetaker to a meeting after the fact. */
+    public static function botOnDemandAllowed(): bool
+    {
+        if (!self::botAllowed()) return false;
+        return !class_exists('AvRules') || AvRules::bool('meetings.bot_on_demand');
+    }
+
+    /**
+     * When the bot should join: the meeting start, pulled forward by the
+     * configured lead so it is already in the room when the first person
+     * arrives. Never in the past — a join_at that has already passed is
+     * rejected by the provider, so a meeting that has already started gets
+     * "now" instead.
+     */
+    private static function botJoinAtIso(string $scheduledUtc): string
+    {
+        $lead = class_exists('AvRules') ? AvRules::int('meetings.bot_join_lead_min') : 2;
+        $ts   = strtotime($scheduledUtc . ' UTC') ?: time();
+        return gmdate('c', max(time() + 10, $ts - $lead * 60));
+    }
+
+    /**
+     * Send the notetaker into a meeting on demand.
+     *
+     * Until now a bot could only be requested at schedule time, by ticking
+     * auto-record before the meeting existed. That covers the meeting you
+     * planned and none of the ones you are actually in — the call that ran long,
+     * the one someone else scheduled, the one where minutes turned out to matter
+     * after it began. This is that path.
+     *
+     * Idempotent: a meeting that already has a live bot returns ok without
+     * sending a second one, so a double-tap in the portal cannot put two
+     * notetakers in the room.
+     */
+    public static function inviteBot(int $uid, int $id): array
+    {
+        self::ensure();
+        if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
+        if (!self::botOnDemandAllowed()) {
+            return ['ok' => false, 'error' => self::botAllowed()
+                ? 'Adding the notetaker mid-meeting is switched off for this organisation.'
+                : 'The AI notetaker is not available. Use Google\'s transcript or paste one afterwards.'];
+        }
+        $m = self::get($uid, $id);
+        if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
+        if ((string) $m['meet_url'] === '') {
+            return ['ok' => false, 'error' => 'This meeting has no Google Meet link for the notetaker to join.'];
+        }
+        if (in_array((string) $m['bot_state'], ['requested', 'joining', 'in_call', 'native'], true)) {
+            return ['ok' => true, 'already' => true, 'meeting' => $m];
+        }
+
+        // Joining now — this is an explicit "add it to the call I'm in".
+        $provider = self::botProvider();
+        self::requestBot($id, (string) $m['meet_url'], $provider, gmdate('c', time() + 10));
+
+        $db = Database::pdo();
+        $db->prepare('UPDATE meetings SET auto_record = 1 WHERE id = ?')->execute([$id]);
+
+        $fresh = self::get($uid, $id);
+        $state = (string) ($fresh['bot_state'] ?? '');
+        if ($state === 'error' || $state === 'unconfigured') {
+            return ['ok' => false, 'error' => 'The notetaker could not join. Google\'s own transcript or a pasted one still works.', 'meeting' => $fresh];
+        }
+        if (class_exists('Events')) { try { Events::emit('meeting.bot_invited', ['id' => $id, 'by' => $uid]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'meeting' => $fresh];
+    }
+
+    /**
+     * Take the notetaker back out. Anyone in the meeting can do this — a person
+     * who wants a conversation off the record should not have to find the
+     * organiser first.
+     */
+    public static function removeBot(int $uid, int $id): array
+    {
+        self::ensure();
+        if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
+        $m = self::get($uid, $id);
+        if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
+
+        $ref = (string) $m['bot_ref'];
+        if ((string) $m['bot_provider'] === 'recall' && $ref !== '' && class_exists('RecallBot')) {
+            $r = RecallBot::removeBot($ref);
+            if (empty($r['ok'])) {
+                error_log('[meetings] removeBot: ' . (string) ($r['error'] ?? ''));
+                return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
+            }
+        }
+        // Clear auto_record too, or the cron sweep would send it straight back in.
+        Database::pdo()->prepare("UPDATE meetings SET bot_state = 'removed', auto_record = 0 WHERE id = ?")->execute([$id]);
+        if (class_exists('Events')) { try { Events::emit('meeting.bot_removed', ['id' => $id, 'by' => $uid]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'meeting' => self::get($uid, $id)];
+    }
+
+    /**
+     * Dispatch bots for meetings that are about to start.
+     *
+     * Two jobs. Providers that cannot be told to join later (the custom webhook
+     * worker) need sending at the right moment rather than at schedule time. And
+     * any dispatch that failed — the provider was down, the key was missing, the
+     * Meet link had not been provisioned yet — gets another chance here instead
+     * of being lost silently.
+     *
+     * Called from tasks/cron.php. Returns how many bots were dispatched.
+     */
+    public static function dispatchDueBots(int $withinMin = 0): int
+    {
+        self::ensure();
+        if (!self::botAllowed()) return 0;
+
+        $lead = class_exists('AvRules') ? AvRules::int('meetings.bot_join_lead_min') : 2;
+        $withinMin = $withinMin > 0 ? $withinMin : max(5, $lead + 3);
+
+        $now = time();
+        $until = gmdate('Y-m-d H:i:s', $now + $withinMin * 60);
+        // Look a little way back too, so a meeting that started while the cron
+        // was between runs still gets its notetaker.
+        $from  = gmdate('Y-m-d H:i:s', $now - 30 * 60);
+
+        $n = 0;
+        try {
+            $db = Database::pdo();
+            $st = $db->prepare(
+                "SELECT id, meet_url, scheduled_at, bot_state FROM meetings
+                  WHERE auto_record = 1 AND status = 'scheduled' AND meet_url <> ''
+                    AND scheduled_at >= ? AND scheduled_at <= ?
+                    AND bot_state IN ('', 'error', 'pending')
+                  ORDER BY scheduled_at ASC"
+            );
+            $st->execute([$from, $until]);
+            $provider = self::botProvider();
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                self::requestBot((int) $r['id'], (string) $r['meet_url'], $provider, self::botJoinAtIso((string) $r['scheduled_at']));
+                $n++;
+            }
+        } catch (Throwable $e) { error_log('[meetings] dispatchDueBots: ' . $e->getMessage()); }
+        return $n;
+    }
 
     /**
      * Which recording-bot backend to use. Forced by AV_MEET_BOT_PROVIDER
@@ -471,7 +632,7 @@ final class Meetings
      *               that calls back into bot_ingest.
      * Best-effort; on failure the manual paste / Google-transcript paths remain.
      */
-    private static function requestBot(int $id, string $meetUrl, string $provider): void
+    private static function requestBot(int $id, string $meetUrl, string $provider, string $joinAtIso = ''): void
     {
         $db = Database::pdo();
         $state = 'unconfigured'; $ref = '';
@@ -480,7 +641,9 @@ final class Meetings
             $wh = self::siteUrl('/portal/meetings.php?action=recall_webhook');
             $wt = RecallBot::webhookToken();
             if ($wt !== '') $wh .= '&t=' . rawurlencode($wt);
-            $res = RecallBot::createBot($meetUrl, $wh);
+            // Without join_at the bot joins the instant it is created — so a bot
+            // for next Tuesday's meeting sits in an empty room today and gives up.
+            $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
             if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
             else { $state = 'error'; error_log('[meetings] recall: ' . (string) ($res['error'] ?? '')); }
         } elseif ($provider === 'google') {
@@ -495,6 +658,7 @@ final class Meetings
                         'meeting_id' => $id, 'join_url' => $meetUrl,
                         'callback' => self::siteUrl('/portal/meetings.php?action=bot_ingest'),
                         'token' => self::botToken($id),
+                        'join_at' => $joinAtIso,
                     ];
                     $ch = curl_init(trim((string) getenv('AV_MEET_BOT_JOIN_URL')));
                     curl_setopt_array($ch, [
@@ -699,9 +863,14 @@ final class Meetings
      */
     private static function sendInvites(
         int $id, string $title, int $ts, int $durationMin, string $freq,
-        string $agenda, array $emails, string $meetUrl, int $organiserId
+        string $agenda, array $emails, string $meetUrl, int $organiserId,
+        bool $recorded = false
     ): void {
         if (!class_exists('Mailer') || $emails === []) return;
+
+        // People should be told a meeting will be transcribed in the invite, not
+        // discover a notetaker in the participant list once they have joined.
+        $announce = $recorded && (!class_exists('AvRules') || AvRules::bool('meetings.bot_announce'));
 
         $organiser = '';
         try {
@@ -738,6 +907,11 @@ final class Meetings
                 if ($agenda !== '') $lines[] = '<strong>Agenda</strong><br>' . nl2br(htmlspecialchars($agenda));
                 if ($meetUrl === '') {
                     $lines[] = 'A video link has not been attached to this meeting yet — the organiser will share one before it starts.';
+                }
+                if ($announce) {
+                    $lines[] = '<strong>Note:</strong> an Afrovanguard notetaker will join this meeting to capture a transcript, '
+                        . 'which is turned into minutes and action items afterwards. It appears in the participant list, '
+                        . 'and anyone in the meeting can remove it from the portal.';
                 }
 
                 $cta = $meetUrl !== ''
