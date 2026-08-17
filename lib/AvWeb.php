@@ -255,6 +255,16 @@ final class AvWeb
         $port = (int) ($p['port'] ?? ($scheme === 'https' ? 443 : 80));
         if (!in_array($port, [80, 443, 8080, 8443], true)) return ['error' => 'That port is not allowed.'];
 
+        // A literal IPv6 host arrives bracketed (http://[::1]/). Unwrap it so it
+        // reaches the address check below and is refused as the private address it
+        // is, rather than falling through to the hostname branch and being rejected
+        // as a malformed name — same outcome, but for the wrong reason, which is
+        // exactly the kind of accident that stops being safe after a refactor.
+        if (strlen($host) > 1 && $host[0] === '[' && substr($host, -1) === ']') {
+            $host = substr($host, 1, -1);
+            if (!filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) return ['error' => 'That is not a valid IPv6 address.'];
+        }
+
         // A bare IP is checked directly; a name is resolved and every answer checked.
         $ips = [];
         if (filter_var($host, FILTER_VALIDATE_IP)) {

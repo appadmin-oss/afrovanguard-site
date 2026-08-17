@@ -290,6 +290,7 @@ require_once __DIR__ . '/AvPrompts.php';
 require_once __DIR__ . '/AvWeb.php';
 require_once __DIR__ . '/AvTools.php';
 require_once __DIR__ . '/AvAgent.php';
+require_once __DIR__ . '/AvLab.php';
 require_once __DIR__ . '/AiKnowledge.php';
 require_once __DIR__ . '/Levels.php';
 require_once __DIR__ . '/IQ.php';

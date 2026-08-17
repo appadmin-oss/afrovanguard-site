@@ -1325,8 +1325,259 @@
       $('#rtRules').hidden = which !== 'rules';
       $('#rtKb').hidden = which !== 'kb';
       $('#rtPrompts').hidden = which !== 'prompts';
+      $('#rtLab').hidden = which !== 'lab';
+      $('#rtChat').hidden = which !== 'chat';
+      $('#rtProps').hidden = which !== 'props';
       if (which === 'kb') loadKb();
       if (which === 'prompts') loadPrompts();
+      if (which === 'lab') loadAiStatus();
+      if (which === 'chat') loadAiStatus();
+      if (which === 'props') loadProposals();
+    });
+  });
+
+  /* ============================================================
+     The AI bench, the chat console, and the proposal queue.
+
+     Three things an administrator could not do before: run an AI job without
+     waiting for a real meeting to end, ask the assistant a question it has to
+     look up, and see what it wants to change about itself.
+     ============================================================ */
+  var aiCaps = [], aiCap = null, aiTools = [], chatHistory = [];
+
+  function loadAiStatus() {
+    if (aiCaps.length) { renderLabPick(); renderChatCaps(); return; }
+    api('ai_status').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#labStatus').innerHTML = '<p class="muted">Could not load the AI status.</p>'; return; }
+      aiCaps = d.capabilities || [];
+      aiTools = d.tools || [];
+      aiCap = aiCap || (aiCaps[0] && aiCaps[0].key);
+      renderAiStatus(d);
+      renderLabPick();
+      renderChatCaps();
+      setPropBadge(d.pending || 0);
+    });
+  }
+
+  function setPropBadge(n) {
+    var b = $('#propBadge'); if (!b) return;
+    b.hidden = !n; b.textContent = n || '';
+  }
+
+  function renderAiStatus(d) {
+    var box = $('#labStatus'); if (!box) return;
+    var a = d.agent || {}, s = d.search || {};
+    var bits = [];
+    bits.push(a.available
+      ? '<span class="lab-ok">Tool use ready · ' + escapeHtml(a.provider) + '</span>'
+      : '<span class="lab-off">Tool use unavailable</span>');
+    bits.push('<span class="muted">Tiers granted: ' + escapeHtml((a.tiers || []).join(', ') || 'none') + '</span>');
+    bits.push(s.provider
+      ? '<span class="lab-ok">Web search · ' + escapeHtml(s.provider) + '</span>'
+      : '<span class="lab-off">Web search off' + (s.why ? ' — ' + escapeHtml(s.why) : '') + '</span>');
+    box.innerHTML = bits.join(' ');
+  }
+
+  function renderLabPick() {
+    var host = $('#labPick'); if (!host) return;
+    host.innerHTML = aiCaps.map(function (c) {
+      return '<button type="button" class="lab-cap' + (c.key === aiCap ? ' active' : '') + '" data-cap="' + escapeHtml(c.key) + '">'
+        + '<strong>' + escapeHtml(c.label) + '</strong>'
+        + '<span>' + escapeHtml(c.about) + '</span>'
+        + (c.ready ? '<em class="lab-off">' + escapeHtml(c.ready) + '</em>' : '')
+        + '</button>';
+    }).join('');
+    renderLabForm();
+  }
+
+  function currentCap() {
+    for (var i = 0; i < aiCaps.length; i++) if (aiCaps[i].key === aiCap) return aiCaps[i];
+    return null;
+  }
+
+  function renderLabForm() {
+    var host = $('#labForm'); if (!host) return;
+    var c = currentCap();
+    if (!c) { host.innerHTML = ''; return; }
+    if (c.needs === 'tool') {
+      host.innerHTML = '<label class="fld"><span>Tool</span><select id="labTool">'
+        + aiTools.map(function (t) {
+            return '<option value="' + escapeHtml(t.name) + '"' + (t.usable ? '' : ' disabled')
+              + '>' + escapeHtml(t.name) + ' (' + escapeHtml(t.tier) + ')' + (t.usable ? '' : ' — ' + escapeHtml(t.why)) + '</option>';
+          }).join('')
+        + '</select></label>'
+        + '<label class="fld"><span>Arguments (JSON)</span><textarea id="labArgs" rows="4" spellcheck="false">{}</textarea></label>'
+        + '<p class="muted tiny" id="labToolDesc"></p>';
+      var sel = $('#labTool');
+      var showDesc = function () {
+        for (var i = 0; i < aiTools.length; i++) if (aiTools[i].name === sel.value) { $('#labToolDesc').textContent = aiTools[i].desc; return; }
+      };
+      sel.addEventListener('change', showDesc); showDesc();
+      return;
+    }
+    var rows = c.needs === 'text' ? 10 : 2;
+    host.innerHTML = '<label class="fld"><span>' + (c.needs === 'url' ? 'Page URL' : c.needs === 'question' ? 'Your question' : 'Input')
+      + '</span><textarea id="labText" rows="' + rows + '" placeholder="' + escapeHtml(c.placeholder) + '"></textarea></label>';
+  }
+
+  function renderChatCaps() {
+    var host = $('#chatCaps'); if (!host) return;
+    var usable = aiTools.filter(function (t) { return t.usable; });
+    host.innerHTML = '<p class="muted tiny">Tools it can use right now: '
+      + (usable.length ? usable.map(function (t) { return '<code>' + escapeHtml(t.name) + '</code>'; }).join(' ') : 'none')
+      + '</p>';
+  }
+
+  function labStepsHtml(steps) {
+    if (!steps || !steps.length) return '';
+    return '<div class="lab-steps"><h4>What it looked up</h4>' + steps.map(function (s) {
+      return '<div class="lab-step' + (s.ok ? '' : ' is-bad') + '">'
+        + '<code>' + escapeHtml(s.tool) + '</code>'
+        + '<span class="lab-args">' + escapeHtml(JSON.stringify(s.args || {})) + '</span>'
+        + (s.ok ? '<span class="lab-prev">' + escapeHtml(s.preview || '') + '</span>'
+                : '<span class="lab-off">' + escapeHtml(s.error || 'failed') + '</span>')
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  $('#labGo') && $('#labGo').addEventListener('click', function () {
+    var c = currentCap(); if (!c) return;
+    var payload = { capability: c.key };
+    if (c.needs === 'tool') {
+      payload.tool = ($('#labTool') || {}).value || '';
+      try { payload.args = JSON.parse(($('#labArgs') || {}).value || '{}'); }
+      catch (e) { $('#labMsg').textContent = 'The arguments are not valid JSON.'; return; }
+    } else {
+      payload.text = ($('#labText') || {}).value || '';
+    }
+    $('#labGo').disabled = true;
+    $('#labMsg').textContent = 'Running…';
+    $('#labOut').innerHTML = '';
+    post('ai_run', payload).then(function (r) {
+      $('#labGo').disabled = false;
+      var d = r.data || {};
+      $('#labMsg').textContent = (d.ms != null ? d.ms + 'ms' : '') + (d.provider ? ' · ' + d.provider : '');
+      var h = '';
+      if (d.error) h += '<div class="lab-err">' + escapeHtml(d.error) + '</div>';
+      h += labStepsHtml(d.steps);
+      if (d.output) h += '<div class="lab-block"><h4>Result</h4><pre>' + escapeHtml(d.output) + '</pre></div>';
+      if (d.prompt) h += '<details class="lab-block"><summary>The prompt it was given (' + d.prompt.length + ' chars)</summary><pre>' + escapeHtml(d.prompt) + '</pre></details>';
+      $('#labOut').innerHTML = h || '<p class="muted">No output.</p>';
+    }).catch(function () { $('#labGo').disabled = false; $('#labMsg').textContent = 'The run failed.'; });
+  });
+
+  $('#labSample') && $('#labSample').addEventListener('click', function () {
+    var c = currentCap(); if (!c || !$('#labText')) return;
+    $('#labText').value = c.sample || '';
+  });
+
+  $('#labPick') && $('#labPick').addEventListener('click', function (e) {
+    var b = e.target.closest('.lab-cap'); if (!b) return;
+    aiCap = b.getAttribute('data-cap');
+    renderLabPick();
+    $('#labOut').innerHTML = ''; $('#labMsg').textContent = '';
+  });
+
+  /* ---- chat ---- */
+  function renderChat() {
+    var log = $('#chatLog'); if (!log) return;
+    if (!chatHistory.length) {
+      log.innerHTML = '<p class="pc-empty muted">Ask it something. It will look the answer up rather than guess — and it will tell you when it cannot find out.</p>';
+      return;
+    }
+    log.innerHTML = chatHistory.map(function (m) {
+      return '<div class="chat-msg chat-' + m.role + '">'
+        + '<div class="chat-who">' + (m.role === 'user' ? 'You' : 'Assistant') + '</div>'
+        + '<div class="chat-body">' + escapeHtml(m.text).replace(/\n/g, '<br>') + '</div>'
+        + (m.steps ? labStepsHtml(m.steps) : '')
+        + '</div>';
+    }).join('');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  $('#chatForm') && $('#chatForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var input = $('#chatInput');
+    var msg = (input.value || '').trim();
+    if (!msg) return;
+    input.value = '';
+    chatHistory.push({ role: 'user', text: msg });
+    renderChat();
+    $('#chatSend').disabled = true;
+    // Only the plain turns go back as history — the tool steps are display-only.
+    var hist = chatHistory.slice(0, -1).map(function (m) { return { role: m.role, text: m.text }; });
+    post('ai_chat', { message: msg, history: hist }).then(function (r) {
+      $('#chatSend').disabled = false;
+      var d = r.data || {};
+      chatHistory.push({
+        role: 'assistant',
+        text: d.ok ? (d.text || '') : ('⚠ ' + (d.error || 'That did not work.')),
+        steps: d.steps || []
+      });
+      renderChat();
+      setPropBadge(d.pending || 0);
+    }).catch(function () {
+      $('#chatSend').disabled = false;
+      chatHistory.push({ role: 'assistant', text: '⚠ The request failed.' });
+      renderChat();
+    });
+  });
+
+  $('#chatClear') && $('#chatClear').addEventListener('click', function () { chatHistory = []; renderChat(); });
+
+  /* ---- proposals ---- */
+  function loadProposals() {
+    var host = $('#propList'); if (!host) return;
+    host.innerHTML = '<p class="muted">Loading…</p>';
+    var status = ($('#propFilter') || {}).value || 'pending';
+    api('ai_proposals&status=' + encodeURIComponent(status)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { host.innerHTML = '<p class="muted">Could not load the proposals.</p>'; return; }
+      renderProposals(d.proposals || []);
+    });
+  }
+
+  function renderProposals(list) {
+    var host = $('#propList'); if (!host) return;
+    if (!list.length) { host.innerHTML = '<p class="pc-empty muted">Nothing here. The AI files a proposal when you ask it to improve something.</p>'; return; }
+    host.innerHTML = list.map(function (p) {
+      var pl = p.payload || {};
+      var body = '';
+      if (p.kind === 'rule')      body = '<code>' + escapeHtml(pl.key || '') + '</code> → <b>' + escapeHtml(String(pl.value == null ? '' : pl.value)) + '</b>';
+      if (p.kind === 'knowledge') body = '<b>' + escapeHtml(pl.title || '') + '</b> <span class="muted">(' + escapeHtml(pl.scope || 'all') + ', priority ' + escapeHtml(String(pl.priority == null ? '' : pl.priority)) + ')</span><pre>' + escapeHtml(pl.body || '') + '</pre>';
+      if (p.kind === 'prompt')    body = '<code>' + escapeHtml(pl.key || '') + '</code><pre>' + escapeHtml(pl.text || '') + '</pre>';
+      return '<div class="prop' + (p.status !== 'pending' ? ' is-decided' : '') + '" data-id="' + p.id + '">'
+        + '<div class="prop-h"><span class="prop-kind">' + escapeHtml(p.kind) + '</span>'
+        + '<span class="muted tiny">' + escapeHtml(p.created_at) + ' · by ' + escapeHtml(p.created_by || 'ai') + '</span>'
+        + '<span class="prop-status prop-' + escapeHtml(p.status) + '">' + escapeHtml(p.status) + '</span></div>'
+        + '<div class="prop-body">' + body + '</div>'
+        + '<div class="prop-why"><strong>Why:</strong> ' + escapeHtml(p.rationale) + '</div>'
+        + (p.status === 'pending'
+            ? '<div class="rules-foot"><button class="btn btn-primary btn-sm prop-ok">Approve &amp; apply</button>'
+              + '<button class="btn btn-outline btn-sm prop-no">Reject</button></div>'
+            : (p.note ? '<p class="muted tiny">Note: ' + escapeHtml(p.note) + '</p>' : ''))
+        + '</div>';
+    }).join('');
+  }
+
+  $('#propFilter') && $('#propFilter').addEventListener('change', loadProposals);
+  $('#propList') && $('#propList').addEventListener('click', function (e) {
+    var ok = e.target.closest('.prop-ok'), no = e.target.closest('.prop-no');
+    if (!ok && !no) return;
+    var row = (ok || no).closest('.prop');
+    var id = parseInt(row.getAttribute('data-id'), 10) || 0;
+    var payload = { id: id, decision: ok ? 'approve' : 'reject' };
+    if (no) {
+      var why = prompt('Why are you rejecting it? (optional — the AI is not told, this is for your record)');
+      if (why === null) return;
+      payload.note = why;
+    }
+    (ok || no).disabled = true;
+    post('ai_proposal_decide', payload).then(function (r) {
+      var d = r.data || {};
+      if (d.ok) { toast(ok ? 'Applied.' : 'Rejected.'); setPropBadge(d.pending || 0); loadProposals(); if (ok) loadRules(); }
+      else { toast(d.error || 'Could not do that.'); (ok || no).disabled = false; }
     });
   });
 

@@ -763,6 +763,9 @@
       <button class="rt-tab active" data-rt="rules">Rules</button>
       <button class="rt-tab" data-rt="kb">Knowledge</button>
       <button class="rt-tab" data-rt="prompts">Prompts</button>
+      <button class="rt-tab" data-rt="lab">Test the AI</button>
+      <button class="rt-tab" data-rt="chat">Talk to the AI</button>
+      <button class="rt-tab" data-rt="props">Proposals<span class="tab-badge" id="propBadge" hidden></span></button>
     </div>
 
     <!-- Rules -->
@@ -805,6 +808,52 @@
         <div><h2>Prompts</h2><p class="muted">The instructions each AI job follows. The live rules and knowledge are appended automatically, so you never have to restate them here.</p></div>
       </div>
       <div id="promptList"></div>
+    </section>
+
+    <!-- Test the AI — exercise every capability without waiting for a real meeting -->
+    <section class="rt-pane" id="rtLab" hidden>
+      <div class="studio-head">
+        <div><h2>Test the AI</h2><p class="muted">Run any AI job on demand and see the exact prompt it was given, what it replied, and which tools it used. Nothing here is saved — except a proposal, which still needs your approval.</p></div>
+      </div>
+      <div class="lab-status" id="labStatus"></div>
+      <div class="lab-grid">
+        <div class="lab-pick" id="labPick"></div>
+        <div class="lab-run">
+          <div id="labForm"></div>
+          <div class="rules-foot">
+            <button class="btn btn-primary btn-sm" id="labGo">Run</button>
+            <button class="btn btn-outline btn-sm" id="labSample">Use the sample</button>
+            <span class="muted" id="labMsg"></span>
+          </div>
+          <div id="labOut"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Talk to the AI — it can look things up, and propose changes to itself -->
+    <section class="rt-pane" id="rtChat" hidden>
+      <div class="studio-head">
+        <div><h2>Talk to the AI</h2><p class="muted">Ask about a member, a pairing or a rule and it will look the answer up rather than guess. Teach it something and it can propose a doctrine entry, a threshold or a prompt rewrite — always for you to approve.</p></div>
+        <button class="btn btn-outline btn-sm" id="chatClear">Clear</button>
+      </div>
+      <div class="chat-caps" id="chatCaps"></div>
+      <div class="chat-log" id="chatLog"></div>
+      <form class="chat-bar" id="chatForm" autocomplete="off">
+        <input id="chatInput" type="text" placeholder="e.g. Which pairings have gone quiet, and what should happen about it?" />
+        <button class="btn btn-primary btn-sm" type="submit" id="chatSend">Send</button>
+      </form>
+      <p class="muted tiny">The assistant recommends; it never changes anything on its own. Anything it proposes waits in <b>Proposals</b> for you.</p>
+    </section>
+
+    <!-- Proposals — the only route from an AI suggestion to live configuration -->
+    <section class="rt-pane" id="rtProps" hidden>
+      <div class="studio-head">
+        <div><h2>Proposals</h2><p class="muted">Changes the AI has suggested to its own rules, knowledge or prompts. Nothing here is in effect until you approve it.</p></div>
+        <div class="editor-actions">
+          <select id="propFilter" class="mem-role"><option value="pending">Pending</option><option value="applied">Approved</option><option value="rejected">Rejected</option><option value="all">All</option></select>
+        </div>
+      </div>
+      <div id="propList"></div>
     </section>
   </main>
 

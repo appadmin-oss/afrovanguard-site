@@ -65,7 +65,8 @@ try {
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
-        'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend'], true);
+        'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
+        'ai_run', 'ai_chat', 'ai_proposal_decide'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -77,7 +78,10 @@ try {
         // The rules ARE the organisation's constitution — they decide promotions
         // and escalations movement-wide — and the prompts steer every AI reply.
         // Both stay with the Super Admin. The knowledge base is management-level.
-        'rules_get', 'rules_save', 'rules_reset', 'prompts_list', 'prompts_save', 'prompts_reset'];
+        'rules_get', 'rules_save', 'rules_reset', 'prompts_list', 'prompts_save', 'prompts_reset',
+        // Approving a proposal WRITES a rule or a prompt, so it is gated exactly
+        // as editing one directly is — the AI having suggested it changes nothing.
+        'ai_proposal_decide'];
     $managementOnly = [ // not available to editors
         'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -88,6 +92,9 @@ try {
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
         'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
+        // Running the bench and talking to the assistant are management-level:
+        // both can FILE a proposal, which is harmless until someone approves it.
+        'ai_status', 'ai_run', 'ai_chat', 'ai_proposals',
     ];
     if (in_array($action, $superadminOnly, true) && $role !== 'superadmin') {
         json_out(['ok' => false, 'error' => 'That action needs a Super Admin.'], 403);
@@ -414,6 +421,74 @@ try {
             $out = fopen('php://output', 'w');
             foreach ($rows as $r) fputcsv($out, $r);
             fclose($out); exit;
+        }
+
+        /* ════ The AI bench, the chat console, and the approval queue ════
+           Testing a prompt used to mean waiting for a real meeting to end and
+           reading what came out. These let an administrator exercise every
+           capability on demand, talk to the assistant, and approve or reject
+           anything it proposes for itself. */
+        case 'ai_status':
+            json_out([
+                'ok'            => true,
+                'capabilities'  => AvLab::capabilities(),
+                'tools'         => AvTools::describe(),
+                'agent'         => ['available' => AvAgent::available(), 'provider' => AvAgent::provider(), 'tiers' => AvAgent::tiersFor('admin')],
+                'search'        => ['provider' => AvWeb::searchProvider(), 'why' => AvWeb::whyUnavailable('web_search')],
+                'pending'       => AvTools::pendingCount(),
+            ]);
+
+        case 'ai_run': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            // Each run costs a model call, so this is rate-limited per admin
+            // session rather than left open to a held-down button.
+            if (!av_rate_ok('ai_run', 60, 300)) json_out(['ok' => false, 'error' => 'Too many runs — wait a moment.'], 429);
+            $r = AvLab::run((string) ($body['capability'] ?? ''), [
+                'text' => (string) ($body['text'] ?? ''),
+                'tool' => (string) ($body['tool'] ?? ''),
+                'args' => (array)  ($body['args'] ?? []),
+            ], av_admin_role() ?: 'admin');
+            json_out(array_merge(['ok' => !empty($r['ok'])], $r));
+        }
+
+        case 'ai_chat': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!av_rate_ok('ai_chat', 90, 300)) json_out(['ok' => false, 'error' => 'Too many messages — wait a moment.'], 429);
+            $history = [];
+            foreach ((array) ($body['history'] ?? []) as $h) {
+                if (!is_array($h)) continue;
+                $history[] = ['role' => (string) ($h['role'] ?? 'user'), 'text' => (string) ($h['text'] ?? '')];
+            }
+            $r = AvAgent::run((string) ($body['message'] ?? ''), [
+                'history' => $history,
+                'tiers'   => AvAgent::tiersFor('admin'),
+                'actor'   => av_admin_role() ?: 'admin',
+            ]);
+            json_out(array_merge(['ok' => !empty($r['ok'])], $r, ['pending' => AvTools::pendingCount()]));
+        }
+
+        case 'ai_proposals':
+            json_out(['ok' => true, 'proposals' => AvTools::proposals((string) ($_GET['status'] ?? 'pending'))]);
+
+        case 'ai_proposal_decide': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id  = (int) ($body['id'] ?? 0);
+            $act = (string) ($body['decision'] ?? '');
+            $actor = av_admin_role() ?: 'admin';
+            if ($act === 'approve') {
+                $r = AvTools::approve($id, $actor);
+                if (empty($r['ok'])) json_out($r, 422);
+                AdminAudit::log('rules', 'ai_proposal_approved', (string) $id,
+                    'Approved the AI\'s ' . (string) ($r['kind'] ?? '') . ' proposal for ' . (string) ($r['target'] ?? ''));
+            } elseif ($act === 'reject') {
+                if (!AvTools::reject($id, $actor, (string) ($body['note'] ?? ''))) {
+                    json_out(['ok' => false, 'error' => 'Could not reject that proposal.'], 422);
+                }
+                AdminAudit::log('rules', 'ai_proposal_rejected', (string) $id, 'Rejected an AI proposal');
+            } else {
+                json_out(['ok' => false, 'error' => 'Decision must be approve or reject.'], 422);
+            }
+            json_out(['ok' => true, 'proposals' => AvTools::proposals('pending'), 'pending' => AvTools::pendingCount()]);
         }
 
         /* ════ Activity trail (per-area) + undo ════ */
