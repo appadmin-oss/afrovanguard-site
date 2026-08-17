@@ -51,11 +51,13 @@ anywhere, that is the superseded version — the live API is
 | `e27385a` | Mentorship sessions get minutes and a notetaker |
 | `fe4c055` | Studio: the AI bench, the chat console, the approval queue |
 | `7c5ad50` | Tests for the tool layer, the gate and session minutes |
+| `ebb4fb2` | Handoff covering the tool layer and Studio console |
+| `556dac9` | `AvSettings` — set the AI up from the Studio |
 
-Suite green: **582 assertions across 6 files** (`php tests/run.php`).
+Suite green: **635 assertions across 7 files** (`php tests/run.php`).
 
 Current inventory: **23 live rules + 12 pending · 5 live prompts + 4 pending ·
-13 tools · 6 testable capabilities.**
+13 tools · 6 testable capabilities · 18 Studio-managed settings.**
 
 ---
 
@@ -155,10 +157,48 @@ re-validates **after every redirect** — redirects are followed by hand precise
 because letting cURL follow them checks only the first URL, which is how these
 filters are normally walked past. Eleven of those cases are pinned in tests.
 
-### 3b. What an administrator can now do in Studio
+### 3b. Setup — credentials live in the Studio now
 
-Three panes under **Rules & AI**, alongside Rules / Knowledge / Prompts:
+`AvSettings` (18 keys across 5 groups) moves provider configuration out of `.env` and into
+**Studio → Rules & AI → Setup**. This matters more than it sounds: on shared
+cPanel hosting the alternative is editing a file above the web root, which most
+administrators will never do, so the AI stays switched off on exactly the
+deployments that most need it on.
 
+Three properties to preserve:
+
+- **Secrets never reach the browser.** `describe()` returns a masked tail
+  (`AIza-s…3456`) and `value: ''` for anything marked secret. There is
+  deliberately no endpoint that reads a stored key back out, signed in or not.
+- **No plaintext fallback.** Without `APP_KEY`, or without sodium/openssl, a
+  secret save is *refused* with an explanation rather than downgraded.
+- **Only registry keys are published.** `apply()` putenv()s stored settings so
+  bare-`getenv()` consumers (`Meetings::botProvider()`) work untouched — but it
+  skips anything not in `DEFS`, so a row written by another route cannot inject
+  an arbitrary environment variable. Pinned in a test.
+
+**Precedence is Studio → constant → env → default**, which is the *opposite* of
+the `.env` loader's "real environment always wins". That is intentional: an
+administrator editing a key now is expressing current intent. The UI shows a
+`shadowing` badge whenever a Studio value is overriding something from
+`config.php` or the environment, so the override is visible rather than
+mysterious. If you change this precedence, change the badge with it.
+
+`Config::get()` consults `AvSettings` first. It is re-entrancy guarded and fully
+try/caught, because it runs on early paths where the database may not exist.
+
+**Connection tests** (`AvSettings::test()`) make the cheapest real call each
+provider offers — one token for Claude, a lookup for an impossible bot id for
+Recall so nothing is billed. Failures are translated into something actionable
+(`"The key was rejected. Check it was pasted whole, with no spaces."`) and never
+echo a raw response body, which can contain the key.
+
+### 3c. What an administrator can now do in Studio
+
+Four panes under **Rules & AI**, alongside Rules / Knowledge / Prompts:
+
+- **Setup** — connect the providers (above). Encrypted, masked, with a Test
+  button per provider.
 - **Test the AI** — run any capability with sample or real input. Shows the system
   prompt *as rendered* (so a rule edit is visibly reaching the model), the raw
   output, the parsed result, and every tool call. Nothing writes; `goal.tasks`
@@ -234,8 +274,18 @@ already exist.
 | Web **reading** | switch on `ai.web_access` in Studio (no key needed) |
 | Web **search** | one of `AV_BRAVE_API_KEY` / `AV_SERPER_API_KEY` / `AV_GOOGLE_CSE_KEY`+`_CX` / `AV_TAVILY_API_KEY` |
 
-All documented in `.env.example`. Note the split: *which backend* is env
-configuration, *whether the AI may do it* is a Studio rule.
+All documented in `.env.example` — but **none of it has to go in a file any
+more**. Studio → Rules & AI → **Setup** holds the same keys, encrypted, with a
+Test button per provider. `.env` remains supported and is the right place for a
+deployment that manages config as code; the Studio is for the ones that don't.
+
+Three layers, and it is worth keeping them straight:
+
+| Layer | Question it answers | Where |
+|---|---|---|
+| `AvSettings` | *Which* provider, and with whose key | Studio → Setup (or `.env`) |
+| `AvRules` | *Whether* the AI may do a thing, and within what thresholds | Studio → Rules |
+| `AvPrompts` / `AvKnowledge` | *How* it should behave, and what it knows | Studio → Prompts / Knowledge |
 
 **Two cost levers worth knowing.** Recall.ai is the one genuinely usage-priced
 service (per meeting-hour) — Google's own Meet transcripts are free and already
@@ -343,6 +393,7 @@ php tests/run.php          # 474 assertions, 5 files
 | `tests/rules.test.php` | resolution order, rejection-not-coercion, batch atomicity, cross-rule coherence, prompt interpolation, the dynamic ladder, active-vs-scheduled mentorship, diamond-vs-chain depth |
 | `tests/aitools.test.php` | tier enforcement in the runner, the approval gate (filed changes nothing · approve applies · reject never does · neither twice), file-time validation with the acceptable range, no email in tool output, tier derivation from rules, 11 SSRF cases, the bench |
 | `tests/meetbot.test.php` | notetaker availability, participant gating, idempotency, retry-after-failure, join-time clamping, the sweep window — and the same for mentorship sessions, plus either party being able to save minutes and remove the bot |
+| `tests/settings.test.php` | secrets never in `describe()` or the database, no plaintext fallback, the masked placeholder not wiping a key, Studio-over-env precedence and shadow reporting, only registry keys published, per-key errors in a mixed batch |
 | `tests/meetings.test.php` | the earlier meeting defects, pinned so they stay fixed |
 
 No test reaches an external vendor — no provider is configured in the suite, by
