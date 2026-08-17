@@ -114,6 +114,23 @@ final class Gemini
         return 'audio/mpeg';
     }
 
+    /**
+     * The raw generateContent call, for callers that need multi-turn contents or
+     * function calling — principally AvAgent. Keeps the key, endpoint and master
+     * switch here rather than growing a second HTTP client beside this one.
+     *
+     * @return array decoded response, or ['__error'=>string]
+     */
+    public static function rawGenerate(array $payload): array
+    {
+        if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
+            return ['__error' => 'AI assistance is switched off in the Studio rules.'];
+        }
+        if (!self::configured()) return ['__error' => 'Gemini is not configured (set AV_GEMINI_API_KEY).'];
+        $url = self::base() . '/models/' . rawurlencode(self::model()) . ':generateContent?key=' . rawurlencode(self::apiKey());
+        return self::http($url, $payload);
+    }
+
     private static function http(string $url, array $payload): array
     {
         if (!function_exists('curl_init')) return ['__error' => 'curl unavailable'];

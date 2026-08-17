@@ -286,6 +286,10 @@ require_once __DIR__ . '/Chioma.php';
 require_once __DIR__ . '/AvRules.php';
 require_once __DIR__ . '/AvKnowledge.php';
 require_once __DIR__ . '/AvPrompts.php';
+// The AI's tools, its window onto the web, and the loop that lets it use them.
+require_once __DIR__ . '/AvWeb.php';
+require_once __DIR__ . '/AvTools.php';
+require_once __DIR__ . '/AvAgent.php';
 require_once __DIR__ . '/AiKnowledge.php';
 require_once __DIR__ . '/Levels.php';
 require_once __DIR__ . '/IQ.php';

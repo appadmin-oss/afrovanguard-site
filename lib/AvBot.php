@@ -132,6 +132,27 @@ SYS;
         return ['ok' => true, 'text' => $text, 'error' => null];
     }
 
+    /**
+     * The raw Messages API, for callers that need more than one text turn —
+     * principally AvAgent, which runs the tool-use loop and therefore has to
+     * send assistant turns, tool_use blocks and tool_result blocks back.
+     *
+     * reply() stays the simple front door; this keeps authentication, the
+     * endpoint and the master switch in one place instead of a second HTTP
+     * client growing next to it.
+     *
+     * @return array decoded response, or ['__error'=>string]
+     */
+    public static function rawMessages(array $payload): array
+    {
+        if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
+            return ['__error' => 'AI assistance is switched off in the Studio rules.'];
+        }
+        if (!self::configured()) return ['__error' => 'AI is not configured (set ANTHROPIC_API_KEY).'];
+        if (empty($payload['model'])) $payload['model'] = self::model();
+        return self::http($payload);
+    }
+
     /** POST the Messages API request. Returns the decoded body or ['__error'=>string]. */
     private static function http(array $payload): array
     {
