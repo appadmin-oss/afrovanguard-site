@@ -53,11 +53,15 @@ anywhere, that is the superseded version — the live API is
 | `7c5ad50` | Tests for the tool layer, the gate and session minutes |
 | `ebb4fb2` | Handoff covering the tool layer and Studio console |
 | `556dac9` | `AvSettings` — set the AI up from the Studio |
+| `47341fa` | Docs: the Setup screen and the three config layers |
+| `3db4cc4` | OpenAI as a third provider, plus Whisper |
+| `7242349` | Attendee — a free alternative to Recall — and transcript polling |
 
-Suite green: **635 assertions across 7 files** (`php tests/run.php`).
+Suite green: **666 assertions across 7 files** (`php tests/run.php`).
 
 Current inventory: **23 live rules + 12 pending · 5 live prompts + 4 pending ·
-13 tools · 6 testable capabilities · 18 Studio-managed settings.**
+13 tools · 6 testable capabilities · 25 Studio-managed settings in 6 groups ·
+3 model providers · 4 notetaker backends.**
 
 ---
 
@@ -123,8 +127,8 @@ AvTools   13 tools in two kinds. READ returns organisational fact (member lookup
 AvWeb     web_search (Brave / serper / Google CSE / Tavily — whichever key is set)
           and web_fetch (needs no key).
 AvAgent   the loop: offer the specs, execute what the model asks for, feed the
-          result back, ask again. Anthropic tool-use preferred, Gemini
-          function-calling as fallback.
+          result back, ask again. One translation per provider — Claude tool-use,
+          OpenAI tool-calling, Gemini function-calling — preferred in that order.
 AvLab     the bench — runs any capability on demand and shows the rendered prompt,
           the raw output, the parsed result and every tool call.
 ```
@@ -159,7 +163,7 @@ filters are normally walked past. Eleven of those cases are pinned in tests.
 
 ### 3b. Setup — credentials live in the Studio now
 
-`AvSettings` (18 keys across 5 groups) moves provider configuration out of `.env` and into
+`AvSettings` (25 keys across 6 groups) moves provider configuration out of `.env` and into
 **Studio → Rules & AI → Setup**. This matters more than it sounds: on shared
 cPanel hosting the alternative is editing a file above the web root, which most
 administrators will never do, so the AI stays switched off on exactly the
@@ -192,6 +196,44 @@ provider offers — one token for Claude, a lookup for an impossible bot id for
 Recall so nothing is billed. Failures are translated into something actionable
 (`"The key was rejected. Check it was pasted whole, with no spaces."`) and never
 echo a raw response body, which can contain the key.
+
+### 3b-ii. Providers, and what each costs
+
+Three model providers, chosen by whichever key is set. All three are
+interchangeable — `configured()` / `model()` / `generate()` — so a fallback chain
+is a branch, not an integration.
+
+| Provider | Used for | Note |
+|---|---|---|
+| Gemini | minutes, session minutes | Cheapest per transcript; tried first |
+| OpenAI | minutes fallback, **Whisper transcription** | `gpt-4o-mini` default. `AV_OPENAI_BASE_URL` points at anything OpenAI-compatible — Azure, Groq, OpenRouter, or a model you host, which is the cheapest route of all |
+| Claude | the community bot, the Studio assistant | Best multi-step tool chains, so `AvAgent` prefers it |
+
+`AvAgent` has a separate tool-calling translation per provider because the wire
+formats genuinely differ: OpenAI sends tool arguments as a **JSON string** where
+the other two send an object, Gemini refuses a schema with no properties, and
+each has its own way of echoing the assistant's tool turn back. `AvTools` stays
+provider-neutral above all three.
+
+**Notetaker cost, honestly ordered** — the code's auto-detection follows this:
+
+| Backend | Cost | When |
+|---|---|---|
+| `google` | **free** | Already on Workspace. Meet transcribes itself, no bot. **Start here.** |
+| `attendee` | **free self-hosted** | Need Zoom/Teams too, or no Workspace scopes. Open source, Whisper bundled; you pay for a container |
+| `webhook` | **free self-hosted** | Your own recorder |
+| `recall` | **per meeting-hour** | You would rather pay than operate a container |
+
+Attendee is preferred over Recall when both are configured, because between
+equivalent capabilities the free one should win by default. One trap worth
+knowing: **`AV_ATTENDEE_BASE_URL` left blank uses Attendee's hosted service,
+which is billed** — that quietly defeats the point of choosing it. The Studio
+test reports which of the two you are actually talking to.
+
+`Meetings::pollBotTranscripts()` means **no public webhook is required** for
+either bot. The cron asks each bot in flight whether it has finished and ingests
+when it has, so shared hosting, a staging domain or a site that just moved all
+work with no inbound callback.
 
 ### 3c. What an administrator can now do in Studio
 
@@ -308,7 +350,19 @@ This is a **bug class, not one bug** — the same silent-wrong-answer pattern hi
 the active-mentee query during this work. Any bound parameter compared against
 an integer column needs `PARAM_INT`. Date/string comparisons are fine.
 
-~~**Mentorship's own `addSession()` path has no notetaker.**~~ **Fixed in
+~~**Two bugs worth remembering as a pattern**, both found by verifying rather than
+by a test failing, both now pinned:
+
+- `AvSettings::apply()` only ever ADDED to the environment, so clearing a key
+  left the old value live for the rest of the request — the Setup screen said
+  "unset" while the provider still reported itself configured. Anything that
+  publishes into a process needs a matching withdrawal.
+- The first Attendee connection test reported "reachable" for a rejected key and
+  an unreachable instance alike. A test that cannot fail is worse than no test,
+  because it manufactures confidence. `ping()` now distinguishes a 404 (answered,
+  no such bot — the pass) from everything else.
+
+**Mentorship's own `addSession()` path has no notetaker.**~~ **Fixed in
 `e27385a`.** Sessions now store transcript text and structured minutes
 (`mentor_session_minutes`), carry the same bot columns as meetings, and have
 `inviteSessionBot()` / `removeSessionBot()` / `dispatchDueSessionBots()`. Recall
