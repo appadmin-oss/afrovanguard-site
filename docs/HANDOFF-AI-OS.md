@@ -45,8 +45,17 @@ anywhere, that is the superseded version — the live API is
 | `b6059e3` | Review fixes on that layer |
 | `2b236bc` | Merge of the duplicate branch (content superseded) |
 | `aa2c73c` | The AI notetaker in Google Meet |
+| `f29841d` | This handoff + the notetaker in the meetings guide |
+| `a47160f` | `AvTools` (tool registry + proposal queue) and `AvWeb` (search/fetch) |
+| `3f00882` | `AvAgent` — the tool-use loop over both providers |
+| `e27385a` | Mentorship sessions get minutes and a notetaker |
+| `fe4c055` | Studio: the AI bench, the chat console, the approval queue |
+| `7c5ad50` | Tests for the tool layer, the gate and session minutes |
 
-Suite green: **474 assertions across 5 files** (`php tests/run.php`).
+Suite green: **582 assertions across 6 files** (`php tests/run.php`).
+
+Current inventory: **23 live rules + 12 pending · 5 live prompts + 4 pending ·
+13 tools · 6 testable capabilities.**
 
 ---
 
@@ -76,7 +85,7 @@ Nothing the AI depends on is hardcoded. Three stores, each with documented
 defaults so a fresh install is fully operational:
 
 ```
-AvRules      31 typed rules. Resolution: DB override → env/config pin → coded default.
+AvRules      35 typed rules. Resolution: DB override → env/config pin → coded default.
              Validates on write; rejects rather than coerces. Reports cross-rule
              conflicts (individually valid, jointly nonsensical).
 
@@ -84,7 +93,7 @@ AvKnowledge  The doctrine the assistants are taught — what Afrovanguard is, th
              four dimensions, what the levels mean, where the AI's authority ends.
              Seeded once, then fully editable.
 
-AvPrompts    6 system prompts as templates with declared {{variables}}. Each opts
+AvPrompts    9 system prompts as templates with declared {{variables}}. Each opts
              into the live rules and doctrine blocks, appended at render time.
 ```
 
@@ -94,15 +103,79 @@ Editing a template changes the task instructions; the constitution comes from
 `AvRules` either way.
 
 Edited in **Studio → Rules & AI**, admin-gated (editors can't change how the org
-measures people), CSRF-protected, undoable through the audit trail.
+measures people), CSRF-protected, undoable through the audit trail. Rules and
+prompts are Super Admin; knowledge is management-level.
 
 Docs: `docs/rules-engine.md`.
+
+### 3a. Tools, the agent loop, and the web
+
+Four more classes turn the assistant from a text-completer into something that
+can go and find out:
+
+```
+AvTools   13 tools in two kinds. READ returns organisational fact (member lookup,
+          mentorship status, level assessment, quiet pairings, org stats, the live
+          rules, the doctrine, its own prompts). PROPOSE changes nothing — it files
+          into av_proposals for a human.
+AvWeb     web_search (Brave / serper / Google CSE / Tavily — whichever key is set)
+          and web_fetch (needs no key).
+AvAgent   the loop: offer the specs, execute what the model asks for, feed the
+          result back, ask again. Anthropic tool-use preferred, Gemini
+          function-calling as fallback.
+AvLab     the bench — runs any capability on demand and shows the rendered prompt,
+          the raw output, the parsed result and every tool call.
+```
+
+**The read/propose split is the safety property, and it is the thing not to
+weaken.** The AI can write a better doctrine entry, suggest a threshold, even
+rewrite its own prompts — and none of it takes effect. `AvTools::approve()` is
+the only path from a proposal to live configuration, and it is gated exactly as
+editing a rule or prompt directly is. That is §23's division of labour applied to
+the AI's own configuration: it recommends, a human decides.
+
+Two privacy rules live in the tool layer rather than the prompts, deliberately —
+a prompt is a request, this is a boundary:
+
+- No tool returns a member's stated reason for missing something.
+- No tool returns an email address or any contact detail. The AI can identify a
+  member and report on their mentorship; it cannot harvest a directory.
+
+**Capability is derived in one place.** `AvAgent::tiersFor()` reads the rules, so
+switching `ai.tools` off removes every tier everywhere rather than in whichever
+caller remembered to check. `ai.web_access` ships **off**: `web_fetch` needs no
+API key, so a default of on would put arbitrary web fetching into every
+deployment the moment it updated.
+
+`AvWeb::fetch()` is the one genuinely dangerous surface — a URL chosen by a model
+on a server with private network neighbours. It allows only http/https, resolves
+the host and refuses private, loopback, link-local and reserved addresses
+(including `169.254.169.254`, IPv4-mapped IPv6 and bracketed IPv6), and
+re-validates **after every redirect** — redirects are followed by hand precisely
+because letting cURL follow them checks only the first URL, which is how these
+filters are normally walked past. Eleven of those cases are pinned in tests.
+
+### 3b. What an administrator can now do in Studio
+
+Three panes under **Rules & AI**, alongside Rules / Knowledge / Prompts:
+
+- **Test the AI** — run any capability with sample or real input. Shows the system
+  prompt *as rendered* (so a rule edit is visibly reaching the model), the raw
+  output, the parsed result, and every tool call. Nothing writes; `goal.tasks`
+  deliberately does not create tasks, because a test that files real work into
+  somebody's queue is not a test.
+- **Talk to the AI** — the tool-using assistant. Every look-up it made is shown
+  under the reply, so a claim about a member can be checked against the records
+  it actually read.
+- **Proposals** — the approval queue. Approve applies; reject takes a private note
+  for your own record (the AI is not told — a rejection reason is not training
+  data).
 
 ---
 
 ## 4. What is LIVE vs what is SCAFFOLDED
 
-This is the most important section. **19 rules are live. 12 are scaffolded** and
+This is the most important section. **23 rules are live. 12 are scaffolded** and
 labelled *awaiting …* in the Studio, so nobody tunes a setting that has no
 effect. The pending list *is* the roadmap, made concrete:
 
@@ -157,8 +230,12 @@ already exist.
 | Meet notetaker (bot in the room) | `AV_RECALL_API_KEY` + **`AV_RECALL_WEBHOOK_TOKEN`** |
 | Meet notetaker (free path) | nothing — Google's own transcripts are already wired |
 | The cron sweep | `AV_CRON_KEY`, hit `tasks/cron.php` every few minutes |
+| Tools + the chat console | nothing beyond an AI key — on by default |
+| Web **reading** | switch on `ai.web_access` in Studio (no key needed) |
+| Web **search** | one of `AV_BRAVE_API_KEY` / `AV_SERPER_API_KEY` / `AV_GOOGLE_CSE_KEY`+`_CX` / `AV_TAVILY_API_KEY` |
 
-All documented in `.env.example`.
+All documented in `.env.example`. Note the split: *which backend* is env
+configuration, *whether the AI may do it* is a Studio rule.
 
 **Two cost levers worth knowing.** Recall.ai is the one genuinely usage-priced
 service (per meeting-hour) — Google's own Meet transcripts are free and already
@@ -181,12 +258,14 @@ This is a **bug class, not one bug** — the same silent-wrong-answer pattern hi
 the active-mentee query during this work. Any bound parameter compared against
 an integer column needs `PARAM_INT`. Date/string comparisons are fine.
 
-**Mentorship's own `addSession()` path has no notetaker.** Those sessions store a
-transcript *URL*, not text, and have no structured-minutes pipeline — a bot there
-would capture something with nowhere to land. Sessions booked through the
-Meetings surface with `context=mentorship` already work. Giving `addSession()`
-the full chain is real work: transcript text storage, structuring, and
-bot→session mapping in the ingest path.
+~~**Mentorship's own `addSession()` path has no notetaker.**~~ **Fixed in
+`e27385a`.** Sessions now store transcript text and structured minutes
+(`mentor_session_minutes`), carry the same bot columns as meetings, and have
+`inviteSessionBot()` / `removeSessionBot()` / `dispatchDueSessionBots()`. Recall
+posts every bot to one webhook, so a bot id matching no meeting falls through to
+the session lookup. `session.minutes` is deliberately a *record*, not an
+assessment — no field judges anyone, and personal difficulty is captured only as
+far as it explains a blockage, because people who were not in the room read it.
 
 ---
 
@@ -212,9 +291,13 @@ From `AFROVANGUARD-AI-OS.md` §5, still the right sequence:
 5. **Pilot (6–8 weeks, no new development).** 20 mentors, 50–100 mentees. Its job
    is to tell you which Step-1 thresholds were wrong. They will be.
 
-**Do G-12 (natural-language Q&A) last.** It's the most demo-friendly feature and
-the least useful without the data underneath — a NL interface over incomplete
-records produces confident wrong answers about real people's character.
+**G-12 (natural-language Q&A) is now partly built** — the Studio chat console is
+that interface, and it is tool-backed rather than guessing. But the original
+caution stands and has simply moved: it is only as good as the data underneath,
+and the data underneath is still missing commitments (G-1), health (G-3) and
+escalation history (G-2). Ask it about mentorship consistency today and it
+answers well; ask it who is keeping their commitments and there is nothing to
+read. Build G-1 before leaning on the chat console for accountability questions.
 
 ---
 
@@ -230,6 +313,13 @@ of the system rather than its configuration:
   so that honesty registers as a positive signal rather than a dent in a rate.
 - **`levels.auto_promote` ships off.** §20: the AI recommends, leadership
   decides. `Levels::recommend()` returns evidence and gaps, never a promotion.
+- **`ai.web_access` ships off**, and `AvWeb::fetch()`'s SSRF guards are load-
+  bearing. If you refactor them, keep the per-redirect re-validation — checking
+  only the first URL is the standard bypass, and the tests will catch a
+  regression but only if you keep them.
+- **Propose never applies.** If a future caller is tempted to let the AI write
+  directly "just for knowledge entries", that is the whole property gone. The
+  queue is cheap; a self-editing constitution is not.
 
 And one the report never raises: **this is a surveillance system pointed at
 volunteers.** `miss_reason` will collect disclosures about illness, money and
@@ -251,7 +341,8 @@ php tests/run.php          # 474 assertions, 5 files
 | File | Pins |
 |---|---|
 | `tests/rules.test.php` | resolution order, rejection-not-coercion, batch atomicity, cross-rule coherence, prompt interpolation, the dynamic ladder, active-vs-scheduled mentorship, diamond-vs-chain depth |
-| `tests/meetbot.test.php` | notetaker availability, participant gating, idempotency, retry-after-failure, join-time clamping, the sweep window |
+| `tests/aitools.test.php` | tier enforcement in the runner, the approval gate (filed changes nothing · approve applies · reject never does · neither twice), file-time validation with the acceptable range, no email in tool output, tier derivation from rules, 11 SSRF cases, the bench |
+| `tests/meetbot.test.php` | notetaker availability, participant gating, idempotency, retry-after-failure, join-time clamping, the sweep window — and the same for mentorship sessions, plus either party being able to save minutes and remove the bot |
 | `tests/meetings.test.php` | the earlier meeting defects, pinned so they stay fixed |
 
 No test reaches an external vendor — no provider is configured in the suite, by
