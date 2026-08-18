@@ -154,8 +154,15 @@ $ngvSrc = (string) @file_get_contents(AV_ROOT . '/lib/NgvDb.php');
 ck('drift: NgvDb provisions on connect', strpos($ngvSrc, 'self::provision();') !== false);
 ck('drift: and does not persist a migration stamp',
    strpos($ngvSrc, 'metaSet') === false && strpos($ngvSrc, 'schema_state') === false);
-ck('drift: NgvDb still repairs participants.plan',
-   strpos($ngvSrc, 'ALTER TABLE ngv_participants ADD COLUMN plan') !== false);
+// Repair is now the whole-schema additive sync rather than one hand-written ALTER
+// for one column. The behaviour is proved live below; this pins the wiring, and
+// that the DDL stays the single source both the create and the sync read.
+ck('drift: NgvDb runs the additive schema sync',
+   strpos($ngvSrc, 'syncTablesFromDdl') !== false);
+ck('drift: and the sync reads the same DDL provisioning uses',
+   strpos($ngvSrc, '$ddl = self::ddl();') !== false);
+ck('drift: no hand-written per-column ALTER is left to fall out of date',
+   strpos($ngvSrc, 'ALTER TABLE ngv_participants ADD COLUMN') === false);
 
 // Live proof rather than a source grep: drop the column, reconnect, expect it back.
 if (class_exists('NgvDb')) {
@@ -180,5 +187,110 @@ if (class_exists('NgvDb')) {
         error_log('[test] ngv heal: ' . $e->getMessage());
     }
 }
+
+/* ══ The additive sync itself ════════════════════════════════════════════
+   `CREATE TABLE IF NOT EXISTS` cannot deliver a column added to the DDL later, so
+   a deployed database silently never gets it. `Database::syncTablesFromDdl()` is
+   the general repair, and NGV depends on it more than the main database does: it
+   has no schema.<driver>.sql and no out-of-band migrate script, so this is its
+   only additive path.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+if (class_exists('NgvDb')) {
+    $npdo = NgvDb::pdo();
+    $dm = new ReflectionMethod('NgvDb', 'ddl'); $dm->setAccessible(true);
+    $ngvDdl = (string) $dm->invoke(null);
+    $colsOf = function (string $t) use ($npdo): array {
+        $out = [];
+        foreach ($npdo->query('PRAGMA table_info(' . $t . ')') as $r) $out[] = (string) ($r['name'] ?? '');
+        return $out;
+    };
+
+    // Every NGV table, not just the one that had a hand-written ALTER. `plan` on
+    // ngv_applications is the case that motivated this: it is named in a fixed
+    // INSERT list and had no repair path at all.
+    $ngvDrop = [
+        'ngv_participants'   => ['plan', 'focus_note', 'books'],
+        'ngv_applications'   => ['plan', 'education', 'reviewed_by'],
+        'ngv_payments'       => ['voided', 'method'],
+        'ngv_certifications' => ['reference', 'issued_by'],
+    ];
+    $droppedOk = true;
+    foreach ($ngvDrop as $t => $cs) {
+        foreach ($cs as $c) {
+            try { $npdo->exec("ALTER TABLE $t DROP COLUMN $c"); } catch (Throwable $e) { $droppedOk = false; }
+        }
+    }
+    ck('sync: the NGV fixture dropped columns from all four tables', $droppedOk);
+
+    $addedN = Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
+    ck('sync: it reports how many columns it added', $addedN === 10);
+    $allBack = true;
+    foreach ($ngvDrop as $t => $cs) {
+        $have = $colsOf($t);
+        foreach ($cs as $c) if (!in_array($c, $have, true)) $allBack = false;
+    }
+    ck('sync: every dropped column is restored', $allBack);
+    ck('sync: including ngv_applications.plan, which had no ALTER path',
+       in_array('plan', $colsOf('ngv_applications'), true));
+
+    // Running twice must be a no-op, or every request would churn the schema.
+    ck('sync: it is idempotent', Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test') === 0);
+
+    // A missing table is created outright, not merely diffed.
+    $npdo->exec('DROP TABLE IF EXISTS ngv_certifications');
+    Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
+    ck('sync: a missing table is recreated', $colsOf('ngv_certifications') !== []);
+
+    // Data already in the table must survive the repair — this runs against
+    // populated tables in production, which is why the softening below exists.
+    $npdo->exec("INSERT INTO ngv_payments (member_id, amount) VALUES (4242, 500)");
+    $npdo->exec("ALTER TABLE ngv_payments DROP COLUMN note");
+    Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
+    ck('sync: existing rows survive a repair',
+       (int) $npdo->query('SELECT amount FROM ngv_payments WHERE member_id = 4242')->fetchColumn() === 500);
+    ck('sync: and the column came back on the populated table',
+       in_array('note', $colsOf('ngv_payments'), true));
+}
+
+// Softening: a column that cannot be added verbatim must still land. NOT NULL with
+// no default and a non-constant DEFAULT both have to be relaxed, because ADD COLUMN
+// refuses them on a populated table — and a nullable column beats an aborted
+// migration and a 500 on every query that names it.
+// A dedicated in-memory connection: the worker takes any PDO by design, and this
+// keeps the DDL clear of read locks held by other statements in the suite.
+$soft = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+try {
+    $soft->exec('DROP TABLE IF EXISTS t_sync_soft');
+    $soft->exec("CREATE TABLE t_sync_soft (id INTEGER PRIMARY KEY AUTOINCREMENT, a TEXT NOT NULL DEFAULT '')");
+    $soft->exec("INSERT INTO t_sync_soft (a) VALUES ('existing row')");
+    $softDdl = "CREATE TABLE IF NOT EXISTS t_sync_soft (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+             . "a TEXT NOT NULL DEFAULT '', b TEXT NOT NULL, c TEXT NOT NULL DEFAULT (datetime('now')), d INTEGER NOT NULL DEFAULT 7);";
+    $n = Database::syncTablesFromDdl($soft, $softDdl, 'sqlite', 'test');
+    $have = [];
+    foreach ($soft->query('PRAGMA table_info(t_sync_soft)') as $r) $have[] = (string) $r['name'];
+    ck('sync: NOT NULL without a default is softened and still added', in_array('b', $have, true));
+    ck('sync: a non-constant DEFAULT is softened and still added', in_array('c', $have, true));
+    ck('sync: a constant DEFAULT is preserved', in_array('d', $have, true));
+    ck('sync: the existing row is untouched',
+       (string) $soft->query("SELECT a FROM t_sync_soft WHERE id = 1")->fetchColumn() === 'existing row');
+    ck('sync: and it reports the three additions', $n === 3);
+    // PRIMARY KEY / AUTOINCREMENT columns are never added — SQLite cannot, and the
+    // table already has its key anyway.
+    ck('sync: it does not try to add a primary key', !in_array('id2', $have, true));
+    $soft->exec('DROP TABLE IF EXISTS t_sync_soft');
+} catch (Throwable $e) {
+    ck('sync: the softening check ran', false);
+    error_log('[test] softening: ' . $e->getMessage());
+}
+
+// One source of truth: syncSchemaFromFile() must delegate rather than keep a
+// second copy of the parser that can drift from this one.
+$dbSrc = (string) file_get_contents(AV_ROOT . '/lib/Database.php');
+$fromFile = (string) (preg_split('/private static function syncSchemaFromFile/', $dbSrc)[1] ?? '');
+$fromFile = substr($fromFile, 0, (int) strpos($fromFile, "\n    }"));
+ck('sync: the main schema sync delegates to the shared worker',
+   strpos($fromFile, 'syncTablesFromDdl') !== false);
+ck('sync: and keeps no parser of its own', strpos($fromFile, 'PRAGMA table_info') === false);
 
 try { $db->exec("DELETE FROM articles WHERE slug = 'drift-entry'"); } catch (Throwable $e) {}

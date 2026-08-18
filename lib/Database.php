@@ -409,39 +409,122 @@ final class Database
      */
     private static function syncSchemaFromFile(): void
     {
+        // Server databases are provisioned from schema.<driver>.sql out of band, so
+        // this stays SQLite-only by design; the generalised worker below is not.
         if (self::driver() !== 'sqlite') return;
         $sql = @file_get_contents(AV_ROOT . '/db/schema.sql');
         if (!$sql) return;
-        // Strip SQL comments first so column parsing never trips on them.
-        $sql = preg_replace('~/\*.*?\*/~s', '', $sql);
-        $sql = preg_replace('~--[^\n]*~', '', $sql);
-        if (!preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([a-zA-Z0-9_]+)["`]?\s*\((.*?)\)\s*;/is', $sql, $mm, PREG_SET_ORDER)) return;
+        self::syncTablesFromDdl(self::$pdo, (string) $sql, 'sqlite', 'db');
+    }
 
+    /**
+     * Additively bring a live database up to a block of canonical SQLite DDL:
+     * create any missing table, and ADD any column a `CREATE TABLE` declares that
+     * the live table does not have. Never drops or rewrites anything.
+     *
+     * Generalised out of `syncSchemaFromFile()` so it can serve a second database
+     * with its own DDL and its own connection — `NgvDb` runs on a separate PDO and
+     * has no out-of-band migrate script, so this is the only thing standing between
+     * it and a column that never arrives. One parser and one set of softening rules
+     * for both; a second copy is how the two drift apart.
+     *
+     * Columns that cannot be added as-is (PRIMARY KEY / AUTOINCREMENT, NOT NULL with
+     * no constant default, CHECK, inline REFERENCES, a non-constant DEFAULT) are
+     * softened to a form `ADD COLUMN` accepts on a populated table, because a column
+     * that exists and is nullable beats a migration that aborts.
+     *
+     * Returns the number of columns added, for logging and for tests.
+     */
+    public static function syncTablesFromDdl(PDO $pdo, string $ddl, ?string $driver = null, string $tag = 'db'): int
+    {
+        $drv = $driver ?: (string) $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        // Strip SQL comments first so column parsing never trips on them.
+        $ddl = (string) preg_replace('~/\*.*?\*/~s', '', $ddl);
+        $ddl = (string) preg_replace('~--[^\n]*~', '', $ddl);
+        if (!preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([a-zA-Z0-9_]+)["`]?\s*\((.*?)\)\s*;/is', $ddl, $mm, PREG_SET_ORDER)) return 0;
+
+        $added = 0;
         foreach ($mm as $m) {
             $table = $m[1];
-            if (!self::tableExists($table)) {
-                try { self::$pdo->exec(self::translateDDL($m[0])); }
-                catch (Throwable $e) { error_log('[db] create ' . $table . ': ' . $e->getMessage()); }
-                continue;
+            // true = present, false = definitely absent, null = could not tell.
+            $exists = self::tableExistsOn($pdo, $table, $drv);
+            if ($exists !== true) {
+                try { $pdo->exec(self::translateDDL($m[0] . "\n", $drv)); }
+                catch (Throwable $e) { error_log('[' . $tag . '] create ' . $table . ': ' . $e->getMessage()); }
+                // Definitely absent means it was just created with every column, so
+                // there is nothing to diff. When the probe could not tell, the CREATE
+                // was an IF NOT EXISTS no-op and the diff below is still worth running
+                // — guessing "absent" must not silently skip the column sync.
+                if ($exists === false) continue;
             }
-            $have = [];
-            foreach (self::$pdo->query('PRAGMA table_info(' . $table . ')') as $r) { $have[strtolower($r['name'])] = true; }
+            $have = self::columnsOn($pdo, $table, $drv);
             foreach (self::splitTopLevel($m[2]) as $def) {
                 $def = trim($def);
                 if ($def === '' || preg_match('/^(PRIMARY|FOREIGN|UNIQUE|CHECK|CONSTRAINT|KEY|INDEX)\b/i', $def)) continue;
                 if (!preg_match('/^["`]?([a-zA-Z0-9_]+)["`]?\s+(.+)$/s', $def, $cm)) continue;
                 $col = $cm[1]; $rest = $cm[2];
                 if (isset($have[strtolower($col)]) || preg_match('/PRIMARY\s+KEY|AUTOINCREMENT/i', $rest)) continue;
-                // Build a SAFE additive definition: the type token (+ optional length)
-                // and a constant DEFAULT only. NOT NULL / CHECK / REFERENCES / non-constant
-                // defaults are dropped so ADD COLUMN always succeeds on a populated table.
                 if (!preg_match('/^\s*([A-Za-z]+(?:\s*\(\s*[0-9,\s]+\s*\))?)/', $rest, $tm)) continue;
-                $type = preg_replace('/\s+/', '', $tm[1]);
-                if (preg_match('/\bDEFAULT\s+(\x27[^\x27]*\x27|"[^"]*"|-?[0-9.]+)/i', $rest, $dm)) $type .= ' DEFAULT ' . $dm[1];
-                try { self::$pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $col . ' ' . $type); }
-                catch (Throwable $e) { error_log('[db] add ' . $table . '.' . $col . ': ' . $e->getMessage()); }
+                $type = (string) preg_replace('/\s+/', '', $tm[1]);
+                $dflt = '';
+                if (preg_match('/\bDEFAULT\s+(\x27[^\x27]*\x27|"[^"]*"|-?[0-9.]+)/i', $rest, $dm)) $dflt = ' DEFAULT ' . $dm[1];
+                // A bare TEXT cannot carry a DEFAULT on several MySQL builds — the same
+                // reason ensureAcademy() declares short string columns as VARCHAR there.
+                if ($drv !== 'sqlite' && $dflt !== '' && strcasecmp($type, 'TEXT') === 0) $type = 'VARCHAR(191)';
+                // Quoted from the driver passed in, not self::quoteIdent(), which reads
+                // the MAIN connection's driver — wrong when syncing a second database.
+                $ident = $drv === 'mysql' ? '`' . $col . '`' : $col;
+                try { $pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $ident . ' ' . $type . $dflt); $added++; }
+                catch (Throwable $e) { error_log('[' . $tag . '] add ' . $table . '.' . $col . ': ' . $e->getMessage()); }
             }
         }
+        return $added;
+    }
+
+    /**
+     * Does $table exist on an arbitrary connection?
+     * true / false, or null when the probe itself failed — the caller must not
+     * treat "I could not check" as "it is not there".
+     */
+    private static function tableExistsOn(PDO $pdo, string $table, string $drv): ?bool
+    {
+        try {
+            if ($drv === 'sqlite') {
+                $st = $pdo->prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?");
+                $st->execute([$table]);
+                return (bool) $st->fetchColumn();
+            }
+            $st = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_name = ?' .
+                ($drv === 'mysql' ? ' AND table_schema = DATABASE()' : '')
+            );
+            $st->execute([$table]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) {
+            error_log('[db] table probe ' . $table . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /** Lower-cased column-name set for $table on an arbitrary connection. */
+    private static function columnsOn(PDO $pdo, string $table, string $drv): array
+    {
+        $have = [];
+        try {
+            if ($drv === 'sqlite') {
+                foreach ($pdo->query('PRAGMA table_info(' . $table . ')') as $r) {
+                    $have[strtolower((string) ($r['name'] ?? ''))] = true;
+                }
+                return $have;
+            }
+            $st = $pdo->prepare(
+                'SELECT column_name FROM information_schema.columns WHERE table_name = ?' .
+                ($drv === 'mysql' ? ' AND table_schema = DATABASE()' : '')
+            );
+            $st->execute([$table]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $c) $have[strtolower((string) $c)] = true;
+        } catch (Throwable $e) { error_log('[db] columns of ' . $table . ': ' . $e->getMessage()); }
+        return $have;
     }
 
     /** Split a CREATE TABLE body on top-level commas (ignoring those inside parens). */

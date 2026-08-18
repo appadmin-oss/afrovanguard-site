@@ -113,12 +113,17 @@ final class NgvDb
         return self::$pdo ? (string) self::$pdo->getAttribute(PDO::ATTR_DRIVER_NAME) : 'sqlite';
     }
 
-    /** Idempotent schema. Runs once per process; safe to call repeatedly. */
-    private static function provision(): void
+    /**
+     * The canonical NGV schema, as SQLite DDL.
+     *
+     * Read twice: once to create what is missing, and once by the additive sync to
+     * add any column an existing table lacks. Keeping it in one place is what makes
+     * the sync trustworthy — a column added here reaches deployed databases without
+     * anyone remembering to hand-write a matching ALTER.
+     */
+    private static function ddl(): string
     {
-        if (self::$provisioned) return;
-        self::$provisioned = true;
-        $ddl = "
+        return "
         CREATE TABLE IF NOT EXISTS ngv_participants (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL UNIQUE,
@@ -181,6 +186,14 @@ final class NgvDb
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);
         CREATE INDEX IF NOT EXISTS idx_ngv_app_email  ON ngv_applications (email);
         ";
+    }
+
+    /** Idempotent schema. Runs once per process; safe to call repeatedly. */
+    private static function provision(): void
+    {
+        if (self::$provisioned) return;
+        self::$provisioned = true;
+        $ddl = self::ddl();
         try {
             if (class_exists('Database')) {
                 Database::execSchema(self::$pdo, $ddl); // reuse the portable cross-engine DDL runner
@@ -193,12 +206,22 @@ final class NgvDb
             error_log('[ngvdb] provision: ' . $e->getMessage());
         }
 
-        /* `plan` arrived after the first participants table shipped, so existing
-         * databases need it added. Idempotent: a duplicate-column ALTER throws
-         * and is swallowed, which is cheaper and more portable than probing the
-         * schema on every engine. */
-        try { self::$pdo->exec("ALTER TABLE ngv_participants ADD COLUMN plan TEXT NOT NULL DEFAULT ''"); }
-        catch (Throwable $e) { /* already present */ }
+        /* `CREATE TABLE IF NOT EXISTS` is a no-op on a table that already exists, so
+         * it cannot deliver a column added to the DDL later — which is how a
+         * deployed database ends up without `ngv_participants.plan` while every
+         * enrolment INSERT names it. This used to be one hand-written ALTER for that
+         * single column; the sync below covers every column in the schema instead, so
+         * the next one does not need anybody to remember.
+         *
+         * NGV needs this more than the main database does: there is no
+         * schema.<driver>.sql and no out-of-band migrate script for it, so this is
+         * the only additive path it has — on every engine, not just SQLite. */
+        try {
+            if (class_exists('Database')) {
+                $n = Database::syncTablesFromDdl(self::$pdo, $ddl, self::driver(), 'ngvdb');
+                if ($n > 0) error_log('[ngvdb] schema sync added ' . $n . ' column(s)');
+            }
+        } catch (Throwable $e) { error_log('[ngvdb] schema sync: ' . $e->getMessage()); }
     }
 
     /** Portable "current timestamp" expression for runtime inserts. */

@@ -60,6 +60,52 @@ byte-identical to before.
   - `translateDDL()` returns SQLite **unchanged**, so the live SQLite path is
     byte-identical.
 
+## Additive schema sync
+
+`CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so a
+column added to a `CREATE TABLE` later never reaches a database that was
+provisioned before it. That is not a theoretical gap — it is what took out the
+Academy admin (`courses.access_type`) and the Diary (`articles.cover_url`), on
+both the Studio and the public pages.
+
+`Database::syncTablesFromDdl(PDO $pdo, string $ddl, ?string $driver, string $tag)`
+is the repair. Given a block of canonical SQLite DDL it will, for each
+`CREATE TABLE` in it:
+
+- create the table if it is missing (translated for the target driver), and
+- `ALTER TABLE … ADD COLUMN` any column the live table does not have.
+
+It never drops or rewrites anything, and it returns the number of columns added.
+
+**Columns are softened so the ALTER cannot fail on a populated table.** Only the
+type token and a *constant* `DEFAULT` are carried over; `NOT NULL` without a
+constant default, `CHECK`, inline `REFERENCES` and non-constant defaults like
+`(datetime('now'))` are dropped, and `PRIMARY KEY` / `AUTOINCREMENT` columns are
+skipped entirely. A nullable column that exists beats a migration that aborts and
+a 500 on every query naming it. On MySQL and Postgres a bare `TEXT` carrying a
+default becomes `VARCHAR(191)`, because several MySQL builds reject a default on
+`TEXT`.
+
+Two callers, one parser:
+
+| Caller | DDL source | Drivers |
+|---|---|---|
+| `Database::syncSchemaFromFile()` | `db/schema.sql` | SQLite only — server databases are provisioned from `schema.<driver>.sql` out of band |
+| `NgvDb::provision()` | `NgvDb::ddl()` | **all** — NGV has no `schema.<driver>.sql` and no out-of-band migrate script, so this is its only additive path |
+
+NGV is the case that needs it most. It runs on a separate connection, and its
+schema used to be repaired by a single hand-written
+`ALTER TABLE ngv_participants ADD COLUMN plan`. That covered one column on one
+table; `ngv_applications.plan` was named in a fixed `INSERT` list with no repair
+path at all. The sync covers every column in the NGV schema, so the next column
+added to `NgvDb::ddl()` reaches deployed databases without anyone remembering to
+write a matching ALTER.
+
+If you add a column to a `CREATE TABLE` anywhere, that is now enough — but bump
+`Database::SCHEMA_REV` when the column is delivered by one of the version-stamped
+migration steps, or settled deployments will never re-run them. `tests/drift.test.php`
+pins all of this, including that the two callers keep sharing one parser.
+
 ## How to switch (staging first!)
 
 1. Create an empty MySQL/Postgres database + user.
