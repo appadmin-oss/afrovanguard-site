@@ -17,17 +17,73 @@ final class DiaryRepository
          a.read_minutes, a.gradient, a.mc_title, a.cover_url, c.name AS category, c.slug AS category_slug,
          a.featured, a.status';
 
+    private bool $colsReady = false;
+    private ?array $articleColSet = null;
+
     /**
-     * Card columns, plus `ref_code` once the column exists.
+     * Make sure the columns the card queries name actually exist.
      *
-     * Selected conditionally rather than unconditionally so a MySQL/Postgres
-     * target that has not run db/migrate.php yet keeps serving the Diary instead
-     * of failing every query on a column it does not have — the same degradation
-     * `audio_url` and the series columns already get.
+     * `cover_url`, `og_image`, `audio_url`, `format`, the series pair and
+     * `cover_is_dark` are all added by `Database`'s articles migration step — and
+     * that step is version-stamped, so a database whose stamp already matched never
+     * ran it. Every Diary query then dies on `no such column: a.cover_url`: the
+     * Studio list, the editor's save, and the public /diary/ page alike.
+     *
+     * Same failure the Academy had, same treatment: repair it when it is found
+     * wanting rather than trusting that a migration ran.
+     */
+    private function ensureArticleCols(): void
+    {
+        if ($this->colsReady) return; $this->colsReady = true;
+        try {
+            if (Database::columnExists('articles', 'cover_url')) return;
+            Database::ensureArticleSchema();
+            $this->articleColSet = null;                 // it may have just changed
+        } catch (Throwable $e) { error_log('[diary] schema heal: ' . $e->getMessage()); }
+    }
+
+    /** The `articles` columns this database actually has, as a name => true set. */
+    private function articleCols(): array
+    {
+        $this->ensureArticleCols();
+        if ($this->articleColSet !== null) return $this->articleColSet;
+        $set = [];
+        try {
+            foreach (['id', 'slug', 'ref_code', 'title', 'dek', 'category_id', 'authors_html', 'published',
+                      'published_at', 'read_minutes', 'gradient', 'mc_session', 'mc_title', 'mc_tag',
+                      'cover_url', 'og_image', 'audio_url', 'body_html', 'base_claps', 'featured', 'status',
+                      'format', 'series_id', 'series_part', 'cover_is_dark', 'created_at', 'updated_at'] as $c) {
+                if (Database::columnExists('articles', $c)) $set[$c] = true;
+            }
+        } catch (Throwable $e) { error_log('[diary] column probe: ' . $e->getMessage()); }
+        return $this->articleColSet = $set;
+    }
+
+    /**
+     * The card column list, minus anything this database does not have.
+     *
+     * If the heal above could not run — no ALTER privilege on shared hosting, say —
+     * the Diary still renders with the columns that are there rather than returning
+     * a 500 for every read, public pages included.
      */
     private function cardCols(): string
     {
-        return self::CARD_COLS . ($this->refCodesEnabled() ? ', a.ref_code' : '');
+        $have = $this->articleCols();
+        $keep = [];
+        foreach (array_map('trim', explode(',', preg_replace('/\s+/', ' ', self::CARD_COLS) ?? '')) as $c) {
+            // Only the `a.<column>` entries are conditional; the joined category
+            // aliases always exist because they come from `categories`.
+            if (preg_match('/^a\.([a-z_]+)$/', $c, $m)) { if (isset($have[$m[1]])) $keep[] = $c; }
+            else $keep[] = $c;
+        }
+        if (isset($have['ref_code']) && $this->refCodesEnabled()) $keep[] = 'a.ref_code';
+        return implode(', ', $keep);
+    }
+
+    /** Drop any field whose column is absent, so a write cannot name one. */
+    private function onlyExistingArticleCols(array $fields): array
+    {
+        return array_intersect_key($fields, $this->articleCols());
     }
 
     /** All published entries, newest first (lightweight card fields). */
@@ -556,6 +612,11 @@ final class DiaryRepository
             $fields['series_part'] = max(0, (int) ($d['series_part'] ?? 0));
         }
 
+        // Never name a column this database does not have: on a deployment that
+        // missed the articles migration that is the difference between an entry
+        // saving and the Studio reporting a server error.
+        $fields = $this->onlyExistingArticleCols($fields);
+
         $this->db->beginTransaction();
         try {
             if ($id) {
@@ -572,6 +633,7 @@ final class DiaryRepository
                 // or the publication date has been changed. Computed inside the
                 // transaction, with the unique index as the real guarantee.
                 if ($refCodes) $fields['ref_code'] = $this->nextRefCode((string) $d['published_at']);
+                $fields = $this->onlyExistingArticleCols($fields);
                 $cols = implode(', ', array_keys($fields));
                 $ph = implode(', ', array_map(fn($k) => ":$k", array_keys($fields)));
                 $this->db->prepare("INSERT INTO articles ($cols) VALUES ($ph)")->execute($fields);

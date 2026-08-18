@@ -457,23 +457,46 @@ final class Database
         return $out;
     }
 
+    /**
+     * Run the articles table's additive schema step on demand.
+     *
+     * Same reasoning as `ensureAcademySchema()`: `autoMigrate()` is version-stamped,
+     * so a settled deployment never reaches `ensureColumns()`, and every Diary query
+     * that names `cover_url` then dies — the admin list, the editor's save, and the
+     * public /diary/ page alike. Public so `DiaryRepository` can heal itself.
+     */
+    public static function ensureArticleSchema(): void
+    {
+        self::pdo();
+        self::ensureColumns();
+    }
+
     private static function ensureColumns(): void
     {
-        $cols = [];
-        foreach (self::$pdo->query('PRAGMA table_info(articles)') as $r) { $cols[$r['name']] = true; }
+        // Driver-aware declarations, and `columnExists()` rather than a PRAGMA: this
+        // used to probe with `PRAGMA table_info`, which is not SQL on MySQL or
+        // Postgres, so the whole step threw there and the articles table on a server
+        // database never gained these columns at all.
+        $drv  = self::driver();
+        $str  = $drv === 'mysql' ? 'VARCHAR(191)' : 'TEXT';
+        $int  = $drv === 'sqlite' ? 'INTEGER' : 'INT';
+        $now  = $drv === 'sqlite' ? "(datetime('now'))" : ($drv === 'mysql' ? 'CURRENT_TIMESTAMP' : 'CURRENT_TIMESTAMP');
         $add = [
-            'cover_url'  => "ALTER TABLE articles ADD COLUMN cover_url TEXT",
-            'og_image'   => "ALTER TABLE articles ADD COLUMN og_image TEXT",
-            'audio_url'  => "ALTER TABLE articles ADD COLUMN audio_url TEXT",
-            'status'     => "ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'",
-            'updated_at' => "ALTER TABLE articles ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
-            'format'     => "ALTER TABLE articles ADD COLUMN format TEXT NOT NULL DEFAULT 'standard'",
-            'series_id'  => "ALTER TABLE articles ADD COLUMN series_id INTEGER NOT NULL DEFAULT 0",
-            'series_part'=> "ALTER TABLE articles ADD COLUMN series_part INTEGER NOT NULL DEFAULT 0",
-            'cover_is_dark' => "ALTER TABLE articles ADD COLUMN cover_is_dark INTEGER NOT NULL DEFAULT -1", // colour-aware hero text
+            'cover_url'     => 'TEXT',
+            'og_image'      => 'TEXT',
+            'audio_url'     => 'TEXT',
+            'status'        => "$str NOT NULL DEFAULT 'published'",
+            'updated_at'    => $drv === 'sqlite' ? "TEXT NOT NULL DEFAULT $now" : "TIMESTAMP NULL DEFAULT $now",
+            'format'        => "$str NOT NULL DEFAULT 'standard'",
+            'series_id'     => "$int NOT NULL DEFAULT 0",
+            'series_part'   => "$int NOT NULL DEFAULT 0",
+            'cover_is_dark' => "$int NOT NULL DEFAULT -1",   // colour-aware hero text
         ];
-        foreach ($add as $name => $sql) {
-            if (!isset($cols[$name])) { self::$pdo->exec($sql); }
+        if (!self::tableExists('articles')) return;
+        foreach ($add as $name => $decl) {
+            if (self::columnExists('articles', $name)) continue;
+            try { self::$pdo->exec("ALTER TABLE articles ADD COLUMN {$name} {$decl}"); }
+            catch (Throwable $e) { error_log('[db] add articles.' . $name . ': ' . $e->getMessage()); }
         }
     }
 
