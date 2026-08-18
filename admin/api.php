@@ -66,7 +66,8 @@ try {
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
-        'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test'], true);
+        'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
+        'ac_grant', 'ac_revoke'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -943,12 +944,19 @@ try {
             $slug = $repo->save([
                 'slug' => trim((string) ($body['slug'] ?? '')) ?: $title, 'title' => $title,
                 'dek' => trim((string) ($body['dek'] ?? '')), 'category' => trim((string) ($body['category'] ?? 'Dispatch')),
-                'authors_html' => trim((string) ($body['authors_html'] ?? 'The Afrovanguard Team')),
+                // Rendered as markup on the public article page (a byline may carry a
+                // link), so it gets the same sanitizer the body does rather than
+                // being trusted because the field name ends in _html.
+                'authors_html' => Embeds::sanitize(trim((string) ($body['authors_html'] ?? 'The Afrovanguard Team'))),
                 'published' => date('M j, Y', $pubTs), 'published_at' => date('Y-m-d', $pubTs),
-                'read_minutes' => $read, 'gradient' => trim((string) ($body['gradient'] ?? 'g-gold')),
-                'mc_title' => trim((string) ($body['mc_title'] ?? $title)), 'cover_url' => trim((string) ($body['cover_url'] ?? '')),
-                'og_image' => trim((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
-                'audio_url' => trim((string) ($body['audio_url'] ?? '')),
+                'read_minutes' => $read, 'gradient' => av_card_gradient((string) ($body['gradient'] ?? '')),
+                'mc_title' => trim((string) ($body['mc_title'] ?? $title)),
+                // Asset URLs are validated on the way in, not just escaped on the
+                // way out: these land in `style="background-image:url('…')"` and in
+                // `src`, and an editor can write them (audit finding H-2).
+                'cover_url' => av_safe_asset_url((string) ($body['cover_url'] ?? '')),
+                'og_image' => av_safe_asset_url((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
+                'audio_url' => av_safe_asset_url((string) ($body['audio_url'] ?? '')),
                 'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
                 'format' => (string) ($body['format'] ?? 'standard'),
                 'series' => trim((string) ($body['series'] ?? '')), 'series_part' => (int) ($body['series_part'] ?? 0),
@@ -1084,11 +1092,12 @@ try {
             $fields = [
                 'slug' => trim((string) ($body['slug'] ?? '')) ?: $t, 'title' => $t,
                 'summary' => trim((string) ($body['summary'] ?? '')), 'body_html' => $cbody,
-                'cover_url' => trim((string) ($body['cover_url'] ?? '')), 'og_image' => trim((string) ($body['og_image'] ?? '')),
+                'cover_url' => av_safe_asset_url((string) ($body['cover_url'] ?? '')),
+                'og_image' => av_safe_asset_url((string) ($body['og_image'] ?? '')),
                 'category' => trim((string) ($body['category'] ?? 'Programme')), 'level' => trim((string) ($body['level'] ?? 'All levels')),
                 'format' => trim((string) ($body['format'] ?? 'In-person')), 'duration' => trim((string) ($body['duration'] ?? '')),
                 'price' => trim((string) ($body['price'] ?? 'Free')), 'location' => trim((string) ($body['location'] ?? 'Alimosho, Lagos')),
-                'gradient' => trim((string) ($body['gradient'] ?? 'g-gold')), 'outcomes' => trim((string) ($body['outcomes'] ?? '')),
+                'gradient' => av_card_gradient((string) ($body['gradient'] ?? '')), 'outcomes' => trim((string) ($body['outcomes'] ?? '')),
                 'cta_url' => trim((string) ($body['cta_url'] ?? '')), 'featured' => !empty($body['featured']),
                 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft', 'sort' => (int) ($body['sort'] ?? 0),
                 'access_type' => (string) ($body['access_type'] ?? 'open'), 'price_ngn' => (int) ($body['price_ngn'] ?? 0),

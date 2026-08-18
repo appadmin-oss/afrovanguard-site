@@ -495,7 +495,7 @@ function render_card(array $a): void {
 <?php if ($cover): ?>
           <a class="pc-thumb has-cover" href="<?= $url ?>" aria-label="<?= e($a['title']) ?>" style="background-image:url('<?= e($cover) ?>')"><span class="pc-cat-tag"><?= e($a['category']) ?></span></a>
 <?php else: ?>
-          <a class="pc-thumb <?= e($a['gradient']) ?> g-grain" href="<?= $url ?>" aria-label="<?= e($a['title']) ?>"><span class="pc-mark"><?= $a['mc_title'] ?></span></a>
+          <a class="pc-thumb <?= e($a['gradient']) ?> g-grain" href="<?= $url ?>" aria-label="<?= e($a['title']) ?>"><span class="pc-mark"><?= e($a['mc_title']) ?></span></a>
 <?php endif; ?>
           <a class="pc-title" href="<?= $url ?>"><?= e($a['title']) ?></a>
           <div class="pc-meta"><span class="pc-cat"><?= e($a['category']) ?></span><span><?= e($a['published']) ?></span><span>· <?= (int)$a['read_minutes'] ?> min</span>

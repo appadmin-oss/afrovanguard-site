@@ -17,26 +17,119 @@ function slugify(string $s): string {
     return trim($s, '-') ?: 'entry';
 }
 
-/** Fetch image bytes for a local (web-root-relative) path or an http(s) URL. */
+/**
+ * The five card gradients the Studio offers. Anything else is a typo or an
+ * injection attempt — this value is emitted as a CSS class name.
+ */
+const AV_CARD_GRADIENTS = ['g-gold', 'g-ink', 'g-sunset', 'g-sky', 'g-green'];
+
+/** Coerce a submitted card gradient to one we actually ship. */
+function av_card_gradient(?string $g): string {
+    $g = strtolower(trim((string) $g));
+    return in_array($g, AV_CARD_GRADIENTS, true) ? $g : 'g-gold';
+}
+
+/**
+ * Accept an asset URL only in the two shapes the app really produces: an
+ * absolute http(s) URL (Cloudinary, a CDN) or a root-relative path (local
+ * /uploads). Anything else — `javascript:`, `data:`, a protocol-relative
+ * `//host`, or a value carrying quotes, angle brackets or control characters —
+ * returns '' and the caller falls back to the gradient.
+ *
+ * These values land inside `style="background-image:url('…')"` and `src`
+ * attributes. Rendering escapes them; this stops them being storable at all,
+ * because two defences beat one and the render sites are easy to add to.
+ */
+function av_safe_asset_url(?string $url): string {
+    $url = trim((string) $url);
+    if ($url === '') return '';
+    if (strlen($url) > 2048) return '';
+    // Nothing that could break out of an HTML attribute or a CSS url(): quotes,
+    // angle brackets, backticks, backslashes, whitespace or control bytes.
+    if (strcspn($url, "\"'<>`\\ \t\r\n\v\f") !== strlen($url)) return '';
+    if (preg_match('/[\x00-\x1f\x7f]/', $url) === 1) return '';
+
+    if ($url[0] === '/') {
+        // `//host/path` is protocol-relative, not root-relative — the browser
+        // treats it as another origin, so it is not a local path.
+        if (isset($url[1]) && $url[1] === '/') return '';
+        return strpos($url, '..') === false ? $url : '';
+    }
+    if (!preg_match('~^https?://~i', $url)) return '';
+    $p = parse_url($url);
+    if (!$p || empty($p['host'])) return '';
+    if (!empty($p['user']) || !empty($p['pass'])) return '';   // no embedded credentials
+    return $url;
+}
+
+/**
+ * A stored byline, safe to emit as markup.
+ *
+ * `authors_html` is intentionally HTML — a byline may carry a link to an author
+ * page — so it is sanitized on save. This covers rows written before that was
+ * true, and costs a parse only for bylines that actually contain markup, which
+ * almost none do.
+ */
+function av_byline_html(?string $html): string {
+    $html = (string) $html;
+    if (strpos($html, '<') === false) return e($html);
+    // Embeds is not in the bootstrap's eager set — the public article page never
+    // needed it before — so load it here rather than silently degrading to
+    // strip_tags() and dropping the author link this field exists to carry.
+    if (!class_exists('Embeds')) {
+        $lib = __DIR__ . '/Embeds.php';
+        if (is_file($lib)) require_once $lib;
+    }
+    return class_exists('Embeds') ? Embeds::sanitize($html) : e(strip_tags($html));
+}
+
+/**
+ * Read a local asset by its web path.
+ *
+ * A leading slash is not permission to read the server: the path is confined to
+ * the directories the app itself writes assets into, resolved with realpath so a
+ * symlink cannot lead out of them.
+ */
+function av_read_local_asset(string $path): ?string {
+    if (strpos($path, "\0") !== false) return null;
+    $parts = parse_url($path);
+    if ($parts === false || !empty($parts['host'])) return null;   // `//host/x` is not local
+    $p = (string) ($parts['path'] ?? '');
+    if ($p === '' || $p[0] !== '/' || strpos($p, '..') !== false) return null;
+
+    $abs = realpath(AV_ROOT . rawurldecode($p));
+    if ($abs === false || !is_file($abs)) return null;
+    foreach (['/uploads', '/assets'] as $dir) {
+        $root = realpath(AV_ROOT . $dir);
+        if ($root !== false && strncmp($abs, $root . DIRECTORY_SEPARATOR, strlen($root) + 1) === 0) {
+            return (string) file_get_contents($abs);
+        }
+    }
+    return null;
+}
+
+/**
+ * Fetch image bytes for a local (web-root-relative) path or an http(s) URL.
+ *
+ * The URL comes from a cover-image field, so it is chosen by an editor — the
+ * lowest admin tier — and this runs on the server. Both halves are therefore
+ * confined: the local branch to the asset directories, and the remote branch to
+ * public addresses via `AvWeb::guard()`, which re-validates after every redirect.
+ * It previously did neither, which made an editor-supplied string into a request
+ * against whatever the server can reach (audit finding M-5).
+ */
 function av_fetch_image_bytes(string $url): ?string {
     $url = trim($url);
     if ($url === '') return null;
-    if ($url[0] === '/') {                       // web-root-relative local file
-        $p = AV_ROOT . $url;
-        return is_file($p) ? (string) file_get_contents($p) : null;
+    if ($url[0] === '/') return av_read_local_asset($url);
+    if (!preg_match('~^https?://~i', $url)) return null;
+
+    if (!class_exists('AvWeb')) {
+        $lib = __DIR__ . '/AvWeb.php';
+        if (!is_file($lib)) return null;
+        require_once $lib;
     }
-    if (preg_match('~^https?://~i', $url) && function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3, CURLOPT_USERAGENT => 'AfrovanguardBot/1.0',
-        ]);
-        $b = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        return ($b !== false && $code >= 200 && $code < 300 && strlen((string) $b) < 8000000) ? (string) $b : null;
-    }
-    return null;
+    return AvWeb::fetchBytes($url, 8000000);
 }
 
 /**

@@ -90,7 +90,7 @@ render_subbar($a['title'], $a['slug'], $canonical);
           <h1 class="article-title"><?= e($a['title']) ?></h1>
 <?php endif; ?>
           <div class="article-meta">
-            <div><div class="meta-label">Written by</div><div class="meta-value"><?= $a['authors_html'] ?></div></div>
+            <div><div class="meta-label">Written by</div><div class="meta-value"><?= av_byline_html($a['authors_html']) ?></div></div>
             <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= $readMin ?> min read</div></div>
           </div>
 <?php render_listen_bar($a['slug'], $canonical); ?>

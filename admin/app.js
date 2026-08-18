@@ -45,7 +45,9 @@
 
   var toastEl = $('#toast'), toastT;
   function toast(m) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove('show'); }, 2600); }
-  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // Covers the single quote too: several render sites put a value inside a
+  // single-quoted CSS url('…'), which a bare ' closes.
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function stripTags(s) { var d = document.createElement('div'); d.innerHTML = s; return d.textContent || ''; }
 
   function api(action, opts) {
@@ -131,7 +133,7 @@
       $('#cloudinaryNote').textContent = cloudinary ? 'Media uploads go to Cloudinary.' : 'Cloudinary not configured — uploads stored locally under /uploads.';
       r.data.articles.forEach(function (a) {
         var row = document.createElement('div'); row.className = 'entry-row';
-        row.innerHTML = '<div class="entry-thumb ' + a.gradient + '"' + (a.cover_url ? ' style="background-image:url(\'' + a.cover_url + '\')"' : '') + '></div>' +
+        row.innerHTML = '<div class="entry-thumb ' + escapeHtml(a.gradient) + '"' + (a.cover_url ? ' style="background-image:url(\'' + escapeHtml(a.cover_url) + '\')"' : '') + '></div>' +
           '<div class="entry-info"><div class="entry-title">' + escapeHtml(a.title) + '</div><div class="entry-meta"><span class="badge ' + a.status + '">' + a.status + '</span> ' +
           escapeHtml(a.category) + ' · ' + escapeHtml(a.published) + (a.featured == 1 ? ' · ★' : '') + '</div></div>' +
           '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-edit="' + a.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-del="' + a.slug + '">Delete</button></div>';
@@ -330,7 +332,7 @@
       if (!r.data.ok) { box.innerHTML = '<p class="muted">Could not load programmes.</p>'; return; }
       r.data.courses.forEach(function (c) {
         var row = document.createElement('div'); row.className = 'entry-row';
-        row.innerHTML = '<div class="entry-thumb ' + c.gradient + '"' + (c.cover_url ? ' style="background-image:url(\'' + c.cover_url + '\')"' : '') + '></div>' +
+        row.innerHTML = '<div class="entry-thumb ' + escapeHtml(c.gradient) + '"' + (c.cover_url ? ' style="background-image:url(\'' + escapeHtml(c.cover_url) + '\')"' : '') + '></div>' +
           '<div class="entry-info"><div class="entry-title">' + escapeHtml(c.title) + '</div><div class="entry-meta"><span class="badge ' + c.status + '">' + c.status + '</span> ' +
           escapeHtml(c.category) + ' · ' + escapeHtml(c.level) + (c.featured == 1 ? ' · ★' : '') + '</div></div>' +
           '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-ccur="' + c.slug + '">Curriculum</button><button class="btn btn-outline btn-sm" data-cedit="' + c.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-cdel="' + c.slug + '">Delete</button></div>';

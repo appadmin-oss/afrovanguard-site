@@ -238,12 +238,61 @@ final class AvWeb
     }
 
     /**
+     * Fetch raw bytes from an operator-supplied URL, behind the same guard and
+     * the same per-redirect re-validation `fetch()` uses.
+     *
+     * Deliberately NOT gated on `ai.web_access`: this is the application loading
+     * an asset a human pasted into a form, not the assistant reading the web. The
+     * two want the same address check and different permissions, so the check is
+     * shared and the permission is not.
+     *
+     * Returns null on any refusal — the caller learns nothing about why, which is
+     * what stops it becoming an internal-network oracle.
+     */
+    public static function fetchBytes(string $url, int $maxBytes = 8000000): ?string
+    {
+        $url  = trim($url);
+        $seen = [];
+        for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
+            if (isset($seen[$url])) return null;              // redirect loop
+            $seen[$url] = true;
+            if (isset(self::guard($url)['error'])) return null;
+
+            $r = self::rawGet($url, $maxBytes, 'image/*,*/*;q=0.8');
+            if (isset($r['error'])) return null;
+
+            if ($r['status'] >= 300 && $r['status'] < 400 && $r['location'] !== '') {
+                $next = self::resolveUrl($url, $r['location']);
+                if ($next === '') return null;
+                $url = $next;
+                continue;                                     // re-guarded next pass
+            }
+            if ($r['status'] < 200 || $r['status'] >= 300) return null;
+
+            // An internal HTML error page or JSON API response is never the image
+            // that was asked for, so refuse it rather than hand bytes back.
+            $ct = strtolower($r['content_type']);
+            if ($ct !== '' && (strpos($ct, 'text/') === 0 || strpos($ct, 'json') !== false
+                || strpos($ct, 'xml') !== false || strpos($ct, 'html') !== false)) return null;
+
+            $body = (string) $r['body'];
+            return $body === '' ? null : $body;
+        }
+        return null;
+    }
+
+    /**
      * Refuse anything that is not a public http(s) URL.
      *
      * Every resolved address is checked, not just the first: a hostname can carry
      * several A records, and a filter that inspects one of them is not a filter.
+     *
+     * Public because it is the app's ONE address check. `av_fetch_image_bytes()`
+     * fetches a cover image at a URL an editor pasted, which is the same problem
+     * with a different caller — and it used to have no check at all. A second
+     * implementation is how one of them ends up weaker than the other.
      */
-    private static function guard(string $url): array
+    public static function guard(string $url): array
     {
         $p = parse_url($url);
         if (!$p || empty($p['scheme']) || empty($p['host'])) return ['error' => 'That is not a usable URL.'];
@@ -306,9 +355,11 @@ final class AvWeb
     }
 
     /** One HTTP GET, no redirect following, bounded body. */
-    private static function rawGet(string $url): array
+    private static function rawGet(string $url, int $maxBytes = 0, string $accept = ''): array
     {
         if (!function_exists('curl_init')) return ['error' => 'cURL is unavailable.'];
+        $cap = $maxBytes > 0 ? $maxBytes : self::MAX_BYTES;
+        if ($accept === '') $accept = 'text/html,text/plain,application/json;q=0.9,*/*;q=0.5';
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -317,15 +368,15 @@ final class AvWeb
             CURLOPT_TIMEOUT        => self::TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_USERAGENT      => 'AfrovanguardBot/1.0 (+https://afrovanguard.org.ng)',
-            CURLOPT_HTTPHEADER     => ['Accept: text/html,text/plain,application/json;q=0.9,*/*;q=0.5'],
+            CURLOPT_HTTPHEADER     => ['Accept: ' . $accept],
             CURLOPT_COOKIEFILE     => '',             // send no cookies, keep none
             CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             // Stop reading once the cap is passed rather than buffering a whole
             // multi-megabyte page into memory.
             CURLOPT_BUFFERSIZE     => 16384,
             CURLOPT_NOPROGRESS     => false,
-            CURLOPT_PROGRESSFUNCTION => static function ($ch, $dlTotal, $dlNow) {
-                return $dlNow > self::MAX_BYTES ? 1 : 0;
+            CURLOPT_PROGRESSFUNCTION => static function ($ch, $dlTotal, $dlNow) use ($cap) {
+                return $dlNow > $cap ? 1 : 0;
             },
         ]);
         $raw  = curl_exec($ch);
