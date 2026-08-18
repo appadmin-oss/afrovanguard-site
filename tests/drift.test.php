@@ -103,4 +103,82 @@ ck('drift: the academy heal is exposed', is_callable(['Database', 'ensureAcademy
 $rev = (new ReflectionClass('Database'))->getConstant('SCHEMA_REV');
 ck('drift: SCHEMA_REV was bumped so settled deployments re-migrate', is_int($rev) && $rev >= 2);
 
+/* ══ Why the Portal and NGV are not exposed ══════════════════════════════
+   Their subsystems re-run their own schema step on every request, so a missing
+   column is re-added rather than being a permanent gap. That is not a happy
+   accident — it is the difference between them and the two that broke, and it
+   holds only while no subsystem starts gating its schema work on a flag stored
+   in the database. These assertions fail if one starts to.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// The only persisted migration gate in the codebase is Database's own
+// `schema_state`. Every other key in app_meta is content or config: a rules
+// version counter, an AI knowledge cache, the auth policy, NGV page copy, the
+// super-admin seed fingerprint, birthday sends. None of them gate DDL.
+//
+// This is an allowlist rather than a pattern match, because the risky thing is a
+// key nobody has thought about. A NEW persisted key fails this assertion, and
+// whoever adds it has to confirm it is not gating a migration — which is the
+// mistake that took out the Academy and the Diary.
+$knownMetaKeys = [
+    'schema_state', 'schema_migrated_at',        // Database's own migration stamp
+    'brand_theme', 'auth_policy',                // config
+    'av_rules_ver', 'ai_knowledge', 'ai_knowledge_ver',
+    'ngv_content', 'ngv_content_prev',
+    'superadmin_seed_fp', 'superadmin_initial_password',
+    'bday_sent', 'diary_ref_codes',
+];
+$foundKeys = [];
+foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
+    $src = (string) file_get_contents($f);
+    // Literal keys, plus the constants those files use for them.
+    if (preg_match_all("~meta(?:Get|Set)\('([a-z_]+)'~", $src, $m)) {
+        foreach ($m[1] as $k) $foundKeys[$k] = true;
+    }
+    if (preg_match_all("~private const [A-Z_]+ = '([a-z_]+)';~", $src, $m2)) {
+        // Only count constants in files that actually touch app_meta.
+        if (strpos($src, 'metaGet') !== false || strpos($src, 'metaSet') !== false) {
+            foreach ($m2[1] as $k) $foundKeys[$k] = true;
+        }
+    }
+}
+$unknown = array_values(array_diff(array_keys($foundKeys), $knownMetaKeys));
+ck('drift: no unreviewed persisted meta key has appeared', $unknown === []);
+if ($unknown !== []) error_log('[test] unreviewed app_meta keys: ' . implode(', ', $unknown));
+
+// NGV runs on its own database and its own provisioning, so it needs its own
+// check. provision() must stay unstamped — guarded per process, never persisted —
+// because its participants INSERT names `plan` in a fixed column list, so a
+// database that missed that ALTER would fail every enrolment.
+$ngvSrc = (string) @file_get_contents(AV_ROOT . '/lib/NgvDb.php');
+ck('drift: NgvDb provisions on connect', strpos($ngvSrc, 'self::provision();') !== false);
+ck('drift: and does not persist a migration stamp',
+   strpos($ngvSrc, 'metaSet') === false && strpos($ngvSrc, 'schema_state') === false);
+ck('drift: NgvDb still repairs participants.plan',
+   strpos($ngvSrc, 'ALTER TABLE ngv_participants ADD COLUMN plan') !== false);
+
+// Live proof rather than a source grep: drop the column, reconnect, expect it back.
+if (class_exists('NgvDb')) {
+    try {
+        $npdo = NgvDb::pdo();
+        $has = function () use ($npdo): bool {
+            foreach ($npdo->query('PRAGMA table_info(ngv_participants)') as $r) {
+                if (($r['name'] ?? '') === 'plan') return true;
+            }
+            return false;
+        };
+        ck('drift: ngv_participants.plan starts present', $has());
+        $npdo->exec('ALTER TABLE ngv_participants DROP COLUMN plan');
+        ck('drift: the NGV fixture dropped it', !$has());
+        // provision() is per-process, so clear the flag to simulate a fresh request.
+        $flag = new ReflectionProperty('NgvDb', 'provisioned');
+        $flag->setAccessible(true); $flag->setValue(null, false);
+        $m = new ReflectionMethod('NgvDb', 'provision'); $m->setAccessible(true); $m->invoke(null);
+        ck('drift: a fresh request repairs it', $has());
+    } catch (Throwable $e) {
+        ck('drift: the NGV heal check ran', false);
+        error_log('[test] ngv heal: ' . $e->getMessage());
+    }
+}
+
 try { $db->exec("DELETE FROM articles WHERE slug = 'drift-entry'"); } catch (Throwable $e) {}
