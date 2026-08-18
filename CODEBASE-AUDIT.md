@@ -36,6 +36,7 @@ This audit maps the components, composition, and infrastructure of the Afrovangu
 | 2026-08-06 | **NGV became a full member programme on its own database** — `lib/NgvDb.php` (isolated connection) + `lib/NgvMember.php` (participants, fee ledger, certifications, applications); a member dashboard, a public registration page, and a staff console (§3A.C). |
 | 2026-08-18 | **Audited the AI layer** (§9B): verified the read/propose split, the SSRF filter (16 bypasses refused), the settings crypto and the tier gating; raised **H-2** (editor → Super Admin via stored XSS), M-5/M-6/M-7 and L-4…L-8; re-verified M-1…M-4, S-7 and L-1…L-3. |
 | 2026-08-18 | **Refuted a documented bug.** `docs/HANDOFF-AI-OS.md` §7's "the retry cap doesn't work" does not reproduce — SQLite applies NUMERIC affinity to a parameter compared against an INTEGER column. The generalised "bug class" claim was wrong; corrected in the handoff. |
+| 2026-08-18 | **Remediated H-2, M-5 and L-4.** `cover_url`/`gradient` validated on save and escaped on render; `av_fetch_image_bytes()` routed through `AvWeb::guard()` and confined to the asset directories; `ac_grant`/`ac_revoke` added to the CSRF list. Two same-class findings raised and fixed during the work: `mc_title` and `authors_html` were echoed raw on **public** pages. Pinned by `tests/assets.test.php`. |
 
 ---
 
@@ -361,16 +362,47 @@ session.
 
 | # | Severity | Area | Location | Issue | Recommendation |
 |---|---|---|---|---|---|
-| **H-2** | **High** | Stored XSS → privilege escalation | `admin/app.js:134,333`; `admin/api.php:949,1087` | **An editor can take over a Super Admin session.** `cover_url` and `gradient` are accepted with only `trim()` — no scheme check, no allowlist — then interpolated **unescaped** into markup: `'<div class="entry-thumb ' + a.gradient + '"' + ' style="background-image:url(\'' + a.cover_url + '\')"'`. `save`/`ac_save` are *content* actions, so the lowest admin tier (**editor**) can write them; the Studio article and course lists are read by Super Admins; and the CSP still permits `'unsafe-inline'` (M-4), so an injected handler executes. From there `?action=session` yields a CSRF token and `admin_add` / `superadmin_reveal` / `setup_*` are all reachable. | Escape both values at the render sites; validate `cover_url` on save (`^https?://` or a leading `/`); allowlist `gradient` against the known `g-*` classes. Three small changes, any one of which breaks the chain. |
-| **M-5** | **Medium** | SSRF + local file read | `lib/helpers.php:21-40` | **`av_fetch_image_bytes()` has no guards at all** — no scheme, host or address validation, and `CURLOPT_FOLLOWLOCATION => true`. The leading-`/` branch reads `AV_ROOT . $url` with no traversal check. It is reached from `av_cover_is_dark()` on every article save (`DiaryRepository.php:362`) and course save (`AcademyRepository.php:84`) — i.e. **by any editor**, with the same unvalidated `cover_url` as H-2. Blind (the only output is dark/light/unknown), but it is a live request-forgery primitive aimed at the private network. | Route it through the same address check `AvWeb::guard()` already implements, and restrict the local branch to a known uploads directory. The asymmetry is the point: the repo has one carefully guarded fetcher and one wide-open one. |
+| ~~H-2~~ | ✅ **Fixed 2026-08-18** | Stored XSS → privilege escalation | `admin/app.js:134,333`; `admin/api.php:949,1087` | **An editor can take over a Super Admin session.** `cover_url` and `gradient` are accepted with only `trim()` — no scheme check, no allowlist — then interpolated **unescaped** into markup: `'<div class="entry-thumb ' + a.gradient + '"' + ' style="background-image:url(\'' + a.cover_url + '\')"'`. `save`/`ac_save` are *content* actions, so the lowest admin tier (**editor**) can write them; the Studio article and course lists are read by Super Admins; and the CSP still permits `'unsafe-inline'` (M-4), so an injected handler executes. From there `?action=session` yields a CSRF token and `admin_add` / `superadmin_reveal` / `setup_*` are all reachable. | Escape both values at the render sites; validate `cover_url` on save (`^https?://` or a leading `/`); allowlist `gradient` against the known `g-*` classes. Three small changes, any one of which breaks the chain. |
+| ~~M-5~~ | ✅ **Fixed 2026-08-18** | SSRF + local file read | `lib/helpers.php:21-40` | **`av_fetch_image_bytes()` has no guards at all** — no scheme, host or address validation, and `CURLOPT_FOLLOWLOCATION => true`. The leading-`/` branch reads `AV_ROOT . $url` with no traversal check. It is reached from `av_cover_is_dark()` on every article save (`DiaryRepository.php:362`) and course save (`AcademyRepository.php:84`) — i.e. **by any editor**, with the same unvalidated `cover_url` as H-2. Blind (the only output is dark/light/unknown), but it is a live request-forgery primitive aimed at the private network. | Route it through the same address check `AvWeb::guard()` already implements, and restrict the local branch to a known uploads directory. The asymmetry is the point: the repo has one carefully guarded fetcher and one wide-open one. |
 | **M-6** | **Medium** | SSRF (TOCTOU) | `lib/AvWeb.php:246-308` vs `:309` | **`AvWeb`'s guard is not pinned to the address it validated.** `guard()` resolves the host and checks every answer; `rawGet()` then hands the *hostname* to cURL, which resolves it again. A short-TTL or multi-answer host (classic DNS rebinding) passes the check and connects somewhere else. Every static bypass tested was correctly refused — this is the one remaining hole, and it is the one the per-redirect re-validation cannot close. | Pass the validated IP via `CURLOPT_RESOLVE` (or `CURLOPT_CONNECT_TO`) so the connection uses the address that was checked. Add a rebinding case to the SSRF tests. |
 | **M-7** | **Medium** | Prompt injection | `lib/AvAgent.php`, `lib/AvWeb.php`, `AvPrompts`/`AvKnowledge` seeds | **Nothing in the AI layer treats fetched content as untrusted.** There is not one occurrence of injection-awareness language across the agent, the prompts or the doctrine; page text and search snippets come back as ordinary tool results, undelimited and unframed. With `propose_rule` / `propose_prompt` / `propose_knowledge` live, a hostile page can get the model to file a proposal whose payload *and rationale* it wrote. **The read/propose split contains this** — nothing applies without a human — which is exactly why it is Medium and not High. | Delimit tool output and state in the system prompt that content inside it is data, never instruction. Mark proposals whose turn touched `web_fetch`/`web_search` in the approval queue, so the approver knows the suggestion may not have originated with the assistant. |
-| **L-4** | **Low** | CSRF | `admin/api.php:63-69` vs `:1119,1129` | `ac_grant` and `ac_revoke` are the **only** POST actions absent from the `$writing` allowlist, so `av_csrf_require()` never runs for them; they grant and revoke Academy course access for an arbitrary `user_id`. `SameSite=Lax` on the admin cookie (`security.php:144`) mitigates in practice. The systemic point is worse than the instance: the list is hand-maintained and **fails open** — a new state-changing action gets no CSRF and admin-tier access by default. | Add both to `$writing` now; then invert the rule so any non-GET request requires CSRF unless explicitly exempted. |
+| ~~L-4~~ | ✅ **Fixed 2026-08-18** (instance) | CSRF | `admin/api.php:63-69` vs `:1119,1129` | `ac_grant` and `ac_revoke` are the **only** POST actions absent from the `$writing` allowlist, so `av_csrf_require()` never runs for them; they grant and revoke Academy course access for an arbitrary `user_id`. `SameSite=Lax` on the admin cookie (`security.php:144`) mitigates in practice. The systemic point is worse than the instance: the list is hand-maintained and **fails open** — a new state-changing action gets no CSRF and admin-tier access by default. | Add both to `$writing` now; then invert the rule so any non-GET request requires CSRF unless explicitly exempted. |
 | **L-5** | **Low** | Privacy boundary | `lib/AvTools.php:357,382` | Eleven of thirteen tools project an explicit field list. **`org_stats` and `level_check` return another subsystem's value verbatim** (`Mentorship::adminStats()`, `Levels::recommend()`). Both are aggregate/metric-only today, so "no tool returns an email address" holds — but it holds by inspection of the callee, and `Mentorship::adminMentors()` immediately next door *does* return emails. `tests/aitools.test.php:59` pins the invariant for `member_lookup` alone — 1 of 13 tools. | Project these two like the others, and assert the no-contact-detail invariant over **every** tool's output rather than one. |
 | **L-6** | **Low** | Test hygiene | `tests/meetbot.test.php:320-378`; `docs/HANDOFF-AI-OS.md` §10 | **The suite makes real outbound HTTP calls, and two assertions depend on a host being unreachable.** It sets `AV_ATTENDEE_API_KEY` and `AV_ATTENDEE_BASE_URL=https://meetbot.example.org`, then exercises dispatch and polling — visible in the run as `[meetings] attendee: transport: CONNECT tunnel failed, response 502`. "A failed dispatch is recorded" and "an unreachable bot ingests nothing" pass *because* the network refused. This contradicts §10's "No test reaches an external vendor — no provider is configured in the suite, by design." Suite wall time is ~21 s here; `AttendeeBot`'s `CURLOPT_CONNECTTIMEOUT` is 10 s per attempt on a host with no fast-failing proxy. | Point the base URL at a reserved-for-failure address, or inject the transport, so the assertions test the code rather than the DNS. |
 | **L-7** | **Low** | CI coverage | `.github/workflows/*.yml` | The JS syntax check globs `portal/*.js assets/site/*.js academy/*.js` — 13 files. **`admin/app.js` is not among them**: 151 KB, the largest hand-written JS in the repo, the Studio SPA, and the file carrying every AI pane. Also uncovered: `IQ/iq.js`, `login/auth.js`, `community/community.js`, `diary/*.js`, `js/site.js`, `sw.js`. A syntax error there ships green. | Glob the hand-written JS by exclusion (everything but `vendor/` and `projects/sts/_astro/`) rather than by enumeration. |
 | **L-8** | **Low** | SSRF (by design) | `lib/Webhooks.php:157`; `admin/api.php:213` | `Webhooks::send()` validates only `^https?://`. `wh_test` is management-tier and returns the HTTP status code, which makes internal endpoint and port discovery possible. Largely inherent to a webhook feature — the response body is not returned. | Refuse private/reserved addresses when an endpoint is saved; the legitimate use case never needs one. |
 | **O-1** | **Ops** | Key management | `lib/AvSettings.php:511-523`; `lib/security.php:22` | **Rotating `ADMIN_TOKEN` can silently destroy every stored provider key.** Studio secrets are encrypted under `av_secret()`, which falls back to `ADMIN_TOKEN` when no `APP_KEY` is set (S-3). The last pass's S-4 action item tells operators to regenerate a short `AV_ADMIN_TOKEN` — on a deployment without `APP_KEY`, doing so makes every key in Setup undecryptable. `AvSettings` degrades gracefully (`:242`) but gives no warning first. | Require `APP_KEY` before Setup accepts a secret, or warn on the Setup screen whenever the encryption key is derived from `ADMIN_TOKEN` rather than a dedicated `APP_KEY`. |
+
+### Remediation, 2026-08-18
+
+**H-2, M-5 and L-4 are fixed in this branch.** What shipped:
+
+- `av_safe_asset_url()` accepts only the two shapes the app produces — an
+  absolute http(s) URL or a root-relative path — and refuses anything carrying a
+  quote, bracket, backtick, backslash, whitespace or control byte, so a breakout
+  is not storable. `av_card_gradient()` reduces a gradient to one of the five
+  shipped classes. Both card renders escape, and `escapeHtml()` now covers the
+  single quote, which matters because those values sit inside `url('…')`.
+- `av_fetch_image_bytes()` goes through `AvWeb::guard()` — made public, so the app
+  has **one** address check rather than a second weaker copy — via a new
+  `AvWeb::fetchBytes()` that reuses the per-redirect re-validation and is
+  deliberately *not* gated on `ai.web_access` (a cover image is the app loading an
+  asset a human pasted, not the assistant reading the web). The local branch is
+  confined to `/uploads` and `/assets`, resolved through `realpath`.
+- `ac_grant` / `ac_revoke` added to `$writing`. **The systemic half of L-4 stands:**
+  the list is still hand-maintained and still fails open. Inverting it is the fix.
+
+**Two findings of the same class surfaced during the work, both with wider reach
+than H-2 because they render on public pages, both fixed:**
+
+| # | Location | Issue |
+|---|---|---|
+| **H-3** | `lib/partials.php:498` | `mc_title` — a plain-text field — was echoed **unescaped** into the public Diary card. Every visitor, not just a Super Admin. Now `e()`-escaped. |
+| **H-4** | `diary/article.php:93`; `admin/api.php` | `authors_html` was echoed raw on the public article page and, unlike `body_html`, never sanitized on save. It is intentionally markup (a byline may carry a link), so it now goes through the same `Embeds::sanitize()` the body does, and `av_byline_html()` covers rows written before that — keeping the link, dropping scripts, handlers and `javascript:` hrefs. |
+
+Still open and unchanged: **M-4** (the CSP `'unsafe-inline'` that turned H-2 from a
+storage bug into script execution — fixing the inputs does not retire it),
+**M-6**, **M-7**, **M-1**, **M-2**, **S-7**, **L-1**, **L-5**…**L-8**, **O-1**.
 
 ### A documented bug that does not exist
 
@@ -449,15 +481,16 @@ The 2026-07 Priority-1/2 list (relocate PII, loud DB failure, dedicated
 `APP_KEY`, token minimum, mentor-PII gate — S-1…S-5) is **done and confirmed in
 code**. Re-prioritised 2026-08-18:
 
-**Priority 0 — fix this week**
-1. **Close the H-2 privilege-escalation chain.** Escape `cover_url` and `gradient`
-   at `admin/app.js:134,333`; validate `cover_url` on save; allowlist `gradient`.
-   Any one of the three breaks the chain — do all three. This is the only finding
-   in the audit that hands one admin tier another tier's session.
-2. **Guard `av_fetch_image_bytes()`** (M-5) — it is reached by the same
-   editor-supplied `cover_url` and has no address check at all. Route it through
-   the check `AvWeb::guard()` already implements, and confine the local-file
-   branch to the uploads directory.
+**Priority 0 — ✅ done 2026-08-18**
+1. ✅ **H-2 closed.** `cover_url` and `gradient` are validated on save and escaped
+   at both render sites, and `escapeHtml()` now covers the single quote. Two
+   same-class findings with wider reach turned up beside it and are fixed too:
+   **H-3** (`mc_title` raw in the public Diary card) and **H-4** (`authors_html`
+   raw on the public article page, and unsanitized on save).
+2. ✅ **M-5 closed.** `av_fetch_image_bytes()` runs through `AvWeb::guard()` — now
+   public, so there is one address check and not a second weaker copy — and the
+   local branch is confined to `/uploads` and `/assets` via `realpath`.
+   Pinned by `tests/assets.test.php`.
 
 **Priority 1 — the standing live risk**
 3. **Remove the residual `'unsafe-inline'`** via file-based scripts + nonces or
