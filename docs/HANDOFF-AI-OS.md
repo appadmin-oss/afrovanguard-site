@@ -36,6 +36,32 @@ anywhere, that is the superseded version — the live API is
 
 ---
 
+## 0a. The 2026-08-18 audit — read this before touching the AI layer
+
+`CODEBASE-AUDIT.md` **§9B** audits everything below and tests the safety
+properties this document claims rather than accepting them. Three things you need
+from it:
+
+1. **The claims hold.** The read/propose split, the SSRF filter (16 crafted
+   bypasses, all refused), the settings crypto, the tier gating and the escaping in
+   the new Studio panes were all verified against running code.
+2. **§7's headline known-bug is not real** — see the correction there. Do not
+   "fix" it.
+3. **There is a High finding, and it is not in this work.** `cover_url` and
+   `gradient` reach `admin/app.js:134,333` unescaped, so an **editor** can take
+   over a **Super Admin** session — which now means the provider keys in Setup and
+   the rules that drive promotions. Audit finding **H-2**, Priority 0. The same
+   unvalidated `cover_url` also feeds `av_fetch_image_bytes()`, which has no SSRF
+   guard at all (**M-5**) — a few files from the one that does.
+
+Open against the AI layer specifically: **M-6** (`AvWeb` validates the resolved
+address then lets cURL resolve again — pin it with `CURLOPT_RESOLVE`), **M-7** (no
+prompt-injection boundary; the propose queue is what contains it), **L-5** (two of
+thirteen tools return another subsystem's value unprojected) and **L-6** (the
+suite really does reach the network).
+
+---
+
 ## 1. Where things stand
 
 | Commit | What |
@@ -339,16 +365,34 @@ cheaper tier and reserve the expensive model for member-facing conversation.
 
 ## 7. Known issues NOT fixed
 
-**`lib/Mentorship.php:384` — the retry cap doesn't work.**
-`s.reconcile_tries < ?` binds an int constant through `execute()`, which PDO
-sends as a string. SQLite's type affinity makes `INTEGER < TEXT` always true, so
-the cap never fires and sessions reconcile indefinitely. Left alone deliberately:
-it's pre-existing, unrelated to this work, and changing reconciliation behaviour
-is a judgement call. Fix with `bindValue(..., PDO::PARAM_INT)`.
+~~**`lib/Mentorship.php:384` — the retry cap doesn't work.**~~ **Refuted
+2026-08-18 — there is no bug here. Don't "fix" it.**
 
-This is a **bug class, not one bug** — the same silent-wrong-answer pattern hit
-the active-mentee query during this work. Any bound parameter compared against
-an integer column needs `PARAM_INT`. Date/string comparisons are fine.
+The claim was that `s.reconcile_tries < ?` (now `:389`) binds an int through
+`execute()`, PDO sends it as a string, and SQLite's affinity makes
+`INTEGER < TEXT` always true, so the cap never fires.
+
+Reproduced in a standalone harness — the same join, the same bound constant,
+under `ATTR_EMULATE_PREPARES` both `false` and `true` — and **the cap fires
+correctly**. SQLite applies **NUMERIC affinity to the parameter** when the other
+operand has INTEGER affinity, so the comparison is numeric, which is what was
+wanted all along. `RECONCILE_MAX_TRIES = 8` is enforced.
+
+The generalisation that followed — "a **bug class**, not one bug … any bound
+parameter compared against an integer column needs `PARAM_INT`" — was therefore
+wrong, and acting on it would mean a sweep of pointless edits. **The correct
+rule** is narrower and worth keeping:
+
+> Affinity conversion happens because the *column* has INTEGER affinity. Where
+> the column is **TEXT**, a bound int is compared as a string and the answer is
+> silently wrong — verified: `v < 3` over a TEXT column holding `'0','3','12'`
+> returns `'0','12'`. That is the case that needs `PARAM_INT`, or a schema fix.
+
+`LIMIT ?` is safe here for a related reason worth not losing: `Database.php:44`
+sets `ATTR_EMULATE_PREPARES => false`, so the seven `LIMIT ?` sites bind natively
+instead of being quoted into `LIMIT '4'`. `tests/meetings.test.php:18` records it.
+
+See `CODEBASE-AUDIT.md` §9B for the harness and the full result.
 
 ~~**Two bugs worth remembering as a pattern**, both found by verifying rather than
 by a test failing, both now pinned:
@@ -439,7 +483,7 @@ new code will otherwise inherit whichever one it happens to touch.
 ## 10. Verifying
 
 ```
-php tests/run.php          # 474 assertions, 5 files
+php tests/run.php          # 666 assertions, 7 files (~21s)
 ```
 
 | File | Pins |
@@ -450,8 +494,17 @@ php tests/run.php          # 474 assertions, 5 files
 | `tests/settings.test.php` | secrets never in `describe()` or the database, no plaintext fallback, the masked placeholder not wiping a key, Studio-over-env precedence and shadow reporting, only registry keys published, per-key errors in a mixed batch |
 | `tests/meetings.test.php` | the earlier meeting defects, pinned so they stay fixed |
 
-No test reaches an external vendor — no provider is configured in the suite, by
-design.
+No test reaches a **paid** vendor API — no billable provider is configured in the
+suite. **But the suite is not network-free**, and the 2026-08-18 audit flagged it
+(`CODEBASE-AUDIT.md` §9B, L-6): `tests/meetbot.test.php:320-378` sets an Attendee
+key and `AV_ATTENDEE_BASE_URL=https://meetbot.example.org`, then exercises
+dispatch and polling — so the suite really does attempt outbound HTTP, visible in
+the run as `[meetings] attendee: transport: CONNECT tunnel failed, response 502`.
+Two assertions ("a failed dispatch is recorded", "an unreachable bot ingests
+nothing") pass *because* the host does not resolve. They test the network, not the
+code. Point the base URL at a reserved-for-failure address or inject the
+transport — and note `AttendeeBot`'s `CURLOPT_CONNECTTIMEOUT` is 10 s per attempt
+on a host without a fast-failing proxy.
 
 Reference docs: `AFROVANGUARD-AI-OS.md` (gap analysis + roadmap),
 `docs/rules-engine.md` (the rules layer), `docs/meetings.md` (the meeting

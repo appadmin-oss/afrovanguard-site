@@ -1,6 +1,6 @@
 # Afrovanguard-Site Codebase Audit
 
-_Repository:_ `appadmin-oss/afrovanguard-site` · _Audit date:_ 2026-07-12 · _Re-indexed:_ 2026-08-06 · _Scope:_ full repository (**584 tracked files**, was ~362)
+_Repository:_ `appadmin-oss/afrovanguard-site` · _Audit date:_ 2026-07-12 · _Re-indexed:_ 2026-08-06 · _Latest pass:_ **2026-08-18** · _Scope:_ full repository (**619 tracked files**, was 584, was ~362)
 
 This audit maps the components, composition, and infrastructure of the Afrovanguard main website so the team has an accurate mental model of what runs where, how the pieces connect, and where the risks are.
 
@@ -14,6 +14,18 @@ This audit maps the components, composition, and infrastructure of the Afrovangu
 > (S-1…S-5) is now **confirmed done in the live code**. Sections below carry the
 > update inline; §9 findings are re-ranked with the current live items on top.
 
+> **2026-08-18 pass — the AI accountability OS.** 619 files; `lib/` is now
+> **83 classes** (was 68). Nine new classes implement an **AI layer with a
+> configuration surface of its own** — a typed rules engine, an editable doctrine
+> and prompt store, a 13-tool registry split read/propose, a guarded web fetcher,
+> a tool-use agent loop over three providers, a capability bench, and encrypted
+> provider credentials managed from the Studio (`docs/HANDOFF-AI-OS.md`). §9B
+> audits it, re-verifies every open finding, and tests the safety properties it
+> claims rather than accepting them. **Its declared properties hold.** The pass's
+> most serious finding is elsewhere: **H-2, a stored-XSS chain in the article list
+> that lets an editor take over a Super Admin session** — old code, newly valuable
+> now that provider keys and the organisation's rules sit behind that session.
+
 **Change log**
 
 | Date | Change |
@@ -22,6 +34,8 @@ This audit maps the components, composition, and infrastructure of the Afrovangu
 | 2026-08-06 | Re-indexed at 584 files: verified S-1…S-5 fixed in code, documented the five new subsystems (§3A), refreshed the `lib`/table/integration inventories, and re-ranked findings. |
 | 2026-08-06 | **Remediated the CSP:** removed `'unsafe-eval'` from the production `.htaccess` `script-src` (former H-1). Residual `'unsafe-inline'` tracked as M-4. |
 | 2026-08-06 | **NGV became a full member programme on its own database** — `lib/NgvDb.php` (isolated connection) + `lib/NgvMember.php` (participants, fee ledger, certifications, applications); a member dashboard, a public registration page, and a staff console (§3A.C). |
+| 2026-08-18 | **Audited the AI layer** (§9B): verified the read/propose split, the SSRF filter (16 bypasses refused), the settings crypto and the tier gating; raised **H-2** (editor → Super Admin via stored XSS), M-5/M-6/M-7 and L-4…L-8; re-verified M-1…M-4, S-7 and L-1…L-3. |
+| 2026-08-18 | **Refuted a documented bug.** `docs/HANDOFF-AI-OS.md` §7's "the retry cap doesn't work" does not reproduce — SQLite applies NUMERIC affinity to a parameter compared against an INTEGER column. The generalised "bug class" claim was wrong; corrected in the handoff. |
 
 ---
 
@@ -326,25 +340,162 @@ Re-ranked 2026-08-06 with the current live items on top. S-1…S-5 are resolved
 
 ---
 
+## 9B. 2026-08-18 pass — the AI layer, and what the last pass could not see
+
+The 2026-08-06 re-index predates the whole **AI accountability OS** programme
+(`AvRules`, `AvKnowledge`, `AvPrompts`, `AvTools`, `AvWeb`, `AvAgent`, `AvLab`,
+`AvSettings`, `AttendeeBot`, `OpenAi` — ~200 KB of new code, described in
+`docs/HANDOFF-AI-OS.md`). This pass audits that surface, re-verifies the open
+findings, and **verifies rather than trusts** the safety properties the handoff
+claims for it.
+
+**Headline: the new code is the better-defended half of the repo.** Its declared
+safety properties hold under test — including the ones that are easy to claim and
+hard to get right. The most serious finding of this pass is not in the AI layer at
+all; it is a **stored-XSS privilege-escalation chain in the six-year-old article
+list**, which the AI work merely made more valuable to attack by putting provider
+credentials and the organisation's constitution behind the same Super Admin
+session.
+
+### New findings
+
+| # | Severity | Area | Location | Issue | Recommendation |
+|---|---|---|---|---|---|
+| **H-2** | **High** | Stored XSS → privilege escalation | `admin/app.js:134,333`; `admin/api.php:949,1087` | **An editor can take over a Super Admin session.** `cover_url` and `gradient` are accepted with only `trim()` — no scheme check, no allowlist — then interpolated **unescaped** into markup: `'<div class="entry-thumb ' + a.gradient + '"' + ' style="background-image:url(\'' + a.cover_url + '\')"'`. `save`/`ac_save` are *content* actions, so the lowest admin tier (**editor**) can write them; the Studio article and course lists are read by Super Admins; and the CSP still permits `'unsafe-inline'` (M-4), so an injected handler executes. From there `?action=session` yields a CSRF token and `admin_add` / `superadmin_reveal` / `setup_*` are all reachable. | Escape both values at the render sites; validate `cover_url` on save (`^https?://` or a leading `/`); allowlist `gradient` against the known `g-*` classes. Three small changes, any one of which breaks the chain. |
+| **M-5** | **Medium** | SSRF + local file read | `lib/helpers.php:21-40` | **`av_fetch_image_bytes()` has no guards at all** — no scheme, host or address validation, and `CURLOPT_FOLLOWLOCATION => true`. The leading-`/` branch reads `AV_ROOT . $url` with no traversal check. It is reached from `av_cover_is_dark()` on every article save (`DiaryRepository.php:362`) and course save (`AcademyRepository.php:84`) — i.e. **by any editor**, with the same unvalidated `cover_url` as H-2. Blind (the only output is dark/light/unknown), but it is a live request-forgery primitive aimed at the private network. | Route it through the same address check `AvWeb::guard()` already implements, and restrict the local branch to a known uploads directory. The asymmetry is the point: the repo has one carefully guarded fetcher and one wide-open one. |
+| **M-6** | **Medium** | SSRF (TOCTOU) | `lib/AvWeb.php:246-308` vs `:309` | **`AvWeb`'s guard is not pinned to the address it validated.** `guard()` resolves the host and checks every answer; `rawGet()` then hands the *hostname* to cURL, which resolves it again. A short-TTL or multi-answer host (classic DNS rebinding) passes the check and connects somewhere else. Every static bypass tested was correctly refused — this is the one remaining hole, and it is the one the per-redirect re-validation cannot close. | Pass the validated IP via `CURLOPT_RESOLVE` (or `CURLOPT_CONNECT_TO`) so the connection uses the address that was checked. Add a rebinding case to the SSRF tests. |
+| **M-7** | **Medium** | Prompt injection | `lib/AvAgent.php`, `lib/AvWeb.php`, `AvPrompts`/`AvKnowledge` seeds | **Nothing in the AI layer treats fetched content as untrusted.** There is not one occurrence of injection-awareness language across the agent, the prompts or the doctrine; page text and search snippets come back as ordinary tool results, undelimited and unframed. With `propose_rule` / `propose_prompt` / `propose_knowledge` live, a hostile page can get the model to file a proposal whose payload *and rationale* it wrote. **The read/propose split contains this** — nothing applies without a human — which is exactly why it is Medium and not High. | Delimit tool output and state in the system prompt that content inside it is data, never instruction. Mark proposals whose turn touched `web_fetch`/`web_search` in the approval queue, so the approver knows the suggestion may not have originated with the assistant. |
+| **L-4** | **Low** | CSRF | `admin/api.php:63-69` vs `:1119,1129` | `ac_grant` and `ac_revoke` are the **only** POST actions absent from the `$writing` allowlist, so `av_csrf_require()` never runs for them; they grant and revoke Academy course access for an arbitrary `user_id`. `SameSite=Lax` on the admin cookie (`security.php:144`) mitigates in practice. The systemic point is worse than the instance: the list is hand-maintained and **fails open** — a new state-changing action gets no CSRF and admin-tier access by default. | Add both to `$writing` now; then invert the rule so any non-GET request requires CSRF unless explicitly exempted. |
+| **L-5** | **Low** | Privacy boundary | `lib/AvTools.php:357,382` | Eleven of thirteen tools project an explicit field list. **`org_stats` and `level_check` return another subsystem's value verbatim** (`Mentorship::adminStats()`, `Levels::recommend()`). Both are aggregate/metric-only today, so "no tool returns an email address" holds — but it holds by inspection of the callee, and `Mentorship::adminMentors()` immediately next door *does* return emails. `tests/aitools.test.php:59` pins the invariant for `member_lookup` alone — 1 of 13 tools. | Project these two like the others, and assert the no-contact-detail invariant over **every** tool's output rather than one. |
+| **L-6** | **Low** | Test hygiene | `tests/meetbot.test.php:320-378`; `docs/HANDOFF-AI-OS.md` §10 | **The suite makes real outbound HTTP calls, and two assertions depend on a host being unreachable.** It sets `AV_ATTENDEE_API_KEY` and `AV_ATTENDEE_BASE_URL=https://meetbot.example.org`, then exercises dispatch and polling — visible in the run as `[meetings] attendee: transport: CONNECT tunnel failed, response 502`. "A failed dispatch is recorded" and "an unreachable bot ingests nothing" pass *because* the network refused. This contradicts §10's "No test reaches an external vendor — no provider is configured in the suite, by design." Suite wall time is ~21 s here; `AttendeeBot`'s `CURLOPT_CONNECTTIMEOUT` is 10 s per attempt on a host with no fast-failing proxy. | Point the base URL at a reserved-for-failure address, or inject the transport, so the assertions test the code rather than the DNS. |
+| **L-7** | **Low** | CI coverage | `.github/workflows/*.yml` | The JS syntax check globs `portal/*.js assets/site/*.js academy/*.js` — 13 files. **`admin/app.js` is not among them**: 151 KB, the largest hand-written JS in the repo, the Studio SPA, and the file carrying every AI pane. Also uncovered: `IQ/iq.js`, `login/auth.js`, `community/community.js`, `diary/*.js`, `js/site.js`, `sw.js`. A syntax error there ships green. | Glob the hand-written JS by exclusion (everything but `vendor/` and `projects/sts/_astro/`) rather than by enumeration. |
+| **L-8** | **Low** | SSRF (by design) | `lib/Webhooks.php:157`; `admin/api.php:213` | `Webhooks::send()` validates only `^https?://`. `wh_test` is management-tier and returns the HTTP status code, which makes internal endpoint and port discovery possible. Largely inherent to a webhook feature — the response body is not returned. | Refuse private/reserved addresses when an endpoint is saved; the legitimate use case never needs one. |
+| **O-1** | **Ops** | Key management | `lib/AvSettings.php:511-523`; `lib/security.php:22` | **Rotating `ADMIN_TOKEN` can silently destroy every stored provider key.** Studio secrets are encrypted under `av_secret()`, which falls back to `ADMIN_TOKEN` when no `APP_KEY` is set (S-3). The last pass's S-4 action item tells operators to regenerate a short `AV_ADMIN_TOKEN` — on a deployment without `APP_KEY`, doing so makes every key in Setup undecryptable. `AvSettings` degrades gracefully (`:242`) but gives no warning first. | Require `APP_KEY` before Setup accepts a secret, or warn on the Setup screen whenever the encryption key is derived from `ADMIN_TOKEN` rather than a dedicated `APP_KEY`. |
+
+### A documented bug that does not exist
+
+`docs/HANDOFF-AI-OS.md` §7 leads with `lib/Mentorship.php:384` — "the retry cap
+doesn't work … PDO sends the int as a string, SQLite's type affinity makes
+`INTEGER < TEXT` always true, so the cap never fires" — and generalises it into
+"a **bug class**, not one bug … any bound parameter compared against an integer
+column needs `PARAM_INT`."
+
+**Reproduced and refuted.** Running the exact shape — the same join, the same
+`s.reconcile_tries < ?` bound through `execute()` — the cap fires correctly, under
+`ATTR_EMULATE_PREPARES` both false and true. SQLite applies **NUMERIC affinity to
+the parameter** when the other operand has INTEGER affinity, so the comparison is
+numeric, as intended. The generalisation is therefore wrong and would drive a
+sweep of pointless edits.
+
+The pattern *does* bite when the column has **TEXT** affinity — verified: `v < 3`
+over a TEXT column holding `'0','3','12'` returns `'0','12'`, a string comparison.
+That is the rule worth writing down. Corrected in the handoff by this pass; the
+line has also moved to `lib/Mentorship.php:389`.
+
+`LIMIT ?` is likewise safe here, and for a reason worth keeping: `Database.php:44`
+sets `ATTR_EMULATE_PREPARES => false`, so the seven `LIMIT ?` call sites bind
+natively instead of being quoted into `LIMIT '4'`. `tests/meetings.test.php:18`
+already records this. It is a real trap that this repo has already stepped around.
+
+### Claims verified, not taken on trust
+
+Everything below was checked against running code this pass:
+
+- **The read/propose split holds.** `AvTools::run()` enforces tiers before
+  dispatch; no `propose_*` path writes live configuration; `approve()` is the only
+  route, gated as Super Admin exactly like editing a rule directly
+  (`admin/api.php:82-87`).
+- **The AvWeb address filter refused all 16 static bypasses tried**, including
+  decimal (`http://2130706433/`), octal (`0177.0.0.1`), shorthand (`127.1`),
+  bracketed IPv6, hex-form IPv4-mapped IPv6 (`0:0:0:0:0:ffff:7f00:1`), embedded
+  credentials, non-http schemes, off-list ports, and `169.254.169.254`. Only
+  NAT64 (`64:ff9b::/96`) passes, which needs a NAT64 gateway on the host —
+  informational. The gap is M-6, not the filter.
+- **`AvSettings` crypto is sound**: authenticated (libsodium secretbox, or
+  AES-256-GCM), a fresh random nonce per value, a versioned prefix, and a refusal
+  rather than a plaintext downgrade when no key is available.
+- **The AI panes are the best-escaped code in `admin/app.js`.** Every
+  model-derived string — chat bodies, tool names, arguments, previews, proposal
+  payloads, rationales, rejection notes — goes through `escapeHtml()`. H-2 is in
+  the *old* code beside them.
+- **Both AI endpoints are rate-limited** (`ai_run` 60/300 s, `ai_chat` 90/300 s),
+  and `AvSettings::get()` is memoised, so `Config::get()` on the hot path costs no
+  extra query.
+- **No SQL injection.** Every `query`/`exec`/`prepare` was swept for interpolated
+  request data: zero hits. The single interpolation is a DDL column name from a
+  hardcoded list (`DiaryRepository.php:227`).
+- **No committed secrets.** All 619 tracked files scanned for `sk-`, `AIza`,
+  `xoxb-` and PEM headers — one test fixture, nothing live.
+- **Inventory matches the handoff**: 35 rules (23 live + 12 pending), 9 prompts,
+  13 tools, 25 settings in 6 groups, 666 assertions across 7 files.
+
+### Re-verification of the open findings
+
+| # | Status 2026-08-18 | Evidence |
+|---|---|---|
+| M-4 | ⏸ Open — **and now load-bearing** | `'unsafe-inline'` still in `.htaccess:119` and `security.php:70,80`. It is what converts H-2's unescaped attribute into script execution. This raises M-4 from "weakest control" to "the reason a content-tier bug reaches Super Admin". |
+| M-1 | ⏸ Open, unchanged | Two authorization models still diverge. The AI layer notably did **not** add a third — it reuses `admin_users` roles throughout. |
+| M-2 | ⏸ Open, unchanged | `integrations/api.php:28` still `Access-Control-Allow-Origin: *`. |
+| M-3 | ◑ Mostly closed | Every new key — `AV_ATTENDEE_*`, `AV_RECALL_*`, `AV_OPENAI_*`, `AV_GEMINI_*`, all four search providers — is now in `.env.example` **and** the `AvSettings` registry **and** `docs/`. Residual: `.env.example` documents the legacy `GEMINI_API_KEY` alias rather than the canonical `AV_GEMINI_API_KEY`, and **`docs/configuration.md:45` still says `ADMIN_TOKEN` (≥ 8 chars)** where the code enforces 32. |
+| S-7 | ⏸ Open, worse | `router.php` has **zero** matches for iq/ngv/workspace/franchise/how-it-works/blueprint. |
+| L-1 | ⏸ Open, worse | `lib/bootstrap.php` now has **62** `require_once` (was ~50); `lib/` is **83** files (was 68). |
+| L-2, L-3, S-8, S-9 | ⏸ Open, unchanged | No change in the relevant code. |
+
+---
+
 ## 10. Risks, Tech Debt & Prioritized Recommendations
 
 The 2026-07 Priority-1/2 list (relocate PII, loud DB failure, dedicated
 `APP_KEY`, token minimum, mentor-PII gate — S-1…S-5) is **done and confirmed in
-code**. The current priorities are:
+code**. Re-prioritised 2026-08-18:
 
-**Priority 1 — the live risk**
-1. ✅ **Done (2026-08-06):** `'unsafe-eval'` removed from the production CSP. **Next:** work toward removing the residual `'unsafe-inline'` via file-based scripts + nonces/hashes, page-family by page-family (M-4).
-2. **Reconcile the two admin-authorization models** (M-1) — decide whether IQ authoring / chat channel admin should key off `admin_users` roles or Community clearance, and make it one source of truth.
+**Priority 0 — fix this week**
+1. **Close the H-2 privilege-escalation chain.** Escape `cover_url` and `gradient`
+   at `admin/app.js:134,333`; validate `cover_url` on save; allowlist `gradient`.
+   Any one of the three breaks the chain — do all three. This is the only finding
+   in the audit that hands one admin tier another tier's session.
+2. **Guard `av_fetch_image_bytes()`** (M-5) — it is reached by the same
+   editor-supplied `cover_url` and has no address check at all. Route it through
+   the check `AvWeb::guard()` already implements, and confine the local-file
+   branch to the uploads directory.
 
-**Priority 2 — integration & config hygiene**
-3. **Lock down the inbound API** (M-2) — restrict CORS to sister-site origins and cap the billable `bot.ask`/`chioma.ask` actions per token.
-4. **Document every new `AV_*` secret in `.env.example`** and fix the stale 8→32 admin-token minimum in `docs/configuration.md` (M-3).
-5. **Verify the meeting-bot webhook token is set** in production (L-2) and confirm the Google Chat mirror egress is intended per channel (L-3).
+**Priority 1 — the standing live risk**
+3. **Remove the residual `'unsafe-inline'`** via file-based scripts + nonces or
+   hashes, page-family by page-family (M-4). H-2 shows what it costs to keep:
+   with a nonce-based policy, an injected attribute is inert. Start with the
+   authenticated Studio, where the payoff is highest and the inline surface
+   smallest.
+4. **Pin `AvWeb`'s DNS resolution** (M-6) — `CURLOPT_RESOLVE` with the address
+   `guard()` validated, plus a rebinding test case. The filter is good; this is
+   the one way past it.
+5. **Reconcile the two admin-authorization models** (M-1) — decide whether IQ
+   authoring / chat channel admin should key off `admin_users` roles or Community
+   clearance, and make it one source of truth.
 
-**Priority 3 — maintainability & performance**
-6. **De-duplicate routing** or add a route-parity test, and at minimum add the missing dev routes to `router.php` (S-7).
-7. **Add a lightweight autoloader** for `lib/` so a page doesn't eager-load ~50 classes (L-1).
-8. **Audit `projects/sts` as its own project** (S-8); verify the `.htaccess` secret/PII denies stay live through the WordPress cutover (S-9).
+**Priority 2 — the AI layer's own hygiene**
+6. **Give the AI layer a prompt-injection boundary** (M-7) — delimit tool output,
+   say in the system prompt that content inside it is data rather than
+   instruction, and flag proposals whose turn touched the web so the approver
+   knows where the suggestion may have come from.
+7. **Require `APP_KEY` before Setup accepts a secret** (O-1), so rotating
+   `ADMIN_TOKEN` cannot silently orphan every stored provider key.
+8. **Project `org_stats` and `level_check`** like the other eleven tools, and
+   assert the no-contact-detail invariant over every tool rather than one (L-5).
+
+**Priority 3 — integration & config hygiene**
+9. **Lock down the inbound API** (M-2) — restrict CORS to sister-site origins and cap the billable `bot.ask`/`chioma.ask` actions per token.
+10. **Fix the stale 8→32 admin-token minimum** in `docs/configuration.md:45` and
+    document `AV_GEMINI_API_KEY` as the canonical name in `.env.example` (M-3 residual).
+11. **Add `ac_grant`/`ac_revoke` to the CSRF list, then invert the list** so any
+    non-GET action requires CSRF unless exempted (L-4). Refuse private addresses
+    when a webhook endpoint is saved (L-8).
+12. **Verify the meeting-bot webhook token is set** in production (L-2) and confirm the Google Chat mirror egress is intended per channel (L-3).
+
+**Priority 4 — maintainability, tests & performance**
+13. **Stop the suite reaching the network** and remove the two assertions that pass because DNS failed (L-6); **glob the CI JS check by exclusion** so `admin/app.js` is covered (L-7).
+14. **De-duplicate routing** or add a route-parity test, and at minimum add the missing dev routes to `router.php` (S-7).
+15. **Add a lightweight autoloader** for `lib/` so a page doesn't eager-load 62 requires across 83 classes (L-1).
+16. **Audit `projects/sts` as its own project** (S-8); verify the `.htaccess` secret/PII denies stay live through the WordPress cutover (S-9).
 
 **Overall assessment.** This remains a well-engineered, deliberately
 dependency-light monolith with strong security fundamentals and unusually good
@@ -356,6 +507,30 @@ from *data-at-rest fragility* to **front-end XSS surface (the CSP still relies o
 a wildcard-CORS AI/PII endpoint, and a growing set of undocumented secrets —
 introduced by the five new subsystems. Addressing Priority 1 materially de-risks
 the platform.
+
+**Updated 2026-08-18.** Two things changed the picture, in opposite directions.
+
+The AI layer is **the best-defended code in the repository**, and it did not have
+to be — an AI subsystem with its own editable configuration is exactly where
+shortcuts usually hide. Instead the read/propose split is real and enforced, the
+SSRF filter refused all sixteen bypasses tried, secrets are properly encrypted
+with a refusal rather than a downgrade when they cannot be, the tier gating puts
+the organisation's rules behind the Super Admin, and the newest UI code escapes
+every model-derived string. Where this audit disagrees with the authors, it is
+mostly to say a claimed *bug* isn't real.
+
+Against that: the standing `'unsafe-inline'` CSP has stopped being a theoretical
+weak control. **H-2 is a concrete path from the lowest admin tier to the highest**,
+and it exists because two old lines interpolate an unvalidated field into an HTML
+attribute on a page a Super Admin reads. The AI work did not cause it — but by
+moving provider credentials and the promotion rules behind that same session, it
+raised the value of the session H-2 hands over. The same unvalidated field also
+feeds an entirely unguarded server-side fetcher (M-5), a few files away from the
+carefully guarded one.
+
+The honest summary: **the new surface is safer than the old surface it was built
+on.** Priority 0 is small, mechanical, and worth doing before anything else on
+this list.
 
 ---
 
@@ -372,3 +547,26 @@ points, `lib/` classes, and tables, and the findings were re-ranked — S-1…S-
 confirmed fixed in code, S-6/S-7 confirmed open-and-worse, and M-1…M-3 / L-1…L-3
 raised from the new surface. All findings cite files verified to exist in the
 repository at the stated date.
+
+The **2026-08-18 pass** was a single-reader audit of the AI layer plus a
+re-verification sweep, and it was **executed rather than read**. Specifically:
+
+- the suite was run (**666 assertions, 7 files, ~21 s**) before anything was claimed;
+- `AvWeb::guard()` was invoked directly by reflection against **16 crafted URLs**
+  (decimal, octal and shorthand IPv4; bracketed and hex-form IPv4-mapped IPv6;
+  embedded credentials; non-http schemes; off-list ports; the cloud metadata
+  address) — the results in §9B are what it actually returned, not what the code
+  looks like it should return;
+- `publicIp()` was re-implemented in isolation and run over 18 addresses to
+  separate what the filter catches from what PHP's flags catch;
+- the handoff's headline known-bug was reproduced in a standalone SQLite harness
+  under both emulated and native prepares, and **refuted**;
+- the CSRF and role allowlists in `admin/api.php` were diffed programmatically
+  against every `case` label, which is how L-4 surfaced;
+- the AI inventory (rules, prompts, tools, settings) was counted from the class
+  constants by reflection and compared with the documented figures;
+- all 619 tracked files were swept for committed secrets and for SQL built from
+  request data.
+
+Where a claim could not be tested from inside the repository — DNS rebinding
+(M-6), production configuration (L-2) — §9B says so rather than asserting it.
