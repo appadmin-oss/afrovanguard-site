@@ -82,13 +82,19 @@ foreach ([
     $add($ok, $sc, ['type' => 'Page', 'title' => $t, 'url' => $h, 'excerpt' => $d]);
 }
 
-/* 2) Diary entries. */
+/* 2) Diary entries. Matched by title, dek, category — and by reference code. */
 try {
+    // A code is an exact identifier, not a keyword, so it does not compete on
+    // relevance: if the query IS a code, that entry is the answer and goes first.
+    $wantCode = DiaryRepository::normaliseRefCode($q);
     foreach ((new DiaryRepository())->all() as $a) {
         $title = (string) ($a['title'] ?? '');
         $dek = (string) ($a['dek'] ?? '');
-        [$ok, $sc] = $scoreOf($title, $dek, (string) ($a['category'] ?? ''), 3);
-        $add($ok, $sc, ['type' => 'Diary', 'title' => $title, 'url' => '/diary/' . (string) ($a['slug'] ?? '') . '/', 'excerpt' => $clip($dek)]);
+        $code = (string) ($a['ref_code'] ?? '');
+        [$ok, $sc] = $scoreOf($title, $dek, trim((string) ($a['category'] ?? '') . ' ' . $code), 3);
+        if ($wantCode !== '' && $code === $wantCode) { $ok = true; $sc = 10000; }
+        $add($ok, $sc, ['type' => 'Diary', 'title' => $title, 'url' => '/diary/' . (string) ($a['slug'] ?? '') . '/',
+                        'excerpt' => $clip($dek), 'code' => $code]);
     }
 } catch (\Throwable $e) { error_log('[search] diary: ' . $e->getMessage()); }
 

@@ -17,11 +17,24 @@ final class DiaryRepository
          a.read_minutes, a.gradient, a.mc_title, a.cover_url, c.name AS category, c.slug AS category_slug,
          a.featured, a.status';
 
+    /**
+     * Card columns, plus `ref_code` once the column exists.
+     *
+     * Selected conditionally rather than unconditionally so a MySQL/Postgres
+     * target that has not run db/migrate.php yet keeps serving the Diary instead
+     * of failing every query on a column it does not have — the same degradation
+     * `audio_url` and the series columns already get.
+     */
+    private function cardCols(): string
+    {
+        return self::CARD_COLS . ($this->refCodesEnabled() ? ', a.ref_code' : '');
+    }
+
     /** All published entries, newest first (lightweight card fields). */
     public function all(): array
     {
         return $this->db->query(
-            'SELECT ' . self::CARD_COLS . '
+            'SELECT ' . $this->cardCols() . '
              FROM articles a JOIN categories c ON c.id = a.category_id
              WHERE a.status = \'published\'
              ORDER BY a.published_at DESC, a.id DESC'
@@ -45,7 +58,7 @@ final class DiaryRepository
     public function allForAdmin(): array
     {
         return $this->db->query(
-            'SELECT ' . self::CARD_COLS . ', a.updated_at
+            'SELECT ' . $this->cardCols() . ', a.updated_at
              FROM articles a JOIN categories c ON c.id = a.category_id
              ORDER BY a.updated_at DESC, a.id DESC'
         )->fetchAll();
@@ -55,7 +68,7 @@ final class DiaryRepository
     public function featured(): ?array
     {
         $row = $this->db->query(
-            'SELECT ' . self::CARD_COLS . '
+            'SELECT ' . $this->cardCols() . '
              FROM articles a JOIN categories c ON c.id = a.category_id
              WHERE a.featured = 1 AND a.status = \'published\' ORDER BY a.published_at DESC LIMIT 1'
         )->fetch();
@@ -96,7 +109,7 @@ final class DiaryRepository
     public function relatedCards(int $articleId): array
     {
         $st = $this->db->prepare(
-            'SELECT ' . self::CARD_COLS . '
+            'SELECT ' . $this->cardCols() . '
              FROM related r
              JOIN articles a ON a.slug = r.related_slug
              JOIN categories c ON c.id = a.category_id
@@ -209,6 +222,156 @@ final class DiaryRepository
             ->execute([(int) $a['id'], $userId, $name, $body, 'published', $now]);
         return ['id' => (int) $this->db->lastInsertId(), 'name' => $name, 'body' => $body, 'created_at' => $now];
     }
+    /* ══ Reference codes ═══════════════════════════════════════════════════
+       Every entry carries a short, quotable identifier: AVD-2608-0003 is the
+       third Diary entry of August 2026.
+
+       It exists because a slug is not an identifier. A slug gets rewritten for
+       SEO, a title gets corrected, and a URL someone wrote on a printout stops
+       resolving. A reference code is assigned once, on creation, and never
+       changes — so it can be quoted in a meeting, cited in a report, or typed
+       into search a year later and still land on the right entry.
+       ═════════════════════════════════════════════════════════════════════ */
+
+    /** Prefix for a Diary reference code. */
+    public const REF_PREFIX = 'AVD';
+
+    private bool $refReady = false;
+
+    /** Add the column and its unique index, portably, then backfill once. */
+    private function ensureRefCodes(): void
+    {
+        if ($this->refReady) return; $this->refReady = true;
+        if (!Database::columnExists('articles', 'ref_code')) {
+            // Nullable, not NOT NULL DEFAULT '': the index below is unique, and an
+            // empty string is a real value, so two not-yet-assigned rows would
+            // collide. All three engines allow repeated NULLs in a unique index.
+            try { $this->db->exec('ALTER TABLE articles ADD COLUMN ref_code VARCHAR(32) DEFAULT NULL'); }
+            catch (Throwable $e) { error_log('[diary] add ref_code: ' . $e->getMessage()); return; }
+            try { $this->db->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_refcode ON articles(ref_code)'); }
+            catch (Throwable $e) { error_log('[diary] index ref_code: ' . $e->getMessage()); }
+        }
+
+        // Assign anything still missing one. This is a probe against the unique
+        // index rather than a one-time flag, so entries that arrive by a route
+        // that never calls save() — the installer's seed, a direct import, a hand
+        // -written INSERT — get codes too, instead of being permanently missed
+        // because a flag was already set.
+        try {
+            $missing = $this->db->query(
+                "SELECT 1 FROM articles WHERE ref_code IS NULL OR ref_code = '' LIMIT 1"
+            )->fetchColumn();
+            if ($missing) $this->backfillRefCodes();
+        } catch (Throwable $e) { error_log('[diary] ref_code backfill: ' . $e->getMessage()); }
+    }
+
+    /** Whether reference codes are available on this database. */
+    public function refCodesEnabled(): bool
+    {
+        $this->ensureRefCodes();
+        return Database::columnExists('articles', 'ref_code');
+    }
+
+    /** `2608` for August 2026 — the month the entry was published. */
+    private static function refMonth(string $publishedAt): string
+    {
+        $ts = trim($publishedAt) !== '' ? strtotime($publishedAt) : false;
+        return gmdate('ym', $ts !== false ? $ts : time());
+    }
+
+    /**
+     * Assemble a code. The serial is four digits, and widens rather than wraps
+     * if a single month ever carries more than 9999 entries.
+     */
+    private static function formatRef(string $ym, int $seq): string
+    {
+        return self::REF_PREFIX . '-' . $ym . '-' . str_pad((string) max(1, $seq), 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * The next unused serial for an entry published in $publishedAt's month.
+     *
+     * The max is computed in PHP rather than SQL because the tail is a substring
+     * and `MAX(CAST(SUBSTR(...)))` is spelled differently on all three engines
+     * for no benefit — a month holds tens of entries, not millions.
+     */
+    private function nextRefCode(string $publishedAt): string
+    {
+        $ym = self::refMonth($publishedAt);
+        $st = $this->db->prepare('SELECT ref_code FROM articles WHERE ref_code LIKE ?');
+        $st->execute([self::REF_PREFIX . '-' . $ym . '-%']);
+        $head = strlen(self::REF_PREFIX) + 6;                 // 'AVD' + '-YYMM-'
+        $max = 0;
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $code) {
+            $n = (int) substr((string) $code, $head);
+            if ($n > $max) $max = $n;
+        }
+        return self::formatRef($ym, $max + 1);
+    }
+
+    /**
+     * Read a code the way a human will actually type it: any case, spaces or
+     * dashes anywhere or nowhere, with or without the AVD prefix. Returns the
+     * canonical form, or '' if it is not a code at all.
+     *
+     *   'avd 2608 0003' · 'AVD-2608-0003' · '26080003' → 'AVD-2608-0003'
+     */
+    public static function normaliseRefCode(string $raw): string
+    {
+        $s = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $raw));
+        if ($s === '') return '';
+        $p = self::REF_PREFIX;
+        if (strncmp($s, $p, strlen($p)) === 0) $s = substr($s, strlen($p));
+        if (!preg_match('/^(\d{4})(\d{4,})$/', $s, $m)) return '';
+        return self::formatRef($m[1], (int) $m[2]);
+    }
+
+    /** Does this string look like a reference code rather than a search phrase? */
+    public static function looksLikeRefCode(string $raw): bool
+    {
+        return self::normaliseRefCode($raw) !== '';
+    }
+
+    /** Resolve a code to its slug ('' when no entry answers to it). */
+    public function slugForRefCode(string $code): string
+    {
+        $code = self::normaliseRefCode($code);
+        if ($code === '' || !$this->refCodesEnabled()) return '';
+        $st = $this->db->prepare('SELECT slug FROM articles WHERE ref_code = ?');
+        $st->execute([$code]);
+        return (string) ($st->fetchColumn() ?: '');
+    }
+
+    /** The full entry behind a code, or null. Drafts are included on request. */
+    public function byRefCode(string $code, bool $includeDrafts = false): ?array
+    {
+        $slug = $this->slugForRefCode($code);
+        return $slug === '' ? null : $this->bySlug($slug, $includeDrafts);
+    }
+
+    /**
+     * Give every code-less entry one, oldest first, so serials read
+     * chronologically within each month. Idempotent. Returns the number assigned.
+     */
+    public function backfillRefCodes(): int
+    {
+        if (!Database::columnExists('articles', 'ref_code')) return 0;
+        $rows = $this->db->query(
+            "SELECT id, published_at FROM articles
+             WHERE ref_code IS NULL OR ref_code = ''
+             ORDER BY published_at ASC, id ASC"
+        )->fetchAll();
+        if (!$rows) return 0;
+        $up = $this->db->prepare('UPDATE articles SET ref_code = ? WHERE id = ?');
+        $n = 0;
+        foreach ($rows as $r) {
+            $code = $this->nextRefCode((string) ($r['published_at'] ?? ''));
+            try { $up->execute([$code, (int) $r['id']]); $n++; }
+            catch (Throwable $e) { error_log('[diary] ref_code for #' . $r['id'] . ': ' . $e->getMessage()); }
+        }
+        return $n;
+    }
+
     private function ensureSeries(): void
     {
         if ($this->seriesReady) return; $this->seriesReady = true;
@@ -334,10 +497,35 @@ final class DiaryRepository
         $slug = slugify($d['slug'] ?: $d['title']);
         $catId = $this->categoryId($d['category'] ?: 'Dispatch');
         $now = date('Y-m-d H:i:s');
+        // Resolved before the transaction: refCodesEnabled() can run DDL, and DDL
+        // inside an open transaction is a different conversation on every engine.
+        $refCodes = $this->refCodesEnabled();
 
-        $exists = $this->db->prepare('SELECT id FROM articles WHERE slug = ?');
-        $exists->execute([$slug]);
-        $id = $exists->fetchColumn();
+        // An entry is identified by its reference code when the caller knows it,
+        // which is what lets a slug be corrected instead of forking the entry into
+        // a second copy — the old behaviour, because the only key was the slug
+        // itself. Callers that don't send one (imports, the seed) still match by
+        // slug exactly as before.
+        $id = 0;
+        $refIn = $refCodes ? self::normaliseRefCode((string) ($d['ref_code'] ?? '')) : '';
+        if ($refIn !== '') {
+            $st = $this->db->prepare('SELECT id FROM articles WHERE ref_code = ?');
+            $st->execute([$refIn]);
+            $id = (int) ($st->fetchColumn() ?: 0);
+        }
+        if (!$id) {
+            $exists = $this->db->prepare('SELECT id FROM articles WHERE slug = ?');
+            $exists->execute([$slug]);
+            $id = (int) ($exists->fetchColumn() ?: 0);
+        } else {
+            // Renaming into a slug another entry already owns would fail on the
+            // unique index deep inside the transaction. Say so plainly instead.
+            $clash = $this->db->prepare('SELECT id FROM articles WHERE slug = ? AND id <> ?');
+            $clash->execute([$slug, $id]);
+            if ($clash->fetchColumn()) {
+                throw new RuntimeException('slug-taken: another entry already uses the slug "' . $slug . '".');
+            }
+        }
 
         $fields = [
             'slug' => $slug, 'title' => $d['title'], 'dek' => $d['dek'],
@@ -379,6 +567,11 @@ final class DiaryRepository
                 $fields['mc_tag'] = 'ALIMOSHO · LAGOS';
                 $fields['base_claps'] = 0;
                 $fields['created_at'] = $now;
+                // Assigned on creation only, and never on update: the whole point
+                // of the code is that it still resolves after the slug, the title
+                // or the publication date has been changed. Computed inside the
+                // transaction, with the unique index as the real guarantee.
+                if ($refCodes) $fields['ref_code'] = $this->nextRefCode((string) $d['published_at']);
                 $cols = implode(', ', array_keys($fields));
                 $ph = implode(', ', array_map(fn($k) => ":$k", array_keys($fields)));
                 $this->db->prepare("INSERT INTO articles ($cols) VALUES ($ph)")->execute($fields);
@@ -500,7 +693,7 @@ final class DiaryRepository
 
         // LIMIT/OFFSET are validated ints, inlined for cross-driver consistency.
         $items = $this->bind(
-            'SELECT ' . self::CARD_COLS . '
+            'SELECT ' . $this->cardCols() . '
              FROM articles a JOIN categories c ON c.id = a.category_id
              WHERE ' . $where . '
              ORDER BY a.published_at DESC, a.id DESC

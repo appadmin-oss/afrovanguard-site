@@ -44,6 +44,10 @@ RewriteRule ^diary/feed\.xml$ diary/feed.php [L]
 RewriteRule ^diary/og/([a-z0-9-]+)\.png$ diary/og.php?slug=$1 [L,QSA]
 RewriteRule ^diary/me/?$ diary/me.php [L,QSA]
 RewriteRule ^diary/series/([a-z0-9-]+)/?$ diary/series.php?slug=$1 [L,QSA]
+# A reference code (AVD-2608-0003) is a permanent handle for an entry — it keeps
+# resolving after the slug has been rewritten. Matched before the slug rule
+# because a code is uppercase and the slug rule is not.
+RewriteRule ^diary/([A-Za-z]{3}-[0-9]{4}-[0-9]{4,})/?$ diary/article.php?code=$1 [L,QSA]
 RewriteRule ^diary/([a-z0-9-]+)/?$ diary/article.php?slug=$1 [L,QSA]
 
 # Academy  (/academy/ and /academy/studio/ are real dirs → served above)

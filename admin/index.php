@@ -130,10 +130,13 @@
     <div class="studio-head">
       <div><h1>Diary entries</h1><p class="muted" id="cloudinaryNote"></p></div>
       <div class="editor-actions">
+        <input class="entry-find" type="search" id="entryFind" aria-label="Find an entry by name or reference code"
+               placeholder="Find by name or code (AVD-2608-0003)" autocomplete="off" />
         <button class="btn btn-outline" id="wpImportBtn" title="Migrate posts from a WordPress export file">↧ Import from WordPress</button>
         <button class="btn btn-primary" id="newBtn">+ New entry</button>
       </div>
     </div>
+    <p class="muted tiny" id="entryFindNote" hidden></p>
     <div class="entry-list" id="entryList"></div>
   </main>
 
@@ -207,6 +210,11 @@
           <div class="cover-actions"><button type="button" class="btn btn-outline btn-sm" id="coverBtn">Upload cover</button><button type="button" class="btn btn-outline btn-sm" id="coverClear" hidden>Remove</button></div>
           <input id="f_cover" type="hidden" />
           <p class="muted tiny">Used on cards, the article hero, and the auto social card.</p>
+        </div>
+        <div class="side-card" id="f_refWrap" hidden>
+          <h3>Reference code</h3>
+          <p class="entry-ref" id="f_ref" style="font-size:15px"></p>
+          <p class="muted tiny">This entry's permanent identifier. Quote it to identify the entry — it does not change when you edit the slug, title or date, and <code>/diary/&lt;code&gt;</code> always resolves here.</p>
         </div>
         <div class="side-card">
           <h3>Audio narration</h3>

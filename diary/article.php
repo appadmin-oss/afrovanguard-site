@@ -7,11 +7,22 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 
-$slug = (string) ($_GET['slug'] ?? '');
-$slug = preg_replace('/[^a-z0-9\-]/', '', strtolower($slug));
+$raw  = (string) ($_GET['code'] ?? $_GET['slug'] ?? '');
+$slug = preg_replace('/[^a-z0-9\-]/', '', strtolower($raw));
 
 $repo = new DiaryRepository();
 $a = $slug ? $repo->bySlug($slug) : null;
+
+// Not a slug? It may be a reference code. A code is a permanent handle — it keeps
+// resolving after the slug has been rewritten — so it answers with a 301 to the
+// entry's canonical URL rather than serving a second address for the same page.
+if (!$a && $raw !== '') {
+    $bySlug = $repo->slugForRefCode($raw);
+    if ($bySlug !== '') {
+        header('Location: ' . diary_url($bySlug . '/'), true, 301);
+        exit;
+    }
+}
 
 if (!$a) {
     require_once AV_ROOT . '/lib/errors.php';
@@ -92,6 +103,9 @@ render_subbar($a['title'], $a['slug'], $canonical);
           <div class="article-meta">
             <div><div class="meta-label">Written by</div><div class="meta-value"><?= av_byline_html($a['authors_html']) ?></div></div>
             <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= $readMin ?> min read</div></div>
+<?php if (!empty($a['ref_code'])): ?>
+            <div><div class="meta-label">Reference</div><div class="meta-value"><code class="article-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code></div></div>
+<?php endif; ?>
           </div>
 <?php render_listen_bar($a['slug'], $canonical); ?>
 <?php if (!empty($a['audio_url'])): ?>

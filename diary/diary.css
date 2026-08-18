@@ -179,6 +179,11 @@ html.av-drawer-open .subbar { pointer-events: none; }
 .meta-value { font-size: 16px; font-weight: 600; color: var(--ink); }
 .meta-value a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--divider); text-underline-offset: 3px; }
 .meta-value a:hover { text-decoration-color: var(--gold); }
+/* The entry's permanent reference code. Monospaced and slightly tracked out so it
+   reads cleanly aloud and a transposed digit is obvious. */
+.article-ref { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px;
+  font-weight: 700; letter-spacing: 0.04em; color: var(--ink); background: transparent; padding: 0;
+  cursor: help; user-select: all; }
 
 /* listen + reader controls bar */
 /* Clean, minimal top row: one "Listen" trigger + the reader tools. Playback

@@ -166,7 +166,8 @@ render_nav('diary');
 <?php $n = $total; foreach ($articles as $i => $a): ?>
             <li><a href="/diary/<?= e($a['slug']) ?>/"
                    data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>"
-                   data-search="<?= e(strtolower($a['title'] . ' ' . $a['category'])) ?>"
+                   data-search="<?= e(strtolower($a['title'] . ' ' . $a['category'] . ' ' . ($a['ref_code'] ?? ''))) ?>"
+                   data-ref="<?= e($a['ref_code'] ?? '') ?>"
                    data-title="<?= e($a['title']) ?>" data-cat-name="<?= e($a['category']) ?>"
                    data-published="<?= e($a['published']) ?>" data-date="<?= e($a['published_at']) ?>"
                    data-min="<?= (int) $a['read_minutes'] ?>"

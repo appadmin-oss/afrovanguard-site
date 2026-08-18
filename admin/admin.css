@@ -83,6 +83,14 @@ body.studio-authed .studio-side { display: block; }
 .entry-title { font-weight: 800; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
 .entry-meta { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .entry-ops { display: flex; gap: 8px; flex-shrink: 0; }
+/* Find an entry by name or reference code. */
+.entry-find { min-width: 260px; padding: 9px 12px; border: 1px solid var(--divider); border-radius: var(--radius-full);
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 14px; }
+.entry-find:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+/* The reference code: monospaced so digits line up down the list and a
+   transposed one is obvious when read aloud. */
+.entry-ref { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px;
+  font-weight: 700; letter-spacing: 0.02em; color: var(--muted); }
 .badge { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 9px; border-radius: var(--radius-full); }
 .badge.published { background: rgba(34,197,94,0.15); color: #16a34a; }
 .badge.draft { background: rgba(107,114,128,0.18); color: var(--muted); }

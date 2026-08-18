@@ -39,6 +39,13 @@ if (preg_match('~^/diary/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $
 if (preg_match('~^/diary/?$~', $uri)) { require __DIR__ . '/diary/index.php'; return true; }
 if (preg_match('~^/diary/me/?$~', $uri)) { require __DIR__ . '/diary/me.php'; return true; }
 if (preg_match('~^/diary/series/([a-z0-9-]+)/?$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/diary/series.php'; return true; }
+// Reference-code URLs (AVD-2608-0003) — matched before the slug rule, which is
+// lowercase-only. Mirrors the same rule in .htaccess.
+if (preg_match('~^/diary/([A-Za-z]{3}-[0-9]{4}-[0-9]{4,})/?$~', $uri, $m)) {
+    $_GET['code'] = $m[1];
+    require __DIR__ . '/diary/article.php';
+    return true;
+}
 if (preg_match('~^/diary/([a-z0-9-]+)/?$~', $uri, $m)) {
     $_GET['slug'] = $m[1];
     require __DIR__ . '/diary/article.php';

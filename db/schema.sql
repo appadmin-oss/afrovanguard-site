@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS articles (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   slug          TEXT UNIQUE NOT NULL,
+  ref_code      VARCHAR(32) DEFAULT NULL,          -- stable quotable id, e.g. AVD-2608-0003 (survives a slug rename); NULL until assigned, so the unique index tolerates un-backfilled rows
   title         TEXT NOT NULL,
   dek           TEXT NOT NULL,
   category_id   INTEGER NOT NULL REFERENCES categories(id),
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS articles (
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_category  ON articles(category_id);
 CREATE INDEX IF NOT EXISTS idx_articles_status    ON articles(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_refcode ON articles(ref_code);
 
 -- Table-of-contents entries (one row per section heading)
 CREATE TABLE IF NOT EXISTS sections (

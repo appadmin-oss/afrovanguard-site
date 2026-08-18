@@ -125,20 +125,63 @@
   })();
   $('#logoutBtn').addEventListener('click', function () { post('logout', {}).finally(function () { csrf = ''; show('login'); }); });
 
+  // Filtering is client-side: the admin list is already loaded in full, so a
+  // keystroke should not cost a round trip.
+  $('#entryFind') && $('#entryFind').addEventListener('input', renderList);
+  $('#entryFind') && $('#entryFind').addEventListener('search', renderList);
+
   /* ---- Diary list ---- */
+  var entries = [];
+
+  // A reference code is typed as AVD-2608-0003, but it will also be pasted with
+  // different dashes, or without the prefix, or in lower case. Compare on digits
+  // and letters alone so all of those find the entry.
+  function refKey(s) { return String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+  function renderList() {
+    var box = $('#entryList'); if (!box) return;
+    var qEl = $('#entryFind');
+    var q = ((qEl && qEl.value) || '').trim();
+    var note = $('#entryFindNote');
+    var rows = entries;
+    if (q) {
+      var qlc = q.toLowerCase(), qref = refKey(q);
+      rows = entries.filter(function (a) {
+        // Name, code, slug and category — the four things somebody actually has
+        // to hand when they are looking for an entry.
+        return (a.title || '').toLowerCase().indexOf(qlc) !== -1
+          || (a.slug || '').toLowerCase().indexOf(qlc) !== -1
+          || (a.category || '').toLowerCase().indexOf(qlc) !== -1
+          || (qref.length >= 4 && refKey(a.ref_code).indexOf(qref) !== -1);
+      });
+    }
+    if (note) {
+      note.hidden = !q;
+      note.textContent = q ? (rows.length + ' of ' + entries.length + ' entries match “' + q + '”') : '';
+    }
+    box.innerHTML = '';
+    if (!rows.length) {
+      box.innerHTML = '<p class="muted">' + (q ? 'No entry matches that name or code.' : 'No entries yet.') + '</p>';
+      return;
+    }
+    rows.forEach(function (a) {
+      var row = document.createElement('div'); row.className = 'entry-row';
+      row.innerHTML = '<div class="entry-thumb ' + escapeHtml(a.gradient) + '"' + (a.cover_url ? ' style="background-image:url(\'' + escapeHtml(a.cover_url) + '\')"' : '') + '></div>' +
+        '<div class="entry-info"><div class="entry-title">' + escapeHtml(a.title) + '</div><div class="entry-meta"><span class="badge ' + a.status + '">' + a.status + '</span> ' +
+        (a.ref_code ? '<span class="entry-ref" title="Reference code — quote this to identify the entry">' + escapeHtml(a.ref_code) + '</span> · ' : '') +
+        escapeHtml(a.category) + ' · ' + escapeHtml(a.published) + (a.featured == 1 ? ' · ★' : '') + '</div></div>' +
+        '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-edit="' + a.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-del="' + a.slug + '">Delete</button></div>';
+      box.appendChild(row);
+    });
+  }
+
   function loadList() {
     return api('list').then(function (r) {
-      var box = $('#entryList'); box.innerHTML = '';
+      var box = $('#entryList');
       if (!r.data.ok) { box.innerHTML = '<p class="muted">Could not load entries.</p>'; return; }
       $('#cloudinaryNote').textContent = cloudinary ? 'Media uploads go to Cloudinary.' : 'Cloudinary not configured — uploads stored locally under /uploads.';
-      r.data.articles.forEach(function (a) {
-        var row = document.createElement('div'); row.className = 'entry-row';
-        row.innerHTML = '<div class="entry-thumb ' + escapeHtml(a.gradient) + '"' + (a.cover_url ? ' style="background-image:url(\'' + escapeHtml(a.cover_url) + '\')"' : '') + '></div>' +
-          '<div class="entry-info"><div class="entry-title">' + escapeHtml(a.title) + '</div><div class="entry-meta"><span class="badge ' + a.status + '">' + a.status + '</span> ' +
-          escapeHtml(a.category) + ' · ' + escapeHtml(a.published) + (a.featured == 1 ? ' · ★' : '') + '</div></div>' +
-          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-edit="' + a.slug + '">Edit</button><button class="btn btn-outline btn-sm danger" data-del="' + a.slug + '">Delete</button></div>';
-        box.appendChild(row);
-      });
+      entries = r.data.articles || [];
+      renderList();
     });
   }
   $('#entryList').addEventListener('click', function (e) {
@@ -259,6 +302,7 @@
     $('#f_format').value = 'standard';
     $('#f_featured').checked = false; $('#f_date').value = new Date().toISOString().slice(0, 10);
     setCover(''); setAudio(''); $('#previewLink').hidden = true;
+    setRefCode('');
   }
   function fillForm(a) {
     $('#f_title').value = a.title || ''; $('#f_dek').value = a.dek || ''; $('#f_slug').value = a.slug || '';
@@ -269,7 +313,20 @@
     $('#f_format').value = a.format || 'standard';
     $('#f_featured').checked = a.featured == 1; $('#f_date').value = (a.published_at || '').slice(0, 10);
     setCover(a.cover_url || ''); setAudio(a.audio_url || ''); initTiny('f_body', a.body_html || '<p></p>');
+    setRefCode(a.ref_code || '');
     var pl = $('#previewLink'); pl.hidden = false; pl.href = '/diary/' + a.slug + '/';
+  }
+
+  // The reference code of the entry on screen. Sent back with the save so the
+  // server updates THIS entry — which is what lets the slug be corrected without
+  // leaving the old entry behind as a duplicate.
+  var editingRef = '';
+  function setRefCode(code) {
+    editingRef = code || '';
+    var box = $('#f_refWrap'), out = $('#f_ref');
+    if (!box || !out) return;
+    box.hidden = !editingRef;
+    out.textContent = editingRef;
   }
   function buildRelated(all, currentSlug, selected) {
     var box = $('#relatedBox'); box.innerHTML = '';
@@ -308,7 +365,7 @@
     this.value = '';
   });
   function collect(status) {
-    return { slug: $('#f_slug').value.trim(), title: $('#f_title').value.trim(), dek: $('#f_dek').value.trim(),
+    return { ref_code: editingRef, slug: $('#f_slug').value.trim(), title: $('#f_title').value.trim(), dek: $('#f_dek').value.trim(),
       category: $('#f_category').value.trim() || 'Dispatch', authors_html: $('#f_authors').value.trim() || 'The Afrovanguard Team',
       series: ($('#f_series') ? $('#f_series').value.trim() : ''), series_part: ($('#f_series_part') ? $('#f_series_part').value : ''),
       published_at: $('#f_date').value, read_minutes: $('#f_read').value, gradient: $('#f_gradient').value,
@@ -319,6 +376,7 @@
     post('save', collect(status)).then(function (r) {
       if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; }
       $('#f_slug').value = r.data.slug; var pl = $('#previewLink'); pl.hidden = false; pl.href = r.data.url; $('#f_status').value = status;
+      setRefCode(r.data.ref_code || editingRef);
       toast(status === 'published' ? 'Published ✓' : 'Draft saved ✓');
     }).catch(function () { toast('Network error'); });
   }

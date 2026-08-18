@@ -488,7 +488,9 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 
 /** A single entry card (used on the index and in related rails). */
 function render_card(array $a): void {
-    $search = strtolower($a['title'] . ' ' . $a['dek'] . ' ' . $a['category']);
+    // The reference code is part of what the filter box matches, so a code typed
+    // into the Diary filter narrows to that entry.
+    $search = strtolower($a['title'] . ' ' . $a['dek'] . ' ' . $a['category'] . ' ' . ($a['ref_code'] ?? ''));
     $url = '/diary/' . e($a['slug']) . '/';
     $cover = $a['cover_url'] ?? ''; ?>
         <article class="post-card" data-reveal data-cat="<?= e($a['category_slug']) ?>" data-slug="<?= e($a['slug']) ?>" data-search="<?= e($search) ?>">

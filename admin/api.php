@@ -941,29 +941,39 @@ try {
             $words = str_word_count(strip_tags($cleanBody));
             $read = max(1, (int) ($body['read_minutes'] ?? 0)) ?: max(1, (int) round($words / 200));
             $pubTs = strtotime(trim((string) ($body['published_at'] ?? ''))) ?: time();
-            $slug = $repo->save([
-                'slug' => trim((string) ($body['slug'] ?? '')) ?: $title, 'title' => $title,
-                'dek' => trim((string) ($body['dek'] ?? '')), 'category' => trim((string) ($body['category'] ?? 'Dispatch')),
-                // Rendered as markup on the public article page (a byline may carry a
-                // link), so it gets the same sanitizer the body does rather than
-                // being trusted because the field name ends in _html.
-                'authors_html' => Embeds::sanitize(trim((string) ($body['authors_html'] ?? 'The Afrovanguard Team'))),
-                'published' => date('M j, Y', $pubTs), 'published_at' => date('Y-m-d', $pubTs),
-                'read_minutes' => $read, 'gradient' => av_card_gradient((string) ($body['gradient'] ?? '')),
-                'mc_title' => trim((string) ($body['mc_title'] ?? $title)),
-                // Asset URLs are validated on the way in, not just escaped on the
-                // way out: these land in `style="background-image:url('…')"` and in
-                // `src`, and an editor can write them (audit finding H-2).
-                'cover_url' => av_safe_asset_url((string) ($body['cover_url'] ?? '')),
-                'og_image' => av_safe_asset_url((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
-                'audio_url' => av_safe_asset_url((string) ($body['audio_url'] ?? '')),
-                'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
-                'format' => (string) ($body['format'] ?? 'standard'),
-                'series' => trim((string) ($body['series'] ?? '')), 'series_part' => (int) ($body['series_part'] ?? 0),
-                'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
-            ]);
+            try {
+                $slug = $repo->save([
+                    // The reference code identifies the entry being edited, so
+                    // correcting the slug renames it rather than creating a second copy.
+                    'ref_code' => (string) ($body['ref_code'] ?? ''),
+                    'slug' => trim((string) ($body['slug'] ?? '')) ?: $title, 'title' => $title,
+                    'dek' => trim((string) ($body['dek'] ?? '')), 'category' => trim((string) ($body['category'] ?? 'Dispatch')),
+                    // Rendered as markup on the public article page (a byline may carry a
+                    // link), so it gets the same sanitizer the body does rather than
+                    // being trusted because the field name ends in _html.
+                    'authors_html' => Embeds::sanitize(trim((string) ($body['authors_html'] ?? 'The Afrovanguard Team'))),
+                    'published' => date('M j, Y', $pubTs), 'published_at' => date('Y-m-d', $pubTs),
+                    'read_minutes' => $read, 'gradient' => av_card_gradient((string) ($body['gradient'] ?? '')),
+                    'mc_title' => trim((string) ($body['mc_title'] ?? $title)),
+                    // Asset URLs are validated on the way in, not just escaped on the
+                    // way out: these land in `style="background-image:url('…')"` and in
+                    // `src`, and an editor can write them (audit finding H-2).
+                    'cover_url' => av_safe_asset_url((string) ($body['cover_url'] ?? '')),
+                    'og_image' => av_safe_asset_url((string) ($body['og_image'] ?? '')), 'body_html' => $cleanBody,
+                    'audio_url' => av_safe_asset_url((string) ($body['audio_url'] ?? '')),
+                    'featured' => !empty($body['featured']), 'status' => ($body['status'] ?? 'draft') === 'published' ? 'published' : 'draft',
+                    'format' => (string) ($body['format'] ?? 'standard'),
+                    'series' => trim((string) ($body['series'] ?? '')), 'series_part' => (int) ($body['series_part'] ?? 0),
+                    'sections' => $sections, 'related' => array_values(array_filter((array) ($body['related'] ?? []))),
+                ]);
+            } catch (RuntimeException $ex) {
+                if (strncmp($ex->getMessage(), 'slug-taken:', 11) !== 0) throw $ex;
+                json_out(['ok' => false, 'error' => trim(substr($ex->getMessage(), 11))], 422);
+            }
             Sitemap::rebuild();
-            json_out(['ok' => true, 'slug' => $slug, 'url' => diary_url($slug . '/'), 'sections' => $sections]);
+            $saved = $repo->bySlug($slug, true);
+            json_out(['ok' => true, 'slug' => $slug, 'url' => diary_url($slug . '/'), 'sections' => $sections,
+                      'ref_code' => (string) ($saved['ref_code'] ?? '')]);
 
         case 'delete':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
