@@ -11,17 +11,80 @@ final class AcademyRepository
 
     private const COLS = 'id, slug, title, summary, cover_url, category, level, format, duration, price, location, gradient, featured, status, sort, outcomes, access_type, price_ngn, pass_code, cover_is_dark';
 
+    private bool $ready = false;
+    private ?array $colSet = null;
+
+    /**
+     * Make sure the columns this class selects actually exist.
+     *
+     * `COLS` names columns the access model added long after the LMS shipped.
+     * They are provisioned by `Database`'s academy migration step — but that step
+     * is version-stamped, so a database whose stamp already matched never ran it,
+     * and then every academy query dies on `no such column: access_type`: the
+     * catalogue will not list, a course will not save, and the curriculum cannot be
+     * reached because you can never click through to it.
+     *
+     * So the schema is repaired when it is found wanting, rather than assumed.
+     */
+    private function ensure(): void
+    {
+        if ($this->ready) return; $this->ready = true;
+        try {
+            if (Database::columnExists('courses', 'access_type')) return;
+            Database::ensureAcademySchema();
+            $this->colSet = null;                       // it may have just changed
+        } catch (Throwable $e) { error_log('[academy] schema heal: ' . $e->getMessage()); }
+    }
+
+    /** The `courses` columns this database actually has, as a name => true set. */
+    private function courseCols(): array
+    {
+        $this->ensure();
+        if ($this->colSet !== null) return $this->colSet;
+        $set = [];
+        try {
+            foreach (['id', 'slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level',
+                      'format', 'duration', 'price', 'location', 'gradient', 'featured', 'status', 'sort', 'outcomes',
+                      'cta_url', 'access_type', 'price_ngn', 'pass_code', 'cover_is_dark', 'instructor_id',
+                      'created_at', 'updated_at'] as $c) {
+                if (Database::columnExists('courses', $c)) $set[$c] = true;
+            }
+        } catch (Throwable $e) { error_log('[academy] column probe: ' . $e->getMessage()); }
+        return $this->colSet = $set;
+    }
+
+    /**
+     * `COLS`, minus anything this database does not have.
+     *
+     * If the heal above could not run — no ALTER privilege on shared hosting, say —
+     * the academy still works with the columns that are there instead of returning
+     * a 500 for every read.
+     */
+    private function cols(): string
+    {
+        $have = $this->courseCols();
+        $keep = array_filter(array_map('trim', explode(',', self::COLS)), fn($c) => isset($have[$c]));
+        return implode(', ', $keep);
+    }
+
+    /** Drop any field whose column is absent, so a write cannot name one. */
+    private function onlyExistingCols(array $fields): array
+    {
+        $have = $this->courseCols();
+        return array_intersect_key($fields, $have);
+    }
+
     public function all(): array
     {
-        return $this->db->query("SELECT " . self::COLS . " FROM courses WHERE status='published' ORDER BY featured DESC, sort ASC, title ASC")->fetchAll();
+        return $this->db->query("SELECT " . $this->cols() . " FROM courses WHERE status='published' ORDER BY featured DESC, sort ASC, title ASC")->fetchAll();
     }
     public function allForAdmin(): array
     {
-        return $this->db->query("SELECT " . self::COLS . ", updated_at FROM courses ORDER BY sort ASC, updated_at DESC")->fetchAll();
+        return $this->db->query("SELECT " . $this->cols() . ", updated_at FROM courses ORDER BY sort ASC, updated_at DESC")->fetchAll();
     }
     public function featured(): ?array
     {
-        $r = $this->db->query("SELECT " . self::COLS . " FROM courses WHERE featured=1 AND status='published' ORDER BY sort LIMIT 1")->fetch();
+        $r = $this->db->query("SELECT " . $this->cols() . " FROM courses WHERE featured=1 AND status='published' ORDER BY sort LIMIT 1")->fetch();
         return $r ?: ($this->all()[0] ?? null);
     }
     public function categories(): array
@@ -36,7 +99,7 @@ final class AcademyRepository
     }
     public function others(string $slug, int $limit = 3): array
     {
-        $st = $this->db->prepare("SELECT " . self::COLS . " FROM courses WHERE status='published' AND slug <> ? ORDER BY featured DESC, sort LIMIT ?");
+        $st = $this->db->prepare("SELECT " . $this->cols() . " FROM courses WHERE status='published' AND slug <> ? ORDER BY featured DESC, sort LIMIT ?");
         $st->bindValue(1, $slug); $st->bindValue(2, $limit, PDO::PARAM_INT); $st->execute();
         return $st->fetchAll();
     }
@@ -53,6 +116,7 @@ final class AcademyRepository
 
     public function save(array $d): string
     {
+        $this->ensure();
         $slug = slugify(($d['slug'] ?? '') ?: ($d['title'] ?? ''));
         $now = date('Y-m-d H:i:s');
         // Null-coalesce every read so a partial save (e.g. just title + status) is safe.
@@ -94,10 +158,15 @@ final class AcademyRepository
         while (true) { $dupe->execute([$slug, $editing]); if (!$dupe->fetchColumn()) break; $slug = $base . '-' . $i++; }
         $f['slug'] = $slug;
         if ($exId) {
+            // Never name a column this database does not have: on a deployment that
+            // missed the access-model migration that is the difference between a
+            // course saving and the Studio reporting a server error.
+            $f = $this->onlyExistingCols($f);
             $set = implode(', ', array_map(fn($k) => "$k=:$k", array_keys($f)));
             $this->db->prepare("UPDATE courses SET $set WHERE id=:id")->execute($f + ['id' => $exId]);
         } else {
             $f['created_at'] = $now;
+            $f = $this->onlyExistingCols($f);
             $this->db->prepare('INSERT INTO courses (' . implode(',', array_keys($f)) . ') VALUES (' . implode(',', array_map(fn($k) => ":$k", array_keys($f))) . ')')->execute($f);
         }
         return $slug;
@@ -112,7 +181,12 @@ final class AcademyRepository
         $newSlug = $slug . '-copy'; $base = $newSlug; $i = 2;
         $chk = $this->db->prepare('SELECT 1 FROM courses WHERE slug = ?');
         while (true) { $chk->execute([$newSlug]); if (!$chk->fetchColumn()) break; $newSlug = $base . '-' . $i++; }
-        $cols = ['slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level', 'format', 'duration', 'price', 'location', 'gradient', 'outcomes', 'cta_url', 'access_type', 'price_ngn', 'instructor_id'];
+        $have = $this->courseCols();
+        $cols = array_filter(
+            ['slug', 'title', 'summary', 'body_html', 'cover_url', 'og_image', 'category', 'level', 'format', 'duration',
+             'price', 'location', 'gradient', 'outcomes', 'cta_url', 'access_type', 'price_ngn', 'instructor_id'],
+            fn($c) => isset($have[$c])
+        );
         $vals = [];
         foreach ($cols as $c) { $vals[$c] = $src[$c] ?? null; }
         $vals['slug'] = $newSlug; $vals['title'] = ($src['title'] ?? 'Course') . ' (copy)';

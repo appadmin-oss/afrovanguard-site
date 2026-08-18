@@ -511,7 +511,11 @@
       id: curLessonId, module_id: curLessonModule, title: $('#le_title').value.trim(), slug: $('#le_slug').value.trim(),
       body_html: getBody('le_body'), video_url: $('#le_video').value.trim(), duration_min: $('#le_duration').value, is_preview: $('#le_preview').checked,
       quiz: collectQuiz()
-    }).then(function (r) { if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; } curLessonId = r.data.id; toast('Lesson saved ✓'); });
+    }).then(function (r) {
+      if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; }
+      curLessonId = r.data.id; toast('Lesson saved ✓');
+      loadCurriculum();      // a new lesson should appear without going back first
+    });
   });
   $('#newCourseBtn').addEventListener('click', function () { openCourse(null); });
   $('#acBackBtn').addEventListener('click', function () { show('academy'); loadCourses(); });
@@ -527,7 +531,13 @@
     uploadFile(this.files[0]).then(function (r) { r.data && r.data.ok ? (setCCover(r.data.url), toast('Cover uploaded')) : toast((r.data && r.data.error) || 'Upload failed'); });
     this.value = '';
   });
+  // The slug the course editor was opened with. The server resolves edit-vs-create
+  // from this, NOT from the slug field — otherwise correcting the slug of an
+  // existing course would look like a brand new one. Empty means "new course".
+  var editingCourse = '';
+
   function openCourse(slug) {
+    editingCourse = slug || '';
     ['c_title', 'c_summary', 'c_slug', 'c_category', 'c_level', 'c_duration', 'c_price', 'c_location', 'c_cta', 'c_outcomes'].forEach(function (id) { $('#' + id).value = ''; });
     $('#c_status').value = 'draft'; $('#c_format').value = 'In-person'; $('#c_gradient').value = 'g-gold'; $('#c_featured').checked = false; $('#c_sort').value = '0';
     $('#c_access').value = 'open'; $('#c_price_ngn').value = '0'; if ($('#c_pass_code')) $('#c_pass_code').value = '';
@@ -597,7 +607,7 @@
     });
   }
   function collectCourse(status) {
-    return { slug: $('#c_slug').value.trim(), title: $('#c_title').value.trim(), summary: $('#c_summary').value.trim(),
+    return { editing: editingCourse, slug: $('#c_slug').value.trim(), title: $('#c_title').value.trim(), summary: $('#c_summary').value.trim(),
       body_html: getBody('c_body'), outcomes: $('#c_outcomes').value.trim(), category: $('#c_category').value.trim() || 'Programme',
       level: $('#c_level').value.trim() || 'All levels', format: $('#c_format').value, duration: $('#c_duration').value.trim(),
       price: $('#c_price').value.trim() || 'Free', location: $('#c_location').value.trim() || 'Alimosho, Lagos',
@@ -610,8 +620,11 @@
     if (!$('#c_title').value.trim()) { toast('A title is required'); return; }
     post('ac_save', collectCourse(status)).then(function (r) {
       if (!r.data.ok) { toast(r.data.error || 'Save failed'); return; }
+      // The course now exists under this slug, so the next save is an edit of it.
+      editingCourse = r.data.slug;
       $('#c_slug').value = r.data.slug; var pl = $('#acPreviewLink'); pl.hidden = false; pl.href = r.data.url; $('#c_status').value = status;
       toast(r.data.notice || (status === 'published' ? 'Published ✓' : 'Draft saved ✓'));
+      loadCourses();          // so the catalogue reflects it without a page reload
     }).catch(function () { toast('Network error'); });
   }
   $('#acSaveDraftBtn').addEventListener('click', function () { saveCourse('draft'); });

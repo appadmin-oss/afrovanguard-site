@@ -27,7 +27,11 @@ final class Database
     /** Bump to force a schema re-sync even when db/schema.sql is byte-identical
      *  (e.g. after changing one of the ensure/grandfathering steps). Normally you
      *  don't touch this — editing db/schema.sql changes its hash and re-syncs. */
-    private const SCHEMA_REV = 1;
+    // Bumping this re-runs the additive migration steps on deployments whose
+    // stamp already matches. Bumped to 2 (2026-08-18) because the academy access
+    // columns shipped without a bump, so every settled database silently never got
+    // them — and every academy admin query 500s on the first one it touches.
+    private const SCHEMA_REV = 2;
 
     public static function pdo(): PDO
     {
@@ -267,6 +271,21 @@ final class Database
      * course_access / member_passes tables, whose absence otherwise makes every
      * Academy query fail (the catalogue SELECTs those columns) and 500 the site.
      */
+    /**
+     * Run the academy's additive schema step on demand.
+     *
+     * `autoMigrate()` is version-stamped, so a deployment whose stamp already
+     * matches never reaches `ensureAcademy()` — which is exactly how a database
+     * ends up without `courses.access_type` and every academy query dies. Public
+     * so `AcademyRepository` can heal itself when it notices, rather than a second
+     * copy of this DDL being written somewhere else.
+     */
+    public static function ensureAcademySchema(): void
+    {
+        self::pdo();
+        self::ensureAcademy();
+    }
+
     private static function ensureAcademy(): void
     {
         $drv = self::driver();
