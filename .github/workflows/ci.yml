@@ -8,6 +8,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: av_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - uses: actions/checkout@v4
 
@@ -15,7 +25,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo, pdo_sqlite, mbstring
+          extensions: pdo, pdo_sqlite, pdo_mysql, mbstring
           coverage: none
 
       - name: Lint all PHP
@@ -25,7 +35,18 @@ jobs:
             -not -path './vendor/*' -not -path './node_modules/*' \
             -print0 | xargs -0 -n1 -P4 php -l >/dev/null
 
-      - name: Run data-layer tests
+      - name: Run data-layer tests (SQLite)
+        run: php tests/run.php
+
+      # The MySQL branches cannot be verified from a SQLite run — the first time
+      # they were exercised against a real server, a repaired timestamp column came
+      # back TEXT where a created one was DATETIME. tests/mysql.test.php skips
+      # silently when this DSN is unset, so it costs nothing locally.
+      - name: Run data-layer tests (MySQL)
+        env:
+          AV_TEST_MYSQL_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=av_test;charset=utf8mb4'
+          AV_TEST_MYSQL_USER: root
+          AV_TEST_MYSQL_PASS: root
         run: php tests/run.php
 
       - name: Set up Node

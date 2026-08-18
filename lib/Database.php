@@ -471,6 +471,17 @@ final class Database
                 // A bare TEXT cannot carry a DEFAULT on several MySQL builds — the same
                 // reason ensureAcademy() declares short string columns as VARCHAR there.
                 if ($drv !== 'sqlite' && $dflt !== '' && strcasecmp($type, 'TEXT') === 0) $type = 'VARCHAR(191)';
+                // `(datetime('now'))` is a non-constant default, so the rule above drops
+                // it — but translateDDL PROMOTES that column to a real timestamp type
+                // when it creates the table. A repaired column has to match, or the same
+                // created_at is DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP on a table
+                // that was created and TEXT NULL on one that was repaired. Verified
+                // divergent on MariaDB 10.11 before this existed.
+                if ($drv !== 'sqlite' && preg_match("/DEFAULT\s*\(\s*datetime\('now'\)\s*\)/i", $rest)) {
+                    $type = ($drv === 'mysql' ? 'DATETIME' : 'TIMESTAMP')
+                          . (preg_match('/\bNOT\s+NULL\b/i', $rest) ? ' NOT NULL' : '');
+                    $dflt = ' DEFAULT CURRENT_TIMESTAMP';
+                }
                 // Quoted from the driver passed in, not self::quoteIdent(), which reads
                 // the MAIN connection's driver — wrong when syncing a second database.
                 $ident = $drv === 'mysql' ? '`' . $col . '`' : $col;

@@ -106,6 +106,24 @@ If you add a column to a `CREATE TABLE` anywhere, that is now enough — but bum
 migration steps, or settled deployments will never re-run them. `tests/drift.test.php`
 pins all of this, including that the two callers keep sharing one parser.
 
+### Verified against a real server
+
+The MySQL branches are exercised against MariaDB 10.11, not inferred from a SQLite
+run — `tests/mysql.test.php`, which skips unless `AV_TEST_MYSQL_DSN` is set:
+
+```
+AV_TEST_MYSQL_DSN='mysql:host=127.0.0.1;port=3306;dbname=av_test;charset=utf8mb4' \
+AV_TEST_MYSQL_USER=… AV_TEST_MYSQL_PASS=… php tests/run.php
+```
+
+That run found a real defect the SQLite suite structurally could not: a **repaired**
+`created_at` came back `TEXT NULL DEFAULT NULL`, while a **created** one was
+`DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`. `translateDDL()` promotes that
+column when it creates a table; the `ADD COLUMN` path was dropping the
+non-constant default and leaving TEXT behind — so the same column had two
+different types depending on whether its table had ever been repaired. The repair
+path now applies the same promotion, and the test fails without it.
+
 ## How to switch (staging first!)
 
 1. Create an empty MySQL/Postgres database + user.
