@@ -68,6 +68,14 @@ if (class_exists('Meetings')) {
     catch (Throwable $e) { error_log('[cron] bot transcripts: ' . $e->getMessage()); }
 }
 
+// G-1: chase overdue commitments. Deduped per commitment per day inside
+// Commitments::sweepOverdue(), so a stuck commitment nudges once daily rather than
+// on every tick. Independent of Mentorship — commitments also come from meetings.
+if (class_exists('Commitments')) {
+    try { $result['commitments_overdue'] = Commitments::sweepOverdue(); }
+    catch (Throwable $e) { error_log('[cron] commitments: ' . $e->getMessage()); }
+}
+
 // Mentorship sessions run their own Meet links, so they need the same sweep.
 if (class_exists('Mentorship')) {
     try { $result['session_bots'] = Mentorship::dispatchDueSessionBots(); }

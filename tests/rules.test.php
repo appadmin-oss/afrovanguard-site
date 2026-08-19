@@ -482,11 +482,21 @@ foreach ($dsc3['groups'] as $rows) {
         if ($row['key'] === 'mentorship.active_mentee_requires_days') $livePending = $row;
     }
 }
-ck('pending: unenforced rules are flagged for the Studio', $pendingCount >= 10);
+// The label tracks reality, and reality moves: this was >= 10 before G-1 shipped
+// and took the five commitments rules live. What is left is health, escalation,
+// agenda drafting, in-meeting timing and assistant tone — the subsystems that
+// genuinely have no consumer yet.
+ck('pending: unenforced rules are still flagged for the Studio', $pendingCount >= 5);
 ck('pending: an enforced rule is NOT flagged', $livePending && $livePending['pending'] === '');
-ck('pending: commitment completion is flagged as awaiting its subsystem', (function (array $g): bool {
-    foreach ($g['Levels'] as $r) { if ($r['key'] === 'levels.min_commitment_pct') return $r['pending'] !== ''; }
+// Inverted when G-1 landed. Levels::recommend() reads this rule now, so labelling
+// it "awaiting its subsystem" in the Studio would be a lie to whoever tunes it.
+ck('pending: commitment completion is no longer awaiting a subsystem', (function (array $g): bool {
+    foreach ($g['Levels'] as $r) { if ($r['key'] === 'levels.min_commitment_pct') return $r['pending'] === ''; }
     return false;
+})($dsc3['groups']));
+ck('pending: and neither is any commitments rule', (function (array $g): bool {
+    foreach (($g['Commitments'] ?? []) as $r) { if ($r['pending'] !== '') return false; }
+    return true;
 })($dsc3['groups']));
 
 $promptDesc = AvPrompts::describe();

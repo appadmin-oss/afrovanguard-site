@@ -399,6 +399,19 @@ final class Mentorship
         } catch (Throwable $e) { error_log('[mentorship] reconcilePending: ' . $e->getMessage()); return 0; }
     }
 
+    /**
+     * File a mentorship session's commitments as tracked commitments (G-1).
+     *
+     * Swallowed like the meetings equivalent: the minutes are already saved, and a
+     * commitments failure must not cost a mentor pair their record of the session.
+     */
+    private static function fileSessionCommitments(int $sessionId, array $commitments): void
+    {
+        if (!$commitments || !class_exists('Commitments')) return;
+        try { Commitments::fileMany(Commitments::SRC_SESSION, $sessionId, $commitments); }
+        catch (Throwable $e) { error_log('[mentorship] file commitments: ' . $e->getMessage()); }
+    }
+
     /** Idempotent ADD COLUMN (skips if the column already exists). */
     private static function addCol(string $table, string $col, string $type): void
     {
@@ -815,6 +828,9 @@ final class Mentorship
                        $st['next_focus'],
                        $sessionId,
                    ]);
+                // G-1: a commitment made in a mentorship session is tracked like one
+                // made in a meeting. Same rule, same confirm-before-assign gate.
+                self::fileSessionCommitments($sessionId, (array) $st['commitments']);
             }
             if (class_exists('Events')) { try { Events::emit('mentorship.session_minutes', ['session_id' => $sessionId]); } catch (Throwable $e) {} }
             return [
@@ -1027,6 +1043,7 @@ final class Mentorship
                    ->execute([$s['summary'], json_encode($s['progress'], JSON_UNESCAPED_UNICODE),
                               json_encode($s['obstacles'], JSON_UNESCAPED_UNICODE), json_encode($s['commitments'], JSON_UNESCAPED_UNICODE),
                               $s['next_focus'], $sid]);
+                self::fileSessionCommitments($sid, (array) $s['commitments']);   // G-1
             }
             $db->prepare("UPDATE mentor_sessions SET bot_state = 'done' WHERE id = ?")->execute([$sid]);
             return ['ok' => true, 'session_id' => $sid, 'structured' => !empty($s['ok'])];

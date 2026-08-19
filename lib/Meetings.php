@@ -328,6 +328,11 @@ final class Meetings
                    json_encode($st['action_items'], JSON_UNESCAPED_UNICODE),
                    $id,
                ]);
+            // G-1: the action items become tracked commitments rather than ending
+            // here as JSON nobody reads again. Owners are NOT assigned — each one
+            // arrives with the name the model heard and waits for a human to
+            // confirm it (commitments.auto_assign_owner ships off).
+            self::fileCommitments($id, (array) $st['action_items']);
         }
         return ['ok' => true, 'structured' => $st['ok'], 'note' => $st['ok'] ? '' : ($st['error'] ?? ''), 'transcript' => self::transcript($id)];
     }
@@ -339,6 +344,20 @@ final class Meetings
      * configured or the JSON is unparseable, ok=false and the raw text still
      * stands.
      */
+    /**
+     * File a meeting's action items as commitments (G-1).
+     *
+     * Wrapped and swallowed: the minutes are the valuable artefact and are already
+     * saved by the time this runs. A commitments failure must never cost somebody
+     * their transcript.
+     */
+    private static function fileCommitments(int $meetingId, array $actionItems): void
+    {
+        if (!$actionItems || !class_exists('Commitments')) return;
+        try { Commitments::fileMany(Commitments::SRC_MEETING, $meetingId, $actionItems); }
+        catch (Throwable $e) { error_log('[meetings] file commitments: ' . $e->getMessage()); }
+    }
+
     public static function structure(string $rawText): array
     {
         $rawText = trim($rawText);
@@ -848,6 +867,7 @@ final class Meetings
         if ($st['ok']) {
             $db->prepare('UPDATE meeting_transcripts SET summary=?, highlights=?, decisions=?, action_items=?, structured=1 WHERE meeting_id=?')
                ->execute([$st['summary'], json_encode($st['highlights'], JSON_UNESCAPED_UNICODE), json_encode($st['decisions'], JSON_UNESCAPED_UNICODE), json_encode($st['action_items'], JSON_UNESCAPED_UNICODE), $id]);
+            self::fileCommitments($id, (array) $st['action_items']);   // G-1, same as the manual path
         }
         return ['ok' => true, 'structured' => $st['ok']];
     }

@@ -148,9 +148,8 @@ final class AvRules
         ],
         'levels.min_commitment_pct' => [
             'type' => 'int', 'default' => 90, 'min' => 0, 'max' => 100, 'group' => 'Levels',
-            'pending' => 'commitment tracking',
             'label' => 'Minimum commitment completion (%)',
-            'help'  => 'Commitment completion required for a promotion recommendation (§20 uses 90%). Stored now, enforced once commitments are tracked as first-class records — until then promotion recommendations ignore it.',
+            'help'  => 'Commitment completion required for a promotion recommendation (§20 uses 90%). Enforced once a member has at least 5 settled commitments — below that a percentage is noise, and the recommendation says so rather than judging on one or two.',
         ],
         'levels.auto_promote' => [
             'type' => 'bool', 'default' => false, 'group' => 'Levels',
@@ -160,25 +159,21 @@ final class AvRules
 
         /* ── Commitments (report §11, §39.2) ── */
         'commitments.default_due_days' => [
-            'pending' => 'commitment tracking',
             'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 180, 'group' => 'Commitments',
             'label' => 'Default deadline (days)',
             'help'  => 'Deadline given to an action item the meeting did not date.',
         ],
         'commitments.overdue_grace_days' => [
-            'pending' => 'commitment tracking',
             'type' => 'int', 'default' => 1, 'min' => 0, 'max' => 30, 'group' => 'Commitments',
             'label' => 'Grace before "overdue" (days)',
             'help'  => 'How long past its deadline a commitment waits before it is chased.',
         ],
         'commitments.require_miss_reason' => [
-            'pending' => 'commitment tracking',
             'type' => 'bool', 'default' => true, 'group' => 'Commitments',
             'label' => 'Ask why, on a miss',
             'help'  => 'Implements the report\'s §13 step 5 — "What did you fail to accomplish? Why?"',
         ],
         'commitments.auto_assign_owner' => [
-            'pending' => 'commitment tracking',
             'type' => 'bool', 'default' => false, 'group' => 'Commitments',
             'label' => 'Assign owners without confirmation',
             'help'  => 'Leave OFF. The AI matches an action item\'s owner NAME to a member; silently assigning work to the wrong person is worse than no automation. Off means the chair confirms.',

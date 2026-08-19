@@ -30,6 +30,14 @@ declare(strict_types=1);
 
 final class Levels
 {
+    /**
+     * Settled commitments needed before completion counts toward a recommendation.
+     *
+     * Below this, a percentage is noise: one kept commitment reads as 100% and one
+     * missed reads as 0%, and neither says anything about a member.
+     */
+    private const COMMITMENT_MIN_SAMPLE = 5;
+
     /** Fallback ladder when rules are unavailable. AvRules is the real source. */
     public const ORDER = ['O', 'A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
@@ -243,6 +251,47 @@ final class Levels
             'days_at_level'       => $days,
             'referrals'           => self::referralCount($userId),
         ];
+
+        // ── Commitment completion (G-1) ──
+        // levels.min_commitment_pct was stored from the start and enforced by
+        // nothing, because there were no commitments to count. There are now, so it
+        // becomes a real criterion — but only for a member who has settled enough of
+        // them to mean anything. Judging somebody on one commitment would be worse
+        // than not judging them at all, and a member with none yet must not be
+        // blocked by a metric the system has not had a chance to observe.
+        $minPct = 0;
+        try { $minPct = class_exists('AvRules') ? (int) AvRules::get('levels.min_commitment_pct') : 0; }
+        catch (Throwable $e) { $minPct = 0; }
+        if (class_exists('Commitments')) {
+            try {
+                $com = Commitments::completion($userId);
+                $out['metrics']['commitments_settled']  = (int) $com['done'] + (int) $com['missed'];
+                $out['metrics']['commitments_kept']     = (int) $com['done'];
+                $out['metrics']['commitment_pct']       = $com['rate'];
+                // Recorded so a leader sees candour as the positive signal it is,
+                // rather than a member who reports their own misses scoring worse.
+                $out['metrics']['self_reported_misses'] = (int) $com['self_reported_misses'];
+
+                $settled = (int) $com['done'] + (int) $com['missed'];
+                if ($minPct > 0 && $settled >= self::COMMITMENT_MIN_SAMPLE) {
+                    if ((int) $com['rate'] >= $minPct) {
+                        $out['reasons'][] = 'Kept ' . (int) $com['rate'] . '% of ' . $settled . ' settled commitments (needs ' . $minPct . '%).';
+                    } else {
+                        $out['gaps'][] = 'Commitment completion is ' . (int) $com['rate'] . '% of ' . $settled
+                            . ' settled commitments; ' . $minPct . '% is expected.';
+                    }
+                } elseif ($minPct > 0) {
+                    // Deliberately NOT a gap. A gap blocks the recommendation
+                    // (recommend = no gaps), so treating "we have not observed
+                    // enough yet" as a failure would freeze every promotion in the
+                    // movement until commitments accumulated — punishing members for
+                    // a hole in the record rather than in their work. It is reported
+                    // as a fact about the data so a UI can say so, and nothing else.
+                    $out['metrics']['commitment_sample_short'] = true;
+                    $out['metrics']['commitment_sample_needed'] = self::COMMITMENT_MIN_SAMPLE;
+                }
+            } catch (Throwable $e) { error_log('[levels] commitments: ' . $e->getMessage()); }
+        }
 
         $order = self::order();
         $idx   = (int) array_search($level, $order, true);
