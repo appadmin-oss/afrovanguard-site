@@ -238,5 +238,60 @@ ck('levels: with enough settled commitments the rate is reported', (int) $rec2['
 ck('levels: and a passing rate is a stated reason',
    count(array_filter($rec2['reasons'], fn($g) => strpos($g, 'settled commitments') !== false)) === 1);
 
+/* ══ Who may confirm an owner: whoever was in the room ═══════════════════ */
+
+Meetings::ensure();
 $db->exec('DELETE FROM commitments');
+$db->exec('DELETE FROM meetings WHERE id IN (910, 911)');
+$db->exec('DELETE FROM meeting_attendees WHERE meeting_id IN (910, 911)');
+
+// 910: user 1 chaired it, user 2 was invited. 911: user 3 chaired, neither 1 nor 2.
+$db->prepare('INSERT INTO meetings (id, title, creator_id, scheduled_at, status, provider) VALUES (?,?,?,?,?,?)')
+   ->execute([910, 'Outreach planning', 1, gmdate('Y-m-d H:i:s'), 'done', 'google']);
+$db->prepare('INSERT INTO meeting_attendees (meeting_id, email, user_id) VALUES (?,?,?)')
+   ->execute([910, 'b@x.co', 2]);
+$db->prepare('INSERT INTO meetings (id, title, creator_id, scheduled_at, status, provider) VALUES (?,?,?,?,?,?)')
+   ->execute([911, 'Finance review', 3, gmdate('Y-m-d H:i:s'), 'done', 'google']);
+
+Commitments::fileMany(Commitments::SRC_MEETING, 910, [['task' => 'Book the hall', 'owner' => '', 'due_days' => 5]]);
+Commitments::fileMany(Commitments::SRC_MEETING, 911, [['task' => 'Reconcile the ledger', 'owner' => '', 'due_days' => 5]]);
+$inRoom  = Commitments::forSource(Commitments::SRC_MEETING, 910)[0];
+$outRoom = Commitments::forSource(Commitments::SRC_MEETING, 911)[0];
+
+ck('commitments: the chair who ran the meeting may confirm', Commitments::canManage(1, $inRoom));
+ck('commitments: an invited attendee may confirm', Commitments::canManage(2, $inRoom));
+ck('commitments: somebody who was not there may not', !Commitments::canManage(1, $outRoom));
+ck('commitments: and neither may a stranger to both', !Commitments::canManage(2, $outRoom));
+ck('commitments: nor may a signed-out caller', !Commitments::canManage(0, $inRoom));
+ck('commitments: a stranger to the meeting may not confirm its commitment', !Commitments::canManage(3, $inRoom));
+
+// The queue is scoped, so it never shows a promise from a room you were not in.
+$q1 = Commitments::unassignedFor(1);
+ck('commitments: the queue shows only rooms the caller was in', count($q1) === 1);
+ck('commitments: and it is the right one', (int) $q1[0]['source_id'] === 910);
+ck('commitments: the unfiltered queue still sees both (admin console)', count(Commitments::unassigned()) === 2);
+
+// A session's queue is scoped to the pairing.
+$db->prepare('INSERT INTO mentorships (id, mentor_id, mentee_id, status, created_at) VALUES (?,?,?,?,?)')
+   ->execute([881, 1, 2, 'active', gmdate('Y-m-d H:i:s')]);
+$db->prepare('INSERT INTO mentor_sessions (id, mentorship_id, title, scheduled_at) VALUES (?,?,?,?)')
+   ->execute([991, 881, 'Session', gmdate('Y-m-d H:i:s')]);
+Commitments::fileMany(Commitments::SRC_SESSION, 991, [['task' => 'Read chapter 3', 'owner' => 'mentee', 'due_days' => 7]]);
+$sess = Commitments::forSource(Commitments::SRC_SESSION, 991)[0];
+ck('commitments: the mentor may confirm a session commitment', Commitments::canManage(1, $sess));
+ck('commitments: so may the mentee', Commitments::canManage(2, $sess));
+ck('commitments: a third party may not', !Commitments::canManage(3, $sess));
+
+// A queue row must never carry somebody's miss reason, even redaction aside —
+// the portal maps every queue row through redactedFor().
+$SEC = 'Money was tight this month.';
+Commitments::assign((int) $inRoom['id'], 2, 1);
+Commitments::miss((int) $inRoom['id'], $SEC, false);
+$redQueue = array_map([Commitments::class, 'redactedFor'], Commitments::unassigned());
+ck('commitments: no queue row carries a miss reason',
+   strpos(json_encode($redQueue), 'Money was tight') === false);
+
+$db->exec('DELETE FROM commitments');
+$db->exec('DELETE FROM meetings WHERE id IN (910, 911)');
+$db->exec('DELETE FROM meeting_attendees WHERE meeting_id IN (910, 911)');
 $db->exec('DELETE FROM mentorships'); $db->exec('DELETE FROM mentor_sessions');

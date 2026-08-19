@@ -97,12 +97,46 @@ promotion tests caught it.)
 commitment's owner, deduped per commitment per day by `Notifications`' own key — so
 one that stays overdue for a week nags daily, not every few minutes.
 
+## The portal surface
+
+Two cards in the **Tasks** view — commitments sit beside tasks because both answer
+"what do I owe", and the card copy draws the distinction: a task is work you took
+on, a commitment is a promise you made out loud in a room.
+
+**My commitments** lists what you promised, flags overdue against
+`commitments.overdue_grace_days`, and offers *Kept it* / *Missed it*. Marking one
+missed asks why, and that answer is shown back only to you — the card says so, in
+those words, because a member typing a sentence about their mother's health should
+be told where it goes before they type it. Below the list, the completion rate,
+with self-reported misses called out as counting *in your favour*.
+
+**Confirm who owns these** is the chair's side, and appears only when there is
+something you may act on. It pre-selects the assistant's suggestion, so confirming
+is one click when the model guessed right and a dropdown when it did not. Confirming
+with nobody chosen is refused.
+
+`portal/commitments.php` has two authorisation rules, not one:
+
+| Actions | Rule |
+|---|---|
+| `mine`, `done`, `miss` | The caller's **own** commitments only. Their own miss reason is returned in full; nothing else is. |
+| `queue`, `assign`, `cancel` | `Commitments::canManage()` — the meeting's creator or an invited attendee, or either party to a mentorship pairing. |
+
+Not "any org member". Reassigning a promise made in a meeting you were not part of
+is not an administrative convenience, and the chair who ran the meeting is the
+person who actually knows which Ada was meant. Every queue row goes through
+`redactedFor()` on the way out.
+
+Reporting your own miss through this endpoint always sets `self_reported` — nobody
+else can set that flag here, which is what makes it mean anything.
+
 ## What is not built yet
 
-- **No portal UI.** The data layer, extraction, confirmation, lifecycle and chase
-  all work and are tested; a member sees notifications but has no screen listing
-  their commitments, and a chair has no screen for the unassigned queue. That is
-  the next increment.
 - **No escalation.** A commitment nudges its owner and stops there. Escalating to a
   mentor is G-2, whose `escalation.cooldown_days` rule and `accountability.nudge`
   prompt are both already written and still waiting for a caller.
+- **No admin console view.** `Commitments::unassigned()` returns the whole queue
+  unscoped for exactly that purpose; nothing in the Studio calls it yet.
+- **No commitment surfaced on the meeting itself.** A meeting's minutes do not yet
+  show what was filed from them, so the loop is visible from the member's side and
+  not from the meeting's.

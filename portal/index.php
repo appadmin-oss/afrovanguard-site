@@ -741,6 +741,34 @@ $nav['You'] = [
           </section>
 
           <!-- The shared task pool — open, unclaimed work anyone can take up -->
+          <!-- G-1: commitments. Separate from tasks on purpose — a task is work you
+               took on, a commitment is a promise you made out loud in a room, and
+               the record of the second one is what accountability actually rests on. -->
+          <section class="pcard" id="commitments" data-csrf="<?= e($collabCsrf) ?>">
+            <div class="pcard-head">
+              <h2>My commitments</h2>
+              <span class="pchip" id="cmtChip">—</span>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">What you promised in a meeting or a mentorship session. Marking one missed asks why — that answer is private to you and your record, and is never shown to the AI or put in a leadership brief.</p>
+              <ul class="task-list" id="cmtList"><li class="pc-empty task-empty">Loading your commitments…</li></ul>
+              <div id="cmtStats" class="pcard-note" hidden></div>
+            </div>
+          </section>
+
+          <!-- The chair's side: promises the AI heard but could not safely attribute.
+               Only ever populated for meetings and sessions this member was in. -->
+          <section class="pcard" id="cmtQueue" data-csrf="<?= e($collabCsrf) ?>" hidden>
+            <div class="pcard-head">
+              <h2>Confirm who owns these</h2>
+              <span class="pchip pchip--gold" id="cmtQueueCount">0</span>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">The assistant heard these promises but will not assign them — it can mishear a name, and work assigned to the wrong person is worse than work assigned to nobody. Confirm the owner and it becomes theirs.</p>
+              <ul class="task-list" id="cmtQueueList"></ul>
+            </div>
+          </section>
+
           <section class="pcard" id="taskPool" data-csrf="<?= e($collabCsrf) ?>">
             <div class="pcard-head">
               <h2>Task pool</h2>
@@ -2245,6 +2273,7 @@ $nav['You'] = [
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>
   <script src="/portal/notebooks.js" defer></script>
+  <script src="/portal/commitments.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

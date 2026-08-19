@@ -240,6 +240,61 @@ final class Commitments
         return self::resolveOwner($hint);
     }
 
+    /**
+     * May this member confirm owners and close commitments from this source?
+     *
+     * Whoever was in the room. A meeting's creator or an invited attendee; either
+     * party to a mentorship pairing. Not "any org member", because a commitment
+     * carries a name and a deadline and reassigning somebody else's work from
+     * outside the conversation is not an administrative convenience — and not
+     * "admins only" either, because the chair who ran the meeting is the person who
+     * actually knows which Ada was meant.
+     */
+    public static function canManage(int $uid, array $commitment): bool
+    {
+        if ($uid <= 0) return false;
+        $kind = (string) ($commitment['source_kind'] ?? '');
+        $sid  = (int) ($commitment['source_id'] ?? 0);
+        if ($sid <= 0) return false;
+        try {
+            $db = Database::pdo();
+            if ($kind === self::SRC_MEETING) {
+                $st = $db->prepare('SELECT 1 FROM meetings WHERE id = ? AND creator_id = ?');
+                $st->execute([$sid, $uid]);
+                if ($st->fetchColumn()) return true;
+                $st = $db->prepare('SELECT 1 FROM meeting_attendees WHERE meeting_id = ? AND user_id = ?');
+                $st->execute([$sid, $uid]);
+                return (bool) $st->fetchColumn();
+            }
+            if ($kind === self::SRC_SESSION) {
+                $st = $db->prepare(
+                    'SELECT 1 FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id
+                     WHERE s.id = ? AND (m.mentor_id = ? OR m.mentee_id = ?)'
+                );
+                $st->execute([$sid, $uid, $uid]);
+                return (bool) $st->fetchColumn();
+            }
+        } catch (Throwable $e) { error_log('[commitments] canManage: ' . $e->getMessage()); }
+        return false;
+    }
+
+    /**
+     * The unassigned queue, narrowed to the rooms this member was in.
+     *
+     * The unfiltered `unassigned()` is for an admin console; a portal caller gets
+     * only what they are entitled to act on, so the queue never shows somebody a
+     * promise made in a meeting they were not part of.
+     */
+    public static function unassignedFor(int $uid, int $limit = 50): array
+    {
+        $out = [];
+        foreach (self::unassigned(200) as $c) {
+            if (self::canManage($uid, $c)) $out[] = $c;
+            if (count($out) >= max(1, min(200, $limit))) break;
+        }
+        return $out;
+    }
+
     /* ── the human decisions ───────────────────────────────────────────── */
 
     /** Confirm (or correct) who owns a commitment. This is the gate extraction cannot pass. */
