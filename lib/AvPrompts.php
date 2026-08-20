@@ -88,7 +88,6 @@ final class AvPrompts
         ],
 
         'accountability.nudge' => [
-            'pending' => 'the escalation ladder',
             'label' => 'Accountability nudge / escalation wording',
             'scope' => 'mentorship',
             'rules' => true,

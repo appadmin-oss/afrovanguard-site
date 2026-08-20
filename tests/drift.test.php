@@ -127,6 +127,12 @@ $knownMetaKeys = [
     'ngv_content', 'ngv_content_prev',
     'superadmin_seed_fp', 'superadmin_initial_password',
     'bday_sent', 'diary_ref_codes',
+    // Accountability (§13/§14). Reviewed: neither gates a migration.
+    // `accountability_from` is the cold-start watermark — escalations never look
+    // at sessions before it, so a lost value re-stamps to today and under-reports
+    // rather than escalating history at everyone. `accountability_last_run` is the
+    // once-a-day guard; a lost value costs one extra sweep, which is idempotent.
+    'accountability_from', 'accountability_last_run',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

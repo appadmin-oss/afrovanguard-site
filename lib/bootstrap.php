@@ -294,6 +294,10 @@ require_once __DIR__ . '/AvWeb.php';
 require_once __DIR__ . '/AvTools.php';
 require_once __DIR__ . '/AvAgent.php';
 require_once __DIR__ . '/AvLab.php';
+// The engine that acts on the rules: meeting cadence, the escalation ladder and
+// relationship health (report §13, §14, §15). Loads after Mentorship, AvRules,
+// AvPrompts and Notifications, all of which it reads.
+require_once __DIR__ . '/Accountability.php';
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without

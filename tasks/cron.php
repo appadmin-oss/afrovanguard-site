@@ -82,6 +82,15 @@ if (class_exists('Mentorship')) {
     catch (Throwable $e) { error_log('[cron] session bots: ' . $e->getMessage()); }
 }
 
+// The accountability pass (report §13, §14): remind the meetings coming due,
+// chase the pairings with nothing booked, and walk the escalation ladder for
+// meetings nobody recorded. Self-limiting to one run per UTC day, so it is safe
+// on a five-minute tick; pass force only from the Studio.
+if (class_exists('Accountability')) {
+    try { $result['accountability'] = Accountability::sweep(); }
+    catch (Throwable $e) { error_log('[cron] accountability: ' . $e->getMessage()); }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';

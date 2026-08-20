@@ -74,19 +74,16 @@ final class AvRules
 
         /* ── Relationship health (report §15) ── */
         'health.amber_attendance_pct' => [
-            'pending' => 'relationship health',
             'type' => 'int', 'default' => 70, 'min' => 0, 'max' => 100, 'group' => 'Health',
             'label' => 'Amber below attendance (%)',
             'help'  => 'Attendance rate under this puts a relationship in Amber.',
         ],
         'health.red_attendance_pct' => [
-            'pending' => 'relationship health',
             'type' => 'int', 'default' => 40, 'min' => 0, 'max' => 100, 'group' => 'Health',
             'label' => 'Red below attendance (%)',
             'help'  => 'Attendance rate under this puts a relationship in Red. Must be below the Amber threshold.',
         ],
         'health.red_missed_streak' => [
-            'pending' => 'relationship health',
             'type' => 'int', 'default' => 3, 'min' => 1, 'max' => 20, 'group' => 'Health',
             'label' => 'Red after consecutive misses',
             'help'  => 'Consecutive missed meetings that force Red regardless of the overall rate.',
@@ -104,7 +101,6 @@ final class AvRules
             'help'  => 'On the final step, inform the next level up (Mentor → Mentor\'s leader).',
         ],
         'escalation.cooldown_days' => [
-            'pending' => 'the escalation ladder',
             'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 90, 'group' => 'Escalation',
             'label' => 'Cooldown between escalations (days)',
             'help'  => 'Minimum gap between two escalations on the same relationship, so a quiet month cannot produce a pile of notices.',

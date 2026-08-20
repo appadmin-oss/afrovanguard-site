@@ -1121,13 +1121,19 @@
     fetch(API + '?action=mentorship_inactive', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       var n = (d.pairs || []).length, b = $('#mtInactBadge'); if (b) { b.textContent = n; b.hidden = !n; }
     }).catch(function () {});
+    // The badge counts only Red — Amber is worth reading, Red is worth acting on,
+    // and a badge that counts both trains people to ignore it.
+    fetch(API + '?action=mentorship_health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var n = ((d.counts || {}).red) || 0, b = $('#mtHealthBadge'); if (b) { b.textContent = n; b.hidden = !n; }
+    }).catch(function () {});
   }
   function mtRenderTab() {
-    ['pairings', 'approvals', 'cohorts', 'inactive'].forEach(function (t) { var el = $('#mt' + t.charAt(0).toUpperCase() + t.slice(1)); if (el) el.hidden = (t !== mtTab); });
+    ['pairings', 'approvals', 'cohorts', 'inactive', 'health'].forEach(function (t) { var el = $('#mt' + t.charAt(0).toUpperCase() + t.slice(1)); if (el) el.hidden = (t !== mtTab); });
     document.querySelectorAll('.subtab[data-mt]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mt') === mtTab); });
     if (mtTab === 'pairings') mtPairings();
     else if (mtTab === 'approvals') mtApprovals();
     else if (mtTab === 'cohorts') mtCohorts();
+    else if (mtTab === 'health') mtHealth();
     else mtInactive();
   }
   function statusPill(s) { return '<span class="badge ' + (s === 'active' ? 'published' : (s === 'pending' ? 'draft' : 'draft')) + '">' + escapeHtml(s) + '</span>'; }
@@ -1187,6 +1193,43 @@
           + '<div class="mt-meta">last session ' + (p.last_session ? escapeHtml(p.last_session) : 'never') + '</div></div></div>';
       }).join('');
     });
+  }
+  // Report §15 — the health board. Sorted worst-first because this is an
+  // exception queue, not a directory: the point is that a leader manages the
+  // reds and never has to read the greens. Status is a WORD as well as a colour
+  // (colour alone is not a signal), and every row carries the behaviour that
+  // produced its grade — §3A wants evidence a human can weigh, not a verdict.
+  function mtHealth() {
+    var box = $('#mtHealth'); box.innerHTML = '<p class="muted">Loading…</p>';
+    fetch(API + '?action=mentorship_health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load relationship health.</p>'; return; }
+      var rows = (d.pairs || []).filter(function (p) { return p.segment === mtSeg; });
+      var c = { red: 0, amber: 0, green: 0 };
+      rows.forEach(function (p) { c[p.status]++; });
+      if (!rows.length) {
+        box.innerHTML = '<p class="muted">No active pairings in this pool yet.</p>';
+        return;
+      }
+      var head = '<div class="mt-health-sum">'
+        + '<span class="badge draft">' + c.red + ' Red</span> '
+        + '<span class="badge draft">' + c.amber + ' Amber</span> '
+        + '<span class="badge published">' + c.green + ' Green</span>'
+        + '<p class="muted tiny" style="margin:8px 0 0">Escalations count misses from ' + escapeHtml(d.since || '') + ' onward — nothing before the engine was switched on.</p></div>';
+      box.innerHTML = head + rows.map(function (p) {
+        var label = p.status.charAt(0).toUpperCase() + p.status.slice(1);
+        var meta = [];
+        if (p.rate !== null && p.rate !== undefined) meta.push(p.rate + '% attendance');
+        if (p.streak > 0) meta.push(p.streak + ' missed in a row');
+        if (p.escalations > 0) meta.push(p.escalations + ' escalation' + (p.escalations === 1 ? '' : 's'));
+        return '<div class="mt-row mt-h-' + escapeHtml(p.status) + '">'
+          + '<div class="mt-row-main">'
+          + '<div class="mt-pair"><span class="mt-h-tag mt-h-tag-' + escapeHtml(p.status) + '">' + escapeHtml(label) + '</span> '
+          + '<b>' + escapeHtml(p.mentor) + '</b> <span class="mt-arrow">&rarr;</span> <b>' + escapeHtml(p.mentee) + '</b></div>'
+          + (meta.length ? '<div class="mt-meta">' + escapeHtml(meta.join(' \u00b7 ')) + '</div>' : '')
+          + '<ul class="mt-h-why">' + (p.reasons || []).map(function (r) { return '<li>' + escapeHtml(r) + '</li>'; }).join('') + '</ul>'
+          + '</div></div>';
+      }).join('');
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load relationship health.</p>'; });
   }
   function mtLoadCohortOptions() {
     fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {

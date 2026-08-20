@@ -483,10 +483,39 @@ foreach ($dsc3['groups'] as $rows) {
     }
 }
 // The label tracks reality, and reality moves: this was >= 10 before G-1 shipped
-// and took the five commitments rules live. What is left is health, escalation,
-// agenda drafting, in-meeting timing and assistant tone — the subsystems that
-// genuinely have no consumer yet.
-ck('pending: unenforced rules are still flagged for the Studio', $pendingCount >= 5);
+// and took the five commitments rules live, then >= 5 until Accountability took
+// the three health rules and the escalation cooldown live. What is left is agenda
+// drafting, in-meeting timing and assistant tone — the subsystems that genuinely
+// have no consumer yet.
+ck('pending: unenforced rules are still flagged for the Studio', $pendingCount >= 3);
+// The other half of the same invariant, and the one that actually bites: a rule
+// marked pending must have NO consumer, and a rule with a consumer must not be
+// marked pending. Both directions, or the Studio's "not enforced yet" label
+// drifts away from the code the way it did before this engine landed.
+$libSrc = '';
+foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
+    if (basename($f) === 'AvRules.php') continue;   // the registry itself is not a consumer
+    $libSrc .= (string) file_get_contents($f);
+}
+// A rule the engine cannot enforce but the AI is TOLD about is legitimate — it
+// governs the model's reasoning rather than a code path. There is exactly one,
+// and naming it here means a second cannot appear unnoticed.
+$promptOnly = ['ai.character_scores'];
+$mislabelled = [];
+foreach ($dsc3['groups'] as $rows) {
+    foreach ($rows as $row) {
+        $consumed = strpos($libSrc, "'" . $row['key'] . "'") !== false;
+        if ($row['pending'] !== '' && $consumed) $mislabelled[] = $row['key'] . ' is pending but consumed';
+        if ($row['pending'] === '' && !$consumed && !in_array($row['key'], $promptOnly, true)) {
+            $mislabelled[] = $row['key'] . ' is live but consumed by nothing';
+        }
+    }
+}
+foreach ($promptOnly as $k) {
+    ck("pending: {$k} is prompt-only and says so in the prompt block",
+       strpos($libSrc, "'{$k}'") === false && strpos(AvRules::asPromptBlock(), 'character') !== false);
+}
+ck('pending: the label matches the code' . ($mislabelled ? ' — ' . implode('; ', $mislabelled) : ''), $mislabelled === []);
 ck('pending: an enforced rule is NOT flagged', $livePending && $livePending['pending'] === '');
 // Inverted when G-1 landed. Levels::recommend() reads this rule now, so labelling
 // it "awaiting its subsystem" in the Studio would be a lie to whoever tunes it.

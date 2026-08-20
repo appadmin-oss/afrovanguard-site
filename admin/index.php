@@ -722,12 +722,14 @@
       <button class="subtab" data-mt="approvals">Mentor approvals <span class="tab-badge" id="mtApprBadge" hidden></span></button>
       <button class="subtab" data-mt="cohorts">Cohorts</button>
       <button class="subtab" data-mt="inactive">Needs attention <span class="tab-badge" id="mtInactBadge" hidden></span></button>
+      <button class="subtab" data-mt="health">Health <span class="tab-badge" id="mtHealthBadge" hidden></span></button>
     </div>
 
     <div class="mt-panel" id="mtPairings"></div>
     <div class="mt-panel" id="mtApprovals" hidden></div>
     <div class="mt-panel" id="mtCohorts" hidden></div>
     <div class="mt-panel" id="mtInactive" hidden></div>
+    <div class="mt-panel" id="mtHealth" hidden></div>
   </main>
 
   <!-- TEAM & ROLES (superadmin) -->

@@ -92,6 +92,9 @@ try {
         'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
         'activity', 'activity_undo',
         'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
+        // Health names individuals and their attendance record, so it sits with
+        // the rest of mentorship rather than being readable by an editor.
+        'mentorship_health',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
         'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
@@ -361,6 +364,34 @@ try {
         case 'mentorship_mentors':  json_out(['ok' => true, 'mentors' => Mentorship::adminMentors((string) ($_GET['segment'] ?? ''), (string) ($_GET['approval'] ?? ''), (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_pairings': json_out(['ok' => true, 'pairings' => Mentorship::adminPairings((string) ($_GET['segment'] ?? ''), (string) ($_GET['status'] ?? ''), isset($_GET['cohort']) && $_GET['cohort'] !== '' ? (int) $_GET['cohort'] : -1, (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 0))]);
+
+        // Report §15 — every active pairing graded Green/Amber/Red, worst first,
+        // each carrying the behaviour that produced the grade. §3A is explicit
+        // that character must not collapse to a number, so the reasons travel
+        // with the status and the UI shows them rather than a bare dot.
+        case 'mentorship_health': {
+            $rows = [];
+            foreach (Accountability::activePairs() as $p) {
+                $h = Accountability::health($p['id']);
+                $rows[] = [
+                    'id'      => $p['id'],
+                    'mentor'  => $p['mentor'],
+                    'mentee'  => $p['mentee'],
+                    'segment' => $p['segment'],
+                    'status'  => $h['status'],
+                    'rate'    => $h['rate'],
+                    'streak'  => $h['miss_streak'],
+                    'quiet'   => $h['quiet_days'],
+                    'reasons' => $h['reasons'],
+                    'escalations' => count(Accountability::historyFor($p['id'])),
+                ];
+            }
+            $rank = ['red' => 0, 'amber' => 1, 'green' => 2];
+            usort($rows, fn($a, $b) => [$rank[$a['status']], -$a['streak']] <=> [$rank[$b['status']], -$b['streak']]);
+            $counts = ['red' => 0, 'amber' => 0, 'green' => 0];
+            foreach ($rows as $r) $counts[$r['status']]++;
+            json_out(['ok' => true, 'pairs' => $rows, 'counts' => $counts, 'since' => Accountability::watermark()]);
+        }
         case 'mentorship_cohorts':  json_out(['ok' => true, 'cohorts' => Mentorship::listCohorts((string) ($_GET['segment'] ?? ''))]);
         case 'mentorship_find_users': json_out(['ok' => true, 'users' => Mentorship::findUsers((string) ($_GET['q'] ?? ''), (string) ($_GET['segment'] ?? ''))]);
         case 'mentorship_approve': {
