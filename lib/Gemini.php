@@ -134,13 +134,17 @@ final class Gemini
     private static function http(string $url, array $payload): array
     {
         if (!function_exists('curl_init')) return ['__error' => 'curl unavailable'];
+        // See AvBot::http() — an unchecked json_encode() turns malformed UTF-8
+        // anywhere in the payload into an empty request body.
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) return ['__error' => 'Could not encode the request: ' . json_last_error_msg()];
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_TIMEOUT        => 120,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            CURLOPT_POSTFIELDS     => $json,
             CURLOPT_HTTPHEADER     => ['content-type: application/json'],
         ]);
         $body = curl_exec($ch);

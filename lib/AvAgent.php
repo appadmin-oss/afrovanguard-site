@@ -358,11 +358,7 @@ final class AvAgent
             ? AvTools::run($name, $input, $ctx)
             : ['error' => 'Tools are unavailable.'];
 
-        $json = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if (!is_string($json)) $json = '{"error":"Unserialisable tool result."}';
-        if (strlen($json) > self::MAX_RESULT_CHARS) {
-            $json = substr($json, 0, self::MAX_RESULT_CHARS) . '… [truncated]';
-        }
+        $json = self::boundResult($result);
 
         $out['steps'][] = [
             'tool'    => $name,
@@ -371,6 +367,32 @@ final class AvAgent
             'error'   => (string) ($result['error'] ?? ''),
             'preview' => mb_substr(preg_replace('/\s+/', ' ', $json) ?? '', 0, 400),
         ];
+        return $json;
+    }
+
+    /**
+     * A tool result as bounded text for the model.
+     *
+     * Public and pure so the encoding invariant can be tested without a provider.
+     *
+     * The cap is a BYTE budget — the point is to bound the request payload — but
+     * it must be cut with mb_strcut, never substr. JSON_UNESCAPED_UNICODE emits
+     * raw multi-byte UTF-8, and a byte-wise cut lands mid-character whenever the
+     * boundary falls inside one; the damaged string then makes the ENTIRE request
+     * unencodable, because json_encode() returns false on malformed UTF-8. The
+     * provider received an empty body and answered with a baffling 400. One curly
+     * quote in the wrong place on a fetched page was enough to trigger it.
+     *
+     * The truncated result is deliberately no longer valid JSON — the model reads
+     * it as text. It must still be valid UTF-8.
+     */
+    public static function boundResult(array $result): string
+    {
+        $json = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json)) return '{"error":"Unserialisable tool result."}';
+        if (strlen($json) > self::MAX_RESULT_CHARS) {
+            $json = mb_strcut($json, 0, self::MAX_RESULT_CHARS, 'UTF-8') . '… [truncated]';
+        }
         return $json;
     }
 

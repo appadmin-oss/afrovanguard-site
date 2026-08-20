@@ -212,6 +212,11 @@ final class AvRules
             'label' => 'Announce the notetaker to participants',
             'help'  => 'Keep this ON. The bot appears in the participant list by name, but people deserve to be told in the invite that a meeting is being transcribed, not to discover it. Turning this off does not hide the bot — it only removes the notice.',
         ],
+        'meetings.transcript_char_limit' => [
+            'type' => 'int', 'default' => 20000, 'min' => 1000, 'max' => 200000, 'group' => 'Meetings',
+            'label' => 'Transcript characters sent for summarising',
+            'help'  => 'How much of a raw transcript reaches the model when minutes are written. Longer costs more per meeting; too short and the model never sees the end of the discussion, where the decisions usually are.',
+        ],
 
         /* ── The AI itself (report §23) ── */
         'ai.enabled' => [
@@ -252,6 +257,11 @@ final class AvRules
             'type' => 'int', 'default' => 6, 'min' => 1, 'max' => 20, 'group' => 'AI',
             'label' => 'Maximum tool round-trips per request',
             'help'  => 'How many times the AI may call a tool and think again before it must answer. This is a cost and latency ceiling as much as a safety one — each round-trip is another model call.',
+        ],
+        'ai.max_tokens' => [
+            'type' => 'int', 'default' => 2048, 'min' => 256, 'max' => 8192, 'group' => 'AI',
+            'label' => 'Maximum tokens per AI response',
+            'help'  => 'The output ceiling for one model call. Higher costs more and allows longer answers; too low and a reply is cut off mid-sentence, or a tool call is cut off mid-argument. 2048 is roughly 1,500 words.',
         ],
     ];
 

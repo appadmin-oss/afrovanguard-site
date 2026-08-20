@@ -6,6 +6,8 @@ This is a follow-on to `CODEBASE-AUDIT.md` §9B (2026-08-18), which audited the 
 
 > **Headline.** The safety architecture is sound and the model IDs are current. But **four defects break the AI features in normal use**, and three of them are silent — no exception, no log line, no failed test. Two undefined rule keys cap the entire agent loop at **256 output tokens** and reduce mentorship minutes to a **1000-character transcript answered in 64 tokens**. The suite is green at 905 assertions and catches none of it.
 
+> **Remediated 2026-08-20 — A-1, A-2, A-3, A-4 and test gaps 1 and 3 (Priority 0) are fixed in this branch.** See §12. The suite is now **964 assertions across 14 files**, and each new assertion was verified to fail with its fix reverted. Findings A-5 onward remain open.
+
 **Files reviewed:** `lib/AvBot.php`, `lib/Gemini.php`, `lib/OpenAi.php`, `lib/AvAgent.php`, `lib/AvTools.php`, `lib/AvWeb.php`, `lib/AvRules.php`, `lib/AvPrompts.php`, `lib/AiKnowledge.php`, `lib/AvKnowledge.php`, `lib/AvLab.php`, `lib/AvSettings.php`, `lib/Chioma.php`, `lib/Meetings.php`, `lib/Mentorship.php`, `lib/Community.php`, `lib/ErrorPoem.php`, `lib/Tts.php`, `lib/Config.php`, `admin/api.php`, `integrations/api.php`, `community/api.php`, `search.php`, `chioma.php`, `assets/site/chioma.js`, `admin/app.js`, `tests/*`.
 
 ---
@@ -355,4 +357,50 @@ Worth stating plainly, because it is most of the layer and it shaped which findi
 
 ---
 
-_Method: static reading of every AI file listed in the header, plus executable proofs for A-1 through A-4 run against this checkout on PHP 8.4.19; `tests/run.php` executed green at 905 assertions; provider model IDs and Messages API parameters checked against the current Anthropic API reference rather than recalled._
+---
+
+## 12. Remediation, 2026-08-20 — Priority 0
+
+**A-1, A-2, A-3, A-4 and test gaps 1 and 3 are fixed in this branch.** What shipped:
+
+| Finding | Change |
+|---|---|
+| **A-1** | `ai.max_tokens` added to `AvRules::DEFS` — `int`, default **2048**, bounds 256–8192, group AI. The three agent call sites now resolve 2048 instead of the 256 floor. |
+| **A-2** | `meetings.transcript_char_limit` added — `int`, default **20000**, bounds 1000–200000, group Meetings. `Mentorship::structureSession()` now sees a full transcript and answers in 2048 tokens (1500 on the Claude fallback) instead of 64. |
+| **A-2** | `Meetings::structure()` now reads both rules instead of hardcoding `20000`/`2048`, so the two copies of the minutes job can no longer drift. Pinned by a source assertion over **both** classes. |
+| **A-2** | The `max(1000, $chars)` floor in `Mentorship::structureSession()` is gone — it was dead once the rule declared `min => 1000`, and while the rule was missing it was what converted the fault into a silent truncation. Both writers now **fail loudly** on a non-positive limit rather than summarising an empty transcript. |
+| **A-3** | `AvAgent`'s result bounding extracted to a public, pure `AvAgent::boundResult()` and switched from `substr()` to **`mb_strcut()`** — still a byte budget, but never splitting a character. |
+| **A-3** | All three clients (`AvBot`, `Gemini`, `OpenAi`) now encode **before** creating the cURL handle and return `__error` if `json_encode()` fails, instead of handing `false` to `CURLOPT_POSTFIELDS`. |
+| **A-4** | Prompt assembly extracted to a public, pure `AvBot::composePrompt()` that budgets the **parts**: the question is reserved first, then the thread takes what is left with the **oldest** turns dropped whole. The trailing `mb_substr()` is gone — the composition is bounded by construction, and a truncating cap is what made the fault invisible. |
+| **Gap 1** | `tests/aiwire.test.php` walks the source for every `AvRules::int|bool|str|list|get('key')` and asserts each one resolves — naming the offenders and their file when they do not. |
+| **Gap 3** | The same file tests prompt composition with no provider: the question survives a 40-turn thread, the newest turn is kept and the oldest dropped, and the result stays inside the budget at question lengths from 1 to 20,000 characters. |
+
+**A regression caught during the work.** The first cut of `composePrompt()` applied the 4000-character question reserve unconditionally. `Meetings::structure()`, `Mentorship::structureSession()` and `AvLab::complete()` all pass an **~11,000-character transcript as the user text with no history** — so that would have truncated every meeting to its opening minutes, reintroducing A-2 by another route. The reserve now applies only when a thread is actually competing for the budget, and three assertions pin it.
+
+**Verification.** Every new assertion was checked to fail with its fix reverted, not merely to pass with it:
+
+| Reverted | Assertions that failed |
+|---|---|
+| `lib/AvRules.php` | 6 — including `every key read in code is declared in DEFS — MISSING: meetings.transcript_char_limit (Mentorship.php), ai.max_tokens (Mentorship.php)` |
+| `lib/Meetings.php` | 2 — both minutes-writers-agree assertions |
+| `lib/Gemini.php` + `lib/OpenAi.php` | 4 — both encode-guard assertions on each client |
+| the no-thread branch of `composePrompt()` | 3 — the transcript-length assertions |
+
+Measured after the fix, against the same checks that produced the "before" numbers in §2 and §3–4:
+
+```
+ai.max_tokens                  = 2048     meetings.transcript_char_limit = 20000
+AvAgent (all three providers)  = 2048     (was 256)
+structureSession transcript    = 20000    (was 1000)
+structureSession Gemini tokens = 2048     (was 64)
+structureSession AvBot  tokens = 1500     (was 64)
+
+bounded tool result valid UTF-8 = yes     payload encodes = yes (16113 bytes)
+48,280 chars of thread offered  → 11,013 sent, question present, instruction present, 9 newest turns kept
+```
+
+**Still open:** A-5 through A-18, and M-6 / M-7 from §9B. §11 sequences them.
+
+---
+
+_Method: static reading of every AI file listed in the header, plus executable proofs for A-1 through A-4 run against this checkout on PHP 8.4.19; `tests/run.php` executed green at 905 assertions before the fix and **964 across 14 files** after; provider model IDs and Messages API parameters checked against the current Anthropic API reference rather than recalled._

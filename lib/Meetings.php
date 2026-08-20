@@ -375,18 +375,26 @@ final class Meetings
               . 'Schema: {"summary": string, "highlights": string[], "decisions": string[], '
               . '"action_items": [{"task": string, "owner": string, "due_days": integer|null}]}. '
               . 'Keep it faithful to the transcript; do not invent facts.';
-        $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, 20000);
+        // Both numbers come from the rules, exactly as Mentorship::structureSession()
+        // reads them. They used to be hardcoded here and read from AvRules there,
+        // which is how the two copies of this job silently diverged.
+        $chars  = class_exists('AvRules') ? AvRules::int('meetings.transcript_char_limit') : 20000;
+        $maxTok = class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048;
+        // Fail loudly rather than summarise an empty transcript — see the same
+        // guard in Mentorship::structureSession().
+        if ($chars <= 0) return ['ok' => false, 'error' => 'meetings.transcript_char_limit is misconfigured (' . $chars . ').'];
+        $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, $chars);
 
         // Prefer Gemini Flash for meeting logging; fall back to the Anthropic bot.
         $res = null;
         if (class_exists('Gemini') && Gemini::configured()) {
-            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => 2048, 'temperature' => 0.1]);
+            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
         }
         if ((!$res || empty($res['ok'])) && class_exists('OpenAi') && OpenAi::configured()) {
-            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => 2048, 'temperature' => 0.1]);
+            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
         }
         if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
-            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => 1500]);
+            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
         }
         if (!$res || empty($res['ok'])) {
             return ['ok' => false, 'error' => ($res['error'] ?? null) ? (string) $res['error'] : 'AI summarisation is not configured (set AV_GEMINI_API_KEY).'];
