@@ -552,8 +552,10 @@ ck('pending: the prompt label matches the code' . ($promptDrift ? ' — ' . impl
 $pendingTemplates = [];
 foreach (AvPrompts::describe() as $p) if ($p['pending'] !== '') $pendingTemplates[] = $p['key'];
 sort($pendingTemplates);
-ck('pending: the unwired templates are exactly the ones we know about — ' . implode(', ', $pendingTemplates),
-   $pendingTemplates === ['promotion.recommendation']);
+// Every template now has a caller. Kept as an equality rather than deleted: if a
+// new unwired template appears, this says which one instead of going quiet.
+ck('pending: no prompt template is left unwired' . ($pendingTemplates ? ' — ' . implode(', ', $pendingTemplates) : ''),
+   $pendingTemplates === []);
 ck('pending: a live prompt template is not flagged', ($byKey['meeting.minutes']['pending'] ?? 'x') === '');
 
 /* ── inactivePairs() follows the rule instead of a hardcoded 21 ── */

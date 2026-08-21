@@ -528,3 +528,33 @@ body.studio-authed .studio-side { display: block; }
 .brief-empty p:last-child { margin-bottom: 0; }
 
 .brief-foot { margin: 14px 0 0; font-size: 11.5px; color: var(--muted); }
+
+/* ── Promotion queue (report §20) ────────────────────────────────────────
+   The case, not the decision — the level itself is changed in Members, with
+   its own audit trail. A disagreement between the rules engine and the AI is
+   the most useful thing on the row, so it sits above the evidence and is the
+   only element here allowed a filled background. */
+.mt-promo.is-ready { border-left: 4px solid #16a34a; }
+.mt-promo.is-near  { border-left: 4px solid #b45309; }
+
+.promo-clash {
+  margin: 8px 0 10px; padding: 9px 12px; border-radius: var(--radius-md);
+  background: rgba(220,38,38,0.10); border: 1px solid rgba(220,38,38,0.28);
+  font-size: 13px; line-height: 1.55; color: var(--ink);
+}
+.promo-block { margin: 8px 0 0; }
+.promo-block h5 {
+  margin: 0 0 3px; font-size: 10.5px; font-weight: 800;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.promo-block ul { margin: 0; padding-left: 18px; }
+.promo-block li { font-size: 13px; line-height: 1.55; color: var(--ink); margin-bottom: 2px; }
+.promo-gaps li { color: var(--muted); }
+.promo-deferred {
+  margin: 8px 0 0; font-size: 12.5px; color: var(--muted);
+  padding-left: 10px; border-left: 2px solid var(--divider);
+}
+.mt-promo .mt-acts { margin-top: 12px; }
+.mt-promo-empty { padding: 16px 18px; border: 1px dashed var(--divider); border-radius: var(--radius-md); }
+.mt-promo-empty p { margin: 0 0 4px; }
+.mt-promo-empty p:last-child { margin-bottom: 0; }

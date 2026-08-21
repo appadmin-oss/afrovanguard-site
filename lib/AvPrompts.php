@@ -115,7 +115,6 @@ final class AvPrompts
         ],
 
         'promotion.recommendation' => [
-            'pending' => 'AI-assisted promotion review',
             'label' => 'Promotion recommendation',
             'scope' => 'levels',
             'rules' => true,

@@ -98,6 +98,13 @@ if (class_exists('Agenda')) {
     catch (Throwable $e) { error_log('[cron] agendas: ' . $e->getMessage()); }
 }
 
+// Report §20: write the case for anyone the rules engine now rates as ready,
+// and tell leadership. One review per member per target level.
+if (class_exists('Promotion')) {
+    try { $result['promotions'] = Promotion::sweep(); }
+    catch (Throwable $e) { error_log('[cron] promotions: ' . $e->getMessage()); }
+}
+
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
 // one per period, so a five-minute tick produces one brief a week — not 2,016.
 if (class_exists('Brief')) {

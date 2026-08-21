@@ -1200,14 +1200,21 @@
     fetch(API + '?action=mentorship_health', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       var n = ((d.counts || {}).red) || 0, b = $('#mtHealthBadge'); if (b) { b.textContent = n; b.hidden = !n; }
     }).catch(function () {});
+    // Counts only those who MEET the criteria — someone merely approaching is
+    // worth reading, not worth a badge demanding attention.
+    fetch(API + '?action=promotion_queue', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      var n = (d.queue || []).filter(function (p) { return p.ready; }).length, b = $('#mtPromoBadge');
+      if (b) { b.textContent = n; b.hidden = !n; }
+    }).catch(function () {});
   }
   function mtRenderTab() {
-    ['pairings', 'approvals', 'cohorts', 'inactive', 'health'].forEach(function (t) { var el = $('#mt' + t.charAt(0).toUpperCase() + t.slice(1)); if (el) el.hidden = (t !== mtTab); });
+    ['pairings', 'approvals', 'cohorts', 'inactive', 'health', 'promotions'].forEach(function (t) { var el = $('#mt' + t.charAt(0).toUpperCase() + t.slice(1)); if (el) el.hidden = (t !== mtTab); });
     document.querySelectorAll('.subtab[data-mt]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mt') === mtTab); });
     if (mtTab === 'pairings') mtPairings();
     else if (mtTab === 'approvals') mtApprovals();
     else if (mtTab === 'cohorts') mtCohorts();
     else if (mtTab === 'health') mtHealth();
+    else if (mtTab === 'promotions') mtPromotions();
     else mtInactive();
   }
   function statusPill(s) { return '<span class="badge ' + (s === 'active' ? 'published' : (s === 'pending' ? 'draft' : 'draft')) + '">' + escapeHtml(s) + '</span>'; }
@@ -1305,6 +1312,96 @@
       }).join('');
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load relationship health.</p>'; });
   }
+  // Report §20 — the promotion queue. Nothing here promotes anybody: the level
+  // is changed in Members, with its own audit trail. What this shows is the CASE,
+  // so the decision is informed rather than a guess — and where the rules engine
+  // and the AI disagree, that disagreement leads, because it is the single most
+  // useful thing on the screen.
+  function mtPromotions() {
+    var box = $('#mtPromotions'); box.innerHTML = '<p class="muted">Loading…</p>';
+    api('promotion_queue').then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load the promotion queue.</p>'; return; }
+      var rows = d.queue || [];
+      if (!rows.length) {
+        box.innerHTML = '<div class="mt-promo-empty"><p><b>Nobody is up for review.</b></p>'
+          + '<p class="muted tiny">Members appear here once they are actively mentoring and meeting consistently. '
+          + 'Advancement needs active mentees — names on a list do not qualify.</p></div>';
+        return;
+      }
+      box.innerHTML = '<p class="muted tiny">The AI writes the case. You decide — change a level in <b>Members &amp; People</b>.</p>'
+        + rows.map(promoRow).join('');
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the promotion queue.</p>'; });
+  }
+
+  function promoRow(p) {
+    var rev = p.review;
+    var cls = p.ready ? 'is-ready' : 'is-near';
+    var h = '<div class="mt-row mt-promo ' + cls + '" data-uid="' + p.user_id + '">';
+    h += '<div class="mt-row-main">';
+    h += '<div class="mt-pair"><span class="mt-h-tag ' + (p.ready ? 'mt-h-tag-green' : 'mt-h-tag-amber') + '">'
+       + (p.ready ? 'Meets the criteria' : 'Approaching') + '</span> '
+       + '<b>' + escapeHtml(p.name) + '</b> <span class="mt-arrow">&rarr;</span> <b>' + escapeHtml(p.next) + '</b>'
+       + ' <span class="mt-meta">currently ' + escapeHtml(p.level) + '</span></div>';
+
+    if (rev && !rev.agrees) {
+      h += '<p class="promo-clash"><b>The rules engine and the AI disagree.</b> '
+         + 'The engine says ' + (rev.engine_ok ? 'yes' : 'no') + '; the AI says ' + (rev.ai_ok ? 'yes' : 'no')
+         + '. Read both before deciding — the engine owns the criteria, the AI is reading how well the mentoring is actually going.</p>';
+    }
+
+    if (p.reasons && p.reasons.length) {
+      h += '<div class="promo-block"><h5>Met</h5><ul>' + p.reasons.map(function (x) { return '<li>' + escapeHtml(x) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (p.gaps && p.gaps.length) {
+      h += '<div class="promo-block promo-gaps"><h5>Outstanding</h5><ul>' + p.gaps.map(function (x) { return '<li>' + escapeHtml(x) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (rev && rev.ai_reasons && rev.ai_reasons.length) {
+      h += '<div class="promo-block"><h5>The AI\'s read'
+         + (rev.ai_confidence ? ' <span class="muted">(' + escapeHtml(rev.ai_confidence) + ' confidence)</span>' : '')
+         + '</h5><ul>' + rev.ai_reasons.map(function (x) { return '<li>' + escapeHtml(x) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (rev && rev.status === 'deferred') {
+      h += '<p class="promo-deferred"><b>Set aside</b> by ' + escapeHtml(rev.decided_by || 'someone')
+         + (rev.note ? ' — ' + escapeHtml(rev.note) : '') + '</p>';
+    }
+    if (rev && rev.source === 'engine-only') {
+      h += '<p class="mt-meta">No AI provider answered, so this is the rules engine\'s assessment alone.</p>';
+    }
+
+    h += '<div class="mt-acts">';
+    if (!rev)                            h += '<button class="btn btn-outline btn-sm" data-promo="review" data-uid="' + p.user_id + '">Write the case</button> ';
+    else                                 h += '<button class="btn btn-outline btn-sm" data-promo="review" data-uid="' + p.user_id + '" data-force="1">Re-run the review</button> ';
+    if (rev && rev.status === 'deferred') h += '<button class="btn btn-outline btn-sm" data-promo="reopen" data-uid="' + p.user_id + '">Put it back</button>';
+    else if (rev)                         h += '<button class="btn btn-outline btn-sm" data-promo="defer" data-uid="' + p.user_id + '">Not yet…</button>';
+    h += '</div></div></div>';
+    return h;
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-promo]') : null;
+    if (!b) return;
+    var act = b.getAttribute('data-promo'), uid = +b.getAttribute('data-uid');
+    if (act === 'defer') {
+      var note = prompt('Why is this not the moment? Whoever reads the queue next will see this.');
+      if (note === null) return;
+      if (!note.trim()) { alert('A reason is required — an empty note tells the next reader nothing.'); return; }
+      post('promotion_defer', { user_id: uid, note: note.trim() }).then(function (r) {
+        if (!(r.data || {}).ok) alert(((r.data || {}).error) || 'Could not save that.');
+        mtPromotions();
+      });
+      return;
+    }
+    b.disabled = true;
+    if (act === 'review') b.textContent = 'Reading the record…';
+    post(act === 'review' ? 'promotion_review' : 'promotion_reopen',
+         { user_id: uid, force: b.getAttribute('data-force') === '1' }).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok && d.error) alert(d.error);
+      mtPromotions();
+    }).catch(function () { mtPromotions(); });
+  });
+
   function mtLoadCohortOptions() {
     fetch(API + '?action=mentorship_cohorts&segment=' + mtSeg, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
       var sel = $('#mtCohort'); if (!sel) return;

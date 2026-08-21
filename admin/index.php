@@ -741,6 +741,7 @@
       <button class="subtab" data-mt="cohorts">Cohorts</button>
       <button class="subtab" data-mt="inactive">Needs attention <span class="tab-badge" id="mtInactBadge" hidden></span></button>
       <button class="subtab" data-mt="health">Health <span class="tab-badge" id="mtHealthBadge" hidden></span></button>
+      <button class="subtab" data-mt="promotions">Promotions <span class="tab-badge" id="mtPromoBadge" hidden></span></button>
     </div>
 
     <div class="mt-panel" id="mtPairings"></div>
@@ -748,6 +749,7 @@
     <div class="mt-panel" id="mtCohorts" hidden></div>
     <div class="mt-panel" id="mtInactive" hidden></div>
     <div class="mt-panel" id="mtHealth" hidden></div>
+    <div class="mt-panel" id="mtPromotions" hidden></div>
   </main>
 
   <!-- TEAM & ROLES (superadmin) -->

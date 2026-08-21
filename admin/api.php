@@ -98,6 +98,8 @@ try {
         // The brief names individuals, their attendance and their promotion
         // readiness. Same reasoning as mentorship_health.
         'brief_latest', 'brief_run',
+        // The promotion queue names individuals and their readiness evidence.
+        'promotion_queue', 'promotion_review', 'promotion_defer', 'promotion_reopen',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
         'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
@@ -367,6 +369,33 @@ try {
         case 'mentorship_mentors':  json_out(['ok' => true, 'mentors' => Mentorship::adminMentors((string) ($_GET['segment'] ?? ''), (string) ($_GET['approval'] ?? ''), (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_pairings': json_out(['ok' => true, 'pairings' => Mentorship::adminPairings((string) ($_GET['segment'] ?? ''), (string) ($_GET['status'] ?? ''), isset($_GET['cohort']) && $_GET['cohort'] !== '' ? (int) $_GET['cohort'] : -1, (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 0))]);
+
+        /* ── Report §20 — the promotion queue. The AI writes the case; this
+           endpoint never changes a level. mem_save remains the one path that
+           does, so there is no second promote route to drift. ── */
+        case 'promotion_queue':
+            json_out(['ok' => true, 'queue' => Promotion::queue()]);
+
+        case 'promotion_review': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!av_rate_ok('promotion_review', 20, 600)) json_out(['ok' => false, 'error' => 'Too many reviews — wait a moment.'], 429);
+            $r = Promotion::review((int) ($body['user_id'] ?? 0), !empty($body['force']));
+            json_out(['ok' => !empty($r['ok']), 'review' => $r['review'] ?? null, 'error' => $r['reason'] ?? null]);
+        }
+
+        case 'promotion_defer': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $actor = av_admin_role() ?: 'admin';
+            $r = Promotion::defer((int) ($body['user_id'] ?? 0), (string) ($body['note'] ?? ''), $actor);
+            if (!empty($r['ok'])) AdminAudit::log('rules', 'promotion_deferred', (string) ($body['user_id'] ?? 0), 'Set a promotion review aside');
+            json_out($r, !empty($r['ok']) ? 200 : 422);
+        }
+
+        case 'promotion_reopen': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Promotion::reopen((int) ($body['user_id'] ?? 0), av_admin_role() ?: 'admin');
+            json_out($r, !empty($r['ok']) ? 200 : 422);
+        }
 
         // Report §21/§31/§38 — the leadership brief. Read the latest, or write one
         // now. The figures are always counted, never inferred; see lib/Brief.php.
