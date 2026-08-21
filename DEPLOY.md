@@ -149,3 +149,81 @@ block; use Cloud SQL + Cloud Scheduler as above.
 
 Nothing in the application code needs to change for any of the above — it's all
 configuration.
+
+## The Google Chat task bot
+
+The bot turns "Bode to submit the revised STS report by Friday", said in a Chat
+space, into a tracked commitment on the same board as meeting minutes.
+
+**In Google Cloud**, create a Chat app (APIs & Services → Google Chat API →
+Configuration):
+
+| Field | Value |
+|---|---|
+| App name | Afrovanguard Task Bot |
+| Functionality | Receive 1:1 messages **and** join spaces and group conversations |
+| Connection settings | **HTTP endpoint URL** → `https://your-domain/webhooks/chat` |
+| Visibility | your Workspace domain |
+
+**In the Studio** → System → *Chat task bot*, set `AV_CHAT_AUDIENCE` to the
+Cloud project number shown on the API page (or the custom audience you
+configured on the app). This is not optional: without it the endpoint refuses
+every request rather than accepting one it cannot verify. Google signs each
+event as `chat@system.gserviceaccount.com`, and the audience claim is what stops
+a token minted for somebody else's Chat app being replayed at yours.
+
+Then add the app to a space and say `help`.
+
+**What it will and will not do.** It records the task either way, and only
+assigns it when the name matches exactly one member — two people called Ada
+means nobody is assigned and it says which two. The sender must also match a
+member account: a valid Google token proves the request came from Chat, not that
+the person behind it is one of yours.
+
+Optionally restrict it to named spaces with the `chat.allowed_spaces` rule
+(Rules & AI). Blank means any space it has been added to, which is usually
+right, because the sender check is the substantive gate.
+
+## AI provider routing
+
+Which model answers which kind of work is three rules in Rules & AI, not a
+constant in the code:
+
+| Rule | Default | Covers |
+|---|---|---|
+| `ai.route_reason` | `openai,anthropic,gemini,groq` | briefs, promotion reviews, agenda drafts, minutes |
+| `ai.route_bulk` | `groq,gemini,openai,anthropic` | reminder wording, catch-ups, classifications |
+| `ai.route_tools` | `openai,anthropic,gemini` | the assistant that looks things up for itself |
+
+Each is tried in turn until one answers. A provider with no API key is skipped,
+so listing one costs nothing. Only the three native providers have a tool loop
+implemented, so naming a support-tier endpoint in `ai.route_tools` has no
+effect — the router will offer it and `AvAgent` will decline it.
+
+The support tier (`GROQ_API_KEY` and friends, under System → *Support tier*) is
+any OpenAI-compatible endpoint: Groq, OpenRouter, Together, DeepSeek, Cerebras,
+or a model you host yourself. Base URLs are stable; **model names are not** —
+these vendors retire ids faster than the frontier labs, and a sudden run of
+failures on one provider is almost always that. Set `AV_<VENDOR>_MODEL` to fix
+it. The AI Ops board shows which model each provider is actually using.
+
+`AV_AGENT_PROVIDER` still works as an override: it promotes one provider to the
+front of every route without discarding the fallbacks the rules declared.
+Useful for pinning a provider while you diagnose another.
+
+## AI Ops
+
+Studio → **AI Ops**. Every AI feature runs on the cron tick and is silent by
+design, so a scheduler that stopped and a quiet week produce identical output
+everywhere else. This board is where they differ: a per-task heartbeat, model
+spend and failure rates per provider, and what the features produced against
+what anybody acted on.
+
+It leads with alerts and shows an all-clear banner when there are none. **Run
+tasks now** runs the same self-limiting sweeps cron runs, which answers the
+question that always follows a dead heartbeat — whether the tasks themselves
+still work — without shell access.
+
+Cost is reported in tokens, not money: converting needs a per-model price list
+that changes without notice, and a confident wrong figure is worse than the
+number we actually know.
