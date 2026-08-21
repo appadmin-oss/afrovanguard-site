@@ -130,7 +130,7 @@ final class AvSettings
         ],
         'AV_ATTENDEE_API_KEY' => [
             'group' => 'Meeting notetaker', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Attendee is the open-source notetaker (github.com/attendee-labs/attendee). Self-hosted it is free per meeting and bundles Whisper, so it costs you a small always-on container and nothing else. There is a hosted service too if you would rather not run it.',
+            'help' => 'Attendee is the open-source notetaker (github.com/attendee-labs/attendee). Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. There is a hosted service too if you would rather not run it.',
         ],
         'AV_ATTENDEE_BASE_URL' => [
             'group' => 'Meeting notetaker', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',

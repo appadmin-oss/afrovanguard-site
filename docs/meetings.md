@@ -118,7 +118,7 @@ by being told. Leave it on.
 | Backend | Cost | What it is |
 |---|---|---|
 | `google` | **Free** | Google Meet transcribes the call itself. No bot joins. Needs Workspace + the Meet scopes. **Start here** if you are already on Workspace. |
-| `attendee` | **Free self-hosted** | An open-source bot you run yourself. Whisper bundled. You pay for a small always-on container and nothing per meeting. |
+| `attendee` | **Free self-hosted** | An open-source bot you run yourself. You pay for a small always-on container and nothing per meeting to Attendee — the recogniser is a separate bill unless you use Meet's own captions. |
 | `webhook` | **Free self-hosted** | Your own recorder, any implementation. |
 | `recall` | **Per meeting-hour** | Hosted, no infrastructure to run, broadest platform support. |
 
@@ -135,8 +135,14 @@ Recall is the one to pick if you would rather pay than operate a container.
 ### Provider: `attendee` (open source, self-hostable)
 
 [Attendee](https://github.com/attendee-labs/attendee) is a bot that joins Meet,
-Zoom or Teams, records and transcribes with Whisper built in. Self-hosted it
-costs nothing per meeting.
+Zoom or Teams, records and transcribes. Self-hosted, Attendee itself costs
+nothing per meeting.
+
+It bundles no recogniser. Attendee either captures the meeting platform's own
+closed captions — free, and lower quality — or forwards per-speaker audio to a
+provider whose key you add in its dashboard (Deepgram, OpenAI, Gladia,
+AssemblyAI), which bills you directly. Deploying it is
+[docs/attendee-google-cloud.md](attendee-google-cloud.md).
 
 | Env | Default | Purpose |
 |-----|---------|---------|

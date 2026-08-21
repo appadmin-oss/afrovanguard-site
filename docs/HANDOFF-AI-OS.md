@@ -246,7 +246,7 @@ provider-neutral above all three.
 | Backend | Cost | When |
 |---|---|---|
 | `google` | **free** | Already on Workspace. Meet transcribes itself, no bot. **Start here.** |
-| `attendee` | **free self-hosted** | Need Zoom/Teams too, or no Workspace scopes. Open source, Whisper bundled; you pay for a container |
+| `attendee` | **free self-hosted** | Need Zoom/Teams too, or no Workspace scopes. Open source; you pay for a container, plus a recogniser unless you use Meet's captions |
 | `webhook` | **free self-hosted** | Your own recorder |
 | `recall` | **per meeting-hour** | You would rather pay than operate a container |
 

@@ -8,10 +8,16 @@
  * encourage — which is the wrong shape of cost.
  *
  * Attendee (github.com/attendee-labs/attendee) is the same idea as an open
- * project: a bot that joins Google Meet, Zoom or Teams, records, and transcribes
- * with Whisper bundled in. Self-hosted it is genuinely free — you pay for the
- * container it runs in and nothing per meeting. There is also a hosted service
- * if you would rather not operate it.
+ * project: a bot that joins Google Meet, Zoom or Teams, records, and transcribes.
+ * Self-hosted, Attendee charges nothing per meeting — you pay for the container it
+ * runs in and that is all. There is also a hosted service if you would rather not
+ * operate it.
+ *
+ * It does not bundle a recogniser. Attendee either scrapes the meeting platform's
+ * own closed captions (free, lower quality) or forwards per-speaker audio to a
+ * provider you configure in its dashboard — Deepgram, OpenAI, Gladia, AssemblyAI —
+ * which bills you directly. "Free per meeting" is true of Attendee, not of every
+ * transcription path through it.
  *
  * Config:
  *   AV_ATTENDEE_API_KEY   enables it
