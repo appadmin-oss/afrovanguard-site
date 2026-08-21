@@ -30,6 +30,9 @@ final class AvBot
     const DEFAULT_MODEL    = 'claude-opus-4-8';
 
     /** Total characters of thread + question sent as the user turn. */
+    /** Every reply carries a usage block, so callers never have to test for it. */
+    const ZERO_USAGE = ['in' => 0, 'out' => 0];
+
     const MAX_PROMPT_CHARS   = 12000;
     /** Of that, the most the member's own question may take. Reserved first. */
     const MAX_QUESTION_CHARS = 4000;
@@ -87,16 +90,16 @@ SYS;
     public static function reply(string $userText, array $history = [], array $opts = []): array
     {
         $userText = trim($userText);
-        if ($userText === '') return ['ok' => false, 'text' => '', 'error' => 'Empty prompt.'];
+        if ($userText === '') return ['ok' => false, 'text' => '', 'error' => 'Empty prompt.', 'usage' => self::ZERO_USAGE];
         // The Studio master switch is enforced at the network call, so it covers
         // EVERY caller rather than only the ones that remember to ask. It is
         // deliberately not folded into configured(), which must keep reporting
         // truthfully on credentials for the System health page.
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
-            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
+            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.', 'usage' => self::ZERO_USAGE];
         }
         if (!self::configured()) {
-            return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).'];
+            return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).', 'usage' => self::ZERO_USAGE];
         }
 
         $payload = [
@@ -107,19 +110,25 @@ SYS;
         ];
 
         $res = self::http($payload);
-        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => $res['__error']];
+        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => $res['__error'], 'usage' => self::ZERO_USAGE];
+
+        // Token counts ride back on every reply, success or refusal, because a
+        // refused call still costs input tokens. AvRouter records them; nothing
+        // else reads the key, so adding it breaks no existing caller. A-9.
+        $usage = ['in'  => (int) ($res['usage']['input_tokens'] ?? 0),
+                  'out' => (int) ($res['usage']['output_tokens'] ?? 0)];
 
         // Opus 4.8 can decline via stop_reason "refusal" (content empty/partial).
         if (($res['stop_reason'] ?? '') === 'refusal') {
-            return ['ok' => false, 'text' => '', 'error' => 'declined', 'refusal' => true];
+            return ['ok' => false, 'text' => '', 'error' => 'declined', 'refusal' => true, 'usage' => $usage];
         }
         $text = '';
         foreach (($res['content'] ?? []) as $block) {
             if (($block['type'] ?? '') === 'text') $text .= (string) ($block['text'] ?? '');
         }
         $text = trim($text);
-        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty AI response.'];
-        return ['ok' => true, 'text' => $text, 'error' => null];
+        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty AI response.', 'usage' => $usage];
+        return ['ok' => true, 'text' => $text, 'error' => null, 'usage' => $usage];
     }
 
     /**

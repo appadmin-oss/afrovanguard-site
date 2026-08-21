@@ -262,6 +262,8 @@ require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
 require_once __DIR__ . '/Gemini.php';
 require_once __DIR__ . '/OpenAi.php';
+require_once __DIR__ . '/AiCompat.php';   // Groq and the other OpenAI-wire endpoints
+require_once __DIR__ . '/AvRouter.php';   // which model answers which job, and the call ledger
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/Prefs.php';

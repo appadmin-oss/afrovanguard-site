@@ -348,8 +348,8 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $q = trim((string) ($body['q'] ?? ''));
             if (mb_strlen($q) < 3) json_out(['ok' => false, 'error' => 'Ask a fuller question.'], 422);
-            if (!AvBot::configured()) {
-                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set ANTHROPIC_API_KEY (via .htaccess SetEnv or config.php) to turn on the assistant. In the meantime, see the How-to sections on this page.']);
+            if (!AvRouter::available()) {
+                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set an AI provider key (via .htaccess SetEnv or config.php) to turn on the assistant — any one of: ' . AvRouter::keyHint() . '. In the meantime, see the How-to sections on this page.']);
             }
             $sys = "You are the Afrovanguard Studio Assistant — a concise, friendly in-app guide for the administrator of the Afrovanguard nonprofit website (afrovanguard.org.ng). "
                 . "Answer ONLY about operating this admin panel (\"the Studio\") and the public site. The Studio's sections are: "
@@ -358,10 +358,11 @@ try {
             $hist = [];
             foreach ((array) ($body['history'] ?? []) as $h) {
                 if (!is_array($h)) continue;
-                $hist[] = ['role' => (($h['role'] ?? '') === 'bot' ? 'bot' : 'member'), 'text' => (string) ($h['text'] ?? '')];
+                $hist[] = ['role' => (($h['role'] ?? '') === 'bot' ? 'assistant' : 'user'), 'text' => (string) ($h['text'] ?? '')];
             }
-            $ai = AvBot::reply($q, $hist, ['system' => $sys]);
-            json_out(['ok' => (bool) $ai['ok'], 'configured' => true, 'answer' => $ai['ok'] ? $ai['text'] : ('Sorry — the assistant couldn’t answer just now. ' . (string) ($ai['__error'] ?? ''))]);
+            $ai = AvRouter::complete(AvRouter::JOB_BULK, $q, ['system' => $sys, 'history' => $hist, 'actor' => 'studio.guide']);
+            json_out(['ok' => (bool) $ai['ok'], 'configured' => true,
+                      'answer' => $ai['ok'] ? $ai['text'] : ('Sorry — the assistant couldn’t answer just now. ' . (string) ($ai['error'] ?? ''))]);
         }
 
         /* ════ Mentorship & mentor–mentee management ════ */

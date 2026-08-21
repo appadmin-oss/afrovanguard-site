@@ -29,6 +29,9 @@ declare(strict_types=1);
 
 final class OpenAi
 {
+    /** Every generate() carries a usage block, so callers never have to test for it. */
+    const ZERO_USAGE = ['in' => 0, 'out' => 0];
+
     const DEFAULT_MODEL      = 'gpt-4o-mini';
     const DEFAULT_TRANSCRIBE = 'whisper-1';
     const DEFAULT_BASE       = 'https://api.openai.com/v1';
@@ -56,20 +59,25 @@ final class OpenAi
     /**
      * Generate text. Same shape as Gemini::generate() and AvBot::reply().
      * $opts: system (string), max_tokens (int), temperature (float).
+     *
+     * $opts['history'] takes prior turns as [['role'=>'user'|'assistant','text'=>…]]
+     * so AvRouter can send a conversation, not just a one-shot, without every
+     * caller learning three different message formats.
      */
     public static function generate(string $prompt, array $opts = []): array
     {
         // The Studio master switch is enforced at the network call so it covers
         // every caller, not only the ones that remember to ask.
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
-            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
+            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.', 'usage' => self::ZERO_USAGE];
         }
-        if (!self::configured()) return ['ok' => false, 'text' => '', 'error' => 'OpenAI is not configured (set OPENAI_API_KEY).'];
-        if (trim($prompt) === '') return ['ok' => false, 'text' => '', 'error' => 'Nothing to send.'];
+        if (!self::configured()) return ['ok' => false, 'text' => '', 'error' => 'OpenAI is not configured (set OPENAI_API_KEY).', 'usage' => self::ZERO_USAGE];
+        if (trim($prompt) === '') return ['ok' => false, 'text' => '', 'error' => 'Nothing to send.', 'usage' => self::ZERO_USAGE];
 
         $messages = [];
         $sys = trim((string) ($opts['system'] ?? ''));
         if ($sys !== '') $messages[] = ['role' => 'system', 'content' => $sys];
+        foreach (self::historyMessages($opts['history'] ?? []) as $m) $messages[] = $m;
         $messages[] = ['role' => 'user', 'content' => mb_substr($prompt, 0, 200000)];
 
         $res = self::rawChat([
@@ -77,16 +85,40 @@ final class OpenAi
             'max_tokens'  => max(64, min(16384, (int) ($opts['max_tokens'] ?? 2048))),
             'temperature' => (float) ($opts['temperature'] ?? 0.2),
         ]);
-        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => (string) $res['__error']];
+        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => (string) $res['__error'], 'usage' => self::ZERO_USAGE];
+
+        // Recorded by AvRouter for the AI Ops board. A-9.
+        $usage = ['in'  => (int) ($res['usage']['prompt_tokens'] ?? 0),
+                  'out' => (int) ($res['usage']['completion_tokens'] ?? 0)];
 
         $text = trim((string) ($res['choices'][0]['message']['content'] ?? ''));
         if ($text === '') {
             // A refusal comes back as an empty content with a refusal field —
             // report that honestly rather than as an empty success.
             $refusal = (string) ($res['choices'][0]['message']['refusal'] ?? '');
-            return ['ok' => false, 'text' => '', 'error' => $refusal !== '' ? 'declined: ' . $refusal : 'Empty OpenAI response.'];
+            return ['ok' => false, 'text' => '', 'usage' => $usage,
+                    'error' => $refusal !== '' ? 'declined: ' . $refusal : 'Empty OpenAI response.'];
         }
-        return ['ok' => true, 'text' => $text, 'error' => null];
+        return ['ok' => true, 'text' => $text, 'error' => null, 'usage' => $usage];
+    }
+
+    /**
+     * Prior turns as chat messages. Shared shape, so OpenAi and AiCompat agree.
+     *
+     * @param mixed $history [['role'=>'user'|'assistant','text'=>string], …]
+     */
+    public static function historyMessages($history): array
+    {
+        if (!is_array($history)) return [];
+        $out = [];
+        foreach (array_slice($history, -40) as $h) {
+            if (!is_array($h)) continue;
+            $t = trim((string) ($h['text'] ?? ''));
+            if ($t === '') continue;
+            $role = in_array(($h['role'] ?? ''), ['assistant', 'bot', 'model'], true) ? 'assistant' : 'user';
+            $out[] = ['role' => $role, 'content' => mb_substr($t, 0, 4000)];
+        }
+        return $out;
     }
 
     /**

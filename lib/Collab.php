@@ -250,30 +250,21 @@ final class Collab
         // The Studio master switch wins over a configured key: leadership can
         // stop every AI call without pulling credentials out of the environment.
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return false;
-        return (class_exists('AvBot') && AvBot::configured())
-            || (class_exists('Gemini') && Gemini::configured());
+        return class_exists('AvRouter') && AvRouter::available();
     }
 
     /**
-     * One text completion through whichever AI key is configured: Claude first
-     * (best instruction-following), else Gemini. Same ['ok','text','error']
-     * shape from either, plus 'via' for diagnostics. Callers don't care which.
+     * One text completion, routed by AvRouter. Same ['ok','text','error'] shape
+     * as before plus 'via', which now names whichever provider actually
+     * answered rather than the one this method happened to try first.
      */
     private static function aiComplete(string $system, string $prompt, int $maxTokens = 900): array
     {
-        if (class_exists('AvBot') && AvBot::configured()) {
-            $r = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => $maxTokens]);
-            $r['via'] = 'claude';
-            if (!empty($r['ok'])) return $r;
-            // Fall through to Gemini if Claude errored AND Gemini is available.
-            if (!(class_exists('Gemini') && Gemini::configured())) return $r;
-        }
-        if (class_exists('Gemini') && Gemini::configured()) {
-            $r = Gemini::generate($prompt, ['system' => $system, 'max_tokens' => $maxTokens, 'temperature' => 0.3]);
-            $r['via'] = 'gemini';
-            return $r;
-        }
-        return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).', 'via' => ''];
+        $r = class_exists('AvAgent')
+            ? AvAgent::complete($system, $prompt, ['max_tokens' => $maxTokens, 'temperature' => 0.3, 'actor' => 'collab.tasks'])
+            : ['ok' => false, 'error' => 'Router unavailable.'];
+        return ['ok' => (bool) ($r['ok'] ?? false), 'text' => (string) ($r['text'] ?? ''),
+                'error' => $r['error'] ?? null, 'via' => (string) ($r['provider'] ?? '')];
     }
 
     /**

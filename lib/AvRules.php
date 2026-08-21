@@ -252,6 +252,32 @@ final class AvRules
             'label' => 'Maximum tool round-trips per request',
             'help'  => 'How many times the AI may call a tool and think again before it must answer. This is a cost and latency ceiling as much as a safety one — each round-trip is another model call.',
         ],
+
+        /* ── Which model answers which job (see lib/AvRouter) ── */
+        'ai.route_reason' => [
+            'type' => 'csv', 'default' => 'openai,anthropic,gemini,groq', 'group' => 'AI',
+            'item_pattern' => '/^[a-z][a-z0-9_]{1,23}$/',
+            'label' => 'Routing — work that needs judgement',
+            'help'  => 'Ranked providers for briefs, promotion reviews, agenda drafts and minutes. Each is tried in turn until one answers. Names: openai, anthropic, gemini, groq, openrouter, together, deepseek, cerebras, local. A provider with no API key configured is skipped, so listing one costs nothing.',
+        ],
+        'ai.route_bulk' => [
+            'type' => 'csv', 'default' => 'groq,gemini,openai,anthropic', 'group' => 'AI',
+            'item_pattern' => '/^[a-z][a-z0-9_]{1,23}$/',
+            'label' => 'Routing — high-volume, low-stakes work',
+            'help'  => 'Ranked providers for reminder wording, classifications and short summaries. This is the cheap tier: the work is read in three seconds and a frontier model adds nothing to it. Ships pointing at Groq first because it is fast and free at this volume.',
+        ],
+        'ai.route_tools' => [
+            'type' => 'csv', 'default' => 'openai,anthropic,gemini', 'group' => 'AI',
+            'item_pattern' => '/^[a-z][a-z0-9_]{1,23}$/',
+            'label' => 'Routing — the tool-using assistant',
+            'help'  => 'Ranked providers for the assistant that can look things up for itself. Only these three have tool loops implemented; the support-tier endpoints are completion-only, so naming one here has no effect.',
+        ],
+        'ai.fallback' => [
+            'type' => 'bool', 'default' => true, 'group' => 'AI',
+            'label' => 'Fall through to the next provider on failure',
+            'help'  => 'On, a provider outage is invisible — the next one in the list answers. Off, a failed call fails, which is what you want while you are diagnosing one provider and do not want another quietly covering for it.',
+        ],
+
         'ai.max_tokens' => [
             'type' => 'int', 'default' => 2048, 'min' => 256, 'max' => 8192, 'group' => 'AI',
             'label' => 'Maximum tokens per AI response',

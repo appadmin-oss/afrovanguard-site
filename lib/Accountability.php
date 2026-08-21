@@ -499,18 +499,15 @@ final class Accountability
                 $user = 'Write the message now. Tone: ' . $tone . '.';
                 $txt  = '';
                 try {
-                    if (class_exists('Gemini') && Gemini::configured()) {
-                        $r = Gemini::generate($user, ['system' => $sys, 'max_tokens' => 300, 'temperature' => 0.3]);
-                        if (!empty($r['ok'])) $txt = (string) $r['text'];
-                    }
-                    if ($txt === '' && class_exists('OpenAi') && OpenAi::configured()) {
-                        $r = OpenAi::generate($user, ['system' => $sys, 'max_tokens' => 300, 'temperature' => 0.3]);
-                        if (!empty($r['ok'])) $txt = (string) $r['text'];
-                    }
-                    if ($txt === '' && class_exists('AvBot') && AvBot::configured()) {
-                        $r = AvBot::reply($user, [], ['system' => $sys, 'max_tokens' => 300]);
-                        if (!empty($r['ok'])) $txt = (string) $r['text'];
-                    }
+                    // Bulk: three sentences a member reads once. The support tier
+                    // writes these as well as a frontier model does, and this is
+                    // the highest-volume model call in the system — one per
+                    // overdue pairing per day. AvRouter handles the fallbacks.
+                    $r = class_exists('AvAgent')
+                        ? AvAgent::complete($sys, $user, ['job' => 'bulk', 'max_tokens' => 300,
+                                                          'temperature' => 0.3, 'actor' => 'accountability.nudge'])
+                        : ['ok' => false];
+                    if (!empty($r['ok'])) $txt = (string) $r['text'];
                 } catch (Throwable $e) { error_log('[accountability] nudge: ' . $e->getMessage()); }
                 $txt = trim($txt);
                 if ($txt !== '') return mb_substr($txt, 0, 600);

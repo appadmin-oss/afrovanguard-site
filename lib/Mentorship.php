@@ -867,18 +867,14 @@ final class Mentorship
         if ($chars <= 0) return ['ok' => false, 'error' => 'meetings.transcript_char_limit is misconfigured (' . $chars . ').'];
         $prompt = "Transcript:\n\n" . mb_substr($raw, 0, $chars);
 
-        $res = null;
-        if (class_exists('Gemini') && Gemini::configured()) {
-            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
-        }
-        if ((!$res || empty($res['ok'])) && class_exists('OpenAi') && OpenAi::configured()) {
-            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
-        }
-        if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
-            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
-        }
-        if (!$res || empty($res['ok'])) {
-            return ['ok' => false, 'error' => (string) ($res['error'] ?? 'AI is not configured (set AV_GEMINI_API_KEY).')];
+        // Reason: a session's commitments and their owners come out of this, and
+        // getting an owner wrong files somebody else's promise against a name.
+        $res = class_exists('AvAgent')
+            ? AvAgent::complete($sys, $prompt, ['max_tokens' => $maxTok, 'temperature' => 0.1,
+                                                'actor' => 'mentorship.structure'])
+            : ['ok' => false, 'error' => 'Router unavailable.'];
+        if (empty($res['ok'])) {
+            return ['ok' => false, 'error' => (string) ($res['error'] ?? 'No AI provider is configured.')];
         }
 
         $j = self::extractJson((string) $res['text']);

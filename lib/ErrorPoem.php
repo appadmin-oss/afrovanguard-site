@@ -196,7 +196,11 @@ final class ErrorPoem
             . "Warm, dignified, hopeful, lightly witty; rooted in African resilience and community. You MAY nod to the movement (the mission, Alimosho/Lagos, the Academy or the Diary, building, incorruptible leadership) but keep it natural and never invent specific facts, names, dates, figures or links. Return ONLY the poem lines, one per line."
             . ($brief !== '' ? "\n\nReference (do not quote verbatim, do not invent beyond it):\n" . mb_substr($brief, 0, 2000) : '');
         $user = "The moment: {$situation}. Write the Afrovanguard poem.";
-        $res = AvBot::reply($user, [], ['system' => $system, 'max_tokens' => 160]);
+        // Bulk: three lines on an error page, warmed into a cache ahead of time.
+        // Spending a frontier model on this was never defensible.
+        $res = class_exists('AvAgent')
+            ? AvAgent::complete($system, $user, ['job' => 'bulk', 'max_tokens' => 160, 'actor' => 'errorpoem'])
+            : ['ok' => false];
         if (empty($res['ok']) || empty($res['text'])) return false;
         $lines = self::cleanLines(preg_split('/\r?\n/', (string) $res['text']));
         if (count($lines) < 2) return false;

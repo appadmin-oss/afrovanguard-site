@@ -34,26 +34,40 @@ final class AvAgent
     /** How much of a single tool result is fed back to the model. */
     private const MAX_RESULT_CHARS = 16000;
 
+    /** The only three providers with a tool loop implemented here. */
+    private const LOOPS = ['openai', 'anthropic', 'gemini'];
+
     /** Is any provider able to run a tool loop right now? */
     public static function available(): bool
     {
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return false;
-        return (class_exists('AvBot') && AvBot::configured())
-            || (class_exists('OpenAi') && OpenAi::configured())
-            || (class_exists('Gemini') && Gemini::configured());
+        return self::provider() !== '';
     }
 
-    /** Which provider the loop would use ('' when none). */
+    /**
+     * Which provider the loop would use ('' when none).
+     *
+     * The order comes from `ai.route_tools` via AvRouter, so leadership owns it
+     * — but it is filtered to LOOPS here regardless of what the rule says. The
+     * support-tier endpoints are completion-only, and letting one of them
+     * through would fall into a branch written for a different wire format.
+     * The rule's help text says that; this is what makes it true.
+     */
     public static function provider(): string
     {
-        $forced = class_exists('Config') ? strtolower(Config::str('AV_AGENT_PROVIDER', '')) : '';
-        if ($forced === 'anthropic' && class_exists('AvBot') && AvBot::configured()) return 'anthropic';
-        if ($forced === 'openai' && class_exists('OpenAi') && OpenAi::configured()) return 'openai';
-        if ($forced === 'gemini' && class_exists('Gemini') && Gemini::configured()) return 'gemini';
-        // Claude first (best multi-step tool chains), then OpenAI, then Gemini.
-        if (class_exists('AvBot') && AvBot::configured()) return 'anthropic';
-        if (class_exists('OpenAi') && OpenAi::configured()) return 'openai';
-        if (class_exists('Gemini') && Gemini::configured()) return 'gemini';
+        if (!class_exists('AvRouter')) return '';
+        // Every job route, in declared order — the tools rule first because it is
+        // the one written for this, then the others so a deployment that only
+        // configured its reasoning route still gets an agent. LOOPS filters, it
+        // does not rank: the order a provider is tried in is always the
+        // organisation's declared order, never a preference written in here.
+        foreach ([AvRouter::JOB_TOOLS, AvRouter::JOB_REASON, AvRouter::JOB_BULK] as $job) {
+            foreach (AvRouter::order($job) as $h) {
+                if (in_array($h, self::LOOPS, true)) return $h;
+            }
+        }
+        // No rule named a loop-capable provider at all. Take whatever is here.
+        foreach (self::LOOPS as $h) { if (AvRouter::configured($h)) return $h; }
         return '';
     }
 
@@ -94,7 +108,7 @@ final class AvAgent
         $provider = self::provider();
         $out['provider'] = $provider;
         if ($provider === '') {
-            $out['error'] = 'No AI provider is configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY or AV_GEMINI_API_KEY).';
+            $out['error'] = 'No AI provider is configured (set one of: ' . AvRouter::keyHint() . ').';
             return $out;
         }
 
@@ -132,44 +146,30 @@ final class AvAgent
      * (Meetings, Mentorship, Community, AvLab, Collab and Accountability), each
      * with its own provider order, and none of them honouring AV_AGENT_PROVIDER —
      * so the Studio's "provider" setting silently governed only the tool loop.
-     * AI-AUDIT.md A-13. Routing through provider() fixes that for every caller
-     * that adopts this; the older five can migrate one at a time.
+     * AI-AUDIT.md A-13.
+     *
+     * It is now a thin wrapper over AvRouter, which added the two things this
+     * could not do: a job class, so a one-line nudge and a promotion review stop
+     * sharing a provider order, and a ledger entry per attempt. Callers keep the
+     * same signature and the same return, and pass `job` when their work is not
+     * the judgement kind.
      *
      * @return array{ok:bool,text:string,provider:string,error:?string}
      */
     public static function complete(string $system, string $user, array $opts = []): array
     {
-        $out = ['ok' => false, 'text' => '', 'provider' => '', 'error' => null];
-        if (trim($user) === '') { $out['error'] = 'Nothing to send.'; return $out; }
+        if (trim($user) === '') return ['ok' => false, 'text' => '', 'provider' => '', 'error' => 'Nothing to send.'];
+        if (!class_exists('AvRouter')) return ['ok' => false, 'text' => '', 'provider' => '', 'error' => 'Router unavailable.'];
 
-        $maxTok = (int) ($opts['max_tokens'] ?? (class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048));
-        $temp   = (float) ($opts['temperature'] ?? 0.2);
-
-        // provider() order, then the other two as fallbacks — a brief that fails
-        // because the preferred provider is down is a brief nobody reads.
-        $order = array_values(array_unique(array_filter([self::provider(), 'anthropic', 'openai', 'gemini'])));
-        $err   = '';
-        foreach ($order as $p) {
-            try {
-                if ($p === 'gemini' && class_exists('Gemini') && Gemini::configured()) {
-                    $r = Gemini::generate($user, ['system' => $system, 'max_tokens' => $maxTok, 'temperature' => $temp]);
-                } elseif ($p === 'openai' && class_exists('OpenAi') && OpenAi::configured()) {
-                    $r = OpenAi::generate($user, ['system' => $system, 'max_tokens' => $maxTok, 'temperature' => $temp]);
-                } elseif ($p === 'anthropic' && class_exists('AvBot') && AvBot::configured()) {
-                    // AvBot caps its own user turn; hand it a bounded prompt.
-                    $r = AvBot::reply(mb_substr($user, 0, 11000), [], ['system' => $system, 'max_tokens' => min($maxTok, 2048)]);
-                } else {
-                    continue;
-                }
-            } catch (Throwable $e) { $err = $e->getMessage(); continue; }
-
-            if (!empty($r['ok']) && trim((string) $r['text']) !== '') {
-                return ['ok' => true, 'text' => trim((string) $r['text']), 'provider' => $p, 'error' => null];
-            }
-            $err = (string) ($r['error'] ?? $err);
-        }
-        $out['error'] = $err !== '' ? $err : 'No AI provider is configured.';
-        return $out;
+        $job = (string) ($opts['job'] ?? AvRouter::JOB_REASON);
+        $r = AvRouter::complete($job, $user, [
+            'system'      => $system,
+            'max_tokens'  => (int) ($opts['max_tokens'] ?? (class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048)),
+            'temperature' => (float) ($opts['temperature'] ?? 0.2),
+            'actor'       => (string) ($opts['actor'] ?? ''),
+        ]);
+        return ['ok' => (bool) $r['ok'], 'text' => (string) $r['text'],
+                'provider' => (string) $r['provider'], 'error' => $r['error']];
     }
 
     /* ════════════════════════════════════════════════════════════════

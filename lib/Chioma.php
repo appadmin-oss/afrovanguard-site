@@ -83,15 +83,20 @@ SYS;
             $r = self::delegate($message, $history, $ctx);
             if ($r !== null && trim($r) !== '') return ['ok' => true, 'reply' => trim($r), 'source' => 'agent'];
         }
-        // 2) Claude via AvBot, in Chioma's voice.
-        if (class_exists('AvBot') && AvBot::configured()) {
+        // 2) A routed model, in Chioma's voice. Bulk: a visitor asking where the
+        // Academy sign-up is. The scripted fallback below is the real floor.
+        if (class_exists('AvRouter') && AvRouter::available(AvRouter::JOB_BULK)) {
             $hist = [];
             foreach ($history as $h) {
                 $t = trim((string) ($h['text'] ?? '')); if ($t === '') continue;
                 $isUser = (($h['role'] ?? '') === 'user' || ($h['role'] ?? '') === 'member');
-                $hist[] = ['role' => $isUser ? 'member' : 'bot', 'name' => $isUser ? null : 'Chioma', 'text' => mb_substr($t, 0, 1200)];
+                $hist[] = ['role' => $isUser ? 'user' : 'assistant', 'name' => $isUser ? null : 'Chioma',
+                           'text' => mb_substr($t, 0, 1200)];
             }
-            $res = AvBot::reply($message, $hist, ['system' => self::systemPrompt($ctx), 'max_tokens' => 500]);
+            $res = AvRouter::complete(AvRouter::JOB_BULK, $message, [
+                'system' => self::systemPrompt($ctx), 'max_tokens' => 500,
+                'history' => $hist, 'actor' => 'chioma',
+            ]);
             if (!empty($res['ok'])) return ['ok' => true, 'reply' => $res['text'], 'source' => 'ai'];
         }
         // 3) Scripted fallback.

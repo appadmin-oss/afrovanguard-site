@@ -385,19 +385,14 @@ final class Meetings
         if ($chars <= 0) return ['ok' => false, 'error' => 'meetings.transcript_char_limit is misconfigured (' . $chars . ').'];
         $prompt = "Transcript:\n\n" . mb_substr($rawText, 0, $chars);
 
-        // Prefer Gemini Flash for meeting logging; fall back to the Anthropic bot.
-        $res = null;
-        if (class_exists('Gemini') && Gemini::configured()) {
-            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
-        }
-        if ((!$res || empty($res['ok'])) && class_exists('OpenAi') && OpenAi::configured()) {
-            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
-        }
-        if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
-            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
-        }
-        if (!$res || empty($res['ok'])) {
-            return ['ok' => false, 'error' => ($res['error'] ?? null) ? (string) $res['error'] : 'AI summarisation is not configured (set AV_GEMINI_API_KEY).'];
+        // Reason, not bulk: minutes decide who owes what by when, and the action
+        // items filed from here become tracked commitments against real names.
+        $res = class_exists('AvAgent')
+            ? AvAgent::complete($sys, $prompt, ['max_tokens' => $maxTok, 'temperature' => 0.1,
+                                                'actor' => 'meetings.structure'])
+            : ['ok' => false, 'error' => 'Router unavailable.'];
+        if (empty($res['ok'])) {
+            return ['ok' => false, 'error' => ($res['error'] ?? null) ? (string) $res['error'] : 'No AI provider is configured.'];
         }
         $json = self::extractJson((string) $res['text']);
         if (!is_array($json)) return ['ok' => false, 'error' => 'Could not parse the AI summary.'];
