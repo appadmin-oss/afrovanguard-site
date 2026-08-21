@@ -91,6 +91,13 @@ if (class_exists('Accountability')) {
     catch (Throwable $e) { error_log('[cron] accountability: ' . $e->getMessage()); }
 }
 
+// Report §7: propose an agenda for any meeting that has none. Files a draft for
+// the chair and asks once — it never writes the agenda itself.
+if (class_exists('Agenda')) {
+    try { $result['agendas'] = Agenda::sweep(); }
+    catch (Throwable $e) { error_log('[cron] agendas: ' . $e->getMessage()); }
+}
+
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
 // one per period, so a five-minute tick produces one brief a week — not 2,016.
 if (class_exists('Brief')) {

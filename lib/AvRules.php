@@ -177,7 +177,6 @@ final class AvRules
 
         /* ── Meetings (report §7–10) ── */
         'meetings.ai_agenda' => [
-            'pending' => 'agenda drafting',
             'type' => 'bool', 'default' => true, 'group' => 'Meetings',
             'label' => 'Propose agendas with AI',
             'help'  => 'Draft an agenda for a meeting that has none, from prior minutes and open commitments. Always a draft for the chair to approve (§7).',

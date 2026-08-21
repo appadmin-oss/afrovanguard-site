@@ -301,6 +301,9 @@ require_once __DIR__ . '/Accountability.php';
 // The leadership brief (report §21, §31, §38). Loads after Accountability,
 // Levels and Commitments — it reads all three to count its figures.
 require_once __DIR__ . '/Brief.php';
+// Agenda drafting (report §7, §8). Reads Meetings and Commitments; proposes
+// only — the chair approves before anything reaches meetings.agenda.
+require_once __DIR__ . '/Agenda.php';
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without

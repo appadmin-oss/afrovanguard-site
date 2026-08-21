@@ -482,12 +482,15 @@ foreach ($dsc3['groups'] as $rows) {
         if ($row['key'] === 'mentorship.active_mentee_requires_days') $livePending = $row;
     }
 }
-// The label tracks reality, and reality moves: this was >= 10 before G-1 shipped
-// and took the five commitments rules live, then >= 5 until Accountability took
-// the three health rules and the escalation cooldown live. What is left is agenda
-// drafting, in-meeting timing and assistant tone — the subsystems that genuinely
-// have no consumer yet.
-ck('pending: unenforced rules are still flagged for the Studio', $pendingCount >= 3);
+// Name what is still pending rather than counting it. A bare count had to be
+// edited every time a subsystem shipped (10 → 5 → 3 → …), which is churn that
+// teaches you to just lower the number. Naming them means this only changes when
+// that subsystem genuinely lands — which is exactly when you want to be asked.
+$stillPending = [];
+foreach ($dsc3['groups'] as $rows) foreach ($rows as $row) if ($row['pending'] !== '') $stillPending[] = $row['key'];
+sort($stillPending);
+ck('pending: the unenforced rules are exactly the ones we know about — ' . implode(', ', $stillPending),
+   $stillPending === ['ai.tone', 'meetings.warn_minutes']);
 // The other half of the same invariant, and the one that actually bites: a rule
 // marked pending must have NO consumer, and a rule with a consumer must not be
 // marked pending. Both directions, or the Studio's "not enforced yet" label
@@ -546,8 +549,11 @@ foreach (AvPrompts::describe() as $p) {
 }
 ck('pending: the prompt label matches the code' . ($promptDrift ? ' — ' . implode('; ', $promptDrift) : ''),
    $promptDrift === []);
-ck('pending: templates awaiting a subsystem are still flagged',
-   count(array_filter(AvPrompts::describe(), fn($p) => $p['pending'] !== '')) >= 2);
+$pendingTemplates = [];
+foreach (AvPrompts::describe() as $p) if ($p['pending'] !== '') $pendingTemplates[] = $p['key'];
+sort($pendingTemplates);
+ck('pending: the unwired templates are exactly the ones we know about — ' . implode(', ', $pendingTemplates),
+   $pendingTemplates === ['promotion.recommendation']);
 ck('pending: a live prompt template is not flagged', ($byKey['meeting.minutes']['pending'] ?? 'x') === '');
 
 /* ── inactivePairs() follows the rule instead of a hardcoded 21 ── */

@@ -52,7 +52,6 @@ final class AvPrompts
         ],
 
         'meeting.agenda' => [
-            'pending' => 'agenda drafting',
             'label' => 'Meeting agenda proposal',
             'scope' => 'meetings',
             'rules' => true,
