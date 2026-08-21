@@ -125,6 +125,7 @@
     if (m.auto_record || botLive(m)) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
     h += '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
+    h += clockHtml(m);
     h += agendaDraftHtml(m);
     h += '<div class="meet-actions">';
     if (m.meet_url) h += '<a class="pbtn pbtn-soft pbtn-sm" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">▶ Join · ' + esc(prov) + '</a>';
@@ -141,6 +142,49 @@
     h += transcriptHtml(m);
     h += '</div></li>';
     return h;
+  }
+
+  // Report §10. The exact channel: this ticks client-side every 30 seconds, so
+  // the countdown and the warning land on the minute rather than whenever cron
+  // next runs. §10 counts OUTSTANDING AGENDA ITEMS, not elapsed time, so the
+  // items are here to tick off — that count is the whole point of the sentence.
+  function clockHtml(m) {
+    var c = m.clock;
+    if (!c || (!c.running && !c.overrun)) return '';
+    var pct = Math.max(0, Math.min(100, Math.round(100 * (c.elapsed || 0) / Math.max(1, c.duration))));
+    var urgent = c.overrun || (c.remaining !== null && c.remaining <= 5);
+
+    var h = '<div class="meet-clock' + (urgent ? ' is-urgent' : '') + '" data-clock="' + m.id + '">';
+    h += '<div class="mc-top">';
+    h += '<span class="mc-left">' + (c.overrun
+          ? esc(Math.abs(c.remaining) + ' min over')
+          : esc(c.remaining + ' min left')) + '</span>';
+    h += '<span class="mc-of">of ' + esc(fmtDur(c.duration)) + '</span>';
+    h += '</div>';
+    h += '<div class="mc-bar"><span style="width:' + (c.overrun ? 100 : pct) + '%"></span></div>';
+    if (c.message) h += '<p class="mc-msg" role="status">' + esc(c.message) + '</p>';
+    if (c.items && c.items.length) {
+      h += '<ul class="mc-items">' + c.items.map(function (it) {
+        return '<li class="' + (it.done ? 'is-done' : '') + '">'
+          + '<label><input type="checkbox" class="mc-tick" data-id="' + m.id + '" data-idx="' + it.index + '"'
+          + (it.done ? ' checked' : '') + '> <span>' + esc(it.item) + '</span></label></li>';
+      }).join('') + '</ul>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  // Refresh only while something is actually running — a calendar of future
+  // meetings does not need a heartbeat.
+  var clockTimer = null;
+  function watchClocks() {
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+    if (!document.querySelector('.meet-clock')) return;
+    clockTimer = setInterval(function () {
+      if (document.hidden) return;               // no polling in a background tab
+      if (!document.querySelector('.meet-clock')) { clearInterval(clockTimer); clockTimer = null; return; }
+      load();
+    }, 30000);
   }
 
   // Report §7. A DRAFT — it is not the agenda until the chair says so, which is
@@ -184,6 +228,7 @@
   function render(meetings) {
     if (!meetings || !meetings.length) { listEl.innerHTML = '<p class="pc-empty">No meetings yet. Schedule one above.</p>'; return; }
     listEl.innerHTML = '<ul class="meet-ul">' + meetings.map(meetingCard).join('') + '</ul>';
+    watchClocks();
   }
 
   function load() {
@@ -229,6 +274,16 @@
     if (cancel) {
       if (!confirm('Cancel this meeting?')) return;
       post('cancel', { id: +cancel.getAttribute('data-id') }).then(function (d) { if (d && d.ok) load(); else alert((d && d.error) || 'Could not cancel.'); });
+      return;
+    }
+
+    // Report §10 — tick an agenda item off. Any participant may.
+    var tick = t.closest('.mc-tick');
+    if (tick) {
+      tick.disabled = true;
+      post('clock_tick', { id: +tick.getAttribute('data-id'), index: +tick.getAttribute('data-idx'), done: tick.checked })
+        .then(function (d) { if (!(d && d.ok)) { say((d && d.error) || 'Could not update that item.'); } load(); })
+        .catch(function () { load(); });
       return;
     }
 

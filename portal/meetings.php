@@ -53,6 +53,10 @@ try {
             $drafts = Agenda::pendingForMany(array_column($mtgs, 'id'));
             foreach ($mtgs as $i => $mm) {
                 $mtgs[$i]['agenda_draft'] = ($mm['creator_id'] ?? 0) === $uid ? ($drafts[$mm['id']] ?? null) : null;
+                // Only for a meeting actually in progress — computing a clock for
+                // a calendar of future meetings is work nobody reads.
+                $cl = ($mm['status'] ?? '') === 'scheduled' ? MeetingClock::state((int) $mm['id']) : null;
+                $mtgs[$i]['clock'] = ($cl && (!empty($cl['running']) || !empty($cl['overrun']))) ? $cl : null;
             }
             json_out(['ok' => true, 'meetings' => $mtgs, 'freq' => $freq, 'me' => $uid, 'agenda_ai' => Agenda::enabled(),
                 'gemini' => class_exists('Gemini') && Gemini::configured(),
@@ -73,6 +77,20 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             json_out(Meetings::cancel($uid, (int) ($body['id'] ?? 0)));
+
+        /* ── Report §10: the clock. Reading it is participant-gated; ticking an
+           agenda item is open to any participant, because the outstanding count
+           is only useful if it is true, and it will not be if one person's
+           cursor is the only thing that can change it. ── */
+        case 'clock_state':
+            if (!Meetings::get($uid, (int) ($_GET['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Meeting not found.'], 404);
+            json_out(['ok' => true, 'clock' => MeetingClock::state((int) ($_GET['id'] ?? 0))]);
+
+        case 'clock_tick':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(MeetingClock::setResolved($uid, (int) ($body['id'] ?? 0),
+                     (int) ($body['index'] ?? -1), !empty($body['done'])));
 
         /* ── Report §7: the agenda the AI proposed, and the chair's decision.
            Reading it is participant-gated; DECIDING is organiser-only, enforced

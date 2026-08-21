@@ -98,6 +98,15 @@ if (class_exists('Agenda')) {
     catch (Throwable $e) { error_log('[cron] agendas: ' . $e->getMessage()); }
 }
 
+// Report §10: warn a running meeting as it nears its scheduled end. Only fires
+// a mark inside its tolerance window — a late "5 minutes left" is worse than
+// none. The portal countdown is the exact channel; this reaches people who are
+// not looking at it.
+if (class_exists('MeetingClock')) {
+    try { $result['meeting_clock'] = MeetingClock::sweep(); }
+    catch (Throwable $e) { error_log('[cron] clock: ' . $e->getMessage()); }
+}
+
 // Report §20: write the case for anyone the rules engine now rates as ready,
 // and tell leadership. One review per member per target level.
 if (class_exists('Promotion')) {

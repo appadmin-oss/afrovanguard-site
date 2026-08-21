@@ -182,7 +182,6 @@ final class AvRules
             'help'  => 'Draft an agenda for a meeting that has none, from prior minutes and open commitments. Always a draft for the chair to approve (§7).',
         ],
         'meetings.warn_minutes' => [
-            'pending' => 'in-meeting timing',
             'type' => 'csv', 'default' => '20,10,5', 'group' => 'Meetings',
             'label' => 'Time warnings (minutes remaining)',
             'help'  => 'When to warn that a meeting is nearing its scheduled end (§10). The report calls these configurable.',

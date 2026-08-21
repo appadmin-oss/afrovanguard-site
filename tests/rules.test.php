@@ -490,7 +490,7 @@ $stillPending = [];
 foreach ($dsc3['groups'] as $rows) foreach ($rows as $row) if ($row['pending'] !== '') $stillPending[] = $row['key'];
 sort($stillPending);
 ck('pending: the unenforced rules are exactly the ones we know about — ' . implode(', ', $stillPending),
-   $stillPending === ['ai.tone', 'meetings.warn_minutes']);
+   $stillPending === ['ai.tone']);
 // The other half of the same invariant, and the one that actually bites: a rule
 // marked pending must have NO consumer, and a rule with a consumer must not be
 // marked pending. Both directions, or the Studio's "not enforced yet" label

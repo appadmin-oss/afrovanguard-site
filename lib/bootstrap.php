@@ -307,6 +307,9 @@ require_once __DIR__ . '/Agenda.php';
 // AI-assisted promotion review (report §20). Reads Levels and Mentorship;
 // recommends only — mem_save remains the one path that changes a level.
 require_once __DIR__ . '/Promotion.php';
+// In-meeting time management (report §10). Reads the agenda §7 produced and
+// warns against it; the portal countdown is exact, cron is the backstop.
+require_once __DIR__ . '/MeetingClock.php';
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without

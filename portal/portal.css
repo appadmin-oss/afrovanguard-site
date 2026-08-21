@@ -1485,3 +1485,30 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   background: var(--surface, #fff); color: var(--ink, #111827); resize: vertical;
 }
 .mad-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── Meeting clock (report §10) ──────────────────────────────────────────
+   Only rendered while a meeting is actually running. Urgency is carried by the
+   bar and the wording as well as colour — the message has role="status" so it
+   is announced, not just seen. */
+.meet-clock {
+  margin: 10px 0 0; padding: 10px 12px;
+  border: 1px solid var(--line, #e5e7eb); border-radius: 10px;
+  background: var(--surface-2, #f4f2ec);
+}
+.meet-clock.is-urgent { border-color: #b45309; }
+.mc-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.mc-left { font-size: 14px; font-weight: 800; color: var(--ink, #111827); font-variant-numeric: tabular-nums; }
+.meet-clock.is-urgent .mc-left { color: #b45309; }
+.mc-of { font-size: 11.5px; color: var(--muted, #6b7280); }
+.mc-bar {
+  height: 5px; margin: 6px 0 0; border-radius: 999px; overflow: hidden;
+  background: var(--line, #e5e7eb);
+}
+.mc-bar > span { display: block; height: 100%; background: var(--gold-deep, #b07e08); }
+.meet-clock.is-urgent .mc-bar > span { background: #b45309; }
+.mc-msg { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink, #111827); }
+.mc-items { list-style: none; margin: 8px 0 0; padding: 0; }
+.mc-items li { font-size: 13px; line-height: 1.6; }
+.mc-items label { display: flex; gap: 7px; align-items: flex-start; cursor: pointer; }
+.mc-items input { margin-top: 3px; flex: none; }
+.mc-items li.is-done > label > span { text-decoration: line-through; color: var(--muted, #6b7280); }
