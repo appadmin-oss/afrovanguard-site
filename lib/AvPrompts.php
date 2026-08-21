@@ -102,7 +102,6 @@ final class AvPrompts
         ],
 
         'leadership.brief' => [
-            'pending' => 'the leadership brief',
             'label' => 'Leadership weekly brief',
             'scope' => 'all',
             'rules' => true,

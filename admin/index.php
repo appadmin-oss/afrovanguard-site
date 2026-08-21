@@ -106,6 +106,24 @@
 
     <div class="ov-alert" id="ovMailAlert" hidden></div>
 
+    <!-- Report §21: what needs a decision, above what merely happened. -->
+    <section class="brief" id="ovBrief" aria-labelledby="ovBriefH" hidden>
+      <div class="brief-head">
+        <h2 id="ovBriefH">Leadership brief</h2>
+        <div class="brief-tools">
+          <label class="brief-period"><span class="sr-only">Period</span>
+            <select id="ovBriefPeriod">
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="day">Today</option>
+            </select>
+          </label>
+          <button class="btn btn-outline btn-sm" id="ovBriefRun">Generate now</button>
+        </div>
+      </div>
+      <div id="ovBriefBody"></div>
+    </section>
+
     <div class="ov-grid" id="ovGrid"></div>
 
     <div class="ov-row">

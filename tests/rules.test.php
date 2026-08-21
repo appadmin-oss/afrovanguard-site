@@ -528,10 +528,26 @@ ck('pending: and neither is any commitments rule', (function (array $g): bool {
     return true;
 })($dsc3['groups']));
 
-$promptDesc = AvPrompts::describe();
+// Both directions, as with the rules above, rather than naming one template as
+// the example — that assertion had to be rewritten the moment leadership.brief
+// was wired, which is precisely the drift it was meant to catch.
+$libSrc2 = '';
+foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
+    if (basename($f) === 'AvPrompts.php') continue;      // the registry is not a caller
+    $libSrc2 .= (string) file_get_contents($f);
+}
 $byKey = [];
-foreach ($promptDesc as $p) $byKey[$p['key']] = $p;
-ck('pending: an unwired prompt template is flagged', ($byKey['leadership.brief']['pending'] ?? '') !== '');
+foreach (AvPrompts::describe() as $p) $byKey[$p['key']] = $p;
+$promptDrift = [];
+foreach (AvPrompts::describe() as $p) {
+    $called = strpos($libSrc2, "'" . $p['key'] . "'") !== false;
+    if ($p['pending'] !== '' && $called)  $promptDrift[] = $p['key'] . ' is pending but wired';
+    if ($p['pending'] === '' && !$called) $promptDrift[] = $p['key'] . ' is live but nothing renders it';
+}
+ck('pending: the prompt label matches the code' . ($promptDrift ? ' — ' . implode('; ', $promptDrift) : ''),
+   $promptDrift === []);
+ck('pending: templates awaiting a subsystem are still flagged',
+   count(array_filter(AvPrompts::describe(), fn($p) => $p['pending'] !== '')) >= 2);
 ck('pending: a live prompt template is not flagged', ($byKey['meeting.minutes']['pending'] ?? 'x') === '');
 
 /* ── inactivePairs() follows the rule instead of a hardcoded 21 ── */

@@ -124,6 +124,54 @@ final class AvAgent
         return $s;
     }
 
+    /**
+     * One-shot completion on whichever provider this deployment has — no tools,
+     * no loop, just system + user in and text out.
+     *
+     * This exists because the fallback chain had been copied into six places
+     * (Meetings, Mentorship, Community, AvLab, Collab and Accountability), each
+     * with its own provider order, and none of them honouring AV_AGENT_PROVIDER —
+     * so the Studio's "provider" setting silently governed only the tool loop.
+     * AI-AUDIT.md A-13. Routing through provider() fixes that for every caller
+     * that adopts this; the older five can migrate one at a time.
+     *
+     * @return array{ok:bool,text:string,provider:string,error:?string}
+     */
+    public static function complete(string $system, string $user, array $opts = []): array
+    {
+        $out = ['ok' => false, 'text' => '', 'provider' => '', 'error' => null];
+        if (trim($user) === '') { $out['error'] = 'Nothing to send.'; return $out; }
+
+        $maxTok = (int) ($opts['max_tokens'] ?? (class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048));
+        $temp   = (float) ($opts['temperature'] ?? 0.2);
+
+        // provider() order, then the other two as fallbacks — a brief that fails
+        // because the preferred provider is down is a brief nobody reads.
+        $order = array_values(array_unique(array_filter([self::provider(), 'anthropic', 'openai', 'gemini'])));
+        $err   = '';
+        foreach ($order as $p) {
+            try {
+                if ($p === 'gemini' && class_exists('Gemini') && Gemini::configured()) {
+                    $r = Gemini::generate($user, ['system' => $system, 'max_tokens' => $maxTok, 'temperature' => $temp]);
+                } elseif ($p === 'openai' && class_exists('OpenAi') && OpenAi::configured()) {
+                    $r = OpenAi::generate($user, ['system' => $system, 'max_tokens' => $maxTok, 'temperature' => $temp]);
+                } elseif ($p === 'anthropic' && class_exists('AvBot') && AvBot::configured()) {
+                    // AvBot caps its own user turn; hand it a bounded prompt.
+                    $r = AvBot::reply(mb_substr($user, 0, 11000), [], ['system' => $system, 'max_tokens' => min($maxTok, 2048)]);
+                } else {
+                    continue;
+                }
+            } catch (Throwable $e) { $err = $e->getMessage(); continue; }
+
+            if (!empty($r['ok']) && trim((string) $r['text']) !== '') {
+                return ['ok' => true, 'text' => trim((string) $r['text']), 'provider' => $p, 'error' => null];
+            }
+            $err = (string) ($r['error'] ?? $err);
+        }
+        $out['error'] = $err !== '' ? $err : 'No AI provider is configured.';
+        return $out;
+    }
+
     /* ════════════════════════════════════════════════════════════════
        Anthropic — tool_use / tool_result blocks
        ════════════════════════════════════════════════════════════════ */

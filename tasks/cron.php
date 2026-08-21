@@ -91,6 +91,15 @@ if (class_exists('Accountability')) {
     catch (Throwable $e) { error_log('[cron] accountability: ' . $e->getMessage()); }
 }
 
+// The leadership brief (report §21). Weekly and monthly, each self-limiting to
+// one per period, so a five-minute tick produces one brief a week — not 2,016.
+if (class_exists('Brief')) {
+    foreach (['week', 'month'] as $bp) {
+        try { $r = Brief::generate($bp); if (empty($r['skipped'])) $result['brief_' . $bp] = (int) ($r['id'] ?? 0); }
+        catch (Throwable $e) { error_log('[cron] brief ' . $bp . ': ' . $e->getMessage()); }
+    }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';

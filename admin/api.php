@@ -95,6 +95,9 @@ try {
         // Health names individuals and their attendance record, so it sits with
         // the rest of mentorship rather than being readable by an editor.
         'mentorship_health',
+        // The brief names individuals, their attendance and their promotion
+        // readiness. Same reasoning as mentorship_health.
+        'brief_latest', 'brief_run',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
         'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
@@ -364,6 +367,26 @@ try {
         case 'mentorship_mentors':  json_out(['ok' => true, 'mentors' => Mentorship::adminMentors((string) ($_GET['segment'] ?? ''), (string) ($_GET['approval'] ?? ''), (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_pairings': json_out(['ok' => true, 'pairings' => Mentorship::adminPairings((string) ($_GET['segment'] ?? ''), (string) ($_GET['status'] ?? ''), isset($_GET['cohort']) && $_GET['cohort'] !== '' ? (int) $_GET['cohort'] : -1, (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 0))]);
+
+        // Report §21/§31/§38 — the leadership brief. Read the latest, or write one
+        // now. The figures are always counted, never inferred; see lib/Brief.php.
+        case 'brief_latest': {
+            $period = (string) ($_GET['period'] ?? 'week');
+            if (!in_array($period, Brief::periods(), true)) $period = 'week';
+            json_out(['ok' => true, 'period' => $period, 'brief' => Brief::latest($period)]);
+        }
+
+        case 'brief_run': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            // Each run is a model call and a full sweep of every pairing, so it is
+            // rate limited like the other AI actions rather than left to a button.
+            if (!av_rate_ok('brief_run', 6, 600)) json_out(['ok' => false, 'error' => 'Too many briefs — wait a moment.'], 429);
+            $period = (string) ($body['period'] ?? 'week');
+            if (!in_array($period, Brief::periods(), true)) json_out(['ok' => false, 'error' => 'Unknown period.'], 422);
+            $r = Brief::generate($period, true);
+            AdminAudit::log('rules', 'brief_generated', $period, 'Generated the ' . $period . ' leadership brief');
+            json_out(['ok' => !empty($r['ok']), 'period' => $period, 'brief' => Brief::latest($period)]);
+        }
 
         // Report §15 — every active pairing graded Green/Amber/Red, worst first,
         // each carrying the behaviour that produced the grade. §3A is explicit

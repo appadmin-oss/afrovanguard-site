@@ -1010,7 +1010,81 @@
       (opts.sub ? '<span class="ov-card-sub">' + escapeHtml(opts.sub) + '</span>' : '') +
       '</button>';
   }
+  // Report §21/§31 — the leadership brief. Critical first, because the whole
+  // point is that a leader reads the top and can stop. Every figure here was
+  // counted by lib/Brief.php; the model only phrases them, and the footer says
+  // which so nobody has to wonder whether a number was inferred.
+  var BRIEF_SECTIONS = [
+    ['critical',    'Critical',    'Needs a decision this week'],
+    ['attention',   'Attention',   'Worth your eye, not yet urgent'],
+    ['opportunity', 'Opportunity', 'Someone has earned a review'],
+    ['growth',      'Growth',      'Measured against the last brief']
+  ];
+
+  function briefHtml(b) {
+    if (!b || !b.narrative) {
+      return '<div class="brief-empty"><p><b>No brief yet for this period.</b></p>'
+        + '<p class="muted">One is written automatically each week. Use <b>Generate now</b> to write it immediately.</p></div>';
+    }
+    var n = b.narrative || {}, total = 0;
+    BRIEF_SECTIONS.forEach(function (s) { total += ((n[s[0]] || []).length); });
+
+    var html = '<p class="brief-headline">' + escapeHtml(n.headline || '') + '</p>';
+    if (!total) {
+      html += '<div class="brief-empty"><p><b>Nothing needs your attention this period.</b></p>'
+            + '<p class="muted">No relationships at risk, no overdue commitments, nobody awaiting a review.</p></div>';
+    }
+    BRIEF_SECTIONS.forEach(function (sec) {
+      var key = sec[0], items = n[key] || [];
+      if (!items.length) return;
+      html += '<div class="brief-sec brief-' + key + '">'
+            + '<h4><span class="brief-count">' + items.length + '</span> ' + escapeHtml(sec[1])
+            + ' <span class="brief-sub">' + escapeHtml(sec[2]) + '</span></h4><ul>'
+            + items.map(function (i) { return '<li>' + escapeHtml(i) + '</li>'; }).join('')
+            + '</ul></div>';
+    });
+
+    var src = b.source === 'computed'
+      ? 'Figures counted from the records; wording generated without a model.'
+      : 'Figures counted from the records; wording written by ' + escapeHtml(b.source) + '.';
+    html += '<p class="brief-foot">' + escapeHtml((b.from || '').slice(0, 10)) + ' to '
+          + escapeHtml((b.to || '').slice(0, 10)) + ' · ' + src + '</p>';
+    return html;
+  }
+
+  function loadBrief() {
+    var box = $('#ovBriefBody'), sec = $('#ovBrief');
+    if (!box || !sec) return;
+    sec.hidden = false;
+    box.innerHTML = '<p class="muted">Loading the brief…</p>';
+    var period = ($('#ovBriefPeriod') || {}).value || 'week';
+    api('brief_latest&period=' + encodeURIComponent(period)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load the brief.</p>'; return; }
+      box.innerHTML = briefHtml(d.brief);
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the brief.</p>'; });
+  }
+
+  $('#ovBriefPeriod') && $('#ovBriefPeriod').addEventListener('change', loadBrief);
+  $('#ovBriefRun') && $('#ovBriefRun').addEventListener('click', function () {
+    var btn = this, box = $('#ovBriefBody');
+    var period = ($('#ovBriefPeriod') || {}).value || 'week';
+    btn.disabled = true;
+    var was = btn.textContent; btn.textContent = 'Working…';
+    if (box) box.innerHTML = '<p class="muted">Counting every pairing — this can take a minute.</p>';
+    post('brief_run', { period: period }).then(function (r) {
+      btn.disabled = false; btn.textContent = was;
+      var d = r.data || {};
+      if (!d.ok) { if (box) box.innerHTML = '<p class="muted">' + escapeHtml(d.error || 'That did not work.') + '</p>'; return; }
+      if (box) box.innerHTML = briefHtml(d.brief);
+    }).catch(function () {
+      btn.disabled = false; btn.textContent = was;
+      if (box) box.innerHTML = '<p class="muted">The request failed.</p>';
+    });
+  });
+
   function loadOverview() {
+    loadBrief();
     var grid = $('#ovGrid'), health = $('#ovHealth'), alert = $('#ovMailAlert');
     if (grid) grid.innerHTML = '<p class="muted" style="grid-column:1/-1">Loading…</p>';
     return api('dashboard').then(function (r) {

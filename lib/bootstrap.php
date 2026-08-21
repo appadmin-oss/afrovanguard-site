@@ -298,6 +298,9 @@ require_once __DIR__ . '/AvLab.php';
 // relationship health (report §13, §14, §15). Loads after Mentorship, AvRules,
 // AvPrompts and Notifications, all of which it reads.
 require_once __DIR__ . '/Accountability.php';
+// The leadership brief (report §21, §31, §38). Loads after Accountability,
+// Levels and Commitments — it reads all three to count its figures.
+require_once __DIR__ . '/Brief.php';
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without
