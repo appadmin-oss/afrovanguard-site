@@ -61,6 +61,7 @@
         <button class="tab" data-tab="signin"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3"/><path d="M16 5l3 3M18.5 7.5l1.5 1.5"/></svg><span>Sign-in</span></button>
         <button class="tab" data-tab="system"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V4a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"/></svg><span>System</span></button>
         <button class="tab" data-tab="rules"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M7 7l-3 6h6L7 7z"/><path d="M17 7l-3 6h6l-3-6z"/></svg><span>Rules &amp; AI</span></button>
+        <button class="tab" data-tab="aiops"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h3l2.5-6 3 12 2.5-9 2 3h5"/><circle cx="19" cy="6" r="2"/></svg><span>AI Ops</span><span class="tab-badge" id="opsBadge" hidden></span></button>
         <button class="tab" data-tab="activity"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg><span>Activity</span></button>
         <button class="tab" data-tab="database"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Database</span></button>
         <button class="tab" data-tab="design"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.7-1.5H17a5 5 0 0 0 5-5c0-5-4.5-9-10-9z"/></svg><span>Design</span></button>
@@ -783,6 +784,63 @@
   </main>
 
   <!-- RULES & AI (superadmin · the accountability constitution, as data) -->
+  <!-- ═══ AI Ops — is the machinery running, and what is it costing ═══ -->
+  <main class="studio-main" id="aiopsView" hidden>
+    <div class="studio-head">
+      <div>
+        <h1>AI Ops</h1>
+        <p class="muted">Everything the AI layer does runs on a schedule nobody watches. A dead scheduler and a quiet week look identical from the outside — this page is where they stop looking identical.</p>
+      </div>
+      <div class="ops-head-actions">
+        <select id="opsDays" class="input input-sm" aria-label="Window">
+          <option value="1">Last 24 hours</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <button class="btn btn-outline btn-sm" id="opsRefresh">Refresh</button>
+        <button class="btn btn-primary btn-sm" id="opsRunCron" title="Run the same self-limiting sweeps the scheduler runs">Run tasks now</button>
+      </div>
+    </div>
+
+    <!-- Alerts first, and nothing else when there are none. Same principle as
+         the leadership brief: manage exceptions, do not read a directory. -->
+    <div id="opsAlerts"></div>
+
+    <section class="ops-sec">
+      <h2>The scheduler</h2>
+      <p class="muted" id="opsTickLine">Loading…</p>
+      <div class="tablewrap"><table class="tbl" id="opsRungs"><thead><tr>
+        <th>Task</th><th>Last run</th><th>Outcome</th><th>What it did</th>
+      </tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="ops-sec">
+      <h2>Routing</h2>
+      <p class="muted">Which model answers which kind of work. Edit the order in <button type="button" class="linklike" data-go="rules">Rules &amp; AI</button> — a provider with no key is skipped, so listing one costs nothing.</p>
+      <div id="opsRoutes"></div>
+    </section>
+
+    <section class="ops-sec">
+      <h2>Providers</h2>
+      <div class="tablewrap"><table class="tbl" id="opsProviders"><thead><tr>
+        <th>Provider</th><th>Model</th><th>State</th><th class="num">Calls</th><th class="num">Failed</th><th class="num">Avg</th><th class="num">Tokens</th>
+      </tr></thead><tbody></tbody></table></div>
+      <p class="caption">Tokens, not money: converting one to the other needs a per-model price list that changes without notice, and a confident wrong figure is worse than the number we actually know.</p>
+    </section>
+
+    <section class="ops-sec">
+      <h2>What it produced</h2>
+      <div class="ops-grid" id="opsPipeline"></div>
+    </section>
+
+    <section class="ops-sec" id="opsErrSec" hidden>
+      <h2>Recent failures</h2>
+      <div class="tablewrap"><table class="tbl" id="opsErrors"><thead><tr>
+        <th>When</th><th>Provider</th><th>Job</th><th>Error</th>
+      </tr></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+
   <main class="studio-main" id="rulesView" hidden>
     <div class="studio-head">
       <div><h1>Rules &amp; AI</h1><p class="muted">The thresholds the accountability engine obeys, the knowledge the assistants are fed, and the instructions they follow. Afrovanguard defines these — the AI only enforces them.</p></div>

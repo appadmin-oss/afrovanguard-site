@@ -12,6 +12,9 @@
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
+    // Ops reports which providers this deployment pays for and what they cost.
+    // Infrastructure state — admin, matching the API's own gate.
+    aiops: 'admin',
     // The rules decide promotions and escalations movement-wide, and the prompts
     // steer every AI reply — Super Admin only, matching the API's own gate.
     rules: 'superadmin' };
@@ -35,7 +38,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -88,6 +91,7 @@
     else if (which === 'database') { show('database'); loadDatabase(); }
     else if (which === 'design') { show('design'); loadDesign(); }
     else if (which === 'rules') { show('rules'); loadRules(); }
+    else if (which === 'aiops') { show('aiops'); loadAiOps(); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -2076,6 +2080,234 @@
       });
     });
   }
+
+  /* ============================================================
+     AI Ops — is the machinery running, and what is it costing?
+
+     Alerts first, and nothing above them when the list is empty. The
+     features this reports on are silent and self-limiting by design, so a
+     dead scheduler produces exactly the same output as a healthy quiet
+     week; the whole point of the page is that those stop looking alike.
+     ============================================================ */
+  var opsState = { days: 7, loading: false };
+
+  function opsAgo(min) {
+    if (min === null || min === undefined) return 'never';
+    if (min < 1) return 'just now';
+    if (min < 60) return min + ' min ago';
+    if (min < 1440) { var h = Math.round(min / 60); return h + (h === 1 ? ' hour ago' : ' hours ago'); }
+    var d = Math.round(min / 1440); return d + (d === 1 ? ' day ago' : ' days ago');
+  }
+  function opsNum(n) { return (n === null || n === undefined) ? '—' : Number(n).toLocaleString(); }
+  function opsTok(n) {
+    n = Number(n) || 0;
+    if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1000) return Math.round(n / 1000) + 'k';
+    return String(n);
+  }
+
+  function opsRenderAlerts(alerts) {
+    var box = $('#opsAlerts'); if (!box) return;
+    if (!alerts || !alerts.length) {
+      box.innerHTML = '<div class="ops-clear"><span aria-hidden="true">✓</span>' +
+        '<div><b>Nothing needs attention.</b> The scheduler is running, the providers are answering, ' +
+        'and what the AI produced is being acted on. Numbers below if you want them.</div></div>';
+      return;
+    }
+    box.innerHTML = alerts.map(function (a) {
+      var lvl = (a.level === 'crit' || a.level === 'warn') ? a.level : 'info';
+      // The word carries the severity as well as the colour — required for
+      // colour-blind readers and in monochrome, and a WCAG obligation besides.
+      var word = lvl === 'crit' ? 'Critical' : (lvl === 'warn' ? 'Warning' : 'Notice');
+      return '<div class="ops-alert ' + lvl + '">' +
+        '<h3><span class="ops-tag ' + lvl + '">' + word + '</span>' + escapeHtml(a.title) + '</h3>' +
+        '<p>' + escapeHtml(a.body) + '</p></div>';
+    }).join('');
+  }
+
+  function opsRenderRungs(hb) {
+    var line = $('#opsTickLine'), tb = $('#opsRungs') && $('#opsRungs').querySelector('tbody');
+    if (line) {
+      var age = hb.tick_age_min;
+      line.textContent = age === null
+        ? 'No scheduled run has ever been recorded. Set up the cron job in System — until then nothing on this page runs on its own.'
+        : 'Last tick ' + opsAgo(age) + '. Anything past ' + hb.grace_min + ' minutes is treated as stopped.';
+    }
+    if (!tb) return;
+    if (!hb.rungs || !hb.rungs.length) { tb.innerHTML = '<tr><td colspan="4" class="dim">Nothing recorded yet.</td></tr>'; return; }
+    tb.innerHTML = hb.rungs.map(function (r) {
+      var state, tag;
+      if (!r.ever_ran)      { tag = 'off';  state = 'Never run'; }
+      else if (r.ok === false) { tag = 'crit'; state = 'Failed'; }
+      else if (r.skipped)   { tag = 'ok';   state = 'Ran, nothing due'; }
+      else                  { tag = 'ok';   state = 'Ran'; }
+      var did = r.error ? escapeHtml(r.error) : opsDetail(r.detail);
+      return '<tr>' +
+        '<td>' + escapeHtml(r.label) + '</td>' +
+        '<td class="dim">' + escapeHtml(opsAgo(r.age_min)) + '</td>' +
+        '<td><span class="ops-tag ' + tag + '">' + state + '</span></td>' +
+        '<td class="dim">' + did + '</td></tr>';
+    }).join('');
+  }
+
+  /* A rung's return value, as a sentence. Counters that are zero are dropped —
+     "reminded 0, escalated 0, nudged 0" is noise that hides the one number
+     that is not zero. */
+  function opsDetail(d) {
+    if (d === null || d === undefined) return '—';
+    if (typeof d !== 'object') return escapeHtml(String(d));
+    var bits = [];
+    Object.keys(d).forEach(function (k) {
+      if (k === 'skipped' || k === 'why') return;
+      var v = d[k];
+      if (v === 0 || v === false || v === null || v === '' || v === 'skipped') return;
+      bits.push(escapeHtml(k.replace(/_/g, ' ')) + ' ' + escapeHtml(String(v)));
+    });
+    if (!bits.length) return d.why ? escapeHtml(String(d.why)) : 'nothing due';
+    return bits.join(', ');
+  }
+
+  function opsRenderRoutes(routes, providers) {
+    var box = $('#opsRoutes'); if (!box) return;
+    var live = {};
+    (providers || []).forEach(function (p) { live[p.handle] = p.configured; });
+    var names = {};
+    (providers || []).forEach(function (p) { names[p.handle] = p.label; });
+    var titles = { reason: 'Judgement', bulk: 'Volume', tools: 'Tool use' };
+    var blurb = {
+      reason: 'briefs, promotion reviews, agenda drafts, minutes',
+      bulk: 'reminder wording, catch-ups, classifications',
+      tools: 'the assistant that looks things up for itself'
+    };
+    box.innerHTML = (routes || []).map(function (r) {
+      var chain = (r.declared || []).map(function (h, i) {
+        var on = !!live[h];
+        return (i ? '<span class="ops-arrow" aria-hidden="true">→</span>' : '') +
+          '<span class="ops-hop ' + (on ? 'live' : 'dead') + '" title="' +
+          (on ? 'Configured' : 'No key set — skipped') + '">' + escapeHtml(names[h] || h) + '</span>';
+      }).join('');
+      if (!chain) chain = '<span class="ops-hop dead">nothing declared</span>';
+      return '<div class="ops-route"><b>' + escapeHtml(titles[r.job] || r.job) + '</b>' +
+             '<span class="ops-chain">' + chain + '</span>' +
+             '<span class="muted">' + escapeHtml(blurb[r.job] || '') + '</span></div>';
+    }).join('');
+  }
+
+  function opsRenderProviders(providers, usage) {
+    var tb = $('#opsProviders') && $('#opsProviders').querySelector('tbody');
+    if (!tb) return;
+    var stats = {};
+    (usage.providers || []).forEach(function (p) { stats[p.provider] = p; });
+
+    // Configured providers first, then anything that made a call, then the rest
+    // — a deployment can speak to nine endpoints and use two.
+    var rows = (providers || []).slice().sort(function (a, b) {
+      var av = (a.configured ? 2 : 0) + (stats[a.handle] ? 1 : 0);
+      var bv = (b.configured ? 2 : 0) + (stats[b.handle] ? 1 : 0);
+      return bv - av;
+    });
+    tb.innerHTML = rows.map(function (p) {
+      var st = stats[p.handle];
+      var tag = p.configured
+        ? (st && st.fail_pct >= 50 ? '<span class="ops-tag warn">Failing</span>' : '<span class="ops-tag ok">Ready</span>')
+        : '<span class="ops-tag off">No key</span>';
+      return '<tr>' +
+        '<td>' + escapeHtml(p.label) + (p.native ? '' : ' <span class="muted">support</span>') + '</td>' +
+        '<td class="dim"><code>' + escapeHtml(p.model || '—') + '</code></td>' +
+        '<td>' + tag + '</td>' +
+        '<td class="num">' + (st ? opsNum(st.calls) : '—') + '</td>' +
+        '<td class="num">' + (st ? (st.failed ? st.failed + ' (' + st.fail_pct + '%)' : '0') : '—') + '</td>' +
+        '<td class="num dim">' + (st ? st.avg_ms + 'ms' : '—') + '</td>' +
+        '<td class="num">' + (st ? opsTok(st.tokens_in + st.tokens_out) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function opsCard(n, label, sub, flag) {
+    return '<div class="ops-card' + (flag ? ' flag' : '') + '">' +
+      '<span class="n">' + escapeHtml(String(n)) + '</span>' +
+      '<span class="l">' + escapeHtml(label) + '</span>' +
+      (sub ? '<span class="s">' + escapeHtml(sub) + '</span>' : '') + '</div>';
+  }
+
+  function opsRenderPipeline(pl, usage) {
+    var box = $('#opsPipeline'); if (!box) return;
+    var d = pl.days + (pl.days === 1 ? ' day' : ' days');
+    box.innerHTML = [
+      opsCard(opsNum(usage.total.calls), 'Model calls', 'last ' + d +
+        (usage.total.fallbacks ? ' · ' + usage.total.fallbacks + ' via a fallback' : '')),
+      opsCard(opsTok(usage.total.tokens_in + usage.total.tokens_out), 'Tokens',
+        opsTok(usage.total.tokens_in) + ' in · ' + opsTok(usage.total.tokens_out) + ' out'),
+      opsCard(opsNum(pl.escalations.window), 'Escalations sent', 'last ' + d +
+        (pl.escalations.top_rung ? ' · ' + pl.escalations.top_rung + ' at the top rung' : ''),
+        pl.escalations.top_rung > 0),
+      opsCard(opsNum(pl.agendas.pending), 'Agenda drafts waiting',
+        pl.agendas.applied + ' applied · ' + pl.agendas.dismissed + ' dismissed', pl.agendas.stale >= 3),
+      opsCard(opsNum(pl.promotions.open), 'Promotion reviews open',
+        pl.promotions.disagreed ? pl.promotions.disagreed + ' where the model disagrees' : 'engine and model agree',
+        pl.promotions.disagreed > 0),
+      opsCard(opsNum(pl.clock.warned), 'Meetings warned', pl.clock.tracked + ' tracked'),
+      opsCard(opsNum(pl.commitments.open), 'Open commitments',
+        pl.commitments.unassigned + ' with no owner', pl.commitments.unassigned >= 10),
+      opsCard(opsNum(pl.briefs.window), 'Briefs written', 'last ' + d)
+    ].join('');
+  }
+
+  function opsRenderErrors(usage) {
+    var sec = $('#opsErrSec'), tb = $('#opsErrors') && $('#opsErrors').querySelector('tbody');
+    var errs = usage.recent_errors || [];
+    if (sec) sec.hidden = errs.length === 0;
+    if (!tb) return;
+    tb.innerHTML = errs.map(function (e) {
+      return '<tr><td class="dim">' + escapeHtml(String(e.at).replace('T', ' ')) + '</td>' +
+        '<td>' + escapeHtml(e.provider) + '</td><td class="dim">' + escapeHtml(e.job) + '</td>' +
+        '<td class="dim">' + escapeHtml(e.error) + '</td></tr>';
+    }).join('');
+  }
+
+  function loadAiOps() {
+    if (opsState.loading) return;
+    opsState.loading = true;
+    api('aiops&days=' + encodeURIComponent(opsState.days)).then(function (r) {
+      opsState.loading = false;
+      if (!r.data.ok) { toast(r.data.error || 'Could not load AI Ops.'); return; }
+      var o = r.data.ops;
+      opsRenderAlerts(o.alerts);
+      opsRenderRungs(o.heartbeat);
+      opsRenderRoutes(o.routes, o.providers);
+      opsRenderProviders(o.providers, o.usage);
+      opsRenderPipeline(o.pipeline, o.usage);
+      opsRenderErrors(o.usage);
+      // The badge counts only what is actually broken. One that counted
+      // notices too would train people to ignore it.
+      var bad = (o.alerts || []).filter(function (a) { return a.level === 'crit' || a.level === 'warn'; }).length;
+      var b = $('#opsBadge');
+      if (b) { b.textContent = String(bad); b.hidden = bad === 0; }
+    }).catch(function () { opsState.loading = false; toast('Could not load AI Ops.'); });
+  }
+
+  (function opsWire() {
+    var v = $('#aiopsView'); if (!v) return;
+    var rb = $('#opsRefresh'); if (rb) rb.addEventListener('click', loadAiOps);
+    var ds = $('#opsDays');
+    if (ds) ds.addEventListener('change', function () { opsState.days = parseInt(ds.value, 10) || 7; loadAiOps(); });
+    var rc = $('#opsRunCron');
+    if (rc) rc.addEventListener('click', function () {
+      rc.disabled = true; rc.textContent = 'Running…';
+      post('aiops_cron', {}).then(function (r) {
+        rc.disabled = false; rc.textContent = 'Run tasks now';
+        toast(r.data.ok ? 'Tasks ran in ' + r.data.ms + 'ms.' : (r.data.error || 'Could not run the tasks.'));
+        loadAiOps();
+      }).catch(function () {
+        rc.disabled = false; rc.textContent = 'Run tasks now'; toast('Could not run the tasks.');
+      });
+    });
+    // The routing blurb links to where the order is actually edited.
+    v.addEventListener('click', function (e) {
+      var go = e.target.closest('[data-go]'); if (!go) return;
+      activateTab(go.getAttribute('data-go'));
+    });
+  })();
 
   function loadRules() {
     api('rules_get').then(function (r) {

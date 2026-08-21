@@ -86,16 +86,19 @@ if (class_exists('Mentorship')) {
 // chase the pairings with nothing booked, and walk the escalation ladder for
 // meetings nobody recorded. Self-limiting to one run per UTC day, so it is safe
 // on a five-minute tick; pass force only from the Studio.
+// AiOps::run() wraps each rung with the heartbeat the AI Ops board reads, and
+// keeps the try/catch that stops one broken rung ending the tick. It is the only
+// way these are called so that a rung added later cannot arrive without one —
+// every feature below is silent and self-limiting by design, which means a dead
+// cron and a quiet week are indistinguishable without this.
 if (class_exists('Accountability')) {
-    try { $result['accountability'] = Accountability::sweep(); }
-    catch (Throwable $e) { error_log('[cron] accountability: ' . $e->getMessage()); }
+    $result['accountability'] = AiOps::run('accountability', static fn() => Accountability::sweep());
 }
 
 // Report §7: propose an agenda for any meeting that has none. Files a draft for
 // the chair and asks once — it never writes the agenda itself.
 if (class_exists('Agenda')) {
-    try { $result['agendas'] = Agenda::sweep(); }
-    catch (Throwable $e) { error_log('[cron] agendas: ' . $e->getMessage()); }
+    $result['agendas'] = AiOps::run('agendas', static fn() => Agenda::sweep());
 }
 
 // Report §10: warn a running meeting as it nears its scheduled end. Only fires
@@ -103,24 +106,34 @@ if (class_exists('Agenda')) {
 // none. The portal countdown is the exact channel; this reaches people who are
 // not looking at it.
 if (class_exists('MeetingClock')) {
-    try { $result['meeting_clock'] = MeetingClock::sweep(); }
-    catch (Throwable $e) { error_log('[cron] clock: ' . $e->getMessage()); }
+    $result['meeting_clock'] = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
 }
 
 // Report §20: write the case for anyone the rules engine now rates as ready,
 // and tell leadership. One review per member per target level.
 if (class_exists('Promotion')) {
-    try { $result['promotions'] = Promotion::sweep(); }
-    catch (Throwable $e) { error_log('[cron] promotions: ' . $e->getMessage()); }
+    $result['promotions'] = AiOps::run('promotions', static fn() => Promotion::sweep());
 }
 
 // The leadership brief (report §21). Weekly and monthly, each self-limiting to
 // one per period, so a five-minute tick produces one brief a week — not 2,016.
 if (class_exists('Brief')) {
-    foreach (['week', 'month'] as $bp) {
-        try { $r = Brief::generate($bp); if (empty($r['skipped'])) $result['brief_' . $bp] = (int) ($r['id'] ?? 0); }
-        catch (Throwable $e) { error_log('[cron] brief ' . $bp . ': ' . $e->getMessage()); }
-    }
+    // One heartbeat for both periods: the board asks "is the brief running",
+    // not "did the monthly one skip", and a skip is recorded in the detail.
+    AiOps::run('brief', static function () use (&$result) {
+        $wrote = [];
+        foreach (['week', 'month'] as $bp) {
+            $r = Brief::generate($bp);
+            if (!empty($r['skipped'])) continue;
+            $result['brief_' . $bp] = (int) ($r['id'] ?? 0);
+            $wrote[] = $bp === 'week' ? 'the weekly brief' : 'the monthly brief';
+        }
+        // A run that happened and found nothing due is not the same as a run
+        // that did not happen. Both are recorded; only one reads as activity.
+        return $wrote
+            ? ['wrote' => implode(' and ', $wrote), 'skipped' => false]
+            : ['skipped' => true, 'why' => 'no brief was due'];
+    });
 }
 
 // Daily: email today's birthday people (idempotent — safe to run every tick).

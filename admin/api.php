@@ -100,6 +100,10 @@ try {
         'brief_latest', 'brief_run',
         // The promotion queue names individuals and their readiness evidence.
         'promotion_queue', 'promotion_review', 'promotion_defer', 'promotion_reopen',
+        // AI Ops reports provider keys' liveness, model spend and the escalation
+        // counts — infrastructure state, and it names no members but does expose
+        // which providers this deployment pays for. Management.
+        'aiops', 'aiops_cron',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
         'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
@@ -400,6 +404,41 @@ try {
 
         // Report §21/§31/§38 — the leadership brief. Read the latest, or write one
         // now. The figures are always counted, never inferred; see lib/Brief.php.
+        /* ════ AI Ops — is the machinery running, and what is it costing ════ */
+        case 'aiops': {
+            $days = (int) ($_GET['days'] ?? 7);
+            json_out(['ok' => true, 'ops' => AiOps::snapshot($days)]);
+        }
+
+        /* Run the scheduled tasks by hand. The board's most useful button: when
+           the heartbeat says cron is dead, the next question is always whether
+           the tasks themselves still work, and this answers it without shell
+           access. Deliberately NOT a force — it runs the same self-limiting
+           sweeps cron runs, so pressing it twice does nothing the second time. */
+        case 'aiops_cron': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $out = [];
+            $t0 = microtime(true);
+            if (class_exists('Accountability')) $out['accountability'] = AiOps::run('accountability', static fn() => Accountability::sweep());
+            if (class_exists('Agenda'))         $out['agendas']        = AiOps::run('agendas', static fn() => Agenda::sweep());
+            if (class_exists('MeetingClock'))   $out['meeting_clock']  = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
+            if (class_exists('Promotion'))      $out['promotions']     = AiOps::run('promotions', static fn() => Promotion::sweep());
+            if (class_exists('Brief')) {
+                AiOps::run('brief', static function () use (&$out) {
+                    $wrote = [];
+                    foreach (['week', 'month'] as $bp) {
+                        $g = Brief::generate($bp);
+                        if (empty($g['skipped'])) $wrote[] = $bp === 'week' ? 'the weekly brief' : 'the monthly brief';
+                    }
+                    $out['brief'] = $wrote ? implode(' and ', $wrote) : 'nothing due';
+                    return $wrote ? ['wrote' => implode(' and ', $wrote), 'skipped' => false]
+                                  : ['skipped' => true, 'why' => 'no brief was due'];
+                });
+            }
+            if (class_exists('AdminAudit')) { try { AdminAudit::log('rules', 'aiops_cron_run', '', 'Ran the scheduled AI tasks by hand from the Ops board'); } catch (Throwable $e) {} }
+            json_out(['ok' => true, 'ran' => $out, 'ms' => (int) round((microtime(true) - $t0) * 1000)]);
+        }
+
         case 'brief_latest': {
             $period = (string) ($_GET['period'] ?? 'week');
             if (!in_array($period, Brief::periods(), true)) $period = 'week';
