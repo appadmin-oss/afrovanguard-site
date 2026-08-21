@@ -974,8 +974,17 @@ final class Mentorship
             if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
             else { $state = 'error'; error_log('[mentorship] recall: ' . (string) ($res['error'] ?? '')); }
         } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
-            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso);
+            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso, [
+                'metadata' => ['av_session_id' => (string) $sessionId, 'av_source' => 'mentorship'],
+                'dedup'    => 'av-session-' . $sessionId,
+            ]);
             if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
+            elseif (!empty($res['duplicate'])) {
+                // A live bot already holds this key. Leave the stored reference to it
+                // in place rather than replacing it with an error and an empty ref.
+                error_log('[mentorship] attendee: bot already live for session ' . $sessionId . ', leaving it alone');
+                return ['ok' => true, 'bot_state' => 'requested'];
+            }
             else { $state = 'error'; error_log('[mentorship] attendee: ' . (string) ($res['error'] ?? '')); }
         } elseif ($provider === 'google') {
             $state = 'native';

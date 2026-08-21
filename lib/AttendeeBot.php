@@ -20,10 +20,18 @@
  * transcription path through it.
  *
  * Config:
- *   AV_ATTENDEE_API_KEY   enables it
- *   AV_ATTENDEE_BASE_URL  your instance, e.g. https://meetbot.example.org
- *                         (defaults to the hosted app.attendee.dev)
- *   AV_ATTENDEE_BOT_NAME  display name in the meeting
+ *   AV_ATTENDEE_API_KEY     enables it
+ *   AV_ATTENDEE_BASE_URL    your instance, e.g. https://meetbot.example.org
+ *                           (defaults to the hosted app.attendee.dev)
+ *   AV_ATTENDEE_BOT_NAME    display name in the meeting
+ *   AV_ATTENDEE_JOIN_NOTICE what the bot says on joining; `none` to say nothing.
+ *                           Defaults to an announcement that the call is being
+ *                           recorded, because a notetaker that joins a mentorship
+ *                           session in silence is a surprise, not a feature.
+ *                           (`none` rather than blank: cfg() cannot tell an empty
+ *                           value from an unset one, so blank gets the default.)
+ *   AV_ATTENDEE_BOT_IMAGE   path to a PNG or JPEG avatar for the bot. Ignored
+ *                           unless the file exists and really is one of those.
  *
  * Shaped deliberately like RecallBot — createBot / botStatus / removeBot /
  * fetchTranscript — so Meetings treats the two interchangeably and switching
@@ -58,29 +66,153 @@ final class AttendeeBot
     }
 
     /**
-     * Send a bot into a meeting. Returns ['ok','bot_id','error'].
+     * Send a bot into a meeting. Returns ['ok','bot_id','error','duplicate'].
      *
      * $joinAtIso is accepted for interface parity with RecallBot and passed
      * through when supplied, but Meetings dispatches Attendee bots at the time
      * the meeting starts rather than relying on it.
+     *
+     * $opts carries the things only the caller knows:
+     *   metadata  array<string,string> stamped on the bot and echoed back on every
+     *             read, so a transcript identifies its own meeting without a lookup.
+     *   dedup     a key Attendee refuses to reuse while a bot holding it is still
+     *             live. Two cron ticks landing together stop being two bots.
+     *
+     * `duplicate` in the return is the dedup key having done its job. It is NOT a
+     * failure and must not be written over a bot_ref the first tick already stored —
+     * that would lose a bot that is on its way to the meeting.
      */
-    public static function createBot(string $meetingUrl, string $webhookUrl = '', string $joinAtIso = ''): array
+    public static function createBot(string $meetingUrl, string $webhookUrl = '', string $joinAtIso = '', array $opts = []): array
     {
-        if (!self::configured()) return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee is not configured (set AV_ATTENDEE_API_KEY).'];
-        if (trim($meetingUrl) === '') return ['ok' => false, 'bot_id' => '', 'error' => 'No meeting URL.'];
+        if (!self::configured()) return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee is not configured (set AV_ATTENDEE_API_KEY).', 'duplicate' => false];
+        if (trim($meetingUrl) === '') return ['ok' => false, 'bot_id' => '', 'error' => 'No meeting URL.', 'duplicate' => false];
 
-        $body = ['meeting_url' => $meetingUrl, 'bot_name' => self::botName()];
-        if (trim($joinAtIso) !== '') $body['join_at'] = trim($joinAtIso);
-        // Attendee posts state changes to a webhook when one is configured; the
-        // transcript is also pollable, which is the path Meetings actually uses
-        // so a site behind shared hosting needs no public callback at all.
-        if (trim($webhookUrl) !== '') $body['webhook_url'] = trim($webhookUrl);
-
-        $res = self::http('POST', self::base() . '/bots', $body);
-        if (isset($res['__error'])) return ['ok' => false, 'bot_id' => '', 'error' => (string) $res['__error']];
+        $res = self::http('POST', self::base() . '/bots', self::buildCreateBody($meetingUrl, $webhookUrl, $joinAtIso, $opts));
+        if (isset($res['__error'])) {
+            $err = (string) $res['__error'];
+            return ['ok' => false, 'bot_id' => '', 'error' => $err, 'duplicate' => stripos($err, 'deduplication') !== false];
+        }
         $id = (string) ($res['id'] ?? '');
-        if ($id === '') return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee did not return a bot id.'];
-        return ['ok' => true, 'bot_id' => $id, 'error' => null];
+        if ($id === '') return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee did not return a bot id.', 'duplicate' => false];
+        return ['ok' => true, 'bot_id' => $id, 'error' => null, 'duplicate' => false];
+    }
+
+    /**
+     * The create-bot request body, built where it can be tested without a network.
+     *
+     * Public because the suite asserts on it. Everything Attendee's API does not
+     * define is left out entirely rather than sent as null: this endpoint validates
+     * per field, and an unrecognised key is dropped silently, which is exactly how
+     * the old `webhook_url` here went years without registering anything.
+     *
+     * @param array{metadata?:array<string,string>, dedup?:string} $opts
+     * @return array<string,mixed>
+     */
+    public static function buildCreateBody(string $meetingUrl, string $webhookUrl = '', string $joinAtIso = '', array $opts = []): array
+    {
+        $body = ['meeting_url' => trim($meetingUrl), 'bot_name' => self::botName()];
+
+        if (trim($joinAtIso) !== '') $body['join_at'] = trim($joinAtIso);
+
+        // The field is `webhooks`, a list of {url, triggers} — NOT `webhook_url`,
+        // which this file sent for years and Attendee dropped on the floor without
+        // complaint. Polling is still the path Meetings relies on; this only makes
+        // a site that CAN receive a callback get one.
+        //
+        // HTTPS is not a preference. Attendee's schema requires it, and sending an
+        // http:// url fails the whole create call — so an unusable webhook has to be
+        // omitted rather than passed on, or the bot never gets sent at all.
+        $hook = trim($webhookUrl);
+        if ($hook !== '' && stripos($hook, 'https://') === 0) {
+            $body['webhooks'] = [[
+                'url'      => $hook,
+                'triggers' => ['bot.state_change', 'transcript.update'],
+            ]];
+        }
+
+        $meta = self::metadata((array) ($opts['metadata'] ?? []));
+        if ($meta !== []) $body['metadata'] = $meta;
+
+        $dedup = trim((string) ($opts['dedup'] ?? ''));
+        if ($dedup !== '') $body['deduplication_key'] = $dedup;
+
+        $notice = self::joinNotice();
+        if ($notice !== '') $body['bot_chat_message'] = ['to' => 'everyone', 'message' => $notice];
+
+        $image = self::botImage();
+        if ($image !== null) $body['bot_image'] = $image;
+
+        return $body;
+    }
+
+    /**
+     * What the bot says when it arrives.
+     *
+     * Attendee rejects emoji in chat messages, so they are stripped rather than
+     * left to fail the request — the announcement mattering more than the wave.
+     */
+    public static function joinNotice(): string
+    {
+        $raw = self::cfg('AV_ATTENDEE_JOIN_NOTICE', 'This meeting is being recorded and transcribed for minutes.');
+        // `none` is the off switch, matching AV_MEET_BOT_PROVIDER. It exists because
+        // cfg() falls back to the default on an empty value, so there is no way to
+        // mean "say nothing" by clearing the field.
+        if (strcasecmp(trim($raw), 'none') === 0) return '';
+        // Strip first, THEN collapse: doing it the other way leaves the gap the
+        // emoji used to occupy, and the bot greets the room with a double space.
+        $txt = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{2190}-\x{21FF}]/u', '', $raw) ?? $raw;
+        $txt = trim(preg_replace('/\s+/u', ' ', $txt) ?? '');
+        return $txt === '' ? '' : trim(mb_substr($txt, 0, 500));
+    }
+
+    /**
+     * Metadata, coerced to what Attendee accepts.
+     *
+     * String values only and 1000 characters per value by default (both are
+     * instance settings, so the stricter reading is the portable one). An oversized
+     * value would fail the create call, which is a bot lost for a bookkeeping field.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,string>
+     */
+    public static function metadata(array $in): array
+    {
+        $out = [];
+        foreach ($in as $k => $v) {
+            $key = trim((string) $k);
+            if ($key === '' || is_array($v) || is_object($v)) continue;
+            if (is_bool($v)) $v = $v ? 'true' : 'false';
+            $val = trim((string) $v);
+            if ($val === '') continue;
+            $out[$key] = mb_substr($val, 0, 900);
+        }
+        return $out;
+    }
+
+    /**
+     * The bot's avatar, base64'd, or null when there isn't a usable one.
+     *
+     * Checked by magic bytes rather than by extension: Attendee validates the image
+     * itself and rejects a mislabelled one, and a logo.svg renamed to .png would
+     * take the whole create call down with it. SVG is not supported at all.
+     *
+     * @return array{type:string, data:string}|null
+     */
+    public static function botImage(): ?array
+    {
+        $path = trim(self::cfg('AV_ATTENDEE_BOT_IMAGE'));
+        if ($path === '' || !is_file($path) || !is_readable($path)) return null;
+        if (filesize($path) > 1500000) return null;   // Attendee caps this; oversized is a failed create
+
+        $bytes = (string) @file_get_contents($path);
+        if ($bytes === '') return null;
+
+        $type = null;
+        if (str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) $type = 'image/png';
+        elseif (str_starts_with($bytes, "\xff\xd8\xff"))    $type = 'image/jpeg';
+        if ($type === null) return null;
+
+        return ['type' => $type, 'data' => base64_encode($bytes)];
     }
 
     /**

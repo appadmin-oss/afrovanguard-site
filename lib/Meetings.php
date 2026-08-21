@@ -694,8 +694,23 @@ final class Meetings
         } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
             // No webhook is passed: the cron sweep polls for the transcript, so a
             // site on shared hosting needs no publicly reachable callback at all.
-            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso);
+            //
+            // The metadata rides along so a transcript can say which meeting it
+            // belongs to without this table being consulted, and the dedup key lets
+            // Attendee refuse a second bot for a meeting that already has a live one
+            // — the sweep and a hand-pressed button arriving together used to make two.
+            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso, [
+                'metadata' => ['av_meeting_id' => (string) $id, 'av_source' => 'meetings'],
+                'dedup'    => 'av-meeting-' . $id,
+            ]);
             if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
+            elseif (!empty($res['duplicate'])) {
+                // Attendee already has a live bot under this key, which means an
+                // earlier tick got one. Writing 'error' and a blank ref here would
+                // throw away the reference to a bot that is on its way.
+                error_log('[meetings] attendee: bot already live for meeting ' . $id . ', leaving it alone');
+                return;
+            }
             else { $state = 'error'; error_log('[meetings] attendee: ' . (string) ($res['error'] ?? '')); }
         } elseif ($provider === 'google') {
             // Google Meet is recording/transcribing natively (space created with

@@ -392,6 +392,92 @@ AvRules::save(['meetings.ai_notetaker' => '0'], 'test');
 ck('poll: the master switch stops polling too', Meetings::pollBotTranscripts() === 0);
 $brules();
 
+// ── The create-bot request body ──────────────────────────────────────────────
+//
+// These pin the shape of what is actually sent to Attendee, which went unchecked
+// for a long time and was wrong in a way no test could see: the client sent a
+// `webhook_url` field the API does not define, Attendee's serializer dropped the
+// unknown key without complaint, and so no callback was ever registered. Polling
+// covered for it, which is exactly why nobody noticed.
+require_once AV_ROOT . '/lib/AttendeeBot.php';
+putenv('AV_ATTENDEE_API_KEY=test-key');
+putenv('AV_ATTENDEE_BASE_URL=https://meetbot.example.org');
+putenv('AV_ATTENDEE_JOIN_NOTICE=none');
+putenv('AV_ATTENDEE_BOT_IMAGE');
+
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/abc-defg-hij');
+ck('body: carries the meeting url', ($body['meeting_url'] ?? '') === 'https://meet.google.com/abc-defg-hij');
+ck('body: carries a bot name', trim((string) ($body['bot_name'] ?? '')) !== '');
+ck('body: never sends the webhook_url field the API has no idea about',
+   !array_key_exists('webhook_url', $body));
+ck('body: omits webhooks entirely when none is given', !array_key_exists('webhooks', $body));
+
+// An https callback becomes the `webhooks` list the API really takes.
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/x', 'https://example.org/hook');
+ck('body: an https callback becomes a webhooks list',
+   ($body['webhooks'][0]['url'] ?? '') === 'https://example.org/hook');
+ck('body: the callback subscribes to state and transcript',
+   in_array('bot.state_change', $body['webhooks'][0]['triggers'] ?? [], true)
+   && in_array('transcript.update', $body['webhooks'][0]['triggers'] ?? [], true));
+
+// A plain-http callback must be dropped, not forwarded. Attendee's schema requires
+// https and rejects the whole create call — so passing it on would turn a working
+// polling setup into a meeting with no bot at all.
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/x', 'http://insecure.example/hook');
+ck('body: a plain-http callback is omitted rather than sent', !array_key_exists('webhooks', $body));
+
+// Metadata is string-valued; anything that cannot be a string is dropped rather
+// than sent as something the API will reject.
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/x', '', '', [
+    'metadata' => ['av_meeting_id' => 7, 'nested' => ['no'], 'blank' => '', 'ok' => 'yes'],
+    'dedup'    => 'av-meeting-7',
+]);
+ck('body: metadata numbers become strings', ($body['metadata']['av_meeting_id'] ?? null) === '7');
+ck('body: metadata drops nested values', !array_key_exists('nested', $body['metadata'] ?? []));
+ck('body: metadata drops empty values', !array_key_exists('blank', $body['metadata'] ?? []));
+ck('body: the dedup key is passed through', ($body['deduplication_key'] ?? '') === 'av-meeting-7');
+
+// The in-meeting announcement. `none` is the off switch because an empty env var
+// is indistinguishable from an unset one through cfg().
+ck('notice: none means say nothing', AttendeeBot::joinNotice() === '');
+ck('body: no chat message when the notice is off', !array_key_exists('bot_chat_message', $body));
+putenv('AV_ATTENDEE_JOIN_NOTICE=This call is being recorded.');
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/x');
+ck('body: the notice becomes a chat message to everyone',
+   ($body['bot_chat_message']['message'] ?? '') === 'This call is being recorded.'
+   && ($body['bot_chat_message']['to'] ?? '') === 'everyone');
+putenv('AV_ATTENDEE_JOIN_NOTICE=Recorded 🎙️ for minutes');
+ck('notice: emoji are stripped without leaving a double space',
+   AttendeeBot::joinNotice() === 'Recorded for minutes');
+putenv('AV_ATTENDEE_JOIN_NOTICE=none');
+
+// The avatar is identified by its bytes, not its name. A mislabelled file would
+// fail Attendee's own image validation and take the create call down with it.
+$png = AV_ROOT . '/data/test-avatar.png';
+$bad = AV_ROOT . '/data/test-avatar-bad.png';
+@file_put_contents($png, base64_decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='));
+@file_put_contents($bad, '<svg>not a png at all</svg>');
+
+putenv('AV_ATTENDEE_BOT_IMAGE=' . $png);
+$img = AttendeeBot::botImage();
+ck('avatar: a real png is accepted as image/png', is_array($img) && $img['type'] === 'image/png');
+ck('avatar: a real png is base64 encoded', is_array($img) && base64_decode($img['data'], true) !== false);
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/x');
+ck('body: a configured avatar is attached', array_key_exists('bot_image', $body));
+
+putenv('AV_ATTENDEE_BOT_IMAGE=' . $bad);
+ck('avatar: an svg renamed .png is rejected on its bytes', AttendeeBot::botImage() === null);
+$body = AttendeeBot::buildCreateBody('https://meet.google.com/x');
+ck('body: an unusable avatar is left out rather than sent', !array_key_exists('bot_image', $body));
+
+putenv('AV_ATTENDEE_BOT_IMAGE=' . AV_ROOT . '/data/definitely-not-here.png');
+ck('avatar: a missing file is not an error, just no avatar', AttendeeBot::botImage() === null);
+
+@unlink($png); @unlink($bad);
+putenv('AV_ATTENDEE_BOT_IMAGE');
+putenv('AV_ATTENDEE_JOIN_NOTICE');
+
 putenv('AV_MEET_BOT_PROVIDER');
 putenv('AV_ATTENDEE_API_KEY');
 putenv('AV_ATTENDEE_BASE_URL');
