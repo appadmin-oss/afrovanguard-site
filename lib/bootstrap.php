@@ -265,6 +265,7 @@ require_once __DIR__ . '/OpenAi.php';
 require_once __DIR__ . '/AiCompat.php';   // Groq and the other OpenAI-wire endpoints
 require_once __DIR__ . '/AvRouter.php';   // which model answers which job, and the call ledger
 require_once __DIR__ . '/AiOps.php';     // cron heartbeat, model spend, and the alert list
+require_once __DIR__ . '/ChatBot.php';   // the Google Chat task bot
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/Prefs.php';

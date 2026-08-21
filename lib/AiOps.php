@@ -54,7 +54,6 @@ final class AiOps
         'meeting_clock'  => 'Meeting time warnings',
         'promotions'     => 'Promotion reviews',
         'brief'          => 'Leadership brief',
-        'chat'           => 'Chat task bot',
     ];
 
     public static function ensure(): void
@@ -272,7 +271,7 @@ final class AiOps
      */
     public static function pipeline(int $days = 7): array
     {
-        foreach (['Accountability', 'Agenda', 'Promotion', 'Brief', 'MeetingClock'] as $c) {
+        foreach (['Accountability', 'Agenda', 'Promotion', 'Brief', 'MeetingClock', 'ChatBot'] as $c) {
             if (class_exists($c) && method_exists($c, 'ensure')) { try { $c::ensure(); } catch (Throwable $e) {} }
         }
         $since = self::since($days);
@@ -312,6 +311,18 @@ final class AiOps
                 'unassigned'=> self::count("SELECT COUNT(*) FROM commitments WHERE status = 'open' AND member_id = 0"),
                 'from_chat' => self::count("SELECT COUNT(*) FROM commitments WHERE source_kind = 'chat'"),
                 'window'    => self::count('SELECT COUNT(*) FROM commitments WHERE created_at >= ?', [$since]),
+            ],
+            /* The Chat bot answers events, so it has no place on the scheduler
+               table — a "never run" row there would be a permanent false alarm
+               on a bot that is working fine and simply has not been messaged.
+               What matters for it is whether it is configured at all, and how
+               much of what it files nobody has claimed. */
+            'chat' => [
+                'configured' => class_exists('ChatBot') && ChatBot::enabled(),
+                'window'     => self::count('SELECT COUNT(*) FROM av_chat_tasks WHERE created_at >= ?', [$since]),
+                'total'      => self::count('SELECT COUNT(*) FROM av_chat_tasks'),
+                'unassigned' => self::count("SELECT COUNT(*) FROM commitments WHERE source_kind = 'chat' AND status = 'open' AND member_id = 0"),
+                'last'       => self::scalar('SELECT MAX(created_at) FROM av_chat_tasks'),
             ],
         ];
     }
@@ -420,6 +431,14 @@ final class AiOps
                       'title' => self::plural((int) $pipeline['escalations']['top_rung'], 'pairing')
                                . ' reached the top of the escalation ladder',
                       'body'  => 'The ladder has run out. These need a person now, not another notification.'];
+        }
+        /* A chat task nobody has claimed is the bot working and the follow-up
+           not happening — worth saying, and distinct from the general unassigned
+           queue because these were named out loud in a room. */
+        if (($pipeline['chat']['unassigned'] ?? 0) >= 5) {
+            $out[] = ['level' => 'info', 'key' => 'chat.unassigned',
+                      'title' => self::plural((int) $pipeline['chat']['unassigned'], 'task') . ' filed from Chat with no owner',
+                      'body'  => 'The bot refuses to guess whose promise something is, so it files these unassigned and says so in the space. Nobody has picked them up.'];
         }
         if (($pipeline['commitments']['unassigned'] ?? 0) >= 10) {
             $out[] = ['level' => 'info', 'key' => 'commitments.unassigned',

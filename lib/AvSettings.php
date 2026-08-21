@@ -122,6 +122,18 @@ final class AvSettings
             'help' => 'An override, and normally blank. Routing lives in Rules & AI → the ai.route_* rules, which set a ranked list per kind of work; naming a provider here promotes it to the front of every one of those lists without discarding their fallbacks. Useful for pinning a provider while you diagnose another. The tool-using assistant additionally ignores any provider with no tool loop implemented.',
         ],
 
+        /* ── The Google Chat task bot ─────────────────────────────────── */
+        'AV_CHAT_AUDIENCE' => [
+            'group' => 'Chat task bot', 'label' => 'Chat app audience', 'secret' => false, 'type' => 'text',
+            'ph' => '123456789012',
+            'help' => 'Required, and the bot refuses every request without it. This is the Google Cloud project number of your Chat app (or the custom audience configured on it). It is the claim that stops a token minted for somebody else\'s Chat app being accepted here. Point the app\'s endpoint at https://your-domain/webhooks/chat.',
+        ],
+        'AV_CHAT_CERTS_URL' => [
+            'group' => 'Chat task bot', 'label' => 'Certificate endpoint override', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://www.googleapis.com/service_accounts/v1/metadata/x509/chat@system.gserviceaccount.com',
+            'help' => 'Leave blank. Only needed if Google moves where it publishes the public keys that Chat events are signed with.',
+        ],
+
         /* ── The support tier: OpenAI-wire endpoints, keyed per vendor ── */
         'GROQ_API_KEY' => [
             'group' => 'Support tier', 'label' => 'Groq API key', 'secret' => true, 'type' => 'text',

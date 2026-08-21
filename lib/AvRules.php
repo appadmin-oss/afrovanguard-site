@@ -253,6 +253,18 @@ final class AvRules
             'help'  => 'How many times the AI may call a tool and think again before it must answer. This is a cost and latency ceiling as much as a safety one — each round-trip is another model call.',
         ],
 
+        /* ── The Google Chat task bot (see lib/ChatBot) ── */
+        'chat.enabled' => [
+            'type' => 'bool', 'default' => true, 'group' => 'AI',
+            'label' => 'Record tasks from Google Chat',
+            'help'  => 'When on, the Chat app turns "Bode to submit the report by Friday" into a tracked commitment on the same board as meeting minutes. It still needs AV_CHAT_AUDIENCE set in System — without that it refuses every request rather than accepting an unverified one.',
+        ],
+        'chat.allowed_spaces' => [
+            'type' => 'csv', 'default' => '', 'allow_empty' => true, 'group' => 'AI',
+            'label' => 'Restrict the bot to these Chat spaces',
+            'help'  => 'Blank — the default — means any space the app has been added to. That is usually right, because the real gate is that the sender must match a member account. Fill this in (space ids like spaces/AAAA…) only if the app is in rooms that include people outside the organisation.',
+        ],
+
         /* ── Which model answers which job (see lib/AvRouter) ── */
         'ai.route_reason' => [
             'type' => 'csv', 'default' => 'openai,anthropic,gemini,groq', 'group' => 'AI',
@@ -437,7 +449,15 @@ final class AvRules
 
             case 'csv':
                 $parts = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn($p) => $p !== ''));
-                if (!$parts) return null;
+                // A csv rule whose meaning includes "none" has to be able to say
+                // so. Every csv rule until now was a list that must never be
+                // empty (the level ladder, the warning marks), so rejecting an
+                // empty value was right. `chat.allowed_spaces` is the other
+                // shape — a restriction, where blank means "no restriction" —
+                // and without this flag an administrator who set it once could
+                // never clear it from the Studio again. A one-way door in a
+                // settings page is a bug, not a safeguard.
+                if (!$parts) return !empty($def['allow_empty']) ? '' : null;
                 // Some csv rules feed places where arbitrary text is unsafe or
                 // meaningless (ladder codes reach a DDL default and a UI badge),
                 // so a rule may constrain its own items.

@@ -47,6 +47,9 @@ final class Commitments
     /** Where a commitment came from. */
     public const SRC_MEETING = 'meeting';
     public const SRC_SESSION = 'session';
+    /** A promise made in a Google Chat space (see lib/ChatBot). */
+    public const SRC_CHAT    = 'chat';
+    public const SOURCES     = [self::SRC_MEETING, self::SRC_SESSION, self::SRC_CHAT];
 
     /** Lifecycle. `missed` is terminal-with-a-reason; `open` is the only chaseable state. */
     public const STATUSES = ['open', 'done', 'missed', 'cancelled'];
@@ -131,7 +134,11 @@ final class Commitments
     public static function fileMany(string $kind, int $sourceId, array $items, int $filedBy = 0): array
     {
         self::ensure();
-        $kind = $kind === self::SRC_SESSION ? self::SRC_SESSION : self::SRC_MEETING;
+        // Validate against the list rather than a chain of ternaries: the old
+        // form silently rewrote every unrecognised kind to 'meeting', so adding
+        // a source meant a chat task filed itself as a meeting action item and
+        // then failed canManage() for everybody.
+        if (!in_array($kind, self::SOURCES, true)) $kind = self::SRC_MEETING;
         $out  = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'ids' => []];
         if ($sourceId <= 0 || !$items) return $out;
 
@@ -272,6 +279,19 @@ final class Commitments
                      WHERE s.id = ? AND (m.mentor_id = ? OR m.mentee_id = ?)'
                 );
                 $st->execute([$sid, $uid, $uid]);
+                return (bool) $st->fetchColumn();
+            }
+            if ($kind === self::SRC_CHAT) {
+                // "Whoever was in the room" has no clean answer for a chat
+                // space: membership lives with Google, changes without telling
+                // us, and can include guests from outside the organisation.
+                // So the room is not the test — the person who filed it is,
+                // plus whoever it was assigned to. Both were demonstrably part
+                // of the exchange; a bystander in the space was not, and
+                // reassigning somebody else's promise is not a convenience.
+                if ((int) ($commitment['member_id'] ?? 0) === $uid) return true;
+                $st = $db->prepare('SELECT 1 FROM av_chat_tasks WHERE id = ? AND sender_id = ?');
+                $st->execute([$sid, $uid]);
                 return (bool) $st->fetchColumn();
             }
         } catch (Throwable $e) { error_log('[commitments] canManage: ' . $e->getMessage()); }

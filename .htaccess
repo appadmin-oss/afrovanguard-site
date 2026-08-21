@@ -68,6 +68,7 @@ RewriteRule ^auth/google/(start|callback|connect|disconnect)/?$ auth/google.php?
 
 # Google real-time push receiver (Calendar/Drive watch channels)
 RewriteRule ^webhooks/google/?$ webhooks/google.php [L,QSA]
+RewriteRule ^webhooks/chat/?$ webhooks/chat.php [L,QSA]
 
 # Extension-less root pages: /about → about.html, /donate → donate.html, …
 RewriteCond %{DOCUMENT_ROOT}/$1.html -f

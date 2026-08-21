@@ -2249,7 +2249,12 @@
       opsCard(opsNum(pl.clock.warned), 'Meetings warned', pl.clock.tracked + ' tracked'),
       opsCard(opsNum(pl.commitments.open), 'Open commitments',
         pl.commitments.unassigned + ' with no owner', pl.commitments.unassigned >= 10),
-      opsCard(opsNum(pl.briefs.window), 'Briefs written', 'last ' + d)
+      opsCard(opsNum(pl.briefs.window), 'Briefs written', 'last ' + d),
+      opsCard(pl.chat.configured ? opsNum(pl.chat.window) : 'off', 'Tasks from Chat',
+        pl.chat.configured
+          ? (pl.chat.total + ' all time' + (pl.chat.unassigned ? ' · ' + pl.chat.unassigned + ' unclaimed' : ''))
+          : 'set AV_CHAT_AUDIENCE in System',
+        pl.chat.configured && pl.chat.unassigned >= 5)
     ].join('');
   }
 
