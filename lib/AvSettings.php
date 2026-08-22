@@ -148,22 +148,52 @@ final class AvSettings
         'OPENROUTER_API_KEY' => [
             'group' => 'Support tier', 'label' => 'OpenRouter API key', 'secret' => true, 'type' => 'text',
             'ph' => 'sk-or-…',
-            'help' => 'One key, many models. Useful for trying a model before committing to its vendor. Set AV_OPENROUTER_MODEL to choose.',
+            'help' => 'One key, many models. Useful for trying a model before committing to its vendor — the field below is where you name it.',
+        ],
+        'AV_OPENROUTER_MODEL' => [
+            'group' => 'Support tier', 'label' => 'OpenRouter model', 'secret' => false, 'type' => 'text',
+            'ph' => 'meta-llama/llama-3.3-70b-instruct',
+            'help' => 'Leave blank for the default. OpenRouter lists everything it fronts in the vendor/model form shown here, so this is the one field where changing a model also changes which company answers.',
+        ],
+        'TOGETHER_API_KEY' => [
+            'group' => 'Support tier', 'label' => 'Together API key', 'secret' => true, 'type' => 'text',
+            'ph' => '64 hex characters, no prefix',
+            'help' => 'Open-weight hosting — the Llama, Qwen and Mistral families on somebody else\'s GPUs. Alone among these vendors it issues a key with no identifying prefix, so there is nothing to check it against by eye. Get one at api.together.xyz.',
+        ],
+        'AV_TOGETHER_MODEL' => [
+            'group' => 'Support tier', 'label' => 'Together model', 'secret' => false, 'type' => 'text',
+            'ph' => 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+            'help' => 'Leave blank for the default. Together suffixes a model with -Turbo or -Lite to mark how heavily it is quantised, and the two are priced differently.',
         ],
         'DEEPSEEK_API_KEY' => [
             'group' => 'Support tier', 'label' => 'DeepSeek API key', 'secret' => true, 'type' => 'text',
             'ph' => 'sk-…',
             'help' => 'Cheap reasoning. Add it to a routing rule to use it.',
         ],
+        'AV_DEEPSEEK_MODEL' => [
+            'group' => 'Support tier', 'label' => 'DeepSeek model', 'secret' => false, 'type' => 'text',
+            'ph' => 'deepseek-chat',
+            'help' => 'Leave blank for the default. deepseek-reasoner is the slower, stronger sibling — worth it for a job that has to get an owner or a date right, wasted on reminder wording.',
+        ],
         'CEREBRAS_API_KEY' => [
             'group' => 'Support tier', 'label' => 'Cerebras API key', 'secret' => true, 'type' => 'text',
             'ph' => 'csk-…',
             'help' => 'The fastest tokens per second of the support tier.',
         ],
+        'AV_CEREBRAS_MODEL' => [
+            'group' => 'Support tier', 'label' => 'Cerebras model', 'secret' => false, 'type' => 'text',
+            'ph' => 'llama-3.3-70b',
+            'help' => 'Leave blank for the default. Cerebras carries a short list of open-weight models rather than a catalogue.',
+        ],
         'AV_LOCAL_BASE_URL' => [
             'group' => 'Support tier', 'label' => 'Local model endpoint', 'secret' => false, 'type' => 'url',
             'ph' => 'http://127.0.0.1:11434/v1',
-            'help' => 'Ollama, llama.cpp or vLLM on this host. Costs nothing and sends nothing to a vendor — but shared hosting rarely has one. Setting this or AV_LOCAL_MODEL is what marks it available.',
+            'help' => 'Ollama, llama.cpp or vLLM on this host. Costs nothing and sends nothing to a vendor — but shared hosting rarely has one. A local server needs no API key, so setting this or the model below is what marks it available at all.',
+        ],
+        'AV_LOCAL_MODEL' => [
+            'group' => 'Support tier', 'label' => 'Local model', 'secret' => false, 'type' => 'text',
+            'ph' => 'llama3.1',
+            'help' => 'Whatever you have actually pulled — `ollama list` names them. Either this or the endpoint above marks the local provider available, so set it even when the endpoint is the default one.',
         ],
 
         /* ── The meeting notetaker ────────────────────────────────────── */

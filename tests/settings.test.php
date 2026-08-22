@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 require_once AV_ROOT . '/lib/AvSettings.php';
 require_once AV_ROOT . '/lib/AttendeeBot.php';
+require_once AV_ROOT . '/lib/AiCompat.php';
 
 /**
  * Clear the store AND the process environment.
@@ -207,5 +208,97 @@ $res = AvSettings::test('anthropic');
 ck('settings: testing an unconfigured provider fails cleanly', empty($res['ok']) && $res['detail'] !== '');
 ck('settings: the test is timed', ($res['ms'] ?? -1) >= 0);
 ck('settings: an unknown test is refused', empty(AvSettings::test('nope')['ok']));
+
+/* ── Every provider you can SELECT, you can also CONFIGURE ─────────────────
+ *
+ * Three lists have to agree, and nothing used to make them: the AV_AGENT_PROVIDER
+ * enum (what an admin can pick), AiCompat's preset table (what the code can talk
+ * to), and the settings registry (what an admin can actually type a key into).
+ * `together` was selectable and fully wired in AiCompat, but had no field — so on
+ * a deployment where the Studio is the only way to set a credential, choosing it
+ * pinned routing to a provider that could never authenticate.
+ *
+ * The env-var contract is AiCompat's own: <VENDOR>_API_KEY for the key, and
+ * AV_<HANDLE>_MODEL for the model override, which the help text tells admins to
+ * set — so the field has to exist for that instruction to be true.
+ */
+$setreset();
+$regKeys = AvSettings::keys();
+$defs    = (new ReflectionClass('AvSettings'))->getConstant('DEFS');
+$enum    = array_values(array_filter((array) ($defs['AV_AGENT_PROVIDER']['options'] ?? [])));
+
+ck('settings: the provider enum is not empty', $enum !== []);
+$unsettable = [];
+foreach ($enum as $h) {
+    if (!AiCompat::knows($h)) continue;            // core providers key off their own fields
+    $primary = AiCompat::primaryKeyName($h);       // '' for a keyless local server
+    if ($primary !== '' && !in_array($primary, $regKeys, true)) $unsettable[] = $h . ':' . $primary;
+}
+ck('settings: every selectable support-tier provider has a key field'
+   . ($unsettable ? ' (missing ' . implode(', ', $unsettable) . ')' : ''), $unsettable === []);
+
+$noModel = [];
+foreach (AiCompat::handles() as $h) {
+    $mk = 'AV_' . strtoupper($h) . '_MODEL';
+    if (!in_array($mk, $regKeys, true)) $noModel[] = $mk;
+}
+ck('settings: every support-tier provider has a model override field'
+   . ($noModel ? ' (missing ' . implode(', ', $noModel) . ')' : ''), $noModel === []);
+
+/* A key typed into the Studio must actually reach AiCompat — the registry
+ * carrying the field is only half of it. */
+$setreset();
+AvSettings::save(['TOGETHER_API_KEY' => 'tok-parity-value'], 'test-admin');
+AvSettings::flush();
+AvSettings::apply();
+ck('settings: a support-tier key set in the Studio reaches AiCompat',
+   AiCompat::apiKey('together') === 'tok-parity-value');
+ck('settings: and marks that provider configured', AiCompat::configured('together'));
+AvSettings::save(['AV_TOGETHER_MODEL' => 'meta-llama/Llama-3.3-70B-Instruct-Lite'], 'test-admin');
+AvSettings::flush();
+AvSettings::apply();
+ck('settings: a model override set in the Studio is the one used',
+   AiCompat::model('together') === 'meta-llama/Llama-3.3-70B-Instruct-Lite');
+
+/* The local server takes no key, so the model field is the ONLY thing that can
+ * mark it available when the endpoint is left at its default. */
+$setreset();
+ck('settings: a local server with nothing set is not configured', !AiCompat::configured('local'));
+AvSettings::save(['AV_LOCAL_MODEL' => 'llama3.1'], 'test-admin');
+AvSettings::flush();
+AvSettings::apply();
+ck('settings: setting only the local model marks it available', AiCompat::configured('local'));
+
+/* ── .env.example documents the keys the registry accepts ───────────────────
+ *
+ * The file is how a deployment that manages config as code discovers a setting
+ * exists at all, and it has drifted twice: a batch of provider keys landed in the
+ * registry with no mention here. Every provider credential and model override
+ * must appear, commented out, so nothing is configurable-but-undiscoverable.
+ */
+$envFile = @file_get_contents(AV_ROOT . '/.env.example');
+ck('settings: .env.example is readable', is_string($envFile) && $envFile !== '');
+if (is_string($envFile) && $envFile !== '') {
+    $undocumented = [];
+    foreach (AiCompat::handles() as $h) {
+        $want = array_filter([AiCompat::primaryKeyName($h), 'AV_' . strtoupper($h) . '_MODEL']);
+        foreach ($want as $k) {
+            // Commented or live, either counts as documented; a bare mention in
+            // prose does not — it has to be an assignment an admin can uncomment.
+            if (!preg_match('/^#?\s*' . preg_quote($k, '/') . '=/m', $envFile)) $undocumented[] = $k;
+        }
+    }
+    ck('settings: .env.example documents every support-tier key'
+       . ($undocumented ? ' (missing ' . implode(', ', $undocumented) . ')' : ''), $undocumented === []);
+
+    // The Chat bot refuses every request without its audience, so an admin who
+    // never learns the key exists gets a bot that silently answers nothing.
+    $chatMissing = [];
+    foreach (['AV_CHAT_AUDIENCE', 'AV_CHAT_CERTS_URL'] as $k) {
+        if (!preg_match('/^#?\s*' . preg_quote($k, '/') . '=/m', $envFile)) $chatMissing[] = $k;
+    }
+    ck('settings: .env.example documents the Chat bot keys'
+       . ($chatMissing ? ' (missing ' . implode(', ', $chatMissing) . ')' : ''), $chatMissing === []);
+}
 
 $setreset();
