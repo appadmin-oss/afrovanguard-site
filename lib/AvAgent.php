@@ -34,26 +34,40 @@ final class AvAgent
     /** How much of a single tool result is fed back to the model. */
     private const MAX_RESULT_CHARS = 16000;
 
+    /** The only three providers with a tool loop implemented here. */
+    private const LOOPS = ['openai', 'anthropic', 'gemini'];
+
     /** Is any provider able to run a tool loop right now? */
     public static function available(): bool
     {
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return false;
-        return (class_exists('AvBot') && AvBot::configured())
-            || (class_exists('OpenAi') && OpenAi::configured())
-            || (class_exists('Gemini') && Gemini::configured());
+        return self::provider() !== '';
     }
 
-    /** Which provider the loop would use ('' when none). */
+    /**
+     * Which provider the loop would use ('' when none).
+     *
+     * The order comes from `ai.route_tools` via AvRouter, so leadership owns it
+     * — but it is filtered to LOOPS here regardless of what the rule says. The
+     * support-tier endpoints are completion-only, and letting one of them
+     * through would fall into a branch written for a different wire format.
+     * The rule's help text says that; this is what makes it true.
+     */
     public static function provider(): string
     {
-        $forced = class_exists('Config') ? strtolower(Config::str('AV_AGENT_PROVIDER', '')) : '';
-        if ($forced === 'anthropic' && class_exists('AvBot') && AvBot::configured()) return 'anthropic';
-        if ($forced === 'openai' && class_exists('OpenAi') && OpenAi::configured()) return 'openai';
-        if ($forced === 'gemini' && class_exists('Gemini') && Gemini::configured()) return 'gemini';
-        // Claude first (best multi-step tool chains), then OpenAI, then Gemini.
-        if (class_exists('AvBot') && AvBot::configured()) return 'anthropic';
-        if (class_exists('OpenAi') && OpenAi::configured()) return 'openai';
-        if (class_exists('Gemini') && Gemini::configured()) return 'gemini';
+        if (!class_exists('AvRouter')) return '';
+        // Every job route, in declared order — the tools rule first because it is
+        // the one written for this, then the others so a deployment that only
+        // configured its reasoning route still gets an agent. LOOPS filters, it
+        // does not rank: the order a provider is tried in is always the
+        // organisation's declared order, never a preference written in here.
+        foreach ([AvRouter::JOB_TOOLS, AvRouter::JOB_REASON, AvRouter::JOB_BULK] as $job) {
+            foreach (AvRouter::order($job) as $h) {
+                if (in_array($h, self::LOOPS, true)) return $h;
+            }
+        }
+        // No rule named a loop-capable provider at all. Take whatever is here.
+        foreach (self::LOOPS as $h) { if (AvRouter::configured($h)) return $h; }
         return '';
     }
 
@@ -94,7 +108,7 @@ final class AvAgent
         $provider = self::provider();
         $out['provider'] = $provider;
         if ($provider === '') {
-            $out['error'] = 'No AI provider is configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY or AV_GEMINI_API_KEY).';
+            $out['error'] = 'No AI provider is configured (set one of: ' . AvRouter::keyHint() . ').';
             return $out;
         }
 
@@ -122,6 +136,40 @@ final class AvAgent
             ? AvPrompts::render('assistant.console', [])
             : 'You are the Afrovanguard accountability assistant. Answer from the tools, never from assumption.';
         return $s;
+    }
+
+    /**
+     * One-shot completion on whichever provider this deployment has — no tools,
+     * no loop, just system + user in and text out.
+     *
+     * This exists because the fallback chain had been copied into six places
+     * (Meetings, Mentorship, Community, AvLab, Collab and Accountability), each
+     * with its own provider order, and none of them honouring AV_AGENT_PROVIDER —
+     * so the Studio's "provider" setting silently governed only the tool loop.
+     * AI-AUDIT.md A-13.
+     *
+     * It is now a thin wrapper over AvRouter, which added the two things this
+     * could not do: a job class, so a one-line nudge and a promotion review stop
+     * sharing a provider order, and a ledger entry per attempt. Callers keep the
+     * same signature and the same return, and pass `job` when their work is not
+     * the judgement kind.
+     *
+     * @return array{ok:bool,text:string,provider:string,error:?string}
+     */
+    public static function complete(string $system, string $user, array $opts = []): array
+    {
+        if (trim($user) === '') return ['ok' => false, 'text' => '', 'provider' => '', 'error' => 'Nothing to send.'];
+        if (!class_exists('AvRouter')) return ['ok' => false, 'text' => '', 'provider' => '', 'error' => 'Router unavailable.'];
+
+        $job = (string) ($opts['job'] ?? AvRouter::JOB_REASON);
+        $r = AvRouter::complete($job, $user, [
+            'system'      => $system,
+            'max_tokens'  => (int) ($opts['max_tokens'] ?? (class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048)),
+            'temperature' => (float) ($opts['temperature'] ?? 0.2),
+            'actor'       => (string) ($opts['actor'] ?? ''),
+        ]);
+        return ['ok' => (bool) $r['ok'], 'text' => (string) $r['text'],
+                'provider' => (string) $r['provider'], 'error' => $r['error']];
     }
 
     /* ════════════════════════════════════════════════════════════════
@@ -358,11 +406,7 @@ final class AvAgent
             ? AvTools::run($name, $input, $ctx)
             : ['error' => 'Tools are unavailable.'];
 
-        $json = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if (!is_string($json)) $json = '{"error":"Unserialisable tool result."}';
-        if (strlen($json) > self::MAX_RESULT_CHARS) {
-            $json = substr($json, 0, self::MAX_RESULT_CHARS) . '… [truncated]';
-        }
+        $json = self::boundResult($result);
 
         $out['steps'][] = [
             'tool'    => $name,
@@ -371,6 +415,32 @@ final class AvAgent
             'error'   => (string) ($result['error'] ?? ''),
             'preview' => mb_substr(preg_replace('/\s+/', ' ', $json) ?? '', 0, 400),
         ];
+        return $json;
+    }
+
+    /**
+     * A tool result as bounded text for the model.
+     *
+     * Public and pure so the encoding invariant can be tested without a provider.
+     *
+     * The cap is a BYTE budget — the point is to bound the request payload — but
+     * it must be cut with mb_strcut, never substr. JSON_UNESCAPED_UNICODE emits
+     * raw multi-byte UTF-8, and a byte-wise cut lands mid-character whenever the
+     * boundary falls inside one; the damaged string then makes the ENTIRE request
+     * unencodable, because json_encode() returns false on malformed UTF-8. The
+     * provider received an empty body and answered with a baffling 400. One curly
+     * quote in the wrong place on a fetched page was enough to trigger it.
+     *
+     * The truncated result is deliberately no longer valid JSON — the model reads
+     * it as text. It must still be valid UTF-8.
+     */
+    public static function boundResult(array $result): string
+    {
+        $json = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json)) return '{"error":"Unserialisable tool result."}';
+        if (strlen($json) > self::MAX_RESULT_CHARS) {
+            $json = mb_strcut($json, 0, self::MAX_RESULT_CHARS, 'UTF-8') . '… [truncated]';
+        }
         return $json;
     }
 

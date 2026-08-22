@@ -127,6 +127,18 @@ $knownMetaKeys = [
     'ngv_content', 'ngv_content_prev',
     'superadmin_seed_fp', 'superadmin_initial_password',
     'bday_sent', 'diary_ref_codes',
+    // Accountability (§13/§14). Reviewed: neither gates a migration.
+    // `accountability_from` is the cold-start watermark — escalations never look
+    // at sessions before it, so a lost value re-stamps to today and under-reports
+    // rather than escalating history at everyone. `accountability_last_run` is the
+    // once-a-day guard; a lost value costs one extra sweep, which is idempotent.
+    'accountability_from', 'accountability_last_run',
+    // Chat bot (lib/ChatBot). Reviewed: a cache of Google's PUBLIC signing
+    // certificates, TTL'd and refetched from Google's own endpoint. Losing it
+    // costs one HTTPS request. It holds no secret and gates no migration —
+    // and it is never trusted on its own: a key id absent from it is rejected
+    // rather than assumed valid, so a stale cache fails closed.
+    'chat_certs',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

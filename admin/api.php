@@ -92,6 +92,18 @@ try {
         'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
         'activity', 'activity_undo',
         'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
+        // Health names individuals and their attendance record, so it sits with
+        // the rest of mentorship rather than being readable by an editor.
+        'mentorship_health',
+        // The brief names individuals, their attendance and their promotion
+        // readiness. Same reasoning as mentorship_health.
+        'brief_latest', 'brief_run',
+        // The promotion queue names individuals and their readiness evidence.
+        'promotion_queue', 'promotion_review', 'promotion_defer', 'promotion_reopen',
+        // AI Ops reports provider keys' liveness, model spend and the escalation
+        // counts — infrastructure state, and it names no members but does expose
+        // which providers this deployment pays for. Management.
+        'aiops', 'aiops_cron',
         'mentorship_find_users', 'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign',
         'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'mentorship_export',
         'kb_list', 'kb_save', 'kb_delete', 'level_recommend',
@@ -340,8 +352,8 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $q = trim((string) ($body['q'] ?? ''));
             if (mb_strlen($q) < 3) json_out(['ok' => false, 'error' => 'Ask a fuller question.'], 422);
-            if (!AvBot::configured()) {
-                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set ANTHROPIC_API_KEY (via .htaccess SetEnv or config.php) to turn on the assistant. In the meantime, see the How-to sections on this page.']);
+            if (!AvRouter::available()) {
+                json_out(['ok' => true, 'configured' => false, 'answer' => 'The AI guide isn’t enabled yet. Set an AI provider key (via .htaccess SetEnv or config.php) to turn on the assistant — any one of: ' . AvRouter::keyHint() . '. In the meantime, see the How-to sections on this page.']);
             }
             $sys = "You are the Afrovanguard Studio Assistant — a concise, friendly in-app guide for the administrator of the Afrovanguard nonprofit website (afrovanguard.org.ng). "
                 . "Answer ONLY about operating this admin panel (\"the Studio\") and the public site. The Studio's sections are: "
@@ -350,10 +362,11 @@ try {
             $hist = [];
             foreach ((array) ($body['history'] ?? []) as $h) {
                 if (!is_array($h)) continue;
-                $hist[] = ['role' => (($h['role'] ?? '') === 'bot' ? 'bot' : 'member'), 'text' => (string) ($h['text'] ?? '')];
+                $hist[] = ['role' => (($h['role'] ?? '') === 'bot' ? 'assistant' : 'user'), 'text' => (string) ($h['text'] ?? '')];
             }
-            $ai = AvBot::reply($q, $hist, ['system' => $sys]);
-            json_out(['ok' => (bool) $ai['ok'], 'configured' => true, 'answer' => $ai['ok'] ? $ai['text'] : ('Sorry — the assistant couldn’t answer just now. ' . (string) ($ai['__error'] ?? ''))]);
+            $ai = AvRouter::complete(AvRouter::JOB_BULK, $q, ['system' => $sys, 'history' => $hist, 'actor' => 'studio.guide']);
+            json_out(['ok' => (bool) $ai['ok'], 'configured' => true,
+                      'answer' => $ai['ok'] ? $ai['text'] : ('Sorry — the assistant couldn’t answer just now. ' . (string) ($ai['error'] ?? ''))]);
         }
 
         /* ════ Mentorship & mentor–mentee management ════ */
@@ -361,6 +374,116 @@ try {
         case 'mentorship_mentors':  json_out(['ok' => true, 'mentors' => Mentorship::adminMentors((string) ($_GET['segment'] ?? ''), (string) ($_GET['approval'] ?? ''), (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_pairings': json_out(['ok' => true, 'pairings' => Mentorship::adminPairings((string) ($_GET['segment'] ?? ''), (string) ($_GET['status'] ?? ''), isset($_GET['cohort']) && $_GET['cohort'] !== '' ? (int) $_GET['cohort'] : -1, (string) ($_GET['q'] ?? ''))]);
         case 'mentorship_inactive': json_out(['ok' => true, 'pairs' => Mentorship::inactivePairs((int) ($_GET['days'] ?? 0))]);
+
+        /* ── Report §20 — the promotion queue. The AI writes the case; this
+           endpoint never changes a level. mem_save remains the one path that
+           does, so there is no second promote route to drift. ── */
+        case 'promotion_queue':
+            json_out(['ok' => true, 'queue' => Promotion::queue()]);
+
+        case 'promotion_review': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!av_rate_ok('promotion_review', 20, 600)) json_out(['ok' => false, 'error' => 'Too many reviews — wait a moment.'], 429);
+            $r = Promotion::review((int) ($body['user_id'] ?? 0), !empty($body['force']));
+            json_out(['ok' => !empty($r['ok']), 'review' => $r['review'] ?? null, 'error' => $r['reason'] ?? null]);
+        }
+
+        case 'promotion_defer': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $actor = av_admin_role() ?: 'admin';
+            $r = Promotion::defer((int) ($body['user_id'] ?? 0), (string) ($body['note'] ?? ''), $actor);
+            if (!empty($r['ok'])) AdminAudit::log('rules', 'promotion_deferred', (string) ($body['user_id'] ?? 0), 'Set a promotion review aside');
+            json_out($r, !empty($r['ok']) ? 200 : 422);
+        }
+
+        case 'promotion_reopen': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = Promotion::reopen((int) ($body['user_id'] ?? 0), av_admin_role() ?: 'admin');
+            json_out($r, !empty($r['ok']) ? 200 : 422);
+        }
+
+        // Report §21/§31/§38 — the leadership brief. Read the latest, or write one
+        // now. The figures are always counted, never inferred; see lib/Brief.php.
+        /* ════ AI Ops — is the machinery running, and what is it costing ════ */
+        case 'aiops': {
+            $days = (int) ($_GET['days'] ?? 7);
+            json_out(['ok' => true, 'ops' => AiOps::snapshot($days)]);
+        }
+
+        /* Run the scheduled tasks by hand. The board's most useful button: when
+           the heartbeat says cron is dead, the next question is always whether
+           the tasks themselves still work, and this answers it without shell
+           access. Deliberately NOT a force — it runs the same self-limiting
+           sweeps cron runs, so pressing it twice does nothing the second time. */
+        case 'aiops_cron': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $out = [];
+            $t0 = microtime(true);
+            if (class_exists('Accountability')) $out['accountability'] = AiOps::run('accountability', static fn() => Accountability::sweep());
+            if (class_exists('Agenda'))         $out['agendas']        = AiOps::run('agendas', static fn() => Agenda::sweep());
+            if (class_exists('MeetingClock'))   $out['meeting_clock']  = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
+            if (class_exists('Promotion'))      $out['promotions']     = AiOps::run('promotions', static fn() => Promotion::sweep());
+            if (class_exists('Brief')) {
+                AiOps::run('brief', static function () use (&$out) {
+                    $wrote = [];
+                    foreach (['week', 'month'] as $bp) {
+                        $g = Brief::generate($bp);
+                        if (empty($g['skipped'])) $wrote[] = $bp === 'week' ? 'the weekly brief' : 'the monthly brief';
+                    }
+                    $out['brief'] = $wrote ? implode(' and ', $wrote) : 'nothing due';
+                    return $wrote ? ['wrote' => implode(' and ', $wrote), 'skipped' => false]
+                                  : ['skipped' => true, 'why' => 'no brief was due'];
+                });
+            }
+            if (class_exists('AdminAudit')) { try { AdminAudit::log('rules', 'aiops_cron_run', '', 'Ran the scheduled AI tasks by hand from the Ops board'); } catch (Throwable $e) {} }
+            json_out(['ok' => true, 'ran' => $out, 'ms' => (int) round((microtime(true) - $t0) * 1000)]);
+        }
+
+        case 'brief_latest': {
+            $period = (string) ($_GET['period'] ?? 'week');
+            if (!in_array($period, Brief::periods(), true)) $period = 'week';
+            json_out(['ok' => true, 'period' => $period, 'brief' => Brief::latest($period)]);
+        }
+
+        case 'brief_run': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            // Each run is a model call and a full sweep of every pairing, so it is
+            // rate limited like the other AI actions rather than left to a button.
+            if (!av_rate_ok('brief_run', 6, 600)) json_out(['ok' => false, 'error' => 'Too many briefs — wait a moment.'], 429);
+            $period = (string) ($body['period'] ?? 'week');
+            if (!in_array($period, Brief::periods(), true)) json_out(['ok' => false, 'error' => 'Unknown period.'], 422);
+            $r = Brief::generate($period, true);
+            AdminAudit::log('rules', 'brief_generated', $period, 'Generated the ' . $period . ' leadership brief');
+            json_out(['ok' => !empty($r['ok']), 'period' => $period, 'brief' => Brief::latest($period)]);
+        }
+
+        // Report §15 — every active pairing graded Green/Amber/Red, worst first,
+        // each carrying the behaviour that produced the grade. §3A is explicit
+        // that character must not collapse to a number, so the reasons travel
+        // with the status and the UI shows them rather than a bare dot.
+        case 'mentorship_health': {
+            $rows = [];
+            foreach (Accountability::activePairs() as $p) {
+                $h = Accountability::health($p['id']);
+                $rows[] = [
+                    'id'      => $p['id'],
+                    'mentor'  => $p['mentor'],
+                    'mentee'  => $p['mentee'],
+                    'segment' => $p['segment'],
+                    'status'  => $h['status'],
+                    'rate'    => $h['rate'],
+                    'streak'  => $h['miss_streak'],
+                    'quiet'   => $h['quiet_days'],
+                    'reasons' => $h['reasons'],
+                    'escalations' => count(Accountability::historyFor($p['id'])),
+                ];
+            }
+            $rank = ['red' => 0, 'amber' => 1, 'green' => 2];
+            usort($rows, fn($a, $b) => [$rank[$a['status']], -$a['streak']] <=> [$rank[$b['status']], -$b['streak']]);
+            $counts = ['red' => 0, 'amber' => 0, 'green' => 0];
+            foreach ($rows as $r) $counts[$r['status']]++;
+            json_out(['ok' => true, 'pairs' => $rows, 'counts' => $counts, 'since' => Accountability::watermark()]);
+        }
         case 'mentorship_cohorts':  json_out(['ok' => true, 'cohorts' => Mentorship::listCohorts((string) ($_GET['segment'] ?? ''))]);
         case 'mentorship_find_users': json_out(['ok' => true, 'users' => Mentorship::findUsers((string) ($_GET['q'] ?? ''), (string) ($_GET['segment'] ?? ''))]);
         case 'mentorship_approve': {

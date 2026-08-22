@@ -62,6 +62,7 @@ if (preg_match('~^/auth/google/(start|callback|connect|disconnect)/?$~', $uri, $
 
 // Google real-time push receiver (Calendar/Drive watch channels).
 if (preg_match('~^/webhooks/google/?$~', $uri)) { require __DIR__ . '/webhooks/google.php'; return true; }
+if (preg_match('~^/webhooks/chat/?$~', $uri)) { require __DIR__ . '/webhooks/chat.php'; return true; }
 
 // Member portal (real /portal/ folder in prod; routed here for dev).
 if (preg_match('~^/portal/?$~', $uri)) { require __DIR__ . '/portal/index.php'; return true; }

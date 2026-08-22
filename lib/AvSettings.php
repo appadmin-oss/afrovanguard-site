@@ -117,9 +117,53 @@ final class AvSettings
 
         /* ── Which provider does what ─────────────────────────────────── */
         'AV_AGENT_PROVIDER' => [
-            'group' => 'Assistant', 'label' => 'Provider for tool use', 'secret' => false, 'type' => 'enum',
-            'options' => ['', 'anthropic', 'openai', 'gemini'],
-            'help' => 'Which model runs the tool-using assistant. Blank auto-detects in the order Claude → OpenAI → Gemini, because that is the order they handle multi-step tool chains well in.',
+            'group' => 'Assistant', 'label' => 'Force a provider', 'secret' => false, 'type' => 'enum',
+            'options' => ['', 'openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'together', 'deepseek', 'cerebras', 'local'],
+            'help' => 'An override, and normally blank. Routing lives in Rules & AI → the ai.route_* rules, which set a ranked list per kind of work; naming a provider here promotes it to the front of every one of those lists without discarding their fallbacks. Useful for pinning a provider while you diagnose another. The tool-using assistant additionally ignores any provider with no tool loop implemented.',
+        ],
+
+        /* ── The Google Chat task bot ─────────────────────────────────── */
+        'AV_CHAT_AUDIENCE' => [
+            'group' => 'Chat task bot', 'label' => 'Chat app audience', 'secret' => false, 'type' => 'text',
+            'ph' => '123456789012',
+            'help' => 'Required, and the bot refuses every request without it. This is the Google Cloud project number of your Chat app (or the custom audience configured on it). It is the claim that stops a token minted for somebody else\'s Chat app being accepted here. Point the app\'s endpoint at https://your-domain/webhooks/chat.',
+        ],
+        'AV_CHAT_CERTS_URL' => [
+            'group' => 'Chat task bot', 'label' => 'Certificate endpoint override', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://www.googleapis.com/service_accounts/v1/metadata/x509/chat@system.gserviceaccount.com',
+            'help' => 'Leave blank. Only needed if Google moves where it publishes the public keys that Chat events are signed with.',
+        ],
+
+        /* ── The support tier: OpenAI-wire endpoints, keyed per vendor ── */
+        'GROQ_API_KEY' => [
+            'group' => 'Support tier', 'label' => 'Groq API key', 'secret' => true, 'type' => 'text',
+            'ph' => 'gsk_…',
+            'help' => 'The cheap, fast tier the bulk routing rule points at by default — reminder wording, catch-up summaries, classifications. Free at the volume an organisation this size generates. Get one at console.groq.com.',
+        ],
+        'AV_GROQ_MODEL' => [
+            'group' => 'Support tier', 'label' => 'Groq model', 'secret' => false, 'type' => 'text',
+            'ph' => 'llama-3.3-70b-versatile',
+            'help' => 'Leave blank for the default. These vendors rename and retire models faster than the frontier labs, so a sudden run of failures on the AI Ops board is worth checking here first.',
+        ],
+        'OPENROUTER_API_KEY' => [
+            'group' => 'Support tier', 'label' => 'OpenRouter API key', 'secret' => true, 'type' => 'text',
+            'ph' => 'sk-or-…',
+            'help' => 'One key, many models. Useful for trying a model before committing to its vendor. Set AV_OPENROUTER_MODEL to choose.',
+        ],
+        'DEEPSEEK_API_KEY' => [
+            'group' => 'Support tier', 'label' => 'DeepSeek API key', 'secret' => true, 'type' => 'text',
+            'ph' => 'sk-…',
+            'help' => 'Cheap reasoning. Add it to a routing rule to use it.',
+        ],
+        'CEREBRAS_API_KEY' => [
+            'group' => 'Support tier', 'label' => 'Cerebras API key', 'secret' => true, 'type' => 'text',
+            'ph' => 'csk-…',
+            'help' => 'The fastest tokens per second of the support tier.',
+        ],
+        'AV_LOCAL_BASE_URL' => [
+            'group' => 'Support tier', 'label' => 'Local model endpoint', 'secret' => false, 'type' => 'url',
+            'ph' => 'http://127.0.0.1:11434/v1',
+            'help' => 'Ollama, llama.cpp or vLLM on this host. Costs nothing and sends nothing to a vendor — but shared hosting rarely has one. Setting this or AV_LOCAL_MODEL is what marks it available.',
         ],
 
         /* ── The meeting notetaker ────────────────────────────────────── */

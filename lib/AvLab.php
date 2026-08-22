@@ -110,10 +110,9 @@ final class AvLab
     {
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) return 'AI is switched off (ai.enabled).';
         if ($key === 'tool') return '';
-        $haveAi = (class_exists('Gemini') && Gemini::configured())
-               || (class_exists('OpenAi') && OpenAi::configured())
-               || (class_exists('AvBot') && AvBot::configured());
-        if (!$haveAi) return 'No AI provider configured (set AV_GEMINI_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY).';
+        if (!class_exists('AvRouter') || !AvRouter::available()) {
+            return 'No AI provider configured (set one of: ' . AvRouter::keyHint() . ').';
+        }
         if ($key === 'assistant.console' && !AvAgent::available()) return 'No provider available for tool use.';
         if ($key === 'knowledge.distil' && (!class_exists('AvWeb') || !AvWeb::available('web_fetch'))) {
             return 'Web fetching unavailable: ' . AvWeb::whyUnavailable('web_fetch') . '.';
@@ -281,25 +280,20 @@ final class AvLab
 
     /* ── shared ───────────────────────────────────────────────────── */
 
-    /** One-shot completion on whichever provider is configured. */
+    /**
+     * One-shot completion, routed.
+     *
+     * The Lab exists to show what a prompt does in production, so it must use
+     * the production routing — a console that quietly preferred a different
+     * provider from the live path would be testing the wrong thing.
+     */
     private static function complete(string $system, string $user): array
     {
-        if (class_exists('Gemini') && Gemini::configured()) {
-            $r = Gemini::generate($user, ['system' => $system, 'max_tokens' => 2048, 'temperature' => 0.2]);
-            if (!empty($r['ok'])) return ['ok' => true, 'text' => (string) $r['text'], 'via' => 'gemini'];
-            $err = (string) ($r['error'] ?? '');
-        }
-        if (class_exists('OpenAi') && OpenAi::configured()) {
-            $r = OpenAi::generate($user, ['system' => $system, 'max_tokens' => 2048, 'temperature' => 0.2]);
-            if (!empty($r['ok'])) return ['ok' => true, 'text' => (string) $r['text'], 'via' => 'openai'];
-            $err = (string) ($r['error'] ?? ($err ?? ''));
-        }
-        if (class_exists('AvBot') && AvBot::configured()) {
-            $r = AvBot::reply(mb_substr($user, 0, 11000), [], ['system' => $system, 'max_tokens' => 1500]);
-            if (!empty($r['ok'])) return ['ok' => true, 'text' => (string) $r['text'], 'via' => 'anthropic'];
-            $err = (string) ($r['error'] ?? ($err ?? ''));
-        }
-        return ['ok' => false, 'error' => $err ?? 'No AI provider is configured.'];
+        $r = class_exists('AvAgent')
+            ? AvAgent::complete($system, $user, ['max_tokens' => 2048, 'temperature' => 0.2, 'actor' => 'avlab'])
+            : ['ok' => false, 'error' => 'Router unavailable.'];
+        if (!empty($r['ok'])) return ['ok' => true, 'text' => (string) $r['text'], 'via' => (string) ($r['provider'] ?? '')];
+        return ['ok' => false, 'error' => (string) ($r['error'] ?? 'No AI provider is configured.')];
     }
 
     private static function json(string $s)

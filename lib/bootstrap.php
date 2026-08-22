@@ -262,6 +262,10 @@ require_once __DIR__ . '/AppTokens.php';
 require_once __DIR__ . '/AvBot.php';
 require_once __DIR__ . '/Gemini.php';
 require_once __DIR__ . '/OpenAi.php';
+require_once __DIR__ . '/AiCompat.php';   // Groq and the other OpenAI-wire endpoints
+require_once __DIR__ . '/AvRouter.php';   // which model answers which job, and the call ledger
+require_once __DIR__ . '/AiOps.php';     // cron heartbeat, model spend, and the alert list
+require_once __DIR__ . '/ChatBot.php';   // the Google Chat task bot
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
 require_once __DIR__ . '/Prefs.php';
@@ -294,6 +298,22 @@ require_once __DIR__ . '/AvWeb.php';
 require_once __DIR__ . '/AvTools.php';
 require_once __DIR__ . '/AvAgent.php';
 require_once __DIR__ . '/AvLab.php';
+// The engine that acts on the rules: meeting cadence, the escalation ladder and
+// relationship health (report §13, §14, §15). Loads after Mentorship, AvRules,
+// AvPrompts and Notifications, all of which it reads.
+require_once __DIR__ . '/Accountability.php';
+// The leadership brief (report §21, §31, §38). Loads after Accountability,
+// Levels and Commitments — it reads all three to count its figures.
+require_once __DIR__ . '/Brief.php';
+// Agenda drafting (report §7, §8). Reads Meetings and Commitments; proposes
+// only — the chair approves before anything reaches meetings.agenda.
+require_once __DIR__ . '/Agenda.php';
+// AI-assisted promotion review (report §20). Reads Levels and Mentorship;
+// recommends only — mem_save remains the one path that changes a level.
+require_once __DIR__ . '/Promotion.php';
+// In-meeting time management (report §10). Reads the agenda §7 produced and
+// warns against it; the portal countdown is exact, cron is the backstop.
+require_once __DIR__ . '/MeetingClock.php';
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without

@@ -34,6 +34,9 @@ final class Gemini
         return '';
     }
 
+    /** Every generate() carries a usage block, so callers never have to test for it. */
+    const ZERO_USAGE = ['in' => 0, 'out' => 0];
+
     public static function configured(): bool { return self::apiKey() !== ''; }
     public static function model(): string { return self::cfg('AV_GEMINI_MODEL', self::DEFAULT_MODEL); }
     private static function base(): string { return rtrim(self::cfg('AV_GEMINI_BASE_URL', self::DEFAULT_BASE), '/'); }
@@ -49,17 +52,21 @@ final class Gemini
         // Kept out of configured(), which must stay truthful about credentials for
         // the System health page.
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
-            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
+            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.', 'usage' => self::ZERO_USAGE];
         }
-        if (!self::configured()) return ['ok' => false, 'text' => '', 'error' => 'Gemini is not configured (set AV_GEMINI_API_KEY).'];
+        if (!self::configured()) return ['ok' => false, 'text' => '', 'error' => 'Gemini is not configured (set AV_GEMINI_API_KEY).', 'usage' => self::ZERO_USAGE];
 
         $parts = [];
         if (trim($prompt) !== '') $parts[] = ['text' => mb_substr($prompt, 0, 200000)];
         foreach (($opts['parts'] ?? []) as $p) { if (is_array($p)) $parts[] = $p; }
-        if (!$parts) return ['ok' => false, 'text' => '', 'error' => 'Nothing to send.'];
+        if (!$parts) return ['ok' => false, 'text' => '', 'error' => 'Nothing to send.', 'usage' => self::ZERO_USAGE];
+
+        $contents = [];
+        foreach (self::historyContents($opts['history'] ?? []) as $c) $contents[] = $c;
+        $contents[] = ['role' => 'user', 'parts' => $parts];
 
         $payload = [
-            'contents' => [['role' => 'user', 'parts' => $parts]],
+            'contents' => $contents,
             'generationConfig' => [
                 'maxOutputTokens' => max(64, min(8192, (int) ($opts['max_tokens'] ?? 2048))),
                 'temperature'     => (float) ($opts['temperature'] ?? 0.2),
@@ -72,19 +79,44 @@ final class Gemini
         $model = self::model();
         $url = self::base() . '/models/' . rawurlencode($model) . ':generateContent?key=' . rawurlencode(self::apiKey());
         $res = self::http($url, $payload);
-        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => $res['__error']];
+        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => $res['__error'], 'usage' => self::ZERO_USAGE];
+
+        // Gemini names its counters differently from the other two; normalising
+        // here is what lets AvRouter record all providers with one code path. A-9.
+        $usage = ['in'  => (int) ($res['usageMetadata']['promptTokenCount'] ?? 0),
+                  'out' => (int) ($res['usageMetadata']['candidatesTokenCount'] ?? 0)];
 
         // A blocked prompt returns promptFeedback.blockReason and no candidates.
         if (!empty($res['promptFeedback']['blockReason'])) {
-            return ['ok' => false, 'text' => '', 'error' => 'blocked: ' . $res['promptFeedback']['blockReason']];
+            return ['ok' => false, 'text' => '', 'error' => 'blocked: ' . $res['promptFeedback']['blockReason'], 'usage' => $usage];
         }
         $text = '';
         foreach (($res['candidates'][0]['content']['parts'] ?? []) as $p) {
             if (isset($p['text'])) $text .= (string) $p['text'];
         }
         $text = trim($text);
-        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty Gemini response.'];
-        return ['ok' => true, 'text' => $text, 'error' => null];
+        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty Gemini response.', 'usage' => $usage];
+        return ['ok' => true, 'text' => $text, 'error' => null, 'usage' => $usage];
+    }
+
+    /**
+     * Prior turns as Gemini `contents`. Gemini calls the assistant role 'model',
+     * which is the whole reason this conversion exists.
+     *
+     * @param mixed $history [['role'=>'user'|'assistant','text'=>string], …]
+     */
+    public static function historyContents($history): array
+    {
+        if (!is_array($history)) return [];
+        $out = [];
+        foreach (array_slice($history, -40) as $h) {
+            if (!is_array($h)) continue;
+            $t = trim((string) ($h['text'] ?? ''));
+            if ($t === '') continue;
+            $role = in_array(($h['role'] ?? ''), ['assistant', 'bot', 'model'], true) ? 'model' : 'user';
+            $out[] = ['role' => $role, 'parts' => [['text' => mb_substr($t, 0, 4000)]]];
+        }
+        return $out;
     }
 
     /**
@@ -134,13 +166,17 @@ final class Gemini
     private static function http(string $url, array $payload): array
     {
         if (!function_exists('curl_init')) return ['__error' => 'curl unavailable'];
+        // See AvBot::http() — an unchecked json_encode() turns malformed UTF-8
+        // anywhere in the payload into an empty request body.
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) return ['__error' => 'Could not encode the request: ' . json_last_error_msg()];
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_TIMEOUT        => 120,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            CURLOPT_POSTFIELDS     => $json,
             CURLOPT_HTTPHEADER     => ['content-type: application/json'],
         ]);
         $body = curl_exec($ch);

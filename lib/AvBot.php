@@ -29,6 +29,14 @@ final class AvBot
     const API_VERSION      = '2023-06-01';
     const DEFAULT_MODEL    = 'claude-opus-4-8';
 
+    /** Total characters of thread + question sent as the user turn. */
+    /** Every reply carries a usage block, so callers never have to test for it. */
+    const ZERO_USAGE = ['in' => 0, 'out' => 0];
+
+    const MAX_PROMPT_CHARS   = 12000;
+    /** Of that, the most the member's own question may take. Reserved first. */
+    const MAX_QUESTION_CHARS = 4000;
+
     public static function configured(): bool
     {
         return class_exists('Config') ? Config::has('ANTHROPIC_API_KEY') : (getenv('ANTHROPIC_API_KEY') ? true : false);
@@ -82,54 +90,109 @@ SYS;
     public static function reply(string $userText, array $history = [], array $opts = []): array
     {
         $userText = trim($userText);
-        if ($userText === '') return ['ok' => false, 'text' => '', 'error' => 'Empty prompt.'];
+        if ($userText === '') return ['ok' => false, 'text' => '', 'error' => 'Empty prompt.', 'usage' => self::ZERO_USAGE];
         // The Studio master switch is enforced at the network call, so it covers
         // EVERY caller rather than only the ones that remember to ask. It is
         // deliberately not folded into configured(), which must keep reporting
         // truthfully on credentials for the System health page.
         if (class_exists('AvRules') && !AvRules::bool('ai.enabled')) {
-            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.'];
+            return ['ok' => false, 'text' => '', 'error' => 'AI assistance is switched off in the Studio rules.', 'usage' => self::ZERO_USAGE];
         }
         if (!self::configured()) {
-            return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).'];
+            return ['ok' => false, 'text' => '', 'error' => 'AI is not configured (set ANTHROPIC_API_KEY).', 'usage' => self::ZERO_USAGE];
         }
-
-        // Bound how many prior turns we fold in — a caller (esp. the integration
-        // API's bot.ask) could pass an arbitrarily long context; keep the most
-        // recent turns so we don't build a huge string before the prompt cap.
-        if (count($history) > 40) $history = array_slice($history, -40);
-
-        $context = '';
-        foreach ($history as $h) {
-            $who = (($h['role'] ?? '') === 'bot') ? 'Afrovanguard (you)' : ('Member' . (!empty($h['name']) ? ' ' . $h['name'] : ''));
-            $txt = trim((string) ($h['text'] ?? ''));
-            if ($txt !== '') $context .= $who . ': ' . mb_substr($txt, 0, 1200) . "\n";
-        }
-        $prompt = $context !== ''
-            ? "Here is the community thread so far:\n\n" . $context . "\nReply to the latest message:\n" . $userText
-            : $userText;
 
         $payload = [
             'model'      => self::model(),
             'max_tokens' => max(64, min(2048, (int) ($opts['max_tokens'] ?? 1024))),
             'system'     => trim((string) ($opts['system'] ?? '')) !== '' ? (string) $opts['system'] : self::systemPrompt(),
-            'messages'   => [['role' => 'user', 'content' => mb_substr($prompt, 0, 12000)]],
+            'messages'   => [['role' => 'user', 'content' => self::composePrompt($userText, $history)]],
         ];
 
         $res = self::http($payload);
-        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => $res['__error']];
+        if (isset($res['__error'])) return ['ok' => false, 'text' => '', 'error' => $res['__error'], 'usage' => self::ZERO_USAGE];
+
+        // Token counts ride back on every reply, success or refusal, because a
+        // refused call still costs input tokens. AvRouter records them; nothing
+        // else reads the key, so adding it breaks no existing caller. A-9.
+        $usage = ['in'  => (int) ($res['usage']['input_tokens'] ?? 0),
+                  'out' => (int) ($res['usage']['output_tokens'] ?? 0)];
 
         // Opus 4.8 can decline via stop_reason "refusal" (content empty/partial).
         if (($res['stop_reason'] ?? '') === 'refusal') {
-            return ['ok' => false, 'text' => '', 'error' => 'declined', 'refusal' => true];
+            return ['ok' => false, 'text' => '', 'error' => 'declined', 'refusal' => true, 'usage' => $usage];
         }
         $text = '';
         foreach (($res['content'] ?? []) as $block) {
             if (($block['type'] ?? '') === 'text') $text .= (string) ($block['text'] ?? '');
         }
         $text = trim($text);
-        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty AI response.'];
-        return ['ok' => true, 'text' => $text, 'error' => null];
+        if ($text === '') return ['ok' => false, 'text' => '', 'error' => 'Empty AI response.', 'usage' => $usage];
+        return ['ok' => true, 'text' => $text, 'error' => null, 'usage' => $usage];
+    }
+
+    /**
+     * Fold a thread and the member's question into one user turn.
+     *
+     * Public and pure so it can be tested without a provider — the bug it exists
+     * to prevent is a string-assembly bug, and string assembly should not need
+     * an API key to verify.
+     *
+     * It budgets the PARTS, not the composed whole. 40 turns × 1200 characters is
+     * 48,000, and the question sits at the end of the string, so capping the
+     * composed prompt cut from the end: a busy thread reached the model as a wall
+     * of context with the member's actual question — and the instruction to
+     * answer it — both gone. Nothing logged it; the model simply answered
+     * whatever it could still see.
+     *
+     * So the question is reserved first, and the thread gets what is left, oldest
+     * turns dropped whole until it fits. The result is bounded by construction to
+     * MAX_PROMPT_CHARS; no caller should re-truncate it, because a truncating cap
+     * is exactly what made the original fault invisible.
+     */
+    public static function composePrompt(string $userText, array $history = []): string
+    {
+        $userText = trim($userText);
+
+        // Bound how many prior turns we fold in — a caller (especially the
+        // integration API's bot.ask) could pass an arbitrarily long context, and
+        // the budgeting below would otherwise rebuild a huge string per dropped
+        // turn. Keep the most recent.
+        if (count($history) > 40) $history = array_slice($history, -40);
+
+        $lines = [];
+        foreach ($history as $h) {
+            if (!is_array($h)) continue;
+            $who = (($h['role'] ?? '') === 'bot') ? 'Afrovanguard (you)' : ('Member' . (!empty($h['name']) ? ' ' . $h['name'] : ''));
+            $txt = trim((string) ($h['text'] ?? ''));
+            if ($txt !== '') $lines[] = $who . ': ' . mb_substr($txt, 0, 1200);
+        }
+
+        // With no thread, nothing is competing for the budget, so the text gets
+        // all of it. This case is NOT hypothetical and the reserve must not be
+        // applied to it: Meetings::structure(), Mentorship::structureSession()
+        // and AvLab::complete() all hand an ~11,000-character transcript in here
+        // with an empty history. Capping that at the question reserve would
+        // truncate a meeting to its first few minutes — the same silent
+        // shortening this method exists to stop.
+        if (!$lines) return mb_substr($userText, 0, self::MAX_PROMPT_CHARS);
+
+        // Only once a thread is competing does the question get a reserve.
+        $question = mb_substr($userText, 0, self::MAX_QUESTION_CHARS);
+        $head     = "Here is the community thread so far:\n\n";
+        $tail     = "\nReply to the latest message:\n" . $question;
+        $budget   = self::MAX_PROMPT_CHARS - mb_strlen($head) - mb_strlen($tail);
+
+        $context = '';
+        while ($lines) {
+            $candidate = implode("\n", $lines) . "\n";
+            if (mb_strlen($candidate) <= $budget) { $context = $candidate; break; }
+            array_shift($lines);                  // drop the OLDEST turn, try again
+        }
+        // Every turn was dropped and it still would not fit: send the question
+        // alone. A question with no thread is answerable; a thread with no
+        // question is not.
+        return $context !== '' ? $head . $context . $tail : $question;
     }
 
     /**
@@ -157,13 +220,19 @@ SYS;
     private static function http(array $payload): array
     {
         if (!function_exists('curl_init')) return ['__error' => 'curl unavailable'];
+        // Encode before the handle exists, and check it. json_encode() returns
+        // false on malformed UTF-8 anywhere in the payload; handed straight to
+        // CURLOPT_POSTFIELDS that false becomes an empty body and the failure
+        // surfaces as a baffling 400 from the provider instead of here.
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) return ['__error' => 'Could not encode the request: ' . json_last_error_msg()];
         $ch = curl_init(self::endpoint());
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
             CURLOPT_TIMEOUT        => 45,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            CURLOPT_POSTFIELDS     => $json,
             CURLOPT_HTTPHEADER     => [
                 'content-type: application/json',
                 'x-api-key: ' . self::apiKey(),

@@ -859,20 +859,22 @@ final class Mentorship
             : 'Summarise this mentorship session as STRICT JSON with summary, progress, obstacles, commitments and next_focus.';
         $chars  = class_exists('AvRules') ? AvRules::int('meetings.transcript_char_limit') : 20000;
         $maxTok = class_exists('AvRules') ? AvRules::int('ai.max_tokens') : 2048;
-        $prompt = "Transcript:\n\n" . mb_substr($raw, 0, max(1000, $chars));
+        // No max(1000, …) floor here. The rule's own min bound is 1000, so the
+        // clamp was dead — and while the rule was undefined it was worse than
+        // dead: it turned a missing key into a silent 1000-character truncation.
+        // A bad value now fails loudly instead, because the alternative is
+        // minutes confidently written from an empty transcript.
+        if ($chars <= 0) return ['ok' => false, 'error' => 'meetings.transcript_char_limit is misconfigured (' . $chars . ').'];
+        $prompt = "Transcript:\n\n" . mb_substr($raw, 0, $chars);
 
-        $res = null;
-        if (class_exists('Gemini') && Gemini::configured()) {
-            $res = Gemini::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
-        }
-        if ((!$res || empty($res['ok'])) && class_exists('OpenAi') && OpenAi::configured()) {
-            $res = OpenAi::generate($prompt, ['system' => $sys, 'max_tokens' => $maxTok, 'temperature' => 0.1]);
-        }
-        if ((!$res || empty($res['ok'])) && class_exists('AvBot') && AvBot::configured()) {
-            $res = AvBot::reply(mb_substr($prompt, 0, 11000), [], ['system' => $sys, 'max_tokens' => min($maxTok, 1500)]);
-        }
-        if (!$res || empty($res['ok'])) {
-            return ['ok' => false, 'error' => (string) ($res['error'] ?? 'AI is not configured (set AV_GEMINI_API_KEY).')];
+        // Reason: a session's commitments and their owners come out of this, and
+        // getting an owner wrong files somebody else's promise against a name.
+        $res = class_exists('AvAgent')
+            ? AvAgent::complete($sys, $prompt, ['max_tokens' => $maxTok, 'temperature' => 0.1,
+                                                'actor' => 'mentorship.structure'])
+            : ['ok' => false, 'error' => 'Router unavailable.'];
+        if (empty($res['ok'])) {
+            return ['ok' => false, 'error' => (string) ($res['error'] ?? 'No AI provider is configured.')];
         }
 
         $j = self::extractJson((string) $res['text']);

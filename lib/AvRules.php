@@ -74,19 +74,16 @@ final class AvRules
 
         /* ── Relationship health (report §15) ── */
         'health.amber_attendance_pct' => [
-            'pending' => 'relationship health',
             'type' => 'int', 'default' => 70, 'min' => 0, 'max' => 100, 'group' => 'Health',
             'label' => 'Amber below attendance (%)',
             'help'  => 'Attendance rate under this puts a relationship in Amber.',
         ],
         'health.red_attendance_pct' => [
-            'pending' => 'relationship health',
             'type' => 'int', 'default' => 40, 'min' => 0, 'max' => 100, 'group' => 'Health',
             'label' => 'Red below attendance (%)',
             'help'  => 'Attendance rate under this puts a relationship in Red. Must be below the Amber threshold.',
         ],
         'health.red_missed_streak' => [
-            'pending' => 'relationship health',
             'type' => 'int', 'default' => 3, 'min' => 1, 'max' => 20, 'group' => 'Health',
             'label' => 'Red after consecutive misses',
             'help'  => 'Consecutive missed meetings that force Red regardless of the overall rate.',
@@ -104,7 +101,6 @@ final class AvRules
             'help'  => 'On the final step, inform the next level up (Mentor → Mentor\'s leader).',
         ],
         'escalation.cooldown_days' => [
-            'pending' => 'the escalation ladder',
             'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 90, 'group' => 'Escalation',
             'label' => 'Cooldown between escalations (days)',
             'help'  => 'Minimum gap between two escalations on the same relationship, so a quiet month cannot produce a pile of notices.',
@@ -181,13 +177,11 @@ final class AvRules
 
         /* ── Meetings (report §7–10) ── */
         'meetings.ai_agenda' => [
-            'pending' => 'agenda drafting',
             'type' => 'bool', 'default' => true, 'group' => 'Meetings',
             'label' => 'Propose agendas with AI',
             'help'  => 'Draft an agenda for a meeting that has none, from prior minutes and open commitments. Always a draft for the chair to approve (§7).',
         ],
         'meetings.warn_minutes' => [
-            'pending' => 'in-meeting timing',
             'type' => 'csv', 'default' => '20,10,5', 'group' => 'Meetings',
             'label' => 'Time warnings (minutes remaining)',
             'help'  => 'When to warn that a meeting is nearing its scheduled end (§10). The report calls these configurable.',
@@ -211,6 +205,11 @@ final class AvRules
             'type' => 'bool', 'default' => true, 'group' => 'Meetings',
             'label' => 'Announce the notetaker to participants',
             'help'  => 'Keep this ON. The bot appears in the participant list by name, but people deserve to be told in the invite that a meeting is being transcribed, not to discover it. Turning this off does not hide the bot — it only removes the notice.',
+        ],
+        'meetings.transcript_char_limit' => [
+            'type' => 'int', 'default' => 20000, 'min' => 1000, 'max' => 200000, 'group' => 'Meetings',
+            'label' => 'Transcript characters sent for summarising',
+            'help'  => 'How much of a raw transcript reaches the model when minutes are written. Longer costs more per meeting; too short and the model never sees the end of the discussion, where the decisions usually are.',
         ],
 
         /* ── The AI itself (report §23) ── */
@@ -252,6 +251,49 @@ final class AvRules
             'type' => 'int', 'default' => 6, 'min' => 1, 'max' => 20, 'group' => 'AI',
             'label' => 'Maximum tool round-trips per request',
             'help'  => 'How many times the AI may call a tool and think again before it must answer. This is a cost and latency ceiling as much as a safety one — each round-trip is another model call.',
+        ],
+
+        /* ── The Google Chat task bot (see lib/ChatBot) ── */
+        'chat.enabled' => [
+            'type' => 'bool', 'default' => true, 'group' => 'AI',
+            'label' => 'Record tasks from Google Chat',
+            'help'  => 'When on, the Chat app turns "Bode to submit the report by Friday" into a tracked commitment on the same board as meeting minutes. It still needs AV_CHAT_AUDIENCE set in System — without that it refuses every request rather than accepting an unverified one.',
+        ],
+        'chat.allowed_spaces' => [
+            'type' => 'csv', 'default' => '', 'allow_empty' => true, 'group' => 'AI',
+            'label' => 'Restrict the bot to these Chat spaces',
+            'help'  => 'Blank — the default — means any space the app has been added to. That is usually right, because the real gate is that the sender must match a member account. Fill this in (space ids like spaces/AAAA…) only if the app is in rooms that include people outside the organisation.',
+        ],
+
+        /* ── Which model answers which job (see lib/AvRouter) ── */
+        'ai.route_reason' => [
+            'type' => 'csv', 'default' => 'openai,anthropic,gemini,groq', 'group' => 'AI',
+            'item_pattern' => '/^[a-z][a-z0-9_]{1,23}$/',
+            'label' => 'Routing — work that needs judgement',
+            'help'  => 'Ranked providers for briefs, promotion reviews, agenda drafts and minutes. Each is tried in turn until one answers. Names: openai, anthropic, gemini, groq, openrouter, together, deepseek, cerebras, local. A provider with no API key configured is skipped, so listing one costs nothing.',
+        ],
+        'ai.route_bulk' => [
+            'type' => 'csv', 'default' => 'groq,gemini,openai,anthropic', 'group' => 'AI',
+            'item_pattern' => '/^[a-z][a-z0-9_]{1,23}$/',
+            'label' => 'Routing — high-volume, low-stakes work',
+            'help'  => 'Ranked providers for reminder wording, classifications and short summaries. This is the cheap tier: the work is read in three seconds and a frontier model adds nothing to it. Ships pointing at Groq first because it is fast and free at this volume.',
+        ],
+        'ai.route_tools' => [
+            'type' => 'csv', 'default' => 'openai,anthropic,gemini', 'group' => 'AI',
+            'item_pattern' => '/^[a-z][a-z0-9_]{1,23}$/',
+            'label' => 'Routing — the tool-using assistant',
+            'help'  => 'Ranked providers for the assistant that can look things up for itself. Only these three have tool loops implemented; the support-tier endpoints are completion-only, so naming one here has no effect.',
+        ],
+        'ai.fallback' => [
+            'type' => 'bool', 'default' => true, 'group' => 'AI',
+            'label' => 'Fall through to the next provider on failure',
+            'help'  => 'On, a provider outage is invisible — the next one in the list answers. Off, a failed call fails, which is what you want while you are diagnosing one provider and do not want another quietly covering for it.',
+        ],
+
+        'ai.max_tokens' => [
+            'type' => 'int', 'default' => 2048, 'min' => 256, 'max' => 8192, 'group' => 'AI',
+            'label' => 'Maximum tokens per AI response',
+            'help'  => 'The output ceiling for one model call. Higher costs more and allows longer answers; too low and a reply is cut off mid-sentence, or a tool call is cut off mid-argument. 2048 is roughly 1,500 words.',
         ],
     ];
 
@@ -407,7 +449,15 @@ final class AvRules
 
             case 'csv':
                 $parts = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn($p) => $p !== ''));
-                if (!$parts) return null;
+                // A csv rule whose meaning includes "none" has to be able to say
+                // so. Every csv rule until now was a list that must never be
+                // empty (the level ladder, the warning marks), so rejecting an
+                // empty value was right. `chat.allowed_spaces` is the other
+                // shape — a restriction, where blank means "no restriction" —
+                // and without this flag an administrator who set it once could
+                // never clear it from the Studio again. A one-way door in a
+                // settings page is a bug, not a safeguard.
+                if (!$parts) return !empty($def['allow_empty']) ? '' : null;
                 // Some csv rules feed places where arbitrary text is unsafe or
                 // meaningless (ladder codes reach a DDL default and a UI badge),
                 // so a rule may constrain its own items.

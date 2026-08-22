@@ -365,16 +365,13 @@ Be concise and factual. Do NOT invent anything not in the transcript. No preambl
 SYS;
         $prompt = "Channel: #{$channel}\n\nTranscript (oldest first):\n" . mb_substr($transcript, 0, 11000);
 
-        $res = null; $via = '';
-        if (class_exists('AvBot') && AvBot::configured()) {
-            $res = AvBot::reply($prompt, [], ['system' => $system, 'max_tokens' => 700]); $via = 'claude';
-            if (empty($res['ok']) && class_exists('Gemini') && Gemini::configured()) $res = null;
-        }
-        if ($res === null && class_exists('Gemini') && Gemini::configured()) {
-            $res = Gemini::generate($prompt, ['system' => $system, 'max_tokens' => 700, 'temperature' => 0.2]); $via = 'gemini';
-        }
-        if (!$res || empty($res['ok'])) return ['ok' => false, 'summary' => '', 'error' => (string) ($res['error'] ?? 'AI request failed.')];
-        return ['ok' => true, 'summary' => trim((string) $res['text']), 'error' => null, 'via' => $via];
+        // Bulk: a catch-up someone skims before rejoining a channel.
+        $res = class_exists('AvAgent')
+            ? AvAgent::complete($system, $prompt, ['job' => 'bulk', 'max_tokens' => 700,
+                                                   'temperature' => 0.2, 'actor' => 'community.catchup'])
+            : ['ok' => false, 'error' => 'Router unavailable.'];
+        if (empty($res['ok'])) return ['ok' => false, 'summary' => '', 'error' => (string) ($res['error'] ?? 'AI request failed.')];
+        return ['ok' => true, 'summary' => trim((string) $res['text']), 'error' => null, 'via' => (string) ($res['provider'] ?? '')];
     }
 
     /** Data-classification levels for posts (least → most sensitive). */

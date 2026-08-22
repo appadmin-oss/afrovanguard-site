@@ -482,11 +482,43 @@ foreach ($dsc3['groups'] as $rows) {
         if ($row['key'] === 'mentorship.active_mentee_requires_days') $livePending = $row;
     }
 }
-// The label tracks reality, and reality moves: this was >= 10 before G-1 shipped
-// and took the five commitments rules live. What is left is health, escalation,
-// agenda drafting, in-meeting timing and assistant tone — the subsystems that
-// genuinely have no consumer yet.
-ck('pending: unenforced rules are still flagged for the Studio', $pendingCount >= 5);
+// Name what is still pending rather than counting it. A bare count had to be
+// edited every time a subsystem shipped (10 → 5 → 3 → …), which is churn that
+// teaches you to just lower the number. Naming them means this only changes when
+// that subsystem genuinely lands — which is exactly when you want to be asked.
+$stillPending = [];
+foreach ($dsc3['groups'] as $rows) foreach ($rows as $row) if ($row['pending'] !== '') $stillPending[] = $row['key'];
+sort($stillPending);
+ck('pending: the unenforced rules are exactly the ones we know about — ' . implode(', ', $stillPending),
+   $stillPending === ['ai.tone']);
+// The other half of the same invariant, and the one that actually bites: a rule
+// marked pending must have NO consumer, and a rule with a consumer must not be
+// marked pending. Both directions, or the Studio's "not enforced yet" label
+// drifts away from the code the way it did before this engine landed.
+$libSrc = '';
+foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
+    if (basename($f) === 'AvRules.php') continue;   // the registry itself is not a consumer
+    $libSrc .= (string) file_get_contents($f);
+}
+// A rule the engine cannot enforce but the AI is TOLD about is legitimate — it
+// governs the model's reasoning rather than a code path. There is exactly one,
+// and naming it here means a second cannot appear unnoticed.
+$promptOnly = ['ai.character_scores'];
+$mislabelled = [];
+foreach ($dsc3['groups'] as $rows) {
+    foreach ($rows as $row) {
+        $consumed = strpos($libSrc, "'" . $row['key'] . "'") !== false;
+        if ($row['pending'] !== '' && $consumed) $mislabelled[] = $row['key'] . ' is pending but consumed';
+        if ($row['pending'] === '' && !$consumed && !in_array($row['key'], $promptOnly, true)) {
+            $mislabelled[] = $row['key'] . ' is live but consumed by nothing';
+        }
+    }
+}
+foreach ($promptOnly as $k) {
+    ck("pending: {$k} is prompt-only and says so in the prompt block",
+       strpos($libSrc, "'{$k}'") === false && strpos(AvRules::asPromptBlock(), 'character') !== false);
+}
+ck('pending: the label matches the code' . ($mislabelled ? ' — ' . implode('; ', $mislabelled) : ''), $mislabelled === []);
 ck('pending: an enforced rule is NOT flagged', $livePending && $livePending['pending'] === '');
 // Inverted when G-1 landed. Levels::recommend() reads this rule now, so labelling
 // it "awaiting its subsystem" in the Studio would be a lie to whoever tunes it.
@@ -499,10 +531,31 @@ ck('pending: and neither is any commitments rule', (function (array $g): bool {
     return true;
 })($dsc3['groups']));
 
-$promptDesc = AvPrompts::describe();
+// Both directions, as with the rules above, rather than naming one template as
+// the example — that assertion had to be rewritten the moment leadership.brief
+// was wired, which is precisely the drift it was meant to catch.
+$libSrc2 = '';
+foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
+    if (basename($f) === 'AvPrompts.php') continue;      // the registry is not a caller
+    $libSrc2 .= (string) file_get_contents($f);
+}
 $byKey = [];
-foreach ($promptDesc as $p) $byKey[$p['key']] = $p;
-ck('pending: an unwired prompt template is flagged', ($byKey['leadership.brief']['pending'] ?? '') !== '');
+foreach (AvPrompts::describe() as $p) $byKey[$p['key']] = $p;
+$promptDrift = [];
+foreach (AvPrompts::describe() as $p) {
+    $called = strpos($libSrc2, "'" . $p['key'] . "'") !== false;
+    if ($p['pending'] !== '' && $called)  $promptDrift[] = $p['key'] . ' is pending but wired';
+    if ($p['pending'] === '' && !$called) $promptDrift[] = $p['key'] . ' is live but nothing renders it';
+}
+ck('pending: the prompt label matches the code' . ($promptDrift ? ' — ' . implode('; ', $promptDrift) : ''),
+   $promptDrift === []);
+$pendingTemplates = [];
+foreach (AvPrompts::describe() as $p) if ($p['pending'] !== '') $pendingTemplates[] = $p['key'];
+sort($pendingTemplates);
+// Every template now has a caller. Kept as an equality rather than deleted: if a
+// new unwired template appears, this says which one instead of going quiet.
+ck('pending: no prompt template is left unwired' . ($pendingTemplates ? ' — ' . implode(', ', $pendingTemplates) : ''),
+   $pendingTemplates === []);
 ck('pending: a live prompt template is not flagged', ($byKey['meeting.minutes']['pending'] ?? 'x') === '');
 
 /* ── inactivePairs() follows the rule instead of a hardcoded 21 ── */

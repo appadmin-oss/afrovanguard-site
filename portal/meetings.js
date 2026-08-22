@@ -14,6 +14,7 @@
   var listEl = document.getElementById('tlMeetList');
   var msg = document.getElementById('tlMeetMsg');
   var API = '/portal/meetings.php';
+  var AGENDA_AI = false;
   var ME = 0, GEMINI = false, BOT = false, BOT_ALLOWED = false, BOT_ON_DEMAND = false;
 
   function post(action, body) {
@@ -124,6 +125,8 @@
     if (m.auto_record || botLive(m)) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
     h += '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
+    h += clockHtml(m);
+    h += agendaDraftHtml(m);
     h += '<div class="meet-actions">';
     if (m.meet_url) h += '<a class="pbtn pbtn-soft pbtn-sm" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">▶ Join · ' + esc(prov) + '</a>';
     else h += '<span class="meet-pending">⚠ Meet link pending — connect Google Workspace</span>';
@@ -141,15 +144,97 @@
     return h;
   }
 
+  // Report §10. The exact channel: this ticks client-side every 30 seconds, so
+  // the countdown and the warning land on the minute rather than whenever cron
+  // next runs. §10 counts OUTSTANDING AGENDA ITEMS, not elapsed time, so the
+  // items are here to tick off — that count is the whole point of the sentence.
+  function clockHtml(m) {
+    var c = m.clock;
+    if (!c || (!c.running && !c.overrun)) return '';
+    var pct = Math.max(0, Math.min(100, Math.round(100 * (c.elapsed || 0) / Math.max(1, c.duration))));
+    var urgent = c.overrun || (c.remaining !== null && c.remaining <= 5);
+
+    var h = '<div class="meet-clock' + (urgent ? ' is-urgent' : '') + '" data-clock="' + m.id + '">';
+    h += '<div class="mc-top">';
+    h += '<span class="mc-left">' + (c.overrun
+          ? esc(Math.abs(c.remaining) + ' min over')
+          : esc(c.remaining + ' min left')) + '</span>';
+    h += '<span class="mc-of">of ' + esc(fmtDur(c.duration)) + '</span>';
+    h += '</div>';
+    h += '<div class="mc-bar"><span style="width:' + (c.overrun ? 100 : pct) + '%"></span></div>';
+    if (c.message) h += '<p class="mc-msg" role="status">' + esc(c.message) + '</p>';
+    if (c.items && c.items.length) {
+      h += '<ul class="mc-items">' + c.items.map(function (it) {
+        return '<li class="' + (it.done ? 'is-done' : '') + '">'
+          + '<label><input type="checkbox" class="mc-tick" data-id="' + m.id + '" data-idx="' + it.index + '"'
+          + (it.done ? ' checked' : '') + '> <span>' + esc(it.item) + '</span></label></li>';
+      }).join('') + '</ul>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  // Refresh only while something is actually running — a calendar of future
+  // meetings does not need a heartbeat.
+  var clockTimer = null;
+  function watchClocks() {
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+    if (!document.querySelector('.meet-clock')) return;
+    clockTimer = setInterval(function () {
+      if (document.hidden) return;               // no polling in a background tab
+      if (!document.querySelector('.meet-clock')) { clearInterval(clockTimer); clockTimer = null; return; }
+      load();
+    }, 30000);
+  }
+
+  // Report §7. A DRAFT — it is not the agenda until the chair says so, which is
+  // why the buttons say what will happen rather than "OK"/"Cancel", and why the
+  // textarea is pre-filled: "approve or edit" means editing has to be the easy
+  // path, not a second screen.
+  function agendaDraftHtml(m) {
+    var d = m.agenda_draft;
+    if (!d || !d.items || !d.items.length) {
+      // Offer to draft one only where §7 would: the chair, a meeting with no
+      // agenda, and the feature switched on.
+      if (AGENDA_AI && m.creator_id === ME && !m.agenda && m.status === 'scheduled') {
+        return '<div class="meet-agenda-draft is-offer">'
+             + '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-agenda-ask" data-id="' + m.id + '">Draft an agenda from the records</button>'
+             + '</div>';
+      }
+      return '';
+    }
+    var text = d.items.map(function (it, i) {
+      return (i + 1) + '. ' + it.item + (it.minutes ? ' (' + it.minutes + ' min)' : '');
+    }).join('\n');
+    var src = d.source === 'computed'
+      ? 'Carried forward from the records — no model was involved.'
+      : 'Drafted by ' + esc(d.source) + ' from the previous minutes and outstanding actions.';
+
+    var h = '<div class="meet-agenda-draft" data-draft="' + d.id + '">';
+    h += '<p class="mad-head"><b>Proposed agenda</b> <span class="mad-tag">draft</span></p>';
+    h += '<p class="mad-note">' + src + ' Nothing is on the meeting until you approve it.</p>';
+    h += '<ul class="mad-why">' + d.items.map(function (it) {
+      return '<li><b>' + esc(it.item) + '</b>' + (it.why ? ' — ' + esc(it.why) : '') + '</li>';
+    }).join('') + '</ul>';
+    h += '<label class="mad-edit"><span>Edit before approving</span>'
+       + '<textarea class="mad-text" rows="' + Math.min(12, d.items.length + 1) + '">' + esc(text) + '</textarea></label>';
+    h += '<div class="mad-acts">'
+       + '<button type="button" class="pbtn pbtn-soft pbtn-sm meet-agenda-ok" data-draft="' + d.id + '">Use this agenda</button> '
+       + '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-agenda-no" data-draft="' + d.id + '">Dismiss</button>'
+       + '</div></div>';
+    return h;
+  }
+
   function render(meetings) {
     if (!meetings || !meetings.length) { listEl.innerHTML = '<p class="pc-empty">No meetings yet. Schedule one above.</p>'; return; }
     listEl.innerHTML = '<ul class="meet-ul">' + meetings.map(meetingCard).join('') + '</ul>';
+    watchClocks();
   }
 
   function load() {
     get('list').then(function (d) {
       if (!d || !d.ok) { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; return; }
-      ME = d.me || 0; GEMINI = !!d.gemini; BOT = !!d.bot;
+      ME = d.me || 0; GEMINI = !!d.gemini; BOT = !!d.bot; AGENDA_AI = !!d.agenda_ai;
       BOT_ALLOWED = !!d.bot_allowed; BOT_ON_DEMAND = !!d.bot_on_demand;
       render(d.meetings);
     }).catch(function () { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; });
@@ -189,6 +274,51 @@
     if (cancel) {
       if (!confirm('Cancel this meeting?')) return;
       post('cancel', { id: +cancel.getAttribute('data-id') }).then(function (d) { if (d && d.ok) load(); else alert((d && d.error) || 'Could not cancel.'); });
+      return;
+    }
+
+    // Report §10 — tick an agenda item off. Any participant may.
+    var tick = t.closest('.mc-tick');
+    if (tick) {
+      tick.disabled = true;
+      post('clock_tick', { id: +tick.getAttribute('data-id'), index: +tick.getAttribute('data-idx'), done: tick.checked })
+        .then(function (d) { if (!(d && d.ok)) { say((d && d.error) || 'Could not update that item.'); } load(); })
+        .catch(function () { load(); });
+      return;
+    }
+
+    // Report §7 — the chair approves, edits or dismisses the proposed agenda.
+    var agAsk = t.closest('.meet-agenda-ask');
+    if (agAsk) {
+      agAsk.disabled = true; agAsk.textContent = 'Reading the records…';
+      post('agenda_suggest', { id: +agAsk.getAttribute('data-id') }).then(function (d) {
+        if (d && d.ok) { say('A draft agenda is ready — review it before it goes on the meeting.', true); load(); }
+        else { say((d && d.error) || 'Could not draft an agenda.'); load(); }
+      }).catch(function () { load(); });
+      return;
+    }
+
+    var agOk = t.closest('.meet-agenda-ok');
+    if (agOk) {
+      var wrap = agOk.closest('.meet-agenda-draft');
+      var area = wrap ? wrap.querySelector('.mad-text') : null;
+      var text = area ? (area.value || '').trim() : '';
+      if (!text) { alert('An agenda needs at least one item.'); return; }
+      agOk.disabled = true; agOk.textContent = 'Saving…';
+      post('agenda_apply', { draft_id: +agOk.getAttribute('data-draft'), text: text }).then(function (d) {
+        if (d && d.ok) { say('Agenda saved to the meeting.', true); load(); }
+        else { alert((d && d.error) || 'Could not save the agenda.'); load(); }
+      }).catch(function () { load(); });
+      return;
+    }
+
+    var agNo = t.closest('.meet-agenda-no');
+    if (agNo) {
+      agNo.disabled = true;
+      post('agenda_dismiss', { draft_id: +agNo.getAttribute('data-draft') }).then(function (d) {
+        if (d && d.ok) { say('Draft dismissed. The meeting keeps whatever agenda you set.', true); load(); }
+        else { alert((d && d.error) || 'Could not dismiss the draft.'); load(); }
+      }).catch(function () { load(); });
       return;
     }
 
