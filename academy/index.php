@@ -20,6 +20,12 @@ $featured = $repo->featured();
 $categories = $repo->categories();
 $canonical = rtrim(SITE_URL, '/') . '/academy/';
 
+/* The summit promo runs above the flagship band while the summit is ahead of
+   us; once it is over the band disappears rather than advertising a past date. */
+$summit = null;
+try { if (class_exists('Summit') && !Summit::isPast()) $summit = Summit::facts(); }
+catch (Throwable $e) { $summit = null; }
+
 $user = LmsAuth::user();
 $member = false;
 if ($user) { $member = $lms->isMember((int) $user['id']) || LmsAuth::isOrgMember($user); }
@@ -73,6 +79,20 @@ render_nav('academy');
         </dl>
       </div>
     </section>
+
+<?php if ($summit): $sv = $summit['venue']; ?>
+    <a class="ngv-promo dns-promo" href="/academy/dns/"
+       aria-label="<?= e($summit['name']) ?> — <?= e($summit['date_label']) ?>, <?= e($sv['name']) ?>, <?= e($sv['area']) ?>">
+      <div class="container ngv-promo-inner">
+        <div class="ngv-promo-copy">
+          <span class="ngv-promo-tag"><?= Summit::isLive() ? 'Happening now' : 'The summit' ?> · <?= e($summit['edition']) ?> · <?= e($summit['triad']) ?></span>
+          <strong><?= e($summit['name']) ?></strong>
+          <span class="ngv-promo-sub"><?= e($summit['date_label']) ?> · <?= e($sv['name']) ?>, <?= e($sv['area']) ?>, <?= e($sv['city']) ?> · <?= e($summit['pass']['label']) ?> for all four days.</span>
+        </div>
+        <span class="ngv-promo-cta">Claim your seat →</span>
+      </div>
+    </a>
+<?php endif; ?>
 
     <a class="ngv-promo" href="/academy/ngv/" aria-label="NextGen Vanguard — our flagship transformation programme">
       <div class="container ngv-promo-inner">

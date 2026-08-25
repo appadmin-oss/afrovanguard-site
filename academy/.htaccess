@@ -19,6 +19,8 @@ DirectoryIndex index.php index.html
   # D'Vanguard National Summit — same arrangement: a real directory, named
   # explicitly so "dns" is never resolved as a course slug.
   RewriteRule ^dns/?$ dns/index.php [L,QSA]
+  RewriteRule ^dns/og\.png$ dns/og.php [L]
+  RewriteRule ^dns/summit\.ics$ dns/summit.ics.php [L]
   RewriteRule ^([a-z0-9-]+)/certificate/?$ certificate.php?course=$1 [L,QSA]
   RewriteRule ^([a-z0-9-]+)/learn/?$ learn.php?course=$1 [L,QSA]
   RewriteRule ^([a-z0-9-]+)/learn/([a-z0-9-]+)/?$ learn.php?course=$1&lesson=$2 [L,QSA]

@@ -12,10 +12,21 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: public, max-age=600');
 header('X-Content-Type-Options: nosniff');
 
+$events = [];
+
+// Our own summit leads the rail while it is still ahead of us. It is prepended
+// rather than merged by date because it is the one event on this feed we host
+// ourselves — and Summit::feedEntry() returns null once it is over, so a
+// finished summit can never sit at the head of an "upcoming" list.
 try {
-    $events = AvEvents::latest(6);
-    echo json_encode(['ok' => true, 'events' => $events], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-} catch (\Throwable $e) {
-    error_log('[events-feed] ' . $e->getMessage());
-    echo json_encode(['ok' => true, 'events' => []]);
-}
+    if (class_exists('Summit')) {
+        $own = Summit::feedEntry();
+        if ($own) $events[] = $own;
+    }
+} catch (\Throwable $e) { error_log('[events-feed] summit: ' . $e->getMessage()); }
+
+try {
+    $events = array_merge($events, AvEvents::latest(6));
+} catch (\Throwable $e) { error_log('[events-feed] ' . $e->getMessage()); }
+
+echo json_encode(['ok' => true, 'events' => $events], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

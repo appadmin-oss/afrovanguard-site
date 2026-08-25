@@ -532,3 +532,13 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 .ngv-promo-cta{white-space:nowrap;font-weight:800;background:#14100c;color:#fff;padding:12px 22px;border-radius:999px;transition:transform .15s ease}
 .ngv-promo:hover .ngv-promo-cta{transform:translateX(3px)}
 @media (max-width:640px){.ngv-promo-cta{width:100%;text-align:center}}
+
+/* Summit promo — the same band as the flagship promo above the catalogue, in
+   the summit's own colours so the two never read as the same offer. Shown only
+   while the summit is still ahead (see academy/index.php). */
+.dns-promo .ngv-promo-inner{background:#0c0c0c;border:1px solid rgba(243,180,22,.34);
+  box-shadow:0 18px 40px -24px rgba(0,0,0,.8)}
+.dns-promo .ngv-promo-tag{color:#f3b416;opacity:1;letter-spacing:.14em}
+.dns-promo .ngv-promo-copy strong{color:#fff}
+.dns-promo .ngv-promo-sub{color:rgba(222,210,187,.82)}
+.dns-promo .ngv-promo-cta{background:linear-gradient(96deg,#d93a10,#cf1f22 52%,#c2102b)}

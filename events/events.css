@@ -11,8 +11,13 @@
 .ev-kicker { display:inline-block; font:700 12px/1 'Montserrat',sans-serif; letter-spacing:.16em;
   text-transform:uppercase; color:var(--ev-gold); padding:7px 12px; border:1px solid rgba(243,180,22,.35);
   border-radius:9999px; margin-bottom:18px; }
+/* The global `h1,h2,h3,h4 { color: var(--ink) }` in diary.css beats the white
+   this hero inherits from .ev-hero, so in the light theme the page's own H1 was
+   near-black on a near-black hero (~1.1:1 — effectively invisible). Both dark
+   bands on this page state their colour rather than relying on inheritance. */
 .ev-hero h1 { font-family:'Cormorant',Georgia,serif; font-weight:700; font-size:clamp(2.4rem,5vw,3.8rem);
-  line-height:1.04; margin:0 0 16px; letter-spacing:-.01em; }
+  line-height:1.04; margin:0 0 16px; letter-spacing:-.01em; color:#fff; }
+.ev-cta-band h2 { color:#fff; }
 .ev-lede { font-size:clamp(1.02rem,1.6vw,1.2rem); line-height:1.6; color:rgba(255,255,255,.74); max-width:62ch; margin:0 0 28px; }
 
 .ev-cta-row { display:flex; flex-wrap:wrap; gap:12px; }
@@ -71,4 +76,43 @@
 @media (prefers-reduced-motion:reduce){
   .ev-main .btn, .ev-card { transition:none; }
   .ev-main .btn:hover, .ev-card:hover { transform:none; }
+}
+
+/* ── Featured summit band ───────────────────────────────────────────────────
+   The one event we host ourselves, at the top of the page. Carries the
+   summit's own poster identity (near-black, orange→red, lime) rather than the
+   page's palette, so it reads as the summit and not as another events card.
+   Rendered only while the summit is still ahead — see events/index.php. */
+.ev-featured{background:#0c0c0c;color:#ded2bb;padding-block:clamp(38px,5vw,64px);
+  border-block:1px solid rgba(243,180,22,.28)}
+.ev-featured-inner{max-width:900px}
+.ev-featured-kicker{display:inline-flex;align-items:center;gap:9px;
+  font:800 .68rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+  text-transform:uppercase;color:#f3b416}
+.ev-featured-dot{width:9px;height:9px;border-radius:50%;background:#a3c93a;
+  animation:evPulse 1.6s ease-in-out infinite}
+@keyframes evPulse{0%,100%{opacity:1}50%{opacity:.25}}
+.ev-featured h2{font:600 clamp(1.9rem,4.4vw,3rem)/1.04 var(--afg-font-display,Cormorant,Georgia,serif);
+  color:#fff;margin:.32em 0 .2em;letter-spacing:-.02em;text-wrap:balance}
+.ev-featured-triad{display:inline-block;background:#a3c93a;color:#101400;margin:6px 0 0;
+  padding:9px 17px;border-radius:3px;font:800 .8rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.14em;text-transform:uppercase}
+.ev-featured-lede{margin:20px 0 0;max-width:60ch;line-height:1.65;color:rgba(222,210,187,.82)}
+.ev-featured-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:18px;margin:26px 0 28px;padding-top:22px;border-top:1px solid rgba(222,210,187,.16)}
+.ev-featured-facts dt{font:700 .62rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.2em;text-transform:uppercase;color:rgba(222,210,187,.72);margin-bottom:7px}
+.ev-featured-facts dd{margin:0;font-weight:600;color:#fff;line-height:1.45;font-size:.95rem}
+.ev-featured-btn{display:inline-flex;align-items:center;justify-content:center;
+  padding:15px 26px;border-radius:3px;border:1.5px solid transparent;text-decoration:none;
+  font:700 .93rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.03em;
+  background:linear-gradient(96deg,#d93a10,#cf1f22 52%,#c2102b);color:#fff;
+  transition:filter .16s,transform .16s,border-color .16s}
+.ev-featured-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.ev-featured-btn-ghost{background:transparent;color:#ded2bb;border-color:rgba(222,210,187,.34)}
+.ev-featured-btn-ghost:hover{border-color:#ded2bb;filter:none}
+@media (max-width:560px){.ev-featured .ev-cta-row .ev-featured-btn{width:100%}}
+@media (prefers-reduced-motion:reduce){
+  .ev-featured-dot{animation:none}
+  .ev-featured-btn{transition:none}.ev-featured-btn:hover{transform:none}
 }

@@ -21,6 +21,125 @@ final class Summit
     /** Interest tracks a registrant may pick. Mirrors the summit's three pillars. */
     public const PILLARS = ['Master', 'Tame', 'Own'];
 
+    /**
+     * The summit's facts — the SINGLE definition every surface reads: the page
+     * itself, the home page's live events rail, the events page and the Academy
+     * catalogue. Page-only content (the pillars, the session list, the speakers,
+     * the FAQ) stays in academy/dns/index.php; only what other pages also need
+     * lives here.
+     *
+     * Editing a date, the venue or the pass here updates every surface at once.
+     */
+    public static function facts(): array
+    {
+        return [
+            'name'       => "D'Vanguard National Summit",
+            'edition'    => "DNS '26",
+            'presenter'  => 'Afrovanguard',
+            'triad'      => 'Master | Tame | Own',
+            'lede'       => "Four days in Lagos with the people building the next Nigeria — where you learn to master the community you lead, tame the corruption in your space, and own everything you build.",
+
+            // ISO 8601, Africa/Lagos (+01:00). The flyer states a 9:00 AM start;
+            // no closing time is published, so the end is a date, not a datetime.
+            'starts'     => '2026-09-01T09:00:00+01:00',
+            'ends'       => '2026-09-04',
+            'date_label' => 'Tuesday 1 – Friday 4 September 2026',
+            'date_short' => '1–4 Sept 2026',
+            'days'       => '4 days',
+            'time_label' => '9:00 AM',
+
+            'venue' => [
+                'name'    => 'Effortwill Schools',
+                'area'    => 'Ejigbo',
+                'city'    => 'Lagos',
+                'region'  => 'Lagos State',
+                'country' => 'NG',
+                'map'     => 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode('Effortwill Schools, Ejigbo, Lagos'),
+            ],
+
+            'pass' => [
+                'label'    => '$30',
+                'amount'   => 30,
+                'currency' => 'USD',
+                'note'     => 'One pass, all four days',
+            ],
+
+            'whatsapp' => ['display' => '+234 903 777 6318', 'e164' => '2349037776318'],
+            'partner'  => 'Alimosho',
+        ];
+    }
+
+    /** Absolute URL of the summit page. */
+    public static function url(): string
+    {
+        return rtrim(defined('SITE_URL') ? (string) SITE_URL : '', '/') . '/academy/dns/';
+    }
+
+    /** Generated social card (see academy/dns/og.php). */
+    public static function ogImage(): string
+    {
+        return rtrim(defined('SITE_URL') ? (string) SITE_URL : '', '/') . '/academy/dns/og.png';
+    }
+
+    /** Unix start; 0 if the date is unparseable. */
+    public static function startsAt(): int
+    {
+        return strtotime((string) self::facts()['starts']) ?: 0;
+    }
+
+    /** Unix end — the close of the last day, Lagos time. */
+    public static function endsAt(): int
+    {
+        return strtotime(self::facts()['ends'] . 'T23:59:59+01:00') ?: 0;
+    }
+
+    /** The summit has finished. */
+    public static function isPast(): bool
+    {
+        $end = self::endsAt();
+        return $end > 0 && time() > $end;
+    }
+
+    /** The summit is running right now. */
+    public static function isLive(): bool
+    {
+        $start = self::startsAt();
+        return !self::isPast() && $start > 0 && time() >= $start;
+    }
+
+    /** Seats can still be claimed. */
+    public static function isOpen(): bool
+    {
+        return !self::isPast();
+    }
+
+    /**
+     * One entry shaped exactly like the home page's live events rail expects
+     * (day / month / when / location / title / url / ongoing), so the summit
+     * appears there without the static home page being edited.
+     *
+     * Returns null once the summit is over — a finished event must not sit at
+     * the head of an "upcoming" rail.
+     */
+    public static function feedEntry(): ?array
+    {
+        if (self::isPast()) return null;
+        $f  = self::facts();
+        $ts = self::startsAt();
+        if ($ts <= 0) return null;
+        $v = $f['venue'];
+        return [
+            'title'    => $f['name'] . ' (' . $f['edition'] . ')',
+            'url'      => self::url(),
+            'day'      => date('j', $ts),
+            'month'    => strtoupper(date('M', $ts)),
+            'when'     => $f['date_short'] . ' · ' . $f['time_label'],
+            'location' => $v['area'] . ', ' . $v['city'],
+            'ongoing'  => self::isLive(),
+            'source'   => 'afrovanguard',   // distinguishes it from the AFG sub-site feed
+        ];
+    }
+
     public static function ensure(): void
     {
         static $done = false;

@@ -130,8 +130,17 @@ final class Sitemap
         $esc = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
         $rows = [];
         foreach (self::STATIC_PAGES as [$path, $pri, $freq]) {
-            $img = $path === 'ethos/' ? "$S/assets/img/ethos-og.webp" : '';
-            $rows[] = ['loc' => "$S/$path", 'pri' => $pri, 'freq' => $freq, 'img' => $img];
+            $img = $title = '';
+            if ($path === 'ethos/') {
+                $img = "$S/assets/img/ethos-og.webp";
+            } elseif ($path === 'academy/dns/') {
+                // The summit's card is generated (academy/dns/og.php), so the
+                // sitemap can point at it the same way course pages do.
+                $img = "$S/academy/dns/og.png";
+                $title = class_exists('Summit')
+                    ? Summit::facts()['name'] . ' ' . Summit::facts()['edition'] : '';
+            }
+            $rows[] = ['loc' => "$S/$path", 'pri' => $pri, 'freq' => $freq, 'img' => $img, 'title' => $title];
         }
         try {
             foreach ((new DiaryRepository())->all() as $a) {

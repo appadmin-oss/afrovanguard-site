@@ -283,3 +283,25 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
   .dns-btn:hover,.dns-session:hover{transform:none}
   .dns-count-dot{animation:none}
 }
+
+/* ── Share ────────────────────────────────────────────────────────────── */
+.dns-share{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.dns-share-btn{display:inline-flex;align-items:center;justify-content:center;
+  padding:13px 22px;border:1.5px solid var(--dns-line);border-radius:var(--dns-r);
+  background:var(--dns-card);color:var(--dns-ink);text-decoration:none;
+  font:700 .9rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.03em;
+  transition:border-color .16s,transform .16s,background .16s}
+.dns-share-btn:hover{border-color:var(--dns-ink);transform:translateY(-1px)}
+.dns-share-link{margin:26px auto 0;max-width:520px;text-align:center}
+.dns-share-link label{display:block;font:700 .68rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.18em;text-transform:uppercase;color:var(--dns-muted);margin-bottom:10px}
+.dns-share-link input{width:100%;box-sizing:border-box;text-align:center;
+  border:1.5px solid var(--dns-line);border-radius:var(--dns-r);padding:13px 14px;
+  font:inherit;font-size:.93rem;background:var(--dns-field);color:var(--dns-ink)}
+.dns-share-link input:focus{outline:none;border-color:var(--dns-red);
+  box-shadow:0 0 0 3px rgba(224,31,45,.16)}
+.dns-share-link .dns-hint{margin-top:8px}
+@media (max-width:520px){.dns-share-btn{flex:1 1 calc(50% - 10px)}}
+@media (prefers-reduced-motion:reduce){
+  .dns-share-btn{transition:none}.dns-share-btn:hover{transform:none}
+}

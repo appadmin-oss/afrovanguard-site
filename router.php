@@ -74,6 +74,8 @@ if (preg_match('~^/people/([0-9]+)(?:-[^/]*)?/?$~', $uri, $m)) { $_GET['id'] = $
 // Academy pretty routes
 if ($uri === '/academy/pay' || $uri === '/academy/pay.php') { require __DIR__ . '/academy/pay.php'; return true; }
 if ($uri === '/academy/sitemap.xml') { require __DIR__ . '/academy/sitemap.php'; return true; }
+if ($uri === '/academy/dns/og.png') { require __DIR__ . '/academy/dns/og.php'; return true; }
+if ($uri === '/academy/dns/summit.ics') { require __DIR__ . '/academy/dns/summit.ics.php'; return true; }
 if (preg_match('~^/academy/og/([a-z0-9-]+)\.png$~', $uri, $m)) { $_GET['slug'] = $m[1]; require __DIR__ . '/academy/og.php'; return true; }
 if (preg_match('~^/academy/?$~', $uri)) { require __DIR__ . '/academy/index.php'; return true; }
 if (preg_match('~^/academy/teach/?$~', $uri)) { require __DIR__ . '/academy/teach.php'; return true; }

@@ -48,6 +48,45 @@ function nav_parts(string $active): array {
     return [substr($full, 0, $i), trim(substr($full, $i))];
 }
 
+/**
+ * Offset just past the </div> that closes the <div> opening at $start, or null
+ * if the markup is unbalanced.
+ */
+function div_block_end(string $html, int $start): ?int {
+    if (!preg_match_all('~<(/?)div\b[^>]*>~i', substr($html, $start), $m, PREG_OFFSET_CAPTURE)) return null;
+    $depth = 0;
+    foreach ($m[0] as $k => $tag) {
+        $depth += $m[1][$k][0] === '/' ? -1 : 1;
+        if ($depth === 0) return $start + $tag[1] + strlen($tag[0]);
+    }
+    return null;
+}
+
+/**
+ * Remove every previously injected chrome fragment that lives OUTSIDE the
+ * drawer <nav> — the scrim and the search dialog.
+ *
+ * nav_parts() splits render_nav() at </header>, so the drawer half carries the
+ * scrim, the <nav> AND the search dialog; the replacement below only matches
+ * the scrim and the <nav>. Without this, every run left the previous search
+ * dialog in place and appended another — the committed pages had accumulated
+ * seven copies of it, and seven duplicate `id="avSearch"` with them. Clearing
+ * both fragments first makes the build idempotent: run it twice, get the same
+ * bytes.
+ */
+function strip_loose_chrome(string $html): string {
+    $html = preg_replace('~<div class="scrim"[^>]*>\s*</div>\s*~', '', $html) ?? $html;
+    // The dialog is introduced by a comment, which is emitted with it and so
+    // accumulates the same way the markup did.
+    $html = preg_replace('~<!--\s*Accessible site search.*?-->\s*~s', '', $html) ?? $html;
+    while (($i = strpos($html, '<div class="av-search"')) !== false) {
+        $end = div_block_end($html, $i);
+        if ($end === null) break;                     // malformed → leave it be
+        $html = substr($html, 0, $i) . ltrim(substr($html, $end), " \t\r\n");
+    }
+    return $html;
+}
+
 /** Canonical <footer>…</footer> markup, captured from the shared partial. */
 function footer_html(): string {
     ob_start(); av_footer_inner(); return trim(ob_get_clean());
@@ -98,6 +137,9 @@ foreach ($pages as $file => $active) {
     $orig = $html;
 
     // 1) replace the header, and (separately) the scrim+drawer, in place.
+    //    Loose chrome (scrim + search dialog) is cleared first so re-running
+    //    this replaces it rather than stacking another copy on top.
+    $html = strip_loose_chrome($html);
     [$navHeader, $navDrawer] = nav_parts($active);
     $html = preg_replace_callback('~<header class="site-header".*?</header>~s', fn($m) => $navHeader, $html, 1);
     $html = preg_replace_callback(

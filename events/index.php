@@ -32,6 +32,13 @@ try {
     }
 } catch (Throwable $e) { /* community not ready → section simply hidden */ }
 
+/* Our own flagship summit — featured at the top of the page while it is still
+   ahead of us. Summit::feedEntry() is null once it is over, so the band simply
+   disappears rather than advertising a finished event. */
+$summit = null;
+try { if (class_exists('Summit') && !Summit::isPast()) $summit = Summit::facts(); }
+catch (Throwable $e) { $summit = null; }
+
 $kinds = [
     ['Town halls',        'Open sessions where members and the team think out loud about the work and what’s next.'],
     ['The Annual Gala',   'Our flagship celebration of the movement — partners, mentors and the young leaders we serve.'],
@@ -63,6 +70,32 @@ render_nav('about');
         </div>
       </div>
     </header>
+
+<?php if ($summit): $sv = $summit['venue']; $slive = Summit::isLive(); ?>
+    <section class="ev-featured" aria-labelledby="ev-summit-h">
+      <div class="container ev-featured-inner">
+        <div class="ev-featured-body">
+          <span class="ev-featured-kicker">
+<?php if ($slive): ?>            <span class="ev-featured-dot" aria-hidden="true"></span> Happening now
+<?php else: ?>            <?= e($summit['presenter']) ?> presents <?= e($summit['edition']) ?>
+<?php endif; ?>
+          </span>
+          <h2 id="ev-summit-h"><?= e($summit['name']) ?></h2>
+          <p class="ev-featured-triad"><?= e($summit['triad']) ?></p>
+          <p class="ev-featured-lede"><?= e($summit['lede']) ?></p>
+          <dl class="ev-featured-facts">
+            <div><dt>Dates</dt><dd><?= e($summit['date_label']) ?></dd></div>
+            <div><dt>Venue</dt><dd><?= e($sv['name']) ?>, <?= e($sv['area']) ?>, <?= e($sv['city']) ?></dd></div>
+            <div><dt>Pass</dt><dd><?= e($summit['pass']['label']) ?> · <?= e($summit['pass']['note']) ?></dd></div>
+          </dl>
+          <div class="ev-cta-row">
+            <a class="ev-featured-btn" href="/academy/dns/#register">Claim your seat at <?= e($summit['edition']) ?></a>
+            <a class="ev-featured-btn ev-featured-btn-ghost" href="/academy/dns/">Full summit details</a>
+          </div>
+        </div>
+      </div>
+    </section>
+<?php endif; ?>
 
 <?php if ($calEmbed !== ''): ?>
     <section class="ev-section container" aria-labelledby="ev-cal-h">

@@ -103,4 +103,81 @@ ck('summit: the summit is in the sitemap', (static function (): bool {
     return false;
 })());
 
+/* ══ The facts are one definition, shared by every surface ══════════════ */
+
+$f = Summit::facts();
+ck('summit: facts carry a name and an edition', ($f['name'] ?? '') !== '' && ($f['edition'] ?? '') !== '');
+ck('summit: the start date parses', Summit::startsAt() > 0);
+ck('summit: the end is after the start', Summit::endsAt() > Summit::startsAt());
+ck('summit: a summit cannot be both live and finished', !(Summit::isLive() && Summit::isPast()));
+ck('summit: seats are open exactly while it has not finished', Summit::isOpen() === !Summit::isPast());
+ck('summit: the page URL is absolute and canonical',
+   str_starts_with(Summit::url(), 'http') && str_ends_with(Summit::url(), '/academy/dns/'));
+ck('summit: the social card is the generated one', str_ends_with(Summit::ogImage(), '/academy/dns/og.png'));
+
+/* ══ The home page rail entry ═══════════════════════════════════════════ */
+
+$entry = Summit::feedEntry();
+if (Summit::isPast()) {
+    ck('summit: a finished summit is withheld from the upcoming rail', $entry === null);
+} else {
+    ck('summit: the rail entry exists while the summit is ahead', is_array($entry));
+    // The home page's rail reads exactly these keys — a rename here renders blank.
+    foreach (['title', 'url', 'day', 'month', 'when', 'location', 'ongoing'] as $k) {
+        ck("summit: the rail entry carries {$k}", array_key_exists($k, (array) $entry));
+    }
+    ck('summit: the rail entry points at the summit page',
+       ($entry['url'] ?? '') === Summit::url());
+    ck('summit: the rail day and month agree with the start date',
+       (int) ($entry['day'] ?? 0) === (int) date('j', Summit::startsAt())
+       && ($entry['month'] ?? '') === strtoupper(date('M', Summit::startsAt())));
+    ck('summit: "happening now" tracks the live window',
+       ($entry['ongoing'] ?? null) === Summit::isLive());
+}
+
+/* ══ The endpoints the page points at actually exist ════════════════════ */
+
+ck('summit: the social card generator exists', is_file(AV_ROOT . '/academy/dns/og.php'));
+ck('summit: the calendar invitation exists', is_file(AV_ROOT . '/academy/dns/summit.ics.php'));
+ck('summit: .htaccess routes the social card', (static function (): bool {
+    $h = (string) @file_get_contents(AV_ROOT . '/academy/.htaccess');
+    return str_contains($h, 'dns/og.php') && str_contains($h, 'dns/summit.ics.php');
+})());
+ck('summit: the dev router serves both too', (static function (): bool {
+    $r = (string) @file_get_contents(AV_ROOT . '/router.php');
+    return str_contains($r, '/academy/dns/og.png') && str_contains($r, '/academy/dns/summit.ics');
+})());
+ck('summit: the sitemap points at the generated card', (static function (): bool {
+    $x = (string) @file_get_contents(AV_ROOT . '/sitemap.xml');
+    return str_contains($x, '/academy/dns/og.png');
+})());
+
+/* ══ The surfaces that publicise it ═════════════════════════════════════ */
+
+foreach ([
+    'the home page feed'      => '/events-feed.php',
+    'the events page'         => '/events/index.php',
+    'the Academy catalogue'   => '/academy/index.php',
+] as $what => $file) {
+    $src = (string) @file_get_contents(AV_ROOT . $file);
+    ck("summit: {$what} reads the shared facts",
+       str_contains($src, 'Summit::feedEntry') || str_contains($src, 'Summit::facts'));
+}
+ck('summit: the Academy nav links to it', str_contains(
+    (string) @file_get_contents(AV_ROOT . '/lib/partials.php'), "/academy/dns/"));
+
+/* ══ The static-chrome build is idempotent ══════════════════════════════
+   It was not: nav_parts() splits render_nav() at </header>, so the drawer half
+   carries the search dialog, which the drawer replacement never matched — every
+   run left the old one and appended another. The committed pages had seven. */
+
+foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
+    $html = (string) @file_get_contents(AV_ROOT . '/' . $page);
+    if ($html === '') continue;
+    ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);
+    ck("chrome: {$page} has exactly one drawer scrim", substr_count($html, 'class="scrim"') === 1);
+}
+ck('chrome: the builder clears loose chrome before injecting', str_contains(
+    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'strip_loose_chrome'));
+
 $db->exec('DELETE FROM summit_registrations');

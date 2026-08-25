@@ -20,41 +20,12 @@ Sitemap::ensureFresh();
    CONTENT — the whole summit, in one editable block.
    ══════════════════════════════════════════════════════════════════════════ */
 
-$SUMMIT = [
-    'name'       => "D'Vanguard National Summit",
-    'edition'    => "DNS '26",
-    'presenter'  => 'Afrovanguard',
-    'triad'      => 'Master | Tame | Own',
-    'lede'       => "Four days in Lagos with the people building the next Nigeria — where you learn to master the community you lead, tame the corruption in your space, and own everything you build.",
-
-    // ISO 8601, Africa/Lagos (+01:00). The flyer states a 9:00 AM start; no
-    // closing time is published, so the end is a date, not a datetime.
-    'starts'     => '2026-09-01T09:00:00+01:00',
-    'ends'       => '2026-09-04',
-    'date_label' => 'Tuesday 1 – Friday 4 September 2026',
-    'days'       => '4 days',
-    'time_label' => '9:00 AM',
-
-    'venue' => [
-        'name'    => 'Effortwill Schools',
-        'area'    => 'Ejigbo',
-        'city'    => 'Lagos',
-        'region'  => 'Lagos State',
-        'country' => 'NG',
-        'map'     => 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode('Effortwill Schools, Ejigbo, Lagos'),
-    ],
-
-    'pass' => [
-        'label'    => '$30',
-        'amount'   => 30,
-        'currency' => 'USD',
-        'note'     => 'One pass, all four days',
-    ],
-
-    'whatsapp' => ['display' => '+234 903 777 6318', 'e164' => '2349037776318'],
-    'partner'  => 'Alimosho',
-    'og_image' => '/assets/site/dns/dns-26-flyer.jpg',
-];
+// The summit's facts (dates, venue, pass, contact) are shared with the home
+// page's events rail, the events page and the Academy catalogue, so they live in
+// lib/Summit.php. Everything below — the pillars, sessions, speakers and FAQ —
+// is page-only content and is edited right here.
+$SUMMIT = Summit::facts();
+$SUMMIT['og_image'] = '/academy/dns/og.png';   // generated; see academy/dns/og.php
 
 /* The three-word theme, expanded. */
 $PILLARS = [
@@ -113,13 +84,19 @@ $wa     = $SUMMIT['whatsapp'];
 $waUrl  = 'https://wa.me/' . $wa['e164'];
 $venueLine = $venue['name'] . ', ' . $venue['area'] . ', ' . $venue['city'];
 
-$startTs = strtotime($SUMMIT['starts']) ?: 0;
-// The summit is over at the end of its last day, Lagos time.
-$endTs   = (strtotime($SUMMIT['ends'] . 'T23:59:59+01:00') ?: 0);
-$now     = time();
-$isPast  = $endTs > 0 && $now > $endTs;
-$isLive  = !$isPast && $startTs > 0 && $now >= $startTs;
-$isOpen  = !$isPast;   // seat claims close once the summit has ended
+$shareText = $SUMMIT['name'] . ' (' . $SUMMIT['edition'] . ') — ' . $SUMMIT['triad']
+           . '. ' . $SUMMIT['date_label'] . ', ' . $venueLine . '.';
+$shareUrl  = $canon;
+$share = [
+    ['WhatsApp', 'https://wa.me/?text=' . rawurlencode($shareText . ' ' . $shareUrl)],
+    ['X',        'https://twitter.com/intent/tweet?text=' . rawurlencode($shareText) . '&url=' . rawurlencode($shareUrl)],
+    ['Facebook', 'https://www.facebook.com/sharer/sharer.php?u=' . rawurlencode($shareUrl)],
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' . rawurlencode($shareUrl)],
+];
+
+$isPast = Summit::isPast();
+$isLive = Summit::isLive();
+$isOpen = Summit::isOpen();   // seat claims close once the summit has ended
 
 /** Initials for the monogram fallback, skipping honorifics like "Van.". */
 $initials = static function (string $name): string {
@@ -231,9 +208,13 @@ $showClaimed = $claimed >= 25;
 
 $ogImage = $SUMMIT['og_image'];
 if ($ogImage !== '' && $ogImage[0] === '/') $ogImage = $S . $ogImage;
-$title = $SUMMIT['name'] . ' ' . $SUMMIT['edition'] . ' — Master, Tame, Own | Afrovanguard';
-$desc  = $SUMMIT['name'] . ', ' . $SUMMIT['date_label'] . ' at ' . $venueLine
-       . '. Four days on community, integrity, enterprise, automation, AI video and content. Pass '
+// Kept inside what search results actually render: ~60 characters of title and
+// ~160 of description. Both lead with the name people will type, and carry the
+// year, the city and the price — the things an event query is made of.
+$title = $SUMMIT['name'] . ' 2026 (' . $SUMMIT['edition'] . ') — Afrovanguard';
+$desc  = 'Afrovanguard\'s national summit, ' . $SUMMIT['date_short'] . ' at '
+       . $venue['name'] . ', ' . $venue['area'] . ', ' . $venue['city']
+       . '. Master your community, tame corruption, own what you build. Pass '
        . $pass['label'] . '.';
 
 $performers = [];
@@ -262,6 +243,9 @@ $eventSchema = [
             'addressCountry'  => $venue['country'],
         ],
     ],
+    'isAccessibleForFree' => false,
+    'audience' => ['@type' => 'Audience',
+                   'audienceType' => 'Founders, creators, community leaders, professionals and students'],
     'organizer' => ['@type' => 'Organization', 'name' => 'Afrovanguard',
                     '@id' => $S . '/#organization', 'url' => $S . '/'],
     'performer' => $performers,
@@ -455,6 +439,12 @@ render_nav('academy');
           </dd>
         </div>
         <div class="dns-detail">
+          <dt>Put it in your diary</dt>
+          <dd><a href="/academy/dns/summit.ics">Add to calendar &darr;</a>
+            <span>Downloads a calendar invitation that works in Google Calendar, Apple Calendar and Outlook.</span>
+          </dd>
+        </div>
+        <div class="dns-detail">
           <dt>Talk to a human</dt>
           <dd><a href="<?= e($waUrl) ?>" rel="noopener"><?= e($wa['display']) ?></a>
             <span>WhatsApp for anything urgent, or use our
@@ -602,6 +592,30 @@ render_nav('academy');
         </details>
 <?php endforeach; ?>
       </div>
+    </div>
+  </section>
+
+  <!-- ── Share ──────────────────────────────────────────────────────────── -->
+  <section class="dns-section dns-section--alt" id="share">
+    <div class="dns-wrap dns-narrow">
+      <div class="dns-head dns-head--center">
+        <span class="dns-kicker">Spread the word</span>
+        <h2 class="dns-h2">Someone you know needs this room.</h2>
+        <p class="dns-lead">The summit grows the way it always has — one person telling another. Send it on.</p>
+      </div>
+      <div class="dns-share">
+<?php foreach ($share as [$label, $href]): ?>
+        <a class="dns-share-btn" href="<?= e($href) ?>" target="_blank" rel="noopener"
+           aria-label="Share <?= e($SUMMIT['edition']) ?> on <?= e($label) ?>"><?= e($label) ?></a>
+<?php endforeach; ?>
+        <a class="dns-share-btn" href="/academy/dns/summit.ics">Add to calendar</a>
+      </div>
+      <p class="dns-share-link">
+        <label for="dns-url">Or copy the link</label>
+        <input id="dns-url" type="text" value="<?= e($shareUrl) ?>" readonly
+               onfocus="this.select()" aria-describedby="dns-url-note">
+        <span id="dns-url-note" class="dns-hint">Select the box to copy the address.</span>
+      </p>
     </div>
   </section>
 
