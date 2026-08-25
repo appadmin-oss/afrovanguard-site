@@ -1,0 +1,285 @@
+/* ===========================================================================
+   academy/dns.css — D'Vanguard National Summit (DNS '26).
+
+   DIRECTION — lifted from the summit flyer, not from a default theme:
+   a dark editorial POSTER. Near-black canvas, warm cream panels, one
+   orange→red gradient reserved for a single headline word, lime tag blocks
+   for the MASTER | TAME | OWN triad, and the brand gold as a hairline frame
+   around the convener. Sharp 3px radii and 1px rules — deliberately NOT the
+   rounded-and-shadowed default look.
+
+   Theme-aware per the site contract (assets/site/tokens.css): the poster
+   bands stay black in both themes because that IS the summit's identity;
+   the reading sections flip between warm paper and near-black.
+   Presentation only — all content is in academy/dns/index.php.
+   =========================================================================== */
+
+:root{
+  /* Poster primitives — theme-independent */
+  --dns-black:#0c0c0c;
+  --dns-black-2:#151515;
+  --dns-black-3:#202020;
+  --dns-cream:#ded2bb;          /* the flyer's tan detail panel  */
+  --dns-cream-2:#f2ece0;
+  --dns-lime:#a3c93a;           /* MASTER | TAME | OWN block     */
+  --dns-orange:#ff9d00;
+  --dns-red:#e01f2d;
+  --dns-gold:var(--afg-gold,#f3b416);
+  --dns-grad:linear-gradient(96deg,#ff9d00,#f2541f 52%,#e01f2d);
+  /* Text-bearing surfaces need a deeper ramp — every stop below clears 4.5:1
+     against white; the bright ramp above peaks at 2.1:1 and is display-only. */
+  --dns-grad-ink:linear-gradient(96deg,#d93a10,#cf1f22 52%,#c2102b);
+
+  /* Semantic — LIGHT (warm paper, black ink) */
+  --dns-bg:#f6f2e9;
+  --dns-bg-alt:#efe9dc;
+  --dns-card:#ffffff;
+  --dns-ink:#12100d;
+  --dns-body:#3c3730;
+  --dns-muted:#6d675d;
+  --dns-line:rgba(18,16,13,.14);
+  --dns-line-soft:rgba(18,16,13,.08);
+  --dns-accent-ink:#c2311c;     /* gradient is decorative; THIS is accent text (AA on paper) */
+  --dns-field:#ffffff;
+
+  --dns-r:3px;
+  --dns-r-lg:4px;
+}
+:root[data-theme="dark"]{
+  --dns-bg:#0c0c0c;
+  --dns-bg-alt:#141414;
+  --dns-card:#181818;
+  --dns-ink:#f5f0e6;
+  --dns-body:#d3cdc1;
+  --dns-muted:#9a938a;
+  --dns-line:rgba(240,235,225,.16);
+  --dns-line-soft:rgba(240,235,225,.09);
+  --dns-accent-ink:#ffa257;
+  --dns-field:#101010;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --dns-bg:#0c0c0c; --dns-bg-alt:#141414; --dns-card:#181818;
+    --dns-ink:#f5f0e6; --dns-body:#d3cdc1; --dns-muted:#9a938a;
+    --dns-line:rgba(240,235,225,.16); --dns-line-soft:rgba(240,235,225,.09);
+    --dns-accent-ink:#ffa257; --dns-field:#101010;
+  }
+}
+
+body.dns{background:var(--dns-bg);color:var(--dns-body)}
+.dns main{overflow-x:clip}
+.dns-wrap{max-width:1120px;margin-inline:auto;padding-inline:clamp(18px,4vw,32px)}
+.dns-narrow{max-width:760px}
+.dns-section{padding-block:clamp(56px,7.5vw,104px)}
+.dns-section--alt{background:var(--dns-bg-alt)}
+.dns-section--dark{background:var(--dns-black);color:var(--dns-cream)}
+
+/* ── Type ─────────────────────────────────────────────────────────────── */
+.dns-kicker{display:inline-block;font:700 .72rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.22em;text-transform:uppercase;color:var(--dns-accent-ink)}
+.dns-section--dark .dns-kicker,.dns-closer .dns-kicker,
+.dns-hero .dns-kicker{color:var(--dns-gold)}
+.dns-h2{font:600 clamp(2rem,4.4vw,3.4rem)/1.02 var(--afg-font-display,Cormorant,Georgia,serif);
+  letter-spacing:-.02em;color:var(--dns-ink);margin:.35em 0 .28em;text-wrap:balance}
+.dns-section--dark .dns-h2{color:var(--dns-cream-2)}
+.dns-lead{color:var(--dns-muted);font-size:clamp(1rem,1.25vw,1.1rem);line-height:1.65;max-width:62ch;margin:0}
+.dns-section--dark .dns-lead{color:rgba(222,210,187,.78)}
+.dns-head{max-width:660px;margin-bottom:clamp(34px,4.5vw,56px)}
+.dns-head--center{margin-inline:auto;text-align:center}
+.dns-head--center .dns-lead{margin-inline:auto}
+.dns-grad{background:var(--dns-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+@supports not (background-clip:text){.dns-grad{color:var(--dns-orange)}}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.dns-btn{display:inline-flex;align-items:center;justify-content:center;gap:.55em;
+  font:700 .95rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.04em;
+  padding:16px 28px;border:1.5px solid transparent;border-radius:var(--dns-r);
+  text-decoration:none;cursor:pointer;transition:background .16s,color .16s,border-color .16s,transform .16s}
+.dns-btn:hover{transform:translateY(-1px)}
+.dns-btn-primary{background:var(--dns-grad-ink);color:#fff}
+.dns-btn-primary:hover{filter:brightness(1.08)}
+.dns-btn-lime{background:var(--dns-lime);color:#101400}
+.dns-btn-lime:hover{background:#b3d84a}
+.dns-btn-ghost{background:transparent;color:var(--dns-ink);border-color:var(--dns-line)}
+.dns-btn-ghost:hover{border-color:currentColor}
+.dns-on-dark .dns-btn-ghost,.dns-section--dark .dns-btn-ghost{color:var(--dns-cream);border-color:rgba(222,210,187,.34)}
+.dns-btn-lg{padding:18px 34px;font-size:1rem}
+.dns-cta-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+
+/* ── Hero (the poster) ────────────────────────────────────────────────── */
+.dns-hero{position:relative;background:var(--dns-black);color:var(--dns-cream);
+  padding-block:clamp(56px,9vw,116px);overflow:hidden;isolation:isolate}
+.dns-hero::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:radial-gradient(900px 520px at 78% -10%,rgba(224,31,45,.20),transparent 62%),
+             radial-gradient(700px 440px at 6% 108%,rgba(163,201,58,.13),transparent 60%)}
+.dns-hero-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:28px;align-items:start}
+.dns-presents{display:flex;align-items:center;gap:12px;font:700 .68rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.26em;text-transform:uppercase;color:rgba(222,210,187,.72)}
+.dns-presents b{color:var(--dns-cream-2);letter-spacing:.2em}
+.dns-badge{align-self:start;justify-self:end;border:1.5px solid var(--dns-gold);border-radius:999px;
+  padding:12px 24px;font:600 1.15rem/1 var(--afg-font-display,Cormorant,Georgia,serif);
+  color:var(--dns-gold);white-space:nowrap;transform:rotate(-4deg)}
+.dns-hero h1{font:600 clamp(2.9rem,10vw,6.2rem)/.92 var(--afg-font-display,Cormorant,Georgia,serif);
+  letter-spacing:-.025em;color:#fff;margin:.22em 0 0;text-transform:uppercase;text-wrap:balance}
+.dns-hero h1 span{display:block}
+.dns-triad{display:inline-block;background:var(--dns-lime);color:#101400;margin-top:26px;
+  padding:12px 22px;border-radius:var(--dns-r);
+  font:800 clamp(.85rem,1.9vw,1.05rem)/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.16em;text-transform:uppercase}
+.dns-hero-sub{margin:26px 0 0;max-width:56ch;color:rgba(222,210,187,.82);font-size:clamp(1rem,1.3vw,1.13rem);line-height:1.65}
+.dns-hero .dns-cta-row{margin-top:32px}
+.dns-hero-note{margin:16px 0 0;font-size:.85rem;color:rgba(222,210,187,.6)}
+.dns-hero-note a{color:var(--dns-gold)}
+
+/* Fact strip — the flyer's cream panel */
+.dns-facts{margin-top:clamp(38px,5vw,60px);background:var(--dns-cream);color:#12100d;
+  border-radius:var(--dns-r-lg);display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.dns-fact{padding:22px clamp(16px,2.2vw,26px);border-left:1px solid rgba(18,16,13,.14)}
+.dns-fact:first-child{border-left:0}
+.dns-fact dt{font:700 .66rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+  text-transform:uppercase;color:rgba(18,16,13,.72);margin-bottom:9px}
+.dns-fact dd{margin:0;font-weight:700;font-size:clamp(.95rem,1.3vw,1.05rem);line-height:1.35;color:#12100d}
+.dns-fact dd small{display:block;font-weight:500;font-size:.85em;color:rgba(18,16,13,.62);margin-top:3px}
+
+/* ── Countdown ────────────────────────────────────────────────────────── */
+.dns-count{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px;align-items:stretch}
+.dns-count-unit{min-width:78px;background:rgba(255,255,255,.05);border:1px solid rgba(222,210,187,.18);
+  border-radius:var(--dns-r);padding:12px 14px;text-align:center}
+.dns-count-n{display:block;font:600 1.9rem/1 var(--afg-font-display,Cormorant,Georgia,serif);color:#fff;
+  font-variant-numeric:tabular-nums}
+.dns-count-l{display:block;margin-top:5px;font:700 .6rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.18em;text-transform:uppercase;color:rgba(222,210,187,.6)}
+.dns-count-live{margin-top:30px;display:inline-flex;align-items:center;gap:10px;
+  background:var(--dns-lime);color:#101400;padding:12px 20px;border-radius:var(--dns-r);
+  font:800 .82rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.14em;text-transform:uppercase}
+.dns-count-dot{width:9px;height:9px;border-radius:50%;background:#101400;animation:dns-pulse 1.6s ease-in-out infinite}
+@keyframes dns-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── Pillars (MASTER · TAME · OWN) ────────────────────────────────────── */
+.dns-pillars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--dns-line);
+  border:1px solid var(--dns-line);border-radius:var(--dns-r-lg);overflow:hidden}
+.dns-pillar{background:var(--dns-card);padding:clamp(26px,3.4vw,40px)}
+.dns-pillar-n{font:700 .68rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+  text-transform:uppercase;color:var(--dns-muted)}
+.dns-pillar h3{font:600 clamp(1.7rem,2.8vw,2.4rem)/1 var(--afg-font-display,Cormorant,Georgia,serif);
+  text-transform:uppercase;letter-spacing:-.01em;color:var(--dns-ink);margin:14px 0 12px}
+.dns-pillar p{margin:0;color:var(--dns-muted);line-height:1.65;font-size:.97rem}
+.dns-pillar::after{content:"";display:block;width:44px;height:4px;margin-top:22px;background:var(--dns-lime);border-radius:2px}
+.dns-pillar:nth-child(2)::after{background:var(--dns-grad)}
+.dns-pillar:nth-child(3)::after{background:var(--dns-gold)}
+
+/* ── Sessions ─────────────────────────────────────────────────────────── */
+.dns-sessions{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.dns-session{display:flex;gap:16px;background:var(--dns-card);border:1px solid var(--dns-line);
+  border-radius:var(--dns-r-lg);padding:22px 24px;transition:border-color .16s,transform .16s}
+.dns-session:hover{border-color:var(--dns-ink);transform:translateY(-2px)}
+.dns-session-mark{flex:none;width:10px;height:10px;margin-top:7px;background:var(--dns-red);border-radius:1px}
+.dns-session h3{margin:0 0 6px;font:700 1.02rem/1.3 var(--afg-font-body,Montserrat,system-ui);color:var(--dns-ink)}
+.dns-session p{margin:0;color:var(--dns-muted);font-size:.92rem;line-height:1.6}
+
+/* ── Speakers ─────────────────────────────────────────────────────────── */
+.dns-speakers{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:22px}
+.dns-speaker{background:var(--dns-black-2);border:1px solid rgba(222,210,187,.14);
+  border-radius:var(--dns-r-lg);padding:14px 14px 22px;text-align:left}
+.dns-speaker--lead{border-color:var(--dns-gold);box-shadow:inset 0 0 0 1px rgba(243,180,22,.28)}
+.dns-portrait{position:relative;aspect-ratio:3/4;border-radius:var(--dns-r);overflow:hidden;
+  background:var(--dns-black-3);display:grid;place-items:center}
+.dns-portrait img{width:100%;height:100%;object-fit:cover;object-position:center 22%;display:block}
+.dns-monogram{font:600 clamp(2.6rem,7vw,3.6rem)/1 var(--afg-font-display,Cormorant,Georgia,serif);
+  color:rgba(222,210,187,.52);letter-spacing:.04em}
+.dns-speaker--lead .dns-portrait{background:#0a0a0a}
+.dns-speaker--lead .dns-monogram{color:rgba(243,180,22,.72)}
+.dns-tag{display:inline-block;margin-top:16px;padding:7px 13px;border-radius:var(--dns-r);
+  font:800 .68rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.11em;text-transform:uppercase}
+.dns-tag-lime{background:var(--dns-lime);color:#101400}
+.dns-tag-red{background:var(--dns-red);color:#fff}
+.dns-tag-gold{background:var(--dns-gold);color:#12100d}
+.dns-speaker-role{margin:12px 0 0;font:600 .68rem/1.4 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.18em;text-transform:uppercase;color:rgba(222,210,187,.72)}
+
+/* ── Details / logistics ──────────────────────────────────────────────── */
+.dns-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;
+  background:var(--dns-line);border:1px solid var(--dns-line);border-radius:var(--dns-r-lg);overflow:hidden}
+.dns-detail{background:var(--dns-card);padding:clamp(24px,3vw,32px)}
+.dns-detail dt{font:700 .66rem/1 var(--afg-font-body,Montserrat,system-ui);letter-spacing:.2em;
+  text-transform:uppercase;color:var(--dns-muted);margin-bottom:10px}
+.dns-detail dd{margin:0;color:var(--dns-ink);font-weight:600;line-height:1.5}
+.dns-detail dd span{display:block;font-weight:400;color:var(--dns-muted);font-size:.9rem;margin-top:6px}
+.dns-detail dd a{color:var(--dns-accent-ink);text-underline-offset:3px}
+.dns-price{font:600 2.4rem/1 var(--afg-font-display,Cormorant,Georgia,serif);color:var(--dns-ink)}
+
+/* ── Register ─────────────────────────────────────────────────────────── */
+.dns-form-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
+  gap:clamp(28px,4vw,56px);align-items:start}
+.dns-form-aside p{color:rgba(222,210,187,.78);line-height:1.7}
+.dns-checklist{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:12px}
+.dns-checklist li{position:relative;padding-left:26px;color:rgba(222,210,187,.86);font-size:.95rem;line-height:1.55}
+.dns-checklist li::before{content:"";position:absolute;left:0;top:.5em;width:11px;height:2px;background:var(--dns-lime)}
+.dns-form{background:var(--dns-card);border:1px solid var(--dns-line);border-radius:var(--dns-r-lg);
+  padding:clamp(24px,3.2vw,36px)}
+.dns-fld{margin-bottom:18px}
+.dns-fld label{display:block;font:700 .78rem/1 var(--afg-font-body,Montserrat,system-ui);
+  letter-spacing:.05em;color:var(--dns-ink);margin-bottom:8px}
+.dns-req{color:var(--dns-accent-ink)}
+.dns-form input,.dns-form select,.dns-form textarea{width:100%;box-sizing:border-box;
+  border:1.5px solid var(--dns-line);border-radius:var(--dns-r);padding:13px 14px;
+  font:inherit;font-size:.97rem;background:var(--dns-field);color:var(--dns-ink)}
+.dns-form input::placeholder,.dns-form textarea::placeholder{color:var(--dns-muted);opacity:.8}
+.dns-form input:focus,.dns-form select:focus,.dns-form textarea:focus{outline:none;border-color:var(--dns-red);
+  box-shadow:0 0 0 3px rgba(224,31,45,.16)}
+.dns-form textarea{min-height:104px;resize:vertical}
+.dns-row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dns-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.dns-hint{margin:6px 0 0;font-size:.82rem;color:var(--dns-muted)}
+.dns-form .dns-btn{width:100%;margin-top:6px}
+.dns-alert{border-radius:var(--dns-r);padding:14px 16px;margin-bottom:20px;font-size:.92rem;
+  font-weight:600;line-height:1.5;border:1px solid}
+.dns-alert-err{background:rgba(224,31,45,.08);border-color:rgba(224,31,45,.35);color:var(--dns-accent-ink)}
+.dns-done{text-align:center;padding:12px 4px}
+.dns-done-mark{width:56px;height:56px;margin:0 auto 18px;border-radius:50%;background:var(--dns-lime);
+  display:grid;place-items:center;color:#101400;font-size:1.6rem;font-weight:800}
+.dns-done h3{font:600 1.7rem/1.15 var(--afg-font-display,Cormorant,Georgia,serif);color:var(--dns-ink);margin:0 0 10px}
+.dns-done p{color:var(--dns-muted);max-width:46ch;margin:0 auto 12px;line-height:1.65}
+
+/* ── FAQ ──────────────────────────────────────────────────────────────── */
+.dns-faq{border-top:1px solid var(--dns-line)}
+.dns-faq details{border-bottom:1px solid var(--dns-line)}
+.dns-faq summary{list-style:none;cursor:pointer;padding:22px 44px 22px 0;position:relative;
+  font:700 1.02rem/1.4 var(--afg-font-body,Montserrat,system-ui);color:var(--dns-ink)}
+.dns-faq summary::-webkit-details-marker{display:none}
+.dns-faq summary::after{content:"+";position:absolute;right:8px;top:50%;translate:0 -50%;
+  font-size:1.5rem;font-weight:400;color:var(--dns-muted);transition:rotate .18s}
+.dns-faq details[open] summary::after{rotate:45deg}
+.dns-faq p{margin:0 0 22px;color:var(--dns-muted);line-height:1.7;max-width:70ch}
+
+/* ── Closing band ─────────────────────────────────────────────────────── */
+.dns-closer{background:var(--dns-black);color:var(--dns-cream);text-align:center;
+  padding-block:clamp(56px,7vw,96px)}
+.dns-closer h2{font:600 clamp(2.1rem,5vw,3.6rem)/1.02 var(--afg-font-display,Cormorant,Georgia,serif);
+  color:#fff;margin:.2em 0 .3em;text-transform:uppercase;letter-spacing:-.02em}
+.dns-closer p{color:rgba(222,210,187,.78);max-width:52ch;margin:0 auto 30px;line-height:1.65}
+.dns-closer .dns-cta-row{justify-content:center}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width:900px){
+  .dns-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dns-fact:nth-child(odd){border-left:0}
+  .dns-fact:nth-child(n+3){border-top:1px solid rgba(18,16,13,.14)}
+  .dns-pillars{grid-template-columns:1fr}
+  .dns-form-grid{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .dns-hero-grid{grid-template-columns:1fr}
+  .dns-badge{justify-self:start;margin-top:4px}
+  .dns-facts{grid-template-columns:1fr}
+  .dns-fact{border-left:0}
+  .dns-fact+.dns-fact{border-top:1px solid rgba(18,16,13,.14)}
+  .dns-row2{grid-template-columns:1fr}
+  .dns-cta-row .dns-btn{width:100%}
+  .dns-count-unit{flex:1 1 calc(50% - 10px);min-width:0}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .dns-btn,.dns-session{transition:none}
+  .dns-btn:hover,.dns-session:hover{transform:none}
+  .dns-count-dot{animation:none}
+}

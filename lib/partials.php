@@ -183,6 +183,7 @@ function av_nav_model(): array {
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
                     ['All programmes', '/academy/'], ['NextGen Vanguard', '/academy/ngv/'],
+                    ["D'Vanguard National Summit", '/academy/dns/'],
                     ['Academy membership', '/academy/#membership'],
                     ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/verify.php'],
                 ]],
@@ -261,6 +262,7 @@ function av_subnav_model(): array {
             'links'  => [
                 ['Programmes',  '/academy/#catalogue'],
                 ['NextGen Vanguard', '/academy/ngv/'],
+                ["DNS '26",     '/academy/dns/'],
                 ['Membership',  '/academy/#membership'],
                 ['Teach',       '/academy/teach/'],
             ],

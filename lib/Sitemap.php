@@ -18,6 +18,7 @@ final class Sitemap
         ['ethos/', '0.9', 'monthly'],
         ['academy/', '0.9', 'weekly'],
         ['academy/ngv/', '0.9', 'weekly'],
+        ['academy/dns/', '0.9', 'weekly'],
         ['diary/', '0.9', 'weekly'],
         ['projects', '0.7', 'monthly'],
         ['events/', '0.7', 'weekly'],
