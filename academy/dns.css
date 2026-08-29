@@ -183,6 +183,7 @@ body.dns{background:var(--dns-bg);color:var(--dns-body)}
 .dns-speaker--lead{border-color:var(--dns-gold);box-shadow:inset 0 0 0 1px rgba(243,180,22,.28)}
 .dns-portrait{position:relative;aspect-ratio:3/4;border-radius:var(--dns-r);overflow:hidden;
   background:var(--dns-black-3);display:grid;place-items:center}
+.dns-portrait picture{display:block;width:100%;height:100%}
 .dns-portrait img{width:100%;height:100%;object-fit:cover;object-position:center 22%;display:block}
 .dns-monogram{font:600 clamp(2.6rem,7vw,3.6rem)/1 var(--afg-font-display,Cormorant,Georgia,serif);
   color:rgba(222,210,187,.52);letter-spacing:.04em}

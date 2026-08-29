@@ -49,12 +49,14 @@ $SESSIONS = [
     ['Content mastery',                   'A content practice you can sustain: what to make, how often, and how to make it count.'],
 ];
 
-/* People, in the order they appear on the flyer. `photo` is optional — leave it
-   empty and the card renders a designed monogram instead of a broken image. */
+/* People, in the order they appear on the flyer. `photo` is the portrait's path
+   without an extension — a .webp and a .png of that name live side by side in
+   /assets/img. Leave it empty and the card renders a designed monogram instead
+   of a broken image. */
 $SPEAKERS = [
-    ['name' => 'Adesola Aladesawe', 'role' => 'Speaker · Communication', 'tag' => 'Speaker',  'tag_cls' => 'dns-tag-lime', 'photo' => '', 'lead' => false],
-    ['name' => 'Ujagbe Onofua',     'role' => 'Speaker · Enterprise',    'tag' => 'Speaker',  'tag_cls' => 'dns-tag-red',  'photo' => '', 'lead' => false],
-    ['name' => 'Van. Babatunde Adeola', 'role' => 'Convener',            'tag' => 'Convener', 'tag_cls' => 'dns-tag-gold', 'photo' => '', 'lead' => true],
+    ['name' => 'Adesola Aladesawe', 'role' => 'Speaker · Communication', 'tag' => 'Speaker',  'tag_cls' => 'dns-tag-lime', 'photo' => '/assets/img/dns-adesola',   'lead' => false],
+    ['name' => 'Ujagbe Onofua',     'role' => 'Speaker · Enterprise',    'tag' => 'Speaker',  'tag_cls' => 'dns-tag-red',  'photo' => '/assets/img/dns-ujagbe',    'lead' => false],
+    ['name' => 'Van. Babatunde Adeola', 'role' => 'Convener',            'tag' => 'Convener', 'tag_cls' => 'dns-tag-gold', 'photo' => '/assets/img/dns-babatunde', 'lead' => true],
 ];
 
 $FAQ = [
@@ -398,7 +400,10 @@ render_nav('academy');
         <article class="dns-speaker<?= !empty($sp['lead']) ? ' dns-speaker--lead' : '' ?>" data-reveal>
           <div class="dns-portrait">
 <?php if (!empty($sp['photo'])): ?>
-            <img src="<?= e($sp['photo']) ?>" alt="<?= e($sp['name']) ?>, <?= e($sp['role']) ?>" loading="lazy" width="360" height="480">
+            <picture>
+              <source srcset="<?= e($sp['photo']) ?>.webp" type="image/webp">
+              <img src="<?= e($sp['photo']) ?>.png" alt="Portrait of <?= e($sp['name']) ?>, <?= e($sp['role']) ?>" loading="lazy" decoding="async" width="800" height="800">
+            </picture>
 <?php else: ?>
             <span class="dns-monogram" aria-hidden="true"><?= e($initials($sp['name'])) ?></span>
 <?php endif; ?>
