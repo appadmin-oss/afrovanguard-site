@@ -43,8 +43,11 @@ function av_config_present(string $const): bool {
  * Powers donation receipts, contact replies AND Academy emails
  * (welcome / enrolment / membership / certificate-ready) via the
  * shared lib/Mailer.php. Delivery order (first that works wins):
- *   PHPMailer/SMTP  →  Resend (HTTPS API)  →  built-in SMTP  →  mail()
- * PHPMailer is bundled (no Composer install needed on the host).
+ *   PHPMailer/SMTP  →  Resend (HTTPS API)  →  mail()
+ * PHPMailer is the ONLY SMTP transport — the hand-rolled lib/Smtp.php was
+ * retired — and it is bundled (no Composer install needed on the host). If it
+ * is ever missing, SMTP is skipped entirely and mail degrades to PHP mail();
+ * the Studio reports that under System → Email.
  *
  * RECOMMENDED on shared hosting: a dedicated relay like Brevo (free tier
  * 300/day) — shared-host Gmail/Workspace SMTP is often blocked and silently

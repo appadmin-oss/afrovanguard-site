@@ -100,10 +100,24 @@ final class Config
 
         // Email (required for verification + notifications)
         $mail = self::has('SMTP_HOST', 'SMTP_USERNAME') && (self::has('SMTP_PASSWORD') || self::has('AV_SMTP_PASSWORD'));
-        $groups[] = ['group' => 'Email (SMTP)', 'checks' => [
+        // PHPMailer is the only SMTP transport (the hand-rolled lib/Smtp.php was
+        // retired), so credentials alone do not mean mail can go out: without the
+        // library every send quietly degrades to PHP mail(), which shared hosts
+        // routinely drop. Report the transport next to the credentials.
+        $pm = class_exists('Mailer') ? Mailer::phpMailerInfo() : ['available' => false, 'version' => '', 'source' => ''];
+        $checks = [
             self::chk('SMTP credentials', $mail ? 'ok' : 'off', $mail ? self::str('SMTP_HOST') : 'missing — email verification & notifications are disabled'),
+            self::chk('PHPMailer', $pm['available'] ? 'ok' : 'off', $pm['available']
+                ? trim(($pm['version'] !== '' ? 'v' . $pm['version'] : 'loaded') . ($pm['source'] !== '' ? ' · ' . $pm['source'] : ''))
+                : 'missing — SMTP cannot be used; mail falls back to PHP mail(). Run composer install, or restore lib/vendor/phpmailer.'),
             self::chk('From address', self::has('FROM_EMAIL') ? 'ok' : 'info', self::str('FROM_EMAIL', '—')),
-        ]];
+        ];
+        // The mailbox a seat claim or contact message is announced to. Unset, the
+        // staff alert has nowhere to go and is skipped.
+        $adminMail = self::has('ADMIN_EMAIL') ? self::str('ADMIN_EMAIL') : (self::has('FROM_EMAIL') ? self::str('FROM_EMAIL') . ' (falls back to From)' : '');
+        $checks[] = self::chk('Staff alerts to', $adminMail !== '' ? 'ok' : 'warn',
+            $adminMail !== '' ? $adminMail : 'no ADMIN_EMAIL or FROM_EMAIL — nobody is told about new registrations or messages');
+        $groups[] = ['group' => 'Email (SMTP)', 'checks' => $checks];
 
         // Payments (required for donations / paid courses)
         $pay = self::has('PAYSTACK_PUBLIC_KEY', 'PAYSTACK_SECRET_KEY');

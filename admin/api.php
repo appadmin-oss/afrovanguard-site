@@ -297,18 +297,21 @@ try {
          * response an admin might paste into a chat.
          */
         case 'mail_status': {
-            $pass     = defined('SMTP_PASSWORD') ? (string) SMTP_PASSWORD : '';
-            $bundled  = is_file(AV_ROOT . '/lib/vendor/phpmailer/PHPMailer.php');
-            $composer = is_file(AV_ROOT . '/vendor/autoload.php');
+            $pass = defined('SMTP_PASSWORD') ? (string) SMTP_PASSWORD : '';
+            // PHPMailer is the ONLY SMTP transport (lib/Smtp.php was retired), so
+            // report whether it can actually be loaded rather than guessing from a
+            // file path: "credentials are set" means nothing if the library that
+            // uses them is missing. This used to also advertise a 'built-in SMTP
+            // client' that no longer exists — a phantom third transport.
+            $phpmailer = Mailer::phpMailerInfo();
             $transports = [
-                'phpmailer' => $bundled || $composer,
-                'own_smtp'  => class_exists('Smtp'),
+                'phpmailer' => $phpmailer['available'],
                 'php_mail'  => function_exists('mail'),
             ];
             $would = Mailer::configured() && $transports['phpmailer']
                 ? 'PHPMailer over authenticated SMTP'
-                : (Mailer::configured() && $transports['own_smtp']
-                    ? 'the built-in SMTP client'
+                : (Mailer::resendConfigured()
+                    ? 'the Resend HTTPS API'
                     : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing'));
 
             json_out([
@@ -328,6 +331,7 @@ try {
                       . '. If you pasted it with the spaces Google shows, remove them.'
                     : '',
                 'transports'  => $transports,
+                'phpmailer'   => $phpmailer,
                 'would_use'   => $would,
                 'admin_email' => defined('ADMIN_EMAIL') ? ADMIN_EMAIL : '',
             ]);

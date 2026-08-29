@@ -52,6 +52,35 @@ final class Mailer
         return ($k === '' || $k === 'YOUR_RESEND_KEY_HERE') ? '' : $k;
     }
 
+    /** True when the Resend HTTPS API key is present (diagnostics). */
+    public static function resendConfigured(): bool { return self::resendKey() !== ''; }
+
+    /**
+     * What PHPMailer this deploy will actually send through — the answer the
+     * Studio's email diagnostic needs. PHPMailer is the only SMTP transport
+     * (the hand-rolled lib/Smtp.php was retired), so "credentials are set" is
+     * only half the story: without the library there is no SMTP send at all,
+     * and mail silently degrades to PHP mail(). Reports whether it LOADS,
+     * not merely whether a file is on disk.
+     */
+    public static function phpMailerInfo(): array
+    {
+        $available = self::loadPhpMailer();
+        $out = ['available' => $available, 'version' => '', 'source' => '', 'path' => ''];
+        if (!$available) return $out;
+        try {
+            $r = new \ReflectionClass('PHPMailer\\PHPMailer\\PHPMailer');
+            $path = (string) $r->getFileName();
+            $out['path']    = $path;
+            $out['source']  = str_contains($path, '/lib/vendor/') ? 'bundled with the site'
+                            : (str_contains($path, '/vendor/') ? 'Composer' : 'manual install');
+            $out['version'] = (string) ($r->getConstant('VERSION') ?: '');
+        } catch (\Throwable $e) {
+            // Loaded but unintrospectable — availability is the part that matters.
+        }
+        return $out;
+    }
+
     private static function loadPhpMailer(): bool
     {
         if (self::$phpmailer !== null) return self::$phpmailer;
