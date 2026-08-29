@@ -118,48 +118,6 @@ $initials = static function (string $name): string {
    token, because there is no session to ride and no account to act on.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/** Acknowledge the registrant and alert staff. Best-effort — the seat is
- *  already saved, so a mail hiccup must never surface as a failure. */
-function dns_notify_registration(int $id, array $d, array $summit): void
-{
-    if (!class_exists('Mailer')) return;
-    $esc   = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
-    $name  = trim((string) ($d['name'] ?? '')) ?: 'there';
-    $first = $esc(explode(' ', $name)[0]);
-    $email = trim((string) ($d['email'] ?? ''));
-    $v     = $summit['venue'];
-    $where = $esc($v['name'] . ', ' . $v['area'] . ', ' . $v['city']);
-    $when  = $esc($summit['date_label']);
-    $wa    = $esc($summit['whatsapp']['display']);
-    $seats = max(1, (int) ($d['seats'] ?? 1));
-
-    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $html = "<p>Hi {$first},</p>"
-              . '<p>Your seat at the <b>' . $esc($summit['name']) . ' (' . $esc($summit['edition']) . ')</b> is reserved.</p>'
-              . "<p><b>When:</b> {$when}, from " . $esc($summit['time_label']) . '<br>'
-              . "<b>Where:</b> {$where}<br>"
-              . '<b>Seats held:</b> ' . $seats . '<br>'
-              . '<b>Pass:</b> ' . $esc($summit['pass']['label']) . ' — ' . $esc($summit['pass']['note']) . '</p>'
-              . "<p><b>Next step:</b> our team will confirm your place and share payment details. If you would rather sort it out now, message us on WhatsApp at {$wa}.</p>"
-              . '<p>Master. Tame. Own.<br>— Afrovanguard</p>';
-        try { Mailer::send($email, 'Your seat at ' . $summit['edition'] . ' is reserved', $html); } catch (Throwable $e) {}
-    }
-
-    $admin = defined('ADMIN_EMAIL') && ADMIN_EMAIL ? (string) ADMIN_EMAIL
-           : (defined('FROM_EMAIL') ? (string) FROM_EMAIL : '');
-    if ($admin === '') return;
-    $rows = '';
-    foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'location' => 'Location',
-              'organisation' => 'Organisation', 'pillar' => 'Pillar', 'heard' => 'Heard via',
-              'message' => 'Message'] as $k => $label) {
-        $val = trim((string) ($d[$k] ?? ''));
-        if ($val !== '') $rows .= '<tr><td><b>' . $label . '</b></td><td>' . $esc($val) . '</td></tr>';
-    }
-    $html = '<p>New ' . $esc($summit['edition']) . " seat claim (#{$id}) — {$seats} seat(s).</p>"
-          . '<table cellpadding="6" border="0">' . $rows . '</table>';
-    try { Mailer::send($admin, 'DNS ' . $summit['edition'] . " seat claim #{$id}", $html); } catch (Throwable $e) {}
-}
-
 $sent = false;
 $dupe = false;
 $err  = '';
@@ -190,7 +148,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $id = Summit::register($old + ['source' => 'dns-page']);
         if ($id > 0) {
             $sent = true;
-            try { dns_notify_registration($id, $old, $SUMMIT); } catch (Throwable $e) {}
+            // Best-effort: the seat is already saved, so a mail failure is
+            // recorded against the row (and resendable from the Studio) rather
+            // than surfaced to someone who has just registered successfully.
+            try { Summit::notify($id, $old); } catch (Throwable $e) { error_log('[summit] notify: ' . $e->getMessage()); }
             if (class_exists('Events')) {
                 try { Events::emit('summit.registration', ['id' => $id, 'edition' => Summit::EDITION]); } catch (Throwable $e) {}
             }

@@ -67,6 +67,7 @@ try {
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
+        'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
@@ -90,6 +91,9 @@ try {
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
         'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
+        // Seat claims carry names, emails and phone numbers, and resending mail
+        // on someone's behalf is a management action. Not for editors.
+        'summit_list', 'summit_resend', 'summit_resend_failed', 'summit_export',
         'activity', 'activity_undo',
         'mentorship_stats', 'mentorship_mentors', 'mentorship_pairings', 'mentorship_inactive', 'mentorship_cohorts',
         // Health names individuals and their attendance record, so it sits with
@@ -546,6 +550,72 @@ try {
             header('Content-Disposition: attachment; filename="mentorship-pairings.csv"');
             $out = fopen('php://output', 'w');
             foreach ($rows as $r) fputcsv($out, $r);
+            fclose($out); exit;
+        }
+
+        /* ════ D'Vanguard National Summit — seat claims ════
+           The public page at /academy/dns/ is an unauthenticated intake with no
+           other surface: without these four actions a seat claim lands in the
+           database and nobody ever sees it. `mail` on each row is the delivery
+           the registrant actually got, so a misconfigured mailer shows up as a
+           resendable queue instead of silence. */
+        case 'summit_list': {
+            $rows = Summit::search(
+                (string) ($_GET['q'] ?? ''),
+                (string) ($_GET['mail'] ?? '')
+            );
+            json_out([
+                'ok'      => true,
+                'rows'    => $rows,
+                'stats'   => Summit::stats(),
+                'edition' => Summit::EDITION,
+                'summit'  => ['name' => Summit::facts()['name'], 'label' => Summit::facts()['edition']],
+                // The list leads with delivery, so it needs to say whether mail
+                // could work at all — an empty "sent" column means one thing when
+                // SMTP is configured and quite another when it is not.
+                'mail'    => ['configured' => Mailer::configured()],
+            ]);
+        }
+        case 'summit_resend': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id  = (int) ($body['id'] ?? 0);
+            $row = Summit::find($id);
+            if (!$row) json_out(['ok' => false, 'error' => 'No such registration.'], 404);
+            $res = Summit::notify($id, $row);
+            json_out([
+                'ok'     => (bool) $res['ok'],
+                'id'     => $id,
+                'detail' => $res['ok']
+                    ? ('Confirmation sent to ' . $row['email'] . '.')
+                    : ('Send failed: ' . ($res['error'] ?: 'unknown error')
+                       . (Mailer::configured() ? '' : ' — SMTP is not configured. Set SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD, then try again.')),
+            ]);
+        }
+        case 'summit_resend_failed': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            // Bounded per call: a backlog is cleared in batches rather than in one
+            // request that a shared host will time out halfway through.
+            $sent = 0; $failed = 0; $last = '';
+            foreach (Summit::search('', 'failed', 25) as $row) {
+                $res = Summit::notify((int) $row['id'], $row);
+                if ($res['ok']) $sent++; else { $failed++; $last = (string) $res['error']; }
+            }
+            json_out(['ok' => true, 'sent' => $sent, 'failed' => $failed, 'detail' => $failed
+                ? ($sent . ' sent, ' . $failed . ' still failing — ' . ($last ?: 'unknown error'))
+                : ($sent ? ($sent . ' confirmation(s) sent.') : 'Nothing was waiting to be sent.')]);
+        }
+        case 'summit_export': {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="summit-' . Summit::EDITION . '-registrations.csv"');
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['ID', 'Name', 'Email', 'Phone', 'Location', 'Organisation',
+                           'Pillar', 'Seats', 'Heard via', 'Message', 'Emailed', 'Mail error', 'Registered']);
+            foreach (Summit::search((string) ($_GET['q'] ?? ''), (string) ($_GET['mail'] ?? ''), 2000) as $r) {
+                fputcsv($out, [$r['id'], $r['name'], $r['email'], $r['phone'], $r['location'],
+                               $r['organisation'], $r['pillar'], $r['seats'], $r['heard'],
+                               $r['message'], ($r['notified_at'] ?? '') !== '' ? 'yes' : 'no',
+                               $r['notify_error'] ?? '', $r['created_at']]);
+            }
             fclose($out); exit;
         }
 

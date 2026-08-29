@@ -161,11 +161,21 @@ final class Summit
                 message TEXT NOT NULL DEFAULT '',
                 status VARCHAR(20) NOT NULL DEFAULT 'new',
                 source VARCHAR(24) NOT NULL DEFAULT 'web',
+                notified_at VARCHAR(32) NOT NULL DEFAULT '',
+                notify_error VARCHAR(400) NOT NULL DEFAULT '',
                 created_at VARCHAR(32) NOT NULL DEFAULT ''
             );
             CREATE INDEX IF NOT EXISTS idx_summit_reg_edition ON summit_registrations(edition, created_at);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_summit_reg_who ON summit_registrations(edition, email);";
             Database::execSchema($db, $ddl);
+            // Installs created before delivery was tracked still have the old
+            // shape; add the two columns rather than asking for a migration.
+            foreach (['notified_at' => "VARCHAR(32) NOT NULL DEFAULT ''",
+                      'notify_error' => "VARCHAR(400) NOT NULL DEFAULT ''"] as $col => $type) {
+                if (!Database::columnExists('summit_registrations', $col)) {
+                    $db->exec("ALTER TABLE summit_registrations ADD COLUMN {$col} {$type}");
+                }
+            }
         } catch (Throwable $e) {
             error_log('[summit] ensure: ' . $e->getMessage());
         }
@@ -266,6 +276,185 @@ final class Summit
             return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
             return [];
+        }
+    }
+
+    /**
+     * Registrations for the staff list, newest first. `$q` matches name, email,
+     * phone or organisation; `$mail` filters on delivery ('sent' | 'failed').
+     */
+    public static function search(string $q = '', string $mail = '', int $limit = 500): array
+    {
+        self::ensure();
+        $limit = max(1, min(2000, $limit));
+        $sql   = 'SELECT * FROM summit_registrations WHERE edition = ?';
+        $args  = [self::EDITION];
+        $q = trim($q);
+        if ($q !== '') {
+            $sql .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR organisation LIKE ?)';
+            $like = '%' . $q . '%';
+            array_push($args, $like, $like, $like, $like);
+        }
+        if ($mail === 'sent')   $sql .= " AND notified_at <> ''";
+        if ($mail === 'failed') $sql .= " AND notified_at = ''";
+        $sql .= " ORDER BY id DESC LIMIT {$limit}";
+        try {
+            $st = Database::pdo()->prepare($sql);
+            $st->execute($args);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('[summit] search: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /** One registration by id, or [] — the row a resend is rebuilt from. */
+    public static function find(int $id): array
+    {
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM summit_registrations WHERE id = ? AND edition = ?');
+            $st->execute([$id, self::EDITION]);
+            return $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Headline numbers for the staff list: how many people, how many seats, and
+     * — the one that matters when mail is misconfigured — how many of them never
+     * got their confirmation.
+     */
+    public static function stats(): array
+    {
+        self::ensure();
+        $out = ['registrations' => 0, 'seats' => 0, 'emailed' => 0, 'unemailed' => 0];
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT COUNT(*) AS n, COALESCE(SUM(seats),0) AS s,
+                        COALESCE(SUM(CASE WHEN notified_at <> '' THEN 1 ELSE 0 END),0) AS e
+                   FROM summit_registrations WHERE edition = ?"
+            );
+            $st->execute([self::EDITION]);
+            $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+            $out['registrations'] = (int) ($r['n'] ?? 0);
+            $out['seats']         = (int) ($r['s'] ?? 0);
+            $out['emailed']       = (int) ($r['e'] ?? 0);
+            $out['unemailed']     = max(0, $out['registrations'] - $out['emailed']);
+        } catch (Throwable $e) {
+            error_log('[summit] stats: ' . $e->getMessage());
+        }
+        return $out;
+    }
+
+    /**
+     * Send (or re-send) one registration's confirmation, and alert staff.
+     *
+     * Lives here rather than on the page so the Studio's "resend" runs the exact
+     * same mail a fresh claim does. The seat is already saved by the time this
+     * runs, so a mail failure is recorded and reported, never thrown: the
+     * registrant keeps their seat either way.
+     *
+     * Returns ['ok' => bool, 'error' => string, 'admin' => bool].
+     */
+    public static function notify(int $id, array $d): array
+    {
+        if (!class_exists('Mailer')) {
+            self::markNotified($id, false, 'Mailer unavailable');
+            return ['ok' => false, 'error' => 'Mailer unavailable', 'admin' => false];
+        }
+        $f     = self::facts();
+        $esc   = static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $name  = trim((string) ($d['name'] ?? '')) ?: 'there';
+        $first = $esc(explode(' ', $name)[0]);
+        $email = trim((string) ($d['email'] ?? ''));
+        $v     = $f['venue'];
+        $where = $esc($v['name'] . ', ' . $v['area'] . ', ' . $v['city']);
+        $seats = max(1, (int) ($d['seats'] ?? 1));
+        $wa    = $esc($f['whatsapp']['display']);
+
+        $ok = false; $error = '';
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $rows = [
+                "Hi {$first},",
+                'Your seat at the <b>' . $esc($f['name']) . ' (' . $esc($f['edition']) . ')</b> is reserved.',
+                '<b>When:</b> ' . $esc($f['date_label']) . ', from ' . $esc($f['time_label']) . '<br>'
+                    . "<b>Where:</b> {$where}<br>"
+                    . '<b>Seats held:</b> ' . $seats . '<br>'
+                    . '<b>Pass:</b> ' . $esc($f['pass']['label']) . ' — ' . $esc($f['pass']['note']),
+                '<b>Next step:</b> our team will confirm your place and share payment details. '
+                    . "If you would rather sort it out now, message us on WhatsApp at {$wa}.",
+                'Master. Tame. Own.<br>— Afrovanguard',
+            ];
+            $html = Mailer::shell(
+                'Your seat is reserved',
+                $rows,
+                ['url' => self::url(), 'text' => 'See the summit page'],
+                $f['edition'] . ' — ' . $f['date_short'] . ', ' . $v['area'] . ', ' . $v['city']
+            );
+            try {
+                $ok = Mailer::send($email, 'Your seat at ' . $f['edition'] . ' is reserved', $html);
+                if (!$ok) $error = Mailer::lastError() ?: 'Send failed';
+            } catch (Throwable $e) {
+                $error = $e->getMessage();
+            }
+        } else {
+            $error = 'No valid email address on the registration';
+        }
+        self::markNotified($id, $ok, $error);
+
+        // Staff alert. A missing admin address used to end this function in
+        // silence — the reason staff can watch seats fill and never hear about
+        // one — so an unset mailbox is logged like any other delivery failure.
+        $adminOk = false;
+        $admin = defined('ADMIN_EMAIL') && ADMIN_EMAIL ? (string) ADMIN_EMAIL
+               : (defined('FROM_EMAIL') && FROM_EMAIL ? (string) FROM_EMAIL : '');
+        if ($admin === '') {
+            error_log('[summit] seat claim #' . $id . ' saved but no staff alert sent: '
+                . 'neither ADMIN_EMAIL nor FROM_EMAIL is configured.');
+        } else {
+            $lines = [];
+            foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Phone', 'location' => 'Location',
+                      'organisation' => 'Organisation', 'pillar' => 'Pillar', 'heard' => 'Heard via',
+                      'message' => 'Message'] as $k => $label) {
+                $val = trim((string) ($d[$k] ?? ''));
+                if ($val !== '') $lines[] = '<b>' . $label . ':</b> ' . $esc($val);
+            }
+            $html = Mailer::shell(
+                'New ' . $esc($f['edition']) . ' seat claim',
+                ['Claim #' . $id . ' — ' . $seats . ' seat(s).', implode('<br>', $lines)],
+                ['url' => rtrim(defined('SITE_URL') ? (string) SITE_URL : '', '/') . '/admin/', 'text' => 'Open the Studio'],
+                $name . ' — ' . $seats . ' seat(s)'
+            );
+            try {
+                $adminOk = Mailer::send($admin, 'DNS ' . $f['edition'] . " seat claim #{$id}", $html);
+                if (!$adminOk) error_log('[summit] staff alert for #' . $id . ' failed: ' . (Mailer::lastError() ?: 'unknown'));
+            } catch (Throwable $e) {
+                error_log('[summit] staff alert for #' . $id . ': ' . $e->getMessage());
+            }
+        }
+        return ['ok' => $ok, 'error' => $error, 'admin' => $adminOk];
+    }
+
+    /**
+     * Record what the mailer actually did with a registration's confirmation.
+     * A failed send leaves notified_at empty on purpose: that is what the staff
+     * list filters on and what a resend picks up, so a bad SMTP week is a
+     * recoverable queue rather than a silent hole.
+     */
+    public static function markNotified(int $id, bool $ok, string $error = ''): void
+    {
+        if ($id <= 0) return;
+        self::ensure();
+        try {
+            $now = $ok ? Database::nowExpr() : "''";
+            $st  = Database::pdo()->prepare(
+                "UPDATE summit_registrations SET notified_at = {$now}, notify_error = ? WHERE id = ?"
+            );
+            $st->execute([$ok ? '' : mb_substr($error, 0, 400), $id]);
+        } catch (Throwable $e) {
+            error_log('[summit] markNotified: ' . $e->getMessage());
         }
     }
 }

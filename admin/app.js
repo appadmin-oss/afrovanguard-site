@@ -11,6 +11,8 @@
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
+    // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
+    summit: 'admin',
     mentorship: 'admin', webhooks: 'admin', system: 'admin', activity: 'admin', signin: 'superadmin', admins: 'superadmin', database: 'superadmin', design: 'superadmin',
     // Ops reports which providers this deployment pays for and what they cost.
     // Infrastructure state — admin, matching the API's own gate.
@@ -38,7 +40,7 @@
     academy: $('#academyView'), courseEditor: $('#courseEditorView'),
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
-    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView')
+    celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -76,6 +78,7 @@
     if (which === 'overview') { show('overview'); loadOverview(); }
     else if (which === 'entries') { show('entries'); loadList(); }
     else if (which === 'academy') { show('academy'); loadCourses(); }
+    else if (which === 'summit') { show('summit'); loadSummit(); }
     else if (which === 'people') { show('people'); loadTeam(); }
     else if (which === 'celebrations') { show('celebrations'); loadCelebrations(); }
     else if (which === 'communities') { show('communities'); loadCommunities(); }
@@ -2811,6 +2814,80 @@
       + (a.detail ? ' <span class="muted">(' + escapeHtml(a.detail) + ')</span>' : '')
       + '<div class="inbox-meta">' + escapeHtml(String(a.created_at || '')) + '</div></div>';
   }
+  /* ---- Summit (DNS seat claims) ---- */
+  var sumT;
+  function sumFilters() {
+    return 'q=' + encodeURIComponent($('#sumQ').value.trim()) + '&mail=' + $('#sumMail').value;
+  }
+  function sumRowHTML(r) {
+    var emailed = String(r.notified_at || '') !== '';
+    var meta = [r.phone, r.location, r.organisation, r.pillar].filter(Boolean).map(escapeHtml).join(' · ');
+    return '<div class="sum-row' + (emailed ? '' : ' is-unsent') + '">'
+      + '<div class="sum-who">'
+        + '<strong>' + escapeHtml(r.name) + '</strong>'
+        + '<a href="mailto:' + escapeHtml(r.email) + '">' + escapeHtml(r.email) + '</a>'
+        + (meta ? '<span class="muted tiny">' + meta + '</span>' : '')
+        + (r.message ? '<span class="sum-msg">' + escapeHtml(r.message) + '</span>' : '')
+      + '</div>'
+      + '<div class="sum-seats"><span>' + (parseInt(r.seats, 10) || 1) + '</span><span class="muted tiny">seat' + ((parseInt(r.seats, 10) || 1) === 1 ? '' : 's') + '</span></div>'
+      + '<div class="sum-mail">'
+        + (emailed
+            ? '<span class="pill pill-ok">Emailed</span>'
+            : '<span class="pill pill-warn">Not emailed</span>'
+              + (r.notify_error ? '<span class="muted tiny">' + escapeHtml(r.notify_error) + '</span>' : ''))
+        + '<button class="btn btn-outline btn-xs sum-resend" data-id="' + escapeHtml(r.id) + '">'
+        + (emailed ? 'Resend' : 'Send') + '</button>'
+      + '</div>'
+      + '<div class="sum-when muted tiny">' + escapeHtml(String(r.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>'
+      + '</div>';
+  }
+  function loadSummit() {
+    var box = $('#sumList'); if (!box) return;
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    return api('summit_list&' + sumFilters()).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load seat claims.</p>'; return; }
+      var st = d.stats || {}, rows = d.rows || [];
+      $('#sumCounts').innerHTML =
+          '<div class="sum-count"><b>' + (st.registrations || 0) + '</b><span>claims</span></div>'
+        + '<div class="sum-count"><b>' + (st.seats || 0) + '</b><span>seats</span></div>'
+        + '<div class="sum-count"><b>' + (st.emailed || 0) + '</b><span>emailed</span></div>'
+        + '<div class="sum-count' + (st.unemailed ? ' is-warn' : '') + '"><b>' + (st.unemailed || 0) + '</b><span>not emailed</span></div>';
+      // The one thing a blank "Emailed" column cannot tell you on its own.
+      var alert = $('#sumMailAlert'), mailOff = d.mail && d.mail.configured === false;
+      alert.hidden = !mailOff;
+      if (mailOff) {
+        alert.innerHTML = 'Email delivery is not configured, so no confirmation can go out. '
+          + 'Set <code>SMTP_HOST</code>, <code>SMTP_USERNAME</code> and <code>AV_SMTP_PASSWORD</code>, check it under '
+          + '<b>System → Email</b>, then send the unsent confirmations from here.';
+      }
+      $('#sumResendAll').hidden = !st.unemailed;
+      $('#sumResendAll').textContent = 'Send ' + st.unemailed + ' unsent confirmation' + (st.unemailed === 1 ? '' : 's');
+      var badge = $('#sumBadge');
+      if (badge) { badge.hidden = !st.unemailed; badge.textContent = st.unemailed || ''; }
+      box.innerHTML = rows.length ? rows.map(sumRowHTML).join('')
+        : '<p class="muted">No seat claims yet.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load seat claims.</p>'; });
+  }
+  if ($('#summitView')) {
+    $('#sumQ').addEventListener('input', function () { clearTimeout(sumT); sumT = setTimeout(loadSummit, 280); });
+    $('#sumMail').addEventListener('change', loadSummit);
+    $('#sumExport').addEventListener('click', function () { window.open(API + '?action=summit_export&' + sumFilters(), '_blank'); });
+    $('#sumResendAll').addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      post('summit_resend_failed', {}).then(function (r) {
+        toast((r.data && r.data.detail) || 'Done.'); loadSummit();
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    });
+    $('#sumList').addEventListener('click', function (e) {
+      var b = e.target.closest('.sum-resend'); if (!b) return;
+      b.disabled = true;
+      post('summit_resend', { id: b.getAttribute('data-id') }).then(function (r) {
+        toast((r.data && r.data.detail) || 'Done.'); loadSummit();
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    });
+  }
+
   function loadMembers() {
     var box = $('#memList'); if (!box) return;
     var q = encodeURIComponent($('#memQ').value.trim());

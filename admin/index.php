@@ -43,6 +43,7 @@
       <div class="nav-group">
         <p class="nav-group-h">Academy</p>
         <button class="tab" data-tab="academy"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4L2 9l10 5 10-5-10-5z"/><path d="M6 11v5c0 1.3 2.7 2.5 6 2.5s6-1.2 6-2.5v-5"/><path d="M22 9v5"/></svg><span>Academy</span></button>
+        <button class="tab" data-tab="summit"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-5h4v5"/></svg><span>Summit</span><span class="tab-badge" id="sumBadge" hidden></span></button>
       </div>
       <div class="nav-group">
         <p class="nav-group-h">People</p>
@@ -267,6 +268,27 @@
   </main>
 
   <!-- ACADEMY EDITOR -->
+  <main class="studio-main" id="summitView" hidden>
+    <div class="studio-head">
+      <div><h1>Summit</h1><p class="muted">Seat claims from <a href="/academy/dns/" target="_blank" rel="noopener">the DNS &rsquo;26 page</a>. Every claim is saved here whether or not its confirmation email got out &mdash; the <strong>Emailed</strong> column says which.</p></div>
+      <div class="sum-head-actions">
+        <button class="btn btn-outline btn-sm" id="sumExport">Export CSV</button>
+        <button class="btn btn-primary btn-sm" id="sumResendAll" hidden>Send unsent confirmations</button>
+      </div>
+    </div>
+    <div class="ov-alert ov-alert-warn" id="sumMailAlert" hidden></div>
+    <div class="sum-counts" id="sumCounts"></div>
+    <div class="sum-filters">
+      <input id="sumQ" type="search" placeholder="Search name, email, phone or organisation&hellip;" />
+      <select id="sumMail">
+        <option value="">All claims</option>
+        <option value="sent">Emailed</option>
+        <option value="failed">Not emailed</option>
+      </select>
+    </div>
+    <div id="sumList"></div>
+  </main>
+
   <main class="studio-main" id="courseEditorView" hidden>
     <div class="studio-head">
       <button class="btn btn-outline btn-sm" id="acBackBtn">← All programmes</button>

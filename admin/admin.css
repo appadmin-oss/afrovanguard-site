@@ -121,6 +121,44 @@ body.studio-authed .studio-side { display: block; }
 
 .tox-tinymce { border-radius: var(--radius-md) !important; border-color: var(--divider) !important; }
 
+/* Summit console — seat claims from /academy/dns/ */
+.sum-head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sum-counts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.sum-count { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-full); padding: 7px 14px; }
+.sum-count b { font-size: 14px; color: var(--gold-deep); }
+.sum-count.is-warn { border-color: rgba(224,161,6,.45); background: rgba(224,161,6,.08); }
+.sum-count.is-warn b { color: #b9770a; }
+.sum-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.sum-filters input { flex: 1; min-width: 220px; padding: 11px 16px; border-radius: var(--radius-full);
+  border: 1px solid var(--divider); background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; }
+.sum-filters select { padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--divider);
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+.sum-row { display: grid; grid-template-columns: minmax(0,1fr) 64px 190px 118px; gap: 14px; align-items: start;
+  background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-md);
+  padding: 14px 16px; margin-bottom: 8px; font-size: 13.5px; color: var(--ink); }
+.sum-row.is-unsent { border-left: 3px solid rgba(224,161,6,.75); }
+.sum-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sum-who strong { font-size: 14px; }
+.sum-who a { color: var(--gold-deep); text-decoration: none; word-break: break-all; }
+.sum-who a:hover { text-decoration: underline; }
+.sum-msg { margin-top: 4px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.sum-seats { text-align: center; display: flex; flex-direction: column; gap: 1px; }
+.sum-seats span:first-child { font-size: 17px; font-weight: 700; color: var(--ink); }
+.sum-mail { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.sum-mail .pill { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  border-radius: var(--radius-full); padding: 4px 10px; }
+.sum-mail .pill-ok { background: rgba(46,138,87,.13); color: #2e8a57; }
+.sum-mail .pill-warn { background: rgba(224,161,6,.15); color: #b9770a; }
+.sum-when { text-align: right; }
+@media (max-width: 760px) {
+  .sum-row { grid-template-columns: 1fr auto; }
+  .sum-seats { flex-direction: row; align-items: baseline; gap: 5px; text-align: left; }
+  .sum-mail, .sum-when { grid-column: 1 / -1; }
+  .sum-mail { flex-direction: row; align-items: center; }
+  .sum-when { text-align: left; }
+}
+
 /* Members console */
 .mem-counts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
 .mem-chip { font-size: 12.5px; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-full); padding: 7px 14px; }

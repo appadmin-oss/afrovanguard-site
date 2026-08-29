@@ -85,6 +85,81 @@ ck('summit: recent() returns this edition, newest first', $recent !== [] && (int
 ck('summit: recent() only returns this edition',
    count(array_filter($recent, static fn($r) => $r['edition'] !== Summit::EDITION)) === 0);
 
+/* ══ Delivery tracking ══════════════════════════════════════════════════
+   The reason this exists: a seat claim is saved whether or not its confirmation
+   email gets out, and for a long time nothing recorded which. A misconfigured
+   mailer has to leave a resendable queue behind, not a silent hole. */
+
+$who = Summit::recent(1)[0];
+$rid = (int) $who['id'];
+
+ck('summit: a new registration starts un-notified', ($who['notified_at'] ?? '') === '');
+
+Summit::markNotified($rid, false, 'php_mail(): rejected or unavailable');
+$row = Summit::find($rid);
+ck('summit: a failed send records the reason', str_contains((string) $row['notify_error'], 'rejected'));
+ck('summit: a failed send leaves notified_at empty so it stays in the queue', $row['notified_at'] === '');
+ck('summit: the failed filter finds it',
+   in_array($rid, array_map(static fn($r) => (int) $r['id'], Summit::search('', 'failed')), true));
+
+Summit::markNotified($rid, true);
+$row = Summit::find($rid);
+ck('summit: a successful send stamps notified_at', $row['notified_at'] !== '');
+ck('summit: a successful send clears the previous error', $row['notify_error'] === '');
+ck('summit: the sent filter finds it',
+   in_array($rid, array_map(static fn($r) => (int) $r['id'], Summit::search('', 'sent')), true));
+ck('summit: a sent registration leaves the failed queue',
+   !in_array($rid, array_map(static fn($r) => (int) $r['id'], Summit::search('', 'failed')), true));
+
+$stats = Summit::stats();
+ck('summit: stats() counts registrations and seats',
+   $stats['registrations'] === 4 && $stats['seats'] === 25);
+ck('summit: stats() splits emailed from un-emailed',
+   $stats['emailed'] + $stats['unemailed'] === $stats['registrations'] && $stats['emailed'] >= 1);
+
+ck('summit: markNotified() ignores a nonexistent id', (static function (): bool {
+    Summit::markNotified(0, true);           // must not throw
+    return Summit::find(0) === [];
+})());
+
+/* Search is what staff actually use to find one person in a list. */
+ck('summit: search() matches on name', count(Summit::search('Ada')) === 1);
+ck('summit: search() matches on email', count(Summit::search('group@example.com')) === 1);
+ck('summit: search() returns nothing for a miss', Summit::search('no-such-registrant') === []);
+
+/* ══ The Studio can actually reach the claims ═══════════════════════════
+   The page is an unauthenticated intake with no other surface: without these
+   the registrations land in the database and nobody ever sees them. */
+
+$api = (string) @file_get_contents(AV_ROOT . '/admin/api.php');
+foreach (['summit_list', 'summit_resend', 'summit_resend_failed', 'summit_export'] as $action) {
+    ck("summit: the Studio API exposes {$action}", str_contains($api, "case '{$action}'"));
+}
+/* Seat claims are personal data, and a resend sends mail in the org's name:
+   both must be gated server-side, not merely hidden in the sidebar. */
+ck('summit: the claim endpoints are management-only (not editors)', (static function (string $api): bool {
+    $at = strpos($api, '$managementOnly = [');
+    $to = strpos($api, '];', $at);
+    $list = substr($api, $at, $to - $at);
+    foreach (['summit_list', 'summit_resend', 'summit_resend_failed', 'summit_export'] as $a) {
+        if (!str_contains($list, "'{$a}'")) return false;
+    }
+    return true;
+})($api));
+ck('summit: the resend endpoints require a CSRF token', (static function (string $api): bool {
+    $at = strpos($api, '$writing = in_array($action, [');
+    $to = strpos($api, '], true);', $at);
+    $list = substr($api, $at, $to - $at);
+    return str_contains($list, "'summit_resend'") && str_contains($list, "'summit_resend_failed'");
+})($api));
+
+$studio = (string) @file_get_contents(AV_ROOT . '/admin/index.php');
+ck('summit: the Studio has a Summit tab', str_contains($studio, 'data-tab="summit"'));
+ck('summit: the Summit tab has a view to show', str_contains($studio, 'id="summitView"'));
+$app = (string) @file_get_contents(AV_ROOT . '/admin/app.js');
+ck('summit: the Summit tab is wired to a loader', str_contains($app, "which === 'summit'")
+   && str_contains($app, 'function loadSummit'));
+
 /* ══ The page itself is wired where the routing expects it ══════════════ */
 
 ck('summit: the page lives where academy/.htaccess sends /academy/dns/',
