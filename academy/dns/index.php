@@ -118,18 +118,6 @@ $initials = static function (string $name): string {
    token, because there is no session to ride and no account to act on.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* Where the claim came from. Sister sites link here with ?src=… — STS carries
-   the summit at sts.afrovanguard.org.ng/dns/ and sends people over. The value is
-   matched against a known list rather than stored raw, and is carried through
-   the POST in a hidden field because the form posts back without the query
-   string. It lands in the registration's `source` column (and the Studio's CSV
-   export), so "how many seats came from STS" has an answer. */
-$SOURCES = ['sts' => 'sts'];
-$srcRaw  = (string) ((($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST')
-    ? ($_POST['src'] ?? '') : ($_GET['src'] ?? ''));
-$src     = $SOURCES[$srcRaw] ?? '';
-$source  = $src !== '' ? $src : 'dns-page';
-
 $sent = false;
 $dupe = false;
 $err  = '';
@@ -157,7 +145,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $sent = true;
         $dupe = true;                       // already holds a seat — reassure, don't duplicate
     } else {
-        $id = Summit::register($old + ['source' => $source]);
+        $id = Summit::register($old + ['source' => 'dns-page']);
         if ($id > 0) {
             $sent = true;
             // Best-effort: the seat is already saved, so a mail failure is
@@ -481,9 +469,6 @@ render_nav('academy');
             <div class="dns-hp" aria-hidden="true">
               <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
             </div>
-<?php if ($src !== ''): ?>
-            <input type="hidden" name="src" value="<?= e($src) ?>">
-<?php endif; ?>
 
             <div class="dns-row2">
               <div class="dns-fld">

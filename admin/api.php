@@ -612,17 +612,12 @@ try {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="summit-' . Summit::EDITION . '-registrations.csv"');
             $out = fopen('php://output', 'w');
-            // 'Source' is how a seat arrived — 'dns-page' for the summit page
-            // itself, 'sts' for a claim that started on the Street-To-Stardom
-            // site. Without the column the referral is recorded and unreadable.
             fputcsv($out, ['ID', 'Name', 'Email', 'Phone', 'Location', 'Organisation',
-                           'Pillar', 'Seats', 'Heard via', 'Source', 'Message', 'Emailed',
-                           'Mail error', 'Registered']);
+                           'Pillar', 'Seats', 'Heard via', 'Message', 'Emailed', 'Mail error', 'Registered']);
             foreach (Summit::search((string) ($_GET['q'] ?? ''), (string) ($_GET['mail'] ?? ''), 2000) as $r) {
                 fputcsv($out, [$r['id'], $r['name'], $r['email'], $r['phone'], $r['location'],
                                $r['organisation'], $r['pillar'], $r['seats'], $r['heard'],
-                               $r['source'] ?? '', $r['message'],
-                               ($r['notified_at'] ?? '') !== '' ? 'yes' : 'no',
+                               $r['message'], ($r['notified_at'] ?? '') !== '' ? 'yes' : 'no',
                                $r['notify_error'] ?? '', $r['created_at']]);
             }
             fclose($out); exit;

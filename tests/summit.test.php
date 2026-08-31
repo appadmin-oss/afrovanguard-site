@@ -255,22 +255,4 @@ foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/i
 ck('chrome: the builder clears loose chrome before injecting', str_contains(
     (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'strip_loose_chrome'));
 
-/* ══ Where a claim came from ════════════════════════════════════════════
-   Street-To-Stardom carries the summit at sts.afrovanguard.org.ng/dns/ and
-   links here with ?src=sts. That referral is only worth anything if it
-   survives onto the row and can be read back afterwards — and only safe if
-   the page maps it through a known list instead of storing what arrives. */
-
-Summit::register(['name' => 'Referred Reader', 'email' => 'ref@example.com', 'source' => 'sts']);
-$r = $db->query("SELECT source FROM summit_registrations WHERE email = 'ref@example.com'")->fetchColumn();
-ck('summit: a referral source is stored on the row', (string) $r === 'sts');
-
-$page = (string) @file_get_contents(AV_ROOT . '/academy/dns/index.php');
-ck('summit: the page maps ?src through an allow-list, never storing it raw',
-   str_contains($page, '$SOURCES = ') && str_contains($page, '$SOURCES[$srcRaw] ??'));
-ck('summit: the referral rides through the POST in a hidden field',
-   str_contains($page, 'name="src"'));
-ck('summit: the CSV export has a column for it',
-   str_contains((string) @file_get_contents(AV_ROOT . '/admin/api.php'), "'Heard via', 'Source'"));
-
 $db->exec('DELETE FROM summit_registrations');
