@@ -87,14 +87,14 @@ $myNote  = (string) ($p['focus_note'] ?? '');
 $booksRead = substr_count($myBooks, '1');
 $BOOKS_TOTAL = 24;
 
-/* Real account (training fee + membership + commitment), certifications and the
- * payment ledger — all from the NGV DB. The account mirrors the NGG member
- * dashboard's "Your account" card so the two feel like one programme. */
-$account   = NgvMember::account($uid);
+/* Real account (training fee + membership + monthly commitment + any fines),
+ * certifications and the full ledger — all from the NGV DB. Read-only: there is
+ * no member-side action here that moves money, and there never should be. */
+$account   = NgvLedger::account($uid);
 $myPlan    = (string) ($p['plan'] ?? '');
 $planOpts  = NgvMember::planOptions();
 $myCerts   = NgvMember::certifications($uid);
-$myPayments = $account['entries'];
+$myEntries = $account['entries'];
 
 /* Content slices */
 $g       = static fn(array $a, string $k, string $d = ''): string => (string) ($a[$k] ?? $d);
@@ -124,8 +124,13 @@ $e = 'e'; // htmlspecialchars helper name
 $ptheme  = (($_COOKIE['av_portal_theme'] ?? 'light') === 'dark') ? 'dark' : 'light';
 $initial = strtoupper(mb_substr($first, 0, 1));
 $owed    = (int) $account['payable'];
+$feesOn  = !empty($account['enabled']);
 $kindLabel = ['membership' => 'Membership fee', 'commitment' => 'Monthly commitment',
-              'programme' => 'Training fee', 'other' => 'Other'];
+              'programme' => 'Training fee', 'fine' => 'Fine', 'adjustment' => 'Adjustment',
+              'other' => 'Payment'];
+/* A credit is not just "a payment": a waiver is the programme saying it is not
+ * asking, and somebody reading their own account deserves to see which it was. */
+$creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff' => 'Written off'];
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -207,6 +212,7 @@ $kindLabel = ['membership' => 'Membership fee', 'commitment' => 'Monthly commitm
   border:1.5px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--body);font-weight:600;font-size:13px}
 .portal-app .ngv-contact a:hover{border-color:var(--gold);color:var(--ink)}
 .ngv-details summary{cursor:pointer;font-weight:700;color:var(--ink);font-size:13.5px;padding:4px 0}
+.ngv-fine{font-size:11.5px;color:var(--muted-2);margin:8px 0 0;line-height:1.5}
 </style>
 </head>
 <body class="portal-app<?= $ptheme === 'dark' ? ' is-dark' : '' ?>">
@@ -379,62 +385,94 @@ $kindLabel = ['membership' => 'Membership fee', 'commitment' => 'Monthly commitm
           </div>
         </section>
 
-        <!-- Your account — training fee + membership + commitment + ledger.
-             Mirrors the NGG member dashboard: one plain figure, never in red,
+        <!-- Your account — training fee, membership, monthly commitment, any
+             fines, and every entry behind them. One plain figure, never in red,
              no deadline, and the money conversation pointed at a person. -->
         <section class="pcard" id="account">
           <div class="pcard-head"><h2>Your account</h2><span class="pcard-sub">recorded by your team</span></div>
           <div class="pcard-body">
-            <?php if ($owed > 0): ?>
-              <div class="ngv-figure">₦<?= number_format($owed) ?></div>
-              <div class="ngv-figure-sub">outstanding</div>
+            <?php if (!$feesOn): ?>
+              <div class="ngv-figure clear">Nothing to pay</div>
+              <div class="ngv-figure-sub">fees aren't switched on yet</div>
+              <div class="ngv-box">When your team starts recording membership and commitment, it will appear here — with
+                every entry, so you can always see what a figure is made of.</div>
             <?php else: ?>
-              <div class="ngv-figure clear">All clear</div>
-              <div class="ngv-figure-sub">nothing outstanding</div>
-            <?php endif; ?>
+              <?php if ($owed > 0): ?>
+                <div class="ngv-figure">₦<?= number_format($owed) ?></div>
+                <div class="ngv-figure-sub">outstanding</div>
+              <?php else: ?>
+                <div class="ngv-figure clear">All clear</div>
+                <div class="ngv-figure-sub">nothing outstanding</div>
+              <?php endif; ?>
 
-            <?php if ($account['planLabel'] !== ''): ?>
-            <div class="ngv-box">
-              You're on the <b><?= $e((string)$account['planLabel']) ?></b> plan.
-              <?php if ($account['planFree']): ?>Your training is <b>free</b> — only membership and commitment apply.
-              <?php else: ?>Its training fee is shown below; free tracks stay free.<?php endif; ?>
-            </div>
-            <?php endif; ?>
+              <?php if ((int)$account['paidAhead'] > 0): ?>
+                <div class="ngv-box">You're ₦<?= number_format((int)$account['paidAhead']) ?> ahead on a fee that's already
+                  settled. It stays on your record as paid ahead rather than being moved onto something else.</div>
+              <?php endif; ?>
 
-            <div class="ngv-rows" style="margin-top:12px">
-              <?php foreach ($account['lines'] as $ln): ?>
-              <div class="ngv-row">
-                <div><span class="k"><?= $e((string)$ln['label']) ?></span><span class="d"><?= $e((string)$ln['detail']) ?></span></div>
-                <span class="amt">
-                  <?php if (!empty($ln['free'])): ?><span class="pchip pchip--green">Free</span>
-                  <?php else: ?><span class="pchip <?= $ln['ok'] ? 'pchip--green' : 'pchip--red' ?>"><?= $ln['ok'] ? 'Paid' : 'Due' ?></span><?php endif; ?>
-                </span>
+              <?php if ($account['planLabel'] !== ''): ?>
+              <div class="ngv-box">
+                You're on the <b><?= $e((string)$account['planLabel']) ?></b> plan.
+                <?php if ($account['planFree']): ?>Your training is <b>free</b> — only membership and the monthly commitment apply.
+                <?php elseif ((int)($account['due']['programme'] ?? 0) === 0 && (int)$account['planFee'] > 0): ?>
+                  Its training fee is ₦<?= number_format((int)$account['planFee']) ?>; nothing has been raised on your account yet.
+                <?php else: ?>Its training fee is shown below.<?php endif; ?>
               </div>
-              <?php endforeach; ?>
-              <div class="ngv-row"><div><span class="k">Total recorded</span><span class="d">across all fees</span></div><span class="amt">₦<?= number_format((int)$account['total']) ?></span></div>
-            </div>
+              <?php endif; ?>
 
-            <?php if (!empty($myPayments)): ?>
-            <details class="ngv-details" style="margin-top:10px">
-              <summary>See every entry (<?= count($myPayments) ?>)</summary>
-              <div class="ngv-rows" style="margin-top:6px">
-                <?php foreach ($myPayments as $pay): ?>
+              <!-- Per line, not one netted total: "square on membership, two
+                   months behind on commitment" is something you can act on. -->
+              <div class="ngv-rows" style="margin-top:12px">
+                <?php foreach ($account['lines'] as $ln): ?>
                 <div class="ngv-row">
-                  <div>
-                    <span class="k"><?= $e($kindLabel[(string)($pay['kind'] ?? '')] ?? ucfirst((string)($pay['kind'] ?? ''))) ?></span>
-                    <span class="d"><?= $e(substr((string)($pay['created_at'] ?? ''), 0, 10)) ?><?= !empty($pay['period']) ? ' · ' . $e((string)$pay['period']) : '' ?><?= !empty($pay['reference']) ? ' · ' . $e((string)$pay['reference']) : '' ?></span>
-                  </div>
-                  <span class="amt">₦<?= number_format((int)($pay['amount'] ?? 0)) ?></span>
+                  <div><span class="k"><?= $e((string)$ln['label']) ?></span><span class="d"><?= $e((string)$ln['detail']) ?></span></div>
+                  <span class="amt">
+                    <?php if (!empty($ln['free'])): ?><span class="pchip pchip--green">Free</span>
+                    <?php elseif ((int)$ln['due'] > 0): ?><span class="pchip pchip--red">₦<?= number_format((int)$ln['due']) ?></span>
+                    <?php elseif ((int)$ln['charged'] > 0): ?><span class="pchip pchip--green">Paid</span>
+                    <?php else: ?><span class="pchip pchip--gold">Not yet charged</span><?php endif; ?>
+                  </span>
                 </div>
                 <?php endforeach; ?>
+                <div class="ngv-row"><div><span class="k">Received from you</span><span class="d">across every fee</span></div><span class="amt">₦<?= number_format((int)$account['received']) ?></span></div>
+                <?php if ((int)$account['waived'] > 0): ?>
+                <div class="ngv-row"><div><span class="k">Set aside for you</span><span class="d">waived by your team — not money you paid, and not money you owe</span></div><span class="amt">₦<?= number_format((int)$account['waived']) ?></span></div>
+                <?php endif; ?>
               </div>
-            </details>
-            <?php else: ?>
-            <div class="ngv-box">No payments recorded yet. When your team logs one it shows here.</div>
+
+              <?php if (!empty($myEntries)): ?>
+              <details class="ngv-details" style="margin-top:10px">
+                <summary>See every entry (<?= count($myEntries) ?>)</summary>
+                <div class="ngv-rows" style="margin-top:6px">
+                  <?php foreach ($myEntries as $en): $isCharge = $en['side'] === 'charge'; ?>
+                  <div class="ngv-row"<?= $en['void'] ? ' style="opacity:.55"' : '' ?>>
+                    <div>
+                      <span class="k"><?= $e($isCharge
+                            ? ($kindLabel[$en['kind']] ?? ucfirst((string)$en['kind']))
+                            : (($creditWord[$en['creditKind']] ?? 'Payment received') . ' · ' . ($kindLabel[$en['kind']] ?? $en['kind']))) ?></span>
+                      <span class="d">
+                        <?= $e(substr((string)$en['created_at'], 0, 10)) ?>
+                        <?= $en['period'] !== '' ? ' · ' . $e((string)$en['period']) : '' ?>
+                        <?= $en['note'] !== '' ? ' · ' . $e((string)$en['note']) : '' ?>
+                        <?= $en['void'] ? ' · cancelled (' . $e((string)$en['voidReason']) . ')' : '' ?>
+                      </span>
+                    </div>
+                    <span class="amt"><?= $isCharge ? '' : '− ' ?>₦<?= number_format((int)$en['amount']) ?></span>
+                  </div>
+                  <?php endforeach; ?>
+                </div>
+                <p class="ngv-fine">Nothing is ever deleted here. A correction stays visible with its reason, so this list
+                  always adds up to the figure at the top.</p>
+              </details>
+              <?php else: ?>
+              <div class="ngv-box">Nothing on your account yet. When your team records a charge or a payment it shows here.</div>
+              <?php endif; ?>
             <?php endif; ?>
 
-            <?php if (!empty($sched['payment'])): ?><div class="ngv-box"><?= $e((string)$sched['payment']) ?></div><?php endif; ?>
-            <div class="ngv-box">Something look wrong, or is this a difficult month? Speak to your track lead — they'd rather hear from you. No one is turned away for lack.</div>
+            <?php if ($feesOn && !empty($account['payTo'])): ?><div class="ngv-box"><?= $e((string)$account['payTo']) ?></div><?php endif; ?>
+            <div class="ngv-box">Something look wrong, or is this a difficult month? Speak to your track lead — they'd rather
+              hear from you than not.</div>
+            <?php if (!empty($account['note'])): ?><div class="ngv-box"><?= $e((string)$account['note']) ?></div><?php endif; ?>
           </div>
         </section>
 

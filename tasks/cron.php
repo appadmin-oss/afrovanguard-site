@@ -68,6 +68,16 @@ if (class_exists('Meetings')) {
     catch (Throwable $e) { error_log('[cron] bot transcripts: ' . $e->getMessage()); }
 }
 
+// NextGen Vanguard money: bring charges up to date, chase what is outstanding,
+// and say once a month if the amounts have gone a year without a review. All
+// three are bounded per tick and idempotent — the accrual cannot charge the same
+// month twice, and the per-participant cadence gate decides who is reminded, not
+// this schedule. No-ops entirely while NGV fees are switched off.
+if (class_exists('NgvLedger')) {
+    try { $result['ngv_fees'] = NgvLedger::cronTick(); }
+    catch (Throwable $e) { error_log('[cron] ngv fees: ' . $e->getMessage()); }
+}
+
 // G-1: chase overdue commitments. Deduped per commitment per day inside
 // Commitments::sweepOverdue(), so a stuck commitment nudges once daily rather than
 // on every tick. Independent of Mentorship — commitments also come from meetings.

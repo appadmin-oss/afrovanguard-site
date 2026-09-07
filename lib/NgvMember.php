@@ -3,21 +3,29 @@
  * lib/NgvMember.php — NextGen Vanguard participant domain (over NgvDb).
  *
  * The real data behind the member dashboard and the staff console: enrolment
- * (one participant row per member), a fee-payment ledger, and certifications.
- * All reads/writes go to the SEPARATE NGV database (lib/NgvDb.php).
+ * (one participant row per member), certifications, applications, and the
+ * money. All reads/writes go to the SEPARATE NGV database (lib/NgvDb.php).
  *
- * Money model is intentionally simple and non-destructive: payments are append-
- * only rows (void, never delete). Fee *status* is computed by comparing recorded
- * payments against the programme's expected commitments.
+ * MONEY LIVES IN lib/NgvLedger.php, not here. This file used to compute fee
+ * status by comparing recorded payments against two constants, which answered
+ * "have they paid this month" and nothing else — no charges, no fines, no
+ * waivers, no arrears list, no audit trail, and two figures that quietly
+ * disagreed with the ones on the public page. Everything money-shaped below is
+ * now a thin, back-compatible pass-through to the ledger so the dashboard and
+ * the staff console read one model.
  */
 declare(strict_types=1);
 
 final class NgvMember
 {
-    /* Expected commitments (naira). Kept here as the single source of truth for
-     * fee status; mirrors the fee lines on the public NGV page. */
-    public const MEMBERSHIP_YEARLY   = 10000;
-    public const COMMITMENT_MONTHLY  = 1000;
+    /* Kept only so anything still reading them gets a sane number. They are NOT
+     * the source of truth any more: `NgvLedger::amounts()` reads the figures off
+     * the public page, which is where an admin actually edits them, and pins an
+     * override when the page cannot express what is charged. Two hard-coded
+     * constants and an editable page are how a participant ends up holding a
+     * receipt that disagrees with the website. */
+    public const MEMBERSHIP_YEARLY   = NgvLedger::MEMBERSHIP_FALLBACK;
+    public const COMMITMENT_MONTHLY  = NgvLedger::COMMITMENT_FALLBACK;
 
     public const STATUSES = ['applicant', 'active', 'completed', 'paused', 'withdrawn'];
     public const PHASES   = ['', '1', '2', 'done'];
@@ -103,12 +111,20 @@ final class NgvMember
         NgvDb::pdo()->prepare('UPDATE ngv_participants SET ' . implode(', ', $set) . ' WHERE member_id = ?')->execute($args);
     }
 
-    /** Staff-editable fields: status, cohort, track, phase. */
+    /**
+     * Staff-editable fields: status, cohort, track, phase, plan.
+     *
+     * `plan` is here because the participant picks their own on the dashboard
+     * and the plan is what prices the training fee. Somebody has to be able to
+     * correct a wrong pick without asking the participant to do it, and staff
+     * confirming the plan is the step the fee is raised from.
+     */
     public static function setAdmin(int $memberId, array $patch): void
     {
         self::ensureParticipant($memberId);
         $set = []; $args = [];
         if (isset($patch['status']) && in_array((string) $patch['status'], self::STATUSES, true)) { $set[] = 'status = ?'; $args[] = (string) $patch['status']; }
+        if (array_key_exists('plan', $patch))   { $set[] = 'plan = ?';   $args[] = self::validPlan((string) $patch['plan']); }
         if (array_key_exists('cohort', $patch)) { $set[] = 'cohort = ?'; $args[] = mb_substr(trim((string) $patch['cohort']), 0, 60); }
         if (array_key_exists('track', $patch))  { $set[] = 'track = ?';  $args[] = self::validTrack((string) $patch['track']); }
         if (array_key_exists('phase', $patch) && in_array((string) $patch['phase'], self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = (string) $patch['phase']; }
@@ -118,44 +134,40 @@ final class NgvMember
         NgvDb::pdo()->prepare('UPDATE ngv_participants SET ' . implode(', ', $set) . ' WHERE member_id = ?')->execute($args);
     }
 
-    /* ── payments ────────────────────────────────────────────────────── */
+    /* ── money (delegated to NgvLedger) ──────────────────────────────────
+     * These keep their old names and shapes so existing callers do not change,
+     * but every one of them now goes through the ledger — which means a payment
+     * recorded here is allocated to a fee line, audited with the amount and the
+     * line, and reflected in the arrears list and the reminder sweep. None of
+     * that was true when this file owned the money. */
+
+    /** Record money received, allocated to the fee line it pays. */
     public static function recordPayment(int $memberId, array $p, int $byUid): bool
     {
         if ($memberId <= 0) return false;
         self::ensureParticipant($memberId);
-        $kind = in_array((string) ($p['kind'] ?? ''), self::KINDS, true) ? (string) $p['kind'] : 'commitment';
-        $amount = (int) round((float) ($p['amount'] ?? 0));
-        if ($amount < 0) $amount = 0;
-        if ($amount > self::AMOUNT_MAX) $amount = self::AMOUNT_MAX;
-        $period = (string) ($p['period'] ?? '');
-        if ($period !== '' && !preg_match('/^\d{4}(-\d{2})?$/', $period)) $period = '';
-        $now = NgvDb::nowExpr();
-        NgvDb::pdo()->prepare(
-            "INSERT INTO ngv_payments (member_id,kind,amount,currency,period,method,reference,note,recorded_by,created_at)
-             VALUES (?,?,?,?,?,?,?,?,?,{$now})"
-        )->execute([
-            $memberId, $kind, $amount, 'NGN', $period,
-            mb_substr(trim((string) ($p['method'] ?? '')), 0, 40),
-            mb_substr(trim((string) ($p['reference'] ?? '')), 0, 80),
-            mb_substr(trim((string) ($p['note'] ?? '')), 0, 200),
-            max(0, $byUid),
-        ]);
-        return true;
+        $line = in_array((string) ($p['kind'] ?? ''), self::KINDS, true) ? (string) $p['kind'] : 'commitment';
+        $r = NgvLedger::payment($memberId, $line, $p['amount'] ?? 0, [
+            'period' => $p['period'] ?? '', 'method' => $p['method'] ?? '',
+            'reference' => $p['reference'] ?? '', 'note' => $p['note'] ?? '',
+        ], $byUid);
+        return !empty($r['ok']);
     }
 
-    public static function voidPayment(int $id, int $byUid): bool
+    /**
+     * Void a payment. A reason is REQUIRED — the old signature let a payment
+     * disappear from the arithmetic with nothing on the row saying who removed
+     * it or why, which is exactly the question an account has to answer.
+     */
+    public static function voidPayment(int $id, string $reason, int $byUid): array
     {
-        if ($id <= 0) return false;
-        NgvDb::pdo()->prepare('UPDATE ngv_payments SET voided = 1 WHERE id = ?')->execute([$id]);
-        return true;
+        return NgvLedger::void('credit', $id, $reason, $byUid);
     }
 
-    /** Non-void payments, newest first. */
+    /** Non-void payment rows, newest first. */
     public static function payments(int $memberId): array
     {
-        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_payments WHERE member_id = ? AND voided = 0 ORDER BY created_at DESC, id DESC');
-        $st->execute([$memberId]);
-        return $st->fetchAll() ?: [];
+        return NgvLedger::credits($memberId);
     }
 
     /** Secret backing the unforgeable, storage-free certificate verification code. */
@@ -218,55 +230,29 @@ final class NgvMember
     }
 
     /**
-     * Fee status: compare recorded payments to the expected commitments for the
-     * current year (membership) and month (commitment). Returns display-ready
-     * lines plus the total collected — real numbers, straight from the ledger.
+     * Fee status in the shape the older callers read: display-ready lines plus
+     * the total received. Now computed from the ledger rather than from two
+     * constants, so what it reports is what has actually been charged.
      */
     public static function feeStatus(int $memberId): array
     {
-        $year  = self::today('Y');
-        $month = self::today('Y-m');
-        $rows  = self::payments($memberId);
-
-        $sum = static function (array $rows, string $kind, ?string $period) {
-            $t = 0;
-            foreach ($rows as $r) {
-                if (($r['kind'] ?? '') !== $kind) continue;
-                if ($period !== null && (string) ($r['period'] ?? '') !== $period) continue;
-                $t += (int) ($r['amount'] ?? 0);
-            }
-            return $t;
-        };
-
-        $memberPaid = $sum($rows, 'membership', $year);
-        $commPaid   = $sum($rows, 'commitment', $month);
-        $total = 0; foreach ($rows as $r) $total += (int) ($r['amount'] ?? 0);
-
-        $lines = [
-            [
-                'key' => 'membership', 'label' => 'Membership (' . $year . ')',
-                'expected' => self::MEMBERSHIP_YEARLY, 'paid' => $memberPaid,
-                'ok' => $memberPaid >= self::MEMBERSHIP_YEARLY,
-                'detail' => self::money($memberPaid) . ' of ' . self::money(self::MEMBERSHIP_YEARLY) . ' this year',
-            ],
-            [
-                'key' => 'commitment', 'label' => 'Commitment (this month)',
-                'expected' => self::COMMITMENT_MONTHLY, 'paid' => $commPaid,
-                'ok' => $commPaid >= self::COMMITMENT_MONTHLY,
-                'detail' => self::money($commPaid) . ' of ' . self::money(self::COMMITMENT_MONTHLY) . ' for ' . $month,
-            ],
-        ];
-        return ['lines' => $lines, 'total' => $total, 'count' => count($rows), 'has_any' => $rows !== []];
+        $a = NgvLedger::account($memberId);
+        return ['lines' => $a['lines'], 'total' => (int) $a['total'],
+                'count' => (int) $a['count'], 'has_any' => (bool) $a['has_any']];
     }
 
     /* ── staff roster + overview ─────────────────────────────────────── */
     public static function roster(string $status = '', int $limit = 200): array
     {
         $limit = max(1, min(1000, $limit));
-        $sql = 'SELECT p.*,
-                  (SELECT COALESCE(SUM(x.amount),0) FROM ngv_payments x WHERE x.member_id = p.member_id AND x.voided = 0) AS paid_total,
+        /* `payment` only. A waiver and a write-off are credits too, and counting
+           them here reported money the programme never received as money it did
+           — on the one column staff scan down. */
+        $sql = "SELECT p.*,
+                  (SELECT COALESCE(SUM(x.amount),0) FROM ngv_payments x
+                    WHERE x.member_id = p.member_id AND x.voided = 0 AND x.credit_kind = 'payment') AS paid_total,
                   (SELECT COUNT(*) FROM ngv_certifications c WHERE c.member_id = p.member_id) AS cert_count
-                FROM ngv_participants p';
+                FROM ngv_participants p";
         $args = [];
         if ($status !== '' && in_array($status, self::STATUSES, true)) { $sql .= ' WHERE p.status = ?'; $args[] = $status; }
         $sql .= ' ORDER BY p.updated_at DESC, p.id DESC LIMIT ' . $limit;
@@ -287,8 +273,13 @@ final class NgvMember
         $certs     = (int) $pdo->query('SELECT COUNT(*) FROM ngv_certifications')->fetchColumn();
         $appsNew   = (int) $pdo->query("SELECT COUNT(*) FROM ngv_applications WHERE status IN ('new','reviewing')")->fetchColumn();
         $appsTotal = (int) $pdo->query('SELECT COUNT(*) FROM ngv_applications')->fetchColumn();
+        /* `collected` is every credit ever recorded, which is what the console
+           has always shown. The ledger's own totals separate money RECEIVED from
+           money WAIVED and written off — three very different facts that one
+           "collected" figure was hiding. */
+        $money = NgvLedger::totals();
         return ['total' => $total, 'by_status' => $byStatus, 'collected' => $collected, 'certs' => $certs,
-                'apps_pending' => $appsNew, 'apps_total' => $appsTotal];
+                'apps_pending' => $appsNew, 'apps_total' => $appsTotal, 'money' => $money];
     }
 
     /* ── applications (public registration intake) ───────────────────── */
@@ -432,110 +423,26 @@ final class NgvMember
     /* ── plans (the programme / training fee) ────────────────────────────
      * A participant's plan is the single fact that says whether they owe a
      * training fee at all: "Training Only" and "Internship Only" are free,
-     * "Full Programme" carries the yearly tuition. The catalogue and its prices
-     * are the same ones the public NGV page shows — parsed from the live content
-     * so the dashboard and the page can never quote different money. */
-    private static function planCatalogue(): array
-    {
-        $out = [];
-        if (class_exists('Ngv')) {
-            foreach ((Ngv::get()['plans'] ?? []) as $pl) {
-                $name = trim((string) ($pl['name'] ?? ''));
-                if ($name === '') continue;
-                $fee = (int) preg_replace('/\D/', '', (string) ($pl['price'] ?? '')); // "₦240,000" → 240000, "Free" → 0
-                $out[$name] = [
-                    'name' => $name, 'fee' => $fee,
-                    'priceLabel' => (string) ($pl['price'] ?? ''),
-                    'note'  => trim((string) ($pl['price_note'] ?? '')),
-                    'duration' => (string) ($pl['duration'] ?? ''),
-                    'desc'  => (string) ($pl['desc'] ?? ''),
-                ];
-            }
-        }
-        return $out;
-    }
-    public static function planNames(): array { return array_keys(self::planCatalogue()); }
+     * "Full Programme" carries the tuition. The catalogue and its prices are
+     * parsed from the live public page so the dashboard and the page can never
+     * quote different money — the parser lives in NgvLedger, which is also what
+     * prices a charge, so there is exactly one of it. */
+    public static function planNames(): array { return array_keys(NgvLedger::planCatalogue()); }
     /** Plan options for the dashboard picker: name + price label + one-line desc. */
-    public static function planOptions(): array { return array_values(self::planCatalogue()); }
+    public static function planOptions(): array { return array_values(NgvLedger::planCatalogue()); }
 
     /**
-     * The member's account — one plain figure of what is outstanding, the fee
-     * lines it is made of (training / membership / commitment), and the full
-     * ledger behind it. This is the NGV mirror of the NGG "Your account" card:
-     * the training fee is the participant's plan tuition, and — unlike NGG —
-     * there is no earn-off, because NGV's Phase 2 is a *paid* internship, not a
-     * service that writes a fee down. Read-only and non-destructive: it only
-     * ever compares the append-only payment ledger to the expected commitments.
+     * The member's account: one plain figure of what is outstanding, the fee
+     * lines it is made of, and the full ledger behind it.
+     *
+     * Read-only and non-destructive. Unlike NGG there is no earn-off here —
+     * NGV's Phase 2 is a *paid* internship with weekly stipends, so writing the
+     * training fee down as service is served would be paying twice. Where a fee
+     * should not be collected that is a WAIVER: somebody's decision, with their
+     * name and their reason on it.
      */
     public static function account(int $memberId): array
     {
-        $year  = self::today('Y');
-        $month = self::today('Y-m');
-        $rows  = self::payments($memberId);
-        $p     = self::participant($memberId) ?: [];
-        $plan  = (string) ($p['plan'] ?? '');
-        $cat   = self::planCatalogue();
-        $planRow = $cat[$plan] ?? null;
-
-        $sum = static function (array $rows, string $kind, ?string $period): int {
-            $t = 0;
-            foreach ($rows as $r) {
-                if (($r['kind'] ?? '') !== $kind) continue;
-                if ($period !== null && (string) ($r['period'] ?? '') !== $period) continue;
-                $t += (int) ($r['amount'] ?? 0);
-            }
-            return $t;
-        };
-
-        // Training / programme fee — only owed on a paid plan.
-        $trainingExpected = $planRow ? (int) $planRow['fee'] : 0;
-        $trainingPaid     = $sum($rows, 'programme', $year);
-        $trainingDetail   = $planRow === null
-            ? 'No plan chosen yet — pick one below, or speak to your track lead.'
-            : ($trainingExpected === 0
-                ? self::money($trainingPaid) . ' paid · ' . $plan . ' is free' . ($planRow['note'] !== '' ? ' (' . $planRow['note'] . ')' : '')
-                : self::money($trainingPaid) . ' of ' . self::money($trainingExpected) . ' — ' . $plan
-                    . ($planRow['note'] !== '' ? ' (' . $planRow['note'] . ')' : ''));
-
-        $memberPaid = $sum($rows, 'membership', $year);
-        $commPaid   = $sum($rows, 'commitment', $month);
-
-        $lines = [
-            [
-                'key' => 'programme', 'label' => 'Training fee',
-                'expected' => $trainingExpected, 'paid' => $trainingPaid,
-                'ok' => $trainingExpected === 0 || $trainingPaid >= $trainingExpected,
-                'free' => $trainingExpected === 0,
-                'detail' => $trainingDetail,
-            ],
-            [
-                'key' => 'membership', 'label' => 'Membership (' . $year . ')',
-                'expected' => self::MEMBERSHIP_YEARLY, 'paid' => $memberPaid,
-                'ok' => $memberPaid >= self::MEMBERSHIP_YEARLY, 'free' => false,
-                'detail' => self::money($memberPaid) . ' of ' . self::money(self::MEMBERSHIP_YEARLY) . ' this year',
-            ],
-            [
-                'key' => 'commitment', 'label' => 'Commitment (this month)',
-                'expected' => self::COMMITMENT_MONTHLY, 'paid' => $commPaid,
-                'ok' => $commPaid >= self::COMMITMENT_MONTHLY, 'free' => false,
-                'detail' => self::money($commPaid) . ' of ' . self::money(self::COMMITMENT_MONTHLY) . ' for ' . $month,
-            ],
-        ];
-
-        $payable = 0;
-        foreach ($lines as $ln) $payable += max(0, (int) $ln['expected'] - (int) $ln['paid']);
-        $total = 0; foreach ($rows as $r) $total += (int) ($r['amount'] ?? 0);
-
-        return [
-            'payable'  => $payable,
-            'plan'     => $plan,
-            'planLabel'=> $planRow ? ($planRow['name'] . ($planRow['duration'] !== '' ? ' · ' . $planRow['duration'] : '')) : '',
-            'planFree' => $planRow ? ((int) $planRow['fee'] === 0) : false,
-            'lines'    => $lines,
-            'entries'  => $rows,
-            'total'    => $total,
-            'count'    => count($rows),
-            'has_any'  => $rows !== [],
-        ];
+        return NgvLedger::account($memberId);
     }
 }

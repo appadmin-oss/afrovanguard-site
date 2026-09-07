@@ -2,11 +2,16 @@
 /**
  * academy/ngv/members.php — NextGen Vanguard staff console.
  *
- * The write path that makes the member dashboard's fees + certifications real:
- * staff enrol members, set status/cohort/track, record fee payments, and add
- * certifications. All data lives in the SEPARATE NGV database (lib/NgvDb.php);
- * this page never touches the main site tables except to look up a member by
- * email at enrolment time.
+ * The write path that makes the member dashboard's account + certifications
+ * real: staff enrol members, set status/cohort/track/plan, run the accrual,
+ * record payments, issue fines, waive what should not be collected, chase
+ * arrears, and add certifications.
+ *
+ * The money all goes through lib/NgvLedger.php — nothing on this page does its
+ * own arithmetic, and every mutating action lands on the admin audit trail with
+ * the amount and the reason on it. Participant data lives in the SEPARATE NGV
+ * database (lib/NgvDb.php); this page never touches the main site tables except
+ * to look up a member by email at enrolment time and to write that trail.
  *
  * Admin-gated exactly like edit.php (av_admin_role). JSON actions POST to this
  * same URL, guarded by admin + same-origin + CSRF.
@@ -50,16 +55,81 @@ if ($method === 'POST') {
     }
     if ($act === 'payment') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
-        NgvMember::recordPayment($mid, [
-            'kind' => $in['kind'] ?? 'commitment', 'amount' => $in['amount'] ?? 0,
+        $r = NgvLedger::payment($mid, (string) ($in['kind'] ?? 'commitment'), $in['amount'] ?? 0, [
             'period' => $in['period'] ?? '', 'method' => $in['method'] ?? '',
             'reference' => $in['reference'] ?? '', 'note' => $in['note'] ?? '',
         ], $adminUid);
-        json_out(['ok' => true]);
+        json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    /* A fine or an adjustment. The reason vocabulary and the "say why" rule live
+       in the ledger, so this route cannot post one without them. */
+    if ($act === 'charge') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $r = NgvLedger::charge($mid, (string) ($in['kind'] ?? 'fine'), $in['amount'] ?? 0,
+            (string) ($in['reason'] ?? ''), (string) ($in['note'] ?? ''), $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    /* Two different sentences, so two different operations. A WAIVER says "this
+       is owed and we are not asking for it"; a WRITE-OFF says "the programme has
+       stopped carrying this" — what a withdrawal leaves behind. Recording one as
+       the other loses the only part anybody reads back later. */
+    if ($act === 'waive' || $act === 'writeoff') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $line = (string) ($in['kind'] ?? 'commitment');
+        $r = $act === 'waive'
+            ? NgvLedger::waive($mid, $line, $in['amount'] ?? 0, (string) ($in['reason'] ?? ''), $adminUid)
+            : NgvLedger::writeOff($mid, $line, $in['amount'] ?? 0, (string) ($in['reason'] ?? ''), $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'training') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $r = NgvLedger::raiseTrainingFee($mid, $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'remind_off') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $r = NgvLedger::setRemindOff($mid, !empty($in['off']));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    /* Void either side of the ledger. Nothing is deleted and nothing is edited:
+       the row stays, flagged, with the reason on it. */
     if ($act === 'void') {
-        NgvMember::voidPayment((int) ($in['payment_id'] ?? 0), $adminUid);
-        json_out(['ok' => true]);
+        $side = ((string) ($in['side'] ?? 'credit')) === 'charge' ? 'charge' : 'credit';
+        $r = NgvLedger::void($side, (int) ($in['entry_id'] ?? ($in['payment_id'] ?? 0)),
+            (string) ($in['reason'] ?? ''), $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
+    /* ── Programme-wide ── */
+    if ($act === 'fees_settings') {
+        $cfg = NgvLedger::saveSettings(is_array($in['settings'] ?? null) ? $in['settings'] : [], 'admin');
+        json_out(['ok' => true, 'settings' => $cfg]);
+    }
+    if ($act === 'fees_reviewed') {
+        json_out(['ok' => true, 'settings' => NgvLedger::markReviewed('admin')]);
+    }
+    if ($act === 'accrue') {
+        $r = NgvLedger::accrueAll(NgvLedger::ACCRUE_BATCH);
+        if (empty($r['ok'])) json_out(['ok' => false, 'error' => 'Switch fees on first.'], 400);
+        AdminAudit::log('ngv', 'ngv_fee_accrue', 'ngv:fees',
+            'Accrual run — ' . $r['accrued']['membership'] . ' membership, ' . $r['accrued']['commitment']
+            . ' commitment, ' . $r['accrued']['programme'] . ' training across ' . $r['accrued']['participants'] . ' participant(s)');
+        json_out($r);
+    }
+    /* Offered before the button that sends, because a send is not undoable: a
+       message to sixty people cannot be recalled, and "how many, and to whom" is
+       the question worth answering first. */
+    if ($act === 'remind_preview') {
+        $c = NgvLedger::reminderCandidates();
+        json_out(['ok' => true, 'count' => count($c['due']), 'everyDays' => $c['everyDays'],
+                  'skipped' => $c['skipped'],
+                  'due' => array_map(static fn($x) => ['name' => $x['name'], 'email' => $x['email'],
+                                                       'payable' => $x['payable'], 'last' => $x['lastRemindedAt']], $c['due'])]);
+    }
+    if ($act === 'remind_run') {
+        $r = NgvLedger::runReminders(NgvLedger::REMIND_BATCH);
+        if (empty($r['ok'])) json_out(['ok' => false, 'error' => 'Reminders are switched off.'], 400);
+        json_out($r);
     }
     if ($act === 'cert') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
@@ -89,14 +159,32 @@ $csrf = $isAdmin && function_exists('av_csrf_token') ? av_csrf_token() : '';
 $stats = $isAdmin ? NgvMember::stats() : ['total' => 0, 'by_status' => [], 'collected' => 0, 'certs' => 0, 'apps_pending' => 0, 'apps_total' => 0];
 $roster = $isAdmin ? NgvMember::roster('', 300) : [];
 $apps   = $isAdmin ? NgvMember::applications('', 100) : [];
-$sel = null; $selPayments = []; $selCerts = [];
+$sel = null; $selAcct = null; $selCerts = [];
 $mid = (int) ($_GET['m'] ?? 0);
 if ($isAdmin && $mid > 0) {
     $sel = NgvMember::participant($mid);
-    if ($sel) { $selPayments = NgvMember::payments($mid); $selCerts = NgvMember::certifications($mid); }
+    if ($sel) { $selAcct = NgvLedger::account($mid); $selCerts = NgvMember::certifications($mid); }
 }
 $trackNames = [];
 foreach ((Ngv::get()['tracks'] ?? []) as $t) { if (!empty($t['name'])) $trackNames[] = (string) $t['name']; }
+
+/* ── Money ─────────────────────────────────────────────────────────────────
+ * Everything here is read straight off the ledger. The amounts row is worth
+ * showing rather than assuming: `source` says whether a figure came from the
+ * public page, from a pinned override, or from the built-in fallback, so staff
+ * can see WHERE what they are charging comes from instead of trusting it. */
+$fees    = $isAdmin ? NgvLedger::settings() : [];
+$amounts = $isAdmin ? NgvLedger::amounts() : [];
+$money   = $isAdmin ? NgvLedger::totals() : [];
+$arrears = $isAdmin && !empty($fees['enabled']) ? NgvLedger::arrears(50) : ['rows' => [], 'matched' => 0, 'truncated' => false, 'totalPayable' => 0];
+$review  = $isAdmin ? NgvLedger::reviewDue() : ['due' => false];
+$look    = $isAdmin ? NgvLedger::lookup((string) ($_GET['q'] ?? '')) : ['rows' => [], 'q' => '', 'tooShort' => true];
+$B       = NgvLedger::bounds();
+$srcWord = ['page' => 'from the public page', 'pinned' => 'pinned here', 'fallback' => 'built-in fallback'];
+$planCat = NgvLedger::planCatalogue();
+$kindLabel = ['membership' => 'Membership', 'commitment' => 'Monthly commitment',
+              'programme' => 'Training fee', 'fine' => 'Fine', 'adjustment' => 'Adjustment', 'other' => 'Unallocated'];
+$creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Written off'];
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -141,8 +229,28 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .sub{font-size:.82rem;color:var(--muted)}
 .enroll{display:flex;gap:8px}.enroll input{flex:1}
 .msg{font-size:.85rem;font-weight:700;margin-left:auto}
-.pay-row{display:flex;gap:8px;align-items:center;font-size:.86rem;padding:6px 0;border-bottom:1px dashed var(--line)}
+.pay-row{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;padding:7px 0;border-bottom:1px dashed var(--line)}
 .pay-row .sp{flex:1}
+.pay-row.voided{opacity:.55}.pay-row.voided b{text-decoration:line-through}
+.dir{display:inline-block;width:16px;font-weight:800;text-align:center}
+.dir.charge{color:#c0322b}.dir.credit{color:#137a3a}
+.pill{font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.pill-on{background:#e6f7ec;color:#137a3a}.pill-off{background:#f1f3f6;color:#5f6874}
+.note{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:.88rem}
+.note-warn{border-color:#f2c98a;background:#fffaf0}
+.note .sub{display:block;margin-top:4px}
+.amts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+.amt-box{border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+.amt-box .k{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.amt-box .v{font-size:1.15rem;font-weight:800}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.chk{display:flex;gap:8px;align-items:center;font-weight:600;font-size:.88rem;margin-bottom:6px}
+.chk input{width:auto}
+.card.money .fld p.sub{margin:5px 0 0}
+.figure{font-size:1.7rem;font-weight:800;line-height:1.1}
+.figure.clear{color:#137a3a}
+.figure .sub{display:block;font-size:.78rem;font-weight:600}
+@media(max-width:900px){.amts{grid-template-columns:1fr}.cols{grid-template-columns:1fr}}
 @media(max-width:900px){.shell{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -164,10 +272,170 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 </div>
 <div class="wrap">
   <div class="stats">
-    <div class="stat"><div class="k">Participants</div><div class="v"><?= (int)$stats['total'] ?></div></div>
+    <div class="stat"><div class="k">Participants</div><div class="v"><?= (int)$stats['total'] ?></div>
+      <?php if ((int)($money['charged'] ?? 0) > 0): ?><div class="sub">₦<?= number_format((int)$money['charged']) ?> charged</div><?php endif; ?></div>
     <div class="stat"><div class="k">Active</div><div class="v"><?= (int)($stats['by_status']['active'] ?? 0) ?></div></div>
-    <div class="stat"><div class="k">Collected</div><div class="v">₦<?= number_format((int)$stats['collected']) ?></div></div>
-    <div class="stat"><div class="k">Applications</div><div class="v"><?= (int)($stats['apps_pending'] ?? 0) ?><?php if ((int)($stats['apps_total'] ?? 0) > 0): ?> <span class="sub" style="font-size:.8rem">pending</span><?php endif; ?></div></div>
+    <div class="stat"><div class="k">Received</div><div class="v">₦<?= number_format((int)($money['received'] ?? 0)) ?></div>
+      <?php if ((int)($money['waived'] ?? 0) > 0): ?><div class="sub">₦<?= number_format((int)$money['waived']) ?> waived</div><?php endif; ?></div>
+    <div class="stat"><div class="k">Outstanding</div><div class="v">₦<?= number_format((int)($money['outstanding'] ?? 0)) ?></div>
+      <?php if ((int)($arrears['matched'] ?? 0) > 0): ?><div class="sub"><?= (int)$arrears['matched'] ?> behind</div><?php endif; ?></div>
+  </div>
+
+  <!-- ══ Money ══════════════════════════════════════════════════════════════
+       A ledger, not a payment processor: nothing on this page takes money. It
+       records what is owed and what staff confirm arrived. -->
+  <div class="card money" style="margin-bottom:18px">
+    <header>Fees &amp; dues
+      <span class="pill <?= !empty($fees['enabled']) ? 'pill-on' : 'pill-off' ?>"><?= !empty($fees['enabled']) ? 'On' : 'Off' ?></span>
+      <span class="sp"></span>
+      <span class="sub">membership · monthly commitment · training fee · fines</span>
+    </header>
+    <div class="body">
+
+      <?php if ($review['due']): ?>
+        <div class="note note-warn">
+          These amounts have not been reviewed
+          <?= $review['lastAt'] === '' ? 'since fees were switched on' : 'since ' . $e((string)$review['lastAt']) ?>.
+          Naira inflation erodes a fixed figure fast — check <a href="/academy/ngv/edit.php" target="_blank" rel="noopener">the public page</a>
+          against what you are charging, then
+          <button class="btn sm" data-act="fees_reviewed">mark them reviewed</button>.
+          <span class="sub">Nothing here ever changes an amount on its own.</span>
+        </div>
+      <?php endif; ?>
+
+      <!-- What is being charged, and where each figure came from. -->
+      <div class="amts">
+        <?php foreach (['membership' => 'Membership', 'commitment' => 'Monthly commitment'] as $k => $lbl):
+              $a = $amounts[$k] ?? ['amount' => 0, 'cadence' => '', 'source' => '']; ?>
+          <div class="amt-box">
+            <div class="k"><?= $e($lbl) ?></div>
+            <div class="v">₦<?= number_format((int)$a['amount']) ?> <span class="sub">/ <?= $e((string)$a['cadence']) ?></span></div>
+            <div class="sub"><?= $e($srcWord[(string)$a['source']] ?? (string)$a['source']) ?></div>
+          </div>
+        <?php endforeach; ?>
+        <div class="amt-box">
+          <div class="k">Training fee</div>
+          <?php $paid = array_filter($planCat, static fn($p) => (int) $p['fee'] > 0); ?>
+          <div class="v"><?= $paid ? '₦' . number_format((int) reset($paid)['fee']) : 'Free' ?>
+            <?php if ($paid): ?><span class="sub">/ <?= $e((string) reset($paid)['cadence']) ?></span><?php endif; ?></div>
+          <div class="sub"><?= $paid ? $e((string) key($paid)) . ' · from the plans table' : 'no paid plan on the page' ?></div>
+        </div>
+      </div>
+      <p class="sub" style="margin:2px 0 14px">
+        The figures come from <a href="/academy/ngv/edit.php" target="_blank" rel="noopener">the public NGV page</a> — edit them
+        there and the ledger follows, so a receipt can never disagree with the website. Pin one below only when the page cannot say it.
+      </p>
+
+      <div class="cols">
+        <!-- Settings -->
+        <div>
+          <div class="fld"><label>How it runs</label>
+            <label class="chk"><input type="checkbox" id="s_enabled" <?= !empty($fees['enabled']) ? 'checked' : '' ?>> Charge membership and monthly commitment</label>
+            <label class="chk"><input type="checkbox" id="s_trainingAuto" <?= !empty($fees['trainingAuto']) ? 'checked' : '' ?>> Also raise the training fee automatically</label>
+            <p class="sub">Participants pick their own plan on their dashboard. Left off, the training fee is raised by you
+               from their record — one press, priced from the plan — so nobody can give themselves a ₦240,000 debt by clicking about.</p>
+          </div>
+          <div class="grid2">
+            <div class="fld"><label>Charge nothing before</label>
+              <input id="s_accrueFrom" type="date" value="<?= $e((string)($fees['accrueFrom'] ?? '')) ?>">
+              <p class="sub">The rollout guard. Set to the month you switched fees on, so turning the ledger on for a
+                 programme with history does not back-charge a year on the first run.</p></div>
+            <div class="fld"><label>Stop an account at</label>
+              <input id="s_balanceCap" type="number" min="0" step="1000" value="<?= (int)($fees['balanceCap'] ?? 0) ?>">
+              <p class="sub">Accrual stops here rather than growing into a figure nobody will pay. 0 = no ceiling.</p></div>
+          </div>
+          <div class="grid2">
+            <div class="fld"><label>Pin membership (₦/year)</label>
+              <input id="s_membershipYearly" type="number" min="0" step="500" placeholder="auto — read off the page"
+                     value="<?= $fees['membershipYearly'] === null ? '' : (int)$fees['membershipYearly'] ?>"></div>
+            <div class="fld"><label>Pin commitment (₦/month)</label>
+              <input id="s_commitmentMonthly" type="number" min="0" step="100" placeholder="auto — read off the page"
+                     value="<?= $fees['commitmentMonthly'] === null ? '' : (int)$fees['commitmentMonthly'] ?>"></div>
+          </div>
+
+          <div class="fld"><label>Reminders</label>
+            <label class="chk"><input type="checkbox" id="s_remindEnabled" <?= !empty($fees['remindEnabled']) ? 'checked' : '' ?>> Remind people what is outstanding</label>
+            <div class="grid2" style="margin-top:8px">
+              <input id="s_remindEveryDays" type="number" min="<?= (int)$B['remindMinDays'] ?>" max="<?= (int)$B['remindMaxDays'] ?>"
+                     value="<?= (int)($fees['remindEveryDays'] ?? 21) ?>" title="Days between reminders">
+              <input id="s_remindMinBalance" type="number" min="0" step="100" value="<?= (int)($fees['remindMinBalance'] ?? 1) ?>" title="Do not chase below (₦)">
+            </div>
+            <p class="sub">Days apart, then the smallest balance worth a message. The floor is <?= (int)$B['remindMinDays'] ?> days —
+               anything tighter is how a programme gets its sender blocked and its people to stop reading anything it sends.</p>
+          </div>
+          <button class="btn primary" data-act="fees_settings">Save fee settings</button>
+        </div>
+
+        <!-- Running it -->
+        <div>
+          <div class="fld"><label>Bring charges up to date</label>
+            <p class="sub">Adds any membership and monthly commitment not yet charged. Safe to press twice — it cannot
+               charge the same month twice — and the cron does it too.</p>
+            <button class="btn" data-act="accrue">Run accrual</button>
+            <span id="accrueOut" class="sub"></span>
+          </div>
+          <div class="fld"><label>Chase what is outstanding</label>
+            <p class="sub">Preview first: a message to sixty people cannot be recalled.</p>
+            <button class="btn" data-act="remind_preview">Preview</button>
+            <button class="btn" data-act="remind_run">Send them</button>
+            <div id="remindOut" class="sub" style="margin-top:8px"></div>
+          </div>
+
+          <div class="fld"><label>Find anybody's account</label>
+            <form method="get" class="enroll">
+              <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
+              <input name="q" value="<?= $e((string)($_GET['q'] ?? '')) ?>" placeholder="Name or email…">
+              <button class="btn">Find</button>
+            </form>
+            <p class="sub">The arrears list only holds people who owe. This is how you answer “has Ada paid?” for somebody who has.</p>
+            <?php if (!empty($look['rows'])): ?>
+              <table style="margin-top:6px">
+                <tbody>
+                <?php foreach ($look['rows'] as $r): ?>
+                  <tr><td><a href="?m=<?= (int)$r['member_id'] ?>"><?= $e((string)$r['name']) ?></a><br><span class="sub"><?= $e((string)$r['email']) ?></span></td>
+                      <td class="sub"><?= $e((string)$r['status']) ?></td>
+                      <td><?= (int)$r['payable'] > 0 ? '<b>₦' . number_format((int)$r['payable']) . '</b> due' : '<span class="sub">square</span>' ?>
+                          <br><span class="sub">₦<?= number_format((int)$r['charged']) ?> charged</span></td></tr>
+                <?php endforeach; ?>
+                </tbody>
+              </table>
+              <?php if (!empty($look['truncated'])): ?><p class="sub">More than <?= (int)$look['max'] ?> matched — narrow the search.</p><?php endif; ?>
+            <?php elseif (!empty($look['q']) && empty($look['tooShort'])): ?>
+              <p class="sub">Nobody matched “<?= $e((string)$look['q']) ?>”.</p>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrears, ranked by what is actually payable -->
+      <div class="fld" style="margin-top:6px"><label>Behind (<?= (int)$arrears['matched'] ?>) · ₦<?= number_format((int)$arrears['totalPayable']) ?> outstanding</label>
+        <?php if (empty($fees['enabled'])): ?>
+          <p class="sub">Fees are switched off, so nothing is being charged and nobody is behind.</p>
+        <?php elseif (!$arrears['rows']): ?>
+          <p class="sub">Nobody is behind. </p>
+        <?php else: ?>
+        <table>
+          <thead><tr><th>Who</th><th>Outstanding</th><th>Made up of</th><th></th></tr></thead>
+          <tbody>
+          <?php foreach ($arrears['rows'] as $r): ?>
+            <tr>
+              <td><a href="?m=<?= (int)$r['member_id'] ?>"><?= $e((string)($r['name'] ?: ('#'.$r['member_id']))) ?></a>
+                  <?php if ($r['remindOff']): ?><br><span class="sub">not being chased</span><?php endif; ?>
+                  <?php if ($r['atCap']): ?><br><span class="sub">at the ceiling</span><?php endif; ?></td>
+              <td><b>₦<?= number_format((int)$r['payable']) ?></b></td>
+              <td class="sub"><?php
+                  $bits = [];
+                  foreach ($r['due'] as $k => $v) { if ((int)$v > 0) $bits[] = ($kindLabel[$k] ?? $k) . ' ₦' . number_format((int)$v); }
+                  echo $e(implode(' · ', $bits)); ?></td>
+              <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>">Open</a></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+        <?php if (!empty($arrears['truncated'])): ?><p class="sub">Showing the 50 largest.</p><?php endif; ?>
+        <?php endif; ?>
+      </div>
+    </div>
   </div>
 
   <!-- Applications inbox -->
@@ -212,7 +480,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
           <button class="btn primary" id="enrollBtn">Enrol</button>
         </div>
         <table>
-          <thead><tr><th>Name</th><th>Track</th><th>Status</th><th>Paid</th><th>Certs</th></tr></thead>
+          <thead><tr><th>Name</th><th>Track</th><th>Status</th><th>Received</th><th>Certs</th></tr></thead>
           <tbody>
           <?php foreach ($roster as $r): $on = $sel && (int)$r['member_id'] === (int)$sel['member_id']; ?>
             <tr class="<?= $on ? 'on' : '' ?>">
@@ -249,35 +517,151 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
             </select>
           </div>
           <div class="grid2" style="margin-top:10px">
+            <select id="f_plan">
+              <option value="">— No plan —</option>
+              <?php foreach ($planCat as $pn => $pl): ?>
+                <option value="<?= $e($pn) ?>" <?= ((string)($sel['plan'] ?? '')) === $pn ? 'selected' : '' ?>>
+                  <?= $e($pn) ?> · <?= $e((string)$pl['priceLabel']) ?></option>
+              <?php endforeach; ?>
+            </select>
             <input id="f_cohort" placeholder="Cohort (e.g. 2026 Alpha)" value="<?= $e((string)$sel['cohort']) ?>">
+          </div>
+          <div class="grid2" style="margin-top:10px">
             <select id="f_phase">
               <option value="" <?= $sel['phase']===''?'selected':'' ?>>Phase — not set</option>
               <option value="1" <?= $sel['phase']==='1'?'selected':'' ?>>Phase 1</option>
               <option value="2" <?= $sel['phase']==='2'?'selected':'' ?>>Phase 2</option>
               <option value="done" <?= $sel['phase']==='done'?'selected':'' ?>>Completed</option>
             </select>
+            <span></span>
           </div>
           <div style="margin-top:10px"><button class="btn primary sm" data-act="admin" data-m="<?= $m ?>">Save enrolment</button></div>
         </div>
 
+        <!-- ── Their account ──────────────────────────────────────────────
+             One figure, then the lines it is made of, then every entry behind
+             it. Nothing here is computed in the template. -->
+        <?php $A = $selAcct; ?>
+        <div class="fld"><label>Account</label>
+          <?php if (empty($A['enabled'])): ?>
+            <p class="sub">Fees are switched off, so nothing is being charged. Turn them on in <b>Fees &amp; dues</b> above.</p>
+          <?php endif; ?>
+          <div class="figure <?= (int)$A['payable'] > 0 ? '' : 'clear' ?>">
+            <?= (int)$A['payable'] > 0 ? '₦' . number_format((int)$A['payable']) : 'All clear' ?>
+            <span class="sub"><?= (int)$A['payable'] > 0 ? 'outstanding' : 'nothing outstanding' ?></span>
+          </div>
+          <?php if ((int)$A['paidAhead'] > 0): ?>
+            <p class="sub">₦<?= number_format((int)$A['paidAhead']) ?> paid ahead on a line that is already settled — it is
+               reported rather than netted off, so it cannot hide arrears somewhere else.</p>
+          <?php endif; ?>
+          <?php if ((int)$A['unallocated'] > 0): ?>
+            <p class="sub">₦<?= number_format((int)$A['unallocated']) ?> received without a fee line against it. It reduces the
+               account, not a line.</p>
+          <?php endif; ?>
+          <?php if (!empty($A['atCap'])): ?>
+            <p class="sub">This account is at the ₦<?= number_format((int)$A['cap']) ?> ceiling — accrual has stopped.</p>
+          <?php endif; ?>
+
+          <table style="margin-top:8px">
+            <tbody>
+            <?php foreach ($A['lines'] as $ln): ?>
+              <tr>
+                <td><b><?= $e((string)$ln['label']) ?></b><br><span class="sub"><?= $e((string)$ln['detail']) ?></span></td>
+                <td style="text-align:right;white-space:nowrap">
+                  <?php if (!empty($ln['free'])): ?><span class="badge b-active">Free</span>
+                  <?php elseif ((int)$ln['due'] > 0): ?><b>₦<?= number_format((int)$ln['due']) ?></b><br><span class="sub">due</span>
+                  <?php elseif ((int)$ln['charged'] > 0): ?><span class="badge b-active">Settled</span>
+                  <?php else: ?><span class="sub">—</span><?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn sm" data-act="training" data-m="<?= $m ?>">Raise the training fee<?php if ((int)$A['planFee'] > 0): ?> (₦<?= number_format((int)$A['planFee']) ?>)<?php endif; ?></button>
+            <button class="btn sm" data-act="remind_off" data-m="<?= $m ?>" data-off="<?= !empty($A['remindOff']) ? '0' : '1' ?>">
+              <?= !empty($A['remindOff']) ? 'Start chasing again' : 'Stop chasing this person' ?></button>
+          </div>
+          <p class="sub">The training fee is priced from their plan (<?= $A['planLabel'] !== '' ? $e((string)$A['planLabel']) : 'none chosen yet' ?>)
+             and can only be raised once per period.</p>
+        </div>
+
         <div class="fld"><label>Record a payment</label>
           <div class="grid2">
-            <select id="p_kind"><?php foreach (NgvMember::KINDS as $k): ?><option value="<?= $e($k) ?>"><?= $e(ucfirst($k)) ?></option><?php endforeach; ?></select>
+            <select id="p_kind">
+              <?php foreach (NgvLedger::CREDIT_LINES as $k): ?><option value="<?= $e($k) ?>" <?= $k==='commitment'?'selected':'' ?>><?= $e($kindLabel[$k] ?? $k) ?></option><?php endforeach; ?>
+            </select>
             <input id="p_amount" type="number" min="0" step="100" placeholder="Amount (₦)">
           </div>
           <div class="grid2" style="margin-top:10px">
-            <input id="p_period" placeholder="Period: 2026 or 2026-08">
+            <input id="p_period" placeholder="For which period: 2026 or 2026-08">
             <input id="p_method" placeholder="Method (transfer, cash…)">
           </div>
           <input id="p_ref" style="margin-top:10px" placeholder="Reference / note (optional)">
           <div style="margin-top:10px"><button class="btn primary sm" data-act="payment" data-m="<?= $m ?>">Record payment</button></div>
+          <p class="sub">Allocated to the line it pays, so “square on membership, two months behind on commitment” survives
+             into the figure instead of being flattened into one total.</p>
         </div>
 
-        <?php if ($selPayments): ?>
-        <div class="fld"><label>Payments</label>
-          <?php foreach ($selPayments as $pay): ?>
-          <div class="pay-row"><span>₦<?= number_format((int)$pay['amount']) ?> <b><?= $e((string)$pay['kind']) ?></b> <?= !empty($pay['period']) ? '('.$e((string)$pay['period']).')' : '' ?></span><span class="sp"></span><span class="sub"><?= $e(substr((string)$pay['created_at'],0,10)) ?></span> <button class="btn sm" data-act="void" data-pid="<?= (int)$pay['id'] ?>">Void</button></div>
+        <!-- A fine is the one charge somebody will dispute, so the reason is
+             part of the row rather than a note somebody may or may not write. -->
+        <div class="fld"><label>Issue a fine or an adjustment</label>
+          <div class="grid2">
+            <select id="x_kind"><option value="fine">Fine</option><option value="adjustment">Adjustment</option></select>
+            <input id="x_amount" type="number" min="0" step="100" placeholder="Amount (₦)">
+          </div>
+          <select id="x_reason" style="margin-top:10px">
+            <?php foreach (NgvLedger::FINE_REASONS as $k => $lbl): ?><option value="<?= $e($k) ?>"><?= $e($lbl) ?></option><?php endforeach; ?>
+          </select>
+          <input id="x_note" style="margin-top:10px" placeholder="What happened (required for “Other” and for adjustments)">
+          <div style="margin-top:10px"><button class="btn sm" data-act="charge" data-m="<?= $m ?>">Post it</button></div>
+          <p class="sub">“Late four times in August” is answerable later. “Misconduct” is not.</p>
+        </div>
+
+        <!-- No one is turned away for lack: the page says so, so the ledger has
+             to be able to act on it, and to record who did. -->
+        <div class="fld"><label>Stop asking for part of what is owed</label>
+          <div class="grid2">
+            <select id="w_kind">
+              <?php foreach (['commitment','membership','programme','fine','other'] as $k): ?><option value="<?= $e($k) ?>"><?= $e($kindLabel[$k] ?? $k) ?></option><?php endforeach; ?>
+            </select>
+            <input id="w_amount" type="number" min="0" step="100" placeholder="Amount (₦)">
+          </div>
+          <input id="w_reason" style="margin-top:10px" placeholder="Why (required — this is the part worth reading later)">
+          <div style="margin-top:10px">
+            <button class="btn sm" data-act="waive" data-m="<?= $m ?>">Waive it</button>
+            <button class="btn sm" data-act="writeoff" data-m="<?= $m ?>">Write it off</button>
+          </div>
+          <p class="sub"><b>Waive</b> when this person should not be asked — no one is turned away for lack.
+             <b>Write off</b> when the programme has stopped carrying the balance at all, which is usually what a
+             withdrawal leaves behind. Either way the charge stays on the record: voiding would say it should never
+             have existed, which is a different and usually untrue thing.</p>
+        </div>
+
+        <?php if (!empty($A['entries'])): ?>
+        <div class="fld"><label>Ledger (<?= count($A['entries']) ?>)</label>
+          <?php foreach ($A['entries'] as $en): ?>
+          <div class="pay-row<?= $en['void'] ? ' voided' : '' ?>">
+            <span>
+              <span class="dir <?= $en['side'] ?>"><?= $en['side'] === 'charge' ? '+' : '−' ?></span>
+              ₦<?= number_format((int)$en['amount']) ?>
+              <b><?= $e($en['side'] === 'credit' ? ($creditWord[$en['creditKind']] ?? 'Payment') . ' · ' . ($kindLabel[$en['kind']] ?? $en['kind'])
+                                                 : ($kindLabel[$en['kind']] ?? $en['kind'])) ?></b>
+              <?= $en['period'] !== '' ? '<span class="sub">(' . $e((string)$en['period']) . ')</span>' : '' ?>
+              <?php if ($en['note'] !== ''): ?><br><span class="sub"><?= $e((string)$en['note']) ?></span><?php endif; ?>
+              <?php if ($en['reference'] !== '' || $en['method'] !== ''): ?><br><span class="sub"><?= $e(trim($en['method'] . ' ' . $en['reference'])) ?></span><?php endif; ?>
+              <?php if ($en['void']): ?><br><span class="sub">Void — <?= $e((string)$en['voidReason']) ?></span><?php endif; ?>
+            </span>
+            <span class="sp"></span>
+            <span class="sub"><?= $e(substr((string)$en['created_at'], 0, 10)) ?></span>
+            <?php if (!$en['void']): ?>
+              <button class="btn sm" data-act="void" data-side="<?= $e($en['side']) ?>" data-eid="<?= (int)$en['id'] ?>">Void</button>
+            <?php endif; ?>
+          </div>
           <?php endforeach; ?>
+          <p class="sub">Nothing is ever deleted. A corrected mistake stays here with its reason, because “why is this
+             different from last month” is the question an account has to be able to answer.</p>
         </div>
         <?php endif; ?>
 
@@ -320,16 +704,80 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
     post({action:'enroll', email:email}).then(function(j){ if(j.ok){ toast('Enrolled ✓'); location.href='?m='+j.member_id; } else toast(j.error||'Failed', false); });
   });
 
+  var chk = function(id){ var el=document.getElementById(id); return !!(el && el.checked); };
+  var money = function(n){ return '₦' + (n||0).toLocaleString('en-NG'); };
+  var out = function(id, html){ var el=document.getElementById(id); if(el) el.innerHTML = html; };
+
   document.querySelectorAll('[data-act]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var act = btn.getAttribute('data-act'), m = parseInt(btn.getAttribute('data-m')||'0',10), body={action:act, member_id:m};
-      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); }
+      // Actions that render their own result rather than reloading the page.
+      var quiet = {remind_preview:1, remind_run:1, accrue:1};
+      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); }
       else if(act==='payment'){ body.kind=val('p_kind'); body.amount=val('p_amount'); body.period=val('p_period'); body.method=val('p_method'); body.reference=val('p_ref'); if(!body.amount){ toast('Enter an amount', false); return; } }
+      else if(act==='charge'){ body.kind=val('x_kind'); body.amount=val('x_amount'); body.reason=val('x_reason'); body.note=val('x_note');
+                               if(!body.amount){ toast('Enter an amount', false); return; }
+                               if(!confirm('Post a ' + body.kind + ' of ₦' + body.amount + '?')) return; }
+      else if(act==='waive' || act==='writeoff'){ body.kind=val('w_kind'); body.amount=val('w_amount'); body.reason=val('w_reason');
+                              if(!body.amount){ toast('Enter an amount', false); return; }
+                              if(!body.reason){ toast('Say why — it is the part worth reading later', false); return; }
+                              if(act==='writeoff' && !confirm('Write off ₦' + body.amount + '? Use “waive” if this person simply should not be asked.')) return; }
+      else if(act==='training'){ if(!confirm('Raise the training fee for their plan?')) return; }
+      else if(act==='remind_off'){ body.off = btn.getAttribute('data-off')==='1'; }
       else if(act==='cert'){ body.title=val('c_title'); body.issued_by=val('c_by'); body.issued_on=val('c_on'); if(!body.title){ toast('Title required', false); return; } }
-      else if(act==='void'){ body.payment_id=parseInt(btn.getAttribute('data-pid')||'0',10); if(!confirm('Void this payment?')) return; }
+      else if(act==='void'){ body.side=btn.getAttribute('data-side')||'credit'; body.entry_id=parseInt(btn.getAttribute('data-eid')||'0',10);
+                             // A void needs a reason: without one it is a deletion, and the
+                             // server refuses it anyway — better to ask here than to fail there.
+                             var why = prompt('Void this entry — why? (it stays on the account with this reason)');
+                             if(why===null || !why.trim()){ return; } body.reason = why; }
       else if(act==='app_status'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); body.status=btn.getAttribute('data-status')||''; if(body.status==='rejected' && !confirm('Reject this application?')) return; }
       else if(act==='app_enroll'){ body.app_id=parseInt(btn.getAttribute('data-app')||'0',10); }
-      post(body).then(function(j){ if(j.ok){ toast('Saved ✓'); setTimeout(function(){location.reload();},350); } else toast(j.error||'Failed', false); });
+      else if(act==='fees_settings'){
+        body.settings = {
+          enabled: chk('s_enabled'), trainingAuto: chk('s_trainingAuto'),
+          accrueFrom: val('s_accrueFrom'), balanceCap: val('s_balanceCap'),
+          membershipYearly: val('s_membershipYearly'), commitmentMonthly: val('s_commitmentMonthly'),
+          remindEnabled: chk('s_remindEnabled'), remindEveryDays: val('s_remindEveryDays'),
+          remindMinBalance: val('s_remindMinBalance')
+        };
+      }
+      else if(act==='remind_run'){ if(!confirm('Send reminders now? This cannot be recalled.')) return; }
+
+      post(body).then(function(j){
+        if(!j.ok){ toast(j.error||'Failed', false); return; }
+        if(act==='accrue'){
+          var a = j.accrued||{};
+          out('accrueOut', ' Charged ' + (a.membership||0) + ' membership, ' + (a.commitment||0) + ' commitment and '
+              + (a.programme||0) + ' training across ' + (a.participants||0) + ' participant(s).'
+              + ((a.atCap||0) ? ' ' + a.atCap + ' at the ceiling.' : '')
+              + ((a.noStartDate||0) ? ' ' + a.noStartDate + ' with no start date.' : ''));
+          toast('Accrual run ✓'); return;
+        }
+        if(act==='remind_preview'){
+          // Every exclusion is named: "it would send 4 of 60" is not checkable.
+          var s = j.skipped||{}, names = (j.due||[]).map(function(d){ return d.name + ' (' + money(d.payable) + ')'; });
+          out('remindOut', '<b>' + j.count + '</b> would be sent, ' + j.everyDays + ' days apart.'
+              + (names.length ? '<br>' + names.join(' · ') : '')
+              + '<br>Not sent: ' + [
+                  s.optedOut ? s.optedOut + ' asked not to be chased' : '',
+                  s.notActive ? s.notActive + ' not currently enrolled' : '',
+                  s.nothingPayable ? s.nothingPayable + ' owe nothing' : '',
+                  s.underMinimum ? s.underMinimum + ' below the minimum' : '',
+                  s.tooSoon ? s.tooSoon + ' reminded recently' : '',
+                  s.noEmail ? s.noEmail + ' have no email' : '',
+                  s.off ? 'reminders are switched off' : ''
+                ].filter(Boolean).join(' · '));
+          return;
+        }
+        if(act==='remind_run'){
+          out('remindOut', 'Sent ' + j.sent + ' of ' + j.due + (j.failed ? ' — ' + j.failed + ' could not be delivered.' : '.'));
+          toast('Sent ✓'); return;
+        }
+        if(j.clamped){ toast('Waived ' + money(j.waived) + ' — that is all that was outstanding'); }
+        else if(j.overCap){ toast('Posted — this account is now over the ceiling'); }
+        else { toast('Saved ✓'); }
+        if(!quiet[act]) setTimeout(function(){location.reload();}, j.clamped||j.overCap ? 1400 : 350);
+      });
     });
   });
 })();

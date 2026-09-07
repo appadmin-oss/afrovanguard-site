@@ -17,6 +17,13 @@ $dbFile = sys_get_temp_dir() . '/av-test-' . getmypid() . '.db';
 // project's db/diary.sqlite.
 putenv('AV_DB_PATH=' . $dbFile);
 putenv('AV_DB_DSN=sqlite:' . $dbFile);
+// NGV runs on its own connection, and NgvDb defaults to db/ngv.sqlite INSIDE the
+// project. Without this the suite provisions and writes the developer's real NGV
+// database — gitignored, so nobody notices until a test's fixture participants
+// turn up on the staff console.
+$ngvFile = sys_get_temp_dir() . '/av-test-ngv-' . getmypid() . '.db';
+@unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');
+putenv('AV_NGV_DB_PATH=' . $ngvFile);
 putenv('APP_KEY=ci_test_key_0123456789abcdefghij');
 
 $ROOT = dirname(__DIR__);
@@ -43,6 +50,7 @@ $files = glob(__DIR__ . '/*.test.php') ?: [];
 foreach ($files as $f) { echo "\n# " . basename($f) . "\n"; require $f; }
 
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');
+@unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');
 
 echo "\n" . str_repeat('─', 48) . "\n";
 if ($GLOBALS['__fail'] === 0) {

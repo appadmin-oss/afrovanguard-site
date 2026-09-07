@@ -2,10 +2,15 @@
 /**
  * lib/NgvDb.php — the NextGen Vanguard database (a SEPARATE connection).
  *
- * NGV participant data (enrolment, fee ledger, certifications, self-tracked
- * progress) lives in its OWN database, isolated from the main site DB — a
- * deliberate separation so the programme's records can be hosted, backed up,
- * or moved independently. It shares NONE of the main site's tables.
+ * NGV participant data lives in its OWN database, isolated from the main site
+ * DB — a deliberate separation so the programme's records can be hosted, backed
+ * up, or moved independently. It shares NONE of the main site's tables.
+ *
+ *   ngv_participants   enrolment, plan, self-tracked progress, reminder opt-out
+ *   ngv_charges        what is owed        ─┐ the two halves of the ledger,
+ *   ngv_payments       what has been given ─┘ read together by lib/NgvLedger.php
+ *   ngv_certifications what has been earned
+ *   ngv_applications   the public registration intake
  *
  * Config (all optional; env or config.php constants):
  *   AV_NGV_DB_DSN     full PDO DSN (mysql:… / pgsql:… / sqlite:…) — wins if set
@@ -137,24 +142,70 @@ final class NgvDb
           books       TEXT NOT NULL DEFAULT '',
           focus_note  TEXT NOT NULL DEFAULT '',
           start_date  TEXT NOT NULL DEFAULT '',
+          remind_off  INTEGER NOT NULL DEFAULT 0,
+          reminded_at TEXT NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS ngv_payments (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL,
-          kind        TEXT NOT NULL DEFAULT 'commitment',
+          kind        VARCHAR(24) NOT NULL DEFAULT 'commitment',
           amount      INTEGER NOT NULL DEFAULT 0,
           currency    TEXT NOT NULL DEFAULT 'NGN',
-          period      TEXT NOT NULL DEFAULT '',
+          period      VARCHAR(40) NOT NULL DEFAULT '',
           method      TEXT NOT NULL DEFAULT '',
           reference   TEXT NOT NULL DEFAULT '',
           note        TEXT NOT NULL DEFAULT '',
           recorded_by INTEGER NOT NULL DEFAULT 0,
           voided      INTEGER NOT NULL DEFAULT 0,
+          credit_kind VARCHAR(16) NOT NULL DEFAULT 'payment',
+          voided_by   INTEGER NOT NULL DEFAULT 0,
+          voided_at   TEXT NOT NULL DEFAULT '',
+          void_reason TEXT NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_pay_member ON ngv_payments (member_id);
+
+        /* ── The charge half of the ledger ──────────────────────────────────
+         * NOTE, and it matters more than it looks: execSchema() splits this DDL
+         * into statements by exploding on the semicolon, so a semicolon anywhere
+         * in a comment here cuts a CREATE in half and the halves fail silently
+         * down the benign-error path. There are none below, deliberately.
+         *
+         * ngv_payments records money RECEIVED, and this records money OWED. Two
+         * tables rather than one signed table, for a reason worth stating. The
+         * accrual's whole safety property is that running it twice cannot charge
+         * the same month twice, and that property lives in a UNIQUE index on
+         * (member_id, kind, period). Credits cannot share it — two payments in
+         * one month are two real events — and NGV has no migration runner that
+         * could backfill a discriminator column onto the payment rows already
+         * deployed. Separate tables give each side the constraint it actually
+         * needs, and cost one union in the domain layer.
+         *
+         * `kind` and `period` are VARCHAR, not TEXT, because MySQL cannot index a
+         * TEXT column without a prefix length: declared TEXT, the unique index
+         * below is silently dropped on MySQL by execSchema's benign-error path
+         * and the accrual quietly loses its idempotency there. */
+        CREATE TABLE IF NOT EXISTS ngv_charges (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          member_id   INTEGER NOT NULL,
+          kind        VARCHAR(24) NOT NULL DEFAULT 'commitment',
+          amount      INTEGER NOT NULL DEFAULT 0,
+          currency    TEXT NOT NULL DEFAULT 'NGN',
+          period      VARCHAR(40) NOT NULL DEFAULT '',
+          reason      VARCHAR(32) NOT NULL DEFAULT '',
+          note        TEXT NOT NULL DEFAULT '',
+          source      VARCHAR(16) NOT NULL DEFAULT 'accrual',
+          created_by  INTEGER NOT NULL DEFAULT 0,
+          voided      INTEGER NOT NULL DEFAULT 0,
+          voided_by   INTEGER NOT NULL DEFAULT 0,
+          voided_at   TEXT NOT NULL DEFAULT '',
+          void_reason TEXT NOT NULL DEFAULT '',
+          created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ngv_chg_period ON ngv_charges (member_id, kind, period);
+        CREATE INDEX IF NOT EXISTS idx_ngv_chg_member ON ngv_charges (member_id);
         CREATE TABLE IF NOT EXISTS ngv_certifications (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL,
@@ -222,6 +273,31 @@ final class NgvDb
                 if ($n > 0) error_log('[ngvdb] schema sync added ' . $n . ' column(s)');
             }
         } catch (Throwable $e) { error_log('[ngvdb] schema sync: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Driver-correct "insert, and do nothing if the unique index rejects it".
+     *
+     * `Database::insertIgnore()` exists but reads the MAIN connection's driver,
+     * and NGV runs on its own — a site on MySQL with an SQLite NGV database (or
+     * the reverse) would get the wrong dialect. This is the same expression
+     * against `self::driver()`.
+     *
+     * `$valuesCsv` is the caller's, not built from a placeholder count, so a
+     * column that must take a SQL expression rather than a bound value — the
+     * portable `nowExpr()` for `created_at` — can be spliced in. Postgres puts
+     * its conflict clause AFTER the values list, so there is no safe way to
+     * rewrite the finished string from outside.
+     */
+    public static function insertIgnore(string $table, array $cols, ?string $valuesCsv = null): string
+    {
+        $list = implode(', ', $cols);
+        $ph   = $valuesCsv ?? implode(', ', array_fill(0, count($cols), '?'));
+        switch (self::driver()) {
+            case 'mysql': return "INSERT IGNORE INTO {$table} ({$list}) VALUES ({$ph})";
+            case 'pgsql': return "INSERT INTO {$table} ({$list}) VALUES ({$ph}) ON CONFLICT DO NOTHING";
+            default:      return "INSERT OR IGNORE INTO {$table} ({$list}) VALUES ({$ph})";
+        }
     }
 
     /** Portable "current timestamp" expression for runtime inserts. */

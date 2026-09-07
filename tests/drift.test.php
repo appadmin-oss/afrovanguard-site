@@ -139,6 +139,14 @@ $knownMetaKeys = [
     // and it is never trusted on its own: a key id absent from it is rejected
     // rather than assumed valid, so a stale cache fails closed.
     'chat_certs',
+    // NGV fees (lib/NgvLedger). Reviewed: gates no migration. It holds the
+    // ledger's on/off switch, the rollout guard (`accrueFrom`), the reminder
+    // cadence and any pinned amount. Losing it fails SAFE in every direction —
+    // `enabled` defaults to false, so nothing accrues and nothing is chased; the
+    // amounts fall back to the ones on the public page. The one field worth
+    // naming is `accrueFrom`: lost, it re-stamps to the month fees are next
+    // switched on, which under-charges rather than back-charging a roster.
+    'ngv_fees',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
@@ -222,9 +230,13 @@ if (class_exists('NgvDb')) {
     // ngv_applications is the case that motivated this: it is named in a fixed
     // INSERT list and had no repair path at all.
     $ngvDrop = [
-        'ngv_participants'   => ['plan', 'focus_note', 'books'],
+        'ngv_participants'   => ['plan', 'focus_note', 'books', 'remind_off'],
         'ngv_applications'   => ['plan', 'education', 'reviewed_by'],
-        'ngv_payments'       => ['voided', 'method'],
+        // `credit_kind` is the one this repair path now genuinely carries: every
+        // deployed NGV database has ngv_payments WITHOUT it, and the ledger reads
+        // it to tell money received from money waived.
+        'ngv_payments'       => ['voided', 'method', 'credit_kind', 'void_reason'],
+        'ngv_charges'        => ['reason', 'source', 'void_reason'],
         'ngv_certifications' => ['reference', 'issued_by'],
     ];
     $droppedOk = true;
@@ -233,10 +245,17 @@ if (class_exists('NgvDb')) {
             try { $npdo->exec("ALTER TABLE $t DROP COLUMN $c"); } catch (Throwable $e) { $droppedOk = false; }
         }
     }
-    ck('sync: the NGV fixture dropped columns from all four tables', $droppedOk);
+    ck('sync: the NGV fixture dropped columns from every table', $droppedOk);
+
+    // A pre-ledger payment row: the repair has to leave it readable AND give it
+    // the credit_kind the ledger's arithmetic reads, or every payment already
+    // recorded stops counting as money received the day this ships.
+    $npdo->exec("INSERT INTO ngv_payments (member_id, kind, amount) VALUES (4343, 'commitment', 750)");
 
     $addedN = Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
-    ck('sync: it reports how many columns it added', $addedN === 10);
+    ck('sync: it reports how many columns it added', $addedN === 16);
+    ck('sync: a payment row that predates credit_kind is repaired to a real payment',
+       (string) $npdo->query('SELECT credit_kind FROM ngv_payments WHERE member_id = 4343')->fetchColumn() === 'payment');
     $allBack = true;
     foreach ($ngvDrop as $t => $cs) {
         $have = $colsOf($t);
