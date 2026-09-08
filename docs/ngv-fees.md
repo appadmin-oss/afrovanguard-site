@@ -1,4 +1,4 @@
-# NGV · Fees, dues, fines and damage
+# NGV · Fees, dues, fines, damage and receipts
 
 What a NextGen Vanguard participant owes, what has been received, who decided
 each of those things, and what the participant has been told.
@@ -44,6 +44,7 @@ trusted first.
                     staff: fine · adjustment · training schedule │
                                                                  ▼
    staff console ─ payment / waiver / write-off ─▶ ngv_payments ─▶ account()
+                                     payment ──▶ receipt (derived, emailed)
    members.php                                                       │
        ▲          ngv_damages ─ charged ─▶ fine ─▶ ngv_charges        │
        │               │  ▲                                          ▼
@@ -228,6 +229,60 @@ An assessment that has had no update in 14 days is a stalled process, and the
 person waiting on it has no way to chase. `NgvDamage::noteStale()` runs on the
 cron and says so on their behalf.
 
+## Receipts
+
+A coordinator takes ₦5,000 in cash, types it into the console, and the payer
+walks away with nothing. A transfer at least leaves a bank record on their side;
+cash leaves them with no evidence at all, and the only copy of the fact lives in
+a database they cannot read. Being asked to trust that a payment was recorded is
+exactly the thing a ledger exists to remove.
+
+**There is no receipts table.** A receipt is not a new entity — it *is* the
+payment row, viewed a certain way, and a second table holding a copy of the
+amount and the date is a second place for those to be wrong. Nothing is stored
+that can be derived:
+
+| | |
+|---|---|
+| the number | from the row id and its year — `NGV/2026/000042` |
+| the code | an HMAC of the row id — `NGVR-A1B2C3D4E5` |
+| cancelled | the payment row already says so |
+
+Only `receipt_at` — when one was last emailed — is a real column, because that
+is the one fact the payment row does not already contain.
+
+**The number is the row id**, not a separate counter. A counter needs a table, a
+lock, and a story about gaps, and it can hand two staff members the same number
+on a Monday morning. The autoincrement id is already unique and monotonic on
+every engine NGV runs on, so a receipt number can never point at the wrong
+payment or at no payment.
+
+**Verification is the certificate pattern**, deliberately: `receipt.php?id&c`,
+an HMAC compared with `hash_equals`, and a failure state that reveals nothing —
+not even whether that id exists. Anyone holding the link can check the receipt
+is genuine without an account.
+
+The page shows **one payment**: amount, what it was for, when, and to whom. Not
+the balance, not the arrears, not the other payments, not any fine. Anybody with
+the link sees the whole page — a guardian, a bank, a landlord being shown proof
+of enrolment — and what somebody still owes is nobody's business but theirs.
+There is no PDF library: the print stylesheet is the deliverable, which is also
+the only thing that installs cleanly on shared cPanel.
+
+**Voiding is the case that matters.** A payment entered twice gets voided, and
+somebody is holding a receipt for money no longer on their account. Silence is
+worse than never issuing one: they believe they have paid, and find out when a
+reminder arrives. So a voided payment's receipt renders **cancelled** rather
+than "not verified" — it was real, and then it was reversed — and voiding emails
+them to say so. An *unsent* receipt sends no cancellation; there is nothing to
+correct.
+
+Only `payment` credits get one. A waiver is the programme deciding not to ask,
+and receipting it would tell somebody they had paid money they never handed
+over. The email can be suppressed per payment (`receipt => false`) for the one
+case that needs it — staff typing in a backlog, where forty emails at once is a
+fault, not a feature. The receipt still exists; only the letter is held.
+
 ## Statements are not reminders
 
 Conflating them was the gap. A **reminder** chases money: it only goes to
@@ -277,6 +332,12 @@ money in a corridor.
   gets its sender blocked and its people to stop reading anything it sends.
 - **Everything mutating is audited** under `AdminAudit`'s `ngv` area, with the
   amount and the reason in the detail.
+- **Outbound mail has a kill switch.** `AV_MAIL_DISABLED=1` (env or constant)
+  suppresses every send process-wide and reports failure rather than pretending
+  to deliver. Receipts made this necessary: a staging or restored copy of the
+  site carries the databases with it, so the first payment somebody records
+  would email a real participant from a server nobody meant to be live. The test
+  suite sets it too.
 - **Nothing financial gates anything.** No balance reaches the public NGV page,
   the certificate page or the registration page, and no fee state gates a
   certification. `tests/ngvledger.test.php` asserts all of this, and
@@ -301,9 +362,10 @@ reason it skipped for.
 | Schema | `lib/NgvDb.php` — `ngv_charges`, `ngv_fee_requests`, `ngv_damages` (new), `ngv_payments` and `ngv_participants` (extended) |
 | Staff console | `/academy/ngv/members.php` |
 | Member view | `/academy/ngv/dashboard.php` — read-only, always |
+| Receipt | `/academy/ngv/receipt.php?id&c` — public, HMAC-verified, printable |
 | Cron | `NgvLedger::cronTick()` from `tasks/cron.php` — accrue, remind, review nudge, stalled-assessment nudge |
 | Settings | `app_meta` key `ngv_fees` |
-| Tests | `tests/ngvledger.test.php`, `tests/ngvdamage.test.php`, plus the NGV rows in `tests/drift.test.php` |
+| Tests | `tests/ngvledger.test.php`, `tests/ngvdamage.test.php`, `tests/ngvreceipt.test.php`, plus the NGV rows in `tests/drift.test.php` |
 
 `lib/NgvMember.php` keeps `recordPayment()`, `payments()`, `feeStatus()` and
 `account()` as thin pass-throughs, so nothing that called them had to change.
@@ -359,7 +421,7 @@ them `credit_kind = 'payment'`, which is what they are.
 | who is chased | the child's guardian | the participant — NGV members are adults with accounts here, so a reminder goes in-app as well as by email |
 | hardship | the coordinator notices, or nobody does | the participant can **ask**, from their own dashboard, and gets a written answer back |
 | damage | a fine with reason `equipment` and a note | an **incident record** with its own status, emailed at every step; the fine is one possible outcome |
-| letters | reminders only, to people who owe | reminders **and statements** — the second goes to anybody, including somebody who owes nothing |
+| letters | reminders only, to people who owe | reminders, **statements** (to anybody, including somebody who owes nothing) and **receipts** (per payment, verifiable by a third party) |
 | amounts | admin settings | read off the public page, pinnable |
 | price rises | automatic uprate, proposed then applied | no uprate; a review nudge only |
 | allocation | one netted account total | per fee line, with `paidAhead` reported |
@@ -370,9 +432,9 @@ them `credit_kind = 'payment'`, which is what they are.
 - **No self-service payment.** Deliberate, and the first thing to argue about
   rather than the first thing to add: see "a ledger, not a payment processor".
   `lib/Payments.php` (Paystack) exists for donations and is not wired here.
-- **No receipt for a payment.** Statements go out on demand and reminders on a
-  cadence, but nothing acknowledges an individual payment as it is recorded. That
-  is the obvious next letter.
+- **No bulk receipt back-fill.** Payments recorded before receipts existed have
+  numbers and links already — nothing needs generating — but sending them is one
+  press per payment. Fine for a cohort, tedious for a year of history.
 - **No photos on a damage record.** A cracked screen is a thing you would
   photograph, and a description is what has to stand in for it. `lib/Storage.php`
   and Cloudinary both exist; nothing is wired.

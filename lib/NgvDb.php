@@ -181,6 +181,11 @@ final class NgvDb
           voided_by   INTEGER NOT NULL DEFAULT 0,
           voided_at   TEXT NOT NULL DEFAULT '',
           void_reason TEXT NOT NULL DEFAULT '',
+          /* When a receipt for this payment was last emailed. The ONLY thing a
+             receipt needs stored: the number derives from this row id and the
+             verification code is an HMAC of it, so there is no ngv_receipts
+             table to drift out of step with the payment it describes. */
+          receipt_at  TEXT NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_pay_member ON ngv_payments (member_id);

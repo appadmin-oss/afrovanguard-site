@@ -122,6 +122,9 @@ $myEntries = $account['entries'];
 /* Their own damage records. Read-only apart from reporting a new one: a
  * participant can say what happened, and only staff can attach money to it. */
 $myDamage  = NgvDamage::forMember($uid);
+/* Receipts. Derived from the payment rows, so this is not a second list that
+ * can disagree with the ledger above it — it is the same rows, addressable. */
+$myReceipts = NgvLedger::receiptsFor($uid);
 
 /* Content slices */
 $g       = static fn(array $a, string $k, string $d = ''): string => (string) ($a[$k] ?? $d);
@@ -263,6 +266,9 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .ngv-ask .pbtn{margin-top:9px}
 .ngv-quote{display:block;margin:4px 0;padding-left:9px;border-left:2px solid var(--border);color:var(--muted-2)}
 .ngv-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ngv-mini{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;
+  border:1px solid var(--border);color:var(--body);text-decoration:none;vertical-align:middle}
+.ngv-mini:hover{border-color:var(--gold);color:var(--ink)}
 .ngv-row .k .pchip{margin-left:6px;vertical-align:middle}
 </style>
 </head>
@@ -519,6 +525,33 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
               </div>
               <?php endif; ?>
 
+              <?php $rcByPay = []; foreach ($myReceipts as $rc) $rcByPay[(int)$rc['id']] = $rc; ?>
+              <?php if ($myReceipts): ?>
+              <!-- Somebody who handed over cash has no other proof it arrived.
+                   These are the same payment rows as the ledger below, addressed
+                   so they can be opened, printed, or shown to a third party. -->
+              <details class="ngv-details">
+                <summary>My receipts (<?= count($myReceipts) ?>)</summary>
+                <div class="ngv-rows" style="margin-top:6px">
+                  <?php foreach ($myReceipts as $rc): ?>
+                  <div class="ngv-row"<?= $rc['void'] ? ' style="opacity:.55"' : '' ?>>
+                    <div>
+                      <span class="k"><?= $e((string)$rc['no']) ?>
+                        <?php if ($rc['void']): ?><span class="pchip pchip--red">cancelled</span><?php endif; ?></span>
+                      <span class="d"><?= $e((string)$rc['lineLabel']) ?><?= $rc['period'] !== '' ? ' · ' . $e((string)$rc['period']) : '' ?>
+                        · paid <?= $e((string)$rc['paidOn']) ?><?= $rc['method'] !== '' ? ' · ' . $e((string)$rc['method']) : '' ?></span>
+                    </div>
+                    <span class="amt">₦<?= number_format((int)$rc['amount']) ?>
+                      <a class="ngv-mini" href="/academy/ngv/receipt.php?id=<?= (int)$rc['id'] ?>&amp;c=<?= urlencode($rc['code']) ?>"
+                         target="_blank" rel="noopener">open</a></span>
+                  </div>
+                  <?php endforeach; ?>
+                </div>
+                <p class="ngv-fine">Each opens a printable receipt anyone can check without an account — useful as proof of
+                  payment. It shows that one payment and nothing else about your account.</p>
+              </details>
+              <?php endif; ?>
+
               <?php if (!empty($myEntries)): ?>
               <details class="ngv-details" style="margin-top:10px">
                 <summary>See every entry (<?= count($myEntries) ?>)</summary>
@@ -534,6 +567,10 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
                         <?= $en['period'] !== '' ? ' · ' . $e((string)$en['period']) : '' ?>
                         <?= $en['note'] !== '' ? ' · ' . $e((string)$en['note']) : '' ?>
                         <?= $en['void'] ? ' · cancelled (' . $e((string)$en['voidReason']) . ')' : '' ?>
+                        <?php if (!$isCharge && $en['creditKind'] === 'payment'): $rc = $rcByPay[(int)$en['id']] ?? null; ?>
+                          <?php if ($rc): ?> · <a href="/academy/ngv/receipt.php?id=<?= (int)$rc['id'] ?>&amp;c=<?= urlencode($rc['code']) ?>"
+                            target="_blank" rel="noopener">receipt <?= $e($rc['no']) ?></a><?php endif; ?>
+                        <?php endif; ?>
                       </span>
                     </div>
                     <span class="amt"><?= $isCharge ? '' : '− ' ?>₦<?= number_format((int)$en['amount']) ?></span>

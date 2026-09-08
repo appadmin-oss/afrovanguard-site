@@ -25,6 +25,10 @@ $ngvFile = sys_get_temp_dir() . '/av-test-ngv-' . getmypid() . '.db';
 @unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');
 putenv('AV_NGV_DB_PATH=' . $ngvFile);
 putenv('APP_KEY=ci_test_key_0123456789abcdefghij');
+// No outbound mail from the suite. Without this every message shells out to a
+// sendmail that is not there — slow, noisy, and one misconfigured CI runner away
+// from actually delivering test fixtures to real addresses.
+putenv('AV_MAIL_DISABLED=1');
 
 $ROOT = dirname(__DIR__);
 require $ROOT . '/lib/bootstrap.php';

@@ -924,7 +924,24 @@ final class NgvLedger
             ucfirst($creditKind) . ' ' . self::money_text($amount) . ' → ' . $line
             . ($period !== '' ? ' (' . $period . ')' : '')
             . (($opt['note'] ?? '') !== '' ? ' — ' . mb_substr((string) $opt['note'], 0, 120) : ''));
-        return ['ok' => true, 'id' => $id, 'amount' => $amount, 'payable' => (int) self::balance($memberId)['payable']];
+        /* A receipt goes out for money RECEIVED, immediately — the point is that
+           somebody who handed over cash walks away with evidence, and evidence
+           that arrives next week is not the same thing.
+           Only for `payment`: a waiver is the programme deciding not to ask, and
+           receipting it would tell somebody they had paid money they never
+           handed over. `receipt => false` suppresses the send for the case that
+           actually needs it — staff typing in a backlog of historic payments,
+           where forty emails at once is a fault, not a feature. The receipt
+           still EXISTS and can be sent later; only the letter is held. */
+        $receipt = null;
+        if ($creditKind === 'payment' && (!array_key_exists('receipt', $opt) || !empty($opt['receipt']))) {
+            try { $receipt = self::sendReceipt($id); }
+            catch (Throwable $e) { error_log('[ngvledger] receipt: ' . $e->getMessage()); }
+        }
+        return ['ok' => true, 'id' => $id, 'amount' => $amount,
+                'payable' => (int) self::balance($memberId)['payable'],
+                'receipt' => is_array($receipt) && !empty($receipt['ok'])
+                    ? ['no' => $receipt['no'], 'delivered' => !empty($receipt['delivered'])] : null];
     }
 
     /**
@@ -950,7 +967,17 @@ final class NgvLedger
         self::audit('ngv_fee_void', 'ngv:member:' . (int) $row['member_id'],
             'Voided a ' . $side . ' of ' . self::money_text((int) $row['amount'])
             . ' (' . (string) $row['kind'] . ') — ' . mb_substr($reason, 0, 160));
-        return ['ok' => true];
+        /* Voiding a receipted payment leaves somebody holding a receipt for
+           money that is no longer on their account. Saying nothing is worse than
+           never issuing one: they believe they have paid, and find out when a
+           reminder arrives. */
+        $cancelled = false;
+        if ($side === 'credit' && (string) ($row['credit_kind'] ?? 'payment') === 'payment'
+            && trim((string) ($row['receipt_at'] ?? '')) !== '') {
+            try { $cancelled = !empty(self::sendReceipt($id, true)['ok']); }
+            catch (Throwable $e) { error_log('[ngvledger] receipt void: ' . $e->getMessage()); }
+        }
+        return ['ok' => true, 'receiptCancelled' => $cancelled];
     }
 
     /** Turn reminders off (or back on) for one participant, without touching
@@ -1617,6 +1644,217 @@ final class NgvLedger
         return $ok;
     }
 
+    /* ══ Receipts ═══════════════════════════════════════════════════════════
+     *
+     * The gap: a coordinator takes ₦5,000 in cash, types it into the console,
+     * and the participant walks away with nothing. A transfer at least leaves a
+     * bank record on their side; cash leaves the payer with no evidence at all,
+     * and the only copy of the fact lives in a database they cannot read. The
+     * asymmetry is the whole problem — being asked to trust that a payment was
+     * recorded is exactly the thing a ledger is supposed to remove.
+     *
+     * ── NO RECEIPTS TABLE ────────────────────────────────────────────────────
+     * A receipt is not a new entity. It IS the payment row, viewed a certain
+     * way, and a second table holding a copy of the amount and the date is a
+     * second place for that amount and date to be wrong. So nothing is stored
+     * that can be derived:
+     *
+     *   the number  from the row id and its year   NGV/2026/000042
+     *   the code    an HMAC of the row id          NGVR-A1B2C3D4E5
+     *   void        the payment row already says so
+     *
+     * The one thing that cannot be derived is WHEN a receipt was emailed, and
+     * that is the one column added.
+     *
+     * ── THE NUMBER IS THE ROW ID ─────────────────────────────────────────────
+     * Not a separate counter. A counter needs a table, a lock and a story about
+     * gaps, and it can hand two staff members the same number on a Monday
+     * morning. The autoincrement id is already unique and already monotonic on
+     * every engine NGV runs on, and deriving from it means a receipt number can
+     * never point at the wrong payment or at no payment.
+     *
+     * ── VOIDING IS THE CASE THAT MATTERS ─────────────────────────────────────
+     * A payment entered twice gets voided, and somebody is holding a receipt for
+     * money that is no longer on their account. Silence there is worse than
+     * never issuing one: they believe they have paid. So a voided payment's
+     * receipt says CANCELLED everywhere it appears, and voiding emails the
+     * participant to say so.
+     *
+     * Only `payment` credits get one. A waiver is the programme deciding not to
+     * ask; issuing a receipt for it would tell somebody they had paid money they
+     * never handed over.
+     */
+
+    /** Receipts verify like certificates do (see NgvMember::certCode) — same
+     *  HMAC, same constant-time comparison, same "reveals nothing" failure. */
+    private const RECEIPT_PREFIX = 'NGVR';
+
+    /** The number a participant quotes down the phone. Year plus the row id, so
+     *  it sorts, reads as a reference, and cannot collide. */
+    public static function receiptNo(array $pay): string
+    {
+        $year = substr((string) ($pay['created_at'] ?? ''), 0, 4);
+        if (!preg_match('/^\d{4}$/', $year)) $year = self::today('Y');
+        return 'NGV/' . $year . '/' . str_pad((string) (int) $pay['id'], 6, '0', STR_PAD_LEFT);
+    }
+
+    /** Short, unforgeable, storage-free. */
+    public static function receiptCode(int $payId): string
+    {
+        $secret = function_exists('av_secret') ? (string) av_secret() : '';
+        if ($secret === '') $secret = 'ngv-receipt-fallback';
+        return self::RECEIPT_PREFIX . '-' . strtoupper(substr(hash_hmac('sha256', 'ngv-receipt:' . $payId, $secret), 0, 10));
+    }
+
+    /** One payment as a receipt, or null. Void rows are RETURNED, flagged — a
+     *  cancelled receipt still has to be answerable when somebody produces it. */
+    public static function receiptFor(int $payId): ?array
+    {
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_payments WHERE id = ?');
+        $st->execute([$payId]);
+        $p = $st->fetch();
+        if (!$p) return null;
+        if ((string) ($p['credit_kind'] ?? 'payment') !== 'payment') return null;
+        $who = self::participantRow((int) $p['member_id']) ?: [];
+        return [
+            'id' => (int) $p['id'],
+            'no' => self::receiptNo($p),
+            'code' => self::receiptCode((int) $p['id']),
+            'memberId' => (int) $p['member_id'],
+            'name' => (string) ($who['name'] ?? ''),
+            'cohort' => (string) ($who['cohort'] ?? ''),
+            'amount' => (int) $p['amount'],
+            'line' => (string) $p['kind'],
+            'lineLabel' => self::lineLabel((string) $p['kind']),
+            'period' => (string) $p['period'],
+            'method' => (string) $p['method'],
+            'reference' => (string) $p['reference'],
+            'note' => (string) $p['note'],
+            'paidOn' => substr((string) $p['created_at'], 0, 10),
+            'issuedAt' => (string) ($p['receipt_at'] ?? ''),
+            'void' => (int) ($p['voided'] ?? 0) === 1,
+            'voidReason' => (string) ($p['void_reason'] ?? ''),
+            'email' => (string) ($who['email'] ?? ''),
+        ];
+    }
+
+    /**
+     * Verify a receipt from a link, for the public page.
+     *
+     * Constant-time, and a wrong code reveals nothing — not even whether that id
+     * exists. Same posture as the certificate verifier.
+     */
+    public static function receiptForVerify(int $payId, string $code): ?array
+    {
+        if ($payId <= 0) return null;
+        if (!hash_equals(self::receiptCode($payId), strtoupper(trim($code)))) return null;
+        return self::receiptFor($payId);
+    }
+
+    /** Every receipt a participant has, newest first. */
+    public static function receiptsFor(int $memberId): array
+    {
+        $st = NgvDb::pdo()->prepare("SELECT id FROM ngv_payments WHERE member_id = ? AND credit_kind = 'payment'
+                                     ORDER BY created_at DESC, id DESC LIMIT 200");
+        $st->execute([$memberId]);
+        $out = [];
+        foreach ($st->fetchAll() ?: [] as $r) {
+            $rec = self::receiptFor((int) $r['id']);
+            if ($rec) $out[] = $rec;
+        }
+        return $out;
+    }
+
+    /** The fee line, in the words a participant reads. */
+    public static function lineLabel(string $kind): string
+    {
+        $map = ['membership' => 'Membership fee', 'commitment' => 'Monthly commitment',
+                'programme' => 'Training fee', 'fine' => 'Fine', 'adjustment' => 'Adjustment',
+                'other' => 'General payment'];
+        return $map[$kind] ?? ucfirst($kind);
+    }
+
+    /**
+     * Email a receipt.
+     *
+     * `$cancelled` sends the other letter — the one that says a receipt already
+     * in somebody's inbox no longer stands. Both go through the same function so
+     * they cannot drift apart in tone or in what they disclose.
+     */
+    public static function sendReceipt(int $payId, bool $cancelled = false): array
+    {
+        $r = self::receiptFor($payId);
+        if (!$r) return ['ok' => false, 'error' => 'That payment has no receipt — only money received gets one.'];
+        $to = trim((string) $r['email']);
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'error' => 'There is no email address on this record. The receipt can still be printed.'];
+        }
+        $first = trim(explode(' ', trim((string) $r['name']))[0] ?? '');
+        if ($first === '') $first = 'there';
+        $m = static fn(int $n) => self::money_text($n);
+        $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+        $link = $site . '/academy/ngv/receipt.php?id=' . $r['id'] . '&c=' . rawurlencode($r['code']);
+
+        $rows = [];
+        if ($cancelled) {
+            $subject = 'Cancelled: receipt ' . $r['no'];
+            $rows[] = 'Hi ' . self::esc($first) . ' — receipt <b>' . self::esc($r['no']) . '</b> for '
+                    . $m((int) $r['amount']) . ' has been cancelled.';
+            /* Said plainly, because the alternative is somebody believing they
+               have paid when their account says otherwise. */
+            $rows[] = 'That payment is no longer on your account.'
+                    . ($r['voidReason'] !== '' ? ' Reason given: ' . self::esc($r['voidReason']) . '.' : '')
+                    . ' Usually this means it was entered twice or against the wrong person, and a corrected receipt follows.';
+            $rows[] = 'If you did make this payment and it has not reappeared, reply to this message or speak to your '
+                    . 'track lead — please do not assume it will sort itself out.';
+        } else {
+            $subject = 'Receipt ' . $r['no'] . ' — ' . $m((int) $r['amount']);
+            $rows[] = 'Hi ' . self::esc($first) . ' — this confirms we have received <b>' . $m((int) $r['amount']) . '</b>.';
+            $detail = [
+                'Receipt' => $r['no'],
+                'For'     => $r['lineLabel'] . ($r['period'] !== '' ? ' · ' . $r['period'] : ''),
+                'Paid on' => $r['paidOn'],
+            ];
+            if ($r['method'] !== '')    $detail['How'] = $r['method'];
+            if ($r['reference'] !== '') $detail['Reference'] = $r['reference'];
+            $bits = [];
+            foreach ($detail as $k => $v) $bits[] = self::esc((string) $k) . ': <b>' . self::esc((string) $v) . '</b>';
+            $rows[] = implode('<br>', $bits);
+            $rows[] = 'Keep this. You can view or print it any time at the link below, and anyone can check it is genuine '
+                    . 'there without needing an account.';
+            $rows[] = 'If anything here is wrong — the amount, what it was for, or the date — tell your track lead now '
+                    . 'rather than later, while it is easy to correct.';
+        }
+        $ok = false;
+        if (class_exists('Mailer')) {
+            $html = Mailer::shell($cancelled ? 'Receipt cancelled' : 'Receipt', $rows,
+                ['url' => $link, 'text' => $cancelled ? 'See the record' : 'View or print this receipt'], $subject);
+            try { $ok = (bool) Mailer::send($to, $subject, $html); }
+            catch (Throwable $e) { error_log('[ngvledger] receipt mail: ' . $e->getMessage()); }
+        }
+        if (class_exists('Notifications')) {
+            try {
+                Notifications::push((int) $r['memberId'], 'ngv_receipt',
+                    $cancelled ? 'Receipt ' . $r['no'] . ' cancelled' : 'Receipt ' . $r['no'] . ' — ' . $m((int) $r['amount']),
+                    $cancelled ? 'That payment is no longer on your account.' : $r['lineLabel'] . ' · paid ' . $r['paidOn'],
+                    '/academy/ngv/dashboard.php#account',
+                    'ngv_receipt:' . $payId . ($cancelled ? ':void' : ''));
+            } catch (Throwable $e) { error_log('[ngvledger] receipt notify: ' . $e->getMessage()); }
+        }
+        /* Stamped either way — an unstamped row plus a mailer failing quietly is
+           how a re-send button becomes a way to send somebody five receipts. */
+        if (!$cancelled) {
+            try {
+                NgvDb::pdo()->prepare('UPDATE ngv_payments SET receipt_at = ? WHERE id = ?')
+                    ->execute([self::nowStamp(), $payId]);
+            } catch (Throwable $e) { error_log('[ngvledger] receipt stamp: ' . $e->getMessage()); }
+        }
+        self::audit($cancelled ? 'ngv_receipt_void' : 'ngv_receipt', 'ngv:member:' . (int) $r['memberId'],
+            ($cancelled ? 'Cancelled receipt ' : 'Receipt ') . $r['no'] . ' — ' . $m((int) $r['amount'])
+            . ($ok ? '' : ' (delivery failed)'));
+        return ['ok' => true, 'delivered' => $ok, 'no' => $r['no'], 'to' => $to, 'link' => $link];
+    }
+
     /* ══ Statements ═════════════════════════════════════════════════════════
      *
      * A STATEMENT is not a REMINDER, and conflating them was the gap.
@@ -1702,6 +1940,18 @@ final class NgvLedger
                      . ' · ' . self::esc((string) ($en['note'] !== '' ? $en['note'] : ($en['reasonLabel'] ?: 'Fine')));
         }
         if ($fines) $rows[] = '<b>Fines</b><br><span style="color:#5f6874;font-size:13px">' . implode('<br>', $fines) . '</span>';
+
+        /* Payments, each with its receipt number. A statement that says
+           "₦10,000 received" and a receipt that says NGV/2026/000042 are the same
+           event, and somebody reconciling the two should not have to guess. */
+        $paid = [];
+        foreach ($a['entries'] as $en) {
+            if ($en['side'] !== 'credit' || $en['creditKind'] !== 'payment' || $en['void']) continue;
+            $paid[] = self::esc(substr((string) $en['created_at'], 0, 10)) . ' — ' . $m((int) $en['amount'])
+                    . ' · ' . self::esc(self::lineLabel((string) $en['kind']))
+                    . ' · receipt ' . self::esc(self::receiptNo(['id' => (int) $en['id'], 'created_at' => (string) $en['created_at']]));
+        }
+        if ($paid) $rows[] = '<b>Payments received</b><br><span style="color:#5f6874;font-size:13px">' . implode('<br>', $paid) . '</span>';
 
         if ((int) $a['waived'] > 0) {
             $rows[] = 'Set aside for you: <b>' . $m((int) $a['waived']) . '</b>. That is money the programme has decided '

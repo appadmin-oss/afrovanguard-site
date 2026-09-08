@@ -133,10 +133,36 @@ final class Mailer
     }
 
     /** Send an HTML email. Returns true if a transport accepted the message. */
+    /**
+     * Outbound mail is switched OFF for this process.
+     *
+     * `AV_MAIL_DISABLED=1` (env or constant). For a staging or a restored copy
+     * of the site, where the danger is real: the databases come with it, so the
+     * first payment somebody records emails a receipt to an actual participant
+     * from a server nobody meant to be live. Also used by the test suite, which
+     * otherwise shells out to a sendmail that is not there, once per message.
+     *
+     * It reports FAILURE rather than pretending to send. An operator seeing
+     * "delivery failed" on staging is being told the truth; one seeing "sent" is
+     * being taught to trust a number that means nothing.
+     */
+    public static function disabled(): bool
+    {
+        $v = getenv('AV_MAIL_DISABLED');
+        if ($v !== false && $v !== '' && $v !== '0') return true;
+        return defined('AV_MAIL_DISABLED') && AV_MAIL_DISABLED;
+    }
+
     public static function send(string $to, string $subject, string $html, array $opt = []): bool
     {
         self::$lastError = ''; self::$lastTransport = '';
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) { self::$lastError = 'Invalid recipient address'; return false; }
+        if (self::disabled()) {
+            self::$lastTransport = 'disabled';
+            self::$lastError = 'Outbound mail is disabled on this installation (AV_MAIL_DISABLED).';
+            error_log('[mail] suppressed → ' . $to . ': ' . $subject);
+            return false;
+        }
 
         $from = self::from($opt);
         $alt  = trim((string) preg_replace('/\s+/', ' ', strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], "\n", $html))));

@@ -58,7 +58,18 @@ if ($method === 'POST') {
         $r = NgvLedger::payment($mid, (string) ($in['kind'] ?? 'commitment'), $in['amount'] ?? 0, [
             'period' => $in['period'] ?? '', 'method' => $in['method'] ?? '',
             'reference' => $in['reference'] ?? '', 'note' => $in['note'] ?? '',
+            /* Default ON. Off is for typing in a backlog of historic payments,
+               where forty emails at once is a fault rather than a feature — the
+               receipts still exist and can be sent one at a time. */
+            'receipt' => !array_key_exists('receipt', $in) || !empty($in['receipt']),
         ], $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    /* Send (or re-send) a receipt for one payment. Needed more often than it
+       sounds: a bounced address that has since been fixed, a participant who
+       deleted the email, and every payment recorded before receipts existed. */
+    if ($act === 'receipt') {
+        $r = NgvLedger::sendReceipt((int) ($in['payment_id'] ?? 0));
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
     /* A fine or an adjustment. The reason vocabulary and the "say why" rule live
@@ -279,6 +290,8 @@ tr.on{background:#fff6f2}
 .b-paused{background:#f1f3f6;color:#5f6874}.b-withdrawn{background:#fdecec;color:#c0322b}
 .btn{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
 .btn:hover{border-color:var(--orange)}
+.btn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.btn[disabled]{opacity:.55;cursor:progress}
 .btn.primary{background:var(--grad);color:#fff;border-color:transparent}
 .btn.sm{padding:5px 10px;font-size:.82rem}
 .fld{margin-bottom:12px}.fld label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:5px}
@@ -805,9 +818,11 @@ textarea{min-height:60px;resize:vertical}
             <input id="p_method" placeholder="Method (transfer, cash…)">
           </div>
           <input id="p_ref" style="margin-top:10px" placeholder="Reference / note (optional)">
-          <div style="margin-top:10px"><button class="btn primary sm" data-act="payment" data-m="<?= $m ?>">Record payment</button></div>
+          <label class="chk" style="margin-top:10px"><input type="checkbox" id="p_receipt" checked> Email them a receipt now</label>
+          <div style="margin-top:6px"><button class="btn primary sm" data-act="payment" data-m="<?= $m ?>">Record payment</button></div>
           <p class="sub">Allocated to the line it pays, so “square on membership, two months behind on commitment” survives
-             into the figure instead of being flattened into one total.</p>
+             into the figure instead of being flattened into one total. Somebody who handed over cash has no other proof it
+             arrived, so the receipt goes immediately — untick it only when typing in a backlog.</p>
         </div>
 
         <!-- A fine is the one charge somebody will dispute, so the reason is
@@ -857,10 +872,22 @@ textarea{min-height:60px;resize:vertical}
               <?= $en['period'] !== '' ? '<span class="sub">(' . $e((string)$en['period']) . ')</span>' : '' ?>
               <?php if ($en['note'] !== ''): ?><br><span class="sub"><?= $e((string)$en['note']) ?></span><?php endif; ?>
               <?php if ($en['reference'] !== '' || $en['method'] !== ''): ?><br><span class="sub"><?= $e(trim($en['method'] . ' ' . $en['reference'])) ?></span><?php endif; ?>
+              <?php if ($en['side'] === 'credit' && $en['creditKind'] === 'payment'):
+                        $rc = NgvLedger::receiptFor((int) $en['id']); ?>
+                <?php if ($rc): ?>
+                <br><span class="sub">Receipt
+                  <a href="/academy/ngv/receipt.php?id=<?= (int)$rc['id'] ?>&amp;c=<?= urlencode($rc['code']) ?>"
+                     target="_blank" rel="noopener"><?= $e($rc['no']) ?></a>
+                  <?= $rc['issuedAt'] !== '' ? '· emailed ' . $e(substr((string)$rc['issuedAt'], 0, 10)) : '· not emailed yet' ?></span>
+                <?php endif; ?>
+              <?php endif; ?>
               <?php if ($en['void']): ?><br><span class="sub">Void — <?= $e((string)$en['voidReason']) ?></span><?php endif; ?>
             </span>
             <span class="sp"></span>
             <span class="sub"><?= $e(substr((string)$en['created_at'], 0, 10)) ?></span>
+            <?php if (!$en['void'] && $en['side'] === 'credit' && $en['creditKind'] === 'payment'): ?>
+              <button class="btn sm" data-act="receipt" data-pid="<?= (int)$en['id'] ?>">Receipt</button>
+            <?php endif; ?>
             <?php if (!$en['void']): ?>
               <button class="btn sm" data-act="void" data-side="<?= $e($en['side']) ?>" data-eid="<?= (int)$en['id'] ?>">Void</button>
             <?php endif; ?>
@@ -993,7 +1020,8 @@ textarea{min-height:60px;resize:vertical}
       // Actions that render their own result rather than reloading the page.
       var quiet = {remind_preview:1, remind_run:1, accrue:1};
       if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); }
-      else if(act==='payment'){ body.kind=val('p_kind'); body.amount=val('p_amount'); body.period=val('p_period'); body.method=val('p_method'); body.reference=val('p_ref'); if(!body.amount){ toast('Enter an amount', false); return; } }
+      else if(act==='payment'){ body.kind=val('p_kind'); body.amount=val('p_amount'); body.period=val('p_period'); body.method=val('p_method'); body.reference=val('p_ref'); body.receipt=chk('p_receipt'); if(!body.amount){ toast('Enter an amount', false); return; } }
+      else if(act==='receipt'){ body.payment_id=parseInt(btn.getAttribute('data-pid')||'0',10); }
       else if(act==='charge'){ body.kind=val('x_kind'); body.amount=val('x_amount'); body.reason=val('x_reason'); body.note=val('x_note');
                                if(!body.amount){ toast('Enter an amount', false); return; }
                                if(!confirm('Post a ' + body.kind + ' of ₦' + body.amount + '?')) return; }
@@ -1008,6 +1036,8 @@ textarea{min-height:60px;resize:vertical}
       else if(act==='remind_off'){ body.off = btn.getAttribute('data-off')==='1'; }
       else if(act==='cert'){ body.title=val('c_title'); body.issued_by=val('c_by'); body.issued_on=val('c_on'); if(!body.title){ toast('Title required', false); return; } }
       else if(act==='void'){ body.side=btn.getAttribute('data-side')||'credit'; body.entry_id=parseInt(btn.getAttribute('data-eid')||'0',10);
+                             // Voiding a receipted payment emails a cancellation — say so before, not after.
+                             if(!confirm('Void this entry? If a receipt went out for it, they will be emailed to say it is cancelled.')) return;
                              // A void needs a reason: without one it is a deletion, and the
                              // server refuses it anyway — better to ask here than to fail there.
                              var why = prompt('Void this entry — why? (it stays on the account with this reason)');
@@ -1053,7 +1083,13 @@ textarea{min-height:60px;resize:vertical}
         if(!body.outcome.trim()){ toast('Say what you are telling them', false); if(box) box.focus(); return; }
       }
 
+      /* Every one of these can send email or move money, and a second click
+         before the first returns sends it twice. Re-enabled in the same place
+         the response is handled, including the failure path. */
+      btn.disabled = true;
+      var release = function(){ btn.disabled = false; };
       post(body).then(function(j){
+        release();
         if(!j.ok){ toast(j.error||'Failed', false); return; }
         if(act==='accrue'){
           var a = j.accrued||{};
@@ -1092,10 +1128,21 @@ textarea{min-height:60px;resize:vertical}
           toast('Sent ✓'); return;
         }
         if(act==='statement'){ toast(j.delivered ? 'Statement sent ✓' : 'Recorded, but delivery failed', j.delivered); return; }
+        if(act==='receipt'){ toast(j.delivered ? 'Receipt ' + j.no + ' sent ✓' : 'Receipt ' + j.no + ' issued, but delivery failed', j.delivered); return; }
+        if(act==='payment' && j.receipt){ toast(j.receipt.delivered ? 'Recorded · receipt ' + j.receipt.no + ' sent ✓'
+                                                                    : 'Recorded · receipt ' + j.receipt.no + ' (email failed)', j.receipt.delivered);
+                                          setTimeout(function(){location.reload();}, 1400); return; }
+        if(j.receiptCancelled){ toast('Voided — they have been emailed that the receipt is cancelled'); setTimeout(function(){location.reload();}, 1400); return; }
         if(j.clamped){ toast('Waived ' + money(j.waived) + ' — that is all that was outstanding'); }
         else if(j.overCap){ toast('Posted — this account is now over the ceiling'); }
         else { toast('Saved ✓'); }
         if(!quiet[act]) setTimeout(function(){location.reload();}, j.clamped||j.overCap ? 1400 : 350);
+      }).catch(function(){
+        /* A dropped connection rejects the promise outright, so without this the
+           button stays disabled for good and the staff member is stuck with no
+           way to retry and nothing on screen saying why. */
+        release();
+        toast('Offline — nothing was saved. Try again.', false);
       });
     });
   });
