@@ -16,7 +16,8 @@
  *     their dashboard to a year of debt nobody discussed with them.
  *   • The TRAINING FEE is not accrued from a self-selected plan. A participant
  *     clicking "Full Programme" out of curiosity must not be able to give
- *     themselves a ₦240,000 debt.
+ *     themselves a ₦240,000 debt — and once agreed, its total is FROZEN, so a
+ *     price edit on the public page cannot re-price somebody already paying.
  *   • A fine carries a REASON, a waiver carries a REASON, and a void carries a
  *     REASON — and none of the three deletes anything.
  *   • Paying ahead on one line never hides arrears on another.
@@ -142,21 +143,95 @@ NgvLedger::accrueParticipant($paid, '2026-09-07');
 ck('ngv fees: a self-selected paid plan does NOT charge itself to the account',
    (int) (NgvLedger::balance(110)['chargedBy']['programme'] ?? 0) === 0);
 
-$raise = NgvLedger::raiseTrainingFee(110, 1, '2026-09-07');
-ck('ngv fees: staff raise the training fee, priced from the plan',
-   !empty($raise['ok']) && (int) $raise['amount'] === 240000);
-ck('ngv fees: and pressing it twice does not raise it twice',
-   empty(NgvLedger::raiseTrainingFee(110, 1, '2026-09-07')['ok']));
+// Agreed in full: one charge, this month.
+$full = NgvLedger::startTrainingFee(110, 1, 1, null, '2026-09-07');
+ck('ngv fees: staff agree the training fee, priced from the plan',
+   !empty($full['ok']) && (int) $full['total'] === 240000 && (int) $full['posted'] === 1);
+ck('ngv fees: a second commitment cannot be stacked on an unfinished one',
+   empty(NgvLedger::startTrainingFee(110, 12, 1, null, '2026-09-07')['ok']));
 
 $free = $nlPerson(111, 'Dami Ola', '2026-03-10', 'Training Only');
-ck('ngv fees: a free plan has no training fee to raise',
-   empty(NgvLedger::raiseTrainingFee(111, 1, '2026-09-07')['ok']));
+ck('ngv fees: a free plan has no training fee to agree',
+   empty(NgvLedger::startTrainingFee(111, 1, 1, null, '2026-09-07')['ok']));
 
-// Switched on deliberately, it behaves like any other charge.
-$nlOn(['trainingAuto' => true]);
+/* ── Instalments ────────────────────────────────────────────────────────────
+ * ₦240,000 posted as one charge is a wall: the dashboard reads ₦240,000
+ * outstanding from the first day to the last, the arrears list pins that person
+ * to the top, and a reminder quotes a figure nobody could pay this month. */
+$nlReset();
+$nlOn();
+$ins = $nlPerson(113, 'Grace Umeh', '2026-03-10', 'Full Programme');
+$st = NgvLedger::startTrainingFee(113, 12, 1, null, '2026-09-07');
+ck('ngv fees: a training fee can be agreed as monthly instalments',
+   !empty($st['ok']) && (int) $st['months'] === 12 && (int) $st['each'] === 20000);
+ck('ngv fees: only the instalments whose month has arrived are charged',
+   (int) $st['posted'] === 1 && (int) NgvLedger::balance(113)['due']['programme'] === 20000);
+
+$sched = NgvLedger::trainingSchedule(113, '2026-09-07');
+ck('ngv fees: the schedule states every instalment, charged and still to come',
+   count($sched['instalments']) === 12
+   && $sched['instalments'][0]['state'] === 'charged'
+   && $sched['instalments'][1]['state'] === 'upcoming'
+   && $sched['instalments'][0]['period'] === '2026-09'
+   && $sched['instalments'][11]['period'] === '2027-08');
+
+// The instalments must sum to exactly the total, whatever the division does, and
+// the remainder rides on the LAST one — a bigger opening bill is exactly
+// backwards for somebody deciding whether they can start at all.
+$nlReset();
+$nlOn();
+$nlPerson(114, 'Henry Obi', '2026-03-10', 'Full Programme');
+NgvLedger::startTrainingFee(114, 7, 1, 100000, '2026-09-07');
+$s7 = NgvLedger::trainingSchedule(114, '2026-09-07');
+$sum7 = 0; foreach ($s7['instalments'] as $i) $sum7 += (int) $i['amount'];
+ck('ngv fees: instalments sum to the agreed total even when it does not divide',
+   $sum7 === 100000 && (int) $s7['instalments'][0]['amount'] === 14285
+   && (int) $s7['instalments'][6]['amount'] === 14290);
+
+// Accrual walks the schedule forward, once per month, idempotently.
+$r6 = NgvLedger::accrueParticipant(NgvMember::participant(114), '2027-01-07');
+ck('ngv fees: accrual posts each instalment as its month arrives',
+   $r6['programme'] === 4 && (int) NgvLedger::balance(114)['chargedBy']['programme'] === 71425);
+ck('ngv fees: …and running it again posts none of them twice',
+   NgvLedger::accrueParticipant(NgvMember::participant(114), '2027-01-07')['programme'] === 0);
+
+// The total is FROZEN at the moment it is agreed. This is the property that
+// makes a schedule trustworthy: a price edit on the public page changes what the
+// next person is quoted and moves nothing for somebody already paying.
+$doc = Ngv::get();
+$dearer = $doc;
+foreach ($dearer['plans'] as $k => $pl) { if (($pl['name'] ?? '') === 'Full Programme') $dearer['plans'][$k]['price'] = '₦480,000'; }
+Ngv::save($dearer);
+$c = new ReflectionProperty('NgvLedger', 'cache'); $c->setAccessible(true); $c->setValue(null, null);
+$afterRise = NgvLedger::trainingSchedule(114, '2027-01-07');
+ck('ngv fees: doubling the plan price on the page does not move an agreed schedule',
+   (int) $afterRise['total'] === 100000
+   && (int) NgvLedger::amounts()['plans']['Full Programme']['fee'] === 480000);
+ck('ngv fees: …nor does it re-price an instalment already charged',
+   NgvLedger::accrueParticipant(NgvMember::participant(114), '2027-01-07')['programme'] === 0
+   && (int) NgvLedger::balance(114)['chargedBy']['programme'] === 71425);
+Ngv::save($doc);
+$c->setValue(null, null);
+
+// Stopping is what a withdrawal leaves behind. Future instalments stop; what has
+// already been charged stays, because it happened.
+$stopped = NgvLedger::stopTrainingFee(114);
+$was = (int) NgvLedger::balance(114)['chargedBy']['programme'];
+ck('ngv fees: stopping a schedule halts future instalments and keeps the past',
+   !empty($stopped['ok'])
+   && NgvLedger::accrueParticipant(NgvMember::participant(114), '2027-08-07')['programme'] === 0
+   && (int) NgvLedger::balance(114)['chargedBy']['programme'] === $was);
+ck('ngv fees: stopping a schedule that is not running says so',
+   empty(NgvLedger::stopTrainingFee(114)['ok']));
+
+// Switched on deliberately, the accrual agrees the commitment itself.
+$nlReset();
+$nlOn(['trainingAuto' => true, 'trainingInstalments' => 6]);
 $auto = $nlPerson(112, 'Efe Uche', '2026-03-10', 'Full Programme');
-ck('ngv fees: turned on deliberately, the training fee accrues like the rest',
-   NgvLedger::accrueParticipant($auto, '2026-09-07')['programme'] === 1);
+$ra = NgvLedger::accrueParticipant($auto, '2026-09-07');
+ck('ngv fees: turned on deliberately, the accrual agrees the schedule itself',
+   $ra['programme'] === 1
+   && (int) NgvLedger::trainingSchedule(112, '2026-09-07')['months'] === 6);
 $nlOn(['trainingAuto' => false]);
 
 /* ══ Fines ═════════════════════════════════════════════════════════════════ */
@@ -300,8 +375,12 @@ NgvLedger::accrueParticipant($k, '2026-09-07');
 $nlPerson(171, 'Lanre Ojo', '2026-03-10');            // charged nothing, so owes nothing
 $c = NgvLedger::reminderCandidates();
 ck('ngv fees: only people who actually owe something are chased',
-   count($c['due']) === 1 && (int) $c['due'][0]['member_id'] === 170
-   && (int) $c['skipped']['nothingPayable'] === 1);
+   count($c['due']) === 1 && (int) $c['due'][0]['member_id'] === 170);
+// "It would send 1 of 2" has to reconcile against the roster in front of staff,
+// so somebody with nothing charged is counted rather than silently absent.
+ck('ngv fees: and the preview accounts for everybody, not only the candidates',
+   (int) $c['skipped']['notCharged'] === 1
+   && 1 + array_sum($c['skipped']) === 2);
 
 NgvLedger::runReminders();
 $c2 = NgvLedger::reminderCandidates();
@@ -340,6 +419,50 @@ ck('ngv fees: the account carries the page\'s promise and its bank details, so a
    strpos((string) $acctFor['note'], 'turned away') !== false
    && strpos((string) $acctFor['payTo'], 'UBA') !== false);
 
+/* ══ Asking for consideration ══════════════════════════════════════════════
+ *
+ * "No one is turned away for lack — speak to your track lead or send a letter
+ * requesting consideration" is on the public page. Repeating that on a dashboard
+ * and stopping there makes a promise into a dead end. These pin the two things
+ * that keep the channel honest: a request cannot move money, and it cannot
+ * vanish unanswered.
+ */
+
+$nlReset();
+$nlOn();
+$nlPerson(190, 'Ngozi Eke', '2026-03-10');
+NgvLedger::accrueParticipant(NgvMember::participant(190), '2026-09-07');
+$owedBefore = (int) NgvLedger::balance(190)['payable'];
+
+ck('ngv fees: a request needs enough words to act on',
+   empty(NgvLedger::raiseRequest(190, 'consideration', 'help')['ok']));
+$req = NgvLedger::raiseRequest(190, 'consideration', 'Lost my Saturday job, can I pay in October?');
+ck('ngv fees: a participant can ask for consideration from their own dashboard', !empty($req['ok']));
+ck('ngv fees: asking changes NOTHING about what they owe',
+   (int) NgvLedger::balance(190)['payable'] === $owedBefore);
+ck('ngv fees: one open request at a time — a second does not get anybody helped faster',
+   empty(NgvLedger::raiseRequest(190, 'query', 'And another thing about the figures')['ok']));
+ck('ngv fees: it lands on the queue staff work from',
+   NgvLedger::openRequestCount() === 1 && count(NgvLedger::requests(true)) === 1);
+
+ck('ngv fees: answering without saying anything is refused — they see the reply',
+   empty(NgvLedger::resolveRequest((int) $req['id'], 'resolved', '  ', 1)['ok']));
+$ans = NgvLedger::resolveRequest((int) $req['id'], 'resolved', 'October is fine. Waived September, nothing to do.', 1);
+ck('ngv fees: answering closes it and the outcome is stored where they can read it',
+   !empty($ans['ok']) && NgvLedger::openRequestCount() === 0
+   && NgvLedger::requestsFor(190)[0]['outcome'] !== ''
+   && NgvLedger::requestsFor(190)[0]['status'] === 'resolved');
+ck('ngv fees: answering it also moves no money — a waiver is posted separately',
+   (int) NgvLedger::balance(190)['payable'] === $owedBefore);
+ck('ngv fees: an answered request cannot be answered twice',
+   empty(NgvLedger::resolveRequest((int) $req['id'], 'declined', 'changed my mind', 1)['ok']));
+ck('ngv fees: …and once answered they may ask again',
+   !empty(NgvLedger::raiseRequest(190, 'query', 'The October figure still looks wrong to me')['ok']));
+ck('ngv fees: "answered, no change" is a real answer and says so',
+   !empty(NgvLedger::resolveRequest(NgvLedger::requests(true)[0]['id'], 'declined',
+        'Spoke on Tuesday — the figure is right.', 1)['ok'])
+   && NgvLedger::requestsFor(190)[0]['status'] === 'declined');
+
 /* ══ What must never happen ════════════════════════════════════════════════ */
 
 $nlReset();
@@ -370,11 +493,17 @@ ck('ngv fees: no balance, charge or ledger read reaches a public NGV page',
 // The member's own view is read-only by construction: the dashboard may render
 // an account but must never post, waive, void or price one.
 $dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
-$writes = ['NgvLedger::payment', 'NgvLedger::charge', 'NgvLedger::waive', 'NgvLedger::void',
-           'NgvLedger::postCharge', 'NgvLedger::raiseTrainingFee', 'NgvLedger::accrue'];
-$dashWrites = false;
-foreach ($writes as $w) { if (strpos($dashSrc, $w) !== false) $dashWrites = true; }
-ck('ngv fees: a member\'s own dashboard can read an account but never move money', !$dashWrites);
+/* `raiseRequest` is deliberately absent from this list: it is the one
+   member-side write, and it writes a MESSAGE. Everything that moves a figure
+   stays staff-only, and the assertion above proves a request moves none. */
+$writes = ['NgvLedger::payment', 'NgvLedger::charge', 'NgvLedger::waive', 'NgvLedger::writeOff',
+           'NgvLedger::void', 'NgvLedger::postCharge', 'NgvLedger::startTrainingFee',
+           'NgvLedger::stopTrainingFee', 'NgvLedger::accrue', 'NgvLedger::resolveRequest',
+           'NgvLedger::saveSettings'];
+$dashWrites = [];
+foreach ($writes as $w) { if (strpos($dashSrc, $w) !== false) $dashWrites[] = $w; }
+ck('ngv fees: a member\'s own dashboard can read an account but never move money',
+   $dashWrites === []);
 
 /* Nothing financial gates learning, attendance or certification. Read the ONE
    function's body rather than the rest of the file: a lazy `.*?` from the

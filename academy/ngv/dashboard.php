@@ -43,6 +43,14 @@ if ($method === 'POST') {
 
     // Map the client payload onto the participant's self-editable fields and
     // persist to the SEPARATE NGV database (validation lives in NgvMember).
+    /* The one money-adjacent thing a participant may do: say something about
+       their own account. It is a message, not a decision — nothing here moves a
+       figure, and the answer comes back from a person. */
+    if ((string) ($in['action'] ?? '') === 'fee_request') {
+        $r = NgvLedger::raiseRequest($uid, (string) ($in['kind'] ?? 'consideration'), (string) ($in['message'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
     $patch = [];
     if (array_key_exists('track', $in)) $patch['track'] = (string) $in['track'];
     if (array_key_exists('plan',  $in)) $patch['plan']  = (string) $in['plan'];
@@ -213,6 +221,28 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .portal-app .ngv-contact a:hover{border-color:var(--gold);color:var(--ink)}
 .ngv-details summary{cursor:pointer;font-weight:700;color:var(--ink);font-size:13.5px;padding:4px 0}
 .ngv-fine{font-size:11.5px;color:var(--muted-2);margin:8px 0 0;line-height:1.5}
+.ngv-sched{margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:12px 13px;background:var(--surface-2)}
+.ngv-sched-head{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;font-size:13px;color:var(--ink)}
+.ngv-sched-head span{margin-left:auto;font-size:12px;color:var(--muted-2);font-weight:600}
+.ngv-bar{height:6px;border-radius:999px;background:var(--border);overflow:hidden;margin:9px 0 11px}
+.ngv-bar span{display:block;height:100%;border-radius:999px;background:var(--green)}
+.ngv-insts{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px}
+.ngv-inst{border:1.5px solid var(--border);border-radius:9px;padding:7px 8px;background:var(--surface);
+  display:flex;flex-direction:column;gap:1px;min-width:0}
+.ngv-inst .mo{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted-2)}
+.ngv-inst .amt{font-size:13px;font-weight:800;color:var(--ink)}
+.ngv-inst .st{font-size:10.5px;color:var(--muted-2)}
+.ngv-inst--charged{border-color:var(--green-bd);background:var(--green-soft)}
+.ngv-inst--charged .st{color:var(--green)}
+.ngv-inst--due{border-color:var(--gold-soft-bd);background:var(--gold-soft)}
+.ngv-inst--due .st{color:var(--gold-deep);font-weight:700}
+.ngv-ask{margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
+.ngv-ask summary{font-size:13px}
+.ngv-input{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:9px;padding:9px 10px;
+  font:inherit;font-size:13px;background:var(--surface);color:var(--ink)}
+.ngv-input:focus{outline:none;border-color:var(--gold)}
+.ngv-ask .pbtn{margin-top:9px}
+.ngv-quote{display:block;margin:4px 0;padding-left:9px;border-left:2px solid var(--border);color:var(--muted-2)}
 </style>
 </head>
 <body class="portal-app<?= $ptheme === 'dark' ? ' is-dark' : '' ?>">
@@ -410,12 +440,14 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
                   settled. It stays on your record as paid ahead rather than being moved onto something else.</div>
               <?php endif; ?>
 
+              <?php $T = is_array($account['training'] ?? null) && !empty($account['training']) ? $account['training'] : null; ?>
               <?php if ($account['planLabel'] !== ''): ?>
               <div class="ngv-box">
                 You're on the <b><?= $e((string)$account['planLabel']) ?></b> plan.
                 <?php if ($account['planFree']): ?>Your training is <b>free</b> — only membership and the monthly commitment apply.
-                <?php elseif ((int)($account['due']['programme'] ?? 0) === 0 && (int)$account['planFee'] > 0): ?>
-                  Its training fee is ₦<?= number_format((int)$account['planFee']) ?>; nothing has been raised on your account yet.
+                <?php elseif ($T): ?>Its training fee is shown below, month by month.
+                <?php elseif ((int)$account['planFee'] > 0): ?>
+                  Its training fee is ₦<?= number_format((int)$account['planFee']) ?>; nothing has been agreed on your account yet.
                 <?php else: ?>Its training fee is shown below.<?php endif; ?>
               </div>
               <?php endif; ?>
@@ -439,6 +471,30 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
                 <div class="ngv-row"><div><span class="k">Set aside for you</span><span class="d">waived by your team — not money you paid, and not money you owe</span></div><span class="amt">₦<?= number_format((int)$account['waived']) ?></span></div>
                 <?php endif; ?>
               </div>
+
+              <?php if ($T && (int)$T['months'] > 1): ?>
+              <!-- Month by month. A ₦240,000 total says nothing you can plan
+                   around; "instalment 4 of 12, ₦20,000, this month" does. -->
+              <div class="ngv-sched">
+                <div class="ngv-sched-head">
+                  <b>Your training fee</b>
+                  <span><?= (int)$T['settled'] ?> of <?= (int)$T['months'] ?> charged ·
+                    ₦<?= number_format((int)$T['paid']) ?> of ₦<?= number_format((int)$T['total']) ?> paid</span>
+                </div>
+                <div class="ngv-bar"><span style="width:<?= (int)$T['total'] > 0 ? min(100, round(100 * (int)$T['paid'] / (int)$T['total'])) : 0 ?>%"></span></div>
+                <div class="ngv-insts">
+                  <?php foreach ($T['instalments'] as $i): ?>
+                    <div class="ngv-inst ngv-inst--<?= $e((string)$i['state']) ?>">
+                      <span class="mo"><?= $e(date('M y', (int) strtotime($i['period'] . '-01'))) ?></span>
+                      <span class="amt">₦<?= number_format((int)$i['amount']) ?></span>
+                      <span class="st"><?= $i['state'] === 'charged' ? 'on your account' : ($i['state'] === 'due' ? 'due' : 'to come') ?></span>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+                <p class="ngv-fine">Only the months already on your account are being asked for. The rest arrive one at a
+                  time, and the total was fixed when this was agreed — it does not change if the programme's prices do.</p>
+              </div>
+              <?php endif; ?>
 
               <?php if (!empty($myEntries)): ?>
               <details class="ngv-details" style="margin-top:10px">
@@ -470,8 +526,53 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
             <?php endif; ?>
 
             <?php if ($feesOn && !empty($account['payTo'])): ?><div class="ngv-box"><?= $e((string)$account['payTo']) ?></div><?php endif; ?>
-            <div class="ngv-box">Something look wrong, or is this a difficult month? Speak to your track lead — they'd rather
-              hear from you than not.</div>
+
+            <!-- The page promises "no one is turned away for lack — speak to your
+                 track lead or send a letter requesting consideration". Repeating
+                 that and stopping there makes it a dead end: the person who most
+                 needs it is the one least likely to walk up and start the
+                 conversation. So here is the conversation, in one box. -->
+            <?php
+              $reqs = is_array($account['requests'] ?? null) ? $account['requests'] : [];
+              $openReq = null;
+              foreach ($reqs as $rq) { if ($rq['status'] === 'open') { $openReq = $rq; break; } }
+            ?>
+            <?php if ($openReq): ?>
+              <div class="ngv-box">
+                <b>Your track lead has your message.</b><br>
+                <span class="ngv-quote"><?= $e((string)$openReq['message']) ?></span><br>
+                Sent <?= $e(substr((string)$openReq['created_at'], 0, 10)) ?>. They'll come back to you here.
+              </div>
+            <?php elseif ($feesOn): ?>
+              <!-- Offered only while fees are actually running. "I need
+                   consideration this month" against an account with nothing on
+                   it is a form that invites a message nobody can answer. An
+                   existing request still shows above either way, so a reply is
+                   never lost because a switch was flipped. -->
+              <details class="ngv-details ngv-ask">
+                <summary>Something look wrong, or is this a difficult month?</summary>
+                <p class="ngv-fine" style="margin-top:6px">Tell your track lead here rather than letting it sit. Nothing you
+                  write changes your account on its own — a person reads it and replies.</p>
+                <select id="reqKind" class="ngv-input">
+                  <option value="consideration">I need consideration this month</option>
+                  <option value="query">A figure here looks wrong</option>
+                </select>
+                <textarea id="reqMsg" class="ngv-input" rows="3" maxlength="1200"
+                  placeholder="A sentence or two is plenty."></textarea>
+                <button class="pbtn pbtn-gold" id="reqSend" type="button">Send it</button>
+                <span id="reqMsgOut" class="ngv-fine"></span>
+              </details>
+            <?php endif; ?>
+
+            <?php foreach (array_slice(array_filter($reqs, static fn($r) => $r['status'] !== 'open'), 0, 3) as $rq): ?>
+              <div class="ngv-box">
+                <b><?= $rq['status'] === 'declined' ? 'Answered' : 'Sorted' ?>
+                  — <?= $e(substr((string)$rq['handled_at'], 0, 10)) ?></b><br>
+                <span class="ngv-quote"><?= $e((string)$rq['message']) ?></span><br>
+                <?= $e((string)$rq['outcome']) ?>
+              </div>
+            <?php endforeach; ?>
+
             <?php if (!empty($account['note'])): ?><div class="ngv-box"><?= $e((string)$account['note']) ?></div><?php endif; ?>
           </div>
         </section>
@@ -548,6 +649,27 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
       .then(function(j){ if(j && j.ok){ toast(); if(ok) ok(); } else if(j && j.status === 403){ toast('Session timed out — reload the page'); } else { toast('Couldn’t save — try again'); } })
       .catch(function(){ toast('Offline — not saved'); });
   }
+
+  /* Asking for consideration. Deliberately NOT routed through save(): that one
+     toasts "Saved" and swallows the server's reason, and the two answers this
+     can give — "tell us a little about it" and "you already have one open" —
+     are the whole conversation. */
+  var reqSend = document.getElementById('reqSend');
+  if(reqSend) reqSend.addEventListener('click', function(){
+    var kindEl = document.getElementById('reqKind'), msgEl = document.getElementById('reqMsg');
+    var out = document.getElementById('reqMsgOut');
+    var body = {action:'fee_request', kind: kindEl ? kindEl.value : 'consideration', message: msgEl ? msgEl.value : ''};
+    reqSend.disabled = true;
+    fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF}, credentials:'same-origin', body:JSON.stringify(body)})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(j){
+        reqSend.disabled = false;
+        if(j && j.ok){ if(out) out.textContent = 'Sent — your track lead will come back to you here.';
+                       setTimeout(function(){ location.reload(); }, 1200); }
+        else if(out){ out.textContent = (j && j.error) || 'Could not send that — try again.'; }
+      })
+      .catch(function(){ reqSend.disabled = false; if(out) out.textContent = 'Offline — not sent.'; });
+  });
 
   // Track picker (scoped to track tiles — the plan tiles below reuse .trk)
   document.querySelectorAll('.trk[data-track]').forEach(function(el){

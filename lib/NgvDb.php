@@ -9,6 +9,7 @@
  *   ngv_participants   enrolment, plan, self-tracked progress, reminder opt-out
  *   ngv_charges        what is owed        ─┐ the two halves of the ledger,
  *   ngv_payments       what has been given ─┘ read together by lib/NgvLedger.php
+ *   ngv_fee_requests   what a participant said about their own account
  *   ngv_certifications what has been earned
  *   ngv_applications   the public registration intake
  *
@@ -144,6 +145,16 @@ final class NgvDb
           start_date  TEXT NOT NULL DEFAULT '',
           remind_off  INTEGER NOT NULL DEFAULT 0,
           reminded_at TEXT NOT NULL DEFAULT '',
+          /* The training-fee commitment, as agreed with this participant. Four
+             columns rather than one, and `training_total` in particular, because
+             the total is fixed AT THE MOMENT IT IS AGREED — a later edit to the
+             plan price on the public page must not move a figure somebody has
+             already been quoted and started paying. `training_months` of 0 means
+             no schedule is running. */
+          training_from   VARCHAR(10) NOT NULL DEFAULT '',
+          training_months INTEGER NOT NULL DEFAULT 0,
+          training_each   INTEGER NOT NULL DEFAULT 0,
+          training_total  INTEGER NOT NULL DEFAULT 0,
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -206,6 +217,35 @@ final class NgvDb
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_ngv_chg_period ON ngv_charges (member_id, kind, period);
         CREATE INDEX IF NOT EXISTS idx_ngv_chg_member ON ngv_charges (member_id);
+
+        /* ── What a participant says about their own account ─────────────────
+         * The public page promises that no one is turned away for lack, and to
+         * speak to your track lead or send a letter requesting consideration.
+         * Until this table the dashboard could only REPEAT that sentence, which
+         * makes it a dead end: the one person who most needs it is the one least
+         * likely to walk up to staff and start the conversation.
+         *
+         * (No double quote or dollar sign anywhere in this comment: ddl() is one
+         * double-quoted PHP string, so either would end it or interpolate — the
+         * same class of trap as the semicolon noted above.)
+         *
+         * A row here is a MESSAGE, never a decision. Nothing a participant writes
+         * changes a balance — the outcome is a waiver or a correction that staff
+         * post separately, under their own name. */
+        CREATE TABLE IF NOT EXISTS ngv_fee_requests (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          member_id   INTEGER NOT NULL,
+          kind        VARCHAR(16) NOT NULL DEFAULT 'consideration',
+          amount      INTEGER NOT NULL DEFAULT 0,
+          message     TEXT NOT NULL DEFAULT '',
+          status      VARCHAR(12) NOT NULL DEFAULT 'open',
+          outcome     TEXT NOT NULL DEFAULT '',
+          handled_by  INTEGER NOT NULL DEFAULT 0,
+          handled_at  TEXT NOT NULL DEFAULT '',
+          created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_req_member ON ngv_fee_requests (member_id);
+        CREATE INDEX IF NOT EXISTS idx_ngv_req_status ON ngv_fee_requests (status);
         CREATE TABLE IF NOT EXISTS ngv_certifications (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL,

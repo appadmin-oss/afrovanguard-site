@@ -171,6 +171,10 @@ final class NgvLedger
             'commitmentMonthly' => null,
             /* The training fee is raised by staff by default — see the header. */
             'trainingAuto'   => false,
+            /* The default shape of a training-fee commitment, used by the staff
+               form and by `trainingAuto`. Twelve because the flagship plan is
+               priced per year; 1 means "in full". */
+            'trainingInstalments' => 12,
             /* ── The rollout guard ────────────────────────────────────────
              * Switching accrual on for a programme that has been running for a
              * year would post twelve months of commitment charges to every
@@ -216,6 +220,7 @@ final class NgvLedger
             'arrearsPage'   => self::ARREARS_PAGE,
             'reviewMonths'  => self::REVIEW_MONTHS,
             'capDefault'    => self::CAP_DEFAULT,
+            'trainingMonthsMax' => self::TRAINING_MONTHS_MAX,
         ];
     }
 
@@ -242,6 +247,8 @@ final class NgvLedger
             'membershipYearly'  => $pin('membershipYearly'),
             'commitmentMonthly' => $pin('commitmentMonthly'),
             'trainingAuto'      => $bool('trainingAuto'),
+            'trainingInstalments' => max(1, min(self::TRAINING_MONTHS_MAX,
+                                     (int) ($in['trainingInstalments'] ?? $cur['trainingInstalments']) ?: 1)),
             'accrueFrom'        => self::validDate((string) ($in['accrueFrom'] ?? $cur['accrueFrom'])),
             'balanceCap'        => self::money($in['balanceCap'] ?? $cur['balanceCap']),
             'remindEnabled'     => $bool('remindEnabled'),
@@ -555,16 +562,20 @@ final class NgvLedger
                         ['note' => 'Commitment ' . $k, 'source' => 'accrual'])) $out['commitment']++;
             }
         }
-        /* Off by default — see the header. On, it behaves exactly like the other
-           two, which is precisely why it is not on by default: the participant
-           chooses the plan it is priced from. */
-        if (!empty($cfg['trainingAuto'])) {
+        /* The training fee follows the COMMITMENT agreed with this person, not
+           the plan they clicked — see the training-fee section. With a schedule
+           running, each instalment lands as its month arrives; with none, the
+           accrual does not invent one.
+           `trainingAuto` is the escape hatch for an organisation that wants the
+           plan price charged without anybody agreeing it first. Off by default,
+           and it starts a schedule rather than posting a lump sum. */
+        if (self::trainingPlanOf($p) !== null) {
+            $out['programme'] = self::accrueTraining($memberId, $asOf);
+        } elseif (!empty($cfg['trainingAuto'])) {
             $plan = self::planFor($p);
             if ($plan !== null && (int) $plan['fee'] > 0) {
-                foreach (self::periods($start, $today, $plan['cadence']) as $k) {
-                    if (self::postCharge($memberId, 'programme', (int) $plan['fee'], $k,
-                            ['note' => $plan['name'] . ' — training fee ' . $k, 'source' => 'accrual'])) $out['programme']++;
-                }
+                $r = self::startTrainingFee($memberId, (int) ($cfg['trainingInstalments'] ?? 1), 0, null, $asOf);
+                if (!empty($r['ok'])) $out['programme'] = (int) $r['posted'];
             }
         }
         return $out;
@@ -595,33 +606,182 @@ final class NgvLedger
 
     /* ══ Staff operations ═══════════════════════════════════════════════════ */
 
+    /* ── The training fee ────────────────────────────────────────────────
+     *
+     * ₦240,000 is a year of tuition and, for a school leaver, roughly a year of
+     * income. Posted as one charge it is a wall: the dashboard reads ₦240,000
+     * outstanding from the first day to the last, the arrears list puts that
+     * person permanently at the top, and a reminder quotes a figure nobody could
+     * pay this month. None of that is information — it is the same fact, shouted
+     * every fortnight.
+     *
+     * So the fee is a COMMITMENT with a shape: a total, a start month, and a
+     * number of monthly instalments. Each instalment becomes an ordinary charge
+     * as its month arrives, through the same idempotent accrual as everything
+     * else, so "₦20,000 due this month, 3 of 12 settled" is what a participant
+     * actually sees. Paying in full is the same machinery with one instalment.
+     *
+     * `training_total` is frozen when the commitment is made. A later edit to
+     * the plan price on the public page changes what the NEXT person is quoted
+     * and moves nothing for somebody already paying — the one property that
+     * makes a schedule trustworthy.
+     */
+
+    /** How many monthly instalments a commitment may be split into. Two years:
+     *  past that it is not a training fee, it is a loan. */
+    public const TRAINING_MONTHS_MAX = 24;
+
     /**
-     * Raise the training fee for a participant's plan. One press, prefilled from
-     * the catalogue, idempotent for the period.
+     * The commitment stored against a participant, expanded into instalments.
+     * Pure arithmetic — no database read — so the accrual, the staff console and
+     * the member dashboard all describe the same schedule.
+     *
+     * The remainder rides on the LAST instalment. Putting it on the first would
+     * make the opening bill the biggest one, which is exactly backwards for
+     * somebody deciding whether they can start at all.
+     */
+    public static function trainingPlanOf(array $p): ?array
+    {
+        $months = max(0, (int) ($p['training_months'] ?? 0));
+        $total  = max(0, (int) ($p['training_total'] ?? 0));
+        $from   = trim((string) ($p['training_from'] ?? ''));
+        if ($months < 1 || $total < 1 || !preg_match('/^\d{4}-\d{2}$/', $from)) return null;
+        $each = max(0, (int) ($p['training_each'] ?? 0)) ?: (int) floor($total / $months);
+        $ins = [];
+        $t = strtotime($from . '-01 00:00:00 UTC');
+        $running = 0;
+        for ($i = 1; $i <= $months; $i++) {
+            $amount = $i === $months ? max(0, $total - $running) : $each;
+            $running += $amount;
+            $ins[] = ['n' => $i, 'period' => gmdate('Y-m', (int) $t), 'amount' => $amount];
+            $t = strtotime('+1 month', (int) $t);
+            if ($t === false) break;
+        }
+        return ['from' => $from, 'months' => $months, 'each' => $each, 'total' => $total,
+                'instalments' => $ins];
+    }
+
+    /**
+     * The schedule with each instalment's state — what a member wants to see:
+     * what each month costs, which have been charged, and what is still coming.
+     */
+    public static function trainingSchedule(int $memberId, ?string $asOf = null): array
+    {
+        $p = self::participantRow($memberId);
+        if (!$p) return [];
+        $plan = self::trainingPlanOf($p);
+        if ($plan === null) return [];
+        $posted = [];
+        foreach (self::charges($memberId) as $c) {
+            if ((string) $c['kind'] === 'programme') $posted[(string) $c['period']] = (int) $c['amount'];
+        }
+        $paid = (int) (self::balance($memberId)['paidBy']['programme'] ?? 0);
+        $thisMonth = self::periodKey($asOf ?: self::today('Y-m-d'), 'month');
+        $out = [];
+        foreach ($plan['instalments'] as $ins) {
+            $ins['state'] = isset($posted[$ins['period']])
+                ? 'charged'
+                : ($ins['period'] > $thisMonth ? 'upcoming' : 'due');
+            /* The posted figure wins where one exists: a charge already on the
+               account is the truth, whatever the schedule would recompute. */
+            if (isset($posted[$ins['period']])) $ins['amount'] = $posted[$ins['period']];
+            $out[] = $ins;
+        }
+        return ['from' => $plan['from'], 'months' => $plan['months'], 'total' => $plan['total'],
+                'paid' => $paid, 'instalments' => $out,
+                'settled' => count(array_filter($out, static fn($i) => $i['state'] === 'charged'))];
+    }
+
+    /**
+     * Agree a training fee with a participant: a total, and how many months to
+     * spread it over.
      *
      * This is the path the training fee normally takes, and the reason it is a
      * separate operation rather than a line in the accrual: the plan is
      * self-selected, so somebody has to confirm that this participant really is
-     * on the paid programme before the ledger will believe it.
+     * on the paid programme — and agree the shape of it with them — before the
+     * ledger will believe it.
+     *
+     * Refuses while a `programme` charge is already live, rather than stacking a
+     * second commitment on top of an unfinished one. Voiding the old charges, or
+     * stopping the old schedule, is a decision somebody makes on purpose.
      */
-    public static function raiseTrainingFee(int $memberId, int $byUid, ?string $asOf = null): array
+    public static function startTrainingFee(int $memberId, int $months, int $byUid, $amount = null, ?string $asOf = null): array
     {
         $p = self::participantRow($memberId);
         if (!$p) return ['ok' => false, 'error' => 'No such participant.'];
         $plan = self::planFor($p);
-        if ($plan === null) return ['ok' => false, 'error' => 'They have not chosen a plan yet.'];
-        if ((int) $plan['fee'] <= 0) return ['ok' => false, 'error' => $plan['name'] . ' is free — there is no training fee to raise.'];
-        $period = $plan['cadence'] === 'once'
-            ? 'plan'
-            : self::periodKey($asOf ?: self::today('Y-m-d'), $plan['cadence']);
-        $note = $plan['name'] . ' — training fee' . ($period !== 'plan' ? ' ' . $period : '');
-        if (!self::postCharge($memberId, 'programme', (int) $plan['fee'], $period,
-                ['note' => $note, 'source' => 'staff', 'by' => $byUid])) {
-            return ['ok' => false, 'error' => 'Already raised for ' . ($period === 'plan' ? 'this plan' : $period) . '.'];
+        $total = $amount === null || $amount === '' ? ($plan ? (int) $plan['fee'] : 0) : self::money($amount);
+        if ($plan === null && $total <= 0) return ['ok' => false, 'error' => 'They have not chosen a plan yet.'];
+        if ($total <= 0) {
+            return ['ok' => false, 'error' => ($plan ? $plan['name'] : 'That plan') . ' is free — there is no training fee to agree.'];
         }
+        foreach (self::charges($memberId) as $c) {
+            if ((string) $c['kind'] === 'programme') {
+                return ['ok' => false, 'error' => 'A training fee is already running on this account. '
+                    . 'Stop the schedule, or void the charges, before agreeing a new one.'];
+            }
+        }
+        $months = max(1, min(self::TRAINING_MONTHS_MAX, $months));
+        $from = self::periodKey($asOf ?: self::today('Y-m-d'), 'month');
+        $each = (int) floor($total / $months);
+        NgvDb::pdo()->prepare('UPDATE ngv_participants SET training_from = ?, training_months = ?, training_each = ?,
+                               training_total = ?, updated_at = ' . NgvDb::nowExpr() . ' WHERE member_id = ?')
+            ->execute([$from, $months, $each, $total, $memberId]);
         self::audit('ngv_fee_training', 'ngv:member:' . $memberId,
-            'Training fee raised — ' . self::money_text((int) $plan['fee']) . ' · ' . $note);
-        return ['ok' => true, 'amount' => (int) $plan['fee'], 'period' => $period, 'plan' => $plan['name']];
+            'Training fee agreed — ' . self::money_text($total)
+            . ($months > 1 ? ' over ' . $months . ' months (' . self::money_text($each) . ' each)' : ' in full')
+            . ' from ' . $from . ($plan ? ' · ' . $plan['name'] : ''));
+        /* Post whatever is already due. Agreeing a schedule in March that starts
+           in March should put March on the account now, not next cron tick. */
+        $posted = self::accrueTraining($memberId, $asOf, $byUid);
+        return ['ok' => true, 'total' => $total, 'months' => $months, 'each' => $each,
+                'from' => $from, 'posted' => $posted,
+                'schedule' => self::trainingSchedule($memberId, $asOf)];
+    }
+
+    /**
+     * Stop future instalments. What a withdrawal, a switch to a free plan, or a
+     * renegotiation leaves behind.
+     *
+     * Charges already posted STAY. Somebody who paid four instalments and left
+     * paid four instalments; erasing them would be rewriting what happened.
+     * Whether the unpaid ones should still be asked for is a separate decision,
+     * with its own name: waive it, or write it off.
+     */
+    public static function stopTrainingFee(int $memberId): array
+    {
+        $p = self::participantRow($memberId);
+        if (!$p) return ['ok' => false, 'error' => 'No such participant.'];
+        if (self::trainingPlanOf($p) === null) return ['ok' => false, 'error' => 'No training schedule is running.'];
+        NgvDb::pdo()->prepare('UPDATE ngv_participants SET training_months = 0, updated_at = '
+            . NgvDb::nowExpr() . ' WHERE member_id = ?')->execute([$memberId]);
+        self::audit('ngv_fee_training_stop', 'ngv:member:' . $memberId,
+            'Training schedule stopped — no further instalments will be charged. '
+            . 'Instalments already posted stay on the account.');
+        return ['ok' => true];
+    }
+
+    /** Post every instalment whose month has arrived. Idempotent, like the rest. */
+    private static function accrueTraining(int $memberId, ?string $asOf = null, int $byUid = 0): int
+    {
+        $p = self::participantRow($memberId);
+        if (!$p) return 0;
+        $plan = self::trainingPlanOf($p);
+        if ($plan === null) return 0;
+        $planName = ($cat = self::planFor($p)) ? $cat['name'] : 'Training';
+        $thisMonth = self::periodKey($asOf ?: self::today('Y-m-d'), 'month');
+        $n = 0;
+        foreach ($plan['instalments'] as $ins) {
+            if ($ins['period'] > $thisMonth) break;              // not yet
+            if ((int) $ins['amount'] <= 0) continue;
+            $note = $planName . ' — training fee'
+                  . ($plan['months'] > 1 ? ' ' . $ins['n'] . ' of ' . $plan['months'] : '')
+                  . ' · ' . $ins['period'];
+            if (self::postCharge($memberId, 'programme', (int) $ins['amount'], $ins['period'],
+                    ['note' => $note, 'source' => 'staff', 'by' => $byUid])) $n++;
+        }
+        return $n;
     }
 
     /**
@@ -802,35 +962,170 @@ final class NgvLedger
         return ['ok' => true, 'off' => $off];
     }
 
+    /* ══ What a participant says about their own account ════════════════════
+     *
+     * "No one is turned away for lack. If you are truly committed and need
+     * support, speak to your track lead or send a letter requesting
+     * consideration" is on the public page. Until this existed the dashboard
+     * could only repeat that sentence back, which makes a promise into a dead
+     * end: the person who most needs it is the one least likely to walk up to
+     * staff and start the conversation, and "send a letter" is a real barrier
+     * to a nineteen-year-old who is already embarrassed.
+     *
+     * A request is a MESSAGE, never a decision. Nothing a participant writes
+     * moves a figure. The outcome is a waiver, a correction or a conversation,
+     * posted separately by staff under their own name — which is also why the
+     * resolution is written back to them: a request into a void is worse than no
+     * form at all, because it teaches somebody that asking does not work.
+     */
+
+    /** What a participant can raise. Two, because "this looks wrong" and "I
+     *  cannot pay this month" need the same channel and different answers. */
+    public const REQUEST_KINDS = [
+        'consideration' => 'Asking for consideration',
+        'query'         => 'Querying a figure',
+    ];
+    public const REQUEST_MAX = 1200;      // characters — a note, not an essay
+    public const REQUESTS_PAGE = 100;
+
+    /**
+     * Raise one. At most one open at a time per participant — which is a rate
+     * limit, but mostly it is the honest shape: a second unanswered request does
+     * not get somebody helped faster, it just buries the first.
+     */
+    public static function raiseRequest(int $memberId, string $kind, string $message, $amount = 0): array
+    {
+        $p = self::participantRow($memberId);
+        if (!$p) return ['ok' => false, 'error' => 'No such participant.'];
+        if (!isset(self::REQUEST_KINDS[$kind])) $kind = 'consideration';
+        $message = trim($message);
+        if (mb_strlen($message) < 10) {
+            return ['ok' => false, 'error' => 'Tell us a little about it — a sentence or two is plenty.'];
+        }
+        foreach (self::requestsFor($memberId) as $r) {
+            if ($r['status'] === 'open') {
+                return ['ok' => false, 'error' => 'You already have a request open. Your track lead will come back to you on it.'];
+            }
+        }
+        $now = NgvDb::nowExpr();
+        NgvDb::pdo()->prepare("INSERT INTO ngv_fee_requests (member_id, kind, amount, message, status, created_at)
+                               VALUES (?,?,?,?,'open',{$now})")
+            ->execute([$memberId, $kind, self::money($amount), mb_substr($message, 0, self::REQUEST_MAX)]);
+        self::audit('ngv_fee_request', 'ngv:member:' . $memberId,
+            self::REQUEST_KINDS[$kind] . ' — ' . mb_substr($message, 0, 200),
+            'member:' . $memberId);
+        return ['ok' => true, 'id' => (int) NgvDb::pdo()->lastInsertId()];
+    }
+
+    /** One participant's own requests, newest first. */
+    public static function requestsFor(int $memberId): array
+    {
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_fee_requests WHERE member_id = ? ORDER BY id DESC LIMIT 20');
+        $st->execute([$memberId]);
+        return array_map([self::class, 'requestShape'], $st->fetchAll() ?: []);
+    }
+
+    /** The queue staff work from. Open first, because that is the whole point. */
+    public static function requests(bool $openOnly = true, int $limit = self::REQUESTS_PAGE): array
+    {
+        $limit = max(1, min(500, $limit));
+        $sql = 'SELECT r.*, p.name AS name, p.email AS email FROM ngv_fee_requests r
+                LEFT JOIN ngv_participants p ON p.member_id = r.member_id';
+        if ($openOnly) $sql .= " WHERE r.status = 'open'";
+        $sql .= " ORDER BY CASE WHEN r.status = 'open' THEN 0 ELSE 1 END, r.id DESC LIMIT " . $limit;
+        $rows = NgvDb::pdo()->query($sql)->fetchAll() ?: [];
+        return array_map([self::class, 'requestShape'], $rows);
+    }
+
+    public static function openRequestCount(): int
+    {
+        try { return (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_fee_requests WHERE status = 'open'")->fetchColumn(); }
+        catch (Throwable $e) { return 0; }
+    }
+
+    private static function requestShape(array $r): array
+    {
+        return [
+            'id' => (int) $r['id'], 'member_id' => (int) $r['member_id'],
+            'kind' => (string) $r['kind'],
+            'kindLabel' => self::REQUEST_KINDS[(string) $r['kind']] ?? (string) $r['kind'],
+            'amount' => (int) $r['amount'], 'message' => (string) $r['message'],
+            'status' => (string) $r['status'], 'outcome' => (string) $r['outcome'],
+            'created_at' => (string) $r['created_at'], 'handled_at' => (string) $r['handled_at'],
+            'name' => (string) ($r['name'] ?? ''), 'email' => (string) ($r['email'] ?? ''),
+        ];
+    }
+
+    /**
+     * Answer one.
+     *
+     * The outcome is written back to the participant in-app, because a request
+     * that disappears teaches somebody that asking does not work — and the next
+     * time they will simply stop coming instead. `declined` is a real answer and
+     * says so; it is not a failure state.
+     *
+     * This does NOT move money. Where the answer is a waiver, staff post the
+     * waiver, which carries its own reason and its own name.
+     */
+    public static function resolveRequest(int $id, string $status, string $outcome, int $byUid): array
+    {
+        $status = $status === 'declined' ? 'declined' : 'resolved';
+        $outcome = trim($outcome);
+        if ($outcome === '') return ['ok' => false, 'error' => 'Say what you told them — they see this.'];
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_fee_requests WHERE id = ?');
+        $st->execute([$id]);
+        $r = $st->fetch();
+        if (!$r) return ['ok' => false, 'error' => 'No such request.'];
+        if ((string) $r['status'] !== 'open') return ['ok' => false, 'error' => 'That request has already been answered.'];
+        NgvDb::pdo()->prepare('UPDATE ngv_fee_requests SET status = ?, outcome = ?, handled_by = ?, handled_at = ? WHERE id = ?')
+            ->execute([$status, mb_substr($outcome, 0, self::REQUEST_MAX), max(0, $byUid), self::nowStamp(), $id]);
+        self::audit('ngv_fee_request_' . $status, 'ngv:member:' . (int) $r['member_id'],
+            ucfirst($status) . ' — ' . mb_substr($outcome, 0, 200));
+        if (class_exists('Notifications')) {
+            try {
+                Notifications::push((int) $r['member_id'], 'ngv_fees',
+                    'Your track lead has replied',
+                    mb_substr($outcome, 0, 240),
+                    '/academy/ngv/dashboard.php#account',
+                    'ngv_fee_request:' . $id);
+            } catch (Throwable $e) { error_log('[ngvledger] request notify: ' . $e->getMessage()); }
+        }
+        return ['ok' => true, 'status' => $status];
+    }
+
     /* ══ Reading an account ═════════════════════════════════════════════════ */
 
     /**
-     * What a participant owes, what it is made of, and everything behind it.
-     *
-     * PER LINE, not one netted total. NGV's payments have always been allocated
-     * to the fee they pay, and that is worth keeping: "you are square on
-     * membership and two months behind on commitment" is actionable where "you
-     * owe ₦2,000" is a number somebody has to come and ask about. `payable` is
-     * the sum of the SHORTFALLS, so paying ahead on one line never hides arrears
-     * on another; what is paid ahead is reported as `paidAhead` instead of
-     * quietly cancelling something else out.
-     */
-    /**
-     * The arithmetic, and nothing else: two queries, no plan catalogue, no entry
-     * list. Split out from `account()` because the arrears sweep, the reminder
-     * sweep and the accrual's cap check all need the FIGURE for hundreds of
-     * people and none of them need the prose — building a full account per row
-     * turned a roster scan into four queries a head.
+     * What one participant owes, as a figure: no plan catalogue, no entry list,
+     * no prose. Every caller that needs the number and not the account reads
+     * this — the accrual's cap check, and (in bulk, via `sweep()`) the arrears
+     * and reminder passes.
      */
     public static function balance(int $memberId): array
     {
-        $cfg = self::settings();
+        return self::reduce(self::charges($memberId), self::credits($memberId));
+    }
+
+    /**
+     * The arithmetic, in exactly one place.
+     *
+     * Takes rows that may be individual ledger entries or pre-summed groups —
+     * it only ever adds them up, so both work — which is what lets the
+     * single-participant read and the roster-wide sweep share it. Two copies of
+     * this sum is how an arrears list comes to disagree with the account it
+     * links to, and nobody can tell which one is lying.
+     *
+     * `n` on a row is its row count, for callers that summed before arriving.
+     */
+    private static function reduce(array $charges, array $credits, ?array $cfg = null): array
+    {
+        $cfg = $cfg ?? self::settings();
         $chargedBy = []; $paidBy = []; $countBy = [];
         $charged = 0; $credited = 0;
-        foreach (self::charges($memberId) as $c) {
+        foreach ($charges as $c) {
             $k = (string) $c['kind']; $a = (int) $c['amount'];
             $chargedBy[$k] = ($chargedBy[$k] ?? 0) + $a;
-            $countBy[$k] = ($countBy[$k] ?? 0) + 1;
+            $countBy[$k] = ($countBy[$k] ?? 0) + (int) ($c['n'] ?? 1);
             $charged += $a;
         }
         /* `credited` settles a line whatever kind of credit it was; `received`
@@ -838,12 +1133,13 @@ final class NgvLedger
            that was the programme deciding not to ask is a sentence that is not
            true of the person reading it. */
         $received = 0; $waived = 0;
-        foreach (self::credits($memberId) as $c) {
+        foreach ($credits as $c) {
             $k = (string) ($c['kind'] ?? 'other'); $a = (int) $c['amount'];
             $paidBy[$k] = ($paidBy[$k] ?? 0) + $a;
             $credited += $a;
-            if ((string) ($c['credit_kind'] ?? 'payment') === 'waiver') $waived += $a;
-            elseif ((string) ($c['credit_kind'] ?? 'payment') !== 'writeoff') $received += $a;
+            $ck = (string) ($c['credit_kind'] ?? 'payment');
+            if ($ck === 'waiver') $waived += $a;
+            elseif ($ck !== 'writeoff') $received += $a;
         }
         /* Credits recorded before this ledger existed carry no line, and neither
            does a payment nobody could allocate. They form a pool that reduces the
@@ -853,10 +1149,10 @@ final class NgvLedger
 
         $due = []; $shortfall = 0; $ahead = 0;
         foreach (self::CHARGE_KINDS as $k) {
-            $d = max(0, (int) ($chargedBy[$k] ?? 0) - (int) ($paidBy[$k] ?? 0));
-            $due[$k] = $d;
-            $shortfall += $d;
-            $ahead += max(0, (int) ($paidBy[$k] ?? 0) - (int) ($chargedBy[$k] ?? 0));
+            $ch = (int) ($chargedBy[$k] ?? 0); $pd = (int) ($paidBy[$k] ?? 0);
+            $due[$k] = max(0, $ch - $pd);
+            $shortfall += $due[$k];
+            $ahead += max(0, $pd - $ch);
         }
         $cap = (int) ($cfg['balanceCap'] ?? 0);
         return [
@@ -873,6 +1169,57 @@ final class NgvLedger
         ];
     }
 
+    /**
+     * Every account that has a charge against it, in four queries total.
+     *
+     * The sweeps — arrears, the reminder scan — used to build a full balance per
+     * person, which is three round trips each: a roster of three hundred cost
+     * nine hundred queries to answer "who is behind". The database can group;
+     * asking it to is the difference between a page that loads and a page
+     * somebody stops opening.
+     *
+     * Returns `[memberId => [balance, participant row]]`, keyed by member.
+     */
+    private static function sweep(): array
+    {
+        $pdo = NgvDb::pdo();
+        $cfg = self::settings();
+        $chargesBy = []; $creditsBy = [];
+        foreach ($pdo->query('SELECT member_id, kind, SUM(amount) AS amount, COUNT(*) AS n
+                              FROM ngv_charges WHERE voided = 0 GROUP BY member_id, kind')->fetchAll() ?: [] as $r) {
+            $chargesBy[(int) $r['member_id']][] = $r;
+        }
+        if (!$chargesBy) return [];
+        foreach ($pdo->query('SELECT member_id, kind, credit_kind, SUM(amount) AS amount, COUNT(*) AS n
+                              FROM ngv_payments WHERE voided = 0 GROUP BY member_id, kind, credit_kind')->fetchAll() ?: [] as $r) {
+            $creditsBy[(int) $r['member_id']][] = $r;
+        }
+        $people = [];
+        foreach ($pdo->query('SELECT * FROM ngv_participants')->fetchAll() ?: [] as $p) {
+            $people[(int) $p['member_id']] = $p;
+        }
+        $out = [];
+        foreach ($chargesBy as $id => $rows) {
+            /* A charge with no participant row is a data fault, not a person to
+               chase — skipped rather than reported as a nameless debtor. */
+            if (!isset($people[$id])) continue;
+            $out[$id] = ['balance' => self::reduce($rows, $creditsBy[$id] ?? [], $cfg),
+                         'person' => $people[$id]];
+        }
+        return $out;
+    }
+
+    /**
+     * What a participant owes, what it is made of, and everything behind it.
+     *
+     * PER LINE, not one netted total. NGV's payments have always been allocated
+     * to the fee they pay, and that is worth keeping: "you are square on
+     * membership and two months behind on commitment" is actionable where "you
+     * owe ₦2,000" is a number somebody has to come and ask about. `payable` is
+     * the sum of the SHORTFALLS, so paying ahead on one line never hides arrears
+     * on another; what is paid ahead is reported as `paidAhead` instead of
+     * quietly cancelling something else out.
+     */
     /**
      * What a participant owes, what it is made of, and everything behind it.
      *
@@ -900,6 +1247,7 @@ final class NgvLedger
            there. Fines and adjustments appear only once one exists — a permanent
            "Fines: none" row on every account is an accusation nobody made. */
         $always = ['membership', 'commitment', 'programme'];
+        $training = self::trainingSchedule($memberId);
         $entries = self::entries($memberId);
         $lines = [];
         foreach ($labels as $k => $label) {
@@ -913,7 +1261,7 @@ final class NgvLedger
                 'ok' => (int) $b['due'][$k] === 0,
                 'free' => $k === 'programme' && $ch === 0 && ($plan === null || (int) $plan['fee'] === 0),
                 'expected' => $ch,          // the shape older callers read
-                'detail' => self::lineDetail($k, $ch, $pd, (int) $b['due'][$k], $plan, $amt),
+                'detail' => self::lineDetail($k, $ch, $pd, (int) $b['due'][$k], $plan, $amt, $training),
             ];
         }
 
@@ -936,6 +1284,10 @@ final class NgvLedger
             'planLabel'  => $plan ? ($plan['name'] . ($plan['duration'] !== '' ? ' · ' . $plan['duration'] : '')) : '',
             'planFree'   => $plan ? ((int) $plan['fee'] === 0) : false,
             'planFee'    => $plan ? (int) $plan['fee'] : 0,
+            /* Empty array when no commitment is running, so a screen can test it
+               without also having to know what "no training fee" looks like. */
+            'training'   => $training,
+            'requests'   => self::requestsFor($memberId),
             'lines'      => $lines,
             'entries'    => $entries,
             /* Every credit, which is what the older shape called `total`. Screens
@@ -951,15 +1303,26 @@ final class NgvLedger
     }
 
     /** One readable sentence per line, so a screen never has to compose money. */
-    private static function lineDetail(string $k, int $charged, int $paid, int $due, ?array $plan, array $amt): string
+    private static function lineDetail(string $k, int $charged, int $paid, int $due, ?array $plan, array $amt, array $sched = []): string
     {
         $m = fn(int $n) => self::money_text($n);
         if ($k === 'programme') {
+            /* A schedule, where one is running, describes itself far better than
+               the running total does: "instalment 3 of 12, ₦20,000 a month" is
+               the sentence somebody can plan around. */
+            if ($sched) {
+                $left = max(0, (int) $sched['total'] - (int) $sched['paid']);
+                return ($sched['months'] > 1
+                        ? $sched['settled'] . ' of ' . $sched['months'] . ' instalments charged · '
+                        : '')
+                     . $m($paid) . ' of ' . $m((int) $sched['total']) . ' paid'
+                     . ($left > 0 ? ' · ' . $m($left) . ' to go' : ' · settled');
+            }
             if ($plan === null) return 'No plan chosen yet — pick one, or speak to your track lead.';
             if ($charged === 0 && (int) $plan['fee'] === 0) {
                 return $plan['name'] . ' is free' . ($plan['note'] !== '' ? ' (' . $plan['note'] . ')' : '');
             }
-            if ($charged === 0) return $plan['name'] . ' · ' . $plan['priceLabel'] . ' — not yet raised on your account';
+            if ($charged === 0) return $plan['name'] . ' · ' . $plan['priceLabel'] . ' — nothing agreed on your account yet';
             return $m($paid) . ' of ' . $m($charged) . ' — ' . $plan['name'];
         }
         if ($k === 'fine')       return $due > 0 ? $m($due) . ' outstanding' : ($charged > 0 ? 'All settled' : 'None');
@@ -1040,18 +1403,11 @@ final class NgvLedger
     public static function arrears(int $limit = self::ARREARS_PAGE): array
     {
         $limit = max(1, min(self::ARREARS_PAGE_MAX, $limit));
-        $pdo = NgvDb::pdo();
-        /* Only look at people with at least one charge — the roster is bigger
-           than the ledger and the difference is people who owe nothing. */
-        $ids = [];
-        foreach ($pdo->query('SELECT DISTINCT member_id FROM ngv_charges WHERE voided = 0 LIMIT ' . self::SCAN_MAX)->fetchAll() ?: [] as $r) {
-            $ids[] = (int) $r['member_id'];
-        }
         $out = []; $totalPayable = 0;
-        foreach ($ids as $id) {
-            $b = self::balance($id);
+        foreach (self::sweep() as $id => $row) {
+            $b = $row['balance'];
             if ((int) $b['payable'] <= 0) continue;
-            $p = self::participantRow($id) ?: [];
+            $p = $row['person'];
             $totalPayable += (int) $b['payable'];
             $out[] = [
                 'member_id' => $id,
@@ -1092,6 +1448,9 @@ final class NgvLedger
         $st->execute([$like, $like]);
         $rows = $st->fetchAll() ?: [];
         $out = [];
+        /* A balance per row here, not a sweep: this returns at most 25 people and
+           the sweep reads the whole ledger, which is the more expensive answer
+           for a search box. */
         foreach (array_slice($rows, 0, self::LOOKUP_MAX) as $p) {
             $b = self::balance((int) $p['member_id']);
             $out[] = ['member_id' => (int) $p['member_id'], 'name' => (string) $p['name'],
@@ -1142,27 +1501,43 @@ final class NgvLedger
     {
         $cfg = self::settings();
         $out = ['due' => [], 'everyDays' => 0,
-                'skipped' => ['off' => 0, 'optedOut' => 0, 'notActive' => 0, 'nothingPayable' => 0,
-                              'underMinimum' => 0, 'tooSoon' => 0, 'noEmail' => 0]];
+                'skipped' => ['off' => 0, 'notCharged' => 0, 'optedOut' => 0, 'notActive' => 0,
+                              'nothingPayable' => 0, 'underMinimum' => 0, 'tooSoon' => 0, 'noEmail' => 0]];
         if (empty($cfg['enabled']) || empty($cfg['remindEnabled'])) { $out['skipped']['off'] = 1; return $out; }
         $everyDays = max(self::REMIND_MIN_DAYS, (int) $cfg['remindEveryDays']);
         $out['everyDays'] = $everyDays;
         $minBal = max(1, (int) $cfg['remindMinBalance']);
         $now = time();
-        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_participants ORDER BY id LIMIT ' . max(1, min(self::SCAN_MAX, $limit * 5)));
-        $st->execute();
-        foreach ($st->fetchAll() ?: [] as $p) {
+        /* One grouped pass over the whole ledger rather than a balance per head.
+           Only people with a charge against them appear, which is also the only
+           set that could be behind — a roster entry with nothing charged owes
+           nothing by construction, and counting it as "nothing payable" would
+           report the roster back as an exclusion list. */
+        $swept = self::sweep();
+        /* Everyone the sweep did not reach, counted so the preview adds up. A
+           participant with nothing charged against them owes nothing by
+           construction — but leaving them out of the tally silently makes "4 of
+           60" a figure staff cannot reconcile against the roster in front of
+           them, which is the whole reason the exclusions are named. */
+        try {
+            $roster = (int) NgvDb::pdo()->query('SELECT COUNT(*) FROM ngv_participants')->fetchColumn();
+            $out['skipped']['notCharged'] = max(0, $roster - count($swept));
+        } catch (Throwable $e) { /* a count is not worth failing a send over */ }
+        /* Largest first. A bounded run has to spend its budget on the people
+           furthest behind, not on whoever the roster happens to list first. */
+        uasort($swept, static fn($a, $b) => (int) $b['balance']['payable'] <=> (int) $a['balance']['payable']);
+        foreach ($swept as $id => $row) {
             if (count($out['due']) >= $limit) break;
+            $p = $row['person']; $b = $row['balance'];
+            if ((int) $b['payable'] <= 0)      { $out['skipped']['nothingPayable']++; continue; }
             if ((string) ($p['status'] ?? '') !== 'active') { $out['skipped']['notActive']++; continue; }
             if ((int) ($p['remind_off'] ?? 0) === 1)        { $out['skipped']['optedOut']++; continue; }
-            $b = self::balance((int) $p['member_id']);
-            if ((int) $b['payable'] <= 0)      { $out['skipped']['nothingPayable']++; continue; }
             if ((int) $b['payable'] < $minBal) { $out['skipped']['underMinimum']++; continue; }
             $last = strtotime((string) ($p['reminded_at'] ?? '')) ?: 0;
             if ($last > 0 && ($now - $last) < $everyDays * 86400) { $out['skipped']['tooSoon']++; continue; }
             $to = trim((string) ($p['email'] ?? ''));
             if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) { $out['skipped']['noEmail']++; continue; }
-            $out['due'][] = ['member_id' => (int) $p['member_id'], 'name' => (string) $p['name'],
+            $out['due'][] = ['member_id' => $id, 'name' => (string) $p['name'],
                              'email' => $to, 'payable' => (int) $b['payable'],
                              'lastRemindedAt' => (string) ($p['reminded_at'] ?? '')];
         }

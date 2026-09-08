@@ -81,9 +81,17 @@ if ($method === 'POST') {
             : NgvLedger::writeOff($mid, $line, $in['amount'] ?? 0, (string) ($in['reason'] ?? ''), $adminUid);
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    /* Agree a training fee, or stop one. Two operations because they are two
+       decisions: stopping leaves every instalment already posted on the account,
+       and whether those should still be asked for is a waiver's question. */
     if ($act === 'training') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
-        $r = NgvLedger::raiseTrainingFee($mid, $adminUid);
+        $r = NgvLedger::startTrainingFee($mid, (int) ($in['months'] ?? 1), $adminUid, $in['amount'] ?? null);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'training_stop') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $r = NgvLedger::stopTrainingFee($mid);
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
     if ($act === 'remind_off') {
@@ -97,6 +105,14 @@ if ($method === 'POST') {
         $side = ((string) ($in['side'] ?? 'credit')) === 'charge' ? 'charge' : 'credit';
         $r = NgvLedger::void($side, (int) ($in['entry_id'] ?? ($in['payment_id'] ?? 0)),
             (string) ($in['reason'] ?? ''), $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
+    /* Answer a participant who asked. This does NOT move money — where the
+       answer is a waiver, that is posted separately with its own reason. */
+    if ($act === 'request') {
+        $r = NgvLedger::resolveRequest((int) ($in['request_id'] ?? 0), (string) ($in['status'] ?? 'resolved'),
+            (string) ($in['outcome'] ?? ''), $adminUid);
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
 
@@ -179,6 +195,12 @@ $money   = $isAdmin ? NgvLedger::totals() : [];
 $arrears = $isAdmin && !empty($fees['enabled']) ? NgvLedger::arrears(50) : ['rows' => [], 'matched' => 0, 'truncated' => false, 'totalPayable' => 0];
 $review  = $isAdmin ? NgvLedger::reviewDue() : ['due' => false];
 $look    = $isAdmin ? NgvLedger::lookup((string) ($_GET['q'] ?? '')) : ['rows' => [], 'q' => '', 'tooShort' => true];
+/* People who have asked for consideration or queried a figure. Above the
+ * arrears list on purpose: somebody who wrote to say they cannot pay is not a
+ * debtor to chase, and answering them is the more urgent of the two jobs. */
+$reqs    = $isAdmin ? NgvLedger::requests(false, 60) : [];
+$reqOpen = 0;
+foreach ($reqs as $rq) { if ($rq['status'] === 'open') $reqOpen++; }
 $B       = NgvLedger::bounds();
 $srcWord = ['page' => 'from the public page', 'pinned' => 'pinned here', 'fallback' => 'built-in fallback'];
 $planCat = NgvLedger::planCatalogue();
@@ -238,6 +260,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .pill-on{background:#e6f7ec;color:#137a3a}.pill-off{background:#f1f3f6;color:#5f6874}
 .note{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:.88rem}
 .note-warn{border-color:#f2c98a;background:#fffaf0}
+.note-ask{border-color:#a9c6ef;background:#f5f9ff}
+.stat--ask{border-color:#a9c6ef}
+.reqs{display:grid;gap:10px;margin-top:10px}
+.req{border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff}
+.req--done{opacity:.8}
+.req-who{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-weight:700}
+.req blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-size:.88rem}
+.req .req-out{margin-bottom:8px}
 .note .sub{display:block;margin-top:4px}
 .amts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
 .amt-box{border:1px solid var(--line);border-radius:11px;padding:10px 12px}
@@ -247,6 +277,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .chk{display:flex;gap:8px;align-items:center;font-weight:600;font-size:.88rem;margin-bottom:6px}
 .chk input{width:auto}
 .card.money .fld p.sub{margin:5px 0 0}
+.insts{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
+.inst{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:.72rem;font-weight:800;border:1.5px solid var(--line);color:var(--muted);cursor:default}
+.inst--charged{background:#e6f7ec;border-color:#a9dcbd;color:#137a3a}
+.inst--due{background:#fdecec;border-color:#f0b4b0;color:#c0322b}
 .figure{font-size:1.7rem;font-weight:800;line-height:1.1}
 .figure.clear{color:#137a3a}
 .figure .sub{display:block;font-size:.78rem;font-weight:600}
@@ -277,8 +312,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
     <div class="stat"><div class="k">Active</div><div class="v"><?= (int)($stats['by_status']['active'] ?? 0) ?></div></div>
     <div class="stat"><div class="k">Received</div><div class="v">₦<?= number_format((int)($money['received'] ?? 0)) ?></div>
       <?php if ((int)($money['waived'] ?? 0) > 0): ?><div class="sub">₦<?= number_format((int)$money['waived']) ?> waived</div><?php endif; ?></div>
-    <div class="stat"><div class="k">Outstanding</div><div class="v">₦<?= number_format((int)($money['outstanding'] ?? 0)) ?></div>
-      <?php if ((int)($arrears['matched'] ?? 0) > 0): ?><div class="sub"><?= (int)$arrears['matched'] ?> behind</div><?php endif; ?></div>
+    <div class="stat<?= $reqOpen > 0 ? ' stat--ask' : '' ?>"><div class="k">Outstanding</div><div class="v">₦<?= number_format((int)($money['outstanding'] ?? 0)) ?></div>
+      <div class="sub">
+        <?php if ((int)($arrears['matched'] ?? 0) > 0): ?><?= (int)$arrears['matched'] ?> behind<?php endif; ?>
+        <?php if ($reqOpen > 0): ?><?= (int)($arrears['matched'] ?? 0) > 0 ? ' · ' : '' ?><b><?= $reqOpen ?> asked for help</b><?php endif; ?>
+      </div></div>
   </div>
 
   <!-- ══ Money ══════════════════════════════════════════════════════════════
@@ -291,6 +329,30 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
       <span class="sub">membership · monthly commitment · training fee · fines</span>
     </header>
     <div class="body">
+
+      <?php if ($reqOpen > 0): ?>
+        <div class="note note-ask">
+          <b><?= $reqOpen ?> <?= $reqOpen === 1 ? 'person has' : 'people have' ?> written about their account.</b>
+          Answering comes before chasing — somebody who said they cannot pay is not a debtor to chase.
+          <div class="reqs">
+          <?php foreach ($reqs as $rq): if ($rq['status'] !== 'open') continue; ?>
+            <div class="req">
+              <div class="req-who">
+                <a href="?m=<?= (int)$rq['member_id'] ?>"><?= $e((string)($rq['name'] ?: ('#'.$rq['member_id']))) ?></a>
+                <span class="sub"><?= $e((string)$rq['kindLabel']) ?> · <?= $e(substr((string)$rq['created_at'], 0, 10)) ?></span>
+              </div>
+              <blockquote><?= $e((string)$rq['message']) ?></blockquote>
+              <input class="req-out" data-for="<?= (int)$rq['id'] ?>" placeholder="What you are telling them — they see this">
+              <div>
+                <button class="btn sm primary" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="resolved">Sorted</button>
+                <button class="btn sm" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="declined">Answered, no change</button>
+                <a class="btn sm" href="?m=<?= (int)$rq['member_id'] ?>#waive">Open their account</a>
+              </div>
+            </div>
+          <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
 
       <?php if ($review['due']): ?>
         <div class="note note-warn">
@@ -406,6 +468,23 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
           </div>
         </div>
       </div>
+
+      <?php $done = array_values(array_filter($reqs, static fn($r) => $r['status'] !== 'open')); ?>
+      <?php if ($done): ?>
+      <details class="fld" style="margin-top:6px"><summary class="sub">Answered requests (<?= count($done) ?>)</summary>
+        <div class="reqs" style="margin-top:8px">
+        <?php foreach (array_slice($done, 0, 12) as $rq): ?>
+          <div class="req req--done">
+            <div class="req-who"><a href="?m=<?= (int)$rq['member_id'] ?>"><?= $e((string)($rq['name'] ?: ('#'.$rq['member_id']))) ?></a>
+              <span class="sub"><?= $e((string)$rq['kindLabel']) ?> · <?= $rq['status'] === 'declined' ? 'no change' : 'sorted' ?>
+                · <?= $e(substr((string)$rq['handled_at'], 0, 10)) ?></span></div>
+            <blockquote><?= $e((string)$rq['message']) ?></blockquote>
+            <p class="sub"><?= $e((string)$rq['outcome']) ?></p>
+          </div>
+        <?php endforeach; ?>
+        </div>
+      </details>
+      <?php endif; ?>
 
       <!-- Arrears, ranked by what is actually payable -->
       <div class="fld" style="margin-top:6px"><label>Behind (<?= (int)$arrears['matched'] ?>) · ₦<?= number_format((int)$arrears['totalPayable']) ?> outstanding</label>
@@ -578,13 +657,46 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
             </tbody>
           </table>
 
-          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn sm" data-act="training" data-m="<?= $m ?>">Raise the training fee<?php if ((int)$A['planFee'] > 0): ?> (₦<?= number_format((int)$A['planFee']) ?>)<?php endif; ?></button>
+          <div style="margin-top:10px">
             <button class="btn sm" data-act="remind_off" data-m="<?= $m ?>" data-off="<?= !empty($A['remindOff']) ? '0' : '1' ?>">
               <?= !empty($A['remindOff']) ? 'Start chasing again' : 'Stop chasing this person' ?></button>
           </div>
-          <p class="sub">The training fee is priced from their plan (<?= $A['planLabel'] !== '' ? $e((string)$A['planLabel']) : 'none chosen yet' ?>)
-             and can only be raised once per period.</p>
+        </div>
+
+        <!-- The training fee, as a commitment with a shape. ₦240,000 posted as
+             one charge is a wall: the same fact shouted every fortnight, and a
+             reminder quoting a figure nobody could pay this month. -->
+        <div class="fld"><label>Training fee</label>
+          <?php $T = is_array($A['training'] ?? null) && !empty($A['training']) ? $A['training'] : null; ?>
+          <?php if ($T): ?>
+            <p class="sub"><b>₦<?= number_format((int)$T['total']) ?></b>
+               <?= (int)$T['months'] > 1 ? 'over ' . (int)$T['months'] . ' months from ' . $e((string)$T['from']) : 'in full' ?>
+               · <?= (int)$T['settled'] ?> charged · ₦<?= number_format((int)$T['paid']) ?> paid</p>
+            <div class="insts">
+              <?php foreach ($T['instalments'] as $i): ?>
+                <span class="inst inst--<?= $e((string)$i['state']) ?>" title="<?= $e((string)$i['period']) ?> · ₦<?= number_format((int)$i['amount']) ?>">
+                  <?= (int)$i['n'] ?></span>
+              <?php endforeach; ?>
+            </div>
+            <p class="sub">Charged · due now · still to come. Each instalment lands as its month arrives.</p>
+            <div style="margin-top:8px"><button class="btn sm" data-act="training_stop" data-m="<?= $m ?>">Stop future instalments</button></div>
+            <p class="sub">Stopping leaves what has already been charged on the account — that happened. Whether the rest
+               should still be asked for is a separate decision: waive it, or write it off.</p>
+          <?php else: ?>
+            <div class="grid2">
+              <input id="t_amount" type="number" min="0" step="1000"
+                     value="<?= (int)$A['planFee'] > 0 ? (int)$A['planFee'] : '' ?>"
+                     placeholder="Total (₦)<?= (int)$A['planFee'] > 0 ? '' : ' — no paid plan chosen' ?>">
+              <select id="t_months">
+                <?php foreach ([1 => 'In full', 3 => 'Over 3 months', 6 => 'Over 6 months', 12 => 'Over 12 months'] as $mo => $lbl): ?>
+                  <option value="<?= $mo ?>" <?= (int)($fees['trainingInstalments'] ?? 12) === $mo ? 'selected' : '' ?>><?= $e($lbl) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div style="margin-top:10px"><button class="btn sm" data-act="training" data-m="<?= $m ?>">Agree this training fee</button></div>
+            <p class="sub">Prefilled from their plan (<?= $A['planLabel'] !== '' ? $e((string)$A['planLabel']) : 'none chosen yet' ?>), and
+               the total is frozen once agreed — a later price edit on the public page moves what the next person is quoted, not this.</p>
+          <?php endif; ?>
         </div>
 
         <div class="fld"><label>Record a payment</label>
@@ -621,7 +733,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 
         <!-- No one is turned away for lack: the page says so, so the ledger has
              to be able to act on it, and to record who did. -->
-        <div class="fld"><label>Stop asking for part of what is owed</label>
+        <div class="fld" id="waive"><label>Stop asking for part of what is owed</label>
           <div class="grid2">
             <select id="w_kind">
               <?php foreach (['commitment','membership','programme','fine','other'] as $k): ?><option value="<?= $e($k) ?>"><?= $e($kindLabel[$k] ?? $k) ?></option><?php endforeach; ?>
@@ -722,7 +834,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
                               if(!body.amount){ toast('Enter an amount', false); return; }
                               if(!body.reason){ toast('Say why — it is the part worth reading later', false); return; }
                               if(act==='writeoff' && !confirm('Write off ₦' + body.amount + '? Use “waive” if this person simply should not be asked.')) return; }
-      else if(act==='training'){ if(!confirm('Raise the training fee for their plan?')) return; }
+      else if(act==='training'){ body.amount=val('t_amount'); body.months=parseInt(val('t_months')||'1',10);
+                                 if(!body.amount){ toast('Enter a total', false); return; }
+                                 if(!confirm('Agree ₦' + body.amount + (body.months>1 ? ' over ' + body.months + ' months?' : ' in full?'))) return; }
+      else if(act==='training_stop'){ if(!confirm('Stop future instalments? What is already charged stays on the account.')) return; }
       else if(act==='remind_off'){ body.off = btn.getAttribute('data-off')==='1'; }
       else if(act==='cert'){ body.title=val('c_title'); body.issued_by=val('c_by'); body.issued_on=val('c_on'); if(!body.title){ toast('Title required', false); return; } }
       else if(act==='void'){ body.side=btn.getAttribute('data-side')||'credit'; body.entry_id=parseInt(btn.getAttribute('data-eid')||'0',10);
@@ -742,6 +857,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
         };
       }
       else if(act==='remind_run'){ if(!confirm('Send reminders now? This cannot be recalled.')) return; }
+      else if(act==='request'){
+        body.request_id = parseInt(btn.getAttribute('data-req')||'0',10);
+        body.status = btn.getAttribute('data-status')||'resolved';
+        var box = document.querySelector('.req-out[data-for="' + body.request_id + '"]');
+        body.outcome = box ? box.value : '';
+        // They see this. An empty reply is the "request into a void" this exists to stop.
+        if(!body.outcome.trim()){ toast('Say what you are telling them', false); if(box) box.focus(); return; }
+      }
 
       post(body).then(function(j){
         if(!j.ok){ toast(j.error||'Failed', false); return; }
@@ -759,6 +882,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
           out('remindOut', '<b>' + j.count + '</b> would be sent, ' + j.everyDays + ' days apart.'
               + (names.length ? '<br>' + names.join(' · ') : '')
               + '<br>Not sent: ' + [
+                  s.notCharged ? s.notCharged + ' have nothing charged yet' : '',
                   s.optedOut ? s.optedOut + ' asked not to be chased' : '',
                   s.notActive ? s.notActive + ' not currently enrolled' : '',
                   s.nothingPayable ? s.nothingPayable + ' owe nothing' : '',
