@@ -230,13 +230,16 @@ if (class_exists('NgvDb')) {
     // ngv_applications is the case that motivated this: it is named in a fixed
     // INSERT list and had no repair path at all.
     $ngvDrop = [
-        'ngv_participants'   => ['plan', 'focus_note', 'books', 'remind_off', 'training_total'],
+        'ngv_participants'   => ['plan', 'focus_note', 'books', 'remind_off', 'training_total', 'statement_at'],
         'ngv_applications'   => ['plan', 'education', 'reviewed_by'],
         // `credit_kind` is the one this repair path now genuinely carries: every
         // deployed NGV database has ngv_payments WITHOUT it, and the ledger reads
         // it to tell money received from money waived.
         'ngv_payments'       => ['voided', 'method', 'credit_kind', 'void_reason'],
         'ngv_charges'        => ['reason', 'source', 'void_reason'],
+        // `entry_id` is the link between a damage record and the fine raised for
+        // it. Lost, the record stops being able to point at the charge it made.
+        'ngv_damages'        => ['assessed', 'charged', 'entry_id', 'notify'],
         'ngv_certifications' => ['reference', 'issued_by'],
     ];
     $droppedOk = true;
@@ -253,7 +256,7 @@ if (class_exists('NgvDb')) {
     $npdo->exec("INSERT INTO ngv_payments (member_id, kind, amount) VALUES (4343, 'commitment', 750)");
 
     $addedN = Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
-    ck('sync: it reports how many columns it added', $addedN === 17);
+    ck('sync: it reports how many columns it added', $addedN === 22);
     ck('sync: a payment row that predates credit_kind is repaired to a real payment',
        (string) $npdo->query('SELECT credit_kind FROM ngv_payments WHERE member_id = 4343')->fetchColumn() === 'payment');
     $allBack = true;

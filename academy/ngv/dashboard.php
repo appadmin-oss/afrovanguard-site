@@ -50,6 +50,22 @@ if ($method === 'POST') {
         $r = NgvLedger::raiseRequest($uid, (string) ($in['kind'] ?? 'consideration'), (string) ($in['message'] ?? ''));
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    /* Ask for the statement by email. Read-only by construction: it composes
+       what is already on this page and sends it, and cannot change a figure.
+       Rate-limited to one a day inside the ledger, so a nervous tap on the
+       button four times does not send four letters. */
+    if ((string) ($in['action'] ?? '') === 'statement') {
+        $r = NgvLedger::sendStatement($uid, true);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    /* Report damage yourself. This is a leadership programme: somebody who
+       breaks something and says so has done the thing the programme is trying
+       to teach, and a system whose only path is "staff notice" teaches the
+       opposite. It charges nothing — see lib/NgvDamage.php. */
+    if ((string) ($in['action'] ?? '') === 'damage') {
+        $r = NgvDamage::report($uid, $in, 0, true);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
 
     $patch = [];
     if (array_key_exists('track', $in)) $patch['track'] = (string) $in['track'];
@@ -103,6 +119,9 @@ $myPlan    = (string) ($p['plan'] ?? '');
 $planOpts  = NgvMember::planOptions();
 $myCerts   = NgvMember::certifications($uid);
 $myEntries = $account['entries'];
+/* Their own damage records. Read-only apart from reporting a new one: a
+ * participant can say what happened, and only staff can attach money to it. */
+$myDamage  = NgvDamage::forMember($uid);
 
 /* Content slices */
 $g       = static fn(array $a, string $k, string $d = ''): string => (string) ($a[$k] ?? $d);
@@ -243,6 +262,8 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .ngv-input:focus{outline:none;border-color:var(--gold)}
 .ngv-ask .pbtn{margin-top:9px}
 .ngv-quote{display:block;margin:4px 0;padding-left:9px;border-left:2px solid var(--border);color:var(--muted-2)}
+.ngv-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ngv-row .k .pchip{margin-left:6px;vertical-align:middle}
 </style>
 </head>
 <body class="portal-app<?= $ptheme === 'dark' ? ' is-dark' : '' ?>">
@@ -262,6 +283,8 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
         <a class="pnav-link" href="#track" data-spy="track"><span class="pnav-dot"></span><span class="pnav-label">Track &amp; plan</span></a>
         <a class="pnav-link" href="#reading" data-spy="reading"><span class="pnav-dot"></span><span class="pnav-label">Reading</span><span class="pnav-badge"><?= $booksRead ?>/<?= $BOOKS_TOTAL ?></span></a>
         <a class="pnav-link" href="#account" data-spy="account"><span class="pnav-dot <?= $owed > 0 ? '' : 'pnav-dot--green' ?>"></span><span class="pnav-label">Your account</span><?php if ($owed > 0): ?><span class="pnav-badge">₦<?= number_format($owed) ?></span><?php endif; ?></a>
+        <?php $dmgOpen = 0; foreach ($myDamage as $d) { if ($d['open']) $dmgOpen++; } ?>
+        <a class="pnav-link" href="#damage" data-spy="damage"><span class="pnav-dot <?= $dmgOpen > 0 ? '' : ($myDamage ? 'pnav-dot--green' : '') ?>"></span><span class="pnav-label">Damage</span><?php if ($dmgOpen > 0): ?><span class="pnav-badge"><?= $dmgOpen ?></span><?php endif; ?></a>
         <a class="pnav-link" href="#certs" data-spy="certs"><span class="pnav-dot"></span><span class="pnav-label">Certifications</span><span class="pnav-badge"><?= count($myCerts) ?></span></a>
         <a class="pnav-link" href="#schedule" data-spy="schedule"><span class="pnav-dot"></span><span class="pnav-label">Schedule</span></a>
       </div>
@@ -527,6 +550,15 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 
             <?php if ($feesOn && !empty($account['payTo'])): ?><div class="ngv-box"><?= $e((string)$account['payTo']) ?></div><?php endif; ?>
 
+            <?php if ($feesOn): ?>
+            <!-- Somebody who wants their position in writing should be able to
+                 get it without asking a person for it. -->
+            <div class="ngv-box">
+              Want this in writing? <button class="pbtn pbtn-ghost" id="stmtBtn" type="button">Email me my statement</button>
+              <span id="stmtOut" class="ngv-fine"></span>
+            </div>
+            <?php endif; ?>
+
             <!-- The page promises "no one is turned away for lack — speak to your
                  track lead or send a letter requesting consideration". Repeating
                  that and stopping there makes it a dead end: the person who most
@@ -574,6 +606,65 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
             <?php endforeach; ?>
 
             <?php if (!empty($account['note'])): ?><div class="ngv-box"><?= $e((string)$account['note']) ?></div><?php endif; ?>
+          </div>
+        </section>
+
+        <!-- ══ Damage ═══════════════════════════════════════════════════════
+             Recording damage costs nothing, and this section says so before it
+             says anything else. The natural fear on being told "damage has been
+             recorded" is a bill, and the status line is what replaces guessing
+             with knowing. -->
+        <section class="pcard" id="damage">
+          <div class="pcard-head"><h2>Damage &amp; equipment</h2>
+            <span class="pcard-sub"><?= $myDamage ? count($myDamage) . ' on record' : 'nothing on record' ?></span></div>
+          <div class="pcard-body">
+            <?php if ($myDamage): ?>
+              <div class="ngv-rows">
+                <?php foreach ($myDamage as $d): ?>
+                <div class="ngv-row">
+                  <div>
+                    <span class="k"><?= $e((string)$d['item']) ?>
+                      <?php if ($d['selfReport']): ?><span class="pchip pchip--green">you told us</span><?php endif; ?></span>
+                    <span class="d">
+                      <?= $e((string)$d['occurred_on']) ?><?= $d['place'] !== '' ? ' · ' . $e((string)$d['place']) : '' ?>
+                      · <?= $e((string)$d['severityLabel']) ?>
+                      <?php if ($d['outcome'] !== ''): ?><br><?= $e((string)$d['outcome']) ?><?php endif; ?>
+                    </span>
+                  </div>
+                  <span class="amt">
+                    <?php if ($d['status'] === 'charged'): ?>
+                      <span class="pchip pchip--red">₦<?= number_format((int)$d['charged']) ?></span>
+                    <?php elseif ($d['open']): ?>
+                      <span class="pchip pchip--gold"><?= $e((string)$d['statusLabel']) ?></span>
+                    <?php else: ?>
+                      <span class="pchip pchip--green"><?= $e((string)$d['statusLabel']) ?></span>
+                    <?php endif; ?>
+                  </span>
+                </div>
+                <?php endforeach; ?>
+              </div>
+              <p class="ngv-fine">Nothing is charged until you are told a figure. Where something has been assessed and
+                you are being asked for less than it cost, the programme is carrying the rest.</p>
+            <?php else: ?>
+              <div class="ngv-box">Nothing on record. If you break or lose something, say so here — it costs you nothing
+                to report, and telling us yourself is the right instinct.</div>
+            <?php endif; ?>
+
+            <details class="ngv-details ngv-ask">
+              <summary>Report damage or something lost</summary>
+              <p class="ngv-fine" style="margin-top:6px">This charges you nothing. It records what happened, and your track
+                lead will tell you if there is anything to pay before it reaches your account.</p>
+              <input id="dmItem" class="ngv-input" maxlength="120" placeholder="What was it? (e.g. laptop screen, chair)">
+              <div class="ngv-two">
+                <input id="dmWhen" class="ngv-input" type="date" value="<?= $e(function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) ?>">
+                <select id="dmSev" class="ngv-input">
+                  <?php foreach (NgvDamage::SEVERITIES as $k => $lbl): ?><option value="<?= $e($k) ?>"><?= $e($lbl) ?></option><?php endforeach; ?>
+                </select>
+              </div>
+              <textarea id="dmDesc" class="ngv-input" rows="3" maxlength="1200" placeholder="What happened?"></textarea>
+              <button class="pbtn pbtn-gold" id="dmSend" type="button">Report it</button>
+              <span id="dmOut" class="ngv-fine"></span>
+            </details>
           </div>
         </section>
 
@@ -669,6 +760,42 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
         else if(out){ out.textContent = (j && j.error) || 'Could not send that — try again.'; }
       })
       .catch(function(){ reqSend.disabled = false; if(out) out.textContent = 'Offline — not sent.'; });
+  });
+
+  /* Ask for the statement by email. Same reasoning as the request box: save()
+     toasts "Saved" and swallows the server's reason, and "we sent you one today"
+     is the answer worth reading. */
+  var stmtBtn = document.getElementById('stmtBtn');
+  if(stmtBtn) stmtBtn.addEventListener('click', function(){
+    var out = document.getElementById('stmtOut');
+    stmtBtn.disabled = true; if(out) out.textContent = 'Sending…';
+    fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF}, credentials:'same-origin', body:JSON.stringify({action:'statement'})})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(j){
+        stmtBtn.disabled = false;
+        if(out) out.textContent = (j && j.ok)
+          ? (j.delivered ? 'Sent to ' + (j.to || 'your email') + '.' : 'We could not get that email out — tell your track lead.')
+          : ((j && j.error) || 'Could not send that.');
+      })
+      .catch(function(){ stmtBtn.disabled = false; if(out) out.textContent = 'Offline — not sent.'; });
+  });
+
+  // Reporting your own damage. Costs nothing; staff decide if money follows.
+  var dmSend = document.getElementById('dmSend');
+  if(dmSend) dmSend.addEventListener('click', function(){
+    var out = document.getElementById('dmOut'), g = function(id){ var el=document.getElementById(id); return el?el.value:''; };
+    var body = {action:'damage', item:g('dmItem'), occurred_on:g('dmWhen'), severity:g('dmSev'), description:g('dmDesc')};
+    if(!body.item.trim()){ if(out) out.textContent = 'What was it?'; return; }
+    if(body.description.trim().length < 10){ if(out) out.textContent = 'A sentence or two about what happened, please.'; return; }
+    dmSend.disabled = true;
+    fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF}, credentials:'same-origin', body:JSON.stringify(body)})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(j){
+        dmSend.disabled = false;
+        if(j && j.ok){ if(out) out.textContent = 'Recorded. Nothing has been charged.'; setTimeout(function(){ location.reload(); }, 1200); }
+        else if(out){ out.textContent = (j && j.error) || 'Could not record that.'; }
+      })
+      .catch(function(){ dmSend.disabled = false; if(out) out.textContent = 'Offline — not recorded.'; });
   });
 
   // Track picker (scoped to track tiles — the plan tiles below reuse .trk)

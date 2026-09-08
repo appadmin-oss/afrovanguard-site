@@ -10,6 +10,7 @@
  *   ngv_charges        what is owed        ─┐ the two halves of the ledger,
  *   ngv_payments       what has been given ─┘ read together by lib/NgvLedger.php
  *   ngv_fee_requests   what a participant said about their own account
+ *   ngv_damages        equipment or premises damage, from report to outcome
  *   ngv_certifications what has been earned
  *   ngv_applications   the public registration intake
  *
@@ -145,6 +146,12 @@ final class NgvDb
           start_date  TEXT NOT NULL DEFAULT '',
           remind_off  INTEGER NOT NULL DEFAULT 0,
           reminded_at TEXT NOT NULL DEFAULT '',
+          /* Last time a full statement went out. Separate from reminded_at
+             because they are different letters: a reminder chases money and only
+             goes to somebody who owes, a statement says where you stand and goes
+             to anybody who asks — including somebody who owes nothing, who under
+             the reminder rules could never be told so. */
+          statement_at TEXT NOT NULL DEFAULT '',
           /* The training-fee commitment, as agreed with this participant. Four
              columns rather than one, and `training_total` in particular, because
              the total is fixed AT THE MOMENT IT IS AGREED — a later edit to the
@@ -246,6 +253,47 @@ final class NgvDb
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_req_member ON ngv_fee_requests (member_id);
         CREATE INDEX IF NOT EXISTS idx_ngv_req_status ON ngv_fee_requests (status);
+
+        /* ── Damage to equipment or premises ────────────────────────────────
+         * A damage report is an INCIDENT, not a charge. Before this table the
+         * only way to record one was a fine with reason `equipment` and a note,
+         * which collapses three separate facts into one row: what happened and
+         * when, what it turned out to cost, and what the participant is actually
+         * being asked to pay. Those arrive days apart and are not the same
+         * number — a fine posted on the day has to guess the cost, and a fine
+         * posted when the quote lands loses the date it happened.
+         *
+         * So the incident is recorded first and costs nothing. `entry_id` points
+         * at the ngv_charges row IF one is ever raised, which is a later and
+         * separate decision. `assessed` is what it cost, `charged` is what is
+         * being asked for, and they are allowed to differ: a programme that
+         * bills a nineteen-year-old the full retail price of a laptop screen
+         * has made a decision it should have to write down.
+         */
+        CREATE TABLE IF NOT EXISTS ngv_damages (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          member_id   INTEGER NOT NULL,
+          item        VARCHAR(120) NOT NULL DEFAULT '',
+          occurred_on VARCHAR(10) NOT NULL DEFAULT '',
+          place       VARCHAR(80) NOT NULL DEFAULT '',
+          severity    VARCHAR(12) NOT NULL DEFAULT 'minor',
+          description TEXT NOT NULL DEFAULT '',
+          estimate    INTEGER NOT NULL DEFAULT 0,
+          assessed    INTEGER NOT NULL DEFAULT 0,
+          charged     INTEGER NOT NULL DEFAULT 0,
+          entry_id    INTEGER NOT NULL DEFAULT 0,
+          status      VARCHAR(12) NOT NULL DEFAULT 'reported',
+          outcome     TEXT NOT NULL DEFAULT '',
+          self_report INTEGER NOT NULL DEFAULT 0,
+          reported_by INTEGER NOT NULL DEFAULT 0,
+          handled_by  INTEGER NOT NULL DEFAULT 0,
+          notify      INTEGER NOT NULL DEFAULT 1,
+          notified_at VARCHAR(40) NOT NULL DEFAULT '',
+          created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_ngv_dmg_member ON ngv_damages (member_id);
+        CREATE INDEX IF NOT EXISTS idx_ngv_dmg_status ON ngv_damages (status);
         CREATE TABLE IF NOT EXISTS ngv_certifications (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL,

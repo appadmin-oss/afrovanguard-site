@@ -1,7 +1,7 @@
-# NGV · Fees, dues and fines
+# NGV · Fees, dues, fines and damage
 
-What a NextGen Vanguard participant owes, what has been received, and who
-decided each of those things.
+What a NextGen Vanguard participant owes, what has been received, who decided
+each of those things, and what the participant has been told.
 
 ## Why this exists
 
@@ -45,12 +45,14 @@ trusted first.
                                                                  ▼
    staff console ─ payment / waiver / write-off ─▶ ngv_payments ─▶ account()
    members.php                                                       │
-       ▲                                                             ▼
-       │                                              ┌──── member dashboard
+       ▲          ngv_damages ─ charged ─▶ fine ─▶ ngv_charges        │
+       │               │  ▲                                          ▼
+       │        status email                          ┌──── member dashboard
+       │               ▼  │                           ├──── arrears list
+       │          the participant ── reports damage ──┤
        └──── ngv_fee_requests ◀── "I need consideration this month"
-                    │                                 ├──── arrears list
-                    └── answer, written back ─────────┘         │
-                                                                └─ reminders (cron)
+                    │                                 ├──── reminders   (owing only)
+                    └── answer, written back ─────────┴──── statements  (everyone)
 ```
 
 ## The four charges
@@ -60,7 +62,7 @@ trusted first.
 | `membership` | yearly, while enrolled | accrual | Membership fee |
 | `commitment` | monthly, while enrolled | accrual | Commitment fee |
 | `programme` | the agreed instalment schedule | **staff** agree it; accrual walks it | the plans table |
-| `fine` | never automatic | staff, with a reason | — |
+| `fine` | never automatic | staff, with a reason — or a damage record | — |
 
 …plus `adjustment`, for the correction that is neither a fine nor a mistake
 worth erasing. Credits are `payment`, `waiver` and `writeoff`.
@@ -157,6 +159,101 @@ the programme advertises without anyone deciding to. Instead `reviewDue()` says
 out loud, at most once a month, that the amounts have gone a year unreviewed —
 and a human goes and looks.
 
+## Damage
+
+`lib/NgvDamage.php`. A damage report is an **incident**, not a charge.
+
+Before it, the only way to record damage was a fine with reason `equipment` and
+a note. That collapses three separate facts into one row:
+
+| | |
+|---|---|
+| what happened, and when | a laptop screen cracked on 2 September |
+| what it turned out to cost | ₦45,000, from a repairer, eight days later |
+| what is being asked for | ₦15,000, agreed with them — or nothing at all |
+
+Those are different numbers and they arrive days apart. A fine posted on the day
+has to guess the cost; a fine posted when the quote lands loses the date it
+happened; and one `charged` figure cannot say that the programme decided to
+carry two thirds of it. So the incident is recorded first and **costs nothing**,
+and a charge — if there is ever one — is a later, separate, audited decision
+that the record points at by `entry_id`.
+
+### The status is the product
+
+| status | what it means | what is on the account |
+|---|---|---|
+| `reported` | it happened | nothing — not even priced |
+| `assessing` | somebody is finding out what it costs | nothing |
+| `charged` | an amount has been agreed | a `fine` with reason `equipment` |
+| `waived` | assessed, and the programme is not asking | nothing (any charge is waived too) |
+| `closed` | nothing owed — wear and tear, not their fault, already fixed | nothing |
+
+**Every move emails the participant, and the first email matters most.** The
+natural fear on hearing "damage to a laptop has been recorded" is a bill, and
+the worst possible figure. So that email says in as many words that nothing has
+been charged, that the cost is not yet known, and that they will be told what it
+is before anything reaches their account. A process nobody can see is
+indistinguishable from a threat.
+
+Only real transitions send: re-saving the same status, or correcting a typo in an
+assessment, does not send a second letter. `notify` turns the emails off per
+record, for the case where the conversation is already happening face to face.
+
+### Four decisions worth arguing with
+
+**The charged figure has to be typed.** It is *not* defaulted to the assessed
+cost — not even when they are the same number. Billing a nineteen-year-old the
+full retail price of a laptop screen is a decision, and a decision that happens
+by leaving a box empty is one nobody made. `totals()['absorbed']` is
+`assessed − charged` across the programme, named for what it is: a programme that
+never absorbs anything is a programme charging young people retail for accidents.
+
+**The charge is an ordinary fine.** Not a private damage balance. It lands on
+the fines line of their account, carries reason `equipment`, and is voided,
+waived and reported by exactly the same paths as every other charge. A second
+one is refused — the money moves once.
+
+**Waiving a charged record settles the charge.** Otherwise the account keeps
+asking for money the programme has just said it is not asking for, which is the
+single most corrosive thing a ledger can do.
+
+**A participant can report their own, and the record says so.** This is a
+leadership programme: somebody who breaks something and says so has done the
+thing the programme exists to teach, and a system whose only path is "staff
+notice" quietly teaches the opposite. The console shows it as a credit —
+*told us themselves* — not a confession.
+
+An assessment that has had no update in 14 days is a stalled process, and the
+person waiting on it has no way to chase. `NgvDamage::noteStale()` runs on the
+cron and says so on their behalf.
+
+## Statements are not reminders
+
+Conflating them was the gap. A **reminder** chases money: it only goes to
+somebody who owes, it is gated on a cadence, and it exists to produce a payment.
+Which meant a participant who was square with the programme — or waived, or
+three instalments into a schedule and exactly on track — could never be told any
+of that. The only letter the system could send was a demand.
+
+A **statement** says where you stand: every fee line including the settled ones,
+the training instalments month by month, **each fine with the reason it was
+issued and the date**, anything set aside, anything paid ahead, and every damage
+report with its status. It goes to anybody, owing or not.
+
+A fines *total* is the one figure on an account nobody accepts — "₦17,000 of
+fines" starts an argument that "late arrival, 12 August · ₦2,000" settles. That
+is why the statement itemises them.
+
+Staff send statements per person or across the cohort; the batch run is
+deliberately **not** cadence-gated, because a statement run is somebody choosing
+to tell the cohort where they stand and a "too soon" skip would silently drop
+people from a run staff believe went out. A participant can also ask for their
+own from their dashboard — rate-limited to one a day so a nervous tap on the
+button four times does not send four letters. That self-service path is the
+point: the answer arrives without anybody having to start a conversation about
+money in a corridor.
+
 ## Safety rails
 
 - **Idempotent accrual.** `UNIQUE (member_id, kind, period)` on `ngv_charges`,
@@ -182,7 +279,12 @@ and a human goes and looks.
   amount and the reason in the detail.
 - **Nothing financial gates anything.** No balance reaches the public NGV page,
   the certificate page or the registration page, and no fee state gates a
-  certification. `tests/ngvledger.test.php` asserts all of this.
+  certification. `tests/ngvledger.test.php` asserts all of this, and
+  `tests/ngvdamage.test.php` asserts the same for damage.
+- **The member side reads and says; it never prices.** A participant can report
+  damage, raise a request and ask for a statement. Every path that moves a
+  figure — charge, waive, void, assess, agree a training fee — is staff-only,
+  and both test files assert the dashboard source contains none of them.
 
 ## Only the enrolled accrue
 
@@ -195,13 +297,13 @@ reason it skipped for.
 
 | | |
 |---|---|
-| Domain | `lib/NgvLedger.php` |
-| Schema | `lib/NgvDb.php` — `ngv_charges` and `ngv_fee_requests` (new), `ngv_payments` and `ngv_participants` (extended) |
+| Domain | `lib/NgvLedger.php` (money) · `lib/NgvDamage.php` (incidents) |
+| Schema | `lib/NgvDb.php` — `ngv_charges`, `ngv_fee_requests`, `ngv_damages` (new), `ngv_payments` and `ngv_participants` (extended) |
 | Staff console | `/academy/ngv/members.php` |
 | Member view | `/academy/ngv/dashboard.php` — read-only, always |
-| Cron | `NgvLedger::cronTick()` from `tasks/cron.php` — accrue, remind, nudge |
+| Cron | `NgvLedger::cronTick()` from `tasks/cron.php` — accrue, remind, review nudge, stalled-assessment nudge |
 | Settings | `app_meta` key `ngv_fees` |
-| Tests | `tests/ngvledger.test.php`, plus the NGV rows in `tests/drift.test.php` |
+| Tests | `tests/ngvledger.test.php`, `tests/ngvdamage.test.php`, plus the NGV rows in `tests/drift.test.php` |
 
 `lib/NgvMember.php` keeps `recordPayment()`, `payments()`, `feeStatus()` and
 `account()` as thin pass-throughs, so nothing that called them had to change.
@@ -240,6 +342,9 @@ fail silently down the benign-error path. And **no double quote or `$`** either:
    and use **Preview** before **Send them** — a message to sixty people cannot
    be recalled, and the preview names every exclusion and accounts for everybody
    on the roster.
+7. Once the figures are right, **send statements** to the cohort. That is the
+   letter that tells everybody where they stand, including the people who owe
+   nothing — and it is the one worth sending first, before anybody is chased.
 
 Existing `ngv_payments` rows need no migration: the additive schema sync gives
 them `credit_kind = 'payment'`, which is what they are.
@@ -253,6 +358,8 @@ them `credit_kind = 'payment'`, which is what they are.
 | earn-off | written down as the member serves | **none** — Phase 2 is a *paid* internship with weekly stipends, so writing the fee down as well would be paying twice. Where a fee should not be collected, that is a waiver |
 | who is chased | the child's guardian | the participant — NGV members are adults with accounts here, so a reminder goes in-app as well as by email |
 | hardship | the coordinator notices, or nobody does | the participant can **ask**, from their own dashboard, and gets a written answer back |
+| damage | a fine with reason `equipment` and a note | an **incident record** with its own status, emailed at every step; the fine is one possible outcome |
+| letters | reminders only, to people who owe | reminders **and statements** — the second goes to anybody, including somebody who owes nothing |
 | amounts | admin settings | read off the public page, pinnable |
 | price rises | automatic uprate, proposed then applied | no uprate; a review nudge only |
 | allocation | one netted account total | per fee line, with `paidAhead` reported |
@@ -263,10 +370,12 @@ them `credit_kind = 'payment'`, which is what they are.
 - **No self-service payment.** Deliberate, and the first thing to argue about
   rather than the first thing to add: see "a ledger, not a payment processor".
   `lib/Payments.php` (Paystack) exists for donations and is not wired here.
-- **No receipt or statement to send.** The account is legible on screen and in a
-  reminder; there is nothing to print or hand over. A reminder already quotes
-  only the instalments actually posted, so the figure in it is one somebody can
-  act on — but there is no per-payment acknowledgement going back the other way.
+- **No receipt for a payment.** Statements go out on demand and reminders on a
+  cadence, but nothing acknowledges an individual payment as it is recorded. That
+  is the obvious next letter.
+- **No photos on a damage record.** A cracked screen is a thing you would
+  photograph, and a description is what has to stand in for it. `lib/Storage.php`
+  and Cloudinary both exist; nothing is wired.
 - **No email or push when a request is raised.** Staff see the queue when they
   open the console, and the count sits on a tile; nothing pages them. Fine for a
   cohort programme, wrong the day the console is only opened weekly.

@@ -116,6 +116,38 @@ if ($method === 'POST') {
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
 
+    /* ── Damage ──────────────────────────────────────────────────────────
+       Recording damage charges nothing. Only `advance` with status `charged`
+       moves money, and it does it through the ledger as a fine, so it lands on
+       the fines line and is voided or waived by the same paths as any other. */
+    if ($act === 'damage') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $r = NgvDamage::report($mid, $in, $adminUid, false);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'damage_advance') {
+        $r = NgvDamage::advance((int) ($in['damage_id'] ?? 0), (string) ($in['status'] ?? ''), $in, $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'damage_notify') {
+        $r = NgvDamage::setNotify((int) ($in['damage_id'] ?? 0), !empty($in['on']));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
+    /* ── Statements ──────────────────────────────────────────────────────
+       Not a reminder. A reminder chases money and only goes to somebody who
+       owes; a statement says where you stand and goes to anybody — including
+       somebody square with the programme, who the reminder rules could never
+       tell so. */
+    if ($act === 'statement') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $r = NgvLedger::sendStatement($mid, false);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($act === 'statement_run') {
+        json_out(NgvLedger::sendStatements(NgvLedger::STATEMENT_BATCH));
+    }
+
     /* ── Programme-wide ── */
     if ($act === 'fees_settings') {
         $cfg = NgvLedger::saveSettings(is_array($in['settings'] ?? null) ? $in['settings'] : [], 'admin');
@@ -201,6 +233,11 @@ $look    = $isAdmin ? NgvLedger::lookup((string) ($_GET['q'] ?? '')) : ['rows' =
 $reqs    = $isAdmin ? NgvLedger::requests(false, 60) : [];
 $reqOpen = 0;
 foreach ($reqs as $rq) { if ($rq['status'] === 'open') $reqOpen++; }
+/* Damage. An incident record, not a charge: a report costs nothing until
+ * somebody decides on an amount, which is a separate and audited step. */
+$dmgAll  = $isAdmin ? NgvDamage::all(false, 60) : [];
+$dmgTot  = $isAdmin ? NgvDamage::totals() : ['records' => 0, 'open' => 0, 'assessed' => 0, 'charged' => 0, 'absorbed' => 0];
+$selDmg  = $sel ? NgvDamage::forMember($mid) : [];
 $B       = NgvLedger::bounds();
 $srcWord = ['page' => 'from the public page', 'pinned' => 'pinned here', 'fallback' => 'built-in fallback'];
 $planCat = NgvLedger::planCatalogue();
@@ -258,6 +295,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .dir.charge{color:#c0322b}.dir.credit{color:#137a3a}
 .pill{font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
 .pill-on{background:#e6f7ec;color:#137a3a}.pill-off{background:#f1f3f6;color:#5f6874}
+.pill-open{background:#eef2fb;color:#274690}
+.dmg{border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:10px}
+.dmg-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dmg-head .sp{flex:1}
+.dmg blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-size:.88rem}
+textarea{min-height:60px;resize:vertical}
 .note{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:.88rem}
 .note-warn{border-color:#f2c98a;background:#fffaf0}
 .note-ask{border-color:#a9c6ef;background:#f5f9ff}
@@ -443,6 +486,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
             <div id="remindOut" class="sub" style="margin-top:8px"></div>
           </div>
 
+          <div class="fld"><label>Tell everybody where they stand</label>
+            <p class="sub">A statement, not a reminder: every fee line, the training instalments month by month, each fine
+               with the reason it was issued, anything set aside, and any damage report and its status. It goes to people
+               who owe nothing too — under the reminder rules they could never be told they were square.</p>
+            <button class="btn" data-act="statement_run">Send statements</button>
+            <span id="stmtOut" class="sub"></span>
+          </div>
+
           <div class="fld"><label>Find anybody's account</label>
             <form method="get" class="enroll">
               <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
@@ -467,6 +518,46 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
             <?php endif; ?>
           </div>
         </div>
+      </div>
+
+      <!-- ══ Damage ═══════════════════════════════════════════════════════
+           A report costs nothing. The status is the product: somebody who broke
+           a laptop screen needs to know it is being priced, not to wonder for
+           three weeks whether a bill is coming. -->
+      <div class="fld" style="margin-top:6px">
+        <label>Damage
+          <?php if ((int)$dmgTot['open'] > 0): ?><span class="pill pill-open"><?= (int)$dmgTot['open'] ?> open</span><?php endif; ?>
+        </label>
+        <p class="sub">
+          <?= (int)$dmgTot['records'] ?> recorded · ₦<?= number_format((int)$dmgTot['assessed']) ?> assessed ·
+          ₦<?= number_format((int)$dmgTot['charged']) ?> charged ·
+          <b>₦<?= number_format((int)$dmgTot['absorbed']) ?> absorbed by the programme</b>.
+          Record damage on somebody's own page below; every move emails them.
+        </p>
+        <?php if (!$dmgAll): ?>
+          <p class="sub">Nothing recorded.</p>
+        <?php else: ?>
+        <table>
+          <thead><tr><th>What &amp; when</th><th>Who</th><th>Status</th><th>Cost / charged</th><th></th></tr></thead>
+          <tbody>
+          <?php foreach ($dmgAll as $d): ?>
+            <tr>
+              <td><b><?= $e((string)$d['item']) ?></b><br>
+                  <span class="sub"><?= $e((string)$d['occurred_on']) ?><?= $d['place'] !== '' ? ' · ' . $e((string)$d['place']) : '' ?>
+                  · <?= $e((string)$d['severityLabel']) ?></span></td>
+              <td><a href="?m=<?= (int)$d['member_id'] ?>"><?= $e((string)($d['name'] ?: ('#'.$d['member_id']))) ?></a>
+                  <?php if ($d['selfReport']): ?><br><span class="pill pill-on">told us themselves</span><?php endif; ?></td>
+              <td><span class="badge <?= $d['open'] ? 'b-applicant' : ($d['status']==='charged' ? 'b-withdrawn' : 'b-active') ?>">
+                    <?= $e((string)$d['statusLabel']) ?></span>
+                  <?php if (!$d['notify']): ?><br><span class="sub">emails off</span><?php endif; ?></td>
+              <td class="sub"><?= (int)$d['assessed'] > 0 ? '₦' . number_format((int)$d['assessed']) : '—' ?>
+                  <?= (int)$d['charged'] > 0 ? '<br><b>₦' . number_format((int)$d['charged']) . '</b> charged' : '' ?></td>
+              <td><a class="btn sm" href="?m=<?= (int)$d['member_id'] ?>#damage">Open</a></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+        <?php endif; ?>
       </div>
 
       <?php $done = array_values(array_filter($reqs, static fn($r) => $r['status'] !== 'open')); ?>
@@ -657,10 +748,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
             </tbody>
           </table>
 
-          <div style="margin-top:10px">
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn sm" data-act="statement" data-m="<?= $m ?>">Email them a statement</button>
             <button class="btn sm" data-act="remind_off" data-m="<?= $m ?>" data-off="<?= !empty($A['remindOff']) ? '0' : '1' ?>">
               <?= !empty($A['remindOff']) ? 'Start chasing again' : 'Stop chasing this person' ?></button>
           </div>
+          <p class="sub">A statement says where they stand — fee lines, instalments, fines with their reasons, and any
+             damage. Safe to send to somebody who owes nothing.</p>
         </div>
 
         <!-- The training fee, as a commitment with a shape. ₦240,000 posted as
@@ -777,6 +871,79 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
         </div>
         <?php endif; ?>
 
+        <!-- ══ Damage ═══════════════════════════════════════════════════════
+             The incident, then — separately, later, and only if somebody decides
+             — the money. `assessed` is what it cost; `charged` is what this
+             person is being asked for. They are allowed to differ, and a
+             programme that bills a nineteen-year-old retail for an accident
+             should have to type that number rather than get it by default. -->
+        <div class="fld" id="damage"><label>Damage</label>
+          <?php if ($selDmg): ?>
+            <?php foreach ($selDmg as $d): ?>
+              <div class="dmg">
+                <div class="dmg-head">
+                  <b><?= $e((string)$d['item']) ?></b>
+                  <span class="badge <?= $d['open'] ? 'b-applicant' : ($d['status']==='charged' ? 'b-withdrawn' : 'b-active') ?>"><?= $e((string)$d['statusLabel']) ?></span>
+                  <?php if ($d['selfReport']): ?><span class="pill pill-on">told us themselves</span><?php endif; ?>
+                  <span class="sp"></span>
+                  <span class="sub"><?= $e((string)$d['occurred_on']) ?></span>
+                </div>
+                <p class="sub"><?= $e((string)$d['severityLabel']) ?><?= $d['place'] !== '' ? ' · ' . $e((string)$d['place']) : '' ?>
+                  <?php if ((int)$d['estimate'] > 0): ?> · first guess ₦<?= number_format((int)$d['estimate']) ?><?php endif; ?>
+                  <?php if ((int)$d['assessed'] > 0): ?> · assessed <b>₦<?= number_format((int)$d['assessed']) ?></b><?php endif; ?>
+                  <?php if ((int)$d['charged'] > 0): ?> · charged <b>₦<?= number_format((int)$d['charged']) ?></b><?php endif; ?>
+                </p>
+                <blockquote><?= $e((string)$d['description']) ?></blockquote>
+                <?php if ($d['outcome'] !== ''): ?><p class="sub"><b>Told them:</b> <?= $e((string)$d['outcome']) ?></p><?php endif; ?>
+                <?php if ($d['open']): ?>
+                  <div class="grid2">
+                    <input class="d-assessed" data-for="<?= (int)$d['id'] ?>" type="number" min="0" step="500"
+                           value="<?= (int)$d['assessed'] > 0 ? (int)$d['assessed'] : '' ?>" placeholder="What it costs (₦)">
+                    <input class="d-charged" data-for="<?= (int)$d['id'] ?>" type="number" min="0" step="500"
+                           placeholder="What to ask them for (₦)">
+                  </div>
+                  <input class="d-outcome" data-for="<?= (int)$d['id'] ?>" style="margin-top:8px"
+                         placeholder="What you are telling them — they get this by email">
+                  <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="assessing">Being assessed</button>
+                    <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="charged">Charge it</button>
+                    <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="waived">Waive it</button>
+                    <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="closed">Close, nothing owed</button>
+                  </div>
+                  <p class="sub">Each of these emails them. “Charge it” raises a fine with reason <i>equipment</i> on their
+                     account — it shows in the fines line and is voided or waived like any other charge.</p>
+                <?php else: ?>
+                  <p class="sub">Closed <?= $e(substr((string)$d['updated_at'], 0, 10)) ?>.
+                    <?php if ((int)$d['assessed'] > (int)$d['charged']): ?>
+                      The programme carried ₦<?= number_format((int)$d['assessed'] - (int)$d['charged']) ?> of this.
+                    <?php endif; ?></p>
+                <?php endif; ?>
+                <button class="btn sm" data-act="damage_notify" data-dmg="<?= (int)$d['id'] ?>" data-on="<?= $d['notify'] ? '0' : '1' ?>">
+                  <?= $d['notify'] ? 'Stop emailing about this' : 'Email them about this again' ?></button>
+              </div>
+            <?php endforeach; ?>
+          <?php endif; ?>
+
+          <details class="fld" style="margin-top:<?= $selDmg ? '12' : '0' ?>px">
+            <summary class="sub">Record damage</summary>
+            <div class="grid2" style="margin-top:8px">
+              <input id="dm_item" placeholder="What was damaged (required)">
+              <input id="dm_when" type="date" value="<?= $e(function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) ?>">
+            </div>
+            <div class="grid2" style="margin-top:8px">
+              <select id="dm_sev">
+                <?php foreach (NgvDamage::SEVERITIES as $k => $lbl): ?><option value="<?= $e($k) ?>"><?= $e($lbl) ?></option><?php endforeach; ?>
+              </select>
+              <input id="dm_place" placeholder="Where (optional)">
+            </div>
+            <textarea id="dm_desc" rows="2" style="margin-top:8px" placeholder="What happened (required)"></textarea>
+            <input id="dm_est" type="number" min="0" step="500" style="margin-top:8px" placeholder="First guess at the cost, if you have one (₦)">
+            <div style="margin-top:8px"><button class="btn sm" data-act="damage" data-m="<?= $m ?>">Record it</button></div>
+            <p class="sub">This charges nothing. It emails them to say it has been recorded, that nothing is on their
+               account, and that they will be told the cost before anything is.</p>
+          </details>
+        </div>
+
         <div class="fld"><label>Add a certification</label>
           <input id="c_title" placeholder="Certificate title (required)">
           <div class="grid2" style="margin-top:10px">
@@ -857,6 +1024,26 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
         };
       }
       else if(act==='remind_run'){ if(!confirm('Send reminders now? This cannot be recalled.')) return; }
+      else if(act==='statement'){ if(!confirm('Email them a statement of where their account stands?')) return; }
+      else if(act==='statement_run'){ if(!confirm('Send a statement to everybody with an account? This cannot be recalled.')) return; }
+      else if(act==='damage'){
+        body.item=val('dm_item'); body.occurred_on=val('dm_when'); body.severity=val('dm_sev');
+        body.place=val('dm_place'); body.description=val('dm_desc'); body.estimate=val('dm_est');
+        if(!body.item){ toast('What was damaged?', false); return; }
+        if(!body.description){ toast('What happened?', false); return; }
+      }
+      else if(act==='damage_advance'){
+        body.damage_id = parseInt(btn.getAttribute('data-dmg')||'0',10);
+        body.status = btn.getAttribute('data-status')||'';
+        var pick = function(cls){ var el=document.querySelector(cls+'[data-for="'+body.damage_id+'"]'); return el?el.value:''; };
+        body.assessed = pick('.d-assessed'); body.charged = pick('.d-charged'); body.outcome = pick('.d-outcome');
+        if(body.status==='charged'){
+          if(!body.charged){ toast('Enter what they are being asked for', false); return; }
+          if(!confirm('Put ₦' + body.charged + ' on their account as a fine, and email them?')) return;
+        }
+        if(body.status==='waived' && !body.outcome.trim()){ toast('Say why — they see this', false); return; }
+      }
+      else if(act==='damage_notify'){ body.damage_id=parseInt(btn.getAttribute('data-dmg')||'0',10); body.on = btn.getAttribute('data-on')==='1'; }
       else if(act==='request'){
         body.request_id = parseInt(btn.getAttribute('data-req')||'0',10);
         body.status = btn.getAttribute('data-status')||'resolved';
@@ -897,6 +1084,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
           out('remindOut', 'Sent ' + j.sent + ' of ' + j.due + (j.failed ? ' — ' + j.failed + ' could not be delivered.' : '.'));
           toast('Sent ✓'); return;
         }
+        if(act==='statement_run'){
+          out('stmtOut', 'Sent ' + j.sent + ' of ' + j.considered + '.'
+              + (j.failed ? ' ' + j.failed + ' could not be delivered.' : '')
+              + (j.noEmail ? ' ' + j.noEmail + ' have no email.' : '')
+              + (j.notActive ? ' ' + j.notActive + ' not currently enrolled.' : ''));
+          toast('Sent ✓'); return;
+        }
+        if(act==='statement'){ toast(j.delivered ? 'Statement sent ✓' : 'Recorded, but delivery failed', j.delivered); return; }
         if(j.clamped){ toast('Waived ' + money(j.waived) + ' — that is all that was outstanding'); }
         else if(j.overCap){ toast('Posted — this account is now over the ceiling'); }
         else { toast('Saved ✓'); }

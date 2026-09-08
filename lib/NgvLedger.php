@@ -459,18 +459,21 @@ final class NgvLedger
      * the SELECT is the courteous path that avoids burning an autoincrement id
      * on every no-op, and the INSERT-IGNORE closes the race between them.
      *
-     * Returns true only when a row was actually created.
+     * Returns the new row's id, or null when nothing was created. An id rather
+     * than a bare true because a caller may need to point at the charge it just
+     * made — a damage record links to the fine raised for it — and an int is
+     * still truthy, so `if (postCharge(...))` reads the same as it always did.
      */
-    public static function postCharge(int $memberId, string $kind, int $amount, string $period, array $opt = []): bool
+    public static function postCharge(int $memberId, string $kind, int $amount, string $period, array $opt = []): ?int
     {
-        if ($memberId <= 0 || $amount <= 0) return false;
-        if (!in_array($kind, self::CHARGE_KINDS, true)) return false;
+        if ($memberId <= 0 || $amount <= 0) return null;
+        if (!in_array($kind, self::CHARGE_KINDS, true)) return null;
         $amount = self::money($amount);
-        if ($amount <= 0) return false;
+        if ($amount <= 0) return null;
         $pdo = NgvDb::pdo();
         $st = $pdo->prepare('SELECT id FROM ngv_charges WHERE member_id = ? AND kind = ? AND period = ?');
         $st->execute([$memberId, $kind, $period]);
-        if ($st->fetchColumn() !== false) return false;
+        if ($st->fetchColumn() !== false) return null;
         $cols = ['member_id', 'kind', 'amount', 'currency', 'period', 'reason', 'note', 'source', 'created_by', 'created_at'];
         // `created_at` takes the portable now-expression rather than a bound
         // value, so both halves of the ledger are stamped by the same clock.
@@ -486,14 +489,15 @@ final class NgvLedger
             ]);
         } catch (Throwable $e) {
             error_log('[ngvledger] postCharge: ' . $e->getMessage());
-            return false;
+            return null;
         }
         /* Absent a moment ago and present now. In the rare lost race two callers
            both report having created it, which over-counts an accrual's report by
            one — the unique index has already done the job that matters, which is
            that only one row exists. */
         $st->execute([$memberId, $kind, $period]);
-        return $st->fetchColumn() !== false;
+        $id = $st->fetchColumn();
+        return $id === false ? null : (int) $id;
     }
 
     /** Live (non-void) charges for a participant, oldest first. */
@@ -817,15 +821,14 @@ final class NgvLedger
             $label = 'Adjustment';
         }
         $period = $kind . ':' . bin2hex(random_bytes(5));
-        if (!self::postCharge($memberId, $kind, $amount, $period,
-                ['reason' => $reason, 'note' => $note !== '' ? $label . ' — ' . $note : $label,
-                 'source' => 'staff', 'by' => $byUid])) {
-            return ['ok' => false, 'error' => 'Could not post that charge.'];
-        }
+        $entryId = self::postCharge($memberId, $kind, $amount, $period,
+            ['reason' => $reason, 'note' => $note !== '' ? $label . ' — ' . $note : $label,
+             'source' => 'staff', 'by' => $byUid]);
+        if ($entryId === null) return ['ok' => false, 'error' => 'Could not post that charge.'];
         self::audit('ngv_fee_' . $kind, 'ngv:member:' . $memberId,
             ucfirst($kind) . ' ' . self::money_text($amount) . ' — ' . $label . ($note !== '' ? ': ' . $note : ''));
         $b = self::balance($memberId);
-        return ['ok' => true, 'amount' => $amount, 'payable' => (int) $b['payable'],
+        return ['ok' => true, 'entryId' => $entryId, 'amount' => $amount, 'payable' => (int) $b['payable'],
                 /* Surfaced, not enforced — see above. */
                 'overCap' => !empty($b['atCap'])];
     }
@@ -1614,6 +1617,196 @@ final class NgvLedger
         return $ok;
     }
 
+    /* ══ Statements ═════════════════════════════════════════════════════════
+     *
+     * A STATEMENT is not a REMINDER, and conflating them was the gap.
+     *
+     * A reminder chases money. It only goes to somebody who owes, it is gated on
+     * a cadence, and it exists to produce a payment. Which means a participant
+     * who is square with the programme — or who has been waived, or is three
+     * instalments into a schedule and exactly on track — could never be told any
+     * of that. The only letter the system could send was a demand.
+     *
+     * A statement says where you stand: every fee line, the training schedule
+     * month by month, each fine with the reason it was issued, what has been set
+     * aside for you, and any damage report and its status. It goes to anybody,
+     * owing or not, and it is what somebody actually wants when they ask "what
+     * is my position?". Staff send it; a participant can also ask for it from
+     * their own dashboard, which is the whole point — the answer arrives without
+     * anybody having to have a conversation about money in a corridor.
+     */
+
+    /** A participant may ask for their own statement once a day. Not a security
+     *  bound — a courtesy one, so a nervous tap on a button four times does not
+     *  send four letters. */
+    public const STATEMENT_MIN_HOURS = 20;
+    public const STATEMENT_BATCH = 50;
+
+    /**
+     * The statement, as the rows an email is built from.
+     *
+     * Returned rather than sent, so the same text can be shown on a screen, and
+     * so a test can read what a participant is told without a mail transport.
+     */
+    public static function statementRows(int $memberId): array
+    {
+        $a = self::account($memberId);
+        $m = static fn(int $n) => self::money_text($n);
+        $first = '';
+        $p = self::participantRow($memberId);
+        if ($p) $first = trim(explode(' ', trim((string) $p['name']))[0] ?? '');
+        if ($first === '') $first = 'there';
+
+        $rows = [];
+        $rows[] = 'Hi ' . self::esc($first) . ' — here is where your NextGen Vanguard account stands today.';
+        $rows[] = (int) $a['payable'] > 0
+            ? 'Outstanding: <b>' . $m((int) $a['payable']) . '</b>.'
+            : '<b>Nothing outstanding.</b> You are square with the programme.';
+
+        /* Every line, including the settled ones. A statement that only listed
+           arrears would be a reminder with a different subject line, and
+           "membership: paid" is half the reason somebody asked. */
+        $lines = [];
+        foreach ($a['lines'] as $ln) {
+            if ((int) $ln['charged'] === 0 && (int) $ln['paid'] === 0) continue;
+            $state = (int) $ln['due'] > 0 ? $m((int) $ln['due']) . ' to pay' : 'settled';
+            $lines[] = '<b>' . self::esc((string) $ln['label']) . '</b> — ' . $m((int) $ln['paid'])
+                     . ' of ' . $m((int) $ln['charged']) . ' · ' . $state;
+        }
+        if ($lines) $rows[] = implode('<br>', $lines);
+        else $rows[] = 'Nothing has been charged to your account yet.';
+
+        /* The training schedule, month by month. The single most useful thing on
+           here for anybody on a paid plan: what is on the account now versus
+           what is still to come, which the running total cannot say. */
+        $t = is_array($a['training'] ?? null) ? $a['training'] : [];
+        if ($t && (int) ($t['months'] ?? 0) > 1) {
+            $bits = [];
+            foreach ($t['instalments'] as $ins) {
+                $word = $ins['state'] === 'charged' ? 'on your account'
+                      : ($ins['state'] === 'due' ? 'due' : 'to come');
+                $bits[] = self::esc((string) $ins['period']) . ' — ' . $m((int) $ins['amount']) . ' · ' . $word;
+            }
+            $rows[] = '<b>Your training fee</b> — ' . $m((int) $t['paid']) . ' of ' . $m((int) $t['total'])
+                    . ' paid, ' . (int) $t['settled'] . ' of ' . (int) $t['months'] . ' instalments charged.<br>'
+                    . '<span style="color:#5f6874;font-size:13px">' . implode('<br>', $bits) . '</span>';
+        }
+
+        /* Fines, individually, with the reason each was issued and the date. A
+           fines TOTAL is the one figure on an account nobody accepts — "₦4,500
+           of fines" invites a dispute that "late arrival, 12 August" settles. */
+        $fines = [];
+        foreach ($a['entries'] as $en) {
+            if ($en['side'] !== 'charge' || $en['kind'] !== 'fine' || $en['void']) continue;
+            $fines[] = self::esc(substr((string) $en['created_at'], 0, 10)) . ' — ' . $m((int) $en['amount'])
+                     . ' · ' . self::esc((string) ($en['note'] !== '' ? $en['note'] : ($en['reasonLabel'] ?: 'Fine')));
+        }
+        if ($fines) $rows[] = '<b>Fines</b><br><span style="color:#5f6874;font-size:13px">' . implode('<br>', $fines) . '</span>';
+
+        if ((int) $a['waived'] > 0) {
+            $rows[] = 'Set aside for you: <b>' . $m((int) $a['waived']) . '</b>. That is money the programme has decided '
+                    . 'not to ask you for — it is not owed, and it is not money you paid.';
+        }
+        if ((int) $a['paidAhead'] > 0) {
+            $rows[] = 'Paid ahead: ' . $m((int) $a['paidAhead']) . ' on a fee that is already settled. It stays on your '
+                    . 'record as paid ahead rather than being moved onto something else.';
+        }
+
+        /* Damage, with its status. Somebody who reported a cracked screen three
+           weeks ago and has heard nothing is the person most in need of a line
+           on this letter. */
+        if (class_exists('NgvDamage')) {
+            $dmg = [];
+            foreach (NgvDamage::forMember($memberId) as $d) {
+                $dmg[] = self::esc((string) $d['occurred_on']) . ' — ' . self::esc((string) $d['item'])
+                       . ' · ' . self::esc((string) $d['statusLabel'])
+                       . ((int) $d['charged'] > 0 ? ' (' . $m((int) $d['charged']) . ')' : '');
+            }
+            if ($dmg) $rows[] = '<b>Damage reports</b><br><span style="color:#5f6488;font-size:13px">' . implode('<br>', $dmg) . '</span>';
+        }
+
+        if (trim((string) $a['payTo']) !== '') $rows[] = self::esc((string) $a['payTo']);
+        $rows[] = 'If any of this looks wrong, or this is a difficult month, reply to this message or speak to your track '
+                . 'lead — we would rather hear from you than not.';
+        if (trim((string) $a['note']) !== '') {
+            $rows[] = '<span style="color:#5f6874;font-size:13px">' . self::esc((string) $a['note']) . '</span>';
+        }
+        return ['rows' => $rows, 'payable' => (int) $a['payable'], 'account' => $a];
+    }
+
+    /**
+     * Send one.
+     *
+     * `$byMember` marks a participant asking for their own, which is the only
+     * path that is rate-limited: staff sending a statement is a deliberate act
+     * and does not need protecting from itself.
+     */
+    public static function sendStatement(int $memberId, bool $byMember = false): array
+    {
+        $p = self::participantRow($memberId);
+        if (!$p) return ['ok' => false, 'error' => 'No such participant.'];
+        $to = trim((string) ($p['email'] ?? ''));
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'error' => 'There is no email address on this record.'];
+        }
+        if ($byMember) {
+            $last = strtotime((string) ($p['statement_at'] ?? '')) ?: 0;
+            if ($last > 0 && (time() - $last) < self::STATEMENT_MIN_HOURS * 3600) {
+                return ['ok' => false, 'error' => 'We sent you one today — check your inbox, including spam.'];
+            }
+        }
+        $st = self::statementRows($memberId);
+        $subject = 'Your NextGen Vanguard account — '
+                 . ((int) $st['payable'] > 0 ? self::money_text((int) $st['payable']) . ' outstanding' : 'nothing outstanding');
+        $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+        $ok = false;
+        if (class_exists('Mailer')) {
+            $html = Mailer::shell('Your account', $st['rows'],
+                ['url' => $site . '/academy/ngv/dashboard.php#account', 'text' => 'See my account'], $subject);
+            try { $ok = (bool) Mailer::send($to, $subject, $html); }
+            catch (Throwable $e) { error_log('[ngvledger] statement mail: ' . $e->getMessage()); }
+        }
+        /* Stamped either way, for the reason the reminder is: an unstamped record
+           plus a mailer failing quietly is how somebody gets four letters. */
+        try {
+            NgvDb::pdo()->prepare('UPDATE ngv_participants SET statement_at = ? WHERE member_id = ?')
+                ->execute([self::nowStamp(), $memberId]);
+        } catch (Throwable $e) { error_log('[ngvledger] statement stamp: ' . $e->getMessage()); }
+        self::audit('ngv_statement', 'ngv:member:' . $memberId,
+            'Statement sent — ' . ((int) $st['payable'] > 0 ? self::money_text((int) $st['payable']) . ' outstanding' : 'nothing outstanding')
+            . ($ok ? '' : ' (delivery failed)'),
+            $byMember ? 'member:' . $memberId : 'admin');
+        return ['ok' => true, 'delivered' => $ok, 'payable' => (int) $st['payable'],
+                'to' => $to];
+    }
+
+    /**
+     * Send statements to everybody with an account. Bounded per press.
+     *
+     * Deliberately NOT cadence-gated. A statement run is somebody choosing to
+     * tell the cohort where they stand — end of term, start of a month — and a
+     * "too soon" skip would silently drop people from a run staff believe went
+     * out. The bound is on the batch, not on the person.
+     */
+    public static function sendStatements(int $limit = self::STATEMENT_BATCH): array
+    {
+        $limit = max(1, min(500, $limit));
+        $out = ['sent' => 0, 'failed' => 0, 'noEmail' => 0, 'notActive' => 0, 'considered' => 0];
+        foreach (self::sweep() as $id => $row) {
+            if ($out['sent'] + $out['failed'] >= $limit) break;
+            $out['considered']++;
+            $p = $row['person'];
+            if ((string) ($p['status'] ?? '') !== 'active') { $out['notActive']++; continue; }
+            $to = trim((string) ($p['email'] ?? ''));
+            if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) { $out['noEmail']++; continue; }
+            $r = self::sendStatement($id, false);
+            if (!empty($r['ok']) && !empty($r['delivered'])) $out['sent']++; else $out['failed']++;
+        }
+        self::audit('ngv_statement_run', 'ngv:fees',
+            $out['sent'] . ' sent, ' . $out['failed'] . ' failed of ' . $out['considered'] . ' considered');
+        return ['ok' => true] + $out;
+    }
+
     /** Send them. Bounded per run, and safe to call as often as the cron fires —
      *  the per-participant `everyDays` gate decides, not the schedule. */
     public static function runReminders(int $limit = self::REMIND_BATCH): array
@@ -1648,6 +1841,13 @@ final class NgvLedger
         catch (Throwable $e) { error_log('[ngvledger] cron remind: ' . $e->getMessage()); }
         try { $out['review'] = self::noteReviewDue(); }
         catch (Throwable $e) { error_log('[ngvledger] cron review: ' . $e->getMessage()); }
+        /* Nobody waits on a programme more patiently than somebody who was told
+           "we are finding out what it costs" and has heard nothing since. They
+           cannot chase it; this says so on their behalf. */
+        if (class_exists('NgvDamage')) {
+            try { $out['damage'] = NgvDamage::noteStale(); }
+            catch (Throwable $e) { error_log('[ngvledger] cron damage: ' . $e->getMessage()); }
+        }
         return $out;
     }
 
