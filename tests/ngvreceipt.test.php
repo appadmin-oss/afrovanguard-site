@@ -244,6 +244,146 @@ ck('ngv receipt: the statement lists payments received with their receipt number
 ck('ngv receipt: …and does not list the cancelled one as received',
    strpos($body, $badRc['no']) === false);
 
+/* ══ Bulk back-fill ════════════════════════════════════════════════════════
+ *
+ * Payments recorded before receipts existed already have numbers and links —
+ * nothing needs generating. What was missing was a way to actually send them
+ * without pressing a button once per payment.
+ *
+ * The property that matters most is NOT throughput. It is one email per PERSON:
+ * somebody eighteen months into the programme has a membership payment and a
+ * dozen commitments behind them, and thirteen emails inside a second reads as
+ * something having gone wrong with their account, not as good record-keeping.
+ */
+
+$rcReset();
+$rcPerson(420, 'Ada Obi', 'ada@example.test');
+$rcPerson(421, 'Bode Ade', 'bode@example.test');
+$rcPerson(422, 'No Address', '');
+for ($i = 1; $i <= 13; $i++) {
+    NgvLedger::payment(420, 'commitment', 1000,
+        ['period' => '2026-' . str_pad((string) $i, 2, '0', STR_PAD_LEFT), 'receipt' => false], 1);
+}
+NgvLedger::payment(421, 'membership', 10000, ['receipt' => false], 1);
+for ($i = 1; $i <= 4; $i++) NgvLedger::payment(422, 'commitment', 1000, ['receipt' => false], 1);
+$dead = NgvLedger::payment(421, 'commitment', 1000, ['receipt' => false], 1);
+NgvLedger::void('credit', (int) $dead['id'], 'Entered twice', 1);
+NgvLedger::waive(420, 'commitment', 500, 'Short month', 1);
+
+$pv = NgvLedger::backfillReceipts(25, true);
+ck('ngv backfill: the preview counts what is waiting, and who it belongs to',
+   (int) $pv['sendable'] === 2 && (int) $pv['sendablePayments'] === 14
+   && count($pv['who']) === 2);
+/* Work and a data problem are different things, and one number would hide both. */
+ck('ngv backfill: somebody with no address is counted apart from the sendable queue',
+   (int) $pv['noEmail'] === 1 && (int) $pv['noEmailPayments'] === 4);
+ck('ngv backfill: a voided payment is not in the queue at all',
+   (int) $pv['pending'] === 18);          // 13 + 1 + 4 — never the voided one
+ck('ngv backfill: previewing sends nothing and stamps nothing', (function () {
+    $n = (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_payments WHERE receipt_at <> ''")->fetchColumn();
+    NgvLedger::backfillReceipts(25, true);
+    return (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_payments WHERE receipt_at <> ''")->fetchColumn() === $n;
+})());
+
+$run = NgvLedger::backfillReceipts(25, false);
+/* THE assertion. Fourteen payments, two messages. */
+ck('ngv backfill: one message per person, not one per payment',
+   ((int) $run['sent'] + (int) $run['failed']) === 2 && (int) $run['stamped'] === 14);
+ck('ngv backfill: a second run has nothing left to do',
+   (int) NgvLedger::backfillReceipts(25, false)['stamped'] === 0);
+ck('ngv backfill: the voided payment was never stamped — nobody gets a cancelled receipt back-filled',
+   (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_payments WHERE voided = 1 AND receipt_at <> ''")->fetchColumn() === 0);
+/* Not stamped, so adding an address later brings them back rather than losing
+   them to a "done" flag nobody will ever look at again. */
+ck('ngv backfill: somebody with no address stays in the queue instead of being marked done',
+   (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_payments WHERE member_id = 422 AND receipt_at = ''")->fetchColumn() === 4);
+ck('ngv backfill: …and giving them one puts them back in the sendable queue', (function () {
+    NgvDb::pdo()->prepare('UPDATE ngv_participants SET email = ? WHERE member_id = 422')->execute(['late@example.test']);
+    $p = NgvLedger::backfillReceipts(25, true);
+    return (int) $p['sendable'] === 1 && (int) $p['sendablePayments'] === 4 && (int) $p['noEmail'] === 0;
+})());
+ck('ngv backfill: a waiver is never in the queue — it is not money anybody handed over',
+   strpos(json_encode(NgvLedger::backfillReceipts(25, true)), '"sendablePayments":4') !== false);
+
+/* The queue is a column, not a cursor: interrupt it and it resumes exactly. */
+$rcReset();
+$rcPerson(430, 'Chidi Eze', 'chidi@example.test');
+$rcPerson(431, 'Dami Ola', 'dami@example.test');
+$rcPerson(432, 'Efe Uche', 'efe@example.test');
+foreach ([430, 431, 432] as $mid) NgvLedger::payment($mid, 'membership', 10000, ['receipt' => false], 1);
+$first = NgvLedger::backfillReceipts(1, false);
+ck('ngv backfill: a bounded run does one person and says how many are left',
+   ((int) $first['sent'] + (int) $first['failed']) === 1 && (int) $first['remaining'] === 2);
+NgvLedger::backfillReceipts(1, false);
+$last = NgvLedger::backfillReceipts(5, false);
+ck('ngv backfill: pressing again resumes where it stopped, with nothing skipped',
+   (int) $last['stamped'] === 1
+   && (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_payments WHERE receipt_at = ''")->fetchColumn() === 0);
+ck('ngv backfill: and a payment already receipted is never sent twice',
+   (int) NgvLedger::backfillReceipts(25, true)['pending'] === 0);
+
+/* ══ Photos on a damage record ═════════════════════════════════════════════ */
+
+$rcReset();
+$rcPerson(440, 'Grace Umeh', 'grace@example.test');
+$dmg = NgvDamage::report(440, ['item' => 'Laptop screen', 'severity' => 'major',
+    'description' => 'Knocked off the desk while packing up.'], 0, true);
+$tmp = sys_get_temp_dir() . '/av-photo-' . getmypid();
+@mkdir($tmp);
+$png = $tmp . '/shot.png';
+file_put_contents($png, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+$evil = $tmp . '/evil.jpg';
+file_put_contents($evil, "<?php echo 'pwned'; ?>");
+$txt = $tmp . '/notes.txt';
+file_put_contents($txt, 'this is not a photo at all');
+$asUpload = static fn(string $path, string $name): array =>
+    ['tmp_name' => $path, 'name' => $name, 'error' => UPLOAD_ERR_OK, 'size' => (int) filesize($path)];
+
+$p1 = NgvDamage::addPhotos((int) $dmg['id'], $asUpload($png, 'shot.png'), 1);
+ck('ngv damage photo: a real image attaches and is listed on the record',
+   !empty($p1['ok']) && count(NgvDamage::get((int) $dmg['id'])['photos']) === 1);
+
+/* The type comes from the FILE'S OWN BYTES, never from the name or the
+   browser's claimed type — both are attacker-supplied, and a .php named .jpg
+   landing in a web-served uploads directory is the whole reason this matters. */
+$pEvil = NgvDamage::addPhotos((int) $dmg['id'], $asUpload($evil, 'evil.jpg'), 1);
+ck('ngv damage photo: a PHP file named .jpg is refused on its sniffed type',
+   empty($pEvil['ok']) && count(NgvDamage::get((int) $dmg['id'])['photos']) === 1);
+ck('ngv damage photo: so is anything else that is not an image',
+   empty(NgvDamage::addPhotos((int) $dmg['id'], $asUpload($txt, 'notes.txt'), 1)['ok']));
+ck('ngv damage photo: an over-size file is refused with the limit named',
+   (function () use ($dmg, $png) {
+       $r = NgvDamage::addPhotos((int) $dmg['id'],
+           ['tmp_name' => $png, 'name' => 's.png', 'error' => UPLOAD_ERR_OK, 'size' => 99999999], 1);
+       return empty($r['ok']) && strpos((string) $r['error'], 'MB') !== false;
+   })());
+
+for ($i = 0; $i < 5; $i++) NgvDamage::addPhotos((int) $dmg['id'], $asUpload($png, 's.png'), 1);
+ck('ngv damage photo: the cap holds across separate calls, not just within one',
+   count(NgvDamage::get((int) $dmg['id'])['photos']) === NgvDamage::PHOTOS_MAX);
+ck('ngv damage photo: a full record says so rather than silently dropping the file',
+   strpos((string) NgvDamage::addPhotos((int) $dmg['id'], $asUpload($png, 's.png'), 1)['error'], 'already has') !== false);
+
+/* photosOf() reads a raw row and a shaped one. Handling only the raw form made
+   the cap look like a one-photo overwrite, because every shaped caller got []. */
+ck('ngv damage photo: the reader handles a raw row, a shaped one, and rubbish',
+   count(NgvDamage::photosOf(['photos' => '["/a.png","/b.png"]'])) === 2
+   && count(NgvDamage::photosOf(['photos' => ['/a.png', '/b.png']])) === 2
+   && NgvDamage::photosOf(['photos' => '']) === []
+   && NgvDamage::photosOf(['photos' => 'not json']) === []
+   && NgvDamage::photosOf([]) === []);
+ck('ngv damage photo: attaching one is not a way to change any money',
+   (int) NgvLedger::balance(440)['charged'] === 0);
+
+$dashSrc2 = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+/* A signed-in member could otherwise attach a picture to somebody else's
+   incident by editing one number in the form. */
+ck('ngv damage photo: the member route attaches only onto their own record',
+   strpos($dashSrc2, "(int) \$d['member_id'] !== \$uid") !== false);
+
+foreach ([$png, $evil, $txt] as $f) @unlink($f);
+@rmdir($tmp);
+
 /* ══ What must never happen ════════════════════════════════════════════════ */
 
 $dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');

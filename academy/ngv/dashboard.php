@@ -38,6 +38,32 @@ if ($method === 'POST') {
     $uid = (int) $u['id'];
     av_require_write($uid, 'ngv_dash', 60, 600);
 
+    /* A self-report with a photo arrives as multipart, so it is handled before
+       php://input is read — that stream is empty on a multipart request, and
+       parsing it first would drop the report on the floor. One step rather than
+       two on purpose: somebody reporting damage from a phone should not have to
+       submit, wait for a reload, and then find the attach button. */
+    if ((string) ($_POST['action'] ?? '') === 'damage') {
+        $r = NgvDamage::report($uid, $_POST, 0, true);
+        if (!empty($r['ok']) && !empty($_FILES['photos'])) {
+            $up = NgvDamage::addPhotos((int) $r['id'], $_FILES['photos'], 0);
+            /* The report is already saved. A photo that would not upload is
+               reported as a note on a success, never as a failure that loses
+               what they typed. */
+            if (empty($up['ok'])) $r['photoNote'] = (string) ($up['error'] ?? '');
+            else $r['photos'] = (int) $up['added'];
+        }
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ((string) ($_POST['action'] ?? '') === 'damage_photos') {
+        /* Only onto their OWN record. Without this check any signed-in member
+           could attach a picture to somebody else's incident. */
+        $d = NgvDamage::get((int) ($_POST['damage_id'] ?? 0));
+        if (!$d || (int) $d['member_id'] !== $uid) json_out(['ok' => false, 'error' => 'No such record.'], 404);
+        $r = NgvDamage::addPhotos((int) $d['id'], $_FILES['photos'] ?? [], 0);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
     $in = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
 
@@ -266,6 +292,11 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .ngv-ask .pbtn{margin-top:9px}
 .ngv-quote{display:block;margin:4px 0;padding-left:9px;border-left:2px solid var(--border);color:var(--muted-2)}
 .ngv-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ngv-shots{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ngv-shots img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block}
+.ngv-shots a:focus-visible img{outline:3px solid var(--gold);outline-offset:2px}
+.ngv-addshot{display:block;margin-top:6px}
+.ngv-input[type=file]{padding:7px}
 .ngv-mini{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;
   border:1px solid var(--border);color:var(--body);text-decoration:none;vertical-align:middle}
 .ngv-mini:hover{border-color:var(--gold);color:var(--ink)}
@@ -667,6 +698,20 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
                       · <?= $e((string)$d['severityLabel']) ?>
                       <?php if ($d['outcome'] !== ''): ?><br><?= $e((string)$d['outcome']) ?><?php endif; ?>
                     </span>
+                    <?php if (!empty($d['photos'])): ?>
+                      <span class="ngv-shots">
+                        <?php foreach ($d['photos'] as $ph): ?>
+                          <a href="<?= $e((string)$ph) ?>" target="_blank" rel="noopener">
+                            <img src="<?= $e((string)$ph) ?>" alt="Photo you attached of the <?= $e((string)$d['item']) ?>" loading="lazy"></a>
+                        <?php endforeach; ?>
+                      </span>
+                    <?php endif; ?>
+                    <?php if ($d['open'] && count($d['photos']) < NgvDamage::PHOTOS_MAX): ?>
+                      <span class="ngv-addshot">
+                        <label class="ngv-fine">Add a photo
+                          <input type="file" class="dmAdd" data-for="<?= (int)$d['id'] ?>" accept="image/*"></label>
+                      </span>
+                    <?php endif; ?>
                   </div>
                   <span class="amt">
                     <?php if ($d['status'] === 'charged'): ?>
@@ -699,6 +744,8 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
                 </select>
               </div>
               <textarea id="dmDesc" class="ngv-input" rows="3" maxlength="1200" placeholder="What happened?"></textarea>
+              <label class="ngv-fine" style="display:block;margin-top:8px">A photo, if you have one (optional)
+                <input id="dmPhoto" class="ngv-input" type="file" accept="image/*" multiple style="margin-top:4px"></label>
               <button class="pbtn pbtn-gold" id="dmSend" type="button">Report it</button>
               <span id="dmOut" class="ngv-fine"></span>
             </details>
@@ -821,18 +868,41 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
   var dmSend = document.getElementById('dmSend');
   if(dmSend) dmSend.addEventListener('click', function(){
     var out = document.getElementById('dmOut'), g = function(id){ var el=document.getElementById(id); return el?el.value:''; };
-    var body = {action:'damage', item:g('dmItem'), occurred_on:g('dmWhen'), severity:g('dmSev'), description:g('dmDesc')};
-    if(!body.item.trim()){ if(out) out.textContent = 'What was it?'; return; }
-    if(body.description.trim().length < 10){ if(out) out.textContent = 'A sentence or two about what happened, please.'; return; }
-    dmSend.disabled = true;
-    fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF}, credentials:'same-origin', body:JSON.stringify(body)})
-      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+    if(!g('dmItem').trim()){ if(out) out.textContent = 'What was it?'; return; }
+    if(g('dmDesc').trim().length < 10){ if(out) out.textContent = 'A sentence or two about what happened, please.'; return; }
+    // Multipart, so the optional photo rides along and this stays one step.
+    var fd = new FormData();
+    fd.append('action','damage'); fd.append('item', g('dmItem')); fd.append('occurred_on', g('dmWhen'));
+    fd.append('severity', g('dmSev')); fd.append('description', g('dmDesc'));
+    var pf = document.getElementById('dmPhoto');
+    if(pf && pf.files) for(var i=0;i<pf.files.length;i++) fd.append('photos[]', pf.files[i]);
+    dmSend.disabled = true; if(out) out.textContent = 'Sending…';
+    fetch(location.pathname, {method:'POST', headers:{'X-CSRF-Token':CSRF}, credentials:'same-origin', body:fd})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'That did not go through — the photo may be too large.'}; }); })
       .then(function(j){
         dmSend.disabled = false;
-        if(j && j.ok){ if(out) out.textContent = 'Recorded. Nothing has been charged.'; setTimeout(function(){ location.reload(); }, 1200); }
-        else if(out){ out.textContent = (j && j.error) || 'Could not record that.'; }
+        if(j && j.ok){
+          if(out) out.textContent = 'Recorded. Nothing has been charged.'
+            + (j.photoNote ? ' (The photo did not attach: ' + j.photoNote + ')' : '');
+          setTimeout(function(){ location.reload(); }, j.photoNote ? 2600 : 1200);
+        } else if(out){ out.textContent = (j && j.error) || 'Could not record that.'; }
       })
       .catch(function(){ dmSend.disabled = false; if(out) out.textContent = 'Offline — not recorded.'; });
+  });
+
+  // Attaching a photo to a record already made — the picture often comes later.
+  document.querySelectorAll('.dmAdd').forEach(function(inp){
+    inp.addEventListener('change', function(){
+      if(!inp.files || !inp.files.length) return;
+      var fd = new FormData();
+      fd.append('action','damage_photos'); fd.append('damage_id', inp.getAttribute('data-for')||'0');
+      for(var i=0;i<inp.files.length;i++) fd.append('photos[]', inp.files[i]);
+      inp.disabled = true;
+      fetch(location.pathname, {method:'POST', headers:{'X-CSRF-Token':CSRF}, credentials:'same-origin', body:fd})
+        .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Upload rejected.'}; }); })
+        .then(function(j){ inp.disabled = false; toast(j && j.ok ? 'Photo added ✓' : ((j && j.error) || 'Could not attach that')); if(j && j.ok) setTimeout(function(){ location.reload(); }, 700); })
+        .catch(function(){ inp.disabled = false; toast('Offline — not attached'); });
+    });
   });
 
   // Track picker (scoped to track tiles — the plan tiles below reuse .trk)

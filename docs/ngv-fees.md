@@ -139,6 +139,15 @@ to the participant as money they paid. `writeOff()` is the same arithmetic and a
 different sentence — the programme has stopped carrying the balance — so it is
 stored as its own kind.
 
+Staff are emailed when somebody writes in, and when a participant reports damage
+themselves. A queue on a console nobody opened this week is not a queue, it is a
+drawer — and somebody who wrote "I cannot pay this month" and heard nothing for
+nine days has been taught that asking does not work, which is the exact failure
+the channel exists to prevent. The alert goes to the **admin role list** rather
+than a configured address, so it follows whoever actually administers the site
+instead of an inbox nobody checks after a handover, and it carries no message
+body: staff should answer on the console where the account is in front of them.
+
 The page also says to "speak to your track lead or send a letter requesting
 consideration". A dashboard that repeats that and offers nothing makes the
 promise a dead end: the person who most needs it is the one least likely to walk
@@ -229,6 +238,27 @@ An assessment that has had no update in 14 days is a stalled process, and the
 person waiting on it has no way to chase. `NgvDamage::noteStale()` runs on the
 cron and says so on their behalf.
 
+### Photos
+
+A cracked screen is a thing you photograph, and a description is a poor stand-in
+when somebody disputes what happened. Up to three images per record, through
+`Storage::put` — so they land on Cloudinary where it is configured and in
+`uploads/` where it is not, the same path every other image on the site takes.
+
+The type is decided by the file's own bytes via `Storage::mime()`, never by the
+name or the browser's claimed type: both are attacker-supplied, and a PHP file
+named `.jpg` landing in a web-served directory is the reason this matters. A
+test uploads exactly that and asserts it is refused.
+
+A participant can attach a photo **while reporting**, in one step — somebody
+reporting damage from a phone should not have to submit, wait for a reload, and
+then find an attach button. If the picture fails to upload the report is still
+saved and the failure is reported as a note, because losing what somebody typed
+because their connection dropped a 4MB JPEG teaches them not to bother next
+time. Members may attach only to their own record, and only while it is open;
+staff may attach to a closed one too, since evidence often turns up after the
+fact and the file should be able to hold it.
+
 ## Receipts
 
 A coordinator takes ₦5,000 in cash, types it into the console, and the payer
@@ -282,6 +312,33 @@ and receipting it would tell somebody they had paid money they never handed
 over. The email can be suppressed per payment (`receipt => false`) for the one
 case that needs it — staff typing in a backlog, where forty emails at once is a
 fault, not a feature. The receipt still exists; only the letter is held.
+
+### Back-filling the ones that predate this
+
+Payments recorded before receipts existed already have numbers and links —
+nothing needs generating. What was missing was a way to send them without
+pressing a button per payment.
+
+**One digest per person, not one email per payment.** This is the whole design.
+Somebody eighteen months in has a membership payment and a dozen commitments
+behind them; receipting those individually lands thirteen emails in their inbox
+inside a second — the exact fault the suppress switch exists to avoid, committed
+at roster scale. The likely reading of thirteen unexpected emails about money is
+not "how organised" but "something has gone wrong with my account". So the
+back-fill sends one message per participant listing every receipt with its link,
+and says in the second line that nothing has changed and nothing is being asked
+for.
+
+**The queue is a column, not a cursor.** "Un-receipted" is `receipt_at = ''`,
+which makes the run resumable by construction: interrupt it, press again, and it
+picks up exactly what it did not finish. No offset to store, nothing to reset,
+and no way to skip somebody by losing a position.
+
+Voided payments are excluded — back-filling a cancelled receipt is pure
+confusion about money no longer owed. Participants with no address are counted
+separately and **not** stamped, so adding an address later brings them back into
+the queue instead of losing them behind a "done" flag. The preview names who is
+about to hear from the programme about money after months of silence.
 
 ## Statements are not reminders
 
@@ -363,6 +420,7 @@ reason it skipped for.
 | Staff console | `/academy/ngv/members.php` |
 | Member view | `/academy/ngv/dashboard.php` — read-only, always |
 | Receipt | `/academy/ngv/receipt.php?id&c` — public, HMAC-verified, printable |
+| Uploads | `Storage::put(…, 'image', 'ngv-damage')` — Cloudinary, else `uploads/ngv-damage/` |
 | Cron | `NgvLedger::cronTick()` from `tasks/cron.php` — accrue, remind, review nudge, stalled-assessment nudge |
 | Settings | `app_meta` key `ngv_fees` |
 | Tests | `tests/ngvledger.test.php`, `tests/ngvdamage.test.php`, `tests/ngvreceipt.test.php`, plus the NGV rows in `tests/drift.test.php` |
@@ -432,18 +490,13 @@ them `credit_kind = 'payment'`, which is what they are.
 - **No self-service payment.** Deliberate, and the first thing to argue about
   rather than the first thing to add: see "a ledger, not a payment processor".
   `lib/Payments.php` (Paystack) exists for donations and is not wired here.
-- **No bulk receipt back-fill.** Payments recorded before receipts existed have
-  numbers and links already — nothing needs generating — but sending them is one
-  press per payment. Fine for a cohort, tedious for a year of history.
-- **No photos on a damage record.** A cracked screen is a thing you would
-  photograph, and a description is what has to stand in for it. `lib/Storage.php`
-  and Cloudinary both exist; nothing is wired.
-- **No email or push when a request is raised.** Staff see the queue when they
-  open the console, and the count sits on a tile; nothing pages them. Fine for a
-  cohort programme, wrong the day the console is only opened weekly.
+- **No image resizing.** A 6MB phone photo is stored at 6MB. Cloudinary
+  transforms on delivery where it is configured; the local fallback does not, so
+  a shared-hosting install with heavy use will want a size budget.
 - **No fines from attendance.** NGG derives lateness fines from a policy engine
   reading check-ins. NGV has no attendance capture, so a fine is a staff
   judgement with a reason from a fixed vocabulary. That is the honest version
   until attendance exists.
-- **No statement to send or print.** The account is legible on screen and in a
-  reminder; there is no PDF.
+- **No PDF statement.** Statements go out by email and the receipt page prints
+  cleanly, but there is no downloadable account statement — the print stylesheet
+  covers a receipt, not a full account.

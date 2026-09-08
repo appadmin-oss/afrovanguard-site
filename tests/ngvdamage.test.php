@@ -256,8 +256,15 @@ $forbidden = ['NgvDamage::advance', 'NgvDamage::setNotify', 'NgvDamage::noteStal
 $leaks = [];
 foreach ($forbidden as $f) { if (strpos($dashSrc, $f) !== false) $leaks[] = $f; }
 ck('ngv damage: a member\'s dashboard can report and read, never price or charge', $leaks === []);
-ck('ngv damage: …and the only damage write it has is the self-report',
-   substr_count($dashSrc, 'NgvDamage::report') === 1);
+/* An allowlist, not a count. The permitted set grows — reporting damage, and
+   attaching a photo to it — and a bare `=== 1` fails on the addition rather than
+   on the thing it was written to catch. What must stay true is that every
+   member-side damage call is one of the two a participant is allowed to make. */
+$allowedDamage = ['NgvDamage::report', 'NgvDamage::addPhotos', 'NgvDamage::get',
+                  'NgvDamage::forMember', 'NgvDamage::SEVERITIES', 'NgvDamage::PHOTOS_MAX'];
+preg_match_all('/NgvDamage::[A-Za-z_]+/', $dashSrc, $dmCalls);
+ck('ngv damage: every damage call the dashboard makes is one a member may make',
+   array_values(array_diff(array_unique($dmCalls[0]), $allowedDamage)) === []);
 
 // Damage is between a participant and their team. None of it reaches the public
 // pages, and no fee or damage state gates a certification.

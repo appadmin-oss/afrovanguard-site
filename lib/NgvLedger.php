@@ -1044,7 +1044,64 @@ final class NgvLedger
         self::audit('ngv_fee_request', 'ngv:member:' . $memberId,
             self::REQUEST_KINDS[$kind] . ' — ' . mb_substr($message, 0, 200),
             'member:' . $memberId);
+        $who = trim((string) ($p['name'] ?? '')) ?: ('member #' . $memberId);
+        self::alertStaff(
+            'NGV: ' . $who . ' has written about their account',
+            $who . ' has raised a request — ' . self::REQUEST_KINDS[$kind] . '.',
+            '/academy/ngv/members.php?m=' . $memberId);
         return ['ok' => true, 'id' => (int) NgvDb::pdo()->lastInsertId()];
+    }
+
+    /**
+     * Tell staff somebody has written in.
+     *
+     * The gap this closes: the request queue sits on a console, and a console
+     * nobody opened this week is not a queue — it is a drawer. Somebody who
+     * wrote "I cannot pay this month" and heard nothing for nine days has been
+     * taught that asking does not work, which is precisely the failure the
+     * request channel exists to prevent.
+     *
+     * Goes to the ADMIN ROLE LIST rather than a configured address, so it
+     * follows whoever actually administers the site instead of an inbox nobody
+     * checks after a handover. Deliberately terse and deliberately does NOT
+     * carry the message body: staff should answer on the console where the
+     * account is in front of them, not by replying to an email with no context.
+     *
+     * Best-effort throughout. A mail failure must never lose the request — the
+     * row is already committed before this runs.
+     */
+    private static function alertStaff(string $subject, string $line, string $url): void
+    {
+        if (!class_exists('Mailer') || !class_exists('AdminRoles')) return;
+        $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+        $to = [];
+        try {
+            foreach (AdminRoles::list() as $a) {
+                $email = trim((string) ($a['email'] ?? ''));
+                /* Only the roles that can actually act on it. A content editor
+                   getting paged about somebody's fees learns to filter the
+                   sender, and then misses the one that mattered. */
+                if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)
+                    && in_array((string) ($a['role'] ?? ''), ['superadmin', 'admin'], true)) {
+                    $to[] = $email;
+                }
+            }
+        } catch (Throwable $e) { error_log('[ngvledger] staff alert list: ' . $e->getMessage()); }
+        if (!$to) return;
+        $html = Mailer::shell('NextGen Vanguard', [self::esc($line),
+            'Open the console to answer it — the account is there alongside the message.'],
+            ['url' => $site . $url, 'text' => 'Open the console'], $subject);
+        foreach (array_slice(array_unique($to), 0, 10) as $addr) {
+            try { @Mailer::send($addr, $subject, $html); }
+            catch (Throwable $e) { error_log('[ngvledger] staff alert: ' . $e->getMessage()); }
+        }
+    }
+
+    /** Public so NgvDamage can page staff on a self-reported incident too — the
+     *  same "a queue nobody opened is a drawer" problem, same answer. */
+    public static function notifyStaff(string $subject, string $line, string $url): void
+    {
+        self::alertStaff($subject, $line, $url);
     }
 
     /** One participant's own requests, newest first. */
@@ -1855,6 +1912,174 @@ final class NgvLedger
         return ['ok' => true, 'delivered' => $ok, 'no' => $r['no'], 'to' => $to, 'link' => $link];
     }
 
+    /**
+     * Send receipts for payments recorded before receipts existed.
+     *
+     * ── ONE DIGEST PER PERSON, NOT ONE EMAIL PER PAYMENT ─────────────────────
+     * This is the whole design. A participant eighteen months into the programme
+     * has a membership payment and a dozen monthly commitments behind them, and
+     * receipting those individually lands thirteen emails in their inbox inside
+     * a second. That is the exact fault the per-payment suppress switch exists to
+     * avoid, committed at roster scale — and the likely reading of thirteen
+     * unexpected emails about money is not "how organised", it is "something has
+     * gone wrong with my account".
+     *
+     * So the back-fill sends one message per participant, listing every receipt
+     * with its number and link, and saying plainly why it is arriving now.
+     *
+     * ── THE QUEUE IS A COLUMN, NOT A CURSOR ──────────────────────────────────
+     * "Un-receipted" is `receipt_at = ''`, which means the run is resumable by
+     * construction: interrupt it, run it again, and it picks up exactly what it
+     * did not finish. No offset to store, nothing to reset, and no way to skip
+     * somebody by losing a position.
+     *
+     * Voided payments are excluded — back-filling a cancelled receipt to
+     * somebody is pure confusion about money they no longer owe. Participants
+     * with no address are counted separately and NOT stamped, so adding an
+     * address later brings them back into the queue rather than losing them.
+     */
+    public static function backfillReceipts(int $limit = self::BACKFILL_BATCH, bool $preview = false): array
+    {
+        $limit = max(1, min(500, $limit));
+        $pdo = NgvDb::pdo();
+        $st = $pdo->query("SELECT p.id, p.member_id, p.amount, p.kind, p.period, p.method, p.created_at,
+                                  m.name AS name, m.email AS email
+                             FROM ngv_payments p
+                             LEFT JOIN ngv_participants m ON m.member_id = p.member_id
+                            WHERE p.credit_kind = 'payment' AND p.voided = 0
+                              AND (p.receipt_at IS NULL OR p.receipt_at = '')
+                            ORDER BY p.member_id, p.id");
+        $byMember = []; $rows = 0; $oldest = '';
+        foreach ($st->fetchAll() ?: [] as $r) {
+            $byMember[(int) $r['member_id']][] = $r;
+            $rows++;
+            /* Tracked as the real minimum. The query groups by member so the
+               first row is the first MEMBER's earliest payment, not the earliest
+               overall — and "going back to" is the one figure on the panel that
+               tells a coordinator how much history they are about to touch. */
+            $when = substr((string) $r['created_at'], 0, 10);
+            if ($when !== '' && ($oldest === '' || $when < $oldest)) $oldest = $when;
+        }
+
+        /* Split before doing anything, so the preview can distinguish "waiting to
+           be sent" from "cannot be sent" — one is work, the other is a data
+           problem, and reporting them as one number hides both. */
+        $sendable = []; $noEmail = 0; $noEmailPayments = 0; $orphan = 0;
+        foreach ($byMember as $mid => $pays) {
+            $to = trim((string) ($pays[0]['email'] ?? ''));
+            if (($pays[0]['name'] ?? null) === null) { $orphan++; continue; }   // payment with no participant row
+            if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) { $noEmail++; $noEmailPayments += count($pays); continue; }
+            $sendable[$mid] = $pays;
+        }
+        $out = [
+            'ok' => true,
+            'pending' => $rows, 'people' => count($byMember),
+            'sendable' => count($sendable), 'sendablePayments' => array_sum(array_map('count', $sendable)),
+            'noEmail' => $noEmail, 'noEmailPayments' => $noEmailPayments,
+            'orphan' => $orphan,
+            'oldest' => $oldest,
+            'limit' => $limit,
+        ];
+        if ($preview) {
+            /* Named, so a coordinator pressing send knows who is about to hear
+               from the programme about money after months of silence. */
+            $out['who'] = [];
+            foreach (array_slice($sendable, 0, 25, true) as $mid => $pays) {
+                $out['who'][] = ['member_id' => $mid, 'name' => (string) $pays[0]['name'],
+                                 'payments' => count($pays),
+                                 'total' => array_sum(array_map(static fn($x) => (int) $x['amount'], $pays))];
+            }
+            return $out;
+        }
+
+        $sent = 0; $failed = 0; $stamped = 0;
+        foreach (array_slice($sendable, 0, $limit, true) as $mid => $pays) {
+            $r = self::sendReceiptDigest($mid, $pays);
+            if (!empty($r['delivered'])) $sent++; else $failed++;
+            $stamped += (int) ($r['stamped'] ?? 0);
+        }
+        $out['sent'] = $sent; $out['failed'] = $failed; $out['stamped'] = $stamped;
+        $out['remaining'] = max(0, count($sendable) - $sent - $failed);
+        self::audit('ngv_receipt_backfill', 'ngv:fees',
+            'Back-filled receipts — ' . $stamped . ' payment(s) across ' . ($sent + $failed) . ' person(s), '
+            . $sent . ' delivered, ' . $failed . ' failed'
+            . ($out['remaining'] > 0 ? ', ' . $out['remaining'] . ' still to do' : '')
+            . ($noEmail > 0 ? ' · ' . $noEmail . ' have no address' : ''));
+        return $out;
+    }
+
+    /**
+     * One message, every receipt somebody is owed.
+     *
+     * Says why it is arriving now, in the first line. An unexplained email
+     * listing a year of payments reads as a demand or a mistake; "we have
+     * switched receipts on and these are yours" reads as what it is.
+     */
+    private static function sendReceiptDigest(int $memberId, array $pays): array
+    {
+        $to = trim((string) ($pays[0]['email'] ?? ''));
+        $first = trim(explode(' ', trim((string) ($pays[0]['name'] ?? '')))[0] ?? '');
+        if ($first === '') $first = 'there';
+        $m = static fn(int $n) => self::money_text($n);
+        $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
+        $total = 0; $lines = [];
+        foreach ($pays as $p) {
+            $id = (int) $p['id'];
+            $total += (int) $p['amount'];
+            $link = $site . '/academy/ngv/receipt.php?id=' . $id . '&c=' . rawurlencode(self::receiptCode($id));
+            $lines[] = '<a href="' . self::esc($link) . '">' . self::esc(self::receiptNo($p)) . '</a> · '
+                     . self::esc(substr((string) $p['created_at'], 0, 10)) . ' · '
+                     . self::esc(self::lineLabel((string) $p['kind']))
+                     . ((string) $p['period'] !== '' ? ' ' . self::esc((string) $p['period']) : '')
+                     . ' · <b>' . $m((int) $p['amount']) . '</b>';
+        }
+        $n = count($pays);
+        $rows = [];
+        $rows[] = 'Hi ' . self::esc($first) . ' — we have switched on receipts for NextGen Vanguard, and '
+                . ($n === 1 ? 'here is the one we owe you' : 'here are the ' . $n . ' we owe you')
+                . ' for payments already on your account.';
+        $rows[] = '<b>Nothing has changed about your account.</b> This is a record of what we have already received from '
+                . 'you — ' . $m($total) . ' in total — not a request for anything.';
+        $rows[] = implode('<br>', $lines);
+        $rows[] = 'Each link opens a printable receipt that anyone can check without an account. Keep them; they are '
+                . 'useful as proof of payment.';
+        $rows[] = 'If any of these look wrong, or one you made is missing, tell your track lead — it is much easier to '
+                . 'correct now than later.';
+
+        $subject = $n === 1
+            ? 'Your receipt — ' . self::receiptNo($pays[0])
+            : 'Your ' . $n . ' NextGen Vanguard receipts';
+        $ok = false;
+        if (class_exists('Mailer')) {
+            $html = Mailer::shell('Your receipts', $rows,
+                ['url' => $site . '/academy/ngv/dashboard.php#account', 'text' => 'See my account'], $subject);
+            try { $ok = (bool) Mailer::send($to, $subject, $html); }
+            catch (Throwable $e) { error_log('[ngvledger] backfill mail: ' . $e->getMessage()); }
+        }
+        if (class_exists('Notifications')) {
+            try {
+                Notifications::push($memberId, 'ngv_receipt',
+                    $n === 1 ? 'Your receipt is ready' : 'Your ' . $n . ' receipts are ready',
+                    $m($total) . ' already received from you, now receipted.',
+                    '/academy/ngv/dashboard.php#account', 'ngv_receipt_backfill:' . $memberId);
+            } catch (Throwable $e) { error_log('[ngvledger] backfill notify: ' . $e->getMessage()); }
+        }
+        /* Stamped on ATTEMPT, like every other send here. An unstamped row plus a
+           mailer failing quietly is how the next run sends the same digest again,
+           and the one after that. The run reports the failure so staff can see it
+           and re-send from the person's record. */
+        $stamped = 0;
+        $now = self::nowStamp();
+        $upd = NgvDb::pdo()->prepare('UPDATE ngv_payments SET receipt_at = ? WHERE id = ?');
+        foreach ($pays as $p) {
+            try { $upd->execute([$now, (int) $p['id']]); $stamped++; }
+            catch (Throwable $e) { error_log('[ngvledger] backfill stamp: ' . $e->getMessage()); }
+        }
+        self::audit('ngv_receipt_backfill_one', 'ngv:member:' . $memberId,
+            $n . ' receipt(s) sent as one digest — ' . $m($total) . ($ok ? '' : ' (delivery failed)'));
+        return ['delivered' => $ok, 'stamped' => $stamped, 'count' => $n];
+    }
+
     /* ══ Statements ═════════════════════════════════════════════════════════
      *
      * A STATEMENT is not a REMINDER, and conflating them was the gap.
@@ -1879,6 +2104,10 @@ final class NgvLedger
      *  send four letters. */
     public const STATEMENT_MIN_HOURS = 20;
     public const STATEMENT_BATCH = 50;
+    /** People per back-fill press. Small on purpose: this is the one run that
+     *  touches history rather than today, and a coordinator should be able to
+     *  read what it did before pressing again. */
+    public const BACKFILL_BATCH = 25;
 
     /**
      * The statement, as the rows an email is built from.

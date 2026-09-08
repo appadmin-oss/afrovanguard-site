@@ -28,6 +28,16 @@ if ($method === 'POST') {
     if (!$isAdmin) json_out(['ok' => false, 'error' => 'Admin sign-in required.'], 403);
     require_same_origin();
     av_csrf_require();
+
+    /* Photos come as multipart/form-data, so this branch runs BEFORE the JSON
+       body is read — php://input is empty on a multipart request, and parsing it
+       first would turn every upload into "Unknown action". */
+    if (!empty($_FILES['photos']) && (string) ($_POST['action'] ?? '') === 'damage_photos') {
+        $r = NgvDamage::addPhotos((int) ($_POST['damage_id'] ?? 0), $_FILES['photos'],
+                                  (int) (LmsAuth::user()['id'] ?? 0));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
     $in  = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
     $act = (string) ($in['action'] ?? '');
@@ -157,6 +167,14 @@ if ($method === 'POST') {
     }
     if ($act === 'statement_run') {
         json_out(NgvLedger::sendStatements(NgvLedger::STATEMENT_BATCH));
+    }
+    /* Receipts for payments recorded before receipts existed. One digest per
+       person, not one email per payment — see NgvLedger::backfillReceipts. */
+    if ($act === 'backfill_preview') {
+        json_out(NgvLedger::backfillReceipts(NgvLedger::BACKFILL_BATCH, true));
+    }
+    if ($act === 'backfill_run') {
+        json_out(NgvLedger::backfillReceipts(NgvLedger::BACKFILL_BATCH, false));
     }
 
     /* ── Programme-wide ── */
@@ -313,6 +331,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .dmg-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dmg-head .sp{flex:1}
 .dmg blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-size:.88rem}
+.shots{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.shots img{width:96px;height:96px;object-fit:cover;border-radius:9px;border:1px solid var(--line);display:block}
+.shots a:focus-visible img{outline:3px solid var(--orange);outline-offset:2px}
 textarea{min-height:60px;resize:vertical}
 .note{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:.88rem}
 .note-warn{border-color:#f2c98a;background:#fffaf0}
@@ -506,6 +527,32 @@ textarea{min-height:60px;resize:vertical}
             <button class="btn" data-act="statement_run">Send statements</button>
             <span id="stmtOut" class="sub"></span>
           </div>
+
+          <?php $bf = NgvLedger::backfillReceipts(1, true); ?>
+          <?php if ((int)$bf['pending'] > 0): ?>
+          <div class="fld"><label>Receipts for older payments
+              <span class="pill pill-open"><?= (int)$bf['pending'] ?> waiting</span></label>
+            <p class="sub">
+              <?= (int)$bf['sendablePayments'] ?> payment<?= (int)$bf['sendablePayments'] === 1 ? '' : 's' ?>
+              across <?= (int)$bf['sendable'] ?> <?= (int)$bf['sendable'] === 1 ? 'person' : 'people' ?>
+              <?= (int)$bf['sendablePayments'] === 1 ? 'has' : 'have' ?> no receipt out yet<?= $bf['oldest'] !== '' ? ', going back to ' . $e((string)$bf['oldest']) : '' ?>.
+              <?php if ((int)$bf['noEmail'] > 0): ?>
+                A further <?= (int)$bf['noEmailPayments'] ?> belong to <?= (int)$bf['noEmail'] ?> without an email address —
+                they stay in the queue until one is added, rather than being marked done.
+              <?php endif; ?>
+            </p>
+            <p class="sub"><b>One email per person, not per payment.</b> Somebody eighteen months in has a membership
+               payment and a dozen commitments behind them; thirteen separate emails would read as something having gone
+               wrong with their account, not as good record-keeping. Each digest says plainly that nothing has changed and
+               nothing is being asked for.</p>
+            <button class="btn" data-act="backfill_preview">Preview</button>
+            <button class="btn" data-act="backfill_run">Send <?= (int)$bf['sendable'] > (int)NgvLedger::BACKFILL_BATCH
+                ? 'the first ' . (int)NgvLedger::BACKFILL_BATCH : 'them' ?></button>
+            <div id="bfOut" class="sub" style="margin-top:8px"></div>
+            <p class="sub">Safe to press again — the queue is “no receipt sent yet”, so a run that stops halfway picks up
+               exactly where it left off.</p>
+          </div>
+          <?php endif; ?>
 
           <div class="fld"><label>Find anybody's account</label>
             <form method="get" class="enroll">
@@ -921,6 +968,24 @@ textarea{min-height:60px;resize:vertical}
                   <?php if ((int)$d['charged'] > 0): ?> · charged <b>₦<?= number_format((int)$d['charged']) ?></b><?php endif; ?>
                 </p>
                 <blockquote><?= $e((string)$d['description']) ?></blockquote>
+                <?php if (!empty($d['photos'])): ?>
+                  <div class="shots">
+                    <?php foreach ($d['photos'] as $ph): ?>
+                      <a href="<?= $e((string)$ph) ?>" target="_blank" rel="noopener">
+                        <img src="<?= $e((string)$ph) ?>" alt="Photo of the reported damage to <?= $e((string)$d['item']) ?>" loading="lazy"></a>
+                    <?php endforeach; ?>
+                  </div>
+                <?php endif; ?>
+                <?php /* Staff can attach to a CLOSED record too — evidence often turns up
+                         after the fact, and the file should be able to hold it. The member
+                         side deliberately cannot: offering somebody an upload on a record
+                         nobody will look at again implies an action that is not coming. */ ?>
+                <?php if (count($d['photos']) < NgvDamage::PHOTOS_MAX): ?>
+                  <label class="sub" style="display:block;margin-top:8px">Add a photo
+                    <input type="file" class="d-photo" data-for="<?= (int)$d['id'] ?>" accept="image/*" multiple
+                           style="margin-top:4px"></label>
+                  <button class="btn sm" data-act="damage_photos" data-dmg="<?= (int)$d['id'] ?>">Attach</button>
+                <?php endif; ?>
                 <?php if ($d['outcome'] !== ''): ?><p class="sub"><b>Told them:</b> <?= $e((string)$d['outcome']) ?></p><?php endif; ?>
                 <?php if ($d['open']): ?>
                   <div class="grid2">
@@ -1014,11 +1079,36 @@ textarea{min-height:60px;resize:vertical}
   var money = function(n){ return '₦' + (n||0).toLocaleString('en-NG'); };
   var out = function(id, html){ var el=document.getElementById(id); if(el) el.innerHTML = html; };
 
+  /* Photos go as multipart, so they cannot ride post(), which sends JSON. Its
+     own handler, with the same disable-in-flight and always-recover rules. */
+  document.querySelectorAll('[data-act="damage_photos"]').forEach(function(btn){
+    btn.addEventListener('click', function(ev){
+      ev.stopImmediatePropagation();
+      var id = parseInt(btn.getAttribute('data-dmg')||'0',10);
+      var input = document.querySelector('.d-photo[data-for="' + id + '"]');
+      if(!input || !input.files || !input.files.length){ toast('Choose a photo first', false); return; }
+      var fd = new FormData();
+      fd.append('action','damage_photos'); fd.append('damage_id', String(id));
+      for(var i=0;i<input.files.length;i++) fd.append('photos[]', input.files[i]);
+      btn.disabled = true; toast('Uploading…');
+      fetch(location.pathname, {method:'POST', headers:{'X-CSRF-Token':CSRF}, credentials:'same-origin', body:fd})
+        .then(function(r){ return r.json().catch(function(){return {ok:false, error:'Upload rejected — the file may be too large for this server.'};}); })
+        .then(function(j){
+          btn.disabled = false;
+          if(j.ok){ toast(j.warning ? 'Attached ' + j.added + ' — ' + j.warning : 'Attached ✓', !j.warning);
+                    setTimeout(function(){location.reload();}, j.warning ? 1800 : 400); }
+          else toast(j.error||'Could not attach that', false);
+        })
+        .catch(function(){ btn.disabled = false; toast('Offline — nothing was attached.', false); });
+    });
+  });
+
   document.querySelectorAll('[data-act]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var act = btn.getAttribute('data-act'), m = parseInt(btn.getAttribute('data-m')||'0',10), body={action:act, member_id:m};
+      if(act==='damage_photos') return;              // handled above, as multipart
       // Actions that render their own result rather than reloading the page.
-      var quiet = {remind_preview:1, remind_run:1, accrue:1};
+      var quiet = {remind_preview:1, remind_run:1, accrue:1, backfill_preview:1, backfill_run:1};
       if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); }
       else if(act==='payment'){ body.kind=val('p_kind'); body.amount=val('p_amount'); body.period=val('p_period'); body.method=val('p_method'); body.reference=val('p_ref'); body.receipt=chk('p_receipt'); if(!body.amount){ toast('Enter an amount', false); return; } }
       else if(act==='receipt'){ body.payment_id=parseInt(btn.getAttribute('data-pid')||'0',10); }
@@ -1056,6 +1146,7 @@ textarea{min-height:60px;resize:vertical}
       else if(act==='remind_run'){ if(!confirm('Send reminders now? This cannot be recalled.')) return; }
       else if(act==='statement'){ if(!confirm('Email them a statement of where their account stands?')) return; }
       else if(act==='statement_run'){ if(!confirm('Send a statement to everybody with an account? This cannot be recalled.')) return; }
+      else if(act==='backfill_run'){ if(!confirm('Send receipts for older payments? One email per person. This cannot be recalled.')) return; }
       else if(act==='damage'){
         body.item=val('dm_item'); body.occurred_on=val('dm_when'); body.severity=val('dm_sev');
         body.place=val('dm_place'); body.description=val('dm_desc'); body.estimate=val('dm_est');
@@ -1125,6 +1216,22 @@ textarea{min-height:60px;resize:vertical}
               + (j.failed ? ' ' + j.failed + ' could not be delivered.' : '')
               + (j.noEmail ? ' ' + j.noEmail + ' have no email.' : '')
               + (j.notActive ? ' ' + j.notActive + ' not currently enrolled.' : ''));
+          toast('Sent ✓'); return;
+        }
+        if(act==='backfill_preview'){
+          var who = (j.who||[]).map(function(w){ return w.name + ' (' + w.payments + ' · ' + money(w.total) + ')'; });
+          out('bfOut', '<b>' + j.sendable + '</b> ' + (j.sendable === 1 ? 'person' : 'people')
+              + ' would be emailed, covering ' + j.sendablePayments + ' payment(s).'
+              + (who.length ? '<br>' + who.join(' · ') + (j.sendable > who.length ? ' …' : '') : '')
+              + (j.noEmail ? '<br>' + j.noEmail + ' skipped — no email address (kept in the queue).' : '')
+              + (j.orphan ? '<br>' + j.orphan + ' payment group(s) have no participant record.' : ''));
+          return;
+        }
+        if(act==='backfill_run'){
+          out('bfOut', 'Sent ' + j.sent + ' of ' + (j.sent + j.failed) + '. '
+              + j.stamped + ' payment(s) receipted.'
+              + (j.failed ? ' ' + j.failed + ' could not be delivered — re-send from the person\u2019s record.' : '')
+              + (j.remaining ? ' ' + j.remaining + ' still to do — press again.' : ' Nothing left in the queue.'));
           toast('Sent ✓'); return;
         }
         if(act==='statement'){ toast(j.delivered ? 'Statement sent ✓' : 'Recorded, but delivery failed', j.delivered); return; }

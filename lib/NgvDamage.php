@@ -69,6 +69,12 @@ final class NgvDamage
 
     public const ITEM_MAX = 120;
     public const TEXT_MAX = 1200;
+    /** Photos per record, and the ceiling on one file. Three is enough to show a
+     *  crack from two angles and the serial number; more is somebody emptying a
+     *  camera roll into a shared-hosting account with an inode limit. */
+    public const PHOTOS_MAX = 3;
+    public const PHOTO_BYTES_MAX = 6 * 1024 * 1024;
+    public const PHOTO_TYPES = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/heic' => 'heic'];
     /** An assessment that has sat unpriced this long is a stalled process, and
      *  the person waiting on it has no way to chase. The cron says so. */
     public const STALE_DAYS = 14;
@@ -115,7 +121,111 @@ final class NgvDamage
             ($selfReport ? 'Self-reported' : 'Recorded') . ' damage — ' . $item
             . ' (' . $severity . ') on ' . $when);
         self::notify($id, 'reported');
+        /* Only when the PARTICIPANT reported it. Staff recording damage already
+           know about it, and paging the people who just typed it in is how an
+           alert becomes something everybody filters. */
+        if ($selfReport && class_exists('NgvLedger')) {
+            $who = trim((string) (self::participant($memberId)['name'] ?? '')) ?: ('member #' . $memberId);
+            NgvLedger::notifyStaff(
+                'NGV: ' . $who . ' has reported damage',
+                $who . ' has reported damage themselves — ' . $item . ' (' . $severity . '), ' . $when . '.',
+                '/academy/ngv/members.php?m=' . $memberId . '#damage');
+        }
         return ['ok' => true, 'id' => $id, 'status' => 'reported'];
+    }
+
+    /**
+     * Attach photos to a record.
+     *
+     * Separate from `report()` because the upload is a different kind of failure
+     * from the text: a phone on a bad connection drops a 4MB JPEG far more often
+     * than it drops a sentence, and losing the whole report because the picture
+     * did not arrive would teach people not to bother reporting. The record is
+     * saved first, and pictures are added to it.
+     *
+     * Takes the raw `$_FILES` shape. Everything about the file is checked HERE
+     * rather than trusted from the browser: the MIME comes from the file's own
+     * bytes via Storage::mime(), not from the upload's claimed type, because the
+     * claimed type is attacker-supplied and a .php named .jpg would otherwise
+     * land in a web-served directory.
+     */
+    public static function addPhotos(int $id, array $files, int $byUid): array
+    {
+        $d = self::get($id);
+        if (!$d) return ['ok' => false, 'error' => 'No such damage record.'];
+        if (!class_exists('Storage')) return ['ok' => false, 'error' => 'File storage is not available on this installation.'];
+        $have = self::photosOf($d);
+        $room = self::PHOTOS_MAX - count($have);
+        if ($room <= 0) return ['ok' => false, 'error' => 'That record already has ' . self::PHOTOS_MAX . ' photos.'];
+
+        /* Normalise the two shapes PHP produces — one file, and the [name][i]
+           column layout for multiple — so the loop below sees one list either way. */
+        $items = [];
+        if (isset($files['tmp_name']) && is_array($files['tmp_name'])) {
+            foreach ($files['tmp_name'] as $i => $tmp) {
+                $items[] = ['tmp_name' => $tmp, 'name' => (string) ($files['name'][$i] ?? ''),
+                            'error' => (int) ($files['error'][$i] ?? UPLOAD_ERR_NO_FILE),
+                            'size' => (int) ($files['size'][$i] ?? 0)];
+            }
+        } elseif (isset($files['tmp_name'])) {
+            $items[] = ['tmp_name' => (string) $files['tmp_name'], 'name' => (string) ($files['name'] ?? ''),
+                        'error' => (int) ($files['error'] ?? UPLOAD_ERR_NO_FILE), 'size' => (int) ($files['size'] ?? 0)];
+        }
+        if (!$items) return ['ok' => false, 'error' => 'No file arrived. It may have been too large for the server.'];
+
+        $added = 0; $errors = [];
+        foreach (array_slice($items, 0, $room) as $f) {
+            if ($f['error'] === UPLOAD_ERR_NO_FILE) continue;
+            if ($f['error'] === UPLOAD_ERR_INI_SIZE || $f['error'] === UPLOAD_ERR_FORM_SIZE) {
+                $errors[] = 'One photo was larger than this server accepts.'; continue;
+            }
+            if ($f['error'] !== UPLOAD_ERR_OK) { $errors[] = 'One photo did not upload.'; continue; }
+            if ($f['size'] > self::PHOTO_BYTES_MAX) {
+                $errors[] = 'One photo was over ' . (int) (self::PHOTO_BYTES_MAX / 1048576) . 'MB.'; continue;
+            }
+            /* is_uploaded_file, so a path cannot be smuggled in as a filename and
+               read off the server's disk. */
+            if (!is_uploaded_file($f['tmp_name']) && PHP_SAPI !== 'cli') { $errors[] = 'That file was not an upload.'; continue; }
+            $mime = Storage::mime($f['tmp_name']);
+            if (!isset(self::PHOTO_TYPES[$mime])) { $errors[] = 'Only photos can be attached (that one was ' . $mime . ').'; continue; }
+            try {
+                $put = Storage::put($f['tmp_name'], $f['name'] ?: ('damage.' . self::PHOTO_TYPES[$mime]), 'image', 'ngv-damage');
+                $url = (string) ($put['url'] ?? '');
+                if ($url === '') { $errors[] = 'One photo could not be stored.'; continue; }
+                $have[] = $url; $added++;
+            } catch (Throwable $e) {
+                error_log('[ngvdamage] photo: ' . $e->getMessage());
+                $errors[] = 'One photo could not be stored.';
+            }
+        }
+        if ($added > 0) {
+            NgvDb::pdo()->prepare('UPDATE ngv_damages SET photos = ?, updated_at = ' . NgvDb::nowExpr() . ' WHERE id = ?')
+                ->execute([json_encode(array_values($have), JSON_UNESCAPED_SLASHES), $id]);
+            self::audit('ngv_damage_photo', (int) $d['member_id'],
+                $added . ' photo(s) attached to ' . $d['item']);
+        }
+        if ($added === 0) return ['ok' => false, 'error' => $errors ? implode(' ', array_unique($errors)) : 'Nothing was attached.'];
+        return ['ok' => true, 'added' => $added, 'photos' => $have,
+                'warning' => $errors ? implode(' ', array_unique($errors)) : ''];
+    }
+
+    /**
+     * The stored URLs, tolerant of an empty or malformed column.
+     *
+     * Takes either a RAW row (photos is the JSON string) or a SHAPED one (photos
+     * is already a list), because both are in circulation — `get()` returns the
+     * shaped form and `addPhotos()` reads it back. Handling only the raw form
+     * silently returned nothing for every shaped caller, which made the
+     * three-photo cap look like a one-photo overwrite.
+     */
+    public static function photosOf(array $d): array
+    {
+        $v = $d['photosRaw'] ?? $d['photos'] ?? '';
+        $list = is_array($v) ? $v : (trim((string) $v) === '' ? [] : json_decode((string) $v, true));
+        if (!is_array($list)) return [];
+        $out = [];
+        foreach ($list as $u) { if (is_string($u) && $u !== '') $out[] = $u; }
+        return array_slice($out, 0, self::PHOTOS_MAX);
     }
 
     /**
@@ -316,6 +426,7 @@ final class NgvDamage
             'outcome' => (string) $r['outcome'],
             'selfReport' => (int) $r['self_report'] === 1,
             'notify' => (int) $r['notify'] === 1,
+            'photos' => self::photosOf(['photosRaw' => (string) ($r['photos'] ?? '')]),
             'notified_at' => (string) $r['notified_at'],
             'created_at' => (string) $r['created_at'], 'updated_at' => (string) $r['updated_at'],
             'name' => (string) ($r['name'] ?? ''), 'email' => (string) ($r['email'] ?? ''),

@@ -294,6 +294,12 @@ final class NgvDb
           handled_by  INTEGER NOT NULL DEFAULT 0,
           notify      INTEGER NOT NULL DEFAULT 1,
           notified_at VARCHAR(40) NOT NULL DEFAULT '',
+          /* Stored image URLs, as a JSON list. A cracked screen is a thing you
+             photograph, and a description is a poor stand-in when somebody
+             disputes what happened. Goes through Storage::put, so it lands on
+             Cloudinary where that is configured and in uploads/ where it is
+             not — the same path every other image on the site takes. */
+          photos      TEXT NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );

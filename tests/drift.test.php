@@ -239,7 +239,7 @@ if (class_exists('NgvDb')) {
         'ngv_charges'        => ['reason', 'source', 'void_reason'],
         // `entry_id` is the link between a damage record and the fine raised for
         // it. Lost, the record stops being able to point at the charge it made.
-        'ngv_damages'        => ['assessed', 'charged', 'entry_id', 'notify'],
+        'ngv_damages'        => ['assessed', 'charged', 'entry_id', 'notify', 'photos'],
         'ngv_certifications' => ['reference', 'issued_by'],
     ];
     $droppedOk = true;
@@ -256,7 +256,7 @@ if (class_exists('NgvDb')) {
     $npdo->exec("INSERT INTO ngv_payments (member_id, kind, amount) VALUES (4343, 'commitment', 750)");
 
     $addedN = Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
-    ck('sync: it reports how many columns it added', $addedN === 23);
+    ck('sync: it reports how many columns it added', $addedN === 24);
     ck('sync: a payment row that predates credit_kind is repaired to a real payment',
        (string) $npdo->query('SELECT credit_kind FROM ngv_payments WHERE member_id = 4343')->fetchColumn() === 'payment');
     $allBack = true;
