@@ -57,10 +57,16 @@ if ($method === 'POST') {
     $mid = (int) ($in['member_id'] ?? 0);
     if ($act === 'admin') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
-        NgvMember::setAdmin($mid, [
-            'status' => $in['status'] ?? null, 'cohort' => $in['cohort'] ?? null,
-            'track'  => $in['track'] ?? null,  'phase'  => $in['phase'] ?? null,
-        ]);
+        $patch = ['status' => $in['status'] ?? null, 'cohort' => $in['cohort'] ?? null,
+                  'track'  => $in['track'] ?? null,  'phase'  => $in['phase'] ?? null];
+        foreach (['plan', 'start_date'] as $k) { if (array_key_exists($k, $in)) $patch[$k] = $in[$k]; }
+        NgvMember::setAdmin($mid, $patch);
+        AdminAudit::log('ngv', 'ngv_enrolment', 'ngv:member:' . $mid,
+            'Enrolment updated — ' . trim(implode(' · ', array_filter([
+                (string) ($in['status'] ?? ''), (string) ($in['cohort'] ?? ''),
+                (string) ($in['track'] ?? ''), (string) ($in['plan'] ?? ''),
+                ($in['start_date'] ?? '') !== '' ? 'from ' . (string) $in['start_date'] : '',
+            ]))));
         json_out(['ok' => true]);
     }
     if ($act === 'payment') {
@@ -216,6 +222,12 @@ if ($method === 'POST') {
         ]);
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'A title is required.']);
     }
+    /* Revoked, never deleted — the link is public and somebody may already have
+       given it to an employer. See NgvMember::revokeCertification. */
+    if ($act === 'cert_revoke') {
+        $r = NgvMember::revokeCertification((int) ($in['cert_id'] ?? 0), (string) ($in['reason'] ?? ''), $adminUid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'app_status') {
         $ok = NgvMember::setApplicationStatus((int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''), $adminUid);
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'Bad application/status.']);
@@ -234,13 +246,24 @@ $csrf = $isAdmin && function_exists('av_csrf_token') ? av_csrf_token() : '';
 
 /* Data for the view */
 $stats = $isAdmin ? NgvMember::stats() : ['total' => 0, 'by_status' => [], 'collected' => 0, 'certs' => 0, 'apps_pending' => 0, 'apps_total' => 0];
-$roster = $isAdmin ? NgvMember::roster('', 300) : [];
+/* Roster filters, from the query string so a filtered view is a shareable URL —
+ * "the paused people in 2026 Alpha" is a thing one coordinator sends another. */
+$fStatus = (string) ($_GET['s'] ?? '');
+$fCohort = (string) ($_GET['c'] ?? '');
+$fQuery  = (string) ($_GET['r'] ?? '');
+$roster  = $isAdmin ? NgvMember::roster($fStatus, 300, $fQuery, $fCohort) : [];
+$rosterAll = $isAdmin ? NgvMember::rosterCount($fStatus, $fQuery, $fCohort) : 0;
+$cohorts = $isAdmin ? NgvMember::cohorts() : [];
+$filtered = $fStatus !== '' || $fCohort !== '' || trim($fQuery) !== '';
 $apps   = $isAdmin ? NgvMember::applications('', 100) : [];
 $sel = null; $selAcct = null; $selCerts = [];
 $mid = (int) ($_GET['m'] ?? 0);
 if ($isAdmin && $mid > 0) {
     $sel = NgvMember::participant($mid);
-    if ($sel) { $selAcct = NgvLedger::account($mid); $selCerts = NgvMember::certifications($mid); }
+    /* Staff see revoked certificates too — a withdrawn one is part of the record,
+       and hiding it means nobody can tell a revoked certificate from one that was
+       never issued. */
+    if ($sel) { $selAcct = NgvLedger::account($mid); $selCerts = NgvMember::certifications($mid, true); }
 }
 $trackNames = [];
 foreach ((Ngv::get()['tracks'] ?? []) as $t) { if (!empty($t['name'])) $trackNames[] = (string) $t['name']; }
@@ -318,6 +341,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .sub{font-size:.82rem;color:var(--muted)}
 .enroll{display:flex;gap:8px}.enroll input{flex:1}
+.rfilter{display:flex;gap:8px;flex-wrap:wrap}
+.rfilter input{flex:1;min-width:140px}.rfilter select{width:auto}
 .msg{font-size:.85rem;font-weight:700;margin-left:auto}
 .pay-row{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;padding:7px 0;border-bottom:1px dashed var(--line)}
 .pay-row .sp{flex:1}
@@ -687,6 +712,12 @@ textarea{min-height:60px;resize:vertical}
             <td>
               <?php if ($st !== 'enrolled'): ?>
                 <button class="btn sm primary" data-act="app_enroll" data-app="<?= (int)$a['id'] ?>">Enrol</button>
+                <?php /* `reviewing` and `accepted` were in the vocabulary with no way to
+                         reach them, so every application sat at `new` until somebody
+                         enrolled or rejected it — and a queue with one state cannot show
+                         who has already been looked at. */ ?>
+                <?php if ($st === 'new'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="reviewing">Reviewing</button><?php endif; ?>
+                <?php if ($st === 'new' || $st === 'reviewing'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="accepted">Accept</button><?php endif; ?>
                 <?php if ($st !== 'rejected'): ?><button class="btn sm" data-act="app_status" data-app="<?= (int)$a['id'] ?>" data-status="rejected">Reject</button><?php endif; ?>
               <?php else: ?>
                 <?php if ((int)$a['member_id'] > 0): ?><a class="btn sm" href="?m=<?= (int)$a['member_id'] ?>">Open</a><?php endif; ?>
@@ -703,12 +734,35 @@ textarea{min-height:60px;resize:vertical}
   <div class="shell">
     <!-- Roster -->
     <div class="card">
-      <header>Vanguards <span class="sp"></span><span class="sub"><?= count($roster) ?> shown</span></header>
+      <header>Vanguards <span class="sp"></span><span class="sub">
+        <?= count($roster) ?><?= $rosterAll > count($roster) ? ' of ' . $rosterAll : '' ?> shown<?php
+          if ($filtered): ?> · <a href="?<?= $mid > 0 ? 'm=' . $mid : '' ?>">clear filter</a><?php endif; ?></span></header>
       <div class="body">
-        <div class="enroll" style="margin-bottom:14px">
+        <div class="enroll" style="margin-bottom:10px">
           <input id="enrollEmail" type="email" placeholder="Enrol by member email…">
           <button class="btn primary" id="enrollBtn">Enrol</button>
         </div>
+        <!-- Filters in the query string, so a filtered view is a URL a
+             coordinator can send to another one. -->
+        <form method="get" class="rfilter" style="margin-bottom:14px">
+          <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
+          <input name="r" value="<?= $e($fQuery) ?>" placeholder="Name, email or track…">
+          <select name="s">
+            <option value="">Any status</option>
+            <?php foreach (NgvMember::STATUSES as $st): ?>
+              <option value="<?= $e($st) ?>" <?= $fStatus === $st ? 'selected' : '' ?>><?= $e(ucfirst($st)) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <?php if ($cohorts): ?>
+          <select name="c">
+            <option value="">Any cohort</option>
+            <?php foreach ($cohorts as $co): ?>
+              <option value="<?= $e($co) ?>" <?= $fCohort === $co ? 'selected' : '' ?>><?= $e($co) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <?php endif; ?>
+          <button class="btn">Filter</button>
+        </form>
         <table>
           <thead><tr><th>Name</th><th>Track</th><th>Status</th><th>Received</th><th>Certs</th></tr></thead>
           <tbody>
@@ -721,7 +775,9 @@ textarea{min-height:60px;resize:vertical}
               <td><?= (int)($r['cert_count'] ?? 0) ?></td>
             </tr>
           <?php endforeach; ?>
-          <?php if (!$roster): ?><tr><td colspan="5" class="sub">No participants yet — enrol a member by email above.</td></tr><?php endif; ?>
+          <?php if (!$roster): ?><tr><td colspan="5" class="sub"><?= $filtered
+              ? 'Nobody matches that filter. <a href="?' . ($mid > 0 ? 'm=' . $mid : '') . '">Show everybody</a>.'
+              : 'No participants yet — enrol a member by email above.' ?></td></tr><?php endif; ?>
           </tbody>
         </table>
       </div>
@@ -757,15 +813,20 @@ textarea{min-height:60px;resize:vertical}
             <input id="f_cohort" placeholder="Cohort (e.g. 2026 Alpha)" value="<?= $e((string)$sel['cohort']) ?>">
           </div>
           <div class="grid2" style="margin-top:10px">
+            <label class="sub">Enrolled from
+              <input id="f_start" type="date" value="<?= $e(substr((string)($sel['start_date'] ?: $sel['created_at']), 0, 10)) ?>"
+                     max="<?= $e(function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) ?>"></label>
             <select id="f_phase">
               <option value="" <?= $sel['phase']===''?'selected':'' ?>>Phase — not set</option>
               <option value="1" <?= $sel['phase']==='1'?'selected':'' ?>>Phase 1</option>
               <option value="2" <?= $sel['phase']==='2'?'selected':'' ?>>Phase 2</option>
               <option value="done" <?= $sel['phase']==='done'?'selected':'' ?>>Completed</option>
             </select>
-            <span></span>
           </div>
           <div style="margin-top:10px"><button class="btn primary sm" data-act="admin" data-m="<?= $m ?>">Save enrolment</button></div>
+          <p class="sub"><b>Enrolled from</b> decides what the accrual charges from and when a training schedule starts.
+             Changing it moves what happens NEXT — charges already posted keep the figures they were posted at, like
+             everything else here. Void them if they should not have existed.</p>
         </div>
 
         <!-- ── Their account ──────────────────────────────────────────────
@@ -1048,8 +1109,27 @@ textarea{min-height:60px;resize:vertical}
         <?php if ($selCerts): ?>
         <div class="fld"><label>Certifications</label>
           <?php foreach ($selCerts as $cert): ?>
-          <div class="pay-row"><span>🏅 <b><?= $e((string)$cert['title']) ?></b> <span class="sub"><?= $e((string)$cert['issued_by']) ?></span></span><span class="sp"></span><span class="sub"><?= $e(substr((string)($cert['issued_on'] ?: $cert['created_at']),0,10)) ?></span></div>
+          <div class="pay-row<?= !empty($cert['revoked']) ? ' voided' : '' ?>">
+            <span>🏅 <b><?= $e((string)$cert['title']) ?></b>
+              <span class="sub"><?= $e((string)$cert['issued_by']) ?></span>
+              <br><span class="sub">
+                <a href="/academy/ngv/certificate.php?id=<?= (int)$cert['id'] ?>&amp;c=<?= urlencode((string)$cert['code']) ?>"
+                   target="_blank" rel="noopener">verify link</a>
+                <?php if (!empty($cert['revoked'])): ?>
+                  · revoked <?= $e(substr((string)$cert['revoked_at'], 0, 10)) ?>
+                  <?= (string)$cert['revoke_reason'] !== '' ? '— ' . $e((string)$cert['revoke_reason']) : '' ?>
+                <?php endif; ?>
+              </span>
+            </span>
+            <span class="sp"></span>
+            <span class="sub"><?= $e(substr((string)($cert['issued_on'] ?: $cert['created_at']),0,10)) ?></span>
+            <?php if (empty($cert['revoked'])): ?>
+              <button class="btn sm" data-act="cert_revoke" data-cert="<?= (int)$cert['id'] ?>">Revoke</button>
+            <?php endif; ?>
+          </div>
           <?php endforeach; ?>
+          <p class="sub">Revoked, never deleted. The link is public and may already be with an employer — deleting it
+             would make a real link read as a forgery, so it keeps working and says it was withdrawn.</p>
         </div>
         <?php endif; ?>
       <?php endif; ?>
@@ -1109,7 +1189,13 @@ textarea{min-height:60px;resize:vertical}
       if(act==='damage_photos') return;              // handled above, as multipart
       // Actions that render their own result rather than reloading the page.
       var quiet = {remind_preview:1, remind_run:1, accrue:1, backfill_preview:1, backfill_run:1};
-      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); }
+      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); }
+      else if(act==='cert_revoke'){
+        body.cert_id = parseInt(btn.getAttribute('data-cert')||'0',10);
+        var why = prompt('Revoke this certificate — why? The holder and anyone with the link can see this.');
+        if(why===null || !why.trim()) return;
+        body.reason = why;
+      }
       else if(act==='payment'){ body.kind=val('p_kind'); body.amount=val('p_amount'); body.period=val('p_period'); body.method=val('p_method'); body.reference=val('p_ref'); body.receipt=chk('p_receipt'); if(!body.amount){ toast('Enter an amount', false); return; } }
       else if(act==='receipt'){ body.payment_id=parseInt(btn.getAttribute('data-pid')||'0',10); }
       else if(act==='charge'){ body.kind=val('x_kind'); body.amount=val('x_amount'); body.reason=val('x_reason'); body.note=val('x_note');

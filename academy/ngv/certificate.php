@@ -7,6 +7,11 @@
  * certCode), so the page doubles as the verification endpoint: a valid link
  * renders the certificate; a tampered or unknown one shows "not verified" and
  * reveals nothing. Data comes from the separate NGV database.
+ *
+ * A REVOKED certificate still renders, marked as withdrawn. Somebody may already
+ * have handed this link to an employer, and "not verified" would tell them it
+ * was a forgery — the truth is that it was issued and then withdrawn, which is a
+ * different thing, and the page says which.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
@@ -52,6 +57,16 @@ body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);c
 .verify{text-align:right;font-size:.8rem;color:var(--muted)}
 .verify .code{font-family:ui-monospace,Menlo,monospace;font-weight:700;color:var(--ink)}
 .ok-chip{display:inline-flex;align-items:center;gap:6px;background:#e6f7ec;color:#137a3a;border-radius:999px;padding:4px 12px;font-size:.8rem;font-weight:800}
+.bad-chip{display:inline-flex;align-items:center;gap:6px;background:#fdecec;color:#c0322b;border-radius:999px;padding:4px 12px;font-size:.8rem;font-weight:800}
+/* Withdrawn: it still renders, because somebody may be holding this link — but
+   it must never be mistakable for a live certificate, on screen or on paper. */
+.cert.is-revoked .cert-in{opacity:.62}
+.cert.is-revoked::after{content:"WITHDRAWN";position:absolute;inset:0;display:grid;place-items:center;
+  font-size:clamp(3rem,13vw,7rem);font-weight:800;letter-spacing:.08em;color:rgba(192,50,43,.16);
+  transform:rotate(-18deg);pointer-events:none}
+.revoked-note{border:1.5px solid #f0b4b0;background:#fdecec;color:#15120e;border-radius:12px;
+  padding:14px 16px;margin:0 0 26px;text-align:left;font-size:.92rem;line-height:1.55}
+.revoked-note b{display:block;margin-bottom:3px}
 /* invalid state */
 .bad{max-width:560px;margin:8vh auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:38px;text-align:center}
 .bad .big{font-size:3rem}
@@ -59,6 +74,9 @@ body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);c
   body{background:#fff;padding:0}
   .bar{display:none}
   .cert{box-shadow:none;border-radius:0}
+  /* The watermark has to survive printing, or a withdrawn certificate prints as
+     a valid one — the exact failure this is here to prevent. */
+  .cert.is-revoked::after{color:rgba(192,50,43,.3);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 @media(max-width:560px){.cert-in{padding:34px 22px}.name{font-size:2rem}}
 </style>
@@ -71,15 +89,29 @@ body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);c
     <p style="color:var(--muted)">This link is invalid, expired, or the certificate could not be found. If you were given a certificate, ask for a fresh link, or contact the Academy.</p>
     <p style="margin-top:18px"><a class="btn" href="/academy/ngv/">NextGen Vanguard</a></p>
   </div>
-<?php else: $c = $rec['cert']; $issued = substr((string)($c['issued_on'] ?: $c['created_at']), 0, 10); ?>
+<?php else: $c = $rec['cert']; $issued = substr((string)($c['issued_on'] ?: $c['created_at']), 0, 10);
+      $revoked = !empty($rec['revoked']); ?>
   <div class="bar">
-    <span class="ok-chip">✓ Verified certificate</span>
+    <?php if ($revoked): ?>
+      <span class="bad-chip">✕ Withdrawn</span>
+    <?php else: ?>
+      <span class="ok-chip">✓ Verified certificate</span>
+    <?php endif; ?>
     <span class="sp"></span>
     <button class="btn ghost" onclick="window.print()" type="button">Print / Save PDF</button>
     <a class="btn ghost" href="/academy/ngv/">Programme</a>
   </div>
-  <div class="cert">
+  <div class="cert<?= $revoked ? ' is-revoked' : '' ?>">
     <div class="cert-in">
+      <?php if ($revoked): ?>
+        <div class="revoked-note">
+          <b>This certificate has been withdrawn.</b>
+          It was issued<?= $issued !== '' ? ' on ' . $e(date('j F Y', strtotime($issued) ?: time())) : '' ?>
+          and has since been revoked by the Academy<?= (string)($rec['revokeReason'] ?? '') !== ''
+            ? ' — ' . $e((string)$rec['revokeReason']) : '' ?>.
+          It should not be relied on as evidence of the award.
+        </div>
+      <?php endif; ?>
       <div class="eyebrow">NextGen Vanguard</div>
       <div class="brandline"></div>
       <p class="pre">This certifies that</p>

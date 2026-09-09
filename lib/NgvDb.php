@@ -130,7 +130,19 @@ final class NgvDb
      */
     private static function ddl(): string
     {
-        return "
+        /* A NOWDOC, not a double-quoted string.
+         *
+         * This was `return "…"` and it cost three separate breakages: a double
+         * quote anywhere in the SQL or its comments ended the string, and a `$`
+         * interpolated. Both are things you write without thinking in prose about
+         * a schema. <<<'SQL' takes the text verbatim, so neither can happen again.
+         *
+         * The one trap that REMAINS: execSchema() splits statements by exploding
+         * on the semicolon, so a semicolon inside a comment still cuts a CREATE in
+         * half and both halves fail down the benign-error path. There are none
+         * below, and drift.test.php asserts there are none. */
+        return <<<'SQL'
+
         CREATE TABLE IF NOT EXISTS ngv_participants (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL UNIQUE,
@@ -312,6 +324,14 @@ final class NgvDb
           issued_on   TEXT NOT NULL DEFAULT '',
           issued_by   TEXT NOT NULL DEFAULT '',
           reference   TEXT NOT NULL DEFAULT '',
+          /* Revoked, never deleted. A certificate is PUBLICLY verifiable by a
+             link somebody may already have given to an employer, so deleting the
+             row turns a valid link into "not verified" — which reads as a forgery
+             rather than as a withdrawal. The link keeps working and says it was
+             revoked, with the reason, exactly like a cancelled receipt. */
+          revoked_at  VARCHAR(40) NOT NULL DEFAULT '',
+          revoked_by  INTEGER NOT NULL DEFAULT 0,
+          revoke_reason TEXT NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_cert_member ON ngv_certifications (member_id);
@@ -335,7 +355,7 @@ final class NgvDb
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);
         CREATE INDEX IF NOT EXISTS idx_ngv_app_email  ON ngv_applications (email);
-        ";
+SQL;
     }
 
     /** Idempotent schema. Runs once per process; safe to call repeatedly. */

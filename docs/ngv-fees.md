@@ -441,11 +441,16 @@ union in the domain layer.
 silently dropped there by `execSchema()`'s benign-error path — the accrual would
 quietly lose its idempotency on exactly one engine.
 
-Two more traps in the same function, both found the hard way. **No comment in
-`NgvDb::ddl()` may contain a semicolon** — the DDL is split into statements by
-exploding on it, so a semicolon in prose cuts a `CREATE` in half and both halves
-fail silently down the benign-error path. And **no double quote or `$`** either:
-`ddl()` is one double-quoted PHP string, so either ends it or interpolates.
+One trap remains in the same function, and it is asserted rather than
+remembered: **no comment in `NgvDb::ddl()` may contain a semicolon** — the DDL is
+split into statements by exploding on it, so a semicolon in prose cuts a `CREATE`
+in half and both halves fail silently down the benign-error path.
+
+The other two are gone structurally. `ddl()` used to be one double-quoted string,
+so a `"` anywhere in the SQL *or its comments* ended it and a `$` interpolated —
+both things you write without thinking when describing a schema, and both of
+which broke it in practice, three times. It is a `<<<'SQL'` nowdoc now, which
+takes the text verbatim. `drift.test.php` pins both facts.
 
 ## Rolling it out
 

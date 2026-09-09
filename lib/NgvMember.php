@@ -66,7 +66,28 @@ final class NgvMember
     public static function ensureParticipant(int $memberId, array $seed = []): array
     {
         $p = self::participant($memberId);
-        if ($p) return $p;
+        if ($p) {
+            /* Name and email are SNAPSHOTS taken at enrolment, and the email is
+               where receipts, reminders and statements go. A member who changes
+               it on the main site would otherwise keep a dead address here for
+               good — every letter silently delivered nowhere. So the snapshot is
+               refreshed whenever the member is present with a fresher one, which
+               is the only moment we can be sure the newer value is theirs. */
+            $freshName  = mb_substr(trim((string) ($seed['name'] ?? '')), 0, 120);
+            $freshEmail = mb_substr(trim((string) ($seed['email'] ?? '')), 0, 160);
+            $set = []; $args = [];
+            if ($freshName !== '' && $freshName !== (string) $p['name'])   { $set[] = 'name = ?';  $args[] = $freshName; }
+            if ($freshEmail !== '' && $freshEmail !== (string) $p['email']) { $set[] = 'email = ?'; $args[] = $freshEmail; }
+            if ($set) {
+                $args[] = $memberId;
+                try {
+                    NgvDb::pdo()->prepare('UPDATE ngv_participants SET ' . implode(', ', $set)
+                        . ', updated_at = ' . NgvDb::nowExpr() . ' WHERE member_id = ?')->execute($args);
+                    $p = self::participant($memberId) ?: $p;
+                } catch (Throwable $e) { error_log('[ngv] snapshot refresh: ' . $e->getMessage()); }
+            }
+            return $p;
+        }
 
         $track = self::validTrack((string) ($seed['track'] ?? ''));
         $plan  = self::validPlan((string) ($seed['plan'] ?? ''));
@@ -128,6 +149,16 @@ final class NgvMember
         if (array_key_exists('cohort', $patch)) { $set[] = 'cohort = ?'; $args[] = mb_substr(trim((string) $patch['cohort']), 0, 60); }
         if (array_key_exists('track', $patch))  { $set[] = 'track = ?';  $args[] = self::validTrack((string) $patch['track']); }
         if (array_key_exists('phase', $patch) && in_array((string) $patch['phase'], self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = (string) $patch['phase']; }
+        /* The enrolment date. It decides what the accrual charges from, when the
+           training schedule starts, and which side of the rollout guard somebody
+           falls — and until this was here, a wrong one at enrolment could not be
+           corrected at all. Charges already posted keep their figures, which is
+           the ledger's rule everywhere: fixing the date changes what happens
+           NEXT, and the console says so. */
+        if (array_key_exists('start_date', $patch)) {
+            $sd = substr(trim((string) $patch['start_date']), 0, 10);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) && $sd <= self::today()) { $set[] = 'start_date = ?'; $args[] = $sd; }
+        }
         if (!$set) return;
         $set[] = 'updated_at = ' . NgvDb::nowExpr();
         $args[] = $memberId;
@@ -184,13 +215,51 @@ final class NgvMember
     }
 
     /** Certifications, newest first — each row carries its verification `code`. */
-    public static function certifications(int $memberId): array
+    public static function certifications(int $memberId, bool $withRevoked = false): array
     {
-        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_certifications WHERE member_id = ? ORDER BY issued_on DESC, id DESC');
+        $sql = 'SELECT * FROM ngv_certifications WHERE member_id = ?';
+        if (!$withRevoked) $sql .= " AND (revoked_at IS NULL OR revoked_at = '')";
+        $sql .= ' ORDER BY issued_on DESC, id DESC';
+        $st = NgvDb::pdo()->prepare($sql);
         $st->execute([$memberId]);
         $rows = $st->fetchAll() ?: [];
-        foreach ($rows as &$r) $r['code'] = self::certCode((int) $r['id']);
+        foreach ($rows as &$r) {
+            $r['code'] = self::certCode((int) $r['id']);
+            $r['revoked'] = trim((string) ($r['revoked_at'] ?? '')) !== '';
+        }
         return $rows;
+    }
+
+    /**
+     * Withdraw a certificate. Revoked, never deleted.
+     *
+     * The link is public and somebody may already have given it to an employer.
+     * Deleting the row turns that working link into "not verified", which reads
+     * as a forgery rather than as a withdrawal — so the link keeps working and
+     * says it was revoked, with the reason, exactly like a cancelled receipt.
+     *
+     * A reason is required for the same reason it is on a void: without one this
+     * is a deletion with extra steps, and "why is my certificate gone" has to be
+     * answerable from the record.
+     */
+    public static function revokeCertification(int $certId, string $reason, int $byUid): array
+    {
+        $reason = trim($reason);
+        if ($reason === '') return ['ok' => false, 'error' => 'Say why — the holder can see this.'];
+        $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_certifications WHERE id = ?');
+        $st->execute([$certId]);
+        $c = $st->fetch();
+        if (!$c) return ['ok' => false, 'error' => 'No such certificate.'];
+        if (trim((string) ($c['revoked_at'] ?? '')) !== '') return ['ok' => false, 'error' => 'That certificate is already revoked.'];
+        NgvDb::pdo()->prepare('UPDATE ngv_certifications SET revoked_at = ?, revoked_by = ?, revoke_reason = ? WHERE id = ?')
+            ->execute([gmdate('Y-m-d H:i:s'), max(0, $byUid), mb_substr($reason, 0, 240), $certId]);
+        if (class_exists('AdminAudit')) {
+            try {
+                AdminAudit::log('ngv', 'ngv_cert_revoke', 'ngv:member:' . (int) $c['member_id'],
+                    'Revoked "' . mb_substr((string) $c['title'], 0, 100) . '" — ' . mb_substr($reason, 0, 160));
+            } catch (Throwable $e) { error_log('[ngv] cert revoke audit: ' . $e->getMessage()); }
+        }
+        return ['ok' => true];
     }
 
     /**
@@ -208,7 +277,13 @@ final class NgvMember
         if (!$cert) return null;
         $p = self::participant((int) $cert['member_id']);
         $cert['code'] = self::certCode($id);
-        return ['cert' => $cert, 'name' => $p ? (string) ($p['name'] ?: '') : '', 'cohort' => $p ? (string) ($p['cohort'] ?? '') : ''];
+        /* Returned even when revoked, flagged. "Not verified" would tell somebody
+           holding a real link that it was a forgery; the truth is that it was
+           issued and then withdrawn, and the page can say so. */
+        $cert['revoked'] = trim((string) ($cert['revoked_at'] ?? '')) !== '';
+        return ['cert' => $cert, 'revoked' => $cert['revoked'],
+                'revokeReason' => (string) ($cert['revoke_reason'] ?? ''),
+                'name' => $p ? (string) ($p['name'] ?: '') : '', 'cohort' => $p ? (string) ($p['cohort'] ?? '') : ''];
     }
 
     public static function addCertification(int $memberId, array $c): bool
@@ -242,7 +317,16 @@ final class NgvMember
     }
 
     /* ── staff roster + overview ─────────────────────────────────────── */
-    public static function roster(string $status = '', int $limit = 200): array
+    /**
+     * The roster, filterable.
+     *
+     * A flat list of everybody was fine for one cohort and unusable at three:
+     * "who in 2026 Alpha is paused" was a Ctrl-F on a 300-row table. Filtering
+     * happens in SQL rather than in the template so the row cap applies to the
+     * MATCHES — a limit that truncates before the filter shows an empty result
+     * for somebody who is definitely on the roster.
+     */
+    public static function roster(string $status = '', int $limit = 200, string $q = '', string $cohort = ''): array
     {
         $limit = max(1, min(1000, $limit));
         /* `payment` only. A waiver and a write-off are credits too, and counting
@@ -251,14 +335,46 @@ final class NgvMember
         $sql = "SELECT p.*,
                   (SELECT COALESCE(SUM(x.amount),0) FROM ngv_payments x
                     WHERE x.member_id = p.member_id AND x.voided = 0 AND x.credit_kind = 'payment') AS paid_total,
-                  (SELECT COUNT(*) FROM ngv_certifications c WHERE c.member_id = p.member_id) AS cert_count
+                  (SELECT COUNT(*) FROM ngv_certifications c WHERE c.member_id = p.member_id
+                     AND (c.revoked_at IS NULL OR c.revoked_at = '')) AS cert_count
                 FROM ngv_participants p";
-        $args = [];
-        if ($status !== '' && in_array($status, self::STATUSES, true)) { $sql .= ' WHERE p.status = ?'; $args[] = $status; }
+        $args = []; $where = [];
+        if ($status !== '' && in_array($status, self::STATUSES, true)) { $where[] = 'p.status = ?'; $args[] = $status; }
+        if (trim($cohort) !== '') { $where[] = 'p.cohort = ?'; $args[] = mb_substr(trim($cohort), 0, 60); }
+        $q = trim($q);
+        if ($q !== '') {
+            /* Wildcards stripped rather than escaped: ESCAPE needs a different
+               literal on each of the three engines NGV runs on, and a name with
+               a % in it is not a thing anybody searches for. */
+            $like = '%' . str_replace(['%', '_'], '', $q) . '%';
+            $where[] = '(p.name LIKE ? OR p.email LIKE ? OR p.track LIKE ?)';
+            array_push($args, $like, $like, $like);
+        }
+        if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
         $sql .= ' ORDER BY p.updated_at DESC, p.id DESC LIMIT ' . $limit;
         $st = NgvDb::pdo()->prepare($sql);
         $st->execute($args);
         return $st->fetchAll() ?: [];
+    }
+
+    /** Cohorts actually in use, for the roster filter. Read from the data rather
+     *  than from a list somebody has to remember to maintain. */
+    public static function cohorts(): array
+    {
+        try {
+            $out = [];
+            foreach (NgvDb::pdo()->query("SELECT DISTINCT cohort FROM ngv_participants WHERE cohort <> '' ORDER BY cohort")->fetchAll() ?: [] as $r) {
+                $out[] = (string) $r['cohort'];
+            }
+            return $out;
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** How many match a filter, so the console can say "showing 50 of 214"
+     *  instead of quietly truncating. */
+    public static function rosterCount(string $status = '', string $q = '', string $cohort = ''): int
+    {
+        return count(self::roster($status, 1000, $q, $cohort));
     }
 
     public static function stats(): array
@@ -270,7 +386,7 @@ final class NgvMember
         }
         $total     = (int) $pdo->query('SELECT COUNT(*) FROM ngv_participants')->fetchColumn();
         $collected = (int) $pdo->query('SELECT COALESCE(SUM(amount),0) FROM ngv_payments WHERE voided = 0')->fetchColumn();
-        $certs     = (int) $pdo->query('SELECT COUNT(*) FROM ngv_certifications')->fetchColumn();
+        $certs     = (int) $pdo->query("SELECT COUNT(*) FROM ngv_certifications WHERE revoked_at IS NULL OR revoked_at = ''")->fetchColumn();
         $appsNew   = (int) $pdo->query("SELECT COUNT(*) FROM ngv_applications WHERE status IN ('new','reviewing')")->fetchColumn();
         $appsTotal = (int) $pdo->query('SELECT COUNT(*) FROM ngv_applications')->fetchColumn();
         /* `collected` is every credit ever recorded, which is what the console

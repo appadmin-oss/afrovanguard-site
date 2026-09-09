@@ -183,6 +183,23 @@ ck('drift: and the sync reads the same DDL provisioning uses',
    strpos($ngvSrc, '$ddl = self::ddl();') !== false);
 ck('drift: no hand-written per-column ALTER is left to fall out of date',
    strpos($ngvSrc, 'ALTER TABLE ngv_participants ADD COLUMN') === false);
+/* The DDL is a NOWDOC. It was a double-quoted string, and that cost three
+   separate breakages: a double quote anywhere in the SQL or its comments ended
+   the string, and a `$` interpolated — both things you write without thinking in
+   prose about a schema. The remaining trap is the semicolon, because execSchema
+   splits statements by exploding on it, so that one is asserted directly. */
+ck('drift: the NGV DDL is a nowdoc, so a quote or a $ in it cannot break the schema',
+   strpos($ngvSrc, "return <<<'SQL'") !== false);
+ck('drift: and no comment inside it contains a semicolon, which would cut a CREATE in half',
+   (function () use ($ngvSrc): bool {
+       if (!preg_match("~return <<<'SQL'\n(.*?)\nSQL;~s", $ngvSrc, $m)) return false;
+       foreach (explode("\n", $m[1]) as $line) {
+           $t = ltrim($line);
+           if ((strncmp($t, '/*', 2) === 0 || strncmp($t, '*', 1) === 0 || strncmp($t, '--', 2) === 0)
+               && strpos($t, ';') !== false) return false;
+       }
+       return true;
+   })());
 
 // Live proof rather than a source grep: drop the column, reconnect, expect it back.
 if (class_exists('NgvDb')) {
@@ -240,7 +257,7 @@ if (class_exists('NgvDb')) {
         // `entry_id` is the link between a damage record and the fine raised for
         // it. Lost, the record stops being able to point at the charge it made.
         'ngv_damages'        => ['assessed', 'charged', 'entry_id', 'notify', 'photos'],
-        'ngv_certifications' => ['reference', 'issued_by'],
+        'ngv_certifications' => ['reference', 'issued_by', 'revoked_at', 'revoke_reason'],
     ];
     $droppedOk = true;
     foreach ($ngvDrop as $t => $cs) {
@@ -256,7 +273,7 @@ if (class_exists('NgvDb')) {
     $npdo->exec("INSERT INTO ngv_payments (member_id, kind, amount) VALUES (4343, 'commitment', 750)");
 
     $addedN = Database::syncTablesFromDdl($npdo, $ngvDdl, 'sqlite', 'test');
-    ck('sync: it reports how many columns it added', $addedN === 24);
+    ck('sync: it reports how many columns it added', $addedN === 26);
     ck('sync: a payment row that predates credit_kind is repaired to a real payment',
        (string) $npdo->query('SELECT credit_kind FROM ngv_payments WHERE member_id = 4343')->fetchColumn() === 'payment');
     $allBack = true;

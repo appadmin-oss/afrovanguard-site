@@ -143,9 +143,24 @@ if (!$haveOpenSsl || !$certs) {
    1. Parsing — deterministic, no key, no network
    ══════════════════════════════════════════════════════════════════════ */
 
-$p = ChatBot::parseTask('/task Submit the revised STS report by 2026-09-01');
+/* The date is computed, never written down. A hardcoded future date is a test
+   that passes until it silently stops being a future date — this pair failed for
+   exactly that reason, and the parser was right both times: it refuses a due
+   date in the past, so the day the literal expired the title kept the trailing
+   "by …" and due_days went null. */
+$isoSoon = gmdate('Y-m-d', strtotime('+30 days'));
+$p = ChatBot::parseTask('/task Submit the revised STS report by ' . $isoSoon);
 ck('parse/strips the slash command', $p['title'] === 'Submit the revised STS report');
 ck('parse/reads an ISO date',        $p['due_days'] !== null && $p['due_days'] > 0);
+ck('parse/…and reads it as the right number of days away',
+   $p['due_days'] >= 29 && $p['due_days'] <= 30);
+/* The other half of the same behaviour, now that it is pinned deliberately
+   rather than by the calendar: a date already gone is not a due date, and the
+   text is left alone rather than half-parsed. */
+$pPast = ChatBot::parseTask('/task Submit the revised STS report by ' . gmdate('Y-m-d', strtotime('-30 days')));
+ck('parse/a date in the past is not a due date, and the title is left intact',
+   $pPast['due_days'] === null
+   && strpos($pPast['title'], 'Submit the revised STS report') === 0);
 
 $p = ChatBot::parseTask('remind Bode to call the venue tomorrow');
 ck('parse/reads "remind X to"',  $p['owner'] === 'Bode');
