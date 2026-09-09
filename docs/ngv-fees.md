@@ -404,6 +404,80 @@ money in a corridor.
   figure — charge, waive, void, assess, agree a training fee — is staff-only,
   and both test files assert the dashboard source contains none of them.
 
+## The end-to-end audit
+
+Everything above was audited as a whole once it was built, with two adversarial
+probe scripts rather than by re-reading the code: one for the arithmetic (money
+edge cases, instalment sums that do not divide, cross-member isolation, orphan
+rows, a plan deleted under a live schedule, the cap, repeat accrual, corrupt
+settings) and one for what a single determined participant can make the system
+do. The first found nothing. The second found six things, all now fixed and all
+pinned by `tests/ngvaudit.test.php`, which is organised in the same order.
+
+**1. One member could page every admin, without limit.** The dashboard allows
+sixty writes per ten minutes and each self-reported damage record emailed every
+administrator. Two admins is a hundred and twenty emails in one sitting — enough
+to spend a shared host's daily mail quota and take the whole site's outbound mail
+down, which is a denial of service against everybody else's password resets.
+The fix throttles the *alert*, not the record: `NgvDamage::report()` pages staff
+only when this is the participant's first open incident. The records stay
+unlimited on purpose — somebody who has already reported a cracked screen must
+still be able to report a lost charger — and the throttle re-arms the moment
+staff clear the queue, so it suppresses a pile-on rather than silencing anybody.
+`openCountFor()` fails to 99 on a database error: a broken count must not open
+the floodgates.
+
+**2. A participant could self-select a plan the admin had switched off**, and
+then be priced by it. `Ngv::activePlans()` already filtered the public page, but
+the domain never consulted it, so a stale form or a hand-written POST set any
+string. `validPlan()` now checks the published names.
+
+Two distinctions turned out to matter here, and both were wrong at first:
+
+- The **catalogue still prices a retired plan** while the **console stops
+  offering it**. Filtering both would have silently stopped the instalments of
+  anybody already enrolled on the plan at the price they had agreed to pay.
+  `planCatalogue()` keeps everything; `planOptions()` is the filtered offer.
+- **Refusing a value means leaving the stored one alone**, not blanking it. The
+  first fix returned `''` for an unrecognised plan, which is the same value as
+  "no plan" — so a stale form would have quietly cleared the field that prices
+  the training fee. `validPlan()` and `validTrack()` now return `null` for
+  "refuse", `''` only for a deliberate empty choice, and every caller skips the
+  column rather than writing over it.
+
+**3. `certificate.php` was the weaker of two identical doors.** It verifies a
+public HMAC bearer link exactly as `receipt.php` does, but had neither its
+sibling's rate limit on failed verifications nor its `no-store` and
+`no-referrer` headers — so it was simply where somebody would go to grind
+signatures. It now matches, including the part that matters: only *failures*
+count against the bucket, because throttling valid reads would lock a cohort out
+of its own certificates on results day.
+
+**4. A negative balance cap became "no ceiling".** Zero means no ceiling, and
+the sanitiser clamped negatives to zero — so a slipped minus sign removed
+exactly the protection it was aimed at. A negative figure now keeps the current
+ceiling; somebody who genuinely wants none types 0.
+
+**5. Repeat applications each opened a row.** One address submitting the form
+twenty-one times produced twenty-one entries for staff to review. A resubmission
+now updates the existing undecided application instead. Dedupe is deliberately
+narrow: only an application still `new` or `reviewing` absorbs a repeat, a
+decided one leaves a genuine re-approach visible as its own row, and a shorter
+resubmission never blanks a field the first one filled.
+
+**6. `rosterCount()` fetched up to a thousand full rows** — each carrying the
+page's correlated subqueries — to return a single integer. It is now a
+`SELECT COUNT(*)` built from the same `WHERE` construction as `roster()`, which
+is the part that has to stay true: a count that disagrees with its page
+paginates into pages that are not there.
+
+Three further probe assertions fired and were *wrong* — they measured the
+return value where the behaviour was in the rows, and treated two deliberate
+designs as faults. They are recorded here because the corrected versions are
+what `tests/ngvaudit.test.php` asserts: count the rows, not what the function
+handed back; unlimited records with a throttled alert is the design; and a
+catalogue that still prices a retired plan is the design.
+
 ## Only the enrolled accrue
 
 An applicant has not started; somebody paused, withdrawn or completed has
@@ -423,7 +497,8 @@ reason it skipped for.
 | Uploads | `Storage::put(…, 'image', 'ngv-damage')` — Cloudinary, else `uploads/ngv-damage/` |
 | Cron | `NgvLedger::cronTick()` from `tasks/cron.php` — accrue, remind, review nudge, stalled-assessment nudge |
 | Settings | `app_meta` key `ngv_fees` |
-| Tests | `tests/ngvledger.test.php`, `tests/ngvdamage.test.php`, `tests/ngvreceipt.test.php`, plus the NGV rows in `tests/drift.test.php` |
+| Certificate | `/academy/ngv/certificate.php?id&c` — same public bearer-link posture as the receipt |
+| Tests | `tests/ngvledger.test.php`, `tests/ngvdamage.test.php`, `tests/ngvreceipt.test.php`, `tests/ngvmanage.test.php`, `tests/ngvaudit.test.php`, plus the NGV rows in `tests/drift.test.php` |
 
 `lib/NgvMember.php` keeps `recordPayment()`, `payments()`, `feeStatus()` and
 `account()` as thin pass-throughs, so nothing that called them had to change.

@@ -250,7 +250,13 @@ final class NgvLedger
             'trainingInstalments' => max(1, min(self::TRAINING_MONTHS_MAX,
                                      (int) ($in['trainingInstalments'] ?? $cur['trainingInstalments']) ?: 1)),
             'accrueFrom'        => self::validDate((string) ($in['accrueFrom'] ?? $cur['accrueFrom'])),
-            'balanceCap'        => self::money($in['balanceCap'] ?? $cur['balanceCap']),
+            /* A negative figure KEEPS the current ceiling rather than clamping to
+               zero, because zero here means "no ceiling at all" — so a slipped
+               minus sign would silently remove the protection it was aimed at.
+               Somebody who genuinely wants no ceiling types 0. */
+            'balanceCap'        => (float) ($in['balanceCap'] ?? 0) < 0
+                                     ? self::money($cur['balanceCap'])
+                                     : self::money($in['balanceCap'] ?? $cur['balanceCap']),
             'remindEnabled'     => $bool('remindEnabled'),
             /* Floored, not just rejected. An admin who types 1 gets the floor and
                is told, rather than getting a daily chase nobody asked to defend. */

@@ -89,8 +89,8 @@ final class NgvMember
             return $p;
         }
 
-        $track = self::validTrack((string) ($seed['track'] ?? ''));
-        $plan  = self::validPlan((string) ($seed['plan'] ?? ''));
+        $track = self::validTrack((string) ($seed['track'] ?? '')) ?? '';
+        $plan  = self::validPlan((string) ($seed['plan'] ?? '')) ?? '';   // nothing to preserve on a new row
         $phaseIn = (string) ($seed['phase'] ?? '');
         $phase = in_array($phaseIn, self::PHASES, true) ? $phaseIn : '';
         $books = self::validBooks((string) ($seed['books'] ?? ''));
@@ -121,8 +121,8 @@ final class NgvMember
         self::ensureParticipant($memberId);
         $set = [];
         $args = [];
-        if (array_key_exists('track', $patch))      { $set[] = 'track = ?';      $args[] = self::validTrack((string) $patch['track']); }
-        if (array_key_exists('plan', $patch))       { $set[] = 'plan = ?';       $args[] = self::validPlan((string) $patch['plan']); }
+        if (array_key_exists('track', $patch) && ($t = self::validTrack((string) $patch['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
+        if (array_key_exists('plan', $patch) && ($p = self::validPlan((string) $patch['plan'])) !== null) { $set[] = 'plan = ?'; $args[] = $p; }
         if (array_key_exists('phase', $patch))      { $v = (string) $patch['phase']; if (in_array($v, self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = $v; } }
         if (array_key_exists('books', $patch))      { $set[] = 'books = ?';      $args[] = self::validBooks((string) $patch['books']); }
         if (array_key_exists('focus_note', $patch)) { $set[] = 'focus_note = ?'; $args[] = mb_substr(trim((string) $patch['focus_note']), 0, 300); }
@@ -145,9 +145,9 @@ final class NgvMember
         self::ensureParticipant($memberId);
         $set = []; $args = [];
         if (isset($patch['status']) && in_array((string) $patch['status'], self::STATUSES, true)) { $set[] = 'status = ?'; $args[] = (string) $patch['status']; }
-        if (array_key_exists('plan', $patch))   { $set[] = 'plan = ?';   $args[] = self::validPlan((string) $patch['plan']); }
+        if (array_key_exists('plan', $patch) && ($p = self::validPlan((string) $patch['plan'])) !== null) { $set[] = 'plan = ?'; $args[] = $p; }
         if (array_key_exists('cohort', $patch)) { $set[] = 'cohort = ?'; $args[] = mb_substr(trim((string) $patch['cohort']), 0, 60); }
-        if (array_key_exists('track', $patch))  { $set[] = 'track = ?';  $args[] = self::validTrack((string) $patch['track']); }
+        if (array_key_exists('track', $patch) && ($t = self::validTrack((string) $patch['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
         if (array_key_exists('phase', $patch) && in_array((string) $patch['phase'], self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = (string) $patch['phase']; }
         /* The enrolment date. It decides what the accrual charges from, when the
            training schedule starts, and which side of the rollout guard somebody
@@ -370,11 +370,29 @@ final class NgvMember
         } catch (Throwable $e) { return []; }
     }
 
-    /** How many match a filter, so the console can say "showing 50 of 214"
-     *  instead of quietly truncating. */
+    /**
+     * How many match a filter, so the console can say "showing 50 of 214"
+     * instead of quietly truncating.
+     *
+     * A real COUNT. This used to call `roster(1000)` and count the array, which
+     * fetched up to a thousand full rows and ran two correlated subqueries on
+     * every one of them — to produce a single integer, on every page load.
+     */
     public static function rosterCount(string $status = '', string $q = '', string $cohort = ''): int
     {
-        return count(self::roster($status, 1000, $q, $cohort));
+        $sql = 'SELECT COUNT(*) FROM ngv_participants p';
+        $args = []; $where = [];
+        if ($status !== '' && in_array($status, self::STATUSES, true)) { $where[] = 'p.status = ?'; $args[] = $status; }
+        if (trim($cohort) !== '') { $where[] = 'p.cohort = ?'; $args[] = mb_substr(trim($cohort), 0, 60); }
+        $q = trim($q);
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], '', $q) . '%';
+            $where[] = '(p.name LIKE ? OR p.email LIKE ? OR p.track LIKE ?)';
+            array_push($args, $like, $like, $like);
+        }
+        if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+        try { $st = NgvDb::pdo()->prepare($sql); $st->execute($args); return (int) $st->fetchColumn(); }
+        catch (Throwable $e) { error_log('[ngv] rosterCount: ' . $e->getMessage()); return 0; }
     }
 
     public static function stats(): array
@@ -408,6 +426,50 @@ final class NgvMember
      */
     public static function submitApplication(array $d): int
     {
+        /* A repeat from the same address while one is still unanswered UPDATES
+           it rather than filing a second. Somebody who submits the form twice is
+           almost always correcting a typo or unsure it went through — treating
+           that as two applicants gives staff a queue of duplicates to sort out
+           and the applicant no signal either way. Once an application has been
+           acted on (accepted, rejected, enrolled) a new one is a new
+           application, and is filed as one. */
+        $email = mb_strtolower(trim((string) ($d['email'] ?? '')));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            try {
+                $st = NgvDb::pdo()->prepare("SELECT id FROM ngv_applications
+                                              WHERE LOWER(email) = ? AND status IN ('new','reviewing')
+                                              ORDER BY id DESC LIMIT 1");
+                $st->execute([$email]);
+                $open = $st->fetchColumn();
+                if ($open !== false) { self::updateApplication((int) $open, $d); return (int) $open; }
+            } catch (Throwable $e) { error_log('[ngv] application dedupe: ' . $e->getMessage()); }
+        }
+        return self::insertApplication($d);
+    }
+
+    /** Overwrite an unanswered application with a resubmission of it. */
+    private static function updateApplication(int $id, array $d): void
+    {
+        $set = []; $args = [];
+        foreach (['name' => 120, 'phone' => 40, 'age' => 12, 'gender' => 24, 'location' => 120,
+                  'education' => 120, 'message' => 2000] as $f => $max) {
+            if (!array_key_exists($f, $d)) continue;
+            $v = mb_substr(trim((string) $d[$f]), 0, $max);
+            if ($v === '') continue;                       // never blank a field by resubmitting a shorter form
+            $set[] = $f . ' = ?'; $args[] = $v;
+        }
+        /* Same rule as the fields above: a resubmission that names a track or
+           plan we cannot recognise leaves the recorded one standing. */
+        if (array_key_exists('track', $d) && ($t = self::validTrack((string) $d['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
+        if (array_key_exists('plan', $d)  && ($p = self::validPlan((string) $d['plan']))   !== null) { $set[] = 'plan = ?';  $args[] = $p; }
+        if (!$set) return;
+        $args[] = $id;
+        try { NgvDb::pdo()->prepare('UPDATE ngv_applications SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($args); }
+        catch (Throwable $e) { error_log('[ngv] application update: ' . $e->getMessage()); }
+    }
+
+    private static function insertApplication(array $d): int
+    {
         $name  = mb_substr(trim((string) ($d['name'] ?? '')), 0, 120);
         $email = mb_substr(trim((string) ($d['email'] ?? '')), 0, 160);
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return 0;
@@ -422,8 +484,8 @@ final class NgvMember
             mb_substr(trim((string) ($d['age'] ?? '')), 0, 12),
             mb_substr(trim((string) ($d['gender'] ?? '')), 0, 24),
             mb_substr(trim((string) ($d['location'] ?? '')), 0, 120),
-            self::validTrack((string) ($d['track'] ?? '')),
-            self::validPlan((string) ($d['plan'] ?? '')),
+            self::validTrack((string) ($d['track'] ?? '')) ?? '',
+            self::validPlan((string) ($d['plan'] ?? '')) ?? '',
             mb_substr(trim((string) ($d['education'] ?? '')), 0, 80),
             mb_substr(trim((string) ($d['message'] ?? '')), 0, 1500),
             mb_substr(trim((string) ($d['source'] ?? 'web')), 0, 24),
@@ -514,21 +576,40 @@ final class NgvMember
     }
 
     /* ── validation ──────────────────────────────────────────────────── */
-    private static function validPlan(string $p): string
+    /**
+     * A plan somebody may CHOOSE: the name, '' for a deliberate none, or null
+     * meaning "refused — do not touch the stored one".
+     *
+     * `Ngv::activePlans()`, not `plans`: an admin who retires a plan from the
+     * public page has withdrawn it, and a member picking it from a stale tab
+     * would then be priced against something the programme no longer offers.
+     * Choosing is the only thing this gates; a participant ALREADY on a retired
+     * plan keeps it, and `planCatalogue()` still prices it, or their running
+     * schedule and their account line would break the day somebody tidied the
+     * page.
+     *
+     * The three return states are genuinely different and collapsing them loses
+     * data. Refusing has to mean leaving the field alone rather than blanking
+     * it: the plan is what prices the training fee, so a stale form or a
+     * hand-crafted POST would otherwise stop somebody's instalments over a typo.
+     */
+    private static function validPlan(string $p): ?string
     {
         $p = trim($p);
         if ($p === '') return '';
         $names = [];
-        if (class_exists('Ngv')) { foreach ((Ngv::get()['plans'] ?? []) as $pl) { if (!empty($pl['name'])) $names[] = (string) $pl['name']; } }
-        return ($names === [] || in_array($p, $names, true)) ? mb_substr($p, 0, 80) : '';
+        if (class_exists('Ngv')) { foreach (Ngv::activePlans() as $pl) { if (!empty($pl['name'])) $names[] = (string) $pl['name']; } }
+        return ($names === [] || in_array($p, $names, true)) ? mb_substr($p, 0, 80) : null;
     }
 
-    private static function validTrack(string $t): string
+    /** A track name, or null meaning "leave the stored one alone" — same three
+     *  states, and the same reasoning, as validPlan() above. */
+    private static function validTrack(string $t): ?string
     {
         $t = trim($t);
         if ($t === '') return '';
         $names = self::trackNames();
-        return ($names === [] || in_array($t, $names, true)) ? mb_substr($t, 0, 80) : '';
+        return ($names === [] || in_array($t, $names, true)) ? mb_substr($t, 0, 80) : null;
     }
     private static function validBooks(string $b): string
     {
@@ -544,8 +625,12 @@ final class NgvMember
      * quote different money — the parser lives in NgvLedger, which is also what
      * prices a charge, so there is exactly one of it. */
     public static function planNames(): array { return array_keys(NgvLedger::planCatalogue()); }
-    /** Plan options for the dashboard picker: name + price label + one-line desc. */
-    public static function planOptions(): array { return array_values(NgvLedger::planCatalogue()); }
+    /** Plan options for the dashboard picker: only the ones an admin has left
+     *  switched on, so the picker cannot offer what `validPlan()` will refuse. */
+    public static function planOptions(): array
+    {
+        return array_values(array_filter(NgvLedger::planCatalogue(), static fn($p) => !empty($p['enabled'])));
+    }
 
     /**
      * The member's account: one plain figure of what is outstanding, the fee

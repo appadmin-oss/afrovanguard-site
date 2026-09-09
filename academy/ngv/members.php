@@ -293,6 +293,11 @@ $selDmg  = $sel ? NgvDamage::forMember($mid) : [];
 $B       = NgvLedger::bounds();
 $srcWord = ['page' => 'from the public page', 'pinned' => 'pinned here', 'fallback' => 'built-in fallback'];
 $planCat = NgvLedger::planCatalogue();
+/* The catalogue prices everything ever published, because somebody already on a
+   retired plan must keep accruing at the price they agreed. What staff may
+   CHOOSE is narrower — `setAdmin()` refuses a plan the admin has switched off,
+   so offering one here would be a dropdown that silently does nothing. */
+$planOn = array_filter($planCat, static fn($p) => !empty($p['enabled']));
 $kindLabel = ['membership' => 'Membership', 'commitment' => 'Monthly commitment',
               'programme' => 'Training fee', 'fine' => 'Fine', 'adjustment' => 'Adjustment', 'other' => 'Unallocated'];
 $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Written off'];
@@ -479,7 +484,7 @@ textarea{min-height:60px;resize:vertical}
         <?php endforeach; ?>
         <div class="amt-box">
           <div class="k">Training fee</div>
-          <?php $paid = array_filter($planCat, static fn($p) => (int) $p['fee'] > 0); ?>
+          <?php $paid = array_filter($planOn, static fn($p) => (int) $p['fee'] > 0); ?>
           <div class="v"><?= $paid ? '₦' . number_format((int) reset($paid)['fee']) : 'Free' ?>
             <?php if ($paid): ?><span class="sub">/ <?= $e((string) reset($paid)['cadence']) ?></span><?php endif; ?></div>
           <div class="sub"><?= $paid ? $e((string) key($paid)) . ' · from the plans table' : 'no paid plan on the page' ?></div>
@@ -805,9 +810,20 @@ textarea{min-height:60px;resize:vertical}
           <div class="grid2" style="margin-top:10px">
             <select id="f_plan">
               <option value="">— No plan —</option>
-              <?php foreach ($planCat as $pn => $pl): ?>
-                <option value="<?= $e($pn) ?>" <?= ((string)($sel['plan'] ?? '')) === $pn ? 'selected' : '' ?>>
-                  <?= $e($pn) ?> · <?= $e((string)$pl['priceLabel']) ?></option>
+              <?php
+              /* Switched-on plans, plus this member's own if it has since been
+                 retired — dropping it would show them as having no plan, and
+                 saving the form would then clear the field that prices their
+                 fee. It is labelled so staff can see why it is there. */
+              $cur  = (string) ($sel['plan'] ?? '');
+              $offer = $planOn;
+              if ($cur !== '' && !isset($offer[$cur])) {
+                  $offer[$cur] = $planCat[$cur] ?? ['priceLabel' => ''];
+                  $offer[$cur]['priceLabel'] = trim((string) ($offer[$cur]['priceLabel'] ?? '') . ' · no longer offered', ' ·');
+              }
+              foreach ($offer as $pn => $pl): ?>
+                <option value="<?= $e((string)$pn) ?>" <?= $cur === (string)$pn ? 'selected' : '' ?>>
+                  <?= $e((string)$pn) ?> · <?= $e((string)$pl['priceLabel']) ?></option>
               <?php endforeach; ?>
             </select>
             <input id="f_cohort" placeholder="Cohort (e.g. 2026 Alpha)" value="<?= $e((string)$sel['cohort']) ?>">

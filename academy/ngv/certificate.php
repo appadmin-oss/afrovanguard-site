@@ -20,8 +20,22 @@ $id   = (int) ($_GET['id'] ?? 0);
 $code = (string) ($_GET['c'] ?? '');
 $rec  = NgvMember::certForVerify($id, $code);
 
+/* Same hardening as the receipt page, which is the same class of endpoint: an
+ * unauthenticated HMAC link to somebody's personal record. Only FAILURES consume
+ * a rate-limit token — a certificate is meant to be opened by strangers, and
+ * throttling the valid reads would break the one thing it exists for. */
+$throttled = false;
+if (!$rec && function_exists('av_rate_ok') && !av_rate_ok('ngv_cert', 20, 600)) {
+    $throttled = true;
+    http_response_code(429);
+}
+
 header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex, nofollow');
+/* It names a person. Never let a shared cache hold it, and never leak the code
+ * in a Referer to whatever the holder clicks next. */
+header('Cache-Control: no-store, private');
+header('Referrer-Policy: no-referrer');
 $e = 'e';
 $org = 'NextGen Vanguard · Afrovanguard Academy';
 ?><!doctype html>
@@ -86,7 +100,12 @@ body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);c
   <div class="bad">
     <div class="big">🔒</div>
     <h1>Certificate not verified</h1>
-    <p style="color:var(--muted)">This link is invalid, expired, or the certificate could not be found. If you were given a certificate, ask for a fresh link, or contact the Academy.</p>
+    <?php if ($throttled): ?>
+      <p style="color:var(--muted)">Too many attempts from this connection. Wait a few minutes and open the link again — a
+        genuine one always works.</p>
+    <?php else: ?>
+      <p style="color:var(--muted)">This link is invalid, expired, or the certificate could not be found. If you were given a certificate, ask for a fresh link, or contact the Academy.</p>
+    <?php endif; ?>
     <p style="margin-top:18px"><a class="btn" href="/academy/ngv/">NextGen Vanguard</a></p>
   </div>
 <?php else: $c = $rec['cert']; $issued = substr((string)($c['issued_on'] ?: $c['created_at']), 0, 10);

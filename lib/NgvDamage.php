@@ -121,10 +121,17 @@ final class NgvDamage
             ($selfReport ? 'Self-reported' : 'Recorded') . ' damage — ' . $item
             . ' (' . $severity . ') on ' . $when);
         self::notify($id, 'reported');
-        /* Only when the PARTICIPANT reported it. Staff recording damage already
+        /* Only when the PARTICIPANT reported it — staff recording damage already
            know about it, and paging the people who just typed it in is how an
-           alert becomes something everybody filters. */
-        if ($selfReport && class_exists('NgvLedger')) {
+           alert becomes something everybody filters.
+           And only when nothing of theirs is ALREADY waiting. Without that
+           second condition one member can mail every admin once per report:
+           the dashboard allows sixty writes in ten minutes, which is a hundred
+           and twenty messages and a shared host's daily mail quota gone. Staff
+           who already have an unactioned report from this person learn nothing
+           from a second alert, so the honest rule is one until the queue is
+           cleared. */
+        if ($selfReport && class_exists('NgvLedger') && self::openCountFor($memberId) <= 1) {
             $who = trim((string) (self::participant($memberId)['name'] ?? '')) ?: ('member #' . $memberId);
             NgvLedger::notifyStaff(
                 'NGV: ' . $who . ' has reported damage',
@@ -350,6 +357,18 @@ final class NgvDamage
         $sql .= " ORDER BY CASE WHEN d.status IN ('reported','assessing') THEN 0 ELSE 1 END,
                   d.occurred_on DESC, d.id DESC LIMIT " . $limit;
         return array_map([self::class, 'shape'], NgvDb::pdo()->query($sql)->fetchAll() ?: []);
+    }
+
+    /** Open records for one participant, including the one just filed. The
+     *  throttle on staff alerts reads this — see `report()`. */
+    public static function openCountFor(int $memberId): int
+    {
+        try {
+            $st = NgvDb::pdo()->prepare("SELECT COUNT(*) FROM ngv_damages
+                                          WHERE member_id = ? AND status IN ('reported','assessing')");
+            $st->execute([$memberId]);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 99; }   // fail quiet, not loud
     }
 
     public static function openCount(): int
