@@ -66,8 +66,15 @@ ck('ngv damage: recording it charges NOTHING, estimate or no estimate',
 // so a slip does not lose the report somebody has just typed out.
 $fut = NgvDamage::report(301, ['item' => 'Projector', 'occurred_on' => '2099-01-01',
     'description' => 'Bulb blew during the Friday session.'], 1);
+/* Against the same clock the clamp uses. NgvDamage::today() is the ORG's day
+   (Africa/Lagos), so for the hour either side of midnight UTC the stored date
+   is legitimately tomorrow in UTC terms and a gmdate() comparison fails a
+   correct clamp — a test that goes red for an hour a day and is green again
+   by the time anybody looks. */
 ck('ngv damage: a future date is clamped to today rather than losing the report',
-   !empty($fut['ok']) && NgvDamage::get((int) $fut['id'])['occurred_on'] <= gmdate('Y-m-d'));
+   !empty($fut['ok'])
+   && NgvDamage::get((int) $fut['id'])['occurred_on']
+        <= (function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')));
 
 /* ══ Self-reporting ════════════════════════════════════════════════════════ */
 
