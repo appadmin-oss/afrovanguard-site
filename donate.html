@@ -199,7 +199,7 @@
     .banner-link {
       font-family: var(--font-body); font-size:12px; font-weight:700;
       color: var(--color-text-primary); text-decoration:none;
-      display:inline-flex; align-items:center; gap:4px;
+      display:inline-flex; align-items:center; min-height:24px; gap:4px;
       border-bottom:2px solid var(--color-text-primary); white-space:nowrap;
       transition:opacity var(--t-fast);
     }
@@ -212,13 +212,18 @@
       display:flex; align-items:center; justify-content:center;
     }
     .banner-close:hover { opacity:1; }
-    .banner-dots { display:flex; align-items:center; gap:8px; padding:0 16px 0 auto; flex-shrink:0; order:2; }
+    .banner-dots { display:flex; align-items:center; gap:0; padding:0 16px 0 auto; flex-shrink:0; order:2; }
+    /* 8px dot, 24px button — the indicator stays small, the target does not. */
     .banner-dot {
-      width:8px; height:8px; border-radius:50%;
-      background:rgba(17,24,39,0.3); border:none; cursor:pointer;
-      padding:0; transition:background var(--t-fast); min-height:8px; min-width:8px;
+      width:24px; height:24px; min-width:24px; min-height:24px;
+      background:none; border:none; cursor:pointer; padding:0;
+      display:inline-grid; place-items:center;
     }
-    .banner-dot.active { background: var(--color-text-primary); }
+    .banner-dot::before {
+      content:""; width:8px; height:8px; border-radius:50%;
+      background:rgba(17,24,39,0.3); transition:background var(--t-fast);
+    }
+    .banner-dot.active::before { background: var(--color-text-primary); }
     @media (max-width:600px) {
       .banner-tag { display:none; }
       .banner-text { font-size:12px; }
@@ -228,7 +233,7 @@
       .banner-slides { min-height:48px; }
       .banner-close { padding:0 12px; font-size:16px; min-width:40px; min-height:48px; }
       .banner-dots { padding:0 12px; gap:6px; }
-      .banner-dot { width:6px; height:6px; min-width:6px; min-height:6px; }
+      .banner-dot::before { width:6px; height:6px; }
     }
     @media (max-width:400px) {
       .banner-text { font-size:11px; line-height:1.4; }
@@ -3720,9 +3725,9 @@
           .mat-need-card-top { padding: 16px 18px 12px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: space-between; }
           .mat-need-card-icon-wrap { display: flex; align-items: center; gap: 10px; }
           .mat-need-card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
-          .mat-need-card-cat { font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold); }
+          .mat-need-card-cat { font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-ink, #8f6606); }
           .mat-urgency-badge { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
-          .mat-urgency-badge.critical { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+          .mat-urgency-badge.critical { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #b91c1c; }
           .mat-urgency-badge.needed   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: #fdba74; }
           .mat-urgency-badge.welcome  { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.25); color: #4ade80; }
           .mat-need-items { list-style: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
@@ -3730,7 +3735,7 @@
           .mat-need-item-left { display: flex; flex-direction: column; flex: 1; gap: 1px; }
           .mat-need-item-name { font-weight: 600; color: var(--color-text-primary); }
           .mat-need-item-detail { font-size: 11px; color: var(--color-text-muted); }
-          .mat-need-qty { flex-shrink: 0; font-size: 10px; font-weight: 800; background: rgba(243,180,22,0.1); border: 1px solid rgba(243,180,22,0.2); color: var(--color-gold-dark); border-radius: 6px; padding: 2px 7px; margin-top: 2px; white-space: nowrap; }
+          .mat-need-qty { flex-shrink: 0; font-size: 10px; font-weight: 800; background: rgba(243,180,22,0.1); border: 1px solid rgba(243,180,22,0.2); color: var(--color-gold-ink, #8f6606); border-radius: 6px; padding: 2px 7px; margin-top: 2px; white-space: nowrap; }
           .mat-need-card-cta { padding: 12px 18px; border-top: 1px solid var(--color-divider); }
           .mat-need-card-cta-btn { width: 100%; padding: 10px; background: transparent; border: 1.5px solid var(--color-divider); border-radius: 10px; font-family: var(--font-body); font-size: 12px; font-weight: 700; color: var(--color-text-muted); cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 6px; }
           .mat-need-card-cta-btn:hover { border-color: var(--color-gold); color: var(--color-text-primary); background: rgba(243,180,22,0.05); }

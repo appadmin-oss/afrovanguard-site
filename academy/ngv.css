@@ -205,7 +205,8 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 /* ── Contact / offices ───────────────────────────────────────────────── */
 .ngv-contact{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 .ngv-contact .ngv-card b{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ngv-accent-ink);margin-bottom:6px}
-.ngv-contact a{color:var(--ngv-text);text-decoration:none;font-weight:600}
+.ngv-contact a{color:var(--ngv-text);text-decoration:none;font-weight:600;
+  display:inline-flex;align-items:center;min-height:28px}
 .ngv-contact a:hover{text-decoration:underline}
 .ngv-office-addr{color:var(--ngv-muted);font-size:.92rem;line-height:1.45}
 

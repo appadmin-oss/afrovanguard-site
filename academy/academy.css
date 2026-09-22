@@ -6,10 +6,10 @@
    Brand: ink/navy + gold on white. Fully responsive, AA contrast.
    ============================================================ */
 body.academy {
-  --gold: #f3b416; --gold-dark: #d49a0e; --gold-deep: #9c6906; --gold-soft: rgba(243,180,22,0.12);
+  --gold: #f3b416; --gold-dark: #d49a0e; --gold-deep: #8f6606; --gold-soft: rgba(243,180,22,0.12);
   --bg: #FFFFFF; --bg-warm: #FAFAF8; --surface: #FFFFFF; --surface-2: #F4F4F2;
   --ink: #0A0F1A; --ink-2: #15140f; --body: #2B2B2E; --muted: #5E6470; --divider: #E6E7EA;
-  --footer-bg: #0A0F1A; --link: #9c6906; --card-shadow: 0 24px 60px rgba(10,15,26,0.10);
+  --footer-bg: #0A0F1A; --link: #8f6606; --card-shadow: 0 24px 60px rgba(10,15,26,0.10);
   /* hero tint — light, subtle gradient (NOT a heavy dark photo) */
   --hero-tint: radial-gradient(1200px 520px at 12% -10%, rgba(243,180,22,0.10), transparent 60%),
                radial-gradient(900px 480px at 92% 0%, rgba(10,15,26,0.06), transparent 55%),
@@ -25,7 +25,8 @@ body.academy {
   --hero-tint: radial-gradient(1200px 520px at 12% -10%, rgba(243,180,22,0.10), transparent 60%),
                linear-gradient(180deg, #0E1421 0%, #0A0F1A 80%);
 }
-body.academy .nav-links a:hover, body.academy .nav-links a[aria-current="page"] { color: var(--gold); }
+/* The bright gold is 1.85:1 on the white nav bar; --gold-deep is the text-safe one. */
+body.academy .nav-links a:hover, body.academy .nav-links a[aria-current="page"] { color: var(--gold-deep); }
 
 /* ── Pill buttons (dark primary, ghost, gold) ─────────────────── */
 .btn-pill { background: var(--ink-2); color: #fff; border: 2px solid var(--ink-2); box-shadow: 0 8px 22px -10px rgba(10,15,26,0.55); }

@@ -423,7 +423,12 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 <?php endforeach; ?>          </ul>
           <div class="nav-sub-actions">
 <?php if (!empty($sub['search'])): ?>            <form class="nav-sub-search" role="search" action="<?= e($sub['search']['target']) ?>" method="get">
-              <?= Icons::SEARCH ?><input type="search" name="q" placeholder="<?= e($sub['search']['placeholder']) ?>" aria-label="Search this section" />
+              <?php /* The pill is the label, so its whole area takes the click —
+                       not just the 18px-tall input sitting inside it. */ ?>
+              <label class="nav-sub-search-field">
+                <span class="sr-only">Search this section</span>
+                <?= Icons::SEARCH ?><input type="search" name="q" placeholder="<?= e($sub['search']['placeholder']) ?>" />
+              </label>
             </form>
 <?php endif; if (!empty($sub['cta'])): ?>            <a class="nav-sub-cta" id="navSubLogin" data-login-link href="<?= e($sub['cta']['href']) ?>"><?= e($sub['cta']['label']) ?></a>
 <?php endif; ?>          </div>

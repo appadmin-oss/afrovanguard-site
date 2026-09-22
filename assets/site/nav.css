@@ -21,6 +21,7 @@
 :root {
   --m-surface: var(--afg-surface, #ffffff); --m-surface-2: var(--afg-surface-2, #f6f6f2); --m-ink: var(--afg-ink, #141821);
   --m-muted: var(--afg-muted, #5b6472); --m-divider: var(--afg-border, #e7e7e1);
+  --m-body: var(--afg-body, #374151);
   --m-gold: var(--afg-accent, #f3b416); --m-gold-deep: var(--afg-accent-ink, #b07e08); --m-strip: #0f1b2d;
   --m-shadow: 0 28px 64px -30px rgba(15,23,42,0.45);
   --nav-h: 64px;
@@ -176,9 +177,12 @@ html[data-theme="dark"] .nav-utility .theme-toggle .moon { display: block; }
   border-radius: 2px; background: var(--m-gold);
   transform: scaleX(0); transform-origin: left; transition: transform .22s cubic-bezier(.22,1,.36,1);
 }
+/* 14px: --m-gold-deep is 3.60:1 on the white bar, so the current page and the
+   hovered link take the small-text ink (5.16:1). The gold underline beneath
+   them carries the brand colour. */
 .site-header .nav-links > li > a:hover,
 .site-header .nav-links > li > a[aria-current="page"],
-.site-header .nav-links .has-mega:hover > a { color: var(--m-gold-deep); }
+.site-header .nav-links .has-mega:hover > a { color: var(--afg-gold-ink, #8f6606); }
 .site-header .nav-links > li > a:hover::after,
 .site-header .nav-links > li > a[aria-current="page"]::after { transform: scaleX(1); }
 .site-header .nav-links .has-mega > a .chev { width: 14px; height: 14px; opacity: .55; transition: transform .3s ease; }
@@ -196,9 +200,11 @@ html[data-theme="dark"] .nav-utility .theme-toggle .moon { display: block; }
 .nav-search-btn svg { width: 17px; height: 17px; }
 .nav-search-btn:hover { color: var(--m-gold-deep); }
 /* Sign-in lives in the dark utility strip → light text, centered with the
-   circles (min-height:0 defeats the global a{min-height:44} that rode it high) */
+   circles. It used min-height:0 to defeat a global a{min-height:44px} that rode
+   it out of line, which left a 43x13 click target; 26px clears the 24px floor
+   and still lines up with the circles beside it. */
 .nav-utility .nav-signin-link {
-  display: inline-flex; align-items: center; min-height: 0; line-height: 1;
+  display: inline-flex; align-items: center; min-height: 26px; padding: 0 4px; line-height: 1;
   font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.9); text-decoration: none;
   transition: color .15s ease; white-space: nowrap;
 }
@@ -253,7 +259,9 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
   display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 26px;
 }
 .mega-cols { display: contents; }
-.mega-col .mega-h { margin: 4px 0 14px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m-gold-deep); }
+/* 11px uppercase: the deep gold is only AA at large sizes, so these take the
+   small-text ink (5.16:1 on the panel white). */
+.mega-col .mega-h { margin: 4px 0 14px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--afg-gold-ink, #8f6606); }
 .mega-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .mega-col a {
   display: block; padding: 9px 12px; margin: 0 -12px; border-radius: 10px;
@@ -285,15 +293,16 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
 .nav-sub-brand .brand-logo { height: 28px; }
 .nav-sub-links { display: flex; gap: 2px; list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
 .nav-sub-links a {
-  font-size: 14px; font-weight: 600; color: var(--m-muted); text-decoration: none;
+  font-size: 14px; font-weight: 600; color: var(--m-body); text-decoration: none;
   padding: 8px 13px; border-radius: 8px; white-space: nowrap; transition: color .16s ease, background .16s ease;
 }
 .nav-sub-links a:hover, .nav-sub-links a[aria-current="page"] { color: var(--m-ink); background: var(--m-surface); }
 .nav-sub-actions { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
-.nav-sub-search { display: inline-flex; align-items: center; gap: 9px; background: var(--m-surface); border: 1px solid var(--m-divider); border-radius: 9999px; padding: 9px 16px; min-width: 220px; transition: border-color .18s ease, box-shadow .18s ease; }
+.nav-sub-search { cursor: text; display: inline-flex; align-items: center; gap: 9px; background: var(--m-surface); border: 1px solid var(--m-divider); border-radius: 9999px; min-width: 220px; transition: border-color .18s ease, box-shadow .18s ease; }
+.nav-sub-search-field { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 9px 16px; cursor: text; }
 .nav-sub-search:focus-within { border-color: var(--m-gold); box-shadow: 0 0 0 3px rgba(232,163,23,0.14); }
 .nav-sub-search svg { width: 16px; height: 16px; color: var(--m-muted); flex-shrink: 0; }
-.nav-sub-search input { border: 0; background: transparent; outline: none; font-family: inherit; font-size: 14px; color: var(--m-ink); width: 100%; }
+.nav-sub-search input { border: 0; background: transparent; outline: none; font-family: inherit; font-size: 14px; color: var(--m-ink); width: 100%; min-height: 24px; align-self: stretch; }
 .nav-sub-search input::placeholder { color: var(--m-muted); }
 .nav-sub-cta { font-size: 14px; font-weight: 700; color: var(--m-ink); text-decoration: none; padding: 8px 4px; white-space: nowrap; transition: color .16s ease; }
 .nav-sub-cta:hover { color: var(--m-gold-deep); }

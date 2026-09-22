@@ -24,6 +24,9 @@
  * DECISIONS BAKED IN (resolving audit findings)
  *   • ONE brand gold: #f3b416, with a text-safe deep variant #b07e08 (AA on
  *     light). Never use #f3b416 for text on light — use --afg-accent-ink.
+ *     #b07e08 is 3.60:1 on white: AA for LARGE text only (>=24px, or >=18.66px
+ *     bold). The small gold labels this site is fond of — 11px uppercase
+ *     eyebrows and column headings — need --afg-gold-ink (5.16:1).
  *   • ONE body font: Montserrat (Inter is dropped — see design-system.md).
  *   • ONE display font: Cormorant. ONE mono: JetBrains Mono.
  *   • 4px spacing scale, tokenized radii/shadows, documented breakpoints.
@@ -34,7 +37,8 @@
   --afg-navy:          #0d1220;
   --afg-navy-2:        #131c2e;
   --afg-gold:          #f3b416;   /* brand gold — fills, large marks, accents */
-  --afg-gold-deep:     #b07e08;   /* text-safe gold (AA on light surfaces)    */
+  --afg-gold-deep:     #b07e08;   /* gold for LARGE text on light (3.60:1)    */
+  --afg-gold-ink:      #8f6606;   /* gold for SMALL text on light (5.16:1)    */
   --afg-gold-soft:     rgba(243, 180, 22, 0.14);
   --afg-white:         #ffffff;
   --afg-black:         #0b0e14;

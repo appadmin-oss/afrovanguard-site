@@ -205,6 +205,7 @@
       --color-gold:          #f3b416;
       --color-gold-dark:     #d49a0e;
       --color-gold-deep:     #b07e08;
+      --color-gold-ink:      #8f6606;   /* gold for small text on light (5.16:1) */
       --color-gold-glow:     rgba(243,180,22,0.18);
       --color-bg:            #F9FAFB;
       --color-bg-warm:       #FDFCF8;
@@ -313,8 +314,17 @@
       font-family: var(--font-body);
       font-size: var(--text-label);
       font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-      color: var(--color-gold); margin-bottom:14px;
+      /* 11px uppercase on a near-white section: the bright gold is 1.77:1.
+         Instances that sit on a dark section override this inline with
+         var(--color-gold), where the bright gold is the readable one. */
+      color: var(--color-gold-ink); margin-bottom:14px;
     }
+    /* …but three sections are near-black, and there the bright gold is the
+       readable one (9.59:1 against #111827, where the ink manages 3.44). The
+       rest of the dark instances already say so inline. */
+    .pillars-section .section-label,
+    .gallery-section .section-label,
+    .cta-section .section-label { color: var(--color-gold); }
     .section-label::before {
       content:''; width:20px; height:2px;
       background: var(--color-gold); flex-shrink:0;
@@ -463,15 +473,22 @@
     .banner-close:hover { opacity:1; }
 
     .banner-dots {
-      display:flex; align-items:center; gap:8px; padding:0 16px 0 auto;
+      display:flex; align-items:center; gap:0; padding:0 16px 0 auto;
       flex-shrink:0; order:2;
     }
+    /* The dot you see is 8px; the button you press is 24px. Painting the dot
+       with ::before keeps the control big enough to hit without making the
+       indicator look like a button. */
     .banner-dot {
-      width:8px; height:8px; border-radius:50%;
-      background: rgba(17,24,39,0.3); border:none; cursor:pointer;
-      padding:0; transition: background var(--t-fast); min-height:8px; min-width:8px;
+      width:24px; height:24px; min-width:24px; min-height:24px;
+      background:none; border:none; cursor:pointer; padding:0;
+      display:inline-grid; place-items:center;
     }
-    .banner-dot.active { background: var(--color-text-primary); width:8px; }
+    .banner-dot::before {
+      content:""; width:8px; height:8px; border-radius:50%;
+      background: rgba(17,24,39,0.3); transition: background var(--t-fast);
+    }
+    .banner-dot.active::before { background: var(--color-text-primary); }
 
     @media (max-width:600px) {
       .banner-tag { display:none; }
@@ -481,8 +498,8 @@
       .banner-track { min-height:48px; }
       .banner-slides { min-height:48px; }
       .banner-close { padding:0 12px; font-size:16px; min-width:40px; min-height:48px; }
-      .banner-dots { padding:0 12px; gap:6px; }
-      .banner-dot { width:6px; height:6px; min-width:6px; min-height:6px; }
+      .banner-dots { padding:0 12px; gap:0; }
+      .banner-dot::before { width:6px; height:6px; }
     }
     @media (max-width:400px) {
       .banner-text { font-size:11px; line-height:1.4; }
@@ -1609,7 +1626,7 @@
     /* Photo count badge */
     .gallery-count {
       font-family: var(--font-body); font-size: 12px; font-weight: 600;
-      color: rgba(255,255,255,0.4); letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.62); letter-spacing: 0.06em;
     }
 
     /* ================================================================
@@ -2066,15 +2083,20 @@
     }
 
     .carousel-dots {
-      display:flex; gap:10px; align-items:center; justify-content:center;
+      display:flex; gap:2px; align-items:center; justify-content:center;
     }
     .carousel-dot {
-      width:10px; height:10px; border-radius:50%;
-      background: var(--color-divider); border:none; cursor:pointer; padding:0;
-      transition: all var(--t-fast); min-height:10px; min-width:10px;
+      width:24px; height:24px; min-width:24px; min-height:24px;
+      background:none; border:none; cursor:pointer; padding:0;
+      display:inline-grid; place-items:center;
     }
-    .carousel-dot.active {
-      background: var(--color-gold); width:28px; border-radius:6px; min-width:28px;
+    .carousel-dot::before {
+      content:""; width:10px; height:10px; border-radius:50%;
+      background: var(--color-divider); transition: all var(--t-fast);
+    }
+    .carousel-dot.active { width:40px; min-width:40px; }
+    .carousel-dot.active::before {
+      background: var(--color-gold); width:28px; border-radius:6px;
     }
 
     @media (max-width:767px) {
@@ -2157,7 +2179,7 @@
 
     .newsletter-privacy {
       font-family: var(--font-body); font-size:11px;
-      color:rgba(255,255,255,0.3); margin-top:10px; letter-spacing:0.02em;
+      color:rgba(255,255,255,0.62); margin-top:10px; letter-spacing:0.02em;
     }
 
     @media (max-width:767px) {
@@ -2191,7 +2213,7 @@
       display:flex; flex-wrap:wrap; justify-content:center; gap:16px; margin-bottom:28px;
     }
     .cta-social-note {
-      font-family: var(--font-body); font-size:13px; color:rgba(255,255,255,0.3);
+      font-family: var(--font-body); font-size:13px; color:rgba(255,255,255,0.62);
     }
 
     @media (max-width:480px) {
@@ -3203,9 +3225,9 @@
     .votm-home-card-body{padding:0 20px 24px;text-align:center}
     .votm-home-card-prefix{display:block;font-family:var(--font-body);font-size:8.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:rgba(243,180,22,.65);margin-bottom:4px}
     .votm-home-card-name{font-family:var(--font-heading);font-size:clamp(19px,2.4vw,24px);font-weight:700;color:#fff;margin-bottom:3px;line-height:1.1}
-    .votm-home-card-role{font-size:11.5px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:12px}
+    .votm-home-card-role{font-size:11.5px;font-weight:600;color:rgba(255,255,255,.62);margin-bottom:12px}
     .votm-home-divider{height:1px;background:linear-gradient(to right,transparent,rgba(243,180,22,.2),transparent);margin-bottom:12px}
-    .votm-home-card-contribution{font-size:11.5px;color:rgba(255,255,255,.38);line-height:1.6;padding:0 4px}
+    .votm-home-card-contribution{font-size:11.5px;color:rgba(255,255,255,.66);line-height:1.6;padding:0 4px}
     .votm-home-card-contribution strong{color:rgba(243,180,22,.78);font-weight:700}
     .votm-home-view {
       display:inline-flex;align-items:center;gap:5px;margin-top:12px;

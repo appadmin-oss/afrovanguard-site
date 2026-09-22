@@ -36,7 +36,7 @@
 <style>
 /* ── TOKENS ── */
 :root{
-  --gold:#f3b416;--gold-dk:#d49a0e;--gold-dp:#b07e08;
+  --gold:#f3b416;--gold-dk:#d49a0e;--gold-dp:#b07e08;--gdi:#8f6606;
   --gold-10:rgba(243,180,22,.10);--gold-18:rgba(243,180,22,.18);
   --ink:#111827;--ink-b:#374151;--ink-m:#6B7280;--ink-s:#9CA3AF;
   --bg:#F9FAFB;--bg-warm:#FDFCF8;--bg-cream:#F5F3EE;
@@ -81,7 +81,7 @@ button,input,textarea,select{font-family:var(--fb)}
 @media(max-width:375px){.W{padding:0 var(--sp-3)}}
 .lbl{display:inline-flex;align-items:center;gap:8px;font-family:var(--fb);font-size:var(--sz-label);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
 .lbl::before{content:'';width:18px;height:2px;background:var(--gold);flex-shrink:0}
-.lbl-dk{color:var(--gold-dk)}.lbl-dk::before{background:var(--gold-dk)}
+.lbl-dk{color:var(--gdi,#8f6606)}.lbl-dk::before{background:var(--gold-dk)}
 .lbl-w{color:rgba(255,255,255,.65)}.lbl-w::before{background:rgba(255,255,255,.35)}
 
 /* ── BANNER ── */
@@ -93,12 +93,13 @@ button,input,textarea,select{font-family:var(--fb)}
 .banner-slide.exit{opacity:0;transform:translateY(-100%)}
 .banner-tag{font-family:var(--fb);font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:var(--bg-dk);color:var(--gold);padding:3px 10px;border-radius:var(--r-f);white-space:nowrap}
 .banner-text{font-family:var(--fb);font-size:13px;font-weight:600;color:var(--ink);text-align:center}
-.banner-link{font-family:var(--fb);font-size:12px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:4px;border-bottom:2px solid var(--ink);white-space:nowrap;transition:opacity var(--td-f)}
+.banner-link{font-family:var(--fb);font-size:12px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;min-height:24px;gap:4px;border-bottom:2px solid var(--ink);white-space:nowrap;transition:opacity var(--td-f)}
 .banner-link:hover{opacity:.7;color:var(--ink)}
 .banner-close{background:none;border:none;cursor:pointer;padding:0 16px;color:var(--ink);font-size:18px;font-weight:700;opacity:.6;min-width:44px;min-height:52px;display:flex;align-items:center;justify-content:center;transition:opacity var(--td-f)}
 .banner-close:hover{opacity:1}
 .banner-dots{display:flex;align-items:center;gap:8px;padding:0 16px 0 0;flex-shrink:0}
-.banner-dot{width:7px;height:7px;border-radius:50%;background:rgba(17,24,39,.25);border:none;cursor:pointer;padding:0;transition:background var(--td-f)}
+.banner-dot{width:24px;height:24px;min-width:24px;min-height:24px;background:none;border:none;cursor:pointer;padding:0;display:inline-grid;place-items:center}
+.banner-dot::before{content:"";width:7px;height:7px;border-radius:50%;background:rgba(17,24,39,.25);transition:background var(--td-f)}
 .banner-dot.active{background:var(--ink)}
 @media(max-width:600px){.banner-tag{display:none}.banner-text{font-size:12px}.banner-slide{gap:8px;padding:10px 12px}}
 
@@ -292,7 +293,7 @@ textarea.fi{resize:vertical;min-height:100px;line-height:1.65}
 .file-drop-icon svg{width:15px;height:15px}
 .file-drop-text{font-size:12.5px;color:var(--ink-m);line-height:1.4}
 .file-drop-text strong{color:var(--ink-b);font-weight:600}
-.file-drop-subtext{font-size:11px;color:var(--ink-s)}
+.file-drop-subtext{font-size:11px;color:var(--ink-b)}
 .fname{font-size:11px;color:var(--gold-dk);font-weight:600;margin-top:4px;padding:0 14px 10px;display:none}
 .consent-row{display:flex;align-items:flex-start;gap:10px}
 .consent-row input[type="checkbox"]{width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:var(--gold);cursor:pointer}

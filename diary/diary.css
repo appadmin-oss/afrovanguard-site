@@ -492,14 +492,16 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .footer-col h2 { color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 18px; }
 .footer-newsletter-mini h3 { color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 8px; }
 .footer-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.footer-links a { color: rgba(255,255,255,0.6); font-size: 14px; }
+.footer-links a { color: rgba(255,255,255,0.6); font-size: 14px; min-height: 28px; display: inline-flex; align-items: center; }
 .footer-links a:hover { color: #fff; }
 .footer-contact p { font-size: 14px; line-height: 1.6; margin: 0 0 12px; }
 .footer-newsletter-mini { margin-top: 20px; }
 .footer-newsletter-mini input { width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.04); color: #fff; font-family: var(--font-body); margin-bottom: 8px; }
 .footer-bottom { border-top: 1px solid rgba(255,255,255,0.08); padding: 24px 0; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
-.footer-legal { font-size: 12.5px; color: rgba(255,255,255,0.45); margin: 0; }
+.footer-legal { font-size: 12.5px; color: rgba(255,255,255,0.6); margin: 0; }
 .footer-legal a { color: rgba(255,255,255,0.6); }
+.footer-mail { color: rgba(255,255,255,0.72); }
+.footer-mail:hover { color: var(--gold); }
 
 /* ============================================================ RESPONSIVE */
 @media (max-width: 1023px) {

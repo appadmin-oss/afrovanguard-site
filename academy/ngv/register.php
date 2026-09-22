@@ -116,7 +116,8 @@ h1,h2{margin:0;letter-spacing:-.01em}
 .top .brand{font-weight:800;color:#fff;text-decoration:none}
 .top .brand b{color:var(--gold)}
 .top .sp{flex:1}
-.top a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:600;font-size:.86rem}
+.top a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:600;font-size:.86rem;
+  display:inline-flex;align-items:center;min-height:28px}
 .top a:hover{color:#fff}
 .paused{background:#15120e;color:#ffd9a8;font-size:.9rem;padding:8px 0}
 .hero{background:var(--grad);color:#fff;padding:34px 0}
