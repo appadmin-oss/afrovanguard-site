@@ -105,46 +105,75 @@ header('Content-Type: text/html; charset=utf-8');
 *{box-sizing:border-box}
 body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
 a{color:var(--red)}
-.top{background:rgba(21,18,14,.97);color:#fff;display:flex;gap:12px;align-items:center;padding:12px 20px;flex-wrap:wrap}
-.top .brand{font-weight:800}.top .brand b{color:var(--gold)}.top .sp{flex:1}
-.top a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:600;font-size:.86rem}.top a:hover{color:#fff}
-.hero{background:var(--grad);color:#fff;padding:34px 0}
+h1,h2{margin:0;letter-spacing:-.01em}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.skip{position:absolute;left:-9999px;top:0;background:#fff;color:var(--ink);font-weight:700;padding:10px 16px;border-radius:0 0 10px 0;z-index:10}
+.skip:focus{left:0}
+
+/* ── Frame ───────────────────────────────────────────────────────────── */
 .wrap{max-width:760px;margin:0 auto;padding:0 18px}
+.top{background:rgba(21,18,14,.97);color:#fff;display:flex;gap:12px;align-items:center;padding:12px 20px;flex-wrap:wrap}
+.top .brand{font-weight:800;color:#fff;text-decoration:none}
+.top .brand b{color:var(--gold)}
+.top .sp{flex:1}
+.top a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:600;font-size:.86rem}
+.top a:hover{color:#fff}
+.paused{background:#15120e;color:#ffd9a8;font-size:.9rem;padding:8px 0}
+.hero{background:var(--grad);color:#fff;padding:34px 0}
 .hero h1{margin:0 0 6px;font-size:1.9rem;line-height:1.12}
 .hero p{margin:0;opacity:.95;max-width:60ch}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin:22px 0 40px;overflow:hidden}
 .card>.body{padding:22px}
+.foot{border-top:1px solid var(--line);padding:18px 0 34px;font-size:.86rem;color:var(--muted)}
+.foot a{color:var(--muted)}
+.foot p{margin:0 0 4px}
+
+/* ── The form, in the three groups it actually asks about ────────────── */
+fieldset{border:0;margin:0 0 26px;padding:0}
+fieldset:last-of-type{margin-bottom:18px}
+legend{padding:0;font-size:.78rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px}
 .fld{margin-bottom:16px}
+.fld:last-child{margin-bottom:0}
 .fld label{display:block;font-weight:700;font-size:.85rem;margin-bottom:6px}
 .fld .req{color:var(--red)}
+.fld .opt{font-weight:500;color:var(--muted)}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:12px;font:inherit;background:#fff}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
 textarea{min-height:110px;resize:vertical}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+/* Fluid, so a narrow phone and a wide tablet both get a sensible number of
+   columns without a breakpoint having to name every width. */
+.row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.row2 .fld{margin-bottom:0}
+.row2+.row2{margin-top:14px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-.btn{border:0;border-radius:11px;padding:14px 22px;font:inherit;font-weight:800;cursor:pointer;background:var(--grad);color:#fff;font-size:1rem}
+.btn{border:0;border-radius:11px;padding:14px 22px;font:inherit;font-weight:800;cursor:pointer;
+  background:var(--grad);color:#fff;font-size:1rem;display:inline-block;text-decoration:none;text-align:center}
 .btn:hover{opacity:.95}
 .note{font-size:.86rem;color:var(--muted);margin-top:14px}
+.reqnote{font-size:.82rem;color:var(--muted);margin:0 0 20px}
 .err{background:#fdecec;color:#c0322b;border:1px solid #f6c9c6;border-radius:11px;padding:12px 14px;font-weight:600;margin-bottom:18px}
 .ok{text-align:center;padding:26px 8px}
 .ok .big{font-size:3rem;line-height:1}
 .ok h2{margin:12px 0 6px}
 .ok p{color:var(--muted);max-width:52ch;margin:0 auto 8px}
-.paused{background:#15120e;color:#ffd9a8;font-size:.9rem;padding:8px 0}
-@media(max-width:560px){.row2{grid-template-columns:1fr}.hero h1{font-size:1.55rem}}
+.ok .btn{margin-top:18px}
+@media(max-width:560px){.hero h1{font-size:1.55rem}}
 </style>
 </head>
 <body>
-<div class="top">
-  <span class="brand"><b>NextGen Vanguard</b> · Afrovanguard Academy</span>
+<a class="skip" href="#form">Skip to the form</a>
+<header class="top">
+  <a class="brand" href="/academy/ngv/"><b>NextGen Vanguard</b> · Afrovanguard Academy</a>
   <span class="sp"></span>
   <a href="/academy/ngv/">← Programme</a>
-</div>
+</header>
 
 <?php if (!$enabled && !$done): ?>
-<div class="paused"><div class="wrap">⏳ Applications for the next cohort open soon — register your interest below and we'll reach out first.</div></div>
+<div class="paused" role="status"><div class="wrap">⏳ Applications for the next cohort open soon — register your interest below and we'll reach out first.</div></div>
 <?php endif; ?>
 
+<main id="main">
 <div class="hero">
   <div class="wrap">
     <h1>Join NextGen Vanguard</h1>
@@ -156,56 +185,76 @@ textarea{min-height:110px;resize:vertical}
   <div class="card">
     <div class="body">
     <?php if ($done): ?>
-      <div class="ok">
+      <div class="ok" role="status">
         <div class="big">🎉</div>
         <h2>Application received!</h2>
         <p>Thank you<?= $old['name'] !== '' ? ', ' . $e(trim(explode(' ', trim($old['name']))[0])) : '' ?> — your application is in. Our team will review it and reach out<?= !empty($old['email']) ? ' at ' . $e($old['email']) : '' ?>.</p>
         <p>Next step: if you don't already have an Afrovanguard account, create one with the same email so we can enrol you and open your dashboard.</p>
-        <p style="margin-top:18px"><a class="btn" style="display:inline-block;text-decoration:none" href="/academy/ngv/">Back to the programme</a></p>
+        <p><a class="btn" href="/academy/ngv/">Back to the programme</a></p>
       </div>
     <?php else: ?>
-      <?php if ($err !== ''): ?><div class="err"><?= $e($err) ?></div><?php endif; ?>
-      <form method="post" action="/academy/ngv/register.php" novalidate>
+      <?php /* A submission that comes back with an error lands the reader on the
+               reason for it, rather than at the top of a form they have to work
+               out for themselves. */ ?>
+      <?php if ($err !== ''): ?><div class="err" id="err" role="alert" tabindex="-1" autofocus><?= $e($err) ?></div><?php endif; ?>
+      <form method="post" action="/academy/ngv/register.php" id="form" novalidate>
         <div class="hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+        <p class="reqnote"><span class="req">*</span> Required. Everything else helps us place you, but you can leave it blank.</p>
 
-        <div class="row2">
-          <div class="fld"><label>Full name <span class="req">*</span></label><input type="text" name="name" required maxlength="120" value="<?= $e($old['name']) ?>"></div>
-          <div class="fld"><label>Email <span class="req">*</span></label><input type="email" name="email" required maxlength="160" value="<?= $e($old['email']) ?>"></div>
-        </div>
-        <div class="row2">
-          <div class="fld"><label>Phone / WhatsApp</label><input type="tel" name="phone" maxlength="40" value="<?= $e($old['phone']) ?>"></div>
-          <div class="fld"><label>Age</label><input type="text" name="age" maxlength="12" inputmode="numeric" value="<?= $e($old['age']) ?>"></div>
-        </div>
-        <div class="row2">
-          <div class="fld"><label>Location</label><input type="text" name="location" maxlength="120" placeholder="e.g. Egbeda, Lagos" value="<?= $e($old['location']) ?>"></div>
-          <div class="fld"><label>Current status</label>
-            <select name="education">
-              <?php $EDU = ['', 'School leaver', 'NYSC corper', 'Undergraduate', 'Graduate', 'Working', 'Other'];
-              foreach ($EDU as $opt): ?><option value="<?= $e($opt) ?>" <?= $old['education'] === $opt ? 'selected' : '' ?>><?= $opt === '' ? '— Select —' : $e($opt) ?></option><?php endforeach; ?>
-            </select>
+        <fieldset>
+          <legend>About you</legend>
+          <div class="row2">
+            <div class="fld"><label for="f-name">Full name <span class="req" aria-hidden="true">*</span></label>
+              <input id="f-name" type="text" name="name" required maxlength="120" autocomplete="name" value="<?= $e($old['name']) ?>"></div>
+            <div class="fld"><label for="f-email">Email <span class="req" aria-hidden="true">*</span></label>
+              <input id="f-email" type="email" name="email" required maxlength="160" autocomplete="email" value="<?= $e($old['email']) ?>"></div>
           </div>
-        </div>
-        <div class="row2">
-          <div class="fld"><label>Track you're interested in</label>
-            <select name="track">
-              <option value="">— No preference yet —</option>
-              <?php foreach ($tracks as $t): $tn = (string)($t['name'] ?? ''); if ($tn==='') continue; ?>
-              <option value="<?= $e($tn) ?>" <?= $old['track'] === $tn ? 'selected' : '' ?>><?= $e($tn) ?></option>
-              <?php endforeach; ?>
-            </select>
+          <div class="row2">
+            <div class="fld"><label for="f-phone">Phone / WhatsApp</label>
+              <input id="f-phone" type="tel" name="phone" maxlength="40" autocomplete="tel" value="<?= $e($old['phone']) ?>"></div>
+            <div class="fld"><label for="f-age">Age</label>
+              <input id="f-age" type="text" name="age" maxlength="12" inputmode="numeric" value="<?= $e($old['age']) ?>"></div>
           </div>
-          <div class="fld"><label>Plan</label>
-            <select name="plan">
-              <option value="">— Not sure yet —</option>
-              <?php foreach ($plans as $pl): $pn = (string)($pl['name'] ?? ''); if ($pn==='') continue; ?>
-              <option value="<?= $e($pn) ?>" <?= $old['plan'] === $pn ? 'selected' : '' ?>><?= $e($pn) ?><?= !empty($pl['price']) ? ' — ' . $e((string)$pl['price']) : '' ?></option>
-              <?php endforeach; ?>
-            </select>
+          <div class="row2">
+            <div class="fld"><label for="f-location">Location</label>
+              <input id="f-location" type="text" name="location" maxlength="120" autocomplete="address-level2" placeholder="e.g. Egbeda, Lagos" value="<?= $e($old['location']) ?>"></div>
+            <div class="fld"><label for="f-education">Current status</label>
+              <select id="f-education" name="education">
+                <?php $EDU = ['', 'School leaver', 'NYSC corper', 'Undergraduate', 'Graduate', 'Working', 'Other'];
+                foreach ($EDU as $opt): ?><option value="<?= $e($opt) ?>" <?= $old['education'] === $opt ? 'selected' : '' ?>><?= $opt === '' ? '— Select —' : $e($opt) ?></option><?php endforeach; ?>
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="fld"><label>Why do you want to join? <span style="font-weight:500;color:var(--muted)">(optional)</span></label>
-          <textarea name="message" maxlength="1500" placeholder="Tell us a little about yourself and your goals."><?= $e($old['message']) ?></textarea>
-        </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>What you're interested in</legend>
+          <div class="row2">
+            <div class="fld"><label for="f-track">Track</label>
+              <select id="f-track" name="track">
+                <option value="">— No preference yet —</option>
+                <?php foreach ($tracks as $t): $tn = (string)($t['name'] ?? ''); if ($tn==='') continue; ?>
+                <option value="<?= $e($tn) ?>" <?= $old['track'] === $tn ? 'selected' : '' ?>><?= $e($tn) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="fld"><label for="f-plan">Plan</label>
+              <select id="f-plan" name="plan">
+                <option value="">— Not sure yet —</option>
+                <?php foreach ($plans as $pl): $pn = (string)($pl['name'] ?? ''); if ($pn==='') continue; ?>
+                <option value="<?= $e($pn) ?>" <?= $old['plan'] === $pn ? 'selected' : '' ?>><?= $e($pn) ?><?= !empty($pl['price']) ? ' — ' . $e((string)$pl['price']) : '' ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>In your own words</legend>
+          <div class="fld"><label for="f-message">Why do you want to join? <span class="opt">(optional)</span></label>
+            <textarea id="f-message" name="message" maxlength="1500" placeholder="Tell us a little about yourself and your goals."><?= $e($old['message']) ?></textarea>
+          </div>
+        </fieldset>
 
         <button class="btn" type="submit">Submit my application</button>
         <p class="note">No one is turned away for lack. Committed applicants who need support can say so above or speak to a track lead. We'll only use your details to process your application.</p>
@@ -214,5 +263,19 @@ textarea{min-height:110px;resize:vertical}
     </div>
   </div>
 </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><a href="/academy/ngv/">NextGen Vanguard programme</a> · <a href="/academy/">Afrovanguard Academy</a> · <a href="/">Afrovanguard</a></p>
+    <?php if (!empty($ct['email']) || !empty($ct['phone'])): ?>
+      <p>Questions before you apply?
+        <?php if (!empty($ct['phone'])): ?><a href="tel:<?= $e(preg_replace('/[^0-9+]/', '', (string)$ct['phone'])) ?>"><?= $e((string)$ct['phone']) ?></a><?php endif; ?>
+        <?php if (!empty($ct['email']) && !empty($ct['phone'])): ?> · <?php endif; ?>
+        <?php if (!empty($ct['email'])): ?><a href="mailto:<?= $e((string)$ct['email']) ?>"><?= $e((string)$ct['email']) ?></a><?php endif; ?>
+      </p>
+    <?php endif; ?>
+  </div>
+</footer>
 </body>
 </html>

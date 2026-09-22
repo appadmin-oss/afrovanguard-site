@@ -43,6 +43,13 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-lead{color:var(--ngv-muted);font-size:clamp(1rem,1.3vw,1.12rem);line-height:1.6;max-width:60ch}
 .ngv-head .ngv-lead{margin-inline:auto}
 .ngv-grad-text{background:var(--ngv-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* Small shared modifiers, so a one-off offset is a class rather than a style
+   attribute typed into the markup. */
+.ngv-lead--stack{margin-bottom:16px}
+.ngv-section--tight{padding-block:clamp(40px,5vw,64px)}
+.ngv-head--tight{margin-bottom:28px}
+.ngv-test-score{color:var(--ngv-muted);font-weight:600}
+.ngv-office-name{font-weight:700;margin-bottom:4px}
 
 /* buttons */
 .ngv-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;
@@ -55,6 +62,11 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-btn-ghost{background:transparent;color:var(--ngv-text);border-color:var(--ngv-line)}
 .ngv-btn-ghost:hover{border-color:var(--ngv-text)}
 .ngv-btn-lg{padding:15px 30px;font-size:1.05rem}
+/* Inside the gradient CTA band the page's own light/dark buttons disappear. */
+.ngv-btn-onband{background:#14100c;color:#fff;border-color:transparent}
+:root[data-theme="dark"] .ngv-btn-onband{background:#14100c;color:#fff}
+.ngv-btn-ghost.ngv-btn-onband{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+.ngv-btn-ghost.ngv-btn-onband:hover{border-color:#fff}
 
 /* ── Hero (light, editorial) ─────────────────────────────────────────── */
 .ngv-hero{position:relative;overflow:hidden;padding-block:clamp(56px,8vw,104px);
@@ -75,7 +87,7 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-hero-eyebrow{font:700 .8rem/1 var(--afg-font-body,system-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ngv-muted)}
 .ngv-hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
 /* perks strip */
-.ngv-perks{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:clamp(38px,5vw,60px)}
+.ngv-perks{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:clamp(38px,5vw,60px)}
 .ngv-perk{background:var(--ngv-card);border:1px solid var(--ngv-line);border-radius:14px;padding:18px}
 .ngv-perk b{display:block;font:700 1.5rem/1 var(--afg-font-display,serif);
   background:var(--ngv-grad);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:4px}
@@ -93,9 +105,9 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 
 /* ── Cards / grids ───────────────────────────────────────────────────── */
 .ngv-grid{display:grid;gap:18px}
-.ngv-grid-2{grid-template-columns:repeat(2,1fr)}
-.ngv-grid-3{grid-template-columns:repeat(3,1fr)}
-.ngv-grid-4{grid-template-columns:repeat(4,1fr)}
+.ngv-grid-2{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.ngv-grid-3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.ngv-grid-4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .ngv-card{background:var(--ngv-card);border:1px solid var(--ngv-line);border-radius:var(--ngv-r);
   padding:24px;box-shadow:var(--ngv-shadow);transition:transform .18s ease,box-shadow .18s}
 .ngv-card:hover{transform:translateY(-3px)}
@@ -114,14 +126,14 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-stat span{color:var(--ngv-muted);font-weight:600;font-size:.85rem}
 
 /* tick list */
-.ngv-ticks{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 30px;margin:0;padding:0;list-style:none;max-width:760px;margin-inline:auto}
+.ngv-ticks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px 30px;margin:0;padding:0;list-style:none;max-width:760px;margin-inline:auto}
 .ngv-ticks li{position:relative;padding-left:34px;line-height:1.5;color:var(--ngv-text);font-weight:500}
 .ngv-ticks li::before{content:"";position:absolute;left:0;top:0;width:22px;height:22px;border-radius:7px;
   background:linear-gradient(135deg,rgba(228,22,43,.12),rgba(255,183,3,.18));
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e4162b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-size:14px;background-position:center;background-repeat:no-repeat}
 
 /* ── Phases ──────────────────────────────────────────────────────────── */
-.ngv-phases{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.ngv-phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
 .ngv-phase{background:var(--ngv-card);border:1px solid var(--ngv-line);border-radius:var(--ngv-r);padding:26px;box-shadow:var(--ngv-shadow)}
 .ngv-phase-tag{display:inline-flex;font-weight:700;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ngv-accent-ink);background:linear-gradient(135deg,rgba(228,22,43,.10),rgba(255,183,3,.16));padding:5px 12px;border-radius:999px}
@@ -132,7 +144,7 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-phase li::before{content:"";position:absolute;left:4px;top:.5em;width:7px;height:7px;border-radius:50%;background:var(--ngv-orange)}
 
 /* ── Plans ───────────────────────────────────────────────────────────── */
-.ngv-plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:stretch}
+.ngv-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:18px;align-items:stretch}
 .ngv-plan{position:relative;display:flex;flex-direction:column;gap:12px;background:var(--ngv-card);
   border:1px solid var(--ngv-line);border-radius:18px;padding:26px 24px;box-shadow:var(--ngv-shadow)}
 .ngv-plan--featured{border-color:transparent;box-shadow:0 20px 50px -24px rgba(228,22,43,.5);
@@ -140,7 +152,7 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-plan-flag{position:absolute;top:-12px;left:24px;background:var(--ngv-grad);color:#fff;font-weight:700;
   font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;padding:5px 13px;border-radius:999px}
 .ngv-plan-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.ngv-plan-name{font-weight:700;font-size:1.14rem;color:var(--ngv-text)}
+.ngv-plan-name{margin:0;font-weight:700;font-size:1.14rem;color:var(--ngv-text)}
 .ngv-plan-dur{font-weight:700;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--ngv-accent-ink);
   border:1px solid var(--ngv-line);border-radius:999px;padding:4px 10px;white-space:nowrap}
 .ngv-plan-price{font:700 2.1rem/1 var(--afg-font-display,serif);color:var(--ngv-text)}
@@ -152,7 +164,7 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-plan .ngv-btn{width:100%;margin-top:6px}
 
 /* ── Testimonials ────────────────────────────────────────────────────── */
-.ngv-tests{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.ngv-tests{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:18px}
 .ngv-test{background:var(--ngv-card);border:1px solid var(--ngv-line);border-radius:var(--ngv-r);padding:24px;
   box-shadow:var(--ngv-shadow);display:flex;flex-direction:column;gap:14px}
 .ngv-test-stars{color:var(--ngv-gold);font-size:.95rem;letter-spacing:.1em}
@@ -163,12 +175,13 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 .ngv-test-role{color:var(--ngv-muted);font-size:.82rem}
 
 /* ── Fees + schedule ─────────────────────────────────────────────────── */
-.ngv-fees{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.ngv-fees{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
 .ngv-fee{background:var(--ngv-card);border:1px solid var(--ngv-line);border-radius:var(--ngv-r);padding:24px;box-shadow:var(--ngv-shadow)}
 .ngv-fee h3{margin:0 0 4px;font-size:1.05rem;font-weight:700}
 .ngv-fee-amt{font:700 1.5rem/1 var(--afg-font-display,serif);background:var(--ngv-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ngv-fee-desc{color:var(--ngv-muted);line-height:1.6;font-size:.96rem;max-width:60ch;margin-top:8px}
 .ngv-note{border-left:3px solid var(--ngv-orange);background:var(--ngv-bg-alt);border-radius:0 12px 12px 0;padding:14px 18px;color:var(--ngv-text);line-height:1.55;margin-top:18px;font-size:.95rem}
-.ngv-sched{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}
+.ngv-sched{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:20px}
 .ngv-sched .ngv-card{padding:18px}
 .ngv-sched b{display:block;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ngv-accent-ink);margin-bottom:6px}
 .ngv-sched span{color:var(--ngv-muted);font-size:.9rem;line-height:1.45}
@@ -207,9 +220,4 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
 @media(max-width:900px){
   .ngv-about{grid-template-columns:1fr}
   .ngv-about h2{text-align:center}
-  .ngv-grid-3,.ngv-grid-4,.ngv-plans,.ngv-tests,.ngv-perks,.ngv-sched{grid-template-columns:1fr 1fr}
-  .ngv-phases,.ngv-fees,.ngv-grid-2{grid-template-columns:1fr}
-}
-@media(max-width:560px){
-  .ngv-grid-3,.ngv-grid-4,.ngv-plans,.ngv-tests,.ngv-perks,.ngv-sched,.ngv-ticks{grid-template-columns:1fr}
 }
