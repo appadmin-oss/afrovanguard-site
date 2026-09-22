@@ -204,7 +204,7 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .portal-app .save-msg.on{opacity:1}
 .ngv-banner{display:flex;gap:10px;align-items:center;background:var(--gold-soft);border:1px solid var(--gold-soft-bd);
   color:var(--gold-deeper);border-radius:11px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:18px}
-.ngv-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.ngv-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 .ngv-grid .wide{grid-column:1 / -1}
 @media(max-width:860px){.ngv-grid{grid-template-columns:1fr}}
 
@@ -272,8 +272,11 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .ngv-sched{margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:12px 13px;background:var(--surface-2)}
 .ngv-sched-head{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;font-size:13px;color:var(--ink)}
 .ngv-sched-head span{margin-left:auto;font-size:12px;color:var(--muted-2);font-weight:600}
-.ngv-bar{height:6px;border-radius:999px;background:var(--border);overflow:hidden;margin:9px 0 11px}
-.ngv-bar span{display:block;height:100%;border-radius:999px;background:var(--green)}
+/* The instalment bar is its own thing — slimmer, and green because it tracks
+   money paid rather than books read. Scoped, because an unscoped `.ngv-bar`
+   here silently re-styles the reading-challenge bar defined above it. */
+.ngv-sched .ngv-bar{height:6px;background:var(--border);margin:9px 0 11px}
+.ngv-sched .ngv-bar span{display:block;height:100%;border-radius:999px;background:var(--green)}
 .ngv-insts{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px}
 .ngv-inst{border:1.5px solid var(--border);border-radius:9px;padding:7px 8px;background:var(--surface);
   display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -318,11 +321,11 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
         <a class="pnav-link is-active" href="#top" data-spy="top"><span class="pnav-dot pnav-dot--gold"></span><span class="pnav-label">Overview</span></a>
         <a class="pnav-link" href="#journey" data-spy="journey"><span class="pnav-dot"></span><span class="pnav-label">My journey</span></a>
         <a class="pnav-link" href="#track" data-spy="track"><span class="pnav-dot"></span><span class="pnav-label">Track &amp; plan</span></a>
-        <a class="pnav-link" href="#reading" data-spy="reading"><span class="pnav-dot"></span><span class="pnav-label">Reading</span><span class="pnav-badge"><?= $booksRead ?>/<?= $BOOKS_TOTAL ?></span></a>
         <a class="pnav-link" href="#account" data-spy="account"><span class="pnav-dot <?= $owed > 0 ? '' : 'pnav-dot--green' ?>"></span><span class="pnav-label">Your account</span><?php if ($owed > 0): ?><span class="pnav-badge">₦<?= number_format($owed) ?></span><?php endif; ?></a>
         <?php $dmgOpen = 0; foreach ($myDamage as $d) { if ($d['open']) $dmgOpen++; } ?>
         <a class="pnav-link" href="#damage" data-spy="damage"><span class="pnav-dot <?= $dmgOpen > 0 ? '' : ($myDamage ? 'pnav-dot--green' : '') ?>"></span><span class="pnav-label">Damage</span><?php if ($dmgOpen > 0): ?><span class="pnav-badge"><?= $dmgOpen ?></span><?php endif; ?></a>
         <a class="pnav-link" href="#certs" data-spy="certs"><span class="pnav-dot"></span><span class="pnav-label">Certifications</span><span class="pnav-badge"><?= count($myCerts) ?></span></a>
+        <a class="pnav-link" href="#reading" data-spy="reading"><span class="pnav-dot"></span><span class="pnav-label">Reading</span><span class="pnav-badge"><?= $booksRead ?>/<?= $BOOKS_TOTAL ?></span></a>
         <a class="pnav-link" href="#schedule" data-spy="schedule"><span class="pnav-dot"></span><span class="pnav-label">Schedule</span></a>
       </div>
       <div class="pnav-group">
@@ -461,24 +464,10 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
           </div>
         </section>
 
-        <!-- 24-book reading challenge -->
-        <section class="pcard wide" id="reading">
-          <div class="pcard-head"><h2>24-book reading challenge</h2><span class="pcard-sub">tap a book once you finish it</span></div>
-          <div class="pcard-body">
-            <div class="ngv-books" id="books">
-              <?php for ($i = 0; $i < $BOOKS_TOTAL; $i++): $on = ($myBooks[$i] ?? '0') === '1'; ?>
-              <div class="book <?= $on ? 'on' : '' ?>" data-i="<?= $i ?>" title="Book <?= $i + 1 ?>"><?= $i + 1 ?></div>
-              <?php endfor; ?>
-            </div>
-            <div class="ngv-bar"><i id="booksBar" style="width:<?= (int)round($booksRead / $BOOKS_TOTAL * 100) ?>%"></i></div>
-            <div style="font-size:12.5px;color:var(--muted)"><b id="booksLabel"><?= $booksRead ?></b> of <?= $BOOKS_TOTAL ?> read — leadership, finance, law &amp; your track. Keep going!</div>
-          </div>
-        </section>
-
         <!-- Your account — training fee, membership, monthly commitment, any
              fines, and every entry behind them. One plain figure, never in red,
              no deadline, and the money conversation pointed at a person. -->
-        <section class="pcard" id="account">
+        <section class="pcard wide" id="account">
           <div class="pcard-head"><h2>Your account</h2><span class="pcard-sub">recorded by your team</span></div>
           <div class="pcard-body">
             <?php if (!$feesOn): ?>
@@ -771,6 +760,20 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
           </div>
         </section>
 
+        <!-- 24-book reading challenge -->
+        <section class="pcard wide" id="reading">
+          <div class="pcard-head"><h2>24-book reading challenge</h2><span class="pcard-sub">tap a book once you finish it</span></div>
+          <div class="pcard-body">
+            <div class="ngv-books" id="books">
+              <?php for ($i = 0; $i < $BOOKS_TOTAL; $i++): $on = ($myBooks[$i] ?? '0') === '1'; ?>
+              <div class="book <?= $on ? 'on' : '' ?>" data-i="<?= $i ?>" title="Book <?= $i + 1 ?>"><?= $i + 1 ?></div>
+              <?php endfor; ?>
+            </div>
+            <div class="ngv-bar"><i id="booksBar" style="width:<?= (int)round($booksRead / $BOOKS_TOTAL * 100) ?>%"></i></div>
+            <div style="font-size:12.5px;color:var(--muted)"><b id="booksLabel"><?= $booksRead ?></b> of <?= $BOOKS_TOTAL ?> read — leadership, finance, law &amp; your track. Keep going!</div>
+          </div>
+        </section>
+
         <!-- Schedule & where -->
         <section class="pcard" id="schedule">
           <div class="pcard-head"><h2>Schedule &amp; where</h2></div>
@@ -787,7 +790,7 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
         </section>
 
         <!-- Skills + support -->
-        <section class="pcard wide" id="support">
+        <section class="pcard" id="support">
           <div class="pcard-head"><h2>Skills you're building &amp; support</h2></div>
           <div class="pcard-body">
             <?php if ($marquee): ?>

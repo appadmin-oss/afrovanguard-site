@@ -310,90 +310,186 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 <title>Vanguards · NGV staff</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--red:#e4162b;--orange:#ff6a1a;--gold:#ffb703;--ink:#15120e;--line:#e7e9ee;--muted:#5f6874;--bg:#f5f6f8;--card:#fff;--grad:linear-gradient(100deg,#e4162b,#ff6a1a 55%,#ffb703);--r:14px}
-*{box-sizing:border-box}body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+/* ── Tokens ──────────────────────────────────────────────────────────────── */
+:root{
+  --red:#e4162b;--orange:#ff6a1a;--gold:#ffb703;--ink:#15120e;--line:#e7e9ee;--muted:#5f6874;
+  --bg:#f5f6f8;--card:#fff;--grad:linear-gradient(100deg,#e4162b,#ff6a1a 55%,#ffb703);
+  --green:#137a3a;--green-bg:#e6f7ec;--green-line:#a9dcbd;
+  --blue:#274690;--blue-bg:#eef2fb;--blue-line:#a9c6ef;
+  --amber:#9a5b00;--amber-bg:#fffaf0;--amber-line:#f2c98a;
+  --danger:#c0322b;--danger-bg:#fdecec;--danger-line:#f0b4b0;
+  --r:14px;
+  /* Everything that has to clear the sticky bar measures from here: the bar's
+     own height, an in-page anchor's scroll offset, the sticky roster's top. */
+  --topbar:54px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
 a{color:var(--red)}
-.top{position:sticky;top:0;z-index:20;background:rgba(21,18,14,.97);color:#fff;display:flex;gap:12px;align-items:center;padding:12px 20px;flex-wrap:wrap}
-.top .brand{font-weight:800}.top .brand b{color:var(--gold)}.top .sp{flex:1}
-.top a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:600;font-size:.86rem}.top a:hover{color:#fff}
-.wrap{max-width:1180px;margin:22px auto;padding:0 18px}
+h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+
+/* ── Page frame ──────────────────────────────────────────────────────────── */
+.top{position:sticky;top:0;z-index:20;min-height:var(--topbar);background:rgba(21,18,14,.97);color:#fff;
+  display:flex;gap:12px;align-items:center;padding:10px 20px;flex-wrap:wrap}
+.top h1{font-size:.95rem;font-weight:800}
+.top h1 b{color:var(--gold)}
+.top h1 span{font-weight:600;color:rgba(255,255,255,.7)}
+.top .sp{flex:1}
+.top a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:600;font-size:.86rem}
+.top a:hover{color:#fff}
+.msg{font-size:.85rem;font-weight:700;margin-left:auto}
+.wrap{max-width:1180px;margin:22px auto 56px;padding:0 18px;
+  /* One rhythm for the whole page, instead of a margin typed onto each card. */
+  display:flex;flex-direction:column;gap:18px}
 .gate{max-width:520px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:18px;padding:36px;text-align:center}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.gate h1{font-size:1.4rem;margin-bottom:.4em}
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  /* An in-page jump (#damage, #waive) otherwise lands under the sticky bar. */
+  scroll-margin-top:calc(var(--topbar) + 14px)}
+.card>header{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.card>header h2{font-size:1rem}
+.card>header .sp{flex:1}
+.card>.body{padding:16px 18px 18px}
+/* A block of related controls inside a card: a heading, then its fields. */
+.sect{padding-top:16px;margin-top:16px;border-top:1px solid var(--line);
+  /* #waive and #damage are linked to from the queues above. */
+  scroll-margin-top:calc(var(--topbar) + 14px)}
+.sect:first-child{padding-top:0;margin-top:0;border-top:0}
+.sect>h3{font-size:.86rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  margin-bottom:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sect>h3 .pill{text-transform:none;letter-spacing:.04em}
+.sect>p:last-child,.card>.body>p:last-child{margin-bottom:0}
+
+/* ── Overview tiles ──────────────────────────────────────────────────────── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:12px}
 .stat{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
 .stat .k{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.stat .v{font-size:1.5rem;font-weight:800}
-.shell{display:grid;grid-template-columns:1.1fr 1.3fr;gap:18px;align-items:start}
-.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.card>header{padding:14px 18px;border-bottom:1px solid var(--line);font-weight:700;display:flex;gap:10px;align-items:center}
-.card>header .sp{flex:1}
-.card>.body{padding:16px 18px}
+.stat .v{font-size:1.5rem;font-weight:800;line-height:1.2}
+.stat--ask{border-color:var(--blue-line);background:var(--blue-bg)}
+
+/* ── Two-column layouts ──────────────────────────────────────────────────── */
+/* Roster beside the record it opens. The roster sticks because it is the
+   navigation: picking the next person should not mean scrolling a long form
+   back to the top. The record itself flows — trapping a ledger inside a
+   second scrollbar is worse than a long page. */
+.shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:18px;align-items:start}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;align-items:start}
+@media(min-width:1000px){
+  .shell>.roster{position:sticky;top:calc(var(--topbar) + 18px);max-height:calc(100vh - var(--topbar) - 36px);
+    display:flex;flex-direction:column}
+  .shell>.roster>.body{overflow:auto}
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+/* .card clips its corners, so a wide table has to scroll inside a wrapper of
+   its own or its last column is simply cut off on a narrow screen. */
+.tbl{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
-th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-th{font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;white-space:nowrap}
 tr.on{background:#fff6f2}
-.badge{font-size:.72rem;font-weight:800;padding:2px 9px;border-radius:999px;text-transform:capitalize}
-.b-active{background:#e6f7ec;color:#137a3a}.b-applicant{background:#eef2fb;color:#274690}.b-completed{background:#fff4e0;color:#9a5b00}
-.b-paused{background:#f1f3f6;color:#5f6874}.b-withdrawn{background:#fdecec;color:#c0322b}
-.btn{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
+
+/* ── Badges, pills, notes ────────────────────────────────────────────────── */
+.badge{font-size:.72rem;font-weight:800;padding:2px 9px;border-radius:999px;text-transform:capitalize;white-space:nowrap}
+.b-active{background:var(--green-bg);color:var(--green)}
+.b-applicant{background:var(--blue-bg);color:var(--blue)}
+.b-completed{background:#fff4e0;color:var(--amber)}
+.b-paused{background:#f1f3f6;color:var(--muted)}
+.b-withdrawn{background:var(--danger-bg);color:var(--danger)}
+.pill{font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.pill-on{background:var(--green-bg);color:var(--green)}
+.pill-off{background:#f1f3f6;color:var(--muted)}
+.pill-open{background:var(--blue-bg);color:var(--blue)}
+.note{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;font-size:.88rem}
+.note-warn{border-color:var(--amber-line);background:var(--amber-bg)}
+.note-ask{border-color:var(--blue-line);background:var(--blue-bg)}
+.note .sub{display:block;margin-top:4px}
+.sub{font-size:.82rem;color:var(--muted)}
+p.sub{margin:5px 0 0}
+
+/* ── Controls ────────────────────────────────────────────────────────────── */
+.btn{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;font:inherit;font-weight:700;
+  cursor:pointer;color:var(--ink);text-decoration:none;display:inline-block}
 .btn:hover{border-color:var(--orange)}
-.btn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
 .btn[disabled]{opacity:.55;cursor:progress}
 .btn.primary{background:var(--grad);color:#fff;border-color:transparent}
 .btn.sm{padding:5px 10px;font-size:.82rem}
-.fld{margin-bottom:12px}.fld label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:5px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px;font:inherit}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sub{font-size:.82rem;color:var(--muted)}
-.enroll{display:flex;gap:8px}.enroll input{flex:1}
-.rfilter{display:flex;gap:8px;flex-wrap:wrap}
-.rfilter input{flex:1;min-width:140px}.rfilter select{width:auto}
-.msg{font-size:.85rem;font-weight:700;margin-left:auto}
-.pay-row{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;padding:7px 0;border-bottom:1px dashed var(--line)}
-.pay-row .sp{flex:1}
-.pay-row.voided{opacity:.55}.pay-row.voided b{text-decoration:line-through}
-.dir{display:inline-block;width:16px;font-weight:800;text-align:center}
-.dir.charge{color:#c0322b}.dir.credit{color:#137a3a}
-.pill{font-size:.68rem;font-weight:800;padding:2px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
-.pill-on{background:#e6f7ec;color:#137a3a}.pill-off{background:#f1f3f6;color:#5f6874}
-.pill-open{background:#eef2fb;color:#274690}
-.dmg{border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:10px}
-.dmg-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.dmg-head .sp{flex:1}
-.dmg blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-size:.88rem}
-.shots{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-.shots img{width:96px;height:96px;object-fit:cover;border-radius:9px;border:1px solid var(--line);display:block}
-.shots a:focus-visible img{outline:3px solid var(--orange);outline-offset:2px}
 textarea{min-height:60px;resize:vertical}
-.note{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:.88rem}
-.note-warn{border-color:#f2c98a;background:#fffaf0}
-.note-ask{border-color:#a9c6ef;background:#f5f9ff}
-.stat--ask{border-color:#a9c6ef}
-.reqs{display:grid;gap:10px;margin-top:10px}
-.req{border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff}
-.req--done{opacity:.8}
-.req-who{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-weight:700}
-.req blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-size:.88rem}
-.req .req-out{margin-bottom:8px}
-.note .sub{display:block;margin-top:4px}
-.amts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+.fld{margin-bottom:12px}
+.fld:last-child{margin-bottom:0}
+.fld>label{display:block;font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:5px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.grid2+.grid2,.grid2+input,.grid2+select,input+input,input+select,select+input{margin-top:10px}
+.chk{display:flex;gap:8px;align-items:center;font-weight:600;font-size:.88rem;margin-bottom:6px}
+.chk input{width:auto}
+.enroll{display:flex;gap:8px}
+.enroll input{flex:1}
+.rfilter{display:flex;gap:8px;flex-wrap:wrap}
+.rfilter input{flex:1;min-width:140px}
+.rfilter select{width:auto;min-width:0;max-width:100%}
+
+/* ── Money figures ───────────────────────────────────────────────────────── */
+.amts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .amt-box{border:1px solid var(--line);border-radius:11px;padding:10px 12px}
 .amt-box .k{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .amt-box .v{font-size:1.15rem;font-weight:800}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-.chk{display:flex;gap:8px;align-items:center;font-weight:600;font-size:.88rem;margin-bottom:6px}
-.chk input{width:auto}
-.card.money .fld p.sub{margin:5px 0 0}
+.figure{font-size:1.7rem;font-weight:800;line-height:1.1}
+.figure.clear{color:var(--green)}
+.figure .sub{display:block;font-size:.78rem;font-weight:600}
 .insts{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
 .inst{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;
   font-size:.72rem;font-weight:800;border:1.5px solid var(--line);color:var(--muted);cursor:default}
-.inst--charged{background:#e6f7ec;border-color:#a9dcbd;color:#137a3a}
-.inst--due{background:#fdecec;border-color:#f0b4b0;color:#c0322b}
-.figure{font-size:1.7rem;font-weight:800;line-height:1.1}
-.figure.clear{color:#137a3a}
-.figure .sub{display:block;font-size:.78rem;font-weight:600}
-@media(max-width:900px){.amts{grid-template-columns:1fr}.cols{grid-template-columns:1fr}}
-@media(max-width:900px){.shell{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+.inst--charged{background:var(--green-bg);border-color:var(--green-line);color:var(--green)}
+.inst--due{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}
+
+/* ── Ledger rows ─────────────────────────────────────────────────────────── */
+.pay-row{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;padding:7px 0;border-bottom:1px dashed var(--line)}
+.pay-row .sp{flex:1}
+.pay-row:last-of-type{border-bottom:0}
+.pay-row.voided{opacity:.55}
+.pay-row.voided b{text-decoration:line-through}
+.dir{display:inline-block;width:16px;font-weight:800;text-align:center}
+.dir.charge{color:var(--danger)}
+.dir.credit{color:var(--green)}
+
+/* ── Requests + damage ───────────────────────────────────────────────────── */
+.reqs{display:grid;gap:10px}
+.req{border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff}
+.req--done{opacity:.8}
+.req-who{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-weight:700}
+.req .req-out{margin-bottom:8px}
+.dmg{border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:10px}
+.dmg-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dmg-head .sp{flex:1}
+.req blockquote,.dmg blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-size:.88rem}
+.shots{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.shots img{width:96px;height:96px;object-fit:cover;border-radius:9px;border:1px solid var(--line);display:block}
+details>summary{cursor:pointer;font-weight:700}
+details.sect>summary{margin-bottom:8px}
+.recdmg{margin-top:12px}
+.addshot{display:block;margin-top:8px}
+.addshot input{margin-top:4px}
+.out{margin-top:8px}
+.d-outcome{margin-top:8px}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media(max-width:1000px){
+  .shell{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .wrap{padding:0 14px;margin-bottom:36px}
+  .card>.body{padding:14px}
+  .enroll{flex-wrap:wrap}
+  .enroll input{min-width:100%}
+}
 </style>
 </head>
 <body>
@@ -401,19 +497,21 @@ textarea{min-height:60px;resize:vertical}
   <div class="gate">
     <h1>Admin sign-in required</h1>
     <p>This console manages NextGen Vanguard participants, fees and certifications. Sign in to the Academy Studio, then come back.</p>
-    <p style="margin-top:18px"><a class="btn primary" href="/academy/studio/">Go to the Studio →</a></p>
-    <p style="margin-top:12px"><a href="/academy/ngv/">View the public page</a></p>
+    <p class="btns"><a class="btn primary" href="/academy/studio/">Go to the Studio →</a></p>
+    <p><a href="/academy/ngv/">View the public page</a></p>
   </div>
 <?php else: ?>
-<div class="top">
-  <span class="brand"><b>NextGen Vanguard</b> · staff</span>
+<header class="top">
+  <h1><b>NextGen Vanguard</b> <span>· staff console</span></h1>
   <span class="sp"></span>
   <a href="/academy/ngv/edit.php">Edit page</a>
   <a href="/academy/ngv/" target="_blank" rel="noopener">Public ↗</a>
-  <span class="msg" id="msg"></span>
-</div>
-<div class="wrap">
-  <div class="stats">
+  <span class="msg" id="msg" role="status" aria-live="polite"></span>
+</header>
+<main class="wrap">
+
+  <!-- ══ 1. Where the programme stands ═════════════════════════════════════ -->
+  <section class="stats" aria-label="The programme at a glance">
     <div class="stat"><div class="k">Participants</div><div class="v"><?= (int)$stats['total'] ?></div>
       <?php if ((int)($money['charged'] ?? 0) > 0): ?><div class="sub">₦<?= number_format((int)$money['charged']) ?> charged</div><?php endif; ?></div>
     <div class="stat"><div class="k">Active</div><div class="v"><?= (int)($stats['by_status']['active'] ?? 0) ?></div></div>
@@ -424,236 +522,61 @@ textarea{min-height:60px;resize:vertical}
         <?php if ((int)($arrears['matched'] ?? 0) > 0): ?><?= (int)$arrears['matched'] ?> behind<?php endif; ?>
         <?php if ($reqOpen > 0): ?><?= (int)($arrears['matched'] ?? 0) > 0 ? ' · ' : '' ?><b><?= $reqOpen ?> asked for help</b><?php endif; ?>
       </div></div>
-  </div>
+  </section>
 
-  <!-- ══ Money ══════════════════════════════════════════════════════════════
+  <!-- ══ 2. Anything waiting on a decision, before any list of work ═════════
        A ledger, not a payment processor: nothing on this page takes money. It
        records what is owed and what staff confirm arrived. -->
-  <div class="card money" style="margin-bottom:18px">
-    <header>Fees &amp; dues
-      <span class="pill <?= !empty($fees['enabled']) ? 'pill-on' : 'pill-off' ?>"><?= !empty($fees['enabled']) ? 'On' : 'Off' ?></span>
+  <?php if (empty($fees['enabled'])): ?>
+    <p class="note note-warn">Fees are switched off — nothing is being charged, and nobody can be behind.
+      Turn them on under <a href="#fees">Fees &amp; amounts</a>.</p>
+  <?php endif; ?>
+
+  <?php if ($review['due']): ?>
+    <div class="note note-warn">
+      These amounts have not been reviewed
+      <?= $review['lastAt'] === '' ? 'since fees were switched on' : 'since ' . $e((string)$review['lastAt']) ?>.
+      Naira inflation erodes a fixed figure fast — check <a href="/academy/ngv/edit.php" target="_blank" rel="noopener">the public page</a>
+      against what you are charging, then
+      <button class="btn sm" data-act="fees_reviewed">mark them reviewed</button>.
+      <span class="sub">Nothing here ever changes an amount on its own.</span>
+    </div>
+  <?php endif; ?>
+
+  <?php $done = array_values(array_filter($reqs, static fn($r) => $r['status'] !== 'open')); ?>
+  <?php if ($reqOpen > 0 || $done): ?>
+  <section class="card" id="requests" aria-labelledby="h-requests">
+    <header><h2 id="h-requests">Asked for help</h2>
+      <?php if ($reqOpen > 0): ?><span class="pill pill-open"><?= $reqOpen ?> open</span><?php endif; ?>
       <span class="sp"></span>
-      <span class="sub">membership · monthly commitment · training fee · fines</span>
+      <span class="sub">answering comes before chasing</span>
     </header>
     <div class="body">
-
       <?php if ($reqOpen > 0): ?>
-        <div class="note note-ask">
-          <b><?= $reqOpen ?> <?= $reqOpen === 1 ? 'person has' : 'people have' ?> written about their account.</b>
-          Answering comes before chasing — somebody who said they cannot pay is not a debtor to chase.
-          <div class="reqs">
-          <?php foreach ($reqs as $rq): if ($rq['status'] !== 'open') continue; ?>
-            <div class="req">
-              <div class="req-who">
-                <a href="?m=<?= (int)$rq['member_id'] ?>"><?= $e((string)($rq['name'] ?: ('#'.$rq['member_id']))) ?></a>
-                <span class="sub"><?= $e((string)$rq['kindLabel']) ?> · <?= $e(substr((string)$rq['created_at'], 0, 10)) ?></span>
-              </div>
-              <blockquote><?= $e((string)$rq['message']) ?></blockquote>
-              <input class="req-out" data-for="<?= (int)$rq['id'] ?>" placeholder="What you are telling them — they see this">
-              <div>
-                <button class="btn sm primary" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="resolved">Sorted</button>
-                <button class="btn sm" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="declined">Answered, no change</button>
-                <a class="btn sm" href="?m=<?= (int)$rq['member_id'] ?>#waive">Open their account</a>
-              </div>
+        <p class="sub"><b><?= $reqOpen ?> <?= $reqOpen === 1 ? 'person has' : 'people have' ?> written about their
+          account.</b> Somebody who said they cannot pay is not a debtor to chase.</p>
+        <div class="reqs">
+        <?php foreach ($reqs as $rq): if ($rq['status'] !== 'open') continue; ?>
+          <div class="req">
+            <div class="req-who">
+              <a href="?m=<?= (int)$rq['member_id'] ?>"><?= $e((string)($rq['name'] ?: ('#'.$rq['member_id']))) ?></a>
+              <span class="sub"><?= $e((string)$rq['kindLabel']) ?> · <?= $e(substr((string)$rq['created_at'], 0, 10)) ?></span>
             </div>
-          <?php endforeach; ?>
-          </div>
-        </div>
-      <?php endif; ?>
-
-      <?php if ($review['due']): ?>
-        <div class="note note-warn">
-          These amounts have not been reviewed
-          <?= $review['lastAt'] === '' ? 'since fees were switched on' : 'since ' . $e((string)$review['lastAt']) ?>.
-          Naira inflation erodes a fixed figure fast — check <a href="/academy/ngv/edit.php" target="_blank" rel="noopener">the public page</a>
-          against what you are charging, then
-          <button class="btn sm" data-act="fees_reviewed">mark them reviewed</button>.
-          <span class="sub">Nothing here ever changes an amount on its own.</span>
-        </div>
-      <?php endif; ?>
-
-      <!-- What is being charged, and where each figure came from. -->
-      <div class="amts">
-        <?php foreach (['membership' => 'Membership', 'commitment' => 'Monthly commitment'] as $k => $lbl):
-              $a = $amounts[$k] ?? ['amount' => 0, 'cadence' => '', 'source' => '']; ?>
-          <div class="amt-box">
-            <div class="k"><?= $e($lbl) ?></div>
-            <div class="v">₦<?= number_format((int)$a['amount']) ?> <span class="sub">/ <?= $e((string)$a['cadence']) ?></span></div>
-            <div class="sub"><?= $e($srcWord[(string)$a['source']] ?? (string)$a['source']) ?></div>
+            <blockquote><?= $e((string)$rq['message']) ?></blockquote>
+            <input class="req-out" data-for="<?= (int)$rq['id'] ?>" placeholder="What you are telling them — they see this">
+            <div>
+              <button class="btn sm primary" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="resolved">Sorted</button>
+              <button class="btn sm" data-act="request" data-req="<?= (int)$rq['id'] ?>" data-status="declined">Answered, no change</button>
+              <a class="btn sm" href="?m=<?= (int)$rq['member_id'] ?>#waive">Open their account</a>
+            </div>
           </div>
         <?php endforeach; ?>
-        <div class="amt-box">
-          <div class="k">Training fee</div>
-          <?php $paid = array_filter($planOn, static fn($p) => (int) $p['fee'] > 0); ?>
-          <div class="v"><?= $paid ? '₦' . number_format((int) reset($paid)['fee']) : 'Free' ?>
-            <?php if ($paid): ?><span class="sub">/ <?= $e((string) reset($paid)['cadence']) ?></span><?php endif; ?></div>
-          <div class="sub"><?= $paid ? $e((string) key($paid)) . ' · from the plans table' : 'no paid plan on the page' ?></div>
         </div>
-      </div>
-      <p class="sub" style="margin:2px 0 14px">
-        The figures come from <a href="/academy/ngv/edit.php" target="_blank" rel="noopener">the public NGV page</a> — edit them
-        there and the ledger follows, so a receipt can never disagree with the website. Pin one below only when the page cannot say it.
-      </p>
-
-      <div class="cols">
-        <!-- Settings -->
-        <div>
-          <div class="fld"><label>How it runs</label>
-            <label class="chk"><input type="checkbox" id="s_enabled" <?= !empty($fees['enabled']) ? 'checked' : '' ?>> Charge membership and monthly commitment</label>
-            <label class="chk"><input type="checkbox" id="s_trainingAuto" <?= !empty($fees['trainingAuto']) ? 'checked' : '' ?>> Also raise the training fee automatically</label>
-            <p class="sub">Participants pick their own plan on their dashboard. Left off, the training fee is raised by you
-               from their record — one press, priced from the plan — so nobody can give themselves a ₦240,000 debt by clicking about.</p>
-          </div>
-          <div class="grid2">
-            <div class="fld"><label>Charge nothing before</label>
-              <input id="s_accrueFrom" type="date" value="<?= $e((string)($fees['accrueFrom'] ?? '')) ?>">
-              <p class="sub">The rollout guard. Set to the month you switched fees on, so turning the ledger on for a
-                 programme with history does not back-charge a year on the first run.</p></div>
-            <div class="fld"><label>Stop an account at</label>
-              <input id="s_balanceCap" type="number" min="0" step="1000" value="<?= (int)($fees['balanceCap'] ?? 0) ?>">
-              <p class="sub">Accrual stops here rather than growing into a figure nobody will pay. 0 = no ceiling.</p></div>
-          </div>
-          <div class="grid2">
-            <div class="fld"><label>Pin membership (₦/year)</label>
-              <input id="s_membershipYearly" type="number" min="0" step="500" placeholder="auto — read off the page"
-                     value="<?= $fees['membershipYearly'] === null ? '' : (int)$fees['membershipYearly'] ?>"></div>
-            <div class="fld"><label>Pin commitment (₦/month)</label>
-              <input id="s_commitmentMonthly" type="number" min="0" step="100" placeholder="auto — read off the page"
-                     value="<?= $fees['commitmentMonthly'] === null ? '' : (int)$fees['commitmentMonthly'] ?>"></div>
-          </div>
-
-          <div class="fld"><label>Reminders</label>
-            <label class="chk"><input type="checkbox" id="s_remindEnabled" <?= !empty($fees['remindEnabled']) ? 'checked' : '' ?>> Remind people what is outstanding</label>
-            <div class="grid2" style="margin-top:8px">
-              <input id="s_remindEveryDays" type="number" min="<?= (int)$B['remindMinDays'] ?>" max="<?= (int)$B['remindMaxDays'] ?>"
-                     value="<?= (int)($fees['remindEveryDays'] ?? 21) ?>" title="Days between reminders">
-              <input id="s_remindMinBalance" type="number" min="0" step="100" value="<?= (int)($fees['remindMinBalance'] ?? 1) ?>" title="Do not chase below (₦)">
-            </div>
-            <p class="sub">Days apart, then the smallest balance worth a message. The floor is <?= (int)$B['remindMinDays'] ?> days —
-               anything tighter is how a programme gets its sender blocked and its people to stop reading anything it sends.</p>
-          </div>
-          <button class="btn primary" data-act="fees_settings">Save fee settings</button>
-        </div>
-
-        <!-- Running it -->
-        <div>
-          <div class="fld"><label>Bring charges up to date</label>
-            <p class="sub">Adds any membership and monthly commitment not yet charged. Safe to press twice — it cannot
-               charge the same month twice — and the cron does it too.</p>
-            <button class="btn" data-act="accrue">Run accrual</button>
-            <span id="accrueOut" class="sub"></span>
-          </div>
-          <div class="fld"><label>Chase what is outstanding</label>
-            <p class="sub">Preview first: a message to sixty people cannot be recalled.</p>
-            <button class="btn" data-act="remind_preview">Preview</button>
-            <button class="btn" data-act="remind_run">Send them</button>
-            <div id="remindOut" class="sub" style="margin-top:8px"></div>
-          </div>
-
-          <div class="fld"><label>Tell everybody where they stand</label>
-            <p class="sub">A statement, not a reminder: every fee line, the training instalments month by month, each fine
-               with the reason it was issued, anything set aside, and any damage report and its status. It goes to people
-               who owe nothing too — under the reminder rules they could never be told they were square.</p>
-            <button class="btn" data-act="statement_run">Send statements</button>
-            <span id="stmtOut" class="sub"></span>
-          </div>
-
-          <?php $bf = NgvLedger::backfillReceipts(1, true); ?>
-          <?php if ((int)$bf['pending'] > 0): ?>
-          <div class="fld"><label>Receipts for older payments
-              <span class="pill pill-open"><?= (int)$bf['pending'] ?> waiting</span></label>
-            <p class="sub">
-              <?= (int)$bf['sendablePayments'] ?> payment<?= (int)$bf['sendablePayments'] === 1 ? '' : 's' ?>
-              across <?= (int)$bf['sendable'] ?> <?= (int)$bf['sendable'] === 1 ? 'person' : 'people' ?>
-              <?= (int)$bf['sendablePayments'] === 1 ? 'has' : 'have' ?> no receipt out yet<?= $bf['oldest'] !== '' ? ', going back to ' . $e((string)$bf['oldest']) : '' ?>.
-              <?php if ((int)$bf['noEmail'] > 0): ?>
-                A further <?= (int)$bf['noEmailPayments'] ?> belong to <?= (int)$bf['noEmail'] ?> without an email address —
-                they stay in the queue until one is added, rather than being marked done.
-              <?php endif; ?>
-            </p>
-            <p class="sub"><b>One email per person, not per payment.</b> Somebody eighteen months in has a membership
-               payment and a dozen commitments behind them; thirteen separate emails would read as something having gone
-               wrong with their account, not as good record-keeping. Each digest says plainly that nothing has changed and
-               nothing is being asked for.</p>
-            <button class="btn" data-act="backfill_preview">Preview</button>
-            <button class="btn" data-act="backfill_run">Send <?= (int)$bf['sendable'] > (int)NgvLedger::BACKFILL_BATCH
-                ? 'the first ' . (int)NgvLedger::BACKFILL_BATCH : 'them' ?></button>
-            <div id="bfOut" class="sub" style="margin-top:8px"></div>
-            <p class="sub">Safe to press again — the queue is “no receipt sent yet”, so a run that stops halfway picks up
-               exactly where it left off.</p>
-          </div>
-          <?php endif; ?>
-
-          <div class="fld"><label>Find anybody's account</label>
-            <form method="get" class="enroll">
-              <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
-              <input name="q" value="<?= $e((string)($_GET['q'] ?? '')) ?>" placeholder="Name or email…">
-              <button class="btn">Find</button>
-            </form>
-            <p class="sub">The arrears list only holds people who owe. This is how you answer “has Ada paid?” for somebody who has.</p>
-            <?php if (!empty($look['rows'])): ?>
-              <table style="margin-top:6px">
-                <tbody>
-                <?php foreach ($look['rows'] as $r): ?>
-                  <tr><td><a href="?m=<?= (int)$r['member_id'] ?>"><?= $e((string)$r['name']) ?></a><br><span class="sub"><?= $e((string)$r['email']) ?></span></td>
-                      <td class="sub"><?= $e((string)$r['status']) ?></td>
-                      <td><?= (int)$r['payable'] > 0 ? '<b>₦' . number_format((int)$r['payable']) . '</b> due' : '<span class="sub">square</span>' ?>
-                          <br><span class="sub">₦<?= number_format((int)$r['charged']) ?> charged</span></td></tr>
-                <?php endforeach; ?>
-                </tbody>
-              </table>
-              <?php if (!empty($look['truncated'])): ?><p class="sub">More than <?= (int)$look['max'] ?> matched — narrow the search.</p><?php endif; ?>
-            <?php elseif (!empty($look['q']) && empty($look['tooShort'])): ?>
-              <p class="sub">Nobody matched “<?= $e((string)$look['q']) ?>”.</p>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-
-      <!-- ══ Damage ═══════════════════════════════════════════════════════
-           A report costs nothing. The status is the product: somebody who broke
-           a laptop screen needs to know it is being priced, not to wonder for
-           three weeks whether a bill is coming. -->
-      <div class="fld" style="margin-top:6px">
-        <label>Damage
-          <?php if ((int)$dmgTot['open'] > 0): ?><span class="pill pill-open"><?= (int)$dmgTot['open'] ?> open</span><?php endif; ?>
-        </label>
-        <p class="sub">
-          <?= (int)$dmgTot['records'] ?> recorded · ₦<?= number_format((int)$dmgTot['assessed']) ?> assessed ·
-          ₦<?= number_format((int)$dmgTot['charged']) ?> charged ·
-          <b>₦<?= number_format((int)$dmgTot['absorbed']) ?> absorbed by the programme</b>.
-          Record damage on somebody's own page below; every move emails them.
-        </p>
-        <?php if (!$dmgAll): ?>
-          <p class="sub">Nothing recorded.</p>
-        <?php else: ?>
-        <table>
-          <thead><tr><th>What &amp; when</th><th>Who</th><th>Status</th><th>Cost / charged</th><th></th></tr></thead>
-          <tbody>
-          <?php foreach ($dmgAll as $d): ?>
-            <tr>
-              <td><b><?= $e((string)$d['item']) ?></b><br>
-                  <span class="sub"><?= $e((string)$d['occurred_on']) ?><?= $d['place'] !== '' ? ' · ' . $e((string)$d['place']) : '' ?>
-                  · <?= $e((string)$d['severityLabel']) ?></span></td>
-              <td><a href="?m=<?= (int)$d['member_id'] ?>"><?= $e((string)($d['name'] ?: ('#'.$d['member_id']))) ?></a>
-                  <?php if ($d['selfReport']): ?><br><span class="pill pill-on">told us themselves</span><?php endif; ?></td>
-              <td><span class="badge <?= $d['open'] ? 'b-applicant' : ($d['status']==='charged' ? 'b-withdrawn' : 'b-active') ?>">
-                    <?= $e((string)$d['statusLabel']) ?></span>
-                  <?php if (!$d['notify']): ?><br><span class="sub">emails off</span><?php endif; ?></td>
-              <td class="sub"><?= (int)$d['assessed'] > 0 ? '₦' . number_format((int)$d['assessed']) : '—' ?>
-                  <?= (int)$d['charged'] > 0 ? '<br><b>₦' . number_format((int)$d['charged']) . '</b> charged' : '' ?></td>
-              <td><a class="btn sm" href="?m=<?= (int)$d['member_id'] ?>#damage">Open</a></td>
-            </tr>
-          <?php endforeach; ?>
-          </tbody>
-        </table>
-        <?php endif; ?>
-      </div>
-
+      <?php endif; ?>
       <?php $done = array_values(array_filter($reqs, static fn($r) => $r['status'] !== 'open')); ?>
       <?php if ($done): ?>
-      <details class="fld" style="margin-top:6px"><summary class="sub">Answered requests (<?= count($done) ?>)</summary>
-        <div class="reqs" style="margin-top:8px">
+      <details class="sect"><summary class="sub">Answered requests (<?= count($done) ?>)</summary>
+        <div class="reqs">
         <?php foreach (array_slice($done, 0, 12) as $rq): ?>
           <div class="req req--done">
             <div class="req-who"><a href="?m=<?= (int)$rq['member_id'] ?>"><?= $e((string)($rq['name'] ?: ('#'.$rq['member_id']))) ?></a>
@@ -666,14 +589,27 @@ textarea{min-height:60px;resize:vertical}
         </div>
       </details>
       <?php endif; ?>
+    </div>
+  </section>
+  <?php endif; ?>
 
-      <!-- Arrears, ranked by what is actually payable -->
-      <div class="fld" style="margin-top:6px"><label>Behind (<?= (int)$arrears['matched'] ?>) · ₦<?= number_format((int)$arrears['totalPayable']) ?> outstanding</label>
+  <!-- ══ 3. The queues ═════════════════════════════════════════════════════ -->
+  <section class="card" id="arrears" aria-labelledby="h-arrears">
+    <header><h2 id="h-arrears">Behind</h2>
+      <?php if ((int)$arrears['matched'] > 0): ?>
+        <span class="pill pill-open"><?= (int)$arrears['matched'] ?></span>
+      <?php endif; ?>
+      <span class="sp"></span>
+      <span class="sub">₦<?= number_format((int)$arrears['totalPayable']) ?> outstanding · ranked by what is actually payable</span>
+    </header>
+    <div class="body">
+      <div class="sect">
         <?php if (empty($fees['enabled'])): ?>
           <p class="sub">Fees are switched off, so nothing is being charged and nobody is behind.</p>
         <?php elseif (!$arrears['rows']): ?>
           <p class="sub">Nobody is behind. </p>
         <?php else: ?>
+        <div class="tbl">
         <table>
           <thead><tr><th>Who</th><th>Outstanding</th><th>Made up of</th><th></th></tr></thead>
           <tbody>
@@ -692,19 +628,91 @@ textarea{min-height:60px;resize:vertical}
           <?php endforeach; ?>
           </tbody>
         </table>
+        </div>
         <?php if (!empty($arrears['truncated'])): ?><p class="sub">Showing the 50 largest.</p><?php endif; ?>
         <?php endif; ?>
       </div>
+      <div class="sect"><h3>Find anybody's account</h3>
+        <form method="get" class="enroll">
+          <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
+          <input name="q" value="<?= $e((string)($_GET['q'] ?? '')) ?>" placeholder="Name or email…">
+          <button class="btn">Find</button>
+        </form>
+        <p class="sub">The arrears list only holds people who owe. This is how you answer “has Ada paid?” for somebody who has.</p>
+        <?php if (!empty($look['rows'])): ?>
+          <div class="tbl">
+          <table>
+            <tbody>
+            <?php foreach ($look['rows'] as $r): ?>
+              <tr><td><a href="?m=<?= (int)$r['member_id'] ?>"><?= $e((string)$r['name']) ?></a><br><span class="sub"><?= $e((string)$r['email']) ?></span></td>
+                  <td class="sub"><?= $e((string)$r['status']) ?></td>
+                  <td><?= (int)$r['payable'] > 0 ? '<b>₦' . number_format((int)$r['payable']) . '</b> due' : '<span class="sub">square</span>' ?>
+                      <br><span class="sub">₦<?= number_format((int)$r['charged']) ?> charged</span></td></tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+          </div>
+          <?php if (!empty($look['truncated'])): ?><p class="sub">More than <?= (int)$look['max'] ?> matched — narrow the search.</p><?php endif; ?>
+        <?php elseif (!empty($look['q']) && empty($look['tooShort'])): ?>
+          <p class="sub">Nobody matched “<?= $e((string)$look['q']) ?>”.</p>
+        <?php endif; ?>
+      </div>
     </div>
-  </div>
+  </section>
+
+  <section class="card" id="damage-register" aria-labelledby="h-damage">
+    <!-- A report costs nothing. The status is the product: somebody who broke a
+         laptop screen needs to know it is being priced, not to wonder for three
+         weeks whether a bill is coming. -->
+    <header><h2 id="h-damage">Damage</h2>
+      <?php if ((int)$dmgTot['open'] > 0): ?><span class="pill pill-open"><?= (int)$dmgTot['open'] ?> open</span><?php endif; ?>
+      <span class="sp"></span>
+      <span class="sub"><?= (int)$dmgTot['records'] ?> recorded</span>
+    </header>
+    <div class="body">
+      <p class="sub">
+        <?= (int)$dmgTot['records'] ?> recorded · ₦<?= number_format((int)$dmgTot['assessed']) ?> assessed ·
+        ₦<?= number_format((int)$dmgTot['charged']) ?> charged ·
+        <b>₦<?= number_format((int)$dmgTot['absorbed']) ?> absorbed by the programme</b>.
+        Record damage on somebody's own page below; every move emails them.
+      </p>
+      <?php if (!$dmgAll): ?>
+        <p class="sub">Nothing recorded.</p>
+      <?php else: ?>
+      <div class="tbl">
+      <table>
+        <thead><tr><th>What &amp; when</th><th>Who</th><th>Status</th><th>Cost / charged</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($dmgAll as $d): ?>
+          <tr>
+            <td><b><?= $e((string)$d['item']) ?></b><br>
+                <span class="sub"><?= $e((string)$d['occurred_on']) ?><?= $d['place'] !== '' ? ' · ' . $e((string)$d['place']) : '' ?>
+                · <?= $e((string)$d['severityLabel']) ?></span></td>
+            <td><a href="?m=<?= (int)$d['member_id'] ?>"><?= $e((string)($d['name'] ?: ('#'.$d['member_id']))) ?></a>
+                <?php if ($d['selfReport']): ?><br><span class="pill pill-on">told us themselves</span><?php endif; ?></td>
+            <td><span class="badge <?= $d['open'] ? 'b-applicant' : ($d['status']==='charged' ? 'b-withdrawn' : 'b-active') ?>">
+                  <?= $e((string)$d['statusLabel']) ?></span>
+                <?php if (!$d['notify']): ?><br><span class="sub">emails off</span><?php endif; ?></td>
+            <td class="sub"><?= (int)$d['assessed'] > 0 ? '₦' . number_format((int)$d['assessed']) : '—' ?>
+                <?= (int)$d['charged'] > 0 ? '<br><b>₦' . number_format((int)$d['charged']) . '</b> charged' : '' ?></td>
+            <td><a class="btn sm" href="?m=<?= (int)$d['member_id'] ?>#damage">Open</a></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      </div>
+      <?php endif; ?>
+    </div>
+  </section>
 
   <!-- Applications inbox -->
-  <div class="card" style="margin-bottom:18px">
-    <header>Applications <span class="sp"></span><span class="sub"><?= count($apps) ?> shown · <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page ↗</a></span></header>
+  <section class="card" id="applications" aria-labelledby="h-apps">
+    <header><h2 id="h-apps">Applications</h2> <span class="sp"></span><span class="sub"><?= count($apps) ?> shown · <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page ↗</a></span></header>
     <div class="body">
       <?php if (!$apps): ?>
         <p class="sub">No applications yet. Share the <a href="/academy/ngv/register.php" target="_blank" rel="noopener">registration page</a> to start collecting them.</p>
       <?php else: ?>
+      <div class="tbl">
       <table>
         <thead><tr><th>Applicant</th><th>Interest</th><th>Status</th><th>When</th><th>Action</th></tr></thead>
         <tbody>
@@ -732,24 +740,28 @@ textarea{min-height:60px;resize:vertical}
         <?php endforeach; ?>
         </tbody>
       </table>
+      </div>
       <?php endif; ?>
     </div>
-  </div>
+  </section>
 
+  <!-- ══ 4. The people, and one person's record ════════════════════════════ -->
   <div class="shell">
-    <!-- Roster -->
-    <div class="card">
-      <header>Vanguards <span class="sp"></span><span class="sub">
+    <!-- The roster is the navigation, so on a wide screen it stays put while a
+         record is read; the record itself flows rather than sitting in a second
+         scrollbar of its own. -->
+    <section class="card roster" id="roster" aria-labelledby="h-roster">
+      <header><h2 id="h-roster">Vanguards</h2> <span class="sp"></span><span class="sub">
         <?= count($roster) ?><?= $rosterAll > count($roster) ? ' of ' . $rosterAll : '' ?> shown<?php
           if ($filtered): ?> · <a href="?<?= $mid > 0 ? 'm=' . $mid : '' ?>">clear filter</a><?php endif; ?></span></header>
       <div class="body">
-        <div class="enroll" style="margin-bottom:10px">
+        <div class="enroll">
           <input id="enrollEmail" type="email" placeholder="Enrol by member email…">
           <button class="btn primary" id="enrollBtn">Enrol</button>
         </div>
         <!-- Filters in the query string, so a filtered view is a URL a
              coordinator can send to another one. -->
-        <form method="get" class="rfilter" style="margin-bottom:14px">
+        <form method="get" class="rfilter">
           <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
           <input name="r" value="<?= $e($fQuery) ?>" placeholder="Name, email or track…">
           <select name="s">
@@ -768,6 +780,7 @@ textarea{min-height:60px;resize:vertical}
           <?php endif; ?>
           <button class="btn">Filter</button>
         </form>
+        <div class="tbl">
         <table>
           <thead><tr><th>Name</th><th>Track</th><th>Status</th><th>Received</th><th>Certs</th></tr></thead>
           <tbody>
@@ -785,19 +798,20 @@ textarea{min-height:60px;resize:vertical}
               : 'No participants yet — enrol a member by email above.' ?></td></tr><?php endif; ?>
           </tbody>
         </table>
+        </div>
       </div>
-    </div>
+    </section>
 
     <!-- Detail -->
-    <div class="card">
-      <header>Manage<?= $sel ? ' · ' . $e((string)($sel['name'] ?: ('#'.$sel['member_id']))) : '' ?></header>
+    <section class="card" id="record" aria-labelledby="h-record">
+      <header><h2 id="h-record">Manage<?= $sel ? ' · ' . $e((string)($sel['name'] ?: ('#'.$sel['member_id']))) : '' ?></h2></header>
       <div class="body">
       <?php if (!$sel): ?>
         <p class="sub">Select a vanguard on the left to record fees, add certifications, or change their status.</p>
       <?php else: $m = (int)$sel['member_id']; ?>
         <div class="fld"><span class="sub"><?= $e((string)$sel['email']) ?> · member #<?= $m ?> · joined <?= $e(substr((string)($sel['start_date'] ?: $sel['created_at']),0,10)) ?></span></div>
 
-        <div class="fld"><label>Enrolment</label>
+        <div class="sect"><h3>Enrolment</h3>
           <div class="grid2">
             <select id="f_status">
               <?php foreach (NgvMember::STATUSES as $s): ?><option value="<?= $e($s) ?>" <?= $sel['status']===$s?'selected':'' ?>><?= $e(ucfirst($s)) ?></option><?php endforeach; ?>
@@ -807,7 +821,7 @@ textarea{min-height:60px;resize:vertical}
               <?php foreach ($trackNames as $tn): ?><option value="<?= $e($tn) ?>" <?= $sel['track']===$tn?'selected':'' ?>><?= $e($tn) ?></option><?php endforeach; ?>
             </select>
           </div>
-          <div class="grid2" style="margin-top:10px">
+          <div class="grid2">
             <select id="f_plan">
               <option value="">— No plan —</option>
               <?php
@@ -828,7 +842,7 @@ textarea{min-height:60px;resize:vertical}
             </select>
             <input id="f_cohort" placeholder="Cohort (e.g. 2026 Alpha)" value="<?= $e((string)$sel['cohort']) ?>">
           </div>
-          <div class="grid2" style="margin-top:10px">
+          <div class="grid2">
             <label class="sub">Enrolled from
               <input id="f_start" type="date" value="<?= $e(substr((string)($sel['start_date'] ?: $sel['created_at']), 0, 10)) ?>"
                      max="<?= $e(function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) ?>"></label>
@@ -839,7 +853,7 @@ textarea{min-height:60px;resize:vertical}
               <option value="done" <?= $sel['phase']==='done'?'selected':'' ?>>Completed</option>
             </select>
           </div>
-          <div style="margin-top:10px"><button class="btn primary sm" data-act="admin" data-m="<?= $m ?>">Save enrolment</button></div>
+          <div class="btns"><button class="btn primary sm" data-act="admin" data-m="<?= $m ?>">Save enrolment</button></div>
           <p class="sub"><b>Enrolled from</b> decides what the accrual charges from and when a training schedule starts.
              Changing it moves what happens NEXT — charges already posted keep the figures they were posted at, like
              everything else here. Void them if they should not have existed.</p>
@@ -849,9 +863,10 @@ textarea{min-height:60px;resize:vertical}
              One figure, then the lines it is made of, then every entry behind
              it. Nothing here is computed in the template. -->
         <?php $A = $selAcct; ?>
-        <div class="fld"><label>Account</label>
+        <div class="sect"><h3>Account</h3>
           <?php if (empty($A['enabled'])): ?>
-            <p class="sub">Fees are switched off, so nothing is being charged. Turn them on in <b>Fees &amp; dues</b> above.</p>
+            <p class="sub">Fees are switched off, so nothing is being charged. Turn them on under
+               <a href="#fees">Fees &amp; amounts</a>.</p>
           <?php endif; ?>
           <div class="figure <?= (int)$A['payable'] > 0 ? '' : 'clear' ?>">
             <?= (int)$A['payable'] > 0 ? '₦' . number_format((int)$A['payable']) : 'All clear' ?>
@@ -869,12 +884,12 @@ textarea{min-height:60px;resize:vertical}
             <p class="sub">This account is at the ₦<?= number_format((int)$A['cap']) ?> ceiling — accrual has stopped.</p>
           <?php endif; ?>
 
-          <table style="margin-top:8px">
+          <table>
             <tbody>
             <?php foreach ($A['lines'] as $ln): ?>
               <tr>
                 <td><b><?= $e((string)$ln['label']) ?></b><br><span class="sub"><?= $e((string)$ln['detail']) ?></span></td>
-                <td style="text-align:right;white-space:nowrap">
+                <td class="num">
                   <?php if (!empty($ln['free'])): ?><span class="badge b-active">Free</span>
                   <?php elseif ((int)$ln['due'] > 0): ?><b>₦<?= number_format((int)$ln['due']) ?></b><br><span class="sub">due</span>
                   <?php elseif ((int)$ln['charged'] > 0): ?><span class="badge b-active">Settled</span>
@@ -885,7 +900,7 @@ textarea{min-height:60px;resize:vertical}
             </tbody>
           </table>
 
-          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <div class="btns">
             <button class="btn sm" data-act="statement" data-m="<?= $m ?>">Email them a statement</button>
             <button class="btn sm" data-act="remind_off" data-m="<?= $m ?>" data-off="<?= !empty($A['remindOff']) ? '0' : '1' ?>">
               <?= !empty($A['remindOff']) ? 'Start chasing again' : 'Stop chasing this person' ?></button>
@@ -897,7 +912,7 @@ textarea{min-height:60px;resize:vertical}
         <!-- The training fee, as a commitment with a shape. ₦240,000 posted as
              one charge is a wall: the same fact shouted every fortnight, and a
              reminder quoting a figure nobody could pay this month. -->
-        <div class="fld"><label>Training fee</label>
+        <div class="sect"><h3>Training fee</h3>
           <?php $T = is_array($A['training'] ?? null) && !empty($A['training']) ? $A['training'] : null; ?>
           <?php if ($T): ?>
             <p class="sub"><b>₦<?= number_format((int)$T['total']) ?></b>
@@ -910,7 +925,7 @@ textarea{min-height:60px;resize:vertical}
               <?php endforeach; ?>
             </div>
             <p class="sub">Charged · due now · still to come. Each instalment lands as its month arrives.</p>
-            <div style="margin-top:8px"><button class="btn sm" data-act="training_stop" data-m="<?= $m ?>">Stop future instalments</button></div>
+            <div class="btns"><button class="btn sm" data-act="training_stop" data-m="<?= $m ?>">Stop future instalments</button></div>
             <p class="sub">Stopping leaves what has already been charged on the account — that happened. Whether the rest
                should still be asked for is a separate decision: waive it, or write it off.</p>
           <?php else: ?>
@@ -924,26 +939,26 @@ textarea{min-height:60px;resize:vertical}
                 <?php endforeach; ?>
               </select>
             </div>
-            <div style="margin-top:10px"><button class="btn sm" data-act="training" data-m="<?= $m ?>">Agree this training fee</button></div>
+            <div class="btns"><button class="btn sm" data-act="training" data-m="<?= $m ?>">Agree this training fee</button></div>
             <p class="sub">Prefilled from their plan (<?= $A['planLabel'] !== '' ? $e((string)$A['planLabel']) : 'none chosen yet' ?>), and
                the total is frozen once agreed — a later price edit on the public page moves what the next person is quoted, not this.</p>
           <?php endif; ?>
         </div>
 
-        <div class="fld"><label>Record a payment</label>
+        <div class="sect"><h3>Record a payment</h3>
           <div class="grid2">
             <select id="p_kind">
               <?php foreach (NgvLedger::CREDIT_LINES as $k): ?><option value="<?= $e($k) ?>" <?= $k==='commitment'?'selected':'' ?>><?= $e($kindLabel[$k] ?? $k) ?></option><?php endforeach; ?>
             </select>
             <input id="p_amount" type="number" min="0" step="100" placeholder="Amount (₦)">
           </div>
-          <div class="grid2" style="margin-top:10px">
+          <div class="grid2">
             <input id="p_period" placeholder="For which period: 2026 or 2026-08">
             <input id="p_method" placeholder="Method (transfer, cash…)">
           </div>
-          <input id="p_ref" style="margin-top:10px" placeholder="Reference / note (optional)">
-          <label class="chk" style="margin-top:10px"><input type="checkbox" id="p_receipt" checked> Email them a receipt now</label>
-          <div style="margin-top:6px"><button class="btn primary sm" data-act="payment" data-m="<?= $m ?>">Record payment</button></div>
+          <input id="p_ref" placeholder="Reference / note (optional)">
+          <label class="chk"><input type="checkbox" id="p_receipt" checked> Email them a receipt now</label>
+          <div class="btns"><button class="btn primary sm" data-act="payment" data-m="<?= $m ?>">Record payment</button></div>
           <p class="sub">Allocated to the line it pays, so “square on membership, two months behind on commitment” survives
              into the figure instead of being flattened into one total. Somebody who handed over cash has no other proof it
              arrived, so the receipt goes immediately — untick it only when typing in a backlog.</p>
@@ -951,30 +966,30 @@ textarea{min-height:60px;resize:vertical}
 
         <!-- A fine is the one charge somebody will dispute, so the reason is
              part of the row rather than a note somebody may or may not write. -->
-        <div class="fld"><label>Issue a fine or an adjustment</label>
+        <div class="sect"><h3>Issue a fine or an adjustment</h3>
           <div class="grid2">
             <select id="x_kind"><option value="fine">Fine</option><option value="adjustment">Adjustment</option></select>
             <input id="x_amount" type="number" min="0" step="100" placeholder="Amount (₦)">
           </div>
-          <select id="x_reason" style="margin-top:10px">
+          <select id="x_reason">
             <?php foreach (NgvLedger::FINE_REASONS as $k => $lbl): ?><option value="<?= $e($k) ?>"><?= $e($lbl) ?></option><?php endforeach; ?>
           </select>
-          <input id="x_note" style="margin-top:10px" placeholder="What happened (required for “Other” and for adjustments)">
-          <div style="margin-top:10px"><button class="btn sm" data-act="charge" data-m="<?= $m ?>">Post it</button></div>
+          <input id="x_note" placeholder="What happened (required for “Other” and for adjustments)">
+          <div class="btns"><button class="btn sm" data-act="charge" data-m="<?= $m ?>">Post it</button></div>
           <p class="sub">“Late four times in August” is answerable later. “Misconduct” is not.</p>
         </div>
 
         <!-- No one is turned away for lack: the page says so, so the ledger has
              to be able to act on it, and to record who did. -->
-        <div class="fld" id="waive"><label>Stop asking for part of what is owed</label>
+        <div class="sect" id="waive"><h3>Stop asking for part of what is owed</h3>
           <div class="grid2">
             <select id="w_kind">
               <?php foreach (['commitment','membership','programme','fine','other'] as $k): ?><option value="<?= $e($k) ?>"><?= $e($kindLabel[$k] ?? $k) ?></option><?php endforeach; ?>
             </select>
             <input id="w_amount" type="number" min="0" step="100" placeholder="Amount (₦)">
           </div>
-          <input id="w_reason" style="margin-top:10px" placeholder="Why (required — this is the part worth reading later)">
-          <div style="margin-top:10px">
+          <input id="w_reason" placeholder="Why (required — this is the part worth reading later)">
+          <div class="btns">
             <button class="btn sm" data-act="waive" data-m="<?= $m ?>">Waive it</button>
             <button class="btn sm" data-act="writeoff" data-m="<?= $m ?>">Write it off</button>
           </div>
@@ -985,7 +1000,7 @@ textarea{min-height:60px;resize:vertical}
         </div>
 
         <?php if (!empty($A['entries'])): ?>
-        <div class="fld"><label>Ledger (<?= count($A['entries']) ?>)</label>
+        <div class="sect"><h3>Ledger (<?= count($A['entries']) ?>)</h3>
           <?php foreach ($A['entries'] as $en): ?>
           <div class="pay-row<?= $en['void'] ? ' voided' : '' ?>">
             <span>
@@ -1028,7 +1043,7 @@ textarea{min-height:60px;resize:vertical}
              person is being asked for. They are allowed to differ, and a
              programme that bills a nineteen-year-old retail for an accident
              should have to type that number rather than get it by default. -->
-        <div class="fld" id="damage"><label>Damage</label>
+        <div class="sect" id="damage"><h3>Damage</h3>
           <?php if ($selDmg): ?>
             <?php foreach ($selDmg as $d): ?>
               <div class="dmg">
@@ -1058,9 +1073,8 @@ textarea{min-height:60px;resize:vertical}
                          side deliberately cannot: offering somebody an upload on a record
                          nobody will look at again implies an action that is not coming. */ ?>
                 <?php if (count($d['photos']) < NgvDamage::PHOTOS_MAX): ?>
-                  <label class="sub" style="display:block;margin-top:8px">Add a photo
-                    <input type="file" class="d-photo" data-for="<?= (int)$d['id'] ?>" accept="image/*" multiple
-                           style="margin-top:4px"></label>
+                  <label class="sub addshot">Add a photo
+                    <input type="file" class="d-photo" data-for="<?= (int)$d['id'] ?>" accept="image/*" multiple></label>
                   <button class="btn sm" data-act="damage_photos" data-dmg="<?= (int)$d['id'] ?>">Attach</button>
                 <?php endif; ?>
                 <?php if ($d['outcome'] !== ''): ?><p class="sub"><b>Told them:</b> <?= $e((string)$d['outcome']) ?></p><?php endif; ?>
@@ -1071,9 +1085,9 @@ textarea{min-height:60px;resize:vertical}
                     <input class="d-charged" data-for="<?= (int)$d['id'] ?>" type="number" min="0" step="500"
                            placeholder="What to ask them for (₦)">
                   </div>
-                  <input class="d-outcome" data-for="<?= (int)$d['id'] ?>" style="margin-top:8px"
+                  <input class="d-outcome" data-for="<?= (int)$d['id'] ?>"
                          placeholder="What you are telling them — they get this by email">
-                  <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+                  <div class="btns">
                     <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="assessing">Being assessed</button>
                     <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="charged">Charge it</button>
                     <button class="btn sm" data-act="damage_advance" data-dmg="<?= (int)$d['id'] ?>" data-status="waived">Waive it</button>
@@ -1093,37 +1107,37 @@ textarea{min-height:60px;resize:vertical}
             <?php endforeach; ?>
           <?php endif; ?>
 
-          <details class="fld" style="margin-top:<?= $selDmg ? '12' : '0' ?>px">
+          <details class="recdmg">
             <summary class="sub">Record damage</summary>
-            <div class="grid2" style="margin-top:8px">
+            <div class="grid2">
               <input id="dm_item" placeholder="What was damaged (required)">
               <input id="dm_when" type="date" value="<?= $e(function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) ?>">
             </div>
-            <div class="grid2" style="margin-top:8px">
+            <div class="grid2">
               <select id="dm_sev">
                 <?php foreach (NgvDamage::SEVERITIES as $k => $lbl): ?><option value="<?= $e($k) ?>"><?= $e($lbl) ?></option><?php endforeach; ?>
               </select>
               <input id="dm_place" placeholder="Where (optional)">
             </div>
-            <textarea id="dm_desc" rows="2" style="margin-top:8px" placeholder="What happened (required)"></textarea>
-            <input id="dm_est" type="number" min="0" step="500" style="margin-top:8px" placeholder="First guess at the cost, if you have one (₦)">
-            <div style="margin-top:8px"><button class="btn sm" data-act="damage" data-m="<?= $m ?>">Record it</button></div>
+            <textarea id="dm_desc" rows="2" placeholder="What happened (required)"></textarea>
+            <input id="dm_est" type="number" min="0" step="500" placeholder="First guess at the cost, if you have one (₦)">
+            <div class="btns"><button class="btn sm" data-act="damage" data-m="<?= $m ?>">Record it</button></div>
             <p class="sub">This charges nothing. It emails them to say it has been recorded, that nothing is on their
                account, and that they will be told the cost before anything is.</p>
           </details>
         </div>
 
-        <div class="fld"><label>Add a certification</label>
+        <div class="sect"><h3>Add a certification</h3>
           <input id="c_title" placeholder="Certificate title (required)">
-          <div class="grid2" style="margin-top:10px">
+          <div class="grid2">
             <input id="c_by" placeholder="Issued by">
             <input id="c_on" type="date">
           </div>
-          <div style="margin-top:10px"><button class="btn primary sm" data-act="cert" data-m="<?= $m ?>">Add certification</button></div>
+          <div class="btns"><button class="btn primary sm" data-act="cert" data-m="<?= $m ?>">Add certification</button></div>
         </div>
 
         <?php if ($selCerts): ?>
-        <div class="fld"><label>Certifications</label>
+        <div class="sect"><h3>Certifications</h3>
           <?php foreach ($selCerts as $cert): ?>
           <div class="pay-row<?= !empty($cert['revoked']) ? ' voided' : '' ?>">
             <span>🏅 <b><?= $e((string)$cert['title']) ?></b>
@@ -1150,9 +1164,137 @@ textarea{min-height:60px;resize:vertical}
         <?php endif; ?>
       <?php endif; ?>
       </div>
-    </div>
+    </section>
   </div>
-</div>
+
+  <!-- ══ 5. What the programme charges, and the runs that act on it ════════
+       Last because it is settled rarely and read often: the queues above are
+       what a coordinator opens this page for. -->
+  <div class="cols">
+    <section class="card" id="fees" aria-labelledby="h-fees">
+      <header><h2 id="h-fees">Fees &amp; amounts</h2>
+        <span class="pill <?= !empty($fees['enabled']) ? 'pill-on' : 'pill-off' ?>"><?= !empty($fees['enabled']) ? 'On' : 'Off' ?></span>
+        <span class="sp"></span>
+        <span class="sub">membership · commitment · training · fines</span>
+      </header>
+      <div class="body">
+        <div class="sect"><h3>What is being charged</h3>
+          <div class="amts">
+            <?php foreach (['membership' => 'Membership', 'commitment' => 'Monthly commitment'] as $k => $lbl):
+                  $a = $amounts[$k] ?? ['amount' => 0, 'cadence' => '', 'source' => '']; ?>
+              <div class="amt-box">
+                <div class="k"><?= $e($lbl) ?></div>
+                <div class="v">₦<?= number_format((int)$a['amount']) ?> <span class="sub">/ <?= $e((string)$a['cadence']) ?></span></div>
+                <div class="sub"><?= $e($srcWord[(string)$a['source']] ?? (string)$a['source']) ?></div>
+              </div>
+            <?php endforeach; ?>
+            <div class="amt-box">
+              <div class="k">Training fee</div>
+              <?php $paid = array_filter($planOn, static fn($p) => (int) $p['fee'] > 0); ?>
+              <div class="v"><?= $paid ? '₦' . number_format((int) reset($paid)['fee']) : 'Free' ?>
+                <?php if ($paid): ?><span class="sub">/ <?= $e((string) reset($paid)['cadence']) ?></span><?php endif; ?></div>
+              <div class="sub"><?= $paid ? $e((string) key($paid)) . ' · from the plans table' : 'no paid plan on the page' ?></div>
+            </div>
+          </div>
+          <p class="sub">
+            The figures come from <a href="/academy/ngv/edit.php" target="_blank" rel="noopener">the public NGV page</a> — edit them
+            there and the ledger follows, so a receipt can never disagree with the website. Pin one below only when the page cannot say it.
+          </p>
+        </div>
+        <div class="sect"><h3>How it runs</h3>
+          <label class="chk"><input type="checkbox" id="s_enabled" <?= !empty($fees['enabled']) ? 'checked' : '' ?>> Charge membership and monthly commitment</label>
+          <label class="chk"><input type="checkbox" id="s_trainingAuto" <?= !empty($fees['trainingAuto']) ? 'checked' : '' ?>> Also raise the training fee automatically</label>
+          <p class="sub">Participants pick their own plan on their dashboard. Left off, the training fee is raised by you
+             from their record — one press, priced from the plan — so nobody can give themselves a ₦240,000 debt by clicking about.</p>
+          <div class="grid2">
+            <div class="fld"><label for="s_accrueFrom">Charge nothing before</label>
+              <input id="s_accrueFrom" type="date" value="<?= $e((string)($fees['accrueFrom'] ?? '')) ?>">
+              <p class="sub">The rollout guard. Set to the month you switched fees on, so turning the ledger on for a
+                 programme with history does not back-charge a year on the first run.</p></div>
+            <div class="fld"><label for="s_balanceCap">Stop an account at</label>
+              <input id="s_balanceCap" type="number" min="0" step="1000" value="<?= (int)($fees['balanceCap'] ?? 0) ?>">
+              <p class="sub">Accrual stops here rather than growing into a figure nobody will pay. 0 = no ceiling.</p></div>
+          </div>
+          <div class="grid2">
+            <div class="fld"><label for="s_membershipYearly">Pin membership (₦/year)</label>
+              <input id="s_membershipYearly" type="number" min="0" step="500" placeholder="auto — read off the page"
+                     value="<?= $fees['membershipYearly'] === null ? '' : (int)$fees['membershipYearly'] ?>"></div>
+            <div class="fld"><label for="s_commitmentMonthly">Pin commitment (₦/month)</label>
+              <input id="s_commitmentMonthly" type="number" min="0" step="100" placeholder="auto — read off the page"
+                     value="<?= $fees['commitmentMonthly'] === null ? '' : (int)$fees['commitmentMonthly'] ?>"></div>
+          </div>
+        </div>
+
+        <div class="sect"><h3>Reminders</h3>
+          <label class="chk"><input type="checkbox" id="s_remindEnabled" <?= !empty($fees['remindEnabled']) ? 'checked' : '' ?>> Remind people what is outstanding</label>
+          <div class="grid2">
+            <div class="fld"><label for="s_remindEveryDays">Days between reminders</label>
+              <input id="s_remindEveryDays" type="number" min="<?= (int)$B['remindMinDays'] ?>" max="<?= (int)$B['remindMaxDays'] ?>"
+                     value="<?= (int)($fees['remindEveryDays'] ?? 21) ?>"></div>
+            <div class="fld"><label for="s_remindMinBalance">Do not chase below (₦)</label>
+              <input id="s_remindMinBalance" type="number" min="0" step="100" value="<?= (int)($fees['remindMinBalance'] ?? 1) ?>"></div>
+          </div>
+          <p class="sub">Days apart, then the smallest balance worth a message. The floor is <?= (int)$B['remindMinDays'] ?> days —
+             anything tighter is how a programme gets its sender blocked and its people to stop reading anything it sends.</p>
+        </div>
+        <div class="btns"><button class="btn primary" data-act="fees_settings">Save fee settings</button></div>
+      </div>
+    </section>
+
+    <section class="card" id="runs" aria-labelledby="h-runs">
+      <header><h2 id="h-runs">Run the ledger</h2>
+        <span class="sp"></span><span class="sub">accrual · reminders · statements</span></header>
+      <div class="body">
+        <div class="sect"><h3>Bring charges up to date</h3>
+          <p class="sub">Adds any membership and monthly commitment not yet charged. Safe to press twice — it cannot
+             charge the same month twice — and the cron does it too.</p>
+          <button class="btn" data-act="accrue">Run accrual</button>
+          <span id="accrueOut" class="sub"></span>
+        </div>
+        <div class="sect"><h3>Chase what is outstanding</h3>
+          <p class="sub">Preview first: a message to sixty people cannot be recalled.</p>
+          <button class="btn" data-act="remind_preview">Preview</button>
+          <button class="btn" data-act="remind_run">Send them</button>
+          <div id="remindOut" class="sub out"></div>
+        </div>
+
+        <div class="sect"><h3>Tell everybody where they stand</h3>
+          <p class="sub">A statement, not a reminder: every fee line, the training instalments month by month, each fine
+             with the reason it was issued, anything set aside, and any damage report and its status. It goes to people
+             who owe nothing too — under the reminder rules they could never be told they were square.</p>
+          <button class="btn" data-act="statement_run">Send statements</button>
+          <span id="stmtOut" class="sub"></span>
+        </div>
+
+        <?php $bf = NgvLedger::backfillReceipts(1, true); ?>
+        <?php if ((int)$bf['pending'] > 0): ?>
+        <div class="sect"><h3>Receipts for older payments
+            <span class="pill pill-open"><?= (int)$bf['pending'] ?> waiting</span></h3>
+          <p class="sub">
+            <?= (int)$bf['sendablePayments'] ?> payment<?= (int)$bf['sendablePayments'] === 1 ? '' : 's' ?>
+            across <?= (int)$bf['sendable'] ?> <?= (int)$bf['sendable'] === 1 ? 'person' : 'people' ?>
+            <?= (int)$bf['sendablePayments'] === 1 ? 'has' : 'have' ?> no receipt out yet<?= $bf['oldest'] !== '' ? ', going back to ' . $e((string)$bf['oldest']) : '' ?>.
+            <?php if ((int)$bf['noEmail'] > 0): ?>
+              A further <?= (int)$bf['noEmailPayments'] ?> belong to <?= (int)$bf['noEmail'] ?> without an email address —
+              they stay in the queue until one is added, rather than being marked done.
+            <?php endif; ?>
+          </p>
+          <p class="sub"><b>One email per person, not per payment.</b> Somebody eighteen months in has a membership
+             payment and a dozen commitments behind them; thirteen separate emails would read as something having gone
+             wrong with their account, not as good record-keeping. Each digest says plainly that nothing has changed and
+             nothing is being asked for.</p>
+          <button class="btn" data-act="backfill_preview">Preview</button>
+          <button class="btn" data-act="backfill_run">Send <?= (int)$bf['sendable'] > (int)NgvLedger::BACKFILL_BATCH
+              ? 'the first ' . (int)NgvLedger::BACKFILL_BATCH : 'them' ?></button>
+          <div id="bfOut" class="sub out"></div>
+          <p class="sub">Safe to press again — the queue is “no receipt sent yet”, so a run that stops halfway picks up
+             exactly where it left off.</p>
+        </div>
+        <?php endif; ?>
+      </div>
+    </section>
+  </div>
+</main>
 
 <script>
 (function(){
