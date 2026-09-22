@@ -489,7 +489,8 @@ figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; text-align:
 .footer-social-link { width: 42px; height: 42px; border-radius: var(--radius-full); border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.72); transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease; }
 .footer-social-link svg { width: 18px; height: 18px; }
 .footer-social-link:hover { border-color: var(--gold); background: rgba(243,180,22,0.14); color: var(--gold); transform: translateY(-3px); }
-.footer-col h4 { color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 18px; }
+.footer-col h2 { color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 18px; }
+.footer-newsletter-mini h3 { color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 8px; }
 .footer-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .footer-links a { color: rgba(255,255,255,0.6); font-size: 14px; }
 .footer-links a:hover { color: #fff; }

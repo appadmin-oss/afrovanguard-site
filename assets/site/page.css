@@ -62,3 +62,24 @@
 
 .page-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 22px 0 0; }
 .page-head--center .page-actions { justify-content: center; }
+
+/* ── .container ───────────────────────────────────────────────────────────
+ * The shared header and footer markup wraps itself in `.container` and takes
+ * its gutter from there. Pages built from the PHP partials get that rule from
+ * diary.css, but the standalone marketing pages carry the same markup with no
+ * such rule, so their nav and footer sat flush against the screen edge — the
+ * wordmark clipped on the left, the CTA button touching the right.
+ *
+ * Defined here because page.css is loaded by both families. It is deliberately
+ * a single-class selector and equal to diary.css's, so a page that states its
+ * own container width later still wins.
+ * ------------------------------------------------------------------------ */
+.container {
+  width: 100%;
+  max-width: var(--container-max, 1200px);
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+@media (max-width: 560px) {
+  .container { padding-inline: 16px; }
+}

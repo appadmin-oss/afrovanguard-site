@@ -153,7 +153,7 @@ html[data-theme="dark"]{
     radial-gradient(1200px 520px at 12% -10%,rgba(243,180,22,.10),transparent 60%),
     linear-gradient(180deg,#0E1421 0%,var(--bg-foot) 82%);
 }
-.hero-wrap{position:relative;width:100vw;left:50%;transform:translateX(-50%);overflow:hidden;background:var(--bg-warm)}
+.hero-wrap{position:relative;width:100%;overflow:hidden;background:var(--bg-warm)}
 .hero{position:relative;background:var(--hero-tint);border-bottom:1px solid var(--div)}
 html[data-theme="dark"] .hero{border-bottom-color:rgba(255,255,255,.08)}
 .hero-content{position:relative;z-index:2;width:100%;padding:clamp(36px,5vw,68px) 0 clamp(40px,6vw,76px)}
@@ -620,14 +620,14 @@ textarea.fi{resize:vertical;min-height:100px;line-height:1.65}
 .footer-socials{display:flex;gap:10px;flex-wrap:wrap}
 .footer-social-link{width:40px;height:40px;border-radius:var(--r-sm);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.55);transition:all var(--td-f);text-decoration:none;flex-shrink:0}
 .footer-social-link:hover{background:rgba(243,180,22,.12);color:var(--gold);border-color:rgba(243,180,22,.2)}
-.footer-col h4{font-family:var(--fb);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:20px}
+.footer-col h2{font-family:var(--fb);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:20px}
 .footer-links{list-style:none;display:flex;flex-direction:column;gap:10px}
 .footer-links a{font-family:var(--fb);font-size:14px;color:rgba(255,255,255,.6);text-decoration:none;min-height:28px;display:flex;align-items:center;transition:color var(--td-f)}
 .footer-links a:hover{color:var(--white)}
 .footer-contact p{font-family:var(--fb);font-size:13px;color:rgba(255,255,255,.5);line-height:1.7;margin-bottom:14px}
 .footer-contact a{color:var(--gold);transition:color var(--td-f)}.footer-contact a:hover{color:var(--white)}
 .footer-newsletter-mini{display:flex;flex-direction:column;gap:10px;margin-top:16px}
-.footer-newsletter-mini h4{font-family:var(--fb);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+.footer-newsletter-mini h3{font-family:var(--fb);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
 .footer-newsletter-mini input{padding:10px 16px;border-radius:var(--r-f);border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--white);font-family:var(--fb);font-size:13px;outline:none;transition:border-color var(--td-f)}
 .footer-newsletter-mini input::placeholder{color:rgba(255,255,255,.3)}
 .footer-newsletter-mini input:focus{border-color:var(--gold)}
@@ -1507,7 +1507,7 @@ textarea.fi{resize:vertical;min-height:100px;line-height:1.65}
           </div>
         </div>
         <div class="footer-col">
-          <h4>Programmes</h4>
+          <h2>Programmes</h2>
           <ul class="footer-links">
             <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
             <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
@@ -1517,7 +1517,7 @@ textarea.fi{resize:vertical;min-height:100px;line-height:1.65}
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Organization</h4>
+          <h2>Organization</h2>
           <ul class="footer-links">
             <li><a href="https://afrovanguard.org.ng/about.html">About Us</a></li>
             <li><a href="/ethos/">Our Ethos</a></li>
@@ -1533,11 +1533,11 @@ textarea.fi{resize:vertical;min-height:100px;line-height:1.65}
           </ul>
         </div>
         <div class="footer-col footer-contact">
-          <h4>Get in Touch</h4>
+          <h2>Get in Touch</h2>
           <p>Afrovanguard HQ<br/>Alimosho LGA, Lagos, Nigeria</p>
           <p><a href="mailto:cacentre@afrovanguard.org.ng" style="color:rgba(255,255,255,0.6)">cacentre@afrovanguard.org.ng</a></p>
           <div class="footer-newsletter-mini">
-            <h4 style="margin-bottom:8px;">Get the Diary</h4>
+            <h3>Get the Diary</h3>
             <form class="diary-subscribe" novalidate style="display:flex;flex-direction:column;gap:8px">
               <input type="email" name="email" placeholder="Your email address" aria-label="Newsletter email" autocomplete="email" required />
               <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />

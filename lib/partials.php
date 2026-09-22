@@ -579,7 +579,7 @@ function av_footer_inner(): void {
           </div>
         </div>
         <div class="footer-col">
-          <h4>Programmes</h4>
+          <h2>Programmes</h2>
           <ul class="footer-links">
             <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
             <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
@@ -589,7 +589,7 @@ function av_footer_inner(): void {
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Organization</h4>
+          <h2>Organization</h2>
           <ul class="footer-links">
             <li><a href="<?= $S ?>/about.html">About Us</a></li>
             <li><a href="/ethos/">Our Ethos</a></li>
@@ -605,15 +605,15 @@ function av_footer_inner(): void {
           </ul>
         </div>
         <div class="footer-col footer-contact">
-          <h4>Get in Touch</h4>
+          <h2>Get in Touch</h2>
           <p>Afrovanguard HQ<br/>Alimosho LGA, Lagos, Nigeria</p>
-          <p><a href="mailto:cacentre@afrovanguard.org.ng" style="color:rgba(255,255,255,0.6)">cacentre@afrovanguard.org.ng</a></p>
+          <p><a class="footer-mail" href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a></p>
           <div class="footer-newsletter-mini">
-            <h4 style="margin-bottom:8px;">Get the Diary</h4>
-            <form class="diary-subscribe" novalidate style="display:flex;flex-direction:column;gap:8px">
+            <h3>Get the Diary</h3>
+            <form class="diary-subscribe" novalidate>
               <input type="email" name="email" placeholder="Your email address" aria-label="Newsletter email" autocomplete="email" required />
               <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-              <button type="submit" class="btn btn-primary" style="width:100%;min-height:44px;">Subscribe →</button>
+              <button type="submit" class="btn btn-primary">Subscribe →</button>
               <p class="sub-msg" role="status" aria-live="polite"></p>
             </form>
           </div>
