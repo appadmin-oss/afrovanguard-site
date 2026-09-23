@@ -752,7 +752,7 @@
     .bank-value {
       font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,0.8);
     }
-    .bank-row.intl-row .bank-value { font-size: 12.5px; color: rgba(255,255,255,0.4); }
+    .bank-row.intl-row .bank-value { font-size: 12.5px; color: rgba(255,255,255,0.62); }
     .bank-row.intl-row .bank-value a { color: var(--color-gold); font-weight: 600; }
 
     /* Copy button */
@@ -1164,7 +1164,7 @@
     .share-wa:hover { background:#20b958; }
     .donate-again-btn {
       margin-top:16px; background:transparent; border:1px solid rgba(255,255,255,0.12);
-      border-radius:99px; padding:9px 22px; color:rgba(255,255,255,0.4);
+      border-radius:99px; padding:9px 22px; color:rgba(255,255,255,0.62);
       font-size:12.5px; font-weight:600; cursor:pointer;
       transition:all 0.18s; font-family:var(--font-body);
     }
@@ -2371,7 +2371,7 @@
       font-size: 10px;
       letter-spacing: 0.10em;
       margin-bottom: 6px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.62);
     }
     .field {
       border-radius: 11px;
@@ -2930,7 +2930,7 @@
     display: inline-flex; align-items: center; gap: 6px;
     margin-top: 14px; background: rgba(243,180,22,0.1);
     border: 1px solid rgba(243,180,22,0.25); border-radius: 99px;
-    padding: 5px 14px; font-size: 12px; font-weight: 700; color: var(--color-gold-dark);
+    padding: 5px 14px; font-size: 12px; font-weight: 700; color: #8f6606;
   }
   .donor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .donor-card {
@@ -3648,12 +3648,12 @@
           .donate-type-label {
             font-family: var(--font-body); font-size: 13px; font-weight: 700;
             letter-spacing: 0.02em;
-            color: rgba(17,24,39,0.4);
+            color: rgba(17,24,39,0.8);
           }
           .donate-type-tab--active .donate-type-label { color: #fff; }
           .donate-type-desc {
             font-family: var(--font-body); font-size: 11px;
-            color: rgba(17,24,39,0.35);
+            color: rgba(17,24,39,0.75);
           }
           .donate-type-tab--active .donate-type-desc { color: rgba(255,255,255,0.5); }
           .donate-type-divider {
@@ -3714,8 +3714,8 @@
           .mat-critical-title { font-family: var(--font-heading); font-size: clamp(18px,2.5vw,24px); font-weight: 700; color: #fff; margin-bottom: 6px; line-height: 1.2; }
           .mat-critical-desc { font-size: 13.5px; color: rgba(255,255,255,0.55); line-height: 1.6; margin-bottom: 14px; max-width: 44ch; }
           .mat-critical-value { display: inline-flex; align-items: center; gap: 8px; background: rgba(243,180,22,0.12); border: 1px solid rgba(243,180,22,0.3); border-radius: 10px; padding: 8px 16px; font-size: 15px; font-weight: 800; color: var(--color-gold); margin-bottom: 16px; }
-          .mat-critical-cta { display: inline-flex; align-items: center; gap: 8px; background: #ef4444; border: none; border-radius: 99px; padding: 11px 22px; font-family: var(--font-body); font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; text-decoration: none; transition: all 0.18s; }
-          .mat-critical-cta:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(239,68,68,0.35); }
+          .mat-critical-cta { display: inline-flex; align-items: center; gap: 8px; background: #dc2626; border: none; border-radius: 99px; padding: 11px 22px; font-family: var(--font-body); font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; text-decoration: none; transition: all 0.18s; }
+          .mat-critical-cta:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(239,68,68,0.35); }
 
           /* Needs grid */
           .mat-needs-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 32px; }
@@ -3728,8 +3728,8 @@
           .mat-need-card-cat { font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-ink, #8f6606); }
           .mat-urgency-badge { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
           .mat-urgency-badge.critical { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #b91c1c; }
-          .mat-urgency-badge.needed   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: #fdba74; }
-          .mat-urgency-badge.welcome  { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.25); color: #4ade80; }
+          .mat-urgency-badge.needed   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: #c2410c; }
+          .mat-urgency-badge.welcome  { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.25); color: #166534; }
           .mat-need-items { list-style: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
           .mat-need-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--color-text-body); line-height: 1.45; }
           .mat-need-item-left { display: flex; flex-direction: column; flex: 1; gap: 1px; }
@@ -3745,7 +3745,7 @@
           .mat-contribute-header { padding: 22px 28px; background: var(--color-bg-dark); display: flex; align-items: center; gap: 16px; }
           .mat-contribute-header-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; background: rgba(243,180,22,0.12); border: 1px solid rgba(243,180,22,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px; }
           .mat-contribute-header-text h3 { font-family: var(--font-heading); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 3px; }
-          .mat-contribute-header-text p { font-size: 12.5px; color: rgba(255,255,255,0.4); }
+          .mat-contribute-header-text p { font-size: 12.5px; color: rgba(255,255,255,0.62); }
           .mat-contribute-body { padding: 28px; }
           .mat-selected-preview { display: none; align-items: center; gap: 10px; background: rgba(243,180,22,0.08); border: 1px solid rgba(243,180,22,0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 12.5px; font-weight: 600; color: var(--color-gold-dark); }
           .mat-selected-preview.visible { display: flex; }
@@ -3968,7 +3968,7 @@
                 <div style="padding:14px 26px 18px;border-top:1px solid rgba(255,255,255,0.05);">
                   <div style="font-size:9.5px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.18);margin-bottom:10px;">After you notify us</div>
                   <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div style="display:flex;gap:10px;font-size:12px;color:rgba(255,255,255,0.4);line-height:1.5;align-items:flex-start;">
+                    <div style="display:flex;gap:10px;font-size:12px;color:rgba(255,255,255,0.62);line-height:1.5;align-items:flex-start;">
                       <span style="flex-shrink:0;">📧</span><span>Impact receipt emailed within 24 hours of confirming your transfer.</span>
                     </div>
                     <div style="display:flex;gap:10px;font-size:12px;color:rgba(255,255,255,0.4);line-height:1.5;align-items:flex-start;">
@@ -4735,10 +4735,10 @@
             border: 1px solid transparent; white-space: nowrap;
           }
           .dw-tier-chip-range {
-            font-weight: 500; opacity: 0.75; font-size: 10.5px;
+            font-weight: 500; font-size: 10.5px;
           }
           .dw-tier-chip--platinum { background: rgba(229,228,226,.14); border-color: rgba(154,165,180,.3); color: #4a5568; }
-          .dw-tier-chip--gold     { background: rgba(243,180,22,.10);  border-color: rgba(243,180,22,.3);  color: var(--color-gold-dark); }
+          .dw-tier-chip--gold     { background: rgba(243,180,22,.10);  border-color: rgba(243,180,22,.3);  color: #8f6606; }
           .dw-tier-chip--silver   { background: rgba(156,163,175,.10); border-color: rgba(156,163,175,.3); color: #4b5563; }
           .dw-tier-chip--bronze   { background: rgba(180,83,9,.08);    border-color: rgba(180,83,9,.25);   color: #92400e; }
           .dw-tier-chip--patron   { background: rgba(99,102,241,.08);  border-color: rgba(99,102,241,.25); color: #4338ca; }

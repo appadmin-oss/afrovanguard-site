@@ -114,7 +114,9 @@ body.academy .ac-hero h1 {
 .ac-progress-pct { font-size: 12px; font-weight: 700; color: var(--gold-deep); }
 .ac-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: auto; }
 .ac-price { font-weight: 700; font-size: 14px; }
-.ac-price-open, .ac-price-tracked { color: #16a34a; }
+/* green-600 (#16a34a) is 3.30:1 on white — fine for a large figure, but
+   this is a 14px price, so it needs the 4.5 floor. green-700 is 5.02. */
+.ac-price-open, .ac-price-tracked { color: #15803d; }
 .ac-price-membership { color: var(--gold-deep); }
 .ac-price-paid { color: var(--ink); }
 .ac-price-restricted { color: #b45309; display: inline-flex; align-items: center; gap: 4px; }
