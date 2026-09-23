@@ -129,29 +129,60 @@ if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 // Reuse the site's config.php if deployed; otherwise fall back to safe
 // public defaults so the Diary runs standalone (and in local dev).
 //
-// config.php (the legacy donation/payments config) calls _av_require_env() for
-// a handful of SECRETS and historically hard-exits the whole request if any is
-// missing. The Diary / Academy / Portal / public team API don't need those
-// secrets just to RENDER, so a missing payment/SMTP key must never take the
-// public site down. Only load config.php when its required secrets are actually
-// present; if any is missing we skip it and rely on the env-driven fallbacks
-// below. (Endpoints that truly need a secret — donations, contact, admin —
-// require config.php directly and validate their own prerequisites.)
+// This used to load config.php ONLY when all four of AV_SMTP_PASSWORD,
+// AV_PAYSTACK_PK, AV_PAYSTACK_SK and AV_ADMIN_TOKEN were set, on the grounds
+// that config.php "historically hard-exits" on a missing secret. It does not,
+// and no version of config.example.php in this repository's history ever has:
+// _av_require_env() logs the missing name and returns '' so that ONE feature
+// goes quiet. The guard was therefore all cost and no protection, and the cost
+// was severe and silent — a single unset Paystack key meant config.php was
+// never read, so SMTP_HOST / SMTP_USERNAME / SMTP_PASSWORD / FROM_EMAIL were
+// never defined, Mailer::configured() was false, the SMTP path was skipped
+// entirely and EVERY email on the site fell through to PHP mail(), which shared
+// hosts drop. A payments key could switch off the mail.
+//
+// So: load it, and let each feature miss its own secret. The one thing worth
+// guarding against is a hand-edited config that really does exit — an exit
+// during require cannot be caught, so it is detected in the source first.
 $cfg = AV_ROOT . '/config.php';
+$GLOBALS['__av_cfg'] = ['present' => false, 'loaded' => false, 'missing' => [], 'reason' => ''];
 if (is_file($cfg)) {
-    $cfgSafe = true;
+    $GLOBALS['__av_cfg']['present'] = true;
     foreach (['AV_SMTP_PASSWORD', 'AV_PAYSTACK_PK', 'AV_PAYSTACK_SK', 'AV_ADMIN_TOKEN'] as $__k) {
         $__v = getenv($__k);
-        if ($__v === false || $__v === '') { $cfgSafe = false; break; }
+        if ($__v === false || $__v === '') $GLOBALS['__av_cfg']['missing'][] = $__k;
     }
-    if ($cfgSafe) {
+    // A legacy config whose required-env helper terminates the request: only
+    // that shape still needs every secret present before it is safe to load.
+    $__src   = (string) @file_get_contents($cfg);
+    $__fatal = (bool) preg_match('/function\s+_av_require_env\b.{0,400}?\b(?:exit|die)\s*\(/s', $__src);
+    if (!$__fatal || !$GLOBALS['__av_cfg']['missing']) {
         require_once $cfg;
+        $GLOBALS['__av_cfg']['loaded'] = true;
+        if ($GLOBALS['__av_cfg']['missing']) {
+            error_log('[AV bootstrap] config.php loaded; these secrets are unset, so only their own '
+                . 'features are off: ' . implode(', ', $GLOBALS['__av_cfg']['missing']));
+        }
     } else {
-        error_log('[AV bootstrap] config.php present but a required secret env var is missing — '
-            . 'serving the public site from env fallbacks. Set AV_SMTP_PASSWORD / AV_PAYSTACK_PK / '
-            . 'AV_PAYSTACK_SK / AV_ADMIN_TOKEN (e.g. via .htaccess SetEnv) to restore '
-            . 'donation/contact/admin features.');
+        $GLOBALS['__av_cfg']['reason'] = 'config.php exits when a secret is missing, and '
+            . implode(', ', $GLOBALS['__av_cfg']['missing']) . ' '
+            . (count($GLOBALS['__av_cfg']['missing']) === 1 ? 'is' : 'are') . ' unset';
+        error_log('[AV bootstrap] ' . $GLOBALS['__av_cfg']['reason'] . ' — serving the public site '
+            . 'from env fallbacks. Set them (e.g. via .htaccess SetEnv) to restore '
+            . 'donation/contact/admin features, or update config.php to the current '
+            . 'config.example.php, whose _av_require_env() disables one feature instead of the site.');
     }
+}
+
+/**
+ * Whether the site's own config.php was read this request, and why not.
+ * The email diagnostic needs this: "SMTP not configured" with an empty host
+ * reads as "you never set credentials", when the truth may be "your
+ * credentials are in a file that was never loaded".
+ */
+function av_config_state(): array
+{
+    return $GLOBALS['__av_cfg'] ?? ['present' => false, 'loaded' => false, 'missing' => [], 'reason' => ''];
 }
 if (!defined('SITE_URL'))         define('SITE_URL', 'https://afrovanguard.org.ng');
 if (!defined('AV_DB_PATH'))       define('AV_DB_PATH', getenv('AV_DB_PATH') ?: (AV_ROOT . '/db/diary.sqlite'));
