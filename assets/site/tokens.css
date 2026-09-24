@@ -51,7 +51,10 @@
   --afg-border-strong: #d8dbe0;
   --afg-ink:           #111827;   /* primary text              */
   --afg-body:          #374151;   /* body text                 */
-  --afg-muted:         #6b7280;   /* secondary / captions      */
+  /* 4.83:1 on white but only 4.32 on --afg-surface-2, so the same token
+     passed on one surface and failed on the next. #646b77 is 4.80 on the
+     tint and 5.37 on white — it clears every surface we paint it on. */
+  --afg-muted:         #646b77;   /* secondary / captions      */
 
   /* Accent (semantic wrappers over the brand gold) */
   --afg-accent:        var(--afg-gold);        /* fills, active bars       */
@@ -170,7 +173,7 @@
   --afg-border-strong: #d8dbe0;
   --afg-ink:           #111827;
   --afg-body:          #374151;
-  --afg-muted:         #6b7280;
+  --afg-muted:         #646b77;   /* keep in step with the :root default above */
   --afg-accent-ink:    var(--afg-gold-deep);
   --afg-success:       #16a34a;
   --afg-danger:        #b91c1c;

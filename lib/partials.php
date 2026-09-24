@@ -218,7 +218,7 @@ function av_nav_model(): array {
                     ['Become a member', '/academy/#membership'],
                 ]],
                 ['title' => 'Give your time & grow', 'links' => [
-                    ['Volunteer', $V], ['Mentor a young leader', '/mentorship/'], ['Partner with us', '/contact.html'],
+                    ['Volunteer', $V], ['Become a mentor', '/mentorship/become-a-mentor/'], ['Partner with us', '/contact.html'],
                     ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE ↗', 'https://cacentre.afrovanguard.org.ng'],
                 ]],
             ],

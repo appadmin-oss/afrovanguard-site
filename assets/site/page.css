@@ -38,7 +38,9 @@
   font-weight: 800;
   letter-spacing: .16em;
   text-transform: uppercase;
-  color: var(--afg-accent-ink, #b07e08);
+  /* gold-deep is 3.51:1 on the page background: large-text gold. The eyebrow
+     is 12px, so it takes the small-text gold (#8f6606, 5.02:1) instead. */
+  color: var(--afg-gold-ink, #8f6606);
 }
 
 .page-title {
