@@ -67,6 +67,13 @@ foreach (array_keys(NavSync::PAGES) as $rel) {
     $after  = substr_count($fresh, '<div') - substr_count($fresh, '</div>');
     ck('nav: syncing ' . $rel . ' leaves its div balance untouched', $before === $after);
 
+    // Every one of these pages now balances outright. donate.html did not until
+    // the stray </div> after the material-donation <style> block was removed —
+    // it had closed #panel-material early, so the close labelled
+    // "/#panel-material" was really shutting .container and the one labelled
+    // "/.container" was closing nothing at all.
+    ck('nav: ' . $rel . ' has balanced div markup', $before === 0);
+
     $region = substr($src, $at[0], $at[1]);
     $carriedClose = substr_count($region, '</div>') > substr_count($region, '<div');
     if ($carriedClose) {
