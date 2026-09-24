@@ -197,3 +197,73 @@
 
 /* Anything that moves does so because it explains something; here, nothing
    needs to, so there is nothing to collapse under reduced motion. */
+
+/* ── The rank table ─────────────────────────────────────────────────────
+   A real <table>: this is tabular data (rank, points, mentees) and a screen
+   reader needs the row and column headers to read a cell back meaningfully. */
+.mt-tablewrap { margin-top: 28px; overflow-x: auto; }
+.mt-rank { width: 100%; border-collapse: collapse; font-size: 15px; }
+.mt-rank caption {
+  text-align: left; font-size: 13px; color: rgba(255,255,255,.66);
+  padding-bottom: 12px;
+}
+.mt-rank th, .mt-rank td { padding: 11px 14px; text-align: left; white-space: nowrap; }
+.mt-rank thead th {
+  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--afg-gold); border-bottom: 1px solid rgba(255,255,255,.18);
+}
+.mt-rank tbody th {
+  font-family: var(--afg-font-mono); font-weight: 700; color: var(--afg-gold); width: 1%;
+}
+.mt-rank tbody td { color: rgba(255,255,255,.88); }
+.mt-rank tbody tr + tr th, .mt-rank tbody tr + tr td { border-top: 1px solid rgba(255,255,255,.08); }
+.mt-num { text-align: right !important; font-variant-numeric: tabular-nums; }
+/* The rank where the mentee requirement starts binding. */
+.mt-rank--gate th, .mt-rank--gate td { background: rgba(243,180,22,.14); }
+
+.mt-note--dark { color: rgba(255,255,255,.66); }
+.mt-card--dark { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.1); }
+.mt-card--dark h3 { color: #fff; }
+.mt-card--dark p { color: rgba(255,255,255,.78); }
+.mt-card--dark strong { color: #fff; }
+
+/* ── The application form ───────────────────────────────────────────────
+   Labels are persistent and visible, required is stated in words, and every
+   field owns an error slot that exists before any error does. */
+.mt-form { margin-top: var(--mt-gap); max-width: 720px; }
+.mt-form-row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.mt-field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 18px; max-width: none; }
+.mt-field label { font-size: 14px; font-weight: 600; color: var(--afg-ink); }
+.mt-req, .mt-opt { font-weight: 400; color: var(--afg-muted); }
+.mt-field input, .mt-field textarea, .mt-field select {
+  font-family: var(--afg-font-body); font-size: 16px; line-height: 1.5; color: var(--afg-ink);
+  background: var(--afg-surface); border: 1px solid var(--afg-border-strong); border-radius: 10px;
+  padding: 12px 14px; width: 100%; min-height: 48px;
+}
+.mt-field textarea { resize: vertical; }
+.mt-field input:focus, .mt-field textarea:focus, .mt-field select:focus {
+  outline: 3px solid var(--afg-focus); outline-offset: 1px; border-color: transparent;
+}
+.mt-field [aria-invalid="true"] { border-color: var(--afg-danger); }
+.mt-hint { font-size: 13.5px; line-height: 1.5; color: var(--afg-muted); }
+.mt-err { font-size: 13.5px; line-height: 1.5; color: var(--afg-danger); }
+.mt-err:empty { display: none; }
+.mt-consent {
+  display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  font-weight: 400 !important; font-size: 14.5px; line-height: 1.55; color: var(--afg-body);
+  min-height: 48px; padding: 4px 0;
+}
+.mt-consent input { width: 20px; height: 20px; min-height: 20px; flex: 0 0 20px; margin-top: 2px; accent-color: var(--afg-navy); }
+/* The honeypot: off-screen rather than display:none, so a bot that only skips
+   hidden fields still fills it. Never reachable by keyboard or screen reader. */
+.mt-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.mt-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 4px; }
+.mt-formmsg { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.mt-formmsg:empty { display: none; }
+.mt-formmsg.is-good { color: var(--afg-success-ink, #15803d); }
+.mt-formmsg.is-bad { color: var(--afg-danger); }
+
+.mt-alt { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--afg-border); }
+.mt-alt p { font-size: 15px; line-height: 1.65; margin: 0 0 12px; }
+.mt-alt p:last-child { margin-bottom: 0; }
+.mt-alt a { color: var(--afg-gold-ink); text-decoration: underline; text-underline-offset: 2px; }

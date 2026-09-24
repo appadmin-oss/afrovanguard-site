@@ -425,3 +425,8 @@ html.av-drawer-open .dock { opacity: 0; visibility: hidden; pointer-events: none
 .avd-me-id{display:flex;flex-direction:column;min-width:0}
 .avd-me-name{font-weight:700;color:var(--ink,#111);font-size:14px}
 .avd-me-email{font-size:12px;color:var(--muted,#666);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* A link that leaves the site carries a small arrow. The arrow is decorative —
+   the destination is named in .sr-only text beside it — so it is aria-hidden
+   and sized in em to track whatever type it sits next to. */
+.nav-ext { display: inline-block; margin-left: .35em; font-size: .85em; opacity: .7; }

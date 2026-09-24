@@ -158,6 +158,34 @@ const AV_EVENTS_URL = 'https://afg.afrovanguard.org.ng/events';
  * whose illustration lives at /assets/illustrations/nav-<key>.webp).
  * Custom-owned sections use root-relative paths (served ahead of WordPress).
  */
+/**
+ * Mark up a navigation link that leaves this site.
+ *
+ * The mega panels emitted a bare <a href> for every entry, so a link to the
+ * cacentre or next subdomain was indistinguishable from one to a page here —
+ * the menu had a hand-typed "↗" inside one label as a workaround, which only
+ * that one link got and which a screen reader reads as an arrow glyph.
+ *
+ * Returns the attributes plus a marker: a visual arrow that is hidden from
+ * assistive tech, and the destination named in words for anyone who cannot
+ * see it. Same-site links get nothing, which is the point.
+ *
+ * @return array{0:string,1:string} [attributes, trailing markup]
+ */
+function av_nav_offsite(string $href): array
+{
+    if (!preg_match('~^https?://~i', $href)) return ['', ''];
+    $host = strtolower((string) parse_url($href, PHP_URL_HOST));
+    $self = strtolower((string) parse_url(SITE_URL, PHP_URL_HOST));
+    // www.example.org and example.org are the same site to a reader.
+    $bare = static fn(string $h): string => preg_replace('~^www\.~', '', $h) ?? $h;
+    if ($host === '' || $bare($host) === $bare($self)) return ['', ''];
+    return [
+        ' target="_blank" rel="noopener"',
+        ' <span class="nav-ext" aria-hidden="true">↗</span><span class="sr-only"> (opens ' . e($host) . ' in a new tab)</span>',
+    ];
+}
+
 function av_nav_model(): array {
     // Same-site links are root-relative so they work on ANY host (production,
     // preview, local, or while DNS still points at the old site); only genuine
@@ -170,7 +198,6 @@ function av_nav_model(): array {
                 ['title' => 'The organisation', 'links' => [
                     ['About us', '/about.html'], ['How it works', '/how-it-works'],
                     ['Our ethos', '/ethos/'], ['Leadership & model', '/ethos/#leadership'],
-                    ['Franchise a CACENTRE', '/franchise'],
                 ]],
                 ['title' => 'Connect', 'links' => [
                     ['Contact us', '/contact.html'], ['The Diary', '/diary/'], ['Events', AV_EVENTS_URL],
@@ -184,11 +211,12 @@ function av_nav_model(): array {
                 ['title' => 'Learn with us', 'links' => [
                     ['All programmes', '/academy/'], ['NextGen Vanguard', '/academy/ngv/'],
                     ["D'Vanguard National Summit", '/academy/dns/'],
-                    ['Academy membership', '/academy/#membership'],
+                    ['Become a member', '/academy/#membership'],
                     ['Teach with us', '/academy/teach/'], ['Verify a certificate', '/academy/verify.php'],
                 ]],
                 ['title' => 'Get started', 'links' => [
-                    ['Create an account', '/login'], ['Member portal', '/portal/'], ['Mentorship', '/mentorship/'],
+                    ['Create an account', '/login'], ['Member portal', '/portal/'],
+                    ['Mentorship', '/mentorship/become-a-mentor/'],
                     ['IQ — Quizzes & games', '/IQ/'],
                 ]],
             ],
@@ -197,14 +225,22 @@ function av_nav_model(): array {
         // WHAT WE DO ON THE GROUND — flagship programmes (distinct from Academy learning)
         'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
             'cols' => [
+                // Every flagship programme has a real page on THIS site, and the
+                // menu used to send all of them to the cacentre/next subdomains
+                // instead — so the local pages were orphaned from the navigation
+                // and every visitor who opened a programme left the site to read
+                // about it. Local first; only what has no page here stays remote.
                 ['title' => 'Flagship programmes', 'links' => [
-                    ['Street-To-Stardom', 'https://cacentre.afrovanguard.org.ng/street-to-stardom/'],
-                    ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
-                    ['Techome', 'https://cacentre.afrovanguard.org.ng/techhome/'],
-                    ['MediaPro', 'https://cacentre.afrovanguard.org.ng/mediapro/'],
+                    ['Street-To-Stardom', '/projects/sts/'],
+                    ['Techome', '/projects/techhome/'],
+                    ['MediaPro', '/projects/mediapro/'],
+                    ['Africa GATES', '/projects/africa-gates/'],
                 ]],
-                ['title' => 'More', 'links' => [
-                    ['Africa GATES', 'https://cacentre.afrovanguard.org.ng/africa-gates/'],
+                ['title' => 'More programmes', 'links' => [
+                    ['Business Executive Club', '/projects/bec/'],
+                    ['Career Hub', '/projects/career-hub/'],
+                    ['Kingdom Advancement', '/projects/kap/'],
+                    ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
                     ['All projects', '/projects/'],
                 ]],
             ],
@@ -219,7 +255,7 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'Give your time & grow', 'links' => [
                     ['Volunteer', $V], ['Become a mentor', '/mentorship/become-a-mentor/'], ['Partner with us', '/contact.html'],
-                    ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE ↗', 'https://cacentre.afrovanguard.org.ng'],
+                    ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE', 'https://cacentre.afrovanguard.org.ng'],
                 ]],
             ],
             'feature' => ['kicker' => 'Stand with us', 'title' => 'Be part of the movement', 'text' => 'Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.', 'href' => '/donate.html', 'cta' => 'Donate now'],
@@ -388,7 +424,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
 <?php foreach ($it['mega']['cols'] as $col): ?>                    <div class="mega-col">
                       <p class="mega-h"><?= e($col['title']) ?></p>
                       <ul role="list">
-<?php foreach ($col['links'] as [$ll, $lh]): ?>                        <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
+<?php foreach ($col['links'] as [$ll, $lh]): [$xa, $xm] = av_nav_offsite($lh); ?>                        <li><a href="<?= e($lh) ?>"<?= $xa ?>><?= e($ll) . $xm ?></a></li>
 <?php endforeach; ?>                      </ul>
                     </div>
 <?php endforeach; ?>                  </div>
@@ -419,7 +455,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
         <div class="nav-sub-inner">
           <a class="nav-sub-brand" href="<?= e($sub['brand']['href']) ?>"><?= av_brand_mark($sub['key'] ?? 'afrovanguard') ?></a>
           <ul class="nav-sub-links" role="list">
-<?php foreach ($sub['links'] as [$ll, $lh]): ?>            <li><a href="<?= e($lh) ?>"><?= e($ll) ?></a></li>
+<?php foreach ($sub['links'] as [$ll, $lh]): [$xa, $xm] = av_nav_offsite($lh); ?>            <li><a href="<?= e($lh) ?>"<?= $xa ?>><?= e($ll) . $xm ?></a></li>
 <?php endforeach; ?>          </ul>
           <div class="nav-sub-actions">
 <?php if (!empty($sub['search'])): ?>            <form class="nav-sub-search" role="search" action="<?= e($sub['search']['target']) ?>" method="get">
@@ -467,7 +503,7 @@ function render_nav(string $active = 'diary', array $opts = []): void {
     <div class="avd-scroll">
 <?php if ($sub): ?>      <div class="avd-section">
         <p class="avd-section-h"><?= e($sub['brand']['label']) ?></p>
-<?php foreach ($sub['links'] as [$ll, $lh]): ?>        <a class="avd-sub" href="<?= e($lh) ?>"><?= e($ll) ?></a>
+<?php foreach ($sub['links'] as [$ll, $lh]): [$xa, $xm] = av_nav_offsite($lh); ?>        <a class="avd-sub" href="<?= e($lh) ?>"<?= $xa ?>><?= e($ll) . $xm ?></a>
 <?php endforeach; ?>      </div>
 <?php endif; foreach ($model as $k => $it): if (empty($it['mega'])): ?>
       <a class="avd-link" href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a>

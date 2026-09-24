@@ -69,42 +69,52 @@ render_nav('involved');
   <section class="mt-section mt-section--dark" aria-labelledby="quest-h">
     <div class="container">
       <p class="mt-kicker">The Vanguard Quest</p>
-      <h2 class="mt-h" id="quest-h">Mentoring is not an extra.<br>It is how the Quest <em>completes</em>.</h2>
-      <p class="mt-lead">The Quest is seven values, ten observable challenges each — seventy points in all. You do not
-        earn a point for attending, and you do not earn one for knowing the right answer. You earn it by showing
-        evidence that something in you changed. Mentoring is where that logic turns outward: having been formed,
-        you go and form somebody.</p>
+      <h2 class="mt-h" id="quest-h">You cannot rise here <em>without</em> mentees</h2>
+      <p class="mt-lead">The Vanguard Quest is how Afrovanguard tracks who is actually growing: eight ranks from
+        Ordinary to Grand Father, earned on points for demonstrated action. Mentoring is not an optional extra
+        inside it. It is a condition of promotion.</p>
 
-      <ol class="mt-ladder">
-        <li class="mt-step">
-          <span class="mt-step-n">Level 0</span>
-          <span class="mt-step-b"><span class="mt-step-t">Visitor</span>
-            <span class="mt-step-d">You meet the culture. Come as you are — but don't stay as you are.</span></span>
-        </li>
-        <li class="mt-step">
-          <span class="mt-step-n">Level 1</span>
-          <span class="mt-step-b"><span class="mt-step-t">Explorer</span>
-            <span class="mt-step-d">Self-examination begins. You start telling yourself the truth.</span></span>
-        </li>
-        <li class="mt-step">
-          <span class="mt-step-n">Level 2</span>
-          <span class="mt-step-b"><span class="mt-step-t">Practitioner</span>
-            <span class="mt-step-d">The values stop being vocabulary and start being conduct.</span></span>
-        </li>
-        <li class="mt-step mt-step--here">
-          <span class="mt-step-n">Level 3</span>
-          <span class="mt-step-b"><span class="mt-step-t">Contributor — you begin mentoring here</span>
-            <span class="mt-step-d">You are steady enough that someone else can lean on you without it costing them.</span></span>
-        </li>
-        <li class="mt-step">
-          <span class="mt-step-n">Level 4</span>
-          <span class="mt-step-b"><span class="mt-step-t">Vanguard</span>
-            <span class="mt-step-d">You reproduce the culture. Your mentees are mentoring.</span></span>
-        </li>
-      </ol>
+      <p class="mt-lead"><strong>You must maintain a minimum of two active direct mentees, sustained for at least
+        two cycles (quarters), to be eligible for promotion at all.</strong></p>
 
-      <p class="mt-lead" style="margin-top:28px">Seventy out of seventy does not mean finished. It means ready for
-        greater responsibility — and mentoring is that responsibility.</p>
+      <div class="mt-tablewrap">
+        <table class="mt-rank">
+          <caption>The Quest ranks, and the direct mentees each expects</caption>
+          <thead>
+            <tr><th scope="col">Rank</th><th scope="col">Title</th>
+                <th scope="col" class="mt-num">Points</th><th scope="col" class="mt-num">Direct mentees</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">O</th><td>Ordinary</td><td class="mt-num">0–49</td><td class="mt-num">0</td></tr>
+            <tr><th scope="row">A</th><td>Active</td><td class="mt-num">50–149</td><td class="mt-num">1</td></tr>
+            <tr class="mt-rank--gate"><th scope="row">B</th><td>Becoming</td><td class="mt-num">150–299</td><td class="mt-num">2</td></tr>
+            <tr><th scope="row">C</th><td>Committed</td><td class="mt-num">300–499</td><td class="mt-num">3</td></tr>
+            <tr><th scope="row">D</th><td>Dedicated</td><td class="mt-num">500–749</td><td class="mt-num">3–4</td></tr>
+            <tr><th scope="row">E</th><td>Excellent</td><td class="mt-num">750–999</td><td class="mt-num">4–5</td></tr>
+            <tr><th scope="row">F</th><td>Father</td><td class="mt-num">1000–1399</td><td class="mt-num">5+</td></tr>
+            <tr><th scope="row">G</th><td>Grand Father</td><td class="mt-num">1400+</td><td class="mt-num">5+</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-note mt-note--dark">From Becoming onwards the mentee requirement is the binding one. Points alone
+        will not move you.</p>
+
+      <div class="mt-grid mt-grid--2" style="margin-top:32px">
+        <article class="mt-card mt-card--dark">
+          <h3>Direct and indirect mentees</h3>
+          <p><strong>Direct</strong> — the people you personally mentor. These are the ones that count toward the
+            minimum of two.</p>
+          <p><strong>Indirect</strong> — your mentees' mentees. They are your legacy and they do not count toward
+            your own two, which is deliberate: you cannot borrow someone else's work to get promoted.</p>
+        </article>
+        <article class="mt-card mt-card--dark">
+          <h3>Mentoring earns its own points</h3>
+          <p>Mentoring a member earns points. So does each active mentee you carry. The largest single award in
+            this part of the system is for a mentee whose growth is verified as they cross into the next rank.</p>
+          <p>Which is the whole philosophy in an accounting rule: <strong>you are rewarded most when someone
+            else rises.</strong></p>
+        </article>
+      </div>
     </div>
   </section>
 
@@ -256,26 +266,26 @@ render_nav('involved');
   <!-- ── Advancement ───────────────────────────────────────────────────── -->
   <section class="mt-section" aria-labelledby="adv-h">
     <div class="container">
-      <p class="mt-kicker">O to G</p>
+      <p class="mt-kicker">Promotion</p>
       <h2 class="mt-h" id="adv-h">Titles follow evidence, not ambition</h2>
-      <p class="mt-lead">The leadership journey runs Ordinary, Active, Becoming, Committed, Dedicated, Excellent,
-        Father, Grand Father. Progression is never about how long someone has been around.</p>
+      <p class="mt-lead">Rank is never about how long someone has been around. Beyond the points and the mentee
+        minimum, a promotion asks three questions.</p>
 
       <div class="mt-grid mt-grid--3">
         <article class="mt-card">
-          <h3>What is weighed</h3>
-          <p>Consistency in mentorship. Respect for time. The seven values in practice. CIMC done or committed to.
-            Reliability. Commitments completed.</p>
+          <h3>Are you consistent?</h3>
+          <p>Mentorship kept up over cycles, not a burst. Respect for time. The seven values in practice.
+            CIMC done or committed to. Commitments finished.</p>
         </article>
         <article class="mt-card">
-          <h3>What is proven</h3>
-          <p>Demonstrated character and competence. Service to others. Contribution to Afrovanguard's objectives.
-            Evidence of your own growth.</p>
+          <h3>Is it demonstrated?</h3>
+          <p>Character and competence others can point at. Service given. Contribution to Afrovanguard's
+            objectives. Evidence of your own growth, not just your intentions.</p>
         </article>
         <article class="mt-card">
-          <h3>What settles it</h3>
-          <p>Whether your mentees are actually progressing — and whether any of them are now capable of mentoring
-            somebody else.</p>
+          <h3>Are your mentees moving?</h3>
+          <p>The one that settles it. Are the people you carry actually progressing — and is any of them now
+            capable of carrying someone themselves?</p>
         </article>
       </div>
 
@@ -330,37 +340,139 @@ render_nav('involved');
     </div>
   </section>
 
-  <!-- ── Begin ─────────────────────────────────────────────────────────── -->
-  <section class="mt-section" aria-labelledby="begin-h">
+  <!-- ── Apply ─────────────────────────────────────────────────────────── -->
+  <section class="mt-section mt-section--tint" aria-labelledby="apply-h">
     <div class="container">
-      <p class="mt-kicker">Begin</p>
-      <h2 class="mt-h" id="begin-h">Where you start depends on where you are</h2>
+      <p class="mt-kicker">Apply</p>
+      <h2 class="mt-h" id="apply-h">Put your name forward</h2>
+      <p class="mt-lead">Open to anyone — you do not need an account to apply. Tell us who you are and what you can
+        carry, and the team will come back to you about the next intake.</p>
 
-      <div class="mt-apply">
-        <article class="mt-route">
-          <h3>You have an @<?= e($org) ?> account</h3>
-          <p>Publish your mentor profile — your focus areas, how many mentees you can genuinely carry, and whether
-            you are accepting requests right now.</p>
-          <a class="mt-btn mt-btn--go" href="/mentorship/">Publish your mentor profile</a>
-        </article>
-        <article class="mt-route">
-          <h3>You are a member, without an org account</h3>
-          <p>Mentoring is open to Afrovanguard members. Start with membership and the Academy, keep the Quest, and
-            come back at Level 3.</p>
-          <a class="mt-btn mt-btn--out" href="/academy/#membership">Become a member</a>
-        </article>
-        <article class="mt-route">
-          <h3>You are new here</h3>
-          <p>Come and see the work first. Read the Diary, look at the programmes, or simply tell us what you would
-            want to give and we will point you to the right door.</p>
-          <a class="mt-btn mt-btn--out" href="/contact.html">Talk to the team</a>
-        </article>
+      <form class="mt-form" id="mentorForm" novalidate>
+        <div class="mt-form-row">
+          <p class="mt-field">
+            <label for="mf-name">Your name <span class="mt-req">(required)</span></label>
+            <input id="mf-name" name="name" type="text" autocomplete="name" required
+                   aria-describedby="mf-name-e"><span class="mt-err" id="mf-name-e"></span>
+          </p>
+          <p class="mt-field">
+            <label for="mf-email">Your email <span class="mt-req">(required)</span></label>
+            <input id="mf-email" name="email" type="email" autocomplete="email" required
+                   aria-describedby="mf-email-e"><span class="mt-err" id="mf-email-e"></span>
+          </p>
+        </div>
+        <div class="mt-form-row">
+          <p class="mt-field">
+            <label for="mf-phone">Phone <span class="mt-opt">(optional)</span></label>
+            <input id="mf-phone" name="phone" type="tel" autocomplete="tel" aria-describedby="mf-phone-e">
+            <span class="mt-err" id="mf-phone-e"></span>
+          </p>
+          <p class="mt-field">
+            <label for="mf-stage">Where you are now <span class="mt-opt">(optional)</span></label>
+            <select id="mf-stage" name="stage">
+              <option value="">Choose one…</option>
+              <option>Already an Afrovanguard member</option>
+              <option>Alumni of a programme</option>
+              <option>New to Afrovanguard</option>
+              <option>Partner or organisation</option>
+            </select>
+          </p>
+        </div>
+        <p class="mt-field">
+          <label for="mf-msg">What could you mentor someone on? <span class="mt-req">(required)</span></label>
+          <textarea id="mf-msg" name="message" rows="5" required aria-describedby="mf-msg-h mf-msg-e"
+            placeholder="The ground you have actually walked — a trade, a discipline, a recovery, a career."></textarea>
+          <span class="mt-hint" id="mf-msg-h">Be concrete. "I run a small business and can teach someone to keep
+            books" beats "leadership".</span>
+          <span class="mt-err" id="mf-msg-e"></span>
+        </p>
+        <p class="mt-field">
+          <label class="mt-consent" for="mf-consent">
+            <input id="mf-consent" name="consent" type="checkbox" required aria-describedby="mf-consent-e">
+            <span>I agree to Afrovanguard storing this so the team can reply, and I have read what is asked of a
+              mentor above.</span>
+          </label>
+          <span class="mt-err" id="mf-consent-e"></span>
+        </p>
+        <!-- Anti-spam honeypot: a real person never fills this in. -->
+        <p class="mt-hp" aria-hidden="true"><label for="mf-url">Leave this empty</label>
+          <input id="mf-url" name="website_url" type="text" tabindex="-1" autocomplete="off"></p>
+
+        <div class="mt-form-foot">
+          <button type="submit" class="mt-btn mt-btn--go" id="mfSend">Send my application</button>
+          <p class="mt-formmsg" id="mfMsg" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <div class="mt-alt">
+        <p><strong>Already have an @<?= e($org) ?> account?</strong> You can skip this and publish your mentor
+          profile directly — focus areas, how many mentees you can genuinely carry, and whether you are accepting
+          requests. <a href="/mentorship/">Go to the mentor network</a>.</p>
+        <p><strong>Already mentoring someone informally?</strong> That counts. Bring it into the open so it can be
+          supported, reviewed and multiplied.</p>
       </div>
-
-      <p class="mt-note">Already mentoring someone informally? That counts — bring it into the open so it can be
-        supported, reviewed and multiplied.</p>
     </div>
   </section>
+
+  <script>
+  /* The application posts to the site's own contact processor, so it inherits
+     the validation, rate limiting, honeypot and staff notification that every
+     other form on the site already uses — rather than adding a second intake
+     with its own rules to keep in step. */
+  (function () {
+    var f = document.getElementById('mentorForm');
+    if (!f) return;
+    var btn = document.getElementById('mfSend'), msg = document.getElementById('mfMsg');
+    function err(id, text) {
+      var s = document.getElementById(id + '-e'), c = document.getElementById(id);
+      if (s) s.textContent = text || '';
+      if (c) { if (text) c.setAttribute('aria-invalid', 'true'); else c.removeAttribute('aria-invalid'); }
+      return c;
+    }
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      ['mf-name', 'mf-email', 'mf-msg', 'mf-consent'].forEach(function (i) { err(i, ''); });
+      msg.textContent = ''; msg.className = 'mt-formmsg';
+
+      var name = f.name.value.trim(), email = f.email.value.trim(),
+          body = f.message.value.trim(), stage = f.stage.value, phone = f.phone.value.trim();
+      if (!name)  return err('mf-name', 'Please add your name.').focus();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('mf-email', 'Please check the email address.').focus();
+      if (!body)  return err('mf-msg', 'Tell us what you could mentor someone on.').focus();
+      if (!f.consent.checked) return err('mf-consent', 'Please tick the box so we may store your application.').focus();
+
+      btn.disabled = true; btn.textContent = 'Sending…';
+      var lines = ['Mentor application (via /mentorship/become-a-mentor/).', ''];
+      if (stage) lines.push('Where they are now: ' + stage);
+      if (phone) lines.push('Phone: ' + phone);
+      lines.push('', 'Could mentor on:', body);
+
+      fetch('/process-contact.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ action: 'submit_contact', purpose: 'volunteer', name: name, email: email,
+                               message: lines.join('\n'), consent: true,
+                               website_url: f.website_url.value })
+      })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (d) {
+          btn.disabled = false; btn.textContent = 'Send my application';
+          if (!d || d.success !== true) {
+            msg.className = 'mt-formmsg is-bad';
+            msg.textContent = (d && d.message) || 'That did not go through. Please try again, or use the contact page.';
+            return;
+          }
+          f.reset();
+          msg.className = 'mt-formmsg is-good';
+          msg.textContent = 'Received — thank you. The team will reply by email about the next intake.';
+        })
+        .catch(function () {
+          btn.disabled = false; btn.textContent = 'Send my application';
+          msg.className = 'mt-formmsg is-bad';
+          msg.textContent = 'Could not reach the server. Check your connection and try again.';
+        });
+    });
+  })();
+  </script>
 
 </main>
 <?php render_footer(); ?>
