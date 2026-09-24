@@ -53,11 +53,23 @@
     down:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
   };
 
-  function markHTML(cls) {
-    return '<img class="ch-mark ' + cls + '" src="' + AVATAR + '" alt="" aria-hidden="true" ' +
-           'onerror="this.outerHTML=window.__chiomaMark;">';
+  function markHTML() {
+    return '<img class="ch-mark" src="' + AVATAR + '" alt="" aria-hidden="true" data-ch-mark>';
   }
-  window.__chiomaMark = MARK_SVG;
+  // Swap any avatar that fails to load for the inline mark. Bound rather than
+  // written as an onerror attribute so the widget never depends on the CSP
+  // allowing inline script.
+  function bindMarkFallback(scope) {
+    [].forEach.call(scope.querySelectorAll('img[data-ch-mark]'), function (img) {
+      img.addEventListener('error', function () {
+        var span = document.createElement('span');
+        span.innerHTML = MARK_SVG;
+        if (img.parentNode) img.parentNode.replaceChild(span.firstChild, img);
+      }, { once: true });
+      // A cached 404 can complete before the listener attaches.
+      if (img.complete && img.naturalWidth === 0) img.dispatchEvent(new Event('error'));
+    });
+  }
 
   /* ---- stylesheet ---- */
   if (!document.querySelector('link[href="/assets/site/chioma.css"]')) {
@@ -116,43 +128,49 @@
   root.setAttribute('data-no-export', '');
   if (document.documentElement.getAttribute('data-theme') === 'dark') root.setAttribute('data-dark', '1');
   root.innerHTML =
-    '<div class="ch-scrim" id="chScrim"></div>' +
+    '<div class="ch-scrim" id="chScrim" aria-hidden="true"></div>' +
     '<div class="chioma-panel" id="chPanel" role="dialog" aria-modal="false" aria-labelledby="chName">' +
       '<div class="ch-head">' +
-        '<span class="ch-ava">' + markHTML('') + '</span>' +
+        '<span class="ch-ava">' + markHTML() + '</span>' +
         '<div class="ch-head-txt"><div class="ch-name" id="chName">Chioma</div>' +
           '<div class="ch-status" id="chStatusT">Afrovanguard guide</div></div>' +
         '<button class="ch-head-btn" id="chReset" type="button" aria-label="Start a new conversation" title="New conversation">' + ICON.reset + '</button>' +
         '<button class="ch-head-btn" id="chClose" type="button" aria-label="Close chat">' + ICON.close + '</button>' +
       '</div>' +
       '<div class="ch-body" id="chBody" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation with Chioma"></div>' +
-      '<button class="ch-jump" id="chJump" type="button">' + ICON.down + ' Latest</button>' +
+      '<button class="ch-jump" id="chJump" type="button" aria-label="Jump to the latest message">' + ICON.down + ' Latest</button>' +
       '<div class="ch-chips" id="chChips"></div>' +
 
       '<form class="ch-foot" id="chForm">' +
-        '<textarea id="chInput" rows="1" placeholder="Ask Chioma anything…" aria-label="Message Chioma" maxlength="1500"></textarea>' +
-        '<button class="ch-send" id="chSend" type="submit" aria-label="Send message">' + ICON.send + '</button>' +
+        '<label class="ch-sr" for="chInput">Message Chioma</label>' +
+        '<textarea id="chInput" rows="1" placeholder="Ask Chioma anything…" maxlength="1500" ' +
+          'aria-describedby="chHint"></textarea>' +
+        '<button class="ch-send" id="chSend" type="submit" aria-label="Send message" disabled>' + ICON.send + '</button>' +
       '</form>' +
       '<div class="ch-tail">' +
         '<a href="/contact.html" data-ch-reach="email">Email</a>' +
         '<a href="https://wa.me/2349037776318" target="_blank" rel="noopener noreferrer">WhatsApp</a>' +
         '<a href="tel:+2349037776318">Call</a>' +
         '<a href="/donate.html">Donate</a>' +
-        '<span class="ch-tail-note">Chioma is an AI guide — check anything important.</span>' +
+        '<span class="ch-tail-note" id="chHint">Enter sends, Shift + Enter starts a new line. Chioma is an AI guide — check anything important.</span>' +
       '</div>' +
     '</div>' +
-    '<div class="chioma-greet" id="chGreet" role="status">' +
-      '<button class="ch-greet-x" type="button" aria-label="Dismiss">' + ICON.close + '</button>' +
-      '<span class="ch-greet-text"><b>Hi, I’m Chioma</b> — your guide to Afrovanguard. Need a hand finding something?</span>' +
+    '<div class="chioma-greet" id="chGreet">' +
+      '<button class="ch-greet-open" id="chGreetOpen" type="button">' +
+        '<span class="ch-greet-text"><b>Hi, I’m Chioma</b> — your guide to Afrovanguard. Need a hand finding something?</span>' +
+      '</button>' +
+      '<button class="ch-greet-x" type="button" aria-label="Dismiss Chioma’s message">' + ICON.close + '</button>' +
     '</div>' +
     '<button class="chioma-fab" id="chFab" type="button" aria-label="Chat with Chioma" aria-expanded="false">' +
-      markHTML('') + '<span class="ch-dot"></span></button>';
+      markHTML() + '<span class="ch-dot"></span></button>';
   (document.body || document.documentElement).appendChild(root);
+  bindMarkFallback(root);
 
   var panel = root.querySelector('#chPanel'), body = root.querySelector('#chBody'),
       input = root.querySelector('#chInput'), sendBtn = root.querySelector('#chSend'),
       chips = root.querySelector('#chChips'), greet = root.querySelector('#chGreet'),
       greetText = greet.querySelector('.ch-greet-text'), fab = root.querySelector('#chFab'),
+      greetOpen = root.querySelector('#chGreetOpen'),
       statusT = root.querySelector('#chStatusT'),
       jump = root.querySelector('#chJump'), scrim = root.querySelector('#chScrim');
 
@@ -182,7 +200,18 @@
     // `html` is rendered and sanitised server-side; `reply` is the plain-text
     // fallback for the degraded path, and is escaped here.
     var html = (d && d.html) ? d.html : '<p>' + esc((d && d.reply) || '') + '</p>';
-    return append(el('div', 'ch-msg bot', html));
+    var node = el('div', 'ch-msg bot', html);
+    // A reply may contain headings. Left as h1–h3 they join the PAGE's outline,
+    // so a screen-reader user navigating by heading lands inside a chat bubble
+    // between two site sections. Demote them to a styled paragraph: the visual
+    // emphasis stays, the document outline is left alone.
+    [].forEach.call(node.querySelectorAll('h1,h2,h3,h4,h5,h6'), function (h) {
+      var p = document.createElement('p');
+      p.className = 'ch-h';
+      p.innerHTML = h.innerHTML;
+      h.parentNode.replaceChild(p, h);
+    });
+    return append(node);
   }
 
   /* What she is doing, named while she does it. The steps are a plausible
@@ -235,13 +264,31 @@
   function field(id, label, value, type, required) {
     var f = el('div', 'ch-f');
     var tag = type === 'textarea' ? 'textarea' : 'input';
-    f.innerHTML = '<label for="' + id + '">' + esc(label) + (required ? '' : ' (optional)') + '</label>' +
+    // Required is stated in words, not carried by an asterisk or a colour, and
+    // each field owns an error slot that exists before any error arrives — a
+    // live region added at the same moment as its text is not announced.
+    f.innerHTML = '<label for="' + id + '">' + esc(label) +
+        (required ? ' <span class="ch-req">(required)</span>' : ' <span class="ch-opt">(optional)</span>') + '</label>' +
       '<' + tag + ' id="' + id + '"' + (tag === 'input' ? ' type="' + (type || 'text') + '"' : '') +
-      (required ? ' required' : '') + (type === 'email' ? ' autocomplete="email"' : '') +
+      (required ? ' required' : '') + ' aria-describedby="' + id + '-e"' +
+      (type === 'email' ? ' autocomplete="email"' : '') +
       (id.indexOf('name') > -1 ? ' autocomplete="name"' : '') +
-      (type === 'tel' ? ' autocomplete="tel"' : '') + '></' + tag + '>';
+      (type === 'tel' ? ' autocomplete="tel"' : '') + '></' + tag + '>' +
+      '<span class="ch-f-err" id="' + id + '-e"></span>';
     f.querySelector(tag).value = value || '';
     return f;
+  }
+  /* Put an error on one field: visible text beside it, linked by
+     aria-describedby, aria-invalid set, and focus moved there. */
+  function fieldError(control, msg) {
+    var slot = document.getElementById(control.id + '-e');
+    if (slot) slot.textContent = msg;
+    control.setAttribute('aria-invalid', 'true');
+    control.focus();
+  }
+  function clearErrors(card) {
+    [].forEach.call(card.querySelectorAll('.ch-f-err'), function (e) { e.textContent = ''; });
+    [].forEach.call(card.querySelectorAll('[aria-invalid]'), function (e) { e.removeAttribute('aria-invalid'); });
   }
 
   function addAction(a) {
@@ -277,7 +324,7 @@
       var nt = field(uid + 'o', 'Anything to add', f.note, 'textarea', false); b.appendChild(nt); inputs.note = nt.querySelector('textarea');
     }
 
-    var err = el('div', 'ch-f-err'); err.style.display = 'none'; b.appendChild(err);
+    var err = el('div', 'ch-act-err'); err.setAttribute('role', 'alert'); b.appendChild(err);
     var foot = el('div', 'ch-act-foot');
     var go = el('button', 'ch-btn ch-btn-go'); go.type = 'button';
     go.textContent = a.kind === 'contact' ? 'Send message' : 'Send application';
@@ -288,18 +335,18 @@
     card.appendChild(el('div', 'ch-act-done', '<span class="ch-done-t">Sent.</span>'));
 
     function fail(msg, focusEl) {
-      err.textContent = msg; err.style.display = '';
       go.disabled = false; go.textContent = a.kind === 'contact' ? 'Send message' : 'Send application';
-      if (focusEl) focusEl.focus();
+      if (focusEl) { fieldError(focusEl, msg); err.textContent = ''; }
+      else err.textContent = msg;          // a server refusal belongs to the form
     }
 
     go.addEventListener('click', function () {
-      err.style.display = 'none';
+      err.textContent = ''; clearErrors(card);
       var name = (inputs.name.value || '').trim(), email = (inputs.email.value || '').trim();
       if (!name) return fail('Please add your name.', inputs.name);
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Please check the email address.', inputs.email);
       if (a.kind === 'contact') {
-        if (!(inputs.message.value || '').trim()) return fail('The message is empty.', inputs.message);
+        if (!(inputs.message.value || '').trim()) return fail('Please write your message.', inputs.message);
         if (!inputs.consent.checked) return fail('Please tick the box so we may store your message.', inputs.consent);
       }
       go.disabled = true; go.textContent = 'Sending…';
@@ -343,6 +390,15 @@
       ? (!inputs.name.value ? inputs.name : (!inputs.email.value ? inputs.email : null))
       : (!inputs.name.value ? inputs.name : (!inputs.email.value ? inputs.email : null));
     if (firstEmpty) setTimeout(function () { firstEmpty.focus(); }, 80);
+  }
+
+  /* A one-off announcement in the log's live region. */
+  function say(text) {
+    var n = el('div', 'ch-sr');
+    n.setAttribute('role', 'status');
+    n.textContent = text;
+    body.appendChild(n);
+    setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 3000);
   }
 
   function saveHistory() { try { sessionStorage.setItem('chioma.history', JSON.stringify(history.slice(-20))); } catch (e) {} }
@@ -411,9 +467,16 @@
       lastFocus = document.activeElement;
       muteBubbles(); hideGreet(); renderHistory();
       syncViewport();
-      if (isSheet()) pageInert(true);
+      // aria-modal must describe what is actually true. At sheet width the page
+      // behind really is inert; on desktop the panel sits beside live content
+      // and claiming modality would lie to a screen reader about what is
+      // reachable.
+      var modal = isSheet();
+      panel.setAttribute('aria-modal', String(modal));
+      if (modal) pageInert(true);
       setTimeout(function () { input.focus(); }, 60);
     } else {
+      panel.setAttribute('aria-modal', 'false');
       pageInert(false);
       working(false);
       if (lastFocus && lastFocus.focus) lastFocus.focus(); else fab.focus();
@@ -429,7 +492,7 @@
     addUser(text);
     history.push({ role: 'user', text: text }); saveHistory();
     input.value = ''; autoGrow();
-    sending = true; sendBtn.disabled = true; working(true);
+    sending = true; syncSend(); working(true);
 
     fetch(ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
@@ -437,7 +500,7 @@
     })
       .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
       .then(function (d) {
-        working(false); sending = false; sendBtn.disabled = false;
+        working(false); sending = false; syncSend();
         if (!d || (!d.reply && !d.error)) throw new Error('empty');
         var payload = d.reply ? d : { reply: d.error };
         addBot(payload);
@@ -446,7 +509,7 @@
         (d.actions || []).forEach(addAction);
       })
       .catch(function () {
-        working(false); sending = false; sendBtn.disabled = false;
+        working(false); sending = false; syncSend();
         // Keep the visitor's words: a failed send that eats the message is the
         // one failure people do not forgive.
         var f = el('div', 'ch-fail', '<span>That didn’t send.</span>');
@@ -475,7 +538,8 @@
     input.style.overflowY = input.scrollHeight > 120 ? 'auto' : 'hidden';
   }
   autoGrow();
-  input.addEventListener('input', autoGrow);
+  function syncSend() { sendBtn.disabled = sending || input.value.trim() === ''; }
+  input.addEventListener('input', function () { autoGrow(); syncSend(); });
   input.addEventListener('keydown', function (e) {
     // Enter sends, Shift+Enter is a newline — the convention everywhere else.
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input.value); }
@@ -487,12 +551,19 @@
   root.querySelector('#chClose').addEventListener('click', function () { setOpen(false); });
   scrim.addEventListener('click', function () { setOpen(false); });
   root.querySelector('#chReset').addEventListener('click', function () {
-    history = []; saveHistory(); renderHistory(); input.focus();
+    history = []; saveHistory(); renderHistory();
+    // The log is the live region, so announce the reset inside it rather than
+    // letting the screen go quiet after a destructive action.
+    say('Conversation cleared.');
+    input.focus(); syncSend();
   });
   jump.addEventListener('click', toBottom);
-  body.addEventListener('scroll', function () { jump.classList.toggle('show', !atBottom()); });
+  body.addEventListener('scroll', function () {
+    jump.classList.toggle('show', !atBottom());
+    panel.classList.toggle('is-scrolled', body.scrollTop > 4);
+  });
   greet.querySelector('.ch-greet-x').addEventListener('click', function (e) { e.stopPropagation(); hideGreet(); muteBubbles(); });
-  greet.addEventListener('click', function () { setOpen(true); });
+  greetOpen.addEventListener('click', function () { setOpen(true); });
   // The email channel opens the contact page, unless Chioma can draft it here.
   root.querySelector('[data-ch-reach="email"]').addEventListener('click', function (e) {
     e.preventDefault();

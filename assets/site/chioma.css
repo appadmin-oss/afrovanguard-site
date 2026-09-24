@@ -50,6 +50,14 @@ html[data-theme="dark"] .chioma-root,
   --ch-gold-ink: #f0c14b; --ch-danger: #fca5a5; --ch-ok: #6ee7a8;
 }
 
+/* Present for a screen reader, absent to the eye. Not display:none, which
+   would take it out of the accessibility tree along with the announcement. */
+.chioma-root .ch-sr {
+  position: absolute !important; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ── Launcher ──────────────────────────────────────────────────────────── */
 .chioma-fab {
   position: relative; width: 56px; height: 56px; padding: 0; border: 0;
@@ -82,6 +90,13 @@ html[data-theme="dark"] .chioma-root,
 }
 .chioma-greet.show { opacity: 1; transform: none; pointer-events: auto; }
 .chioma-greet b { font-weight: 600; }
+/* The nudge used to be a div with a click handler — no role, no keyboard, no
+   focus. The text is a real button now, and dismiss is its own control. */
+.ch-greet-open {
+  display: block; width: 100%; padding: 0; margin: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.ch-greet-open:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 4px; border-radius: 6px; }
 .chioma-greet .ch-greet-x {
   position: absolute; top: -9px; right: -9px; width: 24px; height: 24px;
   border-radius: var(--r-pill); border: 0; background: var(--ch-surface); color: var(--ch-muted);
@@ -106,8 +121,13 @@ html[data-theme="dark"] .chioma-root,
 /* Header — the one hairline in the panel. */
 .ch-head {
   display: flex; align-items: center; gap: 10px; padding: 14px 16px;
-  border-bottom: 1px solid var(--ch-line); flex-shrink: 0;
+  border-bottom: 1px solid transparent; flex-shrink: 0;
+  transition: border-color .15s ease;
 }
+/* The rule appears only once there is something scrolled above it, so the
+   panel is flat at rest and gains the line exactly when it explains
+   something. */
+.chioma-panel.is-scrolled .ch-head { border-bottom-color: var(--ch-line); }
 .ch-ava { width: 30px; height: 30px; border-radius: var(--r-pill); display: grid; place-items: center;
   background: var(--ch-navy); color: var(--ch-gold); flex-shrink: 0; overflow: hidden; }
 .ch-ava .ch-mark { width: 30px; height: 30px; display: block; }
@@ -142,7 +162,7 @@ html[data-theme="dark"] .chioma-root,
 .ch-msg.bot ul, .ch-msg.bot ol { margin: 0 0 12px; padding-left: 18px; }
 .ch-msg.bot li { margin-bottom: 6px; }
 .ch-msg.bot li::marker { color: var(--ch-muted); }
-.ch-msg.bot h1, .ch-msg.bot h2, .ch-msg.bot h3 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.ch-msg.bot .ch-h { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
 .ch-msg.bot blockquote { margin: 0 0 12px; padding-left: 12px; border-left: 2px solid var(--ch-line); color: var(--ch-muted); }
 .ch-msg.bot code { font-size: 13px; background: var(--ch-surface-2); padding: 1px 5px; border-radius: 4px; }
 .ch-msg a { color: var(--ch-gold-ink); text-decoration: underline; text-underline-offset: 2px; }
@@ -199,7 +219,15 @@ html[data-theme="dark"] .chioma-root,
 .ch-f input:focus, .ch-f textarea:focus, .ch-f select:focus {
   outline: 2px solid var(--ch-gold-ink); outline-offset: -1px; border-color: transparent;
 }
-.ch-f-err { font-size: 12px; color: var(--ch-danger); }
+.ch-req, .ch-opt { color: var(--ch-muted); }
+/* The slot exists before any error does, so it is empty far more often than
+   not; :empty keeps it from adding a gap to every field. */
+.ch-f-err { font-size: 12px; line-height: 1.45; color: var(--ch-danger); }
+.ch-f-err:empty { display: none; }
+.ch-f [aria-invalid="true"] { border-color: var(--ch-danger); }
+.ch-f [aria-invalid="true"]:focus { outline-color: var(--ch-danger); }
+.ch-act-err { font-size: 12px; line-height: 1.45; color: var(--ch-danger); }
+.ch-act-err:empty { display: none; }
 .ch-consent {
   display: flex; gap: 9px; align-items: flex-start; min-height: 44px; padding: 3px 0;
   font-size: 12px; line-height: 1.5; color: var(--ch-muted); cursor: pointer;
@@ -246,7 +274,7 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
   background: var(--ch-navy); color: #fff; cursor: pointer; display: grid; place-items: center;
   transition: opacity .15s ease;
 }
-.ch-send:disabled { opacity: .35; cursor: default; }
+.ch-send:disabled { background: var(--ch-surface-2); color: var(--ch-muted); cursor: default; }
 .ch-send:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; }
 .ch-send svg { width: 17px; height: 17px; }
 
