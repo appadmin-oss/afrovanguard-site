@@ -1,7 +1,22 @@
 /* ============================================================
-   Chioma — Afrovanguard's AI site guide (floating assistant).
-   Self-contained: injects its own styles + DOM on every page,
-   is context-aware (sends the current page), and lively.
+   Chioma — Afrovanguard's site guide.
+
+   She can look things up and fill forms in, so this file has three jobs
+   beyond "show messages":
+
+     1. Say what she is doing. A tool call takes seconds; a chat that goes
+        silent for eight of them reads as broken. The header status names
+        the step while it runs.
+     2. Show where an answer came from. Replies that used the site index
+        carry the pages underneath them.
+     3. Render the forms she stages — and submit them to the site's OWN
+        endpoints (process-contact.php, academy/api.php), so the existing
+        validation, rate limits and notifications all apply. Nothing is
+        sent until the visitor presses the button themselves.
+
+   Bot HTML arrives already rendered and sanitised by lib/ChiomaMarkdown.php
+   (raw HTML stripped at the parser). This file never builds markup from
+   model output; when `html` is absent it escapes the plain text instead.
    ============================================================ */
 (function () {
   'use strict';
@@ -9,170 +24,516 @@
   if (document.documentElement.hasAttribute('data-no-chioma')) return;
 
   var ENDPOINT = '/chioma.php';
-  // Chioma's mark — a warm "operations assistant" persona, not a robot.
-  // A friendly figure (head + shoulders) inside a soft ring, with a small
-  // gold "thinking/idea" spark — she's the helpful person who has the answer.
-  // Inline SVG only (CSP forbids external images). Crisp at 56–64px.
-  var FACE = '<svg class="ch-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true" focusable="false">' +
-      '<circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity=".35"/>' +
-      '<path d="M24 25.5a6.6 6.6 0 1 0 0-13.2 6.6 6.6 0 0 0 0 13.2Z" fill="currentColor"/>' +
-      '<path d="M11.6 38.4a12.6 12.6 0 0 1 24.8 0 21.7 21.7 0 0 1-24.8 0Z" fill="currentColor"/>' +
-      '<path class="ch-spark" d="M36.4 9.2l1.15 2.95L40.5 13.3l-2.95 1.15L36.4 17.4l-1.15-2.95L32.3 13.3l2.95-1.15L36.4 9.2Z" fill="var(--ch-spark, #fff)"/>' +
-    '</svg>';
-  var SEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+  var AVATAR   = '/assets/site/chioma-avatar.png';
 
-  /* ---- ensure stylesheet ---- */
+  /* Chioma's mark — a symbol, not a portrait.
+
+     An open circular arc that reads as a speech bubble, with a four-pointed
+     guiding star set in its opening: she is the thing that talks to you and
+     the thing that points you somewhere. Drawn from arcs and straight tapers
+     on a 32px grid so it stays sharp at favicon size, in two flat colours
+     with no gradient or shadow — it has to hold up at 24px on a phone, where
+     any shading turns to mud.
+
+     It renders as an <img> when /assets/site/chioma-avatar.png is present, so
+     a designed asset can replace this by dropping the file in, with no code
+     change and no broken-image box while it is absent. */
+  var MARK_SVG =
+    '<svg class="ch-mark-svg" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">' +
+      '<path d="M23.39 24.81A11.5 11.5 0 1 1 26.81 12.07" stroke="currentColor" ' +
+        'stroke-width="2.4" stroke-linecap="round"/>' +
+      '<path d="M20.8 16 17.3 17.3 16 22.4 14.7 17.3 11.2 16 14.7 14.7 16 9.6 17.3 14.7Z" ' +
+        'fill="currentColor"/>' +
+    '</svg>';
+
+  var ICON = {
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    reset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+    send:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
+    down:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+    mail:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>',
+    chat:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4.1-.9L3 20.5l1.6-4.4A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z"/></svg>',
+    call:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>',
+    gift:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
+    form:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg>',
+    tick:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+  };
+
+  function markHTML(cls) {
+    return '<img class="ch-mark ' + cls + '" src="' + AVATAR + '" alt="" aria-hidden="true" ' +
+           'onerror="this.outerHTML=window.__chiomaMark;">';
+  }
+  window.__chiomaMark = MARK_SVG;
+
+  /* ---- stylesheet ---- */
   if (!document.querySelector('link[href="/assets/site/chioma.css"]')) {
-    var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/assets/site/chioma.css'; document.head.appendChild(l);
+    var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/assets/site/chioma.css';
+    document.head.appendChild(l);
   }
 
   /* ---- page context ---- */
-  // Normalise the current location into a short route key used for both the
-  // server context.section and the contextual "thought" bubble below.
   function routeKey() {
-    var path = location.pathname.toLowerCase();
-    if (/^\/academy/.test(path)) return 'academy';
-    if (/^\/diary/.test(path) || /^\/blog/.test(path)) return 'diary';
-    if (/^\/projects/.test(path)) return 'projects';
-    if (/donate/.test(path)) return 'donate';
-    if (/contact/.test(path)) return 'contact';
-    if (/^\/about/.test(path)) return 'about';
-    if (/^\/login/.test(path) || /^\/auth/.test(path)) return 'login';
-    if (/^\/portal/.test(path) || /^\/member/.test(path) || /^\/donor-dashboard/.test(path)) return 'portal';
-    if (/^\/events/.test(path)) return 'events';
-    if (path === '/' || /^\/index/.test(path) || path === '') return 'home';
+    var p = location.pathname.toLowerCase();
+    if (/^\/academy/.test(p)) return 'academy';
+    if (/^\/diary/.test(p) || /^\/blog/.test(p)) return 'diary';
+    if (/^\/projects/.test(p)) return 'projects';
+    if (/donate/.test(p)) return 'donate';
+    if (/contact/.test(p)) return 'contact';
+    if (/^\/about/.test(p)) return 'about';
+    if (/^\/login/.test(p) || /^\/auth/.test(p)) return 'login';
+    if (/^\/portal/.test(p) || /^\/member/.test(p) || /^\/donor-dashboard/.test(p)) return 'portal';
+    if (/^\/events/.test(p)) return 'events';
+    if (p === '/' || /^\/index/.test(p) || p === '') return 'home';
     return 'default';
   }
-  var SECTION_LABEL = { academy: 'Academy', diary: 'Diary', projects: 'Projects', donate: 'Donate',
+  var SECTION = { academy: 'Academy', diary: 'Diary', projects: 'Projects', donate: 'Donate',
     contact: 'Contact', about: 'About', login: 'Login', portal: 'Portal', events: 'Events', home: 'Home', default: '' };
   function context() {
-    var sec = document.body.getAttribute('data-section') || SECTION_LABEL[routeKey()] || '';
-    var title = (document.title || '').replace(/\s*[|—–]\s*Afrovanguard.*$/i, '').trim() || 'Afrovanguard';
-    return { title: title, path: location.pathname, section: sec };
+    return {
+      title: (document.title || '').replace(/\s*[|—–]\s*Afrovanguard.*$/i, '').trim() || 'Afrovanguard',
+      path: location.pathname,
+      section: document.body.getAttribute('data-section') || SECTION[routeKey()] || ''
+    };
   }
 
-  /* ---- contextual "thought" bubble phrases, by route ---- */
   var BUBBLES = {
-    home:     ['New here? I can point you to the right programme.', "Want to see what's happening this week?", 'Looking for something? Just ask me.'],
-    academy:  ['Looking for a course? I can help you choose.', 'Ask me how enrolment works.', 'Our programmes are free — want the details?'],
-    diary:    ['Want a quick summary of an entry?', 'Looking for a topic? Ask me.', 'Curious about the work behind a story?'],
-    donate:   ["Not sure how to give? I'll walk you through it.", 'We welcome materials too — ask me how.', 'Questions about donating? I’m right here.'],
-    projects: ['Curious which programme fits you? Ask away.', 'Want the story behind a project?', 'I can help you find a way to get involved.'],
-    contact:  ['Not sure who to reach? I can point you.', 'Tell me what you need and I’ll help you ask.'],
-    about:    ['Want the short version of our mission? Ask me.', 'Curious how we got started? I can share.'],
-    login:    ['Trouble signing in? I can help.', 'New here? Ask me what membership offers.'],
-    portal:   ['Need a hand finding something here? Just ask.', 'Looking for your next step? I can point you.'],
-    events:   ['Want to know what’s coming up? Ask me.', 'Looking for an event near you? I can help.'],
-    default:  ['Need a hand finding something? Just ask me.', 'I can help you get where you’re going. 🙂']
+    home:     ['New here? I can point you to the right programme.', 'Looking for something? Ask me — I can search the site.'],
+    academy:  ['I can check which courses are open right now.', 'Ask me how enrolment works.'],
+    diary:    ['Want a summary of an entry? I can read it.', 'Looking for a topic? Ask me.'],
+    donate:   ["Not sure how to give? I'll walk you through it.", 'We welcome materials too — ask me how.'],
+    projects: ['Curious which programme fits you? Ask away.', 'I can find the story behind a project.'],
+    contact:  ['I can draft your message to the team for you.', 'Tell me what you need and I’ll help you ask.'],
+    about:    ['Want the short version of our mission? Ask me.', 'Curious how we started? I can look it up.'],
+    login:    ['Trouble signing in? I can help.', 'Ask me what membership offers.'],
+    portal:   ['Need a hand finding something? Just ask.'],
+    events:   ['Want to know what’s coming up? Ask me.'],
+    default:  ['Need a hand finding something? Just ask me.']
   };
 
   /* ---- state ---- */
   var history = [];
   try { history = JSON.parse(sessionStorage.getItem('chioma.history') || '[]') || []; } catch (e) {}
-  var open = false, sending = false, greeted = false;
-  // Honour the greeting throttle AND the site's onboarding-suppression flags
-  // (the test harness sets these to keep nudges out of the way).
+  var open = false, sending = false, greeted = false, lastFocus = null, workTimer = null;
   try { greeted = sessionStorage.getItem('chioma.greeted') === '1' || sessionStorage.getItem('av_onboarded_v2') != null; } catch (e) {}
 
-  /* ---- build DOM ---- */
-  var root = document.createElement('div'); root.className = 'chioma-root'; root.setAttribute('data-no-export', '');
+  /* ---- DOM ---- */
+  var root = document.createElement('div');
+  root.className = 'chioma-root';
+  root.setAttribute('data-no-export', '');
   if (document.documentElement.getAttribute('data-theme') === 'dark') root.setAttribute('data-dark', '1');
   root.innerHTML =
-    '<div class="chioma-panel" role="dialog" aria-label="Chat with Chioma, the Afrovanguard guide" aria-modal="false">' +
-      '<div class="ch-head"><span class="ch-ava">' + FACE + '</span>' +
-        '<div><div class="ch-name">Chioma</div><div class="ch-status">Afrovanguard guide</div></div>' +
-        '<button class="ch-x" aria-label="Close chat">&times;</button></div>' +
-      '<div class="ch-body" id="chBody" aria-live="polite"></div>' +
+    '<div class="ch-scrim" id="chScrim"></div>' +
+    '<div class="chioma-panel" id="chPanel" role="dialog" aria-modal="false" aria-labelledby="chName">' +
+      '<div class="ch-head">' +
+        '<span class="ch-ava">' + markHTML('') + '</span>' +
+        '<div class="ch-head-txt"><div class="ch-name" id="chName">Chioma</div>' +
+          '<div class="ch-status" id="chStatus"><span class="ch-status-dot"></span><span id="chStatusT">Afrovanguard guide</span></div></div>' +
+        '<button class="ch-head-btn" id="chReset" type="button" aria-label="Start a new conversation" title="New conversation">' + ICON.reset + '</button>' +
+        '<button class="ch-head-btn" id="chClose" type="button" aria-label="Close chat">' + ICON.close + '</button>' +
+      '</div>' +
+      '<div class="ch-body" id="chBody" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation with Chioma"></div>' +
+      '<button class="ch-jump" id="chJump" type="button">' + ICON.down + ' Latest</button>' +
       '<div class="ch-chips" id="chChips"></div>' +
-      '<form class="ch-foot" id="chForm"><input id="chInput" type="text" autocomplete="off" placeholder="Ask Chioma anything…" aria-label="Message Chioma" maxlength="1500" />' +
-        '<button class="ch-send" type="submit" aria-label="Send">' + SEND + '</button></form>' +
-      '<div class="ch-disclaimer">Chioma is an AI guide — double-check anything important.</div>' +
+      '<div class="ch-reach">' +
+        '<a href="/contact.html" data-ch-reach="email">' + ICON.mail + 'Email</a>' +
+        '<a href="https://wa.me/2349037776318" target="_blank" rel="noopener noreferrer">' + ICON.chat + 'WhatsApp</a>' +
+        '<a href="tel:+2349037776318">' + ICON.call + 'Call</a>' +
+        '<a href="/donate.html">' + ICON.gift + 'Donate</a>' +
+      '</div>' +
+      '<form class="ch-foot" id="chForm">' +
+        '<textarea id="chInput" rows="1" placeholder="Ask Chioma anything…" aria-label="Message Chioma" maxlength="1500"></textarea>' +
+        '<button class="ch-send" id="chSend" type="submit" aria-label="Send message">' + ICON.send + '</button>' +
+      '</form>' +
+      '<div class="ch-disclaimer">Chioma is an AI guide. She can search this site and the web — check anything important.</div>' +
     '</div>' +
-    '<div class="chioma-greet" id="chGreet" role="status" aria-live="polite">' +
-      '<button class="ch-greet-x" type="button" aria-label="Dismiss message">&times;</button>' +
-      '<span class="ch-greet-text"><b>Hi, I’m Chioma</b> — your guide to Afrovanguard. Need a hand finding something? 👋</span></div>' +
-    '<button class="chioma-fab" id="chFab" type="button" aria-label="Chat with Chioma" aria-expanded="false">' + FACE + '<span class="ch-dot"></span></button>';
+    '<div class="chioma-greet" id="chGreet" role="status">' +
+      '<button class="ch-greet-x" type="button" aria-label="Dismiss">' + ICON.close + '</button>' +
+      '<span class="ch-greet-text"><b>Hi, I’m Chioma</b> — your guide to Afrovanguard. Need a hand finding something?</span>' +
+    '</div>' +
+    '<button class="chioma-fab" id="chFab" type="button" aria-label="Chat with Chioma" aria-expanded="false">' +
+      markHTML('') + '<span class="ch-dot"></span></button>';
   (document.body || document.documentElement).appendChild(root);
 
-  var body = root.querySelector('#chBody'), input = root.querySelector('#chInput'),
+  var panel = root.querySelector('#chPanel'), body = root.querySelector('#chBody'),
+      input = root.querySelector('#chInput'), sendBtn = root.querySelector('#chSend'),
       chips = root.querySelector('#chChips'), greet = root.querySelector('#chGreet'),
-      greetText = greet.querySelector('.ch-greet-text'), fab = root.querySelector('#chFab');
+      greetText = greet.querySelector('.ch-greet-text'), fab = root.querySelector('#chFab'),
+      statusT = root.querySelector('#chStatusT'), statusEl = root.querySelector('#chStatus'),
+      jump = root.querySelector('#chJump'), scrim = root.querySelector('#chScrim');
 
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  // light markup: linkify /paths and bare urls, keep it safe (escaped first)
-  function fmt(t) {
-    t = esc(t);
-    t = t.replace(/(https?:\/\/[^\s)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-    t = t.replace(/(^|[\s(])(\/[a-z0-9][a-z0-9\/\-]*\.?[a-z]*)/gi, function (m, pre, p) { return pre + '<a href="' + p + '">' + p + '</a>'; });
-    return t;
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
-  function addMsg(role, text) {
-    var d = document.createElement('div'); d.className = 'ch-msg ' + (role === 'user' ? 'user' : 'bot');
-    d.innerHTML = role === 'user' ? esc(text) : fmt(text);
-    body.appendChild(d); body.scrollTop = body.scrollHeight; return d;
+  function el(tag, cls, html) {
+    var d = document.createElement(tag);
+    if (cls) d.className = cls;
+    if (html != null) d.innerHTML = html;
+    return d;
   }
-  function typing(on) {
-    var ex = body.querySelector('.ch-typing');
-    if (on && !ex) { var t = document.createElement('div'); t.className = 'ch-typing'; t.innerHTML = '<span></span><span></span><span></span>'; body.appendChild(t); body.scrollTop = body.scrollHeight; }
-    else if (!on && ex) ex.remove();
+  function atBottom() { return body.scrollHeight - body.scrollTop - body.clientHeight < 60; }
+  function toBottom() { body.scrollTop = body.scrollHeight; jump.classList.remove('show'); }
+  function append(node, keepPosition) {
+    var stick = atBottom();
+    body.appendChild(node);
+    if (stick && !keepPosition) toBottom(); else jump.classList.add('show');
+    return node;
   }
+
+  /* ---- messages ---- */
+  function addUser(text) { return append(el('div', 'ch-msg user', esc(text))); }
+  function addBot(d) {
+    // `html` is rendered and sanitised server-side; `reply` is the plain-text
+    // fallback for the degraded path, and is escaped here.
+    var html = (d && d.html) ? d.html : '<p>' + esc((d && d.reply) || '') + '</p>';
+    return append(el('div', 'ch-msg bot', html));
+  }
+
+  /* What she is doing, named while she does it. The steps are a plausible
+     sequence rather than a live feed — the endpoint answers once, at the end
+     — so they are phrased as what she is doing, never as a count of results. */
+  var WORK = ['Searching the site…', 'Reading the page…', 'Checking the web…', 'Writing your answer…'];
+  function working(on) {
+    var ex = body.querySelector('.ch-work');
+    if (!on) {
+      if (ex) ex.remove();
+      if (workTimer) { clearInterval(workTimer); workTimer = null; }
+      statusEl.removeAttribute('data-busy'); statusT.textContent = 'Afrovanguard guide';
+      return;
+    }
+    if (ex) return;
+    var i = 0;
+    var node = append(el('div', 'ch-work', '<span class="ch-spin"></span><span class="ch-work-t">' + WORK[0] + '</span>'));
+    statusEl.setAttribute('data-busy', '1'); statusT.textContent = 'Working';
+    workTimer = setInterval(function () {
+      i = Math.min(i + 1, WORK.length - 1);
+      var t = node.querySelector('.ch-work-t');
+      if (t) t.textContent = WORK[i];
+      if (i === WORK.length - 1) { clearInterval(workTimer); workTimer = null; }
+    }, 2600);
+  }
+
+  function addSources(list) {
+    if (!list || !list.length) return;
+    var wrap = el('div', 'ch-src');
+    wrap.appendChild(el('div', 'ch-src-h', list.length === 1 ? 'Source' : 'Sources'));
+    list.slice(0, 5).forEach(function (s) {
+      var a = document.createElement('a');
+      a.className = 'ch-src-a';
+      a.href = s.url;
+      if (s.kind === 'web') { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+      a.innerHTML = '<span class="ch-src-k">' + esc(s.kind === 'web' ? 'Web' : 'Site') + '</span>' +
+                    '<span class="ch-src-t">' + esc(s.title) + '</span>';
+      wrap.appendChild(a);
+    });
+    append(wrap);
+  }
+
+  /* ---- action cards ----------------------------------------------------
+     A form Chioma filled in. It posts to the page's own endpoint, so every
+     check that guards the real form guards this one too. */
+  var PURPOSES = [['general', 'General enquiry'], ['volunteer', 'Volunteering'], ['business', 'Business / partnership'],
+                  ['tech', 'Technology (Techome)'], ['media', 'Media (MediaPro)'], ['career', 'Career development'],
+                  ['creative', 'Creative / cultural'], ['kingdom', 'Kingdom advancement'], ['donation', 'Donation enquiry']];
+
+  function field(id, label, value, type, required) {
+    var f = el('div', 'ch-f');
+    var tag = type === 'textarea' ? 'textarea' : 'input';
+    f.innerHTML = '<label for="' + id + '">' + esc(label) + (required ? '' : ' (optional)') + '</label>' +
+      '<' + tag + ' id="' + id + '"' + (tag === 'input' ? ' type="' + (type || 'text') + '"' : '') +
+      (required ? ' required' : '') + (type === 'email' ? ' autocomplete="email"' : '') +
+      (id.indexOf('name') > -1 ? ' autocomplete="name"' : '') +
+      (type === 'tel' ? ' autocomplete="tel"' : '') + '></' + tag + '>';
+    f.querySelector(tag).value = value || '';
+    return f;
+  }
+
+  function addAction(a) {
+    if (!a || !a.kind) return;
+    var uid = 'cha' + Math.random().toString(36).slice(2, 8);
+    var card = el('div', 'ch-act');
+    card.appendChild(el('div', 'ch-act-h', ICON.form + '<span>' + esc(a.label || 'Send') + '</span>'));
+    var b = el('div', 'ch-act-b');
+    var f = a.fields || {};
+    var inputs = {};
+
+    if (a.kind === 'contact') {
+      var sel = el('div', 'ch-f');
+      sel.innerHTML = '<label for="' + uid + 'p">What is it about</label><select id="' + uid + 'p">' +
+        PURPOSES.map(function (p) {
+          return '<option value="' + p[0] + '"' + (p[0] === f.purpose ? ' selected' : '') + '>' + esc(p[1]) + '</option>';
+        }).join('') + '</select>';
+      b.appendChild(sel); inputs.purpose = sel.querySelector('select');
+
+      var nm = field(uid + 'n', 'Your name', f.name, 'text', true); b.appendChild(nm); inputs.name = nm.querySelector('input');
+      var em = field(uid + 'e', 'Your email', f.email, 'email', true); b.appendChild(em); inputs.email = em.querySelector('input');
+      var ms = field(uid + 'm', 'Message', f.message, 'textarea', true); b.appendChild(ms); inputs.message = ms.querySelector('textarea');
+
+      var cs = el('div', 'ch-f');
+      cs.innerHTML = '<label style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;' +
+        'font-family:var(--ch-fb);font-size:12.5px;color:var(--ch-ink-2);cursor:pointer;min-height:44px;padding:4px 0">' +
+        '<input type="checkbox" id="' + uid + 'c" style="width:18px;height:18px;min-height:18px;flex:0 0 18px;margin-top:1px">' +
+        '<span>I agree to Afrovanguard storing this message so the team can reply.</span></label>';
+      b.appendChild(cs); inputs.consent = cs.querySelector('input');
+    } else {
+      var nm2 = field(uid + 'n', 'Your name', f.name, 'text', true); b.appendChild(nm2); inputs.name = nm2.querySelector('input');
+      var em2 = field(uid + 'e', 'Your email', f.email, 'email', true); b.appendChild(em2); inputs.email = em2.querySelector('input');
+      var ph = field(uid + 't', 'Phone', f.phone, 'tel', false); b.appendChild(ph); inputs.phone = ph.querySelector('input');
+      var nt = field(uid + 'o', 'Anything to add', f.note, 'textarea', false); b.appendChild(nt); inputs.note = nt.querySelector('textarea');
+    }
+
+    var err = el('div', 'ch-f-err'); err.style.display = 'none'; b.appendChild(err);
+    var foot = el('div', 'ch-act-foot');
+    var go = el('button', 'ch-btn ch-btn-go'); go.type = 'button';
+    go.textContent = a.kind === 'contact' ? 'Send message' : 'Send application';
+    var no = el('button', 'ch-btn ch-btn-no'); no.type = 'button'; no.textContent = 'Not now';
+    foot.appendChild(go); foot.appendChild(no); b.appendChild(foot);
+    b.appendChild(el('div', 'ch-act-note', 'Chioma filled this in — check it before sending. Nothing goes until you press the button.'));
+    card.appendChild(b);
+    card.appendChild(el('div', 'ch-act-done', ICON.tick + '<span class="ch-done-t">Sent.</span>'));
+
+    function fail(msg, focusEl) {
+      err.textContent = msg; err.style.display = '';
+      go.disabled = false; go.textContent = a.kind === 'contact' ? 'Send message' : 'Send application';
+      if (focusEl) focusEl.focus();
+    }
+
+    go.addEventListener('click', function () {
+      err.style.display = 'none';
+      var name = (inputs.name.value || '').trim(), email = (inputs.email.value || '').trim();
+      if (!name) return fail('Please add your name.', inputs.name);
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Please check the email address.', inputs.email);
+      if (a.kind === 'contact') {
+        if (!(inputs.message.value || '').trim()) return fail('The message is empty.', inputs.message);
+        if (!inputs.consent.checked) return fail('Please tick the box so we may store your message.', inputs.consent);
+      }
+      go.disabled = true; go.textContent = 'Sending…';
+
+      var url, payload;
+      if (a.kind === 'contact') {
+        url = '/process-contact.php';
+        payload = { action: 'submit_contact', purpose: inputs.purpose.value, name: name, email: email,
+                    message: (inputs.message.value || '').trim(), consent: true, website_url: '' };
+      } else {
+        url = '/academy/api.php?action=enroll';
+        payload = { course: f.course, name: name, email: email,
+                    phone: (inputs.phone.value || '').trim(), note: (inputs.note.value || '').trim() };
+      }
+
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                   credentials: 'same-origin', body: JSON.stringify(payload) })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (d) {
+          // The two endpoints disagree on the success key by history: the
+          // contact processor answers {success}, the Academy API {ok}.
+          var ok = d && (d.success === true || d.ok === true);
+          if (!ok) return fail((d && (d.message || d.error)) || 'That did not go through. Please try again.');
+          card.querySelector('.ch-done-t').textContent =
+            (d.message && String(d.message)) || (a.kind === 'contact' ? 'Message sent — the team will reply by email.' : 'Application received.');
+          card.classList.add('is-done');
+          toBottom();
+        })
+        .catch(function () { fail('I could not reach the server. Check your connection and try again.'); });
+    });
+
+    no.addEventListener('click', function () {
+      card.querySelector('.ch-done-t').textContent = 'Closed — ask me any time and I’ll bring it back.';
+      card.classList.add('is-done');
+    });
+
+    append(card);
+    // Focus the first thing the visitor still has to supply, so the form is
+    // usable from the keyboard without hunting for it.
+    var firstEmpty = a.kind === 'contact'
+      ? (!inputs.name.value ? inputs.name : (!inputs.email.value ? inputs.email : null))
+      : (!inputs.name.value ? inputs.name : (!inputs.email.value ? inputs.email : null));
+    if (firstEmpty) setTimeout(function () { firstEmpty.focus(); }, 80);
+  }
+
   function saveHistory() { try { sessionStorage.setItem('chioma.history', JSON.stringify(history.slice(-20))); } catch (e) {} }
 
-  var CHIPS = [['Explore the Academy', 'What can I learn in the Academy?'], ['How can I donate?', 'How can I donate?'],
-               ['Get involved', 'How can I get involved or volunteer?'], ['What is Afrovanguard?', 'What is Afrovanguard about?']];
+  var CHIPS = [
+    ['What courses are open?', 'What Academy courses are open right now?'],
+    ['How do I donate?', 'How can I donate?'],
+    ['Get involved', 'How can I get involved or volunteer?'],
+    ['What is Afrovanguard?', 'What is Afrovanguard about?']
+  ];
   function renderChips(show) {
     chips.innerHTML = '';
     if (!show) return;
-    CHIPS.forEach(function (c) { var b = document.createElement('button'); b.className = 'ch-chip'; b.type = 'button'; b.textContent = c[0]; b.onclick = function () { sendMessage(c[1]); }; chips.appendChild(b); });
+    CHIPS.forEach(function (c) {
+      var b = el('button', 'ch-chip'); b.type = 'button'; b.textContent = c[0];
+      b.addEventListener('click', function () { sendMessage(c[1]); });
+      chips.appendChild(b);
+    });
   }
 
   function renderHistory() {
     body.innerHTML = '';
     if (!history.length) {
-      addMsg('bot', "Hi, I'm Chioma — your Afrovanguard guide! 🌍 Ask me about our free Academy, our projects, how to donate, or how to get involved.");
+      append(el('div', 'ch-msg bot',
+        '<p>Hi, I’m Chioma — your guide to Afrovanguard.</p>' +
+        '<p>I can search the site and the web, read a page for you, and fill in a form so you can reach the team without leaving this chat.</p>'));
       renderChips(true);
     } else {
-      history.forEach(function (h) { addMsg(h.role, h.text); });
+      history.forEach(function (h) {
+        if (h.role === 'user') addUser(h.text); else addBot({ html: h.html, reply: h.text });
+      });
       renderChips(false);
     }
+    toBottom();
+  }
+
+  /* ---- focus containment -----------------------------------------------
+     On a phone the panel is a full sheet over the page, so the page behind
+     it is made inert. On desktop it is a floating card beside live content
+     and the page stays usable, which is why this is width-conditional. */
+  function isSheet() { return window.matchMedia('(max-width: 559px)').matches; }
+  function pageInert(on) {
+    var keep = [root];
+    [].forEach.call(document.body.children, function (n) {
+      if (keep.indexOf(n) !== -1) return;
+      if (on) {
+        if (!n.hasAttribute('inert')) { n.setAttribute('inert', ''); n.setAttribute('data-ch-inert', ''); }
+      } else if (n.hasAttribute('data-ch-inert')) {
+        n.removeAttribute('inert'); n.removeAttribute('data-ch-inert');
+      }
+    });
+  }
+
+  /* The visual viewport, not vh: on iOS the on-screen keyboard overlays the
+     layout viewport, so a 100dvh sheet puts the composer underneath it. */
+  function syncViewport() {
+    if (!window.visualViewport || !isSheet()) { root.style.removeProperty('--ch-vh'); return; }
+    root.style.setProperty('--ch-vh', window.visualViewport.height + 'px');
   }
 
   function setOpen(on) {
-    open = on; root.classList.toggle('is-open', on); fab.setAttribute('aria-expanded', String(on));
+    open = on;
+    root.classList.toggle('is-open', on);
+    fab.setAttribute('aria-expanded', String(on));
     if (on) {
-      muteBubbles();          // opening chat retires the nudges for this session
-      hideGreet();
-      requestAnimationFrame(function () { root.classList.add('is-anim'); });
-      renderHistory();
+      lastFocus = document.activeElement;
+      muteBubbles(); hideGreet(); renderHistory();
+      syncViewport();
+      if (isSheet()) pageInert(true);
       setTimeout(function () { input.focus(); }, 60);
-    } else { root.classList.remove('is-anim'); }
+    } else {
+      pageInert(false);
+      working(false);
+      if (lastFocus && lastFocus.focus) lastFocus.focus(); else fab.focus();
+    }
   }
-  function hideGreet() { greet.classList.remove('show'); fab.classList.remove('ch-nudge'); }
+  function hideGreet() { greet.classList.remove('show'); }
 
+  /* ---- sending ---- */
   function sendMessage(text) {
-    text = (text || '').trim(); if (!text || sending) return;
+    text = (text || '').trim();
+    if (!text || sending) return;
     renderChips(false);
-    addMsg('user', text); history.push({ role: 'user', text: text }); saveHistory();
-    input.value = ''; sending = true; typing(true);
-    fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-      body: JSON.stringify({ message: text, history: history.slice(-12), page: context() }) })
+    addUser(text);
+    history.push({ role: 'user', text: text }); saveHistory();
+    input.value = ''; autoGrow();
+    sending = true; sendBtn.disabled = true; working(true);
+
+    fetch(ENDPOINT, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+      body: JSON.stringify({ message: text, history: history.slice(-12), page: context() })
+    })
       .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
       .then(function (d) {
-        typing(false); sending = false;
-        var reply = (d && d.reply) || (d && d.error) || "Sorry, I had trouble just then. You can always reach the team via /contact/.";
-        addMsg('bot', reply); history.push({ role: 'bot', text: reply }); saveHistory();
+        working(false); sending = false; sendBtn.disabled = false;
+        if (!d || (!d.reply && !d.error)) throw new Error('empty');
+        var payload = d.reply ? d : { reply: d.error };
+        addBot(payload);
+        history.push({ role: 'bot', text: payload.reply, html: payload.html }); saveHistory();
+        addSources(d.sources);
+        (d.actions || []).forEach(addAction);
       })
-      .catch(function () { typing(false); sending = false; addMsg('bot', "I couldn't reach the server. Please check your connection and try again — or visit /contact/."); });
+      .catch(function () {
+        working(false); sending = false; sendBtn.disabled = false;
+        // Keep the visitor's words: a failed send that eats the message is the
+        // one failure people do not forgive.
+        var f = el('div', 'ch-fail', '<span>That didn’t send.</span>');
+        var retry = el('button'); retry.type = 'button'; retry.textContent = 'Try again';
+        retry.addEventListener('click', function () {
+          f.remove();
+          // Drop the optimistic user turn so the retry does not duplicate it.
+          if (history.length && history[history.length - 1].role === 'user') history.pop();
+          saveHistory();
+          var last = body.querySelector('.ch-msg.user:last-of-type');
+          if (last) last.remove();
+          sendMessage(text);
+        });
+        f.appendChild(retry);
+        append(f);
+      });
   }
 
-  /* ---- public API (lets existing "chat with us" buttons open Chioma) ---- */
+  /* ---- composer ---- */
+  function autoGrow() {
+    input.style.height = 'auto';
+    var h = Math.min(input.scrollHeight, 120);
+    input.style.height = h + 'px';
+    // Only let it scroll once it has actually hit the ceiling: a permanent
+    // scrollbar in a one-line composer reads as a rendering fault.
+    input.style.overflowY = input.scrollHeight > 120 ? 'auto' : 'hidden';
+  }
+  autoGrow();
+  input.addEventListener('input', autoGrow);
+  input.addEventListener('keydown', function (e) {
+    // Enter sends, Shift+Enter is a newline — the convention everywhere else.
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input.value); }
+  });
+  root.querySelector('#chForm').addEventListener('submit', function (e) { e.preventDefault(); sendMessage(input.value); });
+
+  /* ---- events ---- */
+  fab.addEventListener('click', function () { setOpen(!open); });
+  root.querySelector('#chClose').addEventListener('click', function () { setOpen(false); });
+  scrim.addEventListener('click', function () { setOpen(false); });
+  root.querySelector('#chReset').addEventListener('click', function () {
+    history = []; saveHistory(); renderHistory(); input.focus();
+  });
+  jump.addEventListener('click', toBottom);
+  body.addEventListener('scroll', function () { jump.classList.toggle('show', !atBottom()); });
+  greet.querySelector('.ch-greet-x').addEventListener('click', function (e) { e.stopPropagation(); hideGreet(); muteBubbles(); });
+  greet.addEventListener('click', function () { setOpen(true); });
+  // The email channel opens the contact page, unless Chioma can draft it here.
+  root.querySelector('[data-ch-reach="email"]').addEventListener('click', function (e) {
+    e.preventDefault();
+    sendMessage('I’d like to send a message to the team.');
+  });
+
+  document.addEventListener('click', function (e) {
+    if (greet.classList.contains('show') && !root.contains(e.target)) hideGreet();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (open) setOpen(false);
+    else if (greet.classList.contains('show')) { hideGreet(); muteBubbles(); }
+  });
+  // Keep focus inside the sheet while it covers the page.
+  panel.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab' || !open || !isSheet()) return;
+    var f = panel.querySelectorAll('a[href],button:not(:disabled),textarea,input,select');
+    var list = [].filter.call(f, function (n) { return n.getClientRects().length; });
+    if (!list.length) return;
+    var first = list[0], last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewport);
+    window.visualViewport.addEventListener('scroll', syncViewport);
+  }
+  window.addEventListener('resize', syncViewport);
+
+  /* ---- public API ---- */
   window.chioma = {
     open: function (msg) { setOpen(true); if (msg) setTimeout(function () { sendMessage(msg); }, 200); },
     close: function () { setOpen(false); },
     toggle: function () { setOpen(!open); },
-    // Programmatic ask — no UI. Resolves to Chioma's reply text. Lets your own
-    // AI agent / scripts converse with Chioma in the browser.
-    //   chioma.ask('How do I donate?').then(function (reply) { ... });
     ask: function (text, opts) {
       opts = opts || {};
       return fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
@@ -181,25 +542,19 @@
         .then(function (d) { if (!d || d.reply == null) throw new Error((d && d.error) || 'Chioma had trouble.'); return d.reply; });
     }
   };
-  // Back-compat shim for the old Botpress hooks that pages may still call.
   if (!window.botpress) window.botpress = { open: function () { setOpen(true); }, close: function () { setOpen(false); }, sendEvent: function () {} };
 
-  /* ---- contextual "thought" bubble engine ----
-     Surfaces a short, page-aware nudge near the FAB. Tasteful, not naggy:
-     shows at most a couple of times per session, never after the chat is
-     opened or a bubble is dismissed, and auto-hides after ~8s. */
-  var BUBBLE_CAP = 2, bubbleTimer = null, hideTimer = null;
+  /* ---- the nudge, at most twice a session ---- */
+  var CAP = 2, bubbleTimer = null, hideTimer = null;
   function ss(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
   function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
-  // Honour the site's onboarding/greeting suppression flags (used in tests too).
   function muted() { return ss('chioma.muted') === '1'; }
   function muteBubbles() {
     ssSet('chioma.muted', '1'); ssSet('chioma.greeted', '1');
     if (bubbleTimer) { clearTimeout(bubbleTimer); bubbleTimer = null; }
     if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
   }
-  function bubbleCount() { return parseInt(ss('chioma.bubbles') || '0', 10) || 0; }
-
+  function count() { return parseInt(ss('chioma.bubbles') || '0', 10) || 0; }
   var rk = routeKey();
   function nextPhrase() {
     var list = BUBBLES[rk] || BUBBLES.default;
@@ -207,51 +562,29 @@
     ssSet('chioma.phrase', String(i + 1));
     return list[i];
   }
-  function showBubble(html) {
-    if (open || muted() || bubbleCount() >= BUBBLE_CAP) return;
-    greetText.innerHTML = html;
-    greet.classList.add('show'); fab.classList.add('ch-nudge');
-    setTimeout(function () { fab.classList.remove('ch-nudge'); }, 1400);
-    ssSet('chioma.bubbles', String(bubbleCount() + 1));
+  function showBubble(text) {
+    if (open || muted() || count() >= CAP) return;
+    greetText.textContent = text;
+    greet.classList.add('show');
+    ssSet('chioma.bubbles', String(count() + 1));
     if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = setTimeout(hideGreet, 8000);
-    scheduleBubble(38000);  // maybe one more later, if still allowed
+    hideTimer = setTimeout(hideGreet, 9000);
+    schedule(40000);
   }
-  function scheduleBubble(delay) {
+  function schedule(delay) {
     if (bubbleTimer) clearTimeout(bubbleTimer);
-    if (muted() || bubbleCount() >= BUBBLE_CAP) return;
-    bubbleTimer = setTimeout(function () { if (!open && !muted()) showBubble(esc(nextPhrase())); }, delay);
+    if (muted() || count() >= CAP) return;
+    bubbleTimer = setTimeout(function () { if (!open && !muted()) showBubble(nextPhrase()); }, delay);
   }
-
-  /* ---- events ---- */
-  fab.addEventListener('click', function () { setOpen(!open); });
-  root.querySelector('.ch-x').addEventListener('click', function () { setOpen(false); });
-  root.querySelector('#chForm').addEventListener('submit', function (e) { e.preventDefault(); sendMessage(input.value); });
-  greet.querySelector('.ch-greet-x').addEventListener('click', function (e) { e.stopPropagation(); hideGreet(); muteBubbles(); });
-  greet.addEventListener('click', function () { setOpen(true); });
-  // Click-away dismiss (don't nag): a tap anywhere else retires the bubble.
-  document.addEventListener('click', function (e) {
-    if (greet.classList.contains('show') && !root.contains(e.target)) { hideGreet(); }
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape') return;
-    if (open) setOpen(false);
-    else if (greet.classList.contains('show')) { hideGreet(); muteBubbles(); }
-  });
-
-  /* ---- first nudge shortly after load (once per session, if not opened) ----
-     The opening "Hi, I'm Chioma…" greeting is already in the bubble; the first
-     timer reveals it, then schedules at most one later, page-aware follow-up. */
   if (!greeted && !muted()) {
     bubbleTimer = setTimeout(function () {
       bubbleTimer = null;
-      if (open || muted() || bubbleCount() >= BUBBLE_CAP) return;
-      greet.classList.add('show'); fab.classList.add('ch-nudge');
-      setTimeout(function () { fab.classList.remove('ch-nudge'); }, 1400);
-      ssSet('chioma.bubbles', String(bubbleCount() + 1)); ssSet('chioma.greeted', '1');
+      if (open || muted() || count() >= CAP) return;
+      greet.classList.add('show');
+      ssSet('chioma.bubbles', String(count() + 1)); ssSet('chioma.greeted', '1');
       if (hideTimer) clearTimeout(hideTimer);
-      hideTimer = setTimeout(hideGreet, 8000);
-      scheduleBubble(40000);  // a later, page-aware follow-up (if still allowed)
+      hideTimer = setTimeout(hideGreet, 9000);
+      schedule(42000);
     }, 5500);
   }
 })();

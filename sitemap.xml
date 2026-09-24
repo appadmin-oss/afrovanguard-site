@@ -23,10 +23,15 @@
     <priority>0.9</priority>
   </url>
   <url>
+    <loc>https://afrovanguard.org.ng/academy/ngv/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>https://afrovanguard.org.ng/academy/dns/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/academy/dns/og.png</image:loc><image:title>D&apos;Vanguard National Summit DNS &apos;26</image:title></image:image>
+    <image:image><image:loc>https://afrovanguard.org.ng/academy/dns/og.png</image:loc><image:title>D&#039;Vanguard National Summit DNS &#039;26</image:title></image:image>
   </url>
   <url>
     <loc>https://afrovanguard.org.ng/diary/</loc>
@@ -58,18 +63,6 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <image:image><image:loc>https://afrovanguard.org.ng/academy/og/techome.png</image:loc><image:title>Techome</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/academy/leadership-on-a-light-cover/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/academy/og/leadership-on-a-light-cover.png</image:loc><image:title>Leadership on a Light Cover</image:title></image:image>
-  </url>
-  <url>
-    <loc>https://afrovanguard.org.ng/academy/strategy-on-a-dark-cover/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-    <image:image><image:loc>https://afrovanguard.org.ng/academy/og/strategy-on-a-dark-cover.png</image:loc><image:title>Strategy on a Dark Cover</image:title></image:image>
   </url>
   <url>
     <loc>https://afrovanguard.org.ng/academy/mediapro/</loc>
