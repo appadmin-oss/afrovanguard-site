@@ -50,13 +50,7 @@
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     reset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
     send:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
-    down:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
-    mail:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>',
-    chat:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4.1-.9L3 20.5l1.6-4.4A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z"/></svg>',
-    call:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>',
-    gift:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>',
-    form:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg>',
-    tick:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+    down:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
   };
 
   function markHTML(cls) {
@@ -127,24 +121,25 @@
       '<div class="ch-head">' +
         '<span class="ch-ava">' + markHTML('') + '</span>' +
         '<div class="ch-head-txt"><div class="ch-name" id="chName">Chioma</div>' +
-          '<div class="ch-status" id="chStatus"><span class="ch-status-dot"></span><span id="chStatusT">Afrovanguard guide</span></div></div>' +
+          '<div class="ch-status" id="chStatusT">Afrovanguard guide</div></div>' +
         '<button class="ch-head-btn" id="chReset" type="button" aria-label="Start a new conversation" title="New conversation">' + ICON.reset + '</button>' +
         '<button class="ch-head-btn" id="chClose" type="button" aria-label="Close chat">' + ICON.close + '</button>' +
       '</div>' +
       '<div class="ch-body" id="chBody" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation with Chioma"></div>' +
       '<button class="ch-jump" id="chJump" type="button">' + ICON.down + ' Latest</button>' +
       '<div class="ch-chips" id="chChips"></div>' +
-      '<div class="ch-reach">' +
-        '<a href="/contact.html" data-ch-reach="email">' + ICON.mail + 'Email</a>' +
-        '<a href="https://wa.me/2349037776318" target="_blank" rel="noopener noreferrer">' + ICON.chat + 'WhatsApp</a>' +
-        '<a href="tel:+2349037776318">' + ICON.call + 'Call</a>' +
-        '<a href="/donate.html">' + ICON.gift + 'Donate</a>' +
-      '</div>' +
+
       '<form class="ch-foot" id="chForm">' +
         '<textarea id="chInput" rows="1" placeholder="Ask Chioma anything…" aria-label="Message Chioma" maxlength="1500"></textarea>' +
         '<button class="ch-send" id="chSend" type="submit" aria-label="Send message">' + ICON.send + '</button>' +
       '</form>' +
-      '<div class="ch-disclaimer">Chioma is an AI guide. She can search this site and the web — check anything important.</div>' +
+      '<div class="ch-tail">' +
+        '<a href="/contact.html" data-ch-reach="email">Email</a>' +
+        '<a href="https://wa.me/2349037776318" target="_blank" rel="noopener noreferrer">WhatsApp</a>' +
+        '<a href="tel:+2349037776318">Call</a>' +
+        '<a href="/donate.html">Donate</a>' +
+        '<span class="ch-tail-note">Chioma is an AI guide — check anything important.</span>' +
+      '</div>' +
     '</div>' +
     '<div class="chioma-greet" id="chGreet" role="status">' +
       '<button class="ch-greet-x" type="button" aria-label="Dismiss">' + ICON.close + '</button>' +
@@ -158,7 +153,7 @@
       input = root.querySelector('#chInput'), sendBtn = root.querySelector('#chSend'),
       chips = root.querySelector('#chChips'), greet = root.querySelector('#chGreet'),
       greetText = greet.querySelector('.ch-greet-text'), fab = root.querySelector('#chFab'),
-      statusT = root.querySelector('#chStatusT'), statusEl = root.querySelector('#chStatus'),
+      statusT = root.querySelector('#chStatusT'),
       jump = root.querySelector('#chJump'), scrim = root.querySelector('#chScrim');
 
   function esc(s) {
@@ -193,19 +188,19 @@
   /* What she is doing, named while she does it. The steps are a plausible
      sequence rather than a live feed — the endpoint answers once, at the end
      — so they are phrased as what she is doing, never as a count of results. */
-  var WORK = ['Searching the site…', 'Reading the page…', 'Checking the web…', 'Writing your answer…'];
+  var WORK = ['Searching the site', 'Reading the page', 'Checking the web', 'Writing your answer'];
   function working(on) {
     var ex = body.querySelector('.ch-work');
     if (!on) {
       if (ex) ex.remove();
       if (workTimer) { clearInterval(workTimer); workTimer = null; }
-      statusEl.removeAttribute('data-busy'); statusT.textContent = 'Afrovanguard guide';
+      statusT.textContent = 'Afrovanguard guide';
       return;
     }
     if (ex) return;
     var i = 0;
-    var node = append(el('div', 'ch-work', '<span class="ch-spin"></span><span class="ch-work-t">' + WORK[0] + '</span>'));
-    statusEl.setAttribute('data-busy', '1'); statusT.textContent = 'Working';
+    var node = append(el('div', 'ch-work', '<span class="ch-work-t">' + WORK[0] + '</span>'));
+    statusT.textContent = 'Working';
     workTimer = setInterval(function () {
       i = Math.min(i + 1, WORK.length - 1);
       var t = node.querySelector('.ch-work-t');
@@ -217,13 +212,13 @@
   function addSources(list) {
     if (!list || !list.length) return;
     var wrap = el('div', 'ch-src');
-    wrap.appendChild(el('div', 'ch-src-h', list.length === 1 ? 'Source' : 'Sources'));
-    list.slice(0, 5).forEach(function (s) {
+    wrap.appendChild(el('span', 'ch-src-h', list.length === 1 ? 'Source' : 'Sources'));
+    list.slice(0, 5).forEach(function (s, i) {
       var a = document.createElement('a');
       a.className = 'ch-src-a';
       a.href = s.url;
       if (s.kind === 'web') { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-      a.innerHTML = '<span class="ch-src-k">' + esc(s.kind === 'web' ? 'Web' : 'Site') + '</span>' +
+      a.innerHTML = '<span class="ch-src-n">' + (i + 1) + '</span>' +
                     '<span class="ch-src-t">' + esc(s.title) + '</span>';
       wrap.appendChild(a);
     });
@@ -253,7 +248,7 @@
     if (!a || !a.kind) return;
     var uid = 'cha' + Math.random().toString(36).slice(2, 8);
     var card = el('div', 'ch-act');
-    card.appendChild(el('div', 'ch-act-h', ICON.form + '<span>' + esc(a.label || 'Send') + '</span>'));
+    card.appendChild(el('div', 'ch-act-h', esc(a.label || 'Send')));
     var b = el('div', 'ch-act-b');
     var f = a.fields || {};
     var inputs = {};
@@ -270,10 +265,9 @@
       var em = field(uid + 'e', 'Your email', f.email, 'email', true); b.appendChild(em); inputs.email = em.querySelector('input');
       var ms = field(uid + 'm', 'Message', f.message, 'textarea', true); b.appendChild(ms); inputs.message = ms.querySelector('textarea');
 
-      var cs = el('div', 'ch-f');
-      cs.innerHTML = '<label style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;' +
-        'font-family:var(--ch-fb);font-size:12.5px;color:var(--ch-ink-2);cursor:pointer;min-height:44px;padding:4px 0">' +
-        '<input type="checkbox" id="' + uid + 'c" style="width:18px;height:18px;min-height:18px;flex:0 0 18px;margin-top:1px">' +
+      var cs = el('div');
+      cs.innerHTML = '<label class="ch-consent" for="' + uid + 'c">' +
+        '<input type="checkbox" id="' + uid + 'c">' +
         '<span>I agree to Afrovanguard storing this message so the team can reply.</span></label>';
       b.appendChild(cs); inputs.consent = cs.querySelector('input');
     } else {
@@ -291,7 +285,7 @@
     foot.appendChild(go); foot.appendChild(no); b.appendChild(foot);
     b.appendChild(el('div', 'ch-act-note', 'Chioma filled this in — check it before sending. Nothing goes until you press the button.'));
     card.appendChild(b);
-    card.appendChild(el('div', 'ch-act-done', ICON.tick + '<span class="ch-done-t">Sent.</span>'));
+    card.appendChild(el('div', 'ch-act-done', '<span class="ch-done-t">Sent.</span>'));
 
     function fail(msg, focusEl) {
       err.textContent = msg; err.style.display = '';
@@ -373,8 +367,8 @@
     body.innerHTML = '';
     if (!history.length) {
       append(el('div', 'ch-msg bot',
-        '<p>Hi, I’m Chioma — your guide to Afrovanguard.</p>' +
-        '<p>I can search the site and the web, read a page for you, and fill in a form so you can reach the team without leaving this chat.</p>'));
+        '<p>Hi, I’m Chioma.</p>' +
+        '<p>I can search this site and the web, read a page for you, or fill in a form so you can reach the team without leaving the chat.</p>'));
       renderChips(true);
     } else {
       history.forEach(function (h) {
