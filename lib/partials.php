@@ -216,7 +216,7 @@ function av_nav_model(): array {
                 ]],
                 ['title' => 'Get started', 'links' => [
                     ['Create an account', '/login'], ['Member portal', '/portal/'],
-                    ['Mentorship', '/mentorship/become-a-mentor/'],
+                    ['Become a mentor', '/mentorship/become-a-mentor/'],
                     ['IQ — Quizzes & games', '/IQ/'],
                 ]],
             ],

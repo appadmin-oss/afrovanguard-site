@@ -366,6 +366,8 @@ require_once __DIR__ . '/ErrorPoem.php';
 require_once __DIR__ . '/SiteSearch.php';
 require_once __DIR__ . '/ChiomaTools.php';
 require_once __DIR__ . '/ChiomaMarkdown.php';
+// Keeps the static pages' navigation in step with av_nav_model().
+require_once __DIR__ . '/NavSync.php';
 
 av_harden_errors();
 
