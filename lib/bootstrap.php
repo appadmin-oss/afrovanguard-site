@@ -10,6 +10,11 @@ declare(strict_types=1);
 
 if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));
 
+// Composer's autoloader, once and early — PHPMailer for mail, CommonMark for
+// Chioma's replies. Guarded: this tree is deployed by git, and a vendor/ that
+// was never installed must degrade to the no-library paths, not fatal here.
+if (is_file(AV_ROOT . '/vendor/autoload.php')) require_once AV_ROOT . '/vendor/autoload.php';
+
 // ── .env loader ─────────────────────────────────────────────────────────────
 // Shared cPanel hosting has no Composer/dotenv, and a `.env` file is otherwise
 // just inert text — PHP never reads it, so every getenv() below returns false
@@ -357,6 +362,10 @@ require_once __DIR__ . '/AiKnowledge.php';
 require_once __DIR__ . '/Levels.php';
 require_once __DIR__ . '/IQ.php';
 require_once __DIR__ . '/ErrorPoem.php';
+// The public site index, shared by search.php and Chioma's site_search tool.
+require_once __DIR__ . '/SiteSearch.php';
+require_once __DIR__ . '/ChiomaTools.php';
+require_once __DIR__ . '/ChiomaMarkdown.php';
 
 av_harden_errors();
 
