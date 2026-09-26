@@ -165,7 +165,12 @@ $nav['You'] = [
           <div class="pnav-title">More</div>
           <a class="pnav-link" href="/academy/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Academy</span><span class="pnav-ext">↗</span></a>
           <a class="pnav-link" href="<?= e(rtrim(SITE_URL, '/')) ?>/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Main site</span><span class="pnav-ext">↗</span></a>
-        </div>
+<?php /* Shown to org members when the bridge is configured. This is a filter,
+         not the gate: CACENTRE decides who may actually use the CRM, against
+         its own grants, on every arrival. Showing it to every learner would
+         just send most of them to a polite refusal. */ ?>
+<?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="/portal/crm.php"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CRM</span><span class="pnav-ext">↗</span></a>
+<?php endif; ?>        </div>
       </nav>
 
       <div class="pside-user">

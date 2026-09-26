@@ -288,6 +288,9 @@ require_once __DIR__ . '/Summit.php';       // D'Vanguard National Summit seat r
 require_once __DIR__ . '/AuthPolicy.php';
 require_once __DIR__ . '/Otp.php';
 require_once __DIR__ . '/LmsAuth.php';
+/* Handing a signed-in member across to the CACENTRE CRM. Loaded here beside
+   LmsAuth because the portal needs it to decide whether to show the link. */
+require_once __DIR__ . '/CacSso.php';
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/Payments.php';
