@@ -1,0 +1,292 @@
+/* ============================================================================
+ * give/give.css — appeal pages, the index, the embed and the poster.
+ * ----------------------------------------------------------------------------
+ * DIRECTION: editorial fundraising. The FIGURE is the hero and the NEED is the
+ * ask. Gold is spent only on progress and on the thing we want pressed — a page
+ * where everything is gold has no accent, and the meter stops reading as a
+ * meter. Hairline borders, no nested cards, no gradient fills, no glow.
+ *
+ * Built entirely on the --afg-* tokens in assets/site/tokens.css, which is
+ * loaded first by render_head(). Nothing here defines a colour of its own, so
+ * both themes and any Studio brand override follow automatically.
+ *
+ * CONTRAST, per the token file's own rules: --afg-gold is a FILL. Gold text on
+ * light uses --afg-gold-deep at >=24px (or >=18.66px bold) and --afg-gold-ink
+ * for anything smaller. The 11px uppercase eyebrows below are the small case,
+ * so they take --afg-gold-ink.
+ * ==========================================================================*/
+
+.give-wrap { max-width: 1180px; margin: 0 auto; padding: 0 var(--afg-space-5); }
+
+/* ── page header ─────────────────────────────────────────────────────────── */
+.give-eyebrow {
+  font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+  font-weight: 700; color: var(--afg-gold-ink); margin: 0 0 var(--afg-space-3);
+}
+.give-h1 {
+  font-family: var(--afg-font-display); font-weight: 600;
+  font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.06;
+  letter-spacing: -.015em; color: var(--afg-ink); margin: 0 0 var(--afg-space-4);
+}
+.give-lede {
+  font-size: var(--afg-text-lg); line-height: 1.62; color: var(--afg-body);
+  max-width: 62ch; margin: 0 0 var(--afg-space-6);
+}
+
+/* ── the summary strip on the index ──────────────────────────────────────── */
+.give-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--afg-border); border: 1px solid var(--afg-border);
+  border-radius: var(--afg-radius-md); overflow: hidden; margin-bottom: var(--afg-space-7);
+}
+.give-strip > div { background: var(--afg-surface); padding: var(--afg-space-5); }
+.give-strip .k {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--afg-muted); font-weight: 700; margin-bottom: var(--afg-space-2);
+}
+.give-strip .v {
+  font-family: var(--afg-font-display); font-size: var(--afg-text-2xl);
+  font-weight: 600; color: var(--afg-ink); line-height: 1;
+  /* Tabular figures so a column of naira totals lines up on the comma. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── appeal cards ────────────────────────────────────────────────────────── */
+.give-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--afg-space-5);
+}
+.give-card {
+  display: flex; flex-direction: column; background: var(--afg-surface);
+  border: 1px solid var(--afg-border); border-radius: var(--afg-radius-md);
+  overflow: hidden; text-decoration: none; color: inherit;
+  transition: border-color .18s ease, transform .18s ease;
+}
+.give-card:hover { border-color: var(--afg-border-strong); transform: translateY(-2px); }
+.give-card:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 3px; }
+.give-card-img {
+  aspect-ratio: 16 / 9; background: var(--afg-surface-2); object-fit: cover;
+  width: 100%; display: block; border-bottom: 1px solid var(--afg-border);
+}
+.give-card-body { padding: var(--afg-space-5); display: flex; flex-direction: column; gap: var(--afg-space-3); flex: 1; }
+.give-card-title {
+  font-family: var(--afg-font-display); font-size: var(--afg-text-xl);
+  font-weight: 600; line-height: 1.22; color: var(--afg-ink); margin: 0;
+}
+.give-card-tag { font-size: var(--afg-text-sm); color: var(--afg-muted); line-height: 1.5; margin: 0; }
+.give-card .give-meter { margin-top: auto; }
+
+/* ── the meter ───────────────────────────────────────────────────────────── */
+/* Lives in assets/site/editorial.css now — the home-page band needs the same
+   bar and does not load this file. These aliases keep the older `.give-*`
+   names working for anything still using them, without a second definition of
+   what the bar looks like. */
+.give-meter { display: flex; flex-direction: column; gap: var(--afg-space-2); }
+.give-card .give-meter { margin-top: auto; }
+
+/* ── badges ──────────────────────────────────────────────────────────────── */
+.give-badges { display: flex; flex-wrap: wrap; gap: var(--afg-space-2); }
+.give-badge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px;
+  border-radius: var(--afg-radius-pill); border: 1px solid var(--afg-border);
+  color: var(--afg-muted); background: var(--afg-surface-2); white-space: nowrap;
+}
+.give-badge.is-urgent { color: var(--afg-danger); border-color: var(--afg-danger); background: var(--afg-danger-soft); }
+.give-badge.is-match  { color: var(--afg-gold-ink); border-color: var(--afg-gold-deep); background: var(--afg-gold-soft); }
+.give-badge.is-met    { color: var(--afg-success); border-color: var(--afg-success); background: var(--afg-success-soft); }
+.give-badge.is-closed { opacity: .75; }
+
+/* ── the appeal page ─────────────────────────────────────────────────────── */
+.give-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 372px;
+  gap: var(--afg-space-7); align-items: start;
+}
+@media (max-width: 960px) { .give-layout { grid-template-columns: 1fr; gap: var(--afg-space-6); } }
+
+.give-hero-img {
+  width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
+  border-radius: var(--afg-radius-md); border: 1px solid var(--afg-border);
+  background: var(--afg-surface-2); margin-bottom: var(--afg-space-5);
+}
+.give-video { position: relative; aspect-ratio: 16 / 9; margin-bottom: var(--afg-space-5); }
+.give-video iframe {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+  border-radius: var(--afg-radius-md);
+}
+
+/* The give panel. Sticky on desktop so the ask never scrolls away. */
+.give-panel {
+  position: sticky; top: var(--afg-space-5); background: var(--afg-surface);
+  border: 1px solid var(--afg-border); border-radius: var(--afg-radius-md);
+  padding: var(--afg-space-5); display: flex; flex-direction: column; gap: var(--afg-space-4);
+}
+@media (max-width: 960px) { .give-panel { position: static; } }
+
+.give-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 22px; border-radius: var(--afg-radius-pill); font-weight: 700;
+  font-size: var(--afg-text-md); text-decoration: none; cursor: pointer;
+  border: 1px solid transparent; transition: filter .16s ease, border-color .16s ease;
+  font-family: inherit; line-height: 1.2;
+}
+.give-btn-primary { background: var(--afg-gold); color: var(--afg-black); }
+.give-btn-primary:hover { filter: brightness(1.06); }
+.give-btn-ghost { background: transparent; color: var(--afg-ink); border-color: var(--afg-border-strong); }
+.give-btn-ghost:hover { border-color: var(--afg-ink); }
+.give-btn:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 3px; }
+.give-btn[disabled], .give-btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; filter: none; }
+.give-btn-block { width: 100%; }
+
+/* ── needs: the concrete ask ─────────────────────────────────────────────── */
+.give-needs { display: flex; flex-direction: column; gap: var(--afg-space-3); }
+.give-need {
+  border: 1px solid var(--afg-border); border-left: 3px solid var(--afg-gold);
+  border-radius: var(--afg-radius-sm); padding: var(--afg-space-4);
+  background: var(--afg-surface);
+}
+.give-need.is-met { border-left-color: var(--afg-success); }
+.give-need-when {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 700; color: var(--afg-gold-ink); margin-bottom: 6px;
+}
+.give-need.is-met .give-need-when { color: var(--afg-success); }
+.give-need-title { font-weight: 700; color: var(--afg-ink); margin: 0 0 4px; font-size: var(--afg-text-md); }
+.give-need-figure {
+  font-family: var(--afg-font-display); font-size: var(--afg-text-xl); font-weight: 600;
+  color: var(--afg-ink); font-variant-numeric: tabular-nums;
+}
+.give-need-unit { font-size: var(--afg-text-sm); color: var(--afg-muted); }
+.give-need-detail { font-size: var(--afg-text-sm); color: var(--afg-body); line-height: 1.55; margin: 6px 0 0; }
+
+/* ── tiers ───────────────────────────────────────────────────────────────── */
+.give-tiers { display: grid; gap: var(--afg-space-3); }
+.give-tier {
+  display: flex; gap: var(--afg-space-4); align-items: flex-start; width: 100%;
+  text-align: left; padding: var(--afg-space-4); cursor: pointer;
+  border: 1px solid var(--afg-border); border-radius: var(--afg-radius-sm);
+  background: var(--afg-surface); font-family: inherit;
+  transition: border-color .16s ease, background .16s ease;
+}
+.give-tier:hover { border-color: var(--afg-gold-deep); background: var(--afg-gold-soft); }
+.give-tier:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 2px; }
+.give-tier-amt {
+  font-family: var(--afg-font-display); font-size: var(--afg-text-lg); font-weight: 700;
+  color: var(--afg-ink); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.give-tier-impact { font-size: var(--afg-text-sm); color: var(--afg-body); line-height: 1.5; }
+
+/* ── story prose ─────────────────────────────────────────────────────────── */
+.give-prose { font-size: var(--afg-text-md); line-height: 1.75; color: var(--afg-body); max-width: 68ch; }
+.give-prose h2 {
+  font-family: var(--afg-font-display); font-size: var(--afg-text-2xl); font-weight: 600;
+  color: var(--afg-ink); margin: var(--afg-space-7) 0 var(--afg-space-3); line-height: 1.2;
+}
+.give-prose h3 { font-size: var(--afg-text-lg); font-weight: 700; color: var(--afg-ink); margin: var(--afg-space-6) 0 var(--afg-space-2); }
+.give-prose p { margin: 0 0 var(--afg-space-4); }
+.give-prose ul, .give-prose ol { margin: 0 0 var(--afg-space-4); padding-left: 1.3em; }
+.give-prose li { margin-bottom: var(--afg-space-2); }
+.give-prose a { color: var(--afg-gold-ink); text-underline-offset: 3px; }
+.give-prose img { max-width: 100%; height: auto; border-radius: var(--afg-radius-sm); }
+.give-prose blockquote {
+  margin: var(--afg-space-5) 0; padding-left: var(--afg-space-4);
+  border-left: 3px solid var(--afg-gold); color: var(--afg-ink); font-style: italic;
+}
+
+/* ── sections ────────────────────────────────────────────────────────────── */
+.give-section { margin-top: var(--afg-space-8); }
+.give-section-h {
+  font-family: var(--afg-font-display); font-size: var(--afg-text-2xl); font-weight: 600;
+  color: var(--afg-ink); margin: 0 0 var(--afg-space-4); line-height: 1.2;
+}
+
+/* ── updates timeline ────────────────────────────────────────────────────── */
+.give-updates { display: flex; flex-direction: column; gap: var(--afg-space-5); }
+.give-update {
+  padding-left: var(--afg-space-5); border-left: 2px solid var(--afg-border); position: relative;
+}
+.give-update::before {
+  content: ""; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--afg-gold); border: 2px solid var(--afg-surface);
+}
+.give-update.is-spend::before { background: var(--afg-info); }
+.give-update.is-milestone::before { background: var(--afg-success); }
+.give-update-when { font-size: var(--afg-text-xs); color: var(--afg-muted); margin-bottom: 4px; }
+.give-update-title { font-weight: 700; color: var(--afg-ink); margin: 0 0 var(--afg-space-2); font-size: var(--afg-text-lg); }
+
+/* ── donor wall ──────────────────────────────────────────────────────────── */
+.give-donors { display: flex; flex-direction: column; gap: var(--afg-space-3); }
+.give-donor { display: flex; align-items: baseline; justify-content: space-between; gap: var(--afg-space-3); padding-bottom: var(--afg-space-3); border-bottom: 1px solid var(--afg-border); }
+.give-donor:last-child { border-bottom: 0; }
+.give-donor-name { font-weight: 600; color: var(--afg-ink); font-size: var(--afg-text-sm); }
+.give-donor-amt { font-weight: 700; color: var(--afg-gold-ink); font-size: var(--afg-text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.give-donor-note { font-size: var(--afg-text-sm); color: var(--afg-muted); font-style: italic; margin-top: 2px; }
+
+/* ── share ───────────────────────────────────────────────────────────────── */
+.give-share { display: flex; flex-wrap: wrap; gap: var(--afg-space-2); }
+.give-share a, .give-share button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px;
+  border: 1px solid var(--afg-border-strong); border-radius: var(--afg-radius-pill);
+  background: var(--afg-surface); color: var(--afg-ink); text-decoration: none;
+  font-size: var(--afg-text-sm); font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: border-color .16s ease, background .16s ease;
+}
+.give-share a:hover, .give-share button:hover { border-color: var(--afg-ink); background: var(--afg-surface-2); }
+.give-share a:focus-visible, .give-share button:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 2px; }
+.give-share svg { width: 16px; height: 16px; flex: none; }
+
+.give-qr { display: flex; align-items: center; gap: var(--afg-space-4); }
+.give-qr svg { width: 108px; height: 108px; flex: none; background: #fff; padding: 6px; border-radius: var(--afg-radius-sm); border: 1px solid var(--afg-border); }
+.give-qr .qr-dark, .give-qr path { fill: #000; }
+
+/* ── empty + error states ────────────────────────────────────────────────── */
+.give-empty {
+  text-align: center; padding: var(--afg-space-8) var(--afg-space-5);
+  border: 1px dashed var(--afg-border-strong); border-radius: var(--afg-radius-md);
+  color: var(--afg-muted);
+}
+.give-empty h2 { font-family: var(--afg-font-display); font-size: var(--afg-text-xl); color: var(--afg-ink); margin: 0 0 var(--afg-space-2); }
+.give-note {
+  font-size: var(--afg-text-sm); color: var(--afg-body); background: var(--afg-surface-2);
+  border: 1px solid var(--afg-border); border-radius: var(--afg-radius-sm);
+  padding: var(--afg-space-3) var(--afg-space-4); line-height: 1.55;
+}
+.give-note.is-warn { background: var(--afg-warning-soft); border-color: var(--afg-gold-deep); }
+
+/* ── the mobile give bar ─────────────────────────────────────────────────── */
+.give-sticky {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: none;
+  padding: var(--afg-space-3) var(--afg-space-4);
+  /* Clear the Chioma launcher. It is 56px, pinned bottom-right at 16px, and
+     carries a z-index in the billions — so it floats OVER this bar and was
+     sitting squarely on top of the Give button, which is the one control the
+     whole page exists to offer. Reserving its column is the honest fix: raising
+     our own z-index would just put the collision the other way round. */
+  padding-right: calc(56px + 16px + var(--afg-space-3) + env(safe-area-inset-right, 0px));
+  padding-bottom: calc(var(--afg-space-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--afg-surface); border-top: 1px solid var(--afg-border);
+  box-shadow: var(--afg-shadow-lg); gap: var(--afg-space-3); align-items: center;
+}
+@media (max-width: 960px) { .give-sticky { display: flex; } body.has-give-bar { padding-bottom: 96px; } }
+.give-sticky .s-fig { flex: 1; min-width: 0; }
+.give-sticky .s-raised { font-weight: 700; color: var(--afg-ink); font-size: var(--afg-text-sm); font-variant-numeric: tabular-nums; }
+.give-sticky .s-goal { font-size: var(--afg-text-xs); color: var(--afg-muted); }
+
+/* ── screen-reader-only, for the live region and skip text ───────────────── */
+.give-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Honour a reduced-motion preference: the meter animation is decorative. */
+@media (prefers-reduced-motion: reduce) {
+  .give-card, .give-btn, .give-tier { transition: none; }   /* the bar itself is handled in editorial.css */
+}
+
+/* ── print: the poster ───────────────────────────────────────────────────── */
+@media print {
+  .give-sticky, .give-share, .give-panel .give-btn, nav, header, footer { display: none !important; }
+  .give-wrap { max-width: none; padding: 0; }
+  .give-card, .give-panel, .give-need { break-inside: avoid; }
+  a[href]::after { content: ""; }
+}

@@ -250,7 +250,7 @@ function av_nav_model(): array {
         'involved' => ['label' => 'Get involved', 'href' => '/donate.html', 'mega' => [
             'cols' => [
                 ['title' => 'Give', 'links' => [
-                    ['Donate', '/donate.html'], ['Fund a campaign', '/donate.html#campaigns'],
+                    ['Live appeals', '/give/'], ['Donate', '/donate.html'],
                     ['Become a member', '/academy/#membership'],
                 ]],
                 ['title' => 'Give your time & grow', 'links' => [
@@ -258,7 +258,7 @@ function av_nav_model(): array {
                     ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE', 'https://cacentre.afrovanguard.org.ng'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Stand with us', 'title' => 'Be part of the movement', 'text' => 'Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.', 'href' => '/donate.html', 'cta' => 'Donate now'],
+            'feature' => ['kicker' => 'Stand with us', 'title' => 'See exactly what we need', 'text' => 'Every live appeal says what it is for, how far along it is and what a given amount actually pays for.', 'href' => '/give/', 'cta' => 'See live appeals'],
         ]],
         'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [

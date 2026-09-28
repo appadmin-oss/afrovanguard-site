@@ -58,6 +58,13 @@ jobs:
         run: |
           set -e
           shopt -s nullglob
-          for f in portal/*.js assets/site/*.js academy/*.js; do
+          for f in portal/*.js assets/site/*.js academy/*.js give/*.js; do
             node --check "$f" && echo "ok: $f"
           done
+
+      # The big static pages carry their scripts inline, and nothing checked
+      # those. One stray brace in donate.html silently killed its entire
+      # donation flow — the markup still rendered, the buttons still appeared,
+      # and none of them did anything.
+      - name: Syntax-check inline <script> blocks
+        run: php bin/check-inline-js.php

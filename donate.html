@@ -3003,6 +3003,7 @@
   <link rel="stylesheet" href="/assets/site/tokens.css" />
   <link rel="stylesheet" href="/assets/site/nav.css" />
   <link rel="stylesheet" href="/assets/site/page.css" />
+  <link rel="stylesheet" href="/assets/site/editorial.css" />
 </head>
 <body>
 
@@ -3184,8 +3185,8 @@
                     <div class="mega-col">
                       <p class="mega-h">Give</p>
                       <ul role="list">
+                        <li><a href="/give/">Live appeals</a></li>
                         <li><a href="/donate.html">Donate</a></li>
-                        <li><a href="/donate.html#campaigns">Fund a campaign</a></li>
                         <li><a href="/academy/#membership">Become a member</a></li>
                       </ul>
                     </div>
@@ -3200,11 +3201,11 @@
                       </ul>
                     </div>
                   </div>
-                  <a class="mega-feature mega-feature--plain" href="/donate.html">
+                  <a class="mega-feature mega-feature--plain" href="/give/">
                     <span class="mf-kicker">Stand with us</span>
-                    <span class="mf-title">Be part of the movement</span>
-                    <span class="mf-text">Give, volunteer, mentor, franchise or partner — every hand helps raise a leader.</span>
-                    <span class="mf-cta">Donate now <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+                    <span class="mf-title">See exactly what we need</span>
+                    <span class="mf-text">Every live appeal says what it is for, how far along it is and what a given amount actually pays for.</span>
+                    <span class="mf-cta">See live appeals <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
                   </a>
                 </div>
               </div>
@@ -3330,8 +3331,8 @@
         <button class="avd-acc-btn" aria-expanded="false"><span>Get involved</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="avd-acc-panel">
           <a class="avd-sub avd-sub-lead" href="/donate.html">Get involved home</a>
+          <a class="avd-sub" href="/give/">Live appeals</a>
           <a class="avd-sub" href="/donate.html">Donate</a>
-          <a class="avd-sub" href="/donate.html#campaigns">Fund a campaign</a>
           <a class="avd-sub" href="/academy/#membership">Become a member</a>
           <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a>
           <a class="avd-sub" href="/mentorship/become-a-mentor/">Become a mentor</a>
@@ -4519,6 +4520,32 @@
 
         </div><!-- /#panel-material -->
       </div><!-- /.container -->
+    </section>
+
+    <!-- ========================================================
+         LIVE APPEALS  —  the specific, costed asks
+         --------------------------------------------------------
+         This page takes money for Afrovanguard in general. The appeals are
+         the opposite end of the same thing: one named ask, one figure, one
+         story. Same progressive band as the home page — it ships complete and
+         fills itself from /give/feed.json, so a failed fetch costs nothing.
+         ======================================================== -->
+    <section class="ed-band" id="live-appeals" aria-labelledby="donate-appeals-h" data-appeals-band>
+      <div class="ed-wrap">
+        <div class="ed-head">
+          <div>
+            <span class="ed-kicker">Give to something specific</span>
+            <h2 class="ed-h2" id="donate-appeals-h">Live appeals</h2>
+          </div>
+          <a class="ed-link ed-link--on-dark" href="/give/">See every live appeal</a>
+        </div>
+        <p class="ed-lede" data-appeals-fallback>
+          Prefer to fund one thing and watch it happen? Each appeal names what it is for, what it has
+          raised so far, and exactly what a given amount pays for — down to what today costs.
+        </p>
+        <div class="ed-stories" data-appeals-list hidden></div>
+        <div class="ed-needs-board" data-needs-list hidden style="margin-top:clamp(28px,4vw,48px)"></div>
+      </div>
     </section>
 
     <!-- ========================================================
@@ -6425,7 +6452,6 @@
       if (e) e.preventDefault();
       if (window.chioma && typeof window.chioma.open === 'function') window.chioma.open();
     }
-    }
      </script>
     <!-- Chioma — Afrovanguard's own context-aware AI guide (replaces Botpress) -->
     <script src="/assets/site/chioma.js" defer></script>
@@ -6644,5 +6670,6 @@
   <script src="/assets/site/chrome.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
+  <script src="/assets/site/appeals-band.js" defer></script>
 </body>
 </html>

@@ -25,6 +25,7 @@ final class Sitemap
         ['mentorship/become-a-mentor/', '0.7', 'monthly'],
         ['contact/', '0.5', 'yearly'],
         ['donate.html', '0.8', 'monthly'],
+        ['give/', '0.9', 'daily'],
     ];
 
     /**
@@ -147,6 +148,25 @@ final class Sitemap
             foreach ((new DiaryRepository())->all() as $a) {
                 $rows[] = ['loc' => "$S/diary/{$a['slug']}/", 'pri' => $a['featured'] ? '0.8' : '0.7',
                     'freq' => 'monthly', 'lastmod' => $a['published_at'], 'img' => "$S/diary/og/{$a['slug']}.png", 'title' => $a['title']];
+            }
+        } catch (Throwable $e) {}
+        /* Appeals. `daily` is honest rather than optimistic: the figures on an
+           appeal page move whenever somebody gives, and a crawler that re-reads
+           it is re-reading a number that has genuinely changed. Each carries its
+           generated share card, which is what turns a result into a tap. */
+        try {
+            if (class_exists('Appeals')) {
+                foreach (Appeals::published(200) as $a) {
+                    if ((string) $a['status'] === 'closed') continue;
+                    $rows[] = [
+                        'loc'  => "$S/give/{$a['slug']}/",
+                        'pri'  => !empty($a['urgent']) ? '0.9' : (!empty($a['featured']) ? '0.8' : '0.7'),
+                        'freq' => 'daily',
+                        'lastmod' => $a['updated_at'] ? gmdate('Y-m-d', (int) strtotime((string) $a['updated_at'])) : '',
+                        'img'  => "$S/give/og/{$a['slug']}.png",
+                        'title' => (string) $a['title'],
+                    ];
+                }
             }
         } catch (Throwable $e) {}
         try {

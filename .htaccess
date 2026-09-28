@@ -60,6 +60,18 @@ RewriteRule ^academy/([a-z0-9-]+)/learn/?$ academy/learn.php?course=$1 [L,QSA]
 RewriteRule ^academy/([a-z0-9-]+)/learn/([a-z0-9-]+)/?$ academy/learn.php?course=$1&lesson=$2 [L,QSA]
 RewriteRule ^academy/([a-z0-9-]+)/?$ academy/course.php?slug=$1 [L,QSA]
 
+# Give / appeals  (/give/ is a real dir → index.php served above)
+# The specific paths come first: the catch-all below matches a bare slug, and
+# would otherwise swallow /give/og/… and /give/<slug>/poster.
+RewriteRule ^give/og/([a-z0-9-]+)\.png$ give/og.php?slug=$1 [L,QSA]
+RewriteRule ^give/feed\.json$ give/feed.php?format=json [L,QSA]
+RewriteRule ^give/feed\.xml$ give/feed.php?format=rss [L,QSA]
+RewriteRule ^give/manage/?$ give/manage.php [L,QSA]
+RewriteRule ^give/share/?$ give/share.php [L,QSA]
+RewriteRule ^give/([a-z0-9-]+)/poster/?$ give/poster.php?slug=$1 [L,QSA]
+RewriteRule ^give/([a-z0-9-]+)/embed/?$ give/embed.php?slug=$1 [L,QSA]
+RewriteRule ^give/([a-z0-9-]+)/?$ give/appeal.php?slug=$1 [L,QSA]
+
 # People profiles: /people/<id> or /people/<id>-<slug>
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
 

@@ -1,0 +1,242 @@
+/* ============================================================================
+ * assets/site/editorial.css — the editorial layer (`.ed-*`).
+ * ----------------------------------------------------------------------------
+ * A shared set of institutional-editorial patterns, in the manner of a
+ * university front page: a large serif display face, whitespace doing the work
+ * that borders usually do, photography-led story tiles, a small uppercase
+ * kicker above every headline, hairline rules between movements, and text
+ * links with a travelling arrow instead of a button for every secondary action.
+ *
+ * WHAT IS BORROWED AND WHAT IS NOT. The borrowing here is structural and
+ * typographic — grid, rhythm, card anatomy, the kicker/headline/meta stack.
+ * The palette stays Afrovanguard's own: gold on ink, from the --afg-* tokens.
+ * Lifting another institution's colours and marks would not be a house style,
+ * it would be a costume, and it would read as one next to our own logo.
+ *
+ * Every value below resolves from assets/site/tokens.css, so both themes and
+ * any Studio brand override follow for free. This file defines no colour of
+ * its own.
+ *
+ * NAMESPACE: `.ed-`. It is additive and safe to drop onto an existing page —
+ * it styles nothing it does not own.
+ * ==========================================================================*/
+
+/* ── rhythm ──────────────────────────────────────────────────────────────── */
+.ed-wrap { max-width: 1220px; margin-inline: auto; padding-inline: clamp(18px, 5vw, 48px); }
+.ed-section { padding-block: clamp(48px, 8vw, 104px); }
+.ed-section--tight { padding-block: clamp(32px, 5vw, 64px); }
+
+/* The hairline. One of the few places a border is allowed: it marks a change
+   of subject, which whitespace alone cannot do at the top of a long page. */
+.ed-rule { border: 0; border-top: 1px solid var(--afg-border); margin: 0; }
+
+/* ── the kicker ──────────────────────────────────────────────────────────── */
+/* Small, uppercase, wide-tracked, and always directly above a headline. It is
+   the single most repeated detail in this system — it tells you what kind of
+   thing you are about to read before you read it. Gold at this size must be
+   --afg-gold-ink (5.16:1); --afg-gold would fail AA on light. */
+.ed-kicker {
+  display: block; font-family: var(--afg-font-body);
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--afg-gold-ink);
+  margin: 0 0 var(--afg-space-3);
+}
+.ed-kicker--muted { color: var(--afg-muted); }
+.ed-kicker--on-dark { color: var(--afg-gold); }
+
+/* ── display type ────────────────────────────────────────────────────────── */
+.ed-display {
+  font-family: var(--afg-font-display); font-weight: 600;
+  font-size: clamp(2.25rem, 6vw, 4.25rem); line-height: 1.02;
+  letter-spacing: -.02em; color: var(--afg-ink); margin: 0 0 var(--afg-space-4);
+  text-wrap: balance;
+}
+.ed-h2 {
+  font-family: var(--afg-font-display); font-weight: 600;
+  font-size: clamp(1.75rem, 3.4vw, 2.75rem); line-height: 1.08;
+  letter-spacing: -.015em; color: var(--afg-ink); margin: 0 0 var(--afg-space-4);
+  text-wrap: balance;
+}
+.ed-h3 {
+  font-family: var(--afg-font-display); font-weight: 600;
+  font-size: clamp(1.25rem, 2vw, 1.625rem); line-height: 1.18;
+  color: var(--afg-ink); margin: 0 0 var(--afg-space-2);
+}
+.ed-lede {
+  font-size: clamp(1.0625rem, 1.5vw, 1.25rem); line-height: 1.62;
+  color: var(--afg-body); max-width: 60ch; margin: 0 0 var(--afg-space-5);
+}
+
+/* ── section head: kicker + title + optional "all →" on one baseline ─────── */
+.ed-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--afg-space-5); flex-wrap: wrap; margin-bottom: var(--afg-space-6);
+}
+.ed-head > div { min-width: 0; }
+.ed-head .ed-h2, .ed-head .ed-display { margin-bottom: 0; }
+
+/* ── the travelling link ─────────────────────────────────────────────────── */
+/* A secondary action is a link, not a button. The arrow moves on hover, which
+   is the whole animation budget for this system. */
+.ed-link {
+  display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+  font-weight: 700; font-size: var(--afg-text-sm); color: var(--afg-ink);
+  border-bottom: 2px solid var(--afg-gold); padding-bottom: 3px; white-space: nowrap;
+}
+.ed-link::after { content: "→"; transition: transform .18s cubic-bezier(.2,.7,.3,1); }
+.ed-link:hover::after { transform: translateX(4px); }
+.ed-link:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 4px; }
+.ed-link--on-dark { color: var(--afg-white, #fff); }
+
+/* ── story tiles ─────────────────────────────────────────────────────────── */
+/* Photography-led and BORDERLESS: the image edge defines the card and the
+   whitespace separates it from its neighbour. A tile with a border and a
+   shadow is a box with a picture in it; this is a story. */
+.ed-stories {
+  display: grid; gap: clamp(28px, 4vw, 48px) clamp(20px, 3vw, 36px);
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+.ed-story { display: flex; flex-direction: column; text-decoration: none; color: inherit; }
+.ed-story-img {
+  display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover;
+  background: var(--afg-surface-2); margin-bottom: var(--afg-space-4);
+  /* Barely-there radius. Square corners read as stock, fully rounded reads as
+     an app; this is the amount that reads as print. */
+  border-radius: 3px;
+}
+.ed-story-img-wrap { overflow: hidden; border-radius: 3px; margin-bottom: var(--afg-space-4); }
+.ed-story-img-wrap .ed-story-img { margin-bottom: 0; transition: transform .5s cubic-bezier(.2,.7,.3,1); }
+.ed-story:hover .ed-story-img-wrap .ed-story-img { transform: scale(1.035); }
+.ed-story-title {
+  font-family: var(--afg-font-display); font-weight: 600; font-size: var(--afg-text-xl);
+  line-height: 1.2; color: var(--afg-ink); margin: 0 0 var(--afg-space-2);
+}
+.ed-story:hover .ed-story-title { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.ed-story-excerpt { font-size: var(--afg-text-sm); line-height: 1.6; color: var(--afg-body); margin: 0 0 var(--afg-space-3); }
+.ed-story-meta {
+  font-size: var(--afg-text-xs); color: var(--afg-muted); margin-top: auto;
+  display: flex; gap: var(--afg-space-3); flex-wrap: wrap; align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.ed-story:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 6px; }
+
+/* ── the lead: one story given the room it deserves ──────────────────────── */
+.ed-feature {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px); align-items: center;
+}
+@media (max-width: 860px) { .ed-feature { grid-template-columns: 1fr; } }
+.ed-feature .ed-story-img { aspect-ratio: 16 / 10; margin-bottom: 0; }
+.ed-feature .ed-story-title { font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1.1; }
+
+/* ── numbers ─────────────────────────────────────────────────────────────── */
+/* Figures set large in the display face, with a small label beneath. Separated
+   by rules rather than boxed, so the row reads as one statement. */
+.ed-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--afg-space-5) clamp(20px, 4vw, 56px);
+}
+.ed-stat { border-top: 2px solid var(--afg-gold); padding-top: var(--afg-space-3); }
+.ed-stat-n {
+  font-family: var(--afg-font-display); font-weight: 700;
+  font-size: clamp(2rem, 4vw, 3rem); line-height: 1; color: var(--afg-ink);
+  font-variant-numeric: tabular-nums; display: block;
+}
+.ed-stat-l {
+  font-size: var(--afg-text-xs); font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--afg-muted); margin-top: var(--afg-space-2); display: block;
+}
+
+/* ── pull quote ──────────────────────────────────────────────────────────── */
+.ed-quote { max-width: 46ch; margin: 0; }
+.ed-quote blockquote {
+  font-family: var(--afg-font-display); font-weight: 500;
+  font-size: clamp(1.375rem, 2.6vw, 2rem); line-height: 1.28; letter-spacing: -.01em;
+  color: var(--afg-ink); margin: 0 0 var(--afg-space-4); text-wrap: pretty;
+}
+.ed-quote figcaption { font-size: var(--afg-text-sm); color: var(--afg-muted); }
+.ed-quote figcaption strong { color: var(--afg-ink); display: block; font-weight: 700; }
+
+/* ── the dark band ───────────────────────────────────────────────────────── */
+/* One inverted section per page at most. It is punctuation, and a page with
+   three of them has none. Colours are set explicitly rather than inherited so
+   the band looks the same in both themes — that is the point of a band. */
+.ed-band {
+  background: var(--afg-navy); color: #f3f4f6;
+  padding-block: clamp(48px, 8vw, 104px);
+}
+.ed-band .ed-display, .ed-band .ed-h2, .ed-band .ed-h3,
+.ed-band .ed-story-title, .ed-band .ed-stat-n, .ed-band blockquote { color: #fff; }
+.ed-band .ed-lede, .ed-band .ed-story-excerpt { color: #d4d8e0; }
+.ed-band .ed-kicker { color: var(--afg-gold); }
+.ed-band .ed-story-meta, .ed-band .ed-stat-l, .ed-band figcaption { color: #9aa2b1; }
+.ed-band .ed-rule { border-top-color: rgba(255, 255, 255, .16); }
+.ed-band .ed-link { color: #fff; }
+
+/* ── motion ──────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ed-link::after, .ed-story-img-wrap .ed-story-img { transition: none !important; }
+  .ed-story:hover .ed-story-img-wrap .ed-story-img { transform: none; }
+}
+
+/* ── the needs board ─────────────────────────────────────────────────────── */
+/* The concrete end of fundraising: what today costs, and what this week costs.
+   Set as a row of ruled columns rather than boxed cards — the row reads as one
+   list of prices, which is exactly what it is. */
+.ed-needs-board {
+  display: grid; gap: var(--afg-space-5) clamp(20px, 3vw, 40px);
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.ed-need {
+  display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: inherit;
+  border-top: 2px solid var(--afg-gold); padding-top: var(--afg-space-3);
+}
+.ed-need:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 4px; }
+.ed-need-when {
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--afg-gold-ink);
+}
+.ed-band .ed-need-when { color: var(--afg-gold); }
+.ed-need-fig {
+  font-family: var(--afg-font-display); font-weight: 700; line-height: 1;
+  font-size: clamp(1.75rem, 3vw, 2.375rem); color: var(--afg-ink);
+  font-variant-numeric: tabular-nums;
+}
+.ed-band .ed-need-fig { color: #fff; }
+.ed-need-title { font-weight: 700; font-size: var(--afg-text-sm); color: var(--afg-ink); line-height: 1.4; }
+.ed-band .ed-need-title { color: #fff; }
+.ed-need:hover .ed-need-title { text-decoration: underline; text-underline-offset: 3px; }
+.ed-need-unit, .ed-need-for { font-size: var(--afg-text-xs); color: var(--afg-muted); line-height: 1.5; }
+.ed-band .ed-need-unit, .ed-band .ed-need-for { color: #9aa2b1; }
+.ed-need-for { margin-top: auto; padding-top: var(--afg-space-2); font-style: italic; }
+
+/* ── the meter ───────────────────────────────────────────────────────────── */
+/* Defined HERE and only here. It started life in give.css, and then the home
+   page band — which does not load give.css — rendered every appeal with an
+   invisible progress bar, because the markup referenced classes that were not
+   on the page. A component used by more than one surface belongs in the shared
+   layer, and two copies of the same bar is how two surfaces come to disagree
+   about what 63% looks like. */
+.ed-meter { display: flex; flex-direction: column; gap: var(--afg-space-2); }
+.ed-bar {
+  height: 10px; border-radius: var(--afg-radius-pill); overflow: hidden;
+  background: var(--afg-surface-2); border: 1px solid var(--afg-border);
+}
+.ed-band .ed-bar { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .2); }
+.ed-bar > span {
+  display: block; height: 100%; background: var(--afg-gold);
+  border-radius: var(--afg-radius-pill); min-width: 3px;
+  transition: width .5s cubic-bezier(.2, .7, .3, 1);
+}
+.ed-bar.is-met > span { background: var(--afg-success); }
+.ed-bar--slim { height: 6px; }
+.ed-figures { display: flex; align-items: baseline; justify-content: space-between; gap: var(--afg-space-3); flex-wrap: wrap; }
+.ed-raised {
+  font-family: var(--afg-font-display); font-weight: 600; line-height: 1;
+  font-size: var(--afg-text-2xl); color: var(--afg-ink); font-variant-numeric: tabular-nums;
+}
+.ed-band .ed-raised { color: #fff; }
+.ed-goal { font-size: var(--afg-text-sm); color: var(--afg-muted); font-variant-numeric: tabular-nums; }
+.ed-band .ed-goal { color: #9aa2b1; }
+
+@media (prefers-reduced-motion: reduce) { .ed-bar > span { transition: none; } }
