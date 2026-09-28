@@ -100,12 +100,8 @@ ck('ngv manage: and it stops being counted as earned',
 
 /* Rendered for real: the failure mode is a withdrawn certificate that prints
    looking valid. */
-$certRender = static function (int $id, string $c): string {
-    $keep = $_GET; $_GET = ['id' => (string) $id, 'c' => $c];
-    ob_start();
-    try { require AV_ROOT . '/academy/ngv/certificate.php'; } catch (Throwable $e) {}
-    $h = (string) ob_get_clean(); $_GET = $keep; return $h;
-};
+$certRender = static fn(int $id, string $c): string
+    => render_page(AV_ROOT . '/academy/ngv/certificate.php', ['id' => (string) $id, 'c' => $c]);
 $html = $certRender((int) $cert['id'], $code);
 ck('ngv manage: the withdrawn certificate page says so rather than showing a forgery notice',
    strpos($html, 'has been withdrawn') !== false

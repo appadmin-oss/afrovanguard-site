@@ -40,6 +40,51 @@ function ck(string $label, bool $cond): void {
     else { $GLOBALS['__fail']++; $GLOBALS['__fails'][] = $label; echo "  \033[31mFAIL\033[0m $label\n"; }
 }
 
+/**
+ * Render a page entry point and return the HTML it produced.
+ *
+ * A page assumes it owns the response: it calls header() near the top, before
+ * any output. Here it is being included halfway down a test run, so output went
+ * to stdout long ago and every one of those calls raises "Cannot modify header
+ * information" — 128 of them across the suite, burying the results they are
+ * printed among.
+ *
+ * That warning is an artifact of this harness rather than a defect, so it is
+ * suppressed for the duration of the include. The alternative — guarding each
+ * header() with headers_sent() in the page — would be worse: the headers in
+ * question are `no-store` and `no-referrer` on two public pages that hand out
+ * somebody's financial and personal records, and a guard would silently skip
+ * them in production exactly when something had gone wrong. Failing loudly is
+ * the right behaviour there; it is only here that it is noise.
+ *
+ * Nothing else is suppressed. Any other warning the page raises still surfaces,
+ * which is the whole point of rendering it for real.
+ */
+function render_page(string $path, array $get = [], array $post = []): string
+{
+    $keepGet = $_GET; $keepPost = $_POST;
+    $_GET = $get; $_POST = $post;
+    $prev = null;
+    $prev = set_error_handler(static function (int $no, string $msg, string $file = '', int $line = 0) use (&$prev) {
+        if (str_contains($msg, 'Cannot modify header information')) return true;   // handled: swallow
+        /* Everything else goes back where it would have gone. Chaining to the
+           handler that was already installed rather than returning false
+           matters: false falls through to PHP's INTERNAL handler, which would
+           silently bypass a caller's own. */
+        return $prev !== null ? $prev($no, $msg, $file, $line) : false;
+    });
+    ob_start();
+    /* A page that throws must not look like a page that rendered nothing: the
+       assertions downstream are all "does this HTML contain…", and an empty
+       string quietly satisfies every negative one of them. */
+    try { require $path; }
+    catch (Throwable $e) { echo "\n<!-- render_page: threw " . get_class($e) . ': ' . $e->getMessage() . " -->"; }
+    $html = (string) ob_get_clean();
+    restore_error_handler();
+    $_GET = $keepGet; $_POST = $keepPost;
+    return $html;
+}
+
 /** Fresh set of three users (ids 1-3) for a test file to build on. */
 function reset_users(): void {
     $db = Database::pdo();

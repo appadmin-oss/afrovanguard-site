@@ -172,15 +172,8 @@ $bad = NgvLedger::payment(405, 'commitment', 2000, ['period' => '2026-08'], 1);
 NgvLedger::void('credit', (int) $bad['id'], 'Recorded against the wrong person', 1);
 $badRc = NgvLedger::receiptFor((int) $bad['id']);
 
-$render = static function (int $id, string $code): string {
-    $keep = $_GET;
-    $_GET = ['id' => (string) $id, 'c' => $code];
-    ob_start();
-    try { require AV_ROOT . '/academy/ngv/receipt.php'; } catch (Throwable $e) { /* reported by the assertion */ }
-    $html = (string) ob_get_clean();
-    $_GET = $keep;
-    return $html;
-};
+$render = static fn(int $id, string $code): string
+    => render_page(AV_ROOT . '/academy/ngv/receipt.php', ['id' => (string) $id, 'c' => $code]);
 
 $okHtml = $render((int) $good['id'], $goodRc['code']);
 ck('ngv receipt page: a valid link renders the receipt, verified',
