@@ -32,9 +32,17 @@ $ckReset = static function () use ($db): void {
     AvRules::ensure(); AvRules::resetAll('test');
 };
 /** A meeting that started $agoMin ago and runs $dur minutes. */
-$ckMeeting = static function (float $agoMin, int $dur, string $agenda = '', string $freq = 'once') use ($db): int {
+/* $base pins the instant every timestamp below is measured from. An occurrence
+   key has minute resolution, so a test that calls time() afresh in each
+   statement silently changes occurrence whenever the suite happens to cross a
+   minute boundary mid-block — and the tick recorded against the first
+   occurrence is then looked up under a different key. That made the last
+   assertion in this file fail perhaps one run in twenty, which is worse than a
+   test that fails every time: it trains people to re-run rather than look. */
+$ckMeeting = static function (float $agoMin, int $dur, string $agenda = '', string $freq = 'once', ?int $base = null) use ($db): int {
+    $base = $base ?? time();
     $db->prepare("INSERT INTO meetings (creator_id,title,agenda,scheduled_at,duration_min,frequency,context,context_id,status,created_at) VALUES (1,'Standup',?,?,?,?,'workspace',7,'scheduled',?)")
-       ->execute([$agenda, gmdate('Y-m-d H:i:s', time() - (int) round($agoMin * 60)), $dur, $freq, gmdate('Y-m-d H:i:s')]);
+       ->execute([$agenda, gmdate('Y-m-d H:i:s', $base - (int) round($agoMin * 60)), $dur, $freq, gmdate('Y-m-d H:i:s')]);
     return (int) $db->lastInsertId();
 };
 $AGENDA = "1. Minutes of the previous meeting (5 min)\n2. STS shortlist (15 min)\n3. Venue budget (10 min)\n4. Any other business (5 min)";
@@ -189,7 +197,8 @@ AvRules::resetAll('test');
 /* ══ Each occurrence gets its own clock ════════════════════════════════ */
 
 $ckReset();
-$m = $ckMeeting(28, 45, $AGENDA, 'weekly');
+$ckBase = time();                       // one instant for the whole block
+$m = $ckMeeting(28, 45, $AGENDA, 'weekly', $ckBase);
 $thisWeek = MeetingClock::state($m)['occurrence'];
 MeetingClock::setResolved(1, $m, 0, true);
 ck('occurrence: this week has a tick', MeetingClock::state($m)['outstanding'] === 3);
@@ -197,21 +206,21 @@ ck('occurrence: this week has a tick', MeetingClock::state($m)['outstanding'] ==
 // Moving the series back exactly a week lands on the SAME current occurrence —
 // that is what recurrence means, and the tick must survive it.
 $db->prepare('UPDATE meetings SET scheduled_at = ? WHERE id = ?')
-   ->execute([gmdate('Y-m-d H:i:s', time() - 28 * 60 - 7 * 86400), $m]);
+   ->execute([gmdate('Y-m-d H:i:s', $ckBase - 28 * 60 - 7 * 86400), $m]);
 ck('occurrence: a whole period back is still the same occurrence', MeetingClock::state($m)['occurrence'] === $thisWeek);
 ck('occurrence: so the tick survives', MeetingClock::state($m)['outstanding'] === 3);
 
 // Shift it so a genuinely DIFFERENT occurrence is current. That one starts
 // clean — last week's ticks are not this week's.
 $db->prepare('UPDATE meetings SET scheduled_at = ? WHERE id = ?')
-   ->execute([gmdate('Y-m-d H:i:s', time() - 28 * 60 - 3 * 3600 - 7 * 86400), $m]);
+   ->execute([gmdate('Y-m-d H:i:s', $ckBase - 28 * 60 - 3 * 3600 - 7 * 86400), $m]);
 $other = MeetingClock::state($m);
 ck('occurrence: a different occurrence has a different key', $other['occurrence'] !== $thisWeek);
 ck('occurrence: and starts with nothing ticked', $other['outstanding'] === 4);
 
 // And the first occurrence's state was not destroyed — it is keyed, not shared.
 $db->prepare('UPDATE meetings SET scheduled_at = ? WHERE id = ?')
-   ->execute([gmdate('Y-m-d H:i:s', time() - 28 * 60), $m]);
+   ->execute([gmdate('Y-m-d H:i:s', $ckBase - 28 * 60), $m]);
 ck('occurrence: going back, the original tick is still there', MeetingClock::state($m)['outstanding'] === 3);
 
 /* ══ The surface ═══════════════════════════════════════════════════════ */

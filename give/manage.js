@@ -189,6 +189,27 @@
     });
   });
 
+  /* ── sponsorship: handing money to NGV participants ────────────────────── */
+  var allocForm = document.getElementById('allocForm');
+  if (allocForm) {
+    allocForm.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var amt = parseInt(allocForm.querySelector('input[name=amount]').value, 10) || 0;
+      if (amt <= 0) { toast('Enter how much to hand on.', true); return; }
+      if (!window.confirm('Hand ' + amt.toLocaleString('en-NG') + ' naira to the Vanguards furthest behind?\n\nThis posts a real payment on each account and sends each of them a receipt. It cannot be undone from this page.')) return;
+      var btn = allocForm.querySelector('button[type=submit]');
+      withButton(btn, { action: 'allocate_ngv', id: window.GIVE_APPEAL, amount: amt }, null, function (j) {
+        /* Say what ACTUALLY moved, not what was asked for — only what is
+           currently due can be paid, so the two often differ. */
+        var msg = j.allocated.toLocaleString('en-NG') + ' naira placed with ' + j.participants +
+                  (j.participants === 1 ? ' Vanguard' : ' Vanguards');
+        if (j.returned > 0) msg += ' · ' + j.returned.toLocaleString('en-NG') + ' stays with the appeal (nothing more is due yet)';
+        toast(msg);
+        setTimeout(function () { location.reload(); }, 2600);
+      });
+    });
+  }
+
   /* ── recurring gifts ───────────────────────────────────────────────────── */
   document.querySelectorAll('[data-stopsub]').forEach(function (b) {
     b.addEventListener('click', function () {

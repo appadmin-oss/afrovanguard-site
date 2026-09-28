@@ -104,6 +104,11 @@ final class ChiomaTools
             'desc' => 'Every published Academy course with its title, category, level, price and enrolment state. This is the live catalogue — use it rather than recalling course names.',
             'schema' => ['type' => 'object', 'properties' => []],
         ],
+        'appeals_open' => [
+            'act'  => false,
+            'desc' => 'What Afrovanguard is raising money for RIGHT NOW: every live appeal with its figures, plus what today and this week specifically cost. Use it for any question about giving, donating, what is needed, what a gift pays for, or where money goes. The figures are read from the verified payment record, so quote them rather than estimating — and never invent an appeal that is not in the list.',
+            'schema' => ['type' => 'object', 'properties' => []],
+        ],
         'web_search' => [
             'act'  => false,
             'desc' => 'Search the wider web for Afrovanguard-related material — press coverage, partner pages, social posts, anything beyond this website. Follow up with web_fetch before relying on a result, because a snippet is not a source.',
@@ -199,6 +204,7 @@ final class ChiomaTools
                 case 'site_search':    return self::siteSearch((string) ($args['query'] ?? ''), (string) ($args['type'] ?? ''));
                 case 'page_read':      return self::pageRead((string) ($args['path'] ?? ''));
                 case 'course_list':    return self::courseList();
+                case 'appeals_open':   return self::appealsOpen();
                 case 'web_search':     return self::webSearch((string) ($args['query'] ?? ''), (int) ($args['count'] ?? 5));
                 case 'web_fetch':      return self::webFetch((string) ($args['url'] ?? ''));
                 case 'draft_contact_message': return self::draftContact($args);
@@ -312,6 +318,73 @@ final class ChiomaTools
         self::source($title, $path, 'site');
         return ['title' => $title, 'path' => $path,
                 'text' => $trunc ? mb_substr($s, 0, self::MAX_TEXT) . '…' : $s, 'truncated' => $trunc];
+    }
+
+    /**
+     * The live appeals and the standing needs, for the guide.
+     *
+     * Shaped for a language model rather than for a page: every figure arrives
+     * pre-formatted by the same formatter the site uses, so Chioma cannot
+     * punctuate naira differently from the page she is linking to, and cannot
+     * arrive at a percentage of her own by dividing two numbers.
+     *
+     * Draft appeals are absent — `published()` never returns them — so there is
+     * no way for her to mention something that is not public yet.
+     */
+    private static function appealsOpen(): array
+    {
+        if (!class_exists('Appeals')) return ['error' => 'Appeals are not available on this installation.'];
+        try {
+            $appeals = [];
+            foreach (Appeals::published(30) as $a) {
+                if ((string) $a['status'] !== 'live') continue;
+                $st = Appeals::state($a);
+                $row = [
+                    'title'   => (string) $a['title'],
+                    'what'    => (string) $a['tagline'],
+                    'url'     => '/give/' . (string) $a['slug'] . '/',
+                    'raised'  => Appeals::naira($st['raised']),
+                    'goal'    => $st['goal'] > 0 ? Appeals::naira($st['goal']) : 'no fixed target',
+                    'percent' => $st['percent'],
+                    'urgent'  => !empty($a['urgent']),
+                ];
+                if ($st['days_left'] !== null && $st['days_left'] >= 0) $row['days_left'] = $st['days_left'];
+                if ($st['match_live'] && $st['match_left'] > 0) {
+                    $row['match'] = 'Gifts are being doubled up to ' . Appeals::naira($st['match_left']) . ' more.';
+                }
+                if (!empty($a['funds_ngv'])) $row['funds'] = 'Pays NextGen Vanguard training fees directly.';
+                $appeals[] = $row;
+            }
+
+            $needs = [];
+            foreach (Appeals::currentNeedsAll(8) as $n) {
+                $needs[] = [
+                    'when'   => $n['cadence'] === 'daily' ? 'today' : ($n['cadence'] === 'weekly' ? 'this week' : 'still open'),
+                    'what'   => (string) $n['title'],
+                    'cost'   => Appeals::naira((int) $n['target_ngn']),
+                    'buys'   => ($n['units_target'] > 0 && $n['unit_label'] !== '')
+                        ? number_format((int) $n['units_target']) . ' ' . (string) $n['unit_label']
+                        : '',
+                    'for'    => (string) $n['appeal']['title'],
+                    'url'    => (string) $n['appeal']['url'],
+                ];
+            }
+
+            if (!$appeals && !$needs) {
+                return ['appeals' => [], 'needs' => [],
+                        'note' => 'Nothing is being raised for right now. Say so plainly and point at /donate.html for the general fund — do not invent an appeal.'];
+            }
+            return [
+                'appeals' => $appeals,
+                'needs'   => $needs,
+                'general_fund' => '/donate.html',
+                'all_appeals'  => '/give/',
+                'note' => 'Every figure here is already formatted — quote them exactly and do not recalculate. Nobody outside Afrovanguard can start an appeal, so if somebody asks to fundraise for us, point them at the contact page rather than promising a page.',
+            ];
+        } catch (\Throwable $e) {
+            error_log('[chioma-tool] appeals: ' . $e->getMessage());
+            return ['error' => 'The appeals could not be read just now.'];
+        }
     }
 
     private static function courseList(): array

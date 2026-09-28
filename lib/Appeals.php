@@ -72,8 +72,19 @@ final class Appeals
     {
         if (self::$ready) return;
         self::$ready = true;
-        try { Database::execSchema(Database::pdo(), self::ddl()); }
-        catch (Throwable $e) { error_log('[appeals] schema: ' . $e->getMessage()); }
+        try {
+            $pdo = Database::pdo();
+            /* Tables and indexes first… */
+            Database::execSchema($pdo, self::ddl());
+            /* …then the COLUMNS. `CREATE TABLE IF NOT EXISTS` is a no-op on a
+               table that already exists, so a column added to the DDL later
+               never reaches a deployment that already ran the first version —
+               and then every save dies on "no such column". That is the exact
+               bug `tests/drift.test.php` exists to document, and adding
+               `project` and `funds_ngv` to a shipped table reproduced it
+               immediately. syncTablesFromDdl diffs and ALTERs. */
+            Database::syncTablesFromDdl($pdo, self::ddl(), null, 'appeals');
+        } catch (Throwable $e) { error_log('[appeals] schema: ' . $e->getMessage()); }
     }
 
     /**
@@ -112,6 +123,8 @@ CREATE TABLE IF NOT EXISTS av_appeals (
   match_sponsor TEXT NOT NULL DEFAULT '',
   match_until   TEXT NOT NULL DEFAULT '',
   urgent        INTEGER NOT NULL DEFAULT 0,
+  project       VARCHAR(40) NOT NULL DEFAULT '',
+  funds_ngv     INTEGER NOT NULL DEFAULT 0,
   beneficiary   TEXT NOT NULL DEFAULT '',
   location      TEXT NOT NULL DEFAULT '',
   organiser     TEXT NOT NULL DEFAULT '',
@@ -213,6 +226,17 @@ CREATE TABLE IF NOT EXISTS av_appeal_sends (
   sent_at    TEXT NOT NULL DEFAULT ''
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_send_once ON av_appeal_sends (update_id, email_key);
+CREATE TABLE IF NOT EXISTS av_appeal_allocations (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  appeal_id  INTEGER NOT NULL,
+  member_id  INTEGER NOT NULL DEFAULT 0,
+  amount_ngn INTEGER NOT NULL DEFAULT 0,
+  line       VARCHAR(24) NOT NULL DEFAULT 'programme',
+  note       TEXT NOT NULL DEFAULT '',
+  by_uid     INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_alloc_appeal ON av_appeal_allocations (appeal_id, id);
 SQL;
     }
 
@@ -357,7 +381,7 @@ SQL;
     private static function shape(array $r): array
     {
         foreach (['id', 'goal_ngn', 'offline_ngn', 'spent_ngn', 'featured', 'sort',
-                  'share_count', 'view_count', 'match_ngn', 'urgent'] as $k) {
+                  'share_count', 'view_count', 'match_ngn', 'urgent', 'funds_ngv'] as $k) {
             $r[$k] = (int) ($r[$k] ?? 0);
         }
         $r['gallery'] = array_values(array_filter(array_map('trim', explode("\n", (string) ($r['gallery'] ?? '')))));
@@ -533,6 +557,14 @@ SQL;
         $status = in_array((string) ($in['status'] ?? ''), self::STATUSES, true) ? (string) $in['status'] : 'draft';
         $goal   = self::money($in['goal_ngn'] ?? 0);
 
+        /* Every field, sanitised — then, on an UPDATE, narrowed to the ones the
+           caller actually sent. Without that narrowing a partial save wipes
+           everything it did not mention: `save(['id' => 4, 'project' => 'sts'])`
+           blanked an appeal's title, dropped it back to draft and zeroed its
+           goal, because each unsupplied field fell through to its own default.
+           The console posts the whole form, so this hid there and surfaced only
+           when something else made a one-field call. Refusing to touch what was
+           not sent is the same rule NGV's plan field had to learn. */
         $cols = [
             'title'       => $title,
             'tagline'     => mb_substr(trim((string) ($in['tagline'] ?? '')), 0, 240),
@@ -555,6 +587,14 @@ SQL;
             'match_sponsor' => mb_substr(trim((string) ($in['match_sponsor'] ?? '')), 0, 120),
             'match_until'   => self::validDate((string) ($in['match_until'] ?? '')),
             'urgent'        => !empty($in['urgent']) ? 1 : 0,
+            /* Which flagship programme this belongs to, so the project's own
+               page can carry its appeal. Checked against the published list
+               rather than accepted as typed. */
+            'project'       => self::validProject((string) ($in['project'] ?? '')),
+            /* A sponsorship appeal pays real NextGen Vanguard training fees.
+               It is a different promise from "help us buy a borehole" and the
+               page has to be able to say so. */
+            'funds_ngv'     => !empty($in['funds_ngv']) ? 1 : 0,
             'beneficiary' => mb_substr(trim((string) ($in['beneficiary'] ?? '')), 0, 160),
             'location'    => mb_substr(trim((string) ($in['location'] ?? '')), 0, 120),
             'organiser'   => mb_substr(trim((string) ($in['organiser'] ?? '')), 0, 120),
@@ -576,6 +616,19 @@ SQL;
             if ($id > 0) {
                 $was = self::byId($id);
                 if (!$was) return 0;
+
+                /* Narrow to what was actually sent. `updated_at` always goes. */
+                $sent = ['updated_at' => true];
+                foreach (array_keys($cols) as $c) if (array_key_exists($c, $in)) $sent[$c] = true;
+                /* Two fields answer to more than one input name. */
+                if (array_key_exists('goal_ngn', $in))   $sent['goal_ngn'] = true;
+                $cols = array_intersect_key($cols, $sent);
+                if (count($cols) <= 1) {                  // nothing but updated_at
+                    self::audit('appeal_save', (string) $was['slug'], $actor, 'no change');
+                    return $id;
+                }
+                $status = array_key_exists('status', $in) ? $status : (string) $was['status'];
+                $goal   = array_key_exists('goal_ngn', $in) ? $goal : (int) $was['goal_ngn'];
                 /* Publishing for the first time stamps published_at, which is
                    what the sitemap and the Article schema report as the date. */
                 if ($status === 'live' && (string) $was['published_at'] === '') $cols['published_at'] = self::now();
@@ -1244,6 +1297,44 @@ SQL;
         return '';
     }
 
+    /**
+     * The programmes an appeal may be filed under, read from the real project
+     * content rather than listed here.
+     *
+     * A hand-kept list drifts: the first version of it carried three slugs that
+     * are not projects on this site at all, so an appeal could be filed against
+     * a programme whose page could never show it — a setting that silently does
+     * nothing. `lib/projects_content.php` is what actually renders
+     * `/projects/<slug>/`, so it decides.
+     *
+     * NGV and the Summit are added by hand because they are programmes with
+     * their own pages outside `/projects/` (`/academy/ngv/`, `/academy/dns/`),
+     * and an appeal genuinely does belong to them.
+     */
+    public static function projects(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $out = ['' => 'Not a programme appeal'];
+        try {
+            $all = @require AV_ROOT . '/lib/projects_content.php';
+            if (is_array($all)) {
+                foreach ($all as $slug => $p) {
+                    $out[(string) $slug] = (string) ($p['name'] ?? $slug);
+                }
+            }
+        } catch (Throwable $e) { error_log('[appeals] projects: ' . $e->getMessage()); }
+        $out['ngv']    = 'NextGen Vanguard';
+        $out['summit'] = "D'Vanguard National Summit";
+        return $cache = $out;
+    }
+
+    private static function validProject(string $p): string
+    {
+        $p = strtolower(trim($p));
+        return isset(self::projects()[$p]) ? $p : '';
+    }
+
     /** A gallery is one image URL per line, each run through safeUrl(). */
     private static function galleryLines($in): string
     {
@@ -1433,6 +1524,154 @@ SQL;
             $collected += $r['total_ngn'];
         }
         return ['rows' => $rows, 'count' => count($rows), 'annualised' => $annual, 'collected' => $collected];
+    }
+
+    /* ── sponsoring a Vanguard ───────────────────────────────────────────── */
+
+    /**
+     * What the NextGen Vanguard programme is actually short of, right now.
+     *
+     * Read straight from the NGV ledger's arrears sweep rather than kept here.
+     * A sponsorship appeal that quoted its own figure would be quoting a number
+     * that stopped being true the moment a participant paid an instalment — and
+     * the person reading it is deciding whether to cover somebody's fees.
+     *
+     * NOBODY IS NAMED. The count and the total leave this method and the names
+     * do not. A participant who cannot afford their training fee has not
+     * volunteered to have that published next to a donate button, and "620
+     * children" is a cause while "Ada, who is behind on her fees" is an
+     * exposure. Staff see who; the public sees how many.
+     */
+    public static function ngvShortfall(): array
+    {
+        $empty = ['participants' => 0, 'outstanding' => 0, 'available' => false];
+        if (!class_exists('NgvLedger')) return $empty;
+        try {
+            $rows = NgvLedger::arrears(200);
+            $list = is_array($rows['rows'] ?? null) ? $rows['rows'] : (is_array($rows) ? $rows : []);
+            $people = 0; $total = 0;
+            foreach ($list as $r) {
+                $owed = (int) ($r['payable'] ?? $r['balance']['payable'] ?? 0);
+                if ($owed <= 0) continue;
+                $people++; $total += $owed;
+            }
+            return ['participants' => $people, 'outstanding' => $total, 'available' => true];
+        } catch (Throwable $e) {
+            error_log('[appeals] ngvShortfall: ' . $e->getMessage());
+            return $empty;
+        }
+    }
+
+    /** What this appeal has raised but not yet handed on to anybody. */
+    public static function unallocated(array $a): int
+    {
+        $raised = self::progress($a)['raised'];
+        try {
+            $st = Database::pdo()->prepare('SELECT COALESCE(SUM(amount_ngn),0) FROM av_appeal_allocations WHERE appeal_id = ?');
+            $st->execute([(int) $a['id']]);
+            $done = (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+        return max(0, $raised - $done);
+    }
+
+    /**
+     * Hand money from a sponsorship appeal to the participants furthest behind.
+     *
+     * Each allocation posts a real NgvLedger payment, so a sponsored
+     * participant's account shows the fee as paid and their instalment schedule
+     * moves — exactly as it would if they had paid it themselves. Nothing here
+     * duplicates the ledger's arithmetic; it calls it.
+     *
+     * Refused when the appeal has not raised the money. Allocating more than
+     * was given would credit participants against funds that do not exist, and
+     * the discrepancy would surface as a hole in the NGV books rather than
+     * here — which is the worst place for it to appear.
+     *
+     * ONLY WHAT IS CURRENTLY DUE IS PAID. Training fees are billed as monthly
+     * instalments, so a participant owing ₦300,000 over six months is only
+     * behind by one instalment today — and the ledger cannot take a payment
+     * against a charge it has not raised yet. So an allocation of ₦250,000 may
+     * legitimately place only ₦80,000 and return the rest. That is the right
+     * behaviour twice over: money held by the appeal can go to whoever is most
+     * behind NEXT month, whereas money paid ahead is locked to one participant
+     * who may not finish the programme. The response says exactly how much
+     * actually moved, and the console repeats it — a sponsor who is told
+     * "₦250,000 allocated" when ₦80,000 moved has been misinformed about their
+     * own gift.
+     */
+    public static function allocateToVanguards(int $appealId, int $amountNgn, int $byUid, string $actor = ''): array
+    {
+        self::ensure();
+        $a = self::byId($appealId);
+        if (!$a) return ['ok' => false, 'error' => 'No such appeal.'];
+        if (empty($a['funds_ngv'])) {
+            return ['ok' => false, 'error' => 'This appeal is not set up to fund NextGen Vanguard fees. Tick "funds NGV training fees" first.'];
+        }
+        if (!class_exists('NgvLedger')) return ['ok' => false, 'error' => 'The NGV ledger is not available on this installation.'];
+
+        $amount = self::money($amountNgn);
+        if ($amount <= 0) return ['ok' => false, 'error' => 'Enter how much to hand on.'];
+        $spare = self::unallocated($a);
+        if ($amount > $spare) {
+            return ['ok' => false, 'error' => 'This appeal has ' . self::naira($spare)
+                . ' left to allocate. You cannot hand on money it has not raised.'];
+        }
+
+        try {
+            $rows = NgvLedger::arrears(200);
+            $list = is_array($rows['rows'] ?? null) ? $rows['rows'] : (is_array($rows) ? $rows : []);
+        } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not read who is behind.']; }
+        if (!$list) return ['ok' => false, 'error' => 'Nobody is behind on their fees, so there is no one to pay for.'];
+
+        /* Furthest behind first. The alternative — spreading it evenly — leaves
+           everybody still short and nobody actually through, which is the one
+           outcome a sponsorship fund should never produce. */
+        usort($list, static fn($x, $y) => ((int) ($y['payable'] ?? 0)) <=> ((int) ($x['payable'] ?? 0)));
+
+        $left = $amount; $touched = 0; $rowsOut = [];
+        $ins = Database::pdo()->prepare(
+            'INSERT INTO av_appeal_allocations (appeal_id,member_id,amount_ngn,line,note,by_uid,created_at) VALUES (?,?,?,?,?,?,?)');
+
+        foreach ($list as $r) {
+            if ($left <= 0) break;
+            $mid  = (int) ($r['member_id'] ?? $r['id'] ?? 0);
+            $owed = (int) ($r['payable'] ?? 0);
+            if ($mid <= 0 || $owed <= 0) continue;
+            $give = min($left, $owed);
+            $note = 'Sponsored from the “' . (string) $a['title'] . '” appeal';
+            try {
+                $res = NgvLedger::payment($mid, 'programme', $give, ['note' => $note, 'method' => 'sponsorship'], $byUid);
+                if (empty($res['ok']) && !isset($res['id'])) continue;
+            } catch (Throwable $e) { error_log('[appeals] allocate ' . $mid . ': ' . $e->getMessage()); continue; }
+            try { $ins->execute([$appealId, $mid, $give, 'programme', $note, $byUid, self::now()]); }
+            catch (Throwable $e) { error_log('[appeals] allocation row: ' . $e->getMessage()); }
+            $left -= $give; $touched++;
+            $rowsOut[] = ['member_id' => $mid, 'amount' => $give];
+        }
+
+        if ($touched === 0) return ['ok' => false, 'error' => 'Nothing could be allocated — no participant had an outstanding balance.'];
+        $spent = $amount - $left;
+        self::audit('ngv_allocate', (string) $a['slug'], $actor, self::naira($spent) . ' to ' . $touched . ' participants');
+        return ['ok' => true, 'allocated' => $spent, 'participants' => $touched,
+                'returned' => $left, 'rows' => $rowsOut, 'left' => self::unallocated(self::byId($appealId) ?? $a)];
+    }
+
+    /** What this appeal has already handed on, for the console and the page. */
+    public static function allocations(int $appealId, int $limit = 100): array
+    {
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM av_appeal_allocations WHERE appeal_id = ? ORDER BY id DESC LIMIT ' . max(1, min(500, $limit)));
+            $st->execute([$appealId]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $total = 0; $people = [];
+            foreach ($rows as &$r) {
+                foreach (['id', 'member_id', 'amount_ngn', 'by_uid'] as $k) $r[$k] = (int) $r[$k];
+                $total += $r['amount_ngn'];
+                $people[$r['member_id']] = true;
+            }
+            return ['rows' => $rows, 'total' => $total, 'participants' => count($people)];
+        } catch (Throwable $e) { return ['rows' => [], 'total' => 0, 'participants' => 0]; }
     }
 
     /* ── telling donors what happened ────────────────────────────────────── */
@@ -1679,6 +1918,28 @@ SQL;
             }
         } catch (Throwable $e) { error_log('[appeals] cronTick: ' . $e->getMessage()); }
         return $done;
+    }
+
+    /**
+     * The live appeals filed under one flagship programme.
+     *
+     * So a project's own page can carry its appeal. Somebody who has just read
+     * what Street-To-Stardom is, is the single best-placed person on the site
+     * to fund it, and sending them to a general index to find it again loses
+     * most of them.
+     */
+    public static function forProject(string $project, int $limit = 3): array
+    {
+        $project = strtolower(trim($project));
+        if ($project === '' || !isset(self::projects()[$project])) return [];
+        $out = [];
+        foreach (self::published(60) as $a) {
+            if ((string) $a['status'] !== 'live') continue;
+            if ((string) $a['project'] !== $project) continue;
+            $out[] = $a;
+            if (count($out) >= max(1, min(12, $limit))) break;
+        }
+        return $out;
     }
 
     /* ── totals, for the index page and the console ──────────────────────── */

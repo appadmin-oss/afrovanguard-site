@@ -233,6 +233,19 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
         <?php if ($closed): ?><span class="give-badge is-closed">Closed</span><?php endif; ?>
       </div>
 
+      <?php if (!empty($a['funds_ngv'])):
+        /* Named nobody. A participant who cannot afford their training fee has
+           not volunteered to have that published beside a donate button — "14
+           Vanguards" is a cause, "Ada, who is behind" is an exposure. */
+        $ngvShort = Appeals::ngvShortfall();
+        if ($ngvShort['available'] && $ngvShort['participants'] > 0): ?>
+        <p class="give-note"><strong><?= (int) $ngvShort['participants'] ?>
+          <?= $ngvShort['participants'] === 1 ? 'Vanguard is' : 'Vanguards are' ?> behind on training fees right now</strong>,
+          by <?= e(Appeals::naira((int) $ngvShort['outstanding'])) ?> between them. What you give here is paid
+          straight onto their accounts — it is not a fund we hold.</p>
+        <?php endif; ?>
+      <?php endif; ?>
+
       <?php if ($st['match_live'] && $st['match_left'] > 0): ?>
         <p class="give-note is-warn"><strong><?= e(Appeals::naira($st['match_left'])) ?> still to be matched.</strong>
           <?= $st['sponsor'] !== '' ? e($st['sponsor']) . ' is doubling' : 'A sponsor is doubling' ?> every gift

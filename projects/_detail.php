@@ -41,7 +41,7 @@ render_head([
     'canonical' => $canonical, 'og_kind' => 'website',
     'image_alt' => $P['name'] . ' — Afrovanguard',
     'keywords' => implode(', ', array_merge([$P['name']], $P['abbr'] !== '' ? [$P['abbr']] : [], $P['about'], ['Afrovanguard'])),
-    'css' => ['/assets/site/project-detail.css'], 'jsonld' => $jsonld,
+    'css' => ['/assets/site/editorial.css', '/assets/site/project-detail.css'], 'jsonld' => $jsonld,
 ]);
 render_nav('projects');
 ?>
@@ -76,6 +76,48 @@ render_nav('projects');
       <h2>Who it's for</h2>
       <p class="pjd-sub"><?= e($P['who']) ?></p>
     </section>
+
+    <?php
+    /* Its own appeals, if there are any. Somebody who has just read what this
+       programme is, is the best-placed person on the site to fund it — sending
+       them to a general index to find it again loses most of them. Rendered
+       server-side because this page is PHP; the static pages hydrate instead. */
+    $pjAppeals = class_exists('Appeals') ? Appeals::forProject($slug, 3) : [];
+    if ($pjAppeals): ?>
+    <section class="pjd-sec" aria-labelledby="pjd-give-h">
+      <h2 id="pjd-give-h">What <?= e($P['name']) ?> needs</h2>
+      <p class="pjd-sub">Live appeals, with what has been raised so far read from the verified payment record.</p>
+      <div class="ed-stories" style="margin-top:var(--afg-space-5)">
+        <?php foreach ($pjAppeals as $pjA): $pjS = Appeals::state($pjA); ?>
+          <a class="ed-story" href="<?= e('/give/' . rawurlencode((string) $pjA['slug']) . '/') ?>">
+            <?php if (!empty($pjA['cover_url'])): ?>
+              <div class="ed-story-img-wrap">
+                <img class="ed-story-img" src="<?= e((string) $pjA['cover_url']) ?>" alt=""
+                     loading="lazy" decoding="async" width="580" height="387">
+              </div>
+            <?php endif; ?>
+            <span class="ed-kicker"><?php
+              if (!empty($pjA['urgent'])) { echo 'Urgent'; }
+              elseif ($pjS['ending_soon'] && !$pjS['ended']) { echo (int) $pjS['days_left'] . ' days left'; }
+              else { echo 'Appeal'; } ?></span>
+            <h3 class="ed-story-title"><?= e((string) $pjA['title']) ?></h3>
+            <?php if (!empty($pjA['tagline'])): ?>
+              <p class="ed-story-excerpt"><?= e(mb_strimwidth((string) $pjA['tagline'], 0, 116, '…')) ?></p>
+            <?php endif; ?>
+            <?php if ($pjS['percent'] !== null): ?>
+              <div class="ed-bar ed-bar--slim<?= $pjS['met'] ? ' is-met' : '' ?>" role="progressbar"
+                   aria-valuenow="<?= (int) $pjS['percent'] ?>" aria-valuemin="0" aria-valuemax="100"
+                   aria-label="<?= (int) $pjS['percent'] ?>% raised"><span style="width:<?= (int) $pjS['percent'] ?>%"></span></div>
+            <?php endif; ?>
+            <div class="ed-story-meta" style="margin-top:var(--afg-space-2)">
+              <strong style="color:var(--afg-ink)"><?= e(Appeals::naira($pjS['raised'])) ?></strong>
+              <?php if ($pjS['goal'] > 0): ?><span>of <?= e(Appeals::naira($pjS['goal'])) ?></span><?php endif; ?>
+            </div>
+          </a>
+        <?php endforeach; ?>
+      </div>
+    </section>
+    <?php endif; ?>
 
     <section class="pjd-sec" aria-label="Take the next step">
       <h2>Take the next step</h2>

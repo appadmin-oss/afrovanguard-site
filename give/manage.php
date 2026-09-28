@@ -67,6 +67,11 @@ if ($method === 'POST') {
             $r = Appeals::mailUpdate((int) ($in['update_id'] ?? 0));
             json_out($r, empty($r['ok']) ? 400 : 200);
         }
+        case 'allocate_ngv': {
+            $uidA = (int) (class_exists('LmsAuth') && LmsAuth::user() ? LmsAuth::user()['id'] : 0);
+            $r = Appeals::allocateToVanguards((int) ($in['id'] ?? 0), (int) ($in['amount'] ?? 0), $uidA, $actor);
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
         case 'stop_recurring': {
             $r = Appeals::stopRecurring((string) ($in['sub_code'] ?? ''), $actor);
             json_out($r, empty($r['ok']) ? 400 : 200);
@@ -95,6 +100,9 @@ if ($isAdmin && $selId > 0) {
         $selUpdates = Appeals::updatesFor($selId, 30);
         $selTiers   = Appeals::tiersFor($selId);
         $selRec     = Appeals::recurringFor($selId);
+        $selAlloc   = Appeals::allocations($selId, 50);
+        $selSpare   = Appeals::unallocated($sel);
+        $selShort   = Appeals::ngvShortfall();
         $selMailTo  = Appeals::updateRecipients($sel);
     }
 }
@@ -200,6 +208,9 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-updates" id="tab-updates">Updates <span class="gm-count"><?= count($selUpdates) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-tiers"  id="tab-tiers">Tiers <span class="gm-count"><?= count($selTiers) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-donors" id="tab-donors">Recurring <span class="gm-count"><?= (int) $selRec['count'] ?></span></button>
+          <?php if (!empty($sel['funds_ngv'])): ?>
+            <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-ngv" id="tab-ngv">Sponsorship <span class="gm-count"><?= (int) $selAlloc['participants'] ?></span></button>
+          <?php endif; ?>
         </div>
 
         <!-- The appeal itself -->
@@ -214,6 +225,15 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
               <select name="kind"><?php foreach (Appeals::KINDS as $k): ?>
                 <option value="<?= $e($k) ?>"<?= (string) $sel['kind'] === $k ? ' selected' : '' ?>><?= $e($k) ?></option>
               <?php endforeach; ?></select></label>
+            <label class="gm-field"><span>Programme <em>puts this appeal on that project's own page</em></span>
+              <select name="project"><?php foreach (Appeals::projects() as $pk => $pl): ?>
+                <option value="<?= $e($pk) ?>"<?= (string) $sel['project'] === $pk ? ' selected' : '' ?>><?= $e($pl) ?></option>
+              <?php endforeach; ?></select></label>
+            <label class="gm-field"><span>Pays NGV training fees <em>lets you hand the money to participants who are behind</em></span>
+              <select name="funds_ngv">
+                <option value="0"<?= empty($sel['funds_ngv']) ? ' selected' : '' ?>>No</option>
+                <option value="1"<?= !empty($sel['funds_ngv']) ? ' selected' : '' ?>>Yes — a sponsorship appeal</option>
+              </select></label>
             <label class="gm-field"><span>Goal (₦) <em>0 means an open appeal with no finish line</em></span>
               <input name="goal_ngn" type="number" min="0" step="1000" value="<?= (int) $sel['goal_ngn'] ?>"></label>
             <label class="gm-field"><span>Starts</span>
@@ -414,6 +434,53 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
             </div>
           <?php endforeach; ?>
         </div>
+
+        <?php if (!empty($sel['funds_ngv'])): ?>
+        <!-- Sponsorship: hand appeal money to NGV participants who are behind -->
+        <div class="gm-tabpane" id="t-ngv" role="tabpanel" aria-labelledby="tab-ngv" hidden>
+          <div class="gm-strip" style="margin-bottom:var(--afg-space-5)">
+            <div><div class="k">Held by this appeal</div><div class="v"><?= $e(Appeals::naira((int) $selSpare)) ?></div></div>
+            <div><div class="k">Vanguards behind</div><div class="v"><?= (int) $selShort['participants'] ?></div></div>
+            <div><div class="k">Due right now</div><div class="v"><?= $e(Appeals::naira((int) $selShort['outstanding'])) ?></div></div>
+            <div><div class="k">Already handed on</div><div class="v"><?= $e(Appeals::naira((int) $selAlloc['total'])) ?></div></div>
+          </div>
+          <p class="gm-hint">
+            Allocating posts a real payment on each participant's NGV account — their balance moves and they
+            get a receipt, exactly as if they had paid it themselves. The money goes to whoever is furthest
+            behind first, because spreading it evenly leaves everybody still short and nobody actually through.
+            <br><br>
+            <strong>Only what is currently due can be paid.</strong> Training fees bill monthly, so an appeal
+            holding <?= $e(Appeals::naira((int) $selSpare)) ?> may only be able to place
+            <?= $e(Appeals::naira((int) min($selSpare, $selShort['outstanding']))) ?> today. The rest stays here for
+            next month, which is better than paying ahead and locking it to somebody who may not finish.
+          </p>
+          <form id="allocForm" class="gm-form gm-form-inline" style="margin-top:var(--afg-space-4)">
+            <label class="gm-field"><span>Hand on (₦)</span>
+              <input name="amount" type="number" min="0" step="1000"
+                     max="<?= (int) $selSpare ?>" value="<?= (int) min($selSpare, $selShort['outstanding']) ?>"></label>
+            <div class="gm-form-foot">
+              <button type="submit" class="gm-btn gm-primary"
+                      <?= $selSpare <= 0 || (int) $selShort['outstanding'] <= 0 ? 'disabled' : '' ?>>Allocate to Vanguards</button>
+              <?php if ($selSpare <= 0): ?><span class="gm-hint">Nothing left to allocate.</span>
+              <?php elseif ((int) $selShort['outstanding'] <= 0): ?><span class="gm-hint">Nobody is behind on their fees right now.</span><?php endif; ?>
+            </div>
+          </form>
+          <div class="gm-needs">
+            <?php if (!$selAlloc['rows']): ?>
+              <div class="gm-empty"><p>Nothing handed on yet.</p></div>
+            <?php endif; ?>
+            <?php foreach ($selAlloc['rows'] as $al): ?>
+              <div class="gm-need is-met">
+                <div>
+                  <div class="gm-need-when"><?= $e(substr((string) $al['created_at'], 0, 16)) ?></div>
+                  <div class="gm-need-title">Participant #<?= (int) $al['member_id'] ?></div>
+                  <div class="gm-need-fig"><?= $e(Appeals::naira((int) $al['amount_ngn'])) ?></div>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Tiers -->
         <div class="gm-tabpane" id="t-tiers" role="tabpanel" aria-labelledby="tab-tiers" hidden>

@@ -428,4 +428,120 @@ ck('appeals: mailing is refused outright while outbound mail is switched off',
 ck('appeals: an update that does not exist cannot be mailed',
    !Appeals::mailUpdate(999999)['ok']);
 
+
+/* ══ Afrovanguard-specific: sponsoring a Vanguard ═════════════════════════ */
+
+$apReset();
+ck('appeals: only published flagship programmes may be filed against',
+   (string) Appeals::byId(Appeals::save(['title' => 'Made-up programme', 'project' => 'not-a-project'], 'tester'))['project'] === '');
+ck('appeals: a real programme is kept',
+   (string) Appeals::byId(Appeals::save(['title' => 'Techome appeal', 'project' => 'techhome', 'status' => 'live'], 'tester'))['project'] === 'techhome');
+ck('appeals: a project page sees only its own live appeals',
+   count(Appeals::forProject('techhome')) === 1 && Appeals::forProject('mediapro') === []);
+/* The list is read from what actually renders /projects/<slug>/, so it cannot
+   offer a programme whose page could never show the appeal. */
+ck('appeals: the programme list comes from the real project content',
+   isset(Appeals::projects()['techhome']) && isset(Appeals::projects()['ngv'])
+   && !isset(Appeals::projects()['a-programme-that-does-not-exist']));
+ck('appeals: an unknown project asks for nothing',
+   Appeals::forProject('nonsense') === [] && Appeals::forProject('') === []);
+/* A draft filed under a programme must not surface on that programme's page. */
+Appeals::save(['title' => 'Draft Techome appeal', 'project' => 'techhome', 'status' => 'draft'], 'tester');
+ck('appeals: a draft never reaches a project page', count(Appeals::forProject('techhome')) === 1);
+
+$apSpon = Appeals::save(['title' => 'Sponsor a Vanguard', 'status' => 'live',
+                         'goal_ngn' => 500000, 'funds_ngv' => 1, 'offline_ngn' => 200000], 'tester');
+$apSponRow = Appeals::byId($apSpon);
+ck('appeals: a sponsorship appeal is flagged as one', (int) $apSponRow['funds_ngv'] === 1);
+ck('appeals: it starts holding everything it has raised',
+   Appeals::unallocated($apSponRow) === 200000);
+
+$apPlain = Appeals::save(['title' => 'An ordinary appeal', 'status' => 'live', 'offline_ngn' => 100000], 'tester');
+$apNo = Appeals::allocateToVanguards($apPlain, 50000, 1, 'tester');
+ck('appeals: an ordinary appeal cannot hand money to NGV', empty($apNo['ok']));
+ck('appeals: and the refusal says how to make it one',
+   str_contains((string) $apNo['error'], 'funds NGV training fees'));
+
+$apOver = Appeals::allocateToVanguards($apSpon, 900000, 1, 'tester');
+ck('appeals: allocating more than was raised is refused outright', empty($apOver['ok']));
+ck('appeals: the refusal names what is actually available',
+   str_contains((string) $apOver['error'], '₦200,000'));
+ck('appeals: a zero allocation is refused',
+   empty(Appeals::allocateToVanguards($apSpon, 0, 1, 'tester')['ok']));
+ck('appeals: nothing was allocated by any of those refusals',
+   Appeals::unallocated($apSponRow) === 200000 && Appeals::allocations($apSpon)['total'] === 0);
+
+/* Nobody is named in the public figure. The count and the total leave the
+   method; the names do not. */
+$apShort = Appeals::ngvShortfall();
+ck('appeals: the NGV shortfall reports a count and a total',
+   array_key_exists('participants', $apShort) && array_key_exists('outstanding', $apShort));
+ck('appeals: and names nobody',
+   !str_contains(strtolower(json_encode($apShort)), 'name')
+   && !str_contains(json_encode($apShort), '@'));
+
+/* The page must not name anybody either. */
+$apSrc = (string) @file_get_contents(AV_ROOT . '/give/appeal.php');
+ck('appeals: the public page shows the shortfall as a count, never a roster',
+   str_contains($apSrc, 'ngvShortfall') && !str_contains($apSrc, 'NgvLedger::arrears'));
+
+
+/* ══ Two bugs that cost data ══════════════════════════════════════════════ */
+
+/* 1. A partial save must touch only what it was given. save() sanitised every
+      field with a fallback default, so `save(['id' => N, 'project' => 'sts'])`
+      blanked the title, dropped the appeal back to draft and zeroed the goal.
+      The console posts the whole form, so it hid there until a one-field call
+      was made from elsewhere. */
+$apReset();
+$apKeep = Appeals::save([
+    'title' => 'Everything set', 'tagline' => 'A full record', 'status' => 'live',
+    'kind' => 'emergency', 'goal_ngn' => 750000, 'offline_ngn' => 90000, 'urgent' => 1,
+    'location' => 'Lagos', 'beneficiary' => '80 households', 'seo_desc' => 'A description',
+], 'tester');
+$apBefore = Appeals::byId($apKeep);
+Appeals::save(['id' => $apKeep, 'project' => 'techhome'], 'tester');
+$apAfter = Appeals::byId($apKeep);
+foreach (['title', 'tagline', 'status', 'kind', 'goal_ngn', 'offline_ngn', 'urgent',
+          'location', 'beneficiary', 'seo_desc', 'slug'] as $apF) {
+    ck('appeals: a one-field save leaves "' . $apF . '" alone',
+       (string) $apBefore[$apF] === (string) $apAfter[$apF]);
+}
+ck('appeals: and the field that WAS sent did change',
+   (string) $apAfter['project'] === 'techhome');
+/* A save with nothing to change is not an error and must not blank anything. */
+Appeals::save(['id' => $apKeep], 'tester');
+ck('appeals: a save with no fields at all changes nothing',
+   (string) Appeals::byId($apKeep)['title'] === 'Everything set');
+/* Creating still requires a title, and still fills every default. */
+ck('appeals: creating without a title is still refused', Appeals::save(['status' => 'live'], 'tester') === 0);
+
+/* 2. Columns added to the DDL later must reach a database that already has the
+      table. CREATE TABLE IF NOT EXISTS is a no-op there, so `project` and
+      `funds_ngv` never arrived and every save died on "no such column" — the
+      exact failure tests/drift.test.php exists to document. */
+$apReset();
+try {
+    /* Rebuild av_appeals in its pre-column shape, then make the domain use it. */
+    $apPdo = Database::pdo();
+    $apPdo->exec('DROP TABLE IF EXISTS av_appeals');
+    $apPdo->exec("CREATE TABLE av_appeals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, slug VARCHAR(90) NOT NULL UNIQUE,
+        title TEXT NOT NULL DEFAULT '', status VARCHAR(16) NOT NULL DEFAULT 'draft',
+        goal_ngn INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '')");
+    $apReady = new ReflectionProperty('Appeals', 'ready');
+    $apReady->setAccessible(true);
+    $apReady->setValue(null, false);
+    Appeals::ensure();
+    $apHealed = Appeals::save(['title' => 'After a migration gap', 'status' => 'live',
+                               'project' => 'ngv', 'funds_ngv' => 1, 'goal_ngn' => 123000], 'tester');
+    ck('appeals: a table missing later columns is healed rather than fatal', $apHealed > 0);
+    $apH = $apHealed > 0 ? Appeals::byId($apHealed) : [];
+    ck('appeals: and the new columns actually work afterwards',
+       (string) ($apH['project'] ?? '') === 'ngv' && (int) ($apH['funds_ngv'] ?? 0) === 1);
+} catch (Throwable $e) {
+    ck('appeals: a table missing later columns is healed rather than fatal', false);
+}
+
 $apReset();

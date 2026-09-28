@@ -229,6 +229,66 @@ clear; both index by an HMAC of it.
 of CR and LF, because a newline in a mail header ends it and begins another —
 an unfiltered value could add a `Bcc` and quietly copy every message somewhere.
 
+## Sponsoring a Vanguard
+
+An appeal marked **pays NGV training fees** turns donations into real payments
+on real NextGen Vanguard accounts. Staff allocate from the console; each
+allocation posts an `NgvLedger` payment, so the participant's balance moves,
+their instalment schedule advances and they get the ordinary NGV receipt —
+exactly as if they had paid it themselves. Nothing here re-implements the
+ledger's arithmetic; it calls it.
+
+Three rules the code enforces and the interface explains:
+
+- **Nobody is named in public.** `ngvShortfall()` returns a count and a total
+  and nothing else. A participant who cannot afford their fee has not
+  volunteered to have that published beside a donate button — "14 Vanguards"
+  is a cause, "Ada, who is behind" is an exposure. Staff see who; the public
+  sees how many. A test asserts the page reads the shortfall rather than the
+  arrears roster.
+- **You cannot allocate what was not raised.** Crediting participants against
+  money that does not exist would surface as a hole in the NGV books rather
+  than here, which is the worst place for it to appear.
+- **Only what is currently DUE can be paid.** Training fees bill monthly, so an
+  appeal holding ₦250,000 may place only ₦80,000 today. The rest stays with the
+  appeal — which is better twice over: it can go to whoever is furthest behind
+  next month, and money paid ahead is locked to one participant who may not
+  finish. The response reports what actually moved, and the console repeats it,
+  because a sponsor told "₦250,000 allocated" when ₦80,000 moved has been
+  misinformed about their own gift.
+
+Money goes to whoever is furthest behind first. Spreading it evenly leaves
+everybody still short and nobody actually through, which is the one outcome a
+sponsorship fund should never produce.
+
+## Appeals on programme pages
+
+An appeal can be filed under a flagship programme, and `projects/_detail.php`
+renders it on that programme's own page. Somebody who has just read what
+Techome is, is the best-placed person on the site to fund it; sending them to a
+general index to find it again loses most of them.
+
+The programme list is **read from `lib/projects_content.php`**, not kept by
+hand. The hand-kept first version carried three slugs that are not projects on
+this site at all, so an appeal could be filed against a programme whose page
+could never show it — a setting that silently did nothing. NGV and the Summit
+are added explicitly because they are programmes with pages outside
+`/projects/`.
+
+## Chioma knows what we need
+
+`appeals_open` is a tool on the site's own guide, so "what does Afrovanguard
+need right now?" is answered from live data rather than from whatever the model
+remembers. It returns the live appeals and the standing daily and weekly needs,
+with every figure **pre-formatted by the same formatter the pages use** — so
+Chioma cannot punctuate naira differently from the page she is linking to, and
+cannot arrive at a percentage of her own by dividing two numbers.
+
+Drafts are unreachable through it: it calls `published()`, which never returns
+them. When nothing is running it says so and points at the general fund rather
+than inventing an appeal, and it is told that nobody outside Afrovanguard can
+start one.
+
 ## The editorial layer
 
 `assets/site/editorial.css` (`.ed-*`) carries the institutional-editorial
@@ -280,7 +340,19 @@ with the identity, trust and payout obligations that come with it.
 | Band script | `assets/site/appeals-band.js` |
 | Money | read from `av_private_path('donations.json')` — written only by `process-donation.php` |
 | QR | `chillerlan/php-qrcode` |
+| Sponsorship | `av_appeal_allocations` · `Appeals::allocateToVanguards()` → `NgvLedger::payment()` |
+| Programmes | `Appeals::projects()`, read from `lib/projects_content.php` · rendered by `projects/_detail.php` |
+| The guide | `appeals_open` in `lib/ChiomaTools.php` |
 | Tests | `tests/appeals.test.php` |
+
+`ensure()` runs `execSchema()` for tables and indexes and then
+`syncTablesFromDdl()` for **columns**. Both are needed: `CREATE TABLE IF NOT
+EXISTS` is a no-op on a table that already exists, so a column added to the DDL
+later never reaches a deployment that ran the first version — and then every
+save dies on "no such column". Adding `project` and `funds_ngv` to the shipped
+table reproduced exactly that, which is the failure `tests/drift.test.php`
+exists to document. A test now rebuilds `av_appeals` in its pre-column shape and
+asserts the domain heals it.
 
 Schema is provisioned **on demand** rather than by a version-stamped migration
 step. The stamped steps are the ones that leave a deployment broken when its
