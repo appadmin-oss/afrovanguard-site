@@ -48,6 +48,61 @@ final class Payments
         return ($res && ($res['status'] ?? false) && !empty($res['data']['authorization_url'])) ? $res['data']['authorization_url'] : null;
     }
 
+    /**
+     * Find or create a Paystack Plan, returning its plan_code (or null).
+     *
+     * A recurring gift needs a Plan on Paystack's side before a subscription
+     * can exist. Plans are created once per (amount, interval, name) and then
+     * reused for every donor who picks that option — creating one per click
+     * would fill the dashboard with thousands of identical plans and make the
+     * merchant's own reporting useless.
+     *
+     * Callers are expected to CACHE the returned code. This makes a live API
+     * call, so it belongs on the click that starts a subscription, never on a
+     * page render.
+     *
+     * $interval is Paystack's own vocabulary: daily, weekly, monthly,
+     * quarterly, biannually, annually.
+     */
+    public static function paystackFindOrCreatePlan(string $name, int $amountKobo, string $interval): ?array
+    {
+        if (!self::configured('paystack')) return null;
+        $interval = strtolower(trim($interval));
+        if (!in_array($interval, ['daily', 'weekly', 'monthly', 'quarterly', 'biannually', 'annually'], true)) return null;
+        if ($amountKobo < 100) return null;
+
+        $res = self::curl('https://api.paystack.co/plan', [
+            'name'     => mb_substr($name, 0, 100),
+            'amount'   => $amountKobo,
+            'interval' => $interval,
+            'currency' => 'NGN',
+        ], 'Bearer ' . PAYSTACK_SECRET_KEY);
+
+        if ($res && ($res['status'] ?? false) && !empty($res['data']['plan_code'])) {
+            return ['code' => (string) $res['data']['plan_code'], 'id' => (int) ($res['data']['id'] ?? 0)];
+        }
+        error_log('[payments] plan create failed: ' . substr(json_encode($res), 0, 200));
+        return null;
+    }
+
+    /**
+     * Cancel a subscription. Paystack needs BOTH the subscription code and the
+     * current email token, and the token is only obtainable by fetching the
+     * subscription first — so this does the fetch rather than making every
+     * caller know that.
+     */
+    public static function paystackCancelSubscription(string $subscriptionCode): bool
+    {
+        if (!self::configured('paystack') || $subscriptionCode === '') return false;
+        $sub = self::curl('https://api.paystack.co/subscription/' . rawurlencode($subscriptionCode), null, 'Bearer ' . PAYSTACK_SECRET_KEY);
+        $token = (string) ($sub['data']['email_token'] ?? '');
+        if ($token === '') { error_log('[payments] cancel: no email token for ' . $subscriptionCode); return false; }
+        $res = self::curl('https://api.paystack.co/subscription/disable', [
+            'code' => $subscriptionCode, 'token' => $token,
+        ], 'Bearer ' . PAYSTACK_SECRET_KEY);
+        return (bool) ($res['status'] ?? false);
+    }
+
     /** Verify a transaction. Returns ['paid'=>bool,'amount'=>kobo,'reference'=>...]. */
     public static function paystackVerify(string $reference): array
     {

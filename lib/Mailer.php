@@ -308,6 +308,14 @@ final class Mailer
             foreach (self::normAttachments($opt) as $att) {
                 if (!empty($att['path']) && is_file($att['path'])) $m->addAttachment($att['path'], (string) ($att['name'] ?? basename($att['path'])));
             }
+            /* Extra headers. `List-Unsubscribe` is the one that matters: a bulk
+               send to several hundred donors without it is a send that lands in
+               spam, and a donor who cannot get out of a list complains to their
+               provider rather than to us — which is how a charity loses its
+               sending reputation on one campaign. */
+            foreach (self::extraHeaders($opt) as $hk => $hv) {
+                try { $m->addCustomHeader($hk, $hv); } catch (Throwable $e) { /* one bad header is not a failed send */ }
+            }
             $m->isHTML(true);
             $m->Subject = $subject;
             $m->Body    = $html;
@@ -341,6 +349,8 @@ final class Mailer
         ];
         if (!empty($from['replyTo'])) $payload['reply_to'] = [$from['replyTo']];
         if (!empty($opt['bcc']) && filter_var($opt['bcc'], FILTER_VALIDATE_EMAIL)) $payload['bcc'] = [$opt['bcc']];
+        $hdrs = self::extraHeaders($opt);
+        if ($hdrs) $payload['headers'] = $hdrs;
 
         $ch = curl_init('https://api.resend.com/emails');
         curl_setopt_array($ch, [
@@ -383,6 +393,30 @@ final class Mailer
      * Wrap body content in the Afrovanguard email shell (gold/ink brand).
      * $rows is an array of HTML strings rendered as stacked paragraphs.
      */
+    /**
+     * `$opt['headers']` as a clean name => value map.
+     *
+     * Only a short allowlist, and every value stripped of CR and LF. A newline
+     * in a mail header is header injection: it ends the header and begins
+     * another, so an unfiltered value could add a Bcc and quietly copy every
+     * message somewhere. These values come from our own code today, which is
+     * exactly the assumption that stops being true later.
+     */
+    private static function extraHeaders(array $opt): array
+    {
+        static $allowed = ['List-Unsubscribe', 'List-Unsubscribe-Post', 'List-Id', 'X-Entity-Ref-ID', 'Precedence'];
+        $in = $opt['headers'] ?? null;
+        if (!is_array($in)) return [];
+        $out = [];
+        foreach ($in as $k => $v) {
+            $k = trim((string) $k);
+            if (!in_array($k, $allowed, true)) continue;
+            $v = trim(str_replace(["\r", "\n", "\0"], '', (string) $v));
+            if ($v !== '') $out[$k] = mb_substr($v, 0, 500);
+        }
+        return $out;
+    }
+
     public static function shell(string $heading, array $rows, ?array $cta = null, string $preheader = ''): string
     {
         $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : 'https://afrovanguard.org.ng';

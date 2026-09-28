@@ -172,6 +172,47 @@ CREATE TABLE IF NOT EXISTS av_appeal_tiers (
   sort       INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_tier_appeal ON av_appeal_tiers (appeal_id, sort);
+CREATE TABLE IF NOT EXISTS av_appeal_plans (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  appeal_id  INTEGER NOT NULL,
+  interval_k VARCHAR(16) NOT NULL DEFAULT 'monthly',
+  amount_ngn INTEGER NOT NULL DEFAULT 0,
+  plan_code  VARCHAR(80) NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_combo ON av_appeal_plans (appeal_id, interval_k, amount_ngn);
+CREATE TABLE IF NOT EXISTS av_appeal_subs (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  appeal_id  INTEGER NOT NULL,
+  email      VARCHAR(190) NOT NULL DEFAULT '',
+  name       TEXT NOT NULL DEFAULT '',
+  amount_ngn INTEGER NOT NULL DEFAULT 0,
+  interval_k VARCHAR(16) NOT NULL DEFAULT 'monthly',
+  sub_code   VARCHAR(80) NOT NULL DEFAULT '',
+  plan_code  VARCHAR(80) NOT NULL DEFAULT '',
+  status     VARCHAR(16) NOT NULL DEFAULT 'active',
+  charges    INTEGER NOT NULL DEFAULT 0,
+  total_ngn  INTEGER NOT NULL DEFAULT 0,
+  started_at TEXT NOT NULL DEFAULT '',
+  last_at    TEXT NOT NULL DEFAULT '',
+  ended_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_code ON av_appeal_subs (sub_code);
+CREATE INDEX IF NOT EXISTS idx_sub_appeal ON av_appeal_subs (appeal_id, status);
+CREATE TABLE IF NOT EXISTS av_appeal_unsubs (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  email_key  VARCHAR(64) NOT NULL DEFAULT '',
+  appeal_id  INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unsub ON av_appeal_unsubs (email_key, appeal_id);
+CREATE TABLE IF NOT EXISTS av_appeal_sends (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  update_id  INTEGER NOT NULL,
+  email_key  VARCHAR(64) NOT NULL DEFAULT '',
+  sent_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_send_once ON av_appeal_sends (update_id, email_key);
 SQL;
     }
 
@@ -1232,6 +1273,412 @@ SQL;
     {
         try { if (class_exists('Sitemap')) Sitemap::rebuild(); }
         catch (Throwable $e) { /* the committed file stays correct */ }
+    }
+
+    /* ── recurring giving ────────────────────────────────────────────────── */
+
+    /** Intervals we offer. Paystack's own vocabulary, so nothing translates. */
+    public const INTERVALS = ['monthly' => 'a month', 'quarterly' => 'a quarter', 'annually' => 'a year'];
+
+    /**
+     * Start a recurring gift. Returns a Paystack authorization URL, or an error.
+     *
+     * The Plan is created on Paystack the FIRST time anybody picks a given
+     * (appeal, interval, amount) and the code is cached here afterwards. One
+     * plan per click would fill the merchant dashboard with thousands of
+     * identical plans and make Afrovanguard's own reporting useless.
+     *
+     * This makes live API calls, so it belongs on a click and never on a page
+     * render. The subscription itself is not recorded here — it is recorded
+     * when Paystack's webhook confirms it, because a subscription we wrote down
+     * at the moment somebody pressed a button is a subscription that may never
+     * have been paid for.
+     */
+    public static function startRecurring(int $appealId, string $email, int $amountNgn, string $interval, string $name = ''): array
+    {
+        self::ensure();
+        $a = self::byId($appealId);
+        if (!$a) return ['ok' => false, 'error' => 'No such appeal.'];
+        if ((string) $a['status'] !== 'live') return ['ok' => false, 'error' => 'This appeal is not taking donations at the moment.'];
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Enter an email address we can send the receipt to.'];
+        if (!isset(self::INTERVALS[$interval])) return ['ok' => false, 'error' => 'Choose how often you would like to give.'];
+
+        $amount = self::money($amountNgn);
+        $min = defined('MIN_DONATION_AMOUNT') ? (int) MIN_DONATION_AMOUNT : 1000;
+        if ($amount < $min) return ['ok' => false, 'error' => 'The smallest recurring gift is ' . self::naira($min) . '.'];
+        if (!class_exists('Payments') || !Payments::configured('paystack')) {
+            return ['ok' => false, 'error' => 'Recurring giving is not available right now. A one-off gift still works.'];
+        }
+
+        $planCode = self::planCodeFor($appealId, $interval, $amount, (string) $a['title']);
+        if ($planCode === '') return ['ok' => false, 'error' => 'Could not set up the recurring gift. Please try a one-off donation.'];
+
+        $ref = Payments::reference('appeal');
+        $url = Payments::paystackInitPlan($email, $planCode, $ref,
+            rtrim(defined('SITE_URL') ? SITE_URL : '', '/') . '/give/' . rawurlencode((string) $a['slug']) . '/?recurring=started',
+            ['appeal' => (string) $a['slug'], 'appeal_id' => $appealId, 'interval' => $interval,
+             'name' => mb_substr(trim($name), 0, 80), 'campaign' => (string) $a['slug']]);
+
+        if ($url === null) return ['ok' => false, 'error' => 'Paystack could not start that subscription. Please try again.'];
+        self::audit('recurring_start', (string) $a['slug'], $email, $interval . ' ' . self::naira($amount));
+        return ['ok' => true, 'url' => $url, 'reference' => $ref];
+    }
+
+    /** The cached plan code for this combination, creating it once if needed. */
+    private static function planCodeFor(int $appealId, string $interval, int $amount, string $title): string
+    {
+        try {
+            $st = Database::pdo()->prepare('SELECT plan_code FROM av_appeal_plans WHERE appeal_id = ? AND interval_k = ? AND amount_ngn = ?');
+            $st->execute([$appealId, $interval, $amount]);
+            $have = $st->fetchColumn();
+            if ($have !== false && (string) $have !== '') return (string) $have;
+        } catch (Throwable $e) { error_log('[appeals] plan lookup: ' . $e->getMessage()); }
+
+        $plan = Payments::paystackFindOrCreatePlan(
+            mb_substr($title, 0, 60) . ' — ' . self::naira($amount) . ' ' . (self::INTERVALS[$interval] ?? $interval),
+            $amount * 100, $interval);
+        if (!$plan || ($plan['code'] ?? '') === '') return '';
+
+        try {
+            /* INSERT OR IGNORE in effect: two donors picking the same option at
+               the same moment both created a plan, and only one row may win.
+               The loser's plan is harmless — it simply goes unused. */
+            $st = Database::pdo()->prepare('INSERT INTO av_appeal_plans (appeal_id,interval_k,amount_ngn,plan_code,created_at) VALUES (?,?,?,?,?)');
+            $st->execute([$appealId, $interval, $amount, (string) $plan['code'], self::now()]);
+        } catch (Throwable $e) {
+            $st = Database::pdo()->prepare('SELECT plan_code FROM av_appeal_plans WHERE appeal_id = ? AND interval_k = ? AND amount_ngn = ?');
+            $st->execute([$appealId, $interval, $amount]);
+            $won = $st->fetchColumn();
+            if ($won !== false && (string) $won !== '') return (string) $won;
+        }
+        return (string) $plan['code'];
+    }
+
+    /**
+     * Record a subscription Paystack has confirmed. Idempotent on sub_code,
+     * because a webhook is retried until it is acknowledged and a retry must
+     * not double somebody's recorded giving.
+     */
+    public static function recordSubscription(array $d): bool
+    {
+        self::ensure();
+        $code = trim((string) ($d['sub_code'] ?? ''));
+        $email = mb_strtolower(trim((string) ($d['email'] ?? '')));
+        if ($code === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        $appealId = (int) ($d['appeal_id'] ?? 0);
+        if ($appealId <= 0 && !empty($d['slug'])) {
+            $a = self::bySlug((string) $d['slug']);
+            $appealId = $a ? (int) $a['id'] : 0;
+        }
+        if ($appealId <= 0) return false;
+        try {
+            $st = Database::pdo()->prepare('SELECT id FROM av_appeal_subs WHERE sub_code = ?');
+            $st->execute([$code]);
+            if ($st->fetchColumn() !== false) return true;          // already recorded
+            Database::pdo()->prepare(
+                'INSERT INTO av_appeal_subs (appeal_id,email,name,amount_ngn,interval_k,sub_code,plan_code,status,started_at)
+                 VALUES (?,?,?,?,?,?,?,?,?)')
+                ->execute([$appealId, $email, mb_substr(trim((string) ($d['name'] ?? '')), 0, 120),
+                           self::money($d['amount_ngn'] ?? 0),
+                           isset(self::INTERVALS[(string) ($d['interval'] ?? '')]) ? (string) $d['interval'] : 'monthly',
+                           $code, mb_substr((string) ($d['plan_code'] ?? ''), 0, 80), 'active', self::now()]);
+            return true;
+        } catch (Throwable $e) { error_log('[appeals] recordSubscription: ' . $e->getMessage()); return false; }
+    }
+
+    /** Note that a recurring charge went through — one more cycle collected. */
+    public static function noteRecurringCharge(string $subCode, int $amountNgn): bool
+    {
+        self::ensure();
+        if (trim($subCode) === '') return false;
+        try {
+            Database::pdo()->prepare(
+                'UPDATE av_appeal_subs SET charges = charges + 1, total_ngn = total_ngn + ?, last_at = ?, status = ?
+                 WHERE sub_code = ?')
+                ->execute([self::money($amountNgn), self::now(), 'active', $subCode]);
+            return true;
+        } catch (Throwable $e) { return false; }
+    }
+
+    /** Stop a recurring gift, at Paystack and here. */
+    public static function stopRecurring(string $subCode, string $actor = ''): array
+    {
+        self::ensure();
+        if (trim($subCode) === '') return ['ok' => false, 'error' => 'No subscription given.'];
+        $ok = class_exists('Payments') ? Payments::paystackCancelSubscription($subCode) : false;
+        try {
+            Database::pdo()->prepare('UPDATE av_appeal_subs SET status = ?, ended_at = ? WHERE sub_code = ?')
+                ->execute([$ok ? 'cancelled' : 'cancelling', self::now(), $subCode]);
+        } catch (Throwable $e) { error_log('[appeals] stopRecurring: ' . $e->getMessage()); }
+        self::audit('recurring_stop', $subCode, $actor, $ok ? 'cancelled' : 'paystack refused');
+        return $ok
+            ? ['ok' => true]
+            : ['ok' => false, 'error' => 'We have marked it cancelled here, but Paystack did not confirm. Please check the dashboard.'];
+    }
+
+    /** Active recurring givers on an appeal, and what they come to a year. */
+    public static function recurringFor(int $appealId): array
+    {
+        self::ensure();
+        $perYear = ['monthly' => 12, 'quarterly' => 4, 'annually' => 1];
+        try {
+            $st = Database::pdo()->prepare("SELECT * FROM av_appeal_subs WHERE appeal_id = ? AND status = 'active' ORDER BY id DESC");
+            $st->execute([$appealId]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { return ['rows' => [], 'count' => 0, 'annualised' => 0, 'collected' => 0]; }
+        $annual = 0; $collected = 0;
+        foreach ($rows as &$r) {
+            foreach (['id', 'appeal_id', 'amount_ngn', 'charges', 'total_ngn'] as $k) $r[$k] = (int) $r[$k];
+            $annual    += $r['amount_ngn'] * ($perYear[(string) $r['interval_k']] ?? 12);
+            $collected += $r['total_ngn'];
+        }
+        return ['rows' => $rows, 'count' => count($rows), 'annualised' => $annual, 'collected' => $collected];
+    }
+
+    /* ── telling donors what happened ────────────────────────────────────── */
+
+    /**
+     * How many messages one run may send.
+     *
+     * Shared cPanel hosting meters outbound mail by the hour, and a nonprofit
+     * that spends its whole allowance announcing a milestone has also stopped
+     * its own password resets, receipts and enquiry replies for the rest of the
+     * hour. So a send is a QUEUE that drains: the console starts it, the cron
+     * finishes it, and `av_appeal_sends` records who has already been reached
+     * so a second pass never writes to the same person twice.
+     */
+    private const MAIL_BATCH = 60;
+
+    /** A stable, non-reversible key for an address — the unsubscribe list and
+     *  the sent-log both index by it, so neither stores an email in the clear. */
+    private static function emailKey(string $email): string
+    {
+        $norm = mb_strtolower(trim($email));
+        $salt = defined('APP_KEY') ? (string) APP_KEY : 'av';
+        return hash_hmac('sha256', $norm, $salt);
+    }
+
+    /** The one-click unsubscribe token for an address on an appeal. */
+    public static function unsubToken(string $email, int $appealId): string
+    {
+        $salt = defined('APP_KEY') ? (string) APP_KEY : 'av';
+        return substr(hash_hmac('sha256', mb_strtolower(trim($email)) . '|' . $appealId . '|unsub', $salt), 0, 32);
+    }
+
+    public static function unsubUrl(string $email, int $appealId): string
+    {
+        return rtrim(defined('SITE_URL') ? SITE_URL : '', '/') . '/give/unsubscribe.php?e='
+            . rawurlencode(mb_strtolower(trim($email))) . '&a=' . $appealId . '&t=' . self::unsubToken($email, $appealId);
+    }
+
+    /**
+     * Take an address off an appeal's list, or off everything with $appealId 0.
+     *
+     * Deliberately unauthenticated beyond the HMAC. Somebody who wants out of a
+     * mailing list must not have to prove who they are first — an unsubscribe
+     * behind a login is an unsubscribe that becomes a spam complaint.
+     */
+    public static function unsubscribe(string $email, int $appealId, string $token): bool
+    {
+        self::ensure();
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        if (!hash_equals(self::unsubToken($email, $appealId), $token)) return false;
+        try {
+            $st = Database::pdo()->prepare('SELECT id FROM av_appeal_unsubs WHERE email_key = ? AND appeal_id = ?');
+            $st->execute([self::emailKey($email), $appealId]);
+            if ($st->fetchColumn() === false) {
+                Database::pdo()->prepare('INSERT INTO av_appeal_unsubs (email_key,appeal_id,created_at) VALUES (?,?,?)')
+                    ->execute([self::emailKey($email), $appealId, self::now()]);
+            }
+            return true;
+        } catch (Throwable $e) { error_log('[appeals] unsubscribe: ' . $e->getMessage()); return false; }
+    }
+
+    public static function isUnsubscribed(string $email, int $appealId): bool
+    {
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT COUNT(*) FROM av_appeal_unsubs WHERE email_key = ? AND appeal_id IN (0, ?)');
+            $st->execute([self::emailKey($email), $appealId]);
+            return ((int) $st->fetchColumn()) > 0;
+        } catch (Throwable $e) { return true; }        // fail closed: do not mail on doubt
+    }
+
+    /**
+     * Who may be written to about this appeal: everyone who gave to it, plus
+     * its recurring givers, minus anybody who has opted out.
+     *
+     * Only people who gave TO THIS APPEAL. A donation to the water borehole is
+     * not permission to be told about the December outreach, and treating it as
+     * one is how a charity's mail starts being marked as spam by the people who
+     * supported it.
+     */
+    public static function updateRecipients(array $a): array
+    {
+        $slug = (string) ($a['slug'] ?? '');
+        $id   = (int) ($a['id'] ?? 0);
+        $seen = [];
+        foreach (self::donationFile()['donations'] as $d) {
+            if ((string) ($d['campaign'] ?? '') !== $slug) continue;
+            $em = mb_strtolower(trim((string) ($d['email'] ?? '')));
+            if ($em === '' || !filter_var($em, FILTER_VALIDATE_EMAIL)) continue;
+            if (isset($seen[$em])) continue;
+            $seen[$em] = trim((string) ($d['name'] ?? ''));
+        }
+        try {
+            $st = Database::pdo()->prepare("SELECT email, name FROM av_appeal_subs WHERE appeal_id = ? AND status = 'active'");
+            $st->execute([$id]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $em = mb_strtolower(trim((string) $r['email']));
+                if ($em !== '' && !isset($seen[$em])) $seen[$em] = (string) $r['name'];
+            }
+        } catch (Throwable $e) { /* the donation file alone is still a list */ }
+
+        $out = [];
+        foreach ($seen as $em => $nm) {
+            if (self::isUnsubscribed($em, $id)) continue;
+            $out[$em] = $nm;
+        }
+        return $out;
+    }
+
+    /**
+     * Send one update to the appeal's donors. Returns what it managed.
+     *
+     * Safe to call repeatedly: `av_appeal_sends` records each (update,
+     * recipient) pair, so a second call reaches only the people the first one
+     * did not get to. That is what makes the cron able to finish what the
+     * console started, and what stops a double-click mailing everybody twice.
+     */
+    public static function mailUpdate(int $updateId, int $limit = 0): array
+    {
+        self::ensure();
+        $limit = $limit > 0 ? min($limit, self::MAIL_BATCH) : self::MAIL_BATCH;
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM av_appeal_updates WHERE id = ?');
+            $st->execute([$updateId]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { $u = null; }
+        if (!$u) return ['ok' => false, 'error' => 'No such update.'];
+
+        $a = self::byId((int) $u['appeal_id']);
+        if (!$a) return ['ok' => false, 'error' => 'That update has no appeal.'];
+        if (class_exists('Mailer') && Mailer::disabled()) {
+            return ['ok' => false, 'error' => 'Outbound mail is switched off on this installation.'];
+        }
+
+        $people = self::updateRecipients($a);
+        if (!$people) return ['ok' => true, 'sent' => 0, 'remaining' => 0, 'skipped' => 0,
+                              'note' => 'Nobody has given to this appeal yet, so there is no one to tell.'];
+
+        $st2 = Database::pdo()->prepare('SELECT COUNT(*) FROM av_appeal_sends WHERE update_id = ? AND email_key = ?');
+        $ins = Database::pdo()->prepare('INSERT INTO av_appeal_sends (update_id,email_key,sent_at) VALUES (?,?,?)');
+
+        $sent = 0; $skipped = 0; $left = 0; $tried = 0;
+        foreach ($people as $email => $name) {
+            $key = self::emailKey((string) $email);
+            $st2->execute([$updateId, $key]);
+            if (((int) $st2->fetchColumn()) > 0) { $skipped++; continue; }
+            /* The cap is on ATTEMPTS, not on successes. A batch of addresses
+               that all bounce costs the host exactly as much as a batch that
+               all arrive — more, on some relays — so counting only the
+               successes would let one run of bad addresses spend an afternoon
+               in the mailer while the limit said sixty. */
+            if ($tried >= $limit) { $left++; continue; }
+            $tried++;
+
+            if (self::sendUpdateTo((string) $email, (string) $name, $a, $u)) {
+                try { $ins->execute([$updateId, $key, self::now()]); }
+                catch (Throwable $e) { error_log('[appeals] send log: ' . $e->getMessage()); }
+                $sent++;
+            } else {
+                /* A refused address is logged as done. Retrying a bounce every
+                   time the cron runs spends the quota on an address that will
+                   never accept it, and starves the ones that would. */
+                try { $ins->execute([$updateId, $key, self::now()]); } catch (Throwable $e) {}
+                $skipped++;
+            }
+        }
+        self::audit('update_mailed', (string) $a['slug'], '', $sent . ' sent, ' . $left . ' queued');
+        return ['ok' => true, 'sent' => $sent, 'remaining' => $left, 'skipped' => $skipped];
+    }
+
+    /** One donor update email. */
+    private static function sendUpdateTo(string $email, string $name, array $a, array $u): bool
+    {
+        $esc   = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        $st    = self::state($a);
+        $unsub = self::unsubUrl($email, (int) $a['id']);
+        $first = trim(explode(' ', trim($name))[0] ?? '');
+
+        $rows = [];
+        $rows[] = $first !== '' ? 'Hello ' . $esc($first) . ',' : 'Hello,';
+        $rows[] = 'An update on <strong>' . $esc((string) $a['title']) . '</strong>, which you gave to.';
+        if (!empty($u['title'])) $rows[] = '<strong>' . $esc((string) $u['title']) . '</strong>';
+        if (!empty($u['body'])) {
+            $plain = trim(strip_tags((string) $u['body']));
+            foreach (array_slice(preg_split('/\n{2,}/', $plain) ?: [], 0, 6) as $para) {
+                if (trim($para) !== '') $rows[] = $esc(trim($para));
+            }
+        }
+        if ((int) ($u['amount_ngn'] ?? 0) > 0 && (string) $u['kind'] === 'spend') {
+            $rows[] = 'Spent on this: <strong>' . $esc(self::naira((int) $u['amount_ngn'])) . '</strong>.';
+        }
+        if ($st['goal'] > 0 && $st['percent'] !== null) {
+            $rows[] = 'The appeal now stands at <strong>' . $esc(self::naira($st['raised'])) . '</strong> of '
+                    . $esc(self::naira($st['goal'])) . ' — ' . (int) $st['percent'] . '%.';
+        } else {
+            $rows[] = 'The appeal has raised <strong>' . $esc(self::naira($st['raised'])) . '</strong> so far.';
+        }
+        $rows[] = 'Thank you — genuinely. None of it happens without you.';
+        $rows[] = '<span style="font-size:12.5px;color:#7b7b82">You are getting this because you gave to this appeal. '
+                . '<a href="' . $esc($unsub) . '" style="color:#7b7b82">Stop emails about it</a>.</span>';
+
+        $html = Mailer::shell('Afrovanguard', $rows,
+            ['url' => self::url($a, 'email-update'), 'text' => 'See the appeal'],
+            mb_substr(trim(strip_tags((string) ($u['title'] ?: $a['title']))), 0, 90));
+
+        try {
+            return (bool) Mailer::send($email, ((string) $u['title'] !== '' ? (string) $u['title'] : 'An update') . ' — ' . (string) $a['title'], $html, [
+                'from'     => defined('DONATIONS_FROM_EMAIL') ? DONATIONS_FROM_EMAIL : null,
+                'fromName' => defined('DONATIONS_FROM_NAME') ? DONATIONS_FROM_NAME : 'Afrovanguard',
+                /* One-click unsubscribe. Without it a send to several hundred
+                   donors lands in spam, and a donor who cannot get out
+                   complains to their provider rather than to us. */
+                'headers'  => [
+                    'List-Unsubscribe' => '<' . $unsub . '>',
+                    'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+                ],
+            ]);
+        } catch (Throwable $e) { error_log('[appeals] update mail: ' . $e->getMessage()); return false; }
+    }
+
+    /**
+     * Drain whatever update mailings are still outstanding. For the cron.
+     *
+     * Only looks at recent updates: an update from four months ago with people
+     * still unmailed is not a queue, it is a mistake, and quietly delivering it
+     * one morning would be worse than leaving it.
+     */
+    public static function cronTick(): array
+    {
+        self::ensure();
+        $done = ['updates' => 0, 'sent' => 0];
+        if (class_exists('Mailer') && Mailer::disabled()) return $done;
+        try {
+            $st = Database::pdo()->prepare(
+                "SELECT u.id FROM av_appeal_updates u
+                  JOIN av_appeals a ON a.id = u.appeal_id
+                 WHERE a.status IN ('live','funded','paused') AND u.created_at >= ?
+                 ORDER BY u.id DESC LIMIT 10");
+            $st->execute([gmdate('Y-m-d H:i:s', time() - 14 * 86400)]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $uid) {
+                $r = self::mailUpdate((int) $uid);
+                if (!empty($r['sent'])) { $done['updates']++; $done['sent'] += (int) $r['sent']; }
+                if ($done['sent'] >= self::MAIL_BATCH) break;      // one batch per tick, whatever else is waiting
+            }
+        } catch (Throwable $e) { error_log('[appeals] cronTick: ' . $e->getMessage()); }
+        return $done;
     }
 
     /* ── totals, for the index page and the console ──────────────────────── */

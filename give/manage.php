@@ -63,6 +63,14 @@ if ($method === 'POST') {
         case 'delete_update': {
             json_out(['ok' => Appeals::deleteUpdate((int) ($in['update_id'] ?? 0))]);
         }
+        case 'mail_update': {
+            $r = Appeals::mailUpdate((int) ($in['update_id'] ?? 0));
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
+        case 'stop_recurring': {
+            $r = Appeals::stopRecurring((string) ($in['sub_code'] ?? ''), $actor);
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
         case 'save_tiers': {
             $ok = Appeals::saveTiers((int) ($in['appeal_id'] ?? 0), is_array($in['tiers'] ?? null) ? $in['tiers'] : []);
             json_out(['ok' => $ok]);
@@ -86,6 +94,8 @@ if ($isAdmin && $selId > 0) {
         $selNeeds   = Appeals::needsFor($selId, 60);
         $selUpdates = Appeals::updatesFor($selId, 30);
         $selTiers   = Appeals::tiersFor($selId);
+        $selRec     = Appeals::recurringFor($selId);
+        $selMailTo  = Appeals::updateRecipients($sel);
     }
 }
 $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal' => 0, 'donors' => 0];
@@ -107,7 +117,7 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
     <p><a class="gm-btn gm-primary" href="/admin/">Go to the Studio</a></p>
   </main>
 <?php else: ?>
-<header class="gm-bar">
+<header class="gm-topbar">
   <div class="gm-brand"><span class="wm">Afrovanguard</span> <span class="tag">Appeals</span></div>
   <div class="gm-actions">
     <a class="gm-btn gm-ghost" href="/give/" target="_blank" rel="noopener">View public page ↗</a>
@@ -119,7 +129,11 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
   <div class="gm-strip">
     <div><div class="k">Live appeals</div><div class="v"><?= (int) $summary['appeals'] ?></div></div>
     <div><div class="k">Raised</div><div class="v"><?= $e(Appeals::naira((int) $summary['raised'])) ?></div></div>
-    <div><div class="k">Donors</div><div class="v"><?= number_format((int) $summary['donors']) ?></div></div>
+    <?php /* Offline gifts carry no donor count, so this must not read "0"
+             beside a real total — the same contradiction the public pages had. */ ?>
+    <div><div class="k">Donors</div><div class="v"><?= $summary['donors'] > 0
+        ? number_format((int) $summary['donors'])
+        : '<span style="font-size:var(--afg-text-sm);color:var(--afg-muted);font-family:var(--afg-font-body)">none online yet</span>' ?></div></div>
     <div><div class="k">Aiming for</div><div class="v"><?= $e(Appeals::naira((int) $summary['goal'])) ?></div></div>
   </div>
 
@@ -141,7 +155,8 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
           </div>
           <div class="gm-row-meta">
             <?= $e(Appeals::naira($st['raised'])) ?><?php if ($st['goal'] > 0): ?> of <?= $e(Appeals::naira($st['goal'])) ?><?php endif; ?>
-            · <?= (int) $st['donors'] ?> donor<?= $st['donors'] === 1 ? '' : 's' ?>
+            <?php if ($st['donors'] > 0): ?> · <?= (int) $st['donors'] ?> donor<?= $st['donors'] === 1 ? '' : 's' ?>
+            <?php elseif ($st['offline'] > 0): ?> · offline<?php endif; ?>
             <?php if ($st['days_left'] !== null && $st['days_left'] >= 0): ?> · <?= (int) $st['days_left'] ?>d left<?php endif; ?>
           </div>
           <?php if ($st['percent'] !== null): ?>
@@ -184,6 +199,7 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-needs"  id="tab-needs">Needs <span class="gm-count"><?= count($selNeeds) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-updates" id="tab-updates">Updates <span class="gm-count"><?= count($selUpdates) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-tiers"  id="tab-tiers">Tiers <span class="gm-count"><?= count($selTiers) ?></span></button>
+          <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-donors" id="tab-donors">Recurring <span class="gm-count"><?= (int) $selRec['count'] ?></span></button>
         </div>
 
         <!-- The appeal itself -->
@@ -341,6 +357,13 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
             <label class="gm-field gm-span2"><span>Image URL</span><input name="image_url" maxlength="500"></label>
             <div class="gm-form-foot gm-span2"><button type="submit" class="gm-btn gm-primary">Post update</button></div>
           </form>
+          <p class="gm-hint" style="margin-top:var(--afg-space-4)">
+            <strong><?= count($selMailTo) ?></strong>
+            <?= count($selMailTo) === 1 ? 'person has' : 'people have' ?> given to this appeal and can be emailed.
+            Only people who gave to <em>this</em> appeal are on that list, and anyone who has unsubscribed is off it.
+            Sending is batched — the first <?= 60 ?> go now and the cron finishes the rest, so a milestone announcement
+            cannot spend the whole hour's mail allowance.
+          </p>
           <div class="gm-updates">
             <?php if (!$selUpdates): ?><div class="gm-empty"><p>No updates yet. An appeal that reports what the
               money did is the one people give to a second time.</p></div><?php endif; ?>
@@ -351,10 +374,45 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
                     if ((int) $u['amount_ngn'] > 0): ?> · <?= $e(Appeals::naira((int) $u['amount_ngn'])) ?><?php endif; ?></div>
                   <div class="gm-need-title"><?= $e((string) $u['title']) ?></div>
                 </div>
-                <div class="gm-need-act"><button class="gm-btn gm-ghost gm-sm" data-delupdate="<?= (int) $u['id'] ?>">Delete</button></div>
+                <div class="gm-need-act">
+                  <button class="gm-btn gm-ghost gm-sm" data-mail="<?= (int) $u['id'] ?>"
+                          title="Email the people who gave to this appeal">Email donors</button>
+                  <button class="gm-btn gm-ghost gm-sm" data-delupdate="<?= (int) $u['id'] ?>">Delete</button>
+                </div>
               </div>
             <?php endforeach; ?>
           </div>
+        </div>
+
+        <!-- Recurring givers -->
+        <div class="gm-tabpane" id="t-donors" role="tabpanel" aria-labelledby="tab-donors" hidden>
+          <div class="gm-strip" style="margin-bottom:var(--afg-space-5)">
+            <div><div class="k">Active pledges</div><div class="v"><?= (int) $selRec['count'] ?></div></div>
+            <div><div class="k">Worth per year</div><div class="v"><?= $e(Appeals::naira((int) $selRec['annualised'])) ?></div></div>
+            <div><div class="k">Collected so far</div><div class="v"><?= $e(Appeals::naira((int) $selRec['collected'])) ?></div></div>
+          </div>
+          <?php if (!$selRec['rows']): ?>
+            <div class="gm-empty">
+              <p><strong>No recurring gifts yet.</strong></p>
+              <p>The appeal page offers monthly, quarterly and yearly alongside a one-off gift.
+                 A recurring giver is worth many times a single donation, and the ask costs nothing extra.</p>
+            </div>
+          <?php endif; ?>
+          <?php foreach ($selRec['rows'] as $sub): ?>
+            <div class="gm-need">
+              <div>
+                <div class="gm-need-when"><?= $e((string) $sub['interval_k']) ?> ·
+                  <?= (int) $sub['charges'] ?> collected ·
+                  since <?= $e(substr((string) $sub['started_at'], 0, 10)) ?></div>
+                <div class="gm-need-title"><?= $e((string) ($sub['name'] ?: $sub['email'])) ?></div>
+                <div class="gm-need-fig"><?= $e(Appeals::naira((int) $sub['amount_ngn'])) ?>
+                  <span class="gm-hint">— <?= $e(Appeals::naira((int) $sub['total_ngn'])) ?> in total so far</span></div>
+              </div>
+              <div class="gm-need-act">
+                <button class="gm-btn gm-ghost gm-sm" data-stopsub="<?= $e((string) $sub['sub_code']) ?>">Cancel</button>
+              </div>
+            </div>
+          <?php endforeach; ?>
         </div>
 
         <!-- Tiers -->

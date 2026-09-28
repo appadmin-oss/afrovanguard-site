@@ -239,24 +239,89 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
           <?= !empty($a['match_until']) ? 'until ' . e(date('j F', (int) strtotime((string) $a['match_until']))) : 'while the pledge lasts' ?>.</p>
       <?php endif; ?>
 
-      <?php if ($st['accepting']): ?>
-        <a class="give-btn give-btn-primary give-btn-block" href="<?= e($donateHref) ?>">Give to this appeal</a>
-      <?php else: ?>
+      <?php if (!$st['accepting']): ?>
         <p class="give-note"><?= $closed
             ? 'This appeal has closed. Thank you to everyone who gave.'
             : 'This appeal is not taking donations at the moment.' ?>
           <a href="/donate.html">Give to Afrovanguard</a> instead.</p>
-      <?php endif; ?>
+      <?php else:
+        /* ── the giving widget ────────────────────────────────────────────
+           Frequency first, then amount, then one button whose label says
+           exactly what pressing it does. Asking "how much" before "how often"
+           makes somebody re-decide the amount when they change their mind
+           about the frequency, which is the commonest way a donation form
+           loses the person halfway through.
 
-      <?php if ($tiers && $st['accepting']): ?>
-        <div class="give-tiers">
-          <?php foreach ($tiers as $t): ?>
-            <a class="give-tier" href="<?= e($donateHref . '&amount=' . (int) $t['amount_ngn']) ?>">
-              <span class="give-tier-amt"><?= e(Appeals::naira((int) $t['amount_ngn'])) ?></span>
-              <span class="give-tier-impact"><?= e((string) ($t['impact'] ?: $t['label'])) ?></span>
-            </a>
-          <?php endforeach; ?>
-        </div>
+           It works without JavaScript: the whole thing is a form that posts to
+           the ordinary donate page, and the script only upgrades the recurring
+           path — which genuinely needs a round trip, because a Paystack Plan
+           has to exist before a subscription can. */
+        $amounts = [];
+        foreach ($tiers as $t) $amounts[] = (int) $t['amount_ngn'];
+        if (!$amounts) $amounts = [2000, 5000, 10000, 25000];
+        $amounts = array_values(array_unique(array_filter($amounts)));
+        sort($amounts);
+        $amounts = array_slice($amounts, 0, 4);
+        $impactFor = [];
+        foreach ($tiers as $t) $impactFor[(int) $t['amount_ngn']] = (string) ($t['impact'] ?: $t['label']);
+      ?>
+        <form class="gw" id="giveWidget" method="get" action="/donate.html"
+              data-slug="<?= e((string) $a['slug']) ?>" data-min="<?= (int) (defined('MIN_DONATION_AMOUNT') ? MIN_DONATION_AMOUNT : 1000) ?>">
+          <input type="hidden" name="campaign" value="<?= e((string) $a['slug']) ?>">
+
+          <fieldset class="gw-freq">
+            <legend class="gw-legend">How often</legend>
+            <div class="gw-seg" role="radiogroup" aria-label="How often to give">
+              <label class="gw-seg-opt">
+                <input type="radio" name="frequency" value="once" checked>
+                <span>Once</span>
+              </label>
+              <?php foreach (Appeals::INTERVALS as $k => $word): ?>
+                <label class="gw-seg-opt">
+                  <input type="radio" name="frequency" value="<?= e($k) ?>">
+                  <span><?= e($k === 'monthly' ? 'Monthly' : ($k === 'quarterly' ? 'Quarterly' : 'Yearly')) ?></span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+          </fieldset>
+
+          <fieldset class="gw-amts">
+            <legend class="gw-legend">How much</legend>
+            <div class="gw-chips">
+              <?php foreach ($amounts as $i => $amt): ?>
+                <label class="gw-chip">
+                  <input type="radio" name="amount" value="<?= (int) $amt ?>" <?= $i === 1 || count($amounts) === 1 ? 'checked' : '' ?>>
+                  <span class="gw-chip-amt"><?= e(Appeals::naira((int) $amt)) ?></span>
+                  <?php if (!empty($impactFor[$amt])): ?>
+                    <span class="gw-chip-impact"><?= e($impactFor[$amt]) ?></span>
+                  <?php endif; ?>
+                </label>
+              <?php endforeach; ?>
+              <label class="gw-chip gw-chip--other">
+                <input type="radio" name="amount" value="other">
+                <span class="gw-chip-amt">Other</span>
+              </label>
+            </div>
+            <label class="gw-other" hidden>
+              <span class="give-sr">Your amount in naira</span>
+              <span class="gw-other-pre" aria-hidden="true">₦</span>
+              <input type="number" id="gwOther" name="custom_amount" min="<?= (int) (defined('MIN_DONATION_AMOUNT') ? MIN_DONATION_AMOUNT : 1000) ?>"
+                     step="500" inputmode="numeric" placeholder="Amount">
+            </label>
+          </fieldset>
+
+          <label class="gw-email" hidden>
+            <span class="gw-legend">Your email <em>so we can send the receipt and set up the schedule</em></span>
+            <input type="email" id="gwEmail" name="email" autocomplete="email" placeholder="you@example.com">
+          </label>
+
+          <button type="submit" class="gw-go" id="gwGo">Give <span id="gwGoAmt"></span></button>
+          <p class="gw-summary" id="gwSummary" role="status" aria-live="polite"></p>
+          <p class="gw-err" id="gwErr" role="alert" hidden></p>
+          <p class="gw-fine">Card, bank transfer and USSD. Secured by Paystack.
+            <?php if ($st['match_live'] && $st['match_left'] > 0): ?><br><strong>Doubled while the match lasts.</strong><?php endif; ?>
+            <br>You can stop a recurring gift any time — just reply to the receipt.</p>
+        </form>
       <?php endif; ?>
 
       <?php /* ── share ─────────────────────────────────────────────────── */ ?>
@@ -359,4 +424,5 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
   });
 })();
 </script>
+<script src="/give/give.js" defer></script>
 <?php render_footer();

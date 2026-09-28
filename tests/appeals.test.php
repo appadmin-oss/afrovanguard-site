@@ -313,4 +313,119 @@ ck('appeals: the appeal furthest from its goal is listed first',
 ck('appeals: the board totals what today actually costs',
    Appeals::needsTotal()['today'] === 22000);
 
+
+/* ══ Recurring giving ═════════════════════════════════════════════════════ */
+
+$apReset();
+$apRec = Appeals::save(['title' => 'Recurring appeal', 'status' => 'live', 'goal_ngn' => 1000000], 'tester');
+
+/* Every refusal path, because this one ends at a payment provider and a
+   half-validated subscription is somebody's bank account on a schedule. */
+ck('appeals: a recurring gift needs a real email',
+   !Appeals::startRecurring($apRec, 'not-an-email', 5000, 'monthly')['ok']);
+ck('appeals: an interval we do not offer is refused',
+   !Appeals::startRecurring($apRec, 'a@b.co', 5000, 'hourly')['ok']);
+ck('appeals: below the minimum donation is refused',
+   !Appeals::startRecurring($apRec, 'a@b.co', 50, 'monthly')['ok']);
+$apDraftRec = Appeals::save(['title' => 'Draft rec', 'status' => 'draft'], 'tester');
+ck('appeals: a draft appeal cannot take a subscription',
+   !Appeals::startRecurring($apDraftRec, 'a@b.co', 5000, 'monthly')['ok']);
+$apNoPay = Appeals::startRecurring($apRec, 'a@b.co', 5000, 'monthly');
+ck('appeals: with no payment provider it refuses in words a donor can act on',
+   !$apNoPay['ok'] && str_contains((string) $apNoPay['error'], 'one-off'));
+
+/* A subscription is recorded when the WEBHOOK confirms it, never when somebody
+   presses a button — a subscription written down at the click is one that may
+   never have been paid for. */
+ck('appeals: a confirmed subscription is recorded',
+   Appeals::recordSubscription(['sub_code' => 'SUB_one', 'email' => 'Ada@Example.test', 'name' => 'Ada Obi',
+                                'amount_ngn' => 5000, 'interval' => 'monthly', 'appeal_id' => $apRec]));
+ck('appeals: a webhook retry does not create a second pledge',
+   Appeals::recordSubscription(['sub_code' => 'SUB_one', 'email' => 'ada@example.test',
+                                'amount_ngn' => 5000, 'appeal_id' => $apRec])
+   && Appeals::recurringFor($apRec)['count'] === 1);
+ck('appeals: a subscription with no code is refused',
+   !Appeals::recordSubscription(['sub_code' => '', 'email' => 'a@b.co', 'appeal_id' => $apRec]));
+ck('appeals: a subscription with no appeal to belong to is refused',
+   !Appeals::recordSubscription(['sub_code' => 'SUB_x', 'email' => 'a@b.co', 'appeal_id' => 0]));
+
+Appeals::recordSubscription(['sub_code' => 'SUB_two', 'email' => 'bode@example.test',
+                             'amount_ngn' => 20000, 'interval' => 'annually', 'appeal_id' => $apRec]);
+Appeals::noteRecurringCharge('SUB_one', 5000);
+Appeals::noteRecurringCharge('SUB_one', 5000);
+$apR = Appeals::recurringFor($apRec);
+ck('appeals: collected cycles accumulate against the pledge',
+   (int) $apR['rows'][1]['charges'] === 2 && (int) $apR['rows'][1]['total_ngn'] === 10000);
+/* ₦5,000 monthly is ₦60,000 a year; ₦20,000 annually is ₦20,000. */
+ck('appeals: the annualised value weights each interval correctly',
+   $apR['annualised'] === 80000, '(' . $apR['annualised'] . ')');
+ck('appeals: a pledge is NOT counted as money already raised',
+   Appeals::state(Appeals::byId($apRec))['raised'] === 0);
+
+/* ══ Telling donors, and letting them out ═════════════════════════════════ */
+
+$apReset();
+$apMail = Appeals::save(['title' => 'Mailing appeal', 'status' => 'live', 'goal_ngn' => 500000], 'tester');
+$apMailRow = Appeals::byId($apMail);
+$apSlugM = (string) $apMailRow['slug'];
+
+/* Seed the donation store the way process-donation.php writes it. */
+$apDons = [
+    ['campaign' => $apSlugM, 'email' => 'one@example.test',  'name' => 'One Person', 'amount' => 10000],
+    ['campaign' => $apSlugM, 'email' => 'ONE@example.test',  'name' => 'One Again',  'amount' => 5000],
+    ['campaign' => $apSlugM, 'email' => 'two@example.test',  'name' => 'Two Person', 'amount' => 10000],
+    ['campaign' => $apSlugM, 'email' => 'not an email',      'name' => 'Broken',     'amount' => 1000],
+    ['campaign' => 'a-different-appeal', 'email' => 'elsewhere@example.test', 'name' => 'Nope', 'amount' => 9000],
+];
+@file_put_contents(av_private_path('donations.json'), json_encode([
+    'version' => 2, 'campaigns' => [$apSlugM => ['raised' => 25000, 'goal' => 500000, 'donors' => 3]],
+    'totals' => ['donors' => 3, 'raised_ngn' => 25000], 'donations' => $apDons,
+]));
+Appeals::forgetMoney();
+
+$apPeople = Appeals::updateRecipients($apMailRow);
+/* Giving to the borehole is not permission to be told about the outreach.
+   Treating it as one is how a charity's mail gets marked as spam by the very
+   people who supported it. */
+ck('appeals: only people who gave to THIS appeal are writable-to',
+   !isset($apPeople['elsewhere@example.test']));
+ck('appeals: one address counts once however many times they gave',
+   count($apPeople) === 2);
+ck('appeals: a malformed address is dropped rather than queued forever',
+   !isset($apPeople['not an email']));
+
+Appeals::recordSubscription(['sub_code' => 'SUB_m', 'email' => 'giver@example.test',
+                             'amount_ngn' => 3000, 'appeal_id' => $apMail]);
+ck('appeals: a recurring giver is on the list even without a one-off donation',
+   isset(Appeals::updateRecipients($apMailRow)['giver@example.test']));
+
+$apTok = Appeals::unsubToken('one@example.test', $apMail);
+ck('appeals: a forged unsubscribe token is refused',
+   !Appeals::unsubscribe('one@example.test', $apMail, 'not-the-token'));
+ck('appeals: an unsubscribe token from a DIFFERENT appeal does not work here',
+   !Appeals::unsubscribe('one@example.test', $apMail, Appeals::unsubToken('one@example.test', $apMail + 1)));
+ck('appeals: the real token works', Appeals::unsubscribe('one@example.test', $apMail, $apTok));
+ck('appeals: and they come off the list',
+   !isset(Appeals::updateRecipients($apMailRow)['one@example.test']));
+ck('appeals: unsubscribing twice is not an error',
+   Appeals::unsubscribe('one@example.test', $apMail, $apTok));
+/* Out of one appeal is not out of everything. */
+ck('appeals: leaving one appeal does not silence them on another',
+   !Appeals::isUnsubscribed('one@example.test', $apMail + 999));
+ck('appeals: the unsubscribe URL carries its own token',
+   str_contains(Appeals::unsubUrl('one@example.test', $apMail), 't=' . $apTok));
+
+/* No address is stored in the clear on either bookkeeping table. */
+$apClear = (int) Database::pdo()->query("SELECT COUNT(*) FROM av_appeal_unsubs WHERE email_key LIKE '%@%'")->fetchColumn();
+ck('appeals: the unsubscribe list holds no readable addresses', $apClear === 0);
+
+/* The send is a queue that drains, and it never writes to anybody twice. */
+$apUp = Appeals::postUpdate($apMail, ['title' => 'Progress', 'body' => 'Half way.'], 'tester');
+$apSend = Appeals::mailUpdate((int) $apUp['id']);
+ck('appeals: mailing is refused outright while outbound mail is switched off',
+   !$apSend['ok'] && str_contains((string) $apSend['error'], 'switched off'));
+
+ck('appeals: an update that does not exist cannot be mailed',
+   !Appeals::mailUpdate(999999)['ok']);
+
 $apReset();

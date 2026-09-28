@@ -78,6 +78,17 @@ if (class_exists('NgvLedger')) {
     catch (Throwable $e) { error_log('[cron] ngv fees: ' . $e->getMessage()); }
 }
 
+// Finish any appeal update still part-way through its donor mailing. The
+// console sends the first batch so staff see it working; the rest drains here,
+// because a shared host meters outbound mail by the hour and a nonprofit that
+// spends the whole allowance announcing a milestone has also stopped its own
+// password resets. Deduped per (update, recipient), so this never writes to
+// anybody twice however often it runs.
+if (class_exists('Appeals')) {
+    try { $result['appeals'] = Appeals::cronTick(); }
+    catch (Throwable $e) { error_log('[cron] appeals: ' . $e->getMessage()); }
+}
+
 // G-1: chase overdue commitments. Deduped per commitment per day inside
 // Commitments::sweepOverdue(), so a stuck commitment nudges once daily rather than
 // on every tick. Independent of Mentorship — commitments also come from meetings.

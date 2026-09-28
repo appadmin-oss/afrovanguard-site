@@ -13,8 +13,12 @@ body {
 .gm-gate { max-width: 460px; margin: 18vh auto; padding: 0 var(--afg-space-5); text-align: center; }
 .gm-gate h1 { font-family: var(--afg-font-display); font-size: var(--afg-text-3xl); margin: 0 0 var(--afg-space-3); }
 
-/* ── bar ─────────────────────────────────────────────────────────────────── */
-.gm-bar {
+/* ── top bar ─────────────────────────────────────────────────────────────── */
+/* `.gm-topbar`, not `.gm-bar`. It was `.gm-bar` and so was the progress meter
+   thirty lines below, and the flex-with-padding rule won — so every meter in
+   the appeal list rendered as an empty grey pill with the fill stretched
+   invisible. Two different things cannot share a class name. */
+.gm-topbar {
   position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between;
   gap: var(--afg-space-4); padding: var(--afg-space-3) var(--afg-space-5);
   background: var(--afg-surface); border-bottom: 1px solid var(--afg-border);
@@ -84,7 +88,8 @@ body {
 .gm-row-top { display: flex; align-items: center; justify-content: space-between; gap: var(--afg-space-2); }
 .gm-title { font-weight: 700; color: var(--afg-ink); }
 .gm-row-meta { font-size: var(--afg-text-xs); color: var(--afg-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
-.gm-bar-mini, .gm-bar {
+/* ── the meter ─────────────────────────────────────────────────────────── */
+.gm-bar {
   height: 5px; border-radius: 99px; background: var(--afg-surface-2); overflow: hidden; margin-top: 7px;
 }
 .gm-bar > span { display: block; height: 100%; background: var(--afg-gold); border-radius: 99px; min-width: 2px; }

@@ -175,6 +175,28 @@
     });
   });
 
+  /* ── emailing donors ───────────────────────────────────────────────────── */
+  document.querySelectorAll('[data-mail]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!window.confirm('Email everyone who gave to this appeal?\n\nThe first batch goes now and the cron finishes the rest. Anyone already sent this update is skipped, so pressing it twice is safe.')) return;
+      withButton(b, { action: 'mail_update', update_id: +b.getAttribute('data-mail') }, null, function (j) {
+        var parts = [];
+        if (j.sent)      parts.push(j.sent + ' sent');
+        if (j.remaining) parts.push(j.remaining + ' queued for the cron');
+        if (j.skipped)   parts.push(j.skipped + ' already had it');
+        toast(j.note || (parts.length ? parts.join(' · ') : 'Nothing to send'));
+      });
+    });
+  });
+
+  /* ── recurring gifts ───────────────────────────────────────────────────── */
+  document.querySelectorAll('[data-stopsub]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!window.confirm('Cancel this recurring gift?\n\nIt stops at Paystack as well as here, and cannot be restarted from this page — the donor would have to set it up again.')) return;
+      withButton(b, { action: 'stop_recurring', sub_code: b.getAttribute('data-stopsub') }, 'Cancelled', function () { location.reload(); });
+    });
+  });
+
   /* ── tiers ─────────────────────────────────────────────────────────────── */
   var rows = document.getElementById('tierRows');
   function bindDrop(scope) {

@@ -290,3 +290,110 @@
   .give-card, .give-panel, .give-need { break-inside: avoid; }
   a[href]::after { content: ""; }
 }
+
+/* ── the giving widget ───────────────────────────────────────────────────── */
+/* Frequency, then amount, then one button that says what pressing it does.
+   Built from real radio inputs rather than divs-with-listeners: the keyboard
+   behaviour, the grouping, the announced state and the works-without-JS path
+   all come free, and the visible control is the input's own label. */
+.gw { display: flex; flex-direction: column; gap: var(--afg-space-4); }
+.gw fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.gw-legend {
+  display: block; font-size: 11px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--afg-muted); margin-bottom: var(--afg-space-2);
+  padding: 0;
+}
+.gw-legend em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 500; }
+
+/* Segmented control. */
+.gw-seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px;
+  background: var(--afg-surface-2); border: 1px solid var(--afg-border);
+  border-radius: var(--afg-radius-pill); padding: 3px;
+}
+.gw-seg-opt { position: relative; display: block; }
+.gw-seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.gw-seg-opt span {
+  display: block; text-align: center; padding: 8px 4px; border-radius: var(--afg-radius-pill);
+  font-size: var(--afg-text-xs); font-weight: 700; color: var(--afg-muted); cursor: pointer;
+  white-space: nowrap; transition: background .16s ease, color .16s ease;
+}
+.gw-seg-opt input:checked + span { background: var(--afg-ink); color: var(--afg-surface); }
+.gw-seg-opt input:focus-visible + span { outline: 3px solid var(--afg-accent); outline-offset: 2px; }
+.gw-seg-opt:hover input:not(:checked) + span { color: var(--afg-ink); }
+
+/* Amount chips. */
+.gw-chips { display: grid; grid-template-columns: 1fr 1fr; gap: var(--afg-space-2); }
+.gw-chip { position: relative; display: block; }
+.gw-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.gw-chip > span { display: block; }
+.gw-chip-amt {
+  padding: 11px 12px 4px; font-family: var(--afg-font-display); font-weight: 700;
+  font-size: var(--afg-text-lg); color: var(--afg-ink); font-variant-numeric: tabular-nums;
+}
+.gw-chip-impact { padding: 0 12px 10px; font-size: 11.5px; line-height: 1.4; color: var(--afg-muted); }
+.gw-chip::after {
+  content: ""; position: absolute; inset: 0; border: 1px solid var(--afg-border);
+  border-radius: var(--afg-radius-sm); pointer-events: none; transition: border-color .16s ease, box-shadow .16s ease;
+}
+.gw-chip:hover::after { border-color: var(--afg-border-strong); }
+/* Selection is marked with a class the script sets, not only with :has().
+   :has() is widely supported now, but a chip whose selected state depends on
+   it alone is a form that silently cannot be filled in on an older browser —
+   and this one takes money. The class is the contract; :has() is not used. */
+.gw-chip.is-on::after { border-color: var(--afg-gold); box-shadow: inset 0 0 0 1px var(--afg-gold); }
+.gw-chip.is-on { background: var(--afg-gold-soft); border-radius: var(--afg-radius-sm); }
+.gw-chip input:focus-visible + .gw-chip-amt { outline: 3px solid var(--afg-accent); outline-offset: 2px; border-radius: var(--afg-radius-sm); }
+.gw-chip--other .gw-chip-amt { padding-bottom: 11px; font-size: var(--afg-text-md); color: var(--afg-muted); }
+.gw-chip--other.is-on .gw-chip-amt { color: var(--afg-ink); }
+
+/* The custom-amount field, revealed only when "Other" is chosen.
+   `[hidden]` first and with !important: an author `display:block` beats the
+   UA stylesheet's `[hidden]{display:none}`, so these two fields sat open on
+   every page load — asking a one-off donor for an email the flow does not
+   need, and showing a custom-amount box beside a chosen chip. */
+.gw [hidden] { display: none !important; }
+.gw-other { position: relative; display: block; margin-top: var(--afg-space-2); }
+.gw-other-pre {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  font-weight: 700; color: var(--afg-muted); pointer-events: none;
+}
+.gw-other input, .gw-email input {
+  width: 100%; padding: 12px 14px; border: 1px solid var(--afg-border-strong);
+  border-radius: var(--afg-radius-sm); background: var(--afg-bg); color: var(--afg-ink);
+  font: inherit; font-weight: 600; min-height: 46px;
+}
+.gw-other input { padding-left: 30px; font-variant-numeric: tabular-nums; }
+.gw-other input:focus, .gw-email input:focus {
+  outline: 3px solid var(--afg-accent); outline-offset: 1px; border-color: var(--afg-accent);
+}
+.gw-email { display: block; }
+
+/* The one button. */
+.gw-go {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 15px 22px; border: 0; border-radius: var(--afg-radius-pill);
+  background: var(--afg-gold); color: var(--afg-black); font: inherit;
+  font-weight: 800; font-size: var(--afg-text-md); cursor: pointer; line-height: 1.2;
+  transition: filter .16s ease;
+}
+.gw-go:hover { filter: brightness(1.06); }
+.gw-go:focus-visible { outline: 3px solid var(--afg-accent); outline-offset: 3px; }
+.gw-go[aria-busy="true"] { opacity: .7; cursor: progress; }
+.gw-summary { margin: 0; font-size: var(--afg-text-xs); color: var(--afg-muted); text-align: center; min-height: 1.2em; }
+.gw-err {
+  margin: 0; font-size: var(--afg-text-sm); font-weight: 600; color: var(--afg-danger);
+  background: var(--afg-danger-soft); border: 1px solid var(--afg-danger);
+  border-radius: var(--afg-radius-sm); padding: 10px 12px; line-height: 1.45;
+}
+.gw-fine { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--afg-muted); text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gw-seg-opt span, .gw-chip::after, .gw-go { transition: none; }
+}
+
+/* Number spinners are noise on a money field: nobody nudges a donation up by
+   one naira at a time, and the arrows crowd the figure they sit beside. */
+.gw-other input::-webkit-outer-spin-button,
+.gw-other input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.gw-other input[type=number] { -moz-appearance: textfield; appearance: textfield; }

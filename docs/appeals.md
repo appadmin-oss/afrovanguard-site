@@ -162,6 +162,73 @@ Everything from the feed is inserted as **text**, never markup, and the figures
 are pre-formatted server-side by one formatter — so a band cannot punctuate
 naira differently from the page it links to.
 
+## Recurring giving
+
+A donor can give once, monthly, quarterly or yearly on the appeal page itself.
+
+Paystack needs a **Plan** to exist before a subscription can, so the one that
+matches an (appeal, interval, amount) combination is created the first time
+anybody picks it and the code is cached in `av_appeal_plans`. Creating a plan
+per click would fill the merchant dashboard with thousands of identical plans
+and make Afrovanguard's own reporting useless.
+
+Three things worth knowing:
+
+- **A subscription is recorded when the webhook confirms it, never at the
+  click.** A pledge written down when somebody pressed a button is a pledge
+  that may never have been paid for.
+- **A pledge is not money.** `recurringFor()` reports the count, the annualised
+  value and what has actually been collected — the appeal's raised figure moves
+  only when a charge lands, like any other gift.
+- **A renewal carries no metadata.** Paystack does not copy our metadata onto
+  later charges in a subscription, so `process-donation.php` recovers the appeal
+  from the plan code via `av_appeal_plans`. Reading only `custom_fields`
+  credited every recurring gift to the general fund — the failure nobody
+  notices until a donor asks why the appeal they fund monthly is still at zero.
+
+The widget is an ordinary form that posts to `/donate.html`, and works with
+JavaScript off. Only the recurring path is intercepted, because that one
+genuinely needs a server round trip.
+
+## Donor updates
+
+Staff post an update, then press **Email donors**.
+
+**Who gets it.** Only people who gave to *this* appeal, plus its recurring
+givers, minus anyone who has opted out. A donation to the borehole is not
+permission to be told about the December outreach, and treating it as one is
+how a charity's mail starts being marked as spam by the people who supported
+it.
+
+**Sending is a queue that drains.** Shared cPanel hosting meters outbound mail
+by the hour, and a nonprofit that spends its whole allowance announcing a
+milestone has also stopped its own password resets, receipts and enquiry
+replies. So the console sends the first batch (60) and `Appeals::cronTick()`
+finishes the rest. `av_appeal_sends` records each (update, recipient) pair, so:
+
+- pressing the button twice is safe,
+- the cron never writes to anybody twice,
+- a refused address is logged as done rather than retried every run — retrying
+  a bounce spends the quota on an address that will never accept it and starves
+  the ones that would.
+
+The cap is on **attempts, not successes**: a batch of addresses that all bounce
+costs the host as much as a batch that all arrive.
+
+**Getting out is one click.** Every message carries a `List-Unsubscribe` header
+and a visible link, both HMAC-signed per (address, appeal).
+`give/unsubscribe.php` answers GET (a person clicking) and POST (a mail client
+acting on `List-Unsubscribe-Post`). It is deliberately unauthenticated beyond
+the HMAC — an unsubscribe behind a login is an unsubscribe that becomes a spam
+complaint, and the complaint costs the whole domain its reputation.
+
+Neither `av_appeal_unsubs` nor `av_appeal_sends` stores an address in the
+clear; both index by an HMAC of it.
+
+`Mailer` gained an allowlisted `$opt['headers']` for this. Values are stripped
+of CR and LF, because a newline in a mail header ends it and begins another —
+an unfiltered value could add a `Bcc` and quietly copy every message somewhere.
+
 ## The editorial layer
 
 `assets/site/editorial.css` (`.ed-*`) carries the institutional-editorial
@@ -204,9 +271,12 @@ with the identity, trust and payout obligations that come with it.
 |---|---|
 | Domain | `lib/Appeals.php` |
 | Schema | `av_appeals`, `av_appeal_needs`, `av_appeal_updates`, `av_appeal_tiers` — provisioned on demand by `Appeals::ensure()` |
-| Public | `give/index.php`, `give/appeal.php`, `give/og.php`, `give/poster.php`, `give/embed.php`, `give/feed.php`, `give/share.php` |
+| Public | `give/index.php`, `give/appeal.php`, `give/og.php`, `give/poster.php`, `give/embed.php`, `give/feed.php`, `give/share.php`, `give/recurring.php`, `give/unsubscribe.php` |
 | Console | `give/manage.php` + `give/manage.js` + `give/manage.css` |
 | Styles | `assets/site/editorial.css` (shared), `give/give.css` (appeal-specific) |
+| Widget | `give/give.js` — the giving form; the page works without it |
+| Recurring | `av_appeal_plans`, `av_appeal_subs` · `Payments::paystackFindOrCreatePlan()` / `paystackCancelSubscription()` |
+| Mailing | `av_appeal_unsubs`, `av_appeal_sends` · drained by `Appeals::cronTick()` from `tasks/cron.php` |
 | Band script | `assets/site/appeals-band.js` |
 | Money | read from `av_private_path('donations.json')` — written only by `process-donation.php` |
 | QR | `chillerlan/php-qrcode` |
@@ -224,15 +294,16 @@ path. It is a `<<<'SQL'` nowdoc for the same reason.
 
 ## What is not built yet
 
-- **No recurring giving per appeal.** `Payments::paystackInitPlan()` supports
-  subscriptions and is wired for membership, not for appeals.
 - **No donor messages on the wall.** The wall shows names and amounts from the
   donation record; "words of support" would need a moderated field captured at
   donation time, in `process-donation.php`.
-- **No email broadcast to an appeal's donors.** Updates are posted and visible;
-  nobody is notified. The donor emails are in the donation store and the mailer
-  is there, so this is a small piece of work with a large quota question
-  attached — see the NGV reminder cadence for the shape of the answer.
+- **A donor cannot manage their own recurring gift.** They can unsubscribe from
+  emails in one click, but cancelling a pledge means asking staff, who can do it
+  from the console. A self-service page would need donor identity, which this
+  site does not have for one-off givers.
+- **Plan creation is not retried.** If Paystack is unreachable at the moment a
+  donor first picks an amount, they are told to give a one-off gift instead
+  rather than being put in a queue.
 - **No image upload in the console.** Cover, gallery and update images are URLs.
   `Storage::put()` exists and is used elsewhere; the console does not call it.
 - **Multi-currency.** Everything is naira. The donation store records a currency

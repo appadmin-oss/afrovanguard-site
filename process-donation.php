@@ -470,7 +470,36 @@ $sig = $_SERVER['HTTP_X_PAYSTACK_SIGNATURE']??'';
 /* Paystack webhook */
 if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
     $event = json_decode($raw,true);
-    if (($event['event']??'')==='charge.success') {
+    $evName = (string)($event['event'] ?? '');
+
+    /* ── Recurring giving on an appeal ──────────────────────────────────────
+       Paystack confirms a subscription with its own event, and that — not the
+       moment somebody pressed a button — is when one is real. Recording it at
+       the click would record subscriptions that were never paid for. */
+    if (class_exists('Appeals') && str_starts_with($evName, 'subscription.')) {
+        $sd   = $event['data'] ?? [];
+        $meta = is_array($sd['metadata'] ?? null) ? $sd['metadata'] : [];
+        if ($evName === 'subscription.create') {
+            Appeals::recordSubscription([
+                'sub_code'   => (string)($sd['subscription_code'] ?? ''),
+                'email'      => (string)($sd['customer']['email'] ?? ''),
+                'name'       => trim(((string)($sd['customer']['first_name'] ?? '')) . ' ' . ((string)($sd['customer']['last_name'] ?? ''))),
+                'amount_ngn' => (int) round(((float)($sd['amount'] ?? 0)) / 100),
+                'interval'   => (string)($sd['plan']['interval'] ?? 'monthly'),
+                'plan_code'  => (string)($sd['plan']['plan_code'] ?? ''),
+                'appeal_id'  => (int)($meta['appeal_id'] ?? 0),
+                'slug'       => (string)($meta['appeal'] ?? ''),
+            ]);
+        } elseif ($evName === 'subscription.disable' || $evName === 'subscription.not_renew') {
+            try {
+                Database::pdo()->prepare('UPDATE av_appeal_subs SET status = ?, ended_at = ? WHERE sub_code = ?')
+                    ->execute(['cancelled', gmdate('Y-m-d H:i:s'), (string)($sd['subscription_code'] ?? '')]);
+            } catch (Throwable $e) { error_log('[AV] sub disable: ' . $e->getMessage()); }
+        }
+        http_response_code(200); echo json_encode(['received'=>true]); exit;
+    }
+
+    if ($evName==='charge.success') {
         $tx=$event['data']??[];
         $ref=$tx['reference']??'';
         if ($ref) {
@@ -482,7 +511,27 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
             foreach (($meta['custom_fields']??[]) as $cf) {
                 $fields[$cf['variable_name']??''] = $cf['value']??'';
             }
-            $campaign = preg_replace('/[^a-z0-9_-]/','',strtolower($fields['campaign']??'general'));
+            /* The campaign key can arrive three ways and all three are real:
+               as a Paystack custom_field (the donate form), as a flat metadata
+               key (an appeal's recurring gift, where we set the metadata
+               ourselves), or not at all on a RENEWAL — Paystack does not carry
+               our metadata onto later charges in a subscription. Reading only
+               custom_fields credited every recurring gift to the general fund,
+               which is the failure nobody notices until a donor asks why the
+               appeal they are funding monthly is still at zero. */
+            $campaign = (string)($fields['campaign'] ?? '');
+            if ($campaign === '') $campaign = (string)($meta['campaign'] ?? $meta['appeal'] ?? '');
+            $planCode = (string)($tx['plan']['plan_code'] ?? $tx['plan'] ?? '');
+            if ($campaign === '' && $planCode !== '' && class_exists('Appeals')) {
+                // A renewal: recover the appeal from the plan we created for it.
+                try {
+                    $ps = Database::pdo()->prepare(
+                        'SELECT a.slug FROM av_appeal_plans p JOIN av_appeals a ON a.id = p.appeal_id WHERE p.plan_code = ?');
+                    $ps->execute([$planCode]);
+                    $campaign = (string)($ps->fetchColumn() ?: '');
+                } catch (Throwable $e) { error_log('[AV] plan→appeal: ' . $e->getMessage()); }
+            }
+            $campaign = preg_replace('/[^a-z0-9_-]/','',strtolower($campaign !== '' ? $campaign : 'general'));
             $anon     = ($fields['anonymous']??'No') === 'Yes';
             $fn       = trim($fields['first_name'] ?? '');
             $ln       = trim($fields['last_name']  ?? '');
@@ -499,12 +548,18 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
                 'amount'     => $amount,
                 'currency'   => $currency,
                 'campaign'   => $campaign,
-                'frequency'  => esc($fields['frequency']??'One-time'),
+                'frequency'  => esc($fields['frequency'] ?? ($planCode !== '' ? 'Recurring' : 'One-time')),
                 'status'     => 'confirmed',
                 'created_at' => date('c'),
             ];
             // storeDonationIfNew handles idempotency — safe to call on retried webhooks
-            storeDonationIfNew($ref, $entry, $amount, $campaign, $currency);
+            $isNew = storeDonationIfNew($ref, $entry, $amount, $campaign, $currency);
+            /* Count the cycle only when the donation itself was new. A retried
+               webhook must not inflate somebody's recorded giving. */
+            if ($isNew && class_exists('Appeals')) {
+                $subCode = (string)($tx['subscription_code'] ?? $meta['subscription_code'] ?? '');
+                if ($subCode !== '') Appeals::noteRecurringCharge($subCode, (int) round($amount));
+            }
         }
     }
     http_response_code(200); echo json_encode(['received'=>true]); exit;
