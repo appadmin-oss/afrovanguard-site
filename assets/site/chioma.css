@@ -1,125 +1,338 @@
 /* ============================================================
-   Chioma — Afrovanguard's AI site guide (floating assistant).
-   Self-contained, theme-aware, on-brand. Injected on every page.
+   Chioma — Afrovanguard's site guide.
+
+   DIRECTION: one surface, no bubbles, no boxes. Chioma's replies are
+   plain text on the page, the way a document is — the tool framing,
+   not the messenger framing. Only the visitor's own words take a
+   shading, so the two voices are told apart by position and tone
+   rather than by two rows of facing balloons.
+
+   Hierarchy comes from type size, colour and space. There is one
+   hairline in the whole panel (under the header), and borders appear
+   only where you are meant to type. The gold is spent once: links and
+   focus. Everything else is ink, muted ink, or nothing.
+
+   The closed sets. Nothing outside them appears below:
+     type    12 / 13 / 15 / 16px — body 15 at 1.65
+     space   4 8 12 14 16 20 24, applied with gap
+     radius  --r 12px, 8px on a field, --r-pill 999px
+     colour  the --ch-* tokens, which are the site's own
    ============================================================ */
-/* Chioma's light palette flows from the shared --afg-* tokens; its own dark
-   block below (keyed on either html[data-theme=dark] OR .chioma-root[data-dark=1])
-   still wins, so Chioma's independent dark mode is preserved. */
-.chioma-root { --ch-gold: var(--afg-accent, #f3b416); --ch-gold-deep: var(--afg-accent-ink, #c8860a); --ch-ink: var(--afg-ink, #111827); --ch-surface: var(--afg-surface, #ffffff);
-  --ch-surface-2: var(--afg-surface-2, #f6f6f3); --ch-muted: var(--afg-muted, #6b7280); --ch-line: var(--afg-border, #e8e8e3); --ch-navy: var(--afg-navy, #0d1220);
-  position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom));
-  z-index: 2147483000; font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
-html[data-theme="dark"] .chioma-root, .chioma-root[data-dark="1"] {
-  --ch-ink: #f5f6f7; --ch-surface: #15161b; --ch-surface-2: #1d1f26; --ch-muted: #9aa1ad; --ch-line: rgba(255,255,255,.10); }
 
-/* ── FAB ──
-   A round gold "operations assistant" button. It bobs gently when idle, lifts
-   on hover, presses on tap, and can do a brief attention nudge when a
-   contextual bubble appears. The inner wrapper carries the idle float so the
-   button's own hover/press transform never fights the keyframes. */
-.chioma-fab { position: relative; width: 60px; height: 60px; border: 0; border-radius: 50%; cursor: pointer; padding: 0;
-  background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 45%, var(--ch-gold-deep) 100%);
-  box-shadow: 0 10px 30px -8px rgba(200,134,10,.6), 0 2px 8px rgba(0,0,0,.18); display: grid; place-items: center;
-  animation: ch-pop .55s cubic-bezier(.22,1,.36,1) both; transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .25s ease; }
-.chioma-fab:hover { transform: translateY(-2px) scale(1.06); box-shadow: 0 16px 38px -10px rgba(200,134,10,.72), 0 2px 8px rgba(0,0,0,.2); }
-.chioma-fab:active { transform: scale(.94); }
-.chioma-fab:focus-visible { outline: 3px solid var(--ch-navy); outline-offset: 3px; }
-/* idle float lives on the SVG mark so hover/press scaling stays independent */
-.chioma-fab .ch-mark { width: 40px; height: 40px; color: var(--ch-navy); --ch-spark: #fff8e6;
-  animation: ch-float 5.5s ease-in-out 1.2s infinite; transform-origin: center; }
-.chioma-fab .ch-mark .ch-spark { animation: ch-twinkle 4s ease-in-out 2s infinite; transform-origin: 36px 13px; }
-.chioma-fab .ch-dot { position: absolute; top: 3px; right: 4px; width: 13px; height: 13px; border-radius: 50%;
-  background: var(--ch-gold); border: 2.5px solid #fff; box-shadow: 0 0 0 0 rgba(243,180,22,.7); animation: ch-pulse 2.4s infinite; }
-html[data-theme="dark"] .chioma-fab .ch-dot, .chioma-root[data-dark="1"] .chioma-fab .ch-dot { border-color: var(--ch-surface); }
-.chioma-root.is-open .chioma-fab .ch-mark { animation: none; }
-.chioma-fab.ch-nudge { animation: ch-nudge .65s cubic-bezier(.36,.07,.19,.97) both; }
+.chioma-root {
+  --ch-gold:      var(--afg-accent, #f3b416);
+  --ch-gold-ink:  #8f6606;                       /* the gold that passes 4.5:1 on white */
+  --ch-ink:       var(--afg-ink, #111827);
+  --ch-muted:     #646b77;
+  --ch-surface:   var(--afg-surface, #ffffff);
+  --ch-surface-2: #f4f3f0;
+  --ch-line:      #ebeae5;
+  --ch-navy:      var(--afg-navy, #0d1220);
+  --ch-danger:    #b91c1c;
+  --ch-ok:        #15803d;
 
-@keyframes ch-pop { 0% { transform: scale(0) rotate(-28deg); opacity: 0; } 60% { transform: scale(1.08) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
-@keyframes ch-float { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(-1.5deg); } }
-@keyframes ch-twinkle { 0%,100% { opacity: .5; transform: scale(.82); } 45% { opacity: 1; transform: scale(1.15); } }
-@keyframes ch-pulse { 0% { box-shadow: 0 0 0 0 rgba(243,180,22,.65); } 70% { box-shadow: 0 0 0 9px rgba(243,180,22,0); } 100% { box-shadow: 0 0 0 0 rgba(243,180,22,0); } }
-@keyframes ch-nudge { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-5px) rotate(-4deg); } 50% { transform: translateX(4px) rotate(3deg); } 75% { transform: translateX(-2px) rotate(-1deg); } }
+  --r: 12px;
+  --r-pill: 999px;
+  --ch-fb: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ch-fh: 'Cormorant', Georgia, serif;
 
-/* ── Contextual "thought" bubble / greeting nudge ──
-   A small speech bubble that floats up beside the FAB with a page-aware line.
-   Clickable (opens the chat), dismissable, auto-hides. Capped on the right so
-   it can never push the layout or overflow a 360px viewport. */
-.chioma-greet { position: absolute; right: 74px; bottom: 8px; width: max-content; max-width: min(248px, calc(100vw - 92px));
-  background: var(--ch-surface); color: var(--ch-ink); border: 1px solid var(--ch-line); border-radius: 16px 16px 4px 16px;
-  padding: 12px 14px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 14px 34px -12px rgba(0,0,0,.3); cursor: pointer;
-  opacity: 0; transform: translateY(10px) scale(.94); transform-origin: bottom right; pointer-events: none;
-  transition: opacity .32s ease, transform .38s cubic-bezier(.22,1,.36,1); }
-.chioma-greet.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; animation: ch-bubble-in .42s cubic-bezier(.34,1.56,.64,1) both; }
-.chioma-greet:hover { border-color: var(--ch-gold); }
-.chioma-greet b { color: var(--ch-gold-deep); }
-/* little tail pointing toward the FAB */
-.chioma-greet::after { content: ''; position: absolute; right: 14px; bottom: -7px; width: 14px; height: 14px; background: var(--ch-surface);
-  border-right: 1px solid var(--ch-line); border-bottom: 1px solid var(--ch-line); transform: rotate(45deg); }
-.chioma-greet .ch-greet-x { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; z-index: 1;
-  border: 1px solid var(--ch-line); background: var(--ch-surface); color: var(--ch-muted); cursor: pointer; font-size: 13px; line-height: 1;
-  display: grid; place-items: center; transition: color .15s ease, border-color .15s ease; }
-.chioma-greet .ch-greet-x:hover { color: var(--ch-ink); border-color: var(--ch-gold); }
-@keyframes ch-bubble-in { 0% { opacity: 0; transform: translateY(14px) scale(.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-
-/* ── Panel ── */
-.chioma-panel { position: absolute; right: 0; bottom: 74px; width: min(380px, calc(100vw - 32px)); height: min(560px, calc(100vh - 120px));
-  background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 20px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.45);
-  display: none; flex-direction: column; overflow: hidden; opacity: 0; transform: translateY(14px) scale(.98); transform-origin: bottom right;
-  transition: opacity .26s ease, transform .26s cubic-bezier(.22,1,.36,1); }
-.chioma-root.is-open .chioma-panel { display: flex; }
-.chioma-root.is-open.is-anim .chioma-panel { opacity: 1; transform: translateY(0) scale(1); }
-
-.ch-head { display: flex; align-items: center; gap: 11px; padding: 15px 16px; background: var(--ch-navy); color: #fff; }
-.ch-head .ch-ava { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
-  background: radial-gradient(120% 120% at 30% 25%, #ffd773 0%, var(--ch-gold) 50%, var(--ch-gold-deep) 100%); }
-.ch-head .ch-ava .ch-mark { width: 30px; height: 30px; color: var(--ch-navy); --ch-spark: #fff8e6; }
-.ch-head .ch-name { font-weight: 800; font-size: 15px; line-height: 1.1; }
-.ch-head .ch-status { font-size: 11.5px; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 5px; }
-.ch-head .ch-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #18b566; }
-.ch-head .ch-x { margin-left: auto; width: 32px; height: 32px; border: 0; background: rgba(255,255,255,.1); color: #fff;
-  border-radius: 50%; cursor: pointer; font-size: 17px; line-height: 1; transition: background .15s ease; }
-.ch-head .ch-x:hover { background: rgba(255,255,255,.22); }
-
-.ch-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--ch-surface-2); }
-.ch-msg { max-width: 84%; padding: 10px 13px; border-radius: 15px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; animation: ch-msg-in .26s ease both; }
-.ch-msg a { color: var(--ch-gold-deep); font-weight: 600; }
-.ch-msg.bot { align-self: flex-start; background: var(--ch-surface); color: var(--ch-ink); border: 1px solid var(--ch-line); border-bottom-left-radius: 5px; }
-.ch-msg.user { align-self: flex-end; background: linear-gradient(135deg, var(--ch-gold) 0%, var(--ch-gold-deep) 100%); color: #2a1c02; border-bottom-right-radius: 5px; font-weight: 600; }
-@keyframes ch-msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-.ch-typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: 12px 14px; background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 15px; border-bottom-left-radius: 5px; }
-.ch-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--ch-muted); animation: ch-blink 1.3s infinite both; }
-.ch-typing span:nth-child(2) { animation-delay: .2s; } .ch-typing span:nth-child(3) { animation-delay: .4s; }
-@keyframes ch-blink { 0%,80%,100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
-
-.ch-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 16px 12px; background: var(--ch-surface-2); }
-.ch-chip { font-size: 12.5px; font-weight: 600; color: var(--ch-ink); background: var(--ch-surface); border: 1px solid var(--ch-line);
-  border-radius: 9999px; padding: 7px 12px; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
-.ch-chip:hover { border-color: var(--ch-gold); color: var(--ch-gold-deep); }
-
-.ch-foot { display: flex; gap: 8px; padding: 11px 12px; border-top: 1px solid var(--ch-line); background: var(--ch-surface); }
-.ch-foot input { flex: 1; border: 1px solid var(--ch-line); border-radius: 9999px; padding: 11px 15px; font: inherit; font-size: 14px;
-  background: var(--ch-surface-2); color: var(--ch-ink); outline: none; }
-.ch-foot input:focus { border-color: var(--ch-gold); }
-.ch-foot .ch-send { width: 42px; height: 42px; flex-shrink: 0; border: 0; border-radius: 50%; cursor: pointer; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--ch-gold) 0%, var(--ch-gold-deep) 100%); color: var(--ch-navy); transition: transform .15s ease; }
-.ch-foot .ch-send:hover { transform: scale(1.07); }
-.ch-foot .ch-send:disabled { opacity: .5; cursor: default; transform: none; }
-.ch-foot .ch-send svg { width: 19px; height: 19px; }
-.ch-disclaimer { font-size: 10.5px; color: var(--ch-muted); text-align: center; padding: 0 0 8px; background: var(--ch-surface); }
-
-@media (max-width: 480px) {
-  .chioma-panel { width: calc(100vw - 24px); height: min(72vh, calc(100vh - 96px)); }
-  .chioma-greet { max-width: 190px; }
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 2147483000;
+  font-family: var(--ch-fb);
 }
+
+html[data-theme="dark"] .chioma-root,
+.chioma-root[data-dark="1"] {
+  --ch-ink: #f4f5f7; --ch-muted: #9aa1ad;
+  --ch-surface: #15161b; --ch-surface-2: #21232a; --ch-line: rgba(255,255,255,.09);
+  --ch-gold-ink: #f0c14b; --ch-danger: #fca5a5; --ch-ok: #6ee7a8;
+}
+
+/* Present for a screen reader, absent to the eye. Not display:none, which
+   would take it out of the accessibility tree along with the announcement. */
+.chioma-root .ch-sr {
+  position: absolute !important; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Launcher ──────────────────────────────────────────────────────────── */
+.chioma-fab {
+  position: relative; width: 56px; height: 56px; padding: 0; border: 0;
+  border-radius: var(--r-pill); cursor: pointer; display: grid; place-items: center;
+  background: var(--ch-navy); color: var(--ch-gold);
+  box-shadow: 0 8px 24px -8px rgba(13,18,32,.4);
+  transition: transform .18s ease;
+}
+.chioma-fab:hover { transform: translateY(-1px); }
+.chioma-fab:active { transform: scale(.96); }
+.chioma-fab:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 3px; }
+.chioma-fab .ch-mark { width: 56px; height: 56px; border-radius: var(--r-pill); display: block; }
+.chioma-fab .ch-mark-svg { width: 30px; height: 30px; }
+.chioma-fab .ch-dot {
+  position: absolute; top: 3px; right: 3px; width: 12px; height: 12px; border-radius: var(--r-pill);
+  background: var(--ch-gold); border: 2.5px solid var(--ch-surface);
+}
+.chioma-root.is-open .chioma-fab .ch-dot { display: none; }
+
+/* ── Nudge ─────────────────────────────────────────────────────────────── */
+.chioma-greet {
+  position: absolute; right: 68px; bottom: 6px; width: max-content;
+  max-width: min(252px, calc(100vw - 100px));
+  background: var(--ch-surface); color: var(--ch-ink);
+  border-radius: var(--r); padding: 12px 14px;
+  font-size: 13px; line-height: 1.5; text-align: left; cursor: pointer;
+  box-shadow: 0 10px 30px -12px rgba(13,18,32,.35);
+  opacity: 0; transform: translateY(6px); pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.chioma-greet.show { opacity: 1; transform: none; pointer-events: auto; }
+.chioma-greet b { font-weight: 600; }
+/* The nudge used to be a div with a click handler — no role, no keyboard, no
+   focus. The text is a real button now, and dismiss is its own control. */
+.ch-greet-open {
+  display: block; width: 100%; padding: 0; margin: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.ch-greet-open:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 4px; border-radius: 6px; }
+.chioma-greet .ch-greet-x {
+  position: absolute; top: -9px; right: -9px; width: 24px; height: 24px;
+  border-radius: var(--r-pill); border: 0; background: var(--ch-surface); color: var(--ch-muted);
+  cursor: pointer; display: grid; place-items: center;
+  box-shadow: 0 2px 8px rgba(13,18,32,.16);
+}
+.chioma-greet .ch-greet-x svg { width: 13px; height: 13px; }
+
+/* ── Panel ─────────────────────────────────────────────────────────────── */
+.chioma-panel {
+  position: absolute; right: 0; bottom: 70px;
+  width: min(420px, calc(100vw - 32px));
+  height: min(640px, calc(100dvh - 120px));
+  display: none; flex-direction: column; overflow: hidden;
+  background: var(--ch-surface); color: var(--ch-ink);
+  border-radius: var(--r);
+  box-shadow: 0 32px 70px -24px rgba(13,18,32,.36), 0 0 0 1px rgba(13,18,32,.05);
+}
+.chioma-root.is-open .chioma-panel { display: flex; animation: ch-in .18s ease-out both; }
+@keyframes ch-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Header — the one hairline in the panel. */
+.ch-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+  border-bottom: 1px solid transparent; flex-shrink: 0;
+  transition: border-color .15s ease;
+}
+/* The rule appears only once there is something scrolled above it, so the
+   panel is flat at rest and gains the line exactly when it explains
+   something. */
+.chioma-panel.is-scrolled .ch-head { border-bottom-color: var(--ch-line); }
+.ch-ava { width: 30px; height: 30px; border-radius: var(--r-pill); display: grid; place-items: center;
+  background: var(--ch-navy); color: var(--ch-gold); flex-shrink: 0; overflow: hidden; }
+.ch-ava .ch-mark { width: 30px; height: 30px; display: block; }
+.ch-ava .ch-mark-svg { width: 17px; height: 17px; }
+.ch-head-txt { min-width: 0; flex: 1; }
+.ch-name { font-family: var(--ch-fh); font-size: 16px; font-weight: 600; line-height: 1.25; }
+.ch-status { font-size: 12px; line-height: 1.4; color: var(--ch-muted); margin-top: 1px; }
+.ch-head-btn {
+  width: 36px; height: 36px; flex-shrink: 0; border: 0; background: transparent; cursor: pointer;
+  border-radius: var(--r-pill); color: var(--ch-muted); display: grid; place-items: center;
+}
+.ch-head-btn:hover { background: var(--ch-surface-2); color: var(--ch-ink); }
+.ch-head-btn:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: -2px; }
+.ch-head-btn svg { width: 17px; height: 17px; }
+
+/* ── The log ───────────────────────────────────────────────────────────── */
+.ch-body {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: auto;
+  padding: 20px 16px; display: flex; flex-direction: column; gap: 20px;
+  scrollbar-width: thin;
+}
+/* A column flex container lets its children shrink to fit rather than
+   overflow, which silently squashes the tall ones instead of scrolling. */
+.ch-body > * { flex-shrink: 0; }
+
+/* Chioma speaks as text on the surface: no bubble, no border, full width.
+   A bubble reads as a messenger; this reads as an answer. */
+.ch-msg.bot { font-size: 15px; line-height: 1.65; color: var(--ch-ink); max-width: 100%; }
+.ch-msg.bot > :first-child { margin-top: 0; }
+.ch-msg.bot > :last-child { margin-bottom: 0; }
+.ch-msg.bot p { margin: 0 0 12px; }
+.ch-msg.bot ul, .ch-msg.bot ol { margin: 0 0 12px; padding-left: 18px; }
+.ch-msg.bot li { margin-bottom: 6px; }
+.ch-msg.bot li::marker { color: var(--ch-muted); }
+.ch-msg.bot .ch-h { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.ch-msg.bot blockquote { margin: 0 0 12px; padding-left: 12px; border-left: 2px solid var(--ch-line); color: var(--ch-muted); }
+.ch-msg.bot code { font-size: 13px; background: var(--ch-surface-2); padding: 1px 5px; border-radius: 4px; }
+.ch-msg a { color: var(--ch-gold-ink); text-decoration: underline; text-underline-offset: 2px; }
+
+/* The visitor's own words: shaded and set in. */
+.ch-msg.user {
+  align-self: flex-end; max-width: 85%;
+  font-size: 15px; line-height: 1.55; color: var(--ch-ink);
+  background: var(--ch-surface-2); border-radius: var(--r); padding: 10px 14px;
+}
+
+/* Failure keeps the text and offers retry in place. */
+.ch-fail { align-self: flex-end; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ch-danger); }
+.ch-fail button {
+  font: inherit; font-weight: 600; color: var(--ch-danger); background: none; border: 0;
+  padding: 4px 2px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; min-height: 32px;
+}
+
+/* Status while she works — an honest label, not chrome. */
+.ch-work { font-size: 13px; color: var(--ch-muted); }
+.ch-work .ch-work-t::after {
+  content: ''; display: inline-block; width: 1.2em; text-align: left;
+  animation: ch-dots 1.4s steps(1, end) infinite;
+}
+@keyframes ch-dots { 0% { content: ''; } 25% { content: '·'; } 50% { content: '··'; } 75% { content: '···'; } }
+
+/* Sources — numbered footnotes under the answer, not cards. */
+.ch-src { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-top: -12px; }
+.ch-src-h { font-size: 12px; color: var(--ch-muted); }
+.ch-src-a {
+  display: inline-flex; align-items: baseline; gap: 5px; min-height: 24px; max-width: 100%;
+  font-size: 12px; line-height: 1.5; color: var(--ch-muted); text-decoration: none;
+}
+.ch-src-a:hover { color: var(--ch-ink); }
+.ch-src-a:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; border-radius: 3px; }
+.ch-src-a .ch-src-n { color: var(--ch-gold-ink); font-weight: 600; flex-shrink: 0; }
+.ch-src-a .ch-src-t {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--ch-line);
+}
+
+/* ── The staged form ───────────────────────────────────────────────────── */
+.ch-act { display: flex; flex-direction: column; gap: 14px; }
+.ch-act-h { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.ch-act-b { display: flex; flex-direction: column; gap: 12px; }
+.ch-f { display: flex; flex-direction: column; gap: 5px; }
+.ch-f label { font-size: 12px; color: var(--ch-muted); }
+.ch-f input, .ch-f textarea, .ch-f select {
+  font-family: var(--ch-fb); font-size: 15px; line-height: 1.5; color: var(--ch-ink);
+  background: var(--ch-surface); border: 1px solid var(--ch-line); border-radius: 8px;
+  padding: 10px 12px; width: 100%; min-height: 44px;
+}
+.ch-f textarea { resize: vertical; min-height: 80px; }
+.ch-f input:focus, .ch-f textarea:focus, .ch-f select:focus {
+  outline: 2px solid var(--ch-gold-ink); outline-offset: -1px; border-color: transparent;
+}
+.ch-req, .ch-opt { color: var(--ch-muted); }
+/* The slot exists before any error does, so it is empty far more often than
+   not; :empty keeps it from adding a gap to every field. */
+.ch-f-err { font-size: 12px; line-height: 1.45; color: var(--ch-danger); }
+.ch-f-err:empty { display: none; }
+.ch-f [aria-invalid="true"] { border-color: var(--ch-danger); }
+.ch-f [aria-invalid="true"]:focus { outline-color: var(--ch-danger); }
+.ch-act-err { font-size: 12px; line-height: 1.45; color: var(--ch-danger); }
+.ch-act-err:empty { display: none; }
+.ch-consent {
+  display: flex; gap: 9px; align-items: flex-start; min-height: 44px; padding: 3px 0;
+  font-size: 12px; line-height: 1.5; color: var(--ch-muted); cursor: pointer;
+}
+.ch-consent input { width: 17px; height: 17px; min-height: 17px; flex: 0 0 17px; margin-top: 2px; accent-color: var(--ch-navy); }
+.ch-act-foot { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ch-btn { font-family: var(--ch-fb); font-size: 13px; font-weight: 600; cursor: pointer;
+  border-radius: var(--r-pill); min-height: 44px; border: 0; }
+.ch-btn-go { background: var(--ch-navy); color: #fff; padding: 12px 20px; }
+.ch-btn-go:hover:not(:disabled) { background: #1b2436; }
+.ch-btn-go:disabled { opacity: .5; cursor: default; }
+.ch-btn-no { background: none; color: var(--ch-muted); padding: 12px 14px; }
+.ch-btn-no:hover { color: var(--ch-ink); }
+.ch-btn:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; }
+.ch-act-note { font-size: 12px; line-height: 1.5; color: var(--ch-muted); }
+.ch-act.is-done .ch-act-b, .ch-act.is-done .ch-act-note { display: none; }
+.ch-act-done { display: none; font-size: 13px; line-height: 1.5; color: var(--ch-ok); }
+.ch-act.is-done .ch-act-done { display: block; }
+
+/* ── Chips ─────────────────────────────────────────────────────────────── */
+.ch-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; flex-shrink: 0; }
+.ch-chips:empty { display: none; }
+.ch-chip {
+  font-family: var(--ch-fb); font-size: 13px; line-height: 1.3; cursor: pointer;
+  background: var(--ch-surface-2); color: var(--ch-ink); border: 0;
+  border-radius: var(--r-pill); padding: 9px 14px; min-height: 38px;
+}
+.ch-chip:hover { background: #ebe9e4; }
+html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hover { background: #2b2e37; }
+.ch-chip:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; }
+
+/* ── Composer ──────────────────────────────────────────────────────────── */
+.ch-foot { display: flex; align-items: flex-end; gap: 8px; padding: 4px 16px 10px; flex-shrink: 0; }
+.ch-foot textarea {
+  flex: 1; min-width: 0; font-family: var(--ch-fb); font-size: 15px; line-height: 1.5;
+  color: var(--ch-ink); background: var(--ch-surface-2); border: 0; border-radius: var(--r);
+  padding: 12px 14px; resize: none; min-height: 46px; max-height: 120px;
+  overflow-y: hidden;                       /* autoGrow() turns this on at the ceiling */
+}
+.ch-foot textarea::placeholder { color: var(--ch-muted); }
+.ch-foot textarea:focus { outline: 2px solid var(--ch-gold-ink); outline-offset: -1px; }
+.ch-send {
+  width: 46px; height: 46px; flex-shrink: 0; border: 0; border-radius: var(--r-pill);
+  background: var(--ch-navy); color: #fff; cursor: pointer; display: grid; place-items: center;
+  transition: opacity .15s ease;
+}
+.ch-send:disabled { background: var(--ch-surface-2); color: var(--ch-muted); cursor: default; }
+.ch-send:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; }
+.ch-send svg { width: 17px; height: 17px; }
+
+/* The channels that used to be a second floating dock, and the standing
+   caveat: one quiet row of text rather than four bordered boxes. */
+.ch-tail {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  padding: 0 16px 14px; font-size: 12px; line-height: 1.5; color: var(--ch-muted); flex-shrink: 0;
+}
+/* A short label like "Call" is only 22px wide at 12px type. These sit in a
+   row of links rather than inline in a sentence, so they owe the full 24px
+   target and get it from a floor rather than from padding, which would
+   otherwise break the row's gap rhythm. */
+.ch-tail a { color: var(--ch-muted); text-decoration: none; min-height: 24px; min-width: 24px;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ch-tail a:hover { color: var(--ch-ink); text-decoration: underline; text-underline-offset: 2px; }
+.ch-tail a:focus-visible { outline: 2px solid var(--ch-gold-ink); outline-offset: 2px; border-radius: 3px; }
+.ch-tail .ch-tail-note { flex-basis: 100%; }
+
+/* Jump to latest. */
+.ch-jump {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 118px;
+  display: none; align-items: center; gap: 5px; min-height: 32px; padding: 7px 14px;
+  border: 0; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--ch-navy); color: #fff; font-family: var(--ch-fb); font-size: 12px; font-weight: 600;
+  box-shadow: 0 6px 18px -6px rgba(13,18,32,.5);
+}
+.ch-jump.show { display: flex; }
+.ch-jump svg { width: 12px; height: 12px; }
+
+/* ── Phone: a sheet ────────────────────────────────────────────────────── */
+@media (max-width: 559px) {
+  .chioma-root { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+  .chioma-panel {
+    position: fixed; inset: auto 0 0 0; width: 100%;
+    /* --ch-vh comes from visualViewport: on iOS the keyboard overlays the
+       layout viewport, so a 100dvh sheet buries the composer as you type. */
+    height: var(--ch-vh, 100dvh); max-height: none;
+    border-radius: var(--r) var(--r) 0 0;
+  }
+  .chioma-root.is-open .chioma-panel { animation: ch-sheet .22s ease-out both; }
+  @keyframes ch-sheet { from { transform: translateY(100%); } to { transform: none; } }
+  .chioma-root.is-open .chioma-fab, .chioma-root.is-open .chioma-greet { display: none; }
+  .ch-msg.user { max-width: 88%; }
+  .ch-jump { bottom: 126px; }
+}
+
+.ch-scrim { position: fixed; inset: 0; background: rgba(13,18,32,.4); opacity: 0; pointer-events: none;
+  transition: opacity .18s ease; z-index: -1; }
+@media (max-width: 559px) { .chioma-root.is-open .ch-scrim { opacity: 1; pointer-events: auto; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .chioma-fab { animation: none; }
-  .chioma-fab:hover { transform: none; }
-  .chioma-fab.ch-nudge { animation: none; }
-  .chioma-fab .ch-mark, .chioma-fab .ch-mark .ch-spark, .ch-dot { animation: none; }
-  .chioma-greet { transition: opacity .2s ease; transform: none; animation: none; }
-  .chioma-greet.show { transform: none; animation: none; }
-  .chioma-panel { transition: opacity .2s ease; transform: none; }
-  .chioma-root.is-open.is-anim .chioma-panel { transform: none; }
-  .ch-msg, .ch-typing span { animation: none; }
+  .chioma-root *, .chioma-root *::before, .chioma-root *::after {
+    animation-duration: .01ms !important; transition-duration: .01ms !important;
+  }
+  /* The working indicator is the only sign anything is still in flight, so it
+     keeps moving — slowly enough not to pulse in peripheral vision. */
+  .ch-work .ch-work-t::after { animation: ch-dots 2.4s steps(1, end) infinite !important; }
 }
+
+@media print { .chioma-root { display: none !important; } }

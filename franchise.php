@@ -66,7 +66,7 @@ render_nav('about');
   .fr-time::before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:2px;background:var(--fr-line)}
   .fr-tstep{position:relative;padding:0 0 22px 36px}
   .fr-tstep::before{content:"";position:absolute;left:2px;top:4px;width:16px;height:16px;border-radius:50%;background:var(--afg-accent,#f3b416);border:3px solid var(--afg-surface,#fff);box-shadow:0 0 0 1px var(--afg-border,#e5e7eb);z-index:1}
-  .fr-tstep h4{font-size:15px;font-weight:800;margin:0 0 4px;color:var(--afg-ink,#111827)}
+  .fr-tstep h3{font-size:15px;font-weight:800;margin:0 0 4px;color:var(--afg-ink,#111827)}
   .fr-tstep p{font-size:14.5px;line-height:1.55;margin:0}
   .fr-tstep .fr-list{margin-top:8px}
   /* guiding principle + CTA */
@@ -372,35 +372,35 @@ render_nav('about');
         <p>Every CACENTRE runs its flagship youth project on a continuous <strong>12-month implementation cycle</strong> — a scalable, standardized rhythm that adapts to any community, region or country while keeping the same milestones and quality bar.</p>
         <ol class="fr-time">
           <li class="fr-tstep">
-            <h4>Stakeholder engagement</h4>
+            <h3>Stakeholder engagement</h3>
             <p>Send partnership and approval letters to the relevant government authorities, local councils, schools, sponsors, partners, donors and community leaders, following each locality's own approval calendar.</p>
           </li>
           <li class="fr-tstep">
-            <h4>School engagement</h4>
+            <h3>School engagement</h3>
             <p>Project introduction, student counselling, leadership sessions, parent engagement and holiday-programme preparation. Each school receives at least three official follow-up visits after approval.</p>
           </li>
           <li class="fr-tstep">
-            <h4>Outreach drive</h4>
+            <h3>Outreach drive</h3>
             <p>Every participating school receives a first visit (introduction) and a second visit (follow-up &amp; holiday-programme preparation).</p>
           </li>
           <li class="fr-tstep">
-            <h4>Volunteer standards</h4>
+            <h3>Volunteer standards</h3>
             <p>Recruitment completed before school engagement. Weekly service; a minimum of five volunteers per school engagement; removal after two consecutive missed assignments without approval.</p>
           </li>
           <li class="fr-tstep">
-            <h4>Holiday-programme readiness</h4>
+            <h3>Holiday-programme readiness</h3>
             <p>Before commencement: venue secured, learning packs ready, donor commitments confirmed, at least ten committed volunteers, ten trained instructors, and overall deployment of thirty to forty people.</p>
           </li>
           <li class="fr-tstep">
-            <h4>Community Concert</h4>
+            <h3>Community Concert</h3>
             <p>Before entering any community, hold a Community Concert using a culturally relevant local name while maintaining Afrovanguard branding.</p>
           </li>
           <li class="fr-tstep">
-            <h4>Community expansion</h4>
+            <h3>Community expansion</h3>
             <p>Before launching: establish leadership, define responsibilities, implement Standard Operating Procedures and train leaders.</p>
           </li>
           <li class="fr-tstep">
-            <h4>Meetings — compulsory</h4>
+            <h3>Meetings — compulsory</h3>
             <p>Weekly virtual meetings and monthly physical meetings. Missing three without approval results in removal from the active implementation team.</p>
           </li>
         </ol>

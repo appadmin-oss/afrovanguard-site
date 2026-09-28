@@ -8,7 +8,14 @@
  * a helpful scripted fallback — so she always responds.
  *
  *   POST {message, history:[{role,text}], page:{title,path,section}}
- *     → {ok:true, reply:"…", source:"agent|ai|fallback", configured:bool}
+ *     → {ok:true, reply:"…", source:"agent|agent-tools|ai|fallback",
+ *        actions:[{kind,label,fields}], sources:[{title,url,kind}],
+ *        used:[{tool,ok}], configured:bool}
+ *
+ * `actions` are forms Chioma has filled in but NOT submitted. The widget renders
+ * them for the visitor to check and send, and the send goes to the site's own
+ * endpoints (process-contact.php, academy/api.php) with their existing
+ * validation — this endpoint never writes anything itself.
  */
 declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
@@ -43,9 +50,16 @@ foreach ((array) ($body['history'] ?? []) as $h) {
 $history = array_slice($history, -12);
 
 $res = Chioma::reply($message, $history, $ctx);
+$reply = $res['reply'] !== '' ? $res['reply'] : Chioma::fallback($message, $ctx['path']);
 echo json_encode([
     'ok'         => true,
-    'reply'      => $res['reply'] !== '' ? $res['reply'] : Chioma::fallback($message, $ctx['path']),
+    'reply'      => $reply,
+    // Rendered server-side so the widget never has to parse a model's output.
+    // See lib/ChiomaMarkdown.php: raw HTML is stripped at the parser.
+    'html'       => ChiomaMarkdown::render($reply),
     'source'     => $res['source'],
+    'actions'    => $res['actions'] ?? [],
+    'sources'    => $res['sources'] ?? [],
+    'used'       => $res['steps'] ?? [],
     'configured' => Chioma::aiAvailable(),
-]);
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

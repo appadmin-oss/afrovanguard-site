@@ -22,6 +22,7 @@ final class Sitemap
         ['diary/', '0.9', 'weekly'],
         ['projects', '0.7', 'monthly'],
         ['events/', '0.7', 'weekly'],
+        ['mentorship/become-a-mentor/', '0.7', 'monthly'],
         ['contact/', '0.5', 'yearly'],
         ['donate.html', '0.8', 'monthly'],
     ];

@@ -314,9 +314,30 @@ try {
                     ? 'the Resend HTTPS API'
                     : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing'));
 
+            /* Whether the site's own config.php was READ. Without this the page
+               reports an empty host and "not configured", which reads as "you
+               never set credentials" — when the credentials may be sitting in a
+               config.php that was never loaded. That is the one failure this
+               screen exists to catch and the only one it could not name. */
+            $cfgState = function_exists('av_config_state') ? av_config_state()
+                : ['present' => false, 'loaded' => false, 'missing' => [], 'reason' => ''];
+            $cfgNote = '';
+            if ($cfgState['present'] && !$cfgState['loaded']) {
+                $cfgNote = 'config.php is on the server but was NOT loaded this request'
+                    . ($cfgState['reason'] ? ' — ' . $cfgState['reason'] : '')
+                    . '. Any SMTP settings inside it are not in effect.';
+            } elseif ($cfgState['loaded'] && $cfgState['missing']) {
+                $cfgNote = 'config.php loaded. Unset secrets (each disables only its own feature): '
+                    . implode(', ', $cfgState['missing']) . '.';
+            } elseif (!$cfgState['present']) {
+                $cfgNote = 'No config.php on the server — settings come from environment variables only.';
+            }
+
             json_out([
                 'ok'         => true,
                 'configured' => Mailer::configured(),
+                'config_php' => ['present' => $cfgState['present'], 'loaded' => $cfgState['loaded'],
+                                 'missing_secrets' => $cfgState['missing'], 'note' => $cfgNote],
                 'notifications_enabled' => !defined('ENABLE_EMAIL_NOTIFICATIONS') || (bool) ENABLE_EMAIL_NOTIFICATIONS,
                 'from'       => defined('FROM_EMAIL') ? FROM_EMAIL : '(unset — falls back to SMTP_USERNAME)',
                 'from_name'  => defined('FROM_NAME') ? FROM_NAME : 'Afrovanguard',

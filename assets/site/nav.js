@@ -11,12 +11,32 @@
   var scrim = document.querySelector('.scrim');
 
   /* ---- mobile drawer ---- */
+  /* The drawer covers the page and locks its scroll, so while it is open the
+     page behind it must be unreachable by Tab as well as by eye — otherwise
+     focus walks out of the menu into content nobody can see (45 elements on a
+     programme page, 116 on the home page) and there is no way back but Tab.
+     Every top-level sibling of the drawer is marked inert, which is the same
+     mechanism the drawer itself uses when closed; `data-av-inert` records only
+     the ones we set, so a sibling that was already inert stays that way. */
+  function pageInert(on) {
+    var keep = [drawer, scrim];
+    [].forEach.call(document.body.children, function (el) {
+      if (keep.indexOf(el) !== -1) return;
+      if (on) {
+        if (!el.hasAttribute('inert')) { el.setAttribute('inert', ''); el.setAttribute('data-av-inert', ''); }
+      } else if (el.hasAttribute('data-av-inert')) {
+        el.removeAttribute('inert'); el.removeAttribute('data-av-inert');
+      }
+    });
+  }
+
   function setDrawer(open) {
     if (!drawer) return;
     drawer.classList.toggle('open', open);
     if (scrim) scrim.classList.toggle('open', open);
     if (burger) burger.setAttribute('aria-expanded', String(open));
     if (open) { drawer.removeAttribute('inert'); } else { drawer.setAttribute('inert', ''); }
+    pageInert(open);
     // Mark the document so site-wide CSS can lift floating overlays (e.g. the
     // homepage contact/AI dock, z-index 900) out of the way — otherwise they
     // sit ON TOP of the open drawer and swallow taps on its footer buttons

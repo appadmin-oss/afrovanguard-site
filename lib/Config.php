@@ -105,13 +105,32 @@ final class Config
         // library every send quietly degrades to PHP mail(), which shared hosts
         // routinely drop. Report the transport next to the credentials.
         $pm = class_exists('Mailer') ? Mailer::phpMailerInfo() : ['available' => false, 'version' => '', 'source' => ''];
-        $checks = [
-            self::chk('SMTP credentials', $mail ? 'ok' : 'off', $mail ? self::str('SMTP_HOST') : 'missing — email verification & notifications are disabled'),
+        /* Whether the site's own config.php was READ this request. When it was
+           not, every constant below reads as "missing" and this page tells the
+           operator to set credentials they have already set — the one email
+           failure the screen could not name. */
+        $cfgS = function_exists('av_config_state') ? av_config_state()
+              : ['present' => false, 'loaded' => false, 'missing' => [], 'reason' => ''];
+        $checks = [];
+        if ($cfgS['present'] && !$cfgS['loaded']) {
+            $checks[] = self::chk('config.php', 'off', 'present but NOT loaded'
+                . ($cfgS['reason'] ? ' — ' . $cfgS['reason'] : '')
+                . '. Any SMTP settings inside it are not in effect.');
+        } elseif ($cfgS['loaded']) {
+            $checks[] = self::chk('config.php', 'ok', 'loaded'
+                . ($cfgS['missing'] ? ' · unset secrets (each disables only its own feature): '
+                    . implode(', ', $cfgS['missing']) : ''));
+        }
+        $checks[] = self::chk('SMTP credentials', $mail ? 'ok' : 'off', $mail ? self::str('SMTP_HOST')
+            : ($cfgS['present'] && !$cfgS['loaded']
+                ? 'not readable — they may be set in the config.php that was not loaded (above)'
+                : 'missing — email verification & notifications are disabled'));
+        $checks = array_merge($checks, [
             self::chk('PHPMailer', $pm['available'] ? 'ok' : 'off', $pm['available']
                 ? trim(($pm['version'] !== '' ? 'v' . $pm['version'] : 'loaded') . ($pm['source'] !== '' ? ' · ' . $pm['source'] : ''))
                 : 'missing — SMTP cannot be used; mail falls back to PHP mail(). Run composer install, or restore lib/vendor/phpmailer.'),
             self::chk('From address', self::has('FROM_EMAIL') ? 'ok' : 'info', self::str('FROM_EMAIL', '—')),
-        ];
+        ]);
         // The mailbox a seat claim or contact message is announced to. Unset, the
         // staff alert has nowhere to go and is skipped.
         $adminMail = self::has('ADMIN_EMAIL') ? self::str('ADMIN_EMAIL') : (self::has('FROM_EMAIL') ? self::str('FROM_EMAIL') . ' (falls back to From)' : '');

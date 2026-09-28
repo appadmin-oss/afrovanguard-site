@@ -112,15 +112,27 @@ final class AvAgent
             return $out;
         }
 
+        // Which tool registry this run may use. AvTools is the staff-console set
+        // and stays the default; Chioma passes ChiomaTools, whose registry holds
+        // only what an anonymous visitor is already entitled to see. Keeping the
+        // choice here means both get the same three provider translations below
+        // rather than a second loop drifting out of step with this one.
+        $registry = (string) ($opts['registry'] ?? 'AvTools');
+        if (!class_exists($registry) || !method_exists($registry, 'run')) $registry = 'AvTools';
         $tiers = (array) ($opts['tiers'] ?? self::tiersFor('admin'));
-        $names = class_exists('AvTools') ? AvTools::available($tiers) : [];
-        $specs = $names ? AvTools::specs($names) : [];
+        if ($registry === 'AvTools') {
+            $names = class_exists('AvTools') ? AvTools::available($tiers) : [];
+            $specs = $names ? AvTools::specs($names) : [];
+        } else {
+            $names = $registry::available();
+            $specs = $names ? $registry::specs($names) : [];
+        }
 
         $maxTurns = (int) ($opts['max_turns'] ?? 0);
         if ($maxTurns <= 0) $maxTurns = class_exists('AvRules') ? AvRules::int('ai.max_tool_turns') : 6;
         $maxTurns = max(1, min(20, $maxTurns));
 
-        $ctx = ['actor' => (string) ($opts['actor'] ?? 'ai'), 'tiers' => $tiers];
+        $ctx = ['actor' => (string) ($opts['actor'] ?? 'ai'), 'tiers' => $tiers, '_registry' => $registry];
         $system = trim((string) ($opts['system'] ?? '')) !== '' ? (string) $opts['system'] : self::defaultSystem();
 
         $history = (array) ($opts['history'] ?? []);
@@ -402,8 +414,9 @@ final class AvAgent
      */
     private static function execute(string $name, array $input, array $ctx, array &$out): string
     {
-        $result = class_exists('AvTools')
-            ? AvTools::run($name, $input, $ctx)
+        $registry = (string) ($ctx['_registry'] ?? 'AvTools');
+        $result = (class_exists($registry) && method_exists($registry, 'run'))
+            ? $registry::run($name, $input, $ctx)
             : ['error' => 'Tools are unavailable.'];
 
         $json = self::boundResult($result);

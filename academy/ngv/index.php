@@ -101,7 +101,7 @@ $hero = $c['hero'] ?? [];
     <div class="ngv-wrap ngv-hero-inner">
 <?php if ($g($hero, 'promo_tagline')): ?>      <span class="ngv-pill"><span class="dot"></span> <?= e($g($hero, 'promo_tagline')) ?></span>
 <?php endif; ?>
-      <p class="ngv-hero-eyebrow" style="margin-top:18px"><?= e($g($hero, 'eyebrow')) ?></p>
+      <p class="ngv-hero-eyebrow"><?= e($g($hero, 'eyebrow')) ?></p>
       <h1><?= e($g($hero, 'title_top')) ?> <span class="ngv-grad-text"><?= e($g($hero, 'title_bottom')) ?></span></h1>
       <p class="ngv-hero-sub"><?= e($g($hero, 'sub')) ?></p>
       <div class="ngv-hero-cta">
@@ -136,7 +136,7 @@ $hero = $c['hero'] ?? [];
       <div>
         <span class="ngv-eyebrow">About the programme</span>
         <h2 class="ngv-h2"><?= e($g($ab, 'title')) ?></h2>
-        <p class="ngv-lead" style="margin-bottom:16px"><?= e($g($ab, 'body')) ?></p>
+        <p class="ngv-lead ngv-lead--stack"><?= e($g($ab, 'body')) ?></p>
         <p class="ngv-lead"><?= e($g($ab, 'body2')) ?></p>
       </div>
 <?php if (!empty($c['stats'])): ?>
@@ -211,7 +211,7 @@ $hero = $c['hero'] ?? [];
 <?php if ($feat): ?>          <span class="ngv-plan-flag">Most popular</span>
 <?php endif; ?>
           <div class="ngv-plan-top">
-            <span class="ngv-plan-name"><?= e((string) ($p['name'] ?? '')) ?></span>
+            <h3 class="ngv-plan-name"><?= e((string) ($p['name'] ?? '')) ?></h3>
 <?php if (!empty($p['duration'])): ?>            <span class="ngv-plan-dur"><?= e((string) $p['duration']) ?></span>
 <?php endif; ?>
           </div>
@@ -232,9 +232,39 @@ $hero = $c['hero'] ?? [];
   </section>
 <?php endif; ?>
 
+  <!-- Fees + schedule -->
+<?php if (Ngv::section('fees') && !empty($c['fees'])): $sch = $c['schedule'] ?? []; ?>
+  <section class="ngv-section" id="fees">
+    <div class="ngv-wrap">
+      <div class="ngv-head">
+        <span class="ngv-eyebrow">Commitment, not cost</span>
+        <h2 class="ngv-h2"><?= e($g($c, 'fees_title', 'Simple, purposeful commitment')) ?></h2>
+      </div>
+      <div class="ngv-fees">
+<?php foreach ($c['fees'] as $fee): ?>
+        <div class="ngv-fee">
+          <h3><?= e((string) ($fee['name'] ?? '')) ?></h3>
+          <div class="ngv-fee-amt"><?= e((string) ($fee['amount'] ?? '')) ?></div>
+          <p class="ngv-fee-desc"><?= e((string) ($fee['desc'] ?? '')) ?></p>
+        </div>
+<?php endforeach; ?>
+      </div>
+<?php if ($g($c, 'fees_note')): ?>      <p class="ngv-note"><?= e($g($c, 'fees_note')) ?></p>
+<?php endif; ?>
+<?php if ($sch): ?>
+      <div class="ngv-sched">
+<?php foreach (['days'=>'Attendance','time'=>'Daily schedule','uniform'=>'Dress code','payment'=>'Payments'] as $key=>$lbl): if ($g($sch,$key)): ?>
+        <div class="ngv-card"><b><?= e($lbl) ?></b><span><?= e($g($sch, $key)) ?></span></div>
+<?php endif; endforeach; ?>
+      </div>
+<?php endif; ?>
+    </div>
+  </section>
+<?php endif; ?>
+
   <!-- Why choose us -->
 <?php if (Ngv::section('why') && !empty($c['why'])): ?>
-  <section class="ngv-section" id="why">
+  <section class="ngv-section ngv-section--alt" id="why">
     <div class="ngv-wrap">
       <div class="ngv-head">
         <span class="ngv-eyebrow">The Vanguard difference</span>
@@ -250,7 +280,7 @@ $hero = $c['hero'] ?? [];
 
   <!-- Testimonials -->
 <?php if (Ngv::section('testimonials') && !empty($c['testimonials'])): ?>
-  <section class="ngv-section ngv-section--alt" id="testimonials">
+  <section class="ngv-section" id="testimonials">
     <div class="ngv-wrap">
       <div class="ngv-head">
         <span class="ngv-eyebrow">Members testimonial</span>
@@ -259,7 +289,7 @@ $hero = $c['hero'] ?? [];
       <div class="ngv-tests">
 <?php foreach ($c['testimonials'] as $tm): $nm = (string) ($tm['name'] ?? ''); $rt = (float) ($tm['rating'] ?? 0); ?>
         <figure class="ngv-test">
-<?php if ($rt > 0): $full = (int) floor($rt); ?>          <div class="ngv-test-stars" aria-label="<?= e((string) $tm['rating']) ?> out of 5"><?= str_repeat('★', max(1, min(5, $full))) ?> <span style="color:var(--ngv-muted);font-weight:600"><?= e((string) $tm['rating']) ?></span></div>
+<?php if ($rt > 0): $full = (int) floor($rt); ?>          <div class="ngv-test-stars" aria-label="<?= e((string) $tm['rating']) ?> out of 5"><?= str_repeat('★', max(1, min(5, $full))) ?> <span class="ngv-test-score"><?= e((string) $tm['rating']) ?></span></div>
 <?php endif; ?>
           <blockquote class="ngv-test-quote"><?= e((string) ($tm['quote'] ?? '')) ?></blockquote>
           <figcaption class="ngv-test-by">
@@ -269,36 +299,6 @@ $hero = $c['hero'] ?? [];
         </figure>
 <?php endforeach; ?>
       </div>
-    </div>
-  </section>
-<?php endif; ?>
-
-  <!-- Fees + schedule -->
-<?php if (Ngv::section('fees') && !empty($c['fees'])): $sch = $c['schedule'] ?? []; ?>
-  <section class="ngv-section" id="fees">
-    <div class="ngv-wrap">
-      <div class="ngv-head">
-        <span class="ngv-eyebrow">Commitment, not cost</span>
-        <h2 class="ngv-h2"><?= e($g($c, 'fees_title', 'Simple, purposeful commitment')) ?></h2>
-      </div>
-      <div class="ngv-fees">
-<?php foreach ($c['fees'] as $fee): ?>
-        <div class="ngv-fee">
-          <h3><?= e((string) ($fee['name'] ?? '')) ?></h3>
-          <div class="ngv-fee-amt"><?= e((string) ($fee['amount'] ?? '')) ?></div>
-          <p class="ngv-lead" style="margin-top:8px;font-size:.96rem"><?= e((string) ($fee['desc'] ?? '')) ?></p>
-        </div>
-<?php endforeach; ?>
-      </div>
-<?php if ($g($c, 'fees_note')): ?>      <p class="ngv-note"><?= e($g($c, 'fees_note')) ?></p>
-<?php endif; ?>
-<?php if ($sch): ?>
-      <div class="ngv-sched">
-<?php foreach (['days'=>'Attendance','time'=>'Daily schedule','uniform'=>'Dress code','payment'=>'Payments'] as $key=>$lbl): if ($g($sch,$key)): ?>
-        <div class="ngv-card"><b><?= e($lbl) ?></b><span><?= e($g($sch, $key)) ?></span></div>
-<?php endif; endforeach; ?>
-      </div>
-<?php endif; ?>
     </div>
   </section>
 <?php endif; ?>
@@ -328,9 +328,9 @@ $hero = $c['hero'] ?? [];
         <h2><?= e($g($cta, 'title', 'Your future is waiting')) ?></h2>
         <p><?= e($g($cta, 'text')) ?></p>
         <div class="ngv-hero-cta">
-<?php if ($g($cta, 'button_url')): ?>          <a class="ngv-btn ngv-btn-dark ngv-btn-lg" style="background:#14100c;color:#fff;border:0" href="<?= e($g($cta, 'button_url')) ?>" rel="noopener"><?= e($g($cta, 'button_label', 'Apply now')) ?></a>
+<?php if ($g($cta, 'button_url')): ?>          <a class="ngv-btn ngv-btn-onband ngv-btn-lg" href="<?= e($g($cta, 'button_url')) ?>" rel="noopener"><?= e($g($cta, 'button_label', 'Apply now')) ?></a>
 <?php endif; ?>
-<?php if ($g($ct, 'phone')): ?>          <a class="ngv-btn ngv-btn-ghost ngv-btn-lg" style="color:#fff;border-color:rgba(255,255,255,.6)" href="tel:<?= e(preg_replace('/[^0-9+]/', '', $g($ct, 'phone'))) ?>">Call <?= e($g($ct, 'phone')) ?></a>
+<?php if ($g($ct, 'phone')): ?>          <a class="ngv-btn ngv-btn-ghost ngv-btn-onband ngv-btn-lg" href="tel:<?= e(preg_replace('/[^0-9+]/', '', $g($ct, 'phone'))) ?>">Call <?= e($g($ct, 'phone')) ?></a>
 <?php endif; ?>
         </div>
       </div>
@@ -338,15 +338,15 @@ $hero = $c['hero'] ?? [];
   </section>
 
   <!-- Contact + offices -->
-  <section class="ngv-section ngv-section--alt" id="contact" style="padding-block:clamp(40px,5vw,64px)">
+  <section class="ngv-section ngv-section--tight ngv-section--alt" id="contact">
     <div class="ngv-wrap">
-      <div class="ngv-head" style="margin-bottom:28px">
+      <div class="ngv-head ngv-head--tight">
         <span class="ngv-eyebrow">Visit or reach us</span>
         <h2 class="ngv-h2">Come and see us</h2>
       </div>
       <div class="ngv-contact">
 <?php foreach ($offices as $o): if (empty($o['name'])) continue; ?>
-        <div class="ngv-card"><b>Office</b><div style="font-weight:700;margin-bottom:4px"><?= e((string) $o['name']) ?></div><div class="ngv-office-addr"><?= e((string) ($o['address'] ?? '')) ?></div></div>
+        <div class="ngv-card"><b>Office</b><div class="ngv-office-name"><?= e((string) $o['name']) ?></div><div class="ngv-office-addr"><?= e((string) ($o['address'] ?? '')) ?></div></div>
 <?php endforeach; ?>
 <?php if ($g($ct, 'phone')): ?>        <div class="ngv-card"><b>Call / WhatsApp</b><a href="tel:<?= e(preg_replace('/[^0-9+]/', '', $g($ct, 'phone'))) ?>"><?= e($g($ct, 'phone')) ?></a></div>
 <?php endif; ?>

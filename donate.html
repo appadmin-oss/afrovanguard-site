@@ -199,7 +199,7 @@
     .banner-link {
       font-family: var(--font-body); font-size:12px; font-weight:700;
       color: var(--color-text-primary); text-decoration:none;
-      display:inline-flex; align-items:center; gap:4px;
+      display:inline-flex; align-items:center; min-height:24px; gap:4px;
       border-bottom:2px solid var(--color-text-primary); white-space:nowrap;
       transition:opacity var(--t-fast);
     }
@@ -212,13 +212,18 @@
       display:flex; align-items:center; justify-content:center;
     }
     .banner-close:hover { opacity:1; }
-    .banner-dots { display:flex; align-items:center; gap:8px; padding:0 16px 0 auto; flex-shrink:0; order:2; }
+    .banner-dots { display:flex; align-items:center; gap:0; padding:0 16px 0 auto; flex-shrink:0; order:2; }
+    /* 8px dot, 24px button — the indicator stays small, the target does not. */
     .banner-dot {
-      width:8px; height:8px; border-radius:50%;
-      background:rgba(17,24,39,0.3); border:none; cursor:pointer;
-      padding:0; transition:background var(--t-fast); min-height:8px; min-width:8px;
+      width:24px; height:24px; min-width:24px; min-height:24px;
+      background:none; border:none; cursor:pointer; padding:0;
+      display:inline-grid; place-items:center;
     }
-    .banner-dot.active { background: var(--color-text-primary); }
+    .banner-dot::before {
+      content:""; width:8px; height:8px; border-radius:50%;
+      background:rgba(17,24,39,0.3); transition:background var(--t-fast);
+    }
+    .banner-dot.active::before { background: var(--color-text-primary); }
     @media (max-width:600px) {
       .banner-tag { display:none; }
       .banner-text { font-size:12px; }
@@ -228,7 +233,7 @@
       .banner-slides { min-height:48px; }
       .banner-close { padding:0 12px; font-size:16px; min-width:40px; min-height:48px; }
       .banner-dots { padding:0 12px; gap:6px; }
-      .banner-dot { width:6px; height:6px; min-width:6px; min-height:6px; }
+      .banner-dot::before { width:6px; height:6px; }
     }
     @media (max-width:400px) {
       .banner-text { font-size:11px; line-height:1.4; }
@@ -401,9 +406,7 @@
     /* ── Full-bleed wrapper + soft light tint ─────────────────────── */
     .hero-bleed-wrapper {
       position:relative;
-      width:100vw;
-      left:50%;
-      transform:translateX(-50%);
+      width:100%;
       overflow:hidden;
       background: var(--color-bg);
     }
@@ -749,7 +752,7 @@
     .bank-value {
       font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,0.8);
     }
-    .bank-row.intl-row .bank-value { font-size: 12.5px; color: rgba(255,255,255,0.4); }
+    .bank-row.intl-row .bank-value { font-size: 12.5px; color: rgba(255,255,255,0.62); }
     .bank-row.intl-row .bank-value a { color: var(--color-gold); font-weight: 600; }
 
     /* Copy button */
@@ -1161,7 +1164,7 @@
     .share-wa:hover { background:#20b958; }
     .donate-again-btn {
       margin-top:16px; background:transparent; border:1px solid rgba(255,255,255,0.12);
-      border-radius:99px; padding:9px 22px; color:rgba(255,255,255,0.4);
+      border-radius:99px; padding:9px 22px; color:rgba(255,255,255,0.62);
       font-size:12.5px; font-weight:600; cursor:pointer;
       transition:all 0.18s; font-family:var(--font-body);
     }
@@ -1227,187 +1230,6 @@
     .faq-item.open .faq-a { max-height:240px; padding-bottom:20px; }
     .faq-item.open .faq-icon { transform:rotate(45deg); }
 
-/* ── Dock container ────────────────────────────────────────────────── */
-.dock {
-  position: fixed;
-  bottom: 28px; right: 24px;
-  z-index: 900;
-  display: flex; flex-direction: column;
-  align-items: flex-end; gap: 10px;
-}
- 
-/* ── FAB trigger ────────────────────────────────────────────────────── */
-.dock-fab {
-  width: 54px; height: 54px; border-radius: 50%;
-  background: #111827; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 20px rgba(17,24,39,.45);
-  transition: background .2s, transform .22s;
-  position: relative; flex-shrink: 0; color: #fff;
-}
-.dock-fab:hover { background: #1e2938; transform: scale(1.08); }
-.dock-fab.open  { background: #dc2626; }
- 
-/* FAB icon states */
-.dock-fab-ico {
-  display: flex; align-items: center; justify-content: center;
-  transition: opacity .2s, transform .2s;
-}
-.dock-fab-ico svg { width: 22px; height: 22px; stroke: #fff; }
-.dock-fab-ico--close { position: absolute; opacity: 0; transform: rotate(-45deg); }
-.dock-fab.open .dock-fab-ico--open  { opacity: 0; transform: rotate(45deg); }
-.dock-fab.open .dock-fab-ico--close { opacity: 1; transform: rotate(0deg); }
- 
-/* FAB tooltip */
-.dock-fab-label {
-  position: absolute; right: 62px; top: 50%; transform: translateY(-50%);
-  background: #111827; color: #fff;
-  font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700;
-  padding: 6px 12px; border-radius: 9999px;
-  white-space: nowrap; pointer-events: none; opacity: 0;
-  transition: opacity .18s;
-  box-shadow: 0 2px 10px rgba(17,24,39,.25);
-}
-.dock-fab:hover .dock-fab-label { opacity: 1; }
-.dock-fab.open  .dock-fab-label { display: none; }
- 
-/* Pulse ring on FAB */
-.dock-pulse {
-  position: absolute; inset: -4px; border-radius: 50%;
-  border: 2px solid rgba(17,24,39,.2);
-  animation: dockPulse 2.5s ease infinite;
-  pointer-events: none;
-}
-@keyframes dockPulse {
-  0%   { transform: scale(1);   opacity: .6; }
-  50%  { transform: scale(1.2); opacity: 0; }
-  100% { transform: scale(1);   opacity: 0; }
-}
-.dock-fab.open .dock-pulse { display: none; }
- 
-/* ── Menu panel ─────────────────────────────────────────────────────── */
-.dock-menu {
-  display: flex; flex-direction: column;
-  gap: 8px; align-items: flex-end;
-  /* FIX: was opacity:1 — menu was visible before open */
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(8px) scale(.95);
-  transform-origin: bottom right;
-  transition: opacity .25s, transform .25s;
-}
-.dock-menu.open {
-  pointer-events: auto;
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
- 
-/* ── Individual items ───────────────────────────────────────────────── */
-.dock-item {
-  display: flex; align-items: center; gap: 10px;
-  text-decoration: none; cursor: pointer;
-  background: none; border: none; padding: 0;
-}
-.dock-item:nth-child(1) { transition-delay: .00s; }
-.dock-item:nth-child(2) { transition-delay: .04s; }
-.dock-item:nth-child(3) { transition-delay: .08s; }
-.dock-item:nth-child(4) { transition-delay: .12s; }
-.dock-item:nth-child(5) { transition-delay: .16s; }
- 
-.dock-item-label {
-  background: #fff; color: #111827;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 12.5px; font-weight: 700;
-  padding: 7px 13px; border-radius: 9999px;
-  box-shadow: 0 2px 12px rgba(17,24,39,.14);
-  border: 1px solid #e5e7eb;
-  white-space: nowrap;
-  transition: box-shadow .18s;
-}
-.dock-item:hover .dock-item-label { box-shadow: 0 4px 18px rgba(17,24,39,.18); }
- 
-.dock-item-icon {
-  width: 44px; height: 44px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; flex-shrink: 0;
-  box-shadow: 0 3px 14px rgba(0,0,0,.2);
-  transition: transform .2s, box-shadow .2s;
-  position: relative;
-}
-.dock-item-icon svg { width: 19px; height: 19px; }
-.dock-item:hover .dock-item-icon {
-  transform: scale(1.1);
-  box-shadow: 0 5px 20px rgba(0,0,0,.28);
-}
- 
-/* ── Icon colour themes ─────────────────────────────────────────────── */
-.dock-item-icon--email  { background: #374151; }
-.dock-item-icon--wa     { background: #25D366; }
-.dock-item-icon--call   { background: #d49a0e; }   /* FIX: was background:: */
-.dock-item-icon--donate { background: #111827; }
- 
-/* ══════════════════════════════════════════════════════════════════════
-   AI BOT — PROMINENT TREATMENT
-   Larger icon, indigo gradient, persistent glow, always-visible label,
-   green "AI" badge, label uses same gradient as icon
-   ══════════════════════════════════════════════════════════════════════ */
-.dock-item--bot .dock-item-icon {
-  width: 52px; height: 52px;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  box-shadow:
-    0 4px 20px rgba(99,102,241,.55),
-    0 0 0 0 rgba(99,102,241,.3);
-  animation: botGlow 2.5s ease-in-out infinite;
-}
-.dock-item--bot .dock-item-icon svg { width: 23px; height: 23px; }
- 
-/* Green "AI" badge on icon */
-.dock-item--bot .dock-item-icon::after {
-  content: 'AI';
-  position: absolute; top: -3px; right: -3px;
-  background: #22c55e; color: #fff;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 7px; font-weight: 900;
-  padding: 2px 5px; border-radius: 99px;
-  letter-spacing: 0.04em;
-  border: 1.5px solid #0d1220;
-  line-height: 1.2;
-}
- 
-/* Gradient label — always visible (not just on hover) */
-.dock-item--bot .dock-item-label {
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  color: #fff; font-size: 13px; font-weight: 800;
-  box-shadow: 0 4px 16px rgba(99,102,241,.45);
-  border: none; letter-spacing: 0.01em;
-}
- 
-@keyframes botGlow {
-  0%,100% {
-    box-shadow:
-      0 4px 20px rgba(99,102,241,.55),
-      0 0 0 0px rgba(99,102,241,.3);
-  }
-  50% {
-    box-shadow:
-      0 4px 28px rgba(99,102,241,.75),
-      0 0 0 9px rgba(99,102,241,.0);
-  }
-}
- 
-/* ── Mobile adjustments ─────────────────────────────────────────────── */
-@media (max-width: 600px) {
-  .dock { bottom: 20px; right: 16px; }
-  .dock-item-label { display: none; }          /* hide regular labels on mobile */
-  .dock-item--bot .dock-item-label { display: flex; } /* always show bot label */
-  .dock-fab { width: 50px; height: 50px; }
-  .dock-fab-ico svg { width: 20px; height: 20px; }
-  .dock-item-icon { width: 40px; height: 40px; }
-  .dock-item-icon svg { width: 17px; height: 17px; }
-  .dock-item--bot .dock-item-icon { width: 46px; height: 46px; }
-  .dock-item--bot .dock-item-icon svg { width: 20px; height: 20px; }
-}
-
     /* ================================================================
        FOOTER — MATCHES HOMEPAGE
        ================================================================ */
@@ -1434,7 +1256,8 @@
       color:rgba(255,255,255,0.55); transition:all var(--t-fast); text-decoration:none;
     }
     .footer-social-link:hover { background:rgba(243,180,22,0.12); color:var(--color-gold); border-color:rgba(243,180,22,0.2); }
-    .footer-col h4 { font-family: var(--font-body); font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-gold); margin-bottom:20px; }
+    .footer-col h2 { font-family: var(--font-body); font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-gold); margin-bottom:20px; }
+    .footer-newsletter-mini h3 { font-family: var(--font-body); font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-gold); margin:0 0 8px; }
     .footer-links { list-style:none; display:flex; flex-direction:column; gap:10px; }
     .footer-links a { font-family: var(--font-body); font-size:14px; color:rgba(255,255,255,0.6); text-decoration:none; min-height:28px; display:flex; align-items:center; transition:color var(--t-fast); }
     .footer-links a:hover { color:var(--color-white); }
@@ -2367,7 +2190,7 @@
       font-size: 10px;
       letter-spacing: 0.10em;
       margin-bottom: 6px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.62);
     }
     .field {
       border-radius: 11px;
@@ -2926,7 +2749,7 @@
     display: inline-flex; align-items: center; gap: 6px;
     margin-top: 14px; background: rgba(243,180,22,0.1);
     border: 1px solid rgba(243,180,22,0.25); border-radius: 99px;
-    padding: 5px 14px; font-size: 12px; font-weight: 700; color: var(--color-gold-dark);
+    padding: 5px 14px; font-size: 12px; font-weight: 700; color: #8f6606;
   }
   .donor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .donor-card {
@@ -2976,7 +2799,7 @@
   .faq-a a { color: var(--color-gold); }
 
   /* ════ FOOTER ════════════════════════════════════════════════ */
-  .footer-col h4 { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; }
+  .footer-col h2 { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; }
   .footer-links li { margin-bottom: 10px; }
   .footer-links a { font-size: 13.5px; color: rgba(255,255,255,0.55); transition: color 0.15s; }
   .footer-links a:hover { color: var(--color-gold); }
@@ -3219,7 +3042,7 @@
   <!-- ========================================================
        NAVIGATION
        ======================================================== -->
-  <header class="site-header" id="site-header" role="banner" data-section="">
+  <header class="site-header" id="site-header" role="banner" data-section="involved">
     <!-- Tier 0 · thin utility strip (secondary actions) -->
     <div class="nav-utility-bar">
       <div class="container">
@@ -3264,7 +3087,6 @@
                         <li><a href="/how-it-works">How it works</a></li>
                         <li><a href="/ethos/">Our ethos</a></li>
                         <li><a href="/ethos/#leadership">Leadership &amp; model</a></li>
-                        <li><a href="/franchise">Franchise a CACENTRE</a></li>
                       </ul>
                     </div>
                     <div class="mega-col">
@@ -3272,7 +3094,7 @@
                       <ul role="list">
                         <li><a href="/contact.html">Contact us</a></li>
                         <li><a href="/diary/">The Diary</a></li>
-                        <li><a href="https://afg.afrovanguard.org.ng/events">Events</a></li>
+                        <li><a href="https://afg.afrovanguard.org.ng/events" target="_blank" rel="noopener">Events <span class="nav-ext" aria-hidden="true">↗</span><span class="sr-only"> (opens afg.afrovanguard.org.ng in a new tab)</span></a></li>
                       </ul>
                     </div>
                   </div>
@@ -3296,7 +3118,7 @@
                         <li><a href="/academy/">All programmes</a></li>
                         <li><a href="/academy/ngv/">NextGen Vanguard</a></li>
                         <li><a href="/academy/dns/">D&#039;Vanguard National Summit</a></li>
-                        <li><a href="/academy/#membership">Academy membership</a></li>
+                        <li><a href="/academy/#membership">Become a member</a></li>
                         <li><a href="/academy/teach/">Teach with us</a></li>
                         <li><a href="/academy/verify.php">Verify a certificate</a></li>
                       </ul>
@@ -3306,7 +3128,7 @@
                       <ul role="list">
                         <li><a href="/login">Create an account</a></li>
                         <li><a href="/portal/">Member portal</a></li>
-                        <li><a href="/mentorship/">Mentorship</a></li>
+                        <li><a href="/mentorship/become-a-mentor/">Become a mentor</a></li>
                         <li><a href="/IQ/">IQ — Quizzes &amp; games</a></li>
                       </ul>
                     </div>
@@ -3328,16 +3150,19 @@
                     <div class="mega-col">
                       <p class="mega-h">Flagship programmes</p>
                       <ul role="list">
-                        <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
-                        <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
-                        <li><a href="https://cacentre.afrovanguard.org.ng/techhome/">Techome</a></li>
-                        <li><a href="https://cacentre.afrovanguard.org.ng/mediapro/">MediaPro</a></li>
+                        <li><a href="/projects/sts/">Street-To-Stardom</a></li>
+                        <li><a href="/projects/techhome/">Techome</a></li>
+                        <li><a href="/projects/mediapro/">MediaPro</a></li>
+                        <li><a href="/projects/africa-gates/">Africa GATES</a></li>
                       </ul>
                     </div>
                     <div class="mega-col">
-                      <p class="mega-h">More</p>
+                      <p class="mega-h">More programmes</p>
                       <ul role="list">
-                        <li><a href="https://cacentre.afrovanguard.org.ng/africa-gates/">Africa GATES</a></li>
+                        <li><a href="/projects/bec/">Business Executive Club</a></li>
+                        <li><a href="/projects/career-hub/">Career Hub</a></li>
+                        <li><a href="/projects/kap/">Kingdom Advancement</a></li>
+                        <li><a href="https://next.afrovanguard.org.ng/" target="_blank" rel="noopener">Next Generation Genius <span class="nav-ext" aria-hidden="true">↗</span><span class="sr-only"> (opens next.afrovanguard.org.ng in a new tab)</span></a></li>
                         <li><a href="/projects/">All projects</a></li>
                       </ul>
                     </div>
@@ -3352,7 +3177,7 @@
               </div>
             </li>
             <li class="has-mega" data-mega="involved">
-              <a href="/donate.html" aria-haspopup="true" aria-expanded="false">Get involved <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></a>
+              <a href="/donate.html" aria-current="page" aria-haspopup="true" aria-expanded="false">Get involved <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></a>
               <div class="mega" role="region" aria-label="Get involved menu">
                 <div class="mega-inner">
                   <div class="mega-cols">
@@ -3367,11 +3192,11 @@
                     <div class="mega-col">
                       <p class="mega-h">Give your time &amp; grow</p>
                       <ul role="list">
-                        <li><a href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a></li>
-                        <li><a href="/mentorship/">Mentor a young leader</a></li>
+                        <li><a href="https://cacentre.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener">Volunteer <span class="nav-ext" aria-hidden="true">↗</span><span class="sr-only"> (opens cacentre.afrovanguard.org.ng in a new tab)</span></a></li>
+                        <li><a href="/mentorship/become-a-mentor/">Become a mentor</a></li>
                         <li><a href="/contact.html">Partner with us</a></li>
                         <li><a href="/franchise">Franchise a CACENTRE</a></li>
-                        <li><a href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE ↗</a></li>
+                        <li><a href="https://cacentre.afrovanguard.org.ng" target="_blank" rel="noopener">Visit CACENTRE <span class="nav-ext" aria-hidden="true">↗</span><span class="sr-only"> (opens cacentre.afrovanguard.org.ng in a new tab)</span></a></li>
                       </ul>
                     </div>
                   </div>
@@ -3429,7 +3254,6 @@
         </nav>
     </div>
   </header>
-
   <!-- Mobile Nav -->
   <div class="scrim" data-close-drawer></div>
   <!-- Accessible site search (AI-integrated) — opened from the Search control -->
@@ -3466,7 +3290,6 @@
           <a class="avd-sub" href="/how-it-works">How it works</a>
           <a class="avd-sub" href="/ethos/">Our ethos</a>
           <a class="avd-sub" href="/ethos/#leadership">Leadership &amp; model</a>
-          <a class="avd-sub" href="/franchise">Franchise a CACENTRE</a>
           <a class="avd-sub" href="/contact.html">Contact us</a>
           <a class="avd-sub" href="/diary/">The Diary</a>
           <a class="avd-sub" href="https://afg.afrovanguard.org.ng/events">Events</a>
@@ -3479,12 +3302,12 @@
           <a class="avd-sub" href="/academy/">All programmes</a>
           <a class="avd-sub" href="/academy/ngv/">NextGen Vanguard</a>
           <a class="avd-sub" href="/academy/dns/">D&#039;Vanguard National Summit</a>
-          <a class="avd-sub" href="/academy/#membership">Academy membership</a>
+          <a class="avd-sub" href="/academy/#membership">Become a member</a>
           <a class="avd-sub" href="/academy/teach/">Teach with us</a>
           <a class="avd-sub" href="/academy/verify.php">Verify a certificate</a>
           <a class="avd-sub" href="/login">Create an account</a>
           <a class="avd-sub" href="/portal/">Member portal</a>
-          <a class="avd-sub" href="/mentorship/">Mentorship</a>
+          <a class="avd-sub" href="/mentorship/become-a-mentor/">Become a mentor</a>
           <a class="avd-sub" href="/IQ/">IQ — Quizzes &amp; games</a>
         </div>
       </div>
@@ -3492,11 +3315,14 @@
         <button class="avd-acc-btn" aria-expanded="false"><span>Projects</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="avd-acc-panel">
           <a class="avd-sub avd-sub-lead" href="/projects/">Projects home</a>
-          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a>
+          <a class="avd-sub" href="/projects/sts/">Street-To-Stardom</a>
+          <a class="avd-sub" href="/projects/techhome/">Techome</a>
+          <a class="avd-sub" href="/projects/mediapro/">MediaPro</a>
+          <a class="avd-sub" href="/projects/africa-gates/">Africa GATES</a>
+          <a class="avd-sub" href="/projects/bec/">Business Executive Club</a>
+          <a class="avd-sub" href="/projects/career-hub/">Career Hub</a>
+          <a class="avd-sub" href="/projects/kap/">Kingdom Advancement</a>
           <a class="avd-sub" href="https://next.afrovanguard.org.ng/">Next Generation Genius</a>
-          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/techhome/">Techome</a>
-          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/mediapro/">MediaPro</a>
-          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/africa-gates/">Africa GATES</a>
           <a class="avd-sub" href="/projects/">All projects</a>
         </div>
       </div>
@@ -3508,10 +3334,10 @@
           <a class="avd-sub" href="/donate.html#campaigns">Fund a campaign</a>
           <a class="avd-sub" href="/academy/#membership">Become a member</a>
           <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng/volunteer">Volunteer</a>
-          <a class="avd-sub" href="/mentorship/">Mentor a young leader</a>
+          <a class="avd-sub" href="/mentorship/become-a-mentor/">Become a mentor</a>
           <a class="avd-sub" href="/contact.html">Partner with us</a>
           <a class="avd-sub" href="/franchise">Franchise a CACENTRE</a>
-          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE ↗</a>
+          <a class="avd-sub" href="https://cacentre.afrovanguard.org.ng">Visit CACENTRE</a>
         </div>
       </div>
       <div class="avd-acc">
@@ -3644,12 +3470,12 @@
           .donate-type-label {
             font-family: var(--font-body); font-size: 13px; font-weight: 700;
             letter-spacing: 0.02em;
-            color: rgba(17,24,39,0.4);
+            color: rgba(17,24,39,0.8);
           }
           .donate-type-tab--active .donate-type-label { color: #fff; }
           .donate-type-desc {
             font-family: var(--font-body); font-size: 11px;
-            color: rgba(17,24,39,0.35);
+            color: rgba(17,24,39,0.75);
           }
           .donate-type-tab--active .donate-type-desc { color: rgba(255,255,255,0.5); }
           .donate-type-divider {
@@ -3710,8 +3536,8 @@
           .mat-critical-title { font-family: var(--font-heading); font-size: clamp(18px,2.5vw,24px); font-weight: 700; color: #fff; margin-bottom: 6px; line-height: 1.2; }
           .mat-critical-desc { font-size: 13.5px; color: rgba(255,255,255,0.55); line-height: 1.6; margin-bottom: 14px; max-width: 44ch; }
           .mat-critical-value { display: inline-flex; align-items: center; gap: 8px; background: rgba(243,180,22,0.12); border: 1px solid rgba(243,180,22,0.3); border-radius: 10px; padding: 8px 16px; font-size: 15px; font-weight: 800; color: var(--color-gold); margin-bottom: 16px; }
-          .mat-critical-cta { display: inline-flex; align-items: center; gap: 8px; background: #ef4444; border: none; border-radius: 99px; padding: 11px 22px; font-family: var(--font-body); font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; text-decoration: none; transition: all 0.18s; }
-          .mat-critical-cta:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(239,68,68,0.35); }
+          .mat-critical-cta { display: inline-flex; align-items: center; gap: 8px; background: #dc2626; border: none; border-radius: 99px; padding: 11px 22px; font-family: var(--font-body); font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; text-decoration: none; transition: all 0.18s; }
+          .mat-critical-cta:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(239,68,68,0.35); }
 
           /* Needs grid */
           .mat-needs-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 32px; }
@@ -3721,17 +3547,17 @@
           .mat-need-card-top { padding: 16px 18px 12px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: space-between; }
           .mat-need-card-icon-wrap { display: flex; align-items: center; gap: 10px; }
           .mat-need-card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
-          .mat-need-card-cat { font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold); }
+          .mat-need-card-cat { font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-ink, #8f6606); }
           .mat-urgency-badge { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
-          .mat-urgency-badge.critical { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
-          .mat-urgency-badge.needed   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: #fdba74; }
-          .mat-urgency-badge.welcome  { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.25); color: #4ade80; }
+          .mat-urgency-badge.critical { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #b91c1c; }
+          .mat-urgency-badge.needed   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: #c2410c; }
+          .mat-urgency-badge.welcome  { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.25); color: #166534; }
           .mat-need-items { list-style: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
           .mat-need-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--color-text-body); line-height: 1.45; }
           .mat-need-item-left { display: flex; flex-direction: column; flex: 1; gap: 1px; }
           .mat-need-item-name { font-weight: 600; color: var(--color-text-primary); }
           .mat-need-item-detail { font-size: 11px; color: var(--color-text-muted); }
-          .mat-need-qty { flex-shrink: 0; font-size: 10px; font-weight: 800; background: rgba(243,180,22,0.1); border: 1px solid rgba(243,180,22,0.2); color: var(--color-gold-dark); border-radius: 6px; padding: 2px 7px; margin-top: 2px; white-space: nowrap; }
+          .mat-need-qty { flex-shrink: 0; font-size: 10px; font-weight: 800; background: rgba(243,180,22,0.1); border: 1px solid rgba(243,180,22,0.2); color: var(--color-gold-ink, #8f6606); border-radius: 6px; padding: 2px 7px; margin-top: 2px; white-space: nowrap; }
           .mat-need-card-cta { padding: 12px 18px; border-top: 1px solid var(--color-divider); }
           .mat-need-card-cta-btn { width: 100%; padding: 10px; background: transparent; border: 1.5px solid var(--color-divider); border-radius: 10px; font-family: var(--font-body); font-size: 12px; font-weight: 700; color: var(--color-text-muted); cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 6px; }
           .mat-need-card-cta-btn:hover { border-color: var(--color-gold); color: var(--color-text-primary); background: rgba(243,180,22,0.05); }
@@ -3741,7 +3567,7 @@
           .mat-contribute-header { padding: 22px 28px; background: var(--color-bg-dark); display: flex; align-items: center; gap: 16px; }
           .mat-contribute-header-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; background: rgba(243,180,22,0.12); border: 1px solid rgba(243,180,22,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px; }
           .mat-contribute-header-text h3 { font-family: var(--font-heading); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 3px; }
-          .mat-contribute-header-text p { font-size: 12.5px; color: rgba(255,255,255,0.4); }
+          .mat-contribute-header-text p { font-size: 12.5px; color: rgba(255,255,255,0.62); }
           .mat-contribute-body { padding: 28px; }
           .mat-selected-preview { display: none; align-items: center; gap: 10px; background: rgba(243,180,22,0.08); border: 1px solid rgba(243,180,22,0.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 12.5px; font-weight: 600; color: var(--color-gold-dark); }
           .mat-selected-preview.visible { display: flex; }
@@ -3964,7 +3790,7 @@
                 <div style="padding:14px 26px 18px;border-top:1px solid rgba(255,255,255,0.05);">
                   <div style="font-size:9.5px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.18);margin-bottom:10px;">After you notify us</div>
                   <div style="display:flex;flex-direction:column;gap:6px;">
-                    <div style="display:flex;gap:10px;font-size:12px;color:rgba(255,255,255,0.4);line-height:1.5;align-items:flex-start;">
+                    <div style="display:flex;gap:10px;font-size:12px;color:rgba(255,255,255,0.62);line-height:1.5;align-items:flex-start;">
                       <span style="flex-shrink:0;">📧</span><span>Impact receipt emailed within 24 hours of confirming your transfer.</span>
                     </div>
                     <div style="display:flex;gap:10px;font-size:12px;color:rgba(255,255,255,0.4);line-height:1.5;align-items:flex-start;">
@@ -4690,7 +4516,6 @@
                 .cs-form-header { padding: 16px 20px; }
               }
             </style>
-          </div>
 
         </div><!-- /#panel-material -->
       </div><!-- /.container -->
@@ -4731,10 +4556,10 @@
             border: 1px solid transparent; white-space: nowrap;
           }
           .dw-tier-chip-range {
-            font-weight: 500; opacity: 0.75; font-size: 10.5px;
+            font-weight: 500; font-size: 10.5px;
           }
           .dw-tier-chip--platinum { background: rgba(229,228,226,.14); border-color: rgba(154,165,180,.3); color: #4a5568; }
-          .dw-tier-chip--gold     { background: rgba(243,180,22,.10);  border-color: rgba(243,180,22,.3);  color: var(--color-gold-dark); }
+          .dw-tier-chip--gold     { background: rgba(243,180,22,.10);  border-color: rgba(243,180,22,.3);  color: #8f6606; }
           .dw-tier-chip--silver   { background: rgba(156,163,175,.10); border-color: rgba(156,163,175,.3); color: #4b5563; }
           .dw-tier-chip--bronze   { background: rgba(180,83,9,.08);    border-color: rgba(180,83,9,.25);   color: #92400e; }
           .dw-tier-chip--patron   { background: rgba(99,102,241,.08);  border-color: rgba(99,102,241,.25); color: #4338ca; }
@@ -5158,97 +4983,6 @@
     </div><!-- /.va-panel -->
   </div><!-- /.va-overlay -->
   
-  <div class="dock" id="dock" role="complementary" aria-label="Quick contact channels">
- 
-  <!-- Items panel — rendered above the FAB -->
-  <div class="dock-menu" id="dock-menu" aria-hidden="true">
- 
-    <!-- ★ AI BOT — prominent, first in list -->
-    <a href="#" class="dock-item dock-item--bot" id="vanguard-ai"
-       aria-label="Chat with our AI assistant">
-      <span class="dock-item-label">Chat with our AI</span>
-      <span class="dock-item-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-          <circle cx="8.5" cy="10" r="1" fill="currentColor" stroke="none"/>
-          <circle cx="12"  cy="10" r="1" fill="currentColor" stroke="none"/>
-          <circle cx="15.5" cy="10" r="1" fill="currentColor" stroke="none"/>
-        </svg>
-      </span>
-    </a>
- 
-    <!-- Email -->
-    <a href="#" class="dock-item" id="dock-email" aria-label="Email us">
-      <span class="dock-item-label">Email us</span>
-      <span class="dock-item-icon dock-item-icon--email">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-          <polyline points="22,6 12,13 2,6"/>
-        </svg>
-      </span>
-    </a>
- 
-    <!-- WhatsApp -->
-    <a href="https://wa.me/2349037776318" class="dock-item"
-       target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
-      <span class="dock-item-label">WhatsApp</span>
-      <span class="dock-item-icon dock-item-icon--wa">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-        </svg>
-      </span>
-    </a>
- 
-    <!-- Call -->
-    <a href="tel:+2349037776318" class="dock-item" aria-label="Call us">
-      <span class="dock-item-label">Call us</span>
-      <span class="dock-item-icon dock-item-icon--call">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
-        </svg>
-      </span>
-    </a>
- 
-    <!-- Donate -->
-    <a href="/donate.html" class="dock-item" aria-label="Donate">
-      <span class="dock-item-label">Donate</span>
-      <span class="dock-item-icon dock-item-icon--donate">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-        </svg>
-      </span>
-    </a>
- 
-  </div><!-- /.dock-menu -->
- 
-  <!-- FAB — always-visible trigger button -->
-  <button class="dock-fab" id="dock-fab"
-          aria-label="Quick contact" aria-expanded="false"
-          aria-controls="dock-menu">
-    <span class="dock-pulse" aria-hidden="true"></span>
-    <!-- Open icon: chat bubble -->
-    <span class="dock-fab-ico dock-fab-ico--open" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-      </svg>
-    </span>
-    <!-- Close icon: X -->
-    <span class="dock-fab-ico dock-fab-ico--close" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-           stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </span>
-    <span class="dock-fab-label">Quick Contact</span>
-  </button>
- 
-</div>
 
   </main>
 
@@ -5270,7 +5004,7 @@
           </div>
         </div>
         <div class="footer-col">
-          <h4>Programmes</h4>
+          <h2>Programmes</h2>
           <ul class="footer-links">
             <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
             <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
@@ -5280,7 +5014,7 @@
           </ul>
         </div>
         <div class="footer-col">
-          <h4>Organization</h4>
+          <h2>Organization</h2>
           <ul class="footer-links">
             <li><a href="https://afrovanguard.org.ng/about.html">About Us</a></li>
             <li><a href="/ethos/">Our Ethos</a></li>
@@ -5296,11 +5030,11 @@
           </ul>
         </div>
         <div class="footer-col footer-contact">
-          <h4>Get in Touch</h4>
+          <h2>Get in Touch</h2>
           <p>Afrovanguard HQ<br/>Alimosho LGA, Lagos, Nigeria</p>
           <p><a href="mailto:cacentre@afrovanguard.org.ng" style="color:rgba(255,255,255,0.6)">cacentre@afrovanguard.org.ng</a></p>
           <div class="footer-newsletter-mini">
-            <h4 style="margin-bottom:8px;">Get the Diary</h4>
+            <h3>Get the Diary</h3>
             <form class="diary-subscribe" novalidate style="display:flex;flex-direction:column;gap:8px">
               <input type="email" name="email" placeholder="Your email address" aria-label="Newsletter email" autocomplete="email" required />
               <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
@@ -6685,88 +6419,12 @@
       });
     })();
 
-    (function () {
-      const fab  = document.getElementById('dock-fab');
-      const menu = document.getElementById('dock-menu');
-      if (!fab || !menu) return;
-     
-      /* ── Toggle open/close ──────────────────────────────────────────── */
-      function openDock() {
-        fab.classList.add('open');
-        menu.classList.add('open');
-        fab.setAttribute('aria-expanded', 'true');
-        menu.setAttribute('aria-hidden',   'false');
-      }
-      function closeDock() {
-        fab.classList.remove('open');
-        menu.classList.remove('open');
-        fab.setAttribute('aria-expanded', 'false');
-        menu.setAttribute('aria-hidden',   'true');
-      }
-     
-      fab.addEventListener('click', function (e) {
-        e.stopPropagation();
-        fab.classList.contains('open') ? closeDock() : openDock();
-      });
-     
-      /* Click outside → close */
-      document.addEventListener('click', function (e) {
-        if (fab.classList.contains('open') && !e.target.closest('#dock')) {
-          closeDock();
-        }
-      });
-     
-      /* Escape key → close */
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && fab.classList.contains('open')) {
-          closeDock();
-          fab.focus();
-        }
-      });
-     
-      /* ── AI Bot item → open Botpress ────────────────────────────────── */
-      // FIX: id was "vanguard-ai" in old HTML; now correctly "dock-bot"
-      var botItem = document.getElementById('dock-bot');
-      if (botItem) {
-        botItem.addEventListener('click', function (e) {
-          e.preventDefault();
-          closeDock();
-          if (window.botpress && typeof window.botpress.open === 'function') {
-            window.botpress.open();
-          } else {
-            // Fallback: open WhatsApp if Botpress not loaded
-            window.open('https://wa.me/2349037776318', '_blank');
-          }
-        });
-      }
-     
-      /* ── Email item → decode + open mailto ─────────────────────────── */
-      var emailItem = document.getElementById('dock-email');
-      if (emailItem) {
-        emailItem.addEventListener('click', function (e) {
-          e.preventDefault();
-          // Simple ROT13 decode — keeps raw address out of plain text
-          var encoded = 'pnpraer@nsebinathneq.bet.at'; // cacentre@afrovanguard.org.ng
-          var decoded = encoded.replace(/[a-zA-Z]/g, function(c) {
-            return String.fromCharCode(
-              (c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26
-            );
-          });
-          window.location.href = 'mailto:' + decoded;
-        });
-      }
-    })();
      
     /* Legacy global helper kept for any inline onclick="openBotChat()" refs */
     function openBotChat(e) {
       if (e) e.preventDefault();
-      var fab  = document.getElementById('dock-fab');
-      var menu = document.getElementById('dock-menu');
-      if (fab)  { fab.classList.remove('open');  fab.setAttribute('aria-expanded', 'false'); }
-      if (menu) { menu.classList.remove('open'); menu.setAttribute('aria-hidden',  'true'); }
-      if (window.botpress && typeof window.botpress.open === 'function') {
-        window.botpress.open();
-      }
+      if (window.chioma && typeof window.chioma.open === 'function') window.chioma.open();
+    }
     }
      </script>
     <!-- Chioma — Afrovanguard's own context-aware AI guide (replaces Botpress) -->
