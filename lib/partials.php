@@ -146,9 +146,16 @@ function render_head(array $o): void {
   <div class="read-progress" id="read-progress"></div>
 <?php }
 
-const AV_VOLUNTEER_URL = 'https://cacentre.afrovanguard.org.ng/volunteer';
+/* The other Afrovanguard sites, named once. Every link out was hand-typed,
+   which is how four of the five programme links in the footer came to point
+   at cacentre.afrovanguard.org.ng/<slug> — CACENTRE serves its programmes at
+   /programs/<slug>, so all four 404ed, and one of them spelt Techome with an
+   h it does not have. */
+const AV_CACENTRE_URL  = 'https://cacentre.afrovanguard.org.ng';
+const AV_AFG_URL       = 'https://afg.afrovanguard.org.ng';
+const AV_VOLUNTEER_URL = AV_CACENTRE_URL . '/volunteer';
 // Events live on the AFG sub-site; the whole site links out to it.
-const AV_EVENTS_URL = 'https://afg.afrovanguard.org.ng/events';
+const AV_EVENTS_URL = AV_AFG_URL . '/events';
 
 /**
  * Canonical primary navigation model — the single definition for the whole
@@ -234,7 +241,8 @@ function av_nav_model(): array {
                     ['Street-To-Stardom', '/projects/sts/'],
                     ['Techome', '/projects/techhome/'],
                     ['MediaPro', '/projects/mediapro/'],
-                    ['Africa GATES', '/projects/africa-gates/'],
+                    /* Its own site now; av_nav_offsite() marks it as leaving. */
+                    ['Africa GATES', AV_AFG_URL],
                 ]],
                 ['title' => 'More programmes', 'links' => [
                     ['Business Executive Club', '/projects/bec/'],
@@ -622,11 +630,11 @@ function av_footer_inner(): void {
         <div class="footer-col">
           <h2>Programmes</h2>
           <ul class="footer-links">
-            <li><a href="https://cacentre.afrovanguard.org.ng/street-to-stardom/">Street-To-Stardom</a></li>
+            <li><a href="<?= e(AV_CACENTRE_URL) ?>/programs/street-to-stardom">Street-To-Stardom</a></li>
             <li><a href="https://next.afrovanguard.org.ng/">Next Generation Genius</a></li>
-            <li><a href="https://cacentre.afrovanguard.org.ng/techhome/">Techome</a></li>
-            <li><a href="https://cacentre.afrovanguard.org.ng/mediapro/">MediaPro</a></li>
-            <li><a href="https://cacentre.afrovanguard.org.ng/africa-gates/">Africa GATES</a></li>
+            <li><a href="<?= e(AV_CACENTRE_URL) ?>/programs/techome">Techome</a></li>
+            <li><a href="<?= e(AV_CACENTRE_URL) ?>/programs/mediapro">MediaPro</a></li>
+            <li><a href="<?= e(AV_AFG_URL) ?>">Africa GATES</a></li>
           </ul>
         </div>
         <div class="footer-col">

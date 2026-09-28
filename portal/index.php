@@ -166,10 +166,15 @@ $nav['You'] = [
           <a class="pnav-link" href="/academy/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Academy</span><span class="pnav-ext">↗</span></a>
           <a class="pnav-link" href="<?= e(rtrim(SITE_URL, '/')) ?>/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Main site</span><span class="pnav-ext">↗</span></a>
 <?php /* Shown to org members when the bridge is configured. This is a filter,
-         not the gate: CACENTRE decides who may actually use the CRM, against
-         its own grants, on every arrival. Showing it to every learner would
-         just send most of them to a polite refusal. */ ?>
-<?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="/portal/crm.php"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CRM</span><span class="pnav-ext">↗</span></a>
+         not the gate: CACENTRE decides who may actually use the workspace,
+         against its own grants, on every arrival. Showing it to every learner
+         would just send most of them to a polite refusal.
+
+         Named for the place rather than for one screen in it: what is behind
+         the link is the centre's workspace — the pipeline, the tasks, the
+         register, and writing for the site — and calling it "CRM" sent
+         somebody looking for their drafts past it. */ ?>
+<?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="<?= e(CacSso::DOOR) ?>"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE workspace</span><span class="pnav-ext">↗</span></a>
 <?php endif; ?>        </div>
       </nav>
 

@@ -121,7 +121,11 @@ foreach ($targets as $href => $label) {
 // Every flagship programme has a page on this site. The menu used to send all
 // of them to cacentre/next instead, which orphaned the local pages and pushed
 // every visitor off-site to read about a programme.
-foreach (['sts', 'techhome', 'mediapro', 'africa-gates', 'bec', 'career-hub', 'kap'] as $slug) {
+/* africa-gates is not in this list: it has its own site now, and what is left
+   at /projects/africa-gates/ is a redirect to it, not a page. The is_file
+   guard below cannot tell those apart — a redirect stub is a file — so the
+   exception is named here rather than by loosening the rule for everyone. */
+foreach (['sts', 'techhome', 'mediapro', 'bec', 'career-hub', 'kap'] as $slug) {
     if (!is_file(AV_ROOT . '/projects/' . $slug . '/index.html')
         && !is_file(AV_ROOT . '/projects/' . $slug . '/index.php')) continue;
     ck('nav: /projects/' . $slug . '/ is linked rather than its subdomain twin',

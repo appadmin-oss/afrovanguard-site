@@ -27,7 +27,7 @@ return [
     'summary' => 'Governance, Advocacy, Tech, Entrepreneurship & Service — a leadership intensive for young Africans ready to build institutions.',
     'outcomes' => "Lead teams and projects with integrity\nDesign and pitch a venture or initiative\nNavigate governance and advocacy\nJoin a network of incorruptible peers",
     'body_html' => '<p>Africa GATES is our flagship leadership intensive. It forms young people who can be trusted with responsibility — the core of our goal to raise one million incorruptible leaders by 2040.</p><h2>The five gates</h2><p>Governance, Advocacy, Tech, Entrepreneurship and Service — taught together, because capability without character is not leadership.</p>',
-    'cta_url' => 'https://cacentre.afrovanguard.org.ng/africa-gates/', 'featured' => 0, 'sort' => 3,
+    'cta_url' => 'https://afg.afrovanguard.org.ng', 'featured' => 0, 'sort' => 3,
   ],
   [
     'slug' => 'street-to-stardom', 'title' => 'Street-To-Stardom', 'category' => 'Creative', 'level' => 'All levels',

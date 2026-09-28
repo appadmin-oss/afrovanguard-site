@@ -41,6 +41,12 @@ final class CacSso
     /** Seconds an assertion is good for. Matches CrmSso::TTL. */
     public const TTL = 60;
 
+    /** Where somebody lands on the other side when they asked for nothing. */
+    public const HOME = '/crm/';
+
+    /** The door on this side. One address, from anywhere on the site. */
+    public const DOOR = '/cacentre';
+
     public static function secret(): string
     {
         $v = getenv('AV_SSO_SECRET');
@@ -104,10 +110,52 @@ final class CacSso
      * local path too; this is the same rule kept on both ends rather than
      * trusted to one.
      */
-    public static function linkFor(array $u, string $next = '/crm/'): string
+    public static function linkFor(array $u, string $next = self::HOME): string
     {
-        if ($next === '' || $next[0] !== '/' || str_starts_with($next, '//')) $next = '/crm/';
         return self::LANDING . '?t=' . rawurlencode(self::mint($u))
-             . '&next=' . rawurlencode($next);
+             . '&next=' . rawurlencode(self::path($next));
+    }
+
+    /**
+     * A path on CACENTRE, or the home page.
+     *
+     * Written once because three things need the same answer: the door, the
+     * link builder, and the redirect on the far side. What arrives here is
+     * a query parameter — it comes from whatever link somebody clicked —
+     * and it ends up in a Location header on a host that trusts this one.
+     * So: a local path, or nothing.
+     *
+     *   //evil.test      a protocol-relative URL, which is a host
+     *   /\evil.test      the same thing after a browser folds the backslash
+     *   https://…        a host said out loud
+     *   /crm/x%0D%0A…    a second header, if the bytes get through raw
+     *
+     * CACENTRE's crm/sso.php refuses a non-local `next` as well. That is
+     * deliberate: the rule holds on both ends rather than on the promise of
+     * one, because an open redirect here is a phishing link that genuinely
+     * begins on cacentre.afrovanguard.org.ng.
+     */
+    public static function path(string $p): string
+    {
+        $p = trim($p);
+        if ($p === '' || $p[0] !== '/') return self::HOME;
+        if (str_starts_with($p, '//') || str_starts_with($p, '/\\')) return self::HOME;
+        if (str_contains($p, '\\')) return self::HOME;
+        /* Control characters, which is how a second header gets written. */
+        if (preg_match('/[\x00-\x1f\x7f]/', $p)) return self::HOME;
+        return $p;
+    }
+
+    /**
+     * The door's own address, for a link on a page.
+     *
+     * Not a minted link: an assertion lives sixty seconds, and one baked
+     * into a page starts expiring the moment the page renders. This points
+     * at the door, which mints on the click.
+     */
+    public static function door(string $to = self::HOME): string
+    {
+        $to = self::path($to);
+        return self::DOOR . ($to === self::HOME ? '' : '?to=' . rawurlencode($to));
     }
 }
