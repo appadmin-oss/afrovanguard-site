@@ -228,6 +228,11 @@ if ($method === 'POST') {
         $r = NgvMember::revokeCertification((int) ($in['cert_id'] ?? 0), (string) ($in['reason'] ?? ''), $adminUid);
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    if ($act === 'book_spot') {
+        $r = NgvReading::spotRecord((int) ($in['spot_id'] ?? 0), (string) ($in['outcome'] ?? ''),
+                                    $adminUid, (string) ($in['note'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'book_review') {
         $r = NgvReading::review((int) ($in['claim_id'] ?? 0), (string) ($in['verdict'] ?? ''),
                                 $adminUid, (string) ($in['note'] ?? ''));
@@ -332,6 +337,14 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 .bkq-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
 .bkq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
 .bkq-note:focus{outline:3px solid #E0A82E;outline-offset:1px}
+.spq{border:1px solid var(--line,#e5e7eb);border-left:3px solid #1d4ed8;border-radius:12px;padding:14px 16px;margin-bottom:12px;background:rgba(29,78,216,.03)}
+.spq-who{font-weight:800}
+.spq-ask{margin:8px 0 0;font-size:15px;line-height:1.55;max-width:66ch}
+.spq-ask strong{font-weight:800}
+.spq-prompts{margin:10px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6;color:var(--muted,#4b5563);max-width:66ch}
+.spq-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.spq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
+.spq-note:focus{outline:3px solid #E0A82E;outline-offset:1px}
 
 /* ── Tokens ──────────────────────────────────────────────────────────────── */
 :root{
@@ -782,6 +795,53 @@ details.sect>summary{margin-bottom:8px}
               <button class="btn ok bkq-btn" data-verdict="verified">Verify</button>
               <button class="btn bkq-btn" data-verdict="resubmit">Send back</button>
               <button class="btn danger bkq-btn" data-verdict="rejected">Reject</button>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <?php /* The spoken check. Everything above this point can be gamed by
+           somebody who reads well and did not read the book — this is the part
+           that cannot, and it is the part that needs a human to actually do
+           it. The book was chosen at random when the check opened and the
+           participant has not been told which one. */
+  $spQueue = NgvReading::spotQueue(40); ?>
+  <section class="card" id="spotchecks" aria-labelledby="h-spot">
+    <header><h2 id="h-spot">Books to ask about</h2> <span class="sp"></span>
+      <span class="sub"><?= count($spQueue) ?> conversation<?= count($spQueue) === 1 ? '' : 's' ?> due</span></header>
+    <div class="body">
+      <?php if (!$spQueue): ?>
+        <p class="sub">Nothing due. One of these opens each time a participant reaches another six verified books.</p>
+      <?php else: ?>
+        <p class="sub" style="margin-bottom:14px">
+          Two minutes, in person or on a call. This is the only check that reaches somebody who read a
+          summary and wrote well about it — no amount of software does. The book was picked at random
+          and <strong>they have not been told which one</strong>, so please do not tell them in advance.
+        </p>
+        <?php foreach ($spQueue as $sp): ?>
+          <article class="spq" data-spot="<?= (int) $sp['id'] ?>">
+            <div class="spq-who"><?= $e((string) ($sp['member_name'] ?? ('Member #' . (int) $sp['member_id']))) ?>
+              <span class="sub">· reached <?= (int) $sp['milestone'] ?> books</span></div>
+            <p class="spq-ask">Ask them about <strong><?= $e((string) ($sp['title'] ?? 'their book')) ?></strong><?php
+              if (trim((string) ($sp['author'] ?? '')) !== ''): ?> by <?= $e((string) $sp['author']) ?><?php endif; ?>.</p>
+            <ul class="spq-prompts">
+              <li>What was the argument, in their own words?</li>
+              <li>They wrote that they changed something because of it — how has that gone since?</li>
+              <li>What did they disagree with, or find weak?</li>
+            </ul>
+            <?php if (trim((string) ($sp['takeaway'] ?? '')) !== ''): ?>
+              <details class="bkq-read">
+                <summary>What they wrote they would change</summary>
+                <p class="bkq-take"><?= nl2br($e((string) $sp['takeaway'])) ?></p>
+              </details>
+            <?php endif; ?>
+            <div class="spq-act">
+              <input class="spq-note" maxlength="1000"
+                     placeholder="How it went — required if they could not answer">
+              <button class="btn ok spq-btn" data-outcome="passed">They knew it</button>
+              <button class="btn danger spq-btn" data-outcome="failed">They could not say</button>
             </div>
           </article>
         <?php endforeach; ?>
@@ -1411,6 +1471,30 @@ details.sect>summary{margin-bottom:8px}
         post({action:'book_review', claim_id: +card.getAttribute('data-claim'), verdict: verdict, note: why})
           .then(function(j){
             if (j.ok) { toast(verdict === 'verified' ? 'Verified ✓' : 'Sent back'); card.remove(); }
+            else { toast(j.error || 'Failed', false); all.forEach(function(b){ b.disabled = false; }); }
+          });
+      });
+    });
+  });
+
+  /* ── Spoken checks ─────────────────────────────────────────────────── */
+  document.querySelectorAll('.spq').forEach(function(card){
+    var note = card.querySelector('.spq-note');
+    card.querySelectorAll('.spq-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var outcome = btn.getAttribute('data-outcome');
+        var why = (note && note.value || '').trim();
+        if (outcome === 'failed' && !why) {
+          toast('Write what they could not answer', false);
+          if (note) note.focus();
+          return;
+        }
+        if (outcome === 'failed' && !window.confirm('Record that they could not speak to this book?\n\nIt goes back to them to resubmit. It is one conversation, not a verdict on the rest.')) return;
+        var all = card.querySelectorAll('.spq-btn');
+        all.forEach(function(b){ b.disabled = true; });
+        post({action:'book_spot', spot_id: +card.getAttribute('data-spot'), outcome: outcome, note: why})
+          .then(function(j){
+            if (j.ok) { toast(outcome === 'passed' ? 'Recorded ✓' : 'Sent back to them'); card.remove(); }
             else { toast(j.error || 'Failed', false); all.forEach(function(b){ b.disabled = false; }); }
           });
       });

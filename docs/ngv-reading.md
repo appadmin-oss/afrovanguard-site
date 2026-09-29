@@ -20,10 +20,12 @@ What it does instead, and does reliably:
 4. **There is a trail.** Who verified what, when, and on what note.
 
 The gap this leaves is the participant who reads a summary and writes well
-about it. That is what the takeaway field is for — it asks what they *changed*,
-which is harder to fake from a summary — and why track leads are asked to
-raise one book per participant in conversation. That last part is a programme
-practice, not a feature, and it is the only thing that closes the gap.
+about it. Two things narrow it. The takeaway field asks what they *changed*,
+which is harder to produce from a summary than a description of the argument
+is. And every sixth verified book the system opens a **spoken check**: it
+picks one of their books at random and asks their track lead to raise it in
+conversation. That is the only mechanism here that reaches the case, and it
+is described in full below.
 
 ## Why the old version recorded nothing
 
@@ -111,9 +113,51 @@ than no signal.
 
 Verdicts email the participant (`notify()`) and write to `AdminAudit`.
 
+## The spoken check
+
+Everything above can, in principle, be passed by somebody who reads well and
+did not read the book. This is the part that cannot be, and it works for a
+reason that has nothing to do with software: a two-minute conversation about a
+book is very hard to fake, and always has been. Every viva and seminar has
+run on this.
+
+So the code does not try to *be* the check. It does the three things a person
+is bad at:
+
+1. **Remembering one is due.** Every sixth verified book (`SPOT_EVERY`), a
+   check opens by itself in `spotMaybeOpen()`, called only after a
+   verification — never by anything the participant can trigger.
+2. **Choosing the book.** At random, with `random_int`, server-side,
+   preferring one nobody has asked about yet. **The participant is never told
+   which.** This is the load-bearing part: somebody who knows which book is
+   coming can read that one properly and summarise the rest; they cannot
+   prepare six. Their dashboard says a conversation is due and deliberately
+   nothing more — `progress()` returns `spot_pending` as a **boolean** so the
+   title is not even in scope on the page that could leak it, and a test
+   asserts the dashboard never calls `spotOpen()`.
+3. **Keeping the result.** Outcome, who asked, when, and the note, in
+   `ngv_book_spot_checks` and the audit log.
+
+Only one check is open per participant at a time. A track lead facing a
+backlog of them does none of them.
+
+The console shows the book, three prompts to open with, and — collapsed —
+what the participant wrote they would change, so the answer can be weighed
+against the claim.
+
+**A failed check sends that one book back for resubmission and touches
+nothing else.** It is one data point from one conversation: it may mean
+somebody did not read the book, or that they were nervous, or read it eight
+months ago. Treating it as proof of dishonesty would be the same overreach as
+treating a paste count as proof, and a programme that voids a participant's
+record over one awkward exchange earns the reputation that follows. The note
+records what happened; a person decides what it means.
+
 ## Schema
 
-`ngv_book_claims`, in the NGV database, `UNIQUE(member_id, slot)`. Beyond the
+`ngv_book_claims` and `ngv_book_spot_checks`, in the NGV database.
+`ngv_book_claims` is `UNIQUE(member_id, slot)`, `ngv_book_spot_checks` is
+`UNIQUE(member_id, milestone)` so a milestone cannot open twice. Beyond the
 claim fields: `fingerprint`, `flags`, `typed_ms`, `paste_count`, `reviewed_by`,
 `reviewed_at`, `review_note`. `ensure()` runs both `execSchema()` and
 `syncTablesFromDdl()` so columns added later reach installed databases — see

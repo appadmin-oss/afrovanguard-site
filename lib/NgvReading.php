@@ -70,6 +70,22 @@ final class NgvReading
      *  reviewer should see the claim and decide. */
     private const PACE_PER_WEEK = 4;
 
+    /**
+     * Every sixth verified book, the track lead is asked to raise ONE of them
+     * in conversation. Six is a balance: often enough that a participant
+     * cannot get through the challenge without being asked several times,
+     * rare enough that a volunteer track lead will actually do it.
+     *
+     * The book is chosen AT RANDOM, server-side, and the participant is never
+     * told which one. That is the entire mechanism — not the asking, but the
+     * not knowing what will be asked. Somebody who read a summary can prepare
+     * a book they know is coming; they cannot prepare six.
+     */
+    public const SPOT_EVERY = 6;
+
+    /** open → passed | failed. */
+    public const SPOT_OUTCOMES = ['open', 'passed', 'failed'];
+
     private static bool $ready = false;
 
     /* ── schema ──────────────────────────────────────────────────────────── */
@@ -117,6 +133,19 @@ CREATE TABLE IF NOT EXISTS ngv_book_claims (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_claim_slot ON ngv_book_claims (member_id, slot);
 CREATE INDEX IF NOT EXISTS idx_claim_status ON ngv_book_claims (status, id);
 CREATE INDEX IF NOT EXISTS idx_claim_print ON ngv_book_claims (fingerprint);
+CREATE TABLE IF NOT EXISTS ngv_book_spot_checks (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  member_id   INTEGER NOT NULL,
+  claim_id    INTEGER NOT NULL DEFAULT 0,
+  milestone   INTEGER NOT NULL DEFAULT 0,
+  outcome     VARCHAR(12) NOT NULL DEFAULT 'open',
+  asked_by    INTEGER NOT NULL DEFAULT 0,
+  asked_at    TEXT NOT NULL DEFAULT '',
+  note        TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_spot_stone ON ngv_book_spot_checks (member_id, milestone);
+CREATE INDEX IF NOT EXISTS idx_spot_open ON ngv_book_spot_checks (outcome, id);
 SQL;
     }
 
@@ -390,6 +419,7 @@ SQL;
         }
 
         self::syncBitstring((int) $c['member_id']);
+        if ($verdict === 'verified') self::spotMaybeOpen((int) $c['member_id']);
         self::audit('ngv_book_' . $verdict, (int) $c['member_id'],
             'Book ' . (int) $c['slot'] . ' — ' . mb_substr((string) $c['title'], 0, 80)
             . ($note !== '' ? ' — ' . mb_substr($note, 0, 120) : ''));
@@ -486,7 +516,11 @@ SQL;
                 case 'draft':     $draft++; break;
             }
         }
-        return ['verified' => $v, 'waiting' => $w, 'needs_work' => $back, 'drafts' => $draft, 'total' => self::TOTAL];
+        /* `spot_pending` is a BOOLEAN on purpose. The member's page may say
+           that a conversation is due — it must never say which book, or the
+           randomness that makes the check worth anything is gone. */
+        return ['verified' => $v, 'waiting' => $w, 'needs_work' => $back, 'drafts' => $draft,
+                'total' => self::TOTAL, 'spot_pending' => self::spotOpen($memberId) !== null];
     }
 
     /**
@@ -520,6 +554,169 @@ SQL;
         $r['flags_list'] = array_values(array_filter(explode(',', (string) ($r['flags'] ?? ''))));
         $r['reflection_len'] = self::substance((string) ($r['reflection'] ?? ''));
         return $r;
+    }
+
+    /* ── the spoken check ────────────────────────────────────────────────
+     *
+     * This is the one part of the system that reaches the case none of the
+     * automatic checks can: somebody who read a summary and wrote well about
+     * it. Nothing in software distinguishes them from a reader. A two-minute
+     * conversation does, and always has — it is how every viva, every seminar
+     * and every reading group has ever worked.
+     *
+     * So the software does not try to be the check. It does the parts a person
+     * is bad at: remembering that a check is due, choosing the book WITHOUT
+     * letting the participant influence or foresee the choice, and keeping
+     * the result where it cannot be quietly edited. The judgement stays human.
+     *
+     * The randomness is the load-bearing part. A participant who knows which
+     * book they will be asked about can read that one properly and summarise
+     * the rest. Choosing at random from everything they have claimed, and
+     * never telling them in advance, means the only reliable way to pass every
+     * check is to have read every book — which is the outcome the programme
+     * wanted in the first place.
+     */
+
+    /** The open spot check for a participant, or null. */
+    public static function spotOpen(int $memberId): ?array
+    {
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare(
+                "SELECT s.*, c.title, c.author, c.slot, c.takeaway, c.reflection
+                   FROM ngv_book_spot_checks s
+                   LEFT JOIN ngv_book_claims c ON c.id = s.claim_id
+                  WHERE s.member_id = ? AND s.outcome = 'open' ORDER BY s.id ASC LIMIT 1");
+            $st->execute([$memberId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            return $r ?: null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /**
+     * Open a check if the participant has just crossed a multiple of six and
+     * does not already have one waiting. Called after a verification — never
+     * from anything the participant can trigger.
+     */
+    private static function spotMaybeOpen(int $memberId): void
+    {
+        $n = self::verifiedCount($memberId);
+        if ($n < self::SPOT_EVERY) return;
+        $milestone = intdiv($n, self::SPOT_EVERY) * self::SPOT_EVERY;
+
+        try {
+            $pdo = NgvDb::pdo();
+            /* One check per milestone, and never two open at once — a track
+               lead facing a backlog of them does none of them. */
+            $st = $pdo->prepare('SELECT COUNT(*) FROM ngv_book_spot_checks WHERE member_id = ? AND (milestone = ? OR outcome = ?)');
+            $st->execute([$memberId, $milestone, 'open']);
+            if ((int) $st->fetchColumn() > 0) return;
+
+            /* Prefer a book nobody has asked about yet, so a long-running
+               participant is not asked about the same one twice. */
+            $st = $pdo->prepare(
+                "SELECT id FROM ngv_book_claims
+                  WHERE member_id = ? AND status = 'verified'
+                    AND id NOT IN (SELECT claim_id FROM ngv_book_spot_checks WHERE member_id = ?)");
+            $st->execute([$memberId, $memberId]);
+            $pool = $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            if ($pool === []) {
+                $st = $pdo->prepare("SELECT id FROM ngv_book_claims WHERE member_id = ? AND status = 'verified'");
+                $st->execute([$memberId]);
+                $pool = $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            }
+            if ($pool === []) return;
+
+            /* random_int, not rand: the choice must not be predictable from
+               anything the participant can see or time. */
+            $pick = (int) $pool[random_int(0, count($pool) - 1)];
+
+            $pdo->prepare('INSERT INTO ngv_book_spot_checks (member_id,claim_id,milestone,outcome,created_at) VALUES (?,?,?,?,?)')
+                ->execute([$memberId, $pick, $milestone, 'open', self::now()]);
+            self::audit('ngv_spot_check_due', $memberId, 'Spoken check due at ' . $milestone . ' books');
+        } catch (Throwable $e) { error_log('[ngvreading] spot open: ' . $e->getMessage()); }
+    }
+
+    /**
+     * Record how the conversation went.
+     *
+     * A failed check sends that book back for resubmission rather than
+     * deleting it or touching the rest. It is one data point from one
+     * conversation: it may mean somebody did not read the book, or that they
+     * were nervous, or read it eight months ago. Treating it as proof of
+     * dishonesty would be the same overreach as treating a paste count as
+     * proof — and a programme that quietly voids a participant's record on
+     * one awkward exchange deserves the reputation it will get. The note says
+     * what happened; a person decides what it means.
+     */
+    public static function spotRecord(int $id, string $outcome, int $byUid, string $note = ''): array
+    {
+        self::ensure();
+        if (!in_array($outcome, ['passed', 'failed'], true)) return ['ok' => false, 'error' => 'Unknown outcome.'];
+        $note = mb_substr(trim($note), 0, 1000);
+        if ($outcome === 'failed' && $note === '') {
+            return ['ok' => false, 'error' => 'Write what they could not answer — a failed check with no note is not reviewable.'];
+        }
+
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_book_spot_checks WHERE id = ?');
+            $st->execute([$id]);
+            $s = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$s) return ['ok' => false, 'error' => 'No such check.'];
+            if ((string) $s['outcome'] !== 'open') return ['ok' => false, 'error' => 'That check is already recorded.'];
+
+            NgvDb::pdo()->prepare('UPDATE ngv_book_spot_checks SET outcome = ?, asked_by = ?, asked_at = ?, note = ? WHERE id = ?')
+                ->execute([$outcome, max(0, $byUid), self::now(), $note, $id]);
+
+            if ($outcome === 'failed' && (int) $s['claim_id'] > 0) {
+                self::review((int) $s['claim_id'], 'resubmit', $byUid,
+                    'Asked about this one in person: ' . $note);
+            }
+            self::audit('ngv_spot_check_' . $outcome, (int) $s['member_id'],
+                'Spoken check at ' . (int) $s['milestone'] . ' books' . ($note !== '' ? ' — ' . mb_substr($note, 0, 120) : ''));
+            return ['ok' => true, 'outcome' => $outcome];
+        } catch (Throwable $e) {
+            error_log('[ngvreading] spot record: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not record that.'];
+        }
+    }
+
+    /** Everything waiting to be asked, oldest first. */
+    public static function spotQueue(int $limit = 50): array
+    {
+        self::ensure();
+        $limit = max(1, min(200, $limit));
+        try {
+            $st = NgvDb::pdo()->prepare(
+                "SELECT s.*, c.title, c.author, c.slot, c.takeaway, p.name AS member_name
+                   FROM ngv_book_spot_checks s
+                   LEFT JOIN ngv_book_claims c ON c.id = s.claim_id
+                   LEFT JOIN ngv_participants p ON p.member_id = s.member_id
+                  WHERE s.outcome = 'open' ORDER BY s.id ASC LIMIT " . $limit);
+            $st->execute();
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[ngvreading] spot queue: ' . $e->getMessage()); return []; }
+    }
+
+    public static function spotCount(): int
+    {
+        self::ensure();
+        try { return (int) NgvDb::pdo()->query("SELECT COUNT(*) FROM ngv_book_spot_checks WHERE outcome = 'open'")->fetchColumn(); }
+        catch (Throwable $e) { return 0; }
+    }
+
+    /** A participant's past checks — shown on their record, not on their shelf. */
+    public static function spotHistory(int $memberId): array
+    {
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare(
+                "SELECT s.*, c.title FROM ngv_book_spot_checks s
+                   LEFT JOIN ngv_book_claims c ON c.id = s.claim_id
+                  WHERE s.member_id = ? AND s.outcome <> 'open' ORDER BY s.id DESC");
+            $st->execute([$memberId]);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { return []; }
     }
 
     /* ── letting people know ─────────────────────────────────────────────── */

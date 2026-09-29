@@ -1011,6 +1011,18 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
               Tap a number to record a book: the title, when you read it, what it argued and one thing you
               have done because of it. Your track lead checks it before it counts.
             </div>
+            <?php if (!empty($rp['spot_pending'])): ?>
+              <?php /* Says that a conversation is due. Deliberately does NOT
+                       say which book — the whole value of the check is that it
+                       cannot be prepared for. `progress()` returns a boolean
+                       for exactly this reason: the title is not available on
+                       this page to leak by accident. */ ?>
+              <div class="ngv-box" style="margin-top:12px;border-left:3px solid #1d4ed8">
+                <strong>Your track lead will ask you about one of your books.</strong>
+                It happens every six books and the book is picked at random, so it could be any of
+                them. Nothing to prepare — if you read them, you can talk about them.
+              </div>
+            <?php endif; ?>
             <?php if ($legacyBits > (int) $rp['verified']): ?>
               <?php /* Honest about the migration: ticks from the old checkbox
                        era were never checked by anybody, so they are named as

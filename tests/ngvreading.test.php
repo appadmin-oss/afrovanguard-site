@@ -207,4 +207,114 @@ ck('reading: and it reads the verified progress instead',
 ck('reading: nothing on the member page can verify a book',
    !str_contains($rdDash, 'NgvReading::review'));
 
+/* ══ The spoken check ═════════════════════════════════════════════════════
+ *
+ * The one check that reaches the reader-of-summaries. Its value rests
+ * entirely on the participant not knowing which book is coming, so that is
+ * what these assert: it opens on its own, it picks at random, the member
+ * surface never names the book, and a failure is handled as one conversation
+ * rather than as a verdict on the whole record.
+ */
+
+$rdReset();
+NgvMember::ensureParticipant(903, ['name' => 'Chidi Okeke', 'email' => 'chidi@example.test']);
+NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = 903");
+
+/** Verify n books for 903, each with its own wording so nothing gets flagged as a copy. */
+$rdVerify = static function (int $from, int $to) use ($rdText, $rdTake): void {
+    for ($i = $from; $i <= $to; $i++) {
+        $r = NgvReading::save(903, [
+            'slot' => $i, 'title' => 'Book number ' . $i, 'author' => 'Author ' . $i,
+            /* Dates spread by weeks from a fixed past point — NOT by month
+               number, which walks into the future once the year is half over
+               and is refused (correctly) by the evidence floor. */
+            'started_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7) . ' days')),
+            'finished_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7 + 5) . ' days')),
+            'reflection' => $rdText('This one turned on the idea numbered ' . $i . ', which I had not met before.'),
+            'takeaway' => $rdTake . ' Specifically after book ' . $i . '.',
+        ], true);
+        NgvReading::review((int) $r['id'], 'verified', 77);
+    }
+};
+
+$rdVerify(1, 5);
+ck('spot check: nothing is due before the sixth book', NgvReading::spotOpen(903) === null);
+ck('spot check: and the member is not told one is coming',
+   empty(NgvReading::progress(903)['spot_pending']));
+
+$rdVerify(6, 6);
+$rdSpot = NgvReading::spotOpen(903);
+ck('spot check: one opens by itself at six verified books', $rdSpot !== null);
+ck('spot check: it names a book the participant actually claimed',
+   $rdSpot !== null && in_array((string) $rdSpot['title'], array_map(
+       static fn(int $i): string => 'Book number ' . $i, range(1, 6)), true));
+ck('spot check: and the member page knows one is due',
+   !empty(NgvReading::progress(903)['spot_pending']));
+
+/* The load-bearing property: a member-facing call must never reveal WHICH
+   book. `spot_pending` is a boolean so the title is not even in scope on the
+   page that could leak it. */
+ck('spot check: the member-facing progress is a boolean, not the book',
+   is_bool(NgvReading::progress(903)['spot_pending'])
+   && !array_intersect(['title', 'claim_id', 'slot', 'spot_title'], array_keys(NgvReading::progress(903))));
+$rdDash2 = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+ck('spot check: and the dashboard never reads the chosen book',
+   !preg_match('/spotOpen|spotQueue|spot_title/', $rdDash2));
+
+/* Two checks at once is how a volunteer track lead ends up doing none. */
+$rdVerify(7, 12);
+ck('spot check: a second does not pile up while the first is open',
+   NgvReading::spotCount() === 1);
+
+/* A flat coin-flip on six books is a 1-in-6 chance of any particular one, so
+   ten members landing on the same book would be astronomical — this asserts
+   the pick is actually varying rather than always taking the first row. */
+$rdPicked = [];
+for ($rdM = 910; $rdM < 930; $rdM++) {
+    NgvMember::ensureParticipant($rdM, ['name' => 'M' . $rdM, 'email' => 'm' . $rdM . '@example.test']);
+    NgvDb::pdo()->exec("UPDATE ngv_participants SET start_date = '2026-01-01', status = 'active' WHERE member_id = $rdM");
+    for ($i = 1; $i <= 6; $i++) {
+        $r = NgvReading::save($rdM, [
+            'slot' => $i, 'title' => 'Slot ' . $i, 'author' => 'A',
+            'started_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7) . ' days')),
+            'finished_on' => date('Y-m-d', strtotime('2026-01-05 +' . ($i * 7 + 5) . ' days')),
+            'reflection' => $rdText('Member ' . $rdM . ' on book ' . $i . ', in their own words entirely.'),
+            'takeaway' => $rdTake . ' For member ' . $rdM . ' at book ' . $i . '.',
+        ], true);
+        NgvReading::review((int) $r['id'], 'verified', 77);
+    }
+    $sp = NgvReading::spotOpen($rdM);
+    if ($sp) $rdPicked[] = (string) $sp['title'];
+}
+ck('spot check: the book is chosen at random, not always the same slot',
+   count(array_unique($rdPicked)) >= 3);
+
+/* Recording it. */
+ck('spot check: a failed check needs a note', empty(NgvReading::spotRecord((int) $rdSpot['id'], 'failed', 77, '')['ok']));
+ck('spot check: a passed check does not', !empty(NgvReading::spotRecord((int) $rdSpot['id'], 'passed', 77)['ok']));
+ck('spot check: it cannot be recorded twice',
+   empty(NgvReading::spotRecord((int) $rdSpot['id'], 'failed', 77, 'changed my mind')['ok']));
+ck('spot check: an unknown outcome is refused',
+   empty(NgvReading::spotRecord((int) $rdSpot['id'], 'maybe', 77, 'x')['ok']));
+ck('spot check: passing leaves the count alone', NgvReading::verifiedCount(903) === 12);
+ck('spot check: and it shows in their history',
+   ($rdH = NgvReading::spotHistory(903)) !== [] && (string) $rdH[0]['outcome'] === 'passed');
+
+/* A failure sends THAT book back and nothing else. One awkward conversation
+   is not grounds for voiding somebody's record. */
+$rdVerify(13, 18);
+$rdSpot2 = NgvReading::spotOpen(903);
+ck('spot check: the next one opens at the following milestone', $rdSpot2 !== null);
+$rdBefore = NgvReading::verifiedCount(903);
+ck('spot check: recording a failure works',
+   !empty(NgvReading::spotRecord((int) $rdSpot2['id'], 'failed', 77, 'Could not say what the argument was.')['ok']));
+ck('spot check: a failure sends that one book back',
+   (string) NgvReading::claimById((int) $rdSpot2['claim_id'])['status'] === 'resubmit');
+ck('spot check: exactly one book, not the whole record',
+   NgvReading::verifiedCount(903) === $rdBefore - 1);
+ck('spot check: and the bitstring follows it down',
+   substr_count((string) NgvMember::participant(903)['books'], '1') === $rdBefore - 1);
+ck('spot check: the participant is told why, in the note',
+   str_contains((string) NgvReading::claimById((int) $rdSpot2['claim_id'])['review_note'], 'Could not say'));
+
 $rdReset();
