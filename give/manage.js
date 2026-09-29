@@ -157,6 +157,52 @@
     });
   });
 
+  /* ── items ─────────────────────────────────────────────────────────────── */
+  var itemForm = document.getElementById('itemForm');
+  if (itemForm) {
+    /* A priced item without a price is the hand-typed list again, so the
+       field goes away entirely for in-kind items rather than sitting there
+       inviting a zero. */
+    var kindSel = document.getElementById('itemKind');
+    var costFld = document.getElementById('itemCost');
+    var syncKind = function () {
+      if (!kindSel || !costFld) return;
+      var money = kindSel.value === 'money';
+      var wrap = costFld.closest('.gm-field');
+      if (wrap) wrap.style.display = money ? '' : 'none';
+      costFld.required = money;
+      if (!money) costFld.value = '';
+    };
+    if (kindSel) kindSel.addEventListener('change', syncKind);
+    syncKind();
+
+    itemForm.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var d = formData(itemForm);
+      d.action = 'save_item';
+      var btn = itemForm.querySelector('button[type=submit]');
+      withButton(btn, d, 'Item added', function () { location.reload(); });
+    });
+  }
+  document.querySelectorAll('[data-funditem]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      withButton(b, { action: 'fund_item', item_id: +b.getAttribute('data-funditem'), qty: 1 },
+                 'Counted', function () { location.reload(); });
+    });
+  });
+  document.querySelectorAll('[data-hideitem]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      withButton(b, { action: 'save_item', id: +b.getAttribute('data-hideitem'),
+                      status: b.getAttribute('data-status') }, 'Saved', function () { location.reload(); });
+    });
+  });
+  document.querySelectorAll('[data-delitem]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!window.confirm('Delete this item? Hiding it keeps the record.')) return;
+      withButton(b, { action: 'delete_item', item_id: +b.getAttribute('data-delitem') }, 'Deleted', function () { location.reload(); });
+    });
+  });
+
   /* ── updates ───────────────────────────────────────────────────────────── */
   var updForm = document.getElementById('updateForm');
   if (updForm) {

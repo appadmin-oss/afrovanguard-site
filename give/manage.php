@@ -49,6 +49,18 @@ if ($method === 'POST') {
             $r = Appeals::postNeed((int) ($in['appeal_id'] ?? 0), $in, $actor);
             json_out($r, empty($r['ok']) ? 400 : 200);
         }
+        case 'save_item': {
+            $r = Appeals::saveItem($in, $actor);
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
+        case 'fund_item': {
+            $r = Appeals::fundItem((int) ($in['item_id'] ?? 0), (int) ($in['qty'] ?? 1), $actor);
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
+        case 'delete_item': {
+            $ok = Appeals::deleteItem((int) ($in['item_id'] ?? 0));
+            json_out(['ok' => $ok, 'error' => $ok ? '' : 'No such item.'], $ok ? 200 : 400);
+        }
         case 'meet_need': {
             $ok = Appeals::meetNeed((int) ($in['need_id'] ?? 0), $in['amount'] ?? null, $actor);
             json_out(['ok' => $ok, 'error' => $ok ? '' : 'No such need.'], $ok ? 200 : 400);
@@ -92,11 +104,13 @@ $e = 'e';
 $csrf    = $isAdmin && function_exists('av_csrf_token') ? av_csrf_token() : '';
 $appeals = $isAdmin ? Appeals::all('', 300) : [];
 $sel     = null; $selNeeds = []; $selUpdates = []; $selTiers = [];
+$selItems = []; $standingItems = Appeals::items(['appeal_id' => 0, 'limit' => 200]);
 $selId   = (int) ($_GET['a'] ?? 0);
 if ($isAdmin && $selId > 0) {
     $sel = Appeals::byId($selId);
     if ($sel) {
         $selNeeds   = Appeals::needsFor($selId, 60);
+        $selItems   = Appeals::items(['appeal_id' => $selId, 'limit' => 200]);
         $selUpdates = Appeals::updatesFor($selId, 30);
         $selTiers   = Appeals::tiersFor($selId);
         $selRec     = Appeals::recurringFor($selId);
@@ -205,6 +219,7 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
         <div class="gm-tabs" role="tablist">
           <button class="gm-tab is-on" role="tab" aria-selected="true"  aria-controls="t-appeal" id="tab-appeal">The appeal</button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-needs"  id="tab-needs">Needs <span class="gm-count"><?= count($selNeeds) ?></span></button>
+          <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-items" id="tab-items">Items <span class="gm-count"><?= count($selItems) + count($standingItems) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-updates" id="tab-updates">Updates <span class="gm-count"><?= count($selUpdates) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-tiers"  id="tab-tiers">Tiers <span class="gm-count"><?= count($selTiers) ?></span></button>
           <button class="gm-tab" role="tab" aria-selected="false" aria-controls="t-donors" id="tab-donors">Recurring <span class="gm-count"><?= (int) $selRec['count'] ?></span></button>
@@ -361,6 +376,83 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
               </div>
             <?php endforeach; ?>
           </div>
+        </div>
+
+        <!-- Items: the concrete things, priced and counted -->
+        <div class="gm-tabpane" id="t-items" role="tabpanel" aria-labelledby="tab-items" hidden>
+          <form id="itemForm" class="gm-form gm-form-inline">
+            <label class="gm-field"><span>Kind</span>
+              <select name="kind" id="itemKind">
+                <option value="money">Priced — somebody funds it</option>
+                <option value="goods">In kind — somebody gives the thing</option>
+              </select></label>
+            <label class="gm-field"><span>Belongs to</span>
+              <select name="appeal_id">
+                <option value="<?= (int) $sel['id'] ?>">This appeal — <?= $e(mb_substr((string) $sel['title'], 0, 40)) ?></option>
+                <option value="0">Standing — the whole organisation</option>
+              </select></label>
+            <label class="gm-field gm-span2"><span>What it is</span>
+              <input name="title" maxlength="160" placeholder="A term&rsquo;s exercise books for one child" required></label>
+            <label class="gm-field"><span>Category</span>
+              <input name="category" maxlength="60" placeholder="Classroom" list="itemCats">
+              <datalist id="itemCats"><?php foreach (array_keys(Appeals::itemsByCategory(['limit' => 300])) as $c): ?>
+                <option value="<?= $e((string) $c) ?>"><?php endforeach; ?></datalist></label>
+            <label class="gm-field"><span>Cost each (₦) <em>priced items only</em></span>
+              <input name="unit_cost" id="itemCost" type="number" min="0" step="50"></label>
+            <label class="gm-field"><span>Unit</span><input name="unit_label" maxlength="40" placeholder="set"></label>
+            <label class="gm-field"><span>How many needed</span><input name="qty_needed" type="number" min="0" step="1" value="1"></label>
+            <label class="gm-field"><span>Order</span><input name="sort" type="number" min="0" step="1" value="0"></label>
+            <label class="gm-field gm-span2"><span>Detail</span>
+              <textarea name="detail" rows="2" maxlength="800" placeholder="Any working condition — we service them before they go out."></textarea></label>
+            <div class="gm-form-foot gm-span2">
+              <button type="submit" class="gm-btn gm-primary">Add this item</button>
+              <span class="gm-hint">A priced item needs its price. Things given in kind are “in kind” and carry no figure.</span>
+            </div>
+          </form>
+
+          <?php
+          /* Both lists live here rather than behind another level of
+             navigation: an item is either this appeal's or the
+             organisation's, and somebody adding one wants to see both without
+             hunting for the other page. */
+          $itemBlocks = [
+            ['For this appeal', $selItems, 'Nothing yet. An item is the bit a donor actually understands — “₦4,500, a term&rsquo;s exercise books, 40 needed”.'],
+            ['Standing — shows on the donate page', $standingItems, 'Nothing standing yet. These are the organisation&rsquo;s running needs: laptops, chairs, a generator.'],
+          ];
+          foreach ($itemBlocks as [$blockTitle, $blockItems, $blockEmpty]): ?>
+            <h4 class="gm-subhead"><?= $e($blockTitle) ?> <span class="gm-count"><?= count($blockItems) ?></span></h4>
+            <div class="gm-items">
+              <?php if (!$blockItems): ?><div class="gm-empty"><p><?= $blockEmpty ?></p></div><?php endif; ?>
+              <?php foreach ($blockItems as $it): ?>
+                <div class="gm-item<?= $it['status'] === 'funded' ? ' is-met' : '' ?>" data-item="<?= (int) $it['id'] ?>">
+                  <div>
+                    <div class="gm-need-when"><?= $e((string) ($it['category'] !== '' ? $it['category'] : 'Uncategorised')) ?>
+                      · <?= $it['kind'] === 'money' ? 'priced' : 'in kind' ?><?php
+                      if ($it['status'] === 'funded'): ?> · covered<?php endif; ?></div>
+                    <div class="gm-need-title"><?= $e((string) $it['title']) ?></div>
+                    <div class="gm-need-fig">
+                      <?php if ($it['kind'] === 'money' && $it['unit_cost'] > 0): ?>
+                        <?= $e(Appeals::naira((int) $it['unit_cost'])) ?><?php
+                        if ($it['unit_label'] !== ''): ?> <span class="gm-hint">each <?= $e((string) $it['unit_label']) ?></span><?php endif; ?>
+                      <?php else: ?><span class="gm-hint">given in kind</span><?php endif; ?>
+                      <?php if ($it['qty_needed'] > 0): ?>
+                        <span class="gm-hint">— <?= (int) $it['qty_funded'] ?> of <?= (int) $it['qty_needed'] ?>
+                          (<?= (int) $it['qty_left'] ?> to go)</span>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                  <div class="gm-need-act">
+                    <?php if ($it['is_open']): ?>
+                      <button class="gm-btn gm-ghost gm-sm" data-funditem="<?= (int) $it['id'] ?>">+1 covered</button>
+                    <?php endif; ?>
+                    <button class="gm-btn gm-ghost gm-sm" data-hideitem="<?= (int) $it['id'] ?>"
+                      data-status="<?= $it['status'] === 'hidden' ? 'live' : 'hidden' ?>"><?= $it['status'] === 'hidden' ? 'Show' : 'Hide' ?></button>
+                    <button class="gm-btn gm-ghost gm-sm" data-delitem="<?= (int) $it['id'] ?>">Delete</button>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          <?php endforeach; ?>
         </div>
 
         <!-- Updates -->

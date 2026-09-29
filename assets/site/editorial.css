@@ -240,3 +240,56 @@
 .ed-band .ed-goal { color: #9aa2b1; }
 
 @media (prefers-reduced-motion: reduce) { .ed-bar > span { transition: none; } }
+
+/* ══ The catalogue ════════════════════════════════════════════════════════
+   A priced list, not cards. Cards would give every item the same visual
+   weight as a whole appeal and turn twenty-three of them into a wall; a list
+   with the price set hard right scans the way a price list is meant to —
+   down the figures — and stays readable at twenty-three rows. */
+.gv-cat {
+  margin: var(--afg-space-7) 0 var(--afg-space-3);
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 800; color: var(--afg-muted);
+  padding-bottom: var(--afg-space-2); border-bottom: 1px solid var(--afg-border);
+}
+.gv-items { list-style: none; margin: 0; padding: 0; }
+.gv-item {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: var(--afg-space-5); padding: var(--afg-space-4) 0;
+  border-bottom: 1px solid var(--afg-border);
+}
+.gv-item.is-done { opacity: .55; }
+.gv-item-main { min-width: 0; }
+.gv-item-name { display: block; font-weight: 700; color: var(--afg-ink); }
+.gv-item-detail {
+  display: block; margin-top: 2px; font-size: 14px; line-height: 1.5;
+  color: var(--afg-muted); max-width: 54ch;
+}
+.gv-meter {
+  display: block; margin-top: 10px; height: 4px; width: min(260px, 100%);
+  background: var(--afg-border); border-radius: 999px; overflow: hidden;
+}
+.gv-meter > span { display: block; height: 100%; background: var(--afg-gold); border-radius: 999px; }
+.gv-item.is-done .gv-meter > span { background: var(--afg-success); }
+
+.gv-item-side { flex: none; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.gv-item-price {
+  font-weight: 800; font-variant-numeric: tabular-nums; color: var(--afg-ink); white-space: nowrap;
+}
+.gv-item-price small { font-weight: 600; color: var(--afg-muted); }
+.gv-item-kind { font-size: 13px; font-weight: 700; color: var(--afg-muted); }
+.gv-item-left { font-size: 12.5px; color: var(--afg-muted); white-space: nowrap; }
+.gv-item-cta {
+  margin-top: 4px; font-size: 13px; font-weight: 800; text-decoration: none;
+  color: var(--afg-ink); border-bottom: 2px solid var(--afg-gold); padding-bottom: 1px;
+}
+.gv-item-cta:hover { border-bottom-color: var(--afg-ink); }
+.gv-item-cta:focus-visible { outline: 3px solid var(--afg-gold); outline-offset: 3px; }
+
+@media (max-width: 640px) {
+  /* The price belongs under the name on a phone, not squeezed into a column
+     four characters wide. */
+  .gv-item { flex-direction: column; gap: var(--afg-space-2); }
+  .gv-item-side { text-align: left; align-items: flex-start; flex-direction: row; flex-wrap: wrap; gap: 10px; }
+  .gv-item-cta { margin-top: 0; }
+}

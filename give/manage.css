@@ -171,6 +171,24 @@ body {
 .gm-need-fig { font-variant-numeric: tabular-nums; font-weight: 700; }
 .gm-need-act { display: flex; gap: 6px; flex: none; }
 
+/* Items reuse the need row's anatomy — same shape, same reading order — so
+   the two lists in one console do not look like two different products. */
+.gm-items { display: flex; flex-direction: column; gap: var(--afg-space-2); margin-top: var(--afg-space-3); }
+.gm-item {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--afg-space-4);
+  padding: var(--afg-space-3) var(--afg-space-4); background: var(--afg-surface);
+  border: 1px solid var(--afg-border); border-left: 3px solid var(--afg-gold); border-radius: var(--afg-radius-sm);
+}
+.gm-item.is-met { border-left-color: var(--afg-success); opacity: .75; }
+.gm-subhead {
+  margin: var(--afg-space-6) 0 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 800; color: var(--afg-muted); display: flex; align-items: center; gap: 8px;
+}
+@media (max-width: 640px) {
+  .gm-item { flex-direction: column; align-items: flex-start; gap: var(--afg-space-2); }
+  .gm-item .gm-need-act { width: 100%; }
+}
+
 .gm-tier-row { display: grid; grid-template-columns: 130px 1fr 1.6fr auto; gap: var(--afg-space-2); margin-bottom: var(--afg-space-2); }
 @media (max-width: 720px) { .gm-tier-row { grid-template-columns: 1fr; } }
 .gm-tier-row input {

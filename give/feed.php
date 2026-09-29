@@ -116,10 +116,35 @@ foreach (Appeals::currentNeedsAll(6) as $n) {
     ];
 }
 
+/* The catalogue rides along too. The donate page's material list used to be
+   twenty-three hand-typed rows whose counts never moved however many laptops
+   actually arrived — it reads this instead, so the number on the page is the
+   number in the record. */
+$items = [];
+foreach (Appeals::items(['appeal_id' => 0, 'limit' => 60]) as $it) {
+    $items[] = [
+        'slug'     => (string) $it['slug'],
+        'title'    => (string) $it['title'],
+        'detail'   => (string) $it['detail'],
+        'category' => (string) $it['category'] !== '' ? (string) $it['category'] : 'Other',
+        'kind'     => (string) $it['kind'],
+        'price'    => $it['kind'] === 'money' && $it['unit_cost'] > 0 ? Appeals::naira((int) $it['unit_cost']) : '',
+        'cost'     => (int) $it['unit_cost'],
+        'unit'     => (string) $it['unit_label'],
+        'needed'   => (int) $it['qty_needed'],
+        'funded'   => (int) $it['qty_funded'],
+        'left'     => (int) $it['qty_left'],
+        'pct'      => (int) $it['pct'],
+        'open'     => (bool) $it['is_open'],
+    ];
+}
+
 echo json_encode([
     'updated' => gmdate('c'),
     'count'   => count($rows),
     'appeals' => $rows,
     'needs'   => $needs,
+    'items'   => $items,
+    'itemsSummary' => Appeals::itemsSummary(['appeal_id' => 0, 'limit' => 60]),
     'totals'  => Appeals::needsTotal(),
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

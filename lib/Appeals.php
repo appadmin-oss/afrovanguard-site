@@ -51,6 +51,20 @@ final class Appeals
 
     public const CADENCES = ['daily', 'weekly', 'once'];
 
+    /**
+     * An ITEM is a concrete thing, priced, counted, and standing — as opposed
+     * to a NEED, which is a figure for a window of time ("this week: ₦40,000").
+     * They are different shapes and conflating them is why the donate page
+     * ended up with twenty-three hand-typed list items whose counts never moved.
+     *
+     * Two kinds, because a giving page needs both:
+     *   money — "₦4,500 buys a term's exercise books". Fundable on the spot.
+     *   goods — "Laptops, any working condition". Given as the thing itself,
+     *           so it carries no price and is pledged rather than paid.
+     */
+    public const ITEM_KINDS = ['money', 'goods'];
+    public const ITEM_STATUSES = ['live', 'hidden', 'funded'];
+
     /** An appeal cannot ask for more than this, and a need cannot either. Not a
      *  policy about ambition — a guard against a stray zero on a keyboard. */
     private const MAX_NGN = 500000000;      // ₦500m
@@ -164,6 +178,26 @@ CREATE TABLE IF NOT EXISTS av_appeal_needs (
   created_at   TEXT NOT NULL DEFAULT ''
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_need_period ON av_appeal_needs (appeal_id, cadence, period);
+CREATE TABLE IF NOT EXISTS av_appeal_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  appeal_id     INTEGER NOT NULL DEFAULT 0,
+  slug          VARCHAR(80) NOT NULL DEFAULT '',
+  kind          VARCHAR(8) NOT NULL DEFAULT 'money',
+  category      TEXT NOT NULL DEFAULT '',
+  title         TEXT NOT NULL DEFAULT '',
+  detail        TEXT NOT NULL DEFAULT '',
+  unit_cost     INTEGER NOT NULL DEFAULT 0,
+  unit_label    TEXT NOT NULL DEFAULT '',
+  qty_needed    INTEGER NOT NULL DEFAULT 0,
+  qty_funded    INTEGER NOT NULL DEFAULT 0,
+  status        VARCHAR(12) NOT NULL DEFAULT 'live',
+  sort          INTEGER NOT NULL DEFAULT 0,
+  created_by    TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL DEFAULT '',
+  updated_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_item_slug ON av_appeal_items (slug);
+CREATE INDEX IF NOT EXISTS idx_item_live ON av_appeal_items (status, sort, id);
 CREATE TABLE IF NOT EXISTS av_appeal_updates (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   appeal_id  INTEGER NOT NULL,
@@ -921,6 +955,225 @@ SQL;
     {
         if ($cadence === 'once' || $period === '') return false;
         return $period < self::periodFor($cadence);
+    }
+
+    /* ── items: the things, priced and counted ───────────────────────────
+     *
+     * Nielsen Norman's donation study is blunt about this: people abandon a
+     * gift because they cannot tell what it does, and only a small minority of
+     * nonprofit sites ever say. An amount is an abstraction. "₦4,500 — a
+     * term's exercise books for one child, 40 needed, 12 funded" is not, and
+     * it answers the question at the moment it is being asked.
+     *
+     * An item belongs to an appeal, or to no appeal (appeal_id 0) and is then
+     * a standing need for the organisation as a whole — which is what the
+     * donate page's material list has always been, except hand-typed.
+     */
+
+    public static function saveItem(array $in, string $actor = ''): array
+    {
+        self::ensure();
+        $id    = (int) ($in['id'] ?? 0);
+        $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 160);
+        if ($id <= 0 && $title === '') return ['ok' => false, 'error' => 'An item has to say what it is.'];
+
+        $kind = in_array((string) ($in['kind'] ?? ''), self::ITEM_KINDS, true) ? (string) $in['kind'] : 'money';
+        $cost = self::money($in['unit_cost'] ?? 0);
+        /* A priced item with no price is the whole failure this replaces — it
+           is the hand-typed list again, wearing a database. */
+        if ($kind === 'money' && $cost <= 0 && $id <= 0) {
+            return ['ok' => false, 'error' => 'A priced item needs its price. Use a goods item for things given in kind.'];
+        }
+        if ($kind === 'goods') $cost = 0;
+
+        $row = [];
+        $put = static function (string $k, $v) use (&$row, $in) { if (array_key_exists($k, $in)) $row[$k] = $v; };
+        /* Only the keys actually sent — a partial save must not blank the rest.
+           This bit has bitten before: Appeals::save() once reset a title and a
+           goal because the caller passed two fields. */
+        if ($title !== '' || $id <= 0) $row['title'] = $title;
+        $put('detail',     mb_substr(trim((string) ($in['detail'] ?? '')), 0, 800));
+        $put('category',   mb_substr(trim((string) ($in['category'] ?? '')), 0, 60));
+        $put('unit_label', mb_substr(trim((string) ($in['unit_label'] ?? '')), 0, 40));
+        $put('appeal_id',  max(0, (int) ($in['appeal_id'] ?? 0)));
+        $put('qty_needed', max(0, min(1000000, (int) ($in['qty_needed'] ?? 0))));
+        $put('sort',       max(0, min(9999, (int) ($in['sort'] ?? 0))));
+        if (array_key_exists('kind', $in) || $id <= 0)      $row['kind'] = $kind;
+        if (array_key_exists('unit_cost', $in) || $id <= 0) $row['unit_cost'] = $cost;
+        if (array_key_exists('status', $in)) {
+            $row['status'] = in_array((string) $in['status'], self::ITEM_STATUSES, true) ? (string) $in['status'] : 'live';
+        }
+        $row['updated_at'] = self::now();
+
+        try {
+            $pdo = Database::pdo();
+            if ($id > 0) {
+                if ($row === []) return ['ok' => false, 'error' => 'Nothing to change.'];
+                $set  = implode(', ', array_map(static fn($c) => $c . ' = ?', array_keys($row)));
+                $args = array_values($row); $args[] = $id;
+                $pdo->prepare('UPDATE av_appeal_items SET ' . $set . ' WHERE id = ?')->execute($args);
+                self::audit('item_update', 'item:' . $id, $actor, $title);
+                return ['ok' => true, 'id' => $id, 'updated' => true];
+            }
+            $row['slug']       = self::uniqueItemSlug($title);
+            $row['status']     = $row['status'] ?? 'live';
+            $row['created_by'] = mb_substr($actor, 0, 120);
+            $row['created_at'] = self::now();
+            $names = implode(',', array_keys($row));
+            $marks = implode(',', array_fill(0, count($row), '?'));
+            $pdo->prepare("INSERT INTO av_appeal_items ($names) VALUES ($marks)")->execute(array_values($row));
+            /* lastInsertId() before the audit row is written — it is
+               per-connection, not per-table, so asking afterwards returns the
+               audit row and the caller edits the wrong record. */
+            $newId = (int) $pdo->lastInsertId();
+            self::audit('item_add', 'item:' . $newId, $actor, $title);
+            return ['ok' => true, 'id' => $newId, 'updated' => false];
+        } catch (Throwable $e) {
+            error_log('[appeals] saveItem: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not save that item.'];
+        }
+    }
+
+    private static function uniqueItemSlug(string $title): string
+    {
+        $base = self::slugify($title) ?: 'item';
+        try {
+            $pdo = Database::pdo();
+            for ($i = 0; $i < 60; $i++) {
+                $try = $i === 0 ? $base : $base . '-' . ($i + 1);
+                $st  = $pdo->prepare('SELECT 1 FROM av_appeal_items WHERE slug = ?');
+                $st->execute([$try]);
+                if ($st->fetchColumn() === false) return $try;
+            }
+        } catch (Throwable $e) {}
+        return $base . '-' . substr(bin2hex(random_bytes(3)), 0, 5);
+    }
+
+    /**
+     * Record that some of an item has been covered.
+     *
+     * Counts up, never past what is needed, and closes the item when it is
+     * met. `fundItem` is the only writer of qty_funded, so the number on the
+     * page and the number in the ledger cannot drift apart.
+     */
+    public static function fundItem(int $id, int $qty = 1, string $actor = ''): array
+    {
+        self::ensure();
+        $qty = max(1, min(100000, $qty));
+        try {
+            $it = self::item($id);
+            if (!$it) return ['ok' => false, 'error' => 'No such item.'];
+            if ((string) $it['status'] === 'funded') return ['ok' => false, 'error' => 'That one is already covered.'];
+
+            $need = (int) $it['qty_needed'];
+            $now  = (int) $it['qty_funded'] + $qty;
+            if ($need > 0 && $now > $need) $now = $need;
+            $status = ($need > 0 && $now >= $need) ? 'funded' : (string) $it['status'];
+
+            Database::pdo()->prepare('UPDATE av_appeal_items SET qty_funded = ?, status = ?, updated_at = ? WHERE id = ?')
+                ->execute([$now, $status, self::now(), $id]);
+            self::audit('item_fund', 'item:' . $id, $actor, $qty . ' × ' . (string) $it['title']);
+            return ['ok' => true, 'qty_funded' => $now, 'status' => $status];
+        } catch (Throwable $e) {
+            error_log('[appeals] fundItem: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not record that.'];
+        }
+    }
+
+    public static function deleteItem(int $id): bool
+    {
+        self::ensure();
+        try { return Database::pdo()->prepare('DELETE FROM av_appeal_items WHERE id = ?')->execute([$id]); }
+        catch (Throwable $e) { return false; }
+    }
+
+    public static function item(int $id): ?array
+    {
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM av_appeal_items WHERE id = ?');
+            $st->execute([$id]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            return $r ? self::shapeItem($r) : null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    public static function itemBySlug(string $slug): ?array
+    {
+        self::ensure();
+        try {
+            $st = Database::pdo()->prepare('SELECT * FROM av_appeal_items WHERE slug = ?');
+            $st->execute([trim($slug)]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            return $r ? self::shapeItem($r) : null;
+        } catch (Throwable $e) { return null; }
+    }
+
+    /**
+     * The catalogue. `kind` narrows to money or goods, `appealId` to one
+     * appeal (0 for the organisation's standing list, null for everything).
+     * Funded items sort last: a page that leads with what is already done
+     * buries the ask.
+     */
+    public static function items(array $opt = []): array
+    {
+        self::ensure();
+        $w = ["status <> 'hidden'"]; $a = [];
+        if (!empty($opt['kind']) && in_array((string) $opt['kind'], self::ITEM_KINDS, true)) {
+            $w[] = 'kind = ?'; $a[] = (string) $opt['kind'];
+        }
+        if (array_key_exists('appeal_id', $opt) && $opt['appeal_id'] !== null) {
+            $w[] = 'appeal_id = ?'; $a[] = max(0, (int) $opt['appeal_id']);
+        }
+        if (!empty($opt['category'])) { $w[] = 'category = ?'; $a[] = (string) $opt['category']; }
+        if (!empty($opt['open_only'])) $w[] = "status = 'live'";
+        $limit = max(1, min(300, (int) ($opt['limit'] ?? 120)));
+        try {
+            $st = Database::pdo()->prepare(
+                'SELECT * FROM av_appeal_items WHERE ' . implode(' AND ', $w)
+                . " ORDER BY (CASE WHEN status = 'funded' THEN 1 ELSE 0 END), sort ASC, id ASC LIMIT " . $limit);
+            $st->execute($a);
+            return array_map([self::class, 'shapeItem'], $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+        } catch (Throwable $e) { error_log('[appeals] items: ' . $e->getMessage()); return []; }
+    }
+
+    /** Items grouped under their category heading, in catalogue order. */
+    public static function itemsByCategory(array $opt = []): array
+    {
+        $out = [];
+        foreach (self::items($opt) as $it) {
+            $cat = trim((string) $it['category']) !== '' ? (string) $it['category'] : 'Other';
+            $out[$cat][] = $it;
+        }
+        return $out;
+    }
+
+    /** Headline figures for the catalogue: what is outstanding, in money and count. */
+    public static function itemsSummary(array $opt = []): array
+    {
+        $items = self::items($opt);
+        $open = 0; $outstanding = 0; $goods = 0; $covered = 0;
+        foreach ($items as $it) {
+            $left = (int) $it['qty_left'];
+            if ($left > 0) {
+                $open++;
+                if ((string) $it['kind'] === 'money') $outstanding += $left * (int) $it['unit_cost'];
+                else $goods += $left;
+            } else { $covered++; }
+        }
+        return ['total' => count($items), 'open' => $open, 'covered' => $covered,
+                'outstanding_ngn' => $outstanding, 'goods_left' => $goods];
+    }
+
+    private static function shapeItem(array $r): array
+    {
+        foreach (['id', 'appeal_id', 'unit_cost', 'qty_needed', 'qty_funded', 'sort'] as $k) $r[$k] = (int) ($r[$k] ?? 0);
+        $need = $r['qty_needed'];
+        $r['qty_left'] = $need > 0 ? max(0, $need - $r['qty_funded']) : 0;
+        $r['pct']      = $need > 0 ? (int) min(100, round($r['qty_funded'] / $need * 100)) : 0;
+        $r['is_open']  = $r['status'] === 'live' && ($need === 0 || $r['qty_left'] > 0);
+        $r['line_ngn'] = $r['kind'] === 'money' ? $r['unit_cost'] * max(0, $r['qty_left']) : 0;
+        return $r;
     }
 
     /* ── updates: what the money did ─────────────────────────────────────── */

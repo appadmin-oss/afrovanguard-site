@@ -15,6 +15,11 @@ $appeals   = Appeals::published(120);
 $summary   = Appeals::summary();
 $needsNow  = Appeals::currentNeedsAll(6);
 $needTotal = Appeals::needsTotal();
+/* The catalogue. Standing items (appeal_id 0) are the organisation's own
+   running needs — the list the donate page used to carry as hand-typed HTML
+   whose counts never moved. */
+$itemCats  = Appeals::itemsByCategory(['appeal_id' => 0, 'limit' => 120]);
+$itemSum   = Appeals::itemsSummary(['appeal_id' => 0, 'limit' => 120]);
 
 /* Live first, then urgency, then how close to done. A funded appeal is a good
    advertisement for the next one, so it stays on the page — at the bottom. */
@@ -228,6 +233,71 @@ render_nav('involved');
         </div>
       </section>
     <?php endif; ?>
+  <?php endif; ?>
+
+  <?php if ($itemCats): ?>
+    <!-- ── the catalogue: what a given amount actually buys ──────────────── -->
+    <div class="ed-wrap"><hr class="ed-rule"></div>
+    <section class="ed-section" id="items" aria-labelledby="items-h">
+      <div class="ed-wrap">
+        <div class="ed-head">
+          <div><span class="ed-kicker">The list</span>
+            <h2 class="ed-h2" id="items-h">Exactly what we need, and what each thing costs</h2></div>
+          <?php if ($itemSum['outstanding_ngn'] > 0): ?>
+            <span class="ed-link" style="pointer-events:none"><?= e(Appeals::naira((int) $itemSum['outstanding_ngn'])) ?> outstanding</span>
+          <?php endif; ?>
+        </div>
+        <p class="ed-lede" style="max-width:62ch">
+          Most giving pages ask for a number and leave you to guess what it does. This is the actual list:
+          what is still needed, what it costs, and how many are already covered. Give the money, or give
+          the thing itself — both count the same here.
+        </p>
+
+        <?php foreach ($itemCats as $cat => $list): ?>
+          <h3 class="gv-cat"><?= e((string) $cat) ?></h3>
+          <ul class="gv-items">
+            <?php foreach ($list as $it): ?>
+              <li class="gv-item<?= $it['is_open'] ? '' : ' is-done' ?>">
+                <div class="gv-item-main">
+                  <span class="gv-item-name"><?= e((string) $it['title']) ?></span>
+                  <?php if (trim((string) $it['detail']) !== ''): ?>
+                    <span class="gv-item-detail"><?= e((string) $it['detail']) ?></span>
+                  <?php endif; ?>
+                  <?php if ($it['qty_needed'] > 0): ?>
+                    <span class="gv-meter" role="progressbar" aria-valuenow="<?= (int) $it['pct'] ?>"
+                          aria-valuemin="0" aria-valuemax="100"
+                          aria-label="<?= (int) $it['qty_funded'] ?> of <?= (int) $it['qty_needed'] ?> covered">
+                      <span style="width:<?= (int) $it['pct'] ?>%"></span></span>
+                  <?php endif; ?>
+                </div>
+                <div class="gv-item-side">
+                  <?php if ($it['kind'] === 'money' && $it['unit_cost'] > 0): ?>
+                    <span class="gv-item-price"><?= e(Appeals::naira((int) $it['unit_cost'])) ?><?php
+                      if (trim((string) $it['unit_label']) !== ''): ?><small> / <?= e((string) $it['unit_label']) ?></small><?php endif; ?></span>
+                  <?php else: ?>
+                    <span class="gv-item-price gv-item-kind">Given in kind</span>
+                  <?php endif; ?>
+                  <span class="gv-item-left"><?php
+                    if (!$it['is_open']) { echo 'Covered — thank you'; }
+                    elseif ($it['qty_needed'] > 0) { echo (int) $it['qty_left'] . ' still needed'; }
+                    else { echo 'Any number welcome'; } ?></span>
+                  <?php if ($it['is_open']): ?>
+                    <?php /* Money items go to the donation form with the amount
+                             already filled in; in-kind items go to the people who
+                             arrange collection, because a card form cannot take a
+                             laptop. */ ?>
+                    <a class="gv-item-cta" href="<?= $it['kind'] === 'money'
+                         ? e('/donate.html?amount=' . (int) $it['unit_cost'] . '&for=' . rawurlencode((string) $it['slug']))
+                         : e('/contact.html?about=' . rawurlencode('Donating: ' . (string) $it['title'])) ?>">
+                      <?= $it['kind'] === 'money' ? 'Fund one' : 'Offer one' ?></a>
+                  <?php endif; ?>
+                </div>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endforeach; ?>
+      </div>
+    </section>
   <?php endif; ?>
 
   <!-- ── who runs these ─────────────────────────────────────────────────── -->

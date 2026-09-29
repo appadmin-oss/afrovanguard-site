@@ -3586,71 +3586,24 @@
             font-size: 14.5px; color: var(--color-text-muted);
             line-height: 1.7; margin-bottom: 28px; max-width: 62ch;
           }
-          .mat-filter-bar {
-            display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px;
-          }
-          .mat-filter-btn {
-            padding: 7px 16px; border-radius: 99px;
-            border: 1.5px solid var(--color-divider); background: transparent;
-            font-family: var(--font-body); font-size: 12px; font-weight: 700;
-            color: var(--color-text-muted); cursor: pointer; transition: all 0.18s;
-            display: flex; align-items: center; gap: 6px;
-          }
-          .mat-filter-btn:hover { border-color: var(--color-gold); color: var(--color-text-primary); }
-          .mat-filter-btn.active { background: var(--color-gold); border-color: var(--color-gold); color: var(--color-bg-dark); }
-          .mat-filter-count { font-size: 10px; background: rgba(0,0,0,0.15); border-radius: 99px; padding: 1px 6px; font-weight: 800; }
-          .mat-filter-btn.active .mat-filter-count { background: rgba(0,0,0,0.2); }
 
           /* Critical card */
-          .mat-critical-card {
-            background: linear-gradient(135deg, #0d1220, #141b2e);
-            border: 1px solid rgba(239,68,68,0.3); border-radius: 20px; padding: 28px;
-            margin-bottom: 20px; position: relative; overflow: hidden;
-            display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
-          }
-          .mat-critical-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, #ef4444 30%, #f97316 70%, transparent);
-          }
-          .mat-critical-badge {
-            display: inline-flex; align-items: center; gap: 6px;
-            background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.35);
-            border-radius: 99px; padding: 4px 12px; font-size: 10px; font-weight: 800;
-            color: #fca5a5; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
-          }
-          .mat-critical-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; animation: verifiedPulse 1.5s ease-in-out infinite; }
-          .mat-critical-icon { font-size: 48px; flex-shrink: 0; }
-          .mat-critical-body { flex: 1; min-width: 200px; }
-          .mat-critical-title { font-family: var(--font-heading); font-size: clamp(18px,2.5vw,24px); font-weight: 700; color: #fff; margin-bottom: 6px; line-height: 1.2; }
-          .mat-critical-desc { font-size: 13.5px; color: rgba(255,255,255,0.55); line-height: 1.6; margin-bottom: 14px; max-width: 44ch; }
-          .mat-critical-value { display: inline-flex; align-items: center; gap: 8px; background: rgba(243,180,22,0.12); border: 1px solid rgba(243,180,22,0.3); border-radius: 10px; padding: 8px 16px; font-size: 15px; font-weight: 800; color: var(--color-gold); margin-bottom: 16px; }
-          .mat-critical-cta { display: inline-flex; align-items: center; gap: 8px; background: #dc2626; border: none; border-radius: 99px; padding: 11px 22px; font-family: var(--font-body); font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; text-decoration: none; transition: all 0.18s; }
-          .mat-critical-cta:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(239,68,68,0.35); }
 
           /* Needs grid */
-          .mat-needs-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 32px; }
-          .mat-need-card { background: var(--color-bg-warm); border: 1.5px solid var(--color-divider); border-radius: 16px; overflow: hidden; transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s; cursor: pointer; }
-          .mat-need-card:hover { border-color: var(--color-gold); transform: translateY(-3px); box-shadow: 0 10px 32px rgba(243,180,22,0.1); }
-          .mat-need-card.hidden { display: none; }
-          .mat-need-card-top { padding: 16px 18px 12px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: space-between; }
-          .mat-need-card-icon-wrap { display: flex; align-items: center; gap: 10px; }
-          .mat-need-card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
-          .mat-need-card-cat { font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-ink, #8f6606); }
-          .mat-urgency-badge { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
-          .mat-urgency-badge.critical { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #b91c1c; }
-          .mat-urgency-badge.needed   { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); color: #c2410c; }
-          .mat-urgency-badge.welcome  { background: rgba(34,197,94,0.10);  border: 1px solid rgba(34,197,94,0.25); color: #166534; }
-          .mat-need-items { list-style: none; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
-          .mat-need-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--color-text-body); line-height: 1.45; }
-          .mat-need-item-left { display: flex; flex-direction: column; flex: 1; gap: 1px; }
-          .mat-need-item-name { font-weight: 600; color: var(--color-text-primary); }
-          .mat-need-item-detail { font-size: 11px; color: var(--color-text-muted); }
-          .mat-need-qty { flex-shrink: 0; font-size: 10px; font-weight: 800; background: rgba(243,180,22,0.1); border: 1px solid rgba(243,180,22,0.2); color: var(--color-gold-ink, #8f6606); border-radius: 6px; padding: 2px 7px; margin-top: 2px; white-space: nowrap; }
-          .mat-need-card-cta { padding: 12px 18px; border-top: 1px solid var(--color-divider); }
-          .mat-need-card-cta-btn { width: 100%; padding: 10px; background: transparent; border: 1.5px solid var(--color-divider); border-radius: 10px; font-family: var(--font-body); font-size: 12px; font-weight: 700; color: var(--color-text-muted); cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-          .mat-need-card-cta-btn:hover { border-color: var(--color-gold); color: var(--color-text-primary); background: rgba(243,180,22,0.05); }
 
           /* Contribution form */
+          /* The needs list. The rows themselves are .gv-* from editorial.css —
+             the same ones the giving page uses — so the two pages cannot drift
+             apart. Only the frame around them is local. */
+          .dn-needs { margin-top: 8px; }
+          .dn-needs-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+          .dn-needs-sum { font-size: 13.5px; font-weight: 700; color: var(--color-text-body); }
+          .dn-needs-all { font-size: 13px; font-weight: 800; text-decoration: none; color: var(--color-gold-dark); border-bottom: 2px solid var(--color-gold); padding-bottom: 1px; }
+          .dn-needs-all:hover { border-bottom-color: currentColor; }
+          .dn-needs-all:focus-visible { outline: 3px solid var(--color-gold); outline-offset: 3px; }
+          .dn-needs-fallback { font-size: 14px; line-height: 1.7; color: var(--color-text-body); max-width: 62ch; }
+          .dn-needs-fallback p + p { margin-top: 12px; }
+          .dn-needs-fallback a { color: var(--color-gold-dark); font-weight: 700; }
           .mat-contribute-section { background: var(--color-bg-warm); border: 1.5px solid var(--color-divider); border-radius: 20px; overflow: hidden; margin-top: 32px; }
           .mat-contribute-header { padding: 22px 28px; background: var(--color-bg-dark); display: flex; align-items: center; gap: 16px; }
           .mat-contribute-header-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; background: rgba(243,180,22,0.12); border: 1px solid rgba(243,180,22,0.2); display: flex; align-items: center; justify-content: center; font-size: 20px; }
@@ -3661,10 +3614,7 @@
           .mat-selected-preview.visible { display: flex; }
           .mat-selected-preview-clear { margin-left: auto; background: none; border: none; cursor: pointer; font-size: 16px; color: var(--color-text-muted); line-height: 1; }
 
-          @media (max-width: 900px) { .mat-needs-grid { grid-template-columns: repeat(2,1fr); } }
           @media (max-width: 580px) {
-            .mat-needs-grid { grid-template-columns: 1fr; }
-            .mat-critical-card { flex-direction: column; gap: 16px; }
             .mat-contribute-body { padding: 20px; }
             .mat-contribute-header { padding: 18px 20px; }
             .donate-type-tab { padding: 12px 12px; }
@@ -3682,8 +3632,6 @@
             padding: 3px 10px; border-radius: 9999px;
           }
           @media (max-width: 580px) {
-            .mat-needs-grid { grid-template-columns: 1fr; }
-            .mat-critical-card { flex-direction: column; gap: 16px; }
             .mat-contribute-body { padding: 20px; }
             .mat-contribute-header { padding: 18px 20px; }
             .donate-type-tab { padding: 12px 12px; }
@@ -4147,316 +4095,34 @@
             <p class="mat-intro">Beyond money, LCASP 2026 needs equipment, materials, and skilled volunteers to run 6 community centres. Click any card to pre-fill the contribution form below.</p>
           </div>
 
-          <!-- Filter bar -->
-          <div class="mat-filter-bar" role="group" aria-label="Filter needs by category">
-            <button class="mat-filter-btn active" data-cat="all" onclick="matFilter('all',this)">All <span class="mat-filter-count">6</span></button>
-            <button class="mat-filter-btn" data-cat="critical" onclick="matFilter('critical',this)">🔴 Critical <span class="mat-filter-count">2</span></button>
-            <button class="mat-filter-btn" data-cat="ict" onclick="matFilter('ict',this)">💻 ICT</button>
-            <button class="mat-filter-btn" data-cat="audio" onclick="matFilter('audio',this)">🎵 Audio</button>
-            <button class="mat-filter-btn" data-cat="centre" onclick="matFilter('centre',this)">🏛️ Centre Setup</button>
-            <button class="mat-filter-btn" data-cat="people" onclick="matFilter('people',this)">🙋 People</button>
-          </div>
+          <!-- ═══════════════════════════════════════════════════════════
+               WHAT WE NEED — read from the record, not typed in.
+               This was twenty-three hand-written rows. "18 needed" was a
+               string: it still said 18 in the month eleven laptops came in.
+               It now reads /give/feed.json, which reads the same table the
+               giving console writes, so the number on the page is the number
+               in the record. The block below is the no-JS fallback and is
+               written to stand on its own.
+               ═══════════════════════════════════════════════════════════ -->
+          <div class="dn-needs" data-give-items>
+            <div class="dn-needs-head">
+              <p class="dn-needs-sum" data-give-items-sum>The current list of what the centres need.</p>
+              <a class="dn-needs-all" href="/give/#items">See the full list &rarr;</a>
+            </div>
 
-          <!-- ★ CRITICAL: Project Bus spotlight -->
-          <div class="mat-critical-card" data-category="critical transport">
-            <div class="mat-critical-icon" aria-hidden="true">🚌</div>
-            <div class="mat-critical-body">
-              <div class="mat-critical-badge">
-                <span class="mat-critical-badge-dot"></span>
-                Most Critical Need
+            <div data-give-items-list>
+              <!-- Fallback: no counts, because a count we cannot keep true is
+                   worse than none. It says what to do instead. -->
+              <div class="dn-needs-fallback">
+                <p>We need equipment and materials for the six Alimosho centres — ICT kit, audio and
+                  performance gear, furniture for the halls, branding for events, and transport.</p>
+                <p><strong>To give something:</strong> <a href="/contact.html?about=Donating%20materials">tell us what you have</a>
+                  and we will arrange collection. To see the current list with prices and how many are still
+                  needed, go to <a href="/give/#items">the giving page</a>.</p>
               </div>
-              <div class="mat-critical-title">Project Bus — Our Single Biggest Gap</div>
-              <p class="mat-critical-desc">Without a dedicated bus, we cannot transport equipment, facilitators, and students across all 6 community centres in Alimosho. This is the item that unlocks everything else.</p>
-              <div class="mat-critical-value">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                Estimated Value: ₦15,000,000
-              </div>
-              <button class="mat-critical-cta" onclick="matPrefill('Project Bus', 'equipment', 'I would like to donate a bus or contribute towards Afrovanguard\'s Project Bus (valued at ₦15,000,000). ')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                I Can Help With This
-              </button>
             </div>
           </div>
 
-          <!-- Needs grid -->
-          <div class="mat-needs-grid" id="matNeedsGrid">
-
-            <!-- ICT & Technology -->
-            <div class="mat-need-card" data-category="ict" onclick="matPrefill('ICT Equipment', 'equipment', 'I would like to donate ICT equipment for LCASP centres: ')">
-              <div class="mat-need-card-top">
-                <div class="mat-need-card-icon-wrap">
-                  <span class="mat-need-card-icon" aria-hidden="true">💻</span>
-                  <span class="mat-need-card-cat">ICT &amp; Tech</span>
-                </div>
-                <span class="mat-urgency-badge critical">Critical</span>
-              </div>
-              <ul class="mat-need-items" aria-label="ICT equipment needed">
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Laptops</span>
-                    <span class="mat-need-item-detail">Any working condition</span>
-                  </div>
-                  <span class="mat-need-qty">18 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Projectors &amp; Screens</span>
-                    <span class="mat-need-item-detail">1 per centre</span>
-                  </div>
-                  <span class="mat-need-qty">6 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Internet Routers</span>
-                    <span class="mat-need-item-detail">+ data subscriptions</span>
-                  </div>
-                  <span class="mat-need-qty">6 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Printers</span>
-                    <span class="mat-need-item-detail">1 per centre</span>
-                  </div>
-                  <span class="mat-need-qty">6 needed</span>
-                </li>
-              </ul>
-              <div class="mat-need-card-cta">
-                <button class="mat-need-card-cta-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><polyline points="22 7 12 2 2 7"/></svg>
-                  I Can Donate ICT Equipment
-                </button>
-              </div>
-            </div>
-
-            <!-- Audio & Performance -->
-            <div class="mat-need-card" data-category="audio" onclick="matPrefill('Audio & Performance Equipment', 'equipment', 'I would like to donate audio/performance equipment for LCASP: ')">
-              <div class="mat-need-card-top">
-                <div class="mat-need-card-icon-wrap">
-                  <span class="mat-need-card-icon" aria-hidden="true">🎵</span>
-                  <span class="mat-need-card-cat">Audio &amp; Performance</span>
-                </div>
-                <span class="mat-urgency-badge needed">Needed</span>
-              </div>
-              <ul class="mat-need-items" aria-label="Audio and performance equipment needed">
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Portable Sound Systems</span>
-                    <span class="mat-need-item-detail">For centre use &amp; events</span>
-                  </div>
-                  <span class="mat-need-qty">6 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Musical Instruments</span>
-                    <span class="mat-need-item-detail">Guitars, keyboards, drums</span>
-                  </div>
-                  <span class="mat-need-qty">Sets needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Microphones &amp; Stands</span>
-                    <span class="mat-need-item-detail">Wired or wireless</span>
-                  </div>
-                  <span class="mat-need-qty">12 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Stage Lighting</span>
-                    <span class="mat-need-item-detail">For Ogidi Omo Expo</span>
-                  </div>
-                  <span class="mat-need-qty">1 set</span>
-                </li>
-              </ul>
-              <div class="mat-need-card-cta">
-                <button class="mat-need-card-cta-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><polyline points="22 7 12 2 2 7"/></svg>
-                  I Can Donate Audio Equipment
-                </button>
-              </div>
-            </div>
-
-            <!-- Centre Setup -->
-            <div class="mat-need-card" data-category="centre" onclick="matPrefill('Centre Setup Items', 'equipment', 'I would like to donate centre setup materials for LCASP: ')">
-              <div class="mat-need-card-top">
-                <div class="mat-need-card-icon-wrap">
-                  <span class="mat-need-card-icon" aria-hidden="true">🏛️</span>
-                  <span class="mat-need-card-cat">Centre Setup</span>
-                </div>
-                <span class="mat-urgency-badge needed">Needed</span>
-              </div>
-              <ul class="mat-need-items" aria-label="Centre setup needs">
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Chairs &amp; Tables</span>
-                    <span class="mat-need-item-detail">For 100 children per centre</span>
-                  </div>
-                  <span class="mat-need-qty">600+ needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Power / Fuel Backup</span>
-                    <span class="mat-need-item-detail">Generators or solar</span>
-                  </div>
-                  <span class="mat-need-qty">6 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Whiteboards</span>
-                    <span class="mat-need-item-detail">Display boards accepted</span>
-                  </div>
-                  <span class="mat-need-qty">12 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Stationery Packs</span>
-                    <span class="mat-need-item-detail">Teaching materials, per centre</span>
-                  </div>
-                  <span class="mat-need-qty">6 packs</span>
-                </li>
-              </ul>
-              <div class="mat-need-card-cta">
-                <button class="mat-need-card-cta-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><polyline points="22 7 12 2 2 7"/></svg>
-                  I Can Donate Centre Items
-                </button>
-              </div>
-            </div>
-
-            <!-- Branding & Events -->
-            <div class="mat-need-card" data-category="audio" onclick="matPrefill('Branding & Events Support', 'equipment', 'I would like to support with branding or event materials for LCASP/Ogidi Omo Expo: ')">
-              <div class="mat-need-card-top">
-                <div class="mat-need-card-icon-wrap">
-                  <span class="mat-need-card-icon" aria-hidden="true">🎨</span>
-                  <span class="mat-need-card-cat">Branding &amp; Events</span>
-                </div>
-                <span class="mat-urgency-badge welcome">Welcome</span>
-              </div>
-              <ul class="mat-need-items" aria-label="Branding and events needs">
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Roll-up Stands</span>
-                    <span class="mat-need-item-detail">For Ogidi Omo Expo</span>
-                  </div>
-                  <span class="mat-need-qty">6 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Exhibition Stands &amp; Banners</span>
-                    <span class="mat-need-item-detail">Branded materials</span>
-                  </div>
-                  <span class="mat-need-qty">Sets needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Volunteer T-shirts &amp; Lanyards</span>
-                    <span class="mat-need-item-detail">Branded uniform</span>
-                  </div>
-                  <span class="mat-need-qty">80 sets</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Photography / Media Coverage</span>
-                    <span class="mat-need-item-detail">For events documentation</span>
-                  </div>
-                  <span class="mat-need-qty">Open</span>
-                </li>
-              </ul>
-              <div class="mat-need-card-cta">
-                <button class="mat-need-card-cta-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><polyline points="22 7 12 2 2 7"/></svg>
-                  I Can Help With Branding
-                </button>
-              </div>
-            </div>
-
-            <!-- Skilled Volunteers -->
-            <div class="mat-need-card" data-category="people critical" onclick="matPrefill('Volunteer / Skills', 'volunteer', 'I would like to volunteer my time or skills for LCASP 2026: ')">
-              <div class="mat-need-card-top">
-                <div class="mat-need-card-icon-wrap">
-                  <span class="mat-need-card-icon" aria-hidden="true">🙋</span>
-                  <span class="mat-need-card-cat">Skills &amp; Volunteering</span>
-                </div>
-                <span class="mat-urgency-badge critical">Critical</span>
-              </div>
-              <ul class="mat-need-items" aria-label="Skills and volunteering needs">
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Centre Instructors</span>
-                    <span class="mat-need-item-detail">5 per centre × 6 weeks</span>
-                  </div>
-                  <span class="mat-need-qty">30 needed</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Tech Trainers</span>
-                    <span class="mat-need-item-detail">Web, design, digital literacy</span>
-                  </div>
-                  <span class="mat-need-qty">Open</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">BootCamp Guest Speakers</span>
-                    <span class="mat-need-item-detail">Entrepreneurs &amp; professionals</span>
-                  </div>
-                  <span class="mat-need-qty">Open</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Logistics &amp; Admin Volunteers</span>
-                    <span class="mat-need-item-detail">Coordination support</span>
-                  </div>
-                  <span class="mat-need-qty">20 positions</span>
-                </li>
-              </ul>
-              <div class="mat-need-card-cta">
-                <button class="mat-need-card-cta-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                  I Want to Volunteer
-                </button>
-              </div>
-            </div>
-
-            <!-- Transport & Logistics -->
-            <div class="mat-need-card" data-category="centre" onclick="matPrefill('Transport & Logistics Support', 'other', 'I would like to help with transport or logistics for LCASP: ')">
-              <div class="mat-need-card-top">
-                <div class="mat-need-card-icon-wrap">
-                  <span class="mat-need-card-icon" aria-hidden="true">⛽</span>
-                  <span class="mat-need-card-cat">Transport &amp; Logistics</span>
-                </div>
-                <span class="mat-urgency-badge needed">Needed</span>
-              </div>
-              <ul class="mat-need-items" aria-label="Transport and logistics needs">
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Volunteer Transport Stipends</span>
-                    <span class="mat-need-item-detail">Fuel allowance for 50 volunteers</span>
-                  </div>
-                  <span class="mat-need-qty">50 people</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Hall Rental — Grand Expo</span>
-                    <span class="mat-need-item-detail">Ogidi Omo Grand Expo venue</span>
-                  </div>
-                  <span class="mat-need-qty">1 venue</span>
-                </li>
-                <li class="mat-need-item">
-                  <div class="mat-need-item-left">
-                    <span class="mat-need-item-name">Daily Refreshments</span>
-                    <span class="mat-need-item-detail">₦20K/day × 20 days × 6 centres</span>
-                  </div>
-                  <span class="mat-need-qty">₦2.4M total</span>
-                </li>
-              </ul>
-              <div class="mat-need-card-cta">
-                <button class="mat-need-card-cta-btn">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                  I Can Help With Logistics
-                </button>
-              </div>
-            </div>
-
-          </div><!-- /.mat-needs-grid -->
 
           <!-- Integrated contribution form -->
           <div class="mat-contribute-section" id="matContributeSection">
@@ -6675,37 +6341,6 @@
     /* ════════════════════════════════════════════════════════════
        MATERIAL PANEL — FILTER, PREFILL, CLEAR
        ════════════════════════════════════════════════════════════ */
-    function matFilter(cat, btn) {
-      // Update active filter button
-      document.querySelectorAll('.mat-filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      // Show/hide need cards based on data-category attribute
-      document.querySelectorAll('#matNeedsGrid .mat-need-card').forEach(card => {
-        if (cat === 'all') {
-          card.classList.remove('hidden');
-        } else {
-          const cardCats = (card.dataset.category || '').split(' ');
-          if (cardCats.includes(cat)) {
-            card.classList.remove('hidden');
-          } else {
-            card.classList.add('hidden');
-          }
-        }
-      });
-
-      // Show/hide the critical card
-      const critCard = document.querySelector('.mat-critical-card');
-      if (critCard) {
-        const critCats = (critCard.dataset.category || '').split(' ');
-        if (cat === 'all' || critCats.includes(cat)) {
-          critCard.style.display = '';
-        } else {
-          critCard.style.display = 'none';
-        }
-      }
-    }
-
     function matPrefill(itemName, type, descPrefix) {
       // Set the type select
       const typeEl = document.getElementById('cs-type');
@@ -6820,5 +6455,6 @@
   <script src="/assets/site/nav.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>
   <script src="/assets/site/appeals-band.js" defer></script>
+  <script src="/assets/site/give-items.js" defer></script>
 </body>
 </html>
