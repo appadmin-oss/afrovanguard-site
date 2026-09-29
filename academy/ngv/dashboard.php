@@ -309,10 +309,15 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .trk .d{font-size:12.5px;color:var(--muted);margin-top:3px}
 
 /* 24-book grid */
-.ngv-books{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
-@media(max-width:520px){.ngv-books{grid-template-columns:repeat(6,1fr)}}
-.book{aspect-ratio:1;border:1.5px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer;
-  font-weight:800;color:var(--muted-2);display:grid;place-items:center;font-size:.9rem;transition:transform .1s}
+/* Twelve across, and sized to the number rather than stretched to the column.
+   At eight across with a 1:1 ratio these were 130px squares — twenty-four of
+   them, five hundred vertical pixels, to say "3 of 24". A tracker somebody taps
+   a few times a year had more of the page than their fees did. */
+.ngv-books{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px}
+@media(max-width:860px){.ngv-books{grid-template-columns:repeat(8,minmax(0,1fr))}}
+@media(max-width:520px){.ngv-books{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.book{aspect-ratio:1;max-height:56px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;
+  font-weight:800;color:var(--muted-2);display:grid;place-items:center;font-size:.8rem;transition:transform .1s}
 .book:hover{transform:translateY(-1px);border-color:var(--gold)}
 .book.on{background:var(--gold);border-color:transparent;color:var(--on-gold)}
 .ngv-bar{height:9px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:14px 0 7px}
@@ -930,36 +935,47 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 
         <!-- Schedule & where -->
         <section class="pcard" id="schedule">
-          <div class="pcard-head"><h2>Schedule &amp; where</h2></div>
+          <details>
+            <summary class="pcard-head pcard-summary"><h2>Schedule &amp; where</h2><span class="pcard-sub">times, dress code and the centres</span></summary>
           <div class="pcard-body">
             <div class="ngv-rows">
               <?php foreach (['days' => 'Attendance', 'time' => 'Daily schedule', 'uniform' => 'Dress code'] as $k => $lbl): if (!empty($sched[$k])): ?>
               <div class="ngv-row"><div><span class="k"><?= $e($lbl) ?></span><span class="d"><?= $e((string)$sched[$k]) ?></span></div></div>
               <?php endif; endforeach; ?>
               <?php foreach ($offices as $o): if (empty($o['name'])) continue; ?>
-              <div class="ngv-row"><div><span class="k">📍 <?= $e((string)$o['name']) ?></span><span class="d"><?= $e((string)($o['address'] ?? '')) ?></span></div></div>
+              <div class="ngv-row"><div><span class="k"><?= $e((string)$o['name']) ?></span><span class="d"><?= $e((string)($o['address'] ?? '')) ?></span></div></div>
               <?php endforeach; ?>
             </div>
           </div>
+          </details>
         </section>
 
         <!-- Skills + support -->
+        <?php /* The ways to reach a human stay in the open — they are what
+                 somebody comes to this card FOR, and hiding a phone number
+                 behind a disclosure on a page a struggling participant is
+                 reading is the wrong thing to fold. The skills list is
+                 reference, so that is what folds. */ ?>
         <section class="pcard" id="support">
-          <div class="pcard-head"><h2>Skills you're building &amp; support</h2></div>
+          <div class="pcard-head"><h2>Getting help</h2><span class="pcard-sub">your team, any day</span></div>
           <div class="pcard-body">
-            <?php if ($marquee): ?>
-            <div class="ngv-pills">
-              <?php foreach ($marquee as $m): ?><span class="ngv-pill"><?= $e((string)$m) ?></span><?php endforeach; ?>
-            </div>
-            <?php endif; ?>
             <div class="ngv-contact">
               <?php if (!empty($ct['phone'])): $tel = preg_replace('/[^0-9+]/', '', (string)$ct['phone']); ?>
-              <a href="tel:<?= $e($tel) ?>">📞 Call your team</a>
-              <a href="https://wa.me/<?= $e(ltrim($tel, '+')) ?>" target="_blank" rel="noopener">💬 WhatsApp</a>
+              <a href="tel:<?= $e($tel) ?>">Call your team</a>
+              <a href="https://wa.me/<?= $e(ltrim($tel, '+')) ?>" target="_blank" rel="noopener">WhatsApp</a>
               <?php endif; ?>
-              <?php if (!empty($ct['email'])): ?><a href="mailto:<?= $e((string)$ct['email']) ?>">✉️ <?= $e((string)$ct['email']) ?></a><?php endif; ?>
-              <a href="/academy/ngv/#faq" target="_blank" rel="noopener">❓ Programme FAQ</a>
+              <?php if (!empty($ct['email'])): ?><a href="mailto:<?= $e((string)$ct['email']) ?>"><?= $e((string)$ct['email']) ?></a><?php endif; ?>
+              <a href="/academy/ngv/#faq" target="_blank" rel="noopener">Programme FAQ</a>
             </div>
+            <?php if ($marquee): ?>
+            <details style="margin-top:14px">
+              <summary class="pcard-summary" style="padding:0;font-weight:700;font-size:13.5px;color:var(--muted)">
+                Skills you're building <span class="pcard-sub"><?= count($marquee) ?></span></summary>
+              <div class="ngv-pills" style="margin-top:10px">
+                <?php foreach ($marquee as $m): ?><span class="ngv-pill"><?= $e((string)$m) ?></span><?php endforeach; ?>
+              </div>
+            </details>
+            <?php endif; ?>
           </div>
         </section>
 
