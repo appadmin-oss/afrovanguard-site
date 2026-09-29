@@ -28,6 +28,11 @@ if (!Appeals::isPublic($a)) {
 
 $st      = Appeals::state($a);
 $needs   = Appeals::currentNeeds((int) $a['id']);
+/* This appeal's own items — the priced, counted list of what it is actually
+   buying. Needs above say what today costs, items say what the whole thing is
+   made of. */
+$aItems  = Appeals::itemsByCategory(['appeal_id' => (int) $a['id'], 'limit' => 120]);
+$aItemSum = Appeals::itemsSummary(['appeal_id' => (int) $a['id'], 'limit' => 120]);
 $tiers   = Appeals::tiersFor((int) $a['id']);
 $updates = Appeals::updatesFor((int) $a['id'], 20);
 $donors  = Appeals::donors($a, 10);
@@ -135,6 +140,65 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
               </article>
             <?php endforeach; ?>
           </div>
+        </section>
+      <?php endif; ?>
+
+      <?php if ($aItems): ?>
+        <?php /* The breakdown. Same rows as the giving page uses, so the two
+                 cannot drift, and each priced line can be funded on its own —
+                 which is what makes a large appeal approachable: somebody who
+                 cannot give the whole thing can still buy one chair. */ ?>
+        <section class="ed-section" style="padding-block:0;margin-top:clamp(40px,6vw,72px)" aria-labelledby="items-h">
+          <div class="ed-head">
+            <div><h2 class="ed-h2" id="items-h">What it is made of</h2></div>
+            <?php if ($aItemSum['outstanding_ngn'] > 0): ?>
+              <span class="ed-link" style="pointer-events:none"><?= e(Appeals::naira((int) $aItemSum['outstanding_ngn'])) ?> still to raise</span>
+            <?php endif; ?>
+          </div>
+          <?php foreach ($aItems as $cat => $list): ?>
+            <h3 class="gv-cat"><?= e((string) $cat) ?></h3>
+            <ul class="gv-items">
+              <?php foreach ($list as $it): ?>
+                <li class="gv-item<?= $it['is_open'] ? '' : ' is-done' ?>">
+                  <div class="gv-item-main">
+                    <span class="gv-item-name"><?= e((string) $it['title']) ?></span>
+                    <?php if (trim((string) $it['detail']) !== ''): ?>
+                      <span class="gv-item-detail"><?= e((string) $it['detail']) ?></span>
+                    <?php endif; ?>
+                    <?php if ($it['qty_needed'] > 0): ?>
+                      <span class="gv-meter" role="progressbar" aria-valuenow="<?= (int) $it['pct'] ?>"
+                            aria-valuemin="0" aria-valuemax="100"
+                            aria-label="<?= (int) $it['qty_funded'] ?> of <?= (int) $it['qty_needed'] ?> covered">
+                        <span style="width:<?= (int) $it['pct'] ?>%"></span></span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="gv-item-side">
+                    <?php if ($it['kind'] === 'money' && $it['unit_cost'] > 0): ?>
+                      <span class="gv-item-price"><?= e(Appeals::naira((int) $it['unit_cost'])) ?><?php
+                        if (trim((string) $it['unit_label']) !== ''): ?><small> / <?= e((string) $it['unit_label']) ?></small><?php endif; ?></span>
+                    <?php else: ?>
+                      <span class="gv-item-price gv-item-kind">Given in kind</span>
+                    <?php endif; ?>
+                    <span class="gv-item-left"><?php
+                      if (!$it['is_open']) { echo 'Covered — thank you'; }
+                      elseif ($it['qty_needed'] > 0) { echo (int) $it['qty_left'] . ' still needed'; }
+                      else { echo 'Any number welcome'; } ?></span>
+                    <?php if ($it['is_open']): ?>
+                      <a class="gv-item-cta"
+                         <?php if ($it['kind'] === 'money'): ?>
+                           data-gv-pay="<?= (int) $it['unit_cost'] ?>"
+                           data-gv-item="<?= e((string) $it['title']) ?>"
+                           data-gv-slug="<?= e((string) $it['slug']) ?>"
+                           href="<?= e('/donate.html?amount=' . (int) $it['unit_cost'] . '&campaign=' . rawurlencode((string) $a['slug'])) ?>"
+                         <?php else: ?>
+                           href="<?= e('/contact.html?about=' . rawurlencode('Donating: ' . (string) $it['title'])) ?>"
+                         <?php endif; ?>><?= $it['kind'] === 'money' ? 'Fund one' : 'Offer one' ?></a>
+                    <?php endif; ?>
+                  </div>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          <?php endforeach; ?>
         </section>
       <?php endif; ?>
 
@@ -437,6 +501,21 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
   });
 })();
 </script>
+<div class="gvpay" id="gvPay" hidden role="dialog" aria-modal="true" aria-labelledby="gvPayTitle">
+  <div class="gvpay-card" role="document">
+    <button type="button" class="gvpay-x" id="gvPayX" aria-label="Close">&times;</button>
+    <h2 class="gvpay-h" id="gvPayTitle">Fund one</h2>
+    <p class="gvpay-what" id="gvPayWhat"></p>
+    <label class="gvpay-field"><span>Your email <em>for the receipt</em></span>
+      <input type="email" id="gvPayEmail" autocomplete="email" placeholder="you@example.com" required></label>
+    <label class="gvpay-field"><span>Your name <em>optional</em></span>
+      <input type="text" id="gvPayName" autocomplete="name" placeholder="So we can thank you properly"></label>
+    <button type="button" class="gvpay-go" id="gvPayGo">Give <span id="gvPayAmt"></span></button>
+    <p class="gvpay-err" id="gvPayErr" role="alert" hidden></p>
+    <p class="gvpay-fine">Card, bank transfer and USSD. Secured by Paystack. You stay on this page.</p>
+  </div>
+</div>
 <script src="/assets/site/give-pay.js" defer></script>
+<script src="/give/pay-sheet.js" defer></script>
 <script src="/give/give.js" defer></script>
 <?php render_footer();
