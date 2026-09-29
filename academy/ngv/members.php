@@ -228,6 +228,11 @@ if ($method === 'POST') {
         $r = NgvMember::revokeCertification((int) ($in['cert_id'] ?? 0), (string) ($in['reason'] ?? ''), $adminUid);
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
+    if ($act === 'book_review') {
+        $r = NgvReading::review((int) ($in['claim_id'] ?? 0), (string) ($in['verdict'] ?? ''),
+                                $adminUid, (string) ($in['note'] ?? ''));
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'app_status') {
         $ok = NgvMember::setApplicationStatus((int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''), $adminUid);
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'Bad application/status.']);
@@ -310,6 +315,24 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 <title>Vanguards · NGV staff</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+/* ── Book claims awaiting review ─────────────────────────────────────────
+   Flagged claims carry a red edge, because the queue puts them first and the
+   reviewer should see why without reading the list of reasons twice. */
+.bkq{border:1px solid var(--line,#e5e7eb);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.bkq--flagged{border-left:3px solid #b91c1c;background:rgba(220,38,38,.04)}
+.bkq-head{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.bkq-who{font-weight:800}
+.bkq-book{margin-top:2px}
+.bkq-flags{margin:10px 0 0;padding-left:18px;font-size:13px;color:#b91c1c;line-height:1.5}
+.bkq-read{margin-top:10px}
+.bkq-read summary{cursor:pointer;font-weight:700;font-size:13px}
+.bkq-read summary:focus-visible{outline:3px solid #E0A82E;outline-offset:2px}
+.bkq-text{margin-top:10px;font-size:14px;line-height:1.65;max-width:70ch}
+.bkq-take{margin-top:10px;font-size:14px;line-height:1.6;max-width:70ch}
+.bkq-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.bkq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
+.bkq-note:focus{outline:3px solid #E0A82E;outline-offset:1px}
+
 /* ── Tokens ──────────────────────────────────────────────────────────────── */
 :root{
   --red:#e4162b;--orange:#ff6a1a;--gold:#ffb703;--ink:#15120e;--line:#e7e9ee;--muted:#5f6874;
@@ -701,6 +724,67 @@ details.sect>summary{margin-bottom:8px}
         </tbody>
       </table>
       </div>
+      <?php endif; ?>
+    </div>
+  </section>
+
+  <?php /* ── Book claims awaiting a human ──────────────────────────────────
+       This queue is the whole verification story. Everything else — the
+       substance floor, the duplicate check, the pacing flags — only narrows
+       what lands here and puts the doubtful ones first. Nothing counts toward
+       a participant's twenty-four until somebody on this page says so. */
+  $bkQueue = NgvReading::queue(40); ?>
+  <section class="card" id="bookclaims" aria-labelledby="h-books">
+    <header><h2 id="h-books">Books to check</h2> <span class="sp"></span>
+      <span class="sub"><?= count($bkQueue) ?> waiting<?php
+        $bkFlagged = 0; foreach ($bkQueue as $bq) if ($bq['flags_list']) $bkFlagged++;
+        if ($bkFlagged): ?> · <strong><?= $bkFlagged ?> flagged</strong><?php endif; ?></span></header>
+    <div class="body">
+      <?php if (!$bkQueue): ?>
+        <p class="sub">Nothing waiting. Claims appear here the moment a participant sends one.</p>
+      <?php else: ?>
+        <p class="sub" style="margin-bottom:14px">
+          A flag is a reason to look, never a verdict — approve a flagged claim if the writing is real.
+          The browser signals (pasted, typed fast) can be faked by anyone who opens developer tools,
+          so weigh the writing, not the badge. The one thing software cannot catch is somebody who read
+          a summary and wrote well about it: that is what the takeaway is for, and why asking them about
+          it out loud is worth more than anything on this page.
+        </p>
+        <?php foreach ($bkQueue as $bc):
+          $bp = NgvMember::participant((int) $bc['member_id']); ?>
+          <article class="bkq<?= $bc['flags_list'] ? ' bkq--flagged' : '' ?>" data-claim="<?= (int) $bc['id'] ?>">
+            <div class="bkq-head">
+              <div>
+                <div class="bkq-who"><?= $e((string) ($bp['name'] ?? ('Member #' . (int) $bc['member_id']))) ?>
+                  <span class="sub">· book <?= (int) $bc['slot'] ?> of 24</span></div>
+                <div class="bkq-book"><strong><?= $e((string) $bc['title']) ?></strong>
+                  <span class="sub">by <?= $e((string) $bc['author']) ?> ·
+                  read <?= $e((string) $bc['started_on']) ?> → <?= $e((string) $bc['finished_on']) ?> ·
+                  <?= (int) $bc['reflection_len'] ?> characters</span></div>
+              </div>
+            </div>
+            <?php if ($bc['flags_list']): ?>
+              <ul class="bkq-flags">
+                <?php foreach ($bc['flags_list'] as $fl): ?>
+                  <li><?= $e(NgvReading::flagLabel((string) $fl)) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+            <details class="bkq-read">
+              <summary>Read what they wrote</summary>
+              <div class="bkq-text"><?= nl2br($e((string) $bc['reflection'])) ?></div>
+              <p class="bkq-take"><strong>What they did with it:</strong>
+                <?= nl2br($e((string) $bc['takeaway'])) ?></p>
+            </details>
+            <div class="bkq-act">
+              <input class="bkq-note" maxlength="1000"
+                     placeholder="Why — required to send back or reject">
+              <button class="btn ok bkq-btn" data-verdict="verified">Verify</button>
+              <button class="btn bkq-btn" data-verdict="resubmit">Send back</button>
+              <button class="btn danger bkq-btn" data-verdict="rejected">Reject</button>
+            </div>
+          </article>
+        <?php endforeach; ?>
       <?php endif; ?>
     </div>
   </section>
@@ -1306,6 +1390,32 @@ details.sect>summary{margin-bottom:8px}
       .then(function(r){ return r.json().catch(function(){return {ok:false};}); });
   }
   var val = function(id){ var el=document.getElementById(id); return el?el.value:''; };
+
+  /* ── Book claims ───────────────────────────────────────────────────── */
+  document.querySelectorAll('.bkq').forEach(function(card){
+    var note = card.querySelector('.bkq-note');
+    card.querySelectorAll('.bkq-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var verdict = btn.getAttribute('data-verdict');
+        var why = (note && note.value || '').trim();
+        /* Refuse in the browser too, so the reason is asked for before the
+           round trip rather than after it. The server refuses either way. */
+        if (verdict !== 'verified' && !why) {
+          toast(verdict === 'rejected' ? 'Say why it was rejected' : 'Say what needs changing', false);
+          if (note) note.focus();
+          return;
+        }
+        if (verdict === 'verified' && !window.confirm('Verify this book?\n\nIt counts toward their twenty-four and they cannot change it afterwards.')) return;
+        var all = card.querySelectorAll('.bkq-btn');
+        all.forEach(function(b){ b.disabled = true; });
+        post({action:'book_review', claim_id: +card.getAttribute('data-claim'), verdict: verdict, note: why})
+          .then(function(j){
+            if (j.ok) { toast(verdict === 'verified' ? 'Verified ✓' : 'Sent back'); card.remove(); }
+            else { toast(j.error || 'Failed', false); all.forEach(function(b){ b.disabled = false; }); }
+          });
+      });
+    });
+  });
 
   var eb = document.getElementById('enrollBtn');
   if(eb) eb.addEventListener('click', function(){

@@ -93,6 +93,11 @@ final class NgvMember
         $plan  = self::validPlan((string) ($seed['plan'] ?? '')) ?? '';   // nothing to preserve on a new row
         $phaseIn = (string) ($seed['phase'] ?? '');
         $phase = in_array($phaseIn, self::PHASES, true) ? $phaseIn : '';
+        /* Still seeded at enrolment, from the member's prior Prefs rather than
+           from anything they posted — a one-time migration of what they had
+           already recorded before this existed. Those are unverified by
+           definition, which is why `readingLocked()` below reports them as
+           legacy rather than counting them as confirmed. */
         $books = self::validBooks((string) ($seed['books'] ?? ''));
         $note  = mb_substr(trim((string) ($seed['focus_note'] ?? '')), 0, 300);
         $now   = NgvDb::nowExpr();
@@ -124,7 +129,12 @@ final class NgvMember
         if (array_key_exists('track', $patch) && ($t = self::validTrack((string) $patch['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
         if (array_key_exists('plan', $patch) && ($p = self::validPlan((string) $patch['plan'])) !== null) { $set[] = 'plan = ?'; $args[] = $p; }
         if (array_key_exists('phase', $patch))      { $v = (string) $patch['phase']; if (in_array($v, self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = $v; } }
-        if (array_key_exists('books', $patch))      { $set[] = 'books = ?';      $args[] = self::validBooks((string) $patch['books']); }
+        /* `books` is DELIBERATELY not settable here any more. It used to be,
+           and one POST of twenty-four ones marked the whole reading challenge
+           complete — which made every check in NgvReading theatre, since the
+           thing those checks protect could be written around them. It is a
+           DERIVED column now: NgvReading::syncBitstring() is the only writer,
+           and it writes only what a reviewer has verified. */
         if (array_key_exists('focus_note', $patch)) { $set[] = 'focus_note = ?'; $args[] = mb_substr(trim((string) $patch['focus_note']), 0, 300); }
         if (!$set) return;
         $set[] = 'updated_at = ' . NgvDb::nowExpr();

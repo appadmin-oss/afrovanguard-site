@@ -283,6 +283,7 @@ require_once __DIR__ . '/Ngv.php';
 require_once __DIR__ . '/NgvDb.php';       // separate NextGen Vanguard database (isolated connection)
 require_once __DIR__ . '/NgvLedger.php';   // NGV money: membership, commitment, training fee, fines
 require_once __DIR__ . '/NgvMember.php';   // NGV participant/certifications domain (money delegates to NgvLedger)
+require_once __DIR__ . '/NgvReading.php';  // the 24-book challenge: claims, checks, verification
 require_once __DIR__ . '/NgvDamage.php';   // NGV equipment/premises damage, reported → assessed → outcome
 require_once __DIR__ . '/Appeals.php';    // fundraising appeals: campaigns, daily/weekly needs, updates
 require_once __DIR__ . '/Summit.php';       // D'Vanguard National Summit seat registrations

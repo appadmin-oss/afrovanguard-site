@@ -93,11 +93,29 @@ if ($method === 'POST') {
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
 
+    /* ── Book claims ──────────────────────────────────────────────────
+       Their own slots only. The member id comes from the session and is
+       never read from the body — a claim is for whoever is signed in. */
+    $bkAct = (string) ($in['book_action'] ?? '');
+    if ($bkAct === 'save' || $bkAct === 'submit') {
+        $r = NgvReading::save($uid, is_array($in['book'] ?? null) ? $in['book'] : [], $bkAct === 'submit');
+        if (!empty($r['ok'])) $r['progress'] = NgvReading::progress($uid);
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+    if ($bkAct === 'get') {
+        $slot = (int) ($in['slot'] ?? 0);
+        $c = NgvReading::claim($uid, $slot);
+        json_out(['ok' => true, 'claim' => $c, 'min' => NgvReading::MIN_REFLECTION,
+                  'minTake' => NgvReading::MIN_TAKEAWAY]);
+    }
+
     $patch = [];
     if (array_key_exists('track', $in)) $patch['track'] = (string) $in['track'];
     if (array_key_exists('plan',  $in)) $patch['plan']  = (string) $in['plan'];
     if (array_key_exists('phase', $in)) $patch['phase'] = (string) $in['phase'];
-    if (array_key_exists('books', $in)) $patch['books'] = (string) $in['books'];
+    /* Books are not self-reported any more — a claim goes through
+       NgvReading and a track lead verifies it. Left here as a comment rather
+       than deleted silently so nobody re-adds it wondering why it is missing. */
     if (array_key_exists('note',  $in)) $patch['focus_note'] = (string) $in['note'];
     if ($patch) NgvMember::saveSelf($uid, $patch);
     json_out(['ok' => true]);
@@ -320,6 +338,43 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
   font-weight:800;color:var(--muted-2);display:grid;place-items:center;font-size:.8rem;transition:transform .1s}
 .book:hover{transform:translateY(-1px);border-color:var(--gold)}
 .book.on{background:var(--gold);border-color:transparent;color:var(--on-gold)}
+/* Slot states. Verified is the only one that reads as done. */
+.book{border:1.5px solid var(--border)}
+.book.pend{background:var(--gold-soft);border-color:var(--gold-soft-bd);color:var(--gold-deeper)}
+.book.back{background:rgba(220,38,38,.10);border-color:var(--red);color:var(--red)}
+.book.draft{border-style:dashed;color:var(--muted)}
+
+/* The claim sheet */
+.bkmodal{position:fixed;inset:0;z-index:200;background:rgba(8,12,22,.55);display:grid;place-items:center;padding:16px}
+.bkmodal[hidden]{display:none!important}
+.bkmodal-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:min(720px,100%);
+  max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-md)}
+.bkmodal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:16px 20px;border-bottom:1px solid var(--border)}
+.bkmodal-head h3{margin:0;font-size:17px;font-weight:800}
+.bkmodal-x{background:none;border:0;font-size:26px;line-height:1;color:var(--muted);cursor:pointer;padding:0 4px}
+.bkmodal-x:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.bkmodal-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.bkmodal-foot{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border)}
+.bk-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.bk-grid{grid-template-columns:1fr}}
+.bk-f{display:flex;flex-direction:column;gap:6px;position:relative;min-width:0}
+.bk-f--wide{grid-column:1/-1}
+.bk-f>span{font-size:12px;font-weight:800;color:var(--ink)}
+.bk-f em{font-style:normal;font-weight:600;color:var(--muted)}
+.bk-f input,.bk-f textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;
+  background:var(--bg);color:var(--ink);font:inherit;min-height:44px}
+.bk-f textarea{min-height:110px;resize:vertical;line-height:1.55}
+.bk-f input:focus,.bk-f textarea:focus{outline:3px solid var(--gold);outline-offset:1px}
+.bk-count{position:absolute;right:2px;bottom:-16px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bk-count.short{color:var(--red);font-weight:700}
+.bk-err{margin:0;font-size:13px;font-weight:700;color:var(--red);background:rgba(220,38,38,.10);
+  border:1px solid var(--red);border-radius:9px;padding:10px 12px;line-height:1.45}
+.bk-status{margin:0;font-size:13px;line-height:1.5;padding:10px 12px;border-radius:9px;
+  background:var(--surface-2);color:var(--body)}
+.bk-status.is-back{background:rgba(220,38,38,.10);border:1px solid var(--red);color:var(--red)}
+.bk-status.is-ok{background:rgba(22,163,74,.10);border:1px solid var(--green);color:var(--green)}
+
 .ngv-bar{height:9px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:14px 0 7px}
 .ngv-bar>i{display:block;height:100%;background:var(--gold);transition:width .3s}
 
@@ -920,18 +975,88 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
         </section>
 
         <!-- 24-book reading challenge -->
+        <?php
+        /* The reading challenge, as claims rather than checkboxes.
+           Tapping a box used to be the whole of it — no record of which book,
+           nothing written, nobody asked. A slot now holds a claim a track lead
+           has to verify before it counts, and the figure on this page is the
+           VERIFIED one. */
+        $shelf = NgvReading::shelf($uid);
+        $rp    = NgvReading::progress($uid);
+        $legacyBits = substr_count($myBooks, '1');
+        ?>
         <section class="pcard wide" id="reading">
-          <div class="pcard-head"><h2>24-book reading challenge</h2><span class="pcard-sub">tap a book once you finish it</span></div>
+          <div class="pcard-head"><h2>24-book reading challenge</h2>
+            <span class="pcard-sub"><?= (int) $rp['verified'] ?> verified<?php
+              if ($rp['waiting'] > 0): ?> · <?= (int) $rp['waiting'] ?> with your track lead<?php endif; ?><?php
+              if ($rp['needs_work'] > 0): ?> · <?= (int) $rp['needs_work'] ?> to put right<?php endif; ?></span></div>
           <div class="pcard-body">
             <div class="ngv-books" id="books">
-              <?php for ($i = 0; $i < $BOOKS_TOTAL; $i++): $on = ($myBooks[$i] ?? '0') === '1'; ?>
-              <div class="book <?= $on ? 'on' : '' ?>" data-i="<?= $i ?>" title="Book <?= $i + 1 ?>"><?= $i + 1 ?></div>
-              <?php endfor; ?>
+              <?php foreach ($shelf as $slot => $bc):
+                $st = (string) $bc['status'];
+                $cls = ['verified' => 'on', 'submitted' => 'pend', 'resubmit' => 'back',
+                        'rejected' => 'back', 'draft' => 'draft'][$st] ?? '';
+                $tip = ['verified' => 'Verified', 'submitted' => 'With your track lead',
+                        'resubmit' => 'Needs another look', 'rejected' => 'Not accepted',
+                        'draft' => 'Draft — not sent yet'][$st] ?? 'Not started';
+              ?>
+              <button type="button" class="book <?= $cls ?>" data-slot="<?= (int) $slot ?>"
+                      title="Book <?= (int) $slot ?> — <?= $e($tip) ?><?= $bc['title'] !== '' ? ': ' . $e((string) $bc['title']) : '' ?>"
+                      aria-label="Book <?= (int) $slot ?>, <?= $e($tip) ?>"><?= (int) $slot ?></button>
+              <?php endforeach; ?>
             </div>
-            <div class="ngv-bar"><i id="booksBar" style="width:<?= (int)round($booksRead / $BOOKS_TOTAL * 100) ?>%"></i></div>
-            <div style="font-size:12.5px;color:var(--muted)"><b id="booksLabel"><?= $booksRead ?></b> of <?= $BOOKS_TOTAL ?> read — leadership, finance, law &amp; your track. Keep going!</div>
+            <div class="ngv-bar"><i id="booksBar" style="width:<?= (int) round($rp['verified'] / max(1, (int) $rp['total']) * 100) ?>%"></i></div>
+            <div style="font-size:12.5px;color:var(--muted)">
+              <b><?= (int) $rp['verified'] ?></b> of <?= (int) $rp['total'] ?> verified.
+              Tap a number to record a book: the title, when you read it, what it argued and one thing you
+              have done because of it. Your track lead checks it before it counts.
+            </div>
+            <?php if ($legacyBits > (int) $rp['verified']): ?>
+              <?php /* Honest about the migration: ticks from the old checkbox
+                       era were never checked by anybody, so they are named as
+                       what they are rather than quietly counted or deleted. */ ?>
+              <div class="ngv-box" style="margin-top:12px"><?= (int) $legacyBits ?> book<?= $legacyBits === 1 ? '' : 's' ?>
+                <?= $legacyBits === 1 ? 'was' : 'were' ?> ticked before we started checking them. Those are not counted
+                above — record them properly when you have a moment and they will be.</div>
+            <?php endif; ?>
           </div>
         </section>
+
+        <!-- The claim sheet. One at a time, opened from a slot. -->
+        <div class="bkmodal" id="bkModal" hidden role="dialog" aria-modal="true" aria-labelledby="bkTitle">
+          <div class="bkmodal-card" role="document">
+            <div class="bkmodal-head">
+              <h3 id="bkTitle">Book <span id="bkSlot">1</span></h3>
+              <button type="button" class="bkmodal-x" id="bkClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="bkmodal-body">
+              <p class="bk-status" id="bkStatus" hidden></p>
+              <div class="bk-grid">
+                <label class="bk-f bk-f--wide"><span>Title</span>
+                  <input id="bkBookTitle" maxlength="200" autocomplete="off"></label>
+                <label class="bk-f"><span>Author</span>
+                  <input id="bkAuthor" maxlength="120" autocomplete="off"></label>
+                <label class="bk-f"><span>Started</span>
+                  <input id="bkStarted" type="date"></label>
+                <label class="bk-f"><span>Finished</span>
+                  <input id="bkFinished" type="date"></label>
+              </div>
+              <label class="bk-f bk-f--wide"><span>What did it argue, and did you agree?
+                <em>at least <?= (int) NgvReading::MIN_REFLECTION ?> characters</em></span>
+                <textarea id="bkReflection" rows="8" maxlength="6000"></textarea>
+                <span class="bk-count" id="bkReflCount">0</span></label>
+              <label class="bk-f bk-f--wide"><span>One thing you have done, or will do, because of it
+                <em>your track lead may ask you about this</em></span>
+                <textarea id="bkTakeaway" rows="3" maxlength="600"></textarea>
+                <span class="bk-count" id="bkTakeCount">0</span></label>
+              <p class="bk-err" id="bkErr" hidden role="alert"></p>
+            </div>
+            <div class="bkmodal-foot">
+              <button type="button" class="pbtn pbtn-ghost" id="bkSaveDraft">Save draft</button>
+              <button type="button" class="pbtn pbtn-gold" id="bkSubmit">Send for checking</button>
+            </div>
+          </div>
+        </div>
 
         <!-- Schedule & where -->
         <section class="pcard" id="schedule">
@@ -986,6 +1111,7 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 
 <script>window.NGV_CSRF = <?= json_encode($csrf) ?>;</script>
 <script src="/academy/ngv/pay.js" defer></script>
+<script src="/academy/ngv/reading.js" defer></script>
 <script>
 (function(){
   var BOOKS_TOTAL = <?= $BOOKS_TOTAL ?>;
