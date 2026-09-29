@@ -23,6 +23,23 @@ if ($uri !== '/' && is_dir($path) && is_file(rtrim($path, '/') . '/index.php')) 
     return true;
 }
 
+// Africa GATES moved to its own site. Before the static-file branch above?
+// No — that branch already ran, and projects/africa-gates/ now holds only a
+// redirect of its own, so both paths agree. This catches the deeper URLs.
+if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
+    $qs = $_SERVER['QUERY_STRING'] ?? '';
+    header('Location: https://afg.afrovanguard.org.ng/' . $m[1] . ($qs ? '?' . $qs : ''), true, 301);
+    return true;
+}
+
+// The CACENTRE door: /cacentre and /cacentre/<path on the far side>.
+if (preg_match('~^/cacentre/?$~', $uri)) { require __DIR__ . '/cacentre.php'; return true; }
+if (preg_match('~^/cacentre/(.+)$~', $uri, $m)) {
+    $_GET['p'] = $m[1];
+    require __DIR__ . '/cacentre.php';
+    return true;
+}
+
 // Custom-owned /blog/* → /diary/* (301)
 if (preg_match('~^/blog/?(.*)$~', $uri, $m)) {
     $qs = $_SERVER['QUERY_STRING'] ?? '';

@@ -45,7 +45,7 @@ $pages = [
     'index.html', 'about.html', 'contact.html', 'donate.html',
     'donor-dashboard.html', 'member.html',
     '403.html', '404.html', '429.html', '500.html', '503.html',
-    'projects/index.html', 'projects/africa-gates/index.html', 'projects/sts/lcasp.html',
+    'projects/index.html', 'projects/sts/lcasp.html',
 ];
 $done = 0;
 foreach ($pages as $rel) {

@@ -85,6 +85,20 @@ if (!function_exists('self_meet_source')) {
 // KPI seeds (client refreshes online + tasks live).
 $myTasks    = $isOrg && class_exists('Collab') ? Collab::myTasks((int) $u['id']) : [];
 $openTasks  = count(array_filter($myTasks, fn($t) => empty($t['done'])));
+/* The same person's work, kept on the other site. CACENTRE reads this site's
+   tasks already; without this the portal showed half a member's day, and
+   "what have I got today" answered differently depending on which site they
+   asked. Read, never copied — CACENTRE stays the one place a CACENTRE task
+   is true, and the link goes back there to work one. Fails soft: if the
+   other site is deploying or the shared secret is unset, $cacTasks is empty
+   and nothing on this page changes. */
+$cacTasks   = $isOrg && class_exists('CacTasks') ? CacTasks::openFor((int) $u['id']) : [];
+/* The counts a member reads at a glance have to count the same work the list
+   below shows, or the badge says four and the page shows six. The console's
+   tasks are the member's tasks; where they are stored is this site's problem,
+   not theirs. */
+$cacOpen    = count($cacTasks);
+$cacDue     = count(array_filter($cacTasks, fn($t) => $t['due'] !== '' && $t['due'] <= gmdate('Y-m-d')));
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
 // Productivity "Today" aggregates — what genuinely needs attention now.
 $todayStr   = gmdate('Y-m-d');
@@ -120,7 +134,7 @@ $nav = [
 if ($isOrg) {
     // Team Chat is strictly for @afrovanguard members.
     $nav['Work'] = [
-        ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
+        ['tasks', 'Tasks', 'gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
@@ -165,7 +179,17 @@ $nav['You'] = [
           <div class="pnav-title">More</div>
           <a class="pnav-link" href="/academy/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Academy</span><span class="pnav-ext">↗</span></a>
           <a class="pnav-link" href="<?= e(rtrim(SITE_URL, '/')) ?>/"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">Main site</span><span class="pnav-ext">↗</span></a>
-        </div>
+<?php /* Shown to org members when the bridge is configured. This is a filter,
+         not the gate: CACENTRE decides who may actually use the workspace,
+         against its own grants, on every arrival. Showing it to every learner
+         would just send most of them to a polite refusal.
+
+         Named for the place rather than for one screen in it: what is behind
+         the link is the centre's workspace — the pipeline, the tasks, the
+         register, and writing for the site — and calling it "CRM" sent
+         somebody looking for their drafts past it. */ ?>
+<?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="<?= e(CacSso::DOOR) ?>"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE workspace</span><span class="pnav-ext">↗</span></a>
+<?php endif; ?>        </div>
       </nav>
 
       <div class="pside-user">
@@ -252,11 +276,15 @@ $nav['You'] = [
                     'title' => (!empty($ns['live']) ? 'Meeting live — ' : 'Next meeting — ') . e($ns['title']),
                     'sub' => e($ns['role']) . ' ' . e($ns['with']) . ' · ' . e($when), 'cta' => 'Go', 'goto' => 'mentorship'];
             }
-            if ($isOrg && $tasksDue) {
-                $n = count($tasksDue);
+            if ($isOrg && ($tasksDue || $cacDue)) {
+                $n = count($tasksDue) + $cacDue;
                 $attn[] = ['ico' => '✓', 'tone' => $tasksOverdue ? 'red' : 'gold',
                     'title' => $n . ' task' . ($n === 1 ? '' : 's') . ' due' . ($tasksOverdue ? ' · ' . $tasksOverdue . ' overdue' : ''),
-                    'sub' => 'Due today or earlier', 'cta' => 'Open', 'goto' => 'tasks'];
+                    /* Named when some of it is over there, so "Open" does not
+                       land somebody on a list that is short of what the row
+                       just counted. */
+                    'sub' => $cacDue ? 'Due today or earlier · ' . $cacDue . ' in the console' : 'Due today or earlier',
+                    'cta' => 'Open', 'goto' => 'tasks'];
             }
             if ($postsToday) {
                 $attn[] = ['ico' => '💬', 'tone' => 'indigo',
@@ -283,7 +311,9 @@ $nav['You'] = [
 <?php
             $kpis = [];
             if ($isOrg) {
-                $kpis[] = ['label' => 'Tasks open', 'value' => (string) $openTasks, 'id' => 'kpiTasks', 'sub' => 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
+                $kpis[] = ['label' => 'Tasks open', 'value' => (string) ($openTasks + $cacOpen), 'id' => 'kpiTasks',
+                   'sub' => $cacOpen ? 'here and in the console' : 'across your list',
+                   'chip' => 'Active', 'tone' => 'gold'];
                 $kpis[] = ['label' => 'Members online', 'value' => (string) $onlineNow, 'id' => 'kpiOnline', 'sub' => 'right now', 'chip' => 'Live', 'tone' => 'green'];
             }
             $kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
@@ -780,7 +810,11 @@ $nav['You'] = [
             </div>
           </section>
 
-          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+          <?php /* data-cac-open: the console's open tasks, so the live refresh
+                   below can keep counting them. Without it the KPI is right on
+                   first paint and then drops to the portal-only number a second
+                   later, which is worse than never having counted them. */ ?>
+          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>" data-cac-open="<?= (int) $cacOpen ?>">
             <div class="pcard-head task-head">
               <div class="task-head-l">
                 <h2>My tasks</h2>
@@ -820,6 +854,61 @@ $nav['You'] = [
               <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
             </div>
           </section>
+
+          <?php if ($cacTasks): ?>
+            <?php /* Its own card rather than rows in the list above. Those rows
+                     are ticked, edited and deleted here; these cannot be, because
+                     this site is not where they are true. Mixing them would put
+                     two kinds of row under one set of controls, half of which
+                     would do nothing. */ ?>
+            <section class="pcard" id="cacTasks">
+              <div class="pcard-head task-head">
+                <div class="task-head-l">
+                  <h2>From CACENTRE</h2>
+                  <span class="task-head-sub">
+                    <?= (int) count($cacTasks) ?> open <?= count($cacTasks) === 1 ? 'task' : 'tasks' ?>
+                    assigned to you in the console. They are completed there.
+                  </span>
+                </div>
+                <a class="pbtn" href="<?= e(CacTasks::consoleUrl()) ?>" target="_blank" rel="noopener">Open the console</a>
+              </div>
+              <div class="pcard-body">
+                <ul class="task-list">
+                  <?php foreach ($cacTasks as $t):
+                    /* The same markup the portal's own task rows use, so these
+                       read as tasks rather than as a table that wandered in.
+                       No checkbox and no delete: neither would do anything
+                       here, and a control that does nothing is worse than no
+                       control. */
+                    /* CACENTRE has four priorities and this site has three.
+                       Mapping urgent down to normal — which is what dropping
+                       the unknown value does — loses exactly the signal the
+                       column exists for, and the most urgent task on the list
+                       would look like the most routine one. It maps to high,
+                       and the row keeps the word it actually carries. */
+                    $pri = match ($t['priority']) {
+                        'urgent', 'high' => 'high',
+                        'low'            => 'low',
+                        default          => 'normal',
+                    }; ?>
+                    <li class="task task--pri-<?= e($pri) ?>">
+                      <span class="task-body">
+                        <span class="task-title"><?= e($t['title']) ?></span>
+                        <span class="task-sub">
+                          <?php if ($pri !== 'normal'): ?>
+                            <span class="task-pri task-pri--<?= e($pri) ?>"><?= e($t['priority']) ?></span>
+                          <?php endif; ?>
+                          <?php if ($t['due'] !== ''): ?>
+                            <span class="task-due"><?= e($t['due']) ?></span>
+                          <?php endif; ?>
+                        </span>
+                      </span>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              </div>
+            </section>
+          <?php endif; ?>
         </section>
 
         <!-- ============================================================ -->
@@ -1379,6 +1468,7 @@ $nav['You'] = [
   /* Collaboration — presence, activity, tasks (with the filter chips). */
   (function () {
     var root = document.getElementById('tasks'); if (!root) return;
+    var CAC_OPEN = parseInt(root.getAttribute('data-cac-open') || '0', 10) || 0;
     var csrf = root.getAttribute('data-csrf') || '';
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function post(action, body){ return fetch('/portal/collab.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
@@ -1402,7 +1492,8 @@ $nav['You'] = [
         over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
       if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
-      if(kpiTasks)kpiTasks.textContent=open; }
+      // The chip counts the member's work, not this site's half of it.
+      if(kpiTasks)kpiTasks.textContent=open+CAC_OPEN; }
     // Relative, urgency-aware due label + tone.
     function dueMeta(t){ if(!t.due) return null;
       var tone = isOverdue(t) ? 'over' : (t.due===TODAY ? 'today' : (t.due===TOMORROW ? 'soon' : ''));
