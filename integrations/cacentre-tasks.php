@@ -34,8 +34,13 @@ header('X-Content-Type-Options: nosniff');
 /* No CORS header: this is server-to-server. A browser has no business here,
    and saying so by omission is stronger than saying it in a header. */
 
-/** One shape of refusal, whatever went wrong. */
-$refuse = static function (string $why, int $code = 403): never {
+/**
+ * One shape of refusal, whatever went wrong.
+ *
+ * No `: never` return type: it is a parse error below PHP 8.1, and a parse
+ * error cannot be logged — the file simply does not run.
+ */
+$refuse = static function (string $why, int $code = 403): void {
     http_response_code($code);
     echo json_encode(['ok' => false, 'error' => $why], JSON_UNESCAPED_SLASHES);
     exit;
@@ -44,7 +49,10 @@ $refuse = static function (string $why, int $code = 403): never {
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') $refuse('GET only.', 405);
 if (!CacSso::ready())                                $refuse('not-configured', 503);
 
-$token = (string) ($_GET['t'] ?? '');
+/* Not a (string) cast: ?t[]=x is an array, and casting one yields "Array"
+   plus a warning printed into the response. */
+$raw   = $_GET['t'] ?? '';
+$token = is_string($raw) ? $raw : '';
 if ($token === '') $refuse('no-token', 400);
 
 /* ── Verify, the same way the other direction is verified ─────────────── */

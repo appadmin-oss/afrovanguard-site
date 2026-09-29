@@ -85,6 +85,14 @@ if (!function_exists('self_meet_source')) {
 // KPI seeds (client refreshes online + tasks live).
 $myTasks    = $isOrg && class_exists('Collab') ? Collab::myTasks((int) $u['id']) : [];
 $openTasks  = count(array_filter($myTasks, fn($t) => empty($t['done'])));
+/* The same person's work, kept on the other site. CACENTRE reads this site's
+   tasks already; without this the portal showed half a member's day, and
+   "what have I got today" answered differently depending on which site they
+   asked. Read, never copied — CACENTRE stays the one place a CACENTRE task
+   is true, and the link goes back there to work one. Fails soft: if the
+   other site is deploying or the shared secret is unset, $cacTasks is empty
+   and nothing on this page changes. */
+$cacTasks   = $isOrg && class_exists('CacTasks') ? CacTasks::openFor((int) $u['id']) : [];
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
 // Productivity "Today" aggregates — what genuinely needs attention now.
 $todayStr   = gmdate('Y-m-d');
@@ -830,6 +838,61 @@ $nav['You'] = [
               <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
             </div>
           </section>
+
+          <?php if ($cacTasks): ?>
+            <?php /* Its own card rather than rows in the list above. Those rows
+                     are ticked, edited and deleted here; these cannot be, because
+                     this site is not where they are true. Mixing them would put
+                     two kinds of row under one set of controls, half of which
+                     would do nothing. */ ?>
+            <section class="pcard" id="cacTasks">
+              <div class="pcard-head task-head">
+                <div class="task-head-l">
+                  <h2>From CACENTRE</h2>
+                  <span class="task-head-sub">
+                    <?= (int) count($cacTasks) ?> open <?= count($cacTasks) === 1 ? 'task' : 'tasks' ?>
+                    assigned to you in the console. They are completed there.
+                  </span>
+                </div>
+                <a class="pbtn" href="<?= e(CacTasks::consoleUrl()) ?>" target="_blank" rel="noopener">Open the console</a>
+              </div>
+              <div class="pcard-body">
+                <ul class="task-list">
+                  <?php foreach ($cacTasks as $t):
+                    /* The same markup the portal's own task rows use, so these
+                       read as tasks rather than as a table that wandered in.
+                       No checkbox and no delete: neither would do anything
+                       here, and a control that does nothing is worse than no
+                       control. */
+                    /* CACENTRE has four priorities and this site has three.
+                       Mapping urgent down to normal — which is what dropping
+                       the unknown value does — loses exactly the signal the
+                       column exists for, and the most urgent task on the list
+                       would look like the most routine one. It maps to high,
+                       and the row keeps the word it actually carries. */
+                    $pri = match ($t['priority']) {
+                        'urgent', 'high' => 'high',
+                        'low'            => 'low',
+                        default          => 'normal',
+                    }; ?>
+                    <li class="task task--pri-<?= e($pri) ?>">
+                      <span class="task-body">
+                        <span class="task-title"><?= e($t['title']) ?></span>
+                        <span class="task-sub">
+                          <?php if ($pri !== 'normal'): ?>
+                            <span class="task-pri task-pri--<?= e($pri) ?>"><?= e($t['priority']) ?></span>
+                          <?php endif; ?>
+                          <?php if ($t['due'] !== ''): ?>
+                            <span class="task-due"><?= e($t['due']) ?></span>
+                          <?php endif; ?>
+                        </span>
+                      </span>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              </div>
+            </section>
+          <?php endif; ?>
         </section>
 
         <!-- ============================================================ -->
