@@ -524,4 +524,89 @@ ck('ngv fees: no fee state gates a certification',
    && strpos($certBody, 'payable') === false
    && strpos($certBody, 'NgvLedger') === false);
 
+
+/* ══ Paying online ════════════════════════════════════════════════════════ */
+
+/* The risk here is not arithmetic, it is DOUBLE POSTING. Paystack confirms a
+   charge twice — once when the payer returns to the callback, again on the
+   webhook, and the webhook is retried until acknowledged — so recording a
+   payment has to be safe to run repeatedly. Get it wrong and somebody's
+   ₦13,000 becomes ₦26,000 and a receipt goes out for money they never sent. */
+
+$nlReset();
+NgvLedger::saveSettings(['enabled' => true, 'accrueFrom' => '2026-01-01'], 'test');
+$nlPerson(801, 'Adaeze Nwosu', '2026-02-01');
+NgvLedger::startTrainingFee(801, 12, 1, 240000);
+NgvLedger::accrueParticipant(NgvMember::participant(801), '2026-09-29');
+$nlDue = NgvLedger::balance(801);
+$nlOwed = (int) $nlDue['payable'];
+ck('pay online: the fixture owes something to start with', $nlOwed > 0);
+
+$nlPay = NgvLedger::payOnline(801, 'PSK_REF_A', 13000, ['method' => 'card', 'receipt' => false]);
+ck('pay online: a verified payment is recorded', !empty($nlPay['ok']));
+/* Per-line, not one lump. This ledger's whole point is "square on membership,
+   two months behind on commitment" — a single netted credit against `other`
+   would make that view lie within minutes of anybody paying. */
+ck('pay online: it is split across the lines it settles', count($nlPay['posted']) > 1);
+ck('pay online: oldest obligation first — membership before commitment',
+   ($nlPay['posted'][0]['line'] ?? '') === 'membership');
+ck('pay online: the balance falls by exactly what was paid',
+   ((int) NgvLedger::balance(801)['payable']) === $nlOwed - 13000);
+
+$nlAgain = NgvLedger::payOnline(801, 'PSK_REF_A', 13000, ['method' => 'card']);
+ck('pay online: the same reference again is a no-op, not a second payment',
+   !empty($nlAgain['ok']) && !empty($nlAgain['duplicate']));
+ck('pay online: and the balance did not move again',
+   ((int) NgvLedger::balance(801)['payable']) === $nlOwed - 13000);
+ck('pay online: only the original rows exist for that reference',
+   count(NgvLedger::paymentsByReference('PSK_REF_A')) === count($nlPay['posted']));
+
+/* A VOIDED payment still means "we have seen this reference". If staff reversed
+   one by hand, a retried webhook must not quietly reinstate it. */
+$nlFirst = NgvLedger::paymentsByReference('PSK_REF_A')[0];
+NgvLedger::void('credit', (int) $nlFirst['id'], 'Recorded in error', 1);
+ck('pay online: a voided reference is still recognised as seen',
+   !empty(NgvLedger::payOnline(801, 'PSK_REF_A', 13000, [])['duplicate']));
+
+/* Overpayment is legitimate — somebody paying their training fee ahead — and
+   lands on the one line that can take it, reported rather than absorbed. */
+$nlLeft = (int) NgvLedger::balance(801)['payable'];
+$nlOver = NgvLedger::payOnline(801, 'PSK_REF_B', $nlLeft + 40000, ['receipt' => false]);
+ck('pay online: an overpayment is accepted', !empty($nlOver['ok']));
+ck('pay online: the surplus is reported as paid ahead, never netted away',
+   ((int) NgvLedger::balance(801)['paidAhead']) >= 40000);
+ck('pay online: and it leaves nothing outstanding',
+   ((int) NgvLedger::balance(801)['payable']) === 0);
+
+ck('pay online: a payment with no reference is refused',
+   empty(NgvLedger::payOnline(801, '', 5000, [])['ok']));
+ck('pay online: a zero payment is refused',
+   empty(NgvLedger::payOnline(801, 'PSK_REF_C', 0, [])['ok']));
+ck('pay online: a negative payment is refused',
+   empty(NgvLedger::payOnline(801, 'PSK_REF_D', -9000, [])['ok']));
+ck('pay online: somebody who is not a participant is refused',
+   empty(NgvLedger::payOnline(999801, 'PSK_REF_E', 5000, [])['ok']));
+
+/* One payment is one receipt, however many lines it happens to settle. */
+$nlPerson(802, 'Bode Ade', '2026-02-01');
+NgvLedger::accrueParticipant(NgvMember::participant(802), '2026-09-29');
+$nlR = NgvLedger::payOnline(802, 'PSK_REF_F', 6000, ['receipt' => false]);
+$nlRows = NgvLedger::paymentsByReference('PSK_REF_F');
+ck('pay online: every row carries the provider reference, so the payment is traceable',
+   count($nlRows) > 0 && array_reduce($nlRows, static fn($c, $r) => $c && (string) $r['reference'] === 'PSK_REF_F', true));
+
+/* ── The dashboard must not be able to decide the amount ────────────────── */
+$nlPaySrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/pay.php');
+ck('pay online: the confirmation verifies with Paystack rather than trusting the URL',
+   str_contains($nlPaySrc, 'paystackVerify'));
+ck('pay online: and records the VERIFIED amount, not one from the querystring',
+   str_contains($nlPaySrc, "round(((int) \$v['amount']) / 100)")
+   || str_contains($nlPaySrc, "\$v['amount']"));
+ck('pay online: the page is never indexed', str_contains($nlPaySrc, 'noindex'));
+/* A fee payment must never be filed as a public donation — it would inflate
+   what the site shows as donated AND leave the participant still owing it. */
+$nlDon = (string) @file_get_contents(AV_ROOT . '/process-donation.php');
+ck('pay online: the webhook tells a fee payment apart from a donation',
+   str_contains($nlDon, 'ngv_member') && str_contains($nlDon, 'NgvLedger::payOnline'));
+
 $nlReset();

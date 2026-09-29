@@ -502,6 +502,23 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
     if ($evName==='charge.success') {
         $tx=$event['data']??[];
         $ref=$tx['reference']??'';
+
+        /* NGV FEE PAYMENTS ARE NOT DONATIONS. A participant paying their own
+           training fee goes on their ledger, not on a campaign total — filing
+           it here would inflate what the public sees as donated AND leave the
+           participant still owing it. `ngv_member` in the metadata is what
+           tells the two apart, and NgvLedger::payOnline() is idempotent on the
+           reference, so this and the payer's own callback can both fire. */
+        $ngvMember = (int) ($tx['metadata']['ngv_member'] ?? 0);
+        if ($ref && $ngvMember > 0 && class_exists('NgvLedger')) {
+            try {
+                NgvLedger::payOnline($ngvMember, (string) $ref,
+                    (int) round(((float) ($tx['amount'] ?? 0)) / 100),
+                    ['method' => 'card', 'note' => 'Paid online by card']);
+            } catch (Throwable $e) { error_log('[AV] ngv webhook: ' . $e->getMessage()); }
+            http_response_code(200); echo json_encode(['received'=>true]); exit;
+        }
+
         if ($ref) {
             $amount   = (float)($tx['amount']??0)/100;
             $currency = strtoupper($tx['currency']??'NGN');

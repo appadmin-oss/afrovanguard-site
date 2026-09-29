@@ -167,7 +167,7 @@ $stats   = is_array($c['stats'] ?? null) ? $c['stats'] : [];
 
 /* Phase labels for the "current phase" tile */
 $phaseLabel = 'Not set';
-if ($myPhase === 'done')      $phaseLabel = 'Completed 🎓';
+if ($myPhase === 'done')      $phaseLabel = 'Completed';
 elseif ($myPhase === '1' && isset($phases[0])) $phaseLabel = (string) ($phases[0]['title'] ?? 'Phase 1');
 elseif ($myPhase === '2' && isset($phases[1])) $phaseLabel = (string) ($phases[1]['title'] ?? 'Phase 2');
 
@@ -204,6 +204,80 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 .portal-app .save-msg.on{opacity:1}
 .ngv-banner{display:flex;gap:10px;align-items:center;background:var(--gold-soft);border:1px solid var(--gold-soft-bd);
   color:var(--gold-deeper);border-radius:11px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:18px}
+/* ── the lead ───────────────────────────────────────────────────────────
+   One figure answers "am I on track", and for a participant that is money:
+   it is the only thing on this page with a deadline and a consequence.
+   Everything else is progress they set their own pace on, so it sits beside
+   rather than under. This replaced four equal KPI tiles — giving the fee, the
+   reading count and an unset track the same weight is the same as giving none
+   of them any, and the eye had nowhere to land. */
+.dash-lead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:26px;align-items:center;
+  padding:clamp(18px,3vw,28px);background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;box-shadow:var(--shadow-sm);margin-bottom:18px}
+/* A hairline of gold when something is owed — the one piece of state colour
+   on the page, so it cannot be read as decoration. */
+.dash-lead.is-due{box-shadow:inset 0 3px 0 0 var(--gold),var(--shadow-sm)}
+@media(max-width:760px){.dash-lead{grid-template-columns:1fr;gap:18px}}
+.dash-eyebrow{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 10px}
+.dash-figure{font-weight:800;line-height:1;font-size:clamp(2.25rem,5.5vw,3.25rem);
+  letter-spacing:-.025em;color:var(--ink);margin:0;font-variant-numeric:tabular-nums}
+.dash-figure.is-clear{font-size:clamp(1.5rem,3.5vw,2rem);color:var(--green)}
+.dash-figure-sub{margin:8px 0 0;color:var(--muted);font-size:13.5px;line-height:1.5}
+.dash-lead-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.dash-lead-side{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(78px,auto);gap:24px;
+  margin:0;padding-left:26px;border-left:1px solid var(--border)}
+@media(max-width:760px){.dash-lead-side{grid-auto-flow:row;grid-template-columns:repeat(3,1fr);
+  padding-left:0;padding-top:16px;border-left:0;border-top:1px solid var(--border)}}
+.dash-lead-side dt{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px}
+.dash-lead-side dd{margin:0;font-weight:800;font-size:1.6rem;line-height:1;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.dash-lead-side dd.is-text{font-size:13.5px;font-weight:700;line-height:1.3}
+.dash-lead-side .of{font-size:13px;color:var(--muted);font-weight:600;margin-left:3px}
+
+/* ── paying online ──────────────────────────────────────────────────────── */
+.npay{margin:14px 0;padding:15px;border:1px solid var(--border);border-radius:12px;
+  background:var(--surface-3);display:flex;flex-direction:column;gap:12px}
+.npay-legend{margin:0;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold-deeper)}
+.npay-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px}
+.npay-opt{position:relative;display:block;padding:11px 13px;cursor:pointer;border:1px solid var(--border);
+  border-radius:10px;background:var(--surface);transition:border-color .16s,background .16s}
+.npay-opt input{position:absolute;opacity:0;width:1px;height:1px}
+.npay-opt:hover{border-color:var(--gold-soft-bd)}
+/* A class, not :has() — this form takes money and must show what is selected
+   on an older browser too. */
+.npay-opt.is-on{border-color:var(--gold);background:var(--gold-soft);box-shadow:inset 0 0 0 1px var(--gold)}
+.npay-opt:focus-within{outline:3px solid var(--gold);outline-offset:2px}
+.npay-amt{display:block;font-weight:800;font-size:17px;color:var(--ink);font-variant-numeric:tabular-nums}
+.npay-what{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.npay-custom{position:relative;display:block}
+.npay-custom[hidden]{display:none!important}
+.npay-pre{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-weight:800;color:var(--muted)}
+.npay-custom input{width:100%;padding:12px 14px 12px 30px;border:1px solid var(--border);border-radius:10px;
+  background:var(--surface);color:var(--ink);font:inherit;font-weight:700;min-height:46px;
+  font-variant-numeric:tabular-nums}
+.npay-custom input:focus{outline:3px solid var(--gold);outline-offset:1px}
+.npay-custom input::-webkit-outer-spin-button,.npay-custom input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.npay-custom input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.npay-go{width:100%;justify-content:center}
+.npay-go[aria-busy="true"]{opacity:.7;cursor:progress}
+.npay-err{margin:0;font-size:13px;font-weight:700;color:var(--red);background:rgba(220,38,38,.10);
+  border:1px solid var(--red);border-radius:10px;padding:10px 12px;line-height:1.45}
+.npay-fine{margin:0;font-size:11.5px;line-height:1.55;color:var(--muted)}
+
+/* ── folded reference blocks ────────────────────────────────────────────── */
+.pcard-summary{cursor:pointer;list-style:none}
+.pcard-summary::-webkit-details-marker{display:none}
+.pcard-summary::after{content:"\203A";margin-left:auto;font-size:20px;line-height:1;color:var(--muted);
+  transform:rotate(90deg);transition:transform .18s}
+details[open]>.pcard-summary::after{transform:rotate(-90deg)}
+.pcard-summary:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media(prefers-reduced-motion:reduce){.npay-opt,.pcard-summary::after{transition:none}}
+
 .ngv-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 .ngv-grid .wide{grid-column:1 / -1}
 @media(max-width:860px){.ngv-grid{grid-template-columns:1fr}}
@@ -354,49 +428,85 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
 
     <div class="portal-scroll" id="top">
       <?php if (!$enabled): ?>
-      <div class="ngv-banner">⏳ The next cohort is being prepared — your personal tools below still work, and your progress is saved.</div>
+      <div class="ngv-banner">The next cohort is being prepared — your personal tools below still work, and your progress is saved.</div>
       <?php endif; ?>
 
-      <div class="phead">
-        <div>
-          <h1>Welcome back, <?= $e($first) ?> 👋</h1>
-          <p class="phead-sub">Your NextGen Vanguard home — track your journey, log the 24-book challenge, choose your track &amp; plan, and keep your focus in view. Everything here saves to your account.</p>
-        </div>
-        <div class="phead-actions">
-          <a class="pbtn pbtn-ghost" href="/academy/ngv/" target="_blank" rel="noopener">Programme page ↗</a>
-          <a class="pbtn pbtn-gold" href="#account">View my account</a>
-        </div>
-      </div>
+      <?php
+      /* ── The lead ──────────────────────────────────────────────────────
+         One thing answers "am I on track", and for a participant it is money:
+         it has a deadline and a consequence, and everything else on this page
+         is progress they control at their own pace. So it leads, with the way
+         to deal with it beside it rather than four screens away.
 
-      <!-- KPIs -->
-      <div class="pkpis">
-        <div class="pkpi">
-          <div class="pkpi-top"><span class="pkpi-label">Current phase</span><?php if ($myPhase === 'done'): ?><span class="pchip pchip--green">Complete</span><?php endif; ?></div>
-          <div class="pkpi-value" id="tilePhase" style="font-size:17px"><?= $e($phaseLabel) ?></div>
-          <div class="pkpi-sub">of the <?= count($phases) ?: 2 ?>-phase journey</div>
+         The four equal tiles this replaced gave the fee, the reading count and
+         an unset track the same weight — which is the same as giving none of
+         them any. */
+      $nextDue = null;
+      if ($feesOn && is_array($account['training'] ?? null) && !empty($account['training']['instalments'])) {
+          foreach ($account['training']['instalments'] as $tr) {
+              /* The first one not yet on the account: that is what arrives next,
+                 which is the figure somebody can plan around. */
+              if ((string) ($tr['state'] ?? '') === 'to come' || (string) ($tr['state'] ?? '') === 'due') {
+                  $nextDue = ['amount' => (int) ($tr['amount'] ?? 0),
+                              'label'  => date('F', (int) strtotime(((string) $tr['period']) . '-01'))];
+                  break;
+              }
+          }
+      }
+      /* Card payment is offered only when it can actually work. A Pay button
+         that opens an error is worse than no button: it teaches somebody the
+         site is broken at the moment they were trying to give it money. */
+      $payOn = $feesOn && class_exists('Payments') && Payments::configured('paystack');
+      ?>
+      <header class="dash-lead<?= $owed > 0 ? ' is-due' : '' ?>">
+        <div class="dash-lead-main">
+          <p class="dash-eyebrow"><?= $e($first) ?> · <?= $e($phaseLabel) ?><?php
+            if (!empty($p['cohort'])): ?> · <?= $e((string) $p['cohort']) ?><?php endif; ?></p>
+          <?php if (!$feesOn): ?>
+            <p class="dash-figure is-clear">You're all set</p>
+            <p class="dash-figure-sub">Fees aren't switched on for your cohort yet. Everything below is yours to keep up to date.</p>
+          <?php elseif ($owed > 0): ?>
+            <p class="dash-figure">₦<?= number_format($owed) ?></p>
+            <p class="dash-figure-sub">outstanding<?php if ($nextDue): ?> · next instalment
+              ₦<?= number_format((int) $nextDue['amount']) ?> in <?= $e((string) $nextDue['label']) ?><?php endif; ?></p>
+            <div class="dash-lead-actions">
+              <?php if ($payOn): ?>
+                <button type="button" class="pbtn pbtn-gold" data-pay="<?= (int) $owed ?>">Pay ₦<?= number_format($owed) ?> now</button>
+              <?php endif; ?>
+              <a class="pbtn pbtn-ghost" href="#account">See what it's made of</a>
+            </div>
+          <?php else: ?>
+            <p class="dash-figure is-clear">Nothing outstanding</p>
+            <p class="dash-figure-sub">Your fees are up to date<?php if ($nextDue): ?> — next instalment
+              ₦<?= number_format((int) $nextDue['amount']) ?> in <?= $e((string) $nextDue['label']) ?><?php endif; ?>.</p>
+            <div class="dash-lead-actions">
+              <?php if ($payOn && $nextDue): ?>
+                <button type="button" class="pbtn pbtn-ghost" data-pay="<?= (int) $nextDue['amount'] ?>">Pay next instalment early</button>
+              <?php endif; ?>
+              <a class="pbtn pbtn-ghost" href="#account">See my account</a>
+            </div>
+          <?php endif; ?>
         </div>
-        <div class="pkpi">
-          <div class="pkpi-top"><span class="pkpi-label">My track</span></div>
-          <div class="pkpi-value" id="tileTrack" style="font-size:15px"><?= $myTrack !== '' ? $e($myTrack) : '—' ?></div>
-          <div class="pkpi-sub"><?= $myTrack !== '' ? 'Locked in' : 'Pick one below' ?></div>
-        </div>
-        <div class="pkpi">
-          <div class="pkpi-top"><span class="pkpi-label">Reading challenge</span></div>
-          <div class="pkpi-value"><span id="tileBooks"><?= $booksRead ?></span> / <?= $BOOKS_TOTAL ?></div>
-          <div class="pkpi-sub">books this year</div>
-        </div>
-        <div class="pkpi">
-          <div class="pkpi-top"><span class="pkpi-label">Account</span><?php if ($owed > 0): ?><span class="pchip pchip--red">Due</span><?php else: ?><span class="pchip pchip--green">Clear</span><?php endif; ?></div>
-          <div class="pkpi-value"><?= $owed > 0 ? '₦' . number_format($owed) : 'All clear' ?></div>
-          <div class="pkpi-sub"><?= $owed > 0 ? 'outstanding' : 'nothing outstanding' ?></div>
-        </div>
-      </div>
+
+        <dl class="dash-lead-side">
+          <div><dt>Reading</dt><dd><span id="tileBooks"><?= $booksRead ?></span><span class="of">/ <?= $BOOKS_TOTAL ?></span></dd></div>
+          <div><dt>Track</dt><dd class="is-text" id="tileTrack"><?= $myTrack !== '' ? $e($myTrack) : 'Not picked' ?></dd></div>
+          <div><dt>Certifications</dt><dd><?= count($myCerts) ?></dd></div>
+        </dl>
+      </header>
 
       <div class="ngv-grid">
 
         <!-- My journey -->
+        <?php /* Folded by default. This is reference material — what the two
+                 phases contain — and it does not change from one visit to the
+                 next, so it had no business occupying the largest block on a
+                 page somebody opens to check one thing. The control that DOES
+                 change (which phase you are in) stays inside it. */ ?>
         <section class="pcard wide" id="journey">
-          <div class="pcard-head"><h2>My journey</h2><span class="pcard-sub">Tap the phase you're in</span></div>
+          <details<?= $myPhase === '' ? ' open' : '' ?>>
+            <summary class="pcard-head pcard-summary"><h2>My journey</h2>
+              <span class="pcard-sub"><?= $e($phaseLabel) ?> · what each phase holds</span></summary>
           <div class="pcard-body">
             <?php foreach ($phases as $i => $ph): $on = ($myPhase === (string)($i + 1)) || ($myPhase === 'done'); ?>
             <div class="ngv-phase <?= $on ? 'on' : '' ?>" data-phase-row="<?= $i + 1 ?>">
@@ -415,9 +525,10 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
               <?php for ($i = 1; $i <= max(2, count($phases)); $i++): ?>
               <button class="pbtn pbtn-ghost phase-btn <?= $myPhase === (string)$i ? 'on' : '' ?>" data-phase="<?= $i ?>">I'm in Phase <?= $i ?></button>
               <?php endfor; ?>
-              <button class="pbtn pbtn-ghost phase-btn <?= $myPhase === 'done' ? 'on' : '' ?>" data-phase="done">Completed 🎓</button>
+              <button class="pbtn pbtn-ghost phase-btn <?= $myPhase === 'done' ? 'on' : '' ?>" data-phase="done">Completed</button>
             </div>
           </div>
+          </details>
         </section>
 
         <!-- My track + plan -->
@@ -440,8 +551,10 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
             <div class="ngv-sub-h">My plan</div>
             <div class="ngv-picks">
               <?php foreach ($planOpts as $pl): $pn = (string)$pl['name']; ?>
+              <?php /* No icon. The same card symbol on every plan told nobody
+                       which plan was which — it was four identical pictures
+                       competing with the four different prices beside them. */ ?>
               <div class="trk <?= $myPlan === $pn ? 'on' : '' ?>" data-plan="<?= $e($pn) ?>">
-                <div class="i">💳</div>
                 <div class="n"><?= $e($pn) ?> · <?= $e((string)$pl['priceLabel']) ?></div>
                 <div class="d"><?= $e((string)$pl['desc']) ?></div>
               </div>
@@ -482,6 +595,47 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
               <?php else: ?>
                 <div class="ngv-figure clear">All clear</div>
                 <div class="ngv-figure-sub">nothing outstanding</div>
+              <?php endif; ?>
+
+              <?php if ($payOn && $owed > 0): ?>
+                <?php /* Amount first, one button. The instalment is offered
+                         beside the full balance because "this month's ₦20,000"
+                         is what most people actually mean to pay, and making
+                         them retype it is how a payment becomes a maybe. */ ?>
+                <div class="npay" id="npay">
+                  <p class="npay-legend">Pay online</p>
+                  <div class="npay-opts" role="radiogroup" aria-label="How much to pay">
+                    <label class="npay-opt">
+                      <input type="radio" name="npay_amt" value="<?= (int) $owed ?>" checked>
+                      <span class="npay-amt">₦<?= number_format($owed) ?></span>
+                      <span class="npay-what">everything outstanding</span>
+                    </label>
+                    <?php if ($nextDue && (int) $nextDue['amount'] > 0 && (int) $nextDue['amount'] < $owed): ?>
+                      <label class="npay-opt">
+                        <input type="radio" name="npay_amt" value="<?= (int) $nextDue['amount'] ?>">
+                        <span class="npay-amt">₦<?= number_format((int) $nextDue['amount']) ?></span>
+                        <span class="npay-what">one instalment</span>
+                      </label>
+                    <?php endif; ?>
+                    <label class="npay-opt npay-opt--other">
+                      <input type="radio" name="npay_amt" value="other">
+                      <span class="npay-amt">Another amount</span>
+                      <span class="npay-what">whatever you can manage</span>
+                    </label>
+                  </div>
+                  <label class="npay-custom" hidden>
+                    <span class="sr-only">Amount in naira</span>
+                    <span class="npay-pre" aria-hidden="true">₦</span>
+                    <input type="number" id="npayOther" min="100" step="500" inputmode="numeric" placeholder="Amount">
+                  </label>
+                  <button type="button" class="pbtn pbtn-gold npay-go" id="npayGo">Pay <span id="npayGoAmt"></span></button>
+                  <p class="npay-err" id="npayErr" role="alert" hidden></p>
+                  <p class="npay-fine">Card, transfer or USSD, secured by Paystack. Your receipt is emailed the moment it clears.
+                    Paying part of it is fine — anything you send comes off the oldest thing you owe first.</p>
+                </div>
+              <?php elseif ($owed > 0): ?>
+                <div class="ngv-box">Card payment isn't switched on yet. You can still pay by transfer using the
+                  details below, and your team will record it.</div>
               <?php endif; ?>
 
               <?php if ((int)$account['paidAhead'] > 0): ?>
@@ -814,6 +968,8 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
   </main>
 </div>
 
+<script>window.NGV_CSRF = <?= json_encode($csrf) ?>;</script>
+<script src="/academy/ngv/pay.js" defer></script>
 <script>
 (function(){
   var BOOKS_TOTAL = <?= $BOOKS_TOTAL ?>;
@@ -952,7 +1108,7 @@ $creditWord = ['payment' => 'Payment received', 'waiver' => 'Waived', 'writeoff'
         var dot = row.querySelector('.dot'); if(dot) dot.textContent = (val==='done') ? '✓' : n;
       });
       var tile = document.getElementById('tilePhase');
-      if(tile){ tile.textContent = val==='done' ? 'Completed 🎓' : (val ? (btn.textContent.replace("I'm in ","")) : 'Not set'); }
+      if(tile){ tile.textContent = val==='done' ? 'Completed' : (val ? (btn.textContent.replace("I'm in ","")) : 'Not set'); }
       save({phase: val});
     });
   });

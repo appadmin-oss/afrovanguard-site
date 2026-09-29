@@ -846,6 +846,112 @@ final class NgvLedger
     }
 
     /**
+     * Has this provider reference already been recorded? Returns the rows.
+     *
+     * The idempotency key for every online payment. Paystack tells us a charge
+     * succeeded twice — once when the payer comes back to the callback and
+     * again on the webhook, and the webhook is retried until acknowledged — so
+     * "record the payment" must be safe to run repeatedly or somebody's ₦13,000
+     * becomes ₦26,000 on their account and a receipt goes out for money they
+     * did not send.
+     */
+    public static function paymentsByReference(string $reference): array
+    {
+        $reference = trim($reference);
+        if ($reference === '') return [];
+        try {
+            /* Reference alone, voided rows included. `voided_at` is NOT NULL
+               DEFAULT '' in this schema, so `IS NULL` matches nothing and the
+               dedupe would have passed every time — posting each payment twice,
+               once from the callback and again from the webhook. And a VOIDED
+               row still means "we have seen this reference": if staff reversed a
+               payment by hand, a retried webhook must not quietly reinstate it. */
+            $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_payments WHERE reference = ?');
+            $st->execute([mb_substr($reference, 0, 80)]);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            /* Fail CLOSED: an unreadable table must read as "already recorded",
+               because the alternative is charging somebody twice. */
+            error_log('[ngvledger] paymentsByReference: ' . $e->getMessage());
+            return [['id' => 0, 'unreadable' => true]];
+        }
+    }
+
+    /**
+     * Record a payment that a provider has already verified as received.
+     *
+     * SPLIT ACROSS THE LINES IT PAYS. This ledger is deliberately per-line —
+     * "square on membership, two months behind on commitment" is the thing a
+     * participant can act on — so one ₦13,000 payment covering two lines is
+     * posted as two credits, not one lump against `other`. A single netted row
+     * would leave the per-line view lying within minutes of anybody paying.
+     *
+     * Anything beyond what is due lands on `programme`, because the training
+     * fee is the only line that legitimately accepts money ahead of its
+     * instalments — and `paidAhead` reports it rather than hiding it.
+     *
+     * $amountNgn MUST come from the provider's own verification, never from the
+     * browser. The caller is responsible for that; this method trusts it.
+     */
+    public static function payOnline(int $memberId, string $reference, $amountNgn, array $opt = []): array
+    {
+        $reference = trim($reference);
+        if ($reference === '') return ['ok' => false, 'error' => 'No payment reference.'];
+        if (self::paymentsByReference($reference)) {
+            return ['ok' => true, 'duplicate' => true, 'posted' => [],
+                    'payable' => (int) self::balance($memberId)['payable']];
+        }
+        $amount = self::money($amountNgn);
+        if ($amount <= 0) return ['ok' => false, 'error' => 'Nothing to record.'];
+        if (!self::participantRow($memberId)) return ['ok' => false, 'error' => 'No such participant.'];
+
+        /* Oldest obligation first: membership, then the monthly commitment, then
+           fines, then the training fee. A participant paying part of what they
+           owe wants the thing that has been hanging longest cleared. */
+        $due  = self::balance($memberId)['due'];
+        $left = $amount;
+        $posted = [];
+        $firstReceipt = null;
+        $method = mb_substr((string) ($opt['method'] ?? 'online'), 0, 40);
+        $note   = mb_substr((string) ($opt['note'] ?? 'Paid online'), 0, 200);
+
+        foreach (['membership', 'commitment', 'fine', 'programme'] as $line) {
+            if ($left <= 0) break;
+            $owed = (int) ($due[$line] ?? 0);
+            if ($owed <= 0) continue;
+            $take = min($left, $owed);
+            /* Only the FIRST row sends a receipt — one payment is one receipt,
+               however many lines it happens to settle. */
+            $r = self::postCredit($memberId, 'payment', $line, $take, [
+                'reference' => $reference, 'method' => $method, 'note' => $note,
+                'receipt'   => $posted === [] ? ($opt['receipt'] ?? true) : false,
+            ], (int) ($opt['byUid'] ?? 0));
+            if (empty($r['ok'])) continue;
+            if ($posted === []) $firstReceipt = $r['receipt'] ?? null;   // the one receipt for the whole payment
+            $posted[] = ['line' => $line, 'amount' => $take, 'id' => (int) $r['id']];
+            $left -= $take;
+        }
+
+        if ($left > 0) {
+            $r = self::postCredit($memberId, 'payment', 'programme', $left, [
+                'reference' => $reference, 'method' => $method,
+                'note'      => $note . ($posted ? ' (ahead)' : ''),
+                'receipt'   => $posted === [],
+            ], (int) ($opt['byUid'] ?? 0));
+            if (!empty($r['ok'])) {
+                if ($posted === []) $firstReceipt = $r['receipt'] ?? null;
+                $posted[] = ['line' => 'programme', 'amount' => $left, 'id' => (int) $r['id'], 'ahead' => true];
+                $left = 0;
+            }
+        }
+
+        if (!$posted) return ['ok' => false, 'error' => 'Could not record that payment.'];
+        return ['ok' => true, 'duplicate' => false, 'posted' => $posted,
+                'amount' => $amount, 'payable' => (int) self::balance($memberId)['payable'],
+                'receipt' => $firstReceipt];
+    }
+
+    /**
      * Set part of what is owed aside. A recorded mercy, not a deletion.
      *
      * This is what voiding gets used for when a ledger has no waiver, and it is
