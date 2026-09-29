@@ -93,6 +93,12 @@ $openTasks  = count(array_filter($myTasks, fn($t) => empty($t['done'])));
    other site is deploying or the shared secret is unset, $cacTasks is empty
    and nothing on this page changes. */
 $cacTasks   = $isOrg && class_exists('CacTasks') ? CacTasks::openFor((int) $u['id']) : [];
+/* The counts a member reads at a glance have to count the same work the list
+   below shows, or the badge says four and the page shows six. The console's
+   tasks are the member's tasks; where they are stored is this site's problem,
+   not theirs. */
+$cacOpen    = count($cacTasks);
+$cacDue     = count(array_filter($cacTasks, fn($t) => $t['due'] !== '' && $t['due'] <= gmdate('Y-m-d')));
 $onlineNow  = $isOrg && class_exists('Collab') ? Collab::onlineCount() : 0;
 // Productivity "Today" aggregates — what genuinely needs attention now.
 $todayStr   = gmdate('Y-m-d');
@@ -128,7 +134,7 @@ $nav = [
 if ($isOrg) {
     // Team Chat is strictly for @afrovanguard members.
     $nav['Work'] = [
-        ['tasks', 'Tasks', 'gold', $openTasks ? (string) $openTasks : ''],
+        ['tasks', 'Tasks', 'gold', ($openTasks + $cacOpen) ? (string) ($openTasks + $cacOpen) : ''],
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
@@ -270,11 +276,15 @@ $nav['You'] = [
                     'title' => (!empty($ns['live']) ? 'Meeting live — ' : 'Next meeting — ') . e($ns['title']),
                     'sub' => e($ns['role']) . ' ' . e($ns['with']) . ' · ' . e($when), 'cta' => 'Go', 'goto' => 'mentorship'];
             }
-            if ($isOrg && $tasksDue) {
-                $n = count($tasksDue);
+            if ($isOrg && ($tasksDue || $cacDue)) {
+                $n = count($tasksDue) + $cacDue;
                 $attn[] = ['ico' => '✓', 'tone' => $tasksOverdue ? 'red' : 'gold',
                     'title' => $n . ' task' . ($n === 1 ? '' : 's') . ' due' . ($tasksOverdue ? ' · ' . $tasksOverdue . ' overdue' : ''),
-                    'sub' => 'Due today or earlier', 'cta' => 'Open', 'goto' => 'tasks'];
+                    /* Named when some of it is over there, so "Open" does not
+                       land somebody on a list that is short of what the row
+                       just counted. */
+                    'sub' => $cacDue ? 'Due today or earlier · ' . $cacDue . ' in the console' : 'Due today or earlier',
+                    'cta' => 'Open', 'goto' => 'tasks'];
             }
             if ($postsToday) {
                 $attn[] = ['ico' => '💬', 'tone' => 'indigo',
@@ -301,7 +311,9 @@ $nav['You'] = [
 <?php
             $kpis = [];
             if ($isOrg) {
-                $kpis[] = ['label' => 'Tasks open', 'value' => (string) $openTasks, 'id' => 'kpiTasks', 'sub' => 'across your list', 'chip' => 'Active', 'tone' => 'gold'];
+                $kpis[] = ['label' => 'Tasks open', 'value' => (string) ($openTasks + $cacOpen), 'id' => 'kpiTasks',
+                   'sub' => $cacOpen ? 'here and in the console' : 'across your list',
+                   'chip' => 'Active', 'tone' => 'gold'];
                 $kpis[] = ['label' => 'Members online', 'value' => (string) $onlineNow, 'id' => 'kpiOnline', 'sub' => 'right now', 'chip' => 'Live', 'tone' => 'green'];
             }
             $kpis[] = ['label' => 'Your stage', 'value' => (string) ($journey['label'] ?? 'Member'), 'sub' => ($stageCode === 'O' ? 'Level A up next' : 'Keep building'), 'chip' => 'Level ' . $stageCode, 'tone' => 'indigo'];
@@ -798,7 +810,11 @@ $nav['You'] = [
             </div>
           </section>
 
-          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>">
+          <?php /* data-cac-open: the console's open tasks, so the live refresh
+                   below can keep counting them. Without it the KPI is right on
+                   first paint and then drops to the portal-only number a second
+                   later, which is worse than never having counted them. */ ?>
+          <section class="pcard" id="tasks" data-csrf="<?= e($collabCsrf) ?>" data-cac-open="<?= (int) $cacOpen ?>">
             <div class="pcard-head task-head">
               <div class="task-head-l">
                 <h2>My tasks</h2>
@@ -1452,6 +1468,7 @@ $nav['You'] = [
   /* Collaboration — presence, activity, tasks (with the filter chips). */
   (function () {
     var root = document.getElementById('tasks'); if (!root) return;
+    var CAC_OPEN = parseInt(root.getAttribute('data-cac-open') || '0', 10) || 0;
     var csrf = root.getAttribute('data-csrf') || '';
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function post(action, body){ return fetch('/portal/collab.php?action='+action,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body||{})}).then(function(r){return r.json();}); }
@@ -1475,7 +1492,8 @@ $nav['You'] = [
         over=TASKS.filter(isOverdue).length, mine=TASKS.filter(function(t){return t.mine && !t.done;}).length;
       if(fcAll)fcAll.textContent=TASKS.length; if(fcOpen)fcOpen.textContent=open; if(fcDone)fcDone.textContent=done;
       if(fcOver)fcOver.textContent=over; if(fcMine)fcMine.textContent=mine;
-      if(kpiTasks)kpiTasks.textContent=open; }
+      // The chip counts the member's work, not this site's half of it.
+      if(kpiTasks)kpiTasks.textContent=open+CAC_OPEN; }
     // Relative, urgency-aware due label + tone.
     function dueMeta(t){ if(!t.due) return null;
       var tone = isOverdue(t) ? 'over' : (t.due===TODAY ? 'today' : (t.due===TOMORROW ? 'soon' : ''));
