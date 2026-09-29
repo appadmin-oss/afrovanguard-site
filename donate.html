@@ -1438,6 +1438,56 @@
        ================================================================ */
     .donate-hero { margin-top: 0; }
 
+    /* ── The hero, as two columns: the case, and the ask ──────────────────
+       The right half of this hero was empty at every width above 900px while
+       the form sat thousands of lines below it. */
+    .hero-split { display:grid; grid-template-columns:minmax(0,1fr) 420px;
+                  gap:clamp(24px,4vw,56px) clamp(28px,5vw,64px); align-items:start; }
+    .hero-split > .hero-case  { grid-column:1; grid-row:1; }
+    .hero-split > .hero-give  { grid-column:2; grid-row:1 / span 2; align-self:center; }
+    .hero-split > .hero-stats { grid-column:1; grid-row:2; }
+    /* On a phone the ask comes BEFORE the achievement figures. It was landing
+       at y=734 of an 844px viewport — just off the bottom — behind a headline,
+       a paragraph and a four-item stat row. Most of this audience is on a
+       phone, so that is the layout that actually matters. */
+    @media (max-width:1040px){
+      .hero-split{ grid-template-columns:1fr; gap:28px; }
+      .hero-split > .hero-case  { grid-column:1; grid-row:1; }
+      .hero-split > .hero-give  { grid-column:1; grid-row:2; }
+      .hero-split > .hero-stats { grid-column:1; grid-row:3; }
+    }
+
+    .hero-give {
+      background:var(--color-white,#fff); border:1px solid rgba(17,24,39,.10);
+      border-radius:18px; padding:clamp(20px,2.4vw,28px);
+      box-shadow:0 24px 60px -30px rgba(15,23,42,.38);
+      display:flex; flex-direction:column; gap:14px;
+    }
+    .hero-give-h { font-family:var(--font-display,Georgia,serif); font-size:26px; line-height:1.1; margin:0; color:var(--color-ink,#111827); }
+    .hero-give-sub { margin:0; font-size:13.5px; line-height:1.5; color:var(--color-muted,#6B7280); }
+    .hero-give-amts { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .hgive-amt {
+      display:block; text-align:left; padding:11px 13px; cursor:pointer; font:inherit;
+      background:#fff; border:1px solid rgba(17,24,39,.14); border-radius:11px;
+      transition:border-color .16s, background .16s;
+    }
+    .hgive-amt:hover { border-color:rgba(17,24,39,.34); }
+    /* A class, not :has() — this is the money path and the selected state has
+       to be visible on an older browser too. */
+    .hgive-amt.is-on { border-color:var(--color-gold,#E0A82E); background:#FDF6E3; box-shadow:inset 0 0 0 1px var(--color-gold,#E0A82E); }
+    .hgive-amt:focus-visible { outline:3px solid var(--color-gold,#E0A82E); outline-offset:2px; }
+    .hgive-amt .v { display:block; font-weight:800; font-size:16px; color:var(--color-ink,#111827); font-variant-numeric:tabular-nums; }
+    .hgive-amt .h { display:block; font-size:11.5px; color:var(--color-muted,#6B7280); margin-top:2px; line-height:1.35; }
+    .hgive-go {
+      width:100%; padding:15px 20px; border:0; border-radius:9999px; cursor:pointer;
+      background:var(--color-ink,#111827); color:#fff; font:inherit; font-weight:800; font-size:15px;
+      transition:filter .16s;
+    }
+    .hgive-go:hover { filter:brightness(1.25); }
+    .hgive-go:focus-visible { outline:3px solid var(--color-gold,#E0A82E); outline-offset:3px; }
+    .hero-give-fine { margin:0; font-size:11.5px; line-height:1.55; color:var(--color-muted,#6B7280); }
+    @media (prefers-reduced-motion:reduce){ .hgive-amt,.hgive-go{ transition:none; } }
+
     /* ================================================================
        HERO STATS — 2-col grid on small screens instead of single col
        ================================================================ */
@@ -3384,6 +3434,8 @@
             <span>Donate</span>
           </nav>
 
+          <div class="hero-split">
+          <div class="hero-case">
           <div class="hero-eyebrow fade-in-up">Give to Africa's Future</div>
           <h1 class="hero-title fade-in-up fade-in-up-1">
             Your Gift Changes <em>Everything</em>
@@ -3393,11 +3445,41 @@
           </p>
 
           <div class="hero-ql-row fade-in-up fade-in-up-3">
-            <a href="#donate-form" class="hero-ql prim">Give Now <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
-            <a href="#donate-type-wrap" class="hero-ql out">Donate Materials</a>
+            <a href="#donate-type-wrap" class="hero-ql out">Or donate materials instead</a>
           </div>
 
-          <div class="hero-stats fade-in-up fade-in-up-4">
+          
+          </div><!-- /.hero-case -->
+
+          <!-- ── THE ASK ────────────────────────────────────────────────────
+               Above the fold, in the half of the hero that was empty.
+               Nielsen Norman's donation study puts 47% of abandonment down to
+               design and usability and found 17% of people could not find
+               where to give at all — on this page the form was ~3,800 lines
+               down and behind a tab that pointed at materials.
+               The amounts carry what they buy because that is what the
+               fundraising research consistently finds moves people, and the
+               "where does it go" line is here rather than 700px away: it is
+               the single most important thing a donor looks for. -->
+          <aside class="hero-give" aria-labelledby="heroGiveH">
+            <h2 class="hero-give-h" id="heroGiveH">Give now</h2>
+            <p class="hero-give-sub">100% goes to the projects. Card, bank transfer or USSD.</p>
+            <div class="hero-give-amts" role="group" aria-label="Choose an amount">
+              <button type="button" class="hgive-amt" data-ngn="5000" data-usd="10" data-gbp="10">
+                <span class="v">&#8358;5,000</span><span class="h">1 week of mentorship</span></button>
+              <button type="button" class="hgive-amt is-on" data-ngn="10000" data-usd="25" data-gbp="20" aria-pressed="true">
+                <span class="v">&#8358;10,000</span><span class="h">Training for 3 leaders</span></button>
+              <button type="button" class="hgive-amt" data-ngn="25000" data-usd="50" data-gbp="40">
+                <span class="v">&#8358;25,000</span><span class="h">A full workshop</span></button>
+              <button type="button" class="hgive-amt" data-ngn="50000" data-usd="100" data-gbp="75">
+                <span class="v">&#8358;50,000</span><span class="h">A month for a centre</span></button>
+            </div>
+            <button type="button" class="hgive-go" id="heroGiveGo">Continue &#8358;10,000</button>
+            <p class="hero-give-fine">Secured by Paystack. You choose one-off or monthly on the next step,
+              and every gift gets a receipt by email.</p>
+          </aside>
+
+          <div class="hero-stats fade-in-up fade-in-up-4" id="heroStats">
             <div class="hero-stat">
               <div class="hero-stat-num">5,000+</div>
               <div class="hero-stat-label">Lives Transformed</div>
@@ -3415,6 +3497,8 @@
               <div class="hero-stat-label">Active Projects</div>
             </div>
           </div>
+          </div><!-- /.hero-split -->
+
         </div>
       </div>
     </section>
@@ -3428,20 +3512,23 @@
 
         <!-- DONATION TYPE SWITCHER — immediately clarifies monetary vs material -->
         <div class="donate-type-wrap" id="donate-type-wrap" role="tablist" aria-label="Choose donation type">
-          <button class="donate-type-tab donate-type-tab--active" id="tab-material"
-                  role="tab" aria-selected="true" aria-controls="panel-material"
+          <!-- Money first, and selected. This page opened on "Donate Materials"
+               with giving money as the unselected second option — the primary
+               path on a donation page sitting behind a toggle pointed the other
+               way. Nielsen Norman's donation study found 17% of people simply
+               could not find where to give. -->
+          <button class="donate-type-tab" id="tab-material"
+                  role="tab" aria-selected="false" aria-controls="panel-material"
                   onclick="switchDonateType('material')">
-            <span class="donate-type-icon" aria-hidden="true">📦</span>
             <span class="donate-type-label">Donate Materials</span>
             <span class="donate-type-desc">Equipment, books, skills &amp; time</span>
           </button>
           <div class="donate-type-divider" aria-hidden="true">
             <span>or</span>
           </div>
-          <button class="donate-type-tab" id="tab-monetary"
-                  role="tab" aria-selected="false" aria-controls="panel-monetary"
+          <button class="donate-type-tab donate-type-tab--active" id="tab-monetary"
+                  role="tab" aria-selected="true" aria-controls="panel-monetary"
                   onclick="switchDonateType('monetary')">
-            <span class="donate-type-icon" aria-hidden="true">💳</span>
             <span class="donate-type-label">Give Money</span>
             <span class="donate-type-desc">Card, bank transfer, USSD</span>
           </button>
@@ -6492,8 +6579,67 @@
   }
     </script>
 
-    <!-- Donation type switcher + standalone contribute form -->
     <script>
+    /* The hero panel does not take payments. It picks an amount and hands over
+       to the form that already works — one payment path, not two that can
+       drift apart. */
+    (function () {
+      var amts = document.querySelectorAll('.hgive-amt');
+      var go   = document.getElementById('heroGiveGo');
+      if (!amts.length || !go) return;
+      var chosenNgn = 10000;
+
+      /* The page picks a currency for the visitor, so the hero shows the SAME
+         one. Hardcoding naira here meant somebody served in dollars read
+         "₦25,000" and then landed on "$50" — two different numbers for the one
+         decision they had just made. */
+      function cur() { return (typeof currency !== 'undefined' && currency) ? currency : 'NGN'; }
+      function symbol() {
+        if (typeof sym !== 'undefined' && sym && sym[cur()]) return sym[cur()];
+        return { NGN: '\u20A6', USD: '$', GBP: '\u00A3' }[cur()] || '\u20A6';
+      }
+      function valueOf(b) { return parseFloat(b.getAttribute('data-' + cur().toLowerCase())) || 0; }
+      function label(n) {
+        try { return symbol() + Number(n).toLocaleString(); } catch (e) { return symbol() + n; }
+      }
+      function paint() {
+        amts.forEach(function (b) {
+          var v = b.querySelector('.v');
+          if (v) v.textContent = label(valueOf(b));
+        });
+        var on = document.querySelector('.hgive-amt.is-on');
+        go.textContent = 'Continue ' + label(on ? valueOf(on) : 0);
+      }
+      /* Repaint whenever the form's currency changes — wrapping the existing
+         function rather than duplicating what it knows. */
+      if (typeof window.setCurrency === 'function') {
+        var orig = window.setCurrency;
+        window.setCurrency = function (btn) { var r = orig.apply(this, arguments); paint(); return r; };
+      }
+      paint();
+
+      amts.forEach(function (b) {
+        b.addEventListener('click', function () {
+          chosenNgn = parseInt(b.getAttribute('data-ngn'), 10) || 10000;
+          amts.forEach(function (o) { o.classList.remove('is-on'); o.removeAttribute('aria-pressed'); });
+          b.classList.add('is-on'); b.setAttribute('aria-pressed', 'true');
+          paint();
+        });
+      });
+      go.addEventListener('click', function () {
+        if (typeof switchDonateType === 'function') switchDonateType('monetary');
+        /* Select the matching preset in the real form so the choice carries
+           over. If there is no exact match the form keeps its own default
+           rather than silently disagreeing with what was just pressed. */
+        var match = document.querySelector('.amt-btn[data-ngn="' + chosenNgn + '"]');
+        if (match && typeof setAmt === 'function') { try { setAmt(match); } catch (e) {} }
+        var form = document.getElementById('donate-form');
+        if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var focusable = form && form.querySelector('input,select,button');
+        if (focusable) setTimeout(function () { focusable.focus({ preventScroll: true }); }, 450);
+      });
+    })();
+
     function switchDonateType(type) {
       var monetary = document.getElementById('panel-monetary');
       var material = document.getElementById('panel-material');
@@ -6514,11 +6660,14 @@
       }
     }
 
-    // Material giving is the default. Honour a deep link to the money panel
-    // (#give / #money / #monetary) so "give financially" links still land right.
+    // GIVING MONEY IS THE DEFAULT. It used to be materials, which meant the
+    // page's whole reason for existing sat behind an unselected tab. A deep
+    // link to #materials still opens that panel directly.
     document.addEventListener('DOMContentLoaded', function () {
       var h = (location.hash || '').toLowerCase();
-      if (h === '#give' || h === '#money' || h === '#monetary' || h === '#donate-money') {
+      if (h === '#materials' || h === '#material' || h === '#donate-materials') {
+        switchDonateType('material');
+      } else {
         switchDonateType('monetary');
       }
     });
