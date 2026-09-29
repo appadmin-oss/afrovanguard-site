@@ -891,23 +891,92 @@ $nav['You'] = [
                         'low'            => 'low',
                         default          => 'normal',
                     }; ?>
-                    <li class="task task--pri-<?= e($pri) ?>">
+                    <li class="task task--pri-<?= e($pri) ?>" data-cac-task="<?= (int) $t['id'] ?>">
+                      <?php /* The tick writes to CACENTRE, which still holds
+                               the task. Editing it from here is not a second
+                               copy — it is the same row, reached from the
+                               other side. */ ?>
+                      <input type="checkbox" class="task-check" data-cac-toggle="<?= (int) $t['id'] ?>"
+                             aria-label="Mark &quot;<?= e($t['title']) ?>&quot; done">
                       <span class="task-body">
                         <span class="task-title"><?= e($t['title']) ?></span>
                         <span class="task-sub">
-                          <?php if ($pri !== 'normal'): ?>
-                            <span class="task-pri task-pri--<?= e($pri) ?>"><?= e($t['priority']) ?></span>
-                          <?php endif; ?>
-                          <?php if ($t['due'] !== ''): ?>
-                            <span class="task-due"><?= e($t['due']) ?></span>
-                          <?php endif; ?>
+                          <label class="cac-f">
+                            <span class="pc-sr">Priority</span>
+                            <select data-cac-pri="<?= (int) $t['id'] ?>">
+                              <?php foreach (['low' => 'Low', 'normal' => 'Normal', 'high' => 'High'] as $k => $lab): ?>
+                                <option value="<?= e($k) ?>" <?= $pri === $k ? 'selected' : '' ?>><?= e($lab) ?></option>
+                              <?php endforeach; ?>
+                            </select>
+                          </label>
+                          <label class="cac-f">
+                            <span class="pc-sr">Due</span>
+                            <input type="date" value="<?= e($t['due']) ?>" data-cac-due="<?= (int) $t['id'] ?>">
+                          </label>
                         </span>
                       </span>
                     </li>
                   <?php endforeach; ?>
                 </ul>
+                <p class="pc-empty" id="cacMsg" hidden></p>
               </div>
             </section>
+
+            <script>
+            (function () {
+              'use strict';
+              var card = document.getElementById('cacTasks'); if (!card) return;
+              var CSRF = document.getElementById('tasks') ? document.getElementById('tasks').getAttribute('data-csrf') : '';
+              var msg  = document.getElementById('cacMsg');
+
+              function say(t, bad) {
+                if (!msg) return;
+                msg.hidden = false; msg.textContent = t;
+                msg.style.color = bad ? 'var(--av-red, #b3261e)' : '';
+              }
+              async function post(action, body) {
+                var res;
+                try {
+                  res = await fetch('/portal/collab.php?action=' + action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body)
+                  });
+                } catch (e) { return { ok: false, error: 'The network did not answer. Nothing was changed.' }; }
+                try { return await res.json(); } catch (e) { return { ok: false, error: 'Unreadable reply.' }; }
+              }
+
+              card.querySelectorAll('[data-cac-toggle]').forEach(function (cb) {
+                cb.addEventListener('change', async function () {
+                  cb.disabled = true;
+                  var r = await post('cac_toggle', { id: Number(cb.getAttribute('data-cac-toggle')) });
+                  if (!r.ok) {
+                    /* Put it back: a tick that stays ticked is a lie about
+                       the other site's state. */
+                    cb.checked = !cb.checked; cb.disabled = false;
+                    say(r.error || 'That did not work.', true);
+                    return;
+                  }
+                  var li = cb.closest('li'); if (li) li.remove();
+                  say('Done — ticked off in the console.', false);
+                });
+              });
+
+              function wire(sel, field) {
+                card.querySelectorAll(sel).forEach(function (el) {
+                  el.addEventListener('change', async function () {
+                    var body = { id: Number(el.getAttribute(sel.slice(1, -1))) };
+                    body[field] = el.value;
+                    var r = await post('cac_update', body);
+                    say(r.ok ? 'Saved in the console.' : (r.error || 'That did not work.'), !r.ok);
+                  });
+                });
+              }
+              wire('[data-cac-due]', 'due');
+              wire('[data-cac-pri]', 'priority');
+            })();
+            </script>
           <?php endif; ?>
         </section>
 

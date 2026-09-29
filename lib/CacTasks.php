@@ -90,6 +90,62 @@ final class CacTasks
         ];
     }
 
+    /**
+     * Change one of this member's CACENTRE tasks, over there.
+     *
+     * The mirror of CrmAvTasks::write(). The member id travels inside the
+     * signed token, and CACENTRE checks the task's owner against its own row
+     * before touching it — a remote write is not a licence to name any id.
+     *
+     * @param array<string,mixed> $fields
+     * @return array{ok:bool, error:string, data:array}
+     */
+    public static function write(int $memberId, string $action, int $taskId, array $fields = []): array
+    {
+        $bad = static fn(string $why): array => ['ok' => false, 'error' => $why, 'data' => []];
+
+        if ($memberId <= 0 || $taskId <= 0)                 return $bad('no-task');
+        if (!in_array($action, ['toggle', 'update'], true)) return $bad('unknown-action');
+        if (!CacSso::ready())                               return $bad('not-configured');
+
+        $url = self::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId]));
+        $raw = self::send($url, array_merge(['action' => $action, 'id' => $taskId], $fields));
+        if ($raw === null) return $bad('unreachable');
+
+        $data = json_decode($raw, true);
+        if (!is_array($data) || empty($data['ok'])) {
+            return $bad(is_array($data) ? (string) ($data['error'] ?? 'refused') : 'unreadable');
+        }
+
+        /* The cached read is stale the moment a write lands. */
+        unset(self::$memo[$memberId]);
+        return ['ok' => true, 'error' => '', 'data' => $data];
+    }
+
+    /** One JSON POST, every failure turned into null. TLS verification stays on. */
+    private static function send(string $url, array $body): ?string
+    {
+        if (!function_exists('curl_init')) return null;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => self::TIMEOUT,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_USERAGENT      => 'Afrovanguard/1.0 (+tasks)',
+        ]);
+        $out = curl_exec($ch);
+        curl_close($ch);
+        /* The body comes back on a refusal too: the far side says which
+           refusal it was, and the screen needs to pass that on. */
+        return $out === false ? null : (string) $out;
+    }
+
     /** Just the open ones, which is what a dashboard is for. */
     public static function openFor(int $memberId): array
     {

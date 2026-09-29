@@ -22,11 +22,23 @@ $src    = (string) file_get_contents(dirname(__DIR__) . '/lib/CacTasks.php');
 $portal = (string) file_get_contents(dirname(__DIR__) . '/portal/index.php');
 $css    = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 
-/* ── It reads; it does not copy ─────────────────────────────────────────── */
-foreach (['INSERT', 'UPDATE ', 'DELETE', 'CURLOPT_POST', 'CURLOPT_CUSTOMREQUEST'] as $write) {
-    ck('nothing here writes (' . $write . '): CACENTRE stays the one place a CACENTRE task '
-     . 'is true, so the two sites cannot disagree about whether it is done', !str_contains($src, $write));
+/* ── It does not COPY. It may write — over there ─────────────────────────
+   This block once asserted that nothing here posted at all, which was the
+   first half of the design shipped on its own. Read-only was never the
+   point: one copy of the answer was. A tick sent to CACENTRE and stored
+   there is the same row edited from somewhere else, not a second row that
+   can disagree — so the assertion is that nothing is stored HERE. */
+foreach (['INSERT', 'UPDATE ', 'DELETE'] as $write) {
+    ck('nothing here writes to a local table (' . $write . '): CACENTRE stays the one place a '
+     . 'CACENTRE task is true', !str_contains($src, $write));
 }
+ck('and there is no table on this side holding them — a copy is a second answer waiting to '
+ . 'be wrong', !str_contains($src, 'cac_tasks') && !str_contains($src, 'CREATE TABLE'));
+
+ck('writing goes to the other site, over the same signed door the read uses',
+   str_contains($src, 'public static function write(int $memberId, string $action, int $taskId'));
+ck('…and the cached read is dropped when a write lands, because a stale list after a tick is '
+ . 'the bug people notice', str_contains($src, 'unset(self::$memo[$memberId]);'));
 
 /* ── It fails soft, in every way it can fail ────────────────────────────── */
 $r = CacTasks::forMember(0);
@@ -63,8 +75,10 @@ ck('the console\'s tasks are their own card, not rows in the portal\'s list: tho
    lazy match from here would find one of those and call it a tick. */
 $panel = (string) strstr($portal, '<section class="pcard" id="cacTasks">');
 $panel = (string) substr($panel, 0, (int) strpos($panel, '</section>'));
-ck('and there is no tick on them — a control that cannot do anything is worse than none',
-   $panel !== '' && !str_contains($panel, 'type="checkbox"'));
+ck('the tick is there now, and it writes to the console rather than to this site',
+   $panel !== '' && str_contains($panel, 'data-cac-toggle'));
+ck('as are the due date and priority — the three things somebody actually changes',
+   str_contains($panel, 'data-cac-due') && str_contains($panel, 'data-cac-pri'));
 
 ck('it links back to the console, which is where one of these is completed', str_contains($portal, 'CacTasks::consoleUrl()'));
 

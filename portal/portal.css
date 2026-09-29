@@ -1512,3 +1512,31 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .mc-items label { display: flex; gap: 7px; align-items: flex-start; cursor: pointer; }
 .mc-items input { margin-top: 3px; flex: none; }
 .mc-items li.is-done > label > span { text-decoration: line-through; color: var(--muted, #6b7280); }
+
+/* ── A CACENTRE task, edited from here ───────────────────────────────────────
+   The console's tasks live on the console; these controls write to it. Sized
+   to sit inside a task row without pushing it apart, and never below the 24px
+   target floor — shrinking a control until it fits is how a list becomes
+   unusable on a phone. */
+.cac-f { display: inline-flex; align-items: center; gap: .3rem; }
+.cac-f select,
+.cac-f input[type="date"] {
+  font: inherit;
+  font-size: .72rem;
+  min-height: 24px;
+  padding: .12rem .3rem;
+  border: 1px solid var(--line, rgba(0,0,0,.14));
+  border-radius: 6px;
+  background: var(--card, #fff);
+  color: inherit;
+  max-width: 8.5rem;
+}
+/* Named for a screen reader, silent on screen: the label would double the
+   row's height for a word the layout already makes obvious. */
+.pc-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  clip-path: inset(50%);
+  overflow: hidden; white-space: nowrap;
+}
