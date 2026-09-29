@@ -293,3 +293,14 @@
   .gv-item-side { text-align: left; align-items: flex-start; flex-direction: row; flex-wrap: wrap; gap: 10px; }
   .gv-item-cta { margin-top: 0; }
 }
+
+/* The giving widget's finish state. It replaces the form in place, because
+   the whole reason for paying on this page is not being sent somewhere else —
+   including at the end. */
+.gw-done {
+  padding: var(--afg-space-5); border: 1px solid var(--afg-border);
+  border-left: 3px solid var(--afg-success); border-radius: var(--afg-radius-sm);
+  background: var(--afg-surface);
+}
+.gw-done-h { font-weight: 800; color: var(--afg-ink); margin-bottom: 6px; }
+.gw-done-b { font-size: 14px; line-height: 1.65; color: var(--afg-muted); max-width: 46ch; }

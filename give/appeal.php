@@ -437,5 +437,6 @@ $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
   });
 })();
 </script>
+<script src="/assets/site/give-pay.js" defer></script>
 <script src="/give/give.js" defer></script>
 <?php render_footer();

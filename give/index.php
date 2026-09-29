@@ -286,10 +286,15 @@ render_nav('involved');
                              already filled in; in-kind items go to the people who
                              arrange collection, because a card form cannot take a
                              laptop. */ ?>
-                    <a class="gv-item-cta" href="<?= $it['kind'] === 'money'
-                         ? e('/donate.html?amount=' . (int) $it['unit_cost'] . '&for=' . rawurlencode((string) $it['slug']))
-                         : e('/contact.html?about=' . rawurlencode('Donating: ' . (string) $it['title'])) ?>">
-                      <?= $it['kind'] === 'money' ? 'Fund one' : 'Offer one' ?></a>
+                    <a class="gv-item-cta"
+                       <?php if ($it['kind'] === 'money'): ?>
+                         data-gv-pay="<?= (int) $it['unit_cost'] ?>"
+                         data-gv-item="<?= e((string) $it['title']) ?>"
+                         data-gv-slug="<?= e((string) $it['slug']) ?>"
+                         href="<?= e('/donate.html?amount=' . (int) $it['unit_cost'] . '&for=' . rawurlencode((string) $it['slug'])) ?>"
+                       <?php else: ?>
+                         href="<?= e('/contact.html?about=' . rawurlencode('Donating: ' . (string) $it['title'])) ?>"
+                       <?php endif; ?>><?= $it['kind'] === 'money' ? 'Fund one' : 'Offer one' ?></a>
                   <?php endif; ?>
                 </div>
               </li>
@@ -320,5 +325,27 @@ render_nav('involved');
       </div>
     </div>
   </section>
+
+  <?php /* One sheet, reused by every "Fund one" on the page. The href on each
+           link stays pointed at the donate page so that somebody without
+           JavaScript — or with a blocked Paystack — still has a way to give;
+           the sheet only takes over when it can actually finish the job. */ ?>
+  <div class="gvpay" id="gvPay" hidden role="dialog" aria-modal="true" aria-labelledby="gvPayTitle">
+    <div class="gvpay-card" role="document">
+      <button type="button" class="gvpay-x" id="gvPayX" aria-label="Close">&times;</button>
+      <h2 class="gvpay-h" id="gvPayTitle">Fund one</h2>
+      <p class="gvpay-what" id="gvPayWhat"></p>
+      <label class="gvpay-field"><span>Your email <em>for the receipt</em></span>
+        <input type="email" id="gvPayEmail" autocomplete="email" placeholder="you@example.com" required></label>
+      <label class="gvpay-field"><span>Your name <em>optional</em></span>
+        <input type="text" id="gvPayName" autocomplete="name" placeholder="So we can thank you properly"></label>
+      <button type="button" class="gvpay-go" id="gvPayGo">Give <span id="gvPayAmt"></span></button>
+      <p class="gvpay-err" id="gvPayErr" role="alert" hidden></p>
+      <p class="gvpay-fine">Card, bank transfer and USSD. Secured by Paystack. You stay on this page.</p>
+    </div>
+  </div>
+
 </main>
+<script src="/assets/site/give-pay.js" defer></script>
+<script src="/give/pay-sheet.js" defer></script>
 <?php render_footer();

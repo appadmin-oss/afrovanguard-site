@@ -8,9 +8,12 @@
  *   1. marks the selected chip (a class, not :has(), so the selected state is
  *      visible on an older browser too — this form takes money),
  *   2. reveals the custom-amount and email fields only when they are needed,
- *   3. intercepts the RECURRING path, which genuinely cannot be a plain form:
- *      a Paystack Plan has to exist server-side before a subscription can, so
- *      it posts to /give/recurring.php and follows the URL that comes back.
+ *   3. takes the payment HERE. Both paths post to the server, which creates
+ *      the transaction (or the Plan, for a subscription) and hands back
+ *      something to open: a one-off resumes Paystack's inline modal over this
+ *      page, a recurring gift follows the URL its Plan needs. Choosing an
+ *      amount on one page and being asked for it again on the next is a hop
+ *      that only ever loses people.
  *
  * Anything unexpected falls back to letting the form submit normally rather
  * than trapping the donor behind a dead button.
@@ -65,8 +68,12 @@
     if (otherBox) otherBox.hidden = !isOther;
     if (isOther && otherIn && document.activeElement !== otherIn) otherIn.focus();
 
+    /* Every gift needs an email now, not just a subscription: the receipt
+       has to go somewhere, and Paystack will not start a transaction without
+       one. It used to be revealed only for recurring because the one-off path
+       collected it on the page it redirected to. */
     var recurring = freq() !== 'once';
-    if (emailBox) emailBox.hidden = !recurring;
+    if (emailBox) emailBox.hidden = false;
 
     var amt = amount();
     var word = WORD[freq()] || '';
@@ -84,6 +91,37 @@
   if (otherIn) otherIn.addEventListener('input', sync);
   sync();
 
+  function busy(word) {
+    go.setAttribute('aria-busy', 'true');
+    go.disabled = true;
+    go.textContent = word;
+  }
+  function unbusy(label) {
+    go.removeAttribute('aria-busy');
+    go.disabled = false;
+    go.textContent = label;
+    sync();
+  }
+
+  /* Replace the form with the outcome. Staying on the page is the point of
+     all this, so the page has to have something to say when it is done. */
+  function done(state, amt, word) {
+    var paid = state === 'paid';
+    var box = document.createElement('div');
+    box.className = 'gw-done';
+    box.setAttribute('role', 'status');
+    box.innerHTML =
+      '<p class="gw-done-h">' + (paid ? 'Thank you — that went through.' : 'Thank you — payment received.') + '</p>' +
+      '<p class="gw-done-b">' +
+        (paid
+          ? 'You gave ' + naira(amt) + (word ? ' ' + word : '') + '. A receipt is on its way to your inbox.'
+          : 'Your ' + naira(amt) + ' is with Paystack. The receipt follows as soon as it settles — ' +
+            'if it has not arrived within the hour, reply to this page&rsquo;s contact form and we will check it.') +
+      '</p>';
+    form.parentNode.replaceChild(box, form);
+    box.focus && box.focus();
+  }
+
   form.addEventListener('submit', function (ev) {
     var amt = amount();
     var recurring = freq() !== 'once';
@@ -95,20 +133,48 @@
       return;
     }
 
-    /* One-off: let the form go where it was always going. */
-    if (!recurring) {
-      if (picked() === 'other' && otherIn) {
-        /* The donate page reads `amount`, so carry the typed figure under that
-           name rather than leaving it in `custom_amount` where nothing reads it. */
-        var hid = form.querySelector('input[name=amount][type=hidden]');
-        if (!hid) {
-          hid = document.createElement('input');
-          hid.type = 'hidden'; hid.name = 'amount';
-          form.appendChild(hid);
-        }
-        hid.value = String(amt);
-        chips.forEach(function (c) { var i = c.querySelector('input'); if (i) i.disabled = true; });
+    /* Carry the typed figure under `amount` regardless: if anything below
+       falls back to submitting the form, /donate.html reads that name and
+       would otherwise arrive with nothing. */
+    if (picked() === 'other' && otherIn) {
+      var hid = form.querySelector('input[name=amount][type=hidden]');
+      if (!hid) {
+        hid = document.createElement('input');
+        hid.type = 'hidden'; hid.name = 'amount';
+        form.appendChild(hid);
       }
+      hid.value = String(amt);
+    }
+
+    /* One-off: pay on this page. */
+    if (!recurring) {
+      if (!window.avGive) return;          /* no module → the form goes as it always did */
+      ev.preventDefault();
+
+      var email1 = (emailIn && emailIn.value || '').trim();
+      if (!email1 || email1.indexOf('@') < 1) {
+        showErr('We need an email address to send you the receipt.');
+        if (emailIn) emailIn.focus();
+        return;
+      }
+
+      var label1 = go.textContent;
+      busy('Opening the card form…');
+
+      window.avGive.give({
+        amount: amt,
+        email: email1,
+        campaign: slug || 'general',
+        frequency: 'One-time',
+        onDone: function (state) { done(state, amt, ''); },
+        onError: function (msg) {
+          unbusy(label1);
+          /* An empty message means they closed the modal themselves, which is
+             not a failure and does not deserve red text. */
+          if (msg) showErr(msg);
+        },
+        fallback: function () { form.submit(); }
+      });
       return;
     }
 

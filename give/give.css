@@ -397,3 +397,46 @@
 .gw-other input::-webkit-outer-spin-button,
 .gw-other input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .gw-other input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+/* ══ The pay sheet ════════════════════════════════════════════════════════
+   "Fund one" opens this rather than a new page. It collects the one thing
+   Paystack needs that the catalogue row does not already know — an email —
+   and then hands over to Paystack's own modal. */
+.gvpay {
+  position: fixed; inset: 0; z-index: 120; display: flex;
+  align-items: center; justify-content: center; padding: var(--afg-space-4);
+  background: rgba(17, 17, 17, .55); backdrop-filter: blur(2px);
+}
+.gvpay[hidden] { display: none; }
+.gvpay-card {
+  position: relative; width: min(440px, 100%); max-height: 90vh; overflow: auto;
+  background: var(--afg-surface); border-radius: var(--afg-radius-lg);
+  padding: var(--afg-space-6); box-shadow: 0 24px 60px rgba(0, 0, 0, .28);
+}
+.gvpay-x {
+  position: absolute; top: 10px; right: 12px; background: none; border: 0;
+  font-size: 26px; line-height: 1; cursor: pointer; color: var(--afg-muted); padding: 4px 8px;
+}
+.gvpay-x:focus-visible { outline: 3px solid var(--afg-gold); outline-offset: 2px; border-radius: 6px; }
+.gvpay-h { font-size: 20px; font-weight: 800; color: var(--afg-ink); margin-bottom: 4px; }
+.gvpay-what { font-size: 14.5px; line-height: 1.55; color: var(--afg-muted); margin-bottom: var(--afg-space-5); }
+.gvpay-field { display: block; margin-bottom: var(--afg-space-4); }
+.gvpay-field > span {
+  display: block; font-size: 12px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--afg-muted); margin-bottom: 6px;
+}
+.gvpay-field > span em { font-weight: 600; text-transform: none; letter-spacing: 0; font-style: normal; }
+.gvpay-field input {
+  width: 100%; padding: 11px 13px; font: inherit;
+  border: 1px solid var(--afg-border); border-radius: var(--afg-radius-sm); background: #fff;
+}
+.gvpay-field input:focus { outline: 3px solid var(--afg-gold); outline-offset: 1px; border-color: var(--afg-gold); }
+.gvpay-go {
+  width: 100%; padding: 13px 18px; font: inherit; font-weight: 800; cursor: pointer;
+  color: #111; background: var(--afg-gold); border: 0; border-radius: 999px;
+}
+.gvpay-go:hover { filter: brightness(.96); }
+.gvpay-go:disabled { opacity: .7; cursor: progress; }
+.gvpay-go:focus-visible { outline: 3px solid var(--afg-ink); outline-offset: 2px; }
+.gvpay-err { margin-top: 10px; font-size: 13.5px; font-weight: 700; color: #b91c1c; }
+.gvpay-fine { margin-top: var(--afg-space-3); font-size: 12px; line-height: 1.5; color: var(--afg-muted); }

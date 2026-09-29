@@ -651,7 +651,19 @@ if ($action==='init_payment') {
         error_log('[AV] init_payment failed: '.json_encode($r['message']??''));
         echo json_encode(['success'=>false,'message'=>'Could not start the payment. Please try again in a moment.']); exit;
     }
-    echo json_encode(['success'=>true,'authorization_url'=>$r['data']['authorization_url'],'reference'=>$ref]); exit;
+    /* access_code rides along so a caller can open Paystack INLINE — the
+       modal on the page they are already on — instead of navigating to
+       checkout.paystack.com and back. The transaction is still initialised
+       here, server-side, so the amount, the reference and the metadata are
+       ours and not the browser's; the code only resumes what we started.
+       authorization_url stays for callers that still redirect, and as the
+       fallback when the inline script cannot load. */
+    echo json_encode([
+        'success'           => true,
+        'authorization_url' => $r['data']['authorization_url'],
+        'access_code'       => (string) ($r['data']['access_code'] ?? ''),
+        'reference'         => $ref,
+    ]); exit;
 }
 
 /* ── record_donation ─────────────────────────────────────── */
