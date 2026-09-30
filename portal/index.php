@@ -138,6 +138,17 @@ if ($isOrg) {
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
+    /* The centre's register, read here rather than signed across to. It is
+       the same access a member already had — inventory is in the console's
+       MEMBER_PAGES — minus the journey, which is the whole point: looking up
+       where something is took four seconds and getting there took thirty, so
+       people stopped asking the system and started asking each other.
+
+       Only when the bridge is configured. A nav entry that leads to "the link
+       is not set up" is a worse answer than no entry. */
+    if (CacSso::ready()) {
+        $nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];
+    }
 }
 $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
@@ -1212,6 +1223,78 @@ $nav['You'] = [
         $wsConn     = $wsOauth && GoogleWorkspaceUser::connected((int) $u['id']);
 ?>
         <!-- ============================================================ -->
+        <!-- INVENTORY — the centre's register, read from here             -->
+        <!-- ============================================================ -->
+<?php if (CacSso::ready()): ?>
+        <section class="pview" id="view-inventory" data-view="inventory" hidden
+                 data-inv-url="<?= e(CacInventory::consoleUrl()) ?>">
+          <div class="view-head">
+            <h1>Inventory</h1>
+            <a class="pcard-link" href="<?= e(CacInventory::consoleUrl()) ?>" target="_blank" rel="noopener">
+              Change an item in the console &rarr;
+            </a>
+          </div>
+
+          <section class="pcard">
+            <div class="pcard-head">
+              <div>
+                <h2>What the centre has</h2>
+                <span class="task-head-sub" id="invCount">
+                  Read from CACENTRE, which is where these are kept and changed.
+                </span>
+              </div>
+            </div>
+            <div class="pcard-body">
+              <?php /* A form, so Enter submits and a screen reader announces
+                       it as one. It never actually navigates — the script
+                       below takes it over — but it works as a form first. */ ?>
+              <form class="inv-filters" id="invForm" autocomplete="off">
+                <label class="inv-f inv-f--grow">
+                  <span class="pc-sr">Search the register</span>
+                  <input type="search" id="invQ" placeholder="Name, tag, serial or who has it">
+                </label>
+                <label class="inv-f">
+                  <span class="pc-sr">Category</span>
+                  <select id="invCat"><option value="">Any category</option></select>
+                </label>
+                <label class="inv-f">
+                  <span class="pc-sr">Where</span>
+                  <select id="invSite"><option value="">Anywhere</option></select>
+                </label>
+                <label class="inv-f">
+                  <span class="pc-sr">Status</span>
+                  <select id="invStatus"><option value="">Any status</option></select>
+                </label>
+                <button class="pbtn" type="submit">Search</button>
+              </form>
+
+              <p class="pc-empty" id="invMsg" hidden></p>
+
+              <div class="inv-wrap">
+                <table class="inv-table" id="invTable" hidden>
+                  <thead>
+                    <tr>
+                      <th scope="col">Item</th>
+                      <th scope="col">Where</th>
+                      <th scope="col">Who has it</th>
+                      <th scope="col">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invRows"></tbody>
+                </table>
+              </div>
+
+              <div class="inv-more" id="invMore" hidden>
+                <button class="pbtn pbtn--ghost" type="button" id="invPrev">&larr; Back</button>
+                <span id="invPage"></span>
+                <button class="pbtn pbtn--ghost" type="button" id="invNext">More &rarr;</button>
+              </div>
+            </div>
+          </section>
+        </section>
+<?php endif; ?>
+
+        <!-- ============================================================ -->
         <!-- WORKSPACE                                                    -->
         <!-- ============================================================ -->
         <section class="pview" id="view-workspace" data-view="workspace" hidden>
@@ -1505,6 +1588,12 @@ $nav['You'] = [
       if (crumb) crumb.textContent = labelFor[name] || 'Dashboard';
       if (scroller) scroller.scrollTop = 0;
       if (push && ('#'+name) !== location.hash) { try { history.pushState(null, '', '#'+name); } catch(e) { location.hash = name; } }
+      /* So a pane can load itself the first time somebody looks at it. The
+         register lives on the other site behind a three-second timeout, and
+         fetching it with the page would make every visit to the portal wait
+         on CACENTRE — including the visits that never open it, which is most
+         of them. */
+      try { document.dispatchEvent(new CustomEvent('portal:view', { detail: { view: name } })); } catch (e) {}
     }
 
     links.forEach(function(a){
@@ -2429,6 +2518,7 @@ $nav['You'] = [
   <script src="/portal/meetings.js" defer></script>
   <script src="/portal/notifications.js" defer></script>
   <script src="/portal/directory.js" defer></script>
+  <script src="/portal/inventory.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>

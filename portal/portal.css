@@ -1540,3 +1540,72 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   clip-path: inset(50%);
   overflow: hidden; white-space: nowrap;
 }
+
+/* ── The CACENTRE register, read inside the portal ──────────────────────────
+ * A dense lookup table, not a browse. Somebody opens this with a question
+ * already formed — "where is the Dell laptop, and who has it" — so the search
+ * box is first, the answer is three columns, and nothing here is decorative.
+ *
+ * It deliberately reads like the portal and not like the console: the point
+ * of showing it here is that a member does not have to change places to
+ * answer a four-second question.
+ */
+.inv-filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .9rem; }
+.inv-f { display: block; }
+.inv-f--grow { flex: 1 1 16rem; min-width: 0; }
+.inv-filters input[type="search"],
+.inv-filters select {
+  width: 100%; padding: .5rem .7rem; font: inherit; font-size: .9rem;
+  border: 1px solid var(--pc-border, rgba(0,0,0,.14)); border-radius: 8px;
+  background: var(--pc-field, #fff); color: inherit;
+}
+.inv-filters select { width: auto; }
+
+/* The table scrolls sideways rather than the page: on a phone a four-column
+   register would otherwise push the whole portal off its own width. */
+.inv-wrap { overflow-x: auto; }
+.inv-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.inv-table th, .inv-table td {
+  text-align: left; padding: .55rem .6rem; vertical-align: top;
+  border-bottom: 1px solid var(--pc-border, rgba(0,0,0,.09));
+}
+.inv-table thead th {
+  font-size: .7rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--pc-dim, #6b7280); font-weight: 700; white-space: nowrap;
+}
+.inv-table tbody th { font-weight: 600; }
+.inv-name { display: block; }
+/* Monospace on the tag, because it is a code read character by character off
+   a sticker and a proportional face makes 0 and O the same shape. */
+/* font-weight reset on both: they sit inside the row's <th>, which is bold,
+   and a tag and a category rendered at the same weight as the item's name
+   make three equally loud lines in one cell — which is the same as none. */
+.inv-tag {
+  display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .74rem; font-weight: 400; color: var(--pc-dim, #6b7280);
+}
+.inv-sub { display: block; font-size: .74rem; font-weight: 400; color: var(--pc-dim, #6b7280); }
+/* "Not recorded" is a fact about the register, and it should look like one
+   rather than like a value somebody entered. */
+.inv-none { color: var(--pc-dim, #6b7280); font-style: italic; }
+
+.inv-pill {
+  display: inline-block; padding: .12rem .5rem; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; white-space: nowrap;
+  background: rgba(0,0,0,.06); color: inherit;
+}
+.inv-pill--pos  { background: rgba(21,128,61,.14);  color: #15803d; }
+.inv-pill--warn { background: rgba(180,83,9,.14);   color: #b45309; }
+.inv-pill--neg  { background: rgba(179,38,30,.14);  color: #b3261e; }
+
+.inv-more { display: flex; align-items: center; gap: .75rem; margin-top: .9rem; font-size: .85rem; }
+.inv-more button[disabled] { opacity: .45; cursor: default; }
+
+body.is-dark .inv-pill        { background: rgba(255,255,255,.10); }
+body.is-dark .inv-pill--pos   { background: rgba(74,222,128,.16);  color: #4ade80; }
+body.is-dark .inv-pill--warn  { background: rgba(251,191,36,.16);  color: #fbbf24; }
+body.is-dark .inv-pill--neg   { background: rgba(248,113,113,.16); color: #f87171; }
+
+@media (max-width: 620px) {
+  .inv-filters select, .inv-filters .pbtn { flex: 1 1 auto; }
+}
