@@ -13,10 +13,18 @@
  * secret, naming the member being asked about, valid for a minute. That makes
  * the trust here exactly the trust that already exists, and no more.
  *
- * ── IT IS READ-ONLY, AND IT IS ONE PERSON ───────────────────────────────────
- * No writes, and the member is taken from inside the signed token rather than
- * from the query string. A token cannot be re-pointed at somebody else's task
- * list, which is the whole reason the id is not simply a parameter.
+ * ── IT IS ONE PERSON, READ OR WRITE ─────────────────────────────────────────
+ * The member is taken from inside the signed token, never from the query
+ * string, so a token cannot be re-pointed at somebody else's tasks — which is
+ * the whole reason the id is not simply a parameter.
+ *
+ * A GET reads that member's list. A POST changes one of their tasks, and goes
+ * through Collab's own writers, which check ownership against the stored row
+ * rather than against anything the caller said. The centre asked to tick a
+ * portal task from the console rather than crossing over to do it, and the
+ * alternative — keeping a copy on the other side — is the thing this whole
+ * design exists to avoid. A remote write is not a second copy; it is the same
+ * row, edited from somewhere else.
  *
  * ── AND IT SAYS NOTHING TO ANYBODY ELSE ─────────────────────────────────────
  * An unsigned, expired or wrongly-signed request gets the same short refusal
@@ -46,8 +54,9 @@ $refuse = static function (string $why, int $code = 403): void {
     exit;
 };
 
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') $refuse('GET only.', 405);
-if (!CacSso::ready())                                $refuse('not-configured', 503);
+$method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
+if (!in_array($method, ['GET', 'POST'], true)) $refuse('GET or POST only.', 405);
+if (!CacSso::ready())                          $refuse('not-configured', 503);
 
 /* Not a (string) cast: ?t[]=x is an array, and casting one yields "Array"
    plus a warning printed into the response. */
@@ -81,6 +90,56 @@ if ((int) ($claims['iat'] ?? 0) > $now + 60) $refuse('not-yet');
 
 $uid = (int) ($claims['uid'] ?? 0);
 if ($uid <= 0) $refuse('no-member');
+
+/* ── A change ─────────────────────────────────────────────────────────── */
+if ($method === 'POST') {
+    $body = json_decode((string) file_get_contents('php://input'), true);
+    if (!is_array($body)) $refuse('bad-body', 400);
+
+    $taskId = (int) ($body['id'] ?? 0);
+    if ($taskId <= 0) $refuse('no-task', 400);
+
+    try {
+        switch ((string) ($body['action'] ?? '')) {
+            case 'toggle':
+                /* Collab::toggleTask() returns null when the task is not this
+                   member's, which is the ownership check — the caller being
+                   another site does not widen it. */
+                $now = Collab::toggleTask($uid, $taskId);
+                if ($now === null) $refuse('not-yours', 404);
+                echo json_encode(['ok' => true, 'done' => $now], JSON_UNESCAPED_SLASHES);
+                exit;
+
+            case 'update':
+                $in = [];
+                if (array_key_exists('due', $body)) {
+                    $due = trim((string) $body['due']);
+                    /* Checked here so the refusal can say what was wrong.
+                       updateTask() rejects it too, but it answers null for
+                       both "not yours" and "not a date", and reporting a
+                       typo as somebody else's task sends the person looking
+                       in entirely the wrong place. */
+                    if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) $refuse('bad-due', 400);
+                    $in['due'] = $due;
+                }
+                if (array_key_exists('priority', $body)) $in['priority'] = (string) $body['priority'];
+                $t = Collab::updateTask($uid, $taskId, $in);
+                if ($t === null) $refuse('not-yours', 404);
+                echo json_encode(['ok' => true, 'task' => [
+                    'id'       => (int) $t['id'],
+                    'title'    => (string) $t['title'],
+                    'done'     => !empty($t['done']),
+                    'due'      => (string) $t['due'],
+                    'priority' => (string) $t['priority'],
+                ]], JSON_UNESCAPED_SLASHES);
+                exit;
+        }
+    } catch (Throwable $e) {
+        error_log('[cacentre-tasks] write: ' . $e->getMessage());
+        $refuse('unavailable', 503);
+    }
+    $refuse('unknown-action', 400);
+}
 
 /* ── The answer ───────────────────────────────────────────────────────── */
 try {

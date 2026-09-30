@@ -120,6 +120,30 @@ try {
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 
+        /* ── A CACENTRE task, changed over there ───────────────────────
+           Not stored here. The change is sent to CACENTRE, which holds the
+           row and checks the task's owner against it before touching it. One
+           task, edited from two places, rather than two that will disagree. */
+        case 'cac_toggle':
+        case 'cac_update':
+            $writeGuard();
+            if (!class_exists('CacTasks')) json_out(['ok' => false, 'error' => 'The console is not linked.'], 503);
+
+            $fields = [];
+            if (array_key_exists('due', $body))      $fields['due'] = (string) $body['due'];
+            if (array_key_exists('priority', $body)) $fields['priority'] = (string) $body['priority'];
+
+            $r = CacTasks::write($uid, $action === 'cac_toggle' ? 'toggle' : 'update',
+                                 (int) ($body['id'] ?? 0), $fields);
+            if ($r['ok']) json_out(['ok' => true] + $r['data']);
+            json_out(['ok' => false, 'error' => match ($r['error']) {
+                'not-yours'      => 'That task is not yours.',
+                'bad-due'        => 'The console will not take that date.',
+                'unreachable'    => 'The console did not answer. Nothing was changed.',
+                'not-configured' => 'The link to the console is not set up here.',
+                default          => 'The console refused that change.',
+            }], 502);
+
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

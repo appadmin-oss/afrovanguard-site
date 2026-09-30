@@ -113,5 +113,23 @@ if (preg_match('~^/([a-z0-9_-]+)/?$~', $uri, $m)) {
     if (is_file(__DIR__ . '/' . $m[1] . '.php'))  { require __DIR__ . '/' . $m[1] . '.php'; return true; }
 }
 
-// Fallback: let the built-in server handle it (404 for missing files).
+/* Fallback. The built-in server's own 404 is a bare "Not Found" in Times New
+   Roman, which is not what a visitor to the live site sees — Apache serves
+   404.html via ErrorDocument. Serving the same file here, with the same
+   status, means a broken link looks the same in development as in production
+   and nobody has to discover the difference on the live site. */
+/* A directory that has an index — including the site root, which never
+   reaches the is_file() check at the top because $uri is exactly '/'. Apache
+   answers these from DirectoryIndex; the built-in server does too, so hand
+   them back to it rather than calling them missing. */
+$dir = rtrim(__DIR__ . $uri, '/');
+if (is_dir($dir)) {
+    foreach (['index.html', 'index.php'] as $idx) {
+        if (is_file($dir . '/' . $idx)) return false;
+    }
+}
+
+http_response_code(404);
+$page = __DIR__ . '/404.html';
+if (is_file($page)) { readfile($page); return true; }
 return false;

@@ -354,6 +354,45 @@ final class Collab
         return (bool) $new;
     }
 
+    /**
+     * Change a task's due date or priority.
+     *
+     * There was no way to do this: a task could be created, ticked and
+     * deleted, and nothing in between. The portal worked around it by
+     * deleting and re-adding, which loses who created it and when.
+     *
+     * Ownership is checked the same way toggleTask() checks it — against the
+     * row, not against what the caller says — so this is safe to expose over
+     * the CACENTRE bridge, where the caller is another site.
+     *
+     * @param array{due?:string, priority?:string} $in
+     */
+    public static function updateTask(int $uid, int $taskId, array $in): ?array
+    {
+        self::ensureTasks();
+        $t = self::ownedTask($uid, $taskId);
+        if (!$t) return null;
+
+        $set = []; $args = [];
+        if (array_key_exists('due', $in)) {
+            $due = trim((string) $in['due']);
+            /* An empty date means "no date", which is a real answer. Anything
+               that is not a date at all is not stored as one. */
+            if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) return null;
+            $set[] = 'due = ?'; $args[] = $due;
+        }
+        if (array_key_exists('priority', $in)) {
+            $set[] = 'priority = ?'; $args[] = self::normPriority((string) $in['priority']);
+        }
+        if (!$set) return self::shapeTask($t, $uid);
+
+        $args[] = $taskId;
+        Database::pdo()->prepare('UPDATE collab_tasks SET ' . implode(', ', $set) . ' WHERE id = ?')
+            ->execute($args);
+
+        return self::oneTask($uid, $taskId);
+    }
+
     public static function deleteTask(int $uid, int $taskId): bool
     {
         self::ensureTasks();

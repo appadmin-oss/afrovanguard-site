@@ -294,6 +294,7 @@ require_once __DIR__ . '/LmsAuth.php';
    LmsAuth because the portal needs it to decide whether to show the link. */
 require_once __DIR__ . '/CacSso.php';
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
+require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/Payments.php';

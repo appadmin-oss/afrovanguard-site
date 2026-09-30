@@ -138,6 +138,17 @@ if ($isOrg) {
         ['chat', 'Team Chat', 'green', ''],
         ['workspace', 'Workspace', 'gray', ''],
     ];
+    /* The centre's register, read here rather than signed across to. It is
+       the same access a member already had — inventory is in the console's
+       MEMBER_PAGES — minus the journey, which is the whole point: looking up
+       where something is took four seconds and getting there took thirty, so
+       people stopped asking the system and started asking each other.
+
+       Only when the bridge is configured. A nav entry that leads to "the link
+       is not set up" is a worse answer than no entry. */
+    if (CacSso::ready()) {
+        $nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];
+    }
 }
 $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
@@ -856,18 +867,26 @@ $nav['You'] = [
           </section>
 
           <?php if ($cacTasks): ?>
-            <?php /* Its own card rather than rows in the list above. Those rows
-                     are ticked, edited and deleted here; these cannot be, because
-                     this site is not where they are true. Mixing them would put
-                     two kinds of row under one set of controls, half of which
-                     would do nothing. */ ?>
+            <?php /* Its own card rather than rows in the list above. Both kinds
+                     can now be ticked and rescheduled from here, but only one of
+                     them is STORED here: a change to one of these is sent to
+                     CACENTRE and made on the row that lives there. Keeping them
+                     apart is what lets the card say so — and says which site to
+                     go to when the other one is down.
+
+                     This comment, and the two below it, used to say these could
+                     not be changed from the portal at all. That was true when
+                     the card was written and stopped being true when the write
+                     path was built; the code had a checkbox on it for a while
+                     with a comment underneath explaining why there wasn't one. */ ?>
             <section class="pcard" id="cacTasks">
               <div class="pcard-head task-head">
                 <div class="task-head-l">
                   <h2>From CACENTRE</h2>
                   <span class="task-head-sub">
                     <?= (int) count($cacTasks) ?> open <?= count($cacTasks) === 1 ? 'task' : 'tasks' ?>
-                    assigned to you in the console. They are completed there.
+                    assigned to you in the console. Ticking or rescheduling one
+                    here changes it there, on the row the console holds.
                   </span>
                 </div>
                 <a class="pbtn" href="<?= e(CacTasks::consoleUrl()) ?>" target="_blank" rel="noopener">Open the console</a>
@@ -877,9 +896,11 @@ $nav['You'] = [
                   <?php foreach ($cacTasks as $t):
                     /* The same markup the portal's own task rows use, so these
                        read as tasks rather than as a table that wandered in.
-                       No checkbox and no delete: neither would do anything
-                       here, and a control that does nothing is worse than no
-                       control. */
+                       A checkbox and the two fields worth changing in passing,
+                       but no delete: deciding a piece of work should not exist
+                       belongs where the work is managed, and a control that
+                       destroys a row on another system from a dashboard is one
+                       nobody should reach by accident. */
                     /* CACENTRE has four priorities and this site has three.
                        Mapping urgent down to normal — which is what dropping
                        the unknown value does — loses exactly the signal the
@@ -891,23 +912,92 @@ $nav['You'] = [
                         'low'            => 'low',
                         default          => 'normal',
                     }; ?>
-                    <li class="task task--pri-<?= e($pri) ?>">
+                    <li class="task task--pri-<?= e($pri) ?>" data-cac-task="<?= (int) $t['id'] ?>">
+                      <?php /* The tick writes to CACENTRE, which still holds
+                               the task. Editing it from here is not a second
+                               copy — it is the same row, reached from the
+                               other side. */ ?>
+                      <input type="checkbox" class="task-check" data-cac-toggle="<?= (int) $t['id'] ?>"
+                             aria-label="Mark &quot;<?= e($t['title']) ?>&quot; done">
                       <span class="task-body">
                         <span class="task-title"><?= e($t['title']) ?></span>
                         <span class="task-sub">
-                          <?php if ($pri !== 'normal'): ?>
-                            <span class="task-pri task-pri--<?= e($pri) ?>"><?= e($t['priority']) ?></span>
-                          <?php endif; ?>
-                          <?php if ($t['due'] !== ''): ?>
-                            <span class="task-due"><?= e($t['due']) ?></span>
-                          <?php endif; ?>
+                          <label class="cac-f">
+                            <span class="pc-sr">Priority</span>
+                            <select data-cac-pri="<?= (int) $t['id'] ?>">
+                              <?php foreach (['low' => 'Low', 'normal' => 'Normal', 'high' => 'High'] as $k => $lab): ?>
+                                <option value="<?= e($k) ?>" <?= $pri === $k ? 'selected' : '' ?>><?= e($lab) ?></option>
+                              <?php endforeach; ?>
+                            </select>
+                          </label>
+                          <label class="cac-f">
+                            <span class="pc-sr">Due</span>
+                            <input type="date" value="<?= e($t['due']) ?>" data-cac-due="<?= (int) $t['id'] ?>">
+                          </label>
                         </span>
                       </span>
                     </li>
                   <?php endforeach; ?>
                 </ul>
+                <p class="pc-empty" id="cacMsg" hidden></p>
               </div>
             </section>
+
+            <script>
+            (function () {
+              'use strict';
+              var card = document.getElementById('cacTasks'); if (!card) return;
+              var CSRF = document.getElementById('tasks') ? document.getElementById('tasks').getAttribute('data-csrf') : '';
+              var msg  = document.getElementById('cacMsg');
+
+              function say(t, bad) {
+                if (!msg) return;
+                msg.hidden = false; msg.textContent = t;
+                msg.style.color = bad ? 'var(--av-red, #b3261e)' : '';
+              }
+              async function post(action, body) {
+                var res;
+                try {
+                  res = await fetch('/portal/collab.php?action=' + action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body)
+                  });
+                } catch (e) { return { ok: false, error: 'The network did not answer. Nothing was changed.' }; }
+                try { return await res.json(); } catch (e) { return { ok: false, error: 'Unreadable reply.' }; }
+              }
+
+              card.querySelectorAll('[data-cac-toggle]').forEach(function (cb) {
+                cb.addEventListener('change', async function () {
+                  cb.disabled = true;
+                  var r = await post('cac_toggle', { id: Number(cb.getAttribute('data-cac-toggle')) });
+                  if (!r.ok) {
+                    /* Put it back: a tick that stays ticked is a lie about
+                       the other site's state. */
+                    cb.checked = !cb.checked; cb.disabled = false;
+                    say(r.error || 'That did not work.', true);
+                    return;
+                  }
+                  var li = cb.closest('li'); if (li) li.remove();
+                  say('Done — ticked off in the console.', false);
+                });
+              });
+
+              function wire(sel, field) {
+                card.querySelectorAll(sel).forEach(function (el) {
+                  el.addEventListener('change', async function () {
+                    var body = { id: Number(el.getAttribute(sel.slice(1, -1))) };
+                    body[field] = el.value;
+                    var r = await post('cac_update', body);
+                    say(r.ok ? 'Saved in the console.' : (r.error || 'That did not work.'), !r.ok);
+                  });
+                });
+              }
+              wire('[data-cac-due]', 'due');
+              wire('[data-cac-pri]', 'priority');
+            })();
+            </script>
           <?php endif; ?>
         </section>
 
@@ -1142,6 +1232,78 @@ $nav['You'] = [
         $wsOauth    = class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured();
         $wsConn     = $wsOauth && GoogleWorkspaceUser::connected((int) $u['id']);
 ?>
+        <!-- ============================================================ -->
+        <!-- INVENTORY — the centre's register, read from here             -->
+        <!-- ============================================================ -->
+<?php if (CacSso::ready()): ?>
+        <section class="pview" id="view-inventory" data-view="inventory" hidden
+                 data-inv-url="<?= e(CacInventory::consoleUrl()) ?>">
+          <div class="view-head">
+            <h1>Inventory</h1>
+            <a class="pcard-link" href="<?= e(CacInventory::consoleUrl()) ?>" target="_blank" rel="noopener">
+              Change an item in the console &rarr;
+            </a>
+          </div>
+
+          <section class="pcard">
+            <div class="pcard-head">
+              <div>
+                <h2>What the centre has</h2>
+                <span class="task-head-sub" id="invCount">
+                  Read from CACENTRE, which is where these are kept and changed.
+                </span>
+              </div>
+            </div>
+            <div class="pcard-body">
+              <?php /* A form, so Enter submits and a screen reader announces
+                       it as one. It never actually navigates — the script
+                       below takes it over — but it works as a form first. */ ?>
+              <form class="inv-filters" id="invForm" autocomplete="off">
+                <label class="inv-f inv-f--grow">
+                  <span class="pc-sr">Search the register</span>
+                  <input type="search" id="invQ" placeholder="Name, tag, serial or who has it">
+                </label>
+                <label class="inv-f">
+                  <span class="pc-sr">Category</span>
+                  <select id="invCat"><option value="">Any category</option></select>
+                </label>
+                <label class="inv-f">
+                  <span class="pc-sr">Where</span>
+                  <select id="invSite"><option value="">Anywhere</option></select>
+                </label>
+                <label class="inv-f">
+                  <span class="pc-sr">Status</span>
+                  <select id="invStatus"><option value="">Any status</option></select>
+                </label>
+                <button class="pbtn" type="submit">Search</button>
+              </form>
+
+              <p class="pc-empty" id="invMsg" hidden></p>
+
+              <div class="inv-wrap">
+                <table class="inv-table" id="invTable" hidden>
+                  <thead>
+                    <tr>
+                      <th scope="col">Item</th>
+                      <th scope="col">Where</th>
+                      <th scope="col">Who has it</th>
+                      <th scope="col">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invRows"></tbody>
+                </table>
+              </div>
+
+              <div class="inv-more" id="invMore" hidden>
+                <button class="pbtn pbtn--ghost" type="button" id="invPrev">&larr; Back</button>
+                <span id="invPage"></span>
+                <button class="pbtn pbtn--ghost" type="button" id="invNext">More &rarr;</button>
+              </div>
+            </div>
+          </section>
+        </section>
+<?php endif; ?>
+
         <!-- ============================================================ -->
         <!-- WORKSPACE                                                    -->
         <!-- ============================================================ -->
@@ -1436,6 +1598,12 @@ $nav['You'] = [
       if (crumb) crumb.textContent = labelFor[name] || 'Dashboard';
       if (scroller) scroller.scrollTop = 0;
       if (push && ('#'+name) !== location.hash) { try { history.pushState(null, '', '#'+name); } catch(e) { location.hash = name; } }
+      /* So a pane can load itself the first time somebody looks at it. The
+         register lives on the other site behind a three-second timeout, and
+         fetching it with the page would make every visit to the portal wait
+         on CACENTRE — including the visits that never open it, which is most
+         of them. */
+      try { document.dispatchEvent(new CustomEvent('portal:view', { detail: { view: name } })); } catch (e) {}
     }
 
     links.forEach(function(a){
@@ -2360,6 +2528,7 @@ $nav['You'] = [
   <script src="/portal/meetings.js" defer></script>
   <script src="/portal/notifications.js" defer></script>
   <script src="/portal/directory.js" defer></script>
+  <script src="/portal/inventory.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>
