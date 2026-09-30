@@ -137,6 +137,19 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com; img-src 'self' data: blob: https:; media-src 'self' https: blob:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co; connect-src 'self' https://api.cloudinary.com https://api.paystack.co https://cdn.jsdelivr.net; frame-src 'self' https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.soundcloud.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://www.google.com https://maps.google.com https://docs.google.com https://drive.google.com https://calendar.google.com https://flo.uri.sh https://public.flourish.studio https://www.facebook.com https://web.facebook.com https://anchor.fm https://embed.music.apple.com https://www.canva.com https://datawrapper.dwcdn.net"
 </IfModule>
 
+# ── Error pages ─────────────────────────────────────────────────────────────
+# The site has carried 403/404/429/500/503 pages since it shipped and nothing
+# pointed at them, so the host decided what a broken URL looked like — here,
+# the home page, with a 200. That is the worst of both: the visitor is told
+# nothing is wrong, and a crawler indexes every mistyped address as a real
+# page. Apache sets the status itself when it serves these, so a static file
+# answers with the right code.
+ErrorDocument 403 /403.html
+ErrorDocument 404 /404.html
+ErrorDocument 429 /429.html
+ErrorDocument 500 /500.html
+ErrorDocument 503 /503.html
+
 AddDefaultCharset UTF-8
 
 # ── Optional: send unknown WordPress-era URLs to the homepage instead of 404 ─
