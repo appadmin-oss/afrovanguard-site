@@ -168,10 +168,21 @@ $nav['You'] = [
         <span class="pside-brand-text"><span class="pb-name">Afrovanguard</span><span class="pb-sub"><?= e($tag) ?></span></span>
       </a>
 
-      <div class="pside-search">
+      <?php /* ── The way into the palette ──────────────────────────────────
+               This was a text box that hid every navigation link which did not
+               match what you typed. NN/g measured discoverability roughly
+               halving when navigation is hidden, and hiding it as a SEARCH
+               RESULT is the same cost paid at the moment somebody is already
+               lost. It also found only links — never a member, never an item.
+
+               A button now, because that is what it is: it opens a dialog. It
+               says which key, because a keyboard-only feature is hidden by
+               definition. */ ?>
+      <button class="pside-search" type="button" data-cmdk="cmd">
         <span class="pside-search-ico" aria-hidden="true">⌕</span>
-        <input type="search" id="pSearch" placeholder="Search…" aria-label="Search the portal" autocomplete="off">
-      </div>
+        <span class="pside-search-t">Search anything</span>
+        <kbd class="cmdk-mod">Ctrl</kbd><kbd>K</kbd>
+      </button>
 
       <nav class="pside-nav" aria-label="Sections">
 <?php foreach ($nav as $group => $items): ?>
@@ -1658,9 +1669,6 @@ $nav['You'] = [
     showView((location.hash||'').replace('#','') || 'overview', false);
 
     /* Sidebar search → filter nav items */
-    var search=document.getElementById('pSearch');
-    if (search) search.addEventListener('input', function(){ var q=this.value.trim().toLowerCase();
-      document.querySelectorAll('.pnav-link').forEach(function(a){ var t=a.textContent.toLowerCase(); a.style.display=(!q||t.indexOf(q)>=0)?'':'none'; }); });
 
     /* Copy invite link */
     var ci=document.getElementById('copyInvite');
@@ -2566,6 +2574,22 @@ $nav['You'] = [
   <script src="/portal/directory.js" defer></script>
   <script src="/portal/inventory.js" defer></script>
   <script src="/portal/leads.js" defer></script>
+  <?php /* The palette reads the sidebar rather than being handed a second copy
+           of it. Panes are hash links, and the portal already listens for
+           hashchange, so going to one is the same as clicking it. */ ?>
+  <script type="application/json" id="cmdk-data"><?= json_encode([
+      'navFrom' => '.pnav-link[data-view]',
+      'actions' => array_values(array_filter([
+          ['label' => 'New task',  'href' => '/portal/#tasks',     'sub' => 'Something to be done'],
+          ['label' => 'Write in the diary', 'href' => '/portal/#diary', 'sub' => 'Today, in your own words'],
+          $isOrg && CacSso::ready()
+              ? ['label' => 'Look something up in the register', 'href' => '/portal/#inventory',
+                 'sub' => 'Where it is, and who has it']
+              : null,
+      ])),
+      'find'    => '/portal/palette.php',
+  ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+  <script src="/portal/palette.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>
