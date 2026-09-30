@@ -223,3 +223,32 @@ body {
 .gm-upl { cursor: pointer; }
 .gm-upl input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .gm-upl:focus-within { outline: 3px solid var(--afg-gold); outline-offset: 2px; }
+
+/* Drop and paste states. An affordance nobody can see is one nobody uses, so
+   the row says what it is doing at each step. */
+.gm-item { position: relative; transition: border-color .12s, background .12s; }
+.gm-item.is-drop {
+  border-color: var(--afg-gold); border-left-color: var(--afg-gold);
+  background: rgba(224, 168, 46, .08); box-shadow: inset 0 0 0 1px var(--afg-gold);
+}
+.gm-item.is-drop::after {
+  content: 'Drop the picture here';
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; letter-spacing: .02em; color: var(--afg-ink);
+  background: rgba(255, 253, 247, .88); border-radius: var(--afg-radius-sm); pointer-events: none;
+}
+/* Armed for paste: quiet, because it is set by an ordinary click and must not
+   look like an error or a selection the person has to undo. */
+.gm-item.is-armed { border-left-color: var(--afg-ink); }
+.gm-item.is-armed .gm-need-when::after {
+  content: ' · ready to paste'; font-weight: 700; color: var(--afg-ink);
+}
+.gm-item.is-uploading { opacity: .6; pointer-events: none; }
+
+.gm-drophint {
+  margin: var(--afg-space-2) 0 0; font-size: 12.5px; line-height: 1.55; color: var(--afg-muted);
+}
+.gm-drophint kbd {
+  font: inherit; font-weight: 800; background: var(--afg-border);
+  border-radius: 4px; padding: 1px 5px;
+}

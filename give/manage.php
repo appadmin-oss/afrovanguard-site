@@ -436,6 +436,10 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
           ];
           foreach ($itemBlocks as [$blockTitle, $blockItems, $blockEmpty]): ?>
             <h4 class="gm-subhead"><?= $e($blockTitle) ?> <span class="gm-count"><?= count($blockItems) ?></span></h4>
+            <?php if ($blockItems): ?>
+              <p class="gm-drophint">Drag a picture onto an item to attach it, or click the item and
+                press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste one — a screenshot works.</p>
+            <?php endif; ?>
             <div class="gm-items">
               <?php if (!$blockItems): ?><div class="gm-empty"><p><?= $blockEmpty ?></p></div><?php endif; ?>
               <?php foreach ($blockItems as $it): ?>

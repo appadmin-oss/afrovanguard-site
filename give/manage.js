@@ -184,42 +184,134 @@
       withButton(btn, d, 'Item added', function () { location.reload(); });
     });
   }
-  /* Picture upload. A file cannot travel as JSON, so this one posts
-     multipart and does NOT go through post() — the Content-Type has to be
-     left to the browser so it can set the multipart boundary. */
+  /* ── item pictures: choose, drop, or paste ───────────────────────────────
+     Three ways in, one path through. A file cannot travel as JSON, so this
+     posts multipart and does NOT go through post(): Content-Type has to be
+     left to the browser so it can write its own boundary. */
+
+  var IMG_OK = /^image\/(jpeg|png|webp|heic)$/i;
+
+  function uploadItemImage(id, file, row) {
+    if (!id || !file) return;
+    /* Refuse the obvious wrong thing here rather than spending an upload to
+       be told. The server checks the bytes regardless — this is courtesy,
+       not security. */
+    if (file.type && !IMG_OK.test(file.type)) {
+      toast('That has to be a picture — JPEG, PNG, WebP or HEIC.', false);
+      return;
+    }
+    if (row) row.classList.add('is-uploading');
+    var label = row && row.querySelector('.gm-upl');
+    var was = label ? label.firstChild.nodeValue : '';
+    if (label) label.firstChild.nodeValue = ' Uploading… ';
+
+    var fd = new FormData();
+    fd.append('image', file);
+    fd.append('item_id', String(id));
+
+    /* The token goes in the header, exactly as post() sends it — that is what
+       the server reads. */
+    fetch(location.pathname + location.search, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': window.GIVE_CSRF || '' },
+      body: fd,
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'The server did not answer with JSON.' }; }); })
+      .then(function (j) {
+        if (j && j.ok) { toast('Picture added'); location.reload(); return; }
+        if (row) row.classList.remove('is-uploading');
+        if (label) label.firstChild.nodeValue = was;
+        toast((j && j.error) || 'Could not upload that.', false);
+      })
+      .catch(function () {
+        if (row) row.classList.remove('is-uploading');
+        if (label) label.firstChild.nodeValue = was;
+        toast('Could not upload that.', false);
+      });
+  }
+
+  function rowId(row) { return row ? parseInt(row.getAttribute('data-item'), 10) : 0; }
+
+  /* 1. the file button */
   document.querySelectorAll('[data-itemimg]').forEach(function (inp) {
     inp.addEventListener('change', function () {
       var f = inp.files && inp.files[0];
-      if (!f) return;
-      var label = inp.closest('.gm-upl');
-      var was = label ? label.firstChild.nodeValue : '';
-      if (label) label.firstChild.nodeValue = ' Uploading… ';
-
-      var fd = new FormData();
-      fd.append('image', f);
-      fd.append('item_id', inp.getAttribute('data-itemimg'));
-
-      /* The token goes in the header, exactly as post() sends it — that is
-         what the server reads. Content-Type is deliberately NOT set: the
-         browser has to write it itself so it can add the multipart boundary. */
-      fetch(location.pathname + location.search, {
-        method: 'POST',
-        headers: { 'X-CSRF-Token': window.GIVE_CSRF || '' },
-        body: fd,
-        credentials: 'same-origin'
-      })
-        .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'The server did not answer with JSON.' }; }); })
-        .then(function (j) {
-          if (j && j.ok) { toast('Picture added'); location.reload(); return; }
-          if (label) label.firstChild.nodeValue = was;
-          toast((j && j.error) || 'Could not upload that.', false);
-        })
-        .catch(function () {
-          if (label) label.firstChild.nodeValue = was;
-          toast('Could not upload that.', false);
-        });
+      if (f) uploadItemImage(inp.getAttribute('data-itemimg'), f, inp.closest('.gm-item'));
+      inp.value = '';                 /* so choosing the same file twice still fires */
     });
   });
+
+  /* 2. drag and drop, onto the row the picture belongs to.
+     The window-level handlers matter as much as the row ones: without them a
+     near-miss drop makes the browser navigate away to the file, losing
+     whatever was half-typed in the form above. */
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  document.querySelectorAll('.gm-item').forEach(function (row) {
+    var depth = 0;                    /* dragenter/leave fire per child — count, do not toggle */
+    row.addEventListener('dragenter', function (e) {
+      e.preventDefault(); depth++; row.classList.add('is-drop');
+    });
+    row.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+    row.addEventListener('dragleave', function () {
+      depth = Math.max(0, depth - 1);
+      if (!depth) row.classList.remove('is-drop');
+    });
+    row.addEventListener('drop', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      depth = 0; row.classList.remove('is-drop');
+      var dt = e.dataTransfer;
+      if (!dt) return;
+      var f = null;
+      if (dt.files && dt.files.length) f = dt.files[0];
+      else if (dt.items) {
+        for (var i = 0; i < dt.items.length; i++) {
+          if (dt.items[i].kind === 'file') { f = dt.items[i].getAsFile(); break; }
+        }
+      }
+      if (f) uploadItemImage(rowId(row), f, row);
+      else toast('Drop an image file — a link or some text will not do.', false);
+    });
+  });
+
+  /* 3. paste.
+     A paste has no coordinates, so it needs a target chosen beforehand:
+     clicking or tabbing into a row arms it, and the row says so. Without that
+     the alternative is guessing which of fifteen items the screenshot was
+     meant for, and guessing wrong is worse than asking. */
+  var pasteRow = null;
+  function armRow(row) {
+    if (pasteRow === row) return;
+    document.querySelectorAll('.gm-item.is-armed').forEach(function (r) { r.classList.remove('is-armed'); });
+    pasteRow = row || null;
+    if (pasteRow) pasteRow.classList.add('is-armed');
+  }
+  document.querySelectorAll('.gm-item').forEach(function (row) {
+    row.addEventListener('click', function () { armRow(row); });
+    row.addEventListener('focusin', function () { armRow(row); });
+  });
+
+  document.addEventListener('paste', function (e) {
+    var cd = e.clipboardData;
+    if (!cd) return;
+    var f = null;
+    for (var i = 0; i < (cd.items || []).length; i++) {
+      if (cd.items[i].kind === 'file' && IMG_OK.test(cd.items[i].type || '')) { f = cd.items[i].getAsFile(); break; }
+    }
+    if (!f) return;                   /* an ordinary text paste — leave it alone */
+    if (!pasteRow) {
+      toast('Click the item you want the picture on, then paste.', false);
+      return;
+    }
+    e.preventDefault();
+    uploadItemImage(rowId(pasteRow), f, pasteRow);
+  });
+
   document.querySelectorAll('[data-imgclear]').forEach(function (b) {
     b.addEventListener('click', function () {
       withButton(b, { action: 'clear_item_image', item_id: +b.getAttribute('data-imgclear') },
