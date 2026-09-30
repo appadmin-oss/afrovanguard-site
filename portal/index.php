@@ -211,6 +211,8 @@ $nav['You'] = [
          register, and writing for the site — and calling it "CRM" sent
          somebody looking for their drafts past it. */ ?>
 <?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="<?= e(CacSso::DOOR) ?>"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE workspace</span><span class="pnav-ext">↗</span></a>
+<?php endif; ?>
+<?php if (GatePass::ready() && GatePass::eligible($u ?? null)): ?>          <a class="pnav-link" href="/gate-pass"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE gate pass</span></a>
 <?php endif; ?>        </div>
       </nav>
 
