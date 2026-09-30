@@ -1598,7 +1598,12 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .inv-pill--warn { background: rgba(180,83,9,.14);   color: #b45309; }
 .inv-pill--neg  { background: rgba(179,38,30,.14);  color: #b3261e; }
 
+/* `[hidden]` only sets display:none through the browser's own stylesheet,
+   which any display rule here beats. Without this the pager was drawn on a
+   one-page result, and the log form below was drawn open under a button that
+   said "Log a conversation" — the fold-away never worked at all. */
 .inv-more { display: flex; align-items: center; gap: .75rem; margin-top: .9rem; font-size: .85rem; }
+.inv-more[hidden] { display: none; }
 .inv-more button[disabled] { opacity: .45; cursor: default; }
 
 body.is-dark .inv-pill        { background: rgba(255,255,255,.10); }
@@ -1608,4 +1613,65 @@ body.is-dark .inv-pill--neg   { background: rgba(248,113,113,.16); color: #f8717
 
 @media (max-width: 620px) {
   .inv-filters select, .inv-filters .pbtn { flex: 1 1 auto; }
+}
+
+/* ── Follow-ups from CACENTRE ───────────────────────────────────────────────
+ * A list of people waiting to hear back, not a list of errands. That is why
+ * the name is the loudest thing in the row and the date is second: the
+ * question somebody opens this with is "who have I left hanging", and the
+ * answer is a person.
+ *
+ * Overdue gets a red rule down the left edge and a red date. Nothing else on
+ * this card is red, so the colour means one thing.
+ */
+.lead-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+.lead {
+  padding: .65rem .75rem; border-radius: 8px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--pc-border, rgba(0,0,0,.07));
+}
+.lead:last-child { border-bottom: 0; }
+.lead--late { border-left-color: var(--av-red, #b3261e); background: rgba(179,38,30,.035); }
+
+.lead-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
+.lead-head[hidden] { display: none; }
+.lead-name { font-weight: 600; }
+.lead-meta { font-size: .76rem; color: var(--pc-dim, #6b7280); }
+
+.lead-due { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; margin-top: .15rem; font-size: .82rem; }
+.lead-when { color: var(--pc-dim, #6b7280); }
+.lead-when.is-late { color: var(--av-red, #b3261e); font-weight: 600; }
+.lead-what { color: var(--pc-dim, #6b7280); }
+/* Monospace and tabular so a column of numbers lines up and 0 is not O. */
+.lead-tel {
+  margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .8rem; text-decoration: none;
+}
+.lead-tel:hover { text-decoration: underline; }
+
+/* A quiet control: the common case is reading the list, not writing to it. */
+.lead-log-open {
+  margin-top: .35rem; padding: 0; border: 0; background: none;
+  font: inherit; font-size: .78rem; color: var(--pc-dim, #6b7280);
+  cursor: pointer; text-decoration: underline;
+}
+.lead-log-open:hover { color: inherit; }
+
+.lead-log { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.lead-log[hidden] { display: none; }
+.lead-in {
+  flex: 1 1 12rem; min-width: 0; padding: .45rem .6rem; font: inherit; font-size: .85rem;
+  border: 1px solid var(--pc-border, rgba(0,0,0,.14)); border-radius: 8px;
+  background: var(--pc-field, #fff); color: inherit;
+}
+.lead-in--date { flex: 0 0 auto; }
+.lead--done { opacity: .6; }
+.lead--done .lead-name { text-decoration: line-through; }
+
+body.is-dark .lead--late { background: rgba(248,113,113,.07); border-left-color: #f87171; }
+body.is-dark .lead-when.is-late { color: #f87171; }
+
+@media (max-width: 620px) {
+  .lead-tel { margin-left: 0; }
+  .lead-in { flex-basis: 100%; }
 }

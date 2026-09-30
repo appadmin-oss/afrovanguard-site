@@ -115,3 +115,12 @@ ck('the tag is monospaced, because it is a code read off a sticker character by 
    str_contains($css, '.inv-tag') && str_contains($css, 'ui-monospace'));
 ck('the table scrolls sideways rather than pushing the portal off its own width on a phone',
    str_contains($css, '.inv-wrap { overflow-x: auto; }'));
+
+/* ── Anything this pane hides must actually hide ─────────────────────────────
+ * `hidden` is only display:none in the browser's own stylesheet, and any
+ * display rule here beats it. .inv-more is `display: flex`, so the pager was
+ * drawn on a one-page result. portal.css already carried .pview[hidden] and
+ * .tc-thread[hidden] for exactly this.
+ */
+ck('.inv-more says what to do when it is hidden, rather than relying on the attribute alone',
+   str_contains($css, '.inv-more[hidden] { display: none; }'));

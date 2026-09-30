@@ -943,6 +943,42 @@ $nav['You'] = [
               </div>
             </section>
 
+          <?php endif; ?>
+
+          <?php /* ── Follow-ups from CACENTRE ──────────────────────────────
+                   Beside the tasks rather than inside them: a task is a thing
+                   to do and a follow-up is a person waiting to hear back, and
+                   putting them under one heading means the person gets ticked
+                   off like an errand.
+
+                   It loads when the pane is opened, not with the page. The
+                   dashboard must not wait on the other site for a card most
+                   visits never look at.
+
+                   And it LOGS. A list that told somebody they owed a call and
+                   then sent them to another site to record it would rebuild,
+                   in a new place, exactly the gap that left the centre's
+                   workbook with ninety leads and no notes. */ ?>
+<?php if ($isOrg && CacSso::ready()): ?>
+          <section class="pcard" id="cacLeads" data-csrf="<?= e($collabCsrf) ?>"
+                   data-lead-url="<?= e(CacLeads::consoleUrl()) ?>">
+            <div class="pcard-head task-head">
+              <div class="task-head-l">
+                <h2>People waiting on you</h2>
+                <span class="task-head-sub" id="cacLeadsSub">
+                  Leads you own in the console, the overdue ones first.
+                </span>
+              </div>
+              <a class="pbtn" href="<?= e(CacLeads::consoleUrl()) ?>" target="_blank" rel="noopener">Open leads</a>
+            </div>
+            <div class="pcard-body">
+              <p class="pc-empty" id="cacLeadsMsg" hidden></p>
+              <ul class="lead-list" id="cacLeadsList"></ul>
+            </div>
+          </section>
+<?php endif; ?>
+
+<?php if ($cacTasks): ?>
             <script>
             (function () {
               'use strict';
@@ -2529,6 +2565,7 @@ $nav['You'] = [
   <script src="/portal/notifications.js" defer></script>
   <script src="/portal/directory.js" defer></script>
   <script src="/portal/inventory.js" defer></script>
+  <script src="/portal/leads.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>

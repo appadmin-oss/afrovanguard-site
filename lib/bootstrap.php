@@ -293,6 +293,7 @@ require_once __DIR__ . '/LmsAuth.php';
 require_once __DIR__ . '/CacSso.php';
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
+require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
 require_once __DIR__ . '/Payments.php';
