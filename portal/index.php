@@ -867,18 +867,26 @@ $nav['You'] = [
           </section>
 
           <?php if ($cacTasks): ?>
-            <?php /* Its own card rather than rows in the list above. Those rows
-                     are ticked, edited and deleted here; these cannot be, because
-                     this site is not where they are true. Mixing them would put
-                     two kinds of row under one set of controls, half of which
-                     would do nothing. */ ?>
+            <?php /* Its own card rather than rows in the list above. Both kinds
+                     can now be ticked and rescheduled from here, but only one of
+                     them is STORED here: a change to one of these is sent to
+                     CACENTRE and made on the row that lives there. Keeping them
+                     apart is what lets the card say so — and says which site to
+                     go to when the other one is down.
+
+                     This comment, and the two below it, used to say these could
+                     not be changed from the portal at all. That was true when
+                     the card was written and stopped being true when the write
+                     path was built; the code had a checkbox on it for a while
+                     with a comment underneath explaining why there wasn't one. */ ?>
             <section class="pcard" id="cacTasks">
               <div class="pcard-head task-head">
                 <div class="task-head-l">
                   <h2>From CACENTRE</h2>
                   <span class="task-head-sub">
                     <?= (int) count($cacTasks) ?> open <?= count($cacTasks) === 1 ? 'task' : 'tasks' ?>
-                    assigned to you in the console. They are completed there.
+                    assigned to you in the console. Ticking or rescheduling one
+                    here changes it there, on the row the console holds.
                   </span>
                 </div>
                 <a class="pbtn" href="<?= e(CacTasks::consoleUrl()) ?>" target="_blank" rel="noopener">Open the console</a>
@@ -888,9 +896,11 @@ $nav['You'] = [
                   <?php foreach ($cacTasks as $t):
                     /* The same markup the portal's own task rows use, so these
                        read as tasks rather than as a table that wandered in.
-                       No checkbox and no delete: neither would do anything
-                       here, and a control that does nothing is worse than no
-                       control. */
+                       A checkbox and the two fields worth changing in passing,
+                       but no delete: deciding a piece of work should not exist
+                       belongs where the work is managed, and a control that
+                       destroys a row on another system from a dashboard is one
+                       nobody should reach by accident. */
                     /* CACENTRE has four priorities and this site has three.
                        Mapping urgent down to normal — which is what dropping
                        the unknown value does — loses exactly the signal the

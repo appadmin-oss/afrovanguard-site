@@ -93,3 +93,19 @@ foreach (['task', 'task--pri-high', 'task--pri-low', 'task-body', 'task-title', 
           'task-head', 'task-head-l', 'task-head-sub', 'task-list', 'pbtn'] as $c) {
     ck('portal.css defines .' . $c . ', which the panel uses', str_contains($css, '.' . $c));
 }
+
+/* ── The card says what it now does ──────────────────────────────────────────
+ * The write path was built and the card's prose was not changed with it, so
+ * for a while the panel carried a working checkbox with a comment underneath
+ * explaining why there wasn't one — and told the member, in the one line they
+ * actually read, that these tasks "are completed there". A control that works
+ * while the label says it does not is worse than either.
+ */
+ck('the card does not still tell the member a CACENTRE task cannot be completed from here',
+   !str_contains($portal, 'They are completed there.'));
+ck('…and says what ticking one actually does',
+   str_contains($portal, 'here changes it there, on the row the console holds.'));
+ck('the comment above the rows no longer claims there is no checkbox, which there is',
+   !str_contains($portal, 'No checkbox and no delete'));
+ck('there is still no delete: deciding a piece of work should not exist belongs where the '
+ . 'work is managed', !str_contains($portal, 'data-cac-delete'));
