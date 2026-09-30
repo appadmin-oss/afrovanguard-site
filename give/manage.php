@@ -20,6 +20,17 @@ $isAdmin = $role !== '';
 $method  = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $actor   = function_exists('av_admin_actor') ? av_admin_actor() : 'admin';
 
+/* ── image upload ────────────────────────────────────────────────────────
+   A file arrives as multipart/form-data, which cannot be json_decode'd, so it
+   is taken here before the JSON dispatcher below reads the request body. */
+if ($method === 'POST' && !empty($_FILES['image'])) {
+    if (!$isAdmin) json_out(['ok' => false, 'error' => 'Admin sign-in required.'], 403);
+    $uid = (int) (class_exists('LmsAuth') && LmsAuth::user() ? LmsAuth::user()['id'] : 0);
+    av_require_write($uid, 'give_manage', 120, 600);
+    $r = Appeals::setItemImage((int) ($_POST['item_id'] ?? 0), $_FILES['image'], $actor);
+    json_out($r, empty($r['ok']) ? 400 : 200);
+}
+
 /* ── JSON actions ────────────────────────────────────────────────────────── */
 if ($method === 'POST') {
     if (!$isAdmin) json_out(['ok' => false, 'error' => 'Admin sign-in required.'], 403);
@@ -55,6 +66,10 @@ if ($method === 'POST') {
         }
         case 'fund_item': {
             $r = Appeals::fundItem((int) ($in['item_id'] ?? 0), (int) ($in['qty'] ?? 1), $actor);
+            json_out($r, empty($r['ok']) ? 400 : 200);
+        }
+        case 'clear_item_image': {
+            $r = Appeals::clearItemImage((int) ($in['item_id'] ?? 0), $actor);
             json_out($r, empty($r['ok']) ? 400 : 200);
         }
         case 'delete_item': {
@@ -425,6 +440,9 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
               <?php if (!$blockItems): ?><div class="gm-empty"><p><?= $blockEmpty ?></p></div><?php endif; ?>
               <?php foreach ($blockItems as $it): ?>
                 <div class="gm-item<?= $it['status'] === 'funded' ? ' is-met' : '' ?>" data-item="<?= (int) $it['id'] ?>">
+                  <?php if (trim((string) $it['image_url']) !== ''): ?>
+                    <img class="gm-item-img" src="<?= $e((string) $it['image_url']) ?>" alt="" width="64" height="64" loading="lazy">
+                  <?php endif; ?>
                   <div>
                     <div class="gm-need-when"><?= $e((string) ($it['category'] !== '' ? $it['category'] : 'Uncategorised')) ?>
                       · <?= $it['kind'] === 'money' ? 'priced' : 'in kind' ?><?php
@@ -442,6 +460,16 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
                     </div>
                   </div>
                   <div class="gm-need-act">
+                    <?php /* The picture lives on the row it belongs to, so
+                             there is no separate "media" step to forget. */ ?>
+                    <label class="gm-btn gm-ghost gm-sm gm-upl">
+                      <?= trim((string) $it['image_url']) !== '' ? 'Replace picture' : 'Add picture' ?>
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic"
+                             data-itemimg="<?= (int) $it['id'] ?>" hidden>
+                    </label>
+                    <?php if (trim((string) $it['image_url']) !== ''): ?>
+                      <button class="gm-btn gm-ghost gm-sm" data-imgclear="<?= (int) $it['id'] ?>">Remove picture</button>
+                    <?php endif; ?>
                     <?php if ($it['is_open']): ?>
                       <button class="gm-btn gm-ghost gm-sm" data-funditem="<?= (int) $it['id'] ?>">+1 covered</button>
                     <?php endif; ?>

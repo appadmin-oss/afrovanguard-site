@@ -183,18 +183,19 @@ CREATE TABLE IF NOT EXISTS av_appeal_items (
   appeal_id     INTEGER NOT NULL DEFAULT 0,
   slug          VARCHAR(80) NOT NULL DEFAULT '',
   kind          VARCHAR(8) NOT NULL DEFAULT 'money',
-  category      TEXT NOT NULL DEFAULT '',
-  title         TEXT NOT NULL DEFAULT '',
-  detail        TEXT NOT NULL DEFAULT '',
+  category      VARCHAR(60) NOT NULL DEFAULT '',
+  title         VARCHAR(191) NOT NULL DEFAULT '',
+  detail        TEXT,
   unit_cost     INTEGER NOT NULL DEFAULT 0,
-  unit_label    TEXT NOT NULL DEFAULT '',
+  unit_label    VARCHAR(40) NOT NULL DEFAULT '',
   qty_needed    INTEGER NOT NULL DEFAULT 0,
   qty_funded    INTEGER NOT NULL DEFAULT 0,
   status        VARCHAR(12) NOT NULL DEFAULT 'live',
   sort          INTEGER NOT NULL DEFAULT 0,
-  created_by    TEXT NOT NULL DEFAULT '',
-  created_at    TEXT NOT NULL DEFAULT '',
-  updated_at    TEXT NOT NULL DEFAULT ''
+  image_url     VARCHAR(500) NOT NULL DEFAULT '',
+  created_by    VARCHAR(120) NOT NULL DEFAULT '',
+  created_at    VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at    VARCHAR(32) NOT NULL DEFAULT ''
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_item_slug ON av_appeal_items (slug);
 CREATE INDEX IF NOT EXISTS idx_item_live ON av_appeal_items (status, sort, id);
@@ -998,6 +999,7 @@ SQL;
         $put('appeal_id',  max(0, (int) ($in['appeal_id'] ?? 0)));
         $put('qty_needed', max(0, min(1000000, (int) ($in['qty_needed'] ?? 0))));
         $put('sort',       max(0, min(9999, (int) ($in['sort'] ?? 0))));
+        $put('image_url',  mb_substr(trim((string) ($in['image_url'] ?? '')), 0, 500));
         if (array_key_exists('kind', $in) || $id <= 0)      $row['kind'] = $kind;
         if (array_key_exists('unit_cost', $in) || $id <= 0) $row['unit_cost'] = $cost;
         if (array_key_exists('status', $in)) {
@@ -1030,7 +1032,10 @@ SQL;
             return ['ok' => true, 'id' => $newId, 'updated' => false];
         } catch (Throwable $e) {
             error_log('[appeals] saveItem: ' . $e->getMessage());
-            return ['ok' => false, 'error' => 'Could not save that item.'];
+            /* Admin-only surface, so say what actually went wrong. A generic
+               refusal here made a missing table indistinguishable from a
+               working one that simply showed the row somewhere else. */
+            return ['ok' => false, 'error' => 'Could not save that item — ' . self::dbWhy($e)];
         }
     }
 
@@ -1165,6 +1170,93 @@ SQL;
                 'outstanding_ngn' => $outstanding, 'goods_left' => $goods];
     }
 
+    /** What an item picture may be. Checked from the file's own bytes. */
+    public const ITEM_IMAGE_TYPES = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/heic' => 'heic'];
+    private const ITEM_IMAGE_BYTES = 8 * 1048576;
+
+    /**
+     * Attach a picture to an item from an upload.
+     *
+     * Everything about the file is decided HERE, not taken from the browser:
+     * the type comes from the file's own bytes via Storage::mime(), because
+     * the claimed type is whatever the uploader felt like sending and a PHP
+     * script named .jpg would otherwise be written into a web-served folder.
+     *
+     * Takes the raw $_FILES entry so the caller does not have to know the two
+     * shapes PHP produces.
+     */
+    public static function setItemImage(int $id, array $file, string $actor = ''): array
+    {
+        self::ensure();
+        $it = self::item($id);
+        if (!$it) return ['ok' => false, 'error' => 'No such item.'];
+        if (!class_exists('Storage')) return ['ok' => false, 'error' => 'File storage is not available on this installation.'];
+
+        $err = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($err === UPLOAD_ERR_NO_FILE) return ['ok' => false, 'error' => 'No picture was chosen.'];
+        if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+            return ['ok' => false, 'error' => 'That picture was larger than this server accepts.'];
+        }
+        if ($err !== UPLOAD_ERR_OK) return ['ok' => false, 'error' => 'The picture did not upload.'];
+
+        $tmp = (string) ($file['tmp_name'] ?? '');
+        if ((int) ($file['size'] ?? 0) > self::ITEM_IMAGE_BYTES) {
+            return ['ok' => false, 'error' => 'That picture was over ' . (int) (self::ITEM_IMAGE_BYTES / 1048576) . 'MB.'];
+        }
+        /* is_uploaded_file, so a path cannot be smuggled in under `tmp_name`
+           and read off the server's own disk. */
+        if (!is_uploaded_file($tmp) && PHP_SAPI !== 'cli') return ['ok' => false, 'error' => 'That was not an uploaded file.'];
+
+        $mime = Storage::mime($tmp);
+        if (!isset(self::ITEM_IMAGE_TYPES[$mime])) {
+            return ['ok' => false, 'error' => 'That has to be a picture — JPEG, PNG, WebP or HEIC (that one was ' . $mime . ').'];
+        }
+
+        try {
+            $name = (string) ($file['name'] ?? '') ?: ('item.' . self::ITEM_IMAGE_TYPES[$mime]);
+            $put  = Storage::put($tmp, $name, 'image', 'give-items');
+            $url  = (string) ($put['url'] ?? '');
+            if ($url === '') return ['ok' => false, 'error' => 'The picture could not be stored.'];
+
+            Database::pdo()->prepare('UPDATE av_appeal_items SET image_url = ?, updated_at = ? WHERE id = ?')
+                ->execute([mb_substr($url, 0, 500), self::now(), $id]);
+            self::audit('item_image', 'item:' . $id, $actor, (string) $it['title']);
+            return ['ok' => true, 'image_url' => $url];
+        } catch (Throwable $e) {
+            error_log('[appeals] setItemImage: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'The picture could not be stored — ' . self::dbWhy($e)];
+        }
+    }
+
+    /** Take the picture off an item. The file itself is left alone. */
+    public static function clearItemImage(int $id, string $actor = ''): array
+    {
+        self::ensure();
+        try {
+            Database::pdo()->prepare("UPDATE av_appeal_items SET image_url = '', updated_at = ? WHERE id = ?")
+                ->execute([self::now(), $id]);
+            self::audit('item_image_clear', 'item:' . $id, $actor, '');
+            return ['ok' => true];
+        } catch (Throwable $e) { return ['ok' => false, 'error' => 'Could not remove it.']; }
+    }
+
+    /** Turn a PDO exception into something an administrator can act on. */
+    private static function dbWhy(Throwable $e): string
+    {
+        $m = $e->getMessage();
+        if (preg_match('/no such table|1146|42P01/i', $m)) {
+            return 'the items table is missing on this installation. Reload this page once to create it, '
+                 . 'and tell whoever maintains the site if it keeps happening.';
+        }
+        if (preg_match('/no such column|1054|42703/i', $m)) {
+            return 'this installation\'s items table is missing a column. Reload this page once to add it.';
+        }
+        if (preg_match('/1101/', $m))            return 'the database rejected the table definition (TEXT default).';
+        if (preg_match('/1062|23000|unique/i', $m)) return 'something with that name already exists.';
+        if (preg_match('/1406|22001|too long/i', $m)) return 'one of the fields was too long.';
+        return 'the database refused it: ' . mb_substr(preg_replace('/\s+/', ' ', $m), 0, 160);
+    }
+
     private static function shapeItem(array $r): array
     {
         foreach (['id', 'appeal_id', 'unit_cost', 'qty_needed', 'qty_funded', 'sort'] as $k) $r[$k] = (int) ($r[$k] ?? 0);
@@ -1173,6 +1265,7 @@ SQL;
         $r['pct']      = $need > 0 ? (int) min(100, round($r['qty_funded'] / $need * 100)) : 0;
         $r['is_open']  = $r['status'] === 'live' && ($need === 0 || $r['qty_left'] > 0);
         $r['line_ngn'] = $r['kind'] === 'money' ? $r['unit_cost'] * max(0, $r['qty_left']) : 0;
+        $r['image_url'] = (string) ($r['image_url'] ?? '');
         return $r;
     }
 

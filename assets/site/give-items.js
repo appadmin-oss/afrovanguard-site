@@ -73,7 +73,9 @@
               : '<a class="gv-item-cta" href="/contact.html?about=' +
                 encodeURIComponent('Donating: ' + it.title) + '">Offer one</a>'));
 
-        return '<li class="gv-item' + (it.open ? '' : ' is-done') + '">' +
+        var img = it.image ? '<img class="gv-item-img" src="' + esc(it.image) + '" alt="" width="72" height="72" loading="lazy">' : '';
+
+        return '<li class="gv-item' + (it.open ? '' : ' is-done') + '">' + img +
           '<div class="gv-item-main"><span class="gv-item-name">' + esc(it.title) + '</span>' +
           (it.detail ? '<span class="gv-item-detail">' + esc(it.detail) + '</span>' : '') +
           meter + '</div>' +

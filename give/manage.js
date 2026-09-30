@@ -184,6 +184,49 @@
       withButton(btn, d, 'Item added', function () { location.reload(); });
     });
   }
+  /* Picture upload. A file cannot travel as JSON, so this one posts
+     multipart and does NOT go through post() — the Content-Type has to be
+     left to the browser so it can set the multipart boundary. */
+  document.querySelectorAll('[data-itemimg]').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      var label = inp.closest('.gm-upl');
+      var was = label ? label.firstChild.nodeValue : '';
+      if (label) label.firstChild.nodeValue = ' Uploading… ';
+
+      var fd = new FormData();
+      fd.append('image', f);
+      fd.append('item_id', inp.getAttribute('data-itemimg'));
+
+      /* The token goes in the header, exactly as post() sends it — that is
+         what the server reads. Content-Type is deliberately NOT set: the
+         browser has to write it itself so it can add the multipart boundary. */
+      fetch(location.pathname + location.search, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': window.GIVE_CSRF || '' },
+        body: fd,
+        credentials: 'same-origin'
+      })
+        .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'The server did not answer with JSON.' }; }); })
+        .then(function (j) {
+          if (j && j.ok) { toast('Picture added'); location.reload(); return; }
+          if (label) label.firstChild.nodeValue = was;
+          toast((j && j.error) || 'Could not upload that.', false);
+        })
+        .catch(function () {
+          if (label) label.firstChild.nodeValue = was;
+          toast('Could not upload that.', false);
+        });
+    });
+  });
+  document.querySelectorAll('[data-imgclear]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      withButton(b, { action: 'clear_item_image', item_id: +b.getAttribute('data-imgclear') },
+                 'Removed', function () { location.reload(); });
+    });
+  });
+
   document.querySelectorAll('[data-funditem]').forEach(function (b) {
     b.addEventListener('click', function () {
       withButton(b, { action: 'fund_item', item_id: +b.getAttribute('data-funditem'), qty: 1 },

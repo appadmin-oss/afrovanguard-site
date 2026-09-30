@@ -141,4 +141,111 @@ ck('items: in-kind things are counted, not priced',
 ck('items: an item can be deleted outright', Appeals::deleteItem((int) $itDup['id']));
 ck('items: and is then gone', Appeals::item((int) $itDup['id']) === null);
 
+/* ══ Pictures ═════════════════════════════════════════════════════════════
+ *
+ * An item's picture is uploaded, not pasted as a link, so what matters is
+ * that the file is judged on its own bytes rather than on what the browser
+ * claimed it was. A .php named .jpg landing in a web-served folder is the
+ * whole reason this is checked server-side.
+ */
+
+$itReset();
+$itPic = Appeals::saveItem(['title' => 'Plastic chairs', 'kind' => 'goods', 'qty_needed' => 40], 'tester');
+$itPicId = (int) $itPic['id'];
+
+ck('images: an item starts with no picture', (string) Appeals::item($itPicId)['image_url'] === '');
+
+/* A real 8x8 PNG, built here so the test carries no binary fixture. */
+$itPng = (static function (): string {
+    $chunk = static function (string $t, string $d): string {
+        return pack('N', strlen($d)) . $t . $d . pack('N', crc32($t . $d));
+    };
+    $raw = '';
+    for ($y = 0; $y < 8; $y++) $raw .= "\x00" . str_repeat("\xc8\x78\x1e", 8);
+    return "\x89PNG\r\n\x1a\n"
+        . $chunk('IHDR', pack('NNCCCCC', 8, 8, 8, 2, 0, 0, 0))
+        . $chunk('IDAT', gzcompress($raw))
+        . $chunk('IEND', '');
+})();
+
+$itTmp = sys_get_temp_dir() . '/av-item-' . getmypid() . '.png';
+file_put_contents($itTmp, $itPng);
+
+ck('images: a picture with no item is refused',
+   empty(Appeals::setItemImage(999999, ['error' => UPLOAD_ERR_OK, 'tmp_name' => $itTmp, 'name' => 'x.png', 'size' => 10])['ok']));
+ck('images: choosing nothing is refused, and says so',
+   (static function () use ($itPicId) {
+        $r = Appeals::setItemImage($itPicId, ['error' => UPLOAD_ERR_NO_FILE]);
+        return empty($r['ok']) && str_contains((string) $r['error'], 'No picture');
+   })());
+ck('images: a file over the server limit is refused with the limit named',
+   (static function () use ($itPicId, $itTmp) {
+        $r = Appeals::setItemImage($itPicId, ['error' => UPLOAD_ERR_INI_SIZE, 'tmp_name' => $itTmp, 'name' => 'x.png', 'size' => 1]);
+        return empty($r['ok']) && str_contains((string) $r['error'], 'larger than this server');
+   })());
+ck('images: an oversized file is refused before it is stored',
+   empty(Appeals::setItemImage($itPicId, ['error' => UPLOAD_ERR_OK, 'tmp_name' => $itTmp,
+                                          'name' => 'x.png', 'size' => 50 * 1048576])['ok']));
+
+/* The one that matters: a script renamed .png. The type is read from the
+   bytes, so the name buys nothing. */
+$itBad = sys_get_temp_dir() . '/av-item-bad-' . getmypid() . '.png';
+file_put_contents($itBad, "<?php echo 'pwned'; ?>\n");
+$itBadR = Appeals::setItemImage($itPicId, ['error' => UPLOAD_ERR_OK, 'tmp_name' => $itBad,
+                                           'name' => 'innocent.png', 'size' => filesize($itBad)]);
+ck('images: a PHP script named .png is refused', empty($itBadR['ok']));
+ck('images: and the refusal names what it actually was',
+   str_contains((string) $itBadR['error'], 'has to be a picture'));
+ck('images: nothing was attached by the attempt', (string) Appeals::item($itPicId)['image_url'] === '');
+
+$itOkR = Appeals::setItemImage($itPicId, ['error' => UPLOAD_ERR_OK, 'tmp_name' => $itTmp,
+                                          'name' => 'chair.png', 'size' => filesize($itTmp)], 'tester');
+ck('images: a real picture is accepted', !empty($itOkR['ok']));
+ck('images: and is on the item afterwards', (string) Appeals::item($itPicId)['image_url'] !== '');
+ck('images: the catalogue carries it',
+   (static function () use ($itPicId) {
+        foreach (Appeals::items(['limit' => 50]) as $i) {
+            if ((int) $i['id'] === $itPicId) return (string) $i['image_url'] !== '';
+        }
+        return false;
+   })());
+ck('images: it can be taken off again',
+   !empty(Appeals::clearItemImage($itPicId, 'tester')['ok'])
+   && (string) Appeals::item($itPicId)['image_url'] === '');
+
+/* A saveItem that does not mention the picture must not wipe it — the same
+   partial-write rule every other field here follows. */
+Appeals::setItemImage($itPicId, ['error' => UPLOAD_ERR_OK, 'tmp_name' => $itTmp, 'name' => 'c.png', 'size' => filesize($itTmp)], 't');
+Appeals::saveItem(['id' => $itPicId, 'qty_needed' => 50], 'tester');
+ck('images: editing another field leaves the picture alone',
+   (string) Appeals::item($itPicId)['image_url'] !== '');
+
+@unlink($itTmp); @unlink($itBad);
+
+/* ══ The schema survives a non-SQLite engine ══════════════════════════════
+ * The items table is new, and a table that fails to CREATE is invisible:
+ * execSchema only logs, so every insert afterwards fails while the page
+ * looks fine. These pin the translation rather than waiting for a install
+ * on another engine to find out.
+ */
+$itDdl = (static function (): string {
+    $m = new ReflectionMethod('Appeals', 'ddl'); $m->setAccessible(true);
+    $d = (string) $m->invoke(null);
+    $i = strpos($d, 'CREATE TABLE IF NOT EXISTS av_appeal_items');
+    return substr($d, $i, strpos($d, 'CREATE TABLE', $i + 10) - $i);
+})();
+foreach (['mysql', 'pgsql'] as $itDrv) {
+    $t = Database::translateDDL($itDdl, $itDrv);
+    /* MySQL rejects a default on TEXT (1101). MariaDB allows it, which is how
+       such a column ships unnoticed — so the table must not contain one. */
+    ck('items schema: no TEXT column carries a default on ' . $itDrv,
+       !preg_match('/\bTEXT\s+(NOT\s+NULL\s+)?DEFAULT/i', $t));
+    ck('items schema: AUTOINCREMENT is translated for ' . $itDrv,
+       !str_contains(strtoupper($t), 'AUTOINCREMENT'));
+}
+ck('items schema: MySQL gets InnoDB and utf8mb4',
+   str_contains(Database::translateDDL($itDdl, 'mysql'), 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'));
+ck('items schema: MySQL has no IF NOT EXISTS on an index',
+   !preg_match('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', Database::translateDDL($itDdl, 'mysql')));
+
 $itReset();

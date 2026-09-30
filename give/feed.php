@@ -136,6 +136,7 @@ foreach (Appeals::items(['appeal_id' => 0, 'limit' => 60]) as $it) {
         'left'     => (int) $it['qty_left'],
         'pct'      => (int) $it['pct'],
         'open'     => (bool) $it['is_open'],
+        'image'    => (string) $it['image_url'],
     ];
 }
 

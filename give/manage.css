@@ -217,3 +217,9 @@ body {
 .gm-toast.is-err { background: var(--afg-danger); color: #fff; }
 
 @media (prefers-reduced-motion: reduce) { .gm-btn, .gm-row { transition: none; } }
+
+/* An item's picture, on the row it belongs to. */
+.gm-item-img { flex: none; width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--afg-border); }
+.gm-upl { cursor: pointer; }
+.gm-upl input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.gm-upl:focus-within { outline: 3px solid var(--afg-gold); outline-offset: 2px; }

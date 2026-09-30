@@ -258,6 +258,10 @@ render_nav('involved');
           <ul class="gv-items">
             <?php foreach ($list as $it): ?>
               <li class="gv-item<?= $it['is_open'] ? '' : ' is-done' ?>">
+                <?php if (trim((string) $it['image_url']) !== ''): ?>
+                  <img class="gv-item-img" src="<?= e((string) $it['image_url']) ?>" alt=""
+                       width="72" height="72" loading="lazy" decoding="async">
+                <?php endif; ?>
                 <div class="gv-item-main">
                   <span class="gv-item-name"><?= e((string) $it['title']) ?></span>
                   <?php if (trim((string) $it['detail']) !== ''): ?>

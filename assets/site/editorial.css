@@ -304,3 +304,15 @@
 }
 .gw-done-h { font-weight: 800; color: var(--afg-ink); margin-bottom: 6px; }
 .gw-done-b { font-size: 14px; line-height: 1.65; color: var(--afg-muted); max-width: 46ch; }
+
+/* An item's picture. Fixed square so a row of them lines up however the
+   photographs were cropped, and it is decorative — the name beside it is the
+   real label, so the alt stays empty rather than repeating it to a screen
+   reader. */
+.gv-item-img {
+  flex: none; width: 72px; height: 72px; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--afg-border); background: var(--afg-border);
+}
+.gv-item { gap: var(--afg-space-4); }
+.gv-item > .gv-item-img + .gv-item-main { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 640px) { .gv-item-img { width: 56px; height: 56px; } }
