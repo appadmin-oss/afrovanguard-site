@@ -455,6 +455,11 @@
         <div class="side-card"><h3>What needs fixing</h3><div id="memQuality"></div></div>
         <div class="side-card"><h3>By centre</h3><div id="memCentres"></div></div>
       </div>
+      <div class="side-card" id="memIntake" hidden>
+        <h3>Promoted from NGG, waiting for an email</h3>
+        <p class="muted tiny">NGG promoted these members to NextGen Vanguard, but has no usable email for them, so they have no account here yet. Type the address and the account, the NGV enrolment and the NGV ID are made at once.</p>
+        <div id="memIntakeList"></div>
+      </div>
       <h2 class="mem-audit-h">Recent activity</h2>
       <div class="inbox-list" id="memAudit"></div>
     </section>

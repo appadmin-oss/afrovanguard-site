@@ -1,6 +1,6 @@
 <?php
 /**
- * academy/ngv/_dashboard-body.php — the NGV dashboard itself: journey, track
+ * academy/ngv/_dashboard-body.php — the NGV dashboard itself: track
  * and plan, the fee account, damage, certifications, reading, schedule.
  *
  * Rendered inside the member portal (/portal/#ngv) and the standalone page.
@@ -27,7 +27,7 @@ $ngvScript     = $ngvScript ?? true;
       <div class="phead">
         <div>
           <h1>Welcome back, <?= $e($first) ?> 👋</h1>
-          <p class="phead-sub">Your NextGen Vanguard home — track your journey, log the 24-book challenge, choose your track &amp; plan, and keep your focus in view. Everything here saves to your account.</p>
+          <p class="phead-sub">Your NextGen Vanguard home — log the 24-book challenge, choose your track &amp; plan, and keep your focus in view. Everything here saves to your account.</p>
         </div>
         <div class="phead-actions">
           <a class="pbtn pbtn-ghost" href="/academy/ngv/" target="_blank" rel="noopener">Programme page ↗</a>
@@ -38,9 +38,9 @@ $ngvScript     = $ngvScript ?? true;
       <!-- KPIs -->
       <div class="pkpis">
         <div class="pkpi">
-          <div class="pkpi-top"><span class="pkpi-label">Current phase</span><?php if ($myPhase === 'done'): ?><span class="pchip pchip--green">Complete</span><?php endif; ?></div>
-          <div class="pkpi-value" id="tilePhase" style="font-size:17px"><?= $e($phaseLabel) ?></div>
-          <div class="pkpi-sub">of the <?= count($phases) ?: 2 ?>-phase journey</div>
+          <div class="pkpi-top"><span class="pkpi-label">Afrovanguard level</span></div>
+          <div class="pkpi-value" style="font-size:17px"><?= class_exists('Levels') ? $e(Levels::labelOf(Levels::of($uid))) : 'Member' ?></div>
+          <div class="pkpi-sub">your stage in Afrovanguard</div>
         </div>
         <div class="pkpi">
           <div class="pkpi-top"><span class="pkpi-label">My track</span></div>
@@ -61,34 +61,6 @@ $ngvScript     = $ngvScript ?? true;
 
 <?php endif; ?>
       <div class="ngv-grid">
-
-        <!-- My journey -->
-<?php if ($ngvShow('journey')): ?>
-        <section class="pcard wide" id="journey">
-          <div class="pcard-head"><h2>My journey</h2><span class="pcard-sub">Tap the phase you're in</span></div>
-          <div class="pcard-body">
-            <?php foreach ($phases as $i => $ph): $on = ($myPhase === (string)($i + 1)) || ($myPhase === 'done'); ?>
-            <div class="ngv-phase <?= $on ? 'on' : '' ?>" data-phase-row="<?= $i + 1 ?>">
-              <div class="dot"><?= $myPhase === 'done' ? '✓' : ($i + 1) ?></div>
-              <div>
-                <?php if (!empty($ph['tag'])): ?><div class="tag"><?= $e((string)$ph['tag']) ?></div><?php endif; ?>
-                <h3><?= $e((string)($ph['title'] ?? 'Phase ' . ($i + 1))) ?></h3>
-                <?php if (!empty($ph['when'])): ?><div class="when"><?= $e((string)$ph['when']) ?></div><?php endif; ?>
-                <?php if (!empty($ph['items']) && is_array($ph['items'])): ?>
-                <ul><?php foreach ($ph['items'] as $it): ?><li><?= $e((string)$it) ?></li><?php endforeach; ?></ul>
-                <?php endif; ?>
-              </div>
-            </div>
-            <?php endforeach; ?>
-            <div class="ngv-btns">
-              <?php for ($i = 1; $i <= max(2, count($phases)); $i++): ?>
-              <button class="pbtn pbtn-ghost phase-btn <?= $myPhase === (string)$i ? 'on' : '' ?>" data-phase="<?= $i ?>">I'm in Phase <?= $i ?></button>
-              <?php endfor; ?>
-              <button class="pbtn pbtn-ghost phase-btn <?= $myPhase === 'done' ? 'on' : '' ?>" data-phase="done">Completed 🎓</button>
-            </div>
-          </div>
-        </section>
-<?php endif; ?>
 
         <!-- My track + plan -->
 <?php if ($ngvShow('track')): ?>
@@ -619,25 +591,6 @@ $ngvScript     = $ngvScript ?? true;
       var val = wasOn ? '' : name;
       if(!wasOn) el.classList.add('on');
       save({plan: val}, function(){ setTimeout(function(){ location.reload(); }, 500); });
-    });
-  });
-
-  // Phase buttons
-  document.querySelectorAll('.phase-btn').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var ph = btn.getAttribute('data-phase');
-      var wasOn = btn.classList.contains('on');
-      document.querySelectorAll('.phase-btn').forEach(function(x){ x.classList.remove('on'); });
-      var val = wasOn ? '' : ph;
-      if(!wasOn) btn.classList.add('on');
-      document.querySelectorAll('[data-phase-row]').forEach(function(row){
-        var n = row.getAttribute('data-phase-row');
-        row.classList.toggle('on', val === 'done' || val === n);
-        var dot = row.querySelector('.dot'); if(dot) dot.textContent = (val==='done') ? '✓' : n;
-      });
-      var tile = document.getElementById('tilePhase');
-      if(tile){ tile.textContent = val==='done' ? 'Completed 🎓' : (val ? (btn.textContent.replace("I'm in ","")) : 'Not set'); }
-      save({phase: val});
     });
   });
 

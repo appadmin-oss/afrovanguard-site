@@ -165,7 +165,6 @@ if ($isNgv) {
     })($u);
     $ngvOwed = (int) ($ngvVars['account']['payable'] ?? 0);
     $ngvA = $ngvVars['account'];
-    $ngvPhaseLabel = (string) $ngvVars['phaseLabel'];
     $nav['NextGen Vanguard'] = [
         ['ngv', 'Programme', 'gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']],
         ['ngv-account', 'Fees & account', $ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''],
@@ -406,7 +405,6 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
                 <div class="pcard-head"><h2>NextGen Vanguard</h2><a class="pcard-link" href="#ngv" data-goto="ngv">Programme →</a></div>
                 <div class="pcard-body">
                   <div class="ngv-glance">
-                    <a href="#ngv" data-goto="ngv"><span>Phase</span><b><?= e($ngvPhaseLabel) ?></b></a>
                     <a href="#ngv" data-goto="ngv"><span>Track</span><b><?= $ngvVars['myTrack'] !== '' ? e((string) $ngvVars['myTrack']) : 'Not chosen' ?></b></a>
                     <a href="#ngv" data-goto="ngv"><span>Reading</span><b><?= (int) $ngvVars['booksRead'] ?> / <?= (int) $ngvVars['BOOKS_TOTAL'] ?></b></a>
                     <a href="#ngv-account" data-goto="ngv-account"><span>Account</span><b class="<?= $ngvOwed > 0 ? 'due' : 'ok' ?>"><?= $ngvOwed > 0 ? '₦' . number_format($ngvOwed) . ' due' : 'All clear' ?></b></a>
@@ -1490,15 +1488,15 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
            standalone page's greeting and tiles (those are on Today). */
         $ngvRender = static function (array $v, array $parts, bool $script): void {
             (static function (array $__v): void { extract($__v); require dirname(__DIR__) . '/academy/ngv/_dashboard-body.php'; })(
-                $v + ['ngvParts' => $parts, 'ngvStandalone' => false, 'ngvBanner' => $parts[0] === 'journey', 'ngvScript' => $script, 'ngvAccountHref' => '#ngv-account']);
+                $v + ['ngvParts' => $parts, 'ngvStandalone' => false, 'ngvBanner' => $parts[0] === 'track', 'ngvScript' => $script, 'ngvAccountHref' => '#ngv-account']);
         };
 ?>
         <section class="pview" id="view-ngv" data-view="ngv" hidden>
           <div class="view-head">
-            <div><h1>Programme</h1><p class="view-sub">Your NextGen Vanguard journey — phase, track and plan, the 24-book challenge, certifications and the schedule. Everything saves as you go.</p></div>
+            <div><h1>Programme</h1><p class="view-sub">Your NextGen Vanguard track and plan, the 24-book challenge, certifications and the schedule. Everything saves as you go.</p></div>
             <a class="pbtn pbtn-ghost" href="/academy/ngv/" target="_blank" rel="noopener">Programme page ↗</a>
           </div>
-<?php $ngvRender($ngvVars, ['journey', 'track', 'focus', 'reading', 'certs', 'schedule', 'support'], false); ?>
+<?php $ngvRender($ngvVars, ['track', 'focus', 'reading', 'certs', 'schedule', 'support'], false); ?>
         </section>
         <section class="pview" id="view-ngv-account" data-view="ngv-account" hidden>
           <div class="view-head">

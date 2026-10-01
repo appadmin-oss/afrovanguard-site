@@ -2910,6 +2910,14 @@
       var c = d.by_centre || {};
       $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b style="margin-left:auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
     });
+    api('ngv_intake').then(function (r) {
+      var w = (r.data && r.data.waiting) || [];
+      $('#memIntake').hidden = !w.length;
+      $('#memIntakeList').innerHTML = w.map(function (x) {
+        return '<div class="mem-try" data-ngg="' + escapeHtml(x.ngg_member_id) + '"><span><b>' + escapeHtml(x.name) + '</b> <span class="muted tiny">' + escapeHtml(x.ngg_member_id) + ' · ' + escapeHtml(x.detail) + '</span></span>'
+          + '<input type="email" placeholder="their email" value="' + escapeHtml(x.email || '') + '" aria-label="Email for ' + escapeHtml(x.name) + '"><button class="btn btn-primary btn-sm mem-intake-go">Create account</button></div>';
+      }).join('');
+    });
     api('mem_list').then(function (r) {
       var d = r.data || {};
       $('#memAudit').innerHTML = (d.audit || []).length ? d.audit.map(memAuditHTML).join('') : '<p class="muted">No activity yet.</p>';
@@ -3051,6 +3059,15 @@
       }).catch(function () { toast('Network error.'); }).finally(function () { btn.disabled = false; });
     });
 
+    $('#memIntakeList').addEventListener('click', function (e) {
+      var b = e.target.closest('.mem-intake-go'); if (!b) return;
+      var row = b.closest('[data-ngg]'); b.disabled = true;
+      post('ngv_intake_email', { ngg_member_id: row.getAttribute('data-ngg'), email: row.querySelector('input').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (d.ok && d.status !== 'needs_email') { toast('NGV account ' + (d.status === 'linked' ? 'linked' : 'created') + '.'); loadMemDash(); }
+        else toast(d.error || 'That email could not be used.');
+      }).finally(function () { b.disabled = false; });
+    });
     $('#memCardsBtn').addEventListener('click', function () {
       if (!confirm('Give every active member with no card a secure card for the CACENTRE gate? Nobody’s existing card is replaced.')) return;
       var btn = this, total = 0; btn.disabled = true;

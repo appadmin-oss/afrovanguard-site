@@ -69,7 +69,7 @@ try {
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
-        'roster_create', 'roster_update', 'roster_import', 'card_format_save', 'card_reissue', 'cards_backfill'], true);
+        'roster_create', 'roster_update', 'roster_import', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -93,7 +93,7 @@ try {
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'card_formats', 'card_reissue', 'cards_backfill',
+        'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
@@ -1137,6 +1137,12 @@ try {
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
+        case 'ngv_intake':
+            json_out(['ok' => true, 'waiting' => NgvIntake::waiting()]);
+        case 'ngv_intake_email':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = NgvIntake::supplyEmail((string) ($body['ngg_member_id'] ?? ''), (string) ($body['email'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_duplicates':
             json_out(['ok' => true, 'groups' => MemberRoster::duplicates()]);
         case 'roster_create':
