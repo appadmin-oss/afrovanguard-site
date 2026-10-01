@@ -7,11 +7,22 @@
  * Saves go to /academy/ngv/dashboard.php, which stays the one place that
  * writes, whichever surface the member is on.
  */
+/* Which cards to draw. The standalone page draws them all with its own
+   header; the member portal draws them in three views (Programme, Fees &
+   account, the cards it puts elsewhere), once each, and the script once. */
+$ngvParts      = $ngvParts ?? null;
+$ngvShow       = static fn(string $id): bool => $ngvParts === null || in_array($id, $ngvParts, true);
+$ngvStandalone = $ngvStandalone ?? ($ngvParts === null);
+$ngvBanner     = $ngvBanner ?? true;
+$ngvScript     = $ngvScript ?? true;
 ?>
-      <span class="save-msg" id="saveMsg" aria-live="polite">Saved ✓</span>
+<?php if ($ngvScript): ?>      <span class="save-msg" id="saveMsg" aria-live="polite">Saved ✓</span><?php endif; ?>
+<?php if ($ngvBanner): ?>
       <?php if (!$enabled): ?>
       <div class="ngv-banner">⏳ The next cohort is being prepared — your personal tools below still work, and your progress is saved.</div>
       <?php endif; ?>
+<?php endif; ?>
+<?php if ($ngvStandalone): ?>
 
       <div class="phead">
         <div>
@@ -48,9 +59,11 @@
         </div>
       </div>
 
+<?php endif; ?>
       <div class="ngv-grid">
 
         <!-- My journey -->
+<?php if ($ngvShow('journey')): ?>
         <section class="pcard wide" id="journey">
           <div class="pcard-head"><h2>My journey</h2><span class="pcard-sub">Tap the phase you're in</span></div>
           <div class="pcard-body">
@@ -75,8 +88,10 @@
             </div>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- My track + plan -->
+<?php if ($ngvShow('track')): ?>
         <section class="pcard" id="track">
           <div class="pcard-head"><h2>My track &amp; plan</h2></div>
           <div class="pcard-body">
@@ -103,12 +118,14 @@
               </div>
               <?php endforeach; ?>
             </div>
-            <div class="ngv-box">Your plan sets your <b>training fee</b> in <a href="#account">Your account</a>. Free tracks stay free — no one is turned away for lack.</div>
+            <div class="ngv-box">Your plan sets your <b>training fee</b> in <a href="<?= isset($ngvAccountHref) ? e($ngvAccountHref) . '" data-goto="ngv-account' : '#account' ?>">Your account</a>. Free tracks stay free — no one is turned away for lack.</div>
             <?php endif; ?>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- Focus note -->
+<?php if ($ngvShow('focus')): ?>
         <section class="pcard" id="focus">
           <div class="pcard-head"><h2>My focus this month</h2><span class="pcard-sub">private to you</span></div>
           <div class="pcard-body">
@@ -119,10 +136,12 @@
             </div>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- Your account — training fee, membership, monthly commitment, any
              fines, and every entry behind them. One plain figure, never in red,
              no deadline, and the money conversation pointed at a person. -->
+<?php if ($ngvShow('account')): ?>
         <section class="pcard wide" id="account">
           <div class="pcard-head"><h2>Your account</h2><span class="pcard-sub">recorded by your team</span></div>
           <div class="pcard-body">
@@ -321,12 +340,14 @@
             <?php if (!empty($account['note'])): ?><div class="ngv-box"><?= $e((string)$account['note']) ?></div><?php endif; ?>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- ══ Damage ═══════════════════════════════════════════════════════
              Recording damage costs nothing, and this section says so before it
              says anything else. The natural fear on being told "damage has been
              recorded" is a bill, and the status line is what replaces guessing
              with knowing. -->
+<?php if ($ngvShow('damage')): ?>
         <section class="pcard" id="damage">
           <div class="pcard-head"><h2>Damage &amp; equipment</h2>
             <span class="pcard-sub"><?= $myDamage ? count($myDamage) . ' on record' : 'nothing on record' ?></span></div>
@@ -396,8 +417,10 @@
             </details>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- Certifications -->
+<?php if ($ngvShow('certs')): ?>
         <section class="pcard" id="certs">
           <div class="pcard-head"><h2>My certifications</h2><span class="pcard-sub"><?= count($myCerts) ?> earned</span></div>
           <div class="pcard-body">
@@ -415,8 +438,10 @@
             <?php endif; ?>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- 24-book reading challenge -->
+<?php if ($ngvShow('reading')): ?>
         <section class="pcard wide" id="reading">
           <div class="pcard-head"><h2>24-book reading challenge</h2><span class="pcard-sub">tap a book once you finish it</span></div>
           <div class="pcard-body">
@@ -429,8 +454,10 @@
             <div style="font-size:12.5px;color:var(--muted)"><b id="booksLabel"><?= $booksRead ?></b> of <?= $BOOKS_TOTAL ?> read — leadership, finance, law &amp; your track. Keep going!</div>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- Schedule & where -->
+<?php if ($ngvShow('schedule')): ?>
         <section class="pcard" id="schedule">
           <div class="pcard-head"><h2>Schedule &amp; where</h2></div>
           <div class="pcard-body">
@@ -444,8 +471,10 @@
             </div>
           </div>
         </section>
+<?php endif; ?>
 
         <!-- Skills + support -->
+<?php if ($ngvShow('support')): ?>
         <section class="pcard" id="support">
           <div class="pcard-head"><h2>Skills you're building &amp; support</h2></div>
           <div class="pcard-body">
@@ -464,8 +493,10 @@
             </div>
           </div>
         </section>
+<?php endif; ?>
 
       </div>
+<?php if ($ngvScript): ?>
 <script>
 (function(){
   var NGV_URL = '/academy/ngv/dashboard.php';
@@ -636,3 +667,4 @@
 
 })();
 </script>
+<?php endif; ?>

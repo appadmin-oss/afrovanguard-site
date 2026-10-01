@@ -164,8 +164,21 @@ if ($isNgv) {
         return get_defined_vars();
     })($u);
     $ngvOwed = (int) ($ngvVars['account']['payable'] ?? 0);
-    $nav['NextGen Vanguard'] = [['ngv', 'My NGV', 'gold', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : '']];
+    $ngvA = $ngvVars['account'];
+    $ngvPhaseLabel = (string) $ngvVars['phaseLabel'];
+    $nav['NextGen Vanguard'] = [
+        ['ngv', 'Programme', 'gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']],
+        ['ngv-account', 'Fees & account', $ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''],
+    ];
 }
+/* The gate, in the portal: the pass, the card, the days. For a vanguard it
+   sits with the programme it is part of; for anybody else, under "You". */
+/* Every member the gate takes — including one it is refusing today, who is
+   the person most in need of seeing why. */
+$hasGate = GatePass::ready() && in_array(strtolower((string) ($u['role'] ?? '')), GatePass::roles(), true);
+$gateWhy = $hasGate ? (GatePass::whyNot($u) ?? '') : '';
+$gateSum = $hasGate || $isNgv ? GateAttendance::summary((int) $u['id'], 30) : null;
+if ($isNgv) $nav['NextGen Vanguard'][] = ['attendance', 'Attendance & pass', 'gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''];
 $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
     ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
@@ -174,6 +187,7 @@ $nav['You'] = [
     ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
     ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
 ];
+if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gray', ''];
 ?>
   <div class="portal-shell">
 
@@ -228,13 +242,12 @@ $nav['You'] = [
          somebody looking for their drafts past it. */ ?>
 <?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="<?= e(CacSso::DOOR) ?>"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE workspace</span><span class="pnav-ext">↗</span></a>
 <?php endif; ?>
-<?php if (GatePass::ready() && GatePass::eligible($u ?? null)): ?>          <a class="pnav-link" href="/gate-pass"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE gate pass</span></a>
-<?php endif; ?>        </div>
+        </div>
       </nav>
 
       <div class="pside-user">
         <span class="pside-avatar"><?= e($pInitials) ?></span>
-        <span class="pside-user-meta"><span class="pu-name"><?= e($first . ' ' . (($parts[1] ?? ''))) ?></span><span class="pu-role"><?= $isOrg ? e($accessLevel) : 'Learner' ?></span></span>
+        <span class="pside-user-meta"><span class="pu-name"><?= e($first . ' ' . (($parts[1] ?? ''))) ?></span><span class="pu-role"><?= $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner') ?></span></span>
         <a class="pside-signout" href="#" data-logout title="Sign out" aria-label="Sign out">⋯</a>
       </div>
     </aside>
@@ -326,6 +339,19 @@ $nav['You'] = [
                     'sub' => $cacDue ? 'Due today or earlier · ' . $cacDue . ' in the console' : 'Due today or earlier',
                     'cta' => 'Open', 'goto' => 'tasks'];
             }
+            if ($isNgv && $ngvOwed > 0) {
+                $attn[] = ['ico' => '₦', 'tone' => 'gold',
+                    'title' => '₦' . number_format($ngvOwed) . ' outstanding on your NGV account',
+                    'sub' => 'See what it is for, pay, or ask about it', 'cta' => 'Open', 'goto' => 'ngv-account'];
+            }
+            if ($gateWhy !== '' && GatePass::ready()) {
+                $attn[] = ['ico' => '⛔', 'tone' => 'red', 'title' => 'The CACENTRE gate cannot let you in',
+                    'sub' => e($gateWhy), 'cta' => 'Why', 'goto' => 'attendance'];
+            }
+            if ($isNgv && (string) $ngvVars['myTrack'] === '') {
+                $attn[] = ['ico' => '🧭', 'tone' => 'indigo', 'title' => 'Choose your NGV track and plan',
+                    'sub' => 'It sets your path and your training fee', 'cta' => 'Choose', 'goto' => 'ngv'];
+            }
             if ($postsToday) {
                 $attn[] = ['ico' => '💬', 'tone' => 'indigo',
                     'title' => $postsToday . ' new community post' . ($postsToday === 1 ? '' : 's') . ' today',
@@ -374,6 +400,21 @@ $nav['You'] = [
 
           <div class="pcols">
             <div class="pcol pcol--main">
+<?php if ($isNgv): ?>
+              <!-- NextGen Vanguard at a glance — the programme in the same Today as everything else -->
+              <section class="pcard today-ngv">
+                <div class="pcard-head"><h2>NextGen Vanguard</h2><a class="pcard-link" href="#ngv" data-goto="ngv">Programme →</a></div>
+                <div class="pcard-body">
+                  <div class="ngv-glance">
+                    <a href="#ngv" data-goto="ngv"><span>Phase</span><b><?= e($ngvPhaseLabel) ?></b></a>
+                    <a href="#ngv" data-goto="ngv"><span>Track</span><b><?= $ngvVars['myTrack'] !== '' ? e((string) $ngvVars['myTrack']) : 'Not chosen' ?></b></a>
+                    <a href="#ngv" data-goto="ngv"><span>Reading</span><b><?= (int) $ngvVars['booksRead'] ?> / <?= (int) $ngvVars['BOOKS_TOTAL'] ?></b></a>
+                    <a href="#ngv-account" data-goto="ngv-account"><span>Account</span><b class="<?= $ngvOwed > 0 ? 'due' : 'ok' ?>"><?= $ngvOwed > 0 ? '₦' . number_format($ngvOwed) . ' due' : 'All clear' ?></b></a>
+                    <a href="#attendance" data-goto="attendance"><span>Attendance</span><b><?= $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '% · ' . (int) $gateSum['punctuality'] . '% on time' : 'Nothing yet' ?></b></a>
+                  </div>
+                </div>
+              </section>
+<?php endif; ?>
 <?php if ($isOrg): ?>
               <!-- Your calendar — today + what's coming, with meeting links -->
               <section class="pcard" id="todayCal" data-csrf="<?= e($collabCsrf) ?>">
@@ -1443,8 +1484,32 @@ $nav['You'] = [
         <!-- ============================================================ -->
         <!-- NEXTGEN VANGUARD                                             -->
         <!-- ============================================================ -->
+<?php
+        /* The programme dashboard's cards, drawn into portal views — once each,
+           the script once, with the portal's own headings in place of the
+           standalone page's greeting and tiles (those are on Today). */
+        $ngvRender = static function (array $v, array $parts, bool $script): void {
+            (static function (array $__v): void { extract($__v); require dirname(__DIR__) . '/academy/ngv/_dashboard-body.php'; })(
+                $v + ['ngvParts' => $parts, 'ngvStandalone' => false, 'ngvBanner' => $parts[0] === 'journey', 'ngvScript' => $script, 'ngvAccountHref' => '#ngv-account']);
+        };
+?>
         <section class="pview" id="view-ngv" data-view="ngv" hidden>
-<?php (static function (array $__v): void { extract($__v); require dirname(__DIR__) . '/academy/ngv/_dashboard-body.php'; })($ngvVars); ?>
+          <div class="view-head">
+            <div><h1>Programme</h1><p class="view-sub">Your NextGen Vanguard journey — phase, track and plan, the 24-book challenge, certifications and the schedule. Everything saves as you go.</p></div>
+            <a class="pbtn pbtn-ghost" href="/academy/ngv/" target="_blank" rel="noopener">Programme page ↗</a>
+          </div>
+<?php $ngvRender($ngvVars, ['journey', 'track', 'focus', 'reading', 'certs', 'schedule', 'support'], false); ?>
+        </section>
+        <section class="pview" id="view-ngv-account" data-view="ngv-account" hidden>
+          <div class="view-head">
+            <div><h1>Fees &amp; account</h1><p class="view-sub">What the programme has charged and what you have paid, your receipts, and anything reported as damaged. Nothing here can be changed from your side — ask, and a person answers.</p></div>
+          </div>
+<?php $ngvRender($ngvVars, ['account', 'damage'], true); ?>
+        </section>
+<?php endif; ?>
+<?php if ($hasGate || $isNgv): ?>
+        <section class="pview" id="view-attendance" data-view="attendance" hidden>
+<?php require __DIR__ . '/_attendance.php'; ?>
         </section>
 <?php endif; ?>
         <section class="pview" id="view-membership" data-view="membership" hidden>
@@ -1492,6 +1557,12 @@ $nav['You'] = [
 <?php /* Recorded by the office (Studio → Members, or the NGV console), not here. */
       $bday = Birthdays::of((int) $u['id']); if ($bday): ?>
                   <div class="pdl-row"><span>Birthday</span><strong><?= e(Birthdays::label($bday)) ?></strong></div>
+<?php endif; ?>
+<?php if ($isNgv): ?>                  <div class="pdl-row"><span>Programme</span><strong>NextGen Vanguard<?= $ngvVars['myTrack'] !== '' ? ' · ' . e((string) $ngvVars['myTrack']) : '' ?></strong></div>
+<?php if (($ngvCard = GateAttendance::cardFor((int) $u['id'])) !== null): ?>                  <div class="pdl-row"><span>NGV ID</span><strong class="gp-mono"><?= e($ngvCard) ?></strong></div>
+<?php endif; ?>                  <div class="pdl-row"><span>NGV account</span><strong><a href="#ngv-account" data-goto="ngv-account"><?= $ngvOwed > 0 ? '₦' . number_format($ngvOwed) . ' outstanding →' : 'All clear →' ?></a></strong></div>
+<?php endif; ?>
+<?php if ($hasGate): ?>                  <div class="pdl-row"><span>CACENTRE gate</span><strong><a href="#attendance" data-goto="attendance"><?= $gateWhy === '' ? 'Pass ready →' : 'Not allowed in — see why →' ?></a></strong></div>
 <?php endif; ?>
                   <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
                 </div>

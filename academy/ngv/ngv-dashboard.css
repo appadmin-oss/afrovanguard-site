@@ -107,3 +107,32 @@
   border:1px solid var(--border);color:var(--body);text-decoration:none;vertical-align:middle}
 .ngv-mini:hover{border-color:var(--gold);color:var(--ink)}
 .ngv-row .k .pchip{margin-left:6px;vertical-align:middle}
+
+/* ── Inside the member portal ────────────────────────────────────────────
+   Headings take the portal's own type: the standalone page's body font
+   reached these, the portal's serif display face did not belong on them. */
+.portal-app .ngv-phase h3,
+.portal-app .ngv-grid .pcard-body h3 { font-family: inherit; font-weight: 700; letter-spacing: 0; }
+.portal-app .pview .ngv-grid { margin-top: 2px; }
+
+/* Today: the programme at a glance, each figure a way into its view */
+.ngv-glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.portal-app .ngv-glance a { display: flex; flex-direction: column; gap: 3px; padding: 11px 13px; border: 1px solid var(--border);
+  border-radius: 11px; background: var(--surface-2); color: var(--ink); text-decoration: none; transition: border-color .12s; }
+.portal-app .ngv-glance a:hover { border-color: var(--gold); }
+.ngv-glance span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted-2); }
+.ngv-glance b { font-size: 14.5px; font-weight: 800; }
+.ngv-glance b.due { color: var(--gold-deep); }
+.ngv-glance b.ok { color: var(--green); }
+
+/* Attendance & pass */
+.gp-qr { background: #fff; border-radius: 14px; padding: 12px; max-width: 260px; margin: 0 auto 10px; border: 1px solid var(--border); }
+.gp-qr svg { display: block; width: 100%; height: auto; }
+.gp-qr svg path, .gp-qr svg rect { fill: #111; }
+.gp-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; }
+.gp-form { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.gp-form .ngv-sub-h { margin: 10px 0 2px; }
+.gp-form .pbtn { align-self: flex-start; margin-top: 10px; }
+/* "Saved ✓" floats in the portal rather than taking a line under a heading. */
+.portal-app .pview .save-msg { position: fixed; right: 20px; bottom: 20px; z-index: 60; background: var(--surface);
+  border: 1px solid var(--green-bd, var(--border)); border-radius: 999px; padding: 8px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.12); pointer-events: none; }

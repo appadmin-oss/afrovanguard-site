@@ -542,7 +542,7 @@ final class NgvDamage
         $ok = false;
         if ($to !== '' && class_exists('Mailer')) {
             $html = Mailer::shell('NextGen Vanguard — ' . self::statusLabel($status), $rows,
-                ['url' => $site . '/academy/ngv/dashboard.php#damage', 'text' => 'See my record'],
+                ['url' => $site . '/portal/#ngv-account', 'text' => 'See my record'],
                 $subject);
             try { $ok = (bool) Mailer::send($to, $subject, $html); }
             catch (Throwable $e) { error_log('[ngvdamage] mail: ' . $e->getMessage()); }
@@ -556,7 +556,7 @@ final class NgvDamage
                 Notifications::push((int) $d['member_id'], 'ngv_damage',
                     self::statusLabel($status) . ' — ' . $d['item'],
                     strip_tags((string) ($rows[1] ?? $rows[0] ?? '')),
-                    '/academy/ngv/dashboard.php#damage',
+                    '/portal/#ngv-account',
                     'ngv_damage:' . $id . ':' . $status);
             } catch (Throwable $e) { error_log('[ngvdamage] notify: ' . $e->getMessage()); }
         }

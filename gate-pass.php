@@ -35,6 +35,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $r = GateAttendance::requestExcuse($mid, (string) ($_POST['day'] ?? ''), (string) ($_POST['reason'] ?? ''));
         $flash = $r['ok'] ? 'Sent to the NGV office. You will see their answer here.' : (string) $r['error'];
     }
+    /* From the portal's Attendance view: back there, with the answer. */
+    if ((string) ($_POST['return'] ?? '') === 'portal') {
+        setcookie('av_gp_flash', $flash, ['expires' => time() + 120, 'path' => '/portal/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS'])]);
+        header('Location: /portal/#attendance', true, 303);
+        exit;
+    }
 }
 
 $why = !GatePass::ready() ? 'Gate passes are not switched on yet. An administrator needs to set GATE_PASS_SECRET.' : (GatePass::whyNot($u) ?? '');

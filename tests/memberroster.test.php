@@ -152,3 +152,14 @@ ck('Portal: …read in its own scope, so its names cannot overwrite the portal\'
 $dash = (string) file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
 ck('Portal: the old dashboard sends a vanguard to the portal, and still writes every save',
     str_contains($dash, "Location: /portal/#ngv") && str_contains($dash, 'NgvMember::saveSelf') && str_contains((string) file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php'), "NGV_URL = '/academy/ngv/dashboard.php'"));
+
+ck('Portal: NGV is three portal views — Programme, Fees & account, Attendance & pass — not a page inside a page',
+    str_contains($portal, "['ngv', 'Programme'") && str_contains($portal, "['ngv-account', 'Fees & account'") && str_contains($portal, 'data-view="attendance"')
+    && str_contains($portal, "'ngvStandalone' => false"));
+ck('Portal: Today carries the programme and what needs doing about it', str_contains($portal, 'today-ngv') && str_contains($portal, "outstanding on your NGV account") && str_contains($portal, 'The CACENTRE gate cannot let you in'));
+ck('Portal: Membership shows the NGV ID, the NGV account and the gate beside the dues', str_contains($portal, '>NGV ID<') && str_contains($portal, '>NGV account<') && str_contains($portal, '>CACENTRE gate<'));
+ck('Portal: the sidebar names a vanguard as one', str_contains($portal, "\$isNgv ? 'NextGen Vanguard'"));
+$gp = (string) file_get_contents(AV_ROOT . '/gate-pass.php');
+ck('Portal: telling the office about a day away from the portal comes back to the portal', str_contains($gp, "Location: /portal/#attendance") && str_contains((string) file_get_contents(AV_ROOT . '/portal/_attendance.php'), 'name="return" value="portal"'));
+ck('Portal: fee and damage emails open the portal\'s Fees & account, not the old page',
+    !str_contains((string) file_get_contents(AV_ROOT . '/lib/NgvLedger.php'), 'ngv/dashboard.php#') && !str_contains((string) file_get_contents(AV_ROOT . '/lib/NgvDamage.php'), 'ngv/dashboard.php#'));
