@@ -54,8 +54,24 @@ if ($purpose === 'report') {
 }
 
 $op = (string) $in['op'];
+if ($op === 'formats') {
+    /* The shapes of the portal's older printed cards (MemberCards). The NGV
+       number is not one of them: the gate reads that itself. */
+    $out(['ok' => true, 'formats' => MemberCards::gateFormats()]);
+}
 if ($op === 'resolve') {
-    $token = (string) ($in['token'] ?? '');
+    $token = strtoupper(trim((string) ($in['token'] ?? '')));
+    $format = (string) ($in['format'] ?? '');
+    if (str_starts_with($token, MemberCards::PREFIX) || $format !== '') {
+        /* A secure card printed by this system, or an older printed card the
+           gate decoded by one of our formats. */
+        $hit = $format !== '' ? MemberCards::lookup(null, $format, (string) ($in['value'] ?? '')) : MemberCards::lookup($token);
+        if (!$hit) $out(['ok' => false, 'code' => 'unknown', 'error' => 'Afrovanguard has no member card ' . ($format !== '' ? strtoupper(trim((string) ($in['value'] ?? ''))) : $token) . '.'], 404);
+        if ($hit['void']) $out(['ok' => false, 'code' => 'void_card', 'error' => 'This card has been replaced. Use the newer card or the gate pass.'], 400);
+        $r = GateAttendance::resolveRef((string) $hit['member_id']);
+        if ($r['ok'] && $hit['kind'] === 'printed') $r['person']['detail'] = trim(($r['person']['detail'] ?? '') . ' · old printed card', ' ·');
+        $out($r, $r['ok'] ? 200 : 404);
+    }
     $r = $token !== '' ? GateAttendance::resolveCard($token) : GateAttendance::resolveRef((string) ($in['ref'] ?? ''));
     $out($r, $r['ok'] ? 200 : 404);
 }

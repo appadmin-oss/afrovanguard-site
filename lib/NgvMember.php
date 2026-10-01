@@ -48,6 +48,39 @@ final class NgvMember
     private static function money(int $n): string { return '₦' . number_format(max(0, $n)); }
 
     /* ── participants ────────────────────────────────────────────────── */
+    /**
+     * Is this member a NextGen Vanguard?
+     *
+     * Told apart by their NGV record, never by their email: vanguards and staff
+     * alike sign in with @afrovanguard.org.ng, so the address says "one of us"
+     * and nothing more. An NGV is somebody enrolled in the programme (a
+     * participant row) or holding an NGV ID card (X-NGV-YY-NNNN).
+     */
+    public static function isVanguard(int $memberId): bool
+    {
+        if ($memberId <= 0) return false;
+        try { if (self::participant($memberId)) return true; } catch (Throwable $e) {}
+        return class_exists('GateAttendance') && GateAttendance::cardFor($memberId) !== null;
+    }
+
+    /**
+     * Attach the NGV side of somebody to their account, by email: applications
+     * made under that address before the account existed (or by somebody who
+     * never signed in) are linked to it. Only ones not linked to anybody — an
+     * application already on another account is that account's. Returns how
+     * many were linked.
+     */
+    public static function linkByEmail(int $memberId, string $email): int
+    {
+        $email = strtolower(trim($email));
+        if ($memberId <= 0 || $email === '') return 0;
+        try {
+            $st = NgvDb::pdo()->prepare('UPDATE ngv_applications SET member_id = ? WHERE member_id = 0 AND LOWER(email) = ?');
+            $st->execute([$memberId, $email]);
+            return $st->rowCount();
+        } catch (Throwable $e) { return 0; }
+    }
+
     public static function participant(int $memberId): ?array
     {
         if ($memberId <= 0) return null;

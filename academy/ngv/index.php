@@ -77,13 +77,13 @@ $hero = $c['hero'] ?? [];
     <span>✏️ <b>Admin</b> — every part of this page is editable.</span>
     <a href="/academy/ngv/edit.php">Edit page →</a>
     <a href="/academy/ngv/members.php">Vanguards &amp; applications →</a>
-    <a href="/academy/ngv/dashboard.php">Member dashboard →</a>
+    <a href="/academy/ngv/dashboard.php?preview=1">Member dashboard →</a>
     <span class="tag"><?= Ngv::isEnabled() ? 'Published' : 'Hidden (draft)' ?></span>
   </div></div>
 <?php elseif ($ngvMember): ?>
   <div class="ngv-adminbar"><div class="ngv-wrap">
     <span>👋 Signed in as <b><?= e($ngvFirst) ?></b></span>
-    <a href="/academy/ngv/dashboard.php">Go to my dashboard →</a>
+    <a href="/portal/#ngv">Go to my dashboard →</a>
   </div></div>
 <?php endif; ?>
 

@@ -1179,7 +1179,7 @@ final class NgvLedger
                 Notifications::push((int) $r['member_id'], 'ngv_fees',
                     'Your track lead has replied',
                     mb_substr($outcome, 0, 240),
-                    '/academy/ngv/dashboard.php#account',
+                    '/portal/#ngv',
                     'ngv_fee_request:' . $id);
             } catch (Throwable $e) { error_log('[ngvledger] request notify: ' . $e->getMessage()); }
         }
@@ -1680,7 +1680,7 @@ final class NgvLedger
         }
 
         $site = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
-        $url = $site . '/academy/ngv/dashboard.php#account';
+        $url = $site . '/portal/#ngv';
         $ok = false;
         if (class_exists('Mailer')) {
             $html = Mailer::shell('Your NextGen Vanguard account', $rows,
@@ -1693,7 +1693,7 @@ final class NgvLedger
             try {
                 Notifications::push((int) $cand['member_id'], 'ngv_fees', 'Your NGV account',
                     $m($payable) . ' outstanding. Speak to your track lead if this month is difficult.',
-                    '/academy/ngv/dashboard.php#account',
+                    '/portal/#ngv',
                     'ngv_fees:' . (int) $cand['member_id'] . ':' . self::today('Y-m-d'));
             } catch (Throwable $e) { error_log('[ngvledger] reminder notify: ' . $e->getMessage()); }
         }
@@ -1900,7 +1900,7 @@ final class NgvLedger
                 Notifications::push((int) $r['memberId'], 'ngv_receipt',
                     $cancelled ? 'Receipt ' . $r['no'] . ' cancelled' : 'Receipt ' . $r['no'] . ' — ' . $m((int) $r['amount']),
                     $cancelled ? 'That payment is no longer on your account.' : $r['lineLabel'] . ' · paid ' . $r['paidOn'],
-                    '/academy/ngv/dashboard.php#account',
+                    '/portal/#ngv',
                     'ngv_receipt:' . $payId . ($cancelled ? ':void' : ''));
             } catch (Throwable $e) { error_log('[ngvledger] receipt notify: ' . $e->getMessage()); }
         }
@@ -2058,7 +2058,7 @@ final class NgvLedger
         $ok = false;
         if (class_exists('Mailer')) {
             $html = Mailer::shell('Your receipts', $rows,
-                ['url' => $site . '/academy/ngv/dashboard.php#account', 'text' => 'See my account'], $subject);
+                ['url' => $site . '/portal/#ngv', 'text' => 'See my account'], $subject);
             try { $ok = (bool) Mailer::send($to, $subject, $html); }
             catch (Throwable $e) { error_log('[ngvledger] backfill mail: ' . $e->getMessage()); }
         }
@@ -2067,7 +2067,7 @@ final class NgvLedger
                 Notifications::push($memberId, 'ngv_receipt',
                     $n === 1 ? 'Your receipt is ready' : 'Your ' . $n . ' receipts are ready',
                     $m($total) . ' already received from you, now receipted.',
-                    '/academy/ngv/dashboard.php#account', 'ngv_receipt_backfill:' . $memberId);
+                    '/portal/#ngv', 'ngv_receipt_backfill:' . $memberId);
             } catch (Throwable $e) { error_log('[ngvledger] backfill notify: ' . $e->getMessage()); }
         }
         /* Stamped on ATTEMPT, like every other send here. An unstamped row plus a
@@ -2247,7 +2247,7 @@ final class NgvLedger
         $ok = false;
         if (class_exists('Mailer')) {
             $html = Mailer::shell('Your account', $st['rows'],
-                ['url' => $site . '/academy/ngv/dashboard.php#account', 'text' => 'See my account'], $subject);
+                ['url' => $site . '/portal/#ngv', 'text' => 'See my account'], $subject);
             try { $ok = (bool) Mailer::send($to, $subject, $html); }
             catch (Throwable $e) { error_log('[ngvledger] statement mail: ' . $e->getMessage()); }
         }

@@ -2787,29 +2787,6 @@
     });
   }
 
-  /* ---- Members (RBAC console) ---- */
-  var memRoles = ['learner', 'member', 'mentor', 'coordinator', 'admin'], memT;
-  function memCountsHTML(c) {
-    return ['total'].concat(memRoles).filter(function (k) { return k === 'total' || c[k]; }).map(function (k) {
-      return '<span class="mem-chip"><b>' + (c[k] || 0) + '</b> ' + (k === 'total' ? 'total' : escapeHtml(k)) + '</span>';
-    }).join('');
-  }
-  function memRowHTML(m) {
-    var opts = memRoles.map(function (r) { return '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + r + '</option>'; }).join('');
-    var badges = (m.org ? ' <span class="badge published">org</span>' : '') + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '');
-    var seen = m.last_login ? ' · last seen ' + escapeHtml(String(m.last_login).slice(0, 10)) : '';
-    return '<div class="entry-row mem-row" data-id="' + m.id + '">'
-      + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
-      + '<div class="entry-meta">' + escapeHtml(m.email) + ' · joined ' + escapeHtml(String(m.created_at || '').slice(0, 10)) + seen + '</div></div>'
-      + '<div class="entry-ops">'
-      + '<select class="mem-level" data-id="' + m.id + '" title="Membership level (progression)">'
-      + ['O', 'A', 'B', 'C'].map(function (L) { return '<option value="' + L + '"' + ((m.level || 'O') === L ? ' selected' : '') + '>Level ' + L + '</option>'; }).join('')
-      + '</select>'
-      + '<select class="mem-role" data-id="' + m.id + '" title="Access level">' + opts + '</select>'
-      + '<input class="mem-bday" data-id="' + m.id + '" size="10" maxlength="10" placeholder="Birthday" title="Birthday — YYYY-MM-DD, or MM-DD if the year is not known. Blank removes it." aria-label="Birthday for ' + escapeHtml(m.name || m.email) + '" value="' + escapeHtml(m.birthday ? (m.birth_year > 0 ? m.birth_year + '-' : '') + m.birthday : '') + '">'
-      + '<button class="btn btn-outline btn-sm mem-status" data-id="' + m.id + '" data-to="' + (m.status === 'suspended' ? 'active' : 'suspended') + '">' + (m.status === 'suspended' ? 'Reactivate' : 'Suspend') + '</button>'
-      + '</div></div>';
-  }
   function memAuditHTML(a) {
     return '<div class="inbox-row"><strong>' + escapeHtml(a.action) + '</strong> ' + escapeHtml(a.target || '')
       + (a.detail ? ' <span class="muted">(' + escapeHtml(a.detail) + ')</span>' : '')
@@ -2889,64 +2866,265 @@
     });
   }
 
-  function loadMembers() {
-    var box = $('#memList'); if (!box) return;
-    var q = encodeURIComponent($('#memQ').value.trim());
-    box.innerHTML = '<p class="muted">Loading…</p>';
-    return api('mem_list&q=' + q + '&role=' + $('#memRole').value + '&status=' + $('#memStatus').value).then(function (r) {
-      var d = r.data || {}; if (!d.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
-      memRoles = d.roles || memRoles;
-      $('#memCounts').innerHTML = memCountsHTML(d.counts || {});
-      if ($('#memRole').options.length <= 1) { var keep = $('#memRole').value; memRoles.forEach(function (r) { var o = document.createElement('option'); o.value = r; o.textContent = r; $('#memRole').appendChild(o); }); $('#memRole').value = keep; }
-      if (!$('#mc_role').options.length) memRoles.forEach(function (r) { var o = document.createElement('option'); o.value = r; o.textContent = r; if (r === 'member') o.selected = true; $('#mc_role').appendChild(o); });
-      var rows = d.members || [];
-      box.innerHTML = rows.length ? rows.map(memRowHTML).join('') : '<p class="muted">No members match.</p>';
+  /* ---- Members: the member desk (lib/MemberRoster.php) ----
+     Dashboard, roster, import, duplicates and one member's whole record.
+     Every write is validated on the server and refused in words; an import is
+     a dry run until the dry run that was read is applied. */
+  var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C'], memT, memPage = 1, memOpen = 0, memFormats = [];
+  function memFill(sel, list, keep, label) {
+    var el = $(sel); if (!el) return;
+    var v = keep !== undefined ? keep : el.value;
+    el.innerHTML = list.map(function (x) { return '<option value="' + escapeHtml(x) + '">' + escapeHtml(label ? label(x) : x) + '</option>'; }).join('');
+    if (v) el.value = v;
+  }
+  function memErrors(box, r) {
+    var el = $(box); if (!el) return;
+    var errs = (r && r.errors) ? Object.keys(r.errors).map(function (k) { return r.errors[k]; }) : (r && r.error ? [r.error] : []);
+    el.hidden = !errs.length; el.innerHTML = errs.map(escapeHtml).join('<br>');
+  }
+  function memChip(n, label) { return '<span class="mem-chip"><b>' + (n || 0) + '</b> ' + escapeHtml(label) + '</span>'; }
+  function memTab(which) {
+    document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mv') === which); });
+    document.querySelectorAll('.mem-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== which; });
+    if (which === 'dash') loadMemDash();
+    if (which === 'roster') loadMemRoster();
+    if (which === 'import') loadMemFormats();
+    if (which === 'dups') loadMemDups();
+  }
+  function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
+
+  function loadMemDash() {
+    api('roster_overview').then(function (r) {
+      var d = r.data || {}; if (!d.ok) return;
+      $('#memCounts').innerHTML = memChip(d.total, 'members') + memChip(d.vanguards, 'NextGen Vanguards')
+        + Object.keys(d.by_status || {}).map(function (k) { return memChip(d.by_status[k], k); }).join('')
+        + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
+      var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
+      $('#memJoined').innerHTML = (d.joined || []).map(function (m) {
+        return '<span style="height:' + Math.max(2, Math.round(m.joined / max * 100)) + '%" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
+      }).join('');
+      var q = d.quality || {}, keys = Object.keys(q);
+      $('#memQuality').innerHTML = keys.length ? '<div class="mem-quality">' + keys.map(function (k) {
+        return '<a href="#" data-missing="' + escapeHtml(k) + '"><span>' + escapeHtml(q[k].label) + '</span><b>' + q[k].n + '</b></a>';
+      }).join('') + '</div>' : '<p class="muted">Nothing to fix. Every record is complete.</p>';
+      var c = d.by_centre || {};
+      $('#memCentres').innerHTML = Object.keys(c).map(function (k) { return '<div class="mem-card-row"><span>' + escapeHtml(k) + '</span><b style="margin-left:auto">' + c[k] + '</b></div>'; }).join('') || '<p class="muted">No centres recorded.</p>';
+    });
+    api('mem_list').then(function (r) {
+      var d = r.data || {};
       $('#memAudit').innerHTML = (d.audit || []).length ? d.audit.map(memAuditHTML).join('') : '<p class="muted">No activity yet.</p>';
+    });
+  }
+
+  function memRowHTML(m) {
+    var badges = (m.ngv ? ' <span class="badge published" title="Enrolled in NextGen Vanguard, or holds an NGV ID card">NGV</span>' : '')
+      + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '');
+    var meta = [m.email, m.phone, m.centre, 'level ' + (m.level || 'O'), m.role].filter(Boolean).map(escapeHtml).join(' · ');
+    return '<div class="entry-row mem-row" data-id="' + m.id + '">'
+      + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
+      + '<div class="entry-meta">' + meta + '</div>'
+      + '<div class="entry-meta">' + (m.card ? 'Gate card <code>' + escapeHtml(m.card) + '</code>' : '<b>No gate card</b>') + ' · joined ' + escapeHtml(String(m.joined_on || m.created_at || '').slice(0, 10)) + '</div></div>'
+      + '<div class="entry-ops"><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '">Open</button></div></div>';
+  }
+  function loadMemRoster() {
+    var box = $('#memList'); if (!box) return;
+    var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
+              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'sort=' + $('#memSort').value,
+              'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    api('roster_list&' + qs).then(function (r) {
+      var d = r.data || {}; if (!d.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
+      memRoles = d.roles || memRoles; memLevels = d.levels || memLevels;
+      if ($('#memRole').options.length <= 1) { var o = $('#memRole').value; $('#memRole').innerHTML = '<option value="">All access levels</option>' + memRoles.map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join(''); $('#memRole').value = o; }
+      box.innerHTML = (d.members || []).length ? d.members.map(memRowHTML).join('') : '<p class="muted">' + (d.total === 0 && !$('#memQ').value ? 'No members yet. Add one, or import a spreadsheet.' : 'Nobody matches these filters.') + '</p>';
+      var pages = Math.max(1, Math.ceil(d.total / d.page_size));
+      $('#memPager').innerHTML = pages > 1 ? '<button class="btn btn-outline btn-sm" data-pg="' + (memPage - 1) + '"' + (memPage <= 1 ? ' disabled' : '') + '>← Previous</button>'
+        + '<span class="muted">Page ' + memPage + ' of ' + pages + ' · ' + d.total + ' members</span>'
+        + '<button class="btn btn-outline btn-sm" data-pg="' + (memPage + 1) + '"' + (memPage >= pages ? ' disabled' : '') + '>Next →</button>' : '<span class="muted">' + d.total + ' member' + (d.total === 1 ? '' : 's') + '</span>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
   }
+
+  function loadMemDups() {
+    api('roster_duplicates').then(function (r) {
+      var g = (r.data && r.data.groups) || [];
+      $('#memDups').innerHTML = g.length ? g.map(function (x) {
+        return '<div class="side-card"><h3>' + escapeHtml(x.why) + '</h3>' + x.members.map(function (m) {
+          return '<div class="mem-card-row"><span>' + escapeHtml(m.name) + '</span><span class="muted">' + escapeHtml(m.email) + (m.phone ? ' · ' + escapeHtml(m.phone) : '') + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + m.id + '" style="margin-left:auto">Open</button></div>';
+        }).join('') + '</div>';
+      }).join('') : '<p class="muted">No records look like the same person.</p>';
+    });
+  }
+
+  /* One member's whole record */
+  function memCardsHTML(cards) {
+    return (cards || []).filter(function (c) { return c.status === 'active'; }).map(function (c) {
+      var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? 'NGV ID card' : 'Old printed card (' + escapeHtml(c.format) + ')';
+      return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code></div>';
+    }).join('') || '<p class="muted">No card yet — the gate can only find them by name.</p>';
+  }
+  function openMember(id) {
+    memOpen = +id;
+    api('roster_get&id=' + memOpen).then(function (r) {
+      var m = r.data && r.data.member; if (!m) { toast('Could not open.'); return; }
+      $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : '');
+      memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
+      ['name', 'email', 'phone', 'centre', 'notes'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
+      $('#mdCards').innerHTML = memCardsHTML(m.cards);
+      $('#mdRetire').hidden = !(m.cards || []).some(function (c) { return c.kind === 'printed' && c.status === 'active'; });
+      $('#mdSuspend').textContent = m.status === 'suspended' ? 'Reactivate' : 'Suspend';
+      $('#mdSuspend').setAttribute('data-to', m.status === 'suspended' ? 'active' : 'suspended');
+      memErrors('#md_errors', null);
+      $('#memDrawer').hidden = false; $('#md_name').focus();
+    });
+  }
+  function closeMember() { $('#memDrawer').hidden = true; memOpen = 0; }
+
+  /* Import */
+  var miText = '', miName = '', miDigest = '';
+  function loadMemFormats() {
+    api('card_formats').then(function (r) {
+      memFormats = (r.data && r.data.formats) || [];
+      var el = $('#miFormat'), keep = el.value;
+      el.innerHTML = '<option value="">Only their NGV number (if the sheet has one)</option>'
+        + memFormats.map(function (f) { return '<option value="' + escapeHtml(f.id) + '">' + escapeHtml(f.label) + '</option>'; }).join('')
+        + (currentRole === 'superadmin' ? '<option value="__add">Describe another kind of card…</option>' : '');
+      el.value = keep && keep !== '__add' ? keep : '';
+      $('#miTry').hidden = !el.value;
+    });
+  }
+  function miReset() { miDigest = ''; $('#miApply').hidden = true; $('#miResult').innerHTML = ''; }
+  function miRun(apply) {
+    if (!miText) return;
+    var b = apply ? $('#miApply') : $('#miCheck'); b.disabled = true;
+    post('roster_import', { csv: miText, source: miName, apply: apply, expect_digest: apply ? miDigest : '', overwrite: $('#miOverwrite').checked, card_format: $('#miFormat').value })
+      .then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { $('#miResult').innerHTML = '<div class="mem-errors">' + escapeHtml(d.error || 'The import was refused.') + '</div>'; if (d.code === 'roster_changed') miReset(); return; }
+        var MARK = { create: '+', update: '~', failed: '!', unchanged: '=' };
+        var c = d.cards || {};
+        var head = '<p><b>' + (d.applied ? 'Imported' : 'Would import') + '</b> — new ' + d.created + ' · updated ' + d.updated + ' · already current ' + d.unchanged + ' · refused ' + d.failed + '</p>'
+          + '<p class="muted tiny">' + (d.applied ? 'Cards — ' + c.issued + ' secure issued · ' + c.ngv + ' NGV numbers kept · ' + c.printed + ' old cards recorded' + (c.taken ? ' · ' + c.taken + ' already somebody else’s' : '') + (d.linked ? ' · ' + d.linked + ' NGV applications linked' : '')
+              : c.would_issue + ' member(s) would get a secure card for the gate') + '</p>'
+          + (d.previous ? '<p class="muted tiny">This exact file was imported on ' + escapeHtml(String(d.previous.at).slice(0, 10)) + ' by ' + escapeHtml(d.previous.actor) + '. Importing it again is safe.</p>' : '')
+          + ((d.unknown_columns || []).length ? '<p class="muted tiny">Columns not used: ' + d.unknown_columns.map(escapeHtml).join(', ') + '</p>' : '');
+        var rows = (d.rows || []).map(function (x) {
+          return '<div class="mem-result-row"><span class="mk">' + (MARK[x.action] || '?') + '</span><div><div><b>' + escapeHtml(x.name || x.ref) + '</b> <span class="muted">' + escapeHtml(x.ref) + '</span></div>'
+            + (x.detail ? '<div class="muted tiny">' + escapeHtml(x.detail) + '</div>' : '')
+            + (x.warnings || []).map(function (w) { return '<div class="muted tiny">↳ ' + escapeHtml(w) + '</div>'; }).join('') + '</div></div>';
+        }).join('');
+        $('#miResult').innerHTML = head + rows;
+        if (d.applied) { miReset(); $('#miResult').innerHTML = head + rows; toast('Members imported.'); }
+        else { miDigest = d.digest; var n = d.created + d.updated + (c.would_issue || 0); $('#miApply').hidden = n === 0; $('#miApply').textContent = 'Import ' + (d.created + d.updated) + ' member(s)'; }
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+  }
+
   if ($('#membersView')) {
-    $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(loadMembers, 280); });
-    $('#memRole').addEventListener('change', loadMembers);
-    $('#memStatus').addEventListener('change', loadMembers);
-    $('#memNewBtn').addEventListener('click', function () { var c = $('#memCreate'); c.hidden = !c.hidden; if (!c.hidden) $('#mc_name').focus(); });
+    document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
+    $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
+    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; loadMemRoster(); }); });
+    $('#memPager').addEventListener('click', function (e) { var b = e.target.closest('[data-pg]'); if (!b) return; memPage = +b.getAttribute('data-pg'); loadMemRoster(); });
+    $('#memQuality').addEventListener('click', function (e) {
+      var a = e.target.closest('[data-missing]'); if (!a) return; e.preventDefault();
+      if (a.getAttribute('data-missing') === 'duplicates') { memTab('dups'); return; }
+      $('#memMissing').value = a.getAttribute('data-missing'); memPage = 1; memTab('roster');
+    });
+    document.addEventListener('click', function (e) { var b = e.target.closest('.mem-open'); if (b) openMember(b.getAttribute('data-id')); });
+
+    $('#memNewBtn').addEventListener('click', function () {
+      var c = $('#memCreate'); c.hidden = !c.hidden; if (c.hidden) return;
+      memFill('#mc_role', memRoles, 'member'); memFill('#mc_level', memLevels, 'O', function (x) { return 'Level ' + x; });
+      memErrors('#mc_errors', null); $('#mc_name').focus();
+    });
     $('#memCreateCancel').addEventListener('click', function () { $('#memCreate').hidden = true; });
     $('#memCreateSave').addEventListener('click', function () {
-      var p = { name: $('#mc_name').value.trim(), email: $('#mc_email').value.trim(), role: $('#mc_role').value };
-      if (!p.email) { toast('An email is required.'); return; }
-      this.disabled = true;
-      post('mem_create', p).then(function (r) {
-        if (r.data && r.data.ok) { toast('Member created.'); $('#mc_name').value = ''; $('#mc_email').value = ''; $('#memCreate').hidden = true; loadMembers(); }
-        else toast((r.data && r.data.error) || 'Could not create.');
-      }).catch(function () { toast('Network error.'); }).finally(function () { $('#memCreateSave').disabled = false; });
+      var p = { name: $('#mc_name').value.trim(), email: $('#mc_email').value.trim(), phone: $('#mc_phone').value.trim(), centre: $('#mc_centre').value.trim(),
+                role: $('#mc_role').value, level: $('#mc_level').value, birthday: $('#mc_bday').value.trim(), joined_on: $('#mc_joined').value };
+      var btn = this; btn.disabled = true;
+      post('roster_create', p).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { memErrors('#mc_errors', d); return; }
+        toast(d.linked ? d.name + ' already had an account with that email — linked to it' + (d.filled && d.filled.length ? ', and filled in ' + d.filled.join(', ') : '') + '.'
+                       : 'Member created, with gate card ' + d.card + '.');
+        ['name', 'email', 'phone', 'centre', 'bday', 'joined'].forEach(function (k) { $('#mc_' + k).value = ''; });
+        $('#memCreate').hidden = true; loadMembers();
+      }).catch(function () { toast('Network error.'); }).finally(function () { btn.disabled = false; });
     });
-    $('#memList').addEventListener('change', function (e) {
-      var roleSel = e.target.closest('.mem-role');
-      if (roleSel) {
-        post('mem_save', { id: roleSel.getAttribute('data-id'), role: roleSel.value }).then(function (r) {
-          if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
-        });
-        return;
-      }
-      var bd = e.target.closest('.mem-bday');
-      if (bd) {
-        post('mem_save', { id: bd.getAttribute('data-id'), birthday: bd.value.trim() }).then(function (r) {
-          if (r.data && r.data.ok) toast(bd.value.trim() ? 'Birthday recorded.' : 'Birthday removed.'); else toast((r.data && r.data.error) || 'Could not save.');
-        });
-        return;
-      }
-      var lvlSel = e.target.closest('.mem-level');
-      if (lvlSel) {
-        post('mem_save', { id: lvlSel.getAttribute('data-id'), level: lvlSel.value }).then(function (r) {
-          if (r.data && r.data.ok) { toast('Membership level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
-        });
-      }
+
+    $('#memCardsBtn').addEventListener('click', function () {
+      if (!confirm('Give every active member with no card a secure card for the CACENTRE gate? Nobody’s existing card is replaced.')) return;
+      var btn = this, total = 0; btn.disabled = true;
+      (function step(i) {
+        post('cards_backfill', {}).then(function (r) {
+          var d = r.data || {}; total += d.issued || 0;
+          if (d.remaining > 0 && d.issued > 0 && i < 20) return step(i + 1);
+          toast(total + ' card' + (total === 1 ? '' : 's') + ' issued.'); btn.disabled = false; loadMembers();
+        }).catch(function () { toast('Network error.'); btn.disabled = false; });
+      })(0);
     });
-    $('#memList').addEventListener('click', function (e) {
-      var b = e.target.closest('.mem-status'); if (!b) return;
-      var to = b.getAttribute('data-to');
-      if (to === 'suspended' && !confirm('Suspend this member? They will be signed out.')) return;
-      post('mem_save', { id: b.getAttribute('data-id'), status: to }).then(function (r) {
-        if (r.data && r.data.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+
+    $('#mdClose').addEventListener('click', closeMember);
+    $('#memDrawer').addEventListener('click', function (e) { if (e.target === this) closeMember(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#memDrawer').hidden) closeMember(); });
+    $('#mdSave').addEventListener('click', function () {
+      var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),
+                role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value };
+      post('roster_update', p).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { memErrors('#md_errors', d); return; }
+        toast(d.changed.length ? 'Saved: ' + d.changed.join(', ') + '.' : 'Nothing changed.'); closeMember(); loadMembers();
+      });
+    });
+    $('#mdSuspend').addEventListener('click', function () {
+      var to = this.getAttribute('data-to');
+      if (to === 'suspended' && !confirm('Suspend this member? They are signed out, and their gate pass and card stop at the door.')) return;
+      post('roster_update', { id: memOpen, status: to }).then(function (r) { if (r.data && r.data.ok) { toast(to === 'suspended' ? 'Member suspended.' : 'Member reactivated.'); closeMember(); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.'); });
+    });
+    function reissue(voidPrinted) {
+      if (!confirm(voidPrinted ? 'Retire the old printed card and issue a new secure one? Both old cards stop at the gate now.' : 'Issue a new secure card? The current one stops at the gate now.')) return;
+      post('card_reissue', { id: memOpen, void_printed: voidPrinted }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Could not issue.'); return; }
+        $('#mdCards').innerHTML = memCardsHTML(d.cards); $('#mdRetire').hidden = true; toast('New card ' + d.code + '.');
+      });
+    }
+    $('#mdReissue').addEventListener('click', function () { reissue(false); });
+    $('#mdRetire').addEventListener('click', function () { reissue(true); });
+
+    $('#miFile').addEventListener('change', function () {
+      var f = this.files && this.files[0]; this.value = ''; if (!f) return;
+      f.text().then(function (t) { miText = t; miName = f.name; $('#miFileName').textContent = f.name; $('#miCheck').disabled = false; miReset(); });
+    });
+    $('#miCheck').addEventListener('click', function () { miRun(false); });
+    $('#miApply').addEventListener('click', function () { if (confirm('Write these members? This is what the check above described.')) miRun(true); });
+    $('#miOverwrite').addEventListener('change', miReset);
+    $('#miFormat').addEventListener('change', function () {
+      miReset(); $('#miTryRes').textContent = '';
+      if (this.value === '__add') { $('#miNewFormat').hidden = false; this.value = ''; $('#mfExample').focus(); }
+      $('#miTry').hidden = !this.value;
+    });
+    var mfDerived = null;
+    $('#mfCancel').addEventListener('click', function () { $('#miNewFormat').hidden = true; mfDerived = null; $('#mfSave').hidden = true; $('#mfDerived').textContent = ''; });
+    $('#mfDerive').addEventListener('click', function () {
+      api('card_formats&example=' + encodeURIComponent($('#mfExample').value) + '&number=' + encodeURIComponent($('#mfNumber').value)).then(function (r) {
+        var d = (r.data && r.data.derived) || {};
+        if (!d.ok) { $('#mfDerived').textContent = d.error || 'That did not describe a card.'; $('#mfSave').hidden = true; return; }
+        mfDerived = d; $('#mfDerived').textContent = 'Reads ' + d.template + ' where the number looks like ' + d.mask + ' (9 is a digit).'; $('#mfSave').hidden = false;
+      });
+    });
+    $('#mfSave').addEventListener('click', function () {
+      var label = $('#mfLabel').value.trim() || 'Printed cards';
+      var id = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'printed';
+      post('card_format_save', { id: id, label: label, template: mfDerived.template, mask: mfDerived.mask, example: $('#mfExample').value.trim() }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { $('#mfDerived').textContent = d.error || 'Not saved.'; return; }
+        $('#miNewFormat').hidden = true; loadMemFormats(); setTimeout(function () { $('#miFormat').value = d.format.id; $('#miTry').hidden = false; }, 300);
+        toast('Card format saved. The gate picks it up within a quarter of an hour.');
+      });
+    });
+    $('#miTryBtn').addEventListener('click', function () {
+      var f = memFormats.filter(function (x) { return x.id === $('#miFormat').value; })[0]; if (!f) return;
+      api('card_formats&template=' + encodeURIComponent(f.template) + '&mask=' + encodeURIComponent(f.mask) + '&sample=' + encodeURIComponent($('#miTryText').value)).then(function (r) {
+        var t = (r.data && r.data.test) || {};
+        $('#miTryRes').textContent = t.ok ? (t.decodes ? 'Reads as ' + t.decodes + '.' : 'That card does not read under this format.') : (t.error || '');
       });
     });
   }

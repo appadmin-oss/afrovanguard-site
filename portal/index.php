@@ -117,7 +117,7 @@ render_head([
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
-    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css'],
+    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css', '/academy/ngv/ngv-dashboard.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 
@@ -149,6 +149,22 @@ if ($isOrg) {
     if (CacSso::ready()) {
         $nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];
     }
+}
+/* NextGen Vanguard — the programme dashboard, here rather than a link away.
+   For vanguards only (NgvMember::isVanguard: their NGV record or ID card,
+   not their email). Its data and content are the same files the standalone
+   page uses, so the two cannot drift. */
+$isNgv = class_exists('NgvMember') && NgvMember::isVanguard((int) $u['id']);
+if ($isNgv) {
+    /* Read in its own scope: the dashboard's names ($myEntries, $csrf, $p…)
+       are the portal's too, and must not overwrite them. */
+    $ngvVars = (static function (array $u): array {
+        $c = Ngv::get();
+        require dirname(__DIR__) . '/academy/ngv/_dashboard-data.php';
+        return get_defined_vars();
+    })($u);
+    $ngvOwed = (int) ($ngvVars['account']['payable'] ?? 0);
+    $nav['NextGen Vanguard'] = [['ngv', 'My NGV', 'gold', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : '']];
 }
 $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
@@ -1423,6 +1439,14 @@ $nav['You'] = [
         <!-- ============================================================ -->
         <!-- MEMBERSHIP / ACCOUNT                                         -->
         <!-- ============================================================ -->
+<?php if ($isNgv): ?>
+        <!-- ============================================================ -->
+        <!-- NEXTGEN VANGUARD                                             -->
+        <!-- ============================================================ -->
+        <section class="pview" id="view-ngv" data-view="ngv" hidden>
+<?php (static function (array $__v): void { extract($__v); require dirname(__DIR__) . '/academy/ngv/_dashboard-body.php'; })($ngvVars); ?>
+        </section>
+<?php endif; ?>
         <section class="pview" id="view-membership" data-view="membership" hidden>
           <div class="view-head"><h1><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
           <div class="pcols">

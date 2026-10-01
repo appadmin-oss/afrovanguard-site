@@ -152,6 +152,10 @@ $knownMetaKeys = [
     // yesterday — it never back-marks history, so it under-marks rather than
     // fining a roster for days nobody was watching.
     'gate_absent_swept_through',
+    // Older printed member cards (lib/MemberCards). Reviewed: gates no migration.
+    // The shapes the gate decodes old cards by. Lost, those cards stop reading
+    // at the gate until re-described; secure cards and NGV numbers are unaffected.
+    'gate_card_formats',
     // Members' birthday emails (lib/Birthdays). Reviewed: gates no migration.
     // Who has had today's letter. Lost, somebody may get today's twice.
     'member_bday_sent',

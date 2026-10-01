@@ -492,7 +492,7 @@ ck('ngv fees: no balance, charge or ledger read reaches a public NGV page',
 
 // The member's own view is read-only by construction: the dashboard may render
 // an account but must never post, waive, void or price one.
-$dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+$dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-data.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php');
 /* `raiseRequest` is deliberately absent from this list: it is the one
    member-side write, and it writes a MESSAGE. Everything that moves a figure
    stays staff-only, and the assertion above proves a request moves none. */

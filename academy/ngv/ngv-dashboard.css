@@ -1,0 +1,109 @@
+/* The NGV dashboard's own components, on the portal design system (portal.css).
+   Loaded by /portal and by the standalone dashboard. */
+/* NGV dashboard — built on the member-portal design system (portal.css). Only
+   the NGV-specific components live here; cards, KPIs, chips, buttons, the
+   sidebar and both themes all come from portal.css and its tokens. */
+.portal-app .save-msg{font-size:12.5px;font-weight:700;color:var(--green);opacity:0;transition:opacity .25s;white-space:nowrap}
+.portal-app .save-msg.on{opacity:1}
+.ngv-banner{display:flex;gap:10px;align-items:center;background:var(--gold-soft);border:1px solid var(--gold-soft-bd);
+  color:var(--gold-deeper);border-radius:11px;padding:11px 14px;font-size:13.5px;font-weight:600;margin-bottom:18px}
+.ngv-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.ngv-grid .wide{grid-column:1 / -1}
+@media(max-width:860px){.ngv-grid{grid-template-columns:1fr}}
+
+/* journey timeline */
+.ngv-phase{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid var(--surface-2)}
+.ngv-phase:last-of-type{border-bottom:0}
+.ngv-phase .dot{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--surface-2);color:var(--muted);
+  display:grid;place-items:center;font-weight:800;font-size:.9rem}
+.ngv-phase.on .dot{background:var(--gold);color:var(--on-gold)}
+.ngv-phase .tag{font-size:10.5px;font-weight:700;color:var(--gold-deep);text-transform:uppercase;letter-spacing:.06em}
+.ngv-phase h3{margin:2px 0;font-size:14.5px;color:var(--ink)}
+.ngv-phase .when{font-size:12.5px;color:var(--muted-2)}
+.ngv-phase ul{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--body)}
+.ngv-phase li{margin:2px 0}
+.ngv-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.portal-app .pbtn.on{background:var(--gold);color:var(--on-gold);border-color:transparent}
+
+/* track + plan tiles */
+.ngv-sub-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted-2);margin:18px 0 9px}
+.ngv-picks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.ngv-picks{grid-template-columns:1fr}}
+.trk{border:1.5px solid var(--border);border-radius:11px;padding:12px;cursor:pointer;background:var(--surface);
+  transition:border-color .12s,background .12s}
+.trk:hover{border-color:var(--gold)}
+.trk.on{border-color:var(--gold);background:var(--gold-soft)}
+.trk .i{font-size:1.25rem}
+.trk .n{font-weight:700;font-size:13.5px;margin-top:3px;color:var(--ink)}
+.trk .d{font-size:12.5px;color:var(--muted);margin-top:3px}
+
+/* 24-book grid */
+.ngv-books{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+@media(max-width:520px){.ngv-books{grid-template-columns:repeat(6,1fr)}}
+.book{aspect-ratio:1;border:1.5px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer;
+  font-weight:800;color:var(--muted-2);display:grid;place-items:center;font-size:.9rem;transition:transform .1s}
+.book:hover{transform:translateY(-1px);border-color:var(--gold)}
+.book.on{background:var(--gold);border-color:transparent;color:var(--on-gold)}
+.ngv-bar{height:9px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:14px 0 7px}
+.ngv-bar>i{display:block;height:100%;background:var(--gold);transition:width .3s}
+
+/* generic rows / notes (portal-toned) */
+.portal-app textarea{width:100%;border:1.5px solid var(--border);border-radius:11px;padding:12px;font:inherit;
+  background:var(--surface-2);color:var(--ink);resize:vertical;min-height:82px}
+.portal-app textarea:focus{outline:none;border-color:var(--gold);background:var(--surface)}
+.ngv-rows{display:flex;flex-direction:column}
+.ngv-row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--surface-2)}
+.ngv-row:last-child{border-bottom:0}
+.ngv-row .k{font-weight:700;color:var(--ink);font-size:13.5px}
+.ngv-row .d{display:block;font-size:12.5px;color:var(--muted-2);margin-top:2px}
+.ngv-row .amt{margin-left:auto;font-weight:800;white-space:nowrap;color:var(--ink)}
+.ngv-figure{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--ink)}
+.ngv-figure.clear{color:var(--green);font-size:24px}
+.ngv-figure-sub{font-size:12.5px;color:var(--muted-2);margin:2px 0 14px}
+.ngv-box{font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;margin-top:12px;line-height:1.5}
+.ngv-box b{color:var(--ink)}
+.ngv-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ngv-pill{background:var(--surface-2);color:var(--body);border:1px solid var(--border);border-radius:999px;
+  padding:5px 12px;font-size:12.5px;font-weight:600}
+.ngv-contact{display:flex;flex-wrap:wrap;gap:10px}
+.portal-app .ngv-contact a{display:inline-flex;align-items:center;gap:7px;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--body);font-weight:600;font-size:13px}
+.portal-app .ngv-contact a:hover{border-color:var(--gold);color:var(--ink)}
+.ngv-details summary{cursor:pointer;font-weight:700;color:var(--ink);font-size:13.5px;padding:4px 0}
+.ngv-fine{font-size:11.5px;color:var(--muted-2);margin:8px 0 0;line-height:1.5}
+.ngv-sched{margin-top:14px;border:1px solid var(--border);border-radius:12px;padding:12px 13px;background:var(--surface-2)}
+.ngv-sched-head{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;font-size:13px;color:var(--ink)}
+.ngv-sched-head span{margin-left:auto;font-size:12px;color:var(--muted-2);font-weight:600}
+/* The instalment bar is its own thing — slimmer, and green because it tracks
+   money paid rather than books read. Scoped, because an unscoped `.ngv-bar`
+   here silently re-styles the reading-challenge bar defined above it. */
+.ngv-sched .ngv-bar{height:6px;background:var(--border);margin:9px 0 11px}
+.ngv-sched .ngv-bar span{display:block;height:100%;border-radius:999px;background:var(--green)}
+.ngv-insts{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px}
+.ngv-inst{border:1.5px solid var(--border);border-radius:9px;padding:7px 8px;background:var(--surface);
+  display:flex;flex-direction:column;gap:1px;min-width:0}
+.ngv-inst .mo{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted-2)}
+.ngv-inst .amt{font-size:13px;font-weight:800;color:var(--ink)}
+.ngv-inst .st{font-size:10.5px;color:var(--muted-2)}
+.ngv-inst--charged{border-color:var(--green-bd);background:var(--green-soft)}
+.ngv-inst--charged .st{color:var(--green)}
+.ngv-inst--due{border-color:var(--gold-soft-bd);background:var(--gold-soft)}
+.ngv-inst--due .st{color:var(--gold-deep);font-weight:700}
+.ngv-ask{margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface-2)}
+.ngv-ask summary{font-size:13px}
+.ngv-input{width:100%;margin-top:8px;border:1.5px solid var(--border);border-radius:9px;padding:9px 10px;
+  font:inherit;font-size:13px;background:var(--surface);color:var(--ink)}
+.ngv-input:focus{outline:none;border-color:var(--gold)}
+.ngv-ask .pbtn{margin-top:9px}
+.ngv-quote{display:block;margin:4px 0;padding-left:9px;border-left:2px solid var(--border);color:var(--muted-2)}
+.ngv-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ngv-shots{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ngv-shots img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block}
+.ngv-shots a:focus-visible img{outline:3px solid var(--gold);outline-offset:2px}
+.ngv-addshot{display:block;margin-top:6px}
+.ngv-input[type=file]{padding:7px}
+.ngv-mini{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;
+  border:1px solid var(--border);color:var(--body);text-decoration:none;vertical-align:middle}
+.ngv-mini:hover{border-color:var(--gold);color:var(--ink)}
+.ngv-row .k .pchip{margin-left:6px;vertical-align:middle}
