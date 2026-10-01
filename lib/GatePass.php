@@ -88,11 +88,31 @@ final class GatePass
         return $r !== '' ? array_values(array_filter(array_map('trim', explode(',', strtolower($r))))) : self::DEFAULT_ROLES;
     }
 
-    public static function eligible(?array $u): bool
+    public static function eligible(?array $u): bool { return self::whyNot($u) === null; }
+
+    /**
+     * Why this member gets no pass, in words — or null. The rules are the
+     * gate's entry rules (GateAttendance::whyNot): an active account, a member
+     * role, and, where leadership has switched it on, no fine left unpaid too
+     * long. A pass is withheld rather than issued and refused at the door,
+     * because the gate checks a pass without asking this site.
+     */
+    public static function whyNot(?array $u): ?string
     {
-        if (!$u) return false;
-        if (isset($u['status']) && (string) $u['status'] !== 'active') return false;
-        return in_array(strtolower((string) ($u['role'] ?? 'learner')), self::roles(), true);
+        if (!$u) return 'Sign in first.';
+        if (class_exists('GateAttendance')) return GateAttendance::whyNot($u);
+        if (isset($u['status']) && (string) $u['status'] !== 'active') return 'This account is suspended.';
+        return in_array(strtolower((string) ($u['role'] ?? 'learner')), self::roles(), true) ? null : 'Gate passes are for Afrovanguard members.';
+    }
+
+    /**
+     * Check a request the gate signed to this site: "ts.body" under the
+     * purpose key, at most five minutes old.
+     */
+    public static function verify(string $purpose, string $ts, string $body, string $sig): bool
+    {
+        if (!self::ready() || !ctype_digit($ts) || abs(time() - (int) $ts) > 300) return false;
+        return hash_equals('sha256=' . hash_hmac('sha256', $ts . '.' . $body, self::key($purpose)), $sig);
     }
 
     /**
@@ -103,7 +123,8 @@ final class GatePass
     public static function mint(array $u, ?int $now = null): array
     {
         if (!self::ready()) throw new RuntimeException('GATE_PASS_SECRET is not set.');
-        if (!self::eligible($u)) throw new RuntimeException('Gate passes are for members.');
+        $why = self::whyNot($u);
+        if ($why !== null) throw new RuntimeException($why);
         $now = $now ?? time();
         $claims = [
             'iss' => self::ISS, 'aud' => self::AUD, 'sub' => (string) (int) $u['id'],

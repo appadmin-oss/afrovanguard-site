@@ -1,0 +1,176 @@
+<?php
+/**
+ * tests/gateattendance.test.php — what the CACENTRE gate reports about members.
+ *
+ * Pinned here, because each is a way this goes wrong for a real person:
+ *   • A passage delivered twice is one passage. The gate retries; a member
+ *     must not be late twice, or fined twice, for one morning.
+ *   • A departure that arrives before its arrival is not a fact yet — it is
+ *     answered "not_checked_in" so the gate tries again, not dropped.
+ *   • Nothing that costs money happens until leadership sets a figure.
+ *   • An arrival held up by an outage beats the absence marked meanwhile,
+ *     and the absence fine on it is voided, not left standing.
+ *   • An excused day voids its fine; a declined excuse charges the fine it
+ *     held back. Nobody is fined while their request is waiting.
+ *   • A fine unpaid past the limit withholds the pass and refuses the card —
+ *     and a recent fine alone does not.
+ *   • Spreadsheet-era ID cards keep working; a replaced card stops.
+ *
+ * Run via tests/run.php (provides ck()).
+ */
+declare(strict_types=1);
+
+$gaPdo = Database::pdo();
+GateAttendance::ensure();
+foreach (['gate_attendance', 'gate_member_cards', 'gate_excuses'] as $t) $gaPdo->exec('DELETE FROM ' . $t);
+foreach (['ngv_charges', 'ngv_payments', 'ngv_participants'] as $t) { try { NgvDb::pdo()->exec('DELETE FROM ' . $t); } catch (Throwable $e) {} }
+try { Database::metaSet('gate_absent_swept_through', ''); } catch (Throwable $e) {}
+AvRules::save(['gate.late_fine' => '0', 'gate.absent_fine' => '0', 'gate.mark_absent' => '0', 'gate.block_overdue_days' => '0',
+               'gate.programme_days' => 'mon,tue,wed,thu,fri,sat,sun', 'gate.holidays' => ''], 'test');
+
+$gaUser = static function (string $name, string $role = 'member', string $status = 'active') use ($gaPdo): int {
+    $email = strtolower(str_replace(' ', '.', $name)) . '.' . bin2hex(random_bytes(3)) . '@example.test';
+    $gaPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)')->execute([$name, $email, 'x', $role, $status]);
+    return (int) $gaPdo->lastInsertId();
+};
+$gaEnrol = static function (int $id, string $name): void {
+    NgvDb::pdo()->prepare("INSERT INTO ngv_participants (member_id, name, email, status, start_date, created_at, updated_at) VALUES (?, ?, ?, 'active', '2026-01-05', '2026-01-05', '2026-01-05')")
+        ->execute([$id, $name, 'p' . $id . '@example.test']);
+};
+$gaFines = static function (int $id): array {
+    $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_charges WHERE member_id = ? AND kind = 'fine' AND voided = 0 ORDER BY id");
+    $st->execute([$id]);
+    return $st->fetchAll();
+};
+$gaRow = static function (int $id, string $day) use ($gaPdo): ?array {
+    $st = $gaPdo->prepare('SELECT * FROM gate_attendance WHERE member_id = ? AND day = ?');
+    $st->execute([$id, $day]);
+    return $st->fetch() ?: null;
+};
+$gaIn = static fn(string $pid, int $mid, string $day, string $status = 'present', int $late = 0): array =>
+    ['id' => $pid, 'desk' => 'DESK', 'centre' => 'Egbeda', 'day' => $day, 'at' => $day . 'T07:' . sprintf('%02d', min(59, $late)) . ':00Z', 'action' => 'in',
+     'ref' => (string) $mid, 'name' => 'x', 'kind' => 'member', 'status' => $status, 'late_minutes' => $late, 'method' => 'scan', 'operator' => 'desk:Front'];
+$gaOut = static fn(string $pid, int $mid, string $day): array => ['id' => $pid, 'day' => $day, 'at' => $day . 'T15:00:00Z', 'action' => 'out', 'ref' => (string) $mid];
+
+$ada = $gaUser('Ada Vanguard'); $gaEnrol($ada, 'Ada Vanguard');
+$bola = $gaUser('Bola Member');                       // a member, not an NGV participant
+$day = '2026-09-28';
+
+/* ── Passages ────────────────────────────────────────────────────────────── */
+$r = GateAttendance::report([$gaIn('p-1', $ada, $day, 'late', 12), ['id' => 'p-x', 'ref' => '999999', 'day' => $day, 'action' => 'in'], ['id' => '', 'ref' => (string) $ada]]);
+ck('Gate: a passage is recorded, a stranger is "unknown", a malformed one "bad_event"', array_column($r, 'status') === ['recorded', 'unknown', 'bad_event']);
+ck('Gate: each answer carries its passage id, so the gate can match it', $r[0]['id'] === 'p-1' && $r[1]['id'] === 'p-x');
+$row = $gaRow($ada, $day);
+ck('Gate: Ada is on the register, late by the gate’s reckoning', $row && $row['status'] === 'late' && (int) $row['late_minutes'] === 12 && $row['centre'] === 'Egbeda');
+ck('Gate: …and with no late fine, because none is set', $gaFines($ada) === []);
+ck('Gate: the same passage again is a duplicate, and the register still has one row',
+   GateAttendance::report([$gaIn('p-1', $ada, $day, 'late', 12)])[0]['status'] === 'duplicate'
+   && (int) $gaPdo->query("SELECT COUNT(*) FROM gate_attendance WHERE member_id = {$ada}")->fetchColumn() === 1);
+ck('Gate: a second arrival the same day (another desk) is a duplicate too', GateAttendance::report([$gaIn('p-2', $ada, $day)])[0]['status'] === 'duplicate');
+ck('Gate: a departure before any arrival asks to be sent again', GateAttendance::report([$gaOut('p-3', $bola, $day)])[0]['status'] === 'not_checked_in');
+ck('Gate: a departure is stamped, once', GateAttendance::report([$gaOut('p-4', $ada, $day), $gaOut('p-4', $ada, $day)]) === [['id' => 'p-4', 'status' => 'recorded'], ['id' => 'p-4', 'status' => 'duplicate']]
+   && $gaRow($ada, $day)['out_at'] === $day . 'T15:00:00Z');
+ck('Gate: any member is recorded, not only NGV participants', GateAttendance::report([$gaIn('p-5', $bola, $day)])[0]['status'] === 'recorded');
+
+/* ── Late fines, once leadership sets one ────────────────────────────────── */
+AvRules::save(['gate.late_fine' => '1000'], 'test');
+$d2 = '2026-09-29';
+GateAttendance::report([$gaIn('p-6', $ada, $d2, 'late', 5), $gaIn('p-7', $bola, $d2, 'late', 5)]);
+GateAttendance::report([$gaIn('p-6', $ada, $d2, 'late', 5)]);
+$f = $gaFines($ada);
+ck('Gate: late with a fine set: one ₦1,000 fine on the NGV account, for that day', count($f) === 1 && (int) $f[0]['amount'] === 1000 && $f[0]['period'] === 'late:' . $d2 && $f[0]['reason'] === 'late');
+ck('Gate: …linked from the register row', (int) $gaRow($ada, $d2)['fine_id'] === (int) $f[0]['id']);
+ck('Gate: a member who is not an NGV participant is never fined — there is no account to fine', $gaFines($bola) === []);
+AvRules::save(['gate.late_fine' => '0'], 'test');
+
+/* ── Absences ────────────────────────────────────────────────────────────── */
+ck('Gate: absences are not marked until switched on', GateAttendance::sweep('2026-10-02')['off'] ?? false);
+AvRules::save(['gate.mark_absent' => '1', 'gate.absent_fine' => '2000', 'gate.holidays' => '2026-09-30'], 'test');
+Database::metaSet('gate_absent_swept_through', '2026-09-29');
+$chi = $gaUser('Chi Vanguard'); $gaEnrol($chi, 'Chi Vanguard');
+GateAttendance::requestExcuse($chi, '2026-10-01', 'Exam at school');
+$s = GateAttendance::sweep('2026-10-02');
+ck('Gate: the sweep covers the days since the last one, up to yesterday', $s['days'] === 2 && $s['through'] === '2026-10-01');
+ck('Gate: nobody is absent on a holiday', $gaRow($ada, '2026-09-30') === null && $gaRow($chi, '2026-09-30') === null);
+$a1 = $gaRow($ada, '2026-10-01');
+ck('Gate: an active participant with no passage is absent, and fined the absence fine', $a1 && $a1['status'] === 'absent' && (int) $a1['fine_id'] > 0
+   && count(array_filter($gaFines($ada), fn($c) => $c['period'] === 'absent:2026-10-01' && (int) $c['amount'] === 2000)) === 1);
+ck('Gate: a plain member is not expected, so never absent', $gaRow($bola, '2026-10-01') === null);
+ck('Gate: somebody whose excuse is waiting is absent, but not fined yet', $gaRow($chi, '2026-10-01')['status'] === 'absent'
+   && (int) $gaRow($chi, '2026-10-01')['fine_id'] === 0 && $gaFines($chi) === []);
+ck('Gate: sweeping again does nothing', GateAttendance::sweep('2026-10-02')['days'] === 0);
+
+$ex = $gaPdo->query("SELECT id FROM gate_excuses WHERE member_id = {$chi}")->fetchColumn();
+GateAttendance::decideExcuse((int) $ex, false, 'Bring the exam slip next time', 1);
+ck('Gate: a declined excuse charges the fine it held back', count($gaFines($chi)) === 1);
+$r = GateAttendance::excuseDay($ada, '2026-10-01', 'Told the office in person', 1);
+ck('Gate: staff excusing a day makes it excused and voids its fine', $r['ok'] && $gaRow($ada, '2026-10-01')['status'] === 'excused'
+   && array_filter($gaFines($ada), fn($c) => $c['period'] === 'absent:2026-10-01') === []);
+
+/* A delivery held up by an outage: the absence was marked first. */
+Database::metaSet('gate_absent_swept_through', '2026-10-01');
+GateAttendance::sweep('2026-10-03');
+ck('Gate: (Chi absent on the 2nd, fined)', $gaRow($chi, '2026-10-02')['status'] === 'absent' && count($gaFines($chi)) === 2);
+ck('Gate: the late arrival beats the absence…', GateAttendance::report([$gaIn('p-8', $chi, '2026-10-02')])[0]['status'] === 'recorded' && $gaRow($chi, '2026-10-02')['status'] === 'present');
+ck('Gate: …and its absence fine is voided', count($gaFines($chi)) === 1);
+AvRules::save(['gate.mark_absent' => '0', 'gate.absent_fine' => '0', 'gate.holidays' => ''], 'test');
+
+/* ── Excuse requests ─────────────────────────────────────────────────────── */
+ck('Gate: an excuse needs a reason', !GateAttendance::requestExcuse($ada, '2026-10-05', '')['ok']);
+ck('Gate: nobody is excused from a day the gate has them in', !GateAttendance::requestExcuse($ada, $day, 'I was ill')['ok']);
+ck('Gate: and one request per day', GateAttendance::requestExcuse($ada, '2026-10-05', 'Hospital')['ok'] && !GateAttendance::requestExcuse($ada, '2026-10-05', 'Again')['ok']);
+
+/* ── What the member sees ────────────────────────────────────────────────── */
+ck('Gate: grades are the spreadsheet’s', GateAttendance::grade(96) === 'A+' && GateAttendance::grade(85) === 'A' && GateAttendance::grade(70) === 'C' && GateAttendance::grade(10) === 'F');
+$sum = GateAttendance::summary($chi, 3650);
+ck('Gate: the summary counts excused days for nothing either way', $sum['counted'] === 2 && $sum['absent'] === 1 && $sum['present'] === 1 && $sum['rate'] === 50);
+$reg = GateAttendance::register($day);
+ck('Gate: the staff register lists the day and who was expected but not in', count($reg['rows']) === 2 && in_array($chi, array_column($reg['not_in'], 'member_id'), true));
+
+/* ── Who may come in ─────────────────────────────────────────────────────── */
+ck('Gate: an active member may', GateAttendance::whyNot($gaPdo->query("SELECT * FROM lms_users WHERE id = {$ada}")->fetch()) === null);
+$sus = $gaUser('Sus Pended', 'member', 'suspended');
+ck('Gate: a suspended account may not, and is told so', str_contains((string) GateAttendance::whyNot($gaPdo->query("SELECT * FROM lms_users WHERE id = {$sus}")->fetch()), 'suspended'));
+$lea = $gaUser('Lee Learner', 'learner');
+ck('Gate: a learner gets no pass', GateAttendance::whyNot($gaPdo->query("SELECT * FROM lms_users WHERE id = {$lea}")->fetch()) !== null);
+
+AvRules::save(['gate.block_overdue_days' => '14'], 'test');
+ck('Gate: a fine raised this week does not withhold anything', GateAttendance::overdueFine($chi) === 0);
+NgvDb::pdo()->exec("UPDATE ngv_charges SET created_at = '" . gmdate('Y-m-d H:i:s', time() - 30 * 86400) . "' WHERE member_id = {$chi}");
+$chiU = $gaPdo->query("SELECT * FROM lms_users WHERE id = {$chi}")->fetch();
+ck('Gate: a fine unpaid past the limit withholds the pass, with the amount', GateAttendance::overdueFine($chi) === 2000 && str_contains((string) GateAttendance::whyNot($chiU), '₦2,000'));
+ck('Gate: …so the portal will not mint one', !GatePass::eligible($chiU));
+NgvLedger::payment($chi, 'fine', 2000, ['method' => 'cash'], 1);
+ck('Gate: paying it lifts that', GateAttendance::overdueFine($chi) === 0 && GatePass::eligible($chiU));
+AvRules::save(['gate.block_overdue_days' => '0'], 'test');
+
+/* ── Member ID cards ─────────────────────────────────────────────────────── */
+$c1 = GateAttendance::assignCard($ada, 'b-ngv-24-0007', 1);
+ck('Gate: a spreadsheet-era card number is taken as printed', $c1['ok'] && $c1['code'] === 'B-NGV-24-0007');
+$r = GateAttendance::resolveCard('b-ngv-24-0007');
+ck('Gate: and resolves to the member, with the same ref as their pass', $r['ok'] && $r['person']['ref'] === (string) $ada && $r['person']['kind'] === 'member' && $r['person']['status'] === 'active');
+ck('Gate: …saying no more than a desk needs', array_keys($r['person']) === ['ref', 'name', 'kind', 'status', 'detail'] && str_contains($r['person']['detail'], 'NextGen Vanguard'));
+$c2 = GateAttendance::assignCard($ada, '', 1);
+ck('Gate: a new card is the next free number', $c2['ok'] && (bool) preg_match('/^A-NGV-\d{2}-0001$/', $c2['code']));
+ck('Gate: and the replaced one stops working', GateAttendance::resolveCard('B-NGV-24-0007')['code'] === 'void_card');
+ck('Gate: somebody else’s card cannot be given out', !GateAttendance::assignCard($chi, $c2['code'], 1)['ok']);
+ck('Gate: a number that is not a card is refused', !GateAttendance::assignCard($chi, 'NGV-1', 1)['ok'] && GateAttendance::resolveCard('hello')['code'] === 'unknown');
+ck('Gate: a suspended member’s card resolves with the reason, not as active',
+   GateAttendance::assignCard($sus, '', 1)['ok'] && GateAttendance::resolveCard((string) GateAttendance::cardFor($sus))['person']['status'] !== 'active');
+ck('Gate: search finds active members by name, and never a suspended one',
+   in_array((string) $ada, array_column(GateAttendance::search('vanguard'), 'ref'), true) && GateAttendance::search('pended') === []);
+
+/* ── The door the gate knocks on ─────────────────────────────────────────── */
+putenv('GATE_PASS_SECRET=' . str_repeat('g', 48));
+$body = '{"op":"search","q":"ada"}'; $ts = (string) time();
+$sig = 'sha256=' . hash_hmac('sha256', $ts . '.' . $body, hash_hmac('sha256', 'cacentre-gate/v1/resolve', str_repeat('g', 48)));
+ck('Gate: a request signed under the resolve key verifies for resolve', GatePass::verify('resolve', $ts, $body, $sig));
+ck('Gate: …and not for report, so a delivery log cannot be replayed as a search', !GatePass::verify('report', $ts, $body, $sig));
+ck('Gate: …and not five minutes later', !GatePass::verify('resolve', (string) (time() - 400), $body, 'sha256=' . hash_hmac('sha256', (time() - 400) . '.' . $body, GatePass::key('resolve'))));
+$src = (string) file_get_contents(AV_ROOT . '/integrations/cacentre-gate.php');
+ck('Gate: the endpoint picks the key from what is asked, and checks it before reading anything', str_contains($src, "\$purpose = isset(\$in['op']) ? 'resolve' : 'report';")
+   && strpos($src, 'GatePass::verify(') < strpos($src, 'GateAttendance::report($passages)'));
+ck('Gate: suspending a member withdraws their passes', str_contains((string) file_get_contents(AV_ROOT . '/lib/LmsRepository.php'), 'GatePass::revoke($id)'));
+ck('Gate: the cron marks absences', str_contains((string) file_get_contents(AV_ROOT . '/tasks/cron.php'), 'GateAttendance::sweep()'));
+putenv('GATE_PASS_SECRET');
+AvRules::save(['gate.programme_days' => 'mon,tue,wed,thu,fri'], 'test');

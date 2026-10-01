@@ -847,6 +847,14 @@ final class LmsRepository
         if (!in_array($status, ['active', 'suspended'], true)) return false;
         $this->db->prepare("UPDATE lms_users SET status = ? WHERE id = ?")->execute([$status, $id]);
         if ($status === 'suspended') $this->db->prepare("DELETE FROM lms_sessions WHERE user_id = ?")->execute([$id]); // revoke sessions
+        /* And their CACENTRE gate passes, which the gate checks without asking
+           here: a pass already on a phone would otherwise open the door until
+           it expired. Best effort — a gate that cannot be reached is logged,
+           and still refuses their ID card, which it does ask about. */
+        if ($status === 'suspended' && class_exists('GatePass') && GatePass::ready()) {
+            try { $r = GatePass::revoke($id); if (empty($r['ok'])) error_log('[gate] revoke on suspend #' . $id . ': ' . ($r['error'] ?? '')); }
+            catch (Throwable $e) { error_log('[gate] revoke on suspend: ' . $e->getMessage()); }
+        }
         return true;
     }
 

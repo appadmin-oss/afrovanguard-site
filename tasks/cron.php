@@ -78,6 +78,14 @@ if (class_exists('NgvLedger')) {
     catch (Throwable $e) { error_log('[cron] ngv fees: ' . $e->getMessage()); }
 }
 
+// The CACENTRE gate: mark the absences of programme days that have ended.
+// Remembers how far it has swept, so every tick after the first of a day is a
+// no-op, and does nothing at all until "Mark absences" is switched on.
+if (class_exists('GateAttendance')) {
+    try { $result['gate_absences'] = GateAttendance::sweep(); }
+    catch (Throwable $e) { error_log('[cron] gate absences: ' . $e->getMessage()); }
+}
+
 // G-1: chase overdue commitments. Deduped per commitment per day inside
 // Commitments::sweepOverdue(), so a stuck commitment nudges once daily rather than
 // on every tick. Independent of Mentorship — commitments also come from meetings.

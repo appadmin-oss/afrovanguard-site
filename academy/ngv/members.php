@@ -504,6 +504,7 @@ details.sect>summary{margin-bottom:8px}
 <header class="top">
   <h1><b>NextGen Vanguard</b> <span>· staff console</span></h1>
   <span class="sp"></span>
+  <a href="/academy/ngv/attendance.php">Attendance</a>
   <a href="/academy/ngv/edit.php">Edit page</a>
   <a href="/academy/ngv/" target="_blank" rel="noopener">Public ↗</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>

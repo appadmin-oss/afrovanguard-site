@@ -295,6 +295,44 @@ final class AvRules
             'label' => 'Maximum tokens per AI response',
             'help'  => 'The output ceiling for one model call. Higher costs more and allows longer answers; too low and a reply is cut off mid-sentence, or a tool call is cut off mid-argument. 2048 is roughly 1,500 words.',
         ],
+
+        /* ── Attendance at the CACENTRE gate (lib/GateAttendance.php) ──
+           The gate records who came in and when, and how late by the desk's
+           calendar. What that MEANS for a member — a fine, an absence, a pass
+           withheld — is Afrovanguard's to decide, so it is decided here. Every
+           consequence that costs money is off until somebody sets a figure. */
+        'gate.programme_days' => [
+            'type' => 'csv', 'default' => 'mon,tue,wed,thu,fri', 'group' => 'Attendance',
+            'item_pattern' => '/^(mon|tue|wed|thu|fri|sat|sun)$/',
+            'label' => 'Programme days',
+            'help'  => 'The days an NGV participant is expected in. Only these can be marked absent. Three-letter days, comma-separated.',
+        ],
+        'gate.holidays' => [
+            'type' => 'csv', 'default' => '', 'group' => 'Attendance',
+            'item_pattern' => '/^\d{4}-\d{2}-\d{2}$/',
+            'label' => 'Holidays',
+            'help'  => 'Dates (YYYY-MM-DD) nobody is expected in. Nobody is marked absent or fined on them.',
+        ],
+        'gate.mark_absent' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Attendance',
+            'label' => 'Mark absences',
+            'help'  => 'After each programme day, an active NGV participant with no passage and no approved excuse is marked absent. Off: absences are not recorded at all, and attendance rates count only the days somebody came.',
+        ],
+        'gate.late_fine' => [
+            'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 100000, 'group' => 'Attendance',
+            'label' => 'Late fine (₦)',
+            'help'  => 'Charged to an NGV participant’s account, once per day, when the gate records them late. 0 charges nothing. The spreadsheet system charged ₦1,000.',
+        ],
+        'gate.absent_fine' => [
+            'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 100000, 'group' => 'Attendance',
+            'label' => 'Absence fine (₦)',
+            'help'  => 'Charged when a day is marked absent (needs Mark absences on). Excusing the day afterwards voids it. 0 charges nothing. The old rules page said ₦2,000.',
+        ],
+        'gate.block_overdue_days' => [
+            'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 365, 'group' => 'Attendance',
+            'label' => 'Withhold the gate pass for fines unpaid this long (days)',
+            'help'  => 'A participant with a fine older than this still unpaid gets no new gate pass and their ID card is refused, until it is paid or waived. 0 never withholds. The spreadsheet system used 14.',
+        ],
     ];
 
     /* ════════════════════════════════════════════════════════════════
