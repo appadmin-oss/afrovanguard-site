@@ -373,7 +373,16 @@ final class GateAttendance
 
         if ($action === 'out') {
             if (!$row || (in_array((string) $row['status'], ['absent', 'excused'], true) && (string) $row['in_at'] === '')) return 'not_checked_in';
-            if ((string) $row['gate_out_id'] === $id || (string) $row['out_at'] !== '') return 'duplicate';
+            /* The same departure, later: at a terminal the check-out is the last
+               punch of the day, and the gate re-sends the passage as it moves. */
+            if ((string) $row['gate_out_id'] === $id) {
+                if ((string) $row['out_at'] !== '' && strtotime($at) > strtotime((string) $row['out_at'])) {
+                    $pdo->prepare('UPDATE gate_attendance SET out_at = ?, updated_at = ? WHERE id = ?')->execute([$at, self::now(), $row['id']]);
+                    return 'recorded';
+                }
+                return 'duplicate';
+            }
+            if ((string) $row['out_at'] !== '') return 'duplicate';
             $pdo->prepare('UPDATE gate_attendance SET out_at = ?, gate_out_id = ?, updated_at = ? WHERE id = ?')->execute([$at, $id, self::now(), $row['id']]);
             return 'recorded';
         }

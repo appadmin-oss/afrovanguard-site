@@ -70,6 +70,11 @@ ck('Gate: a second arrival the same day (another desk) is a duplicate too', Gate
 ck('Gate: a departure before any arrival asks to be sent again', GateAttendance::report([$gaOut('p-3', $bola, $day)])[0]['status'] === 'not_checked_in');
 ck('Gate: a departure is stamped, once', GateAttendance::report([$gaOut('p-4', $ada, $day), $gaOut('p-4', $ada, $day)]) === [['id' => 'p-4', 'status' => 'recorded'], ['id' => 'p-4', 'status' => 'duplicate']]
    && $gaRow($ada, $day)['out_at'] === $day . 'T15:00:00Z');
+$movedOut = $gaOut('p-4', $ada, $day); $movedOut['at'] = $day . 'T16:30:00Z';
+ck('Gate: the same departure delivered later (a terminal\'s last punch) moves the check-out',
+   GateAttendance::report([$movedOut])[0]['status'] === 'recorded' && $gaRow($ada, $day)['out_at'] === $day . 'T16:30:00Z');
+$earlier = $gaOut('p-4', $ada, $day); $earlier['at'] = $day . 'T12:00:00Z';
+ck('Gate: …but never back to an earlier one', GateAttendance::report([$earlier])[0]['status'] === 'duplicate' && $gaRow($ada, $day)['out_at'] === $day . 'T16:30:00Z');
 ck('Gate: any member is recorded, not only NGV participants', GateAttendance::report([$gaIn('p-5', $bola, $day)])[0]['status'] === 'recorded');
 
 /* ── Late fines, once leadership sets one ────────────────────────────────── */
