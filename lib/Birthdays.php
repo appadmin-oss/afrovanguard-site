@@ -14,10 +14,12 @@
  * needs only the day, and a member can give that without giving their age.
  * Somebody born on 29 February is celebrated on the 28th in other years.
  *
- * The member sets it themselves on their Account card; NGV staff can set it
- * from the attendance console for a participant who told them in person.
- * It is never shown to other members and never sent to the CACENTRE gate:
- * the gate is told only that today is somebody's birthday, by the points.
+ * It is RECORDED BY THE OFFICE, never by the member: in the Studio's Members
+ * list, and for NGV participants on the NGV console (Enrolment, or the
+ * attendance page). A member sees what was recorded on their Account card,
+ * and cannot change it. It is never shown to other members and never sent to
+ * the CACENTRE gate: the gate is told only that today is somebody's birthday,
+ * by the points.
  */
 declare(strict_types=1);
 

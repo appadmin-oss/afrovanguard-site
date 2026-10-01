@@ -2806,6 +2806,7 @@
       + ['O', 'A', 'B', 'C'].map(function (L) { return '<option value="' + L + '"' + ((m.level || 'O') === L ? ' selected' : '') + '>Level ' + L + '</option>'; }).join('')
       + '</select>'
       + '<select class="mem-role" data-id="' + m.id + '" title="Access level">' + opts + '</select>'
+      + '<input class="mem-bday" data-id="' + m.id + '" size="10" maxlength="10" placeholder="Birthday" title="Birthday — YYYY-MM-DD, or MM-DD if the year is not known. Blank removes it." aria-label="Birthday for ' + escapeHtml(m.name || m.email) + '" value="' + escapeHtml(m.birthday ? (m.birth_year > 0 ? m.birth_year + '-' : '') + m.birthday : '') + '">'
       + '<button class="btn btn-outline btn-sm mem-status" data-id="' + m.id + '" data-to="' + (m.status === 'suspended' ? 'active' : 'suspended') + '">' + (m.status === 'suspended' ? 'Reactivate' : 'Suspend') + '</button>'
       + '</div></div>';
   }
@@ -2923,6 +2924,13 @@
       if (roleSel) {
         post('mem_save', { id: roleSel.getAttribute('data-id'), role: roleSel.value }).then(function (r) {
           if (r.data && r.data.ok) { toast('Access level updated.'); loadMembers(); } else toast((r.data && r.data.error) || 'Could not update.');
+        });
+        return;
+      }
+      var bd = e.target.closest('.mem-bday');
+      if (bd) {
+        post('mem_save', { id: bd.getAttribute('data-id'), birthday: bd.value.trim() }).then(function (r) {
+          if (r.data && r.data.ok) toast(bd.value.trim() ? 'Birthday recorded.' : 'Birthday removed.'); else toast((r.data && r.data.error) || 'Could not save.');
         });
         return;
       }

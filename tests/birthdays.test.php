@@ -71,3 +71,15 @@ $n = $bdUser('No Birthday Given');
 GateAttendance::report([$in('bd-4', $n, '2026-10-22')]);
 ck('Birthdays: somebody who gave none gets the day\'s points only', GateAttendance::points($n)['total'] === 5);
 ck('Birthdays: the gate is never told a birthday', !str_contains((string) json_encode(GateAttendance::resolveRef((string) $m)), '10-22'));
+
+/* Recorded by the office, never by the member. */
+$prefs = (string) file_get_contents(AV_ROOT . '/portal/prefs.php');
+$portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+ck('Birthdays: a member has no way to set their own — not in their preferences API', !str_contains($prefs, 'birthday'));
+ck('Birthdays: …nor on their Account card, which only shows what the office recorded', !str_contains($portal, 'set_birthday') && !str_contains($portal, 'id="bdForm"') && str_contains($portal, 'Birthdays::label($bday)'));
+ck('Birthdays: the Studio records them, on the member list, audited', str_contains((string) file_get_contents(AV_ROOT . '/admin/api.php'), "\$lms->audit('birthday'")
+   && str_contains((string) file_get_contents(AV_ROOT . '/admin/app.js'), "post('mem_save', { id: bd.getAttribute('data-id'), birthday:"));
+ck('Birthdays: and the NGV console, on enrolment and on the attendance page', str_contains((string) file_get_contents(AV_ROOT . '/academy/ngv/members.php'), "Birthdays::set(\$mid, (string) \$in['birthday'])")
+   && str_contains((string) file_get_contents(AV_ROOT . '/academy/ngv/attendance.php'), "Birthdays::set(\$mid, (string) (\$in['birthday'] ?? ''))"));
+$rows = (new LmsRepository(Database::pdo()))->membersForAdmin('Kemi');
+ck('Birthdays: the Studio member list carries the recorded birthday', $rows && $rows[0]['birthday'] === '07-14');

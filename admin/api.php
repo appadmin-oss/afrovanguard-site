@@ -1111,6 +1111,15 @@ try {
                     $changed[] = 'level';
                 }
             }
+            /* Birthdays are recorded here, by the office — never by the member.
+               YYYY-MM-DD, or MM-DD when the year is not known; '' removes it.
+               The audit line says it changed, not what it is. */
+            if (array_key_exists('birthday', $body) && class_exists('Birthdays')) {
+                $was = Birthdays::of($mid);
+                $r = Birthdays::set($mid, (string) $body['birthday']);
+                if (empty($r['ok'])) json_out(['ok' => false, 'error' => $r['error'] ?? 'Not a birthday.'], 422);
+                if (Birthdays::of($mid) !== $was) { $lms->audit('birthday', $m['email'], $r['birthday'] === null ? 'removed' : 'recorded'); $changed[] = 'birthday'; }
+            }
             json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null]);
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

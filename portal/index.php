@@ -1465,35 +1465,10 @@ $nav['You'] = [
                 <div class="pcard-body pdl">
                   <div class="pdl-row"><span>Name</span><strong><?= e($u['name']) ?></strong></div>
                   <div class="pdl-row"><span>Email</span><strong><?= e($u['email']) ?></strong></div>
-<?php $bday = Birthdays::of((int) $u['id']); ?>
-                  <div class="pdl-row"><span>Birthday</span><strong id="bdLabel"><?= $bday ? e(Birthdays::label($bday)) : '<span style="font-weight:500;opacity:.7">Not given</span>' ?></strong></div>
-                  <form id="bdForm" class="pdl-row" style="flex-wrap:wrap;gap:10px;justify-content:flex-start;align-items:flex-end" data-csrf="<?= e($collabCsrf) ?>">
-                    <label style="display:flex;flex-direction:column;gap:4px;font-size:.85rem">Your birthday
-                      <input type="date" name="birthday" value="<?= $bday && $bday['year'] ? e($bday['year'] . '-' . $bday['birthday']) : ($bday ? e('2000-' . $bday['birthday']) : '') ?>" max="<?= e(date('Y-m-d')) ?>"></label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" name="keep_year" <?= !$bday || $bday['year'] ? 'checked' : '' ?>> Keep the year</label>
-                    <button type="submit" class="pbtn pbtn-soft pbtn-sm">Save</button>
-                    <button type="button" class="pbtn pbtn-ghost pbtn-sm" id="bdClear"<?= $bday ? '' : ' hidden' ?>>Remove</button>
-                    <span id="bdMsg" role="status" style="font-size:.85rem"></span>
-                    <span style="flex-basis:100%;font-size:.8rem;opacity:.75">For a birthday email and, at CACENTRE, birthday points. Nobody else sees it. Untick “Keep the year” to keep your age to yourself.</span>
-                  </form>
-                  <script>
-                  (function () {
-                    var f = document.getElementById('bdForm'); if (!f) return;
-                    function save(val, keep) {
-                      var m = document.getElementById('bdMsg'); m.textContent = 'Saving…';
-                      fetch('/portal/prefs.php?action=set_birthday', { method: 'POST', credentials: 'same-origin',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': f.getAttribute('data-csrf') || '' },
-                        body: JSON.stringify({ birthday: val, keep_year: keep }) })
-                        .then(function (r) { return r.json(); })
-                        .then(function (d) {
-                          m.textContent = d.ok ? 'Saved.' : (d.error || 'Not saved.');
-                          if (d.ok) { document.getElementById('bdLabel').textContent = d.label || 'Not given'; document.getElementById('bdClear').hidden = !d.label; }
-                        }).catch(function () { m.textContent = 'No connection.'; });
-                    }
-                    f.addEventListener('submit', function (e) { e.preventDefault(); save(f.birthday.value, f.keep_year.checked); });
-                    document.getElementById('bdClear').addEventListener('click', function () { f.birthday.value = ''; save('', false); });
-                  })();
-                  </script>
+<?php /* Recorded by the office (Studio → Members, or the NGV console), not here. */
+      $bday = Birthdays::of((int) $u['id']); if ($bday): ?>
+                  <div class="pdl-row"><span>Birthday</span><strong><?= e(Birthdays::label($bday)) ?></strong></div>
+<?php endif; ?>
                   <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
                 </div>
               </section>

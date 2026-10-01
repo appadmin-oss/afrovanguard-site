@@ -816,11 +816,12 @@ final class LmsRepository
     public function membersForAdmin(string $q = '', string $role = '', string $status = '', int $limit = 200): array
     {
         if (class_exists('Levels')) Levels::ensure(); // guarantees the level column
+        if (class_exists('Birthdays')) Birthdays::ensure(); // and the birthday ones
         $w = []; $p = [];
         if ($q !== '')      { $w[] = '(name LIKE ? OR email LIKE ?)'; $p[] = "%$q%"; $p[] = "%$q%"; }
         if ($role !== '')   { $w[] = 'role = ?';   $p[] = $role; }
         if ($status !== '') { $w[] = 'status = ?'; $p[] = $status; }
-        $sql = "SELECT id, name, email, role, status, created_at, last_login, level FROM lms_users";
+        $sql = "SELECT id, name, email, role, status, created_at, last_login, level, birthday, birth_year FROM lms_users";
         if ($w) $sql .= ' WHERE ' . implode(' AND ', $w);
         $sql .= ' ORDER BY id DESC LIMIT ' . (int) $limit;
         $s = $this->db->prepare($sql); $s->execute($p);

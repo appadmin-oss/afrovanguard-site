@@ -60,6 +60,14 @@ if ($method === 'POST') {
         $patch = ['status' => $in['status'] ?? null, 'cohort' => $in['cohort'] ?? null,
                   'track'  => $in['track'] ?? null,  'phase'  => $in['phase'] ?? null];
         foreach (['plan', 'start_date'] as $k) { if (array_key_exists($k, $in)) $patch[$k] = $in[$k]; }
+        /* The birthday is the office's to record (lib/Birthdays), on the member's
+           account so the portal, the gate and the birthday email all read one. */
+        if (array_key_exists('birthday', $in)) {
+            $was = Birthdays::of($mid);
+            $br = Birthdays::set($mid, (string) $in['birthday']);
+            if (empty($br['ok'])) json_out(['ok' => false, 'error' => $br['error'] ?? 'Not a birthday.'], 422);
+            if (Birthdays::of($mid) !== $was) AdminAudit::log('ngv', 'member.birthday', 'ngv:member:' . $mid, $br['birthday'] === null ? 'Birthday removed' : 'Birthday recorded');
+        }
         NgvMember::setAdmin($mid, $patch);
         AdminAudit::log('ngv', 'ngv_enrolment', 'ngv:member:' . $mid,
             'Enrolment updated — ' . trim(implode(' · ', array_filter([
@@ -854,6 +862,11 @@ details.sect>summary{margin-bottom:8px}
               <option value="done" <?= $sel['phase']==='done'?'selected':'' ?>>Completed</option>
             </select>
           </div>
+          <?php $bdRec = Birthdays::of($m); ?>
+          <div class="grid2">
+            <label class="sub">Birthday <span class="sub">(YYYY-MM-DD, or MM-DD if the year is not known)</span>
+              <input id="f_bday" maxlength="10" placeholder="2009-07-14" value="<?= $e($bdRec ? ($bdRec['year'] ? $bdRec['year'] . '-' : '') . $bdRec['birthday'] : '') ?>"></label>
+          </div>
           <div class="btns"><button class="btn primary sm" data-act="admin" data-m="<?= $m ?>">Save enrolment</button></div>
           <p class="sub"><b>Enrolled from</b> decides what the accrual charges from and when a training schedule starts.
              Changing it moves what happens NEXT — charges already posted keep the figures they were posted at, like
@@ -1348,7 +1361,7 @@ details.sect>summary{margin-bottom:8px}
       if(act==='damage_photos') return;              // handled above, as multipart
       // Actions that render their own result rather than reloading the page.
       var quiet = {remind_preview:1, remind_run:1, accrue:1, backfill_preview:1, backfill_run:1};
-      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); }
+      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); body.birthday=val('f_bday').trim(); }
       else if(act==='cert_revoke'){
         body.cert_id = parseInt(btn.getAttribute('data-cert')||'0',10);
         var why = prompt('Revoke this certificate — why? The holder and anyone with the link can see this.');

@@ -41,7 +41,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if ($act === 'probation') json_out(GateAttendance::setProbation($mid, (string) ($in['until'] ?? ''), (string) ($in['reason'] ?? ''), $by));
         if ($act === 'lift') json_out(GateAttendance::liftProbation($mid, $by));
         if ($act === 'birthday') {
-            $r = Birthdays::set($mid, (string) ($in['birthday'] ?? ''), !empty($in['keep_year']));
+            $r = Birthdays::set($mid, (string) ($in['birthday'] ?? ''));
             if ($r['ok'] && class_exists('AdminAudit')) AdminAudit::log('attendance', 'member.birthday', 'member:' . $mid, 'Birthday set by staff');
             json_out($r);
         }
@@ -231,8 +231,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
         <label>Card number <input id="c_code" placeholder="A-NGV-25-0001" autocapitalize="characters" autocomplete="off"></label>
         <button class="btn primary" id="c_go" type="button">Give card</button>
         <button class="btn" id="c_withdraw" type="button" title="For a lost or stolen phone">Withdraw their passes</button>
-        <label>Birthday <input id="c_bday" type="date"></label>
-        <label style="flex-direction:row;align-items:center;gap:6px"><input id="c_bday_year" type="checkbox"> keep the year</label>
+        <label>Birthday <input id="c_bday" maxlength="10" placeholder="YYYY-MM-DD or MM-DD" title="MM-DD when the year is not known. Blank removes it."></label>
         <button class="btn" id="c_bday_go" type="button">Save birthday</button>
       </div>
       <p class="sub" id="c_out" role="status"></p>
@@ -271,7 +270,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   });
   document.getElementById('c_bday_go').addEventListener('click', function () {
     var out = document.getElementById('c_out');
-    post({ action: 'birthday', member: document.getElementById('c_member').value, birthday: document.getElementById('c_bday').value, keep_year: document.getElementById('c_bday_year').checked })
+    post({ action: 'birthday', member: document.getElementById('c_member').value, birthday: document.getElementById('c_bday').value.trim() })
       .then(function (r) { out.textContent = r.ok ? (r.birthday ? 'Birthday saved.' : 'Birthday removed.') : (r.error || 'Not saved.'); });
   });
   document.getElementById('c_withdraw').addEventListener('click', function () {
