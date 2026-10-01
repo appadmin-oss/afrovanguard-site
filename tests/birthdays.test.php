@@ -77,8 +77,9 @@ $prefs = (string) file_get_contents(AV_ROOT . '/portal/prefs.php');
 $portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
 ck('Birthdays: a member has no way to set their own — not in their preferences API', !str_contains($prefs, 'birthday'));
 ck('Birthdays: …nor on their Account card, which only shows what the office recorded', !str_contains($portal, 'set_birthday') && !str_contains($portal, 'id="bdForm"') && str_contains($portal, 'Birthdays::label($bday)'));
-ck('Birthdays: the Studio records them, on the member list, audited', str_contains((string) file_get_contents(AV_ROOT . '/admin/api.php'), "\$lms->audit('birthday'")
-   && str_contains((string) file_get_contents(AV_ROOT . '/admin/app.js'), "post('mem_save', { id: bd.getAttribute('data-id'), birthday:"));
+ck('Birthdays: the Studio records them, on the member\'s record, audited', str_contains((string) file_get_contents(AV_ROOT . '/admin/api.php'), "\$lms->audit('birthday'")
+   && str_contains((string) file_get_contents(AV_ROOT . '/admin/app.js'), "birthday: \$('#md_bday').value.trim()")
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/MemberRoster.php'), "self::lms()->audit('member.update'"));
 ck('Birthdays: and the NGV console, on enrolment and on the attendance page', str_contains((string) file_get_contents(AV_ROOT . '/academy/ngv/members.php'), "Birthdays::set(\$mid, (string) \$in['birthday'])")
    && str_contains((string) file_get_contents(AV_ROOT . '/academy/ngv/attendance.php'), "Birthdays::set(\$mid, (string) (\$in['birthday'] ?? ''))"));
 $rows = (new LmsRepository(Database::pdo()))->membersForAdmin('Kemi');
