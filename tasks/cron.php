@@ -162,6 +162,12 @@ if (is_file(AV_ROOT . '/lib/people.php')) {
         catch (Throwable $e) { error_log('[cron] birthdays: ' . $e->getMessage()); }
     }
 }
+// …and members' (lib/Birthdays): once each per day, and never a second letter
+// to somebody the team email above has already written to.
+if (class_exists('Birthdays')) {
+    try { $result['member_birthdays'] = Birthdays::emailToday(); }
+    catch (Throwable $e) { error_log('[cron] member birthdays: ' . $e->getMessage()); }
+}
 
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }
 else { echo json_encode($result); }

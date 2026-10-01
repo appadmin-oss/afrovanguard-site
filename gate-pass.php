@@ -48,6 +48,7 @@ $days = array_slice(GateAttendance::history($mid, 60), 0, 20);
 $asks = GateAttendance::excusesFor($mid);
 $expected = GateAttendance::expected($mid);
 $pts = GateAttendance::points($mid);
+$bdayToday = Birthdays::isOn($mid, function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d'));
 $prob = $expected ? GateAttendance::probationWhy($mid) : null;
 $label = ['present' => 'On time', 'late' => 'Late', 'absent' => 'Absent', 'excused' => 'Excused'];
 /* The gate stamps passages in UTC; a member reads them on the centre's clock. */
@@ -107,6 +108,9 @@ $hm = static function (string $iso): string {
 <?php else: ?>
   <h1>No pass</h1>
   <p class="fine centre"><?= e($why) ?></p>
+<?php endif; ?>
+<?php if ($bdayToday): ?>
+  <p class="flash" style="text-align:center;font-size:1.05rem">🎂 Happy birthday, <?= $first ?>!<?= GateAttendance::pointRules()['birthday'] > 0 ? ' Come through the gate today for ' . (int) GateAttendance::pointRules()['birthday'] . ' birthday points.' : '' ?></p>
 <?php endif; ?>
 <?php if ($flash !== ''): ?><p class="flash" role="status"><?= e($flash) ?></p><?php endif; ?>
 

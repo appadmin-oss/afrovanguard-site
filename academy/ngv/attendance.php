@@ -31,7 +31,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $act = (string) ($in['action'] ?? '');
     if ($act === 'excuse_day') json_out(GateAttendance::excuseDay((int) ($in['member_id'] ?? 0), (string) ($in['day'] ?? ''), (string) ($in['why'] ?? ''), $by));
     if ($act === 'decide') json_out(GateAttendance::decideExcuse((int) ($in['id'] ?? 0), !empty($in['approve']), (string) ($in['outcome'] ?? ''), $by));
-    if ($act === 'card' || $act === 'withdraw' || $act === 'probation' || $act === 'lift') {
+    if ($act === 'card' || $act === 'withdraw' || $act === 'probation' || $act === 'lift' || $act === 'birthday') {
         $who = trim((string) ($in['member'] ?? ''));
         $st = Database::pdo()->prepare(ctype_digit($who) ? 'SELECT id FROM lms_users WHERE id = ?' : 'SELECT id FROM lms_users WHERE email = ?');
         $st->execute([ctype_digit($who) ? (int) $who : strtolower($who)]);
@@ -40,6 +40,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if ($act === 'card') json_out(GateAttendance::assignCard($mid, (string) ($in['code'] ?? ''), $by));
         if ($act === 'probation') json_out(GateAttendance::setProbation($mid, (string) ($in['until'] ?? ''), (string) ($in['reason'] ?? ''), $by));
         if ($act === 'lift') json_out(GateAttendance::liftProbation($mid, $by));
+        if ($act === 'birthday') {
+            $r = Birthdays::set($mid, (string) ($in['birthday'] ?? ''), !empty($in['keep_year']));
+            if ($r['ok'] && class_exists('AdminAudit')) AdminAudit::log('attendance', 'member.birthday', 'member:' . $mid, 'Birthday set by staff');
+            json_out($r);
+        }
         /* A lost phone: every pass issued so far stops at the gate. Their next
            visit to /gate-pass makes a good one. */
         $r = GatePass::revoke($mid);
@@ -218,7 +223,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   </section>
 
   <section class="card" aria-labelledby="h-cards">
-    <header><h2 id="h-cards">Member ID cards</h2></header>
+    <header><h2 id="h-cards">Member ID cards, passes and birthdays</h2></header>
     <div class="body">
       <p class="sub" style="margin-top:0">A printed card works at the desk scanned or typed, for a member whose phone is flat. Enter the number on a card they already hold — cards from the spreadsheet days keep working — or leave it empty for the next free one. Their earlier card stops working.</p>
       <div class="row">
@@ -226,6 +231,9 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
         <label>Card number <input id="c_code" placeholder="A-NGV-25-0001" autocapitalize="characters" autocomplete="off"></label>
         <button class="btn primary" id="c_go" type="button">Give card</button>
         <button class="btn" id="c_withdraw" type="button" title="For a lost or stolen phone">Withdraw their passes</button>
+        <label>Birthday <input id="c_bday" type="date"></label>
+        <label style="flex-direction:row;align-items:center;gap:6px"><input id="c_bday_year" type="checkbox"> keep the year</label>
+        <button class="btn" id="c_bday_go" type="button">Save birthday</button>
       </div>
       <p class="sub" id="c_out" role="status"></p>
     </div>
@@ -260,6 +268,11 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
                 : { action: 'probation', member: document.getElementById('p_member').value, until: document.getElementById('p_until').value, reason: document.getElementById('p_reason').value })
         .then(function (r) { out.textContent = r.ok ? (lift ? 'Probation lifted.' : 'On probation.') : (r.error || 'Not saved.'); });
     });
+  });
+  document.getElementById('c_bday_go').addEventListener('click', function () {
+    var out = document.getElementById('c_out');
+    post({ action: 'birthday', member: document.getElementById('c_member').value, birthday: document.getElementById('c_bday').value, keep_year: document.getElementById('c_bday_year').checked })
+      .then(function (r) { out.textContent = r.ok ? (r.birthday ? 'Birthday saved.' : 'Birthday removed.') : (r.error || 'Not saved.'); });
   });
   document.getElementById('c_withdraw').addEventListener('click', function () {
     var out = document.getElementById('c_out');

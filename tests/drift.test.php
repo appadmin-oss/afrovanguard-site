@@ -152,6 +152,9 @@ $knownMetaKeys = [
     // yesterday — it never back-marks history, so it under-marks rather than
     // fining a roster for days nobody was watching.
     'gate_absent_swept_through',
+    // Members' birthday emails (lib/Birthdays). Reviewed: gates no migration.
+    // Who has had today's letter. Lost, somebody may get today's twice.
+    'member_bday_sent',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

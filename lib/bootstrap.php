@@ -292,6 +292,7 @@ require_once __DIR__ . '/LmsAuth.php';
    LmsAuth because the portal needs it to decide whether to show the link. */
 require_once __DIR__ . '/CacSso.php';
 require_once __DIR__ . '/GatePass.php';
+require_once __DIR__ . '/Birthdays.php';        /* members' birthdays (the team's are in people.php) */
 require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back about members */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */

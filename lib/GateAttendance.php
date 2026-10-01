@@ -135,11 +135,12 @@ final class GateAttendance
         /* "none" rather than empty: an empty rule reads as unset, and falls back to O. */
         return array_values(array_filter(array_map(static fn($l) => strtoupper(trim((string) $l)), $list), static fn($l) => $l !== '' && $l !== 'NONE'));
     }
-    /** @return array{on_time:int, streak3:int, streak5:int, week:int} */
+    /** @return array{on_time:int, streak3:int, streak5:int, week:int, birthday:int} */
     public static function pointRules(): array
     {
         return ['on_time' => max(0, (int) self::rule('gate.points_on_time', 5)), 'streak3' => max(0, (int) self::rule('gate.points_streak3', 15)),
-                'streak5' => max(0, (int) self::rule('gate.points_streak5', 30)), 'week' => max(0, (int) self::rule('gate.points_perfect_week', 30))];
+                'streak5' => max(0, (int) self::rule('gate.points_streak5', 30)), 'week' => max(0, (int) self::rule('gate.points_perfect_week', 30)),
+                'birthday' => max(0, (int) self::rule('gate.points_birthday', 50))];
     }
     public static function marksAbsent(): bool   { return (bool) self::rule('gate.mark_absent', false); }
     public static function blockOverdueDays(): int { return max(0, (int) self::rule('gate.block_overdue_days', 0)); }
@@ -397,6 +398,7 @@ final class GateAttendance
         }
         if ($status === 'late') self::fineLate($mid, $day, $late);
         else self::award($mid, $day);
+        self::birthday($mid, $day);
         return 'recorded';
     }
 
@@ -635,6 +637,15 @@ final class GateAttendance
         if ($r['week'] > 0 && self::perfectWeek($memberId, $day)) {
             $t = strtotime($day . 'T12:00:00Z');
             self::give($memberId, $day, 'week:' . gmdate('o-\WW', $t), $r['week'], 'A perfect week');
+        }
+    }
+
+    /** Coming in on your birthday: once a year, on time or not, programme day or not. */
+    private static function birthday(int $memberId, string $day): void
+    {
+        $pts = self::pointRules()['birthday'];
+        if ($pts > 0 && class_exists('Birthdays') && Birthdays::isOn($memberId, $day)) {
+            self::give($memberId, $day, 'birthday:' . substr($day, 0, 4), $pts, 'Happy birthday');
         }
     }
 

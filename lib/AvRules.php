@@ -349,6 +349,11 @@ final class AvRules
             'label' => 'Points for five programme days on time in a row',
             'help'  => 'Once per run, on top of the three-day points.',
         ],
+        'gate.points_birthday' => [
+            'type' => 'int', 'default' => 50, 'min' => 0, 'max' => 1000, 'group' => 'Attendance',
+            'label' => 'Points for coming in on your birthday',
+            'help'  => 'Once a year, for a member who has given their birthday. On time or not.',
+        ],
         'gate.points_perfect_week' => [
             'type' => 'int', 'default' => 30, 'min' => 0, 'max' => 1000, 'group' => 'Attendance',
             'label' => 'Points for a perfect week',
