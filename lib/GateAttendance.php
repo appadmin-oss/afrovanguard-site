@@ -81,6 +81,26 @@ final class GateAttendance
             outcome     VARCHAR(300) NOT NULL DEFAULT '',
             created_at  VARCHAR(32) NOT NULL DEFAULT ''
         )");
+        Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS gate_probation (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id  INTEGER NOT NULL,
+            since      VARCHAR(10) NOT NULL DEFAULT '',
+            until      VARCHAR(10) NOT NULL DEFAULT '',
+            reason     VARCHAR(300) NOT NULL DEFAULT '',
+            status     VARCHAR(10) NOT NULL DEFAULT 'active',
+            set_by     INTEGER NOT NULL DEFAULT 0,
+            lifted_by  INTEGER NOT NULL DEFAULT 0,
+            created_at VARCHAR(32) NOT NULL DEFAULT ''
+        )");
+        Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS gate_points (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id  INTEGER NOT NULL,
+            day        VARCHAR(10) NOT NULL,
+            period     VARCHAR(40) NOT NULL,
+            points     INTEGER NOT NULL DEFAULT 0,
+            note       VARCHAR(160) NOT NULL DEFAULT '',
+            created_at VARCHAR(32) NOT NULL DEFAULT ''
+        )");
         /* The register's one-row-per-member-per-day is the database's promise,
            not the code's: a passage delivered twice, or two desks racing, can
            only ever land on the same row. */
@@ -88,7 +108,12 @@ final class GateAttendance
                   'CREATE INDEX IF NOT EXISTS idx_gate_att_on ON gate_attendance(day)',
                   'CREATE UNIQUE INDEX IF NOT EXISTS idx_gate_card_code ON gate_member_cards(code)',
                   'CREATE INDEX IF NOT EXISTS idx_gate_card_member ON gate_member_cards(member_id)',
-                  'CREATE UNIQUE INDEX IF NOT EXISTS idx_gate_excuse_day ON gate_excuses(member_id, day)'] as $ix) {
+                  'CREATE UNIQUE INDEX IF NOT EXISTS idx_gate_excuse_day ON gate_excuses(member_id, day)',
+                  /* An award is once per period — a day, a run, a week — however
+                     often the passage that earned it is delivered. */
+                  'CREATE UNIQUE INDEX IF NOT EXISTS idx_gate_points_once ON gate_points(member_id, period)',
+                  'CREATE INDEX IF NOT EXISTS idx_gate_points_day ON gate_points(day)',
+                  'CREATE INDEX IF NOT EXISTS idx_gate_probation_member ON gate_probation(member_id)'] as $ix) {
             try { $pdo->exec($ix); } catch (Throwable $e) { /* already there */ }
         }
     }
@@ -101,6 +126,21 @@ final class GateAttendance
     }
     public static function lateFine(): int       { return max(0, (int) self::rule('gate.late_fine', 0)); }
     public static function absentFine(): int     { return max(0, (int) self::rule('gate.absent_fine', 0)); }
+    public static function lateFineProbation(): int { return max(0, (int) self::rule('gate.late_fine_probation', 0)); }
+    /** @return string[] level codes */
+    public static function probationLevels(): array
+    {
+        $v = self::rule('gate.probation_levels', 'O');
+        $list = is_array($v) ? $v : explode(',', (string) $v);
+        /* "none" rather than empty: an empty rule reads as unset, and falls back to O. */
+        return array_values(array_filter(array_map(static fn($l) => strtoupper(trim((string) $l)), $list), static fn($l) => $l !== '' && $l !== 'NONE'));
+    }
+    /** @return array{on_time:int, streak3:int, streak5:int, week:int} */
+    public static function pointRules(): array
+    {
+        return ['on_time' => max(0, (int) self::rule('gate.points_on_time', 5)), 'streak3' => max(0, (int) self::rule('gate.points_streak3', 15)),
+                'streak5' => max(0, (int) self::rule('gate.points_streak5', 30)), 'week' => max(0, (int) self::rule('gate.points_perfect_week', 30))];
+    }
     public static function marksAbsent(): bool   { return (bool) self::rule('gate.mark_absent', false); }
     public static function blockOverdueDays(): int { return max(0, (int) self::rule('gate.block_overdue_days', 0)); }
     /** @return string[] three-letter days */
@@ -356,6 +396,7 @@ final class GateAttendance
             if (!$row || (string) $row['gate_in_id'] !== $id) return 'duplicate';   // a racing delivery got there first
         }
         if ($status === 'late') self::fineLate($mid, $day, $late);
+        else self::award($mid, $day);
         return 'recorded';
     }
 
@@ -370,10 +411,14 @@ final class GateAttendance
 
     private static function fineLate(int $memberId, string $day, int $minutes): void
     {
-        $amount = self::lateFine();
+        /* On probation the probation figure, where one is set; otherwise the
+           ordinary one. The note says which, so the member reading their
+           account can see why this fine is bigger than a friend's. */
+        $prob = self::onProbation($memberId, $day);
+        $amount = $prob && self::lateFineProbation() > 0 ? self::lateFineProbation() : self::lateFine();
         if ($amount <= 0 || !class_exists('NgvLedger') || !self::expected($memberId)) return;
         $fid = NgvLedger::postCharge($memberId, 'fine', $amount, 'late:' . $day,
-            ['reason' => 'late', 'note' => 'Late arrival — ' . $day . ', ' . $minutes . ' min (CACENTRE gate)', 'source' => 'accrual']);
+            ['reason' => 'late', 'note' => 'Late arrival' . ($prob && self::lateFineProbation() > 0 ? ' on probation' : '') . ' — ' . $day . ', ' . $minutes . ' min (CACENTRE gate)', 'source' => 'accrual']);
         if ($fid) Database::pdo()->prepare('UPDATE gate_attendance SET fine_id = ? WHERE member_id = ? AND day = ?')->execute([$fid, $memberId, $day]);
     }
 
@@ -502,6 +547,172 @@ final class GateAttendance
     {
         self::ensure();
         return Database::pdo()->query("SELECT e.*, u.name FROM gate_excuses e LEFT JOIN lms_users u ON u.id = e.member_id WHERE e.status = 'pending' ORDER BY e.day LIMIT 200")->fetchAll();
+    }
+
+    /* ══ Probation ═══════════════════════════════════════════════════════════ */
+
+    /**
+     * On probation on a day: put there by name (from `since`, until `until`
+     * when one is set), or at a level the rules name — O, the first level, as
+     * the spreadsheet had it.
+     */
+    public static function onProbation(int $memberId, ?string $day = null): bool
+    {
+        return self::probationWhy($memberId, $day) !== null;
+    }
+
+    /** Why a member is on probation, in words — or null. */
+    public static function probationWhy(int $memberId, ?string $day = null): ?string
+    {
+        self::ensure();
+        $day = $day ?? self::today();
+        $p = self::probationFor($memberId);
+        if ($p && (string) $p['since'] <= $day && ((string) $p['until'] === '' || (string) $p['until'] >= $day)) {
+            return 'On probation' . ((string) $p['until'] !== '' ? ' until ' . $p['until'] : '') . ((string) $p['reason'] !== '' ? ' — ' . $p['reason'] : '');
+        }
+        $levels = self::probationLevels();
+        if ($levels && class_exists('Levels')) {
+            try {
+                $lv = Levels::of($memberId);
+                if (in_array(strtoupper($lv), $levels, true)) return 'On probation at level ' . $lv;
+            } catch (Throwable $e) { /* no levels: nobody by level */ }
+        }
+        return null;
+    }
+
+    public static function probationFor(int $memberId): ?array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT * FROM gate_probation WHERE member_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+        $st->execute([$memberId]);
+        return $st->fetch() ?: null;
+    }
+
+    /** Put a member on probation by name, from today, until a day or until lifted. */
+    public static function setProbation(int $memberId, string $until, string $reason, int $by): array
+    {
+        self::ensure();
+        if (!self::user($memberId)) return ['ok' => false, 'error' => 'No such member.'];
+        $until = trim($until);
+        if ($until !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) || $until < self::today())) return ['ok' => false, 'error' => 'The end date must be today or later — or leave it empty.'];
+        if (mb_strlen(trim($reason)) < 3) return ['ok' => false, 'error' => 'Say why — the member sees it.'];
+        $pdo = Database::pdo();
+        $pdo->prepare("UPDATE gate_probation SET status = 'lifted', lifted_by = ? WHERE member_id = ? AND status = 'active'")->execute([$by, $memberId]);
+        $pdo->prepare('INSERT INTO gate_probation (member_id, since, until, reason, status, set_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$memberId, self::today(), $until, mb_substr(trim($reason), 0, 300), 'active', $by, self::now()]);
+        self::audit('gate.probation', $memberId, 'On probation' . ($until !== '' ? ' until ' . $until : '') . ': ' . trim($reason));
+        return ['ok' => true];
+    }
+
+    public static function liftProbation(int $memberId, int $by): array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("UPDATE gate_probation SET status = 'lifted', lifted_by = ? WHERE member_id = ? AND status = 'active'");
+        $st->execute([$by, $memberId]);
+        if ($st->rowCount() === 0) return ['ok' => false, 'error' => 'Not on probation by name.' . (self::probationWhy($memberId) ? ' Their level puts them on probation — that is changed by promoting them.' : '')];
+        self::audit('gate.probation', $memberId, 'Probation lifted');
+        return ['ok' => true];
+    }
+
+    /* ══ Points ══════════════════════════════════════════════════════════════ */
+
+    /**
+     * Points for an on-time arrival, as the spreadsheet gave them: for the
+     * day, for a run of three and of five programme days on time, and for a
+     * week with every programme day on time. Each is once per day, run or
+     * week — the unique index sees to it — so a passage delivered twice, or a
+     * week re-checked on every arrival in it, never pays twice. An excused day
+     * neither breaks a run nor counts in it; a late or missed one breaks it.
+     */
+    public static function award(int $memberId, string $day): void
+    {
+        if (!self::isProgrammeDay($day)) return;
+        $r = self::pointRules();
+        if ($r['on_time'] > 0) self::give($memberId, $day, 'day:' . $day, $r['on_time'], 'On time');
+        [$run, $start] = self::runEndingOn($memberId, $day);
+        if ($run >= 3 && $r['streak3'] > 0) self::give($memberId, $day, 'run3:' . $start, $r['streak3'], 'Three days on time in a row');
+        if ($run >= 5 && $r['streak5'] > 0) self::give($memberId, $day, 'run5:' . $start, $r['streak5'], 'Five days on time in a row');
+        if ($r['week'] > 0 && self::perfectWeek($memberId, $day)) {
+            $t = strtotime($day . 'T12:00:00Z');
+            self::give($memberId, $day, 'week:' . gmdate('o-\WW', $t), $r['week'], 'A perfect week');
+        }
+    }
+
+    private static function give(int $memberId, string $day, string $period, int $points, string $note): void
+    {
+        Database::pdo()->prepare(Database::insertIgnore('gate_points', ['member_id', 'day', 'period', 'points', 'note', 'created_at']))
+            ->execute([$memberId, $day, $period, $points, $note, self::now()]);
+    }
+
+    /** @return array<string,string> day => status, for a span */
+    private static function statuses(int $memberId, string $from, string $to): array
+    {
+        $st = Database::pdo()->prepare('SELECT day, status FROM gate_attendance WHERE member_id = ? AND day BETWEEN ? AND ?');
+        $st->execute([$memberId, $from, $to]);
+        $out = [];
+        foreach ($st->fetchAll() as $r) $out[(string) $r['day']] = (string) $r['status'];
+        return $out;
+    }
+
+    /** How many programme days on time end on $day, and the first of them. @return array{0:int,1:string} */
+    private static function runEndingOn(int $memberId, string $day): array
+    {
+        $from = date('Y-m-d', strtotime($day . ' -60 days'));
+        $s = self::statuses($memberId, $from, $day);
+        $n = 0; $start = $day;
+        for ($d = $day; $d >= $from; $d = date('Y-m-d', strtotime($d . ' -1 day'))) {
+            if (!self::isProgrammeDay($d)) continue;
+            $v = $s[$d] ?? '';
+            if ($v === 'excused') continue;
+            if ($v !== 'present') break;
+            $n++; $start = $d;
+        }
+        return [$n, $start];
+    }
+
+    /** Every programme day of $day's week on time (excused aside), with at least one of them. */
+    private static function perfectWeek(int $memberId, string $day): bool
+    {
+        $t = strtotime($day . 'T12:00:00Z');
+        $mon = gmdate('Y-m-d', $t - ((int) gmdate('N', $t) - 1) * 86400);
+        $sun = date('Y-m-d', strtotime($mon . ' +6 days'));
+        $s = self::statuses($memberId, $mon, $sun);
+        $any = false;
+        for ($d = $mon; $d <= $sun; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+            if (!self::isProgrammeDay($d)) continue;
+            $v = $s[$d] ?? '';
+            if ($v === 'excused') continue;
+            if ($v !== 'present') return false;
+            $any = true;
+        }
+        return $any;
+    }
+
+    /** A member's points: in all, this month, and the latest awards. */
+    public static function points(int $memberId): array
+    {
+        self::ensure();
+        $pdo = Database::pdo();
+        $st = $pdo->prepare('SELECT COALESCE(SUM(points), 0) FROM gate_points WHERE member_id = ?');
+        $st->execute([$memberId]);
+        $total = (int) $st->fetchColumn();
+        $st = $pdo->prepare('SELECT COALESCE(SUM(points), 0) FROM gate_points WHERE member_id = ? AND day >= ?');
+        $st->execute([$memberId, substr(self::today(), 0, 7) . '-01']);
+        $month = (int) $st->fetchColumn();
+        $st = $pdo->prepare('SELECT day, points, note FROM gate_points WHERE member_id = ? ORDER BY day DESC, id DESC LIMIT 8');
+        $st->execute([$memberId]);
+        return ['total' => $total, 'month' => $month, 'recent' => $st->fetchAll()];
+    }
+
+    /** The month's most points, for the staff register. */
+    public static function leaderboard(?string $month = null, int $limit = 10): array
+    {
+        self::ensure();
+        $m = $month ?? substr(self::today(), 0, 7);
+        $st = Database::pdo()->prepare('SELECT p.member_id, u.name, SUM(p.points) AS points FROM gate_points p LEFT JOIN lms_users u ON u.id = p.member_id
+                                        WHERE p.day BETWEEN ? AND ? GROUP BY p.member_id, u.name ORDER BY points DESC, u.name LIMIT ' . max(1, min(50, $limit)));
+        $st->execute([$m . '-01', $m . '-31']);
+        return $st->fetchAll();
     }
 
     /* ══ Reading it back ═════════════════════════════════════════════════════ */

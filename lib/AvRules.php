@@ -323,6 +323,37 @@ final class AvRules
             'label' => 'Late fine (₦)',
             'help'  => 'Charged to an NGV participant’s account, once per day, when the gate records them late. 0 charges nothing. The spreadsheet system charged ₦1,000.',
         ],
+        'gate.late_fine_probation' => [
+            'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 100000, 'group' => 'Attendance',
+            'label' => 'Late fine on probation (₦)',
+            'help'  => 'Charged instead of the late fine to a participant on probation. 0 uses the ordinary late fine. The spreadsheet system charged ₦10,000.',
+        ],
+        'gate.probation_levels' => [
+            'type' => 'csv', 'default' => 'O', 'group' => 'Attendance',
+            'item_pattern' => '/^([A-Z]|none)$/',
+            'label' => 'Levels on probation',
+            'help'  => 'Members at these levels count as on probation, as well as anyone staff put on probation by name. O includes every member never promoted past the first level — that is how the spreadsheet worked. Write none for only those put on probation by name.',
+        ],
+        'gate.points_on_time' => [
+            'type' => 'int', 'default' => 5, 'min' => 0, 'max' => 1000, 'group' => 'Attendance',
+            'label' => 'Points for arriving on time',
+            'help'  => 'Once per programme day. 0 turns it off.',
+        ],
+        'gate.points_streak3' => [
+            'type' => 'int', 'default' => 15, 'min' => 0, 'max' => 1000, 'group' => 'Attendance',
+            'label' => 'Points for three programme days on time in a row',
+            'help'  => 'Once per run. An excused day does not break a run; a late or missed one does.',
+        ],
+        'gate.points_streak5' => [
+            'type' => 'int', 'default' => 30, 'min' => 0, 'max' => 1000, 'group' => 'Attendance',
+            'label' => 'Points for five programme days on time in a row',
+            'help'  => 'Once per run, on top of the three-day points.',
+        ],
+        'gate.points_perfect_week' => [
+            'type' => 'int', 'default' => 30, 'min' => 0, 'max' => 1000, 'group' => 'Attendance',
+            'label' => 'Points for a perfect week',
+            'help'  => 'Every programme day of a week on time (excused days aside). Once per week.',
+        ],
         'gate.absent_fine' => [
             'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 100000, 'group' => 'Attendance',
             'label' => 'Absence fine (₦)',

@@ -47,6 +47,8 @@ $sum = GateAttendance::summary($mid, 30);
 $days = array_slice(GateAttendance::history($mid, 60), 0, 20);
 $asks = GateAttendance::excusesFor($mid);
 $expected = GateAttendance::expected($mid);
+$pts = GateAttendance::points($mid);
+$prob = $expected ? GateAttendance::probationWhy($mid) : null;
 $label = ['present' => 'On time', 'late' => 'Late', 'absent' => 'Absent', 'excused' => 'Excused'];
 /* The gate stamps passages in UTC; a member reads them on the centre's clock. */
 $hm = static function (string $iso): string {
@@ -129,6 +131,9 @@ $hm = static function (string $iso): string {
     </div>
     <p class="fine"><?= (int) $sum['present'] ?> on time · <?= (int) $sum['late'] ?> late<?= $sum['late'] ? ' (' . (int) $sum['late_minutes'] . ' min in all)' : '' ?> · <?= (int) $sum['absent'] ?> absent · <?= (int) $sum['excused'] ?> excused</p>
 <?php endif; ?>
+<?php if ($prob !== null): ?>
+    <p class="fine"><?= e($prob) ?>.<?= GateAttendance::lateFineProbation() > 0 ? ' A late arrival is fined ₦' . number_format(GateAttendance::lateFineProbation()) . '.' : '' ?></p>
+<?php endif; ?>
 <?php if ($days): ?>
     <ul class="days">
 <?php foreach ($days as $d): $s = (string) $d['status']; ?>
@@ -138,6 +143,25 @@ $hm = static function (string $iso): string {
     </ul>
 <?php endif; ?>
   </section>
+
+<?php if ($pts['total'] > 0 || array_sum(GateAttendance::pointRules()) > 0): ?>
+  <section class="panel" aria-labelledby="h_pts">
+    <h2 id="h_pts">Points</h2>
+    <div class="stats" style="grid-template-columns:repeat(2,1fr)">
+      <div><b><?= number_format((int) $pts['month']) ?></b><span>this month</span></div>
+      <div><b><?= number_format((int) $pts['total']) ?></b><span>in all</span></div>
+    </div>
+<?php if ($pts['recent']): ?>
+    <ul class="days" style="margin-top:.6rem">
+<?php foreach ($pts['recent'] as $a): ?>
+      <li><span><?= e((string) $a['note']) ?></span><span class="s-present">+<?= (int) $a['points'] ?> · <?= e(date('j M', (int) strtotime((string) $a['day'] . 'T12:00:00'))) ?></span></li>
+<?php endforeach; ?>
+    </ul>
+<?php else: ?>
+    <p class="fine" style="margin-top:.6rem">Arrive on time to earn them — more for a run of days, and for a perfect week.</p>
+<?php endif; ?>
+  </section>
+<?php endif; ?>
 
 <?php if ($expected): ?>
   <section class="panel" aria-labelledby="h_away">

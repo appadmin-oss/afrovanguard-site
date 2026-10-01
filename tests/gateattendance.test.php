@@ -160,6 +160,61 @@ ck('Gate: a suspended member’s card resolves with the reason, not as active',
 ck('Gate: search finds active members by name, and never a suspended one',
    in_array((string) $ada, array_column(GateAttendance::search('vanguard'), 'ref'), true) && GateAttendance::search('pended') === []);
 
+/* ── Probation ───────────────────────────────────────────────────────────── */
+foreach (['gate_probation', 'gate_points'] as $t) $gaPdo->exec('DELETE FROM ' . $t);
+AvRules::save(['gate.late_fine' => '1000', 'gate.late_fine_probation' => '10000', 'gate.probation_levels' => 'O', 'gate.programme_days' => 'mon,tue,wed,thu,fri'], 'test');
+$eke = $gaUser('Eke Newcomer'); $gaEnrol($eke, 'Eke Newcomer');
+ck('Gate: a member never promoted past O is on probation, as the spreadsheet had it', GateAttendance::onProbation($eke, '2026-10-05')
+   && str_contains((string) GateAttendance::probationWhy($eke), 'level O'));
+GateAttendance::report([$gaIn('pr-1', $eke, '2026-10-05', 'late', 4)]);
+$f = $gaFines($eke);
+ck('Gate: late on probation: the probation fine, and the note says why it is bigger', count($f) === 1 && (int) $f[0]['amount'] === 10000 && str_contains((string) $f[0]['note'], 'on probation'));
+Levels::set($eke, 'A', 'test');
+GateAttendance::report([$gaIn('pr-2', $eke, '2026-10-06', 'late', 4)]);
+ck('Gate: promoted past O, the ordinary fine', (int) end($gaFines($eke))['amount'] === 1000);
+ck('Gate: probation needs a reason', !GateAttendance::setProbation($eke, '', '', 1)['ok']);
+ck('Gate: and an end date that has not passed', !GateAttendance::setProbation($eke, '2020-01-01', 'Late three times', 1)['ok']);
+ck('Gate: staff can put a member on probation by name', GateAttendance::setProbation($eke, '', 'Late three times in a week', 1)['ok']
+   && str_contains((string) GateAttendance::probationWhy($eke), 'Late three times in a week'));
+GateAttendance::report([$gaIn('pr-3', $eke, '2026-10-07', 'late', 4)]);
+ck('Gate: …and it applies to the next late arrival', (int) end($gaFines($eke))['amount'] === 10000);
+ck('Gate: lifting it ends it', GateAttendance::liftProbation($eke, 1)['ok'] && !GateAttendance::onProbation($eke));
+Levels::set($eke, 'O', 'test');
+$lift = GateAttendance::liftProbation($eke, 1);
+ck('Gate: lifting probation that comes from a level says how it is really ended', !$lift['ok'] && str_contains($lift['error'], 'promoting'));
+AvRules::save(['gate.probation_levels' => 'none'], 'test');
+ck('Gate: with no probation levels, only those named are on probation', !GateAttendance::onProbation($eke));
+AvRules::save(['gate.late_fine_probation' => '0'], 'test');
+GateAttendance::setProbation($eke, '', 'Again', 1);
+GateAttendance::report([$gaIn('pr-4', $eke, '2026-10-08', 'late', 4)]);
+ck('Gate: with no probation fine set, probation pays the ordinary one', (int) end($gaFines($eke))['amount'] === 1000);
+AvRules::save(['gate.late_fine' => '0', 'gate.probation_levels' => 'O'], 'test');
+
+/* ── Points ──────────────────────────────────────────────────────────────── */
+AvRules::save(['gate.points_on_time' => '5', 'gate.points_streak3' => '15', 'gate.points_streak5' => '30', 'gate.points_perfect_week' => '30'], 'test');
+$week = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16'];   // Mon–Fri
+$pa = $gaUser('Perfect Attender'); $pb = $gaUser('Late Wednesday'); $pc = $gaUser('Excused Wednesday');
+foreach ($week as $i => $d) GateAttendance::report([$gaIn('pa-' . $i, $pa, $d)]);
+ck('Gate: a perfect week: 5 a day, 15 at three, 30 at five, and 30 for the week', GateAttendance::points($pa)['total'] === 25 + 15 + 30 + 30);
+foreach ($week as $i => $d) GateAttendance::report([$gaIn('pa-' . $i, $pa, $d)]);
+ck('Gate: delivered again, not a point more', GateAttendance::points($pa)['total'] === 100);
+foreach ($week as $i => $d) GateAttendance::report([$i === 2 ? $gaIn('pb-' . $i, $pb, $d, 'late', 3) : $gaIn('pb-' . $i, $pb, $d)]);
+ck('Gate: a late Wednesday earns nothing that day and breaks the run and the week', GateAttendance::points($pb)['total'] === 20);
+$gaPdo->prepare("INSERT INTO gate_attendance (member_id, day, status, created_at, updated_at) VALUES (?, '2026-10-14', 'excused', '', '')")->execute([$pc]);
+foreach ($week as $i => $d) if ($i !== 2) GateAttendance::report([$gaIn('pc-' . $i, $pc, $d)]);
+ck('Gate: an excused day neither breaks the run nor spoils the week', GateAttendance::points($pc)['total'] === 20 + 15 + 30);
+ck('Gate: …and four on time is not five', !in_array('Five days on time in a row', array_column(GateAttendance::points($pc)['recent'], 'note'), true));
+$weekend = GateAttendance::report([$gaIn('pa-sat', $pa, '2026-10-17')]);
+ck('Gate: a Saturday visit is recorded but earns nothing — it is not a programme day', $weekend[0]['status'] === 'recorded' && GateAttendance::points($pa)['total'] === 100);
+GateAttendance::report([$gaIn('pa-mon', $pa, '2026-10-19')]);
+ck('Gate: the run carries over the weekend, and a run of six pays its three and five only once', GateAttendance::points($pa)['total'] === 105);
+$board = GateAttendance::leaderboard('2026-10');
+ck('Gate: the month’s leaderboard puts the most points first', (int) $board[0]['member_id'] === $pa && (int) $board[0]['points'] === 105);
+AvRules::save(['gate.points_on_time' => '0', 'gate.points_streak3' => '0', 'gate.points_streak5' => '0', 'gate.points_perfect_week' => '0'], 'test');
+GateAttendance::report([$gaIn('pa-tue', $pa, '2026-10-20')]);
+ck('Gate: points set to 0 award nothing', GateAttendance::points($pa)['total'] === 105);
+AvRules::save(['gate.points_on_time' => '5', 'gate.points_streak3' => '15', 'gate.points_streak5' => '30', 'gate.points_perfect_week' => '30'], 'test');
+
 /* ── The door the gate knocks on ─────────────────────────────────────────── */
 putenv('GATE_PASS_SECRET=' . str_repeat('g', 48));
 $body = '{"op":"search","q":"ada"}'; $ts = (string) time();

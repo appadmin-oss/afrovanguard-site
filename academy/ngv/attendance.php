@@ -31,13 +31,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $act = (string) ($in['action'] ?? '');
     if ($act === 'excuse_day') json_out(GateAttendance::excuseDay((int) ($in['member_id'] ?? 0), (string) ($in['day'] ?? ''), (string) ($in['why'] ?? ''), $by));
     if ($act === 'decide') json_out(GateAttendance::decideExcuse((int) ($in['id'] ?? 0), !empty($in['approve']), (string) ($in['outcome'] ?? ''), $by));
-    if ($act === 'card' || $act === 'withdraw') {
+    if ($act === 'card' || $act === 'withdraw' || $act === 'probation' || $act === 'lift') {
         $who = trim((string) ($in['member'] ?? ''));
         $st = Database::pdo()->prepare(ctype_digit($who) ? 'SELECT id FROM lms_users WHERE id = ?' : 'SELECT id FROM lms_users WHERE email = ?');
         $st->execute([ctype_digit($who) ? (int) $who : strtolower($who)]);
         $mid = (int) ($st->fetchColumn() ?: 0);
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'No member with that email or number.'], 404);
         if ($act === 'card') json_out(GateAttendance::assignCard($mid, (string) ($in['code'] ?? ''), $by));
+        if ($act === 'probation') json_out(GateAttendance::setProbation($mid, (string) ($in['until'] ?? ''), (string) ($in['reason'] ?? ''), $by));
+        if ($act === 'lift') json_out(GateAttendance::liftProbation($mid, $by));
         /* A lost phone: every pass issued so far stops at the gate. Their next
            visit to /gate-pass makes a good one. */
         $r = GatePass::revoke($mid);
@@ -51,6 +53,7 @@ $today = function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d');
 $day   = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['day'] ?? '')) ? (string) $_GET['day'] : $today;
 $reg   = $isAdmin ? GateAttendance::register($day) : null;
 $asks  = $isAdmin ? GateAttendance::pendingExcuses() : [];
+$board = $isAdmin ? GateAttendance::leaderboard(substr($day, 0, 7)) : [];
 $csrf  = av_csrf_token();
 $e     = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 $hm    = static function (string $iso): string {
@@ -167,7 +170,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
       <tbody>
       <?php foreach ($reg['rows'] as $r): $s = (string) $r['status']; ?>
         <tr><td><?= $e((string) ($r['name'] ?? ('#' . $r['member_id']))) ?></td>
-            <td><span class="pill p-<?= $e($s) ?>"><?= $e($label[$s] ?? $s) ?><?= $s === 'late' ? ' · ' . (int) $r['late_minutes'] . ' min' : '' ?></span><?= (int) $r['fine_id'] > 0 ? ' <span class="sub">fined</span>' : '' ?></td>
+            <td><span class="pill p-<?= $e($s) ?>"><?= $e($label[$s] ?? $s) ?><?= $s === 'late' ? ' · ' . (int) $r['late_minutes'] . ' min' : '' ?></span><?= (int) $r['fine_id'] > 0 ? ' <span class="sub">fined</span>' : '' ?><?= GateAttendance::expected((int) $r['member_id']) && GateAttendance::onProbation((int) $r['member_id'], $day) ? ' <span class="sub">probation</span>' : '' ?></td>
             <td class="num"><?= $e($hm((string) $r['in_at'])) ?></td><td class="num"><?= $e($hm((string) $r['out_at'])) ?></td>
             <td class="sub"><?= $e(trim((string) $r['centre'] . ((string) $r['method'] !== '' ? ' · ' . $r['method'] : ''), ' ·')) ?></td>
             <td><?php if ($s === 'absent'): ?><button class="btn" data-excuse="<?= (int) $r['member_id'] ?>">Excuse</button><?php endif; ?></td></tr>
@@ -187,6 +190,32 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
     </tbody></table></div>
   </section>
   <?php endif; ?>
+
+  <?php if ($board): ?>
+  <section class="card" aria-labelledby="h-board">
+    <header><h2 id="h-board">Points this month</h2><span class="sp"></span><span class="sub"><?= $e(date('F Y', strtotime(substr($day, 0, 7) . '-01'))) ?></span></header>
+    <div class="body scroll"><table><tbody>
+      <?php foreach ($board as $i => $b): ?>
+        <tr><td class="num" style="width:2.5rem"><?= $i + 1 ?></td><td><?= $e((string) ($b['name'] ?? ('#' . $b['member_id']))) ?></td><td class="num" style="text-align:right"><?= number_format((int) $b['points']) ?></td></tr>
+      <?php endforeach; ?>
+    </tbody></table></div>
+  </section>
+  <?php endif; ?>
+
+  <section class="card" aria-labelledby="h-prob">
+    <header><h2 id="h-prob">Probation</h2></header>
+    <div class="body">
+      <p class="sub" style="margin-top:0">Members at level<?= count(GateAttendance::probationLevels()) === 1 ? '' : 's' ?> <b><?= $e(implode(', ', GateAttendance::probationLevels()) ?: 'none') ?></b> are on probation by the rules<?= GateAttendance::lateFineProbation() > 0 ? '; a late arrival on probation is fined ₦' . number_format(GateAttendance::lateFineProbation()) : '; no probation fine is set' ?>. Put somebody else on probation by name here — they see the reason on their gate page.</p>
+      <div class="row">
+        <label>Member (email or number) <input id="p_member" autocomplete="off"></label>
+        <label>Until (optional) <input id="p_until" type="date"></label>
+        <label style="flex:1;min-width:14rem">Why <input id="p_reason" autocomplete="off"></label>
+        <button class="btn primary" id="p_go" type="button">Put on probation</button>
+        <button class="btn" id="p_lift" type="button">Lift</button>
+      </div>
+      <p class="sub" id="p_out" role="status"></p>
+    </div>
+  </section>
 
   <section class="card" aria-labelledby="h-cards">
     <header><h2 id="h-cards">Member ID cards</h2></header>
@@ -222,6 +251,14 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
       var yes = b.getAttribute('data-approve') === '1';
       var note = prompt(yes ? 'A note for the member (optional)' : 'Why not? The member will see this.'); if (note === null) return;
       post({ action: 'decide', id: +b.getAttribute('data-decide'), approve: yes, outcome: note }).then(function (r) { if (r.ok) location.reload(); else toast(r.error || 'Not saved.', false); });
+    });
+  });
+  ['p_go', 'p_lift'].forEach(function (id) {
+    document.getElementById(id).addEventListener('click', function () {
+      var out = document.getElementById('p_out'), lift = id === 'p_lift';
+      post(lift ? { action: 'lift', member: document.getElementById('p_member').value }
+                : { action: 'probation', member: document.getElementById('p_member').value, until: document.getElementById('p_until').value, reason: document.getElementById('p_reason').value })
+        .then(function (r) { out.textContent = r.ok ? (lift ? 'Probation lifted.' : 'On probation.') : (r.error || 'Not saved.'); });
     });
   });
   document.getElementById('c_withdraw').addEventListener('click', function () {
