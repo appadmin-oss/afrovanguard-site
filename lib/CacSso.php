@@ -35,8 +35,68 @@ declare(strict_types=1);
 
 final class CacSso
 {
+    /** Where CACENTRE lives when nothing says otherwise. */
+    public const DEFAULT_BASE = 'https://cacentre.afrovanguard.org.ng';
+
+    /** The path on that host that receives arrivals. */
+    public const LANDING_PATH = '/crm/sso.php';
+
+    /**
+     * The CACENTRE origin.
+     *
+     * This used to be a const holding the full production URL, which made
+     * the bridge HALF configurable and that is worse than not configurable
+     * at all: CacTasks already honoured CAC_SITE_URL, so pointing the API
+     * at a staging CACENTRE moved the task list and left the sign-on
+     * handoff aimed at production. Somebody testing locally would be
+     * thrown at the live CRM with a live assertion and no indication
+     * anything was wrong.
+     *
+     * One variable now moves both. Same resolution order as secret():
+     * environment first, then a constant from config.php, then the
+     * default — so a shared host with no env control can still set it.
+     */
+    public static function base(): string
+    {
+        foreach ([getenv('CAC_SITE_URL'), getenv('AV_CACENTRE_URL')] as $v) {
+            if ($v !== false && trim((string) $v) !== '') return self::normaliseBase((string) $v);
+        }
+        foreach (['CAC_SITE_URL', 'AV_CACENTRE_URL'] as $c) {
+            if (defined($c) && trim((string) constant($c)) !== '') return self::normaliseBase((string) constant($c));
+        }
+
+        return self::DEFAULT_BASE;
+    }
+
     /** Where the other side receives arrivals. */
-    public const LANDING = 'https://cacentre.afrovanguard.org.ng/crm/sso.php';
+    public static function landing(): string
+    {
+        return self::base() . self::LANDING_PATH;
+    }
+
+    /**
+     * An origin, or the default.
+     *
+     * This value decides where a signed assertion is SENT. A typo that
+     * resolved to something odd would post a credential somewhere nobody
+     * meant, so anything that is not a plain http(s) origin is refused and
+     * the default stands — a misconfiguration keeps working against
+     * production rather than quietly handing tokens to a stray host.
+     */
+    private static function normaliseBase(string $v): string
+    {
+        $v = rtrim(trim($v), '/');
+        $p = parse_url($v);
+        if (!is_array($p) || empty($p['host']) || empty($p['scheme'])) return self::DEFAULT_BASE;
+        if (!in_array(strtolower($p['scheme']), ['http', 'https'], true)) return self::DEFAULT_BASE;
+        /* No credentials, no path, no query: an origin and nothing else. */
+        if (!empty($p['user']) || !empty($p['pass']) || !empty($p['query']) || !empty($p['fragment'])) {
+            return self::DEFAULT_BASE;
+        }
+        $port = !empty($p['port']) ? ':' . (int) $p['port'] : '';
+
+        return strtolower($p['scheme']) . '://' . $p['host'] . $port;
+    }
 
     /** Seconds an assertion is good for. Matches CrmSso::TTL. */
     public const TTL = 60;
@@ -112,7 +172,7 @@ final class CacSso
      */
     public static function linkFor(array $u, string $next = self::HOME): string
     {
-        return self::LANDING . '?t=' . rawurlencode(self::mint($u))
+        return self::landing() . '?t=' . rawurlencode(self::mint($u))
              . '&next=' . rawurlencode(self::path($next));
     }
 

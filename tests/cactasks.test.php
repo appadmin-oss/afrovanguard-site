@@ -58,8 +58,9 @@ ck('TLS verification stays on: a task list is not worth teaching this codebase t
 && str_contains($src, 'CURLOPT_SSL_VERIFYHOST => 2'));
 
 /* ── One address for the other site ─────────────────────────────────────── */
-ck("the console's address is derived from the sign-on landing page rather than written a "
- . 'second time, so the two cannot point at different hosts', str_contains($src, 'parse_url(CacSso::LANDING)'));
+ck("the console's address comes from the bridge rather than being resolved a second time, "
+ . 'so the two cannot point at different hosts', str_contains($src, 'return CacSso::base()')
+&& !str_contains($src, "getenv('CAC_SITE_URL')"));
 
 /* ── Another system's data is treated as such ───────────────────────────── */
 ck('the reply is capped', str_contains($src, 'array_slice($rows, 0, 50)'));

@@ -143,3 +143,55 @@ ck('the public footer does not advertise the door',
    !str_contains($partials, 'CacSso::DOOR') && !preg_match('~href="/cacentre~', $partials));
 ck('nor does the sign-in page',
    !str_contains((string) @file_get_contents(AV_ROOT . '/login/index.php'), 'CacSso::door'));
+
+/* ── Where CACENTRE is, is configuration ────────────────────────────────── */
+
+ck('the CACENTRE address is not written into the code', !str_contains($src, "const LANDING = 'https://"));
+ck('…and the default is still production, so an unconfigured host keeps working',
+   CacSso::base() === 'https://cacentre.afrovanguard.org.ng');
+ck('the landing page is the base plus the path, not a second address',
+   CacSso::landing() === CacSso::base() . CacSso::LANDING_PATH);
+
+ck('one variable moves BOTH the sign-on handoff and the task list', (function () {
+    /* The bug this replaces: CacTasks honoured CAC_SITE_URL and the bridge
+       did not, so pointing the API at a staging CACENTRE left sign-on
+       aimed at production — a local run threw you at the live CRM with a
+       live assertion and nothing said so. */
+    putenv('CAC_SITE_URL=https://staging.cacentre.test');
+    $base = CacSso::base();
+    $land = CacSso::landing();
+    $site = CacTasks::site();
+    putenv('CAC_SITE_URL');
+    return $base === 'https://staging.cacentre.test'
+        && $land === 'https://staging.cacentre.test/crm/sso.php'
+        && $site === 'https://staging.cacentre.test';
+})());
+
+ck('a trailing slash does not produce a double slash in the handoff', (function () {
+    putenv('CAC_SITE_URL=https://staging.cacentre.test/');
+    $land = CacSso::landing();
+    putenv('CAC_SITE_URL');
+    return $land === 'https://staging.cacentre.test/crm/sso.php';
+})());
+
+ck('a port survives, because a local CACENTRE runs on one', (function () {
+    putenv('CAC_SITE_URL=http://localhost:8080');
+    $b = CacSso::base();
+    putenv('CAC_SITE_URL');
+    return $b === 'http://localhost:8080';
+})());
+
+ck('nonsense falls back to production rather than sending a signed assertion somewhere odd',
+   (function () {
+    /* This value decides where a CREDENTIAL is posted. A typo must not be
+       honoured — anything that is not a plain http(s) origin is refused
+       and the default stands. */
+    foreach (['not a url', 'ftp://cacentre.test', 'javascript:alert(1)',
+              'https://user:pw@evil.test', 'https://evil.test/path?x=1', ''] as $bad) {
+        putenv('CAC_SITE_URL=' . $bad);
+        $b = CacSso::base();
+        putenv('CAC_SITE_URL');
+        if ($b !== 'https://cacentre.afrovanguard.org.ng') return false;
+    }
+    return true;
+})());

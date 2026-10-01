@@ -197,6 +197,24 @@ define('ENABLE_ADMIN_NOTIFICATIONS',  true);
 define('ENABLE_MONTHLY_RECURRING',    true);
 define('ENABLE_BANK_TRANSFER_EMAIL',  true);
 
+// ── CACENTRE bridge ─────────────────────────────────────────────────────────
+// Where /cacentre hands a signed-in member across, and where the portal's task
+// panel reads from. ONE value moves both — they used to be set separately, and
+// a staging API with a production sign-on is how somebody ends up holding a
+// live assertion against the live CRM while they think they are testing.
+//
+// Leave it unset for production. Set it to an ORIGIN — scheme and host only,
+// no path — for a local or staging CACENTRE:
+//
+// define('CAC_SITE_URL', 'http://localhost:8080');
+//
+// Anything that is not a plain http(s) origin is ignored and production
+// stands, because this value decides where a credential is posted.
+
+// The HMAC key shared with CACENTRE's crm/sso.php. Must match exactly on both
+// sides. Generate with: openssl rand -hex 64
+// define('AV_SSO_SECRET', '');
+
 return [
     'smtp'     => ['host'=>SMTP_HOST,'port'=>SMTP_PORT,'username'=>SMTP_USERNAME,'password'=>SMTP_PASSWORD],
     'email'    => ['from'=>FROM_EMAIL,'from_name'=>FROM_NAME,'admin'=>ADMIN_EMAIL],

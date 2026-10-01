@@ -33,15 +33,18 @@ final class CacTasks
     /** One fetch per request, however many times a page asks. */
     private static array $memo = [];
 
-    /** The other site, overridable for a local run the same way the bridge is. */
+    /**
+     * The other site.
+     *
+     * Asked of CacSso rather than resolved again here. This used to read
+     * CAC_SITE_URL itself and fall back to parsing the bridge's hardcoded
+     * landing URL — so the two agreed by default and diverged the moment
+     * anybody set the variable, pointing the task list at staging while
+     * sign-on still went to production.
+     */
     public static function site(): string
     {
-        $v = trim((string) (getenv('CAC_SITE_URL') ?: ''));
-        if ($v !== '') return rtrim($v, '/');
-        /* Derived from the sign-on landing page rather than written twice:
-           one address for the other site, in one place. */
-        $p = parse_url(CacSso::LANDING);
-        return ($p['scheme'] ?? 'https') . '://' . ($p['host'] ?? 'cacentre.afrovanguard.org.ng');
+        return CacSso::base();
     }
 
     /** Where a member goes to actually work one of these. */
