@@ -449,6 +449,8 @@
     </div>
 
     <section class="mem-pane" data-pane="dash">
+      <!-- Each tile is a list: press it and the roster opens filtered to exactly what it counted. -->
+      <div id="memTiles" aria-live="polite"></div>
       <div class="mem-counts" id="memCounts"></div>
       <div class="mem-dash">
         <div class="side-card"><h3>Joined, month by month</h3><div class="mem-bars" id="memJoined"></div></div>
@@ -471,6 +473,7 @@
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
+        <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
         <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
         <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
       </div>
@@ -929,10 +932,11 @@
       <h3>Grant Studio access</h3>
       <p class="muted" style="margin-top:-4px">The person must have signed in as a member once. The break-glass admin token is always Super Admin.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-        <label class="fld" style="flex:1;min-width:220px;margin:0"><span>Member email</span><input id="adEmail" type="email" placeholder="name@example.com" /></label>
+        <label class="fld" style="flex:1;min-width:220px;margin:0"><span>Member email</span><input id="adEmail" type="email" placeholder="name@afrovanguard.org.ng" aria-describedby="adEmailHelp" /></label>
         <label class="fld" style="margin:0"><span>Role</span><select id="adRole"><option value="editor">Editor</option><option value="admin">Admin</option><option value="superadmin">Super Admin</option></select></label>
         <button class="btn btn-primary btn-sm" id="adAdd" type="button">Grant access</button>
       </div>
+      <p class="muted tiny" id="adEmailHelp">Only @afrovanguard.org.ng addresses can be admins — a personal mailbox is one the organisation cannot close.</p>
       <p class="muted tiny" id="adMsg" style="margin-top:10px"></p>
     </div>
     <div class="mt-panel" id="adList"></div>

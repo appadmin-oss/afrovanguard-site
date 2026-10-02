@@ -1546,7 +1546,9 @@
         var act = isDefault
           ? '<span class="muted tiny">default super admin</span>'
           : '<button class="btn btn-outline btn-sm" data-admin-remove="' + escapeHtml(a.email) + '">Revoke</button>';
-        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge published" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span>' + tag + '</div>'
+        /* Only organisation addresses are admins. An off-domain row grants nothing; it is shown so it can be revoked. */
+        if (a.valid === false) tag += ' <span class="badge draft" title="Only @afrovanguard.org.ng addresses can be admins">not an organisation address — grants nothing</span>';
+        return '<div class="mt-row"><div class="mt-row-main"><div class="mt-pair"><b>' + escapeHtml(a.email) + '</b> <span class="badge ' + (a.valid === false ? 'draft' : 'published') + '" style="text-transform:capitalize">' + escapeHtml(a.role) + '</span>' + tag + '</div>'
           + '<div class="mt-meta">added ' + escapeHtml(a.created_at || '') + (a.added_by ? ' · by ' + escapeHtml(a.added_by) : '') + '</div></div>'
           + '<div class="mt-acts">' + act + '</div></div>';
       }).join('') : '<p class="muted">Only the break-glass token (Super Admin) has access right now. Grant a member access above.</p>';
@@ -2897,19 +2899,48 @@
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
+  /* The member dashboard, like NGG's: four rows of tiles, each one a list. */
+  var MEM_SEGMENTS = { active: 'Active', suspended: 'Suspended', joined30: 'Joined in the last 30 days', joined365: 'Joined in the last 12 months',
+    fined: 'Have been fined', fines_owed: 'Owe a fine', fines_cleared: 'Fined, nothing owing', level_raised: 'Level raised in the last 12 months', review_open: 'Promotion awaiting a decision' };
+  function memTile(n, label, attrs, sub) {
+    return '<button class="ov-card" ' + (attrs || 'disabled') + '><span class="ov-card-num">' + n + '</span><span class="ov-card-label">' + escapeHtml(label) + '</span>'
+      + (sub ? '<span class="ov-card-sub">' + escapeHtml(sub) + '</span>' : '') + '</button>';
+  }
+  function naira(n) { return '₦' + Number(n || 0).toLocaleString('en-NG'); }
+  function memTilesHTML(d) {
+    var b = d.dashboard || {}, g = b.segments || {}, f = b.fines || {}, du = b.dues || {};
+    var seg = function (k, label, sub) { return memTile(g[k] || 0, label, 'data-seg="' + k + '"', sub); };
+    var dues = function (k, label, sub) { return memTile(du[k] || 0, label, 'data-ms="' + k + '"', sub); };
+    return '<h2 class="mem-tiles-h">Membership</h2><div class="ov-grid mem-tiles">'
+      + memTile(d.total || 0, 'Members', 'data-all="1"', 'Afrovanguard members — learners are not counted')
+      + seg('active', 'Active') + seg('suspended', 'Suspended')
+      + seg('joined30', 'Joined · 30 days') + seg('joined365', 'Joined · 12 months')
+      + memTile(b.vanguards || 0, 'NextGen Vanguards', 'data-kind="ngv"')
+      + memTile(d.learners || 0, 'Academy learners', 'data-kind="learner"', 'not members')
+      + '</div>'
+      + '<h2 class="mem-tiles-h">Fines</h2><div class="ov-grid mem-tiles">'
+      + seg('fined', 'Fined', (f.count || 0) + ' fine' + (f.count === 1 ? '' : 's') + ' in all')
+      + seg('fines_owed', 'Owe a fine', naira(f.owing_ngn) + ' outstanding')
+      + seg('fines_cleared', 'Fined, nothing owing', 'paid or waived')
+      + '</div><p class="mem-tiles-note">Fines imposed to date: <b>' + naira(f.imposed_ngn) + '</b>, of which <b>' + naira(f.owing_ngn) + '</b> is still owed. Voided fines are not counted. Fines are issued and settled on the NGV fines desk.</p>'
+      + '<h2 class="mem-tiles-h">Dues</h2><div class="ov-grid mem-tiles">'
+      + dues('member', 'Paying dues', 'any account — a learner can pay') + dues('due_soon', 'Due within 30 days')
+      + dues('lapsed', 'Lapsed') + dues('lifetime', 'Lifetime') + dues('cancelled', 'Ended by the office')
+      + memTile(naira(du.received_12m_ngn), 'Dues received', '', 'last 12 months')
+      + '</div><p class="mem-tiles-note">Dues open paid courses. They are not membership: paying them changes nobody’s access level.</p>'
+      + '<h2 class="mem-tiles-h">Progression</h2><div class="ov-grid mem-tiles">'
+      + seg('level_raised', 'Level raised', 'last 12 months') + seg('review_open', 'Promotion to decide', 'open reviews')
+      + '</div>';
+  }
+
   function loadMemDash() {
+    $('#memTiles').innerHTML = '<p class="muted">Loading…</p>';
     api('roster_overview').then(function (r) {
-      var d = r.data || {}; if (!d.ok) return;
-      $('#memCounts').innerHTML = memChip(d.total, 'members') + memChip(d.vanguards, 'NextGen Vanguards')
+      var d = r.data || {}; if (!d.ok) { $('#memTiles').innerHTML = '<p class="muted">Could not load the dashboard. <button class="btn btn-outline btn-sm" id="memDashRetry">Retry</button></p>'; return; }
+      $('#memTiles').innerHTML = memTilesHTML(d);
+      $('#memCounts').innerHTML = '<span class="muted tiny">By status and access level:</span> '
         + Object.keys(d.by_status || {}).map(function (k) { return memChip(d.by_status[k], k); }).join('')
         + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
-      /* Dues, over every account (learners pay dues too): each count opens the
-         roster across everybody, filtered to exactly the accounts it counted. */
-      var ms = d.membership || {};
-      $('#memCounts').innerHTML += (d.learners ? '<a href="#" class="mem-chip" data-kind="learner"><b>' + d.learners + '</b> Academy learners (not members)</a>' : '')
-        + ['member', 'due_soon', 'lapsed', 'cancelled', 'lifetime'].map(function (k) {
-        return '<a href="#" class="mem-chip" data-ms="' + k + '"><b>' + (ms[k] || 0) + '</b> ' + escapeHtml(MS_LABEL[k].toLowerCase()) + '</a>';
-      }).join('');
       var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
       $('#memJoined').innerHTML = (d.joined || []).map(function (m) {
         return '<span style="height:' + Math.max(2, Math.round(m.joined / max * 100)) + '%" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
@@ -2950,7 +2981,7 @@
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -2967,7 +2998,7 @@
   }
   function memFilterQs() {
     return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-            'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value].join('&');
+            'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value].join('&');
   }
 
   /* ── Many members at once ──
@@ -3148,11 +3179,17 @@
   if ($('#membersView')) {
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
-    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memMembership', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
-    $('#memCounts').addEventListener('click', function (e) {
-      var a = e.target.closest('[data-ms],[data-kind]'); if (!a) return; e.preventDefault();
-      if (a.getAttribute('data-kind')) { $('#memKind').value = a.getAttribute('data-kind'); $('#memMembership').value = ''; }
-      else { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
+    $('#memSegment').innerHTML = '<option value="">Any record</option>' + Object.keys(MEM_SEGMENTS).map(function (k) { return '<option value="' + k + '">' + escapeHtml(MEM_SEGMENTS[k]) + '</option>'; }).join('');
+    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    /* A tile opens its list: the roster with exactly that filter and no other. */
+    $('#memTiles').addEventListener('click', function (e) {
+      if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }
+      var a = e.target.closest('[data-ms],[data-kind],[data-seg],[data-all]'); if (!a) return; e.preventDefault();
+      ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment'].forEach(function (x) { $(x).value = ''; });
+      $('#memQ').value = ''; $('#memKind').value = '';
+      if (a.getAttribute('data-kind')) $('#memKind').value = a.getAttribute('data-kind');
+      else if (a.getAttribute('data-ms')) { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
+      else $('#memSegment').value = a.getAttribute('data-seg');
       memPage = 1; memSel = {}; memTab('roster');
     });
     $('#memList').addEventListener('change', function (e) {

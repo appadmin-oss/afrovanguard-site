@@ -7,6 +7,12 @@
  *   editor      content only (Diary, Academy, Moderation)
  *
  * The break-glass ADMIN_TOKEN (bearer or token login) is always SUPERADMIN.
+ *
+ * Only an organisation address (@afrovanguard.org.ng, AV_ORG_DOMAIN) can be an
+ * admin. Refused when added, and — because a row written before this rule, or
+ * straight into the table, would otherwise still open the Studio — ignored
+ * when read: an off-domain entry grants nothing. The address is the identity
+ * the organisation controls; a personal mailbox is one it cannot suspend.
  * Additional admins are member accounts listed in admin_users(email→role); when
  * such a member is signed in (LmsAuth) and opens the Studio, they're bridged to
  * an admin session cookie carrying their role (so CSRF/session work as usual).
@@ -36,6 +42,7 @@ final class AdminRoles
     public static function roleForEmail(string $email): string
     {
         $email = strtolower(trim($email)); if ($email === '') return '';
+        if (!self::orgEmail($email)) return '';
         self::ensure();
         try {
             $s = Database::pdo()->prepare('SELECT role FROM admin_users WHERE email = ?'); $s->execute([$email]);
@@ -63,6 +70,16 @@ final class AdminRoles
         return '';
     }
 
+    public static function orgEmail(string $email): bool
+    {
+        return class_exists('LmsAuth') && LmsAuth::isOrgEmail($email);
+    }
+
+    public static function domain(): string
+    {
+        return strtolower((string) (defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng'));
+    }
+
     public static function can(string $min): bool
     {
         $cur = self::current();
@@ -72,7 +89,9 @@ final class AdminRoles
     public static function list(): array
     {
         self::ensure();
-        try { return Database::pdo()->query('SELECT email, role, added_by, created_at FROM admin_users ORDER BY role DESC, email ASC')->fetchAll(PDO::FETCH_ASSOC) ?: []; }
+        /* `valid` says whether the row still grants anything: an off-domain entry is listed so it can be removed, never honoured. */
+        try { return array_map(static fn($r) => $r + ['valid' => self::orgEmail((string) $r['email'])],
+                  Database::pdo()->query('SELECT email, role, added_by, created_at FROM admin_users ORDER BY role DESC, email ASC')->fetchAll(PDO::FETCH_ASSOC) ?: []); }
         catch (Throwable $e) { return []; }
     }
 
@@ -81,6 +100,7 @@ final class AdminRoles
         self::ensure();
         $email = strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Enter a valid email.'];
+        if (!self::orgEmail($email)) return ['ok' => false, 'code' => 'org_email', 'error' => 'Only @' . self::domain() . ' addresses can be admins.'];
         if (!isset(self::RANK[$role])) return ['ok' => false, 'error' => 'Unknown role.'];
         try {
             $db = Database::pdo();

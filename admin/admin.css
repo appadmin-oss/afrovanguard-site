@@ -192,6 +192,12 @@ body.studio-authed .studio-side { display: block; }
 .mem-history summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .mem-history .mem-ev { padding: 6px 0; border-bottom: 1px solid var(--divider); }
 .mem-bulk-sum { font-size: 13px; margin: 0 0 12px; }
+.mem-tiles-h { font-size: 15px; margin: 20px 0 10px; }
+.mem-tiles-h:first-child { margin-top: 0; }
+.mem-tiles { margin-bottom: 8px; }
+.mem-tiles .ov-card { cursor: pointer; }
+.mem-tiles .ov-card[disabled] { cursor: default; opacity: .7; transform: none; box-shadow: none; }
+.mem-tiles-note { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
 .mem-file { cursor: pointer; }
 .mem-check { display: flex; align-items: center; gap: 8px; }
 .mem-try { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }

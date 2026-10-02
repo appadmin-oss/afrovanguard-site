@@ -252,7 +252,9 @@ AvRules::resetAll('test');
 $prReset();
 $prMultiplier();
 AdminRoles::ensure();
-AdminRoles::add('a@x.co', 'admin', 'test');       // Ada is user 1 in the base fixture
+// Admins are organisation addresses (AdminRoles), so Ada — user 1 — has one here.
+$db->exec("UPDATE lms_users SET email = 'ada@afrovanguard.org.ng' WHERE id = 1");
+AdminRoles::add('ada@afrovanguard.org.ng', 'admin', 'test');
 $s = Promotion::sweep();
 ck('notify: an administrator is told', $s['notified'] >= 1);
 $row = $db->query("SELECT title, body FROM user_notifications WHERE kind='promotion' ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);

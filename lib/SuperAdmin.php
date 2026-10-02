@@ -37,7 +37,9 @@ final class SuperAdmin
     public static function defaultEmail(): string
     {
         $e = strtolower(trim((string) (getenv('AV_SUPERADMIN_EMAIL') ?: '')));
-        if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) $e = 'mamcareer@afrovanguard.org.ng';
+        // An admin is an organisation address; an off-domain override falls back
+        // to the default rather than seeding a Super Admin AdminRoles would ignore.
+        if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL) || !LmsAuth::isOrgEmail($e)) $e = 'mamcareer@afrovanguard.org.ng';
         return $e;
     }
 

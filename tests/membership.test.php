@@ -25,8 +25,8 @@ Membership::ensure();
 AdminRoles::ensure();
 $msPdo->exec("DELETE FROM memberships WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@ms.test')");
 $msPdo->exec("DELETE FROM payments WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@ms.test')");
-$msPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@ms.test'");
-$msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test'");
+$msPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@ms.test' OR email LIKE '%.ms@afrovanguard.org.ng'");
+$msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test' OR email LIKE '%.ms@afrovanguard.org.ng'");
 
 $mk = function (string $name, string $email, string $role = 'member') use ($msPdo): int {
     $msPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)')->execute([$name, $email, 'x', $role, 'active']);
@@ -105,10 +105,10 @@ ck('Membership: dues sent with the email in another case still land', $lms->gran
 
 /* ── Who may change what ─────────────────────────────────────────────── */
 $admin = $mk('Ada Admin', 'admin@ms.test');
-$coord = $mk('Coco Ordinator', 'coord@ms.test', 'coordinator');
-$studio = $mk('Stu Dio', 'studio@ms.test');
-AdminRoles::add('studio@ms.test', 'admin', 'test');
-AdminRoles::add('boss@ms.test', 'superadmin', 'test');
+$coord = $mk('Coco Ordinator', 'coord.ms@afrovanguard.org.ng', 'coordinator');
+$studio = $mk('Stu Dio', 'studio.ms@afrovanguard.org.ng');
+AdminRoles::add('studio.ms@afrovanguard.org.ng', 'admin', 'test');
+AdminRoles::add('boss.ms@afrovanguard.org.ng', 'superadmin', 'test');
 $asAdmin = ['studio_role' => 'admin', 'self_id' => $admin];
 $asSuper = ['studio_role' => 'superadmin', 'self_id' => 0];
 
@@ -119,11 +119,29 @@ ck('Guard: a coordinator is staff — an admin cannot suspend them', (MemberRost
 ck('Guard: …nor a Studio admin whose member role is plain', (MemberRoster::update($studio, ['email' => 'elsewhere@ms.test'], 'x', $asAdmin)['code'] ?? '') === 'staff_account');
 ck('Guard: …a Super Admin can', MemberRoster::update($coord, ['status' => 'suspended'], 'x', $asSuper)['ok']);
 MemberRoster::update($coord, ['status' => 'active'], 'x', $asSuper);
-ck('Guard: below Super Admin, access is given up to instructor', MemberRoster::update($never, ['role' => 'instructor'], 'x', $asAdmin)['ok']
-    && (MemberRoster::update($never, ['role' => 'admin'], 'x', $asAdmin)['code'] ?? '') === 'role_ceiling');
-ck('Guard: …and nobody is CREATED above it either', (MemberRoster::create(['name' => 'New Coord', 'email' => 'nc@ms.test', 'role' => 'coordinator'], 'x', 'studio', $asAdmin)['code'] ?? '') === 'role_ceiling');
+$orgm = $mk('Ore Org', 'ore.ms@afrovanguard.org.ng');
+ck('Guard: below Super Admin, access is given up to instructor', MemberRoster::update($orgm, ['role' => 'instructor'], 'x', $asAdmin)['ok']
+    && (MemberRoster::update($orgm, ['role' => 'admin'], 'x', $asAdmin)['code'] ?? '') === 'role_ceiling');
+ck('Guard: …and nobody is CREATED above it either', (MemberRoster::create(['name' => 'New Coord', 'email' => 'nc.ms@afrovanguard.org.ng', 'role' => 'coordinator'], 'x', 'studio', $asAdmin)['code'] ?? '') === 'role_ceiling');
+
+/* ── Admins are organisation addresses ───────────────────────────────── */
+ck('Org: a personal address cannot be made a Studio admin', (AdminRoles::add('someone@gmail.com', 'admin', 'test')['code'] ?? '') === 'org_email');
+$msPdo->prepare('INSERT INTO admin_users (email, role, added_by, created_at) VALUES (?,?,?,?)')->execute(['legacy@ms.test', 'superadmin', 'old', gmdate('Y-m-d H:i:s')]);
+ck('Org: …and one already on the list grants nothing — it is listed so it can be removed',
+    AdminRoles::roleForEmail('legacy@ms.test') === '' && !array_values(array_filter(AdminRoles::list(), fn($r) => $r['email'] === 'legacy@ms.test'))[0]['valid']);
+ck('Org: an org address still is an admin', AdminRoles::roleForEmail('studio.ms@afrovanguard.org.ng') === 'admin');
+ck('Org: not even a Super Admin gives coordinator or admin access to a personal address',
+    (MemberRoster::update($never, ['role' => 'coordinator'], 'x', $asSuper)['code'] ?? '') === 'org_email'
+    && (MemberRoster::create(['name' => 'Gee Mail', 'email' => 'gee@gmail.com', 'role' => 'admin'], 'x', 'studio', $asSuper)['code'] ?? '') === 'org_email');
+ck('Org: …nor moves a staff account onto one', (MemberRoster::update($coord, ['email' => 'coco@gmail.com'], 'x', $asSuper)['code'] ?? '') === 'org_email');
+ck('Org: …nor does the importer', (MemberRoster::update($never, ['role' => 'admin'], 'importer')['code'] ?? '') === 'org_email');
+$legacyStaff = $mk('Old Staff', 'oldstaff@ms.test', 'coordinator');
+ck('Org: a staff account already on a personal address can still have its phone corrected', MemberRoster::update($legacyStaff, ['phone' => '08031112222'], 'x', $asSuper)['ok']);
+putenv('AV_SUPERADMIN_EMAIL=boss@gmail.com');
+ck('Org: the default Super Admin is never seeded on a personal address', SuperAdmin::defaultEmail() === 'mamcareer@afrovanguard.org.ng');
+putenv('AV_SUPERADMIN_EMAIL');
 ck('Guard: a Super Admin\'s address cannot be moved onto another account — that was a way to become one',
-    (MemberRoster::update($never, ['email' => 'boss@ms.test'], 'x', $asAdmin)['code'] ?? '') === 'admin_email');
+    (MemberRoster::update($never, ['email' => 'boss.ms@afrovanguard.org.ng'], 'x', $asAdmin)['code'] ?? '') === 'admin_email');
 ck('Guard: an internal caller (the importer) is not restricted by these', MemberRoster::update($never, ['role' => 'member'], 'importer')['ok']);
 
 /* ── Suspending ends sessions ────────────────────────────────────────── */
@@ -224,4 +242,41 @@ Idris Own,idris@ms.test,AVG/24/0107
 ")['rows'], ['actor' => 'x', 'id_format' => $fid]);
 ck('ID import: …while the same person with the same ID imports again cleanly', $again['failed'] === 0 && $again['created'] === 0);
 
-$msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test'");
+
+/* ── The member dashboard: every tile is the list it opens ───────────── */
+$fA = $mk('Fola Fined', 'fola@ms.test');  $fB = $mk('Gbenga Paid', 'gbenga@ms.test');
+// NGV fines are on NGV participants — vanguards, who are members.
+NgvMember::ensureParticipant($fA, ['name' => 'Fola Fined', 'email' => 'fola@ms.test']);
+NgvMember::ensureParticipant($fB, ['name' => 'Gbenga Paid', 'email' => 'gbenga@ms.test']);
+NgvFines::issue($fA, 'late', 1000, '', '', false, 1);
+NgvFines::issue($fA, 'uniform', 500, '', '', false, 1);
+NgvFines::issue($fB, 'late', 1000, '', '', false, 1);
+NgvLedger::payment($fB, 'fine', 1000, ['method' => 'cash'], 1);
+MemberRoster::forgetFines();
+$msPdo->prepare("UPDATE lms_users SET status = 'suspended' WHERE id = ?")->execute([$fA]);
+Levels::set($orgm, 'A', 'test');
+Promotion::ensure();
+$msPdo->prepare("INSERT INTO av_promotion_reviews (user_id, from_level, to_level, status, created_at) VALUES (?, 'O', 'A', 'open', ?)")->execute([$cur, gmdate('Y-m-d H:i:s')]);
+$msPdo->prepare("INSERT INTO av_promotion_reviews (user_id, from_level, to_level, status, created_at) VALUES (?, 'O', 'A', 'open', ?)")->execute([$orgm, gmdate('Y-m-d H:i:s')]);   // already reached: history
+
+$dash = MemberRoster::overview()['dashboard'];
+$seg = function (string $k): array {
+    $r = MemberRoster::roster(['segment' => $k, 'page_size' => 200]);
+    $x = array_map(fn($m) => (int) $m['id'], $r['members']); sort($x); return $x;
+};
+foreach (array_keys(MemberRoster::SEGMENTS) as $k) {
+    ck("Dashboard: the \"$k\" tile is the length of the list it opens", $dash['segments'][$k] === count($seg($k)) && $dash['segments'][$k] === MemberRoster::roster(['segment' => $k])['total']);
+}
+$mineF = fn(array $ids) => array_values(array_intersect($ids, [$fA, $fB]));
+ck('Dashboard: fined counts people — two fines are one person', $mineF($seg('fined')) === [$fA, $fB]);
+ck('Dashboard: owing is the ledger\'s standing: the paid fine is cleared', $mineF($seg('fines_owed')) === [$fA] && $mineF($seg('fines_cleared')) === [$fB]);
+$fsMine = array_intersect_key(MemberRoster::fineStanding(), [$fA => 1, $fB => 1]);
+ck('Dashboard: the naira figures add up the ledger\'s own standing', array_sum(array_column($fsMine, 'owing')) === 1500 && array_sum(array_column($fsMine, 'amount')) === 2500
+    && $dash['fines']['owing_ngn'] >= 1500 && $dash['fines']['count'] >= 3);
+ck('Dashboard: suspended', in_array($fA, $seg('suspended'), true) && !in_array($fB, $seg('suspended'), true));
+ck('Dashboard: a level raised this year is counted', in_array($orgm, $seg('level_raised'), true));
+ck('Dashboard: a promotion awaiting a decision — not one for a level already reached', in_array($cur, $seg('review_open'), true) && !in_array($orgm, $seg('review_open'), true));
+ck('Dashboard: dues sit beside them, with the money received this year', isset($dash['dues']['due_soon'], $dash['dues']['received_12m_ngn']) && $dash['dues']['received_12m_ngn'] >= 12000);
+ck('Dashboard: an unknown segment shows the roster rather than failing', MemberRoster::roster(['segment' => 'bogus'])['total'] === MemberRoster::roster([])['total']);
+
+$msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test' OR email LIKE '%.ms@afrovanguard.org.ng'");

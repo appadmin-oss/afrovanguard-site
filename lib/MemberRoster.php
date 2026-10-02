@@ -217,6 +217,17 @@ final class MemberRoster
     /** null if allowed, else ['ok'=>false, code, error]. $c is the clean patch, $u the current row (null when creating). */
     private static function guard(?array $u, array $c, array $ctx): ?array
     {
+        /* Staff are organisation addresses — for every caller, the importer
+           included. A coordinator or admin with a personal mailbox is an
+           account the organisation cannot close. */
+        $role = $c['role'] ?? ($u['role'] ?? 'member');
+        $email = ($c['email'] ?? '') !== '' ? $c['email'] : strtolower((string) ($u['email'] ?? ''));
+        $changing = !$u || (isset($c['role']) && $c['role'] !== (string) $u['role'])
+                 || (($c['email'] ?? '') !== '' && $c['email'] !== strtolower((string) $u['email']));
+        if ($changing && LmsAuth::rank((string) $role) > LmsAuth::ROLE_RANK['instructor'] && $email !== '' && !LmsAuth::isOrgEmail($email)) {
+            $dom = class_exists('AdminRoles') ? AdminRoles::domain() : 'afrovanguard.org.ng';
+            return ['ok' => false, 'code' => 'org_email', 'error' => 'Only @' . $dom . ' addresses can hold the ' . $role . ' access level.'];
+        }
         if (!$ctx) return null;
         $super = ($ctx['studio_role'] ?? '') === 'superadmin';
         $no = static fn(string $code, string $msg) => ['ok' => false, 'code' => $code, 'error' => $msg];
@@ -387,6 +398,79 @@ final class MemberRoster
         ];
     }
 
+    /* ══ Dashboard segments ═════════════════════════════════════════════════
+     *
+     * Every tile on the member dashboard is one of these, and the roster
+     * filters by the same SQL — so a tile's number is the length of the list it
+     * opens, never a figure computed some other way. Over `lms_users u`, within
+     * the members population (learners are counted on their own).
+     *
+     * Fines are the NGV ledger's (NgvFines::all reads each fine's standing the
+     * way the ledger settles them); their member ids live in the NGV database,
+     * so they are read once per request and inlined as integers.
+     */
+    public const SEGMENTS = [
+        'active' => 'Active', 'suspended' => 'Suspended', 'joined30' => 'Joined in the last 30 days', 'joined365' => 'Joined in the last 12 months',
+        'fined' => 'Have been fined', 'fines_owed' => 'Owe a fine', 'fines_cleared' => 'Fined, nothing owing',
+        'level_raised' => 'Level raised in the last 12 months', 'review_open' => 'Promotion awaiting a decision',
+    ];
+    private static ?array $fineCache = null;
+
+    /** Per member: fines (not voided) and what is owing on them. */
+    public static function fineStanding(): array
+    {
+        if (self::$fineCache !== null) return self::$fineCache;
+        $out = [];
+        try {
+            foreach (NgvFines::all() as $f) {
+                if ($f['status'] === 'voided') continue;
+                $m = (int) $f['member_id'];
+                $out[$m] = ['fines' => ($out[$m]['fines'] ?? 0) + 1, 'amount' => ($out[$m]['amount'] ?? 0) + (int) $f['amount'], 'owing' => ($out[$m]['owing'] ?? 0) + (int) $f['owing']];
+            }
+        } catch (Throwable $e) { error_log('[roster] fines: ' . $e->getMessage()); }
+        return self::$fineCache = $out;
+    }
+    public static function forgetFines(): void { self::$fineCache = null; }
+
+    private static function idIn(array $ids): string
+    {
+        return $ids ? 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')' : '1 = 0';
+    }
+
+    /** @return array{0:string,1:array}|null */
+    public static function segmentSql(string $seg): ?array
+    {
+        $fs = in_array($seg, ['fined', 'fines_owed', 'fines_cleared'], true) ? self::fineStanding() : [];
+        switch ($seg) {
+            case 'active':        return ["u.status = 'active'", []];
+            case 'suspended':     return ["u.status = 'suspended'", []];
+            case 'joined30':      return ['u.created_at >= ?', [gmdate('Y-m-d H:i:s', strtotime('-30 days'))]];
+            case 'joined365':     return ['u.created_at >= ?', [gmdate('Y-m-d H:i:s', strtotime('-365 days'))]];
+            case 'fined':         return [self::idIn(array_keys($fs)), []];
+            case 'fines_owed':    return [self::idIn(array_keys(array_filter($fs, static fn($x) => $x['owing'] > 0))), []];
+            case 'fines_cleared': return [self::idIn(array_keys(array_filter($fs, static fn($x) => $x['owing'] === 0))), []];
+            case 'level_raised':
+                if (class_exists('Levels')) Levels::ensure();
+                return ["u.level_at >= ? AND COALESCE(u.level, '') <> ?", [gmdate('c', strtotime('-365 days')), class_exists('Levels') ? Levels::base() : 'O']];
+            case 'review_open':
+                if (class_exists('Promotion')) Promotion::ensure();
+                /* Open, and for a level not yet reached: a review for a level the
+                   member has since passed is history (Promotion::queue's rule). */
+                return ["EXISTS (SELECT 1 FROM av_promotion_reviews r WHERE r.user_id = u.id AND r.status = 'open' AND r.to_level <> COALESCE(u.level, ''))", []];
+        }
+        return null;
+    }
+
+    /** How many members are in a segment — the same SQL the roster filters with. */
+    public static function segmentCount(string $seg): int
+    {
+        $q = self::segmentSql($seg);
+        if (!$q) return 0;
+        $st = Database::pdo()->prepare('SELECT COUNT(*) FROM lms_users u WHERE ' . self::memberWhere() . ' AND (' . $q[0] . ')');
+        $st->execute($q[1]);
+        return (int) $st->fetchColumn();
+    }
+
     /* ══ The roster ═════════════════════════════════════════════════════════ */
 
     private const SORTS = ['name' => 'u.name', 'joined' => 'u.created_at', 'role' => 'u.role', 'status' => 'u.status', 'centre' => 'p.centre'];
@@ -411,6 +495,7 @@ final class MemberRoster
            unknown value falls back to everybody, so a stale link shows the
            roster rather than an error. */
         if (($ms = Membership::stateSql((string) ($f['membership'] ?? ''))) !== null) { $w[] = $ms[0]; array_push($a, ...$ms[1]); }
+        if (($sg = self::segmentSql((string) ($f['segment'] ?? ''))) !== null) { $w[] = '(' . $sg[0] . ')'; array_push($a, ...$sg[1]); }
         /* NextGen Vanguards, or members who are not. The NGV record lives in its
            own database, so the ids are read there and filtered here. */
         $kind = (string) ($f['kind'] ?? '');
@@ -495,6 +580,28 @@ final class MemberRoster
             'joined' => $months,
             'quality' => $quality,
             'membership' => Membership::counts(),
+            'dashboard' => self::dashboard(),
+        ];
+    }
+
+    /** The tiles: membership, fines, dues, progression. Each count is a segment or a dues state. */
+    public static function dashboard(): array
+    {
+        $seg = [];
+        foreach (array_keys(self::SEGMENTS) as $k) $seg[$k] = self::segmentCount($k);
+        $mine = array_flip(array_map('intval', Database::pdo()->query('SELECT u.id FROM lms_users u WHERE ' . self::memberWhere())->fetchAll(PDO::FETCH_COLUMN)));
+        $fs = array_intersect_key(self::fineStanding(), $mine);
+        $st = Database::pdo()->prepare("SELECT COALESCE(SUM(amount_kobo), 0) FROM payments WHERE kind = 'membership' AND status = 'paid' AND paid_at >= ?");
+        $st->execute([gmdate('Y-m-d H:i:s', strtotime('-365 days'))]);
+        return [
+            'segments' => $seg,
+            'vanguards' => count(array_intersect_key(self::vanguardIds(), $mine)),
+            'fines' => [
+                'imposed_ngn' => array_sum(array_column($fs, 'amount')),
+                'owing_ngn' => array_sum(array_column($fs, 'owing')),
+                'count' => array_sum(array_column($fs, 'fines')),
+            ],
+            'dues' => Membership::counts() + ['received_12m_ngn' => (int) round(((int) $st->fetchColumn()) / 100)],
         ];
     }
 

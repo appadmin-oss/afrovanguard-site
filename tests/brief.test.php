@@ -184,7 +184,9 @@ ck('growth: the model does not author it — it is copied from the metrics',
 $bReset();
 $n1 = $bPair(1, 2); $bSess($n1, 3, 'attended');
 AdminRoles::ensure();
-AdminRoles::add('a@x.co', 'admin', 'test');       // Ada is user 1 in the fixture
+// Admins are organisation addresses (AdminRoles), so Ada — user 1 — has one here.
+$db->exec("UPDATE lms_users SET email = 'ada@afrovanguard.org.ng' WHERE id = 1");
+AdminRoles::add('ada@afrovanguard.org.ng', 'admin', 'test');
 $before = (int) $db->query("SELECT COUNT(*) FROM user_notifications WHERE kind='brief'")->fetchColumn();
 Brief::generate('week', true);
 $after = (int) $db->query("SELECT COUNT(*) FROM user_notifications WHERE kind='brief'")->fetchColumn();

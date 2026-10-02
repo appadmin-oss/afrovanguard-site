@@ -1111,13 +1111,13 @@ try {
             $mid = (int) ($body['id'] ?? 0);
             if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'Member not found.'], 404);
             $r = MemberRoster::update($mid, array_intersect_key($body, array_flip(['role', 'status', 'level', 'birthday'])), av_admin_actor(), $memberCtx());
-            json_out($r['ok'] ? ['ok' => true, 'changed' => $r['changed'], 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null] : $r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email'], true) ? 403 : 422));
+            json_out($r['ok'] ? ['ok' => true, 'changed' => $r['changed'], 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null] : $r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email', 'org_email'], true) ? 403 : 422));
         /* ── The member desk (lib/MemberRoster.php): validate → dry run → apply → audit ── */
         case 'roster_overview':
             json_out(['ok' => true] + MemberRoster::overview());
         case 'roster_list':
             json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
-                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'sort', 'dir', 'page', 'page_size']))));
+                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'segment', 'sort', 'dir', 'page', 'page_size']))));
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
@@ -1137,7 +1137,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes']));
             $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor(), $memberCtx());
-            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email'], true) ? 403 : 422));
+            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email', 'org_email'], true) ? 403 : 422));
         /* ── Dues membership (lib/Membership.php) ── */
         case 'roster_membership':
             $mid = (int) ($_GET['id'] ?? 0);
@@ -1161,7 +1161,7 @@ try {
             json_out($r, $r['ok'] ? 200 : 422);
         /* ── Many members, one declared action ── */
         case 'roster_ids':
-            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership']))));
+            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'segment']))));
         case 'roster_bulk':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberRoster::bulk((array) ($body['ids'] ?? []), (string) ($body['action'] ?? ''), (array) ($body['value'] ?? []), av_admin_actor(), $memberCtx());
