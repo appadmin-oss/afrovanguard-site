@@ -69,7 +69,7 @@ try {
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
-        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
+        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -93,7 +93,7 @@ try {
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
-        'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline',
+        'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -286,7 +286,9 @@ try {
                 'moderation'        => $pending,
                 'inbox'             => $cnt("SELECT COUNT(*) FROM enrollments"),
                 'subscribers'       => $cnt("SELECT COUNT(*) FROM subscribers"),
-                'members'           => Membership::counts()['member'],   // people with a live membership, not rows
+                // Active Afrovanguard members — not dues payers (learners pay dues too) and not learners.
+                'members'           => (int) Database::pdo()->query("SELECT COUNT(*) FROM lms_users u WHERE u.status = 'active' AND " . MemberRoster::memberWhere())->fetchColumn(),
+                'dues_paying'       => Membership::counts()['member'],
                 'courses_published' => $cnt("SELECT COUNT(*) FROM courses WHERE status='published'"),
                 'enrolments'        => $cnt("SELECT COUNT(*) FROM course_enrolment"),
             ], 'email' => [
@@ -1174,7 +1176,7 @@ try {
             $apply = !empty($body['apply']);
             if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Importing members needs an Admin. Anybody here can read the dry run.'], 403);
             $r = MemberRoster::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
-                'overwrite' => !empty($body['overwrite']), 'card_format' => (string) ($body['card_format'] ?? ''),
+                'overwrite' => !empty($body['overwrite']), 'card_format' => (string) ($body['card_format'] ?? ''), 'id_format' => (string) ($body['id_format'] ?? ''),
                 'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
             json_out($r + ['columns' => $parsed['columns'], 'unknown_columns' => $parsed['unknown_columns']], $r['ok'] ? 200 : 422);
         case 'card_formats':
@@ -1186,6 +1188,14 @@ try {
                 $o['test'] = $c['ok'] ? ['ok' => true, 'decodes' => MemberCards::decode($f, (string) $_GET['sample'])] : $c;
             }
             json_out($o);
+        case 'id_format_save':
+            /* The importer's own ID: what one looks like, from an example. Admin,
+               like applying the import it is for; a general card format stays
+               with a Super Admin (card_format_save). */
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberCards::saveIdFormat((string) ($body['example'] ?? ''), (string) ($body['label'] ?? ''), (string) ($body['mask'] ?? ''), av_admin_actor());
+            if ($r['ok']) $lms->audit('card.id_format', (string) $r['format']['id'], $r['format']['mask'] . ' · e.g. ' . $r['format']['example'], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
         case 'card_format_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $r = MemberCards::saveFormat($body, av_admin_actor());
@@ -1323,7 +1333,7 @@ try {
                 'enrolments'        => $cnt("SELECT COUNT(*) FROM course_enrolment"),
                 'applications'      => $cnt("SELECT COUNT(*) FROM enrollments"),
                 'certificates'      => $cnt("SELECT COUNT(*) FROM certificates"),
-                'members'           => Membership::counts()['member'],   // people with a live membership, not rows
+                'members'           => Membership::counts()['member'],   // the Academy's "active memberships": accounts paying dues now, not rows
             ]]);
         }
         case 'purge_demo':

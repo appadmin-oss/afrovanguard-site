@@ -1,7 +1,11 @@
 <?php
 /**
- * lib/Membership.php — a member's MEMBERSHIP: the dues-paid standing that opens
- * paid courses, as distinct from their ACCOUNT (lms_users, the member desk).
+ * lib/Membership.php — DUES: the paid standing that opens paid courses.
+ *
+ * Not the same thing as being an Afrovanguard member (MemberRoster::MEMBER_SQL).
+ * Anybody with an account can pay dues, a learner included, and paying them
+ * changes nobody's role. The table is called `memberships` for history; every
+ * screen calls it dues.
  *
  * The `memberships` table has held this since the Academy launched, written by
  * one path only — a Paystack payment (LmsRepository::finalizePayment). Nobody
@@ -164,7 +168,9 @@ final class Membership
         return null;
     }
 
-    /** How many members are in each state, plus "member" (any live membership). */
+    /** How many ACCOUNTS are in each dues state, plus "member" (dues live now).
+     *  Over every account — learners pay dues too — so it is not a count of
+     *  Afrovanguard members, and the screens that show it say "dues". */
     public static function counts(): array
     {
         self::ensure();

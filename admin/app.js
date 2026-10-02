@@ -2872,7 +2872,9 @@
      a dry run until the dry run that was read is applied. */
   var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C'], memT, memPage = 1, memOpen = 0, memFormats = [];
   var memSel = {}, memPageIds = [], memTotal = 0, memMember = null;
-  var MS_LABEL = { lifetime: 'Lifetime member', current: 'Member', due_soon: 'Dues due soon', lapsed: 'Lapsed', cancelled: 'Ended by the office', never: 'Never a member', member: 'Paid-up members', none: 'Not a member' };
+  /* Dues — not the same as being an Afrovanguard member: a learner can pay
+     dues and stay a learner, and a member can have none. */
+  var MS_LABEL = { lifetime: 'Lifetime dues', current: 'Dues paid', due_soon: 'Dues due soon', lapsed: 'Dues lapsed', cancelled: 'Dues ended by the office', never: 'Never paid dues', member: 'Paying dues', none: 'No dues' };
   function memFill(sel, list, keep, label) {
     var el = $(sel); if (!el) return;
     var v = keep !== undefined ? keep : el.value;
@@ -2901,9 +2903,11 @@
       $('#memCounts').innerHTML = memChip(d.total, 'members') + memChip(d.vanguards, 'NextGen Vanguards')
         + Object.keys(d.by_status || {}).map(function (k) { return memChip(d.by_status[k], k); }).join('')
         + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
-      /* Dues membership: each count opens the roster filtered to exactly those members. */
+      /* Dues, over every account (learners pay dues too): each count opens the
+         roster across everybody, filtered to exactly the accounts it counted. */
       var ms = d.membership || {};
-      $('#memCounts').innerHTML += ['member', 'due_soon', 'lapsed', 'cancelled', 'lifetime', 'never'].map(function (k) {
+      $('#memCounts').innerHTML += (d.learners ? '<a href="#" class="mem-chip" data-kind="learner"><b>' + d.learners + '</b> Academy learners (not members)</a>' : '')
+        + ['member', 'due_soon', 'lapsed', 'cancelled', 'lifetime'].map(function (k) {
         return '<a href="#" class="mem-chip" data-ms="' + k + '"><b>' + (ms[k] || 0) + '</b> ' + escapeHtml(MS_LABEL[k].toLowerCase()) + '</a>';
       }).join('');
       var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
@@ -2993,7 +2997,7 @@
     else if (a === 'membership_grant') { var m = raw.match(/^(\d+)\s*(.*)$/); if (!m) { toast('Start with the number of months, e.g. "12 Scholarship".'); return; } value.months = +m[1]; value.note = m[2]; if (/^waiver$/i.test(m[2])) { value.method = 'waiver'; value.note = ''; } }
     else if (a === 'membership_cancel') value.note = raw;
     var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
-    if (!confirm(label + ' — ' + n + ' member' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : ''))) return;
+    if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : ''))) return;
     var b = $('#memBulkGo'); b.disabled = true;
     post('roster_bulk', { ids: ids, action: action, value: value }).then(function (r) {
       var d = r.data || {};
@@ -3009,11 +3013,11 @@
   function msHTML(ms) {
     if (!ms) return '';
     var when = function (x) { return x ? String(x).slice(0, 10) : ''; };
-    var line = ms.state === 'lifetime' ? 'Lifetime member' + (ms.since ? ' since ' + when(ms.since) : '')
-      : ms.state === 'current' || ms.state === 'due_soon' ? 'Member, paid through <b>' + when(ms.paid_through) + '</b>' + (ms.state === 'due_soon' ? ' — due in ' + ms.days_left + ' day' + (ms.days_left === 1 ? '' : 's') : '')
-      : ms.state === 'lapsed' ? 'Lapsed' + (ms.paid_through ? ' on ' + when(ms.paid_through) : '')
-      : ms.state === 'cancelled' ? 'Ended by the office' + (ms.ended && ms.ended.at ? ' on ' + when(ms.ended.at) + ' by ' + escapeHtml(ms.ended.by) : '') + (ms.ended && ms.ended.note ? ' — “' + escapeHtml(ms.ended.note) + '”' : '')
-      : 'Never a member';
+    var line = ms.state === 'lifetime' ? 'Lifetime dues — never expire' + (ms.since ? ' (since ' + when(ms.since) + ')' : '')
+      : ms.state === 'current' || ms.state === 'due_soon' ? 'Dues paid through <b>' + when(ms.paid_through) + '</b>' + (ms.state === 'due_soon' ? ' — due in ' + ms.days_left + ' day' + (ms.days_left === 1 ? '' : 's') : '')
+      : ms.state === 'lapsed' ? 'Dues lapsed' + (ms.paid_through ? ' on ' + when(ms.paid_through) : '')
+      : ms.state === 'cancelled' ? 'Dues ended by the office' + (ms.ended && ms.ended.at ? ' on ' + when(ms.ended.at) + ' by ' + escapeHtml(ms.ended.by) : '') + (ms.ended && ms.ended.note ? ' — “' + escapeHtml(ms.ended.note) + '”' : '')
+      : 'Never paid dues';
     return '<p class="mem-ms-line">' + line + '</p><p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
   }
   function loadMemMembership() {
@@ -3034,7 +3038,7 @@
       }).concat((d.payments || []).map(function (p) {
         return '<div class="mem-ev">₦' + Number(p.amount_ngn).toLocaleString('en-NG') + ' · ' + escapeHtml(p.provider) + ' · ' + escapeHtml(p.status) + ' · ' + escapeHtml(String(p.paid_at || p.created_at).slice(0, 10)) + ' <code>' + escapeHtml(p.reference) + '</code>' + (p.recorded_by ? ' · recorded by ' + escapeHtml(p.recorded_by) : '') + '</div>';
       }));
-      $('#mdMsHistory').innerHTML = rows.join('') || '<p class="muted">No membership has ever been recorded.</p>';
+      $('#mdMsHistory').innerHTML = rows.join('') || '<p class="muted">No dues have ever been recorded.</p>';
     }).catch(function () { $('#mdMembership').innerHTML = '<p class="muted">Could not load the membership.</p>'; });
     api('roster_timeline&id=' + memOpen).then(function (r) {
       var ev = (r.data && r.data.events) || [];
@@ -3047,7 +3051,7 @@
     post('roster_membership_change', Object.assign({ id: memOpen }, payload)).then(function (r) {
       var d = r.data || {};
       if (!d.ok) { toast(d.error || 'Refused.'); return; }
-      toast(d.unchanged ? 'Nothing to change.' : 'Membership updated.'); if (done) done(); loadMemMembership(); loadMemRoster();
+      toast(d.unchanged ? 'Nothing to change.' : 'Dues updated.'); if (done) done(); loadMemMembership(); loadMemRoster();
     }).catch(function () { toast('Network error.'); });
   }
 
@@ -3073,7 +3077,7 @@
     memOpen = +id;
     api('roster_get&id=' + memOpen).then(function (r) {
       var m = r.data && r.data.member; if (!m) { toast('Could not open.'); return; }
-      $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : '');
+      $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
       ['name', 'email', 'phone', 'centre', 'notes'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
@@ -3097,7 +3101,7 @@
 
   /* Import */
   var miText = '', miName = '', miDigest = '';
-  function loadMemFormats() {
+  function loadMemFormats(pickId) {
     api('card_formats').then(function (r) {
       memFormats = (r.data && r.data.formats) || [];
       var el = $('#miFormat'), keep = el.value;
@@ -3106,20 +3110,27 @@
         + (currentRole === 'superadmin' ? '<option value="__add">Describe another kind of card…</option>' : '');
       el.value = keep && keep !== '__add' ? keep : '';
       $('#miTry').hidden = !el.value;
+      /* The ID column: NGV numbers, or one of the organisation's own ID formats. */
+      var idEl = $('#miIdFormat'), idKeep = idEl.value;
+      idEl.innerHTML = '<option value="">NGV numbers (A-NGV-25-0001)</option>'
+        + memFormats.filter(function (f) { return String(f.id).indexOf('id-') === 0; }).map(function (f) { return '<option value="' + escapeHtml(f.id) + '">' + escapeHtml(f.label) + ' — ' + escapeHtml(f.mask) + '</option>'; }).join('')
+        + '<option value="__add">Define our ID format…</option>';
+      if (pickId) idKeep = pickId;
+      idEl.value = idKeep && idKeep !== '__add' && Array.prototype.some.call(idEl.options, function (o) { return o.value === idKeep; }) ? idKeep : '';
     });
   }
   function miReset() { miDigest = ''; $('#miApply').hidden = true; $('#miResult').innerHTML = ''; }
   function miRun(apply) {
     if (!miText) return;
     var b = apply ? $('#miApply') : $('#miCheck'); b.disabled = true;
-    post('roster_import', { csv: miText, source: miName, apply: apply, expect_digest: apply ? miDigest : '', overwrite: $('#miOverwrite').checked, card_format: $('#miFormat').value })
+    post('roster_import', { csv: miText, source: miName, apply: apply, expect_digest: apply ? miDigest : '', overwrite: $('#miOverwrite').checked, card_format: $('#miFormat').value, id_format: $('#miIdFormat').value })
       .then(function (r) {
         var d = r.data || {};
         if (!d.ok) { $('#miResult').innerHTML = '<div class="mem-errors">' + escapeHtml(d.error || 'The import was refused.') + '</div>'; if (d.code === 'roster_changed') miReset(); return; }
         var MARK = { create: '+', update: '~', failed: '!', unchanged: '=' };
         var c = d.cards || {};
         var head = '<p><b>' + (d.applied ? 'Imported' : 'Would import') + '</b> — new ' + d.created + ' · updated ' + d.updated + ' · already current ' + d.unchanged + ' · refused ' + d.failed + '</p>'
-          + '<p class="muted tiny">' + (d.applied ? 'Cards — ' + c.issued + ' secure issued · ' + c.ngv + ' NGV numbers kept · ' + c.printed + ' old cards recorded' + (c.taken ? ' · ' + c.taken + ' already somebody else’s' : '') + (d.linked ? ' · ' + d.linked + ' NGV applications linked' : '')
+          + '<p class="muted tiny">' + (d.applied ? 'Cards — ' + c.issued + ' secure issued · ' + c.ngv + ' NGV numbers kept · ' + (c.ids ? c.ids + ' member IDs recorded · ' : '') + c.printed + ' old cards recorded' + (c.taken ? ' · ' + c.taken + ' already somebody else’s' : '') + (d.linked ? ' · ' + d.linked + ' NGV applications linked' : '')
               : c.would_issue + ' member(s) would get a secure card for the gate') + '</p>'
           + (d.previous ? '<p class="muted tiny">This exact file was imported on ' + escapeHtml(String(d.previous.at).slice(0, 10)) + ' by ' + escapeHtml(d.previous.actor) + '. Importing it again is safe.</p>' : '')
           + ((d.unknown_columns || []).length ? '<p class="muted tiny">Columns not used: ' + d.unknown_columns.map(escapeHtml).join(', ') + '</p>' : '');
@@ -3139,8 +3150,10 @@
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
     ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memMembership', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
     $('#memCounts').addEventListener('click', function (e) {
-      var a = e.target.closest('[data-ms]'); if (!a) return; e.preventDefault();
-      $('#memMembership').value = a.getAttribute('data-ms'); memPage = 1; memSel = {}; memTab('roster');
+      var a = e.target.closest('[data-ms],[data-kind]'); if (!a) return; e.preventDefault();
+      if (a.getAttribute('data-kind')) { $('#memKind').value = a.getAttribute('data-kind'); $('#memMembership').value = ''; }
+      else { $('#memMembership').value = a.getAttribute('data-ms'); $('#memKind').value = 'all'; }
+      memPage = 1; memSel = {}; memTab('roster');
     });
     $('#memList').addEventListener('change', function (e) {
       var c = e.target.closest('.mem-pick'); if (!c) return;
@@ -3171,11 +3184,11 @@
                  reference: $('#ms_ref').value.trim(), note: $('#ms_note').value.trim() }, function () { $('#mdMsForm').hidden = true; ['#ms_ref', '#ms_note'].forEach(function (s) { $(s).value = ''; }); $('#ms_amount').value = 0; });
     });
     $('#msLifetime').addEventListener('click', function () {
-      var why = prompt('Why does this membership never expire? (recorded on their history)'); if (!why) return;
+      var why = prompt('Why do these dues never expire? (recorded on their history)'); if (!why) return;
       msChange({ do: 'lifetime', note: why });
     });
     $('#msEnd').addEventListener('click', function () {
-      var why = prompt('Why is this membership ending? Money already paid is not refunded by this.'); if (!why) return;
+      var why = prompt('Why are these dues ending? Money already paid is not refunded by this.'); if (!why) return;
       msChange({ do: 'cancel', note: why });
     });
     $('#msReinstate').addEventListener('click', function () { if (confirm('Undo the ending? Their membership runs to the date it would have.')) msChange({ do: 'reinstate' }); });
@@ -3255,6 +3268,20 @@
     $('#mdReissue').addEventListener('click', function () { reissue(false); });
     $('#mdRetire').addEventListener('click', function () { reissue(true); });
 
+    $('#miIdFormat').addEventListener('change', function () {
+      var add = this.value === '__add'; $('#miNewIdFormat').hidden = !add; miReset();
+      if (add) { $('#ifErrors').hidden = true; $('#ifExample').focus(); }
+    });
+    $('#ifCancel').addEventListener('click', function () { $('#miNewIdFormat').hidden = true; $('#miIdFormat').value = ''; });
+    $('#ifSave').addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      post('id_format_save', { example: $('#ifExample').value.trim(), label: $('#ifLabel').value.trim(), mask: $('#ifMask').value.trim() }).then(function (r) {
+        var d = r.data || {};
+        if (!d.ok) { memErrors('#ifErrors', d); return; }
+        $('#miNewIdFormat').hidden = true; toast('ID format saved: ' + d.format.mask + '.');
+        loadMemFormats(d.format.id);
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    });
     $('#miFile').addEventListener('change', function () {
       var f = this.files && this.files[0]; this.value = ''; if (!f) return;
       f.text().then(function (t) { miText = t; miName = f.name; $('#miFileName').textContent = f.name; $('#miCheck').disabled = false; miReset(); });

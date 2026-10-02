@@ -42,6 +42,36 @@ declare(strict_types=1);
 final class MemberRoster
 {
     public const MAX_ROWS = 2000;
+
+    /* ── Who is an Afrovanguard member ───────────────────────────────────────
+     * Not everybody with an account, and not everybody who pays dues. Three
+     * populations share lms_users and must not be counted as one:
+     *
+     *   LEARNER       signed up to take a course in the Academy. Not a member,
+     *                 no gate card, not on the member desk.
+     *   DUES PAYER    holds a dues membership (lib/Membership.php) — which
+     *                 opens paid courses. A learner can pay dues and is still
+     *                 a learner; paying dues does not make anybody a member.
+     *   MEMBER        an account at member level or above, or a NextGen
+     *                 Vanguard. The member desk is these people.
+     *
+     * Over `lms_users u`; memberWhere() adds the vanguards. */
+    public const MEMBER_SQL = "u.role <> 'learner'";
+
+    /** MEMBER_SQL, plus every NextGen Vanguard — a vanguard is a member whatever their account began as.
+     *  The NGV record lives in its own database, so its ids are inlined (integers only). */
+    public static function memberWhere(): string
+    {
+        $ids = array_keys(self::vanguardIds());
+        return $ids ? '(' . self::MEMBER_SQL . ' OR u.id IN (' . implode(',', array_map('intval', $ids)) . '))' : self::MEMBER_SQL;
+    }
+
+    public static function isMember(int $id): bool
+    {
+        $st = Database::pdo()->prepare('SELECT 1 FROM lms_users u WHERE u.id = ? AND ' . self::memberWhere());
+        $st->execute([$id]);
+        return (bool) $st->fetchColumn();
+    }
     private static bool $ready = false;
 
     public static function ensure(): void
@@ -253,6 +283,7 @@ final class MemberRoster
         $v = self::validate($d, null);
         if (!$v['ok']) return ['ok' => false, 'error' => reset($v['errors']), 'errors' => $v['errors']];
         $c = $v['clean'];
+        if (($c['role'] ?? 'member') === 'learner') return ['ok' => false, 'code' => 'learner', 'error' => 'Learners sign up through the Academy. The member desk adds members.', 'errors' => ['role' => 'Learners sign up through the Academy. The member desk adds members.']];
         if ($g = self::guard(null, $c, $ctx)) return $g;
         $email = $c['email'];
         $pdo = Database::pdo();
@@ -351,6 +382,7 @@ final class MemberRoster
             'ngv' => class_exists('NgvMember') && NgvMember::isVanguard($id),
             'cards' => MemberCards::of($id),
             'staff' => self::isStaff($u),
+            'learner' => !self::isMember($id),
             'membership' => Membership::summary($id),
         ];
     }
@@ -382,6 +414,11 @@ final class MemberRoster
         /* NextGen Vanguards, or members who are not. The NGV record lives in its
            own database, so the ids are read there and filtered here. */
         $kind = (string) ($f['kind'] ?? '');
+        /* Members by default. The Academy's learners when asked for, and
+           everybody with an account for "all" — which is what a dues count is
+           over, since a learner can pay dues without being a member. */
+        if ($kind === 'learner') $w[] = 'NOT ' . self::memberWhere();
+        elseif ($kind !== 'all') $w[] = self::memberWhere();
         if ($kind === 'ngv' || $kind === 'member') {
             $ids = array_keys(self::vanguardIds());
             if ($kind === 'ngv') $w[] = $ids ? 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')' : '1 = 0';
@@ -432,27 +469,29 @@ final class MemberRoster
         $pdo = Database::pdo();
         $col = static fn(string $sql) => $pdo->query($sql)->fetchAll(PDO::FETCH_KEY_PAIR);
         $one = static fn(string $sql) => (int) $pdo->query($sql)->fetchColumn();
-        $total = $one('SELECT COUNT(*) FROM lms_users');
+        $M = self::memberWhere();
+        $total = $one("SELECT COUNT(*) FROM lms_users u WHERE $M");
         $since = gmdate('Y-m-01', strtotime('-11 months'));
         $joined = [];
-        foreach ($pdo->query("SELECT created_at FROM lms_users WHERE created_at >= '$since'")->fetchAll(PDO::FETCH_COLUMN) as $at) {
+        foreach ($pdo->query("SELECT u.created_at FROM lms_users u WHERE $M AND u.created_at >= '$since'")->fetchAll(PDO::FETCH_COLUMN) as $at) {
             $m = substr((string) $at, 0, 7); $joined[$m] = ($joined[$m] ?? 0) + 1;
         }
         $months = [];
         for ($i = 11; $i >= 0; $i--) { $m = gmdate('Y-m', strtotime(gmdate('Y-m-01') . " -$i months")); $months[] = ['month' => $m, 'joined' => $joined[$m] ?? 0]; }
         $quality = array_filter([
-            'phone' => ['n' => $one("SELECT COUNT(*) FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE COALESCE(p.phone, '') = ''"), 'label' => 'have no phone number'],
-            'birthday' => ['n' => $one("SELECT COUNT(*) FROM lms_users WHERE COALESCE(birthday, '') = ''"), 'label' => 'have no birthday recorded'],
-            'card' => ['n' => $one("SELECT COUNT(*) FROM lms_users u WHERE u.status = 'active' AND NOT EXISTS (SELECT 1 FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = 'secure' AND c.status = 'active')"), 'label' => 'have no card for the gate'],
+            'phone' => ['n' => $one("SELECT COUNT(*) FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE $M AND COALESCE(p.phone, '') = ''"), 'label' => 'have no phone number'],
+            'birthday' => ['n' => $one("SELECT COUNT(*) FROM lms_users u WHERE $M AND COALESCE(u.birthday, '') = ''"), 'label' => 'have no birthday recorded'],
+            'card' => ['n' => $one("SELECT COUNT(*) FROM lms_users u WHERE $M AND u.status = 'active' AND NOT EXISTS (SELECT 1 FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = 'secure' AND c.status = 'active')"), 'label' => 'have no card for the gate'],
             'duplicates' => ['n' => count(self::duplicates()), 'label' => 'names appear on more than one record'],
         ], static fn($x) => $x['n'] > 0);
         return [
             'total' => $total,
-            'vanguards' => count(array_intersect_key(self::vanguardIds(), array_flip(array_map('intval', $pdo->query('SELECT id FROM lms_users')->fetchAll(PDO::FETCH_COLUMN))))),
-            'by_status' => $col('SELECT status, COUNT(*) FROM lms_users GROUP BY status'),
-            'by_role' => $col('SELECT role, COUNT(*) FROM lms_users GROUP BY role'),
-            'by_level' => $col("SELECT COALESCE(level, 'O'), COUNT(*) FROM lms_users GROUP BY COALESCE(level, 'O')"),
-            'by_centre' => $col("SELECT COALESCE(NULLIF(p.centre, ''), '(none)'), COUNT(*) FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id GROUP BY COALESCE(NULLIF(p.centre, ''), '(none)')"),
+            'learners' => $one("SELECT COUNT(*) FROM lms_users u WHERE NOT $M"),   // Academy accounts, not members
+            'vanguards' => count(array_intersect_key(self::vanguardIds(), array_flip(array_map('intval', $pdo->query("SELECT u.id FROM lms_users u WHERE $M")->fetchAll(PDO::FETCH_COLUMN))))),
+            'by_status' => $col("SELECT u.status, COUNT(*) FROM lms_users u WHERE $M GROUP BY u.status"),
+            'by_role' => $col("SELECT u.role, COUNT(*) FROM lms_users u WHERE $M GROUP BY u.role"),
+            'by_level' => $col("SELECT COALESCE(u.level, 'O'), COUNT(*) FROM lms_users u WHERE $M GROUP BY COALESCE(u.level, 'O')"),
+            'by_centre' => $col("SELECT COALESCE(NULLIF(p.centre, ''), '(none)'), COUNT(*) FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE $M GROUP BY COALESCE(NULLIF(p.centre, ''), '(none)')"),
             'joined' => $months,
             'quality' => $quality,
             'membership' => Membership::counts(),
@@ -548,8 +587,8 @@ final class MemberRoster
 
     private const EVENTS = [
         'member.create' => 'Added', 'member.link' => 'Linked to an existing account', 'member.update' => 'Changed',
-        'member.import' => 'Imported', 'membership.grant' => 'Membership granted', 'membership.lifetime' => 'Lifetime membership',
-        'membership.cancel' => 'Membership ended', 'membership.reinstate' => 'Membership reinstated',
+        'member.import' => 'Imported', 'membership.grant' => 'Dues recorded', 'membership.lifetime' => 'Lifetime dues',
+        'membership.cancel' => 'Dues ended', 'membership.reinstate' => 'Dues reinstated',
         'card.reissue' => 'New gate card', 'role_change' => 'Access level changed', 'suspend' => 'Suspended',
         'reactivate' => 'Reactivated', 'level_change' => 'Level changed', 'birthday' => 'Birthday', 'create_member' => 'Added',
     ];
@@ -572,7 +611,7 @@ final class MemberRoster
         self::ensure();
         $pdo = Database::pdo();
         $groups = [];
-        $rows = $pdo->query('SELECT u.id, u.name, u.email, p.phone FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id')->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $pdo->query('SELECT u.id, u.name, u.email, p.phone FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id WHERE ' . self::memberWhere())->fetchAll(PDO::FETCH_ASSOC);
         $by = [];
         foreach ($rows as $r) {
             $n = preg_replace('/[^a-z]/', '', mb_strtolower((string) $r['name']));
@@ -596,6 +635,7 @@ final class MemberRoster
         'birthday' => 'birthday', 'date of birth' => 'birthday', 'dob' => 'birthday',
         'joined' => 'joined_on', 'date joined' => 'joined_on', 'joined on' => 'joined_on',
         'ngv' => 'ngv', 'ngv number' => 'ngv', 'ngv id' => 'ngv', 'member id' => 'ngv', 'id number' => 'ngv',
+        'id' => 'ngv', 'card id' => 'ngv', 'member number' => 'ngv', 'membership number' => 'ngv', 'av id' => 'ngv',
         'card' => 'card_code', 'card code' => 'card_code', 'card number' => 'card_code', 'old card' => 'card_code',
         'notes' => 'notes',
     ];
@@ -628,7 +668,7 @@ final class MemberRoster
     }
 
     /** What an import would DO, as a hash: row order, key order and blanks do not change it; the card format does. */
-    public static function digest(array $rows, string $cardFormat, bool $overwrite): string
+    public static function digest(array $rows, string $cardFormat, bool $overwrite, string $idFormat = ''): string
     {
         $norm = [];
         foreach ($rows as $r) {
@@ -636,10 +676,10 @@ final class MemberRoster
             ksort($r); $norm[] = json_encode($r, JSON_UNESCAPED_UNICODE);
         }
         sort($norm);
-        return hash('sha256', implode("\n", $norm) . "\n#" . $cardFormat . ($overwrite ? '#overwrite' : ''));
+        return hash('sha256', implode("\n", $norm) . "\n#" . $cardFormat . ($overwrite ? '#overwrite' : '') . ($idFormat !== '' ? '#id:' . $idFormat : ''));
     }
 
-    private static function match(array $c, array $row, string $cardFormat): ?int
+    private static function match(array $c, array $row, string $cardFormat, string $idFormat = ''): ?int
     {
         $pdo = Database::pdo();
         if (($c['email'] ?? '') !== '') {
@@ -653,6 +693,10 @@ final class MemberRoster
         }
         if (($row['card_code'] ?? '') !== '' && $cardFormat !== '') {
             $hit = MemberCards::lookup(null, $cardFormat, (string) $row['card_code']);
+            if ($hit) return $hit['member_id'];
+        }
+        if (($row['id_code'] ?? '') !== '' && $idFormat !== '') {
+            $hit = MemberCards::lookup(null, $idFormat, (string) $row['id_code']);
             if ($hit) return $hit['member_id'];
         }
         return null;
@@ -673,9 +717,15 @@ final class MemberRoster
         $actor = (string) ($opts['actor'] ?? 'studio');
         $cardFormat = (string) ($opts['card_format'] ?? '');
         if ($cardFormat !== '' && !MemberCards::format($cardFormat)) return ['ok' => false, 'error' => 'No card format “' . $cardFormat . '”. Describe it first.'];
+        /* The organisation's own member ID, when it is not an NGV number. Its
+           cards' QR encodes the ID itself, so a format whose template is just
+           the ID both validates the column and lets the gate read the card. */
+        $idFormat = (string) ($opts['id_format'] ?? '');
+        $idFmt = $idFormat !== '' ? MemberCards::format($idFormat) : null;
+        if ($idFormat !== '' && !$idFmt) return ['ok' => false, 'error' => 'No ID format “' . $idFormat . '”. Define it from an example ID first.'];
         if (!$rows) return ['ok' => false, 'error' => 'There are no rows to import.'];
         if (count($rows) > self::MAX_ROWS) return ['ok' => false, 'error' => 'More than ' . self::MAX_ROWS . ' rows — that is not this membership.'];
-        $digest = self::digest($rows, $cardFormat, $overwrite);
+        $digest = self::digest($rows, $cardFormat, $overwrite, $idFormat);
         if ($apply) {
             $expect = trim((string) ($opts['expect_digest'] ?? ''));
             if ($expect === '') return ['ok' => false, 'error' => 'Read the dry run first — an import has to name the dry run it is applying.', 'code' => 'preview_required'];
@@ -686,15 +736,24 @@ final class MemberRoster
         $prev->execute([$digest]);
         $report = ['ok' => true, 'applied' => $apply, 'digest' => $digest, 'previous' => $prev->fetch(PDO::FETCH_ASSOC) ?: null,
                    'created' => 0, 'updated' => 0, 'unchanged' => 0, 'failed' => 0, 'linked' => 0, 'rows' => [],
-                   'cards' => ['issued' => 0, 'printed' => 0, 'ngv' => 0, 'taken' => 0, 'would_issue' => 0, 'format' => $cardFormat]];
+                   'cards' => ['issued' => 0, 'printed' => 0, 'ngv' => 0, 'ids' => 0, 'taken' => 0, 'would_issue' => 0, 'format' => $cardFormat, 'id_format' => $idFormat]];
         $seenEmail = [];
         foreach ($rows as $i => $row) {
             $row = array_map(static fn($v) => trim((string) $v), (array) $row);
             $label = ($row['ngv'] ?? '') ?: ($row['email'] ?? '') ?: 'row ' . ($i + 2);
+            /* An ID that is not an NGV number is the organisation's own, read by
+               the ID format the importer named. Refused only when there is no
+               format, or it does not fit — and the refusal says which. */
+            $idError = '';
+            if (($row['ngv'] ?? '') !== '' && !preg_match(GateAttendance::CARD_PATTERN, strtoupper($row['ngv']))) {
+                if ($idFmt && MemberCards::decode($idFmt, $row['ngv']) !== null) { $row['id_code'] = strtoupper($row['ngv']); $row['ngv'] = ''; }
+                elseif ($idFmt) $idError = '“' . $row['ngv'] . '” does not fit the ID format “' . ($idFmt['label'] ?? $idFormat) . '” (' . $idFmt['mask'] . ').';
+                else $idError = '“' . $row['ngv'] . '” is not an NGV number (A-NGV-25-0001). If these are your own member IDs, define the ID format from one example and choose it.';
+            }
             $id = null;
             $v0 = self::validate(['name' => $row['name'] ?? ''] + array_intersect_key($row, array_flip(['email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes'])), null);
             $c = $v0['clean'];
-            $id = self::match($c, $row, $cardFormat);
+            $id = self::match($c, $row, $cardFormat, $idFormat);
             if ($id !== null) {
                 /* The duplicate-email error is about another member; an existing
                    member matched on their own email is not a duplicate of themselves. */
@@ -704,7 +763,15 @@ final class MemberRoster
             $errors = $v0['errors'];
             if ($c['email'] !== '' && isset($seenEmail[$c['email']])) $errors['email'] = $c['email'] . ' is also on row ' . $seenEmail[$c['email']] . '. One email, one member.';
             if ($c['email'] !== '') $seenEmail[$c['email']] = $i + 2;
-            if (($row['ngv'] ?? '') !== '' && !preg_match(GateAttendance::CARD_PATTERN, strtoupper($row['ngv']))) $errors['ngv'] = 'An NGV number reads like A-NGV-25-0001.';
+            if ($idError !== '') $errors['ngv'] = $idError;
+            /* One printed ID, one person: an ID already recorded for somebody else is refused before it is written. */
+            if (($row['id_code'] ?? '') !== '' && ($held = MemberCards::lookup(null, $idFormat, $row['id_code']))) {
+                $owner = self::user($held['member_id']);
+                /* Matched by the ID, but the row names a different email: that is
+                   two people claiming one card, not one person to update. */
+                if ($held['member_id'] !== $id || ($owner && $c['email'] !== '' && strtolower((string) $owner['email']) !== $c['email']))
+                    $errors['ngv'] = 'ID ' . $row['id_code'] . ' is already ' . ($owner ? $owner['name'] . '’s (' . $owner['email'] . ')' : 'another member’s') . '. One ID, one person.';
+            }
             if ($errors) {
                 $report['failed']++;
                 $report['rows'][] = ['ref' => $label, 'action' => 'failed', 'name' => $row['name'] ?? '', 'detail' => implode(' ', $errors)];
@@ -760,6 +827,10 @@ final class MemberRoster
                 if ($r['issued']) $report['cards']['issued']++;
                 if ($r['printed'] === 'recorded') $report['cards']['printed']++;
                 if ($r['printed'] === 'taken') $report['cards']['taken']++;
+                if (($row['id_code'] ?? '') !== '') {
+                    $p = MemberCards::recordPrinted($id, $idFormat, $row['id_code'], $actor, 'import');
+                    if ($p === 'recorded') $report['cards']['ids']++; elseif ($p === 'taken') $report['cards']['taken']++;
+                }
                 if (($row['ngv'] ?? '') !== '' && GateAttendance::cardFor($id) !== strtoupper($row['ngv'])) {
                     $g = GateAttendance::assignCard($id, $row['ngv'], 0);
                     if (!empty($g['ok'])) $report['cards']['ngv']++; else $report['cards']['taken']++;

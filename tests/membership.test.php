@@ -161,12 +161,67 @@ ck('Bulk: "select all matching" is one request with the true total', $ix['total'
 $tl = MemberRoster::timeline($soon);
 $what = array_column($tl, 'what');
 ck('Timeline: a member\'s history reads as sentences — the dues recorded, the suspension, who did it',
-    in_array('Membership granted', $what, true) && in_array('Changed', $what, true) && !array_filter($tl, fn($e) => $e['by'] === ''));
+    in_array('Dues recorded', $what, true) && in_array('Changed', $what, true) && !array_filter($tl, fn($e) => $e['by'] === ''));
 
 /* ── The drawer carries it ───────────────────────────────────────────── */
 $m = MemberRoster::get($cur);
 ck('Drawer: a member\'s record includes their membership', ($m['membership']['state'] ?? '') === 'lifetime');
 ck('Drawer: …and says whether they are staff', MemberRoster::get($coord)['staff'] === true && MemberRoster::get($cur)['staff'] === false);
 ck('Dashboard: the overview counts memberships by state', isset(MemberRoster::overview()['membership']['due_soon']));
+
+
+/* ── Learners, dues payers, members: three populations, not one ─────── */
+$learner = $mk('Lara Learner', 'learner@ms.test', 'learner');
+$payer   = $mk('Pele Payer', 'payer@ms.test', 'learner');
+ck('Dues: a learner can pay dues', Membership::grant($payer, ['months' => 12, 'amount_ngn' => 12000, 'method' => 'transfer', 'actor' => 'x'])['ok']);
+ck('Dues: …and is still a learner — paying dues makes nobody a member',
+    (string) $msPdo->query("SELECT role FROM lms_users WHERE id = $payer")->fetchColumn() === 'learner' && !MemberRoster::isMember($payer));
+$lms->grantMembership($payer, 1);
+ck('Dues: …nor does paying through the Academy checkout', (string) $msPdo->query("SELECT role FROM lms_users WHERE id = $payer")->fetchColumn() === 'learner');
+$desk = array_map(fn($m) => (int) $m['id'], MemberRoster::roster(['q' => '@ms.test', 'page_size' => 200])['members']);
+ck('Desk: learners are not on the member desk — the one paying dues included', !in_array($learner, $desk, true) && !in_array($payer, $desk, true) && in_array($cur, $desk, true));
+$lr = array_map(fn($m) => (int) $m['id'], MemberRoster::roster(['q' => '@ms.test', 'kind' => 'learner', 'page_size' => 200])['members']);
+sort($lr);
+ck('Desk: …they are found when asked for, as learners', $lr === [$learner, $payer]);
+ck('Dues: the dues count is over every account — the learner paying dues is counted as paying dues',
+    in_array($payer, array_map(fn($m) => (int) $m['id'], MemberRoster::roster(['q' => '@ms.test', 'kind' => 'all', 'membership' => 'member', 'page_size' => 200])['members']), true));
+$ov = MemberRoster::overview();
+ck('Dashboard: members and learners are counted apart',
+    $ov['learners'] === (int) $msPdo->query("SELECT COUNT(*) FROM lms_users WHERE role = 'learner'")->fetchColumn()
+    && $ov['total'] === (int) $msPdo->query("SELECT COUNT(*) FROM lms_users WHERE role <> 'learner'")->fetchColumn() + count(array_filter(array_keys(MemberRoster::vanguardIds()), fn($i) => (string) $msPdo->query("SELECT role FROM lms_users WHERE id = " . (int) $i)->fetchColumn() === 'learner')));
+MemberCards::backfill('test', 500);
+ck('Cards: the backfill gives a gate card to members, never to a learner', MemberCards::secure($learner) === null && MemberCards::secure($payer) === null && MemberCards::secure($cur) !== null);
+ck('Desk: the member desk does not create learners', (MemberRoster::create(['name' => 'New Learner', 'email' => 'nl@ms.test', 'role' => 'learner'], 'x')['code'] ?? '') === 'learner');
+ck('Drawer: a learner\'s record says so', MemberRoster::get($payer)['learner'] === true && MemberRoster::get($cur)['learner'] === false);
+
+/* ── Importing with the organisation's own ID ───────────────────────── */
+Database::metaSet('gate_card_formats', '');
+$csv = "Name,Email,Member ID\nIdris Own,idris@ms.test,AVG/24/0107\nJoy Own,joy@ms.test,AVG/24/0108\nKemi Odd,kemi@ms.test,ZZ-1\n";
+$rows = MemberRoster::parseCsv($csv)['rows'];
+$noFmt = MemberRoster::import($rows, ['actor' => 'x']);
+ck('ID import: without a format, an ID that is not an NGV number is refused — and the refusal says how to fix it',
+    $noFmt['failed'] === 3 && str_contains($noFmt['rows'][0]['detail'], 'define the ID format'));
+$f = MemberCards::saveIdFormat('AVG/23/0042', 'Afrovanguard IDs', '', 'x');
+ck('ID format: defined from one example — digits vary, the rest is as printed', $f['ok'] && $f['format']['mask'] === 'AVG/99/9999' && $f['format']['template'] === '{id}');
+ck('ID format: one that would match almost anything is refused', !MemberCards::saveIdFormat('42', 'Short', '', 'x')['ok']);
+$fid = $f['format']['id'];
+$dry = MemberRoster::import($rows, ['actor' => 'x', 'id_format' => $fid]);
+ck('ID import: with the format, IDs that fit it go through and the one that does not is named',
+    $dry['created'] === 2 && $dry['failed'] === 1
+    && (bool) array_filter($dry['rows'], fn($r) => $r['action'] === 'failed' && str_contains($r['detail'], 'does not fit') && str_contains($r['detail'], 'AVG/99/9999')));
+ck('ID import: the ID format is part of what the dry run promised', $dry['digest'] !== $noFmt['digest']);
+$applied = MemberRoster::import($rows, ['actor' => 'x', 'id_format' => $fid, 'apply' => true, 'expect_digest' => $dry['digest']]);
+$idris = (int) $msPdo->query("SELECT id FROM lms_users WHERE email = 'idris@ms.test'")->fetchColumn();
+ck('ID import: applied, each ID is recorded as that member\'s card', $applied['cards']['ids'] === 2 && (MemberCards::lookup(null, $fid, 'AVG/24/0107')['member_id'] ?? 0) === $idris);
+ck('ID import: the gate reads the card — its QR is the ID, and the format decodes it',
+    MemberCards::decode(MemberCards::format($fid), 'AVG/24/0107') === 'AVG/24/0107'
+    && in_array($fid, array_column(MemberCards::gateFormats(), 'id'), true));
+$clash = MemberRoster::import(MemberRoster::parseCsv("Name,Email,Member ID\nSomebody Else,else@ms.test,AVG/24/0107\n")['rows'], ['actor' => 'x', 'id_format' => $fid]);
+ck('ID import: an ID already recorded for one member is not given to a second, nor merged into the first — it is refused by name',
+    $clash['created'] === 0 && $clash['updated'] === 0 && $clash['failed'] === 1 && str_contains($clash['rows'][0]['detail'], 'Idris Own'));
+$again = MemberRoster::import(MemberRoster::parseCsv("Name,Email,Member ID
+Idris Own,idris@ms.test,AVG/24/0107
+")['rows'], ['actor' => 'x', 'id_format' => $fid]);
+ck('ID import: …while the same person with the same ID imports again cleanly', $again['failed'] === 0 && $again['created'] === 0);
 
 $msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test'");

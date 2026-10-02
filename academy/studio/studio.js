@@ -90,7 +90,7 @@
         ['Enrolments', s.enrolments, 'active learners'],
         ['Certificates', s.certificates, 'issued'],
         ['Applications', s.applications, 'lead sign-ups'],
-        ['Members', s.members, 'active memberships']
+        ['Paying dues', s.members, 'dues live now — not the same as members']
       ];
       $('#statGrid').innerHTML = cards.map(function (c) {
         return '<div class="stat"><div class="stat-num">' + esc(c[1]) + '</div><div class="stat-label">' + esc(c[0]) + '</div><div class="stat-sub">' + esc(c[2]) + '</div></div>';

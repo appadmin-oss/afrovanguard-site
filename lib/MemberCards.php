@@ -146,6 +146,31 @@ final class MemberCards
         return ['ok' => true, 'format' => $f, 'formats' => $list, 'by' => $by];
     }
 
+    /**
+     * An ID format, defined by the importer from one example ID.
+     *
+     * For cards whose QR encodes the member's ID and nothing else, so the
+     * template is the ID itself. The mask comes from the example — digits vary,
+     * everything else is as printed — and may be given instead: 9 a digit, A a
+     * letter, X either, * a run of them. This is narrower than saveFormat (a URL,
+     * a code inside other text), which stays with a Super Admin: an ID format
+     * only says what an ID looks like, and a card resolves to a member only
+     * when that member's ID has been recorded against it at import.
+     */
+    public static function saveIdFormat(string $example, string $label, string $mask, string $by): array
+    {
+        $example = strtoupper(trim($example));
+        if ($example === '' || strlen($example) > 40) return ['ok' => false, 'error' => 'Give one member ID exactly as it is printed, up to 40 characters.'];
+        if (preg_match('/\s/', $example)) return ['ok' => false, 'error' => 'An ID has no spaces.'];
+        $mask = strtoupper(trim($mask)) ?: (string) preg_replace('/\d/', '9', $example);
+        $label = trim($label) ?: 'Member IDs like ' . $example;
+        $id = 'id-' . trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($label)), '-');
+        $id = substr($id, 0, 40);
+        $r = self::saveFormat(['id' => $id, 'label' => mb_substr($label, 0, 60), 'template' => '{id}', 'mask' => $mask, 'example' => $example], $by);
+        if (!$r['ok']) return $r;
+        return $r + ['id_format' => true];
+    }
+
     /** What the gate is given: the formats that compile. */
     public static function gateFormats(): array
     {
@@ -265,7 +290,8 @@ final class MemberCards
     {
         self::ensure();
         $pdo = Database::pdo();
-        $sql = "FROM lms_users u WHERE u.status = 'active' AND NOT EXISTS (SELECT 1 FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = 'secure' AND c.status = 'active')";
+        // Members only: a learner taking an Academy course is not let in at the gate.
+        $sql = "FROM lms_users u WHERE u.status = 'active' AND " . MemberRoster::memberWhere() . " AND NOT EXISTS (SELECT 1 FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = 'secure' AND c.status = 'active')";
         $ids = $pdo->query('SELECT u.id ' . $sql . ' ORDER BY u.id LIMIT ' . max(1, min(500, $limit)))->fetchAll(PDO::FETCH_COLUMN);
         foreach ($ids as $id) self::issue((int) $id, $by, 'backfill');
         return ['issued' => count($ids), 'remaining' => (int) $pdo->query('SELECT COUNT(*) ' . $sql)->fetchColumn()];

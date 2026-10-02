@@ -469,9 +469,9 @@
         <div class="search-wrap mem-search">&#128269;<input type="search" id="memQ" placeholder="Search name, email or phone…" aria-label="Search members" /></div>
         <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
-        <select id="memKind" aria-label="NextGen Vanguards or not"><option value="">Everybody</option><option value="ngv">NextGen Vanguards</option><option value="member">Not NGV</option></select>
+        <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
-        <select id="memMembership" aria-label="Filter by membership"><option value="">Any membership</option><option value="member">Members (paid up)</option><option value="lifetime">Lifetime</option><option value="current">Current</option><option value="due_soon">Due within 30 days</option><option value="lapsed">Lapsed</option><option value="cancelled">Ended by the office</option><option value="never">Never a member</option></select>
+        <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
         <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
       </div>
       <!-- Many at once: one declared action, per-row verdicts, capped at 500 -->
@@ -484,8 +484,8 @@
           <option value="status:suspended">Suspend</option>
           <option value="centre">Set centre…</option>
           <option value="level">Set level…</option>
-          <option value="membership_grant">Give membership months (waiver or reason)…</option>
-          <option value="membership_cancel">End membership…</option>
+          <option value="membership_grant">Give months of dues (waiver or reason)…</option>
+          <option value="membership_cancel">End dues…</option>
         </select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
         <button class="btn btn-primary btn-sm" id="memBulkGo" disabled>Apply</button>
@@ -504,8 +504,17 @@
         <label class="btn btn-outline btn-sm mem-file">Choose CSV…<input type="file" id="miFile" accept=".csv,text/csv" hidden /></label>
         <span class="muted tiny" id="miFileName"></span>
         <div class="mem-create-grid" style="margin-top:12px">
+          <label class="fld"><span>What the ID column holds</span><select id="miIdFormat" aria-describedby="miIdHelp"></select></label>
           <label class="fld"><span>Cards these members already hold</span><select id="miFormat"></select></label>
           <label class="fld mem-check"><input type="checkbox" id="miOverwrite" /> <span>Replace values a record already has (default: fill blanks only)</span></label>
+        </div>
+        <p class="muted tiny" id="miIdHelp">If your cards carry your own member ID (and their QR encodes it), define its format once from one example. IDs that fit it are imported and the gate reads those cards; IDs that do not fit are named in the check.</p>
+        <div class="side-card mem-format" id="miNewIdFormat" hidden>
+          <label class="fld"><span>One member ID, exactly as printed</span><input id="ifExample" placeholder="AVG/23/0042" maxlength="40" /></label>
+          <label class="fld"><span>A name for these IDs</span><input id="ifLabel" placeholder="Afrovanguard member IDs" maxlength="60" /></label>
+          <label class="fld"><span>Shape (optional): 9 a digit, A a letter, X either</span><input id="ifMask" placeholder="worked out from the example" maxlength="40" /></label>
+          <div class="mem-errors" id="ifErrors" role="alert" hidden></div>
+          <div class="editor-actions"><button class="btn btn-outline btn-sm" id="ifCancel">Cancel</button><button class="btn btn-primary btn-sm" id="ifSave">Save ID format</button></div>
         </div>
         <div class="side-card mem-format" id="miNewFormat" hidden>
           <label class="fld"><span>What one of the old cards scans as</span><input id="mfExample" placeholder="https://old.example.org/member/00042" /></label>
@@ -544,7 +553,8 @@
         <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
         <p class="muted tiny" id="md_lock" hidden></p>
-        <h3 class="mem-card-h">Membership</h3>
+        <h3 class="mem-card-h">Dues</h3>
+        <p class="muted tiny">Dues open paid courses. They are not Afrovanguard membership: paying them changes nobody's access level.</p>
         <div id="mdMembership" aria-live="polite"></div>
         <div class="mem-ms-form" id="mdMsForm" hidden>
           <div class="mem-create-grid">
@@ -558,11 +568,11 @@
         </div>
         <div class="editor-actions" id="mdMsActions">
           <button class="btn btn-outline btn-sm" id="msGrant">Record dues / give months</button>
-          <button class="btn btn-outline btn-sm" id="msLifetime">Make lifetime</button>
-          <button class="btn btn-outline btn-sm" id="msEnd">End membership</button>
+          <button class="btn btn-outline btn-sm" id="msLifetime">Lifetime dues</button>
+          <button class="btn btn-outline btn-sm" id="msEnd">End dues</button>
           <button class="btn btn-outline btn-sm" id="msReinstate" hidden>Undo the ending</button>
         </div>
-        <details class="mem-history"><summary>Membership and dues history</summary><div id="mdMsHistory"></div></details>
+        <details class="mem-history"><summary>Dues history</summary><div id="mdMsHistory"></div></details>
         <h3 class="mem-card-h">Cards at the gate</h3>
         <div id="mdCards"></div>
         <div class="editor-actions">
