@@ -1,0 +1,172 @@
+<?php
+/**
+ * tests/membership.test.php — dues membership, and who may change a member.
+ *
+ *   • One definition of a member's state, and the dashboard count is the
+ *     length of the roster list it opens.
+ *   • The office can record dues taken in person, give months or a lifetime
+ *     membership with a reason, end one and undo that — every change a row,
+ *     every row saying who.
+ *   • Times are UTC; an email is matched whatever its case; a cancelled
+ *     membership is not "lifetime".
+ *   • Nobody changes their own access or status; staff are a Super Admin's;
+ *     access above instructor is a Super Admin's; an admin's email is never
+ *     handed to another account.
+ *   • Suspending ends the member's sessions.
+ *   • A bulk run is validated first, capped, per-row, and audited once.
+ *
+ * Run via tests/run.php (provides ck()).
+ */
+declare(strict_types=1);
+
+$msPdo = Database::pdo();
+MemberRoster::ensure();
+Membership::ensure();
+AdminRoles::ensure();
+$msPdo->exec("DELETE FROM memberships WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@ms.test')");
+$msPdo->exec("DELETE FROM payments WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@ms.test')");
+$msPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@ms.test'");
+$msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test'");
+
+$mk = function (string $name, string $email, string $role = 'member') use ($msPdo): int {
+    $msPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)')->execute([$name, $email, 'x', $role, 'active']);
+    return (int) $msPdo->lastInsertId();
+};
+$row = function (int $uid, string $status, ?string $expires, string $endedAt = '') use ($msPdo): void {
+    $msPdo->prepare("INSERT INTO memberships (user_id, tier, status, started_at, expires_at, ended_at) VALUES (?, 'member', ?, ?, ?, ?)")
+        ->execute([$uid, $status, gmdate('Y-m-d H:i:s', time() - 400 * 86400), $expires, $endedAt]);
+};
+$at = fn(int $days) => gmdate('Y-m-d H:i:s', time() + $days * 86400);
+
+/* ── One definition of state ─────────────────────────────────────────── */
+$life  = $mk('Lola Life', 'life@ms.test');      $row($life, 'active', null);
+$cur   = $mk('Chidi Current', 'cur@ms.test');   $row($cur, 'active', $at(200));
+$soon  = $mk('Sade Soon', 'soon@ms.test');      $row($soon, 'active', $at(10));
+$lap   = $mk('Lami Lapsed', 'lap@ms.test');     $row($lap, 'active', $at(-5));
+$canc  = $mk('Kunle Cancelled', 'canc@ms.test'); $row($canc, 'cancelled', null, gmdate('Y-m-d H:i:s'));   // a cancelled LIFETIME row
+$never = $mk('Ngozi Never', 'never@ms.test');
+
+$want = ['lifetime' => $life, 'current' => $cur, 'due_soon' => $soon, 'lapsed' => $lap, 'cancelled' => $canc, 'never' => $never];
+foreach ($want as $state => $uid) ck("Membership: $state is read as $state", Membership::summary($uid)['state'] === $state);
+
+$lms = new LmsRepository();
+ck('Membership: a cancelled lifetime membership is NOT "lifetime" on the member\'s dues panel',
+    $lms->duesStatus($canc)['lifetime'] === false && $lms->duesStatus($canc)['state'] === 'none');
+ck('Membership: isMember agrees — the lapsed and the cancelled are not members', !$lms->isMember($lap) && !$lms->isMember($canc) && $lms->isMember($soon));
+
+$ids = function (string $state): array {
+    $r = MemberRoster::roster(['membership' => $state, 'q' => '@ms.test', 'page_size' => 200]);
+    $x = array_map(fn($m) => (int) $m['id'], $r['members']); sort($x); return $x;
+};
+foreach ($want as $state => $uid) ck("Membership: the roster's \"$state\" filter is exactly that member", $ids($state) === [$uid]);
+ck('Membership: "member" is everybody with a live membership', $ids('member') === [$life, $cur, $soon]);
+$counts = Membership::counts();
+$all = 0; foreach (Membership::STATES as $s) $all += $counts[$s];
+ck('Membership: every member is in exactly one state', $all === (int) $msPdo->query('SELECT COUNT(*) FROM lms_users')->fetchColumn());
+ck('Membership: an unknown filter shows everybody rather than failing', MemberRoster::roster(['membership' => 'bogus', 'q' => '@ms.test'])['total'] === 6);
+$r = MemberRoster::roster(['q' => 'soon@ms.test']);
+ck('Membership: the roster row says where they stand, from the same query', ($r['members'][0]['membership'] ?? '') === 'due_soon');
+
+/* ── Recording dues the office took ──────────────────────────────────── */
+$g = Membership::grant($soon, ['months' => 12, 'amount_ngn' => 12000, 'method' => 'cash', 'reference' => 'RCPT-77', 'actor' => 'office@ms.test']);
+ck('Membership: dues paid in cash are recorded', $g['ok'] && $g['membership']['state'] === 'current' && $g['membership']['total_paid_ngn'] === 12000);
+ck('Membership: …extending from their paid-through date, not from today — paying early forfeits nothing',
+    abs(strtotime($g['expires_at'] . ' UTC') - strtotime('+12 months', strtotime($at(10) . ' UTC'))) < 5);
+ck('Membership: …with a payment row the receipt trail can find', (int) $msPdo->query("SELECT COUNT(*) FROM payments WHERE reference = 'OFF-RCPT-77' AND status = 'paid' AND kind = 'membership'")->fetchColumn() === 1);
+ck('Membership: the same receipt cannot be recorded twice',
+    (Membership::grant($soon, ['months' => 1, 'amount_ngn' => 1000, 'method' => 'cash', 'reference' => 'RCPT-77', 'actor' => 'x'])['code'] ?? '') === 'duplicate_reference');
+ck('Membership: money needs a method', !Membership::grant($cur, ['months' => 1, 'amount_ngn' => 1000, 'actor' => 'x'])['ok']);
+ck('Membership: free months need a reason', (Membership::grant($cur, ['months' => 1, 'actor' => 'x'])['code'] ?? '') === 'reason_required');
+ck('Membership: …a waiver is a reason', Membership::grant($never, ['months' => 6, 'method' => 'waiver', 'actor' => 'x'])['ok']
+    && Membership::summary($never)['state'] === 'current' && Membership::summary($never)['total_paid_ngn'] === 0);
+ck('Membership: months are bounded', !Membership::grant($cur, ['months' => 0, 'method' => 'waiver', 'actor' => 'x'])['ok']
+    && !Membership::grant($cur, ['months' => 500, 'method' => 'waiver', 'actor' => 'x'])['ok']);
+ck('Membership: a lifetime member is not sold months', (Membership::grant($life, ['months' => 1, 'method' => 'waiver', 'actor' => 'x'])['code'] ?? '') === 'lifetime');
+
+/* ── Lifetime, cancel, reinstate ─────────────────────────────────────── */
+ck('Membership: a lifetime membership needs a reason', (Membership::lifetime($cur, '', 'x')['code'] ?? '') === 'reason_required');
+ck('Membership: …and with one, it never expires', Membership::lifetime($cur, 'Founding member', 'x')['ok'] && Membership::summary($cur)['state'] === 'lifetime');
+ck('Membership: ending one needs a reason', (Membership::cancel($cur, '', 'x')['code'] ?? '') === 'reason_required');
+$c = Membership::cancel($cur, 'Asked to leave', 'office@ms.test');
+ck('Membership: ending one ends every live row, and says who and why', $c['ok'] && $c['membership']['state'] === 'cancelled'
+    && ($c['membership']['ended']['by'] ?? '') === 'office@ms.test' && !$lms->isMember($cur));
+ck('Membership: …and keeps the history — nothing is deleted', count(Membership::history($cur)['memberships']) >= 2);
+ck('Membership: a cancellation can be undone', Membership::reinstate($cur, 'x')['ok'] && Membership::summary($cur)['state'] === 'lifetime');
+$row($lap, 'cancelled', $at(-1), gmdate('Y-m-d H:i:s', time() - 3 * 86400));
+ck('Membership: …but not one that has run out since', (Membership::reinstate($lap, 'x')['code'] ?? '') === 'expired_since');
+
+/* ── UTC, and email case ─────────────────────────────────────────────── */
+$utc = $mk('Uche Utc', 'utc@ms.test');
+$lms->grantMembership($utc, 12);
+$exp = (string) $msPdo->query("SELECT expires_at FROM memberships WHERE user_id = $utc")->fetchColumn();
+ck('Membership: a paid membership\'s expiry is written in UTC, as it is compared', abs(strtotime($exp . ' UTC') - strtotime('+12 months')) < 5);
+ck('Membership: dues sent with the email in another case still land', $lms->grantMembershipByEmail('UTC@MS.Test', 1)
+    && (int) $msPdo->query("SELECT COUNT(*) FROM memberships WHERE user_id = $utc")->fetchColumn() === 2);
+
+/* ── Who may change what ─────────────────────────────────────────────── */
+$admin = $mk('Ada Admin', 'admin@ms.test');
+$coord = $mk('Coco Ordinator', 'coord@ms.test', 'coordinator');
+$studio = $mk('Stu Dio', 'studio@ms.test');
+AdminRoles::add('studio@ms.test', 'admin', 'test');
+AdminRoles::add('boss@ms.test', 'superadmin', 'test');
+$asAdmin = ['studio_role' => 'admin', 'self_id' => $admin];
+$asSuper = ['studio_role' => 'superadmin', 'self_id' => 0];
+
+ck('Guard: nobody suspends themselves', (MemberRoster::update($admin, ['status' => 'suspended'], 'x', $asAdmin)['code'] ?? '') === 'own_account');
+ck('Guard: …or changes their own access level', (MemberRoster::update($admin, ['role' => 'instructor'], 'x', $asAdmin)['code'] ?? '') === 'own_account');
+ck('Guard: …but may correct their own phone', MemberRoster::update($admin, ['phone' => '08030000000'], 'x', $asAdmin)['ok']);
+ck('Guard: a coordinator is staff — an admin cannot suspend them', (MemberRoster::update($coord, ['status' => 'suspended'], 'x', $asAdmin)['code'] ?? '') === 'staff_account');
+ck('Guard: …nor a Studio admin whose member role is plain', (MemberRoster::update($studio, ['email' => 'elsewhere@ms.test'], 'x', $asAdmin)['code'] ?? '') === 'staff_account');
+ck('Guard: …a Super Admin can', MemberRoster::update($coord, ['status' => 'suspended'], 'x', $asSuper)['ok']);
+MemberRoster::update($coord, ['status' => 'active'], 'x', $asSuper);
+ck('Guard: below Super Admin, access is given up to instructor', MemberRoster::update($never, ['role' => 'instructor'], 'x', $asAdmin)['ok']
+    && (MemberRoster::update($never, ['role' => 'admin'], 'x', $asAdmin)['code'] ?? '') === 'role_ceiling');
+ck('Guard: …and nobody is CREATED above it either', (MemberRoster::create(['name' => 'New Coord', 'email' => 'nc@ms.test', 'role' => 'coordinator'], 'x', 'studio', $asAdmin)['code'] ?? '') === 'role_ceiling');
+ck('Guard: a Super Admin\'s address cannot be moved onto another account — that was a way to become one',
+    (MemberRoster::update($never, ['email' => 'boss@ms.test'], 'x', $asAdmin)['code'] ?? '') === 'admin_email');
+ck('Guard: an internal caller (the importer) is not restricted by these', MemberRoster::update($never, ['role' => 'member'], 'importer')['ok']);
+
+/* ── Suspending ends sessions ────────────────────────────────────────── */
+$msPdo->prepare('INSERT INTO lms_sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')->execute([hash('sha256', 'ms-sess'), $soon, $at(30)]);
+MemberRoster::update($soon, ['status' => 'suspended'], 'x', $asAdmin);
+ck('Suspend: their sessions are gone, so reactivating does not revive them on a lost phone',
+    (int) $msPdo->query("SELECT COUNT(*) FROM lms_sessions WHERE user_id = $soon")->fetchColumn() === 0);
+MemberRoster::update($soon, ['status' => 'active'], 'x', $asAdmin);
+
+/* ── Bulk ────────────────────────────────────────────────────────────── */
+ck('Bulk: a run is capped, and the cap is named', (MemberRoster::bulk(range(1, MemberRoster::BULK_MAX + 1), 'centre', ['centre' => 'X'], 'x', $asAdmin)['code'] ?? '') === 'too_many');
+$before = (int) $msPdo->query("SELECT COUNT(*) FROM member_profiles WHERE centre = 'Ikeja'")->fetchColumn();
+ck('Bulk: the payload is checked before anything is written', !MemberRoster::bulk([$lap, $never], 'status', ['status' => 'banished'], 'x', $asAdmin)['ok']);
+$auditBefore = (int) $msPdo->query("SELECT COUNT(*) FROM lms_audit WHERE action = 'member.bulk'")->fetchColumn();
+$b = MemberRoster::bulk([$lap, $never, $coord, $admin, 999999], 'status', ['status' => 'suspended'], 'x', $asAdmin);
+$by = []; foreach ($b['results'] as $x) $by[$x['id']] = $x;
+ck('Bulk: refusals are per row and named, the rest go through — and it is reported as partial',
+    $b['ok'] && $b['partial'] && $b['applied'] === 2 && $b['refused'] === 3
+    && $by[$coord]['code'] === 'staff_account' && $by[$admin]['code'] === 'own_account' && $by[999999]['code'] === 'not_found');
+$again = MemberRoster::bulk([$lap, $never], 'status', ['status' => 'suspended'], 'x', $asAdmin);
+$bs = MemberRoster::bulk([$coord, $studio], 'status', ['status' => 'suspended'], 'x', $asSuper);
+ck('Bulk: a staff account\'s status is never changed in a crowd — not even by a Super Admin',
+    $bs['applied'] === 0 && $bs['refused'] === 2 && $bs['results'][0]['code'] === 'staff_account');
+ck('Bulk: "unchanged" is reported, distinct from applied', $again['unchanged'] === 2 && $again['applied'] === 0);
+ck('Bulk: one audit line for each run, not one per member',
+    (int) $msPdo->query("SELECT COUNT(*) FROM lms_audit WHERE action = 'member.bulk'")->fetchColumn() === $auditBefore + 3);   // three runs above
+$bg = MemberRoster::bulk([$lap, $admin], 'membership_grant', ['months' => 3, 'method' => 'waiver'], 'x', $asAdmin);
+ck('Bulk: months can be given to many — never to yourself', $bg['applied'] === 1 && Membership::summary($lap)['state'] === 'current'
+    && $bg['results'][1]['code'] === 'own_account');
+ck('Bulk: a bulk grant with no money needs a reason', (MemberRoster::bulk([$lap], 'membership_grant', ['months' => 3], 'x', $asAdmin)['code'] ?? '') === 'reason_required');
+$ix = MemberRoster::ids(['q' => '@ms.test']);
+ck('Bulk: "select all matching" is one request with the true total', $ix['total'] === count($ix['ids']) && !$ix['capped'] && in_array($never, $ix['ids'], true));
+
+/* ── Timeline ────────────────────────────────────────────────────────── */
+$tl = MemberRoster::timeline($soon);
+$what = array_column($tl, 'what');
+ck('Timeline: a member\'s history reads as sentences — the dues recorded, the suspension, who did it',
+    in_array('Membership granted', $what, true) && in_array('Changed', $what, true) && !array_filter($tl, fn($e) => $e['by'] === ''));
+
+/* ── The drawer carries it ───────────────────────────────────────────── */
+$m = MemberRoster::get($cur);
+ck('Drawer: a member\'s record includes their membership', ($m['membership']['state'] ?? '') === 'lifetime');
+ck('Drawer: …and says whether they are staff', MemberRoster::get($coord)['staff'] === true && MemberRoster::get($cur)['staff'] === false);
+ck('Dashboard: the overview counts memberships by state', isset(MemberRoster::overview()['membership']['due_soon']));
+
+$msPdo->exec("DELETE FROM admin_users WHERE email LIKE '%@ms.test'");

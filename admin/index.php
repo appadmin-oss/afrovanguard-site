@@ -471,8 +471,28 @@
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="NextGen Vanguards or not"><option value="">Everybody</option><option value="ngv">NextGen Vanguards</option><option value="member">Not NGV</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
+        <select id="memMembership" aria-label="Filter by membership"><option value="">Any membership</option><option value="member">Members (paid up)</option><option value="lifetime">Lifetime</option><option value="current">Current</option><option value="due_soon">Due within 30 days</option><option value="lapsed">Lapsed</option><option value="cancelled">Ended by the office</option><option value="never">Never a member</option></select>
         <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
       </div>
+      <!-- Many at once: one declared action, per-row verdicts, capped at 500 -->
+      <div class="mem-bulk" id="memBulk" hidden role="region" aria-label="Act on the chosen members">
+        <span id="memBulkCount" aria-live="polite"></span>
+        <button class="btn btn-outline btn-sm" id="memBulkAll" hidden></button>
+        <select id="memBulkAction" aria-label="Action for the chosen members">
+          <option value="">Choose an action…</option>
+          <option value="status:active">Reactivate</option>
+          <option value="status:suspended">Suspend</option>
+          <option value="centre">Set centre…</option>
+          <option value="level">Set level…</option>
+          <option value="membership_grant">Give membership months (waiver or reason)…</option>
+          <option value="membership_cancel">End membership…</option>
+        </select>
+        <input id="memBulkValue" hidden aria-label="Value for the action" />
+        <button class="btn btn-primary btn-sm" id="memBulkGo" disabled>Apply</button>
+        <button class="btn btn-outline btn-sm" id="memBulkClear">Clear</button>
+      </div>
+      <div id="memBulkResult" role="status"></div>
+      <label class="mem-check mem-selpage"><input type="checkbox" id="memSelPage" /> <span>Select this page</span></label>
       <div class="entry-list" id="memList"></div>
       <div class="mem-pager" id="memPager"></div>
     </section>
@@ -523,12 +543,33 @@
         </div>
         <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
+        <p class="muted tiny" id="md_lock" hidden></p>
+        <h3 class="mem-card-h">Membership</h3>
+        <div id="mdMembership" aria-live="polite"></div>
+        <div class="mem-ms-form" id="mdMsForm" hidden>
+          <div class="mem-create-grid">
+            <label class="fld"><span>Months</span><input id="ms_months" type="number" min="1" max="120" value="12" /></label>
+            <label class="fld"><span>Amount paid (₦) — 0 if none</span><input id="ms_amount" type="number" min="0" value="0" /></label>
+            <label class="fld"><span>How it was paid</span><select id="ms_method"><option value="">— no payment —</option></select></label>
+            <label class="fld"><span>Receipt or reference</span><input id="ms_ref" maxlength="60" /></label>
+          </div>
+          <label class="fld"><span>Reason or note</span><input id="ms_note" maxlength="500" placeholder="Required when nothing was paid, unless it is a waiver" /></label>
+          <div class="editor-actions"><button class="btn btn-outline btn-sm" id="msCancelForm">Cancel</button><button class="btn btn-primary btn-sm" id="msSave">Record</button></div>
+        </div>
+        <div class="editor-actions" id="mdMsActions">
+          <button class="btn btn-outline btn-sm" id="msGrant">Record dues / give months</button>
+          <button class="btn btn-outline btn-sm" id="msLifetime">Make lifetime</button>
+          <button class="btn btn-outline btn-sm" id="msEnd">End membership</button>
+          <button class="btn btn-outline btn-sm" id="msReinstate" hidden>Undo the ending</button>
+        </div>
+        <details class="mem-history"><summary>Membership and dues history</summary><div id="mdMsHistory"></div></details>
         <h3 class="mem-card-h">Cards at the gate</h3>
         <div id="mdCards"></div>
         <div class="editor-actions">
           <button class="btn btn-outline btn-sm" id="mdReissue">Lost card — issue a new one</button>
           <button class="btn btn-outline btn-sm" id="mdRetire" hidden>Reprinted — retire the old card</button>
         </div>
+        <details class="mem-history"><summary>What has happened to this member</summary><div id="mdTimeline"></div></details>
       </div>
       <div class="modal-foot"><button class="btn btn-outline btn-sm" id="mdSuspend"></button><button class="btn btn-primary btn-sm" id="mdSave">Save</button></div>
     </div>

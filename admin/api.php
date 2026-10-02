@@ -69,7 +69,7 @@ try {
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
-        'roster_create', 'roster_update', 'roster_import', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
+        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -93,6 +93,7 @@ try {
         'mem_list', 'mem_save', 'mem_create',
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
+        'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline',
         'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -132,12 +133,18 @@ try {
     $repo = new DiaryRepository();
     $ac   = new AcademyRepository();
     $lms  = new LmsRepository();
+    /* Who is acting on the member desk: their Studio level, and their own
+       member id so nobody changes their own access, status or membership. */
+    $memberCtx = static function () use ($role): array {
+        $me = class_exists('LmsAuth') ? LmsAuth::user() : null;
+        return ['studio_role' => $role, 'self_id' => (int) ($me['id'] ?? 0)];
+    };
 
     // Enterprise audit trail: record EVERY state-changing admin action centrally
     // (actor + proxy-validated client IP + action + best-effort target). This is
     // systemic — new write actions are covered automatically. mem_* self-audit
     // below with richer before/after detail, so they're excluded here.
-    if ($writing && !in_array($action, ['mem_save', 'mem_create', 'roster_create', 'roster_update', 'roster_import'], true)) {
+    if ($writing && !in_array($action, ['mem_save', 'mem_create', 'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk'], true)) {
         $auditTarget = (string) ($body['slug'] ?? $body['course'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
         if (isset($body['user_id'])) $auditTarget = trim($auditTarget . ' user#' . (int) $body['user_id']);
         $lms->audit($action, $auditTarget);
@@ -279,7 +286,7 @@ try {
                 'moderation'        => $pending,
                 'inbox'             => $cnt("SELECT COUNT(*) FROM enrollments"),
                 'subscribers'       => $cnt("SELECT COUNT(*) FROM subscribers"),
-                'members'           => $cnt("SELECT COUNT(*) FROM memberships WHERE status='active'"),
+                'members'           => Membership::counts()['member'],   // people with a live membership, not rows
                 'courses_published' => $cnt("SELECT COUNT(*) FROM courses WHERE status='published'"),
                 'enrolments'        => $cnt("SELECT COUNT(*) FROM course_enrolment"),
             ], 'email' => [
@@ -1095,45 +1102,20 @@ try {
                 'roles'   => array_keys(LmsAuth::ROLE_RANK),
                 'audit'   => $lms->recentAudit(30)]);
         case 'mem_save':
+            /* The older console's save, now the member desk's: one write path,
+               so a status change here also ends sessions and the gate pass, and
+               the same guards apply whichever screen the button is on. */
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $mid = (int) ($body['id'] ?? 0);
-            $m = $lms->memberById($mid);
-            if (!$m) json_out(['ok' => false, 'error' => 'Member not found.'], 404);
-            $changed = [];
-            if (isset($body['role']) && (string) $body['role'] !== $m['role']) {
-                if (!$lms->setMemberRole($mid, (string) $body['role'])) json_out(['ok' => false, 'error' => 'Unknown access level.'], 422);
-                $lms->audit('role_change', $m['email'], $m['role'] . ' → ' . $body['role']);
-                $changed[] = 'role';
-            }
-            if (isset($body['status']) && (string) $body['status'] !== $m['status']) {
-                if (!$lms->setMemberStatus($mid, (string) $body['status'])) json_out(['ok' => false, 'error' => 'Invalid status.'], 422);
-                $lms->audit($body['status'] === 'suspended' ? 'suspend' : 'reactivate', $m['email']);
-                $changed[] = 'status';
-            }
-            if (isset($body['level']) && class_exists('Levels')) {
-                $newLevel = (string) $body['level'];
-                if (Levels::of($mid) !== $newLevel) {
-                    if (!Levels::set($mid, $newLevel)) json_out(['ok' => false, 'error' => 'Unknown level.'], 422);
-                    $lms->audit('level_change', $m['email'], 'Level → ' . $newLevel);
-                    $changed[] = 'level';
-                }
-            }
-            /* Birthdays are recorded here, by the office — never by the member.
-               YYYY-MM-DD, or MM-DD when the year is not known; '' removes it.
-               The audit line says it changed, not what it is. */
-            if (array_key_exists('birthday', $body) && class_exists('Birthdays')) {
-                $was = Birthdays::of($mid);
-                $r = Birthdays::set($mid, (string) $body['birthday']);
-                if (empty($r['ok'])) json_out(['ok' => false, 'error' => $r['error'] ?? 'Not a birthday.'], 422);
-                if (Birthdays::of($mid) !== $was) { $lms->audit('birthday', $m['email'], $r['birthday'] === null ? 'removed' : 'recorded'); $changed[] = 'birthday'; }
-            }
-            json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null]);
+            if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'Member not found.'], 404);
+            $r = MemberRoster::update($mid, array_intersect_key($body, array_flip(['role', 'status', 'level', 'birthday'])), av_admin_actor(), $memberCtx());
+            json_out($r['ok'] ? ['ok' => true, 'changed' => $r['changed'], 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null] : $r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email'], true) ? 403 : 422));
         /* ── The member desk (lib/MemberRoster.php): validate → dry run → apply → audit ── */
         case 'roster_overview':
             json_out(['ok' => true] + MemberRoster::overview());
         case 'roster_list':
             json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
-                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'sort', 'dir', 'page', 'page_size']))));
+                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'sort', 'dir', 'page', 'page_size']))));
         case 'roster_get':
             $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
             json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
@@ -1147,13 +1129,43 @@ try {
             json_out(['ok' => true, 'groups' => MemberRoster::duplicates()]);
         case 'roster_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $r = MemberRoster::create($body, av_admin_actor());
-            json_out($r, $r['ok'] ? 200 : 422);
+            $r = MemberRoster::create($body, av_admin_actor(), 'studio', $memberCtx());
+            json_out($r, $r['ok'] ? 200 : (isset($r['code']) ? 403 : 422));
         case 'roster_update':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes']));
-            $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor());
+            $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor(), $memberCtx());
+            json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email'], true) ? 403 : 422));
+        /* ── Dues membership (lib/Membership.php) ── */
+        case 'roster_membership':
+            $mid = (int) ($_GET['id'] ?? 0);
+            if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'No such member.'], 404);
+            json_out(['ok' => true, 'membership' => Membership::summary($mid), 'methods' => Membership::METHODS] + Membership::history($mid));
+        case 'roster_membership_change':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $mid = (int) ($body['id'] ?? 0);
+            if (!$lms->memberById($mid)) json_out(['ok' => false, 'error' => 'No such member.'], 404);
+            if ($mid === $memberCtx()['self_id']) json_out(['ok' => false, 'code' => 'own_account', 'error' => 'Your own membership is changed by another admin.'], 403);
+            $do = (string) ($body['do'] ?? '');
+            $note = (string) ($body['note'] ?? '');
+            $r = match ($do) {
+                'grant'     => Membership::grant($mid, ['months' => (int) ($body['months'] ?? 12), 'amount_ngn' => (int) ($body['amount_ngn'] ?? 0),
+                                   'method' => (string) ($body['method'] ?? ''), 'reference' => (string) ($body['reference'] ?? ''), 'note' => $note, 'actor' => av_admin_actor()]),
+                'lifetime'  => Membership::lifetime($mid, $note, av_admin_actor()),
+                'cancel'    => Membership::cancel($mid, $note, av_admin_actor()),
+                'reinstate' => Membership::reinstate($mid, av_admin_actor()),
+                default     => ['ok' => false, 'error' => 'Unknown membership change.'],
+            };
             json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Many members, one declared action ── */
+        case 'roster_ids':
+            json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership']))));
+        case 'roster_bulk':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRoster::bulk((array) ($body['ids'] ?? []), (string) ($body['action'] ?? ''), (array) ($body['value'] ?? []), av_admin_actor(), $memberCtx());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'roster_timeline':
+            json_out(['ok' => true, 'events' => MemberRoster::timeline((int) ($_GET['id'] ?? 0))]);
         case 'roster_import':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             /* The file as ONE value (csv), for the reason parseCsv gives. */
@@ -1196,11 +1208,11 @@ try {
 
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $res = $lms->createMember((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'member'));
-            if (!empty($res['ok'])) $lms->audit('create_member', strtolower(trim((string) ($body['email'] ?? ''))), 'role ' . ($body['role'] ?? 'member'));
-            /* And a card the gate reads, printed new — the secure kind. */
-            if (!empty($res['ok']) && !empty($res['id'])) { try { $res['card'] = MemberCards::issue((int) $res['id'], av_admin_actor(), 'created'); } catch (Throwable $e) { error_log('[cards] ' . $e->getMessage()); } }
-            json_out($res, !empty($res['ok']) ? 200 : 422);
+            /* The member desk's create: validated, guarded, a gate card issued. */
+            $email = (string) ($body['email'] ?? '');
+            $res = MemberRoster::create(['name' => (string) ($body['name'] ?? '') ?: ucfirst(explode('@', $email)[0]), 'email' => $email,
+                                         'role' => (string) ($body['role'] ?? 'member')], av_admin_actor(), 'studio', $memberCtx());
+            json_out($res, !empty($res['ok']) ? 200 : (isset($res['code']) ? 403 : 422));
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
@@ -1311,7 +1323,7 @@ try {
                 'enrolments'        => $cnt("SELECT COUNT(*) FROM course_enrolment"),
                 'applications'      => $cnt("SELECT COUNT(*) FROM enrollments"),
                 'certificates'      => $cnt("SELECT COUNT(*) FROM certificates"),
-                'members'           => $cnt("SELECT COUNT(*) FROM memberships WHERE status='active'"),
+                'members'           => Membership::counts()['member'],   // people with a live membership, not rows
             ]]);
         }
         case 'purge_demo':

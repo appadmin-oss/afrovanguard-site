@@ -2871,6 +2871,8 @@
      Every write is validated on the server and refused in words; an import is
      a dry run until the dry run that was read is applied. */
   var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C'], memT, memPage = 1, memOpen = 0, memFormats = [];
+  var memSel = {}, memPageIds = [], memTotal = 0, memMember = null;
+  var MS_LABEL = { lifetime: 'Lifetime member', current: 'Member', due_soon: 'Dues due soon', lapsed: 'Lapsed', cancelled: 'Ended by the office', never: 'Never a member', member: 'Paid-up members', none: 'Not a member' };
   function memFill(sel, list, keep, label) {
     var el = $(sel); if (!el) return;
     var v = keep !== undefined ? keep : el.value;
@@ -2899,6 +2901,11 @@
       $('#memCounts').innerHTML = memChip(d.total, 'members') + memChip(d.vanguards, 'NextGen Vanguards')
         + Object.keys(d.by_status || {}).map(function (k) { return memChip(d.by_status[k], k); }).join('')
         + Object.keys(d.by_role || {}).map(function (k) { return memChip(d.by_role[k], k); }).join('');
+      /* Dues membership: each count opens the roster filtered to exactly those members. */
+      var ms = d.membership || {};
+      $('#memCounts').innerHTML += ['member', 'due_soon', 'lapsed', 'cancelled', 'lifetime', 'never'].map(function (k) {
+        return '<a href="#" class="mem-chip" data-ms="' + k + '"><b>' + (ms[k] || 0) + '</b> ' + escapeHtml(MS_LABEL[k].toLowerCase()) + '</a>';
+      }).join('');
       var max = Math.max.apply(null, (d.joined || []).map(function (m) { return m.joined; }).concat([1]));
       $('#memJoined').innerHTML = (d.joined || []).map(function (m) {
         return '<span style="height:' + Math.max(2, Math.round(m.joined / max * 100)) + '%" title="' + escapeHtml(m.month) + ': ' + m.joined + ' joined"><i>' + escapeHtml(m.month.slice(5)) + '</i></span>';
@@ -2926,9 +2933,11 @@
 
   function memRowHTML(m) {
     var badges = (m.ngv ? ' <span class="badge published" title="Enrolled in NextGen Vanguard, or holds an NGV ID card">NGV</span>' : '')
-      + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '');
+      + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '')
+      + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '');
     var meta = [m.email, m.phone, m.centre, 'level ' + (m.level || 'O'), m.role].filter(Boolean).map(escapeHtml).join(' · ');
     return '<div class="entry-row mem-row" data-id="' + m.id + '">'
+      + '<input type="checkbox" class="mem-pick" data-id="' + m.id + '"' + (memSel[m.id] ? ' checked' : '') + ' aria-label="Choose ' + escapeHtml(m.name || 'member') + '">'
       + '<div class="entry-info"><div class="entry-title">' + escapeHtml(m.name || '(no name)') + badges + '</div>'
       + '<div class="entry-meta">' + meta + '</div>'
       + '<div class="entry-meta">' + (m.card ? 'Gate card <code>' + escapeHtml(m.card) + '</code>' : '<b>No gate card</b>') + ' · joined ' + escapeHtml(String(m.joined_on || m.created_at || '').slice(0, 10)) + '</div></div>'
@@ -2937,7 +2946,7 @@
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -2945,11 +2954,101 @@
       memRoles = d.roles || memRoles; memLevels = d.levels || memLevels;
       if ($('#memRole').options.length <= 1) { var o = $('#memRole').value; $('#memRole').innerHTML = '<option value="">All access levels</option>' + memRoles.map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join(''); $('#memRole').value = o; }
       box.innerHTML = (d.members || []).length ? d.members.map(memRowHTML).join('') : '<p class="muted">' + (d.total === 0 && !$('#memQ').value ? 'No members yet. Add one, or import a spreadsheet.' : 'Nobody matches these filters.') + '</p>';
+      memPageIds = (d.members || []).map(function (m) { return +m.id; }); memTotal = d.total; memBulkSync();
       var pages = Math.max(1, Math.ceil(d.total / d.page_size));
       $('#memPager').innerHTML = pages > 1 ? '<button class="btn btn-outline btn-sm" data-pg="' + (memPage - 1) + '"' + (memPage <= 1 ? ' disabled' : '') + '>← Previous</button>'
         + '<span class="muted">Page ' + memPage + ' of ' + pages + ' · ' + d.total + ' members</span>'
         + '<button class="btn btn-outline btn-sm" data-pg="' + (memPage + 1) + '"' + (memPage >= pages ? ' disabled' : '') + '>Next →</button>' : '<span class="muted">' + d.total + ' member' + (d.total === 1 ? '' : 's') + '</span>';
-    }).catch(function () { box.innerHTML = '<p class="muted">Could not load.</p>'; });
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the roster. <button class="btn btn-outline btn-sm" id="memRetry">Retry</button></p>'; });
+  }
+  function memFilterQs() {
+    return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
+            'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value].join('&');
+  }
+
+  /* ── Many members at once ──
+     The count is read before the confirm, and the server's per-row verdicts
+     are reported as they are: a run where some were refused is partial. */
+  function memSelIds() { return Object.keys(memSel).map(Number); }
+  function memBulkSync() {
+    var n = memSelIds().length;
+    $('#memBulk').hidden = n === 0;
+    $('#memBulkCount').textContent = n + ' chosen';
+    var all = $('#memBulkAll');
+    all.hidden = !(n > 0 && memTotal > n && n >= memPageIds.length);
+    all.textContent = 'Choose all ' + memTotal + ' matching';
+    var onPage = memPageIds.filter(function (i) { return memSel[i]; }).length, sp = $('#memSelPage');
+    sp.checked = memPageIds.length > 0 && onPage === memPageIds.length;
+    sp.indeterminate = onPage > 0 && onPage < memPageIds.length;
+    var a = $('#memBulkAction').value, v = $('#memBulkValue');
+    v.hidden = !(a === 'centre' || a === 'level' || a === 'membership_grant' || a === 'membership_cancel');
+    v.placeholder = a === 'centre' ? 'Centre name' : a === 'level' ? 'Level (' + memLevels.join(', ') + ')' : a === 'membership_grant' ? 'Months, then a reason: 12 Scholarship' : 'Why these memberships end';
+    $('#memBulkGo').disabled = !a || n === 0;
+  }
+  function memBulkRun() {
+    var ids = memSelIds(), n = ids.length, a = $('#memBulkAction').value, raw = $('#memBulkValue').value.trim(), action = a, value = {};
+    if (a.indexOf('status:') === 0) { action = 'status'; value.status = a.slice(7); }
+    else if (a === 'centre') value.centre = raw;
+    else if (a === 'level') value.level = raw;
+    else if (a === 'membership_grant') { var m = raw.match(/^(\d+)\s*(.*)$/); if (!m) { toast('Start with the number of months, e.g. "12 Scholarship".'); return; } value.months = +m[1]; value.note = m[2]; if (/^waiver$/i.test(m[2])) { value.method = 'waiver'; value.note = ''; } }
+    else if (a === 'membership_cancel') value.note = raw;
+    var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
+    if (!confirm(label + ' — ' + n + ' member' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : ''))) return;
+    var b = $('#memBulkGo'); b.disabled = true;
+    post('roster_bulk', { ids: ids, action: action, value: value }).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#memBulkResult').innerHTML = '<div class="mem-errors">' + escapeHtml(d.error || 'Refused.') + '</div>'; return; }
+      var refused = (d.results || []).filter(function (x) { return x.outcome === 'refused'; });
+      $('#memBulkResult').innerHTML = '<p class="mem-bulk-sum"><b>' + (d.partial ? 'Partly done' : 'Done') + '</b> — ' + d.applied + ' changed · ' + d.unchanged + ' already so · ' + d.refused + ' refused</p>'
+        + refused.slice(0, 50).map(function (x) { return '<div class="muted tiny">↳ ' + escapeHtml((x.name || '#' + x.id) + ': ' + x.error) + '</div>'; }).join('');
+      memSel = {}; loadMemRoster();
+    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; memBulkSync(); });
+  }
+
+  /* ── One member's membership ── */
+  function msHTML(ms) {
+    if (!ms) return '';
+    var when = function (x) { return x ? String(x).slice(0, 10) : ''; };
+    var line = ms.state === 'lifetime' ? 'Lifetime member' + (ms.since ? ' since ' + when(ms.since) : '')
+      : ms.state === 'current' || ms.state === 'due_soon' ? 'Member, paid through <b>' + when(ms.paid_through) + '</b>' + (ms.state === 'due_soon' ? ' — due in ' + ms.days_left + ' day' + (ms.days_left === 1 ? '' : 's') : '')
+      : ms.state === 'lapsed' ? 'Lapsed' + (ms.paid_through ? ' on ' + when(ms.paid_through) : '')
+      : ms.state === 'cancelled' ? 'Ended by the office' + (ms.ended && ms.ended.at ? ' on ' + when(ms.ended.at) + ' by ' + escapeHtml(ms.ended.by) : '') + (ms.ended && ms.ended.note ? ' — “' + escapeHtml(ms.ended.note) + '”' : '')
+      : 'Never a member';
+    return '<p class="mem-ms-line">' + line + '</p><p class="muted tiny">Dues paid to date: ₦' + Number(ms.total_paid_ngn || 0).toLocaleString('en-NG') + ' in ' + ms.payments + ' payment' + (ms.payments === 1 ? '' : 's') + (ms.last_paid_at ? ' · last ' + when(ms.last_paid_at) : '') + '</p>';
+  }
+  function loadMemMembership() {
+    if (!memOpen) return;
+    api('roster_membership&id=' + memOpen).then(function (r) {
+      var d = r.data || {}; if (!d.ok) { $('#mdMembership').innerHTML = '<p class="muted">Could not load the membership.</p>'; return; }
+      var ms = d.membership;
+      $('#mdMembership').innerHTML = msHTML(ms);
+      $('#msLifetime').hidden = ms.state === 'lifetime';
+      $('#msEnd').hidden = !ms.member;
+      $('#msReinstate').hidden = ms.state !== 'cancelled';
+      $('#msGrant').hidden = ms.state === 'lifetime';
+      var sel = $('#ms_method'); if (sel.options.length <= 1) sel.innerHTML += (d.methods || []).map(function (x) { return '<option>' + escapeHtml(x) + '</option>'; }).join('');
+      var rows = (d.memberships || []).map(function (m) {
+        return '<div class="mem-ev">' + escapeHtml(String(m.started_at).slice(0, 10)) + ' → ' + escapeHtml(m.expires_at ? String(m.expires_at).slice(0, 10) : 'no expiry')
+          + ' · <b>' + escapeHtml(m.status) + '</b>' + (m.source ? ' · ' + escapeHtml(m.source) : '') + (m.granted_by ? ' · by ' + escapeHtml(m.granted_by) : '')
+          + (m.note ? '<div class="muted tiny">' + escapeHtml(m.note) + '</div>' : '') + (m.ended_at ? '<div class="muted tiny">ended ' + escapeHtml(String(m.ended_at).slice(0, 10)) + ' by ' + escapeHtml(m.ended_by) + '</div>' : '') + '</div>';
+      }).concat((d.payments || []).map(function (p) {
+        return '<div class="mem-ev">₦' + Number(p.amount_ngn).toLocaleString('en-NG') + ' · ' + escapeHtml(p.provider) + ' · ' + escapeHtml(p.status) + ' · ' + escapeHtml(String(p.paid_at || p.created_at).slice(0, 10)) + ' <code>' + escapeHtml(p.reference) + '</code>' + (p.recorded_by ? ' · recorded by ' + escapeHtml(p.recorded_by) : '') + '</div>';
+      }));
+      $('#mdMsHistory').innerHTML = rows.join('') || '<p class="muted">No membership has ever been recorded.</p>';
+    }).catch(function () { $('#mdMembership').innerHTML = '<p class="muted">Could not load the membership.</p>'; });
+    api('roster_timeline&id=' + memOpen).then(function (r) {
+      var ev = (r.data && r.data.events) || [];
+      $('#mdTimeline').innerHTML = ev.length ? ev.map(function (e) {
+        return '<div class="mem-ev"><b>' + escapeHtml(e.what) + '</b>' + (e.detail ? ' — ' + escapeHtml(e.detail) : '') + '<div class="muted tiny">' + escapeHtml(String(e.at).slice(0, 16)) + ' · ' + escapeHtml(e.by) + '</div></div>';
+      }).join('') : '<p class="muted">Nothing recorded yet.</p>';
+    });
+  }
+  function msChange(payload, done) {
+    post('roster_membership_change', Object.assign({ id: memOpen }, payload)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { toast(d.error || 'Refused.'); return; }
+      toast(d.unchanged ? 'Nothing to change.' : 'Membership updated.'); if (done) done(); loadMemMembership(); loadMemRoster();
+    }).catch(function () { toast('Network error.'); });
   }
 
   function loadMemDups() {
@@ -2982,6 +3081,14 @@
       $('#mdRetire').hidden = !(m.cards || []).some(function (c) { return c.kind === 'printed' && c.status === 'active'; });
       $('#mdSuspend').textContent = m.status === 'suspended' ? 'Reactivate' : 'Suspend';
       $('#mdSuspend').setAttribute('data-to', m.status === 'suspended' ? 'active' : 'suspended');
+      /* A staff member's access, status and email are a Super Admin's. Say so
+         rather than offer a control the server will refuse. */
+      var locked = !!m.staff && currentRole !== 'superadmin';
+      ['#md_role', '#md_email', '#mdSuspend'].forEach(function (s) { $(s).disabled = locked; });
+      $('#md_lock').hidden = !locked;
+      $('#md_lock').textContent = locked ? m.name + ' is staff: only a Super Admin changes their access level, status or email.' : '';
+      memMember = m; $('#mdMsForm').hidden = true;
+      $('#mdMembership').innerHTML = msHTML(m.membership); loadMemMembership();
       memErrors('#md_errors', null);
       $('#memDrawer').hidden = false; $('#md_name').focus();
     });
@@ -3030,7 +3137,48 @@
   if ($('#membersView')) {
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
-    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; loadMemRoster(); }); });
+    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memMembership', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    $('#memCounts').addEventListener('click', function (e) {
+      var a = e.target.closest('[data-ms]'); if (!a) return; e.preventDefault();
+      $('#memMembership').value = a.getAttribute('data-ms'); memPage = 1; memSel = {}; memTab('roster');
+    });
+    $('#memList').addEventListener('change', function (e) {
+      var c = e.target.closest('.mem-pick'); if (!c) return;
+      if (c.checked) memSel[+c.getAttribute('data-id')] = true; else delete memSel[+c.getAttribute('data-id')];
+      memBulkSync();
+    });
+    $('#memSelPage').addEventListener('change', function () {
+      var on = this.checked; memPageIds.forEach(function (i) { if (on) memSel[i] = true; else delete memSel[i]; });
+      document.querySelectorAll('#memList .mem-pick').forEach(function (c) { c.checked = on; }); memBulkSync();
+    });
+    $('#memBulkAll').addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      api('roster_ids&' + memFilterQs()).then(function (r) {
+        var d = r.data || {}; (d.ids || []).forEach(function (i) { memSel[i] = true; });
+        if (d.capped) toast('Only the first ' + d.ids.length + ' can be chosen at once.');
+        document.querySelectorAll('#memList .mem-pick').forEach(function (c) { c.checked = true; }); memBulkSync();
+      }).finally(function () { b.disabled = false; });
+    });
+    $('#memBulkAction').addEventListener('change', memBulkSync);
+    $('#memBulkClear').addEventListener('click', function () { memSel = {}; document.querySelectorAll('#memList .mem-pick').forEach(function (c) { c.checked = false; }); $('#memBulkResult').innerHTML = ''; memBulkSync(); });
+    $('#memBulkGo').addEventListener('click', memBulkRun);
+    $('#memList').addEventListener('click', function (e) { if (e.target.closest('#memRetry')) loadMemRoster(); });
+
+    $('#msGrant').addEventListener('click', function () { $('#mdMsForm').hidden = false; $('#ms_months').focus(); });
+    $('#msCancelForm').addEventListener('click', function () { $('#mdMsForm').hidden = true; });
+    $('#msSave').addEventListener('click', function () {
+      msChange({ do: 'grant', months: +$('#ms_months').value, amount_ngn: +$('#ms_amount').value || 0, method: $('#ms_method').value,
+                 reference: $('#ms_ref').value.trim(), note: $('#ms_note').value.trim() }, function () { $('#mdMsForm').hidden = true; ['#ms_ref', '#ms_note'].forEach(function (s) { $(s).value = ''; }); $('#ms_amount').value = 0; });
+    });
+    $('#msLifetime').addEventListener('click', function () {
+      var why = prompt('Why does this membership never expire? (recorded on their history)'); if (!why) return;
+      msChange({ do: 'lifetime', note: why });
+    });
+    $('#msEnd').addEventListener('click', function () {
+      var why = prompt('Why is this membership ending? Money already paid is not refunded by this.'); if (!why) return;
+      msChange({ do: 'cancel', note: why });
+    });
+    $('#msReinstate').addEventListener('click', function () { if (confirm('Undo the ending? Their membership runs to the date it would have.')) msChange({ do: 'reinstate' }); });
     $('#memPager').addEventListener('click', function (e) { var b = e.target.closest('[data-pg]'); if (!b) return; memPage = +b.getAttribute('data-pg'); loadMemRoster(); });
     $('#memQuality').addEventListener('click', function (e) {
       var a = e.target.closest('[data-missing]'); if (!a) return; e.preventDefault();

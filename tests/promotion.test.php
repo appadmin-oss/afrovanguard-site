@@ -282,8 +282,10 @@ if (preg_match("~case 'promotion_queue'.*?case 'brief_latest'~s", $apiSrc3, $pm)
 ck('studio: the promotion block was found', $block !== '');
 ck('studio: and it never sets a level', strpos($block, 'Levels::set') === false);
 ck('studio: nor promotes', strpos($block, 'promoteIfEligible') === false);
+// Every Studio level change now goes through the member desk's single write,
+// MemberRoster::update — mem_save included — so the API sets no level itself.
 ck('studio: mem_save is still the one path that changes a level',
-   substr_count($apiSrc3, 'Levels::set(') === 1);
+   substr_count($apiSrc3, 'Levels::set(') === 0 && preg_match("~case 'mem_save':.*?MemberRoster::update\(~s", $apiSrc3) === 1);
 
 $cronSrc3 = (string) file_get_contents(AV_ROOT . '/tasks/cron.php');
 ck('cron: the promotion sweep is wired in', strpos($cronSrc3, 'Promotion::sweep()') !== false);

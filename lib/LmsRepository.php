@@ -544,33 +544,36 @@ final class LmsRepository
     {
         // Renewals extend from the LATER of now or the member's current paid-through
         // date, so paying dues early (or twice) never forfeits time already paid for.
-        $base = time();
         $cur  = $this->latestMembership($userId);
-        if ($cur && !empty($cur['expires_at'])) {
-            $curTs = strtotime((string) $cur['expires_at']);
-            if ($curTs && $curTs > $base) $base = $curTs;
-        }
-        $exp = date('Y-m-d H:i:s', strtotime("+$months months", $base));
-        $this->db->prepare("INSERT INTO memberships (user_id, tier, status, expires_at) VALUES (?, 'member', 'active', ?)")
-            ->execute([$userId, $exp]);
+        /* UTC, as isMember() compares and SQLite's datetime('now') writes. This
+           used date() — local time — so on a server set to Lagos every paid
+           membership ended an hour after the date it showed. */
+        $base = $cur && !empty($cur['expires_at']) ? max(time(), (int) strtotime((string) $cur['expires_at'] . ' UTC')) : time();
+        $exp = gmdate('Y-m-d H:i:s', (int) strtotime("+$months months", $base));
+        $this->db->prepare("INSERT INTO memberships (user_id, tier, status, started_at, expires_at) VALUES (?, 'member', 'active', ?, ?)")
+            ->execute([$userId, gmdate('Y-m-d H:i:s'), $exp]);
     }
 
     /** Extend a member's membership by N months, found by email (recurring dues). */
     public function grantMembershipByEmail(string $email, int $months = 1): bool
     {
-        $s = $this->db->prepare('SELECT id FROM lms_users WHERE email = ? LIMIT 1');
-        $s->execute([$email]);
+        // Case-insensitive, like every other email lookup: a gateway that echoes
+        // "Ada@Example.com" must find ada@example.com, not drop the dues.
+        $s = $this->db->prepare('SELECT id FROM lms_users WHERE LOWER(email) = ? LIMIT 1');
+        $s->execute([strtolower(trim($email))]);
         $id = (int) ($s->fetchColumn() ?: 0);
         if ($id <= 0) return false;
         $this->grantMembership($id, max(1, $months));
         return true;
     }
 
-    /** The member's most recent membership row (lifetime rows first, then latest expiry). */
+    /** The member's most recent ACTIVE membership row (lifetime first, then latest expiry).
+     *  Active only: a cancelled lifetime row used to win this ordering, so a
+     *  member whose membership the office had ended read as "lifetime" here. */
     public function latestMembership(int $userId): ?array
     {
         $s = $this->db->prepare(
-            "SELECT * FROM memberships WHERE user_id = ?
+            "SELECT * FROM memberships WHERE user_id = ? AND status = 'active'
              ORDER BY (expires_at IS NULL) DESC, expires_at DESC, id DESC LIMIT 1"
         );
         $s->execute([$userId]);
@@ -593,7 +596,7 @@ final class LmsRepository
 
         $daysLeft = null;
         if ($paidThrough) {
-            $ts = strtotime((string) $paidThrough);
+            $ts = strtotime((string) $paidThrough . ' UTC');   // stored in UTC
             if ($ts) $daysLeft = (int) floor(($ts - time()) / 86400);
         }
 
@@ -629,7 +632,7 @@ final class LmsRepository
             'period'        => 'year',
             'state'         => $state,
             'lifetime'      => $lifetime,
-            'paid_through'  => $paidThrough ? gmdate('c', (int) strtotime((string) $paidThrough)) : null,
+            'paid_through'  => $paidThrough ? gmdate('c', (int) strtotime((string) $paidThrough . ' UTC')) : null,
             'days_left'     => $daysLeft,
             'last_paid_at'  => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
             'total_paid_ngn' => $totalPaidNgn,   // cumulative dues contributed

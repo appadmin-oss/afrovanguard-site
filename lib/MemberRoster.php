@@ -155,13 +155,72 @@ final class MemberRoster
         return ['ok' => !$e, 'clean' => $c, 'errors' => $e];
     }
 
+    /* ══ Who may change what ════════════════════════════════════════════════
+     *
+     * $ctx describes the person acting: ['studio_role' => superadmin|admin|
+     * editor, 'self_id' => their own lms_users id, or 0]. An empty $ctx is an
+     * internal caller (the importer, NGV intake) and is not restricted here —
+     * the importer has its own staff rule.
+     *
+     *   own_account    nobody changes their own access level, status or
+     *                  sign-in email from the desk. An admin who suspends
+     *                  themselves is locked out; one who promotes themselves
+     *                  has granted themselves something.
+     *   staff_account  a coordinator, admin or Studio admin is not a member
+     *                  row: their access, status and email are a Super
+     *                  Admin's to change.
+     *   role_ceiling   below Super Admin, access is granted up to instructor.
+     *                  Coordinator and admin are roles decisions.
+     *   admin_email    an email on the Studio admin list is never given to
+     *                  another account. Sign-in resolves an email to a Studio
+     *                  role, so moving a known-password account onto a Super
+     *                  Admin's address WAS a way to become one.
+     */
+    public const GUARDED = ['role', 'status', 'email'];
+
+    public static function isStaff(array $u): bool
+    {
+        if (LmsAuth::rank((string) ($u['role'] ?? '')) > LmsAuth::ROLE_RANK['instructor']) return true;
+        return class_exists('AdminRoles') && AdminRoles::roleForEmail((string) ($u['email'] ?? '')) !== '';
+    }
+
+    /** null if allowed, else ['ok'=>false, code, error]. $c is the clean patch, $u the current row (null when creating). */
+    private static function guard(?array $u, array $c, array $ctx): ?array
+    {
+        if (!$ctx) return null;
+        $super = ($ctx['studio_role'] ?? '') === 'superadmin';
+        $no = static fn(string $code, string $msg) => ['ok' => false, 'code' => $code, 'error' => $msg];
+        $touch = [];
+        if ($u) {
+            if (isset($c['role']) && $c['role'] !== (string) $u['role']) $touch[] = 'role';
+            if (isset($c['status']) && $c['status'] !== (string) $u['status']) $touch[] = 'status';
+            if (($c['email'] ?? '') !== '' && $c['email'] !== strtolower((string) $u['email'])) $touch[] = 'email';
+        }
+        if ($u && $touch && (int) ($ctx['self_id'] ?? 0) === (int) $u['id']) {
+            return $no('own_account', 'You cannot change your own ' . implode(' or ', $touch) . ' here. Another admin can.');
+        }
+        if ($u && $touch && !$super && self::isStaff($u)) {
+            return $no('staff_account', $u['name'] . ' is staff. Only a Super Admin changes a staff member’s ' . implode(', ', $touch) . '.');
+        }
+        $newRole = $c['role'] ?? null;
+        if ($newRole !== null && (!$u || $newRole !== (string) $u['role']) && !$super && LmsAuth::rank($newRole) > LmsAuth::ROLE_RANK['instructor']) {
+            return $no('role_ceiling', 'Giving somebody the ' . $newRole . ' access level is a Super Admin’s decision.');
+        }
+        $newEmail = $c['email'] ?? '';
+        if ($newEmail !== '' && (!$u || $newEmail !== strtolower((string) $u['email']))
+            && class_exists('AdminRoles') && AdminRoles::roleForEmail($newEmail) !== '' && !$super) {
+            return $no('admin_email', $newEmail . ' is on the Studio admin list. It cannot be given to another account.');
+        }
+        return null;
+    }
+
     /* ══ One member ═════════════════════════════════════════════════════════ */
 
     /**
      * Add a member. Validated first; a secure gate card issued at once, so a
      * member made here is printed with a card nobody can guess.
      */
-    public static function create(array $d, string $actor, string $source = 'studio'): array
+    public static function create(array $d, string $actor, string $source = 'studio', array $ctx = []): array
     {
         /* An email that already has an account IS that account. Adding them
            again links to it: blanks are filled from what was typed, nothing
@@ -182,7 +241,7 @@ final class MemberRoster
                                             : trim((string) ($have[$k] ?? '')) === '';
                     if ($given !== '' && $unset) $fill[$k] = $given;
                 }
-                $r = $fill ? self::update($existing, $fill, $actor) : ['ok' => true, 'changed' => []];
+                $r = $fill ? self::update($existing, $fill, $actor, $ctx) : ['ok' => true, 'changed' => []];
                 if (!$r['ok']) return $r;
                 $card = MemberCards::ensureFor($existing, $actor, $source)['secure'];
                 $linkedNgv = class_exists('NgvMember') ? NgvMember::linkByEmail($existing, $email) : 0;
@@ -194,6 +253,7 @@ final class MemberRoster
         $v = self::validate($d, null);
         if (!$v['ok']) return ['ok' => false, 'error' => reset($v['errors']), 'errors' => $v['errors']];
         $c = $v['clean'];
+        if ($g = self::guard(null, $c, $ctx)) return $g;
         $email = $c['email'];
         $pdo = Database::pdo();
         $pdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)')
@@ -210,7 +270,7 @@ final class MemberRoster
     }
 
     /** Change a member. Only the fields given; each change audited by name, not value. */
-    public static function update(int $id, array $d, string $actor): array
+    public static function update(int $id, array $d, string $actor, array $ctx = []): array
     {
         self::ensure();
         $u = self::user($id);
@@ -221,6 +281,7 @@ final class MemberRoster
         $v = self::validate($d, $id);
         if (!$v['ok']) return ['ok' => false, 'error' => reset($v['errors']), 'errors' => $v['errors']];
         $c = $v['clean'];
+        if ($g = self::guard($u, $c, $ctx)) return $g;
         $changed = [];
         $pdo = Database::pdo();
         if ($c['name'] !== (string) $u['name']) { $pdo->prepare('UPDATE lms_users SET name = ? WHERE id = ?')->execute([$c['name'], $id]); $changed[] = 'name'; }
@@ -228,8 +289,15 @@ final class MemberRoster
         if (isset($c['role']) && $c['role'] !== (string) $u['role']) { $pdo->prepare('UPDATE lms_users SET role = ? WHERE id = ?')->execute([$c['role'], $id]); $changed[] = 'role'; }
         if (isset($c['status']) && $c['status'] !== (string) $u['status']) {
             $pdo->prepare('UPDATE lms_users SET status = ? WHERE id = ?')->execute([$c['status'], $id]);
-            /* Suspending withdraws the gate pass and the card at the gate, as the existing console does. */
-            if ($c['status'] === 'suspended' && class_exists('GatePass')) { try { GatePass::revoke($id); } catch (Throwable $e) {} }
+            /* Suspending ends their sessions and withdraws the gate pass, as
+               the old console did. The desk said "they are signed out" and left
+               the sessions in place: unusable while suspended (a session is
+               honoured only for an active account), but alive again the moment
+               they were reactivated — on every device, including a lost one. */
+            if ($c['status'] === 'suspended') {
+                $pdo->prepare('DELETE FROM lms_sessions WHERE user_id = ?')->execute([$id]);
+                if (class_exists('GatePass')) { try { GatePass::revoke($id); } catch (Throwable $e) { error_log('[gate] revoke on suspend #' . $id . ': ' . $e->getMessage()); } }
+            }
             $changed[] = 'status';
         }
         if (isset($c['level']) && class_exists('Levels') && Levels::of($id) !== $c['level']) { Levels::set($id, $c['level'], $actor); $changed[] = 'level'; }
@@ -282,6 +350,8 @@ final class MemberRoster
             'birthday' => $b ? (($b['year'] ?? 0) > 0 ? $b['year'] . '-' : '') . $b['birthday'] : '',
             'ngv' => class_exists('NgvMember') && NgvMember::isVanguard($id),
             'cards' => MemberCards::of($id),
+            'staff' => self::isStaff($u),
+            'membership' => Membership::summary($id),
         ];
     }
 
@@ -305,6 +375,10 @@ final class MemberRoster
             'card' => "NOT EXISTS (SELECT 1 FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = 'secure' AND c.status = 'active')",
         ];
         if (isset($missing[(string) ($f['missing'] ?? '')])) $w[] = $missing[(string) $f['missing']];
+        /* Dues membership, by the same SQL the dashboard counts with. An
+           unknown value falls back to everybody, so a stale link shows the
+           roster rather than an error. */
+        if (($ms = Membership::stateSql((string) ($f['membership'] ?? ''))) !== null) { $w[] = $ms[0]; array_push($a, ...$ms[1]); }
         /* NextGen Vanguards, or members who are not. The NGV record lives in its
            own database, so the ids are read there and filtered here. */
         $kind = (string) ($f['kind'] ?? '');
@@ -323,11 +397,18 @@ final class MemberRoster
         $size = max(10, min(200, (int) ($f['page_size'] ?? 50)));
         $page = max(1, (int) ($f['page'] ?? 1));
         $st = $pdo->prepare('SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.last_login, u.level, u.birthday, u.birth_year, p.phone, p.centre, p.joined_on,
-                (SELECT c.code FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = \'secure\' AND c.status = \'active\' ORDER BY c.id DESC LIMIT 1) AS card'
+                (SELECT c.code FROM av_member_cards c WHERE c.member_id = u.id AND c.kind = \'secure\' AND c.status = \'active\' ORDER BY c.id DESC LIMIT 1) AS card,
+                (SELECT MAX(CASE WHEN m.expires_at IS NULL THEN \'9999-12-31 00:00:00\' ELSE m.expires_at END) FROM memberships m WHERE m.user_id = u.id AND m.status = \'active\') AS paid_through'
             . $from . " ORDER BY $sort $dir, u.id DESC LIMIT $size OFFSET " . (($page - 1) * $size));
         $st->execute($a);
         $ngv = self::vanguardIds();
-        $rows = array_map(static fn($r) => $r + ['ngv' => isset($ngv[(int) $r['id']])], $st->fetchAll(PDO::FETCH_ASSOC));
+        $now = Membership::now(); $soon = gmdate('Y-m-d H:i:s', time() + Membership::DUE_SOON_DAYS * 86400);
+        $rows = array_map(static function ($r) use ($ngv, $now, $soon) {
+            $pt = (string) ($r['paid_through'] ?? '');
+            $r['membership'] = $pt === '' || $pt <= $now ? 'none' : ($pt === '9999-12-31 00:00:00' ? 'lifetime' : ($pt <= $soon ? 'due_soon' : 'current'));
+            if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
+            return $r + ['ngv' => isset($ngv[(int) $r['id']])];
+        }, $st->fetchAll(PDO::FETCH_ASSOC));
         return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size];
     }
 
@@ -374,7 +455,115 @@ final class MemberRoster
             'by_centre' => $col("SELECT COALESCE(NULLIF(p.centre, ''), '(none)'), COUNT(*) FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id GROUP BY COALESCE(NULLIF(p.centre, ''), '(none)')"),
             'joined' => $months,
             'quality' => $quality,
+            'membership' => Membership::counts(),
         ];
+    }
+
+    /* ══ Many members at once ═══════════════════════════════════════════════
+     *
+     * One declaration per action, each delegating to the single-member write,
+     * so a bulk change and a change made in the drawer cannot do different
+     * things or be permitted differently. Validated before anything is
+     * written; capped; every row gets its own verdict (applied, unchanged,
+     * refused with a reason); one audit line for the run.
+     */
+    public const BULK_MAX = 500;
+    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel'];
+
+    public static function bulk(array $ids, string $action, array $value, string $actor, array $ctx = []): array
+    {
+        self::ensure();
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn($i) => $i > 0)));
+        if (!$ids) return ['ok' => false, 'error' => 'Choose at least one member.'];
+        if (count($ids) > self::BULK_MAX) return ['ok' => false, 'code' => 'too_many', 'error' => 'At most ' . self::BULK_MAX . ' members at once — this is ' . count($ids) . '.'];
+        if (!in_array($action, self::BULK_ACTIONS, true)) return ['ok' => false, 'error' => 'Unknown action.'];
+
+        /* The whole payload is checked before any row is touched. */
+        $patch = null;
+        if ($action === 'status') {
+            $to = (string) ($value['status'] ?? '');
+            if (!in_array($to, ['active', 'suspended'], true)) return ['ok' => false, 'error' => 'Status is active or suspended.'];
+            $patch = ['status' => $to];
+        } elseif ($action === 'centre') {
+            $patch = ['centre' => mb_substr(trim((string) ($value['centre'] ?? '')), 0, 60)];
+        } elseif ($action === 'level') {
+            $lv = strtoupper(trim((string) ($value['level'] ?? '')));
+            $order = class_exists('Levels') ? Levels::order() : ['O', 'A', 'B', 'C'];
+            if (!in_array($lv, $order, true)) return ['ok' => false, 'error' => 'Level is one of ' . implode(', ', $order) . '.'];
+            $patch = ['level' => $lv];
+        } elseif ($action === 'membership_grant') {
+            $months = (int) ($value['months'] ?? 0);
+            if ($months < 1 || $months > Membership::MAX_MONTHS) return ['ok' => false, 'error' => 'Give between 1 and ' . Membership::MAX_MONTHS . ' months.'];
+            /* Money is recorded one member at a time, against a receipt; a bulk
+               grant is a waiver or carries a reason. */
+            if ((string) ($value['method'] ?? '') !== 'waiver' && trim((string) ($value['note'] ?? '')) === '')
+                return ['ok' => false, 'code' => 'reason_required', 'error' => 'Months with no payment need a reason — mark it a waiver, or say why.'];
+        } elseif ($action === 'membership_cancel') {
+            if (trim((string) ($value['note'] ?? '')) === '') return ['ok' => false, 'code' => 'reason_required', 'error' => 'Say why these memberships are ending.'];
+        }
+
+        $results = []; $applied = 0; $unchanged = 0; $refused = 0;
+        $self = (int) ($ctx['self_id'] ?? 0);
+        foreach ($ids as $id) {
+            $u = self::user($id);
+            if (!$u) { $results[] = ['id' => $id, 'outcome' => 'refused', 'code' => 'not_found', 'error' => 'No such member.']; $refused++; continue; }
+            /* A staff account's status is never changed in a crowd, Super Admin
+               or not: suspending the coordinator because they were on the page
+               you selected is not a decision anybody made. One at a time, in
+               the drawer, where the guard and the person are both visible. */
+            if ($action === 'status' && self::isStaff($u)) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'staff_account', 'error' => $u['name'] . ' is staff — change their status on their own record.']; $refused++; continue; }
+            if (str_starts_with($action, 'membership_')) {
+                if ($ctx && $self === $id) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'own_account', 'error' => 'Your own membership is changed by another admin.']; $refused++; continue; }
+                $r = $action === 'membership_grant'
+                    ? Membership::grant($id, ['months' => (int) $value['months'], 'method' => (string) ($value['method'] ?? ''), 'note' => (string) ($value['note'] ?? ''), 'actor' => $actor])
+                    : Membership::cancel($id, (string) $value['note'], $actor);
+                $outcome = !$r['ok'] ? 'refused' : (!empty($r['unchanged']) ? 'unchanged' : 'applied');
+            } else {
+                $r = self::update($id, $patch, $actor, $ctx);
+                $outcome = !$r['ok'] ? 'refused' : (empty($r['changed']) ? 'unchanged' : 'applied');
+            }
+            $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => $outcome] + ($r['ok'] ? [] : ['code' => $r['code'] ?? 'refused', 'error' => $r['error'] ?? 'Refused.']);
+            if ($outcome === 'applied') $applied++; elseif ($outcome === 'unchanged') $unchanged++; else $refused++;
+        }
+        $what = $action . ($patch ? ' → ' . implode(', ', array_map('strval', $patch)) : (isset($value['months']) ? ' → ' . (int) $value['months'] . ' months' : ''));
+        self::lms()->audit('member.bulk', '', sprintf('%s · %d chosen · %d applied · %d unchanged · %d refused', $what, count($ids), $applied, $unchanged, $refused), $actor);
+        return ['ok' => true, 'partial' => $refused > 0, 'chosen' => count($ids), 'applied' => $applied, 'unchanged' => $unchanged, 'refused' => $refused, 'results' => $results];
+    }
+
+    /** Every id matching a roster filter, so "select all N matching" is one request, capped like a run. */
+    public static function ids(array $f): array
+    {
+        $f['page'] = 1; $f['page_size'] = 200;
+        $all = []; $total = 0;
+        for ($p = 1; $p <= (int) ceil(self::BULK_MAX / 200) + 1; $p++) {
+            $f['page'] = $p;
+            $r = self::roster($f); $total = $r['total'];
+            foreach ($r['members'] as $m) $all[] = (int) $m['id'];
+            if (count($r['members']) < 200 || count($all) > self::BULK_MAX) break;
+        }
+        return ['ids' => array_slice($all, 0, self::BULK_MAX), 'total' => $total, 'capped' => $total > self::BULK_MAX];
+    }
+
+    /* ══ What has happened to this member ═══════════════════════════════════ */
+
+    private const EVENTS = [
+        'member.create' => 'Added', 'member.link' => 'Linked to an existing account', 'member.update' => 'Changed',
+        'member.import' => 'Imported', 'membership.grant' => 'Membership granted', 'membership.lifetime' => 'Lifetime membership',
+        'membership.cancel' => 'Membership ended', 'membership.reinstate' => 'Membership reinstated',
+        'card.reissue' => 'New gate card', 'role_change' => 'Access level changed', 'suspend' => 'Suspended',
+        'reactivate' => 'Reactivated', 'level_change' => 'Level changed', 'birthday' => 'Birthday', 'create_member' => 'Added',
+    ];
+
+    /** The audit trail for one member, as sentences: what, when, by whom. */
+    public static function timeline(int $id): array
+    {
+        $u = self::user($id);
+        if (!$u) return [];
+        (new LmsRepository())->recentAudit(1);   // ensures the table
+        $st = Database::pdo()->prepare('SELECT action, detail, actor, created_at FROM lms_audit WHERE LOWER(target) = ? ORDER BY id DESC LIMIT 100');
+        $st->execute([strtolower((string) $u['email'])]);
+        return array_map(static fn($r) => ['what' => self::EVENTS[$r['action']] ?? $r['action'], 'event' => $r['action'],
+            'detail' => (string) $r['detail'], 'by' => (string) $r['actor'], 'at' => (string) $r['created_at']], $st->fetchAll(PDO::FETCH_ASSOC));
     }
 
     /** Records that look like one person: the same name, or the same phone. Shown, never merged. */

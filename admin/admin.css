@@ -181,6 +181,17 @@ body.studio-authed .studio-side { display: block; }
 .mem-quality a b { color: var(--gold-deep); }
 .mem-errors { background: rgba(192,57,43,.08); border: 1px solid rgba(192,57,43,.35); color: #a33; border-radius: var(--radius-sm); padding: 10px 12px; margin: 8px 0; font-size: 13px; }
 .mem-pager { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+.mem-bulk { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: var(--surface); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; position: sticky; top: 0; z-index: 2; }
+.mem-bulk select, .mem-bulk input { padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+.mem-selpage { display: inline-flex; gap: 8px; align-items: center; margin: 0 0 8px; font-size: 13px; }
+.mem-row .mem-pick { margin-right: 12px; width: 18px; height: 18px; flex: none; }
+.mem-ms-line { font-size: 14px; margin: 4px 0 8px; }
+.mem-ms-line b { color: var(--gold-deep); }
+.mem-ms-form { border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 12px; margin: 8px 0; }
+.mem-history { margin: 10px 0; font-size: 13px; }
+.mem-history summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.mem-history .mem-ev { padding: 6px 0; border-bottom: 1px solid var(--divider); }
+.mem-bulk-sum { font-size: 13px; margin: 0 0 12px; }
 .mem-file { cursor: pointer; }
 .mem-check { display: flex; align-items: center; gap: 8px; }
 .mem-try { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
