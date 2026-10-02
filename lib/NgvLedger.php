@@ -601,20 +601,39 @@ final class NgvLedger
         $cfg = self::settings();
         if (empty($cfg['enabled'])) return ['ok' => false, 'error' => 'disabled'];
         $limit = max(1, min(self::SCAN_MAX, $limit));
-        $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE status = 'active' ORDER BY id LIMIT " . $limit);
-        $st->execute();
+        /*
+         * The whole roster, in batches. This was `ORDER BY id LIMIT 300` from
+         * the start every time, so with more than 300 active participants the
+         * rest were never charged — by the cron or the button. It walks from a
+         * saved cursor now, batch after batch, until the roster is done or the
+         * time budget is spent (shared hosting kills a request at ~30s); a run
+         * that stops early leaves the cursor where it got to, and the next run
+         * carries on from there. `complete` says which happened.
+         */
+        $budget = microtime(true) + 20.0;
+        $cursor = 0;
+        try { $cursor = max(0, (int) Database::metaGet('ngv_accrue_cursor')); } catch (Throwable $e) {}
         $tot = ['participants' => 0, 'membership' => 0, 'commitment' => 0, 'programme' => 0,
                 'atCap' => 0, 'noStartDate' => 0];
-        foreach ($st->fetchAll() ?: [] as $p) {
-            $r = self::accrueParticipant($p, $asOf);
-            $tot['participants']++;
-            $tot['membership'] += $r['membership'];
-            $tot['commitment'] += $r['commitment'];
-            $tot['programme']  += $r['programme'];
-            if ($r['skipped'] === 'at_cap')        $tot['atCap']++;
-            if ($r['skipped'] === 'no_start_date') $tot['noStartDate']++;
-        }
-        return ['ok' => true, 'accrued' => $tot, 'limit' => $limit];
+        $complete = false;
+        do {
+            $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE status = 'active' AND id > ? ORDER BY id LIMIT " . $limit);
+            $st->execute([$cursor]);
+            $batch = $st->fetchAll() ?: [];
+            foreach ($batch as $p) {
+                $r = self::accrueParticipant($p, $asOf);
+                $tot['participants']++;
+                $tot['membership'] += $r['membership'];
+                $tot['commitment'] += $r['commitment'];
+                $tot['programme']  += $r['programme'];
+                if ($r['skipped'] === 'at_cap')        $tot['atCap']++;
+                if ($r['skipped'] === 'no_start_date') $tot['noStartDate']++;
+                $cursor = (int) $p['id'];
+            }
+            if (count($batch) < $limit) { $complete = true; $cursor = 0; }
+        } while (!$complete && microtime(true) < $budget);
+        try { Database::metaSet('ngv_accrue_cursor', (string) $cursor); } catch (Throwable $e) {}
+        return ['ok' => true, 'accrued' => $tot, 'limit' => $limit, 'complete' => $complete];
     }
 
     /* ══ Staff operations ═══════════════════════════════════════════════════ */
@@ -2580,6 +2599,12 @@ final class NgvLedger
     private static function audit(string $action, string $target, string $detail, string $actor = 'admin'): void
     {
         if (!class_exists('AdminAudit')) return;
+        /* No caller passes an actor, so every waive, void, charge and payment
+           read "admin" — the trail could not say who. The person signed in is
+           who acted; a cron or webhook has nobody, and stays "admin". */
+        if ($actor === 'admin' && function_exists('av_admin_actor')) {
+            try { $who = (string) av_admin_actor(); if ($who !== '') $actor = $who; } catch (Throwable $e) {}
+        }
         try { AdminAudit::log('ngv', $action, $target, $detail, null, $actor); }
         catch (Throwable $e) { error_log('[ngvledger] audit: ' . $e->getMessage()); }
     }

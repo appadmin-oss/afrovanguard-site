@@ -148,6 +148,11 @@ $knownMetaKeys = [
     // switched on, which under-charges rather than back-charging a roster.
     'ngv_fees',
     'ngv_fine_catalogue',   // NgvFines: the usual amount for each fine reason
+    // NGV accrual's place in the roster (NgvLedger::accrueAll). Reviewed: gates
+    // no migration. Lost, the next run starts at the first participant again —
+    // accrual is idempotent per (member, kind, period), so it charges nothing
+    // twice; it only redoes work.
+    'ngv_accrue_cursor',
     // CACENTRE gate absences (lib/GateAttendance). Reviewed: gates no migration.
     // It is how far the absence sweep has gone. Lost, the sweep restarts at
     // yesterday — it never back-marks history, so it under-marks rather than

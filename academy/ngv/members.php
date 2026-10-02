@@ -20,7 +20,19 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
 
 $role    = function_exists('av_admin_role') ? av_admin_role() : '';
-$isAdmin = $role !== '';
+/* Money and the roster: fees, payments, waivers, fines, enrolment, cards.
+   Administrators only, as admin/api.php keeps offline payments ("they move
+   money"). `editor` is a content role and used to pass this page's check. */
+$isAdmin = in_array($role, ['admin', 'superadmin'], true);
+
+/** One line on the audit trail, saying who. */
+function ngv_console_audit(string $action, string $target, string $detail): void
+{
+    if (!class_exists('AdminAudit')) return;
+    $who = function_exists('av_admin_actor') ? (string) av_admin_actor() : 'admin';
+    try { AdminAudit::log('ngv', 'ngv.' . $action, $target, $detail, null, $who !== '' ? $who : 'admin'); }
+    catch (Throwable $e) { error_log('[ngv] console audit: ' . $e->getMessage()); }
+}
 $method  = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 /* ── JSON actions ─────────────────────────────────────────────────────── */
@@ -64,6 +76,7 @@ if ($method === 'POST') {
         $m = $st->fetch();
         if (!$m) json_out(['ok' => false, 'error' => 'No member account with that email. They must have signed in to the site at least once.'], 404);
         NgvMember::ensureParticipant((int) $m['id'], ['name' => (string) $m['name'], 'email' => (string) $m['email']]);
+        ngv_console_audit('enroll', (string) $m['email'], 'enrolled member #' . (int) $m['id']);
         json_out(['ok' => true, 'member_id' => (int) $m['id']]);
     }
 
@@ -234,6 +247,7 @@ if ($method === 'POST') {
             'title' => $in['title'] ?? '', 'issued_on' => $in['issued_on'] ?? '',
             'issued_by' => $in['issued_by'] ?? '', 'reference' => $in['reference'] ?? '',
         ]);
+        if ($ok) ngv_console_audit('cert', 'member#' . $mid, mb_substr((string) ($in['title'] ?? ''), 0, 120));
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'A title is required.']);
     }
     /* Revoked, never deleted — the link is public and somebody may already have
@@ -254,10 +268,12 @@ if ($method === 'POST') {
     }
     if ($act === 'app_status') {
         $ok = NgvMember::setApplicationStatus((int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''), $adminUid);
+        if ($ok) ngv_console_audit('app_status', 'application#' . (int) ($in['app_id'] ?? 0), (string) ($in['status'] ?? ''));
         json_out(['ok' => $ok, 'error' => $ok ? '' : 'Bad application/status.']);
     }
     if ($act === 'app_enroll') {
         $r = NgvMember::enrollApplication((int) ($in['app_id'] ?? 0), $adminUid);
+        ngv_console_audit('app_enroll', 'application#' . (int) ($in['app_id'] ?? 0), !empty($r['ok']) ? 'enrolled member #' . (int) ($r['member_id'] ?? 0) : (string) ($r['error'] ?? 'not enrolled'));
         json_out($r + ['ok' => (bool) ($r['ok'] ?? false)]);
     }
     json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

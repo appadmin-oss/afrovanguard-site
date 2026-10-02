@@ -17,7 +17,10 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/lib/bootstrap.php';
 
 $role    = function_exists('av_admin_role') ? av_admin_role() : '';
-$isAdmin = $role !== '';
+/* Money and the roster: fees, payments, waivers, fines, enrolment, cards.
+   Administrators only, as admin/api.php keeps offline payments ("they move
+   money"). `editor` is a content role and used to pass this page's check. */
+$isAdmin = in_array($role, ['admin', 'superadmin'], true);
 $by      = (int) (LmsAuth::user()['id'] ?? 0);
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {

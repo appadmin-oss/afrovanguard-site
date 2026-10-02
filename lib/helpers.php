@@ -280,8 +280,12 @@ function require_same_origin(): void {
     $host   = $_SERVER['HTTP_HOST'] ?? '';
     $origin = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
     if ($origin === '') return; // some privacy modes strip these; allow but rely on rate limit
-    $oh = parse_url($origin, PHP_URL_HOST) ?: '';
-    if ($oh !== '' && $host !== '' && stripos($host, $oh) === false && stripos($oh, $host) === false) {
+    $oh = strtolower((string) (parse_url($origin, PHP_URL_HOST) ?: ''));
+    /* The HOST, exactly. This was a substring test either way round, so
+       "afrovanguard.org.ng.evil.example" passed as this site — and the public
+       registration form relies on this check alone. */
+    $h = strtolower((string) preg_replace('/:\d+$/', '', $host));
+    if ($oh !== '' && $h !== '' && $oh !== $h) {
         json_out(['ok' => false, 'error' => 'Cross-origin request rejected.'], 403);
     }
 }

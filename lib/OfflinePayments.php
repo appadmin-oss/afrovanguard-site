@@ -217,7 +217,7 @@ final class OfflinePayments
         $names = self::payeeNames(); $accts = self::accounts();
         $pn = strtolower((string) ($reading['payee_name'] ?? '')); $pa = preg_replace('/\D/', '', (string) ($reading['payee_account'] ?? '')) ?? '';
         $nameOk = $pn !== '' && (bool) array_filter($names, static fn($n) => str_contains($pn, $n));
-        $acctOk = $pa !== '' && (bool) array_filter($accts, static fn($a) => strlen($a) >= 6 && (str_ends_with($pa, substr($a, -6)) || str_ends_with($a, $pa) && strlen($pa) >= 4));
+        $acctOk = $pa !== '' && (bool) array_filter($accts, static fn($a) => strlen($a) >= 6 && (str_ends_with($pa, substr($a, -6)) || str_ends_with($a, $pa) && strlen($pa) >= 6));   // a masked "****5678" names thousands of accounts
         $c['payee'] = ($nameOk || $acctOk) ? null
             : 'It does not show the money going to Afrovanguard' . ($pn !== '' ? ' (payee: ' . $reading['payee_name'] . ')' : '') . '.';
 
@@ -233,6 +233,17 @@ final class OfflinePayments
         $c['reference'] = ($claim['reference'] ?? '') !== '' && $rr !== '' && !str_contains($rr, $norm($claim['reference'])) && !str_contains($norm($claim['reference']), $rr)
             ? 'Its reference is ' . $reading['reference'] . ', not ' . $claim['reference'] . '.' : null;
         $c['reused'] = $rr !== '' && in_array($rr, $usedRefs, true) ? 'A payment with this receipt\'s reference (' . $reading['reference'] . ') has already been credited.' : null;
+        /* No reference could be read: the file hash catches the same file,
+           but a re-photographed or re-saved copy of one receipt is a different
+           file. The same member, the same amount, the same day, already
+           credited, is that copy until a person says otherwise. */
+        if ($c['reused'] === null && $rr === '' && (int) ($claim['user_id'] ?? 0) > 0) {
+            try {
+                $st = Database::pdo()->prepare("SELECT COUNT(*) FROM offline_payments WHERE status = 'verified' AND user_id = ? AND amount_ngn = ? AND paid_on = ? AND id <> ?");
+                $st->execute([(int) $claim['user_id'], (int) $claim['amount_ngn'], (string) ($claim['paid_on'] ?? ''), (int) ($claim['id'] ?? 0)]);
+                if ((int) $st->fetchColumn() > 0) $c['reused'] = 'A payment of ₦' . number_format((int) $claim['amount_ngn']) . ' on ' . (string) ($claim['paid_on'] ?? '') . ' has already been credited to this member, and this receipt shows no reference to tell it apart.';
+            } catch (Throwable $e) { error_log('[offline] same-day check: ' . $e->getMessage()); }
+        }
         $tamper = array_values(array_filter((array) ($reading['tampering_signs'] ?? []), static fn($x) => trim((string) $x) !== ''));
         $c['tampering'] = $tamper ? 'Possible editing: ' . implode('; ', array_slice($tamper, 0, 3)) . '.' : null;
         $c['confidence'] = strtolower((string) ($reading['confidence'] ?? '')) === 'low' ? 'The evidence is too hard to read to be sure of it.' : null;
