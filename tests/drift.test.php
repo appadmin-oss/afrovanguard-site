@@ -147,6 +147,7 @@ $knownMetaKeys = [
     // naming is `accrueFrom`: lost, it re-stamps to the month fees are next
     // switched on, which under-charges rather than back-charging a roster.
     'ngv_fees',
+    'ngv_fine_catalogue',   // NgvFines: the usual amount for each fine reason
     // CACENTRE gate absences (lib/GateAttendance). Reviewed: gates no migration.
     // It is how far the absence sweep has gone. Lost, the sweep restarts at
     // yesterday — it never back-marks history, so it under-marks rather than

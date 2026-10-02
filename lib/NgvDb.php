@@ -355,6 +355,27 @@ final class NgvDb
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);
         CREATE INDEX IF NOT EXISTS idx_ngv_app_email  ON ngv_applications (email);
+
+        /* What a fine needs beyond the ledger row (lib/NgvFines.php): the day it
+         * happened, which import it came from, and when the member was told. The
+         * money stays in ngv_charges — this never holds an amount. */
+        CREATE TABLE IF NOT EXISTS ngv_fine_meta (
+          charge_id   INTEGER PRIMARY KEY,
+          occurred_on VARCHAR(10) NOT NULL DEFAULT '',
+          import_run  VARCHAR(64) NOT NULL DEFAULT '',
+          notified_at TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS ngv_fine_imports (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          digest      VARCHAR(64) NOT NULL DEFAULT '',
+          source      VARCHAR(255) NOT NULL DEFAULT '',
+          actor       INTEGER NOT NULL DEFAULT 0,
+          fined       INTEGER NOT NULL DEFAULT 0,
+          total       INTEGER NOT NULL DEFAULT 0,
+          skipped     INTEGER NOT NULL DEFAULT 0,
+          row_count   INTEGER NOT NULL DEFAULT 0,
+          created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
 SQL;
     }
 

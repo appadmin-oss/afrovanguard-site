@@ -297,6 +297,7 @@ require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back ab
 require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards the gate reads */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
+require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */

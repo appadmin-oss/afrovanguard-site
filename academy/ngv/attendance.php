@@ -10,7 +10,7 @@
  * Nothing here takes a passage: arrivals only ever come from the gate,
  * signed. What staff do here is decide — excuse a day, answer a request,
  * give a member their card — and every one of those lands on the audit
- * trail. Fines are the NGV ledger's, on the Vanguards page, like any other.
+ * trail. Fines are the NGV ledger's, on the Fines page (fines.php).
  *
  * Admin-gated exactly like members.php. JSON actions POST to this same URL,
  * guarded by admin + same-origin + CSRF.
@@ -128,6 +128,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   <h1><b>NextGen Vanguard</b> <span>· attendance</span></h1>
   <span class="sp"></span>
   <a href="/academy/ngv/members.php">Vanguards</a>
+  <a href="/academy/ngv/fines.php">Fines</a>
   <a href="/academy/studio/">Rules (Studio)</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
 </header>
