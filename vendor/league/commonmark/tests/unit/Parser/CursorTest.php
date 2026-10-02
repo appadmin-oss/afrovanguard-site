@@ -1,0 +1,767 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * This file is part of the league/commonmark package.
+ *
+ * (c) Colin O'Dell <colinodell@gmail.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace League\CommonMark\Tests\Unit\Parser;
+
+use League\CommonMark\Exception\UnexpectedEncodingException;
+use League\CommonMark\Parser\Cursor;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+
+final class CursorTest extends TestCase
+{
+    public function testConstructor(): void
+    {
+        $cursor = new Cursor('foo');
+        $this->assertEquals('foo', $cursor->getLine());
+    }
+
+    public function testConstructorWithInvalidUTF8(): void
+    {
+        $this->expectException(UnexpectedEncodingException::class);
+
+        new Cursor(\hex2bin('A5A5A5'));
+    }
+
+    /**
+     * @dataProvider dataForTestingNextNonSpaceMethods
+     */
+    #[DataProvider('dataForTestingNextNonSpaceMethods')]
+    public function testGetNextNonSpacePosition(string $string, int $expectedPosition, ?string $expectedCharacter): void
+    {
+        $cursor = new Cursor($string);
+
+        $this->assertEquals($expectedPosition, $cursor->getNextNonSpacePosition());
+        $this->assertEquals($expectedPosition, $cursor->getNextNonSpacePosition());
+    }
+
+    /**
+     * @dataProvider dataForTestingNextNonSpaceMethods
+     */
+    #[DataProvider('dataForTestingNextNonSpaceMethods')]
+    public function testGetNextNonSpaceCharacter(string $string, int $expectedPosition, ?string $expectedCharacter): void
+    {
+        $cursor = new Cursor($string);
+
+        $this->assertEquals($expectedCharacter, $cursor->getNextNonSpaceCharacter());
+        $this->assertEquals($expectedCharacter, $cursor->getNextNonSpaceCharacter());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForTestingNextNonSpaceMethods(): iterable
+    {
+        return [
+            ['', 0, null],
+            [' ', 1, null],
+            ['  ', 2, null],
+            ['foo', 0, 'f'],
+            [' foo', 1, 'f'],
+            ['  foo', 2, 'f'],
+            ['тест', 0, 'т'],
+            [' т', 1, 'т'],
+        ];
+    }
+
+    public function testGetNextNonSpacePositionAfterMultibyteCharacter(): void
+    {
+        $cursor = new Cursor("é \t 中");
+        $cursor->advance();
+
+        $this->assertSame(4, $cursor->getNextNonSpacePosition());
+        $this->assertSame('中', $cursor->getNextNonSpaceCharacter());
+        $this->assertSame(4, $cursor->getIndent());
+    }
+
+    /**
+     * @dataProvider dataForGetIndentTest
+     */
+    #[DataProvider('dataForGetIndentTest')]
+    public function testGetIndent(string $string, int $position, int $expectedValue): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($position);
+
+        $this->assertEquals($expectedValue, $cursor->getIndent());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForGetIndentTest(): iterable
+    {
+        return [
+            ['', 0, 0],
+            [' ', 0, 1],
+            [' ', 1, 0],
+            ['    ', 0, 4],
+            ['    ', 1, 3],
+            ['    ', 2, 2],
+            ['    ', 3, 1],
+            ['foo', 0, 0],
+            ['foo', 1, 0],
+            [' foo', 0, 1],
+            [' foo', 1, 0],
+            ['  foo', 0, 2],
+            ['  foo', 1, 1],
+            ['  foo', 2, 0],
+            ['  foo', 3, 0],
+            ['тест', 0, 0],
+            ['тест', 1, 0],
+            [' тест', 0, 1],
+            [' тест', 1, 0],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForGetCharacterTest
+     */
+    #[DataProvider('dataForGetCharacterTest')]
+    public function testGetCharacter(string $string, ?int $index, string $expectedValue): void
+    {
+        $cursor = new Cursor($string);
+
+        $this->assertEquals($expectedValue, $cursor->getCharacter($index));
+    }
+
+    /**
+     * @dataProvider dataForGetCharacterTest
+     */
+    #[DataProvider('dataForGetCharacterTest')]
+    public function testGetCurrentCharacter(string $string, ?int $index, string $expectedValue): void
+    {
+        $cursor = new Cursor($string);
+        if ($index !== null) {
+            $cursor->advanceBy($index);
+        }
+
+        $this->assertEquals($expectedValue, $cursor->getCurrentCharacter());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForGetCharacterTest(): iterable
+    {
+        return [
+            ['', null, ''],
+            ['', 0, ''],
+            ['', 1, ''],
+            ['foo', null, 'f'],
+            ['foo', 0, 'f'],
+            ['foo', 1, 'o'],
+            [' тест ', 0, ' '],
+            [' тест ', 1, 'т'],
+            [' тест ', 2, 'е'],
+            [' тест ', 3, 'с'],
+            [' тест ', 4, 'т'],
+            [' тест ', 5, ' '],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForPeekTest
+     */
+    #[DataProvider('dataForPeekTest')]
+    public function testPeek(string $string, int $position, string $expectedValue): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($position);
+
+        $this->assertEquals($expectedValue, $cursor->peek());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForPeekTest(): iterable
+    {
+        return [
+            ['', 0, ''],
+            [' ', 0, ''],
+            ['', 99, ''],
+            ['foo', 0, 'o'],
+            ['bar', 1, 'r'],
+            ['тест ', 1, 'с'],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForIsLineBlankTest
+     */
+    #[DataProvider('dataForIsLineBlankTest')]
+    public function testIsLineBlank(string $string, bool $expectedValue): void
+    {
+        $cursor = new Cursor($string);
+
+        $this->assertEquals($expectedValue, $cursor->isBlank());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForIsLineBlankTest(): iterable
+    {
+        return [
+            ['', true],
+            [' ', true],
+            ['      ', true],
+            ['foo', false],
+            ['   foo', false],
+            ['тест', false],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForAdvanceTest
+     */
+    #[DataProvider('dataForAdvanceTest')]
+    public function testAdvance(string $string, int $numberOfAdvances, int $expectedPosition): void
+    {
+        $cursor = new Cursor($string);
+        while ($numberOfAdvances--) {
+            $cursor->advance();
+        }
+
+        $this->assertEquals($expectedPosition, $cursor->getPosition());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForAdvanceTest(): iterable
+    {
+        return [
+            ['', 0, 0],
+            ['', 1, 0],
+            ['', 99, 0],
+            ['foo', 0, 0],
+            ['foo', 1, 1],
+            ['foo', 2, 2],
+            ['foo', 3, 3],
+            ['foo', 9, 3],
+            ['тест', 0, 0],
+            ['тест', 1, 1],
+            ['тест', 2, 2],
+            ['тест', 3, 3],
+            ['тест', 4, 4],
+            ['тест', 9, 4],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForAdvanceTestBy
+     */
+    #[DataProvider('dataForAdvanceTestBy')]
+    public function testAdvanceBy(string $string, int $advance, int $expectedPosition): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($advance);
+
+        $this->assertEquals($expectedPosition, $cursor->getPosition());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForAdvanceTestBy(): iterable
+    {
+        return [
+            ['', 0, 0],
+            ['', 1, 0],
+            ['', 99, 0],
+            ['foo', 0, 0],
+            ['foo', 1, 1],
+            ['foo', 2, 2],
+            ['foo', 3, 3],
+            ['foo', 9, 3],
+            ['тест', 0, 0],
+            ['тест', 1, 1],
+            ['тест', 2, 2],
+            ['тест', 3, 3],
+            ['тест', 4, 4],
+            ['тест', 9, 4],
+            ["aa\t1234", 7, 7],
+        ];
+    }
+
+    public function testBytePositionsAcrossMultibyteCharactersAndStateRestore(): void
+    {
+        $cursor = new Cursor('Aé中😀Z');
+
+        foreach ([0, 1, 3, 6, 10, 11] as $position => $bytePosition) {
+            $this->assertSame($bytePosition, $cursor->getBytePosition());
+            $cursor->advance();
+        }
+
+        $cursor = new Cursor('Aé中😀Z');
+        $cursor->advanceBy(2);
+        $state = $cursor->saveState();
+        $cursor->advanceBy(2);
+
+        $this->assertSame(10, $cursor->getBytePosition());
+        $this->assertSame('中😀', $cursor->getPreviousText());
+
+        $cursor->restoreState($state);
+
+        $this->assertSame(3, $cursor->getBytePosition());
+        $this->assertSame('中', $cursor->getCurrentCharacter());
+        $this->assertSame('中😀Z', $cursor->getRemainder());
+    }
+
+    public function testBytePositionsAcrossCheckpointBoundaries(): void
+    {
+        $line   = \str_repeat('a', 63) . 'é中' . \str_repeat('b', 68) . '😀';
+        $cursor = new Cursor($line);
+
+        // Read in a non-monotonic order so lookups cannot rely on the last-resolved
+        // position and must walk from a checkpoint instead.
+        $expected = '';
+        $actual   = '';
+        for ($i = 0; $i < 134; $i++) {
+            $index     = ($i * 71) % 134;
+            $expected .= \mb_substr($line, $index, 1, 'UTF-8');
+            $actual   .= $cursor->getCharacter($index);
+        }
+
+        $this->assertSame($expected, $actual);
+
+        $cursor->advanceBy(63);
+        $state = $cursor->saveState();
+
+        $this->assertSame(63, $cursor->getBytePosition());
+        $this->assertSame('é', $cursor->getCurrentCharacter());
+
+        $cursor->advanceBy(70);
+        $this->assertSame(136, $cursor->getBytePosition());
+        $this->assertSame('😀', $cursor->getCurrentCharacter());
+
+        $cursor->restoreState($state);
+        $this->assertSame(63, $cursor->getBytePosition());
+        $this->assertStringStartsWith('é中', $cursor->getRemainder());
+
+        $cursor->advance();
+        $this->assertSame(65, $cursor->getBytePosition());
+        $cursor->advance();
+        $this->assertSame(68, $cursor->getBytePosition());
+    }
+
+    /**
+     * @runInSeparateProcess
+     */
+    public function testBytePositionMapHasBoundedMemoryOverhead(): void
+    {
+        // Scanning the whole line populates a checkpoint every 16 characters. This limit is
+        // comfortably above that (~20 MB) but well below what one entry per character would need.
+        \ini_set('memory_limit', '128M');
+
+        $cursor = new Cursor('é' . \str_repeat('a', 5_000_000));
+
+        $this->assertSame(0, $cursor->getBytePosition());
+
+        $cursor->advanceToEnd();
+
+        $this->assertSame(5_000_002, $cursor->getBytePosition());
+    }
+
+    public function testMultibyteRemainderWithPartiallyConsumedTab(): void
+    {
+        $cursor = new Cursor("é\t中");
+        $cursor->advance();
+        $cursor->advanceBy(2, true);
+
+        $this->assertSame(1, $cursor->getPosition());
+        $this->assertSame(3, $cursor->getColumn());
+        $this->assertSame(' 中', $cursor->getRemainder());
+
+        $state = $cursor->saveState();
+        $this->assertSame(' 中', $cursor->match('/^ 中/u'));
+        $this->assertTrue($cursor->isAtEnd());
+
+        $cursor->restoreState($state);
+        $this->assertSame(' ', $cursor->match('/^ /u'));
+        $this->assertSame(2, $cursor->getPosition());
+        $this->assertSame(4, $cursor->getColumn());
+        $this->assertSame('中', $cursor->getRemainder());
+    }
+
+    public function testAdvanceByZero(): void
+    {
+        $cursor = new Cursor('foo bar');
+        $cursor->advance();
+        $this->assertEquals(1, $cursor->getPosition());
+        $cursor->advanceBy(0);
+        $this->assertEquals(1, $cursor->getPosition());
+    }
+
+    public function testAdvanceByColumnOffset(): void
+    {
+        $cursor = new Cursor("1. \t\tthere");
+        $cursor->advanceBy(3);
+
+        $this->assertEquals(5, $cursor->getIndent());
+        $this->assertEquals(3, $cursor->getPosition());
+        $this->assertEquals(3, $cursor->getColumn());
+
+        $cursor->advanceBy(4, true);
+
+        $this->assertEquals(1, $cursor->getIndent());
+        $this->assertEquals(4, $cursor->getPosition());
+        $this->assertEquals(7, $cursor->getColumn());
+    }
+
+    /**
+     * @dataProvider dataForAdvanceToNextNonSpaceTest
+     */
+    #[DataProvider('dataForAdvanceToNextNonSpaceTest')]
+    public function testAdvanceToNextNonSpace(string $subject, int $startPos, int $expectedResult): void
+    {
+        $cursor = new Cursor($subject);
+        $cursor->advanceBy($startPos);
+
+        $this->assertEquals($expectedResult, $cursor->advanceToNextNonSpaceOrTab());
+
+        $this->assertSame($cursor->getPosition(), $cursor->getNextNonSpacePosition());
+        $this->assertSame(0, $cursor->getIndent());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForAdvanceToNextNonSpaceTest(): iterable
+    {
+        return [
+            ['', 0, 0],
+            [' ', 0, 1],
+            [' ', 1, 0],
+            ['  ', 0, 2],
+            ['  ', 1, 1],
+            ['  ', 2, 0],
+            ['foo bar', 0, 0],
+            ['foo bar', 3, 1],
+            ['foo bar', 4, 0],
+            ['это тест', 0, 0],
+            ['это тест', 3, 1],
+            ['это тест', 4, 0],
+            ["\tbar", 0, 1],
+            ["  \n  \n  ", 0, 2],
+            ["  \n  \n  ", 1, 1],
+            ["  \n  \n  ", 2, 0],
+            ["  \n  \n  ", 3, 2],
+            ["  \n  \n  ", 4, 1],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForAdvanceToNextNonSpaceOrNewlineTest
+     */
+    #[DataProvider('dataForAdvanceToNextNonSpaceOrNewlineTest')]
+    public function testAdvanceToNextNonSpaceOrNewline(string $subject, int $startPos, int $expectedResult): void
+    {
+        $cursor = new Cursor($subject);
+        $cursor->advanceBy($startPos);
+
+        $this->assertEquals($expectedResult, $cursor->advanceToNextNonSpaceOrNewline());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForAdvanceToNextNonSpaceOrNewlineTest(): iterable
+    {
+        return [
+            ['', 0, 0],
+            [' ', 0, 1],
+            [' ', 1, 0],
+            ['  ', 0, 2],
+            ['  ', 1, 1],
+            ['  ', 2, 0],
+            ['foo bar', 0, 0],
+            ['foo bar', 3, 1],
+            ['foo bar', 4, 0],
+            ['это тест', 0, 0],
+            ['это тест', 3, 1],
+            ['это тест', 4, 0],
+            ["\tbar", 0, 0],
+            ["  \n  \n  ", 0, 5],
+            ["  \n  \n  ", 1, 4],
+            ["  \n  \n  ", 2, 3],
+            ["  \n  \n  ", 3, 5],
+            ["  \n  \n  ", 4, 4],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForGetRemainderTest
+     */
+    #[DataProvider('dataForGetRemainderTest')]
+    public function testGetRemainder(string $string, int $position, string $expectedResult): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($position);
+
+        $this->assertEquals($expectedResult, $cursor->getRemainder());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForGetRemainderTest(): iterable
+    {
+        return [
+            [' ', 0, ' '],
+            ['  ', 0, '  '],
+            ['  ', 1, ' '],
+            ['foo bar', 0, 'foo bar'],
+            ['foo bar', 2, 'o bar'],
+            ['это тест', 1, 'то тест'],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForIsAtEndTest
+     *
+     * @param int|false|null $advanceBy
+     */
+    #[DataProvider('dataForIsAtEndTest')]
+    public function testIsAtEnd(string $string, $advanceBy, bool $expectedValue): void
+    {
+        $cursor = new Cursor($string);
+        if ($advanceBy === null) {
+            $cursor->advance();
+        } elseif ($advanceBy !== false) {
+            $cursor->advanceBy($advanceBy);
+        }
+
+        $this->assertEquals($expectedValue, $cursor->isAtEnd());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForIsAtEndTest(): iterable
+    {
+        return [
+            ['', false, true],
+            [' ', 0, false],
+            [' ', null, true],
+            [' ', 1, true],
+            ['foo', 2, false],
+            ['foo', 3, true],
+            ['тест', 4, true],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForTestMatch
+     */
+    #[DataProvider('dataForTestMatch')]
+    public function testMatch(string $string, string $regex, int $initialPosition, int $expectedPosition, string $expectedResult): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($initialPosition);
+
+        $result = $cursor->match($regex);
+
+        $this->assertEquals($expectedResult, $result);
+        $this->assertEquals($expectedPosition, $cursor->getPosition());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForTestMatch(): iterable
+    {
+        return [
+            ['this is a test', '/[aeiou]s/', 0, 4, 'is'],
+            ['this is a test', '/[aeiou]s/', 2, 4, 'is'],
+            ['this is a test', '/[aeiou]s/', 3, 7, 'is'],
+            ['this is a test', '/[aeiou]s/', 9, 13, 'es'],
+            ['Это тест', '/т/u', 0, 2, 'т'],
+            ['Это тест', '/т/u', 1, 2, 'т'],
+            ['Это тест', '/т/u', 2, 5, 'т'],
+        ];
+    }
+
+    /**
+     * @dataProvider dataForTestMatchAnchoring
+     */
+    #[DataProvider('dataForTestMatchAnchoring')]
+    public function testMatchTreatsTheCursorAsTheStartOfTheSubject(string $string, string $regex, int $initialPosition, int $expectedPosition, ?string $expectedResult): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($initialPosition);
+
+        $this->assertSame($expectedResult, $cursor->match($regex));
+        $this->assertSame($expectedPosition, $cursor->getPosition());
+    }
+
+    /**
+     * match()'s subject begins at the cursor, so anything that inspects what precedes the match
+     * start must see the start of a subject there - never the actual preceding characters - and
+     * every flavor of subject-start anchor must anchor at the cursor. Every case below sits at a
+     * non-zero position; none of the in-tree patterns exercises these constructs, so nothing
+     * else would catch a divergence.
+     *
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForTestMatchAnchoring(): iterable
+    {
+        return [
+            'leading caret'              => ['abcdef', '/^bc/', 1, 3, 'bc'],
+            'caret inside a group'       => ['abcdef', '/(?:^)bc/', 1, 3, 'bc'],
+            'caret after an inline flag' => ['abcdef', '/(?i)^bc/', 1, 3, 'bc'],
+            'caret in a character class' => ['abcdef', '/^[^x]c?/', 1, 3, 'bc'],
+            'caret in an alternation'    => ['abcdef', '/^zz|^bc/', 1, 3, 'bc'],
+            'caret after a zero-width escape' => ['abcdef', '/\G^bc/', 1, 3, 'bc'],
+            'bracket-style delimiters'   => ['abcdef', '[^bc]', 1, 3, 'bc'],
+            'word boundary'              => ['abcdef', '/\bbc/', 1, 3, 'bc'],
+            'word boundary after leading caret' => ['foobar', '/^\b\w+/', 3, 6, 'bar'],
+            'word non-boundary'          => ['abcdef', '/\Bbc/', 1, 1, null],
+            'word boundary mid-word'     => ['aaa bbb', '/\b\w+/', 2, 3, 'a'],
+            'negative lookbehind'        => ['abcdef', '/(?<![a-z])bc/', 1, 3, 'bc'],
+            'positive lookbehind'        => ['abcdef', '/(?<=a)bc/', 1, 1, null],
+            'subject anchor'             => ['abcdef', '/\Abc/', 1, 3, 'bc'],
+            'named group'                => ['abcdef', '/^(?<n>bc)/', 1, 3, 'bc'],
+            'leading caret, multiline'   => ["ab\ncd", '/^cd/m', 1, 5, 'cd'],
+            'leading caret, multiline, from position zero' => ["ab\ncd", '/^cd/m', 0, 5, 'cd'],
+            'unanchored, multiline'      => ['abcdef', '/c{1,3}/m', 1, 3, 'c'],
+            'multibyte leading caret'    => ['Это тест', '/^то/u', 1, 3, 'то'],
+            'multibyte word boundary'    => ['Это тест', '/\bтест/u', 1, 8, 'тест'],
+            'multibyte subject anchor'   => ['ёxyz', '/\Axyz/u', 1, 4, 'xyz'],
+            'match spanning a tab'       => ["a\tbcd", '/\A\tbc/', 1, 4, "\tbc"],
+            'tab mid-match'              => ["ab\tcd", '/\Ab\tc/', 1, 4, "b\tc"],
+            'x-mode comment hiding a bracket'   => ['xbarz', "/#[\n^bar|]/x", 1, 4, 'bar'],
+            'inline comment hiding a bracket'   => ['xbarz', '/(?#[)^bar|]/', 1, 4, 'bar'],
+            'quoted text resembling a class'    => ['xbc]', '/\Q[\E|^bc]/', 1, 4, 'bc]'],
+        ];
+    }
+
+    /**
+     * "\G" anchors at the cursor under both contracts - match()'s detached subject and
+     * matchInPlace()'s in-place matching - so cursor-anchored (and purely forward-looking)
+     * patterns must behave identically through either method.
+     *
+     * @dataProvider dataForTestMatchInPlace
+     */
+    #[DataProvider('dataForTestMatchInPlace')]
+    public function testMatchInPlaceMatchesLikeMatchForCursorAnchoredPatterns(string $string, string $regex, int $initialPosition, int $expectedPosition, ?string $expectedResult): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($initialPosition);
+
+        $this->assertSame($expectedResult, $cursor->matchInPlace($regex));
+        $this->assertSame($expectedPosition, $cursor->getPosition());
+
+        $viaRemainder = new Cursor($string);
+        $viaRemainder->advanceBy($initialPosition);
+
+        $this->assertSame($expectedResult, $viaRemainder->match($regex));
+        $this->assertSame($expectedPosition, $viaRemainder->getPosition());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForTestMatchInPlace(): iterable
+    {
+        return [
+            'cursor anchor'             => ['abcdef', '/\Gbc/', 1, 3, 'bc'],
+            'cursor anchor, no match'   => ['abcdef', '/\Gzz/', 1, 1, null],
+            'caret in a character class' => ['x[foo]', '/\G\[(?:[^\\\\\[\]]|\\\\.){0,1000}\]/', 1, 6, '[foo]'],
+            'class ] and ^ literals'    => ['xa^b', '/\G[\]^_]/', 2, 3, '^'],
+            'end anchor'                => ['ab***', '/\G(?:\*[ \t]*){3,}$/', 2, 5, '***'],
+            'lookahead'                 => ['  ```php', '/\G[ \t]*(?:`{3,}+(?!.*`)|~{3,})/', 0, 5, '  ```'],
+            'unanchored scan ahead'     => ['a `` b', '/`{1,40}/m', 1, 4, '``'],
+            'unanchored, empty match'   => ['abc', '/z?/', 1, 1, ''],
+            'multibyte cursor anchor'   => ['Это тест', '/\Gто/u', 1, 3, 'то'],
+            'multibyte scan ahead'      => ['и `` б', '/`{1,40}/m', 1, 4, '``'],
+        ];
+    }
+
+    /**
+     * matchInPlace() uses PCRE's native offset semantics: the whole line is the subject and
+     * matching starts at the cursor, so "^" and "\A" anchor at the true start of the line and
+     * lookbehinds and "\b" see the characters actually preceding the cursor. (These are the very
+     * constructs whose meaning differs from match() - compare dataForTestMatchAnchoring.)
+     *
+     * @dataProvider dataForTestMatchInPlaceEngineNativeSemantics
+     */
+    #[DataProvider('dataForTestMatchInPlaceEngineNativeSemantics')]
+    public function testMatchInPlaceTreatsTheCursorAsAPositionWithinTheLine(string $string, string $regex, int $initialPosition, int $expectedPosition, ?string $expectedResult): void
+    {
+        $cursor = new Cursor($string);
+        $cursor->advanceBy($initialPosition);
+
+        $this->assertSame($expectedResult, $cursor->matchInPlace($regex));
+        $this->assertSame($expectedPosition, $cursor->getPosition());
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForTestMatchInPlaceEngineNativeSemantics(): iterable
+    {
+        return [
+            'caret means start of line'          => ['abcdef', '/^bc/', 1, 1, null],
+            'subject anchor means start of line' => ['abcdef', '/\Abc/', 1, 1, null],
+            'caret under /m matches line starts' => ["ab\ncd", '/^cd/m', 1, 5, 'cd'],
+            'word boundary sees preceding char'  => ['foobar', '/\G\b\w+/', 3, 3, null],
+            'lookbehind sees preceding char'     => ['abcdef', '/(?<=a)bc/', 1, 3, 'bc'],
+        ];
+    }
+
+    /**
+     * A partially-consumed tab has no byte-offset representation, so matchInPlace() must fall
+     * back to remainder matching, where the leftover tab appears as its expanded spaces and
+     * "\G" still anchors at the cursor.
+     */
+    public function testMatchInPlaceWithPartiallyConsumedTab(): void
+    {
+        $cursor = new Cursor("\tfoo");
+        $cursor->advanceBy(1, true);
+
+        $this->assertSame('   f', $cursor->matchInPlace('/\G +f/'));
+        $this->assertSame(2, $cursor->getPosition());
+    }
+
+    /**
+     * @dataProvider dataForTestGetSubstring
+     */
+    #[DataProvider('dataForTestGetSubstring')]
+    public function testGetSubstring(string $string, int $start, ?int $length, string $expectedResult): void
+    {
+        $cursor = new Cursor($string);
+
+        $this->assertSame($expectedResult, $cursor->getSubstring($start, $length));
+    }
+
+    /**
+     * @return iterable<array<mixed>>
+     */
+    public static function dataForTestGetSubstring(): iterable
+    {
+        yield ['Hello', 0, 2, 'He'];
+        yield ['Hello', 1, 3, 'ell'];
+        yield ['Hello', 1, null, 'ello'];
+        yield ['Aé中😀Z', 1, null, 'é中😀Z'];
+        yield ['Aé中😀Z', 2, 99, '中😀Z'];
+        yield ['Aé中😀Z', 5, null, ''];
+        yield ['Aé中😀Z', 99, 2, ''];
+        yield ['Aé中😀Z', -2, null, '😀Z'];
+        yield ['Aé中😀Z', -4, 2, 'é中'];
+        yield ['Aé中😀Z', 1, -1, 'é中😀'];
+        yield ['Это тест', 1, -1, 'то тес'];
+    }
+}

@@ -117,7 +117,7 @@ render_head([
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
-    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css'],
+    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css', '/academy/ngv/ngv-dashboard.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 
@@ -150,6 +150,34 @@ if ($isOrg) {
         $nav['Work'][] = ['inventory', 'Inventory', 'gray', ''];
     }
 }
+/* NextGen Vanguard — the programme dashboard, here rather than a link away.
+   For vanguards only (NgvMember::isVanguard: their NGV record or ID card,
+   not their email). Its data and content are the same files the standalone
+   page uses, so the two cannot drift. */
+$isNgv = class_exists('NgvMember') && NgvMember::isVanguard((int) $u['id']);
+if ($isNgv) {
+    /* Read in its own scope: the dashboard's names ($myEntries, $csrf, $p…)
+       are the portal's too, and must not overwrite them. */
+    $ngvVars = (static function (array $u): array {
+        $c = Ngv::get();
+        require dirname(__DIR__) . '/academy/ngv/_dashboard-data.php';
+        return get_defined_vars();
+    })($u);
+    $ngvOwed = (int) ($ngvVars['account']['payable'] ?? 0);
+    $ngvA = $ngvVars['account'];
+    $nav['NextGen Vanguard'] = [
+        ['ngv', 'Programme', 'gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']],
+        ['ngv-account', 'Fees & account', $ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''],
+    ];
+}
+/* The gate, in the portal: the pass, the card, the days. For a vanguard it
+   sits with the programme it is part of; for anybody else, under "You". */
+/* Every member the gate takes — including one it is refusing today, who is
+   the person most in need of seeing why. */
+$hasGate = GatePass::ready() && in_array(strtolower((string) ($u['role'] ?? '')), GatePass::roles(), true);
+$gateWhy = $hasGate ? (GatePass::whyNot($u) ?? '') : '';
+$gateSum = $hasGate || $isNgv ? GateAttendance::summary((int) $u['id'], 30) : null;
+if ($isNgv) $nav['NextGen Vanguard'][] = ['attendance', 'Attendance & pass', 'gray', $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '%' : ''];
 $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
     ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
@@ -158,6 +186,7 @@ $nav['You'] = [
     ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
     ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
 ];
+if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gray', ''];
 ?>
   <div class="portal-shell">
 
@@ -168,10 +197,21 @@ $nav['You'] = [
         <span class="pside-brand-text"><span class="pb-name">Afrovanguard</span><span class="pb-sub"><?= e($tag) ?></span></span>
       </a>
 
-      <div class="pside-search">
+      <?php /* ── The way into the palette ──────────────────────────────────
+               This was a text box that hid every navigation link which did not
+               match what you typed. NN/g measured discoverability roughly
+               halving when navigation is hidden, and hiding it as a SEARCH
+               RESULT is the same cost paid at the moment somebody is already
+               lost. It also found only links — never a member, never an item.
+
+               A button now, because that is what it is: it opens a dialog. It
+               says which key, because a keyboard-only feature is hidden by
+               definition. */ ?>
+      <button class="pside-search" type="button" data-cmdk="cmd">
         <span class="pside-search-ico" aria-hidden="true">⌕</span>
-        <input type="search" id="pSearch" placeholder="Search…" aria-label="Search the portal" autocomplete="off">
-      </div>
+        <span class="pside-search-t">Search anything</span>
+        <kbd class="cmdk-mod">Ctrl</kbd><kbd>K</kbd>
+      </button>
 
       <nav class="pside-nav" aria-label="Sections">
 <?php foreach ($nav as $group => $items): ?>
@@ -200,12 +240,13 @@ $nav['You'] = [
          register, and writing for the site — and calling it "CRM" sent
          somebody looking for their drafts past it. */ ?>
 <?php if ($isOrg && CacSso::ready()): ?>          <a class="pnav-link" href="<?= e(CacSso::DOOR) ?>"><span class="pnav-dot pnav-dot--gray"></span><span class="pnav-label">CACENTRE workspace</span><span class="pnav-ext">↗</span></a>
-<?php endif; ?>        </div>
+<?php endif; ?>
+        </div>
       </nav>
 
       <div class="pside-user">
         <span class="pside-avatar"><?= e($pInitials) ?></span>
-        <span class="pside-user-meta"><span class="pu-name"><?= e($first . ' ' . (($parts[1] ?? ''))) ?></span><span class="pu-role"><?= $isOrg ? e($accessLevel) : 'Learner' ?></span></span>
+        <span class="pside-user-meta"><span class="pu-name"><?= e($first . ' ' . (($parts[1] ?? ''))) ?></span><span class="pu-role"><?= $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner') ?></span></span>
         <a class="pside-signout" href="#" data-logout title="Sign out" aria-label="Sign out">⋯</a>
       </div>
     </aside>
@@ -297,6 +338,19 @@ $nav['You'] = [
                     'sub' => $cacDue ? 'Due today or earlier · ' . $cacDue . ' in the console' : 'Due today or earlier',
                     'cta' => 'Open', 'goto' => 'tasks'];
             }
+            if ($isNgv && $ngvOwed > 0) {
+                $attn[] = ['ico' => '₦', 'tone' => 'gold',
+                    'title' => '₦' . number_format($ngvOwed) . ' outstanding on your NGV account',
+                    'sub' => 'See what it is for, pay, or ask about it', 'cta' => 'Open', 'goto' => 'ngv-account'];
+            }
+            if ($gateWhy !== '' && GatePass::ready()) {
+                $attn[] = ['ico' => '⛔', 'tone' => 'red', 'title' => 'The CACENTRE gate cannot let you in',
+                    'sub' => e($gateWhy), 'cta' => 'Why', 'goto' => 'attendance'];
+            }
+            if ($isNgv && (string) $ngvVars['myTrack'] === '') {
+                $attn[] = ['ico' => '🧭', 'tone' => 'indigo', 'title' => 'Choose your NGV track and plan',
+                    'sub' => 'It sets your path and your training fee', 'cta' => 'Choose', 'goto' => 'ngv'];
+            }
             if ($postsToday) {
                 $attn[] = ['ico' => '💬', 'tone' => 'indigo',
                     'title' => $postsToday . ' new community post' . ($postsToday === 1 ? '' : 's') . ' today',
@@ -345,6 +399,20 @@ $nav['You'] = [
 
           <div class="pcols">
             <div class="pcol pcol--main">
+<?php if ($isNgv): ?>
+              <!-- NextGen Vanguard at a glance — the programme in the same Today as everything else -->
+              <section class="pcard today-ngv">
+                <div class="pcard-head"><h2>NextGen Vanguard</h2><a class="pcard-link" href="#ngv" data-goto="ngv">Programme →</a></div>
+                <div class="pcard-body">
+                  <div class="ngv-glance">
+                    <a href="#ngv" data-goto="ngv"><span>Track</span><b><?= $ngvVars['myTrack'] !== '' ? e((string) $ngvVars['myTrack']) : 'Not chosen' ?></b></a>
+                    <a href="#ngv" data-goto="ngv"><span>Reading</span><b><?= (int) $ngvVars['booksRead'] ?> / <?= (int) $ngvVars['BOOKS_TOTAL'] ?></b></a>
+                    <a href="#ngv-account" data-goto="ngv-account"><span>Account</span><b class="<?= $ngvOwed > 0 ? 'due' : 'ok' ?>"><?= $ngvOwed > 0 ? '₦' . number_format($ngvOwed) . ' due' : 'All clear' ?></b></a>
+                    <a href="#attendance" data-goto="attendance"><span>Attendance</span><b><?= $gateSum && $gateSum['counted'] ? (int) $gateSum['rate'] . '% · ' . (int) $gateSum['punctuality'] . '% on time' : 'Nothing yet' ?></b></a>
+                  </div>
+                </div>
+              </section>
+<?php endif; ?>
 <?php if ($isOrg): ?>
               <!-- Your calendar — today + what's coming, with meeting links -->
               <section class="pcard" id="todayCal" data-csrf="<?= e($collabCsrf) ?>">
@@ -943,6 +1011,42 @@ $nav['You'] = [
               </div>
             </section>
 
+          <?php endif; ?>
+
+          <?php /* ── Follow-ups from CACENTRE ──────────────────────────────
+                   Beside the tasks rather than inside them: a task is a thing
+                   to do and a follow-up is a person waiting to hear back, and
+                   putting them under one heading means the person gets ticked
+                   off like an errand.
+
+                   It loads when the pane is opened, not with the page. The
+                   dashboard must not wait on the other site for a card most
+                   visits never look at.
+
+                   And it LOGS. A list that told somebody they owed a call and
+                   then sent them to another site to record it would rebuild,
+                   in a new place, exactly the gap that left the centre's
+                   workbook with ninety leads and no notes. */ ?>
+<?php if ($isOrg && CacSso::ready()): ?>
+          <section class="pcard" id="cacLeads" data-csrf="<?= e($collabCsrf) ?>"
+                   data-lead-url="<?= e(CacLeads::consoleUrl()) ?>">
+            <div class="pcard-head task-head">
+              <div class="task-head-l">
+                <h2>People waiting on you</h2>
+                <span class="task-head-sub" id="cacLeadsSub">
+                  Leads you own in the console, the overdue ones first.
+                </span>
+              </div>
+              <a class="pbtn" href="<?= e(CacLeads::consoleUrl()) ?>" target="_blank" rel="noopener">Open leads</a>
+            </div>
+            <div class="pcard-body">
+              <p class="pc-empty" id="cacLeadsMsg" hidden></p>
+              <ul class="lead-list" id="cacLeadsList"></ul>
+            </div>
+          </section>
+<?php endif; ?>
+
+<?php if ($cacTasks): ?>
             <script>
             (function () {
               'use strict';
@@ -1374,6 +1478,38 @@ $nav['You'] = [
         <!-- ============================================================ -->
         <!-- MEMBERSHIP / ACCOUNT                                         -->
         <!-- ============================================================ -->
+<?php if ($isNgv): ?>
+        <!-- ============================================================ -->
+        <!-- NEXTGEN VANGUARD                                             -->
+        <!-- ============================================================ -->
+<?php
+        /* The programme dashboard's cards, drawn into portal views — once each,
+           the script once, with the portal's own headings in place of the
+           standalone page's greeting and tiles (those are on Today). */
+        $ngvRender = static function (array $v, array $parts, bool $script): void {
+            (static function (array $__v): void { extract($__v); require dirname(__DIR__) . '/academy/ngv/_dashboard-body.php'; })(
+                $v + ['ngvParts' => $parts, 'ngvStandalone' => false, 'ngvBanner' => $parts[0] === 'track', 'ngvScript' => $script, 'ngvAccountHref' => '#ngv-account']);
+        };
+?>
+        <section class="pview" id="view-ngv" data-view="ngv" hidden>
+          <div class="view-head">
+            <div><h1>Programme</h1><p class="view-sub">Your NextGen Vanguard track and plan, the 24-book challenge, certifications and the schedule. Everything saves as you go.</p></div>
+            <a class="pbtn pbtn-ghost" href="/academy/ngv/" target="_blank" rel="noopener">Programme page ↗</a>
+          </div>
+<?php $ngvRender($ngvVars, ['track', 'focus', 'reading', 'certs', 'schedule', 'support'], false); ?>
+        </section>
+        <section class="pview" id="view-ngv-account" data-view="ngv-account" hidden>
+          <div class="view-head">
+            <div><h1>Fees &amp; account</h1><p class="view-sub">What the programme has charged and what you have paid, your receipts, and anything reported as damaged. Nothing here can be changed from your side — ask, and a person answers.</p></div>
+          </div>
+<?php $ngvRender($ngvVars, ['account', 'damage'], true); ?>
+        </section>
+<?php endif; ?>
+<?php if ($hasGate || $isNgv): ?>
+        <section class="pview" id="view-attendance" data-view="attendance" hidden>
+<?php require __DIR__ . '/_attendance.php'; ?>
+        </section>
+<?php endif; ?>
         <section class="pview" id="view-membership" data-view="membership" hidden>
           <div class="view-head"><h1><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
           <div class="pcols">
@@ -1416,6 +1552,16 @@ $nav['You'] = [
                 <div class="pcard-body pdl">
                   <div class="pdl-row"><span>Name</span><strong><?= e($u['name']) ?></strong></div>
                   <div class="pdl-row"><span>Email</span><strong><?= e($u['email']) ?></strong></div>
+<?php /* Recorded by the office (Studio → Members, or the NGV console), not here. */
+      $bday = Birthdays::of((int) $u['id']); if ($bday): ?>
+                  <div class="pdl-row"><span>Birthday</span><strong><?= e(Birthdays::label($bday)) ?></strong></div>
+<?php endif; ?>
+<?php if ($isNgv): ?>                  <div class="pdl-row"><span>Programme</span><strong>NextGen Vanguard<?= $ngvVars['myTrack'] !== '' ? ' · ' . e((string) $ngvVars['myTrack']) : '' ?></strong></div>
+<?php if (($ngvCard = GateAttendance::cardFor((int) $u['id'])) !== null): ?>                  <div class="pdl-row"><span>NGV ID</span><strong class="gp-mono"><?= e($ngvCard) ?></strong></div>
+<?php endif; ?>                  <div class="pdl-row"><span>NGV account</span><strong><a href="#ngv-account" data-goto="ngv-account"><?= $ngvOwed > 0 ? '₦' . number_format($ngvOwed) . ' outstanding →' : 'All clear →' ?></a></strong></div>
+<?php endif; ?>
+<?php if ($hasGate): ?>                  <div class="pdl-row"><span>CACENTRE gate</span><strong><a href="#attendance" data-goto="attendance"><?= $gateWhy === '' ? 'Pass ready →' : 'Not allowed in — see why →' ?></a></strong></div>
+<?php endif; ?>
                   <div class="pdl-row"><span><?= $isOrg ? 'Access' : 'Account' ?></span><strong class="<?= $isOrg ? 'ok' : '' ?>"><?= $isOrg ? e($accessLevel) : 'Learner' ?></strong></div>
                 </div>
               </section>
@@ -1622,9 +1768,6 @@ $nav['You'] = [
     showView((location.hash||'').replace('#','') || 'overview', false);
 
     /* Sidebar search → filter nav items */
-    var search=document.getElementById('pSearch');
-    if (search) search.addEventListener('input', function(){ var q=this.value.trim().toLowerCase();
-      document.querySelectorAll('.pnav-link').forEach(function(a){ var t=a.textContent.toLowerCase(); a.style.display=(!q||t.indexOf(q)>=0)?'':'none'; }); });
 
     /* Copy invite link */
     var ci=document.getElementById('copyInvite');
@@ -2529,6 +2672,23 @@ $nav['You'] = [
   <script src="/portal/notifications.js" defer></script>
   <script src="/portal/directory.js" defer></script>
   <script src="/portal/inventory.js" defer></script>
+  <script src="/portal/leads.js" defer></script>
+  <?php /* The palette reads the sidebar rather than being handed a second copy
+           of it. Panes are hash links, and the portal already listens for
+           hashchange, so going to one is the same as clicking it. */ ?>
+  <script type="application/json" id="cmdk-data"><?= json_encode([
+      'navFrom' => '.pnav-link[data-view]',
+      'actions' => array_values(array_filter([
+          ['label' => 'New task',  'href' => '/portal/#tasks',     'sub' => 'Something to be done'],
+          ['label' => 'Write in the diary', 'href' => '/portal/#diary', 'sub' => 'Today, in your own words'],
+          $isOrg && CacSso::ready()
+              ? ['label' => 'Look something up in the register', 'href' => '/portal/#inventory',
+                 'sub' => 'Where it is, and who has it']
+              : null,
+      ])),
+      'find'    => '/portal/palette.php',
+  ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+  <script src="/portal/palette.js" defer></script>
   <script src="/community/community.js" defer></script>
   <script src="/assets/vendor/trix/trix.min.js" defer></script>
   <script src="/portal/diary.js" defer></script>

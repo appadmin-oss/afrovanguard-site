@@ -257,7 +257,7 @@ ck('ngv statement: somebody with no email address is refused, and told why', (fu
 
 // A participant may REPORT damage and ASK for a statement. Neither is allowed to
 // price anything, charge anything, or close a record.
-$dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+$dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-data.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php');
 $forbidden = ['NgvDamage::advance', 'NgvDamage::setNotify', 'NgvDamage::noteStale',
               'NgvLedger::sendStatements', 'NgvLedger::charge'];
 $leaks = [];

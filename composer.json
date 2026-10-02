@@ -2,6 +2,7 @@
     "require": {
         "phpmailer/phpmailer": "^6.9",
         "league/commonmark": "^2.7",
+        "firebase/php-jwt": "^7.0",
         "chillerlan/php-qrcode": "^6.0"
     }
 }

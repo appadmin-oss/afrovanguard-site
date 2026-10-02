@@ -68,7 +68,8 @@ try {
         'rules_save', 'rules_reset', 'kb_save', 'kb_delete', 'prompts_save', 'prompts_reset', 'level_recommend',
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
-        'ac_grant', 'ac_revoke'], true);
+        'ac_grant', 'ac_revoke',
+        'roster_create', 'roster_update', 'roster_import', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -85,9 +86,15 @@ try {
         // as editing one directly is — the AI having suggested it changes nothing.
         'ai_proposal_decide',
         // Provider credentials. Super Admin only — these are the organisation's keys.
-        'setup_get', 'setup_save', 'setup_test'];
+        'setup_get', 'setup_save', 'setup_test',
+        // A card format decides what opens the front door.
+        'card_format_save'];
     $managementOnly = [ // not available to editors
-        'mem_list', 'mem_save', 'mem_create', 'team_list', 'team_get', 'team_save', 'team_delete',
+        'mem_list', 'mem_save', 'mem_create',
+        // The member desk names every member, their phone and their birthday.
+        'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
+        'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
+        'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
         'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
@@ -130,7 +137,7 @@ try {
     // (actor + proxy-validated client IP + action + best-effort target). This is
     // systemic — new write actions are covered automatically. mem_* self-audit
     // below with richer before/after detail, so they're excluded here.
-    if ($writing && !in_array($action, ['mem_save', 'mem_create'], true)) {
+    if ($writing && !in_array($action, ['mem_save', 'mem_create', 'roster_create', 'roster_update', 'roster_import'], true)) {
         $auditTarget = (string) ($body['slug'] ?? $body['course'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
         if (isset($body['user_id'])) $auditTarget = trim($auditTarget . ' user#' . (int) $body['user_id']);
         $lms->audit($action, $auditTarget);
@@ -1111,11 +1118,88 @@ try {
                     $changed[] = 'level';
                 }
             }
+            /* Birthdays are recorded here, by the office — never by the member.
+               YYYY-MM-DD, or MM-DD when the year is not known; '' removes it.
+               The audit line says it changed, not what it is. */
+            if (array_key_exists('birthday', $body) && class_exists('Birthdays')) {
+                $was = Birthdays::of($mid);
+                $r = Birthdays::set($mid, (string) $body['birthday']);
+                if (empty($r['ok'])) json_out(['ok' => false, 'error' => $r['error'] ?? 'Not a birthday.'], 422);
+                if (Birthdays::of($mid) !== $was) { $lms->audit('birthday', $m['email'], $r['birthday'] === null ? 'removed' : 'recorded'); $changed[] = 'birthday'; }
+            }
             json_out(['ok' => true, 'changed' => $changed, 'member' => $lms->memberById($mid), 'level' => class_exists('Levels') ? Levels::of($mid) : null]);
+        /* ── The member desk (lib/MemberRoster.php): validate → dry run → apply → audit ── */
+        case 'roster_overview':
+            json_out(['ok' => true] + MemberRoster::overview());
+        case 'roster_list':
+            json_out(['ok' => true, 'roles' => array_keys(LmsAuth::ROLE_RANK), 'levels' => class_exists('Levels') ? Levels::order() : ['O']]
+                + MemberRoster::roster(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'sort', 'dir', 'page', 'page_size']))));
+        case 'roster_get':
+            $m = MemberRoster::get((int) ($_GET['id'] ?? 0));
+            json_out($m ? ['ok' => true, 'member' => $m] : ['ok' => false, 'error' => 'No such member.'], $m ? 200 : 404);
+        case 'ngv_intake':
+            json_out(['ok' => true, 'waiting' => NgvIntake::waiting()]);
+        case 'ngv_intake_email':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = NgvIntake::supplyEmail((string) ($body['ngg_member_id'] ?? ''), (string) ($body['email'] ?? ''));
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'roster_duplicates':
+            json_out(['ok' => true, 'groups' => MemberRoster::duplicates()]);
+        case 'roster_create':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberRoster::create($body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'roster_update':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes']));
+            $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'roster_import':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            /* The file as ONE value (csv), for the reason parseCsv gives. */
+            $parsed = MemberRoster::parseCsv((string) ($body['csv'] ?? ''));
+            if (!$parsed['ok']) json_out($parsed, 422);
+            $apply = !empty($body['apply']);
+            if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Importing members needs an Admin. Anybody here can read the dry run.'], 403);
+            $r = MemberRoster::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
+                'overwrite' => !empty($body['overwrite']), 'card_format' => (string) ($body['card_format'] ?? ''),
+                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
+            json_out($r + ['columns' => $parsed['columns'], 'unknown_columns' => $parsed['unknown_columns']], $r['ok'] ? 200 : 422);
+        case 'card_formats':
+            $o = ['ok' => true, 'formats' => MemberCards::formats()];
+            if (isset($_GET['example'], $_GET['number'])) $o['derived'] = MemberCards::fromExample((string) $_GET['example'], (string) $_GET['number']);
+            if (isset($_GET['template'], $_GET['mask'], $_GET['sample'])) {
+                $f = ['id' => 'test', 'template' => (string) $_GET['template'], 'mask' => (string) $_GET['mask']];
+                $c = MemberCards::compile($f);
+                $o['test'] = $c['ok'] ? ['ok' => true, 'decodes' => MemberCards::decode($f, (string) $_GET['sample'])] : $c;
+            }
+            json_out($o);
+        case 'card_format_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberCards::saveFormat($body, av_admin_actor());
+            if ($r['ok']) $lms->audit('card.format', (string) $r['format']['id'], $r['format']['template'] . ' · ' . $r['format']['mask'], av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'card_reissue':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $mid = (int) ($body['id'] ?? 0);
+            $m = MemberRoster::get($mid);
+            if (!$m) json_out(['ok' => false, 'error' => 'No such member.'], 404);
+            $code = MemberCards::issue($mid, av_admin_actor(), 'reissue');
+            if (!empty($body['void_printed'])) MemberCards::voidPrinted($mid);
+            $lms->audit('card.reissue', (string) $m['email'], !empty($body['void_printed']) ? 'old printed cards retired' : '', av_admin_actor());
+            json_out(['ok' => true, 'code' => $code, 'cards' => MemberCards::of($mid)]);
+        case 'cards_backfill':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = MemberCards::backfill(av_admin_actor(), (int) ($body['limit'] ?? 200));
+            if ($r['issued']) $lms->audit('card.backfill', '', $r['issued'] . ' cards · ' . $r['remaining'] . ' left', av_admin_actor());
+            json_out(['ok' => true] + $r);
+
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $res = $lms->createMember((string) ($body['name'] ?? ''), (string) ($body['email'] ?? ''), (string) ($body['role'] ?? 'member'));
             if (!empty($res['ok'])) $lms->audit('create_member', strtolower(trim((string) ($body['email'] ?? ''))), 'role ' . ($body['role'] ?? 'member'));
+            /* And a card the gate reads, printed new — the secure kind. */
+            if (!empty($res['ok']) && !empty($res['id'])) { try { $res['card'] = MemberCards::issue((int) $res['id'], av_admin_actor(), 'created'); } catch (Throwable $e) { error_log('[cards] ' . $e->getMessage()); } }
             json_out($res, !empty($res['ok']) ? 200 : 422);
 
         case 'get':

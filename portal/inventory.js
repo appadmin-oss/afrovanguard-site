@@ -32,6 +32,10 @@
   var prevEl  = document.getElementById('invPrev');
   var nextEl  = document.getElementById('invNext');
 
+  /* `busy` covers a second call arriving before the first answers; `loaded`
+     is what stops the pane reloading every time it is reopened. Without the
+     first, two view events in quick succession both see loaded false and both
+     fetch. */
   var page = 1, pages = 1, loaded = false, busy = false, facetsDone = false;
 
   function say(text, bad) {

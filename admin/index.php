@@ -415,32 +415,124 @@
     <div class="inbox-list" id="modList"></div>
   </main>
 
-  <!-- MEMBERS (RBAC console) -->
+  <!-- MEMBERS — the member desk (lib/MemberRoster.php) -->
   <main class="studio-main" id="membersView" hidden>
     <div class="studio-head">
-      <div><h1>Members</h1><p class="muted">Accounts &amp; access levels. Verified <strong>@afrovanguard.org.ng</strong> sign-ins become members (mentorship access); promote to Mentor / Coordinator / Admin, suspend, or pre-create accounts.</p></div>
-      <button class="btn btn-primary" id="memNewBtn">+ Add member</button>
+      <div><h1>Members</h1><p class="muted">Everybody who belongs to Afrovanguard: their record, their access, their card for the CACENTRE gate. Every change is checked before it is written, and recorded.</p></div>
+      <div class="mem-head-ops">
+        <button class="btn btn-outline" id="memCardsBtn" title="Give every active member with no card a secure card for the gate">Issue cards</button>
+        <button class="btn btn-primary" id="memNewBtn">+ Add member</button>
+      </div>
     </div>
-    <div class="mem-counts" id="memCounts"></div>
+    <div class="studio-subtabs" role="tablist" aria-label="Member sections">
+      <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
+      <button class="subtab" data-mv="roster" role="tab">Roster</button>
+      <button class="subtab" data-mv="import" role="tab">Import</button>
+      <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
+    </div>
+
     <div class="side-card mem-create" id="memCreate" hidden>
       <h3>Add a member</h3>
       <div class="mem-create-grid">
-        <label class="fld"><span>Name</span><input id="mc_name" placeholder="Full name" /></label>
-        <label class="fld"><span>Email</span><input id="mc_email" type="email" placeholder="name@afrovanguard.org.ng" /></label>
+        <label class="fld"><span>Name</span><input id="mc_name" placeholder="Full name" autocomplete="off" /></label>
+        <label class="fld"><span>Email</span><input id="mc_email" type="email" placeholder="name@example.com" autocomplete="off" /></label>
+        <label class="fld"><span>Phone</span><input id="mc_phone" inputmode="tel" placeholder="0803 000 0000" /></label>
+        <label class="fld"><span>Centre</span><input id="mc_centre" placeholder="Egbeda" /></label>
         <label class="fld"><span>Access level</span><select id="mc_role"></select></label>
+        <label class="fld"><span>Membership level</span><select id="mc_level"></select></label>
+        <label class="fld"><span>Birthday</span><input id="mc_bday" placeholder="1998-07-14 or 07-14" maxlength="10" /></label>
+        <label class="fld"><span>Joined</span><input id="mc_joined" type="date" /></label>
       </div>
-      <div class="editor-actions"><button class="btn btn-outline btn-sm" id="memCreateCancel">Cancel</button><button class="btn btn-primary btn-sm" id="memCreateSave">Create account</button></div>
-      <p class="muted tiny">Pre-creates a passwordless account; they sign in with Google (org email) to claim it.</p>
+      <div class="mem-errors" id="mc_errors" role="alert" hidden></div>
+      <div class="editor-actions"><button class="btn btn-outline btn-sm" id="memCreateCancel">Cancel</button><button class="btn btn-primary btn-sm" id="memCreateSave">Create member</button></div>
+      <p class="muted tiny">They get a secure card for the CACENTRE gate at once. They sign in with Google (an org email) or set a password from the link we email them.</p>
     </div>
-    <div class="mem-filters">
-      <div class="search-wrap mem-search">&#128269;<input type="search" id="memQ" placeholder="Search name or email…" aria-label="Search members" /></div>
-      <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
-      <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
-    </div>
-    <div class="entry-list" id="memList"></div>
-    <h2 class="mem-audit-h">Recent activity</h2>
-    <div class="inbox-list" id="memAudit"></div>
+
+    <section class="mem-pane" data-pane="dash">
+      <div class="mem-counts" id="memCounts"></div>
+      <div class="mem-dash">
+        <div class="side-card"><h3>Joined, month by month</h3><div class="mem-bars" id="memJoined"></div></div>
+        <div class="side-card"><h3>What needs fixing</h3><div id="memQuality"></div></div>
+        <div class="side-card"><h3>By centre</h3><div id="memCentres"></div></div>
+      </div>
+      <div class="side-card" id="memIntake" hidden>
+        <h3>Promoted from NGG, waiting for an email</h3>
+        <p class="muted tiny">NGG promoted these members to NextGen Vanguard, but has no usable email for them, so they have no account here yet. Type the address and the account, the NGV enrolment and the NGV ID are made at once.</p>
+        <div id="memIntakeList"></div>
+      </div>
+      <h2 class="mem-audit-h">Recent activity</h2>
+      <div class="inbox-list" id="memAudit"></div>
+    </section>
+
+    <section class="mem-pane" data-pane="roster" hidden>
+      <div class="mem-filters">
+        <div class="search-wrap mem-search">&#128269;<input type="search" id="memQ" placeholder="Search name, email or phone…" aria-label="Search members" /></div>
+        <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
+        <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+        <select id="memKind" aria-label="NextGen Vanguards or not"><option value="">Everybody</option><option value="ngv">NextGen Vanguards</option><option value="member">Not NGV</option></select>
+        <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
+        <select id="memSort" aria-label="Order"><option value="">Newest first</option><option value="name">Name A–Z</option><option value="centre">Centre</option><option value="role">Access level</option></select>
+      </div>
+      <div class="entry-list" id="memList"></div>
+      <div class="mem-pager" id="memPager"></div>
+    </section>
+
+    <section class="mem-pane" data-pane="import" hidden>
+      <div class="side-card">
+        <h3>Import members from a spreadsheet</h3>
+        <p class="muted">Save the sheet as CSV. The first row names the columns: <b>Name</b> and <b>Email</b> (both required), Phone, Centre, Access level, Level, Date of birth, Date joined, <b>NGV number</b> (the number on a card they already hold), Card code (an older card read by a format below). An email that already has an account <b>is</b> that account: the row fills it in and links it — and any NGV application under the same email — rather than making a second. Importing twice updates the same people.</p>
+        <label class="btn btn-outline btn-sm mem-file">Choose CSV…<input type="file" id="miFile" accept=".csv,text/csv" hidden /></label>
+        <span class="muted tiny" id="miFileName"></span>
+        <div class="mem-create-grid" style="margin-top:12px">
+          <label class="fld"><span>Cards these members already hold</span><select id="miFormat"></select></label>
+          <label class="fld mem-check"><input type="checkbox" id="miOverwrite" /> <span>Replace values a record already has (default: fill blanks only)</span></label>
+        </div>
+        <div class="side-card mem-format" id="miNewFormat" hidden>
+          <label class="fld"><span>What one of the old cards scans as</span><input id="mfExample" placeholder="https://old.example.org/member/00042" /></label>
+          <label class="fld"><span>The member's number in it</span><input id="mfNumber" placeholder="00042" /></label>
+          <label class="fld"><span>A name for these cards</span><input id="mfLabel" placeholder="2023 laminated cards" /></label>
+          <p class="muted tiny" id="mfDerived"></p>
+          <div class="editor-actions"><button class="btn btn-outline btn-sm" id="mfCancel">Cancel</button><button class="btn btn-outline btn-sm" id="mfDerive">Work out the format</button><button class="btn btn-primary btn-sm" id="mfSave" hidden>Save format</button></div>
+        </div>
+        <div class="mem-try" id="miTry" hidden><input id="miTryText" placeholder="Try a card: scan or paste one" aria-label="Try a card against this format" /><button class="btn btn-outline btn-sm" id="miTryBtn">Try</button><span class="tiny" id="miTryRes"></span></div>
+        <div class="editor-actions"><button class="btn btn-outline btn-sm" id="miCheck" disabled>Check what would change</button><button class="btn btn-primary btn-sm" id="miApply" hidden>Import</button></div>
+        <div id="miResult"></div>
+      </div>
+    </section>
+
+    <section class="mem-pane" data-pane="dups" hidden>
+      <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
+      <div id="memDups"></div>
+    </section>
   </main>
+
+  <!-- One member, the whole record -->
+  <div class="modal-backdrop" id="memDrawer" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
+      <div class="modal-top"><h2 id="mdTitle">Member</h2><button class="btn btn-outline btn-sm" id="mdClose" aria-label="Close">✕</button></div>
+      <div class="modal-body">
+        <div class="mem-create-grid">
+          <label class="fld"><span>Name</span><input id="md_name" /></label>
+          <label class="fld"><span>Email</span><input id="md_email" type="email" /></label>
+          <label class="fld"><span>Phone</span><input id="md_phone" inputmode="tel" /></label>
+          <label class="fld"><span>Centre</span><input id="md_centre" /></label>
+          <label class="fld"><span>Access level</span><select id="md_role"></select></label>
+          <label class="fld"><span>Membership level</span><select id="md_level"></select></label>
+          <label class="fld"><span>Birthday</span><input id="md_bday" maxlength="10" placeholder="1998-07-14 or 07-14" /></label>
+          <label class="fld"><span>Joined</span><input id="md_joined" type="date" /></label>
+        </div>
+        <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
+        <div class="mem-errors" id="md_errors" role="alert" hidden></div>
+        <h3 class="mem-card-h">Cards at the gate</h3>
+        <div id="mdCards"></div>
+        <div class="editor-actions">
+          <button class="btn btn-outline btn-sm" id="mdReissue">Lost card — issue a new one</button>
+          <button class="btn btn-outline btn-sm" id="mdRetire" hidden>Reprinted — retire the old card</button>
+        </div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-outline btn-sm" id="mdSuspend"></button><button class="btn btn-primary btn-sm" id="mdSave">Save</button></div>
+    </div>
+  </div>
 
   <!-- PEOPLE LIST -->
   <main class="studio-main" id="peopleView" hidden>

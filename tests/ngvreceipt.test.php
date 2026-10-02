@@ -368,7 +368,7 @@ ck('ngv damage photo: the reader handles a raw row, a shaped one, and rubbish',
 ck('ngv damage photo: attaching one is not a way to change any money',
    (int) NgvLedger::balance(440)['charged'] === 0);
 
-$dashSrc2 = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+$dashSrc2 = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-data.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php');
 /* A signed-in member could otherwise attach a picture to somebody else's
    incident by editing one number in the form. */
 ck('ngv damage photo: the member route attaches only onto their own record',
@@ -379,7 +379,7 @@ foreach ([$png, $evil, $txt] as $f) @unlink($f);
 
 /* ══ What must never happen ════════════════════════════════════════════════ */
 
-$dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+$dashSrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-data.php') . @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php');
 ck('ngv receipt: a member\'s dashboard reads receipts but cannot issue or cancel one',
    strpos($dashSrc, 'NgvLedger::sendReceipt') === false
    && strpos($dashSrc, 'NgvLedger::receiptsFor') !== false);

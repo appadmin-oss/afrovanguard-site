@@ -89,6 +89,14 @@ if (class_exists('Appeals')) {
     catch (Throwable $e) { error_log('[cron] appeals: ' . $e->getMessage()); }
 }
 
+// The CACENTRE gate: mark the absences of programme days that have ended.
+// Remembers how far it has swept, so every tick after the first of a day is a
+// no-op, and does nothing at all until "Mark absences" is switched on.
+if (class_exists('GateAttendance')) {
+    try { $result['gate_absences'] = GateAttendance::sweep(); }
+    catch (Throwable $e) { error_log('[cron] gate absences: ' . $e->getMessage()); }
+}
+
 // G-1: chase overdue commitments. Deduped per commitment per day inside
 // Commitments::sweepOverdue(), so a stuck commitment nudges once daily rather than
 // on every tick. Independent of Mentorship — commitments also come from meetings.
@@ -164,6 +172,12 @@ if (is_file(AV_ROOT . '/lib/people.php')) {
         try { $result['birthdays'] = av_birthday_emails_run(Database::pdo()); }
         catch (Throwable $e) { error_log('[cron] birthdays: ' . $e->getMessage()); }
     }
+}
+// …and members' (lib/Birthdays): once each per day, and never a second letter
+// to somebody the team email above has already written to.
+if (class_exists('Birthdays')) {
+    try { $result['member_birthdays'] = Birthdays::emailToday(); }
+    catch (Throwable $e) { error_log('[cron] member birthdays: ' . $e->getMessage()); }
 }
 
 if ($cli) { fwrite(STDOUT, $result['at'] . ' ' . json_encode($result) . "\n"); }

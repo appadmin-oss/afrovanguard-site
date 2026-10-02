@@ -198,7 +198,12 @@ ck('reading: something too short to be evidence has no fingerprint',
 
 /* ══ The member surface no longer self-reports ════════════════════════════ */
 
-$rdDash = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+/* The member surface is three files now — the page, the data it reads and the
+   body it renders — so this reads all three. Grepping only dashboard.php would
+   have gone quiet the moment the markup moved into a partial. */
+$rdDash = implode("\n", array_map(
+    static fn(string $f): string => (string) @file_get_contents(AV_ROOT . '/academy/ngv/' . $f),
+    ['dashboard.php', '_dashboard-data.php', '_dashboard-body.php']));
 ck('reading: the dashboard no longer sends a books patch',
    !preg_match('/\$patch\[.books.\]\s*=/', $rdDash));
 ck('reading: and it reads the verified progress instead',

@@ -33,6 +33,8 @@ if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
 }
 
 // The CACENTRE door: /cacentre and /cacentre/<path on the far side>.
+// A member's pass for the CACENTRE gate.
+if (preg_match('~^/gate-pass/?$~', $uri)) { require __DIR__ . '/gate-pass.php'; return true; }
 if (preg_match('~^/cacentre/?$~', $uri)) { require __DIR__ . '/cacentre.php'; return true; }
 if (preg_match('~^/cacentre/(.+)$~', $uri, $m)) {
     $_GET['p'] = $m[1];

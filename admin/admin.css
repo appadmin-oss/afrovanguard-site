@@ -171,6 +171,25 @@ body.studio-authed .studio-side { display: block; }
 .mem-row .entry-info { flex: 1; }
 .mem-row .mem-role { padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; text-transform: capitalize; }
 .mem-audit-h { font-family: var(--font-heading); font-size: 20px; margin: 28px 0 12px; }
+.mem-head-ops { display: flex; gap: 10px; flex-wrap: wrap; }
+.mem-create-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.mem-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+.mem-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+.mem-bars span { flex: 1; background: var(--gold-deep); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
+.mem-bars span i { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; font-style: normal; color: var(--muted, #888); }
+.mem-quality a { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--divider); color: var(--ink); text-decoration: none; }
+.mem-quality a b { color: var(--gold-deep); }
+.mem-errors { background: rgba(192,57,43,.08); border: 1px solid rgba(192,57,43,.35); color: #a33; border-radius: var(--radius-sm); padding: 10px 12px; margin: 8px 0; font-size: 13px; }
+.mem-pager { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+.mem-file { cursor: pointer; }
+.mem-check { display: flex; align-items: center; gap: 8px; }
+.mem-try { display: flex; gap: 8px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+.mem-try input { flex: 1; min-width: 200px; padding: 9px 12px; border: 1px solid var(--divider); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink); font: inherit; }
+.mem-card-h { font-size: 15px; margin: 18px 0 8px; }
+.mem-card-row { display: flex; gap: 10px; align-items: baseline; font-size: 13px; padding: 4px 0; }
+.mem-card-row code { font-size: 13px; }
+.mem-result-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--divider); font-size: 13px; }
+.mem-result-row .mk { width: 14px; flex: none; opacity: .7; font-family: monospace; }
 @media (max-width: 760px) { .mem-create-grid { grid-template-columns: 1fr; } }
 
 /* Sign-in illustration manager */

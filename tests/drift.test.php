@@ -147,6 +147,19 @@ $knownMetaKeys = [
     // naming is `accrueFrom`: lost, it re-stamps to the month fees are next
     // switched on, which under-charges rather than back-charging a roster.
     'ngv_fees',
+    'ngv_fine_catalogue',   // NgvFines: the usual amount for each fine reason
+    // CACENTRE gate absences (lib/GateAttendance). Reviewed: gates no migration.
+    // It is how far the absence sweep has gone. Lost, the sweep restarts at
+    // yesterday — it never back-marks history, so it under-marks rather than
+    // fining a roster for days nobody was watching.
+    'gate_absent_swept_through',
+    // Older printed member cards (lib/MemberCards). Reviewed: gates no migration.
+    // The shapes the gate decodes old cards by. Lost, those cards stop reading
+    // at the gate until re-described; secure cards and NGV numbers are unaffected.
+    'gate_card_formats',
+    // Members' birthday emails (lib/Birthdays). Reviewed: gates no migration.
+    // Who has had today's letter. Lost, somebody may get today's twice.
+    'member_bday_sent',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

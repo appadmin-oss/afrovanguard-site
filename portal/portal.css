@@ -1556,8 +1556,8 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .inv-filters input[type="search"],
 .inv-filters select {
   width: 100%; padding: .5rem .7rem; font: inherit; font-size: .9rem;
-  border: 1px solid var(--pc-border, rgba(0,0,0,.14)); border-radius: 8px;
-  background: var(--pc-field, #fff); color: inherit;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: inherit;
 }
 .inv-filters select { width: auto; }
 
@@ -1567,11 +1567,11 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .inv-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .inv-table th, .inv-table td {
   text-align: left; padding: .55rem .6rem; vertical-align: top;
-  border-bottom: 1px solid var(--pc-border, rgba(0,0,0,.09));
+  border-bottom: 1px solid var(--border);
 }
 .inv-table thead th {
   font-size: .7rem; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--pc-dim, #6b7280); font-weight: 700; white-space: nowrap;
+  color: var(--muted); font-weight: 700; white-space: nowrap;
 }
 .inv-table tbody th { font-weight: 600; }
 .inv-name { display: block; }
@@ -1582,30 +1582,189 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
    make three equally loud lines in one cell — which is the same as none. */
 .inv-tag {
   display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: .74rem; font-weight: 400; color: var(--pc-dim, #6b7280);
+  font-size: .74rem; font-weight: 400; color: var(--muted);
 }
-.inv-sub { display: block; font-size: .74rem; font-weight: 400; color: var(--pc-dim, #6b7280); }
+.inv-sub { display: block; font-size: .74rem; font-weight: 400; color: var(--muted); }
 /* "Not recorded" is a fact about the register, and it should look like one
    rather than like a value somebody entered. */
-.inv-none { color: var(--pc-dim, #6b7280); font-style: italic; }
+.inv-none { color: var(--muted); font-style: italic; }
 
+/* The portal already carries a colour for each of these, and each one flips
+   on its own in dark mode — so hardcoding a hex here meant writing the dark
+   palette a second time underneath, which is what the four
+   `body.is-dark .inv-pill--*` rules used to be. */
 .inv-pill {
   display: inline-block; padding: .12rem .5rem; border-radius: 999px;
   font-size: .72rem; font-weight: 700; white-space: nowrap;
-  background: rgba(0,0,0,.06); color: inherit;
+  background: var(--surface-2); color: var(--body);
 }
-.inv-pill--pos  { background: rgba(21,128,61,.14);  color: #15803d; }
-.inv-pill--warn { background: rgba(180,83,9,.14);   color: #b45309; }
-.inv-pill--neg  { background: rgba(179,38,30,.14);  color: #b3261e; }
+.inv-pill--pos  { background: var(--green-soft);  color: var(--green); }
+.inv-pill--warn { background: var(--gold-soft);   color: var(--gold-deeper); }
+.inv-pill--neg  { background: var(--red-soft);    color: var(--red); }
 
+/* `[hidden]` only sets display:none through the browser's own stylesheet,
+   which any display rule here beats. Without this the pager was drawn on a
+   one-page result, and the log form below was drawn open under a button that
+   said "Log a conversation" — the fold-away never worked at all. */
 .inv-more { display: flex; align-items: center; gap: .75rem; margin-top: .9rem; font-size: .85rem; }
+.inv-more[hidden] { display: none; }
 .inv-more button[disabled] { opacity: .45; cursor: default; }
 
-body.is-dark .inv-pill        { background: rgba(255,255,255,.10); }
-body.is-dark .inv-pill--pos   { background: rgba(74,222,128,.16);  color: #4ade80; }
-body.is-dark .inv-pill--warn  { background: rgba(251,191,36,.16);  color: #fbbf24; }
-body.is-dark .inv-pill--neg   { background: rgba(248,113,113,.16); color: #f87171; }
 
 @media (max-width: 620px) {
   .inv-filters select, .inv-filters .pbtn { flex: 1 1 auto; }
+}
+
+/* ── Follow-ups from CACENTRE ───────────────────────────────────────────────
+ * A list of people waiting to hear back, not a list of errands. That is why
+ * the name is the loudest thing in the row and the date is second: the
+ * question somebody opens this with is "who have I left hanging", and the
+ * answer is a person.
+ *
+ * Overdue gets a red rule down the left edge and a red date. Nothing else on
+ * this card is red, so the colour means one thing.
+ */
+.lead-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+.lead {
+  padding: .65rem .75rem; border-radius: 8px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--border);
+}
+.lead:last-child { border-bottom: 0; }
+/* --red-soft flips for dark on its own; the old rule hardcoded a light tint
+   and then repainted it underneath. */
+.lead--late { border-left-color: var(--red); background: var(--red-soft); }
+
+.lead-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
+.lead-head[hidden] { display: none; }
+.lead-name { font-weight: 600; }
+.lead-meta { font-size: .76rem; color: var(--muted); }
+
+.lead-due { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; margin-top: .15rem; font-size: .82rem; }
+.lead-when { color: var(--muted); }
+.lead-when.is-late { color: var(--red); font-weight: 600; }
+.lead-what { color: var(--muted); }
+/* Monospace and tabular so a column of numbers lines up and 0 is not O. */
+.lead-tel {
+  margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .8rem; text-decoration: none;
+}
+.lead-tel:hover { text-decoration: underline; }
+
+/* A quiet control: the common case is reading the list, not writing to it. */
+.lead-log-open {
+  margin-top: .35rem; padding: 0; border: 0; background: none;
+  font: inherit; font-size: .78rem; color: var(--muted);
+  cursor: pointer; text-decoration: underline;
+}
+.lead-log-open:hover { color: inherit; }
+
+.lead-log { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.lead-log[hidden] { display: none; }
+.lead-in {
+  flex: 1 1 12rem; min-width: 0; padding: .45rem .6rem; font: inherit; font-size: .85rem;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: inherit;
+}
+.lead-in--date { flex: 0 0 auto; }
+.lead--done { opacity: .6; }
+.lead--done .lead-name { text-decoration: line-through; }
+
+
+@media (max-width: 620px) {
+  .lead-tel { margin-left: 0; }
+  .lead-in { flex-basis: 100%; }
+}
+
+/* ── The command palette ────────────────────────────────────────────────────
+ * The same control the console has, drawn in the portal's own colours. One
+ * column, arrow down, Enter: it is a queue, not a page, so there are no
+ * columns to scan across and no grouping headings to skip past — the kind of
+ * each row is a label on the row itself.
+ *
+ * It sits high rather than centred: the list grows downward from the top
+ * edge, so the first result stays in the same place whether there are two
+ * results or twenty.
+ */
+.cmdk { position: fixed; inset: 0; z-index: 9999; }
+.cmdk[hidden] { display: none; }
+.cmdk-scrim { position: absolute; inset: 0; background: rgba(8,12,22,.5); }
+
+.cmdk-box {
+  position: relative; margin: 10vh auto 0; width: min(40rem, calc(100% - 2rem));
+  background: var(--surface); border: 1px solid var(--border-3);
+  border-radius: 14px; box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.cmdk-in {
+  padding: 15px 18px; font: inherit; font-size: 15px;
+  border: 0; border-bottom: 1px solid var(--border);
+  background: transparent; color: var(--ink); width: 100%;
+}
+.cmdk-in::placeholder { color: var(--muted-2); }
+/* No ring: it is the only focusable thing in the dialog and it is focused the
+   whole time it is open, so a permanent outline means nothing. The row cursor
+   carries the focus the eye is following. */
+.cmdk-in:focus { outline: none; }
+
+.cmdk-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; max-height: min(23rem, 55vh); }
+.cmdk-row { display: flex; align-items: center; gap: 12px; padding: 9px 11px; border-radius: 9px; cursor: pointer; }
+/* One highlight, driven by the cursor and not by :hover — with both, moving
+   the mouse while arrowing lights two rows and neither is obviously the one
+   Enter will take. */
+.cmdk-row.is-on { background: var(--gold-soft); }
+
+.cmdk-kind {
+  flex: 0 0 5.5rem; font-size: 10.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cmdk-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cmdk-label { font-size: 13.5px; color: var(--ink); }
+.cmdk-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-keys { flex: 0 0 auto; display: flex; gap: 3px; }
+
+.cmdk-empty { margin: 0; padding: 18px; font-size: 13px; color: var(--muted); }
+
+.cmdk-foot {
+  display: flex; flex-wrap: wrap; gap: 14px; padding: 9px 18px;
+  border-top: 1px solid var(--border); background: var(--surface-2);
+  font-size: 12px; color: var(--muted);
+}
+.cmdk-foot span { display: inline-flex; align-items: center; gap: 4px; }
+
+.cmdk kbd, .pside-search kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px; font-variant-numeric: tabular-nums; line-height: 1;
+  padding: 3px 5px; min-width: 18px; text-align: center;
+  border: 1px solid var(--border-3); border-bottom-width: 2px;
+  border-radius: 5px; background: var(--surface-2); color: var(--body);
+}
+
+.cmdk-on, .cmdk-on body { overflow: hidden; }
+
+/* The sidebar trigger, which used to be a text input that hid nav links. */
+.pside-search {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  /* Comfortably past the 24px WCAG floor: it is the first control in the
+     sidebar and it is pressed, not glanced at. */
+  padding: 8px 11px; min-height: 36px;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface-2); color: var(--muted);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.pside-search:hover { border-color: var(--border-3); color: var(--body); }
+.pside-search-t { flex: 1; }
+
+@media (max-width: 640px) {
+  .cmdk-box { margin-top: 4vh; }
+  .cmdk-kind { flex-basis: 4rem; }
+  .cmdk-foot { display: none; }        /* nothing here has a keyboard to tell about */
+  .pside-search kbd { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cmdk-box { animation: cmdkIn 140ms ease-out; }
+  @keyframes cmdkIn { from { opacity: 0; transform: translateY(-.5rem); } }
 }
