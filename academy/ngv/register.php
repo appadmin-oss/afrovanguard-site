@@ -60,7 +60,9 @@ $enabled  = Ngv::isEnabled();
 
 $done = false;
 $err  = '';
-$old  = ['name' => '', 'email' => '', 'phone' => '', 'age' => '', 'gender' => '', 'location' => '', 'education' => '', 'track' => '', 'plan' => '', 'message' => ''];
+$old  = ['name' => '', 'email' => '', 'phone' => '', 'age' => '', 'gender' => '', 'location' => '', 'education' => '', 'track' => '', 'plan' => '', 'message' => '',
+         'guardian_name' => '', 'guardian_phone' => ''];
+$agreed = false; $guardianOk = false;
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     require_same_origin();
@@ -69,6 +71,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $limited = function_exists('av_rate_ok') && !av_rate_ok('ngv_apply_' . $ip, 5, 900); // 5 / 15 min
 
     foreach ($old as $k => $_) $old[$k] = (string) ($_POST[$k] ?? '');
+    $agreed     = !empty($_POST['consent']);
+    $guardianOk = !empty($_POST['guardian_consent']);
+    /* School leavers are often 16 or 17. A child's details are taken with a
+       parent's or guardian's say-so, and everybody is told what the data is
+       for before giving it — neither was asked before. */
+    $ageN = preg_match('/^\s*(\d{1,2})\s*$/', $old['age'], $am) ? (int) $am[1] : 0;
+    $minor = $ageN > 0 && $ageN < 18;
 
     if ($hp !== '') {
         $done = true; // silently absorb bots — look successful, store nothing
@@ -76,8 +85,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $err = 'You have submitted a few times already. Please wait a little while and try again.';
     } elseif (trim($old['name']) === '' || !filter_var(trim($old['email']), FILTER_VALIDATE_EMAIL)) {
         $err = 'Please enter your full name and a valid email address.';
+    } elseif ($ageN < 13 || $ageN > 99) {
+        $err = 'Please give your age in years. NextGen Vanguard is open from 13.';
+    } elseif ($minor && (trim($old['guardian_name']) === '' || trim($old['guardian_phone']) === '' || !$guardianOk)) {
+        $err = 'You are under 18, so we need a parent or guardian: their name, their phone number, and their agreement below.';
+    } elseif (!$agreed) {
+        $err = 'Please confirm you have read how we use your details.';
     } else {
-        $id = NgvMember::submitApplication($old + ['source' => 'register']);
+        $id = NgvMember::submitApplication($old + ['source' => 'register', 'consent' => true, 'guardian_consent' => $minor && $guardianOk]);
         if ($id > 0) {
             $done = true;
             try { NgvMember::autolinkApplication($id); } catch (Throwable $e2) {}   // pre-link if they already have an account
@@ -107,6 +122,8 @@ body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);c
 a{color:var(--red)}
 h1,h2{margin:0;letter-spacing:-.01em}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.chk{display:flex;gap:.6rem;align-items:flex-start;margin:.9rem 0;font-size:.95rem;line-height:1.45}
+.chk input{margin-top:.25rem;width:1.1rem;height:1.1rem;flex:none}
 .skip{position:absolute;left:-9999px;top:0;background:#fff;color:var(--ink);font-weight:700;padding:10px 16px;border-radius:0 0 10px 0;z-index:10}
 .skip:focus{left:0}
 
@@ -213,8 +230,8 @@ textarea{min-height:110px;resize:vertical}
           <div class="row2">
             <div class="fld"><label for="f-phone">Phone / WhatsApp</label>
               <input id="f-phone" type="tel" name="phone" maxlength="40" autocomplete="tel" value="<?= $e($old['phone']) ?>"></div>
-            <div class="fld"><label for="f-age">Age</label>
-              <input id="f-age" type="text" name="age" maxlength="12" inputmode="numeric" value="<?= $e($old['age']) ?>"></div>
+            <div class="fld"><label for="f-age">Age <span class="req" aria-hidden="true">*</span></label>
+              <input id="f-age" type="number" name="age" min="13" max="99" required inputmode="numeric" value="<?= $e($old['age']) ?>"></div>
           </div>
           <div class="row2">
             <div class="fld"><label for="f-location">Location</label>
@@ -256,6 +273,23 @@ textarea{min-height:110px;resize:vertical}
             <textarea id="f-message" name="message" maxlength="1500" placeholder="Tell us a little about yourself and your goals."><?= $e($old['message']) ?></textarea>
           </div>
         </fieldset>
+
+        <fieldset>
+          <legend>If you are under 18</legend>
+          <p class="note">A parent or guardian needs to agree to your application. Fill this in if you are 17 or younger.</p>
+          <div class="row2">
+            <div class="fld"><label for="f-gname">Parent or guardian's name</label>
+              <input id="f-gname" type="text" name="guardian_name" maxlength="120" autocomplete="off" value="<?= $e($old['guardian_name']) ?>"></div>
+            <div class="fld"><label for="f-gphone">Their phone</label>
+              <input id="f-gphone" type="tel" name="guardian_phone" maxlength="40" autocomplete="off" value="<?= $e($old['guardian_phone']) ?>"></div>
+          </div>
+          <label class="chk"><input type="checkbox" name="guardian_consent" value="1" <?= $guardianOk ? 'checked' : '' ?>>
+            My parent or guardian has agreed to this application and to Afrovanguard contacting them about it.</label>
+        </fieldset>
+
+        <label class="chk"><input type="checkbox" name="consent" value="1" required <?= $agreed ? 'checked' : '' ?>>
+          I have read the <a href="/privacy-policy/" target="_blank" rel="noopener">privacy policy</a>: my details are used
+          to process this application and run the programme, and are not sold or shared for marketing. <span class="req" aria-hidden="true">*</span></label>
 
         <button class="btn" type="submit">Submit my application</button>
         <p class="note">No one is turned away for lack. Committed applicants who need support can say so above or speak to a track lead. We'll only use your details to process your application.</p>

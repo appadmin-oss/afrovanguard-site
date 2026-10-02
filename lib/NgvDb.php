@@ -360,6 +360,13 @@ final class NgvDb
           source      TEXT NOT NULL DEFAULT 'web',
           member_id   INTEGER NOT NULL DEFAULT 0,
           reviewed_by INTEGER NOT NULL DEFAULT 0,
+          /* Consent, recorded with the application: when the applicant agreed
+             to the privacy notice, and for an applicant under 18 who their
+             parent or guardian is and that they agreed. */
+          consent_at       TEXT NOT NULL DEFAULT '',
+          guardian_name    TEXT NOT NULL DEFAULT '',
+          guardian_phone   TEXT NOT NULL DEFAULT '',
+          guardian_consent INTEGER NOT NULL DEFAULT 0,
           created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_ngv_app_status ON ngv_applications (status);

@@ -550,21 +550,45 @@ final class NgvMember
         return self::insertApplication($d);
     }
 
-    /** Overwrite an unanswered application with a resubmission of it. */
+    /**
+     * A resubmission of an unanswered application.
+     *
+     * It FILLS what the first left blank and never replaces what is there.
+     * Anything it would change is recorded under the message, marked
+     * unverified, for the reviewer. The form has no email verification, so
+     * overwriting let anybody who knew an address rewrite somebody else's
+     * application anonymously — their name, phone and message — while the
+     * confirmation still went to the real applicant.
+     */
     private static function updateApplication(int $id, array $d): void
     {
-        $set = []; $args = [];
+        $cur = self::application($id);
+        if (!$cur) return;
+        $set = []; $args = []; $differs = [];
         foreach (['name' => 120, 'phone' => 40, 'age' => 12, 'gender' => 24, 'location' => 120,
-                  'education' => 120, 'message' => 2000] as $f => $max) {
+                  'education' => 120, 'guardian_name' => 120, 'guardian_phone' => 40] as $f => $max) {
             if (!array_key_exists($f, $d)) continue;
             $v = mb_substr(trim((string) $d[$f]), 0, $max);
             if ($v === '') continue;                       // never blank a field by resubmitting a shorter form
-            $set[] = $f . ' = ?'; $args[] = $v;
+            $was = trim((string) ($cur[$f] ?? ''));
+            if ($was === '') { $set[] = $f . ' = ?'; $args[] = $v; }
+            elseif (mb_strtolower($was) !== mb_strtolower($v)) $differs[] = $f . ': ' . $v;
         }
-        /* Same rule as the fields above: a resubmission that names a track or
-           plan we cannot recognise leaves the recorded one standing. */
-        if (array_key_exists('track', $d) && ($t = self::validTrack((string) $d['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
-        if (array_key_exists('plan', $d)  && ($p = self::validPlan((string) $d['plan']))   !== null) { $set[] = 'plan = ?';  $args[] = $p; }
+        /* Same rule: a resubmission that names a track or plan we cannot
+           recognise leaves the recorded one standing, and a recorded one is
+           not replaced. */
+        foreach (['track' => self::validTrack((string) ($d['track'] ?? '')), 'plan' => self::validPlan((string) ($d['plan'] ?? ''))] as $f => $v) {
+            if (!array_key_exists($f, $d) || $v === null || $v === '') continue;
+            if (trim((string) ($cur[$f] ?? '')) === '') { $set[] = $f . ' = ?'; $args[] = $v; }
+            elseif ((string) $cur[$f] !== $v) $differs[] = $f . ': ' . $v;
+        }
+        $msg = mb_substr(trim((string) ($d['message'] ?? '')), 0, 600);
+        if ($msg !== '' && $msg !== trim((string) ($cur['message'] ?? ''))) $differs[] = 'message: ' . $msg;
+        if ($differs) {
+            $set[] = 'message = ?';
+            $args[] = mb_substr(trim((string) ($cur['message'] ?? '') . "\n\n— Resubmitted " . self::today()
+                . ' (unverified — check with the applicant): ' . implode('; ', $differs)), 0, 4000);
+        }
         if (!$set) return;
         $args[] = $id;
         try { NgvDb::pdo()->prepare('UPDATE ngv_applications SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($args); }
@@ -574,12 +598,16 @@ final class NgvMember
     private static function insertApplication(array $d): int
     {
         $name  = mb_substr(trim((string) ($d['name'] ?? '')), 0, 120);
-        $email = mb_substr(trim((string) ($d['email'] ?? '')), 0, 160);
+        /* Lowercased, as accounts are (LmsAuth::register): a phone that
+           capitalised "Ada.Obi@Gmail.com" made enrolment answer "no account"
+           while ada.obi@gmail.com existed. */
+        $email = mb_strtolower(mb_substr(trim((string) ($d['email'] ?? '')), 0, 160));
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return 0;
         $now = NgvDb::nowExpr();
         $st = NgvDb::pdo()->prepare(
-            "INSERT INTO ngv_applications (name,email,phone,age,gender,location,track,plan,education,message,status,source,created_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, {$now})"
+            "INSERT INTO ngv_applications (name,email,phone,age,gender,location,track,plan,education,message,status,source,
+                                           consent_at,guardian_name,guardian_phone,guardian_consent,created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?, 'new', ?, ?,?,?,?, {$now})"
         );
         $st->execute([
             $name, $email,
@@ -592,6 +620,10 @@ final class NgvMember
             mb_substr(trim((string) ($d['education'] ?? '')), 0, 80),
             mb_substr(trim((string) ($d['message'] ?? '')), 0, 1500),
             mb_substr(trim((string) ($d['source'] ?? 'web')), 0, 24),
+            !empty($d['consent']) ? self::today() . ' ' . date('H:i:s') : '',
+            mb_substr(trim((string) ($d['guardian_name'] ?? '')), 0, 120),
+            mb_substr(trim((string) ($d['guardian_phone'] ?? '')), 0, 40),
+            !empty($d['guardian_consent']) ? 1 : 0,
         ]);
         return (int) NgvDb::pdo()->lastInsertId();
     }
@@ -625,10 +657,10 @@ final class NgvMember
     {
         $app = self::application($id);
         if (!$app || (int) ($app['member_id'] ?? 0) > 0) return false;
-        $email = trim((string) ($app['email'] ?? ''));
+        $email = mb_strtolower(trim((string) ($app['email'] ?? '')));
         if ($email === '' || !class_exists('Database')) return false;
         try {
-            $st = Database::pdo()->prepare('SELECT id FROM lms_users WHERE email = ?');
+            $st = Database::pdo()->prepare('SELECT id FROM lms_users WHERE LOWER(email) = ?');
             $st->execute([$email]);
             $m = $st->fetch();
         } catch (Throwable $e) { return false; }
@@ -657,25 +689,58 @@ final class NgvMember
     {
         $app = self::application($id);
         if (!$app) return ['ok' => false, 'error' => 'Application not found.'];
-        $email = (string) $app['email'];
+        $email = mb_strtolower(trim((string) $app['email']));
         $member = null;
         if (class_exists('Database') && $email !== '') {
             try {
-                $st = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE email = ?');
+                $st = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE LOWER(email) = ?');
                 $st->execute([$email]);
                 $member = $st->fetch() ?: null;
             } catch (Throwable $e) { error_log('[ngv] enrollApplication lookup: ' . $e->getMessage()); }
         }
         if (!$member) {
             self::setApplicationStatus($id, 'accepted', $byUid);
-            return ['ok' => false, 'error' => 'No member account for ' . $email . ' yet — accepted. Ask them to create an account with this email, then enrol.'];
+            /* Told, not left to staff to remember: the next step is theirs. */
+            self::tellApplicant($app, 'Your NextGen Vanguard application is accepted',
+                ['Your application has been accepted.',
+                 'To take up your place, create your Afrovanguard account with this email address (' . $email . '). '
+                 . 'Once it exists, the team will finish your enrolment.'],
+                ['url' => '/login?next=' . rawurlencode('/portal/'), 'text' => 'Create your account']);
+            return ['ok' => false, 'error' => 'No member account for ' . $email . ' yet — accepted, and they have been emailed to create one with this address. Enrol once it exists.'];
         }
         $mid = (int) $member['id'];
         self::ensureParticipant($mid, ['name' => (string) $member['name'], 'email' => $email]);
-        self::setAdmin($mid, ['status' => 'active', 'track' => (string) $app['track']]);
+        /* The application's choices carry across, but an empty one never
+           blanks what an existing participant already has. */
+        $patch = ['status' => 'active'];
+        if (trim((string) $app['track']) !== '') $patch['track'] = (string) $app['track'];
+        if (trim((string) ($app['plan'] ?? '')) !== '') $patch['plan'] = (string) $app['plan'];
+        self::setAdmin($mid, $patch);
+        /* The NGV ID card — enrolment from NGG always issued one; this path
+           did not, so an applicant enrolled here could not be scanned in. */
+        if (class_exists('GateAttendance') && GateAttendance::cardFor($mid) === null) {
+            try { GateAttendance::assignCard($mid, '', max(0, $byUid)); } catch (Throwable $e) { error_log('[ngv] enrol card: ' . $e->getMessage()); }
+        }
         NgvDb::pdo()->prepare('UPDATE ngv_applications SET status = ?, member_id = ?, reviewed_by = ? WHERE id = ?')
             ->execute(['enrolled', $mid, max(0, $byUid), $id]);
+        self::tellApplicant($app, 'Welcome to NextGen Vanguard',
+            ['You are enrolled in NextGen Vanguard.',
+             'Your programme, fees and reading challenge are in your member portal.'],
+            ['url' => '/portal/#ngv', 'text' => 'Open your portal']);
         return ['ok' => true, 'member_id' => $mid];
+    }
+
+    /** One email to an applicant. Best effort: a mail failure never undoes the decision. */
+    private static function tellApplicant(array $app, string $subject, array $rows, ?array $cta = null): void
+    {
+        $to = mb_strtolower(trim((string) ($app['email'] ?? '')));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL) || !class_exists('Mailer')) return;
+        try {
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+            if ($cta && str_starts_with((string) $cta['url'], '/')) $cta['url'] = $site . $cta['url'];
+            $html = Mailer::shell('NextGen Vanguard', array_map(static fn($r) => htmlspecialchars((string) $r, ENT_QUOTES, 'UTF-8'), $rows), $cta, $subject);
+            @Mailer::send($to, $subject, $html);
+        } catch (Throwable $e) { error_log('[ngv] applicant email: ' . $e->getMessage()); }
     }
 
     /* ── validation ──────────────────────────────────────────────────── */

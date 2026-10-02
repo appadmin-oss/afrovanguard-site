@@ -83,6 +83,27 @@ final class NgvIntake
             return ['ok' => true, 'status' => 'needs_email'];
         }
 
+        /*
+         * An email NGG holds is not unique there — siblings share a parent's
+         * address. Linking by email alone made the second sibling the FIRST
+         * one's account: one participant, one card, and the participant's
+         * name flipping to whoever arrived last. A staff account under the
+         * address would have been enrolled as a vanguard too. Both are held
+         * for a person rather than guessed.
+         */
+        $taken = $pdo->prepare("SELECT ngg_member_id FROM ngv_intake WHERE LOWER(email) = ? AND status = 'linked' AND ngg_member_id <> ? LIMIT 1");
+        $taken->execute([$email, $nggId]);
+        if (($other = $taken->fetchColumn()) !== false) {
+            self::mark($nggId, 'needs_review', 0, 'The email ' . $email . ' is already NGG member ' . $other . '’s account. Give this member their own email, or link them by hand.');
+            return ['ok' => true, 'status' => 'needs_review'];
+        }
+        $acct = $pdo->prepare('SELECT * FROM lms_users WHERE LOWER(email) = ? LIMIT 1');
+        $acct->execute([$email]);
+        if (($u = $acct->fetch(PDO::FETCH_ASSOC)) && MemberRoster::isStaff($u)) {
+            self::mark($nggId, 'needs_review', 0, $email . ' is a staff account here. A vanguard needs their own account.');
+            return ['ok' => true, 'status' => 'needs_review'];
+        }
+
         $dob = (string) ($d['dob'] ?? '');
         $made = MemberRoster::create(array_filter([
             'name' => $name, 'email' => $email,
@@ -110,9 +131,12 @@ final class NgvIntake
     /** The NGV side: enrolment, an NGV ID card, any application under the email. */
     private static function enrol(int $mid, string $name, string $email, array $d): void
     {
-        $seed = ['name' => $name, 'email' => $email];
+        /* The name and email snapshot is set at enrolment and refreshed by the
+           member themselves; an intake does not rename an existing participant. */
+        $exists = NgvMember::participant($mid) !== null;
+        $seed = $exists ? [] : ['name' => $name, 'email' => $email];
         $track = trim((string) ($d['track'] ?? ''));
-        if ($track !== '' && !NgvMember::participant($mid)) $seed['track'] = $track;
+        if ($track !== '' && !$exists) $seed['track'] = $track;
         NgvMember::ensureParticipant($mid, $seed);
         if (GateAttendance::cardFor($mid) === null) GateAttendance::assignCard($mid, '', 0);
         if ($email !== '') NgvMember::linkByEmail($mid, $email);
@@ -135,7 +159,7 @@ final class NgvIntake
     public static function waiting(): array
     {
         self::ensure();
-        return Database::pdo()->query("SELECT ngg_member_id, name, email, status, detail, received_at FROM ngv_intake WHERE status IN ('needs_email', 'failed') ORDER BY id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
+        return Database::pdo()->query("SELECT ngg_member_id, name, email, status, detail, received_at FROM ngv_intake WHERE status IN ('needs_email', 'needs_review', 'failed') ORDER BY id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**

@@ -36,7 +36,10 @@
   var typedMs = 0, pastes = 0, lastKey = 0;
 
   function post(body) {
-    return fetch(location.pathname, {
+    /* The dashboard's own URL, not location.pathname: vanguards see this in
+       the portal (/portal/#ngv), which has no handler, so every claim came
+       back as an HTML page and "The server did not answer properly". */
+    return fetch('/academy/ngv/dashboard.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.NGV_CSRF || '' },
       body: JSON.stringify(body)

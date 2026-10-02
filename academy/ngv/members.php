@@ -59,8 +59,8 @@ if ($method === 'POST') {
     if ($act === 'enroll') {
         $email = trim((string) ($in['email'] ?? ''));
         if ($email === '') json_out(['ok' => false, 'error' => 'Enter an email.'], 400);
-        $st = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE email = ?');
-        $st->execute([$email]);
+        $st = Database::pdo()->prepare('SELECT id, name, email FROM lms_users WHERE LOWER(email) = ?');
+        $st->execute([mb_strtolower($email)]);
         $m = $st->fetch();
         if (!$m) json_out(['ok' => false, 'error' => 'No member account with that email. They must have signed in to the site at least once.'], 404);
         NgvMember::ensureParticipant((int) $m['id'], ['name' => (string) $m['name'], 'email' => (string) $m['email']]);
