@@ -103,15 +103,25 @@ final class Payments
         return (bool) ($res['status'] ?? false);
     }
 
-    /** Verify a transaction. Returns ['paid'=>bool,'amount'=>kobo,'reference'=>...]. */
+    /**
+     * Verify a transaction. Returns ['paid'=>bool,'amount'=>kobo,'reference','currency','metadata'].
+     *
+     * The metadata is returned so a caller can check WHAT the payment was for
+     * and WHOSE it was: a paid reference alone says only that somebody paid
+     * something — a donation and an NGV fee look the same from here.
+     */
     public static function paystackVerify(string $reference): array
     {
         $res = self::curl('https://api.paystack.co/transaction/verify/' . rawurlencode($reference), null, 'Bearer ' . PAYSTACK_SECRET_KEY);
         $d = $res['data'] ?? [];
+        $meta = $d['metadata'] ?? [];
+        if (is_string($meta)) $meta = json_decode($meta, true);
         return [
             'paid' => ($res['status'] ?? false) && (($d['status'] ?? '') === 'success'),
             'amount' => (int) ($d['amount'] ?? 0),
             'reference' => (string) ($d['reference'] ?? $reference),
+            'currency' => strtoupper((string) ($d['currency'] ?? '')),
+            'metadata' => is_array($meta) ? $meta : [],
         ];
     }
 

@@ -900,13 +900,29 @@ final class NgvLedger
     {
         $reference = trim($reference);
         if ($reference === '') return ['ok' => false, 'error' => 'No payment reference.'];
-        if (self::paymentsByReference($reference)) {
-            return ['ok' => true, 'duplicate' => true, 'posted' => [],
-                    'payable' => (int) self::balance($memberId)['payable']];
-        }
+        $dup = static fn() => ['ok' => true, 'duplicate' => true, 'posted' => [],
+                               'payable' => (int) self::balance($memberId)['payable']];
+        if (self::paymentsByReference($reference)) return $dup();
         $amount = self::money($amountNgn);
         if ($amount <= 0) return ['ok' => false, 'error' => 'Nothing to record.'];
         if (!self::participantRow($memberId)) return ['ok' => false, 'error' => 'No such participant.'];
+
+        /* Claim the reference before posting. The webhook and the payer's
+           redirect arrive together; both used to find no rows and both posted,
+           so ₦13,000 became ₦26,000 with two receipts. A primary key admits
+           one claim. If nothing ends up posted the claim is released, so a
+           failure can be retried rather than reported as a duplicate. */
+        try {
+            $claim = NgvDb::pdo()->prepare(NgvDb::insertIgnore('ngv_online_refs', ['reference', 'member_id', 'claimed_at'], '?, ?, ' . NgvDb::nowExpr()));
+            $claim->execute([mb_substr($reference, 0, 120), $memberId]);
+            if ($claim->rowCount() === 0) return $dup();
+        } catch (Throwable $e) {
+            error_log('[ngv] payOnline claim: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not record that payment yet. It will be retried.'];
+        }
+        $release = static function () use ($reference): void {
+            try { NgvDb::pdo()->prepare('DELETE FROM ngv_online_refs WHERE reference = ?')->execute([mb_substr($reference, 0, 120)]); } catch (Throwable $e) {}
+        };
 
         /* Oldest obligation first: membership, then the monthly commitment, then
            fines, then the training fee. A participant paying part of what they
@@ -948,7 +964,7 @@ final class NgvLedger
             }
         }
 
-        if (!$posted) return ['ok' => false, 'error' => 'Could not record that payment.'];
+        if (!$posted) { $release(); return ['ok' => false, 'error' => 'Could not record that payment.']; }
         return ['ok' => true, 'duplicate' => false, 'posted' => $posted,
                 'amount' => $amount, 'payable' => (int) self::balance($memberId)['payable'],
                 'receipt' => $firstReceipt];

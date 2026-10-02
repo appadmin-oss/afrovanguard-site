@@ -511,12 +511,18 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
            reference, so this and the payer's own callback can both fire. */
         $ngvMember = (int) ($tx['metadata']['ngv_member'] ?? 0);
         if ($ref && $ngvMember > 0 && class_exists('NgvLedger')) {
+            /* 200 only once it is RECORDED (or was already). Answering 200 to a
+               failure told Paystack it was delivered, so it never retried and
+               the payment was silently missing from the participant's ledger. */
+            $ok = false;
             try {
-                NgvLedger::payOnline($ngvMember, (string) $ref,
+                $r = NgvLedger::payOnline($ngvMember, (string) $ref,
                     (int) round(((float) ($tx['amount'] ?? 0)) / 100),
                     ['method' => 'card', 'note' => 'Paid online by card']);
+                $ok = !empty($r['ok']);
+                if (!$ok) error_log('[AV] ngv webhook: ' . ($r['error'] ?? 'not recorded') . ' for ' . $ref);
             } catch (Throwable $e) { error_log('[AV] ngv webhook: ' . $e->getMessage()); }
-            http_response_code(200); echo json_encode(['received'=>true]); exit;
+            http_response_code($ok ? 200 : 500); echo json_encode(['received' => $ok]); exit;
         }
 
         if ($ref) {

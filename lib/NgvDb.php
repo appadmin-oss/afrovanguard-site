@@ -181,6 +181,11 @@ final class NgvDb
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS ngv_online_refs (
+          reference   VARCHAR(120) PRIMARY KEY,
+          member_id   INTEGER NOT NULL DEFAULT 0,
+          claimed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         CREATE TABLE IF NOT EXISTS ngv_payments (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
           member_id   INTEGER NOT NULL,

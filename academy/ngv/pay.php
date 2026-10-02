@@ -87,7 +87,17 @@ if ($u && $ref !== '' && Payments::configured('paystack')) {
     /* Verified server-side. The querystring says only WHICH transaction to ask
        about; Paystack says whether it was paid and for how much. */
     $v = Payments::paystackVerify($ref);
-    if (!empty($v['paid'])) {
+    /* Paid is not enough: it has to be THIS member's NGV fee. Any reference
+       Paystack called paid used to be credited to whoever loaded the page —
+       a donation counted twice, as a gift and as fees, or another
+       participant's payment taken by whoever saw its reference first. */
+    $mine = (int) ($v['metadata']['ngv_member'] ?? 0) === (int) $u['id']
+         && (string) ($v['metadata']['ngv'] ?? '') === '1'
+         && ($v['currency'] ?? 'NGN') === 'NGN';
+    if (!empty($v['paid']) && !$mine) {
+        $state = 'notyours';
+        error_log('[ngv] pay.php: reference ' . $ref . ' is not an NGV payment by member ' . (int) $u['id']);
+    } elseif (!empty($v['paid'])) {
         $paid   = (int) round(((int) $v['amount']) / 100);
         $result = NgvLedger::payOnline($uid, $ref, $paid, ['method' => 'card', 'note' => 'Paid online by card']);
         $state  = !empty($result['ok']) ? (!empty($result['duplicate']) ? 'already' : 'done') : 'failed';
@@ -150,6 +160,14 @@ render_nav('academy');
     <h1 class="ed-h2">That payment didn't go through</h1>
     <p class="ed-lede">Nothing has been taken and nothing has changed on your account. Card payments fail for
       ordinary reasons — a daily limit, a bank timeout — and trying again usually works.</p>
+    <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
+
+  <?php elseif ($state === 'notyours'): ?>
+    <span class="ed-kicker ed-kicker--muted">Payment</span>
+    <h1 class="ed-h2">That payment is not one of your NGV fees</h1>
+    <p class="ed-lede">Paystack knows reference <strong><?= e($ref) ?></strong>, but it was not made from your NextGen
+      Vanguard account, so nothing has been added to it. If you paid your fees and see this, quote the reference
+      to your track lead.</p>
     <p><a class="ed-link" href="/academy/ngv/dashboard.php">Back to my dashboard</a></p>
 
   <?php elseif ($state === 'failed'): ?>
