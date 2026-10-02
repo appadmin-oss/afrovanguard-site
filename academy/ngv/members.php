@@ -38,6 +38,19 @@ if ($method === 'POST') {
         json_out($r, empty($r['ok']) ? 400 : 200);
     }
 
+    /* An offline payment, with its receipt: multipart, like the photos. It is
+       credited only once the receipt is read and checked (lib/OfflinePayments). */
+    if ((string) ($_POST['action'] ?? '') === 'payment_offline') {
+        $f = $_FILES['evidence'] ?? null;
+        $bytes = ($f && (int) ($f['error'] ?? 1) === UPLOAD_ERR_OK) ? (string) file_get_contents((string) $f['tmp_name']) : '';
+        $r = OfflinePayments::submit((int) ($_POST['member_id'] ?? 0), [
+            'purpose' => 'ngv', 'line' => (string) ($_POST['kind'] ?? ''), 'period' => (string) ($_POST['period'] ?? ''),
+            'amount_ngn' => $_POST['amount'] ?? 0, 'method' => (string) ($_POST['method'] ?? ''),
+            'reference' => (string) ($_POST['reference'] ?? ''), 'paid_on' => (string) ($_POST['paid_on'] ?? ''),
+        ], $bytes, $bytes !== '' ? (string) (Storage::mime((string) $f['tmp_name']) ?: '') : '', av_admin_actor(), 'staff');
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
+
     $in  = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($in)) $in = [];
     $act = (string) ($in['action'] ?? '');
@@ -78,16 +91,9 @@ if ($method === 'POST') {
         json_out(['ok' => true]);
     }
     if ($act === 'payment') {
-        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
-        $r = NgvLedger::payment($mid, (string) ($in['kind'] ?? 'commitment'), $in['amount'] ?? 0, [
-            'period' => $in['period'] ?? '', 'method' => $in['method'] ?? '',
-            'reference' => $in['reference'] ?? '', 'note' => $in['note'] ?? '',
-            /* Default ON. Off is for typing in a backlog of historic payments,
-               where forty emails at once is a fault rather than a feature — the
-               receipts still exist and can be sent one at a time. */
-            'receipt' => !array_key_exists('receipt', $in) || !empty($in['receipt']),
-        ], $adminUid);
-        json_out($r, empty($r['ok']) ? 400 : 200);
+        /* Typed-in money is no longer credited: an offline payment comes with
+           its receipt and is checked first (payment_offline, above). */
+        json_out(['ok' => false, 'code' => 'evidence_required', 'error' => 'Attach the receipt — an offline payment is credited once its evidence is checked.'], 400);
     }
     /* Send (or re-send) a receipt for one payment. Needed more often than it
        sounds: a bounced address that has since been fixed, a participant who
@@ -1115,9 +1121,13 @@ details.sect>summary{margin-bottom:8px}
             <input id="p_period" placeholder="For which period: 2026 or 2026-08">
             <input id="p_method" placeholder="Method (transfer, cash…)">
           </div>
-          <input id="p_ref" placeholder="Reference / note (optional)">
-          <label class="chk"><input type="checkbox" id="p_receipt" checked> Email them a receipt now</label>
-          <div class="btns"><button class="btn primary sm" data-act="payment" data-m="<?= $m ?>">Record payment</button></div>
+          <div class="grid2">
+            <input id="p_ref" placeholder="Reference on the receipt (optional)">
+            <input id="p_paid_on" type="date" aria-label="Day it was paid">
+          </div>
+          <label class="sub">The receipt, transfer slip or bank alert — required<input id="p_evidence" type="file" accept="image/*,application/pdf"></label>
+          <div class="btns"><button class="btn primary sm" data-act="payment_offline" data-m="<?= $m ?>">Check and record payment</button></div>
+          <p class="sub" id="p_result" role="status"></p>
           <p class="sub">Allocated to the line it pays, so “square on membership, two months behind on commitment” survives
              into the figure instead of being flattened into one total. Somebody who handed over cash has no other proof it
              arrived, so the receipt goes immediately — untick it only when typing in a backlog.</p>
@@ -1526,6 +1536,34 @@ details.sect>summary{margin-bottom:8px}
   var money = function(n){ return '₦' + (n||0).toLocaleString('en-NG'); };
   var out = function(id, html){ var el=document.getElementById(id); if(el) el.innerHTML = html; };
 
+  /* An offline payment goes with its receipt, as multipart. The answer is shown
+     in full: credited, or held with each reason the receipt did not pass. */
+  document.querySelectorAll('[data-act="payment_offline"]').forEach(function(btn){
+    btn.addEventListener('click', function(ev){
+      ev.stopImmediatePropagation();
+      var input = document.getElementById('p_evidence');
+      if(!val('p_amount')){ toast('Enter an amount', false); return; }
+      if(!val('p_method')){ toast('Say how it was paid (transfer, cash, pos, deposit)', false); return; }
+      if(!input || !input.files || !input.files.length){ toast('Attach the receipt — it is checked before anything is credited', false); return; }
+      var fd = new FormData();
+      fd.append('action','payment_offline'); fd.append('member_id', btn.getAttribute('data-m'));
+      fd.append('kind', val('p_kind')); fd.append('amount', val('p_amount')); fd.append('period', val('p_period'));
+      fd.append('method', val('p_method').toLowerCase().trim()); fd.append('reference', val('p_ref')); fd.append('paid_on', val('p_paid_on'));
+      fd.append('evidence', input.files[0]);
+      btn.disabled = true; toast('Checking the receipt…');
+      fetch(location.pathname, {method:'POST', headers:{'X-CSRF-Token':CSRF}, credentials:'same-origin', body:fd})
+        .then(function(r){ return r.json().catch(function(){return {ok:false, error:'Upload rejected — the file may be too large for this server.'};}); })
+        .then(function(j){
+          btn.disabled = false;
+          var res = document.getElementById('p_result');
+          if(j.ok && j.status==='verified'){ toast('Receipt checked — payment recorded ✓'); setTimeout(function(){location.reload();}, 600); return; }
+          if(j.ok && j.status==='held'){ res.textContent = 'Held, not credited: ' + (j.reasons||[]).join(' '); toast('Held — the receipt did not pass', false); return; }
+          toast(j.error||'Could not record that', false);
+        })
+        .catch(function(){ btn.disabled = false; toast('Offline — nothing was recorded.', false); });
+    });
+  });
+
   /* Photos go as multipart, so they cannot ride post(), which sends JSON. Its
      own handler, with the same disable-in-flight and always-recover rules. */
   document.querySelectorAll('[data-act="damage_photos"]').forEach(function(btn){
@@ -1553,7 +1591,7 @@ details.sect>summary{margin-bottom:8px}
   document.querySelectorAll('[data-act]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var act = btn.getAttribute('data-act'), m = parseInt(btn.getAttribute('data-m')||'0',10), body={action:act, member_id:m};
-      if(act==='damage_photos') return;              // handled above, as multipart
+      if(act==='damage_photos' || act==='payment_offline') return;   // handled above, as multipart
       // Actions that render their own result rather than reloading the page.
       var quiet = {remind_preview:1, remind_run:1, accrue:1, backfill_preview:1, backfill_run:1};
       if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); body.birthday=val('f_bday').trim(); }

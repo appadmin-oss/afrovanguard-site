@@ -68,14 +68,14 @@ $r = MemberRoster::roster(['q' => 'soon@ms.test']);
 ck('Membership: the roster row says where they stand, from the same query', ($r['members'][0]['membership'] ?? '') === 'due_soon');
 
 /* ── Recording dues the office took ──────────────────────────────────── */
-$g = Membership::grant($soon, ['months' => 12, 'amount_ngn' => 12000, 'method' => 'cash', 'reference' => 'RCPT-77', 'actor' => 'office@ms.test']);
+$g = Membership::grant($soon, ['months' => 12, 'amount_ngn' => 12000, 'method' => 'cash', 'reference' => 'RCPT-77', 'verified_offline' => 1, 'actor' => 'office@ms.test']);
 ck('Membership: dues paid in cash are recorded', $g['ok'] && $g['membership']['state'] === 'current' && $g['membership']['total_paid_ngn'] === 12000);
 ck('Membership: …extending from their paid-through date, not from today — paying early forfeits nothing',
     abs(strtotime($g['expires_at'] . ' UTC') - strtotime('+12 months', strtotime($at(10) . ' UTC'))) < 5);
 ck('Membership: …with a payment row the receipt trail can find', (int) $msPdo->query("SELECT COUNT(*) FROM payments WHERE reference = 'OFF-RCPT-77' AND status = 'paid' AND kind = 'membership'")->fetchColumn() === 1);
 ck('Membership: the same receipt cannot be recorded twice',
-    (Membership::grant($soon, ['months' => 1, 'amount_ngn' => 1000, 'method' => 'cash', 'reference' => 'RCPT-77', 'actor' => 'x'])['code'] ?? '') === 'duplicate_reference');
-ck('Membership: money needs a method', !Membership::grant($cur, ['months' => 1, 'amount_ngn' => 1000, 'actor' => 'x'])['ok']);
+    (Membership::grant($soon, ['months' => 1, 'amount_ngn' => 1000, 'method' => 'cash', 'reference' => 'RCPT-77', 'verified_offline' => 1, 'actor' => 'x'])['code'] ?? '') === 'duplicate_reference');
+ck('Membership: money needs a method', !Membership::grant($cur, ['months' => 1, 'amount_ngn' => 1000, 'verified_offline' => 1, 'actor' => 'x'])['ok']);
 ck('Membership: free months need a reason', (Membership::grant($cur, ['months' => 1, 'actor' => 'x'])['code'] ?? '') === 'reason_required');
 ck('Membership: …a waiver is a reason', Membership::grant($never, ['months' => 6, 'method' => 'waiver', 'actor' => 'x'])['ok']
     && Membership::summary($never)['state'] === 'current' && Membership::summary($never)['total_paid_ngn'] === 0);
@@ -191,7 +191,7 @@ ck('Dashboard: the overview counts memberships by state', isset(MemberRoster::ov
 /* ── Learners, dues payers, members: three populations, not one ─────── */
 $learner = $mk('Lara Learner', 'learner@ms.test', 'learner');
 $payer   = $mk('Pele Payer', 'payer@ms.test', 'learner');
-ck('Dues: a learner can pay dues', Membership::grant($payer, ['months' => 12, 'amount_ngn' => 12000, 'method' => 'transfer', 'actor' => 'x'])['ok']);
+ck('Dues: a learner can pay dues', Membership::grant($payer, ['months' => 12, 'amount_ngn' => 12000, 'method' => 'transfer', 'verified_offline' => 1, 'actor' => 'x'])['ok']);
 ck('Dues: …and is still a learner — paying dues makes nobody a member',
     (string) $msPdo->query("SELECT role FROM lms_users WHERE id = $payer")->fetchColumn() === 'learner' && !MemberRoster::isMember($payer));
 $lms->grantMembership($payer, 1);

@@ -5,6 +5,29 @@
  * Paystack reports back to the server on verification, so nothing a person can
  * type in this form decides how much they have paid.
  * ==========================================================================*/
+/* Paid offline: the receipt goes for checking; nothing is credited on the payer's word. */
+(function () {
+  'use strict';
+  var box = document.getElementById('noff'); if (!box) return;
+  var form = box.querySelector('form'), msg = box.querySelector('.noff-msg');
+  function say(t) { msg.hidden = false; msg.textContent = t; }
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!form.evidence.files.length) { say('Attach the receipt — it is what gets checked.'); return; }
+    var fd = new FormData(form); fd.append('purpose', 'ngv');
+    var b = form.querySelector('button'); b.disabled = true; say('Checking the receipt…');
+    fetch('/portal/offline-payment.php', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NGV_CSRF || '' }, body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        b.disabled = false;
+        if (d && d.ok && d.status === 'verified') { say('Checked — it is on your account.'); setTimeout(function () { location.reload(); }, 1200); return; }
+        if (d && d.ok && d.status === 'held') { say('Not credited yet: ' + (d.reasons || []).join(' ') + ' Send a clearer receipt, or your team will look at it.'); return; }
+        say((d && d.error) || 'Could not send that.');
+      })
+      .catch(function () { b.disabled = false; say('Network error — nothing was sent.'); });
+  });
+})();
+
 (function () {
   'use strict';
 

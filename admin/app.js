@@ -2896,6 +2896,7 @@
     if (which === 'roster') loadMemRoster();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
+    if (which === 'offline') loadOffline();
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
 
@@ -2927,6 +2928,7 @@
       + dues('member', 'Paying dues', 'any account — a learner can pay') + dues('due_soon', 'Due within 30 days')
       + dues('lapsed', 'Lapsed') + dues('lifetime', 'Lifetime') + dues('cancelled', 'Ended by the office')
       + memTile(naira(du.received_12m_ngn), 'Dues received', '', 'last 12 months')
+      + memTile((b.offline || {}).held || 0, 'Offline payments to check', 'data-offline="1"', 'held — not credited')
       + '</div><p class="mem-tiles-note">Dues open paid courses. They are not membership: paying them changes nobody’s access level.</p>'
       + '<h2 class="mem-tiles-h">Progression</h2><div class="ov-grid mem-tiles">'
       + seg('level_raised', 'Level raised', 'last 12 months') + seg('review_open', 'Promotion to decide', 'open reviews')
@@ -3086,6 +3088,33 @@
     }).catch(function () { toast('Network error.'); });
   }
 
+  /* ── Offline payments: credited only once the receipt is checked ── */
+  var OFF_LABEL = { verified: 'Checked and credited', held: 'Held — not credited', rejected: 'Rejected', pending: 'Being checked' };
+  var OFF_CHECK = { evidence: 'Is a payment receipt', amount: 'Amount', payee: 'Paid to Afrovanguard', date: 'Date', reference: 'Reference', reused: 'Not used before', tampering: 'No sign of editing', confidence: 'Legible', reader: 'Reader', credit: 'Credit' };
+  var offCanOverride = false;
+  function loadOffline() {
+    var box = $('#offList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    api('offline_list&status=' + $('#offStatus').value).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { box.innerHTML = '<p class="muted">Could not load. <button class="btn btn-outline btn-sm" id="offRetry">Retry</button></p>'; return; }
+      offCanOverride = !!d.can_override;
+      $('#offReader').textContent = d.reader ? 'Receipts are read by Gemini.' : 'Receipt reading is not configured (AV_GEMINI_API_KEY), so every offline payment is held. A Super Admin can approve one with a written reason.';
+      var held = (d.counts || {}).held || 0; $('#offHeldBadge').hidden = !held; $('#offHeldBadge').textContent = held;
+      box.innerHTML = (d.payments || []).length ? d.payments.map(function (p) {
+        var checks = p.checks || {};
+        var lines = Object.keys(checks).map(function (k) { var ok = checks[k] === 'ok'; return '<div class="tiny ' + (ok ? 'muted' : '') + '">' + (ok ? '✓ ' : '✗ ') + escapeHtml(OFF_CHECK[k] || k) + (ok ? '' : ' — ' + escapeHtml(checks[k])) + '</div>'; }).join('');
+        var acts = p.status === 'held' ? '<button class="btn btn-outline btn-sm" data-off="verify" data-id="' + p.id + '">Check again</button>'
+            + '<button class="btn btn-outline btn-sm" data-off="reject" data-id="' + p.id + '">Reject</button>'
+            + (offCanOverride ? '<button class="btn btn-outline btn-sm" data-off="override" data-id="' + p.id + '">Approve against the check…</button>' : '') : '';
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(p.name || ('#' + p.user_id)) + ' — ₦' + Number(p.amount_ngn).toLocaleString('en-NG')
+          + ' <span class="badge ' + (p.status === 'verified' ? 'published' : 'draft') + '">' + escapeHtml(OFF_LABEL[p.status] || p.status) + '</span></div>'
+          + '<div class="entry-meta">' + escapeHtml([p.purpose === 'dues' ? p.months + ' months of dues' : 'NGV account', p.method, p.reference, p.paid_on ? 'paid ' + p.paid_on : '', 'sent ' + String(p.created_at).slice(0, 10) + ' by ' + (p.via === 'staff' ? p.submitted_by : 'the member')].filter(Boolean).join(' · ')) + '</div>'
+          + lines + (p.decision_note ? '<div class="tiny">' + escapeHtml(p.decision_note) + (p.decided_by ? ' — ' + escapeHtml(p.decided_by) : '') + '</div>' : '') + '</div>'
+          + '<div class="entry-ops"><a class="btn btn-outline btn-sm" href="' + API + '?action=offline_evidence&id=' + p.id + '" target="_blank" rel="noopener">Receipt</a>' + acts + '</div></div>';
+      }).join('') : '<p class="muted">No offline payments' + ($('#offStatus').value ? ' in this state' : ' yet') + '.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load. <button class="btn btn-outline btn-sm" id="offRetry">Retry</button></p>'; });
+  }
+
   function loadMemDups() {
     api('roster_duplicates').then(function (r) {
       var g = (r.data && r.data.groups) || [];
@@ -3184,6 +3213,7 @@
     /* A tile opens its list: the roster with exactly that filter and no other. */
     $('#memTiles').addEventListener('click', function (e) {
       if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }
+      if (e.target.closest('[data-offline]')) { e.preventDefault(); $('#offStatus').value = 'held'; memTab('offline'); return; }
       var a = e.target.closest('[data-ms],[data-kind],[data-seg],[data-all]'); if (!a) return; e.preventDefault();
       ['#memRole', '#memStatus', '#memMissing', '#memMembership', '#memSegment'].forEach(function (x) { $(x).value = ''; });
       $('#memQ').value = ''; $('#memKind').value = '';
@@ -3217,8 +3247,37 @@
     $('#msGrant').addEventListener('click', function () { $('#mdMsForm').hidden = false; $('#ms_months').focus(); });
     $('#msCancelForm').addEventListener('click', function () { $('#mdMsForm').hidden = true; });
     $('#msSave').addEventListener('click', function () {
-      msChange({ do: 'grant', months: +$('#ms_months').value, amount_ngn: +$('#ms_amount').value || 0, method: $('#ms_method').value,
-                 reference: $('#ms_ref').value.trim(), note: $('#ms_note').value.trim() }, function () { $('#mdMsForm').hidden = true; ['#ms_ref', '#ms_note'].forEach(function (s) { $(s).value = ''; }); $('#ms_amount').value = 0; });
+      var amount = +$('#ms_amount').value || 0, done = function () { $('#mdMsForm').hidden = true; ['#ms_ref', '#ms_note', '#ms_paid_on'].forEach(function (s) { $(s).value = ''; }); $('#ms_amount').value = 0; $('#ms_evidence').value = ''; };
+      if (amount === 0) { msChange({ do: 'grant', months: +$('#ms_months').value, amount_ngn: 0, method: $('#ms_method').value, reference: $('#ms_ref').value.trim(), note: $('#ms_note').value.trim() }, done); return; }
+      /* Money: with its receipt, checked before anything is credited. */
+      var file = $('#ms_evidence').files[0];
+      if (!file) { toast('Attach the receipt — money is credited once it is checked.'); return; }
+      if (!$('#ms_method').value || $('#ms_method').value === 'waiver') { toast('Say how it was paid.'); return; }
+      var fd = new FormData();
+      [['id', memOpen], ['purpose', 'dues'], ['months', $('#ms_months').value], ['amount_ngn', amount], ['method', $('#ms_method').value],
+       ['reference', $('#ms_ref').value.trim()], ['paid_on', $('#ms_paid_on').value]].forEach(function (kv) { fd.append(kv[0], String(kv[1])); });
+      fd.append('evidence', file);
+      var b = this; b.disabled = true; toast('Checking the receipt…');
+      api('offline_submit', { method: 'POST', body: fd }).then(function (r) {
+        var d = r.data || {};
+        if (d.ok && d.status === 'verified') { toast('Receipt checked — dues credited.'); done(); loadMemMembership(); loadMemRoster(); return; }
+        if (d.ok && d.status === 'held') { toast('Held, not credited: ' + (d.reasons || []).join(' ')); done(); return; }
+        toast(d.error || 'Could not record that.');
+      }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+    });
+    $('#offStatus').addEventListener('change', loadOffline);
+    $('#offList').addEventListener('click', function (e) {
+      if (e.target.closest('#offRetry')) { loadOffline(); return; }
+      var b = e.target.closest('[data-off]'); if (!b) return;
+      var d = b.getAttribute('data-off'), id = +b.getAttribute('data-id'), note = '';
+      if (d === 'reject') { note = prompt('Why is it rejected? The payer is shown this.'); if (!note) return; }
+      if (d === 'override') { note = prompt('Approve against the check — why? This is recorded on the payment for good. (at least a sentence)'); if (!note) return; }
+      b.disabled = true;
+      post('offline_decide', { id: id, do: d, note: note }).then(function (r) {
+        var x = r.data || {};
+        toast(x.ok ? (x.status === 'verified' ? 'Credited.' : x.status === 'held' ? 'Still held: ' + (x.reasons || []).join(' ') : 'Done.') : (x.error || 'Refused.'));
+        loadOffline();
+      }).finally(function () { b.disabled = false; });
     });
     $('#msLifetime').addEventListener('click', function () {
       var why = prompt('Why do these dues never expire? (recorded on their history)'); if (!why) return;

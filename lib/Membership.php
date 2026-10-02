@@ -209,6 +209,9 @@ final class Membership
         $note = mb_substr(trim((string) ($opts['note'] ?? '')), 0, 500);
         $actor = mb_substr((string) ($opts['actor'] ?? 'studio'), 0, 191);
         if ($amount < 0) return ['ok' => false, 'error' => 'An amount cannot be negative.'];
+        /* Money is credited only from a verified offline payment (lib/OfflinePayments.php):
+           a figure typed into a form is not evidence that it was paid. */
+        if ($amount > 0 && empty($opts['verified_offline'])) return ['ok' => false, 'code' => 'evidence_required', 'error' => 'Dues paid offline are recorded with the receipt, and credited once it is checked. Use “Record an offline payment”.'];
         if ($amount > 0 && !in_array($method, self::METHODS, true)) return ['ok' => false, 'error' => 'Say how it was paid: ' . implode(', ', self::METHODS) . '.'];
         if ($amount === 0 && $method !== 'waiver' && $note === '') return ['ok' => false, 'error' => 'Months with no payment need a reason — mark it a waiver, or say why.', 'code' => 'reason_required'];
 

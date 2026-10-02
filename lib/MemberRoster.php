@@ -602,6 +602,7 @@ final class MemberRoster
                 'count' => array_sum(array_column($fs, 'fines')),
             ],
             'dues' => Membership::counts() + ['received_12m_ngn' => (int) round(((int) $st->fetchColumn()) / 100)],
+            'offline' => class_exists('OfflinePayments') ? OfflinePayments::counts() : [],
         ];
     }
 

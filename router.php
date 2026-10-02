@@ -12,6 +12,11 @@ declare(strict_types=1);
 $uri  = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 $path = __DIR__ . $uri;
 
+// Never serve the data directory — production's .htaccess refuses ^db/ (and
+// db/private writes its own deny), but this router served any file it found,
+// so the private store (receipts, donor and contact records) was readable here.
+if (preg_match('~^/db(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
+
 // Serve existing static files (css, js, images, .html) directly.
 if ($uri !== '/' && is_file($path)) { return false; }
 

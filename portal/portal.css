@@ -1768,3 +1768,12 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   .cmdk-box { animation: cmdkIn 140ms ease-out; }
   @keyframes cmdkIn { from { opacity: 0; transform: translateY(-.5rem); } }
 }
+/* Dues paid offline — the receipt goes for checking */
+.dues-offline { margin-top:14px; font-size:13px; }
+.dues-offline summary { cursor:pointer; font-weight:700; padding:6px 0; }
+.dues-off-form { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:10px; }
+.dues-off-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; }
+.dues-off-form input, .dues-off-form select { padding:8px 10px; border-radius:8px; border:1px solid var(--divider, #ddd); font:inherit; background:var(--surface, #fff); color:inherit; }
+.dues-off-form button { align-self:end; }
+.dues-off-row { padding:8px 0; border-bottom:1px solid var(--divider, #eee); }
+.dues-off-why { font-size:12px; opacity:.8; margin-top:2px; }

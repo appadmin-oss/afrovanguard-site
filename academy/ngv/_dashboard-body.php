@@ -199,8 +199,24 @@ $ngvScript     = $ngvScript ?? true;
                     Paying part of it is fine — anything you send comes off the oldest thing you owe first.</p>
                 </div>
               <?php elseif ($owed > 0): ?>
-                <div class="ngv-box">Card payment isn't switched on yet. You can still pay by transfer using the
-                  details below, and your team will record it.</div>
+                <div class="ngv-box">Card payment isn't switched on yet. Pay by transfer using the details below,
+                  then send the receipt here.</div>
+              <?php endif; ?>
+              <?php if ($owed > 0): ?>
+                <?php /* Paid offline: credited once the receipt is checked (lib/OfflinePayments.php). */ ?>
+                <details class="noff" id="noff">
+                  <summary>Paid by transfer, cash or POS? Send the receipt</summary>
+                  <form class="noff-form" novalidate>
+                    <label>Amount paid (₦) <input name="amount" type="number" min="1" required value="<?= (int) $owed ?>"></label>
+                    <label>How <select name="method"><option value="transfer">Bank transfer</option><option value="cash">Cash</option><option value="pos">POS</option><option value="deposit">Bank deposit</option></select></label>
+                    <label>Day paid <input name="paid_on" type="date" max="<?= gmdate('Y-m-d') ?>"></label>
+                    <label>Reference on the receipt (optional) <input name="reference" maxlength="80"></label>
+                    <label>Receipt, slip or bank alert <input name="evidence" type="file" accept="image/*,application/pdf" required></label>
+                    <button type="submit" class="pbtn pbtn-gold">Send for checking</button>
+                  </form>
+                  <p class="npay-fine">It is credited once the receipt is checked — the amount, the date, and that it went to Afrovanguard. A receipt can be used once.</p>
+                  <p class="npay-err noff-msg" role="status" hidden></p>
+                </details>
               <?php endif; ?>
 
               <?php if ((int)$account['paidAhead'] > 0): ?>

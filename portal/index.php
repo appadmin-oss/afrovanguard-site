@@ -1541,7 +1541,24 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
                     <button type="button" class="pbtn pbtn-ghost" data-dues-pay data-period="month"><?= $duesRecurring ? 'Monthly' : 'Pay a month' ?></button>
                   </div>
                   <p class="enroll-msg dues-msg" hidden></p>
-<?php else: ?>                  <div class="dues-note-box">Online payment isn’t available yet — <a href="mailto:cacentre@afrovanguard.org.ng">contact us to pay</a>.</div>
+<?php else: ?>                  <div class="dues-note-box">Card payment isn’t available yet — pay by transfer, cash or POS and send the receipt below.</div>
+<?php endif; ?>
+<?php if (empty($dues['lifetime'])): ?>                  <!-- Paid offline: credited once the receipt is checked -->
+                  <details class="dues-offline" id="duesOffline">
+                    <summary>Paid by transfer, cash or POS? Send the receipt</summary>
+                    <p class="dues-note-box">Your dues are credited once the receipt is checked — the amount, the date, and that it went to Afrovanguard. A receipt can be used once.</p>
+                    <form class="dues-off-form" novalidate>
+                      <label>For <select name="months"><option value="12" data-amount="<?= (int) OfflinePayments::duesPrice(12) ?>">A year — ₦<?= number_format(OfflinePayments::duesPrice(12)) ?></option><option value="1" data-amount="<?= (int) OfflinePayments::duesPrice(1) ?>">A month — ₦<?= number_format(OfflinePayments::duesPrice(1)) ?></option></select></label>
+                      <label>Amount paid (₦) <input name="amount" type="number" min="1" required value="<?= (int) OfflinePayments::duesPrice(12) ?>"></label>
+                      <label>How <select name="method"><option value="transfer">Bank transfer</option><option value="cash">Cash</option><option value="pos">POS</option><option value="deposit">Bank deposit</option></select></label>
+                      <label>Day paid <input name="paid_on" type="date" max="<?= gmdate('Y-m-d') ?>"></label>
+                      <label>Reference on the receipt (optional) <input name="reference" maxlength="80"></label>
+                      <label>Receipt, slip or bank alert <input name="evidence" type="file" accept="image/*,application/pdf" required></label>
+                      <button type="submit" class="pbtn pbtn-gold">Send for checking</button>
+                    </form>
+                    <p class="enroll-msg dues-off-msg" role="status" hidden></p>
+                    <div class="dues-off-list" aria-live="polite"></div>
+                  </details>
 <?php endif; ?>
                 </div>
               </section>
@@ -2543,6 +2560,34 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
             setTimeout(close, d.warning?2600:900); document.getElementById('meetForm').reset(); }
           else { say((d&&d.error)||'Could not schedule the meeting.','warn'); } })
         .catch(function(){ btn.disabled=false; btn.textContent=old; say('Network error — try again.','warn'); }); });
+  })();
+  </script>
+
+  <script>
+  /* Dues paid offline — the receipt goes for checking; nothing is credited on our word. */
+  (function () {
+    var box=document.getElementById('duesOffline'); if(!box) return;
+    var card=document.getElementById('membership'), form=box.querySelector('form'), msg=box.querySelector('.dues-off-msg'), list=box.querySelector('.dues-off-list');
+    var LABEL={verified:'Checked and credited', held:'Held — not credited', rejected:'Rejected', pending:'Being checked'};
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function say(t){ msg.hidden=false; msg.textContent=t; }
+    function load(){ fetch('/portal/offline-payment.php',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+      var rows=(d&&d.payments||[]).filter(function(p){return p.purpose==='dues';});
+      list.innerHTML = rows.map(function(p){ return '<div class="dues-off-row"><b>₦'+Number(p.amount_ngn).toLocaleString('en-NG')+'</b> · '+esc(p.method)+' · '+esc(String(p.created_at).slice(0,10))+' — <span>'+esc(LABEL[p.status]||p.status)+'</span>'
+        + ((p.reasons||[]).length && p.status!=='verified' ? '<div class="dues-off-why">'+p.reasons.map(esc).join(' ')+'</div>' : '') + (p.decision_note ? '<div class="dues-off-why">'+esc(p.decision_note)+'</div>' : '') + '</div>'; }).join('');
+    }).catch(function(){}); }
+    form.months.addEventListener('change', function(){ form.amount.value = form.months.selectedOptions[0].getAttribute('data-amount'); });
+    form.addEventListener('submit', function(e){ e.preventDefault();
+      if(!form.evidence.files.length){ say('Attach the receipt — it is what gets checked.'); return; }
+      var fd=new FormData(form); fd.append('purpose','dues');
+      var b=form.querySelector('button'); b.disabled=true; say('Checking the receipt…');
+      fetch('/portal/offline-payment.php',{method:'POST',credentials:'same-origin',headers:{'X-CSRF-Token':card.getAttribute('data-csrf')||''},body:fd})
+        .then(function(r){return r.json();}).then(function(d){ b.disabled=false;
+          if(d&&d.ok&&d.status==='verified'){ say('✓ Checked — your dues are credited.'); setTimeout(function(){location.reload();},1200); return; }
+          if(d&&d.ok&&d.status==='held'){ say('Not credited yet: '+(d.reasons||[]).join(' ')+' You can send a clearer receipt, or the office will look at it.'); load(); return; }
+          say((d&&d.error)||'Could not send that.'); })
+        .catch(function(){ b.disabled=false; say('Network error — nothing was sent.'); }); });
+    box.addEventListener('toggle', function(){ if(box.open) load(); });
   })();
   </script>
 

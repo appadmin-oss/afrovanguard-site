@@ -429,6 +429,7 @@
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
+      <button class="subtab" data-mv="offline" role="tab">Offline payments <span class="badge draft" id="offHeldBadge" hidden></span></button>
     </div>
 
     <div class="side-card mem-create" id="memCreate" hidden>
@@ -532,6 +533,13 @@
       </div>
     </section>
 
+    <section class="mem-pane" data-pane="offline" hidden>
+      <p class="muted">Money paid by transfer, cash, POS or deposit. Nothing is credited on anybody’s word: the receipt is read (Gemini vision) and checked — the amount, the date, that it went to Afrovanguard, that it has not been used before — and credited only if every check passes. A payment that fails is held, with the reasons.</p>
+      <p class="muted tiny" id="offReader"></p>
+      <div class="mem-filters"><select id="offStatus" aria-label="Which payments"><option value="">All</option><option value="held">Held — not credited</option><option value="verified">Checked and credited</option><option value="rejected">Rejected</option></select></div>
+      <div class="entry-list" id="offList" aria-live="polite"></div>
+    </section>
+
     <section class="mem-pane" data-pane="dups" hidden>
       <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
       <div id="memDups"></div>
@@ -563,10 +571,13 @@
           <div class="mem-create-grid">
             <label class="fld"><span>Months</span><input id="ms_months" type="number" min="1" max="120" value="12" /></label>
             <label class="fld"><span>Amount paid (₦) — 0 if none</span><input id="ms_amount" type="number" min="0" value="0" /></label>
+            <label class="fld"><span>Day paid</span><input id="ms_paid_on" type="date" /></label>
+            <label class="fld"><span>Receipt — required when money was paid</span><input id="ms_evidence" type="file" accept="image/*,application/pdf" /></label>
             <label class="fld"><span>How it was paid</span><select id="ms_method"><option value="">— no payment —</option></select></label>
             <label class="fld"><span>Receipt or reference</span><input id="ms_ref" maxlength="60" /></label>
           </div>
           <label class="fld"><span>Reason or note</span><input id="ms_note" maxlength="500" placeholder="Required when nothing was paid, unless it is a waiver" /></label>
+          <p class="muted tiny">Money is credited once the receipt is checked. Months with nothing paid are a waiver or need a reason, and are recorded at once.</p>
           <div class="editor-actions"><button class="btn btn-outline btn-sm" id="msCancelForm">Cancel</button><button class="btn btn-primary btn-sm" id="msSave">Record</button></div>
         </div>
         <div class="editor-actions" id="mdMsActions">

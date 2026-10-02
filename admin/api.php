@@ -69,7 +69,7 @@ try {
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
-        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
+        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'offline_submit', 'offline_decide', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -94,6 +94,8 @@ try {
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        // Offline payments name members, show their receipts and move money.
+        'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
         'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
@@ -144,7 +146,7 @@ try {
     // (actor + proxy-validated client IP + action + best-effort target). This is
     // systemic — new write actions are covered automatically. mem_* self-audit
     // below with richer before/after detail, so they're excluded here.
-    if ($writing && !in_array($action, ['mem_save', 'mem_create', 'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk'], true)) {
+    if ($writing && !in_array($action, ['mem_save', 'mem_create', 'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'offline_submit', 'offline_decide'], true)) {
         $auditTarget = (string) ($body['slug'] ?? $body['course'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
         if (isset($body['user_id'])) $auditTarget = trim($auditTarget . ' user#' . (int) $body['user_id']);
         $lms->audit($action, $auditTarget);
@@ -1159,6 +1161,46 @@ try {
                 default     => ['ok' => false, 'error' => 'Unknown membership change.'],
             };
             json_out($r, $r['ok'] ? 200 : 422);
+        /* ── Offline payments (lib/OfflinePayments.php): credited only once the receipt is checked ── */
+        case 'offline_list':
+            json_out(['ok' => true, 'payments' => OfflinePayments::queue((string) ($_GET['status'] ?? '')), 'counts' => OfflinePayments::counts(),
+                      'reader' => class_exists('Gemini') && Gemini::configured(), 'can_override' => $role === 'superadmin']);
+        case 'offline_get':
+            $op = OfflinePayments::get((int) ($_GET['id'] ?? 0));
+            json_out($op ? ['ok' => true, 'payment' => $op] : ['ok' => false, 'error' => 'No such payment.'], $op ? 200 : 404);
+        case 'offline_evidence':
+            /* The receipt itself, for the person deciding. Private: served only
+               here, to management, never from a public path. */
+            $ev = OfflinePayments::evidence((int) ($_GET['id'] ?? 0));
+            if (!$ev) json_out(['ok' => false, 'error' => 'No evidence on file.'], 404);
+            header_remove('Content-Type');
+            header('Content-Type: ' . $ev[1]);
+            header('Content-Disposition: inline; filename="receipt"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, no-store');
+            header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+            echo $ev[0]; exit;
+        case 'offline_submit':
+            /* The office records a payment for somebody — with the receipt, checked like a member's own. */
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $mid = (int) ($body['id'] ?? 0);
+            if ($mid === $memberCtx()['self_id']) json_out(['ok' => false, 'code' => 'own_account', 'error' => 'Your own payment is recorded by another admin, or by you from the portal.'], 403);
+            $f = $_FILES['evidence'] ?? null;
+            $okf = $f && (int) ($f['error'] ?? 1) === UPLOAD_ERR_OK && is_uploaded_file((string) $f['tmp_name']);
+            $r = OfflinePayments::submit($mid, ['purpose' => (string) ($body['purpose'] ?? 'dues'), 'months' => (int) ($body['months'] ?? 12),
+                'amount_ngn' => $body['amount_ngn'] ?? 0, 'method' => (string) ($body['method'] ?? ''), 'reference' => (string) ($body['reference'] ?? ''),
+                'paid_on' => (string) ($body['paid_on'] ?? '')], $okf ? (string) file_get_contents((string) $f['tmp_name']) : '', $okf ? Storage::mime((string) $f['tmp_name']) : '', av_admin_actor(), 'staff');
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'offline_decide':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $oid = (int) ($body['id'] ?? 0);
+            $r = match ((string) ($body['do'] ?? '')) {
+                'verify'   => OfflinePayments::verify($oid, av_admin_actor()),
+                'reject'   => OfflinePayments::reject($oid, (string) ($body['note'] ?? ''), av_admin_actor()),
+                'override' => OfflinePayments::override($oid, (string) ($body['note'] ?? ''), av_admin_actor(), $role),
+                default    => ['ok' => false, 'error' => 'Unknown decision.'],
+            };
+            json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'superadmin_only' ? 403 : 422));
         /* ── Many members, one declared action ── */
         case 'roster_ids':
             json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'membership', 'segment']))));
