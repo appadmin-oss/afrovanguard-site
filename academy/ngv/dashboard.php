@@ -37,6 +37,12 @@ if ($method === 'POST') {
     require_same_origin();
     $uid = (int) $u['id'];
     av_require_write($uid, 'ngv_dash', 60, 600);
+    /* Every action below is a vanguard's. Somebody not enrolled — or
+       withdrawn — is told so; nothing here enrols them as a side effect. */
+    if (!NgvMember::isVanguard($uid)) {
+        json_out(['ok' => false, 'code' => 'not_enrolled',
+                  'error' => 'You are not enrolled in NextGen Vanguard. Apply at /academy/ngv/register.php.'], 403);
+    }
 
     /* A self-report with a photo arrives as multipart, so it is handled before
        php://input is read — that stream is empty on a multipart request, and
@@ -130,16 +136,33 @@ if (!$u) {
 }
 
 /* The dashboard lives in the member portal now, so a vanguard has one place
-   to go. This page stays for staff previewing it (?preview=1) and for
-   somebody who is not yet a vanguard, who is enrolled on first visit exactly
-   as before. Email links (#account) keep their fragment through the redirect. */
-if (empty($_GET['preview']) && NgvMember::isVanguard((int) $u['id'])) {
+   to go. This page stays for staff previewing it (?preview=1).
+   It used to enrol, on first visit, whoever was not a vanguard yet — so the
+   admin bar's preview link, or any signed-in account typing the address,
+   became an ACTIVE vanguard: fees accrued and the gate expected them. Nobody
+   is enrolled by looking now. A preview is staff's and is read-only. Email
+   links (#account) keep their fragment through the redirect. */
+$isVanguard = NgvMember::isVanguard((int) $u['id']);
+$ngvPreview = !empty($_GET['preview']) && function_exists('av_admin_role') && av_admin_role() !== '';
+if ($isVanguard && !$ngvPreview) {
     header('Location: /portal/#ngv', true, 302);
     exit;
 }
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex, nofollow');
+if (!$isVanguard && !$ngvPreview) {
+    http_response_code(403);
+    $nm = htmlspecialchars(trim(explode(' ', trim((string) ($u['name'] ?? '')))[0]) ?: 'there', ENT_QUOTES, 'UTF-8');
+    echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+       . '<meta name="robots" content="noindex, nofollow"><title>Not enrolled · NextGen Vanguard</title>'
+       . '<link rel="stylesheet" href="/portal/portal.css"><body class="portal-app"><main style="max-width:34rem;margin:12vh auto;padding:0 1rem">'
+       . '<h1>Hi ' . $nm . ', you are not on NextGen Vanguard yet.</h1>'
+       . '<p>The dashboard is for enrolled vanguards. Apply, and the team will be in touch once your place is confirmed.</p>'
+       . '<p><a class="btn" href="/academy/ngv/register.php">Apply to NextGen Vanguard</a> &nbsp; <a href="/portal/">Back to your portal</a></p>'
+       . '</main>';
+    exit;
+}
 require __DIR__ . '/_dashboard-data.php';
 ?><!doctype html>
 <html lang="en">

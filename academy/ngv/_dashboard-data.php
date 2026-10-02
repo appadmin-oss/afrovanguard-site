@@ -4,25 +4,28 @@
  *
  * Shared by the member portal's NGV section (/portal/#ngv) and the standalone
  * dashboard, so the two cannot disagree. Expects $u (the signed-in member) and
- * $c (Ngv::get()). Enrols the member as a participant on first sight — so it
- * is only included for somebody who IS a NextGen Vanguard (NgvMember::isVanguard).
+ * $c (Ngv::get()). Read-only: it never creates a participant. It used to,
+ * which enrolled anybody it was shown to (see dashboard.php). Somebody with no
+ * record — a staff preview, or a card from before the NGV database — sees an
+ * empty programme rather than becoming a vanguard.
  */
 declare(strict_types=1);
 $uid   = (int) $u['id'];
 $first = trim(explode(' ', trim((string) ($u['name'] ?? 'Vanguard')))[0]) ?: 'Vanguard';
 $csrf  = function_exists('av_csrf_token') ? av_csrf_token(43200) : ''; // 12h — matches "leave the tab open" use
 
-/* Member state — from the SEPARATE NGV database. On first visit we enrol the
- * member and migrate any progress they saved before this lived in its own DB
- * (the old Prefs keys), so nobody loses what they'd tracked. */
-$seed = ['name' => (string) ($u['name'] ?? ''), 'email' => (string) ($u['email'] ?? '')];
-if (!NgvMember::participant($uid)) {
-    $seed['track']      = Prefs::get($uid, 'ngv_track', '');
-    $seed['phase']      = Prefs::get($uid, 'ngv_phase', '');
-    $seed['books']      = Prefs::get($uid, 'ngv_books', '');
-    $seed['focus_note'] = Prefs::get($uid, 'ngv_note', '');
+/* Member state — from the SEPARATE NGV database. The progress somebody saved
+ * before it had its own DB (the old Prefs keys) is migrated when STAFF enrol
+ * them (NgvMember::ensureParticipant), not here. */
+$p = NgvMember::participant($uid);
+if ($p) {
+    /* Keep the name/email snapshot fresh while the member is present — the
+       one moment we know a newer value is theirs. Never creates a row. */
+    NgvMember::refreshSnapshot($uid, (string) ($u['name'] ?? ''), (string) ($u['email'] ?? ''));
+} else {
+    $p = ['member_id' => $uid, 'track' => '', 'plan' => '', 'phase' => '', 'books' => '',
+          'focus_note' => '', 'status' => 'preview'];
 }
-$p = NgvMember::ensureParticipant($uid, $seed);
 
 $myTrack = (string) ($p['track'] ?? '');
 $myPhase = (string) ($p['phase'] ?? '');

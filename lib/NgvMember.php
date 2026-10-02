@@ -59,9 +59,20 @@ final class NgvMember
     public static function isVanguard(int $memberId): bool
     {
         if ($memberId <= 0) return false;
-        try { if (self::participant($memberId)) return true; } catch (Throwable $e) {}
+        try {
+            $p = self::participant($memberId);
+            /* The record decides when there is one: an applicant has not
+               started, and a withdrawn vanguard is not one any more — whatever
+               card they once held. */
+            if ($p) return in_array((string) $p['status'], self::MEMBER_STATUSES, true);
+        } catch (Throwable $e) {}
+        /* No record: a card from before the NGV database existed. */
         return class_exists('GateAttendance') && GateAttendance::cardFor($memberId) !== null;
     }
+
+    /** The statuses that make somebody a vanguard, and so an Afrovanguard
+     *  member: on the programme, on a break, or through it. */
+    public const MEMBER_STATUSES = ['active', 'paused', 'completed'];
 
     /**
      * Attach the NGV side of somebody to their account, by email: applications
@@ -96,9 +107,26 @@ final class NgvMember
      * (track/phase/books/focus_note) — used to migrate a member's prior
      * Prefs-based state into the NGV DB exactly once, at enrolment.
      */
+    /** Refresh the name/email snapshot of an EXISTING participant. Never creates one. */
+    public static function refreshSnapshot(int $memberId, string $name, string $email): void
+    {
+        if (self::participant($memberId)) self::ensureParticipant($memberId, ['name' => $name, 'email' => $email]);
+    }
+
+    /**
+     * Staff and intake only (members.php, NgvIntake): this ENROLS. Nothing a
+     * member does may reach it — see saveSelf() and dashboard.php.
+     */
     public static function ensureParticipant(int $memberId, array $seed = []): array
     {
         $p = self::participant($memberId);
+        /* First enrolment: carry across what the member tracked before the NGV
+           database existed (the old Prefs keys), once, as before. */
+        if (!$p && class_exists('Prefs')) {
+            foreach (['track' => 'ngv_track', 'phase' => 'ngv_phase', 'books' => 'ngv_books', 'focus_note' => 'ngv_note'] as $k => $pref) {
+                if (!isset($seed[$k])) { try { $seed[$k] = (string) Prefs::get($memberId, $pref, ''); } catch (Throwable $e) {} }
+            }
+        }
         if ($p) {
             /* Name and email are SNAPSHOTS taken at enrolment, and the email is
                where receipts, reminders and statements go. A member who changes
@@ -153,10 +181,19 @@ final class NgvMember
         ];
     }
 
-    /** Member-editable self fields: track, plan, phase, books, focus_note. */
+    /**
+     * Member-editable self fields: track, plan, phase, books, focus_note.
+     *
+     * Only for somebody already enrolled. This used to create the participant
+     * — as ACTIVE — for whoever saved, so opening the dashboard enrolled any
+     * signed-in account: fees accrued, the gate expected them, and the
+     * programme's approval step was skipped. Enrolment is staff's (members.php)
+     * or NGG's (NgvIntake), never a side effect of looking.
+     */
     public static function saveSelf(int $memberId, array $patch): void
     {
-        self::ensureParticipant($memberId);
+        $was = self::participant($memberId);
+        if (!$was || !in_array((string) $was['status'], self::MEMBER_STATUSES, true)) return;
         $set = [];
         $args = [];
         if (array_key_exists('track', $patch) && ($t = self::validTrack((string) $patch['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
@@ -185,8 +222,31 @@ final class NgvMember
      */
     public static function setAdmin(int $memberId, array $patch): void
     {
-        self::ensureParticipant($memberId);
+        $before = self::ensureParticipant($memberId);
         $set = []; $args = [];
+        /* A status change moves money, so it is handled here rather than left
+           to the accrual to guess:
+             leaving 'active' → charges are brought up to today first, so the
+               months they WERE on the programme are not lost;
+             returning to 'active' → accrual resumes from today, not from
+               start_date, so the months away are not back-charged;
+             withdrawn → their NGV card stops opening the door. */
+        $newStatus = isset($patch['status']) && in_array((string) $patch['status'], self::STATUSES, true) ? (string) $patch['status'] : null;
+        $oldStatus = (string) ($before['status'] ?? '');
+        if ($newStatus !== null && $newStatus !== $oldStatus) {
+            if ($oldStatus === 'active' && class_exists('NgvLedger')) {
+                try { NgvLedger::accrueParticipant($before); } catch (Throwable $e) { error_log('[ngv] accrue before status change: ' . $e->getMessage()); }
+            }
+            if ($newStatus === 'active' && $oldStatus !== '' && $oldStatus !== 'applicant') {
+                $set[] = 'accrue_from = ?'; $args[] = self::today();
+            }
+            if ($newStatus === 'withdrawn' && class_exists('GateAttendance')) {
+                try {
+                    GateAttendance::ensure();
+                    Database::pdo()->prepare("UPDATE gate_member_cards SET status = 'void' WHERE member_id = ? AND status = 'active'")->execute([$memberId]);
+                } catch (Throwable $e) { error_log('[ngv] void card on withdrawal: ' . $e->getMessage()); }
+            }
+        }
         if (isset($patch['status']) && in_array((string) $patch['status'], self::STATUSES, true)) { $set[] = 'status = ?'; $args[] = (string) $patch['status']; }
         if (array_key_exists('plan', $patch) && ($p = self::validPlan((string) $patch['plan'])) !== null) { $set[] = 'plan = ?'; $args[] = $p; }
         if (array_key_exists('cohort', $patch)) { $set[] = 'cohort = ?'; $args[] = mb_substr(trim((string) $patch['cohort']), 0, 60); }

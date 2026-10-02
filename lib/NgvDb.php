@@ -174,6 +174,10 @@ final class NgvDb
           training_months INTEGER NOT NULL DEFAULT 0,
           training_each   INTEGER NOT NULL DEFAULT 0,
           training_total  INTEGER NOT NULL DEFAULT 0,
+          /* Charges resume from here after a pause or a withdrawal. Without it,
+             reactivating somebody charged every period since start_date,
+             including the months they were away. */
+          accrue_from VARCHAR(10) NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );

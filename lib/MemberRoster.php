@@ -538,8 +538,17 @@ final class MemberRoster
     public static function vanguardIds(): array
     {
         $ids = [];
-        try { foreach (NgvDb::pdo()->query('SELECT member_id FROM ngv_participants WHERE member_id > 0')->fetchAll(PDO::FETCH_COLUMN) as $m) $ids[(int) $m] = true; } catch (Throwable $e) {}
-        try { GateAttendance::ensure(); foreach (Database::pdo()->query("SELECT member_id FROM gate_member_cards WHERE status = 'active'")->fetchAll(PDO::FETCH_COLUMN) as $m) $ids[(int) $m] = true; } catch (Throwable $e) {}
+        /* The NGV record decides when there is one (NgvMember::MEMBER_STATUSES):
+           a withdrawn vanguard or a mere applicant is not a member, whatever
+           card they hold. A card counts only for somebody with no record. */
+        $recorded = [];
+        try {
+            foreach (NgvDb::pdo()->query('SELECT member_id, status FROM ngv_participants WHERE member_id > 0')->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $recorded[(int) $r['member_id']] = true;
+                if (in_array((string) $r['status'], NgvMember::MEMBER_STATUSES, true)) $ids[(int) $r['member_id']] = true;
+            }
+        } catch (Throwable $e) {}
+        try { GateAttendance::ensure(); foreach (Database::pdo()->query("SELECT member_id FROM gate_member_cards WHERE status = 'active'")->fetchAll(PDO::FETCH_COLUMN) as $m) if (!isset($recorded[(int) $m])) $ids[(int) $m] = true; } catch (Throwable $e) {}
         return $ids;
     }
 

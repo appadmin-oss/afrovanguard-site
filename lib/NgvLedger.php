@@ -551,6 +551,9 @@ final class NgvLedger
         if ($start === '') { $out['skipped'] = 'no_start_date'; return $out; }
         $floor = self::validDate((string) ($cfg['accrueFrom'] ?? ''));
         if ($floor !== '' && $floor > $start) $start = $floor;   // the rollout guard
+        /* Back from a pause or a withdrawal: from the day they came back. */
+        $resume = self::validDate((string) ($p['accrue_from'] ?? ''));
+        if ($resume !== '' && $resume > $start) $start = $resume;
         $today = $asOf ?: self::today('Y-m-d');
         if ($start > $today) { $out['skipped'] = 'starts_later'; return $out; }
 
