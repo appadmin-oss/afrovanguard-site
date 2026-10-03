@@ -64,6 +64,17 @@ final class NgvIntake
         $pdo = Database::pdo();
 
         $row = self::row($nggId);
+        /* Promoted again after a demotion: the same account, back on the
+           programme. Only this path reactivates — a staff withdrawal for any
+           other reason is not undone by an intake retry. */
+        if ($row && (string) $row['status'] === 'revoked' && (int) $row['member_id'] > 0) {
+            $mid = (int) $row['member_id'];
+            self::enrol($mid, $name, (string) $row['email'], $d);
+            NgvMember::setAdmin($mid, ['status' => 'active']);
+            if (GateAttendance::cardFor($mid) === null) GateAttendance::assignCard($mid, '', 0);
+            self::mark($nggId, 'linked', $mid, 'Promoted again on NGG.');
+            return ['ok' => true, 'status' => 'restored', 'member_id' => $mid];
+        }
         if ($row && (string) $row['status'] === 'linked' && (int) $row['member_id'] > 0) {
             /* Already done (a retry, or promoted again): make sure the NGV
                enrolment is still there, and say so. */
@@ -140,6 +151,32 @@ final class NgvIntake
         NgvMember::ensureParticipant($mid, $seed);
         if (GateAttendance::cardFor($mid) === null) GateAttendance::assignCard($mid, '', 0);
         if ($email !== '') NgvMember::linkByEmail($mid, $email);
+    }
+
+    /**
+     * NGG demoted them: withdrawn here, which stops accrual (after bringing it
+     * up to date), voids their NGV card, and takes them off the member count.
+     * Their record, payments and history stay. Idempotent; a member this site
+     * never linked is acknowledged and nothing changes.
+     */
+    public static function revoke(array $d): array
+    {
+        self::ensure();
+        $nggId = mb_substr(trim((string) ($d['nggMemberId'] ?? '')), 0, 64);
+        if ($nggId === '') return ['ok' => true, 'status' => 'bad_event'];
+        $row = self::row($nggId);
+        if (!$row || (int) $row['member_id'] <= 0) return ['ok' => true, 'status' => 'unknown'];
+        $mid = (int) $row['member_id'];
+        try {
+            $p = NgvMember::participant($mid);
+            if ($p && (string) $p['status'] !== 'withdrawn') NgvMember::setAdmin($mid, ['status' => 'withdrawn']);
+            self::mark($nggId, 'revoked', $mid, 'Demoted on NGG — withdrawn here, card voided.');
+            (new LmsRepository())->audit('ngv.intake.revoked', (string) $row['email'], 'demoted on NGG ' . $nggId, 'ngg');
+        } catch (Throwable $e) {
+            error_log('[ngv] revoke: ' . $e->getMessage());
+            return ['ok' => false, 'status' => 'failed', 'error' => 'Could not withdraw them yet.'];
+        }
+        return ['ok' => true, 'status' => 'revoked', 'member_id' => $mid];
     }
 
     private static function row(string $nggId): ?array

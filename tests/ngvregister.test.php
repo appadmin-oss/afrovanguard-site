@@ -64,3 +64,20 @@ ck('ngv register: everybody agrees to the privacy notice before anything is stor
 $js = (string) file_get_contents(dirname(__DIR__) . '/academy/ngv/reading.js');
 ck('ngv register: book claims post to the dashboard, which handles them, from wherever the page is shown',
    str_contains($js, "fetch('/academy/ngv/dashboard.php'") && !str_contains($js, 'fetch(location.pathname'));
+
+/* ── Demoted on NGG ⇒ not a vanguard here; promoted again ⇒ back ────────── */
+$rgPdo->exec("DELETE FROM ngv_intake WHERE ngg_member_id = 'NGG-REG-9'");
+$rgPdo->exec("DELETE FROM lms_users WHERE email = 'demote@reg.test'");
+$p9 = NgvIntake::take(['nggMemberId' => 'NGG-REG-9', 'name' => 'Demo Ted', 'email' => 'demote@reg.test']);
+$m9 = (int) ($p9['member_id'] ?? 0);
+ck('ngv register: promoted from NGG, a vanguard with a card', NgvMember::isVanguard($m9) && GateAttendance::cardFor($m9) !== null);
+$rv = NgvIntake::revoke(['nggMemberId' => 'NGG-REG-9']);
+ck('ngv register: demoted on NGG, withdrawn here — no longer a vanguard or a member', ($rv['status'] ?? '') === 'revoked'
+   && !NgvMember::isVanguard($m9) && (string) NgvMember::participant($m9)['status'] === 'withdrawn');
+ck('ngv register: …and their NGV card stops opening the gate', GateAttendance::cardFor($m9) === null);
+ck('ngv register: a demotion for somebody never linked is acknowledged, changing nothing', NgvIntake::revoke(['nggMemberId' => 'NGG-NOBODY'])['status'] === 'unknown');
+$back = NgvIntake::take(['nggMemberId' => 'NGG-REG-9', 'name' => 'Demo Ted', 'email' => 'demote@reg.test']);
+ck('ngv register: promoted again, the same account is back on the programme with a card',
+   ($back['status'] ?? '') === 'restored' && (int) $back['member_id'] === $m9 && NgvMember::isVanguard($m9) && GateAttendance::cardFor($m9) !== null);
+$hook = (string) file_get_contents(dirname(__DIR__) . '/integrations/ngg.php');
+ck('ngv register: the NGG webhook acts on a demotion', str_contains($hook, "if (\$event === 'private.ngv.revoked')"));

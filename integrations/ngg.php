@@ -41,5 +41,10 @@ if ($event === 'private.ngv.account') {
        retrying would not give it one. Only a real failure asks for a retry. */
     $out($r, $r['ok'] || ($r['status'] ?? '') === 'bad_event' ? 200 : 500);
 }
+if ($event === 'private.ngv.revoked') {
+    /* Demoted on NGG: no longer a vanguard here either. */
+    $r = NgvIntake::revoke(is_array($in['data'] ?? null) ? $in['data'] : []);
+    $out($r, $r['ok'] ? 200 : 500);
+}
 /* Not an event this site acts on: taken, so NGG does not retry it. */
 $out(['ok' => true, 'status' => 'ignored']);
