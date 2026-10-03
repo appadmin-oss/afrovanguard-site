@@ -11,7 +11,13 @@
  * entirely, and finally PHP mail(). There is NO hand-rolled SMTP client — every
  * SMTP send goes through PHPMailer:
  *
- *   PHPMailer/SMTP (587 → 465)  →  Resend (HTTPS)  →  mail()  →  error_log
+ *   PHPMailer/SMTP (587 → 465)  →  Apps Script relay  →  Resend (HTTPS)  →  mail()  →  error_log
+ *
+ * The Apps Script relay is how NextGenGen actually delivers on the same host:
+ * Google's MailApp sends from the account that deployed the script, over 443,
+ * with no SMTP port, API key or DNS record to get right. Same protocol as
+ * NGG's apps-script/Code.gs (op `sendMail`, ?sig=HMAC-SHA256(body, secret)),
+ * so NGG's deployment can carry this site's mail with its URL and secret.
  *
  * Everything is best-effort: a mail failure must never break a request
  * (a learner still gets access even if the receipt email can't be sent).
@@ -26,14 +32,14 @@ final class Mailer
 
     /** The last transport error (for the Studio "send test email" diagnostic). */
     public static function lastError(): string { return self::$lastError; }
-    /** Which transport last delivered: 'smtp' | 'resend' | 'mail' | '' (diagnostics). */
+    /** Which transport last delivered: 'smtp' | 'relay' | 'resend' | 'mail' | '' (diagnostics). */
     public static function lastTransport(): string { return self::$lastTransport; }
 
     /** True when we can at least attempt delivery (SMTP or a Resend key configured). */
     public static function configured(): bool
     {
         if (defined('ENABLE_EMAIL_NOTIFICATIONS') && !ENABLE_EMAIL_NOTIFICATIONS) return false;
-        if (self::resendKey() !== '') return true;
+        if (self::resendKey() !== '' || self::relayConfigured()) return true;
         return defined('SMTP_HOST') && defined('SMTP_USERNAME') && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
     }
 
@@ -50,6 +56,51 @@ final class Mailer
         $k = defined('RESEND_KEY') ? (string) RESEND_KEY : (string) (getenv('AV_RESEND_KEY') ?: '');
         $k = trim($k);
         return ($k === '' || $k === 'YOUR_RESEND_KEY_HERE') ? '' : $k;
+    }
+
+    /** The Apps Script relay: MAIL_RELAY_URL + MAIL_RELAY_SECRET (constants or env). */
+    private static function relayConf(string $name): string
+    {
+        if (defined($name) && trim((string) constant($name)) !== '') return trim((string) constant($name));
+        $alias = $name === 'MAIL_RELAY_URL' ? ['MAIL_RELAY_URL', 'AV_MAIL_RELAY_URL', 'APPS_SCRIPT_MAIL_URL']
+                                            : ['MAIL_RELAY_SECRET', 'AV_MAIL_RELAY_SECRET', 'APPS_SCRIPT_MAIL_SECRET'];
+        foreach ($alias as $k) { $v = getenv($k); if ($v !== false && trim((string) $v) !== '') return trim((string) $v); }
+        return '';
+    }
+
+    /** True when the Apps Script relay is configured (diagnostics). */
+    public static function relayConfigured(): bool
+    {
+        return str_starts_with(self::relayConf('MAIL_RELAY_URL'), 'https://') && self::relayConf('MAIL_RELAY_SECRET') !== '';
+    }
+
+    /** One message through the relay. Throws with the reason on failure. */
+    private static function sendViaRelay(array $from, string $to, string $subject, string $html, string $text): bool
+    {
+        if (!function_exists('curl_init')) throw new \RuntimeException('curl unavailable');
+        $body = json_encode([
+            'op' => 'sendMail', 'to' => $to, 'subject' => $subject, 'html' => $html, 'text' => $text,
+            'fromName' => (string) ($from['name'] ?? ''), 'replyTo' => (string) ($from['replyTo'] ?? ''),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $url = self::relayConf('MAIL_RELAY_URL');
+        $sig = hash_hmac('sha256', (string) $body, self::relayConf('MAIL_RELAY_SECRET'));
+        $ch = curl_init($url . (str_contains($url, '?') ? '&' : '?') . 'sig=' . $sig);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_FOLLOWLOCATION => true,   // /exec 302s to googleusercontent
+            CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 5,
+        ]);
+        $raw  = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cerr = curl_error($ch);
+        curl_close($ch);
+        if ($raw === false || $cerr !== '') throw new \RuntimeException('curl: ' . $cerr);
+        $j = json_decode((string) $raw, true);
+        if (is_array($j) && !empty($j['ok'])) return true;
+        $why = is_array($j) ? (string) ($j['error'] ?? 'refused') : 'HTTP ' . $code;
+        if ($why === 'bad_signature') $why .= ' (MAIL_RELAY_SECRET does not match the script\'s SHARED_SECRET)';
+        throw new \RuntimeException($why);
     }
 
     /** True when the Resend HTTPS API key is present (diagnostics). */
@@ -198,7 +249,22 @@ final class Mailer
             }
         }
 
-        // Path 2 — Resend HTTPS API (https://resend.com). Shared hosts that block
+        // Path 2 — the Apps Script relay (NGG's delivery path). It carries no
+        // attachments, so a message with one goes on to Resend / mail().
+        if (self::relayConfigured() && !self::normAttachments($opt)) {
+            try {
+                self::sendViaRelay($from, $to, $subject, $html, $alt);
+                if (!empty($opt['bcc']) && filter_var($opt['bcc'], FILTER_VALIDATE_EMAIL)) {
+                    try { self::sendViaRelay($from, (string) $opt['bcc'], $subject, $html, $alt); } catch (\Throwable $e) { error_log('[mail] relay bcc: ' . $e->getMessage()); }
+                }
+                self::$lastTransport = 'relay'; return true;
+            } catch (\Throwable $e) {
+                $errors[] = 'relay: ' . $e->getMessage();
+                error_log('[mail] relay to ' . $to . ': ' . $e->getMessage());
+            }
+        }
+
+        // Path 3 — Resend HTTPS API (https://resend.com). Shared hosts that block
         // SMTP ports entirely almost always still allow outbound HTTPS, so this is
         // the most reliable cross-host fallback. One key, no SMTP socket.
         $resendKey = self::resendKey();
@@ -214,17 +280,27 @@ final class Mailer
             }
         }
 
-        // Path 3 — PHP mail() last resort (often silently dropped on shared hosts,
+        // Path 4 — PHP mail() last resort (often silently dropped on shared hosts,
         // but a host with a working local MTA — cPanel/exim — still delivers).
+        // As NGG's mail_native: a Date and a Message-ID (their absence is a
+        // strong spam signal) and a text part beside the HTML.
+        $b    = 'av_' . bin2hex(random_bytes(8));
+        $dom  = substr((string) strrchr($from['email'], '@'), 1) ?: 'localhost';
+        $crlf = static fn(string $x): string => (string) preg_replace('/\r\n|\r|\n/', "\r\n", $x);
         $headers = 'MIME-Version: 1.0' . "\r\n"
-            . 'Content-Type: text/html; charset=UTF-8' . "\r\n"
+            . 'Date: ' . gmdate('D, d M Y H:i:s') . ' +0000' . "\r\n"
+            . 'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . $dom . '>' . "\r\n"
+            . 'Content-Type: multipart/alternative; boundary="' . $b . '"' . "\r\n"
             . 'From: ' . self::encodeName($from['name']) . ' <' . $from['email'] . '>' . "\r\n"
             . 'Reply-To: ' . $from['replyTo'] . "\r\n";
+        foreach (self::extraHeaders($opt) as $hk => $hv) $headers .= $hk . ': ' . $hv . "\r\n";
+        $mbody = "--{$b}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n" . $crlf($alt) . "\r\n\r\n"
+               . "--{$b}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n" . $crlf($html) . "\r\n\r\n--{$b}--\r\n";
         // Envelope sender (-f): many shared hosts SPF-fail or drop mail without one.
         $params = filter_var($from['email'], FILTER_VALIDATE_EMAIL) ? ('-f' . $from['email']) : '';
         $subj   = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-        $ok = @mail($to, $subj, $html, $headers, $params);
-        if (!$ok && $params !== '') $ok = @mail($to, $subj, $html, $headers);
+        $ok = function_exists('mail') && @mail($to, $subj, $mbody, $headers, $params);
+        if (!$ok && $params !== '' && function_exists('mail')) $ok = @mail($to, $subj, $mbody, $headers);
         if ($ok) { self::$lastTransport = 'mail'; return true; }
         $errors[] = 'php_mail(): rejected or unavailable';
 
@@ -299,7 +375,13 @@ final class Mailer
             // it, and it keeps SPF/DMARC happy on any authenticated relay. This is
             // the single most common reason authenticated SMTP "sends" but the
             // message is silently rejected downstream.
-            $m->Sender = (SMTP_USERNAME !== '' && filter_var(SMTP_USERNAME, FILTER_VALIDATE_EMAIL))
+            // On Gmail the envelope must be the authenticated mailbox. On a relay
+            // such as Brevo — what Africa GATES delivers through from this same
+            // domain — the login is a relay id (…@smtp-brevo.com), and an
+            // envelope on it fails DMARC alignment: there the envelope is the
+            // From, exactly as Africa GATES sets it.
+            $gmail = stripos((string) SMTP_HOST, 'gmail') !== false || stripos((string) SMTP_HOST, 'google') !== false;
+            $m->Sender = ($gmail && SMTP_USERNAME !== '' && filter_var(SMTP_USERNAME, FILTER_VALIDATE_EMAIL))
                 ? (string) SMTP_USERNAME : (string) $from['email'];
             $m->addAddress($to);
             $m->addReplyTo($from['replyTo'], $from['name']);

@@ -326,11 +326,13 @@ try {
                 'phpmailer' => $phpmailer['available'],
                 'php_mail'  => function_exists('mail'),
             ];
-            $would = Mailer::configured() && $transports['phpmailer']
+            $smtpSet = defined('SMTP_HOST') && SMTP_HOST !== '' && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
+            $transports['relay'] = Mailer::relayConfigured();
+            $would = $smtpSet && $transports['phpmailer']
                 ? 'PHPMailer over authenticated SMTP'
-                : (Mailer::resendConfigured()
+                : ($transports['relay'] ? 'the Google Apps Script relay (how NGG sends)' : (Mailer::resendConfigured()
                     ? 'the Resend HTTPS API'
-                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing'));
+                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing')));
 
             /* Whether the site's own config.php was READ. Without this the page
                reports an empty host and "not configured", which reads as "you
@@ -392,7 +394,7 @@ try {
             $vianote = $via === 'smtp' ? 'authenticated SMTP' : ($via === 'mail' ? 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) for reliable, non-spam delivery' : '');
             json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
                 ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')
-                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — SMTP isn’t configured. Set SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password) via .htaccess SetEnv or config.php.'))]);
+                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — nothing is configured. Set MAIL_RELAY_URL + MAIL_RELAY_SECRET (NGG\'s Apps Script, the simplest), or SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password), via .htaccess SetEnv or config.php.'))]);
 
         // ---- Studio AI guide: answer "how do I…" questions about running the site ----
         case 'guide_ask': {
@@ -631,7 +633,7 @@ try {
                 'detail' => $res['ok']
                     ? ('Confirmation sent to ' . $row['email'] . '.')
                     : ('Send failed: ' . ($res['error'] ?: 'unknown error')
-                       . (Mailer::configured() ? '' : ' — SMTP is not configured. Set SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD, then try again.')),
+                       . (Mailer::configured() ? '' : ' — nothing is configured. Set MAIL_RELAY_URL + MAIL_RELAY_SECRET (NGG\'s Apps Script), or SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD, then try again.')),
             ]);
         }
         case 'summit_resend_failed': {

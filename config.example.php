@@ -95,6 +95,13 @@ define('DONATIONS_FROM_NAME',  'Afrovanguard');
 // domain in Resend first. Set via .htaccess: SetEnv AV_RESEND_KEY re_...
 // define('RESEND_KEY', _av_require_env('AV_RESEND_KEY'));
 
+// Google Apps Script relay — how NextGenGen delivers on this host, and the
+// simplest path here: no SMTP port, API key or DNS record. Tried after SMTP,
+// before Resend. NGG's deployment works: its apps_script_url and shared_secret.
+// Set via .htaccess: SetEnv MAIL_RELAY_URL https://script.google.com/macros/s/…/exec
+//                    SetEnv MAIL_RELAY_SECRET <NGG shared_secret>
+// (read from the environment automatically; or define them here.)
+
 /* ─── Paystack ──────────────────────────────────────────────────
  * Primary payment provider. The same keys power donations AND the
  * Afrovanguard Academy (paid courses + membership). Set a webhook in

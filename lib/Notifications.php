@@ -191,7 +191,12 @@ final class Notifications
     public static function email(int $uid, string $subject, string $line, string $path = '/portal/'): void
     {
         try {
-            if ($uid <= 0 || !class_exists('Mailer') || !Mailer::configured()) return;
+            /* Not Mailer::configured(): that is false whenever no SMTP, relay
+               or API key is set, and returning on it meant the mail() last
+               resort was never even tried — portal notifications went nowhere
+               without a trace. Mailer::send() decides, and logs what failed. */
+            if ($uid <= 0 || !class_exists('Mailer') || Mailer::disabled()
+                || (defined('ENABLE_EMAIL_NOTIFICATIONS') && !ENABLE_EMAIL_NOTIFICATIONS)) return;
             $st = Database::pdo()->prepare('SELECT email, name FROM lms_users WHERE id = ?');
             $st->execute([$uid]);
             $u = $st->fetch(PDO::FETCH_ASSOC);
