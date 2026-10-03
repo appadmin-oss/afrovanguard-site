@@ -85,7 +85,7 @@ if ($method === 'POST') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
         $patch = ['status' => $in['status'] ?? null, 'cohort' => $in['cohort'] ?? null,
                   'track'  => $in['track'] ?? null,  'phase'  => $in['phase'] ?? null];
-        foreach (['plan', 'start_date'] as $k) { if (array_key_exists($k, $in)) $patch[$k] = $in[$k]; }
+        foreach (['plan', 'start_date', 'end_date'] as $k) { if (array_key_exists($k, $in)) $patch[$k] = $in[$k]; }
         /* The birthday is the office's to record (lib/Birthdays), on the member's
            account so the portal, the gate and the birthday email all read one. */
         if (array_key_exists('birthday', $in)) {
@@ -100,6 +100,7 @@ if ($method === 'POST') {
                 (string) ($in['status'] ?? ''), (string) ($in['cohort'] ?? ''),
                 (string) ($in['track'] ?? ''), (string) ($in['plan'] ?? ''),
                 ($in['start_date'] ?? '') !== '' ? 'from ' . (string) $in['start_date'] : '',
+                ($in['end_date'] ?? '') !== '' ? 'ends ' . (string) $in['end_date'] : '',
             ]))));
         json_out(['ok' => true]);
     }
@@ -1022,6 +1023,16 @@ details.sect>summary{margin-bottom:8px}
             <label class="sub">Enrolled from
               <input id="f_start" type="date" value="<?= $e(substr((string)($sel['start_date'] ?: $sel['created_at']), 0, 10)) ?>"
                      max="<?= $e(function_exists('av_today_tz') ? av_today_tz() : gmdate('Y-m-d')) ?>"></label>
+            <?php $win = NgvMember::programmeWindow($sel); ?>
+            <label class="sub">Programme ends<?= $win['extended'] ? ' (set for this person)' : ' (a year from the start)' ?>
+              <input id="f_end" type="date" value="<?= $e($win['extended'] ? (string) $win['end'] : '') ?>"
+                     placeholder="<?= $e((string) $win['end']) ?>"
+                     title="Leave empty for the standard year (<?= $e((string) $win['end']) ?>). Set a date to extend or shorten this person's programme."></label>
+          </div>
+          <p class="sub"><?= $win['end'] === '' ? 'No start date, so no programme year yet.'
+              : ($win['elapsed'] ? 'Programme year ended ' . $e((string) $win['end']) . '.'
+                 : 'Programme year ends ' . $e((string) $win['end']) . ' — ' . (int) $win['daysLeft'] . ' day(s) left. Completed automatically then; membership and commitment stop, an agreed training fee does not.') ?></p>
+          <div class="grid2">
             <select id="f_phase">
               <option value="" <?= $sel['phase']===''?'selected':'' ?>>Phase — not set</option>
               <option value="1" <?= $sel['phase']==='1'?'selected':'' ?>>Phase 1</option>
@@ -1389,7 +1400,7 @@ details.sect>summary{margin-bottom:8px}
         <div class="sect"><h3>How it runs</h3>
           <label class="chk"><input type="checkbox" id="s_enabled" <?= !empty($fees['enabled']) ? 'checked' : '' ?>> Charge membership and monthly commitment</label>
           <label class="chk"><input type="checkbox" id="s_trainingAuto" <?= !empty($fees['trainingAuto']) ? 'checked' : '' ?>> Also raise the training fee automatically</label>
-          <p class="sub">Participants pick their own plan on their dashboard. Left off, the training fee is raised by you
+          <p class="sub">The plan is set by staff here (participants see it read-only). Left off, the training fee is raised by you
              from their record — one press, priced from the plan — so nobody can give themselves a ₦240,000 debt by clicking about.</p>
           <div class="grid2">
             <div class="fld"><label for="s_accrueFrom">Charge nothing before</label>
@@ -1610,7 +1621,7 @@ details.sect>summary{margin-bottom:8px}
       if(act==='damage_photos' || act==='payment_offline') return;   // handled above, as multipart
       // Actions that render their own result rather than reloading the page.
       var quiet = {remind_preview:1, remind_run:1, accrue:1, backfill_preview:1, backfill_run:1};
-      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); body.birthday=val('f_bday').trim(); }
+      if(act==='admin'){ body.status=val('f_status'); body.track=val('f_track'); body.cohort=val('f_cohort'); body.phase=val('f_phase'); body.plan=val('f_plan'); body.start_date=val('f_start'); body.end_date=val('f_end'); body.birthday=val('f_bday').trim(); }
       else if(act==='cert_revoke'){
         body.cert_id = parseInt(btn.getAttribute('data-cert')||'0',10);
         var why = prompt('Revoke this certificate — why? The holder and anyone with the link can see this.');

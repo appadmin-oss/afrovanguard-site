@@ -80,8 +80,8 @@ shows where a number came from rather than asserting it.
 **2. The training fee is agreed with the participant, not accrued from their
 plan — and it has a shape.** Two problems, one answer.
 
-A participant picks their own plan on their dashboard. If accrual priced from
-that pick, a school leaver clicking "Full Programme" out of curiosity would give
+A participant names a plan when they apply, and staff set it on enrolment —
+the dashboard shows it read-only. If accrual priced from the plan alone, a school leaver clicking "Full Programme" out of curiosity would give
 themselves a ₦240,000 debt and the ledger would be right to insist on it.
 
 And ₦240,000 posted as one charge is a wall: the dashboard reads ₦240,000
@@ -580,3 +580,24 @@ them `credit_kind = 'payment'`, which is what they are.
 - **No PDF statement.** Statements go out by email and the receipt page prints
   cleanly, but there is no downloadable account statement — the print stylesheet
   covers a receipt, not a full account.
+
+## The programme year, and what survives a status change
+
+NGV runs **a year from the start date** (`NgvMember::PROGRAMME_MONTHS`). Staff
+can extend or shorten one person's year with **Programme ends** on their record
+(`ngv_participants.end_date`; empty means the standard year).
+
+- **Membership and the monthly commitment are for time on the programme.** They
+  accrue only while somebody is `active`, and never past the end of their year:
+  a year is twelve commitments and one membership, even when it crosses a month
+  or a calendar year.
+- **When the year is up, the cron completes them** (`NgvMember::completeElapsed`,
+  from `NgvLedger::cronTick`, whether or not fees are switched on). Charges are
+  brought up to the end date first. `completed` keeps them a vanguard.
+- **An agreed training fee keeps falling due whatever the status.** Paused,
+  withdrawn or completed, the instalments still post month by month, because
+  the fee is a commitment they agreed and not a charge for time. To release
+  somebody from it, press **Stop schedule**, then waive or write off what is
+  left. Each of those is its own audited decision.
+- **Participants cannot change their track, plan or phase.** The dashboard shows
+  them read-only, and a save that names them is refused (403).

@@ -34,9 +34,10 @@
  * staff screen can show where a number came from rather than just asserting it.
  *
  * ── THE TRAINING FEE IS NOT ACCRUED BY DEFAULT, AND THAT IS THE POINT ────────
- * A participant picks their own plan on their dashboard. If accrual posted the
- * plan's tuition, a school leaver clicking "Full Programme" out of curiosity
- * would give themselves a ₦240,000 debt, and the ledger would be right to insist
+ * A participant names a plan when they apply; staff set it on enrolment (the
+ * dashboard shows it read-only — NgvMember::saveSelf). If accrual posted the
+ * plan's tuition from that alone, a plan picked on a form out of curiosity
+ * would become a ₦240,000 debt, and the ledger would be right to insist
  * on it. So the training fee is RAISED BY STAFF, once, from the plan catalogue —
  * one click, prefilled, audited, idempotent for the period. `trainingAuto` turns
  * automatic accrual on for an organisation that wants it; it is off out of the
@@ -542,9 +543,20 @@ final class NgvLedger
         if (empty($cfg['enabled'])) { $out['skipped'] = 'disabled'; return $out; }
         $memberId = (int) ($p['member_id'] ?? 0);
         if ($memberId <= 0) { $out['skipped'] = 'no_member'; return $out; }
-        /* Only the enrolled accrue. An applicant has not started; someone paused,
-           withdrawn or completed has stopped, and charging them for the months
-           since is charging for a place they are not taking up. */
+        /* The training fee FIRST, and whatever the status. It is a commitment
+           agreed with this person — a total, split into months — not a charge
+           for time on the programme. Pausing, withdrawing or finishing early
+           does not cancel it, and the balance ceiling (which exists to stop an
+           unattended machine running somebody into a number) does not apply to
+           a figure they agreed. Stopping it is a decision with its own button:
+           stopTrainingFee(), then waive or write off what is left. */
+        if (self::trainingPlanOf($p) !== null) {
+            $out['programme'] = self::accrueTraining($memberId, $asOf);
+        }
+        /* Membership and the monthly commitment are for time ON the
+           programme. An applicant has not started; someone paused, withdrawn
+           or completed has stopped, and charging them for the months since is
+           charging for a place they are not taking up. */
         if ((string) ($p['status'] ?? '') !== 'active') { $out['skipped'] = 'not_active'; return $out; }
 
         $start = self::startDate($p);
@@ -560,17 +572,28 @@ final class NgvLedger
         if (self::atCap($memberId, $cfg)) { $out['skipped'] = 'at_cap'; return $out; }
 
         $amt = self::amounts();
+        /* The programme has an end (NgvMember::programmeEnd — a year from the
+           start unless staff set otherwise). Nothing for time on it is charged
+           past that: a one-year programme is twelve monthly commitments and one
+           year's membership, not thirteen and two because it crossed a month
+           or a calendar year. */
+        $end = NgvMember::programmeEnd($p);
+        $upto = static function (string $cadence) use ($today, $end): string {
+            if ($end === '' || $cadence === 'once') return $today;
+            $last = gmdate('Y-m-d', (int) strtotime($end . ' 00:00:00 UTC ' . ($cadence === 'month' ? '-1 month' : '-1 year')));
+            return $last < $today ? $last : $today;
+        };
 
         $membership = (int) $amt['membership']['amount'];
         if ($membership > 0) {
-            foreach (self::periods($start, $today, $amt['membership']['cadence']) as $k) {
+            foreach (self::periods($start, $upto($amt['membership']['cadence']), $amt['membership']['cadence']) as $k) {
                 if (self::postCharge($memberId, 'membership', $membership, $k,
                         ['note' => 'Membership ' . $k, 'source' => 'accrual'])) $out['membership']++;
             }
         }
         $commitment = (int) $amt['commitment']['amount'];
         if ($commitment > 0) {
-            foreach (self::periods($start, $today, $amt['commitment']['cadence']) as $k) {
+            foreach (self::periods($start, $upto($amt['commitment']['cadence']), $amt['commitment']['cadence']) as $k) {
                 if (self::postCharge($memberId, 'commitment', $commitment, $k,
                         ['note' => 'Commitment ' . $k, 'source' => 'accrual'])) $out['commitment']++;
             }
@@ -582,9 +605,7 @@ final class NgvLedger
            `trainingAuto` is the escape hatch for an organisation that wants the
            plan price charged without anybody agreeing it first. Off by default,
            and it starts a schedule rather than posting a lump sum. */
-        if (self::trainingPlanOf($p) !== null) {
-            $out['programme'] = self::accrueTraining($memberId, $asOf);
-        } elseif (!empty($cfg['trainingAuto'])) {
+        if (self::trainingPlanOf($p) === null && !empty($cfg['trainingAuto'])) {
             $plan = self::planFor($p);
             if ($plan !== null && (int) $plan['fee'] > 0) {
                 $r = self::startTrainingFee($memberId, (int) ($cfg['trainingInstalments'] ?? 1), 0, null, $asOf);
@@ -617,7 +638,10 @@ final class NgvLedger
                 'atCap' => 0, 'noStartDate' => 0];
         $complete = false;
         do {
-            $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE status = 'active' AND id > ? ORDER BY id LIMIT " . $limit);
+            /* Active participants, AND anybody with a training schedule still
+               running whatever their status — see accrueParticipant(). */
+            $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE (status = 'active' OR training_months > 0)
+                                         AND id > ? ORDER BY id LIMIT " . $limit);
             $st->execute([$cursor]);
             $batch = $st->fetchAll() ?: [];
             foreach ($batch as $p) {
@@ -773,8 +797,10 @@ final class NgvLedger
     }
 
     /**
-     * Stop future instalments. What a withdrawal, a switch to a free plan, or a
-     * renegotiation leaves behind.
+     * Stop future instalments. A staff decision — a switch to a free plan, a
+     * renegotiation, or a withdrawal the programme has agreed to release from
+     * the fee. A withdrawal on its own does NOT stop it: the accrual keeps
+     * posting an agreed schedule whatever the status.
      *
      * Charges already posted STAY. Somebody who paid four instalments and left
      * paid four instalments; erasing them would be rewriting what happened.
@@ -2463,7 +2489,11 @@ final class NgvLedger
     public static function cronTick(): array
     {
         $out = [];
-        if (!self::enabled()) return ['skipped' => 'disabled'];
+        /* Programmes whose year is up are completed whether or not fees are
+           switched on — the end of a programme is not a money question. */
+        try { $out['completed'] = NgvMember::completeElapsed(); }
+        catch (Throwable $e) { error_log('[ngvledger] cron complete: ' . $e->getMessage()); }
+        if (!self::enabled()) return $out + ['skipped' => 'disabled'];
         try { $out['accrued'] = self::accrueAll(self::ACCRUE_BATCH); }
         catch (Throwable $e) { error_log('[ngvledger] cron accrue: ' . $e->getMessage()); }
         try { $out['reminders'] = self::runReminders(self::REMIND_CRON_BATCH); }

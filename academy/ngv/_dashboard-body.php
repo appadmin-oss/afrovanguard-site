@@ -94,35 +94,25 @@ $ngvScript     = $ngvScript ?? true;
         <!-- My track + plan -->
 <?php if ($ngvShow('track')): ?>
         <section class="pcard" id="track">
-          <div class="pcard-head"><h2>My track &amp; plan</h2></div>
+          <div class="pcard-head"><h2>My programme</h2></div>
           <div class="pcard-body">
-            <div class="ngv-sub-h">My track</div>
-            <div class="ngv-picks">
-              <?php foreach ($tracks as $t): $nm = (string)($t['name'] ?? ''); if ($nm === '') continue; ?>
-              <div class="trk <?= $myTrack === $nm ? 'on' : '' ?>" data-track="<?= $e($nm) ?>">
-                <div class="i"><?= $e((string)($t['icon'] ?? '🎯')) ?></div>
-                <div class="n"><?= $e($nm) ?></div>
-                <div class="d"><?= $e((string)($t['desc'] ?? '')) ?></div>
-              </div>
-              <?php endforeach; ?>
-            </div>
-            <?php if ($myTrack !== ''): ?><div class="ngv-box" id="trackNote">You're on <b><?= $e($myTrack) ?></b>. <?= $e($myTrackDesc) ?></div><?php endif; ?>
-
-            <?php if (!empty($planOpts)): ?>
-            <div class="ngv-sub-h">My plan</div>
-            <div class="ngv-picks">
-              <?php foreach ($planOpts as $pl): $pn = (string)$pl['name']; ?>
-              <?php /* No icon. The same card symbol on every plan told nobody
-                       which plan was which — it was four identical pictures
-                       competing with the four different prices beside them. */ ?>
-              <div class="trk <?= $myPlan === $pn ? 'on' : '' ?>" data-plan="<?= $e($pn) ?>">
-                <div class="n"><?= $e($pn) ?> · <?= $e((string)$pl['priceLabel']) ?></div>
-                <div class="d"><?= $e((string)$pl['desc']) ?></div>
-              </div>
-              <?php endforeach; ?>
-            </div>
-            <div class="ngv-box">Your plan sets your <b>training fee</b> in <a href="<?= isset($ngvAccountHref) ? e($ngvAccountHref) . '" data-goto="ngv-account' : '#account' ?>">Your account</a>. Free tracks stay free — no one is turned away for lack.</div>
+            <?php /* Read-only. Track and plan are what the programme team
+                     enrolled you on — the plan prices the training fee, so it
+                     is not a self-service switch (NgvMember::saveSelf). */ ?>
+            <dl class="ngv-facts">
+              <div><dt>Track</dt><dd><?= $myTrack !== '' ? $e($myTrack) : 'Not set yet' ?></dd></div>
+              <div><dt>Plan</dt><dd><?= $myPlan !== '' ? $e($myPlan) : 'Not set yet' ?></dd></div>
+              <?php if ($myWindow && $myWindow['start'] !== ''): ?>
+              <div><dt>Started</dt><dd><?= $e(date('j M Y', strtotime($myWindow['start']))) ?></dd></div>
+              <div><dt><?= $myWindow['elapsed'] ? 'Ended' : 'Ends' ?></dt><dd><?= $e(date('j M Y', strtotime($myWindow['end']))) ?><?php
+                if (!$myWindow['elapsed']): ?> <span class="ngv-fine">· <?= (int) $myWindow['daysLeft'] ?> day<?= (int) $myWindow['daysLeft'] === 1 ? '' : 's' ?> left</span><?php endif; ?></dd></div>
+              <?php endif; ?>
+            </dl>
+            <?php if ($myTrack !== '' && $myTrackDesc !== ''): ?><div class="ngv-box" id="trackNote"><?= $e($myTrackDesc) ?></div><?php endif; ?>
+            <?php if ($myWindow && $myWindow['elapsed']): ?>
+            <div class="ngv-box">Your programme year is complete. Any training-fee instalments you agreed still fall due as scheduled in <a href="<?= isset($ngvAccountHref) ? e($ngvAccountHref) . '" data-goto="ngv-account' : '#account' ?>">Your account</a>.</div>
             <?php endif; ?>
+            <p class="ngv-fine">Your track and plan are set by the programme team when you are enrolled. To change either, speak to your track lead.<?php if ($myPlan !== ''): ?> Your plan sets your training fee; free tracks stay free.<?php endif; ?></p>
           </div>
         </section>
 <?php endif; ?>
@@ -745,36 +735,6 @@ $ngvScript     = $ngvScript ?? true;
         .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'Upload rejected.'}; }); })
         .then(function(j){ inp.disabled = false; toast(j && j.ok ? 'Photo added ✓' : ((j && j.error) || 'Could not attach that')); if(j && j.ok) setTimeout(function(){ location.reload(); }, 700); })
         .catch(function(){ inp.disabled = false; toast('Offline — not attached'); });
-    });
-  });
-
-  // Track picker (scoped to track tiles — the plan tiles below reuse .trk)
-  document.querySelectorAll('.trk[data-track]').forEach(function(el){
-    el.addEventListener('click', function(){
-      var name = el.getAttribute('data-track');
-      var wasOn = el.classList.contains('on');
-      document.querySelectorAll('.trk[data-track]').forEach(function(x){ x.classList.remove('on'); });
-      var val = wasOn ? '' : name;
-      if(!wasOn) el.classList.add('on');
-      save({track: val}, function(){
-        var tile = document.getElementById('tileTrack');
-        if(tile){ tile.textContent = val || '—'; }
-        var tsub = tile && tile.nextElementSibling; if(tsub) tsub.textContent = val ? 'Locked in' : 'Pick one below';
-      });
-    });
-  });
-
-  // Plan picker — sets the training fee shown in "Your account". A reload
-  // follows a change so the account figure and the fee line recompute server-
-  // side (the money is computed there, never in the browser).
-  document.querySelectorAll('.trk[data-plan]').forEach(function(el){
-    el.addEventListener('click', function(){
-      var name = el.getAttribute('data-plan');
-      var wasOn = el.classList.contains('on');
-      document.querySelectorAll('.trk[data-plan]').forEach(function(x){ x.classList.remove('on'); });
-      var val = wasOn ? '' : name;
-      if(!wasOn) el.classList.add('on');
-      save({plan: val}, function(){ setTimeout(function(){ location.reload(); }, 500); });
     });
   });
 

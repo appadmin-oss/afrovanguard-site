@@ -179,6 +179,12 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .ngv-box{font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);
   border-radius:10px;padding:10px 12px;margin-top:12px;line-height:1.5}
 .ngv-box b{color:var(--ink)}
+/* My programme — read-only facts: track, plan, the programme year. */
+.ngv-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:0}
+.ngv-facts div{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.ngv-facts dt{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted-2)}
+.ngv-facts dd{margin:4px 0 0;font-weight:700;color:var(--ink);font-size:14px}
+.ngv-facts dd .ngv-fine{font-weight:400;margin:0}
 .ngv-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .ngv-pill{background:var(--surface-2);color:var(--body);border:1px solid var(--border);border-radius:999px;
   padding:5px 12px;font-size:12.5px;font-weight:600}

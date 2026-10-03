@@ -108,7 +108,8 @@ ck('ngv fees: running accrual again does NOT charge the same month twice',
 // handed twenty-four months of arrears the first time the cron runs.
 $nlReset();
 $nlOn(['accrueFrom' => '2026-08-01']);
-$old = $nlPerson(102, 'Bode Ade', '2024-01-05');
+// Enrolled seven months before the ledger existed — still inside their programme year.
+$old = $nlPerson(102, 'Bode Ade', '2026-01-05');
 $g = NgvLedger::accrueParticipant($old, '2026-09-07');
 ck('ngv fees: switching fees on does not back-charge a member\'s whole history',
    $g['commitment'] === 2 && $g['membership'] === 1);
@@ -608,5 +609,79 @@ ck('pay online: the page is never indexed', str_contains($nlPaySrc, 'noindex'));
 $nlDon = (string) @file_get_contents(AV_ROOT . '/process-donation.php');
 ck('pay online: the webhook tells a fee payment apart from a donation',
    str_contains($nlDon, 'ngv_member') && str_contains($nlDon, 'NgvLedger::payOnline'));
+
+$nlReset();
+
+/* ══ The training fee counts whatever the status ═════════════════════════════
+   It is an agreed commitment, not a charge for time on the programme. Dated
+   in 2030 because a status change accrues as of the real today. */
+$nlReset();
+$nlOn();
+$nlPerson(901, 'Chi Eze', '2030-03-01', 'Full Programme');
+NgvLedger::startTrainingFee(901, 12, 0, 240000, '2030-03-15');
+NgvMember::setAdmin(901, ['status' => 'withdrawn']);
+$nlW = NgvLedger::accrueParticipant(NgvMember::participant(901), '2030-08-15');
+ck('ngv fees: a withdrawal stops membership and commitment…',
+   $nlW['skipped'] === 'not_active' && $nlW['membership'] === 0 && $nlW['commitment'] === 0);
+ck('ngv fees: …but the agreed training instalments keep falling due',
+   $nlW['programme'] === 5);   // Apr–Aug; March was posted when it was agreed
+$nlAll = NgvLedger::accrueAll(100, '2030-09-15');
+ck('ngv fees: the roster run reaches a withdrawn participant with a schedule running',
+   (int) $nlAll['accrued']['programme'] === 1);
+NgvMember::setAdmin(901, ['status' => 'paused']);
+ck('ngv fees: a pause does not stop it either',
+   NgvLedger::accrueParticipant(NgvMember::participant(901), '2030-10-15')['programme'] === 1);
+NgvLedger::stopTrainingFee(901);
+ck('ngv fees: stopping it is a staff decision, and it then stops',
+   NgvLedger::accrueParticipant(NgvMember::participant(901), '2030-12-15')['programme'] === 0);
+
+/* ══ The programme lasts a year ════════════════════════════════════════════ */
+$nlReset();
+$nlOn();
+$nlYr = $nlPerson(902, 'Dayo Ola', '2026-03-10');
+ck('ngv programme: it ends a year from the start', NgvMember::programmeEnd($nlYr) === '2027-03-10');
+$nlWin = NgvMember::programmeWindow($nlYr, '2026-09-10');
+ck('ngv programme: the window says how long is left', !$nlWin['elapsed'] && $nlWin['daysLeft'] === 181);
+$nlA = NgvLedger::accrueParticipant($nlYr, '2027-09-01');
+ck('ngv programme: a year is twelve commitments and one membership — nothing after the end',
+   $nlA['commitment'] === 12 && $nlA['membership'] === 1);
+ck('ngv programme: and still nothing a year later',
+   array_sum(array_intersect_key(NgvLedger::accrueParticipant($nlYr, '2028-09-01'), ['membership' => 1, 'commitment' => 1])) === 0);
+
+NgvMember::setAdmin(902, ['end_date' => '2027-06-10']);
+ck('ngv programme: staff can extend one person\'s year',
+   NgvMember::programmeEnd(NgvMember::participant(902)) === '2027-06-10'
+   && NgvMember::programmeWindow(NgvMember::participant(902))['extended']);
+ck('ngv programme: the extension is charged for',
+   NgvLedger::accrueParticipant(NgvMember::participant(902), '2027-09-01')['commitment'] === 3);
+NgvMember::setAdmin(902, ['end_date' => '2026-01-01']);
+ck('ngv programme: an end before the start is refused, and the stored one stands',
+   NgvMember::programmeEnd(NgvMember::participant(902)) === '2027-06-10');
+NgvMember::setAdmin(902, ['end_date' => '']);
+ck('ngv programme: clearing it goes back to the standard year',
+   NgvMember::programmeEnd(NgvMember::participant(902)) === '2027-03-10');
+
+$nlPerson(903, 'Efe Uche', '2026-08-01');
+$nlC = NgvMember::completeElapsed('2027-03-11');
+ck('ngv programme: the sweep completes those whose year is up, and only them',
+   $nlC['members'] === [902]
+   && (string) NgvMember::participant(902)['status'] === 'completed'
+   && (string) NgvMember::participant(903)['status'] === 'active');
+ck('ngv programme: a completed vanguard is still a vanguard', NgvMember::isVanguard(902));
+ck('ngv programme: the sweep is idempotent', NgvMember::completeElapsed('2027-03-11')['completed'] === 0);
+
+/* ══ Members cannot change their programme ═══════════════════════════════ */
+NgvMember::setAdmin(903, ['track' => '', 'plan' => 'Training Only', 'phase' => '1']);
+NgvMember::saveSelf(903, ['plan' => 'Full Programme', 'phase' => 'done', 'focus_note' => 'Two books']);
+$nl903 = NgvMember::participant(903);
+ck('ngv programme: a member cannot change their plan or phase',
+   (string) $nl903['plan'] === 'Training Only' && (string) $nl903['phase'] === '1');
+ck('ngv programme: …but their focus note still saves', (string) $nl903['focus_note'] === 'Two books');
+$nlDash = (string) @file_get_contents(AV_ROOT . '/academy/ngv/dashboard.php');
+ck('ngv programme: the dashboard refuses a track/plan/phase save out loud',
+   str_contains($nlDash, "array_key_exists('plan', \$in)") && str_contains($nlDash, '403'));
+$nlBody = (string) @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php');
+ck('ngv programme: the dashboard has no plan or track picker left',
+   !str_contains($nlBody, 'data-plan=') && !str_contains($nlBody, 'data-track='));
 
 $nlReset();

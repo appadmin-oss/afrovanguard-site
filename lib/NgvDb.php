@@ -178,6 +178,10 @@ final class NgvDb
              reactivating somebody charged every period since start_date,
              including the months they were away. */
           accrue_from VARCHAR(10) NOT NULL DEFAULT '',
+          /* The day the programme ends. Empty means the standard length from
+             start_date (NgvMember::PROGRAMME_MONTHS). Set only when staff
+             extend or shorten one person's programme. */
+          end_date    VARCHAR(10) NOT NULL DEFAULT '',
           created_at  TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );

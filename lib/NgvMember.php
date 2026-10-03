@@ -28,6 +28,12 @@ final class NgvMember
     public const COMMITMENT_MONTHLY  = NgvLedger::COMMITMENT_FALLBACK;
 
     public const STATUSES = ['applicant', 'active', 'completed', 'paused', 'withdrawn'];
+
+    /** The programme runs a year from the start date. One person's can be
+     *  extended or shortened by staff (`end_date`); the standard is this. */
+    public const PROGRAMME_MONTHS = 12;
+    /** Completions per cron tick — bounded like every other batch. */
+    public const COMPLETE_BATCH = 200;
     public const PHASES   = ['', '1', '2', 'done'];
     public const KINDS    = ['membership', 'commitment', 'programme', 'other'];
     private const AMOUNT_MAX = 100000000; // ₦100m per row — a sane ceiling
@@ -196,9 +202,13 @@ final class NgvMember
         if (!$was || !in_array((string) $was['status'], self::MEMBER_STATUSES, true)) return;
         $set = [];
         $args = [];
-        if (array_key_exists('track', $patch) && ($t = self::validTrack((string) $patch['track'])) !== null) { $set[] = 'track = ?'; $args[] = $t; }
-        if (array_key_exists('plan', $patch) && ($p = self::validPlan((string) $patch['plan'])) !== null) { $set[] = 'plan = ?'; $args[] = $p; }
-        if (array_key_exists('phase', $patch))      { $v = (string) $patch['phase']; if (in_array($v, self::PHASES, true)) { $set[] = 'phase = ?'; $args[] = $v; } }
+        /* Track, plan and phase are NOT the member's to set. They were, from
+           the dashboard, and the plan is what prices the training fee — so a
+           participant could move themselves onto a free plan, or onto a track
+           nobody had placed them in, with one click. The programme is what
+           staff enrolled them on (setAdmin); the dashboard shows it, read-only.
+           Anything in $patch for those keys is ignored, not an error, so an
+           old open tab does nothing worse than fail to change it. */
         /* `books` is DELIBERATELY not settable here any more. It used to be,
            and one POST of twenty-four ones marked the whole reading challenge
            complete — which made every check in NgvReading theatre, since the
@@ -215,10 +225,9 @@ final class NgvMember
     /**
      * Staff-editable fields: status, cohort, track, phase, plan.
      *
-     * `plan` is here because the participant picks their own on the dashboard
-     * and the plan is what prices the training fee. Somebody has to be able to
-     * correct a wrong pick without asking the participant to do it, and staff
-     * confirming the plan is the step the fee is raised from.
+     * Track, plan and phase are ONLY settable here — not by the participant.
+     * The plan prices the training fee, and staff confirming it is the step the
+     * fee is raised from. `end_date` extends or shortens one person's year.
      */
     public static function setAdmin(int $memberId, array $patch): void
     {
@@ -262,10 +271,105 @@ final class NgvMember
             $sd = substr(trim((string) $patch['start_date']), 0, 10);
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $sd) && $sd <= self::today()) { $set[] = 'start_date = ?'; $args[] = $sd; }
         }
+        /* One person's programme end — an extension, or an early finish.
+           Empty puts it back to the standard year from the start. An end on
+           or before the start is refused (ignored): it would make the
+           programme zero days long and complete them on the next tick. */
+        if (array_key_exists('end_date', $patch)) {
+            $ed = substr(trim((string) $patch['end_date']), 0, 10);
+            $at = array_search('start_date = ?', $set, true);
+            $sd = (string) ($at !== false ? $args[$at] : ($before['start_date'] ?? ''));
+            if ($ed === '') { $set[] = 'end_date = ?'; $args[] = ''; }
+            elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $ed) && ($sd === '' || $ed > substr($sd, 0, 10))) { $set[] = 'end_date = ?'; $args[] = $ed; }
+        }
         if (!$set) return;
         $set[] = 'updated_at = ' . NgvDb::nowExpr();
         $args[] = $memberId;
         NgvDb::pdo()->prepare('UPDATE ngv_participants SET ' . implode(', ', $set) . ' WHERE member_id = ?')->execute($args);
+    }
+
+    /* ── the programme's length ───────────────────────────────────────────
+     * NGV is a one-year programme. The platform has to KNOW when somebody's
+     * year is up — to stop charging for time on it, to complete them, and to
+     * tell them — rather than leave an "active" row accruing for ever. */
+
+    /** The day somebody's programme ends: their own end_date if staff set one,
+     *  otherwise PROGRAMME_MONTHS after the start. '' when there is no start. */
+    public static function programmeEnd(array $p): string
+    {
+        $own = substr(trim((string) ($p['end_date'] ?? '')), 0, 10);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $own)) return $own;
+        $start = NgvLedger::startDate($p);
+        if ($start === '') return '';
+        $t = strtotime($start . ' 00:00:00 UTC +' . self::PROGRAMME_MONTHS . ' months');
+        return $t === false ? '' : gmdate('Y-m-d', $t);
+    }
+
+    /**
+     * Where somebody stands in their programme year — for the dashboard, the
+     * console and the completion sweep, so all three say the same thing.
+     *
+     * @return array{start:string,end:string,elapsed:bool,daysLeft:int,monthsIn:int,extended:bool}
+     */
+    public static function programmeWindow(array $p, ?string $asOf = null): array
+    {
+        $today = $asOf ?: self::today();
+        $start = NgvLedger::startDate($p);
+        $end   = self::programmeEnd($p);
+        $days  = $end === '' ? 0 : (int) floor((strtotime($end . ' 00:00:00 UTC') - strtotime($today . ' 00:00:00 UTC')) / 86400);
+        return [
+            'start'    => $start,
+            'end'      => $end,
+            'elapsed'  => $end !== '' && $end <= $today,
+            'daysLeft' => max(0, $days),
+            'monthsIn' => $start === '' ? 0 : min(self::PROGRAMME_MONTHS, NgvLedger::monthsBetween($start, $today)),
+            'extended' => trim((string) ($p['end_date'] ?? '')) !== '',
+        ];
+    }
+
+    /**
+     * Complete everybody whose programme year is up. Run by the cron.
+     *
+     * Charges for their time on it are brought up to date FIRST (the accrual
+     * stops at the end date by itself, so this cannot over-charge), then the
+     * status moves to `completed`, which keeps them a vanguard
+     * (MEMBER_STATUSES) — they finished; they did not leave. An agreed training
+     * schedule keeps running afterwards: it is owed, and it is not for time.
+     * Paused participants are left alone; whether a paused year still ends is
+     * a conversation for staff, not a sweep.
+     */
+    public static function completeElapsed(?string $asOf = null, int $limit = self::COMPLETE_BATCH): array
+    {
+        $today = $asOf ?: self::today();
+        /* Narrowed in SQL (dates are stored Y-m-d, so text order is date
+           order), and every candidate is still checked by programmeWindow()
+           below — the query only has to not miss anybody. */
+        $cut = gmdate('Y-m-d', (int) strtotime($today . ' 00:00:00 UTC -' . self::PROGRAMME_MONTHS . ' months'));
+        $st = NgvDb::pdo()->prepare("SELECT * FROM ngv_participants WHERE status = 'active' AND (
+                                        (end_date <> '' AND end_date <= ?)
+                                     OR (end_date = '' AND start_date <> '' AND start_date <= ?)
+                                     OR (end_date = '' AND start_date = '' AND created_at <= ?))
+                                     ORDER BY id LIMIT " . max(1, min(2000, $limit)));
+        $st->execute([$today, $cut, $cut . ' 23:59:59']);
+        $done = [];
+        foreach ($st->fetchAll() ?: [] as $p) {
+            if (count($done) >= $limit) break;
+            $w = self::programmeWindow($p, $today);
+            if (!$w['elapsed']) continue;
+            try { NgvLedger::accrueParticipant($p, $today); } catch (Throwable $e) { error_log('[ngv] accrue before completion: ' . $e->getMessage()); }
+            $up = NgvDb::pdo()->prepare("UPDATE ngv_participants SET status = 'completed', phase = 'done', updated_at = " . NgvDb::nowExpr()
+                                      . " WHERE id = ? AND status = 'active'");
+            $up->execute([(int) $p['id']]);
+            if ($up->rowCount() < 1) continue;
+            $done[] = (int) $p['member_id'];
+            if (class_exists('AdminAudit')) {
+                try {
+                    AdminAudit::log('ngv', 'ngv_programme_complete', 'ngv:member:' . (int) $p['member_id'],
+                        'Programme year ended ' . $w['end'] . ' — marked completed', null, 'cron');
+                } catch (Throwable $e) {}
+            }
+        }
+        return ['completed' => count($done), 'members' => $done];
     }
 
     /* ── money (delegated to NgvLedger) ──────────────────────────────────

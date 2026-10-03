@@ -116,9 +116,12 @@ if ($method === 'POST') {
     }
 
     $patch = [];
-    if (array_key_exists('track', $in)) $patch['track'] = (string) $in['track'];
-    if (array_key_exists('plan',  $in)) $patch['plan']  = (string) $in['plan'];
-    if (array_key_exists('phase', $in)) $patch['phase'] = (string) $in['phase'];
+    /* Track, plan and phase are staff's (NgvMember::saveSelf says why). A
+       request that names them is refused out loud rather than half-applied,
+       so a stale tab shows "not saved" instead of a tick for nothing. */
+    if (array_key_exists('track', $in) || array_key_exists('plan', $in) || array_key_exists('phase', $in)) {
+        json_out(['ok' => false, 'error' => 'Your track and plan are set by the programme team. Ask your track lead to change them.'], 403);
+    }
     /* Books are not self-reported any more — a claim goes through
        NgvReading and a track lead verifies it. Left here as a comment rather
        than deleted silently so nobody re-adds it wondering why it is missing. */

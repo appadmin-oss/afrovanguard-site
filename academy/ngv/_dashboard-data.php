@@ -68,6 +68,10 @@ if ($myPhase === 'done')      $phaseLabel = 'Completed';
 elseif ($myPhase === '1' && isset($phases[0])) $phaseLabel = (string) ($phases[0]['title'] ?? 'Phase 1');
 elseif ($myPhase === '2' && isset($phases[1])) $phaseLabel = (string) ($phases[1]['title'] ?? 'Phase 2');
 
+/* Where they are in their programme year. Only for a real enrolment: a
+   preview has no start date and no year to count. */
+$myWindow = ($p['status'] ?? '') !== 'preview' ? NgvMember::programmeWindow($p) : null;
+
 $myTrackDesc = '';
 foreach ($tracks as $t) { if (($t['name'] ?? '') === $myTrack) { $myTrackDesc = (string) ($t['desc'] ?? ''); break; } }
 

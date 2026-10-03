@@ -82,12 +82,18 @@ NgvMember::saveSelf(702, ['plan' => 'Full Programme']);
 ck('ngv audit: a member cannot self-select a plan the admin switched off',
    (string) NgvMember::participant(702)['plan'] === '');
 NgvMember::saveSelf(702, ['plan' => 'Training Only']);
+ck('ngv audit: a member cannot pick their own plan at all — not even a published one',
+   (string) NgvMember::participant(702)['plan'] === '');
+NgvMember::setAdmin(702, ['plan' => 'Full Programme']);
+ck('ngv audit: staff cannot set a plan the admin switched off',
+   (string) NgvMember::participant(702)['plan'] === '');
+NgvMember::setAdmin(702, ['plan' => 'Training Only']);
 ck('ngv audit: a plan that IS on the page is still accepted',
    (string) NgvMember::participant(702)['plan'] === 'Training Only');
 /* Refusing has to mean LEAVING IT ALONE. Blanking the field on a bad value
    would be its own bug: the plan prices the training fee, so a stale form or a
    hand-crafted POST could quietly stop somebody's instalments. */
-NgvMember::saveSelf(702, ['plan' => 'Platinum Invented Tier']);
+NgvMember::setAdmin(702, ['plan' => 'Platinum Invented Tier']);
 ck('ngv audit: a plan nobody published is refused, and the stored one stands',
    (string) NgvMember::participant(702)['plan'] === 'Training Only');
 NgvMember::setAdmin(702, ['plan' => 'Platinum Invented Tier']);
@@ -95,7 +101,7 @@ ck('ngv audit: staff cannot set an unpublished plan either, and lose nothing try
    (string) NgvMember::participant(702)['plan'] === 'Training Only');
 /* Deliberately choosing nothing is still allowed — that is a different act
    from naming something we do not recognise. */
-NgvMember::saveSelf(702, ['plan' => '']);
+NgvMember::setAdmin(702, ['plan' => '']);
 ck('ngv audit: but an empty choice does clear it, because that is a real choice',
    (string) NgvMember::participant(702)['plan'] === '');
 /* The same three-way distinction applies to the track. */
