@@ -366,6 +366,33 @@ button four times does not send four letters. That self-service path is the
 point: the answer arrives without anybody having to start a conversation about
 money in a corridor.
 
+## Watching the training fee
+
+The participant watches their own training fee month by month on the
+dashboard. Staff have the same watch, for everybody at once: **Training fees**
+on the console (`/academy/ngv/members.php#training`, linked from the top bar).
+
+One row per participant with an agreed schedule — and per participant whose
+schedule was **stopped** with charges still on the account, because those are
+still owed or still need a decision. Each row: the total, how many instalments
+are charged, what has been **received** (and, separately, what was waived or
+written off — never called money received), what is **charged and unpaid** and
+how many instalments that is, and the **next** instalment (marked *not yet
+posted* when its month has arrived and the next ledger run will add it). Tiles
+above the table total the same columns for what is shown.
+
+Payments count against the **oldest instalment first**, the way the
+participant reads it: ₦30,000 against three ₦20,000 instalments leaves one
+behind, not three. Filters (everybody, behind, running, complete, stopped),
+search and sort ride in the query string (`tf`, `tq`, `ts`), so a filtered view
+is a link one coordinator can send another; an unknown value falls back to the
+default. `NgvLedger::trainingWatch()` builds it in three queries however long
+the roster is.
+
+On one person's record, **Training fee** now lists the months the way their
+dashboard does — month, amount, and charged / due at the next run / to come —
+under a paid-so-far bar, instead of numbered dots.
+
 ## Safety rails
 
 - **Idempotent accrual.** `UNIQUE (member_id, kind, period)` on `ngv_charges`,

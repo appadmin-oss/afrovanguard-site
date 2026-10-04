@@ -320,6 +320,11 @@ $money   = $isAdmin ? NgvLedger::totals() : [];
 $arrears = $isAdmin && !empty($fees['enabled']) ? NgvLedger::arrears(50) : ['rows' => [], 'matched' => 0, 'truncated' => false, 'totalPayable' => 0];
 $review  = $isAdmin ? NgvLedger::reviewDue() : ['due' => false];
 $look    = $isAdmin ? NgvLedger::lookup((string) ($_GET['q'] ?? '')) : ['rows' => [], 'q' => '', 'tooShort' => true];
+/* The training-fee watch — everybody's schedule at once. Filter, search and
+ * sort ride in the query string like the roster's, so "who is behind on the
+ * training fee" is a URL one coordinator can send another. */
+$tf = (string) ($_GET['tf'] ?? 'all'); $tq = (string) ($_GET['tq'] ?? ''); $ts = (string) ($_GET['ts'] ?? 'behind');
+$train   = $isAdmin ? NgvLedger::trainingWatch($tf, $tq, $ts, 200) : ['rows' => [], 'matched' => 0, 'truncated' => false, 'totals' => [], 'counts' => [], 'filter' => 'all', 'sort' => 'behind', 'q' => ''];
 /* People who have asked for consideration or queried a figure. Above the
  * arrears list on purpose: somebody who wrote to say they cannot pay is not a
  * debtor to chase, and answering them is the more urgent of the two jobs. */
@@ -516,6 +521,20 @@ textarea{min-height:60px;resize:vertical}
   font-size:.72rem;font-weight:800;border:1.5px solid var(--line);color:var(--muted);cursor:default}
 .inst--charged{background:var(--green-bg);border-color:var(--green-line);color:var(--green)}
 .inst--due{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}
+/* The training-fee watch: the programme-wide table, and one person's months. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.tw-filters{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 10px}
+.tw-bar{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:5px;max-width:160px}
+.tw-bar span{display:block;height:100%;background:var(--green)}
+.tw-bar--lg{height:8px;max-width:none;margin:8px 0}
+.tw-sched{list-style:none;margin:8px 0 4px;padding:0;display:grid;gap:2px}
+.tw-inst{display:grid;grid-template-columns:2.2em 1fr auto;gap:2px 10px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.86rem}
+.tw-inst .n{font-weight:800;color:var(--muted)}
+.tw-inst .amt{font-weight:800;font-variant-numeric:tabular-nums}
+.tw-inst .st{grid-column:2/-1;font-size:.74rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tw-inst--charged .st{color:var(--green)}
+.tw-inst--due .st{color:var(--danger)}
+.tw-inst--upcoming{opacity:.7}
 
 /* ── Ledger rows ─────────────────────────────────────────────────────────── */
 .pay-row{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;padding:7px 0;border-bottom:1px dashed var(--line)}
@@ -571,6 +590,7 @@ details.sect>summary{margin-bottom:8px}
 <header class="top">
   <h1><b>NextGen Vanguard</b> <span>· staff console</span></h1>
   <span class="sp"></span>
+  <a href="#training">Training fees</a>
   <a href="/academy/ngv/attendance.php">Attendance</a>
   <a href="/academy/ngv/fines.php">Fines</a>
   <a href="/academy/ngv/edit.php">Edit page</a>
@@ -726,6 +746,85 @@ details.sect>summary{margin-bottom:8px}
           <p class="sub">Nobody matched “<?= $e((string)$look['q']) ?>”.</p>
         <?php endif; ?>
       </div>
+    </div>
+  </section>
+
+  <!-- The training fee, watched across everybody. The participant sees their
+       own schedule month by month; this is the same schedule for every one of
+       them, so "who has fallen behind on the training fee, and by how much" has
+       an answer on one screen instead of one record at a time. -->
+  <?php $TT = $train['totals'] + ['people' => 0, 'agreed' => 0, 'charged' => 0, 'received' => 0, 'setAside' => 0, 'unpaid' => 0, 'toCharge' => 0];
+        $TC = $train['counts'] + ['all' => 0, 'behind' => 0, 'running' => 0, 'stopped' => 0, 'complete' => 0];
+        $trainQs = static function (array $over) use ($train, $mid): string {
+            $q = array_merge(['tf' => $train['filter'], 'tq' => $train['q'], 'ts' => $train['sort'], 'm' => $mid > 0 ? $mid : ''], $over);
+            return '?' . http_build_query(array_filter($q, static fn($v) => $v !== '' && $v !== null)) . '#training';
+        }; ?>
+  <section class="card" id="training" aria-labelledby="h-training">
+    <header><h2 id="h-training">Training fees</h2>
+      <?php if ($TC['behind'] > 0): ?><span class="pill pill-open"><?= (int)$TC['behind'] ?> behind</span><?php endif; ?>
+      <span class="sp"></span>
+      <span class="sub"><?= (int)$TC['all'] ?> on a training fee</span>
+    </header>
+    <div class="body">
+      <?php if (!$TC['all']): ?>
+        <p class="sub">Nobody has a training fee agreed yet. Agree one from a participant's record, under <b>Training fee</b>.</p>
+      <?php else: ?>
+      <div class="amts" role="status">
+        <div class="amt-box"><div class="k">Agreed</div><div class="v">₦<?= number_format((int)$TT['agreed']) ?></div></div>
+        <div class="amt-box"><div class="k">Charged so far</div><div class="v">₦<?= number_format((int)$TT['charged']) ?></div></div>
+        <div class="amt-box"><div class="k">Received</div><div class="v">₦<?= number_format((int)$TT['received']) ?></div>
+          <?php if ((int)$TT['setAside'] > 0): ?><div class="sub">+ ₦<?= number_format((int)$TT['setAside']) ?> waived or written off</div><?php endif; ?></div>
+        <div class="amt-box"><div class="k">Charged, unpaid</div><div class="v">₦<?= number_format((int)$TT['unpaid']) ?></div></div>
+        <div class="amt-box"><div class="k">Still to charge</div><div class="v">₦<?= number_format((int)$TT['toCharge']) ?></div></div>
+      </div>
+      <nav class="tw-filters" aria-label="Filter the training fees">
+        <?php foreach (['all' => 'Everybody', 'behind' => 'Behind', 'running' => 'Running', 'complete' => 'Complete', 'stopped' => 'Stopped'] as $k => $lbl): ?>
+          <a class="btn sm<?= $train['filter'] === $k ? ' primary' : '' ?>" href="<?= $e($trainQs(['tf' => $k])) ?>"<?= $train['filter'] === $k ? ' aria-current="true"' : '' ?>><?= $e($lbl) ?> (<?= (int)$TC[$k] ?>)</a>
+        <?php endforeach; ?>
+      </nav>
+      <form method="get" class="rfilter" action="#training" role="search">
+        <?php if ($mid > 0): ?><input type="hidden" name="m" value="<?= $mid ?>"><?php endif; ?>
+        <input type="hidden" name="tf" value="<?= $e($train['filter']) ?>">
+        <input name="tq" value="<?= $e($train['q']) ?>" placeholder="Name, email or cohort…" aria-label="Search the training fees">
+        <select name="ts" aria-label="Sort by">
+          <?php foreach (['behind' => 'Most unpaid first', 'remaining' => 'Most still to come', 'received' => 'Most received', 'name' => 'Name'] as $k => $lbl): ?>
+            <option value="<?= $e($k) ?>" <?= $train['sort'] === $k ? 'selected' : '' ?>><?= $e($lbl) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button class="btn">Show</button>
+      </form>
+      <?php if (!$train['rows']): ?>
+        <p class="sub">Nobody matches that. <a href="<?= $e($trainQs(['tf' => 'all', 'tq' => ''])) ?>">Show everybody</a>.</p>
+      <?php else: ?>
+      <div class="tbl">
+      <table>
+        <caption class="sr-only">Training fee by participant</caption>
+        <thead><tr><th scope="col">Who</th><th scope="col">Schedule</th><th scope="col">Received</th><th scope="col">Unpaid</th><th scope="col">Next</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+        <tbody>
+        <?php foreach ($train['rows'] as $r): ?>
+          <tr>
+            <td><a href="?m=<?= (int)$r['member_id'] ?>#record"><?= $e((string)($r['name'] ?: ('#'.$r['member_id']))) ?></a>
+              <br><span class="sub"><?= $e((string)$r['status']) ?><?= $r['cohort'] !== '' ? ' · ' . $e((string)$r['cohort']) : '' ?></span></td>
+            <td>₦<?= number_format((int)$r['total']) ?><?= $r['state'] === 'stopped' ? ' <span class="sub">charged before it stopped</span>' : '' ?>
+              <br><span class="sub"><?= $r['state'] === 'stopped'
+                  ? (int)$r['chargedN'] . ' charged · schedule stopped'
+                  : (int)$r['chargedN'] . ' of ' . (int)$r['months'] . ' charged' . ($r['state'] === 'complete' ? ' · complete' : '') ?></span>
+              <div class="tw-bar" aria-hidden="true"><span style="width:<?= (int)$r['paidPct'] ?>%"></span></div></td>
+            <td>₦<?= number_format((int)$r['received']) ?><?php if ((int)$r['setAside'] > 0): ?><br><span class="sub">+ ₦<?= number_format((int)$r['setAside']) ?> set aside</span><?php endif; ?></td>
+            <td><?php if ((int)$r['unpaid'] > 0): ?><b>₦<?= number_format((int)$r['unpaid']) ?></b><br><span class="sub"><?= (int)$r['behindN'] ?> instalment<?= (int)$r['behindN'] === 1 ? '' : 's' ?></span>
+                <?php else: ?><span class="sub">up to date</span><?php endif; ?></td>
+            <td><?php if ($r['next']): ?>₦<?= number_format((int)$r['next']['amount']) ?><br><span class="sub"><?= $e(date('M Y', (int) strtotime($r['next']['period'] . '-01'))) ?><?= $r['next']['overdue'] ? ' · not yet posted' : '' ?></span>
+                <?php else: ?><span class="sub">—</span><?php endif; ?></td>
+            <td><a class="btn sm" href="?m=<?= (int)$r['member_id'] ?>#record">Open</a></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      </div>
+      <?php if (!empty($train['truncated'])): ?><p class="sub">Showing the first <?= count($train['rows']) ?> of <?= (int)$train['matched'] ?> — narrow it to see the rest.</p><?php endif; ?>
+      <p class="sub">Payments are counted against the oldest instalment first, the way the participant reads it. “Not yet posted” is a month that has arrived and goes on at the next ledger run.</p>
+      <?php endif; ?>
+      <?php endif; ?>
     </div>
   </section>
 
@@ -1110,13 +1209,22 @@ details.sect>summary{margin-bottom:8px}
             <p class="sub"><b>₦<?= number_format((int)$T['total']) ?></b>
                <?= (int)$T['months'] > 1 ? 'over ' . (int)$T['months'] . ' months from ' . $e((string)$T['from']) : 'in full' ?>
                · <?= (int)$T['settled'] ?> charged · ₦<?= number_format((int)$T['paid']) ?> paid</p>
-            <div class="insts">
+            <div class="tw-bar tw-bar--lg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Training fee paid"
+                 aria-valuenow="<?= (int)$T['total'] > 0 ? min(100, (int) floor(100 * (int)$T['paid'] / (int)$T['total'])) : 0 ?>"><span style="width:<?= (int)$T['total'] > 0 ? min(100, (int) floor(100 * (int)$T['paid'] / (int)$T['total'])) : 0 ?>%"></span></div>
+            <!-- Month by month — the same rows the participant sees on their
+                 dashboard, so a question about one has the answer in front of
+                 both people. -->
+            <ol class="tw-sched">
               <?php foreach ($T['instalments'] as $i): ?>
-                <span class="inst inst--<?= $e((string)$i['state']) ?>" title="<?= $e((string)$i['period']) ?> · ₦<?= number_format((int)$i['amount']) ?>">
-                  <?= (int)$i['n'] ?></span>
+                <li class="tw-inst tw-inst--<?= $e((string)$i['state']) ?>">
+                  <span class="n"><?= (int)$i['n'] ?></span>
+                  <span class="mo"><?= $e(date('M Y', (int) strtotime($i['period'] . '-01'))) ?></span>
+                  <span class="amt">₦<?= number_format((int)$i['amount']) ?></span>
+                  <span class="st"><?= $i['state'] === 'charged' ? 'charged' : ($i['state'] === 'due' ? 'due — goes on at the next run' : 'to come') ?></span>
+                </li>
               <?php endforeach; ?>
-            </div>
-            <p class="sub">Charged · due now · still to come. Each instalment lands as its month arrives.</p>
+            </ol>
+            <p class="sub">Each instalment lands on the account as its month arrives. Whether a charged one is paid shows in the ledger below.</p>
             <div class="btns"><button class="btn sm" data-act="training_stop" data-m="<?= $m ?>">Stop future instalments</button></div>
             <p class="sub">Stopping leaves what has already been charged on the account — that happened. Whether the rest
                should still be asked for is a separate decision: waive it, or write it off.</p>

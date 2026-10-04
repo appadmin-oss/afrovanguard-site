@@ -1691,6 +1691,94 @@ final class NgvLedger
     }
 
     /**
+     * The training fee across the whole programme — the watch the participant
+     * has on their own dashboard ("instalment 4 of 12, ₦20,000, this month"),
+     * for staff, for everybody at once.
+     *
+     * One row per participant with an agreed schedule, or with training charges
+     * left behind by one that was stopped: the total, how many instalments are
+     * on the account, what has been received or set aside against them, how many
+     * charged instalments are still unpaid, what is left to charge, and the next
+     * one due. Three queries however long the roster is — the same reason the
+     * arrears sweep groups in the database instead of building a balance each.
+     *
+     * Payments are applied to instalments OLDEST FIRST to say how many are behind,
+     * which is how a participant reads it too: paying ₦30,000 against three
+     * ₦20,000 instalments leaves the third half-paid, so one is behind, not three.
+     */
+    public const TRAINING_FILTERS = ['all', 'behind', 'running', 'stopped', 'complete'];
+    public const TRAINING_SORTS = ['behind', 'remaining', 'received', 'name'];
+
+    public static function trainingWatch(string $filter = 'all', string $q = '', string $sort = 'behind', int $limit = self::ARREARS_PAGE, ?string $asOf = null): array
+    {
+        $filter = in_array($filter, self::TRAINING_FILTERS, true) ? $filter : 'all';
+        $sort = in_array($sort, self::TRAINING_SORTS, true) ? $sort : 'behind';
+        $limit = max(1, min(self::ARREARS_PAGE_MAX, $limit));
+        $q = mb_strtolower(trim($q));
+        $thisMonth = self::periodKey($asOf ?: self::today('Y-m-d'), 'month');
+        $pdo = NgvDb::pdo();
+        $posted = [];
+        foreach ($pdo->query("SELECT member_id, period, amount FROM ngv_charges WHERE voided = 0 AND kind = 'programme' ORDER BY period, id")->fetchAll() ?: [] as $c) {
+            $posted[(int) $c['member_id']][] = ['period' => (string) $c['period'], 'amount' => (int) $c['amount']];
+        }
+        $credit = [];
+        foreach ($pdo->query("SELECT member_id, credit_kind, SUM(amount) AS amount FROM ngv_payments WHERE voided = 0 AND kind = 'programme' GROUP BY member_id, credit_kind")->fetchAll() ?: [] as $r) {
+            $credit[(int) $r['member_id']][(string) ($r['credit_kind'] ?: 'payment')] = (int) $r['amount'];
+        }
+        $rows = []; $counts = array_fill_keys(self::TRAINING_FILTERS, 0);
+        $totals = ['people' => 0, 'agreed' => 0, 'charged' => 0, 'received' => 0, 'setAside' => 0, 'unpaid' => 0, 'toCharge' => 0];
+        foreach ($pdo->query('SELECT * FROM ngv_participants')->fetchAll() ?: [] as $p) {
+            $id = (int) $p['member_id'];
+            $plan = self::trainingPlanOf($p);
+            $mine = $posted[$id] ?? [];
+            if ($plan === null && !$mine) continue;
+            $chargedAmt = array_sum(array_column($mine, 'amount'));
+            $cr = $credit[$id] ?? [];
+            $received = (int) ($cr['payment'] ?? 0);
+            $setAside = (int) ($cr['waiver'] ?? 0) + (int) ($cr['writeoff'] ?? 0);
+            $settled = $received + $setAside;
+            $left = $settled; $behind = 0;
+            foreach ($mine as $c) { if ($left >= $c['amount']) $left -= $c['amount']; else { $behind++; $left = 0; } }
+            $unpaid = max(0, $chargedAmt - $settled);
+            $postedPeriods = array_flip(array_column($mine, 'period'));
+            $next = null; $toCharge = 0; $upcoming = 0;
+            if ($plan) foreach ($plan['instalments'] as $ins) {
+                if (isset($postedPeriods[$ins['period']])) continue;
+                $toCharge += (int) $ins['amount'];
+                $upcoming++;
+                if ($next === null) $next = ['period' => $ins['period'], 'amount' => (int) $ins['amount'], 'n' => (int) $ins['n'], 'overdue' => $ins['period'] <= $thisMonth];
+            }
+            $state = $plan === null ? 'stopped' : ($upcoming === 0 && $unpaid === 0 ? 'complete' : 'running');
+            $tags = [$state]; if ($unpaid > 0) $tags[] = 'behind';
+            $counts['all']++; foreach ($tags as $t) $counts[$t]++;
+            if ($filter !== 'all' && !in_array($filter, $tags, true)) continue;
+            if ($q !== '' && !str_contains(mb_strtolower($p['name'] . ' ' . $p['email'] . ' ' . ($p['cohort'] ?? '')), $q)) continue;
+            $total = $plan ? (int) $plan['total'] : $chargedAmt;
+            $totals['people']++; $totals['agreed'] += $total; $totals['charged'] += $chargedAmt; $totals['received'] += $received;
+            $totals['setAside'] += $setAside; $totals['unpaid'] += $unpaid; $totals['toCharge'] += $toCharge;
+            $rows[] = [
+                'member_id' => $id, 'name' => (string) $p['name'], 'email' => (string) $p['email'],
+                'status' => (string) $p['status'], 'cohort' => (string) ($p['cohort'] ?? ''), 'plan' => (string) ($p['plan'] ?? ''),
+                'state' => $state, 'total' => $total, 'months' => $plan ? (int) $plan['months'] : count($mine),
+                'from' => $plan ? (string) $plan['from'] : ((string) ($mine[0]['period'] ?? '')),
+                'chargedN' => count($mine), 'charged' => $chargedAmt, 'received' => $received, 'setAside' => $setAside,
+                'unpaid' => $unpaid, 'behindN' => $behind, 'toCharge' => $toCharge, 'next' => $next,
+                'paidPct' => $total > 0 ? (int) min(100, floor(100 * $settled / $total)) : 0,
+            ];
+        }
+        $by = [
+            'behind'    => static fn($a, $b) => [$b['unpaid'], $b['behindN']] <=> [$a['unpaid'], $a['behindN']] ?: strcasecmp($a['name'], $b['name']),
+            'remaining' => static fn($a, $b) => ($b['unpaid'] + $b['toCharge']) <=> ($a['unpaid'] + $a['toCharge']) ?: strcasecmp($a['name'], $b['name']),
+            'received'  => static fn($a, $b) => $b['received'] <=> $a['received'] ?: strcasecmp($a['name'], $b['name']),
+            'name'      => static fn($a, $b) => strcasecmp($a['name'], $b['name']),
+        ];
+        usort($rows, $by[$sort]);
+        $matched = count($rows);
+        return ['rows' => array_slice($rows, 0, $limit), 'matched' => $matched, 'truncated' => $matched > $limit,
+                'totals' => $totals, 'counts' => $counts, 'filter' => $filter, 'sort' => $sort, 'q' => $q];
+    }
+
+    /**
      * Find a participant's account by name or email.
      *
      * The gap this fills: an arrears list only holds people who OWE, and on its
