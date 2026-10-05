@@ -1743,6 +1743,14 @@ SQL;
         $amount = self::money($amountNgn);
         $min = defined('MIN_DONATION_AMOUNT') ? (int) MIN_DONATION_AMOUNT : 1000;
         if ($amount < $min) return ['ok' => false, 'error' => 'The smallest recurring gift is ' . self::naira($min) . '.'];
+        /* `configured('paystack')` HERE IS CORRECT, and is the one gate on
+           this site that must not become `canCollect()`. A subscription
+           needs a Paystack Plan on OUR account: created below, charged
+           automatically, and stopped from our dashboard. Running one
+           through CACENTRE's checkout would make cancelling a donor's
+           standing gift a support request to another organisation, which
+           is not a thing to do to somebody who is giving money away.
+           A one-off gift still works, which is what the message says. */
         if (!class_exists('Payments') || !Payments::configured('paystack')) {
             return ['ok' => false, 'error' => 'Recurring giving is not available right now. A one-off gift still works.'];
         }

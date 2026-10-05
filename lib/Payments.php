@@ -130,6 +130,8 @@ final class Payments
                 'ok' => !empty($r['ok']),
                 'paid' => !empty($r['paid']),
                 'amount_minor' => (int) ($r['amount_minor'] ?? 0),
+                'currency' => (string) ($r['currency'] ?? ''),
+                'metadata' => is_array($r['metadata'] ?? null) ? $r['metadata'] : [],
                 'error' => $r['error'] ?? null,
             ];
         }
@@ -143,7 +145,52 @@ final class Payments
             'ok' => true,
             'paid' => !empty($v['paid']),
             'amount_minor' => (int) ($v['amount'] ?? 0),
+            'currency' => (string) ($v['currency'] ?? ''),
+            /* THE SAME SHAPE ON BOTH ROUTES, which is the whole point of
+               this method. A caller that checks ownership must not have to
+               know which provider took the money, or the check will exist
+               on one route and quietly not on the other. */
+            'metadata' => is_array($v['metadata'] ?? null) ? $v['metadata'] : [],
             'error' => null,
+        ];
+    }
+
+    /**
+     * Verify a reference without being told which route took it.
+     *
+     * For a return leg that carries only `?ref=` — the NGV fee page, where
+     * persisting the route would mean a table that exists for one flow.
+     * The preferred route is asked first and the other only if that one
+     * does not say paid.
+     *
+     * Safe because both are server-side asks that can only READ: a wrong
+     * guess returns "not paid", never a false yes, and nothing a payer can
+     * put in a URL changes which answer is true. It also survives the case
+     * that actually happens — keys arriving between the payment starting
+     * and the payer coming back, which moves the preferred route under a
+     * reference that was opened on the other one.
+     *
+     * @return array{ok: bool, paid: bool, amount_minor: int, currency: string, metadata: array, provider: string, error: ?string}
+     */
+    public static function verifyAny(string $reference): array
+    {
+        $preferred = self::route();
+        $order = $preferred === 'cfis' ? ['cfis', 'paystack'] : ['paystack', 'cfis'];
+
+        $first = null;
+        foreach ($order as $route) {
+            if ($route === 'paystack' && !self::configured('paystack')) continue;
+            if ($route === 'cfis' && !(class_exists('CfisCheckout') && CfisCheckout::configured())) continue;
+
+            $v = self::verifyBy($route, $reference);
+            $v['provider'] = $route;
+            if (!empty($v['paid'])) return $v;
+            if ($first === null) $first = $v;
+        }
+
+        return $first ?? [
+            'ok' => false, 'paid' => false, 'amount_minor' => 0, 'currency' => '', 'metadata' => [],
+            'provider' => '', 'error' => 'Online payment is not set up for this site yet.',
         ];
     }
 

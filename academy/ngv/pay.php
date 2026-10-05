@@ -11,9 +11,14 @@
  * into the console before the participant's account said anything different.
  *
  * THE AMOUNT IS NEVER THE BROWSER'S. What the payer's form says is used only to
- * open a transaction; what gets RECORDED comes from `Payments::paystackVerify()`
- * — Paystack's own answer, fetched server-side. Anything else means a form field
- * decides how much somebody has paid.
+ * open a transaction; what gets RECORDED comes from `Payments::verifyAny()` —
+ * the provider's own answer, fetched server-side. Anything else means a form
+ * field decides how much somebody has paid.
+ *
+ * EITHER ROUTE. Where this site holds Paystack keys the charge is ours; where
+ * it does not, CACENTRE's checkout takes it on our behalf. The ownership check
+ * below reads the same on both, because a control that quietly exists on one
+ * route only is worse than none.
  *
  * SUCCESS IS RECORDED TWICE AND POSTED ONCE. The payer coming back here is one
  * confirmation; the webhook to `process-donation.php` is another, and it is
@@ -37,7 +42,12 @@ if ($method === 'POST') {
 
     $p = NgvMember::participant($uid);
     if (!$p) json_out(['ok' => false, 'error' => 'You are not enrolled on NextGen Vanguard.'], 403);
-    if (!Payments::configured('paystack')) {
+    /* `canCollect()`, not `configured('paystack')`. A participant who owes
+       ₦13,000 and is told "card payment is not switched on" goes back to a
+       bank transfer somebody has to spot, match by hand and type in — which
+       is the thing this page exists to replace. CACENTRE can collect for
+       us; our own keys are still preferred when present. */
+    if (!Payments::canCollect()) {
         json_out(['ok' => false, 'error' => 'Card payment is not switched on yet. Your team can still record a transfer.'], 503);
     }
 
@@ -67,14 +77,36 @@ if ($method === 'POST') {
     }
 
     $ref = Payments::reference('ngv');
-    $url = Payments::paystackInit($email, $amount * 100, $ref,
-        rtrim(SITE_URL, '/') . '/academy/ngv/pay.php?ref=' . rawurlencode($ref),
-        /* The webhook reads these. `ngv_member` is what tells
-           process-donation.php this is a fee payment and not a donation. */
-        ['ngv_member' => $uid, 'ngv' => '1', 'name' => (string) ($p['name'] ?? '')]);
+    /* A pending row, so the sweep can find this if the payer never comes
+       back. On our own Paystack a webhook would; CACENTRE's checkout is a
+       pull API and pushes nothing, so without a row a paid fee would sit
+       taken-but-unrecorded until somebody noticed by hand. `kind` is `ngv`
+       and finalizePayment refuses kinds it cannot grant, so nothing else
+       can consume it. */
+    $route = Payments::route();
+    try { (new LmsRepository())->createPayment($uid, 'ngv', null, $amount * 100, $ref, $route, 1); }
+    catch (Throwable $e) { error_log('[ngv] pay.php: could not record the pending payment: ' . $e->getMessage()); }
 
-    if ($url === null) json_out(['ok' => false, 'error' => 'Paystack could not start that payment. Please try again.'], 502);
-    json_out(['ok' => true, 'url' => $url, 'reference' => $ref, 'amount' => $amount]);
+    $started = Payments::startCheckout(
+        $email, $amount * 100, $ref,
+        rtrim(SITE_URL, '/') . '/academy/ngv/pay.php?ref=' . rawurlencode($ref),
+        /* A training fee, in CACENTRE's vocabulary. It is not a donation
+           and must not land in the donations account. */
+        'training_fee',
+        'NextGen Vanguard fees',
+        (string) ($p['name'] ?? ''),
+        /* The webhook and the return leg both read these. `ngv_member` is
+           what tells process-donation.php this is a fee payment and not a
+           donation, and what the return leg checks ownership against — on
+           EITHER route, because CACENTRE hands a property its own metadata
+           back for exactly this. */
+        ['ngv_member' => $uid, 'ngv' => '1', 'name' => (string) ($p['name'] ?? '')]
+    );
+
+    if (empty($started['ok'])) {
+        json_out(['ok' => false, 'error' => (string) ($started['error'] ?? 'Could not start that payment. Please try again.')], 502);
+    }
+    json_out(['ok' => true, 'url' => $started['url'], 'reference' => $ref, 'amount' => $amount]);
 }
 
 /* ── The payer comes back ────────────────────────────────────────────────── */
@@ -83,24 +115,46 @@ $state = 'unknown';
 $paid  = 0;
 $result = null;
 
-if ($u && $ref !== '' && Payments::configured('paystack')) {
+if ($u && $ref !== '' && Payments::canCollect()) {
     /* Verified server-side. The querystring says only WHICH transaction to ask
-       about; Paystack says whether it was paid and for how much. */
-    $v = Payments::paystackVerify($ref);
+       about; the provider says whether it was paid and for how much.
+
+       `verifyAny` rather than a route recorded at init: this page's return
+       leg carries nothing but `?ref=`, and persisting the route would mean
+       a table that exists for one flow. It asks the preferred route first
+       and the other only if that one does not say paid — both are reads, so
+       a wrong guess returns "not paid" and never a false yes. It also
+       survives the case that actually happens: keys arriving between the
+       payment starting and the payer coming back. */
+    $v = Payments::verifyAny($ref);
     /* Paid is not enough: it has to be THIS member's NGV fee. Any reference
-       Paystack called paid used to be credited to whoever loaded the page —
-       a donation counted twice, as a gift and as fees, or another
-       participant's payment taken by whoever saw its reference first. */
+       the provider called paid used to be credited to whoever loaded the
+       page — a donation counted twice, as a gift and as fees, or another
+       participant's payment taken by whoever saw its reference first.
+
+       The currency clause survives the move: `verifyBy` reports it on both
+       routes, so the check reads the same whichever one took the money. A
+       control that silently passes on one route and not the other is worse
+       than no control, because nobody looks at it again. */
     $mine = (int) ($v['metadata']['ngv_member'] ?? 0) === (int) $u['id']
          && (string) ($v['metadata']['ngv'] ?? '') === '1'
-         && ($v['currency'] ?? 'NGN') === 'NGN';
+         && in_array((string) ($v['currency'] ?? ''), ['NGN', ''], true);
     if (!empty($v['paid']) && !$mine) {
         $state = 'notyours';
-        error_log('[ngv] pay.php: reference ' . $ref . ' is not an NGV payment by member ' . (int) $u['id']);
+        error_log('[ngv] pay.php: reference ' . $ref . ' (' . (string) ($v['provider'] ?? '?')
+            . ') is not an NGV payment by member ' . (int) $u['id']);
     } elseif (!empty($v['paid'])) {
-        $paid   = (int) round(((int) $v['amount']) / 100);
+        $paid   = (int) round(((int) $v['amount_minor']) / 100);
         $result = NgvLedger::payOnline($uid, $ref, $paid, ['method' => 'card', 'note' => 'Paid online by card']);
         $state  = !empty($result['ok']) ? (!empty($result['duplicate']) ? 'already' : 'done') : 'failed';
+        /* Settle the pending row too, or the sweep keeps asking CACENTRE
+           about a payment that is already in the ledger. Harmless —
+           payOnline is idempotent on the reference — but it is a question
+           asked for ever. */
+        if (!empty($result['ok'])) {
+            try { (new LmsRepository())->markPaymentPaid($ref); }
+            catch (Throwable $e) { error_log('[ngv] pay.php: ' . $e->getMessage()); }
+        }
     } else {
         $state = 'notpaid';
     }

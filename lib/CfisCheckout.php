@@ -6,12 +6,30 @@
  * WHY THIS EXISTS
  * ══════════════════════════════════════════════════════════════════════════
  *
- * Nine places in this site are gated on `Payments::configured('paystack')`,
- * and when it is false they say things like "Online payment is not available
- * yet — please contact us to pay your dues". That is a dead end dressed as a
- * message: somebody who wanted to pay is told to telephone, and either they
- * do not, or they pay in cash and the record of it lives in whatever note
- * the office happened to write.
+ * Every pay button in this site used to be gated on
+ * `Payments::configured('paystack')` — "do WE hold keys" — and when that was
+ * false they said things like "Online payment is not available yet — please
+ * contact us to pay your dues". That is a dead end dressed as a message:
+ * somebody who wanted to pay is told to telephone, and either they do not, or
+ * they pay in cash and the record of it lives in whatever note the office
+ * happened to write.
+ *
+ * They ask {@see Payments::canCollect()} now — dues, academy enrolment and
+ * membership, the locked-lesson buttons, and a NextGen Vanguard participant
+ * paying their own fees. ONE still asks the narrow question and must keep
+ * asking it: recurring giving needs a Paystack Plan on our own account, and
+ * a standing gift nobody here can cancel is not a thing to sell a donor.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ * WHAT IT CANNOT DO THAT OUR OWN KEYS CAN
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * It does not push. Our own Paystack sends a webhook and retries it until it
+ * is acknowledged, so a payer who closes the tab is still recorded. This is a
+ * pull API: the payer's return is the only moment anything would be noticed.
+ * So `LmsRepository::sweepHostedPayments()` runs on the cron tick and asks
+ * about the ones still open — without it, pay-and-close-the-tab means money
+ * taken and an account still asking for it.
  *
  * A merchant account is not an afternoon's work — it is compliance
  * paperwork, a business verification and a key — so "get one" is not an
@@ -152,6 +170,15 @@ final class CfisCheckout
                caller may unlock what was bought; it may not book income. */
             'paid' => ($c['status'] ?? '') === 'paid',
             'amount_minor' => (int) ($c['amount_minor'] ?? 0),
+            'currency' => strtoupper((string) ($c['currency'] ?? '')),
+            /* OUR OWN metadata, handed back. It is what lets a return leg
+               ask "paid by THIS person, for THIS thing" rather than only
+               "paid" — the check that stops one participant's payment
+               being credited to whoever saw its reference first. The
+               direct route has always had this, through Paystack's own
+               metadata; without it here the hosted route would be the
+               weaker of the two and nobody would notice. */
+            'metadata' => is_array($c['metadata'] ?? null) ? $c['metadata'] : [],
         ];
     }
 

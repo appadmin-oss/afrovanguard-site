@@ -521,6 +521,16 @@ final class LmsRepository
         $p = $this->paymentByRef($reference);
         if (!$p) return false;
         if ($p['status'] === 'paid') return true;       // already granted (idempotent)
+        /* ONLY WHAT THIS METHOD CAN ACTUALLY GRANT.
+           Without the allow-list, a kind with no branch below — an NGV fee,
+           say — was marked paid and granted nothing: the row is consumed, so
+           whatever really owns that kind never posts it, and the money
+           vanishes between two handlers that each think the other had it. */
+        if (!in_array((string) $p['kind'], ['course', 'membership'], true)) {
+            error_log('[lms] finalizePayment declined ' . $reference . ': "' . (string) $p['kind']
+                . '" is not a kind this grants. It belongs to whatever owns that kind.');
+            return false;
+        }
         if ($paidKobo === null || (int) $paidKobo < (int) $p['amount_kobo']) {
             error_log('[lms] finalizePayment refused for ' . $reference . ': paid '
                 . var_export($paidKobo, true) . ' kobo < owed ' . (int) $p['amount_kobo']);
@@ -637,9 +647,91 @@ final class LmsRepository
             'last_paid_at'  => $lastPaid ? gmdate('c', (int) strtotime((string) $lastPaid)) : null,
             'total_paid_ngn' => $totalPaidNgn,   // cumulative dues contributed
             'payments_count' => (int) $totRow['n'],
-            'payable'       => class_exists('Payments') && Payments::configured('paystack'),
+            /* Can money be taken AT ALL — by us or on our behalf — not "do
+               we hold keys". The narrow question hid the Pay button on a
+               site whose dues CACENTRE can collect perfectly well. */
+            'payable'       => class_exists('Payments') && Payments::canCollect(),
         ];
     }
+    /** Mark a payment settled without granting anything — the owner of the kind already did. */
+    public function markPaymentPaid(string $reference): void
+    {
+        $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=? AND status<>'paid'")
+            ->execute([gmdate('Y-m-d H:i:s'), $reference]);
+    }
+
+    /**
+     * Finish the payments CACENTRE took that nobody came back to tell us about.
+     *
+     * ── WHY THIS IS NEEDED ON THE HOSTED ROUTE AND NOT THE DIRECT ONE ──────
+     *
+     * Our own Paystack has TWO confirmations: the payer returning, and a
+     * webhook that is retried until acknowledged. CACENTRE's checkout has
+     * only the first — it is a pull API, so nothing is pushed to us. A payer
+     * who pays and then closes the tab is left with their money taken and
+     * their account saying they still owe it, which is the single worst
+     * state this system can be in.
+     *
+     * So: ask about the ones still open. It READS — a status call cannot
+     * take money or grant anything by itself — and every finaliser it calls
+     * is idempotent on the reference, so a sweep that overlaps with the
+     * payer's return does what one of them alone would do.
+     *
+     * Bounded to a week because a hosted charge expires: asking forever
+     * about one that will never be paid turns a tidy sweep into a slow one.
+     *
+     * @return array{asked: int, settled: int, pending: int}
+     */
+    public function sweepHostedPayments(int $max = 50): array
+    {
+        $out = ['asked' => 0, 'settled' => 0, 'pending' => 0];
+        if (!class_exists('Payments') || !class_exists('CfisCheckout') || !CfisCheckout::configured()) {
+            return $out;
+        }
+
+        $since = gmdate('Y-m-d H:i:s', time() - 7 * 86400);
+        $st = $this->db->prepare(
+            "SELECT reference, kind, user_id, amount_kobo FROM payments
+              WHERE provider = 'cfis' AND status <> 'paid' AND created_at >= ?
+              ORDER BY id LIMIT " . max(1, min(200, $max))
+        );
+        $st->execute([$since]);
+
+        foreach ($st->fetchAll() as $row) {
+            $ref = (string) $row['reference'];
+            $out['asked']++;
+
+            $v = Payments::verifyBy('cfis', $ref);
+            if (empty($v['paid'])) { $out['pending']++; continue; }
+
+            $minor = (int) ($v['amount_minor'] ?? 0);
+
+            /* Dispatched by kind, because only the owner of a kind knows what
+               paying for it means. An NGV fee posts to the fee ledger; a
+               course grants access. One handler doing both would be one
+               handler getting one of them wrong. */
+            if ((string) $row['kind'] === 'ngv') {
+                if (!class_exists('NgvLedger')) { $out['pending']++; continue; }
+                $r = NgvLedger::payOnline(
+                    (int) $row['user_id'], $ref, (int) round($minor / 100),
+                    ['method' => 'card', 'note' => 'Paid online by card (CACENTRE checkout)']
+                );
+                if (empty($r['ok'])) { $out['pending']++; continue; }
+                $this->markPaymentPaid($ref);
+                $out['settled']++;
+                continue;
+            }
+
+            if ($this->finalizePayment($ref, $minor)) {
+                $out['settled']++;
+            } else {
+                $out['pending']++;
+            }
+        }
+
+        return $out;
+    }
+
     private function userRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM lms_users WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
     private function courseRow(int $id): ?array { $s = $this->db->prepare('SELECT * FROM courses WHERE id = ?'); $s->execute([$id]); return $s->fetch() ?: null; }
 

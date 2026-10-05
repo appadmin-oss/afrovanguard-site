@@ -598,11 +598,16 @@ ck('pay online: every row carries the provider reference, so the payment is trac
 
 /* ── The dashboard must not be able to decide the amount ────────────────── */
 $nlPaySrc = (string) @file_get_contents(AV_ROOT . '/academy/ngv/pay.php');
-ck('pay online: the confirmation verifies with Paystack rather than trusting the URL',
-   str_contains($nlPaySrc, 'paystackVerify'));
-ck('pay online: and records the VERIFIED amount, not one from the querystring',
-   str_contains($nlPaySrc, "round(((int) \$v['amount']) / 100)")
-   || str_contains($nlPaySrc, "\$v['amount']"));
+/* Pinned as the PROMISE, not as one helper's name. The first version of
+   these asserted the string `paystackVerify`, and when the page learned to
+   take money through CACENTRE as well it went on passing — satisfied by a
+   stale line in the docblock. */
+ck('pay online: the confirmation is verified server-side rather than trusted from the URL',
+   preg_match('/\$v\s*=\s*Payments::verify(Any|By)\(/', $nlPaySrc) === 1);
+ck('pay online: and records the amount the PROVIDER returned, not one from the querystring',
+   preg_match('/\$paid\s*=\s*\(int\) round\(\(\(int\) \$v\[\x27amount(_minor)?\x27\]\) \/ 100\)/', $nlPaySrc) === 1);
+ck('pay online: and it is only credited when the provider says it was THIS member\'s fee',
+   str_contains($nlPaySrc, "\$v['metadata']['ngv_member']") && str_contains($nlPaySrc, '$mine'));
 ck('pay online: the page is never indexed', str_contains($nlPaySrc, 'noindex'));
 /* A fee payment must never be filed as a public donation — it would inflate
    what the site shows as donated AND leave the participant still owing it. */

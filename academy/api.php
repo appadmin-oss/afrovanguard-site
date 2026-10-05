@@ -200,15 +200,27 @@ try {
             if (!$c) json_out(['ok' => false, 'error' => 'Course not found.'], 404);
             json_out(['ok' => true, 'course' => $c['title'], 'notes' => $lms->notesForCourse((int) $u['id'], (int) $c['id'])]);
 
-        /* ── Payments (Paystack) ── */
+        /* ── Payments (our own Paystack, or CACENTRE's checkout) ── */
         case 'pay_init':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_same_origin();
-            if (!Payments::configured('paystack')) json_out(['ok' => false, 'error' => 'Online payment is not available yet — please contact us to enrol.'], 503);
+            /* `canCollect()`, not `configured('paystack')`. The narrow
+               question — do WE hold keys — turned a willing enrolment into
+               "please contact us", which is a dead end dressed as a
+               message. CACENTRE can collect on our behalf; our own keys are
+               still preferred when present. */
+            if (!Payments::canCollect()) json_out(['ok' => false, 'error' => 'Online payment is not available yet — please contact us to enrol.'], 503);
             if (!av_rate_ok('pay_init', 12, 600)) json_out(['ok' => false, 'error' => 'Too many attempts — please try again shortly.'], 429);
             $u = LmsAuth::require();
             $kind = (($body['kind'] ?? '') === 'membership') ? 'membership' : 'course';
             $courseId = null; $amountNgn = 0; $meta = ['user_id' => (int) $u['id'], 'kind' => $kind];
+            /* The kind of money, in CACENTRE's vocabulary rather than ours.
+               A course fee is tuition and a membership is membership; they
+               land in different income accounts, and a checkout opened with
+               a stream nobody set up is refused outright — which is the
+               right failure, because money swept into a default account is
+               money nobody finds until the year-end review. */
+            $stream = $kind === 'membership' ? 'membership' : 'tuition';
             if ($kind === 'membership') {
                 if ($lms->isMember((int) $u['id']) || LmsAuth::isOrgMember($u)) json_out(['ok' => true, 'already' => true, 'message' => 'You are already a member.']);
                 $amountNgn = (int) AV_MEMBERSHIP_NGN;
@@ -226,11 +238,21 @@ try {
             }
             if ($amountNgn <= 0) json_out(['ok' => false, 'error' => 'This item is not available for purchase right now.'], 400);
             $reference = Payments::reference($kind);
-            $lms->createPayment((int) $u['id'], $kind, $courseId, $amountNgn * 100, $reference, 'paystack');
+            /* The provider is recorded FROM THE ROUTE, not assumed. pay.php
+               verifies against whatever this says; verifying a CACENTRE
+               charge against Paystack finds nothing and would tell somebody
+               who paid that they did not. */
+            $route = Payments::route();
+            $lms->createPayment((int) $u['id'], $kind, $courseId, $amountNgn * 100, $reference, $route);
             $callback = rtrim(SITE_URL, '/') . '/academy/pay.php';
-            $url = Payments::paystackInit((string) $u['email'], $amountNgn * 100, $reference, $callback, $meta);
-            if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 502);
-            json_out(['ok' => true, 'authorization_url' => $url, 'reference' => $reference]);
+            $started = Payments::startCheckout(
+                (string) $u['email'], $amountNgn * 100, $reference, $callback,
+                $stream, (string) ($meta['purpose'] ?? ''), (string) ($u['name'] ?? ''), $meta
+            );
+            if (empty($started['ok'])) {
+                json_out(['ok' => false, 'error' => (string) ($started['error'] ?? 'Could not start the payment.')], 502);
+            }
+            json_out(['ok' => true, 'authorization_url' => $started['url'], 'reference' => $reference]);
 
         default: json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
     }

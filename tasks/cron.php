@@ -46,6 +46,17 @@ if (class_exists('Webhooks')) {
     catch (Throwable $e) { $result['ok'] = false; $result['error'] = $e->getMessage(); error_log('[cron] webhooks: ' . $e->getMessage()); }
 }
 
+/* Every tick: finish the payments CACENTRE's checkout took that nobody came
+   back to tell us about. Our own Paystack retries a webhook until it is
+   acknowledged; CACENTRE's checkout is a pull API and pushes nothing, so a
+   payer who pays and closes the tab would otherwise be left with the money
+   taken and the account still asking for it. It only reads and every
+   finaliser it calls is idempotent. */
+if (class_exists('LmsRepository') && class_exists('CfisCheckout') && CfisCheckout::configured()) {
+    try { $result['hosted_payments'] = (new LmsRepository())->sweepHostedPayments($max); }
+    catch (Throwable $e) { error_log('[cron] hosted payments: ' . $e->getMessage()); }
+}
+
 // Every tick: turn due reminders + imminent sessions into notifications
 // (idempotent via dedupe keys; emails too when a Mailer is configured).
 if (class_exists('Notifications')) {

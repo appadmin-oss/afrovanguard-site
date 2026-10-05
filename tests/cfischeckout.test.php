@@ -166,3 +166,123 @@ $cfStatus = CfisCheckout::status('AVG-X');
 ck('cfis checkout: and the same for a status check', empty($cfStatus['ok']));
 
 $cfReset();
+
+/* ══ 8. the shape of an answer is the same on both routes ═════════════════ */
+
+/* The reason this matters is not tidiness. A return leg asks "paid by THIS
+   person, for THIS thing" by reading metadata off the verdict. If one route
+   returns that key and the other does not, the ownership check silently
+   stops existing on one of them — and the way anybody finds out is a
+   participant's payment credited to whoever saw its reference first. */
+
+$cfReset();
+$cfVerdict = Payments::verifyBy('cfis', 'AVG-NOPE');
+
+ck('verify: an answer always carries metadata, even when there is no answer — '
+   . 'a caller reading $v[\'metadata\'][\'x\'] must not depend on the route',
+   array_key_exists('metadata', $cfVerdict) && is_array($cfVerdict['metadata']));
+
+ck('verify: and a currency, so the check that the money was NGN reads the '
+   . 'same whichever route took it',
+   array_key_exists('currency', $cfVerdict) && is_string($cfVerdict['currency']));
+
+ck('verify: an unreachable or unconfigured route is not paid',
+   empty($cfVerdict['paid']));
+
+/* ══ 9. a return leg with only a reference ════════════════════════════════ */
+
+$cfReset();
+$cfAny = Payments::verifyAny('AVG-NOPE');
+
+ck('verifyAny: with no route at all it refuses rather than guessing',
+   $cfAny['paid'] === false && $cfAny['provider'] === '' && !empty($cfAny['error']));
+
+ck('verifyAny: and still answers in the full shape, so the caller does not '
+   . 'branch on whether anything was configured',
+   array_key_exists('metadata', $cfAny) && array_key_exists('amount_minor', $cfAny));
+
+/* ══ 10. a kind nobody here can grant is never marked paid ════════════════ */
+
+/* THE DEFECT THIS CATCHES. finalizePayment marks a row paid and then grants
+   by kind. A kind with no branch — an NGV fee — was marked paid and granted
+   nothing: the row is consumed, so the handler that really owns that kind
+   never posts it, and the money disappears between two pieces of code that
+   each believe the other had it. */
+
+$cfPdo = Database::pdo();
+$cfPdo->exec("DELETE FROM payments WHERE user_id IN (SELECT id FROM lms_users WHERE email LIKE '%@cfis.test')");
+$cfPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@cfis.test'");
+$cfPdo->prepare('INSERT INTO lms_users (name, email, password_hash, role, status) VALUES (?,?,?,?,?)')
+    ->execute(['Cfis Payer', 'payer@cfis.test', 'x', 'member', 'active']);
+$cfUid = (int) $cfPdo->lastInsertId();
+
+$cfLms = new LmsRepository();
+$cfLms->createPayment($cfUid, 'ngv', null, 1300000, 'CFIS-NGV-1', 'cfis', 1);
+
+ck('finalize: a kind this cannot grant is declined',
+   $cfLms->finalizePayment('CFIS-NGV-1', 1300000) === false);
+
+ck('finalize: …and the row is left unpaid, so whatever owns that kind can '
+   . 'still post it',
+   (string) $cfPdo->query("SELECT status FROM payments WHERE reference = 'CFIS-NGV-1'")->fetchColumn() !== 'paid');
+
+$cfLms->markPaymentPaid('CFIS-NGV-1');
+ck('finalize: the owner of a kind can settle the row itself once it has posted',
+   (string) $cfPdo->query("SELECT status FROM payments WHERE reference = 'CFIS-NGV-1'")->fetchColumn() === 'paid');
+
+/* ══ 11. the sweep under a checkout that pushes nothing ═══════════════════ */
+
+/* Our own Paystack retries a webhook until it is acknowledged. CACENTRE's
+   checkout is a pull API: a payer who pays and closes the tab leaves the
+   money taken and the account still asking for it, for ever, unless
+   somebody asks. */
+
+$cfReset();
+ck('sweep: with CACENTRE not configured there is nothing to ask and it says so '
+   . 'rather than failing',
+   $cfLms->sweepHostedPayments(5) === ['asked' => 0, 'settled' => 0, 'pending' => 0]);
+
+$cfCron = (string) file_get_contents(AV_ROOT . '/tasks/cron.php');
+ck('sweep: and it is actually on the cron tick — a net nobody runs is not a net',
+   str_contains($cfCron, 'sweepHostedPayments'));
+
+$cfNgv = (string) file_get_contents(AV_ROOT . '/academy/ngv/pay.php');
+ck('ngv: a fee payment records a pending row, or the sweep has nothing to find',
+   str_contains($cfNgv, "createPayment(\$uid, 'ngv', null, \$amount * 100, \$ref, \$route, 1)"));
+
+/* ══ 12. every gate that can be hosted, is ════════════════════════════════ */
+
+$cfGates = [
+    'academy/api.php' => 'enrolling on a paid course or taking out membership',
+    'academy/learn.php' => 'the locked-lesson pay buttons',
+    'academy/ngv/pay.php' => 'a participant paying their own fees',
+    'academy/ngv/_dashboard-body.php' => 'the fees panel on the NGV dashboard',
+    'lib/LmsRepository.php' => 'the payable flag the dues panel reads',
+];
+foreach ($cfGates as $cfFile => $cfWhat) {
+    $cfText = (string) file_get_contents(AV_ROOT . '/' . $cfFile);
+    ck('gate: ' . $cfWhat . ' asks whether money can be taken at all',
+       str_contains($cfText, 'Payments::canCollect()')
+       && !str_contains($cfText, "Payments::configured('paystack')"));
+}
+
+/* The one that must NOT move. A subscription needs a Paystack Plan on our
+   own account; running one through CACENTRE would make cancelling a donor's
+   standing gift a support request to another organisation. */
+$cfAppeals = (string) file_get_contents(AV_ROOT . '/lib/Appeals.php');
+ck('gate: recurring giving stays on our own keys, deliberately',
+   str_contains($cfAppeals, "!Payments::configured('paystack')")
+   && !str_contains($cfAppeals, 'Payments::canCollect()'));
+
+ck('gate: …and says why, so the next person does not "fix" it',
+   str_contains($cfAppeals, 'HERE IS CORRECT'));
+
+/* A course fee is tuition and a membership is membership. A checkout opened
+   with a stream nobody set up is refused outright, which is the right
+   failure — money swept into a default account is money nobody finds until
+   the year-end review. */
+$cfApi = (string) file_get_contents(AV_ROOT . '/academy/api.php');
+ck('streams: the academy names the kind of money it is taking',
+   str_contains($cfApi, "\$stream = \$kind === 'membership' ? 'membership' : 'tuition';"));
+ck('streams: and NGV fees are a training fee, not a donation',
+   str_contains($cfNgv, "'training_fee'"));

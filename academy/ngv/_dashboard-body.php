@@ -49,7 +49,7 @@ $ngvScript     = $ngvScript ?? true;
       /* Card payment is offered only when it can actually work. A Pay button
          that opens an error is worse than no button: it teaches somebody the
          site is broken at the moment they were trying to give it money. */
-      $payOn = $feesOn && class_exists('Payments') && Payments::configured('paystack');
+      $payOn = $feesOn && class_exists('Payments') && Payments::canCollect();
       ?>
       <header class="dash-lead<?= $owed > 0 ? ' is-due' : '' ?>">
         <div class="dash-lead-main">
