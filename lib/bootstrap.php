@@ -307,6 +307,7 @@ require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same re
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
 require_once __DIR__ . '/LmsRepository.php';
 require_once __DIR__ . '/GoogleAuth.php';
+require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this site has no merchant account */
 require_once __DIR__ . '/Payments.php';
 // Email is sent exclusively through PHPMailer (see lib/Mailer.php). The former
 // hand-rolled SMTP client (lib/Smtp.php) is retired and no longer loaded.

@@ -64,8 +64,12 @@ if ($payment) {
     if ($payment['status'] === 'paid') {
         $status = 'paid'; // already finalised (e.g. webhook beat the redirect)
     } else {
-        $v = Payments::paystackVerify($reference);
-        if (!empty($v['paid']) && $lms->finalizePayment($reference, (int) ($v['amount'] ?? 0))) {
+        /* Verified BY THE ROUTE THE PAYMENT WAS TAKEN ON, read off the
+           stored row. A charge CACENTRE collected does not exist in our
+           Paystack account, so asking Paystack about it finds nothing and
+           would tell somebody who has just paid that they have not. */
+        $v = Payments::verifyBy((string) ($payment['provider'] ?? 'paystack'), $reference);
+        if (!empty($v['paid']) && $lms->finalizePayment($reference, (int) ($v['amount_minor'] ?? 0))) {
             $status = 'paid';
         }
     }

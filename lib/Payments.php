@@ -18,6 +18,135 @@ final class Payments
         return false;
     }
 
+    /**
+     * Can this site take a payment at all, by any route?
+     *
+     * `configured('paystack')` answers "do we have our own keys", which is a
+     * different question and the wrong one to gate a Pay button on. Nine
+     * places asked the narrow one and, when it was false, told the payer to
+     * telephone — so a site with no merchant account could take nothing,
+     * however willing the payer, and whatever CACENTRE could have collected
+     * on its behalf.
+     */
+    public static function canCollect(): bool
+    {
+        return self::configured('paystack')
+            || (class_exists('CfisCheckout') && CfisCheckout::configured());
+    }
+
+    /**
+     * Which route a payment would take: 'paystack' | 'cfis' | ''.
+     *
+     * OUR OWN KEYS WIN, always. Money through our own account is in our bank
+     * the same day and nobody is holding it for us; the hosted route is the
+     * answer to having no account, not a preference.
+     */
+    public static function route(): string
+    {
+        return self::routeFor(
+            self::configured('paystack'),
+            class_exists('CfisCheckout') && CfisCheckout::configured()
+        );
+    }
+
+    /**
+     * The preference, as a function of what is available.
+     *
+     * Split out because the ORDER is the rule, and order is the one thing a
+     * test cannot see from the outside when the deployment running it has no
+     * Paystack keys to begin with — both branches answer the same. Reversing
+     * these two lines is a silent change that sends every payment through
+     * somebody else's merchant account while every test still passes, which
+     * is precisely what happened to the first version of this.
+     */
+    public static function routeFor(bool $ownKeys, bool $hostedAvailable): string
+    {
+        if ($ownKeys) return 'paystack';
+        if ($hostedAvailable) return 'cfis';
+        return '';
+    }
+
+    /**
+     * Start a payment by whichever route is available.
+     *
+     * Returns the URL to send the payer to, and the provider that is to be
+     * asked about it later — which the caller MUST store, because verifying
+     * a CACENTRE charge against Paystack finds nothing and reads as a
+     * payment that never happened.
+     *
+     * @param  array<string,mixed>  $meta
+     * @return array{ok: bool, url?: string, provider?: string, error?: string}
+     */
+    public static function startCheckout(
+        string $email,
+        int $amountKobo,
+        string $reference,
+        string $callbackUrl,
+        string $stream,
+        string $description = '',
+        string $name = '',
+        array $meta = []
+    ): array {
+        $route = self::route();
+
+        if ($route === 'paystack') {
+            $url = self::paystackInit($email, $amountKobo, $reference, $callbackUrl, $meta);
+
+            return $url
+                ? ['ok' => true, 'url' => $url, 'provider' => 'paystack']
+                : ['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'];
+        }
+
+        if ($route === 'cfis') {
+            $res = CfisCheckout::open(
+                $reference, $stream, $amountKobo, $email, $description, $name, $callbackUrl, $meta
+            );
+
+            return !empty($res['ok'])
+                ? ['ok' => true, 'url' => (string) $res['url'], 'provider' => 'cfis']
+                : ['ok' => false, 'error' => (string) ($res['error'] ?? 'Could not start the payment.')];
+        }
+
+        return ['ok' => false, 'error' => 'Online payment is not set up for this site yet.'];
+    }
+
+    /**
+     * Verify by the route the payment was actually taken on.
+     *
+     * The provider comes from the stored row, never from the request: a
+     * caller that guesses asks Paystack about a CACENTRE charge, finds
+     * nothing, and tells somebody who paid that they did not.
+     *
+     * @return array{ok: bool, paid: bool, amount_minor: int, error?: string}
+     */
+    public static function verifyBy(string $provider, string $reference): array
+    {
+        if ($provider === 'cfis') {
+            $r = class_exists('CfisCheckout')
+                ? CfisCheckout::status($reference)
+                : ['ok' => false, 'error' => 'CACENTRE checkout is not available.'];
+
+            return [
+                'ok' => !empty($r['ok']),
+                'paid' => !empty($r['paid']),
+                'amount_minor' => (int) ($r['amount_minor'] ?? 0),
+                'error' => $r['error'] ?? null,
+            ];
+        }
+
+        /* paystackVerify() already returns a flat verdict — `paid` and
+           `amount`, not Paystack's envelope. Reading `data.status` off it
+           finds nothing and reports every real payment as unpaid. */
+        $v = self::paystackVerify($reference);
+
+        return [
+            'ok' => true,
+            'paid' => !empty($v['paid']),
+            'amount_minor' => (int) ($v['amount'] ?? 0),
+            'error' => null,
+        ];
+    }
+
     public static function reference(string $kind): string
     {
         return strtoupper($kind[0]) . date('ymd') . '-' . bin2hex(random_bytes(6));

@@ -33,7 +33,11 @@ if ($action === 'pay_init') {
     if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
     require_same_origin();
     av_csrf_require();
-    if (!Payments::configured('paystack')) json_out(['ok' => false, 'error' => 'Online payment is not available yet — please contact us to pay your dues.'], 503);
+    /* `canCollect()`, not `configured('paystack')`. The narrow question —
+       do WE hold keys — was gating the Pay button, so a site without its own
+       merchant account told a willing payer to telephone. CACENTRE can
+       collect on our behalf; our own keys are still preferred when present. */
+    if (!Payments::canCollect()) json_out(['ok' => false, 'error' => 'Online payment is not available yet — please contact us to pay your dues.'], 503);
     if (!av_rate_ok('dues_pay_init', 12, 600)) json_out(['ok' => false, 'error' => 'Too many attempts — please try again shortly.'], 429);
 
     // Period: monthly (₦1,000 · 1 month) or annual (₦12,000 · 12 months).
@@ -45,7 +49,11 @@ if ($action === 'pay_init') {
     if ($amountNgn <= 0) json_out(['ok' => false, 'error' => 'Dues are not payable online right now.'], 400);
 
     $reference = Payments::reference('membership');
-    $lms->createPayment((int) $u['id'], 'membership', null, $amountNgn * 100, $reference, 'paystack', $months);
+    /* The provider is recorded FROM THE ROUTE, not assumed. Verifying a
+       CACENTRE charge against Paystack finds nothing and would tell somebody
+       who paid that they did not. */
+    $route = Payments::route();
+    $lms->createPayment((int) $u['id'], 'membership', null, $amountNgn * 100, $reference, $route, $months);
     // Reuse the academy return/webhook handler — it verifies server-side and
     // finalises membership idempotently (browser redirect AND Paystack webhook).
     $callback = rtrim(SITE_URL, '/') . '/academy/pay.php';
@@ -53,12 +61,29 @@ if ($action === 'pay_init') {
 
     // Monthly + a Paystack Plan configured → start an AUTO-RENEWING subscription.
     // Otherwise, a one-time charge for the chosen period.
-    $planCode = ($period === 'month' && defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE) ? (string) AV_DUES_PLAN_CODE : '';
-    $url = $planCode !== ''
-        ? Payments::paystackInitPlan((string) $u['email'], $planCode, $reference, $callback, $meta)
-        : Payments::paystackInit((string) $u['email'], $amountNgn * 100, $reference, $callback, $meta);
-    if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 502);
-    json_out(['ok' => true, 'authorization_url' => $url, 'reference' => $reference]);
+    /* An auto-renewing subscription needs a Paystack Plan on OUR account, so
+       it is only ever offered on the direct route. The hosted route takes
+       the period as a one-off; renewing through somebody else's merchant
+       account would make stopping it a support request rather than a
+       button, which is not a thing to do to a payer. */
+    $planCode = ($route === 'paystack' && $period === 'month'
+        && defined('AV_DUES_PLAN_CODE') && AV_DUES_PLAN_CODE) ? (string) AV_DUES_PLAN_CODE : '';
+
+    if ($planCode !== '') {
+        $url = Payments::paystackInitPlan((string) $u['email'], $planCode, $reference, $callback, $meta);
+        if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 502);
+        json_out(['ok' => true, 'authorization_url' => $url, 'reference' => $reference]);
+    }
+
+    $started = Payments::startCheckout(
+        (string) $u['email'], $amountNgn * 100, $reference, $callback,
+        'dues', 'Afrovanguard membership dues (' . $period . ')',
+        (string) ($u['name'] ?? ''), $meta
+    );
+    if (empty($started['ok'])) {
+        json_out(['ok' => false, 'error' => (string) ($started['error'] ?? 'Could not start the payment.')], 502);
+    }
+    json_out(['ok' => true, 'authorization_url' => $started['url'], 'reference' => $reference]);
 }
 
 json_out(['ok' => false, 'error' => 'Unknown action.'], 400);
