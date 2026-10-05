@@ -286,3 +286,58 @@ ck('streams: the academy names the kind of money it is taking',
    str_contains($cfApi, "\$stream = \$kind === 'membership' ? 'membership' : 'tuition';"));
 ck('streams: and NGV fees are a training fee, not a donation',
    str_contains($cfNgv, "'training_fee'"));
+
+/* ══ 13. the donate page without a merchant account ═══════════════════════ */
+
+/* THE DEFECT THIS CATCHES FIRST, which is not about routing at all. The
+   whole endpoint used to 503 at file scope when PAYSTACK_SECRET_KEY was
+   missing — taking the donor wall, the thermometer and the in-kind form
+   down with the card option, none of which touches Paystack. A site with
+   no merchant account showed a broken page where it should have shown a
+   working one and another way to give. */
+
+$cfDon = (string) file_get_contents(AV_ROOT . '/process-donation.php');
+
+ck('donate: the missing-key refusal is per action, not the whole endpoint',
+   str_contains($cfDon, 'function av_ps_require(')
+   && !preg_match('/^if \(!defined\(\x27PAYSTACK_SECRET_KEY\x27\)/m', $cfDon));
+
+ck('donate: reading the donor wall and the totals needs no merchant account',
+   !str_contains(
+       substr($cfDon, (int) strpos($cfDon, "if (\$action === 'get_stats')"),
+              (int) strpos($cfDon, "if (\$action === 'verify_payment')")
+              - (int) strpos($cfDon, "if (\$action === 'get_stats')")),
+       'av_ps_require'
+   ));
+
+ck('donate: a card gift is routed, and our own keys still win',
+   str_contains($cfDon, "if (av_card_route() === 'cfis') {")
+   && str_contains($cfDon, "if (av_ps_ready()) return 'paystack';"));
+
+ck('donate: the hosted route takes NGN and says so rather than converting '
+   . 'a donor\'s $50 into ₦50',
+   str_contains($cfDon, "Card payment is only available in NGN at the moment"));
+
+/* Pinned as a pattern, not as the exact indentation of one line. A test
+   that breaks when somebody reflows an argument list is a test people
+   learn to edit without reading. */
+ck('donate: a donation is named as a donation, so it lands in the right account',
+   preg_match('/CfisCheckout::open\(\s*\$ref,\s*\x27donation\x27\s*,/', $cfDon) === 1);
+
+ck('donate: the receipt is verified against the route that took the money, '
+   . 'not assumed to be Paystack',
+   str_contains($cfDon, 'CfisCheckout::status($ref)')
+   && str_contains($cfDon, 'if (av_ps_ready()) {'));
+
+ck('donate: a signed webhook is refused outright when we hold no key to '
+   . 'check it against, rather than compared to a hash of nothing',
+   str_contains($cfDon, 'if ($sig && !av_ps_ready()) {'));
+
+ck('donate: a virtual account is still ours alone — there is no hosted '
+   . 'equivalent, and it says so',
+   str_contains($cfDon, "av_ps_require('virtual-account bank transfer');"));
+
+$cfGive = (string) file_get_contents(AV_ROOT . '/assets/site/give-pay.js');
+ck('donate: with no access code the donor is sent to the hosted page rather '
+   . 'than left on a button that does nothing',
+   str_contains($cfGive, 'if (!d.access_code) {'));

@@ -12,6 +12,11 @@
  * transaction the server already created, so nothing here can change what is
  * being charged.
  *
+ * Where the site has no merchant account of its own, CACENTRE collects for
+ * it and the server returns no access code: there is no transaction of ours
+ * to resume, so the donor goes to CACENTRE's page instead. Same form, same
+ * server-side amount, one hop.
+ *
  * It stays progressive enhancement. The markup is a real form with a real
  * action, and every failure path below falls back to it rather than leaving
  * somebody stuck: no script, no modal, a blocked CDN, a Paystack error.
@@ -67,6 +72,18 @@
       message: opts.message || ''
     }).then(function (d) {
       if (!d || !d.success) { fail((d && d.message) || 'Could not start the payment.'); return; }
+
+      /* No access code means the transaction is not ours to resume — the
+         site has no merchant account of its own and CACENTRE is collecting
+         on its behalf, on a page of theirs. Go there. Without this the
+         modal is opened with nothing to resume and the donor is left on a
+         button that does nothing: resumeTransaction's own failure is not
+         the promise rejection the catch below is waiting for. */
+      if (!d.access_code) {
+        if (d.authorization_url) { window.location.href = d.authorization_url; return; }
+        fail('Could not open the payment window.');
+        return;
+      }
 
       return paystack().then(function (Pop) {
         var popup = new Pop();

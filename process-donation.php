@@ -56,13 +56,37 @@ foreach ([
 // donation receipts send from donations@ (handled in mail_send()).
 if (!defined('FROM_EMAIL')) define('FROM_EMAIL', 'cacentre@afrovanguard.org.ng');
 
-// Donations genuinely need the Paystack secret (charge + webhook verification),
-// so fail this one request cleanly rather than attempting to charge with an empty key.
-if (!defined('PAYSTACK_SECRET_KEY') || (string) PAYSTACK_SECRET_KEY === '') {
-    error_log('[AV] process-donation: PAYSTACK_SECRET_KEY missing — donations disabled until env is set.');
+/*
+ * OUR OWN PAYSTACK, WHERE WE HAVE IT.
+ *
+ * This used to be a hard 503 at file scope: no secret key, no donations
+ * endpoint at all. It took the whole donate page down rather than the card
+ * option — the donor wall, the thermometer and the in-kind form all answer
+ * from this file and none of them touches Paystack. A site with no merchant
+ * account showed a broken page where it should have shown a working one and
+ * a different way to give.
+ *
+ * So the gate moved to the actions that genuinely need the key, and the
+ * actions that do not are left alone. `av_ps_ready()` is the question;
+ * `av_ps_require()` is the refusal, said once in one place.
+ */
+function av_ps_ready(): bool {
+    return defined('PAYSTACK_SECRET_KEY') && (string) PAYSTACK_SECRET_KEY !== '';
+}
+
+function av_ps_require(string $what): void {
+    if (av_ps_ready()) return;
+    error_log('[AV] process-donation: PAYSTACK_SECRET_KEY missing — ' . $what . ' unavailable until env is set.');
     http_response_code(503);
-    echo json_encode(['success'=>false,'message'=>'Donations are temporarily unavailable. Please try again shortly.']);
+    echo json_encode(['success'=>false,'message'=>'That payment method is temporarily unavailable. Please try again shortly, or use bank transfer.']);
     exit;
+}
+
+/* Can a card be taken at all — by us, or by CACENTRE on our behalf? */
+function av_card_route(): string {
+    if (av_ps_ready()) return 'paystack';
+    if (class_exists('CfisCheckout') && CfisCheckout::configured()) return 'cfis';
+    return '';
 }
 
 /* ── PHPMailer ──────────────────────────────────────────────── */
@@ -448,6 +472,9 @@ if ($method === 'GET') {
         if (!preg_match('/^[A-Za-z0-9_\-]{5,100}$/',$ref)) {
             echo json_encode(['paid'=>false,'status'=>'invalid']); exit;
         }
+        /* The virtual-account poll, which is OUR transaction at Paystack.
+           A hosted charge is asked about through record_donation instead. */
+        if (!av_ps_ready()) { echo json_encode(['paid'=>false,'status'=>'unavailable']); exit; }
         $r = ps('GET','/transaction/verify/'.urlencode($ref));
         $tx= $r['data']??[];
         echo json_encode(['paid'=>($tx['status']??'')==='success','status'=>$tx['status']??'unknown']);
@@ -467,7 +494,12 @@ if ($method !== 'POST') {
 $raw = file_get_contents('php://input');
 $sig = $_SERVER['HTTP_X_PAYSTACK_SIGNATURE']??'';
 
-/* Paystack webhook */
+/* Paystack webhook. Nothing signed can be ours without the key that signs
+   it, so a site with no key refuses rather than reading an undefined
+   constant and comparing against a hash of the empty string. */
+if ($sig && !av_ps_ready()) {
+    http_response_code(401); echo json_encode(['success'=>false,'message'=>'Unsigned.']); exit;
+}
 if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
     $event = json_decode($raw,true);
     $evName = (string)($event['event'] ?? '');
@@ -637,6 +669,56 @@ if ($action==='init_payment') {
     $msg  = mb_substr(trim($input['message']??''),0,500);
     $ref  = 'AV_'.time().'_'.strtoupper(bin2hex(random_bytes(4)));
     $callback = rtrim(SITE_URL,'/').'/donate';
+
+    /*
+     * CACENTRE COLLECTS WHEN WE CANNOT.
+     *
+     * Without this, a site with no merchant account could take no card
+     * donation at all — the one page whose entire purpose is to accept
+     * money. Our own keys still win whenever we have them: the money
+     * reaches our bank the same day and nobody holds it for us.
+     *
+     * NGN ONLY on this route, said plainly rather than converted. The
+     * hosted checkout's amounts are kobo and its charges are naira; silently
+     * treating a donor's $50 as ₦50 would be the worst kind of helpful.
+     */
+    if (av_card_route() === 'cfis') {
+        if ($cur !== 'NGN') {
+            echo json_encode(['success'=>false,'message'=>'Card payment is only available in NGN at the moment. Please choose NGN, or use bank transfer.']); exit;
+        }
+        $hosted = CfisCheckout::open(
+            $ref, 'donation', (int) round($amount * 100), $email,
+            'Donation to Afrovanguard' . ($camp && $camp !== 'general' ? ' — ' . $camp : ''),
+            trim("$fn $ln"),
+            $callback,
+            ['campaign'=>$camp,'frequency'=>$freq,'anonymous'=>$anon?'Yes':'No',
+             'first_name'=>$fn,'last_name'=>$ln,'message'=>$msg ?: '—','email'=>$email]
+        );
+        if (empty($hosted['ok']) || ($hosted['url'] ?? '') === '') {
+            error_log('[AV] init_payment (hosted) failed: '.json_encode($hosted['error'] ?? ''));
+            echo json_encode(['success'=>false,'message'=>(string) ($hosted['error'] ?? 'Could not start the payment. Please try again in a moment.')]); exit;
+        }
+        /* No access_code: the inline modal resumes a transaction on OUR
+           Paystack, and this one is not ours to resume. The caller
+           redirects when there is none.
+
+           KNOWN GAP, named rather than hidden. Our own Paystack also sends
+           a webhook, retried until acknowledged, so a donor who closes the
+           tab is still recorded here. CACENTRE's checkout pushes nothing:
+           the gift IS recorded at CACENTRE and the money is accounted for,
+           but this site's donor wall and thermometer will not show it and
+           no receipt goes out until somebody asks. Closing that needs a
+           pending record and a sweep, as the academy and NGV flows have —
+           it is not done here because nothing stores a started donation. */
+        echo json_encode([
+            'success'           => true,
+            'authorization_url' => (string) $hosted['url'],
+            'access_code'       => '',
+            'reference'         => $ref,
+        ]); exit;
+    }
+
+    av_ps_require('card donation');
     $r = ps('POST','/transaction/initialize',[
         'email'        => $email,
         'amount'       => (int) round($amount * 100),
@@ -678,15 +760,47 @@ if ($action==='record_donation') {
     if (!preg_match('/^[A-Za-z0-9_\-]{5,100}$/',$ref)) {
         echo json_encode(['success'=>false,'message'=>'Invalid reference']); exit;
     }
-    // Server-side verification — amount from Paystack, not client
-    $r=ps('GET','/transaction/verify/'.urlencode($ref));
-    $tx=$r['data']??[];
-    if (($tx['status']??'')!=='success') {
+    /*
+     * Server-side verification — the amount comes from whoever took the
+     * money, never from the client.
+     *
+     * ASKED OF THE ROUTE THAT TOOK IT. A charge CACENTRE collected does not
+     * exist in our Paystack account, so asking Paystack about it finds
+     * nothing and tells a donor who has just given that they have not. Our
+     * own account is asked first where we have one; CACENTRE only if that
+     * finds nothing, which is a read either way and can never turn an
+     * unpaid reference into a paid one.
+     */
+    $amount = 0.0; $currency = 'NGN'; $email = trim($input['email']??''); $paid = false;
+
+    if (av_ps_ready()) {
+        $r=ps('GET','/transaction/verify/'.urlencode($ref));
+        $tx=$r['data']??[];
+        if (($tx['status']??'')==='success') {
+            $paid    = true;
+            $amount  = (float)($tx['amount']??0)/100;
+            $currency= strtoupper($tx['currency']??'NGN');
+            $email   = $tx['customer']['email'] ?? $email;
+        }
+    }
+
+    if (!$paid && class_exists('CfisCheckout') && CfisCheckout::configured()) {
+        $h = CfisCheckout::status($ref);
+        if (!empty($h['paid'])) {
+            $paid    = true;
+            $amount  = ((int) ($h['amount_minor'] ?? 0)) / 100;
+            $currency= ($h['currency'] ?? '') ?: 'NGN';
+            /* The donor's address as WE sent it. CACENTRE hands a property
+               its own metadata back for exactly this; the fallback is the
+               form field, which is also what the direct route falls back
+               to when Paystack returns no customer. */
+            $email   = (string) ($h['metadata']['email'] ?? '') ?: $email;
+        }
+    }
+
+    if (!$paid) {
         echo json_encode(['success'=>false,'message'=>'Payment not yet verified. Your receipt will arrive once confirmed.']); exit;
     }
-    $amount  =(float)($tx['amount']??0)/100;
-    $currency=strtoupper($tx['currency']??'NGN');
-    $email   =$tx['customer']['email']??trim($input['email']??'');
     $fn      =trim($input['firstName']??'');
     $ln      =trim($input['lastName']??'');
     $camp    =preg_replace('/[^a-z0-9_-]/','',strtolower($input['campaign']??'general'));
@@ -726,6 +840,12 @@ if ($action==='record_donation') {
 
 /* ── generate_virtual_account ────────────────────────────── */
 if ($action==='generate_virtual_account') {
+    /* A dedicated virtual account is minted on OUR Paystack business and
+       belongs to it. There is no hosted equivalent — CACENTRE's checkout
+       takes a card, not a bank transfer into an account in our name — so
+       this one says so rather than pretending. The static bank details
+       below are the answer for a site without keys. */
+    av_ps_require('virtual-account bank transfer');
     foreach(['email','name','amount'] as $f) {
         if (empty($input[$f])){echo json_encode(['success'=>false,'message'=>"Missing: $f"]);exit;}
     }
