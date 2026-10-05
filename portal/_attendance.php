@@ -18,6 +18,8 @@ $gpWhy = !GatePass::ready() ? 'Gate passes are not switched on yet.' : (GatePass
 $gpPass = $gpWhy === '' ? GatePass::mint($u) : null;
 $gpCard = GateAttendance::cardFor($gpMid);
 $gpSecure = class_exists('MemberCards') ? MemberCards::secure($gpMid) : null;
+/* The one standing (lib/NgvCard.php): what the card prints, here live. */
+$gpStanding = NgvCard::standing($u);
 $gpSum = GateAttendance::summary($gpMid, 30);
 $gpDays = array_slice(GateAttendance::history($gpMid, 60), 0, 14);
 $gpAsks = GateAttendance::excusesFor($gpMid);
@@ -57,6 +59,13 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
 <?php else: ?>
                 <p class="pcard-note"><?= e($gpWhy) ?></p>
 <?php endif; ?>
+              </div>
+            </section>
+            <section class="pcard" id="gp-idcard">
+              <div class="pcard-head"><h2>Your NGV ID</h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$gpStanding['tone']] ?? 'indigo') ?>"><?= e($gpStanding['label']) ?></span></div>
+              <div class="pcard-body">
+                <?= NgvCard::html($u, ['standing' => $gpStanding]) ?>
+                <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?></p>
               </div>
             </section>
             <section class="pcard" id="gp-cards">

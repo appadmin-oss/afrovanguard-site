@@ -297,6 +297,7 @@ require_once __DIR__ . '/GatePass.php';
 require_once __DIR__ . '/Birthdays.php';        /* members' birthdays (the team's are in people.php) */
 require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back about members */
 require_once __DIR__ . '/MemberCards.php';      /* the secure and printed cards the gate reads */
+require_once __DIR__ . '/NgvCard.php';          /* the NGV ID card and the one standing it prints */
 require_once __DIR__ . '/MemberRoster.php';     /* the member desk: create, manage, import */
 require_once __DIR__ . '/Membership.php';       /* dues membership: state, grant, lifetime, cancel */
 require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited once the receipt is verified */

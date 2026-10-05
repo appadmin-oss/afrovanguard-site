@@ -40,6 +40,8 @@ if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
 // The CACENTRE door: /cacentre and /cacentre/<path on the far side>.
 // A member's pass for the CACENTRE gate.
 if (preg_match('~^/gate-pass/?$~', $uri)) { require __DIR__ . '/gate-pass.php'; return true; }
+// A member card's QR: /q/AVQR-… — the holder's page (q.php).
+if (preg_match('~^/q/(AVQR-[A-Za-z0-9]+)/?$~i', $uri, $m)) { $_GET['c'] = $m[1]; require __DIR__ . '/q.php'; return true; }
 if (preg_match('~^/cacentre/?$~', $uri)) { require __DIR__ . '/cacentre.php'; return true; }
 if (preg_match('~^/cacentre/(.+)$~', $uri, $m)) {
     $_GET['p'] = $m[1];

@@ -242,3 +242,12 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
 · `api/auth/{login,request,verify}.php` · `api/config.example.php` ·
 `journal/app.jsx` + `journal/app.css` · `docs/NGG-AUDIT-INDEX.md` ·
 `docs/afrovanguard-sync.md` · `docs/anchor-journal-v2-gap-analysis.md`.
+
+## NGV ID card, its standing, and the two-way scan (2026-10)
+
+- **Two-way scan, as NGG's cards have.** A secure card's QR is now `SITE_URL/q/AVQR-…` (`MemberCards::scanUrl`), not a bare code. A phone camera opens `q.php` (routed in `.htaccess` and `router.php`); the CACENTRE gate reads the `AVQR-` code out of the same URL (its `AV_CARD` pattern matches anywhere, before its `/q/` rule, so the path never makes it a cacentre card; `gate/test/units.test.ts` pins that). `MemberCards::tokenFrom()` extracts the code; `lookup()` accepts a whole URL. The `AVQR-` prefix must stay in the path.
+- **One standing**, `NgvCard::standing($u)`, most severe first: suspended account → withdrawn → not a member (learners are not members) → completed → applicant → paused → gate blocked (`GateAttendance::whyNot`) → probation → dues owing (NGV ledger payable now) → membership lapsed (non-NGV members) → active. Each has a word, a tone, a detail sentence, and a `public` word that never names money or discipline.
+- **One card**, `NgvCard::html()`: ID-1 portrait, name, track, NGV number, the QR, and a status band (white on a dark fill, ≥ 6:1) that says the date it was true — a printed status goes stale; the QR gives the live one.
+- **`/q/AVQR-…`**: a stranger sees the first name and the public standing; the holder sees their standing and the gate's verdict; NGV staff (admin/superadmin, or coordinator and above) see the full record and can print the card (only the card prints). A replaced card says so (410); an unknown code says only that (404), and only failures are rate-limited.
+- Portal → Attendance & pass shows the card with the live standing. The Studio member drawer links each secure card to its page.
+- Tests: `tests/ngvcard.test.php` (27 checks). Note the default probation rule: an empty `gate.probation_levels` means level O, so a member never promoted past O shows "On probation" — that is the policy, not a card bug.

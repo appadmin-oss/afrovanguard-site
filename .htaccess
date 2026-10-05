@@ -88,6 +88,10 @@ RewriteRule ^give/([a-z0-9-]+)/poster/?$ give/poster.php?slug=$1 [L,QSA]
 RewriteRule ^give/([a-z0-9-]+)/embed/?$ give/embed.php?slug=$1 [L,QSA]
 RewriteRule ^give/([a-z0-9-]+)/?$ give/appeal.php?slug=$1 [L,QSA]
 
+# A member card's QR: /q/AVQR-… opens the holder's page (q.php). The CACENTRE
+# gate reads the same URL for the code inside it — the two-way scan.
+RewriteRule ^q/(AVQR-[A-Za-z0-9]+)/?$ q.php?c=$1 [L,QSA]
+
 # People profiles: /people/<id> or /people/<id>-<slug>
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
 

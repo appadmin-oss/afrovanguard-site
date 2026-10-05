@@ -3130,7 +3130,9 @@
   function memCardsHTML(cards) {
     return (cards || []).filter(function (c) { return c.status === 'active'; }).map(function (c) {
       var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? 'NGV ID card' : 'Old printed card (' + escapeHtml(c.format) + ')';
-      return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code></div>';
+      /* A secure card's QR opens /q/<code>: its live card and standing, and what the gate will say. */
+      var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm" style="margin-left:auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
+      return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code>' + open + '</div>';
     }).join('') || '<p class="muted">No card yet — the gate can only find them by name.</p>';
   }
   function openMember(id) {

@@ -259,6 +259,26 @@ final class MemberCards
         return $out;
     }
 
+    /**
+     * What a secure card's QR carries: the holder's page on this site,
+     * SITE_URL/q/AVQR-…, not the bare code. That is the two-way scan NGG's
+     * cards have: an ordinary phone camera opens the person's page (q.php),
+     * and the CACENTRE gate pulls the AVQR- code back out of the URL — its
+     * reader matches the prefix anywhere in what it scanned, before any rule
+     * about /q/, so the path never makes it a cacentre card. The prefix MUST
+     * stay in the path for that reason: a bare /q/<code> is cacentre's.
+     */
+    public static function scanUrl(string $code): string
+    {
+        return rtrim(defined('SITE_URL') ? (string) SITE_URL : '', '/') . '/q/' . strtoupper($code);
+    }
+
+    /** The AVQR- code in whatever was scanned or typed — a URL, a bare code, any case — or ''. */
+    public static function tokenFrom(string $raw): string
+    {
+        return preg_match('/\b(AVQR-[0-9A-Z]{12,24})\b/i', $raw, $m) ? strtoupper($m[1]) : '';
+    }
+
     /** Whose a scanned code is: ['member_id', 'void', 'kind'] or null. */
     public static function lookup(?string $token, ?string $format = null, ?string $value = null): ?array
     {
@@ -266,7 +286,8 @@ final class MemberCards
         $pdo = Database::pdo();
         if ($token !== null && $token !== '') {
             $st = $pdo->prepare("SELECT member_id, status FROM av_member_cards WHERE kind = 'secure' AND code = ?");
-            $st->execute([strtoupper(trim($token))]);
+            /* A scan may arrive as the card's whole URL; the code is inside it. */
+            $st->execute([self::tokenFrom($token) ?: strtoupper(trim($token))]);
         } else {
             if ($format === null || $value === null || !self::format($format)) return null;
             $st = $pdo->prepare("SELECT member_id, status FROM av_member_cards WHERE kind = 'printed' AND format = ? AND code = ?");
