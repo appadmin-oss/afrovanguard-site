@@ -80,7 +80,6 @@ render_head([
     'jsonld'    => [schema_org(), schema_website(), $blogPosting, $crumbs],
 ]);
 render_nav('diary');
-render_subbar($a['title'], $a['slug'], $canonical);
 ?>
 <?php $format = $a['format'] ?? 'standard'; $isFeature = $format === 'feature' && $cover; ?>
   <main id="main-content">
@@ -107,22 +106,6 @@ render_subbar($a['title'], $a['slug'], $canonical);
             <div><div class="meta-label">Reference</div><div class="meta-value"><code class="article-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code></div></div>
 <?php endif; ?>
           </div>
-<?php render_listen_bar($a['slug'], $canonical); ?>
-<?php if (!empty($a['audio_url'])): ?>
-          <figure class="article-audio" id="narration" data-narration>
-            <button type="button" class="na-play" aria-label="Play narration">
-              <svg class="na-ic-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-              <svg class="na-ic-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
-            </button>
-            <div class="na-main">
-              <figcaption class="na-label">Listen to this story <span>· narrated by a human</span></figcaption>
-              <div class="na-bar" role="slider" tabindex="0" aria-label="Seek"><span class="na-progress"></span></div>
-            </div>
-            <span class="na-time">0:00</span>
-            <button type="button" class="na-speed" aria-label="Playback speed">1×</button>
-            <audio preload="none" src="<?= e($a['audio_url']) ?>"></audio>
-          </figure>
-<?php endif; ?>
         </div>
       </div>
 
@@ -134,27 +117,6 @@ render_subbar($a['title'], $a['slug'], $canonical);
 
       <div class="container">
         <div class="article-layout<?= empty($a['sections']) ? ' no-toc' : '' ?>">
-<?php if (!empty($a['sections'])): ?>
-          <aside class="toc" aria-label="On this page">
-            <div class="toc-head">On this page</div>
-            <ul class="toc-list">
-<?php foreach ($a['sections'] as $s): ?>
-              <li><a href="#<?= e($s['anchor']) ?>"><?= e($s['label']) ?></a></li>
-<?php endforeach; ?>
-            </ul>
-            <div class="toc-actions">
-              <button type="button" class="toc-btn toc-btn-primary" data-listen aria-label="Listen to this article">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg> Listen
-              </button>
-<?php if ($audioDl): ?>              <a class="toc-btn" href="/diary/audio.php?slug=<?= e($a['slug']) ?>" download>
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg> Download audio
-              </a>
-<?php endif; ?>              <button type="button" class="toc-btn" onclick="window.print()">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg> Print / PDF
-              </button>
-            </div>
-          </aside>
-<?php endif; ?>
           <div class="article-body">
 <?php if (!empty($a['series'])): $sx = $a['series']; ?>
             <aside class="series-box" aria-label="Part of a series">
@@ -180,60 +142,9 @@ render_subbar($a['title'], $a['slug'], $canonical);
 <?php endif; ?>
             </nav>
 <?php endif; ?>
-
-            <div class="reactions">
-              <button class="react-btn" data-react="<?= e($a['slug']) ?>" data-base="<?= (int)$a['claps'] ?>"><span class="emoji">👏</span> <span class="react-count"><?= (int)$a['claps'] ?></span></button>
-              <button class="react-btn" data-share="<?= e($canonical) ?>"><span class="emoji">↗</span> Share</button>
-              <span class="react-hint">Applause is saved server-side and shared by every reader</span>
-            </div>
-            <div class="byline-end">
-              <span>Reply to any entry: <a href="mailto:cacentre@afrovanguard.org.ng">cacentre@afrovanguard.org.ng</a> — we read every message.</span>
-              <span class="share-row">
-                <a href="https://twitter.com/intent/tweet?url=<?= e($canonical) ?>" aria-label="Share on X" target="_blank" rel="noopener"><?= Icons::X ?></a>
-                <a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= e($canonical) ?>" aria-label="Share on LinkedIn" target="_blank" rel="noopener"><?= Icons::LI ?></a>
-                <button data-share="<?= e($canonical) ?>" aria-label="Copy link"><?= Icons::SHARE ?></button>
-              </span>
-            </div>
-
-            <!-- Comments -->
-            <section class="comments" id="comments" data-slug="<?= e($a['slug']) ?>" aria-label="Comments">
-              <h2 class="comments-title">Comments <span class="comments-count" id="commentsCount"<?= $commentN ? '' : ' hidden' ?>><?= (int) $commentN ?></span></h2>
-              <form class="comment-form" id="commentForm" autocomplete="on" novalidate>
-<?php if ($me): ?>
-                <p class="comment-as">Commenting as <strong><?= e($me['name']) ?></strong></p>
-<?php else: ?>
-                <div class="comment-row">
-                  <input type="text" name="name" id="cName" placeholder="Your name" maxlength="120" aria-label="Your name" required />
-                </div>
-<?php endif; ?>
-                <input type="text" name="hp" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-                <textarea name="body" id="cBody" rows="3" placeholder="Share a thought…" maxlength="4000" aria-label="Your comment" required></textarea>
-                <div class="comment-actions">
-                  <button type="submit" class="btn btn-primary">Post comment</button>
-                  <span class="comment-msg" role="status" aria-live="polite"></span>
-                </div>
-              </form>
-              <ol class="comment-list" id="commentList" aria-live="polite"></ol>
-              <p class="comment-empty" id="commentEmpty" hidden>Be the first to comment.</p>
-            </section>
           </div>
         </div>
       </div>
-
-      <section class="similar" style="padding-top:8px">
-        <div class="container">
-          <div class="article-cta" data-reveal>
-            <div>
-              <h3>Build leaders Africa cannot buy.</h3>
-              <p>The Diary documents the work — you can join it. Volunteer with a programme or fund a leader today.</p>
-            </div>
-            <div class="cta-actions">
-              <a class="btn btn-primary" href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a>
-              <a class="btn btn-outline" href="<?= rtrim(SITE_URL,'/') ?>/donate.html">Fund a Leader</a>
-            </div>
-          </div>
-        </div>
-      </section>
 
 <?php if ($related): ?>
       <section class="similar">
