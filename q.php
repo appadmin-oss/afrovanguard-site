@@ -85,7 +85,7 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
     <p><?= $hit && $hit['void'] ? 'Its holder has a newer card. This one no longer opens anything.' : 'This code is not one of Afrovanguard’s cards.' ?></p>
   </section>
 <?php else: ?>
-  <?= NgvCard::html($holder, ['standing' => $standing, 'public' => !$full]) ?>
+  <!-- card: rebuilt in partials/id-card.php -->
 <?php if ($full): ?>
   <section class="box" aria-labelledby="st-h">
     <h2 id="st-h"><?= $isHolder && !$isStaff ? 'Your standing' : 'Standing' ?>: <?= e($standing['label']) ?></h2>
