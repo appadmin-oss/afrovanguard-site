@@ -1,0 +1,13 @@
+{
+    "cormorant garamond": {
+        "normal": "\/home\/user\/afrovanguard-site\/vendor\/dompdf\/dompdf\/lib\/fonts\/cormorant_garamond_normal_8e2ee9ca139b60b6654723322ed7c85e",
+        "500": "\/home\/user\/afrovanguard-site\/vendor\/dompdf\/dompdf\/lib\/fonts\/cormorant_garamond_500_3ba8b478ea90c5734e37baf04ef28dfc",
+        "600": "cormorant_garamond_600_fbd5e4505f0a619075485532c21ff9c7"
+    },
+    "source sans 3": {
+        "normal": "\/home\/user\/afrovanguard-site\/vendor\/dompdf\/dompdf\/lib\/fonts\/source_sans_3_normal_9fd26cdf7d95a67766c00a85496729e7",
+        "600": "\/home\/user\/afrovanguard-site\/vendor\/dompdf\/dompdf\/lib\/fonts\/source_sans_3_600_0d3b0b2a58d6c453f70e12512191cdf9",
+        "bold": "\/home\/user\/afrovanguard-site\/vendor\/dompdf\/dompdf\/lib\/fonts\/source_sans_3_bold_d08dcc2256d77d7f6916c376fcb9309b",
+        "800": "source_sans_3_800_81cfbde1b4ff7dc607cb7d710f8d16a3"
+    }
+}

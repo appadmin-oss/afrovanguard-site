@@ -57,6 +57,9 @@ $first = $holder ? (explode(' ', trim((string) $holder['name']))[0] ?: 'Member')
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $holder ? e($full ? (string) $holder['name'] : $first) . ' · NextGen Vanguard card' : 'Member card' ?> · Afrovanguard</title>
+<link rel="stylesheet" href="/assets/site/fonts.css">
+<link rel="stylesheet" href="/assets/site/av-tokens.css">
+<link rel="stylesheet" href="/assets/site/avc-card.css">
 <style>
 :root{--ink:#15120e;--muted:#4a4f5a;--line:#e3e5ea;--bg:#f5f6f8}
 *{box-sizing:border-box}
@@ -85,7 +88,24 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
     <p><?= $hit && $hit['void'] ? 'Its holder has a newer card. This one no longer opens anything.' : 'This code is not one of Afrovanguard’s cards.' ?></p>
   </section>
 <?php else: ?>
-  <!-- card: rebuilt in partials/id-card.php -->
+  <?php
+    /* The rebuilt card. q.php already decided who is looking ($full); the
+       partial just draws, and publicFor() is what a stranger gets — a
+       deliberately smaller read, not the full card with fields hidden by a
+       template. */
+    require_once __DIR__ . '/lib/IdCard.php';
+    $card = $full
+        ? IdCard::forMember((int) $holder['id'])
+        : (IdCard::forMember((int) $holder['id']) + IdCard::publicFor((int) $holder['id']));
+    if (!$full) {
+        $pub = IdCard::publicFor((int) $holder['id']);
+        $card['band']   = $pub['band'];
+        $card['family'] = '';
+        $card['photo_url'] = null;
+    }
+    $avcSide = $full ? 'both' : 'front';
+    include __DIR__ . '/partials/id-card.php';
+  ?>
 <?php if ($full): ?>
   <section class="box" aria-labelledby="st-h">
     <h2 id="st-h"><?= $isHolder && !$isStaff ? 'Your standing' : 'Standing' ?>: <?= e($standing['label']) ?></h2>

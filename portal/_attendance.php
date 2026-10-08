@@ -64,7 +64,12 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
             <section class="pcard" id="gp-idcard">
               <div class="pcard-head"><h2>Your NGV ID</h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$gpStanding['tone']] ?? 'indigo') ?>"><?= e($gpStanding['label']) ?></span></div>
               <div class="pcard-body">
-                <!-- card: rebuilt in partials/id-card.php -->
+                <?php
+                  require_once __DIR__ . '/../lib/IdCard.php';
+                  $card = IdCard::forMember((int) $u['id']);
+                  $avcSide = 'both';
+                  include __DIR__ . '/../partials/id-card.php';
+                ?>
                 <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?></p>
               </div>
             </section>

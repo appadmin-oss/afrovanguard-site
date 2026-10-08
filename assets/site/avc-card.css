@@ -1,0 +1,69 @@
+/* ID card. One unit system: --u = 1 card millimetre.
+   Screen: 5px per mm (270 × 428px). Print: 1mm. Change --u only. */
+.avc{--u:5px;--bleed:0px;font-family:var(--av-sans);color:var(--av-ink);box-sizing:border-box}
+.avc *{box-sizing:border-box}
+.avc-face{position:relative;width:calc(var(--u)*54 + var(--bleed)*2);height:calc(var(--u)*85.6 + var(--bleed)*2);padding:var(--bleed);border-radius:calc(var(--u)*3.18);overflow:hidden;box-shadow:var(--av-shadow);print-color-adjust:exact;-webkit-print-color-adjust:exact}
+.avc-face.is-print{--u:1mm;--bleed:3mm;border-radius:0;box-shadow:none}
+.avc-trim{position:relative;width:calc(var(--u)*54);height:calc(var(--u)*85.6)}
+
+/* front */
+.avc-front{background:var(--av-paper)}
+.avc-head{position:absolute;left:calc(var(--u)*3.4);right:calc(var(--u)*3.4);top:calc(var(--u)*3.2);display:flex;align-items:center;gap:calc(var(--u)*1.6)}
+.avc-seal{width:calc(var(--u)*5.8);height:calc(var(--u)*5.8);border-radius:50%;flex:none}
+.avc-brand{display:flex;flex-direction:column;min-width:0;flex:1}
+.avc-brand-name{font-family:var(--av-serif);font-weight:600;font-size:calc(var(--u)*4);line-height:1}
+.avc-strap{font-size:calc(var(--u)*1.25);color:var(--av-muted);white-space:nowrap;margin-top:calc(var(--u)*.5)}
+.avc-kind{align-self:flex-start;font-size:calc(var(--u)*1.4);font-weight:800;letter-spacing:.18em;color:var(--av-gold-text)}
+
+.avc-photo{position:absolute;left:calc(var(--u)*3.4);right:calc(var(--u)*3.4);top:calc(var(--u)*11.4);height:calc(var(--u)*35.2);border-radius:calc(var(--u)*2.2);overflow:hidden;background:linear-gradient(110deg,var(--av-gold-grad-a),var(--av-gold-grad-b))}
+.avc-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 30%;display:block}
+.avc-initials{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--av-serif);font-size:calc(var(--u)*14);color:var(--av-ink)}
+.avc-tier{position:absolute;left:calc(var(--u)*2);bottom:calc(var(--u)*2);display:flex;align-items:center;gap:calc(var(--u)*1.2);height:calc(var(--u)*4.6);padding-right:calc(var(--u)*1.6);background:var(--av-paper);border-radius:calc(var(--u)*1);font-size:calc(var(--u)*1.7);font-weight:700}
+.avc-tier-letter{display:grid;place-items:center;width:calc(var(--u)*4.6);height:100%;background:var(--av-ink);color:var(--av-gold-light);border-radius:calc(var(--u)*1) 0 0 calc(var(--u)*1)}
+
+.avc-name{position:absolute;left:calc(var(--u)*3.4);right:calc(var(--u)*3.4);top:calc(var(--u)*48.6);display:flex;flex-direction:column;line-height:1.02}
+.avc-given{font-size:calc(var(--u)*3.6);font-weight:300;text-transform:uppercase;letter-spacing:.02em}
+.avc-family{font-size:calc(var(--u)*4.6);font-weight:800;text-transform:uppercase}
+.avc-role{margin-top:calc(var(--u)*1.4);font-size:calc(var(--u)*1.55);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-gold-text);display:flex;align-items:center;gap:calc(var(--u)*1)}
+.avc-role::before{content:"";width:calc(var(--u)*1.1);height:calc(var(--u)*1.1);background:var(--av-gold);transform:rotate(45deg)}
+
+.avc-foot{position:absolute;left:calc(var(--u)*3.4);right:calc(var(--u)*3.4);top:calc(var(--u)*61.6);display:flex;justify-content:space-between;align-items:flex-end;gap:calc(var(--u)*2)}
+.avc-facts{margin:0;display:flex;flex-direction:column;font-size:calc(var(--u)*1.6)}
+.avc-facts dt{font-size:calc(var(--u)*1.1);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-faint);margin-top:calc(var(--u)*1.4)}
+.avc-facts dt:first-child{margin-top:0}
+.avc-facts dd{margin:calc(var(--u)*.4) 0 0;display:flex;flex-direction:column;font-weight:600}
+.avc-qr{width:calc(var(--u)*13.8);height:calc(var(--u)*13.8);padding:calc(var(--u)*.9);background:var(--av-white);border:1px solid var(--av-line);border-radius:calc(var(--u)*1.4);flex:none}
+.avc-qr svg{width:100%;height:100%;display:block}
+
+/* band extends to bleed edge in print */
+.avc-band{position:absolute;left:0;right:0;bottom:0;height:calc(var(--u)*5.8 + var(--bleed));padding:0 calc(var(--u)*3.4 + var(--bleed)) var(--bleed);display:flex;align-items:center;justify-content:space-between;color:var(--av-white)}
+.avc-band strong{font-size:calc(var(--u)*2.1);font-weight:800;letter-spacing:.06em}
+.avc-band span{font-size:calc(var(--u)*1.25);font-weight:600;text-align:right;line-height:1.3}
+.avc-band--ok{background:var(--av-band-ok)}.avc-band--warn{background:var(--av-band-warn)}.avc-band--bad{background:var(--av-band-bad)}.avc-band--neutral{background:var(--av-band-neutral)}
+
+/* back */
+.avc-back{background:var(--av-ink);color:var(--av-white)}
+.avc-back .avc-trim{display:flex;flex-direction:column;align-items:center;padding:calc(var(--u)*9) calc(var(--u)*4) 0;text-align:center}
+.avc-back-seal{width:calc(var(--u)*15);height:calc(var(--u)*15);border-radius:50%}
+.avc-back-name{margin:calc(var(--u)*3) 0 0;font-family:var(--av-serif);font-weight:600;font-size:calc(var(--u)*4.6)}
+.avc-mission{margin:calc(var(--u)*2) 0 0;font-size:calc(var(--u)*1.8);line-height:1.4;color:var(--av-on-ink-muted);max-width:calc(var(--u)*40)}
+.avc-grid{margin:auto 0 calc(var(--u)*5);width:100%;display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--u)*2.4) calc(var(--u)*3);text-align:left}
+.avc-grid dt{font-size:calc(var(--u)*1.1);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-gold-light)}
+.avc-grid dd{margin:calc(var(--u)*.5) 0 0;font-size:calc(var(--u)*1.6);font-weight:600}
+
+/* portal wrapper: flip */
+.avc-holder{display:flex;flex-direction:column;align-items:flex-start;gap:16px}
+.avc-holder[data-side="front"] .avc-back,.avc-holder[data-side="back"] .avc-front{display:none}
+.avc-actions{display:flex;flex-wrap:wrap;gap:8px}
+.avc-btn{height:44px;padding:0 18px;border-radius:var(--av-r-8);border:1px solid var(--av-line-2);background:var(--av-white);color:var(--av-ink);font:600 15px var(--av-sans);display:inline-flex;align-items:center;gap:8px;text-decoration:none;cursor:pointer}
+.avc-btn:hover{border-color:var(--av-ink)}
+.avc-btn--primary{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+.avc-skeleton{width:270px;height:428px;border-radius:16px;background:var(--av-stone-3)}
+@media (max-width:359px){.avc{--u:4.6px}}
+
+/* print sheet: page 68 × 99.6mm, bleed box at 4mm, trim at 7mm, crop marks 3mm long, 1mm outside bleed */
+.avc-sheet{position:relative;width:68mm;height:99.6mm;break-after:page;overflow:hidden}
+.avc-sheet:last-child{break-after:auto}
+.avc-sheet>.avc-face{position:absolute;left:4mm;top:4mm}
+.avc-crop{position:absolute;background:var(--av-registration)}
+.avc-crop.h{height:.25pt;width:3mm}.avc-crop.v{width:.25pt;height:3mm}

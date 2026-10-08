@@ -1,0 +1,73 @@
+/* ============================================================================
+ * assets/site/fonts.css — the two faces the handoff specifies (README §3).
+ * ----------------------------------------------------------------------------
+ * Cormorant Garamond for display and headings, Source Sans 3 for everything
+ * else. Self-hosted TTF rather than a Google Fonts <link> for one reason that
+ * matters more than the usual ones: the PDF renderer cannot fetch a webfont.
+ * dompdf embeds and subsets a face it can read off the filesystem, and falls
+ * back to a core font it never embeds if it cannot — which is how a card gets
+ * printed in Helvetica.
+ *
+ * TTF, not WOFF2: dompdf reads TrueType. Browsers read it too, so one file per
+ * weight serves both the screen card and the print sheet, and the two cannot
+ * drift onto different typefaces.
+ *
+ * Cormorant Garamond is NOT Cormorant — the site's existing <link> loads the
+ * latter. They are different faces by the same designer. See the PR.
+ * ========================================================================= */
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/site/fonts/CormorantGaramond-400.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/site/fonts/CormorantGaramond-500.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/site/fonts/CormorantGaramond-600.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-400.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-600.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-700.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-800.ttf') format('truetype');
+}

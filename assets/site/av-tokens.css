@@ -1,0 +1,41 @@
+/* Afrovanguard tokens. Paste ONCE into the site stylesheet's :root (skip any that exist). The only place hex literals are allowed. */
+:root{
+  --av-ink:#111827;
+  --av-ink-2:#22262D;
+  --av-paper:#FAF9F6;
+  --av-white:#FFFFFF;
+  --av-sand:#EFEDE8;
+  --av-stone:#F5F3EF;
+  --av-stone-2:#F8F7F4;
+  --av-stone-3:#F1F0EC;
+  --av-line:#E8E6E1;
+  --av-line-2:#D6D3CC;
+  --av-text-2:#454A56;
+  --av-muted:#5F636D;
+  --av-faint:#8B8B8B;
+  --av-on-ink-muted:#C9CCD3;
+  --av-on-ink-line:#4B5566;
+  --av-gold:#F3B416;
+  --av-gold-text:#8A6406;
+  --av-gold-soft:#FBF4E0;
+  --av-gold-light:#F6D77E;
+  --av-gold-grad-a:#E19A0B;
+  --av-gold-grad-b:#F7C45A;
+  --av-green:#17673D;   --av-green-bg:#EAF5EE;
+  --av-red:#B0361C;     --av-red-bg:#FBEAEA;
+  --av-indigo:#4338CA;  --av-indigo-bg:#EEF0FD;
+  --av-focus:#2F6FDB;
+  --av-registration:#000000; /* crop marks only */
+  /* card status bands (≥6:1 with white) */
+  --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
+
+  --av-serif:"Cormorant Garamond",Georgia,serif;
+  --av-sans:"Source Sans 3",system-ui,sans-serif;
+  --av-r-6:6px; --av-r-8:8px; --av-r-10:10px; --av-r-12:12px; --av-r-14:14px; --av-r-pill:999px;
+  --av-shadow:0 12px 40px rgba(17,24,39,.14);
+  --av-shadow-sel:0 1px 2px rgba(17,24,39,.12);
+}
+:where(.avc,.avd,.avm) :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+:where(.avc,.avd,.avm) .av-num{font-variant-numeric:tabular-nums}
+.av-sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion:reduce){:where(.avc,.avd,.avm) *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
