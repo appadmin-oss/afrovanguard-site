@@ -119,6 +119,37 @@ ck('Fines: the same sheet again charges nobody twice', $again['counts']['ready']
 $page = (string) file_get_contents(AV_ROOT . '/academy/ngv/fines.php');
 ck('Fines: the console page is guarded like the rest of the console', str_contains($page, 'av_admin_role') && str_contains($page, 'av_csrf_require') && str_contains($page, 'require_same_origin'));
 
+/* ── A vanguard's own fines ── */
+$mine = NgvFines::forMember(9101);
+$theirs = array_values(array_filter(NgvFines::all(), static fn($r) => (int) $r['member_id'] === 9101));
+ck('Fines: a vanguard sees exactly their own fines, standing as the desk reads it',
+   array_column($mine['fines'], 'id') === array_column($theirs, 'id')
+   && array_column($mine['fines'], 'status') === array_column($theirs, 'status'));
+ck('Fines: …with what is still owing added up', $mine['owing'] === array_sum(array_map(static fn($r) => in_array($r['status'], ['owing', 'part'], true) ? (int) $r['owing'] : 0, $theirs)));
+ck('Fines: …and nobody else\'s name or email in it', !array_filter($mine['fines'], static fn($r) => isset($r['name']) || isset($r['email'])));
+ck('Fines: somebody with no fines has none', NgvFines::forMember(9199)['fines'] === [] && NgvFines::forMember(9199)['owing'] === 0);
+
+/* The card the vanguard sees, drawn as the portal draws it. */
+$fnHtml = (static function () {
+    $u = ['id' => 9101, 'name' => 'Adebayo Bello', 'email' => 'adebayo@fines.test'];
+    $c = Ngv::get();
+    ob_start();
+    try {
+        require AV_ROOT . '/academy/ngv/_dashboard-data.php';
+        $ngvParts = ['fines']; $ngvStandalone = false; $ngvBanner = false; $ngvScript = false; $ngvAccountHref = '#ngv-account';
+        require AV_ROOT . '/academy/ngv/_dashboard-body.php';
+    } catch (Throwable $e) { ob_end_clean(); return 'ERROR ' . $e->getMessage(); }
+    return (string) ob_get_clean();
+})();
+ck('Fines: the vanguard\'s Fines card lists their fines with where each stands',
+   str_contains($fnHtml, 'id="fines"') && str_contains($fnHtml, 'Came in at 7:40') && !str_contains($fnHtml, 'ERROR'));
+ck('Fines: …and shows nothing of the account or other cards', !str_contains($fnHtml, 'id="account"') && !str_contains($fnHtml, 'id="reading"'));
+$portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+ck('Fines: the portal has a Fines view for vanguards', str_contains($portal, "'ngv-fines', 'Fines'") && str_contains($portal, 'id="view-ngv-fines"'));
+$landing = (string) file_get_contents(AV_ROOT . '/academy/ngv/index.php');
+ck('Fines: the NGV page explains fines from the desk\'s own amounts', str_contains($landing, 'id="fines"') && str_contains($landing, 'NgvFines::catalogue()'));
+ck('Fines: …and the fines desk is linked for admins only', str_contains($landing, 'href="/academy/ngv/fines.php"') && str_contains($landing, "['admin', 'superadmin']"));
+
 foreach (['ngv_charges', 'ngv_payments', 'ngv_participants', 'ngv_fine_meta', 'ngv_fine_imports'] as $t) { try { $nf->exec('DELETE FROM ' . $t); } catch (Throwable $e) {} }
 $main->exec('DELETE FROM gate_member_cards WHERE member_id BETWEEN 9100 AND 9199');
 $main->exec('DELETE FROM member_profiles WHERE user_id BETWEEN 9100 AND 9199');

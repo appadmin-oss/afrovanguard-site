@@ -32,8 +32,8 @@ $flash = '';
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!av_csrf_valid((string) ($_POST['csrf'] ?? ''))) $flash = 'That form had gone stale. Try again.';
     else {
-        $r = GateAttendance::requestExcuse($mid, (string) ($_POST['day'] ?? ''), (string) ($_POST['reason'] ?? ''));
-        $flash = $r['ok'] ? 'Sent to the NGV office. You will see their answer here.' : (string) $r['error'];
+        $r = GateAttendance::requestLeave($mid, (string) ($_POST['day'] ?? ''), (string) ($_POST['until'] ?? ''), (string) ($_POST['reason'] ?? ''));
+        $flash = $r['ok'] ? 'Sent to the NGV office' . ((int) ($r['days'] ?? 1) > 1 ? ' — ' . (int) $r['days'] . ' days' : '') . '. You will see their answer here.' : (string) $r['error'];
     }
     /* From the portal's Attendance view: back there, with the answer. */
     if ((string) ($_POST['return'] ?? '') === 'portal') {
@@ -175,18 +175,19 @@ $hm = static function (string $iso): string {
 
 <?php if ($expected): ?>
   <section class="panel" aria-labelledby="h_away">
-    <h2 id="h_away">Away on a programme day?</h2>
+    <h2 id="h_away">Away from the programme?</h2>
     <p class="fine" style="margin-top:0">Tell the NGV office before, or within two weeks after. An excused day counts against nothing.</p>
     <form method="post" action="/gate-pass">
       <input type="hidden" name="csrf" value="<?= e(av_csrf_token()) ?>">
-      <label>The day <input type="date" name="day" required value="<?= e(function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) ?>"></label>
+      <label>First day away <input type="date" name="day" required value="<?= e(function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) ?>"></label>
+      <label>Last day away <input type="date" name="until"> <span class="fine">Leave it empty for one day. Up to <?= (int) GateAttendance::LEAVE_MAX_DAYS ?> days.</span></label>
       <label>Why <textarea name="reason" rows="2" maxlength="300" required placeholder="Exam at school, hospital appointment…"></textarea></label>
       <button type="submit">Send to the NGV office</button>
     </form>
 <?php if ($asks): ?>
     <ul class="days" style="margin-top:.8rem">
 <?php foreach ($asks as $a): ?>
-      <li><span><?= e(date('D j M', (int) strtotime((string) $a['day'] . 'T12:00:00'))) ?></span>
+      <li><span><?= e(GateAttendance::leaveLabel($a)) ?></span>
           <span class="<?= $a['status'] === 'approved' ? 's-present' : ($a['status'] === 'declined' ? 's-absent' : 's-excused') ?>"><?= e(['pending' => 'Waiting', 'approved' => 'Excused', 'declined' => 'Not excused'][(string) $a['status']] ?? (string) $a['status']) ?><?= (string) $a['outcome'] !== '' ? ' — ' . e((string) $a['outcome']) : '' ?></span></li>
 <?php endforeach; ?>
     </ul>

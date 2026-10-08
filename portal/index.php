@@ -168,6 +168,7 @@ if ($isNgv) {
     $nav['NextGen Vanguard'] = [
         ['ngv', 'Programme', 'gold', $ngvVars['booksRead'] . '/' . $ngvVars['BOOKS_TOTAL']],
         ['ngv-account', 'Fees & account', $ngvOwed > 0 ? 'gold' : 'green', $ngvOwed > 0 ? '₦' . number_format($ngvOwed) : ''],
+        ['ngv-fines', 'Fines', $ngvVars['myFines']['owing'] > 0 ? 'gold' : 'gray', $ngvVars['myFines']['owing'] > 0 ? '₦' . number_format((int) $ngvVars['myFines']['owing']) : ''],
     ];
 }
 /* The gate, in the portal: the pass, the card, the days. For a vanguard it
@@ -1503,6 +1504,12 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
             <div><h1>Fees &amp; account</h1><p class="view-sub">What the programme has charged and what you have paid, your receipts, and anything reported as damaged. Nothing here can be changed from your side — ask, and a person answers.</p></div>
           </div>
 <?php $ngvRender($ngvVars, ['account', 'damage'], true); ?>
+        </section>
+        <section class="pview" id="view-ngv-fines" data-view="ngv-fines" hidden>
+          <div class="view-head">
+            <div><h1>Fines</h1><p class="view-sub">Every fine the NGV office has recorded for you — what for, the day, and where it stands. A fine is paid from Fees &amp; account, like any other fee.</p></div>
+          </div>
+<?php $ngvRender($ngvVars, ['fines'], false); ?>
         </section>
 <?php endif; ?>
 <?php if ($hasGate || $isNgv): ?>

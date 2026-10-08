@@ -138,11 +138,11 @@ final class NgvFines
                 'Hi ' . $esc($first) . ',',
                 'A fine has been recorded on your NextGen Vanguard account: <b>' . $esc($line) . '</b>',
                 'You can see it, and everything else on your account, in your portal. If you think it is wrong, or this is a hard month, say so from there — a person will answer.',
-            ], ['url' => $site . '/portal/#ngv-account', 'text' => 'See my account'], $line);
+            ], ['url' => $site . '/portal/#ngv-fines', 'text' => 'See my fines'], $line);
             try { @Mailer::send((string) $who['email'], 'A fine on your NGV account — ' . NgvLedger::money_text($amount), $html); } catch (Throwable $e) { error_log('[fines] mail: ' . $e->getMessage()); }
         }
         if (class_exists('Notifications')) {
-            try { Notifications::push($memberId, 'ngv_fees', 'A fine on your NGV account', $line, '/portal/#ngv-account'); } catch (Throwable $e) {}
+            try { Notifications::push($memberId, 'ngv_fees', 'A fine on your NGV account', $line, '/portal/#ngv-fines'); } catch (Throwable $e) {}
         }
         NgvDb::pdo()->prepare('UPDATE ngv_fine_meta SET notified_at = ' . NgvDb::nowExpr() . ' WHERE charge_id = ?')->execute([$chargeId]);
     }
@@ -157,13 +157,20 @@ final class NgvFines
     public static function all(array $f = []): array
     {
         $pdo = NgvDb::pdo();
-        $rows = $pdo->query("SELECT c.id, c.member_id, c.amount, c.reason, c.note, c.source, c.voided, c.void_reason, c.created_at,
+        /* One member's fines: their standing depends only on their own
+           payments, so narrowing both reads gives the same answer, sooner. */
+        $one = (int) ($f['member_id'] ?? 0);
+        $st = $pdo->prepare("SELECT c.id, c.member_id, c.amount, c.reason, c.note, c.source, c.voided, c.void_reason, c.created_at,
                                     p.name, p.email, m.occurred_on, m.import_run, m.notified_at
                                FROM ngv_charges c LEFT JOIN ngv_participants p ON p.member_id = c.member_id
                                LEFT JOIN ngv_fine_meta m ON m.charge_id = c.id
-                              WHERE c.kind = 'fine' ORDER BY c.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+                              WHERE c.kind = 'fine'" . ($one > 0 ? ' AND c.member_id = ?' : '') . " ORDER BY c.id ASC");
+        $st->execute($one > 0 ? [$one] : []);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
         $credits = [];
-        foreach ($pdo->query("SELECT member_id, credit_kind, SUM(amount) s FROM ngv_payments WHERE kind = 'fine' AND voided = 0 GROUP BY member_id, credit_kind")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+        $st = $pdo->prepare("SELECT member_id, credit_kind, SUM(amount) s FROM ngv_payments WHERE kind = 'fine' AND voided = 0" . ($one > 0 ? ' AND member_id = ?' : '') . " GROUP BY member_id, credit_kind");
+        $st->execute($one > 0 ? [$one] : []);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
             $credits[(int) $c['member_id']][(string) $c['credit_kind']] = (int) $c['s'];
         }
         $pool = [];
@@ -193,6 +200,23 @@ final class NgvFines
             if (($f['source'] ?? '') === 'import' && (string) $r['import_run'] === '') return false;
             return true;
         }));
+    }
+
+    /**
+     * One vanguard's own fines, newest first, with where each stands — what
+     * their portal shows. Standing is worked out per member, so this is the
+     * same answer the desk gives for them.
+     *
+     * @return array{fines: array, owing: int, open: int}
+     */
+    public static function forMember(int $memberId): array
+    {
+        if ($memberId <= 0) return ['fines' => [], 'owing' => 0, 'open' => 0];
+        try { $all = self::all(['member_id' => $memberId]); }
+        catch (Throwable $e) { error_log('[ngvfines] forMember: ' . $e->getMessage()); $all = []; }
+        $fines = array_map(static fn($r) => array_intersect_key($r, array_flip(['id', 'day', 'reason', 'label', 'note', 'amount', 'owing', 'status', 'void_reason', 'source'])), $all);
+        $open = array_filter($fines, static fn($r) => in_array($r['status'], ['owing', 'part'], true));
+        return ['fines' => $fines, 'owing' => array_sum(array_map(static fn($r) => (int) $r['owing'], $open)), 'open' => count($open)];
     }
 
     /** The desk's figures. */

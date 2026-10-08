@@ -132,6 +132,7 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   <span class="sp"></span>
   <a href="/academy/ngv/members.php">Vanguards</a>
   <a href="/academy/ngv/fines.php">Fines</a>
+  <a href="/academy/ngv/books.php">Book list</a>
   <a href="/academy/studio/">Rules (Studio)</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
 </header>
@@ -160,10 +161,10 @@ input{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radi
   <section class="card" aria-labelledby="h-asks">
     <header><h2 id="h-asks">Asked to be excused</h2><span class="sp"></span><span class="sub"><?= count($asks) ?> waiting</span></header>
     <div class="body scroll"><table>
-      <thead><tr><th>Member</th><th>Day</th><th>Why</th><th></th></tr></thead>
+      <thead><tr><th>Member</th><th>Away</th><th>Days</th><th>Why</th><th></th></tr></thead>
       <tbody>
       <?php foreach ($asks as $a): ?>
-        <tr><td><?= $e((string) ($a['name'] ?? ('#' . $a['member_id']))) ?></td><td class="num"><?= $e((string) $a['day']) ?></td><td><?= $e((string) $a['reason']) ?></td>
+        <tr><td><?= $e((string) ($a['name'] ?? ('#' . $a['member_id']))) ?></td><td class="num"><?= $e((string) $a['from']) ?><?= (string) $a['to'] !== (string) $a['from'] ? ' – ' . $e((string) $a['to']) : '' ?></td><td class="num"><?= (int) $a['days'] ?></td><td><?= $e((string) $a['reason']) ?></td>
             <td><button class="btn primary" data-decide="<?= (int) $a['id'] ?>" data-approve="1">Excuse</button> <button class="btn" data-decide="<?= (int) $a['id'] ?>" data-approve="0">Decline</button></td></tr>
       <?php endforeach; ?>
       </tbody></table></div>

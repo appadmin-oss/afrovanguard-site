@@ -106,20 +106,23 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
 <?php endif; ?>
 <?php if ($gpExpected): ?>
             <section class="pcard" id="gp-away">
-              <div class="pcard-head"><h2>Away on a programme day?</h2></div>
+              <div class="pcard-head"><h2>Away from the programme?</h2></div>
               <div class="pcard-body">
                 <p class="pcard-note">Tell the NGV office before, or within two weeks after. An excused day counts against nothing.</p>
                 <form method="post" action="/gate-pass" class="gp-form">
                   <input type="hidden" name="csrf" value="<?= e(av_csrf_token()) ?>">
                   <input type="hidden" name="return" value="portal">
-                  <label class="ngv-sub-h" for="gpDay">The day</label>
+                  <label class="ngv-sub-h" for="gpDay">First day away</label>
                   <input class="ngv-input" type="date" id="gpDay" name="day" required value="<?= e(function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) ?>">
+                  <label class="ngv-sub-h" for="gpUntil">Last day away</label>
+                  <input class="ngv-input" type="date" id="gpUntil" name="until" aria-describedby="gpUntilHelp">
+                  <p class="pcard-note" id="gpUntilHelp">Leave it empty for one day. Up to <?= (int) GateAttendance::LEAVE_MAX_DAYS ?> days.</p>
                   <label class="ngv-sub-h" for="gpWhy">Why</label>
                   <textarea class="ngv-input" id="gpWhy" name="reason" rows="2" maxlength="300" required placeholder="Exam at school, hospital appointment…"></textarea>
                   <button class="pbtn pbtn-gold" type="submit">Send to the NGV office</button>
                 </form>
 <?php foreach ($gpAsks as $a): $st = (string) $a['status']; ?>
-                <div class="ngv-row"><div><span class="k"><?= e(date('D j M', (int) strtotime((string) $a['day'] . 'T12:00:00'))) ?></span><?= (string) $a['outcome'] !== '' ? '<span class="d">' . e((string) $a['outcome']) . '</span>' : '' ?></div>
+                <div class="ngv-row"><div><span class="k"><?= e(GateAttendance::leaveLabel($a)) ?></span><?= (string) $a['outcome'] !== '' ? '<span class="d">' . e((string) $a['outcome']) . '</span>' : '' ?></div>
                   <span class="amt"><span class="pchip pchip--<?= $st === 'approved' ? 'green' : ($st === 'declined' ? 'red' : 'gold') ?>"><?= e(['pending' => 'Waiting', 'approved' => 'Excused', 'declined' => 'Not excused'][$st] ?? $st) ?></span></span></div>
 <?php endforeach; ?>
               </div>

@@ -45,6 +45,10 @@ $myEntries = $account['entries'];
 /* Their own damage records. Read-only apart from reporting a new one: a
  * participant can say what happened, and only staff can attach money to it. */
 $myDamage  = NgvDamage::forMember($uid);
+/* Their fines, one by one, with where each stands — the same reading the
+ * fines desk gives staff. The money is the account's fines line above. */
+$myFines   = NgvFines::forMember($uid);
+$fineCat   = NgvFines::catalogue();
 /* Receipts. Derived from the payment rows, so this is not a second list that
  * can disagree with the ledger above it — it is the same rows, addressable. */
 $myReceipts = NgvLedger::receiptsFor($uid);

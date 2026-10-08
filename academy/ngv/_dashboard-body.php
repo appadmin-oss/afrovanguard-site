@@ -392,6 +392,44 @@ $ngvScript     = $ngvScript ?? true;
         </section>
 <?php endif; ?>
 
+        <!-- Fines — each one, why, and where it stands. Recorded by the NGV
+             office; paid like any other fee, from the account. -->
+<?php if ($ngvShow('fines')): ?>
+        <section class="pcard wide" id="fines">
+          <div class="pcard-head"><h2>Fines</h2>
+            <span class="pcard-sub"><?= $myFines['fines'] ? ($myFines['owing'] > 0 ? '₦' . number_format((int) $myFines['owing']) . ' still to pay' : 'nothing owing') : 'none on record' ?></span></div>
+          <div class="pcard-body">
+            <?php if (!$myFines['fines']): ?>
+              <p class="pcard-note">You have no fines. Keep it that way: arrive on time, in uniform, and look after the equipment.</p>
+            <?php else: ?>
+              <div class="ngv-rows">
+                <?php foreach ($myFines['fines'] as $fn): $fs = (string) $fn['status']; ?>
+                <div class="ngv-row">
+                  <div><span class="k"><?= $e((string) $fn['label']) ?></span><span class="d"><?= $e(date('D j M Y', (int) strtotime((string) $fn['day'] . 'T12:00:00'))) ?><?= (string) $fn['note'] !== '' ? ' · ' . $e((string) $fn['note']) : '' ?><?= $fs === 'voided' && (string) $fn['void_reason'] !== '' ? ' · cancelled: ' . $e((string) $fn['void_reason']) : '' ?></span></div>
+                  <span class="amt"><?php if ($fs === 'owing'): ?><span class="pchip pchip--red">₦<?= number_format((int) $fn['amount']) ?></span>
+                    <?php elseif ($fs === 'part'): ?><span class="pchip pchip--gold">₦<?= number_format((int) $fn['owing']) ?> of ₦<?= number_format((int) $fn['amount']) ?> left</span>
+                    <?php elseif ($fs === 'settled'): ?><span class="pchip pchip--green">Paid · ₦<?= number_format((int) $fn['amount']) ?></span>
+                    <?php elseif ($fs === 'waived'): ?><span class="pchip pchip--indigo">Waived</span>
+                    <?php else: ?><span class="pchip">Cancelled</span><?php endif; ?></span>
+                </div>
+                <?php endforeach; ?>
+              </div>
+              <?php if ($myFines['owing'] > 0): ?>
+                <p class="pcard-note" style="margin-top:12px">Pay a fine the way you pay any fee — from <a href="<?= $e($ngvAccountHref ?? '#account') ?>">your account</a>. Anything you pay comes off the oldest thing you owe first. Think a fine is wrong? Tell your track lead: it can be waived or cancelled, and the reason stays on record.</p>
+              <?php endif; ?>
+            <?php endif; ?>
+            <details style="margin-top:12px">
+              <summary class="pcard-note" style="cursor:pointer">What the programme fines for</summary>
+              <div class="ngv-rows" style="margin-top:8px">
+                <?php foreach ($fineCat as $fk => $fc): if ($fk === 'other') continue; ?>
+                <div class="ngv-row"><div><span class="k"><?= $e((string) $fc['label']) ?></span></div><span class="amt"><?= (int) $fc['amount'] > 0 ? '₦' . number_format((int) $fc['amount']) : 'assessed each time' ?></span></div>
+                <?php endforeach; ?>
+              </div>
+            </details>
+          </div>
+        </section>
+<?php endif; ?>
+
         <!-- ══ Damage ═══════════════════════════════════════════════════════
              Recording damage costs nothing, and this section says so before it
              says anything else. The natural fear on being told "damage has been
@@ -525,8 +563,9 @@ $ngvScript     = $ngvScript ?? true;
             <div class="ngv-bar"><i id="booksBar" style="width:<?= (int) round($rp['verified'] / max(1, (int) $rp['total']) * 100) ?>%"></i></div>
             <div style="font-size:12.5px;color:var(--muted)">
               <b><?= (int) $rp['verified'] ?></b> of <?= (int) $rp['total'] ?> verified.
-              Tap a number to record a book: the title, when you read it, what it argued and one thing you
-              have done because of it. Your track lead checks it before it counts.
+              Tap a number to record a book: choose it from the programme's book list, say when you read it,
+              summarise each chapter, then say what the whole book argued and one thing you have done because
+              of it. Your track lead checks it before it counts.
             </div>
             <?php if (!empty($rp['spot_pending'])): ?>
               <?php /* Says that a conversation is due. Deliberately does NOT
@@ -562,16 +601,20 @@ $ngvScript     = $ngvScript ?? true;
             <div class="bkmodal-body">
               <p class="bk-status" id="bkStatus" hidden></p>
               <div class="bk-grid">
-                <label class="bk-f bk-f--wide"><span>Title</span>
-                  <input id="bkBookTitle" maxlength="200" autocomplete="off"></label>
-                <label class="bk-f"><span>Author</span>
-                  <input id="bkAuthor" maxlength="120" autocomplete="off"></label>
+                <label class="bk-f bk-f--wide" id="bkPick"><span>Book <em>from the programme's book list</em></span>
+                  <select id="bkBook"><option value="">Choose a book…</option></select></label>
+                <p class="bk-f bk-f--wide bk-legacy" id="bkLegacy" hidden></p>
+                <p class="bk-f bk-f--wide bk-none" id="bkNone" hidden>The book list is empty for now. The NGV office adds the books — check back soon.</p>
                 <label class="bk-f"><span>Started</span>
                   <input id="bkStarted" type="date"></label>
                 <label class="bk-f"><span>Finished</span>
                   <input id="bkFinished" type="date"></label>
               </div>
-              <label class="bk-f bk-f--wide"><span>What did it argue, and did you agree?
+              <div id="bkChapters" class="bk-chapters" hidden>
+                <p class="bk-chapters-h">A summary of each chapter <em>at least <?= (int) NgvReading::MIN_CHAPTER ?> characters each — what the chapter said, in your words</em></p>
+                <div id="bkChapterList"></div>
+              </div>
+              <label class="bk-f bk-f--wide"><span>The whole book: what did it argue, and did you agree?
                 <em>at least <?= (int) NgvReading::MIN_REFLECTION ?> characters</em></span>
                 <textarea id="bkReflection" rows="8" maxlength="6000"></textarea>
                 <span class="bk-count" id="bkReflCount">0</span></label>

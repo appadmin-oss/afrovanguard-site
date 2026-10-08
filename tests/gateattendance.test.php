@@ -125,6 +125,27 @@ ck('Gate: an excuse needs a reason', !GateAttendance::requestExcuse($ada, '2026-
 ck('Gate: nobody is excused from a day the gate has them in', !GateAttendance::requestExcuse($ada, $day, 'I was ill')['ok']);
 ck('Gate: and one request per day', GateAttendance::requestExcuse($ada, '2026-10-05', 'Hospital')['ok'] && !GateAttendance::requestExcuse($ada, '2026-10-05', 'Again')['ok']);
 
+/* ── Leave: a request with a duration ────────────────────────────────────── */
+$lvDay = fn(int $n) => date('Y-m-d', strtotime((function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) . ' ' . ($n >= 0 ? '+' : '') . $n . ' days'));
+$lvMe = $gaUser('Lade Leave');
+$lv = GateAttendance::requestLeave($lvMe, $lvDay(20), $lvDay(24), 'Family travel');
+ck('Leave: a request covers every day from the first to the last', $lv['ok'] && $lv['days'] === 5
+   && (int) $gaPdo->query("SELECT COUNT(*) FROM gate_excuses WHERE member_id = {$lvMe}")->fetchColumn() === 5);
+$lvMine = GateAttendance::excusesFor($lvMe);
+ck('Leave: …and is shown as one leave with its duration', count($lvMine) === 1 && $lvMine[0]['from'] === $lvDay(20) && $lvMine[0]['to'] === $lvDay(24)
+   && (int) $lvMine[0]['days'] === 5 && str_contains(GateAttendance::leaveLabel($lvMine[0]), '5 days'));
+$lvWait = array_values(array_filter(GateAttendance::pendingExcuses(), fn($x) => (int) $x['member_id'] === $lvMe));
+ck('Leave: staff see it once, with its days', count($lvWait) === 1 && (int) $lvWait[0]['days'] === 5);
+ck('Leave: an overlapping request is refused, and writes nothing', !GateAttendance::requestLeave($lvMe, $lvDay(23), $lvDay(26), 'More travel')['ok']
+   && (int) $gaPdo->query("SELECT COUNT(*) FROM gate_excuses WHERE member_id = {$lvMe}")->fetchColumn() === 5);
+ck('Leave: the last day cannot come before the first', !GateAttendance::requestLeave($lvMe, $lvDay(40), $lvDay(39), 'Backwards')['ok']);
+ck('Leave: a leave longer than the limit is refused', !GateAttendance::requestLeave($lvMe, $lvDay(30), $lvDay(30 + GateAttendance::LEAVE_MAX_DAYS), 'Long trip')['ok']);
+ck('Leave: an empty last day is a single day', GateAttendance::requestLeave($lvMe, $lvDay(50), '', 'Clinic')['ok']
+   && GateAttendance::leaveLabel(GateAttendance::excusesFor($lvMe)[0]) === date('D j M', strtotime($lvDay(50) . 'T12:00:00')));
+$dec = GateAttendance::decideExcuse((int) $lvWait[0]['id'], true, 'Safe travels', 1);
+ck('Leave: deciding it decides every day in it', $dec['ok'] && $dec['days'] === 5
+   && (int) $gaPdo->query("SELECT COUNT(*) FROM gate_excuses WHERE member_id = {$lvMe} AND status = 'approved'")->fetchColumn() === 5);
+
 /* ── What the member sees ────────────────────────────────────────────────── */
 ck('Gate: grades are the spreadsheet’s', GateAttendance::grade(96) === 'A+' && GateAttendance::grade(85) === 'A' && GateAttendance::grade(70) === 'C' && GateAttendance::grade(10) === 'F');
 $sum = GateAttendance::summary($chi, 3650);

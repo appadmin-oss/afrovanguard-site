@@ -70,7 +70,10 @@ final class GateAttendance
             issued_by  INTEGER NOT NULL DEFAULT 0,
             created_at VARCHAR(32) NOT NULL DEFAULT ''
         )");
-        Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS gate_excuses (
+        /* One row per day away, so the sweep and the unique index keep asking
+           one question of one day. A leave of several days is those rows
+           sharing a leave_key — asked for, shown and decided as one. */
+        $excusesDdl = "CREATE TABLE IF NOT EXISTS gate_excuses (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             member_id   INTEGER NOT NULL,
             day         VARCHAR(10) NOT NULL,
@@ -79,8 +82,12 @@ final class GateAttendance
             decided_by  INTEGER NOT NULL DEFAULT 0,
             decided_at  VARCHAR(32) NOT NULL DEFAULT '',
             outcome     VARCHAR(300) NOT NULL DEFAULT '',
-            created_at  VARCHAR(32) NOT NULL DEFAULT ''
-        )");
+            created_at  VARCHAR(32) NOT NULL DEFAULT '',
+            leave_key   VARCHAR(40) NOT NULL DEFAULT ''
+        )";
+        Database::execSchema($pdo, $excusesDdl);
+        /* A table made before leave had a duration has no leave_key yet. */
+        Database::syncTablesFromDdl($pdo, $excusesDdl . ';', null, 'gate');
         Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS gate_probation (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             member_id  INTEGER NOT NULL,
@@ -493,21 +500,96 @@ final class GateAttendance
         return $st->fetch() ?: null;
     }
 
-    /** A member says they will be, or were, away. A message, never a decision. */
+    /** The longest leave a member can ask for in one request. Longer than this
+     *  is a conversation with the NGV office, not a form. */
+    public const LEAVE_MAX_DAYS = 31;
+
+    /** A member says they will be, or were, away for one day. */
     public static function requestExcuse(int $memberId, string $day, string $reason): array
+    {
+        return self::requestLeave($memberId, $day, $day, $reason);
+    }
+
+    /**
+     * A member asks for leave: from one day to another, both included. A
+     * message, never a decision. Every day in the range is checked before any
+     * is written, so a leave is asked for whole or not at all.
+     */
+    public static function requestLeave(int $memberId, string $from, string $to, string $reason): array
     {
         self::ensure();
         $reason = trim($reason);
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) || strtotime($day) === false) return ['ok' => false, 'error' => 'Choose the day.'];
+        $to = trim($to) === '' ? $from : $to;
+        foreach ([$from, $to] as $d) {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) || strtotime($d) === false) return ['ok' => false, 'error' => 'Choose the day.'];
+        }
+        if ($to < $from) return ['ok' => false, 'error' => 'The last day comes before the first.'];
         if (mb_strlen($reason) < 3) return ['ok' => false, 'error' => 'Say why, in a few words.'];
-        if ($day < date('Y-m-d', strtotime(self::today() . ' -14 days'))) return ['ok' => false, 'error' => 'That day is more than two weeks ago. Speak to the NGV office.'];
-        if ($day > date('Y-m-d', strtotime(self::today() . ' +90 days'))) return ['ok' => false, 'error' => 'That is too far ahead.'];
-        $row = self::row($memberId, $day);
-        if ($row && in_array((string) $row['status'], ['present', 'late'], true)) return ['ok' => false, 'error' => 'The gate has you in that day.'];
-        if (self::excuse($memberId, $day)) return ['ok' => false, 'error' => 'You have already asked about that day.'];
-        Database::pdo()->prepare('INSERT INTO gate_excuses (member_id, day, reason, status, created_at) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$memberId, $day, mb_substr($reason, 0, 300), 'pending', self::now()]);
-        return ['ok' => true];
+        if ($from < date('Y-m-d', strtotime(self::today() . ' -14 days'))) return ['ok' => false, 'error' => 'That day is more than two weeks ago. Speak to the NGV office.'];
+        if ($to > date('Y-m-d', strtotime(self::today() . ' +90 days'))) return ['ok' => false, 'error' => 'That is too far ahead.'];
+        $days = self::daysBetween($from, $to);
+        if (count($days) > self::LEAVE_MAX_DAYS) return ['ok' => false, 'error' => 'That is more than ' . self::LEAVE_MAX_DAYS . ' days. Speak to the NGV office.'];
+        foreach ($days as $day) {
+            $row = self::row($memberId, $day);
+            if ($row && in_array((string) $row['status'], ['present', 'late'], true)) return ['ok' => false, 'error' => 'The gate has you in on ' . self::dayLabel($day) . '.'];
+            if (self::excuse($memberId, $day)) return ['ok' => false, 'error' => count($days) === 1 ? 'You have already asked about that day.' : 'You have already asked about ' . self::dayLabel($day) . '.'];
+        }
+        $key = count($days) > 1 ? 'lv' . bin2hex(random_bytes(8)) : '';
+        $pdo = Database::pdo();
+        $ins = $pdo->prepare('INSERT INTO gate_excuses (member_id, day, reason, status, created_at, leave_key) VALUES (?, ?, ?, ?, ?, ?)');
+        $pdo->beginTransaction();
+        try {
+            foreach ($days as $day) $ins->execute([$memberId, $day, mb_substr($reason, 0, 300), 'pending', self::now(), $key]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            return ['ok' => false, 'error' => 'That could not be saved. Try again.'];
+        }
+        return ['ok' => true, 'days' => count($days)];
+    }
+
+    /** Every date from $from to $to, both included. */
+    private static function daysBetween(string $from, string $to): array
+    {
+        $out = [];
+        for ($d = $from; $d <= $to && count($out) <= self::LEAVE_MAX_DAYS; $d = date('Y-m-d', strtotime($d . ' +1 day'))) $out[] = $d;
+        return $out;
+    }
+
+    private static function dayLabel(string $day): string
+    {
+        return date('D j M', (int) strtotime($day . 'T12:00:00'));
+    }
+
+    /**
+     * Rows of gate_excuses as leaves: one entry per request, with its first
+     * and last day and how long it is. A one-day excuse is a leave of one day.
+     * Rows arrive in any order; each leave keeps the id of its first day, which
+     * is the id a decision is made on.
+     */
+    public static function asLeaves(array $rows): array
+    {
+        $by = [];
+        foreach ($rows as $r) {
+            $k = (string) ($r['leave_key'] ?? '') !== '' ? 'k:' . $r['leave_key'] : 'i:' . $r['id'];
+            if (!isset($by[$k])) { $by[$k] = $r + ['from' => (string) $r['day'], 'to' => (string) $r['day'], 'days' => 0]; }
+            $L = &$by[$k];
+            $L['days']++;
+            if ((string) $r['day'] < $L['from']) { $L['from'] = (string) $r['day']; $L['id'] = $r['id']; }
+            if ((string) $r['day'] > $L['to']) $L['to'] = (string) $r['day'];
+            unset($L);
+        }
+        return array_values($by);
+    }
+
+    /** "Mon 6 Oct", or "Mon 6 Oct – Fri 10 Oct · 5 days". */
+    public static function leaveLabel(array $leave): string
+    {
+        $from = (string) ($leave['from'] ?? $leave['day'] ?? '');
+        $to = (string) ($leave['to'] ?? $from);
+        if ($to === $from) return self::dayLabel($from);
+        $n = (int) ($leave['days'] ?? count(self::daysBetween($from, $to)));
+        return self::dayLabel($from) . ' – ' . self::dayLabel($to) . ' · ' . $n . ' days';
     }
 
     /** Staff decide. Approving excuses the day and voids an absence fine on it; declining charges one that was held back. */
@@ -520,18 +602,29 @@ final class GateAttendance
         $ex = $st->fetch();
         if (!$ex) return ['ok' => false, 'error' => 'No such request.'];
         if ((string) $ex['status'] !== 'pending') return ['ok' => false, 'error' => 'That request has already been decided.'];
-        $pdo->prepare('UPDATE gate_excuses SET status = ?, decided_by = ?, decided_at = ?, outcome = ? WHERE id = ?')
-            ->execute([$approve ? 'approved' : 'declined', $by, self::now(), mb_substr(trim($outcome), 0, 300), $id]);
-        $mid = (int) $ex['member_id']; $day = (string) $ex['day'];
-        $row = self::row($mid, $day);
-        if ($approve && $row && (string) $row['status'] === 'absent') {
-            if ((int) $row['fine_id'] > 0) self::voidFine((int) $row['fine_id'], 'Day excused.');
-            $pdo->prepare("UPDATE gate_attendance SET status = 'excused', fine_id = 0, note = 'Excused', updated_at = ? WHERE id = ?")->execute([self::now(), $row['id']]);
-        } elseif (!$approve && $row && (string) $row['status'] === 'absent' && (int) $row['fine_id'] === 0) {
-            self::fineAbsent($mid, $day);
+        /* A leave is decided whole: every day still waiting in it. */
+        $rows = [$ex];
+        if ((string) ($ex['leave_key'] ?? '') !== '') {
+            $st = $pdo->prepare("SELECT * FROM gate_excuses WHERE member_id = ? AND leave_key = ? AND status = 'pending' ORDER BY day");
+            $st->execute([(int) $ex['member_id'], (string) $ex['leave_key']]);
+            $rows = $st->fetchAll() ?: [$ex];
         }
-        self::audit('gate.excuse', $mid, ($approve ? 'Excused ' : 'Declined excuse for ') . $day);
-        return ['ok' => true];
+        $mid = (int) $ex['member_id'];
+        $upd = $pdo->prepare('UPDATE gate_excuses SET status = ?, decided_by = ?, decided_at = ?, outcome = ? WHERE id = ?');
+        foreach ($rows as $r) {
+            $upd->execute([$approve ? 'approved' : 'declined', $by, self::now(), mb_substr(trim($outcome), 0, 300), $r['id']]);
+            $day = (string) $r['day'];
+            $row = self::row($mid, $day);
+            if ($approve && $row && (string) $row['status'] === 'absent') {
+                if ((int) $row['fine_id'] > 0) self::voidFine((int) $row['fine_id'], 'Day excused.');
+                $pdo->prepare("UPDATE gate_attendance SET status = 'excused', fine_id = 0, note = 'Excused', updated_at = ? WHERE id = ?")->execute([self::now(), $row['id']]);
+            } elseif (!$approve && $row && (string) $row['status'] === 'absent' && (int) $row['fine_id'] === 0) {
+                self::fineAbsent($mid, $day);
+            }
+        }
+        $what = self::leaveLabel(self::asLeaves($rows)[0]);
+        self::audit('gate.excuse', $mid, ($approve ? 'Excused ' : 'Declined excuse for ') . $what);
+        return ['ok' => true, 'days' => count($rows)];
     }
 
     /** Staff excuse a day directly, for a member who told them in person. */
@@ -546,18 +639,24 @@ final class GateAttendance
         return (string) $ex['status'] === 'pending' ? self::decideExcuse((int) $ex['id'], true, $why, $by) : ['ok' => true, 'already' => true];
     }
 
+    /** A member's recent requests, as leaves — newest first. */
     public static function excusesFor(int $memberId): array
     {
         self::ensure();
-        $st = Database::pdo()->prepare('SELECT * FROM gate_excuses WHERE member_id = ? ORDER BY day DESC LIMIT 30');
+        $st = Database::pdo()->prepare('SELECT * FROM gate_excuses WHERE member_id = ? ORDER BY day DESC LIMIT 200');
         $st->execute([$memberId]);
-        return $st->fetchAll();
+        $leaves = self::asLeaves($st->fetchAll());
+        usort($leaves, fn($a, $b) => strcmp((string) $b['from'], (string) $a['from']));
+        return array_slice($leaves, 0, 30);
     }
 
+    /** Requests waiting for staff, as leaves — the soonest first. */
     public static function pendingExcuses(): array
     {
         self::ensure();
-        return Database::pdo()->query("SELECT e.*, u.name FROM gate_excuses e LEFT JOIN lms_users u ON u.id = e.member_id WHERE e.status = 'pending' ORDER BY e.day LIMIT 200")->fetchAll();
+        $leaves = self::asLeaves(Database::pdo()->query("SELECT e.*, u.name FROM gate_excuses e LEFT JOIN lms_users u ON u.id = e.member_id WHERE e.status = 'pending' ORDER BY e.day LIMIT 1000")->fetchAll());
+        usort($leaves, fn($a, $b) => strcmp((string) $a['from'], (string) $b['from']));
+        return array_slice($leaves, 0, 200);
     }
 
     /* ══ Probation ═══════════════════════════════════════════════════════════ */

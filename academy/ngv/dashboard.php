@@ -111,8 +111,16 @@ if ($method === 'POST') {
     if ($bkAct === 'get') {
         $slot = (int) ($in['slot'] ?? 0);
         $c = NgvReading::claim($uid, $slot);
-        json_out(['ok' => true, 'claim' => $c, 'min' => NgvReading::MIN_REFLECTION,
-                  'minTake' => NgvReading::MIN_TAKEAWAY]);
+        /* The books they may choose: the list, plus the one this claim already
+           names if it has since been retired. */
+        $books = array_map(static fn($b) => ['id' => $b['id'], 'title' => $b['title'], 'author' => $b['author'],
+                                             'chapters' => $b['chapters'], 'note' => $b['note']], NgvReading::books());
+        if ($c && (int) $c['book_id'] > 0 && !in_array((int) $c['book_id'], array_column($books, 'id'), true)
+            && ($old = NgvReading::book((int) $c['book_id']))) {
+            $books[] = ['id' => $old['id'], 'title' => $old['title'], 'author' => $old['author'], 'chapters' => $old['chapters'], 'note' => $old['note']];
+        }
+        json_out(['ok' => true, 'claim' => $c, 'books' => $books, 'min' => NgvReading::MIN_REFLECTION,
+                  'minTake' => NgvReading::MIN_TAKEAWAY, 'minChapter' => NgvReading::MIN_CHAPTER]);
     }
 
     $patch = [];

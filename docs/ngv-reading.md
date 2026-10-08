@@ -46,6 +46,27 @@ Rows that carried ticks from the old system keep them — they are not evidence,
 but deleting somebody's record is worse than an honest note, so the dashboard
 shows one saying those ticks predate verification.
 
+## The book list, and chapter summaries
+
+Admins prepare the books at **`/academy/ngv/books.php`**: title, author and
+the number of chapters (1–80). A vanguard chooses from that list — there is no
+title to type — and a claim takes its title and author from the list.
+
+A claim carries **a summary of every chapter** (at least `MIN_CHAPTER`, 80
+characters each, in `chapter_notes` as a JSON list) **and** the reflection and
+takeaway on the whole book. Submitting names the first chapter that is short.
+
+- A claim keeps the chapter count it was started with (`ngv_book_claims.chapters`),
+  so correcting a book's count reshapes new claims, not one half written.
+- A book is **retired**, never deleted: it leaves the list for new claims and
+  every claim already on it keeps it.
+- One book cannot fill two slots for the same vanguard (a rejected claim aside).
+- Claims recorded before the list (`book_id` 0 with a title) keep the book
+  they named and can still be put right in their own words.
+- With everybody reading from one list, the likely copy is a chapter summary:
+  a summary in the same words as another claim on the same book is flagged
+  (`same-chapter-summary-as-another-participant`).
+
 ## The lifecycle
 
 ```
@@ -106,10 +127,12 @@ than no signal.
   (empty / draft / with your track lead / sent back / verified) and opens the
   claim sheet. There is no verdict control anywhere on the member side; a test
   asserts the page never calls `review()`.
+- **`academy/ngv/books.php`** — the book list (admins). Add, correct, retire.
 - **`academy/ngv/members.php`** — "Books to check". Flagged claims sort first
   with a red edge and their reasons spelled out; each shows the full
   reflection, the takeaway, a required note field and Verify / Send back /
-  Reject.
+  Reject. A claim on a listed book shows its chapter summaries, numbered,
+  before the reflection on the whole book.
 
 Verdicts email the participant (`notify()`) and write to `AdminAudit`.
 
@@ -155,7 +178,8 @@ records what happened; a person decides what it means.
 
 ## Schema
 
-`ngv_book_claims` and `ngv_book_spot_checks`, in the NGV database.
+`ngv_books`, `ngv_book_claims` and `ngv_book_spot_checks`, in the NGV database.
+A claim names its book by `book_id`, with `chapters` and `chapter_notes`.
 `ngv_book_claims` is `UNIQUE(member_id, slot)`, `ngv_book_spot_checks` is
 `UNIQUE(member_id, milestone)` so a milestone cannot open twice. Beyond the
 claim fields: `fingerprint`, `flags`, `typed_ms`, `paste_count`, `reviewed_by`,

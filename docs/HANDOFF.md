@@ -251,3 +251,26 @@ NEVER commit api/config.php; camera Permissions-Policy is camera=(self) in
 - **`/q/AVQR-…`**: a stranger sees the first name and the public standing; the holder sees their standing and the gate's verdict; NGV staff (admin/superadmin, or coordinator and above) see the full record and can print the card (only the card prints). A replaced card says so (410); an unknown code says only that (404), and only failures are rate-limited.
 - Portal → Attendance & pass shows the card with the live standing. The Studio member drawer links each secure card to its page.
 - Tests: `tests/ngvcard.test.php` (27 checks). Note the default probation rule: an empty `gate.probation_levels` means level O, so a member never promoted past O shows "On probation" — that is the policy, not a card bug.
+
+## NGV fines on the page, leave with a duration, and the book list (2026-10)
+
+- **Fines.** The public page `/academy/ngv/` has a **Fines** section: the
+  reasons and usual amounts read from the fines desk's own catalogue
+  (`NgvFines::catalogue()`), and how a fine is seen, paid and questioned
+  (`fines_enabled` in `lib/Ngv.php`). Each vanguard's portal has a **Fines** view
+  (`#ngv-fines`, card `fines` in `_dashboard-body.php`) from
+  `NgvFines::forMember()` — the desk's own standing, narrowed to them. The fine
+  notice now links there. Recording stays on the admin-only fines desk
+  (`academy/ngv/fines.php`), linked from the page's admin bar.
+- **Leave has a duration.** `GateAttendance::requestLeave($member, $from, $to, $why)`:
+  up to `LEAVE_MAX_DAYS` (31), every day checked before any is written. Still
+  one `gate_excuses` row per day (the sweep and the unique index are unchanged),
+  grouped by a new `leave_key` column and shown and decided as one leave
+  (`asLeaves()`, `leaveLabel()` — "Mon 6 Oct – Fri 10 Oct · 5 days"). Forms:
+  the portal's Attendance view and `/gate-pass` ask for a first and last day;
+  the staff desk shows the days and decides the whole leave.
+- **Books are prepared by admins.** `/academy/ngv/books.php` keeps `ngv_books`
+  (title, author, chapters). Vanguards choose from it and write a summary of
+  each chapter plus the whole-book reflection — see `docs/ngv-reading.md`.
+- Tests: `tests/gateattendance.test.php` (Leave:), `tests/ngvreading.test.php`
+  (book list:), `tests/ngvfines.test.php` (a vanguard's own fines).

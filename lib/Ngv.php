@@ -143,6 +143,9 @@ final class Ngv
                 'Global internship access', 'International certification tracks',
             ],
 
+            /* Fines: the reasons and usual amounts come from the fines desk
+               (lib/NgvFines.php), so only whether the section shows is here. */
+            'fines_enabled' => true,
             'fees_enabled' => true,
             'fees_title'   => 'Simple, purposeful commitment',
             'fees' => [

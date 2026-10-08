@@ -147,10 +147,16 @@ details[open]>.pcard-summary::after{transform:rotate(-90deg)}
 .bk-f--wide{grid-column:1/-1}
 .bk-f>span{font-size:12px;font-weight:800;color:var(--ink)}
 .bk-f em{font-style:normal;font-weight:600;color:var(--muted)}
-.bk-f input,.bk-f textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;
+.bk-f input,.bk-f textarea,.bk-f select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;
   background:var(--bg);color:var(--ink);font:inherit;min-height:44px}
 .bk-f textarea{min-height:110px;resize:vertical;line-height:1.55}
-.bk-f input:focus,.bk-f textarea:focus{outline:3px solid var(--gold);outline-offset:1px}
+.bk-f input:focus,.bk-f textarea:focus,.bk-f select:focus{outline:3px solid var(--gold);outline-offset:1px}
+.bk-legacy,.bk-none{margin:0;font-size:13px;line-height:1.5;padding:10px 12px;border-radius:9px;background:var(--surface-2);color:var(--body)}
+.bk-chapters{display:flex;flex-direction:column;gap:22px;padding:14px;border:1px solid var(--border);border-radius:12px}
+.bk-chapters-h{margin:0;font-size:12px;font-weight:800;color:var(--ink)}
+.bk-chapters-h em{display:block;font-style:normal;font-weight:600;color:var(--muted)}
+#bkChapterList{display:flex;flex-direction:column;gap:22px}
+#bkChapterList textarea{min-height:80px}
 .bk-count{position:absolute;right:2px;bottom:-16px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .bk-count.short{color:var(--red);font-weight:700}
 .bk-err{margin:0;font-size:13px;font-weight:700;color:var(--red);background:rgba(220,38,38,.10);

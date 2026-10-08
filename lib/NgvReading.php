@@ -65,6 +65,16 @@ final class NgvReading
      *  the field a reviewer can ask about out loud. */
     public const MIN_TAKEAWAY = 60;
 
+    /** A summary for each chapter, as well as the reflection on the whole
+     *  book. A few sentences: what the chapter said. Short enough that a long
+     *  book is not a punishment, long enough that it cannot be written from
+     *  the chapter's title. */
+    public const MIN_CHAPTER = 80;
+    private const MAX_CHAPTER = 1500;
+
+    /** The most chapters a book on the list may have. */
+    public const MAX_CHAPTERS = 80;
+
     /** Nobody finishes more than this many books in seven days honestly. It is
      *  a FLAG, not a block: a genuine fast reader on holiday exists, and the
      *  reviewer should see the claim and decide. */
@@ -128,8 +138,23 @@ CREATE TABLE IF NOT EXISTS ngv_book_claims (
   review_note  TEXT NOT NULL DEFAULT '',
   submitted_at TEXT NOT NULL DEFAULT '',
   created_at   TEXT NOT NULL DEFAULT '',
-  updated_at   TEXT NOT NULL DEFAULT ''
+  updated_at   TEXT NOT NULL DEFAULT '',
+  book_id      INTEGER NOT NULL DEFAULT 0,
+  chapters     INTEGER NOT NULL DEFAULT 0,
+  chapter_notes TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS ngv_books (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  title       VARCHAR(200) NOT NULL DEFAULT '',
+  author      VARCHAR(120) NOT NULL DEFAULT '',
+  chapters    INTEGER NOT NULL DEFAULT 0,
+  note        VARCHAR(300) NOT NULL DEFAULT '',
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_by  INTEGER NOT NULL DEFAULT 0,
+  created_at  VARCHAR(32) NOT NULL DEFAULT '',
+  updated_at  VARCHAR(32) NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_books_active ON ngv_books (active, title);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_claim_slot ON ngv_book_claims (member_id, slot);
 CREATE INDEX IF NOT EXISTS idx_claim_status ON ngv_book_claims (status, id);
 CREATE INDEX IF NOT EXISTS idx_claim_print ON ngv_book_claims (fingerprint);
@@ -185,6 +210,111 @@ SQL;
         return mb_strlen(trim((string) preg_replace('/\s+/u', ' ', $s)));
     }
 
+    /* ── the book list ─────────────────────────────────────────────────────
+     *
+     * Admins prepare the books: title, author and how many chapters. A
+     * vanguard chooses from the list rather than typing a title, so every
+     * claim names a real book on the programme, a reviewer knows what the
+     * book is, and a chapter summary can be asked for chapter by chapter.
+     * A book is retired, never deleted — claims already made on it keep it.
+     */
+
+    /** The books on the list. Active ones only, unless $all. */
+    public static function books(bool $all = false): array
+    {
+        self::ensure();
+        try {
+            $rows = NgvDb::pdo()->query('SELECT * FROM ngv_books' . ($all ? '' : ' WHERE active = 1') . ' ORDER BY active DESC, title, id')
+                ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) { error_log('[ngvreading] books: ' . $e->getMessage()); return []; }
+        return array_map(static function (array $b): array {
+            foreach (['id', 'chapters', 'active', 'created_by'] as $k) $b[$k] = (int) ($b[$k] ?? 0);
+            return $b;
+        }, $rows);
+    }
+
+    public static function book(int $id): ?array
+    {
+        if ($id <= 0) return null;
+        self::ensure();
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT * FROM ngv_books WHERE id = ?');
+            $st->execute([$id]);
+            $b = $st->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { return null; }
+        if (!$b) return null;
+        foreach (['id', 'chapters', 'active', 'created_by'] as $k) $b[$k] = (int) ($b[$k] ?? 0);
+        return $b;
+    }
+
+    /** How many claims name a book — the list shows it, and it decides what an edit may change. */
+    public static function bookUse(int $id): int
+    {
+        try {
+            $st = NgvDb::pdo()->prepare('SELECT COUNT(*) FROM ngv_book_claims WHERE book_id = ?');
+            $st->execute([$id]);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /**
+     * Add a book to the list, or correct one ($in['id']). A claim keeps the
+     * chapter count it was made with, so correcting the count changes what
+     * new claims ask for and leaves a summary somebody has written alone.
+     */
+    public static function saveBook(array $in, int $by): array
+    {
+        self::ensure();
+        $id       = (int) ($in['id'] ?? 0);
+        $title    = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) ($in['title'] ?? '')) ?? ''), 0, 200);
+        $author   = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) ($in['author'] ?? '')) ?? ''), 0, 120);
+        $chapters = (int) ($in['chapters'] ?? 0);
+        $note     = mb_substr(trim((string) ($in['note'] ?? '')), 0, 300);
+        if ($title === '') return ['ok' => false, 'error' => 'Give the book its title.'];
+        if ($author === '') return ['ok' => false, 'error' => 'Who wrote it?'];
+        if ($chapters < 1 || $chapters > self::MAX_CHAPTERS) return ['ok' => false, 'error' => 'How many chapters? Between 1 and ' . self::MAX_CHAPTERS . '.'];
+        $pdo = NgvDb::pdo();
+        $st = $pdo->prepare('SELECT id FROM ngv_books WHERE LOWER(title) = ? AND LOWER(author) = ? AND id <> ?');
+        $st->execute([mb_strtolower($title), mb_strtolower($author), $id]);
+        if ($st->fetchColumn()) return ['ok' => false, 'error' => 'That book is already on the list.'];
+        try {
+            if ($id > 0) {
+                if (!self::book($id)) return ['ok' => false, 'error' => 'No such book.'];
+                $pdo->prepare('UPDATE ngv_books SET title = ?, author = ?, chapters = ?, note = ?, updated_at = ? WHERE id = ?')
+                    ->execute([$title, $author, $chapters, $note, self::now(), $id]);
+                self::audit('ngv_book_list_edit', 0, 'Book list: ' . $title . ' — ' . $chapters . ' chapters');
+            } else {
+                $pdo->prepare('INSERT INTO ngv_books (title, author, chapters, note, active, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)')
+                    ->execute([$title, $author, $chapters, $note, $by, self::now(), self::now()]);
+                $id = (int) $pdo->lastInsertId();
+                self::audit('ngv_book_list_add', 0, 'Book list: added ' . $title . ' — ' . $chapters . ' chapters');
+            }
+        } catch (Throwable $e) {
+            error_log('[ngvreading] saveBook: ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Could not save that book.'];
+        }
+        return ['ok' => true, 'book' => self::book($id)];
+    }
+
+    /** Take a book off the list for new claims, or put it back. */
+    public static function setBookActive(int $id, bool $active): array
+    {
+        $b = self::book($id);
+        if (!$b) return ['ok' => false, 'error' => 'No such book.'];
+        NgvDb::pdo()->prepare('UPDATE ngv_books SET active = ?, updated_at = ? WHERE id = ?')->execute([$active ? 1 : 0, self::now(), $id]);
+        self::audit($active ? 'ngv_book_list_restore' : 'ngv_book_list_retire', 0, 'Book list: ' . ($active ? 'restored ' : 'retired ') . $b['title']);
+        return ['ok' => true];
+    }
+
+    /** The chapter summaries as sent: one string per chapter, trimmed and cut to length. */
+    private static function chapterNotes($raw, int $chapters): array
+    {
+        $raw = is_array($raw) ? array_values($raw) : [];
+        $out = [];
+        for ($i = 0; $i < $chapters; $i++) $out[] = mb_substr(trim((string) (is_scalar($raw[$i] ?? null) ? $raw[$i] : '')), 0, self::MAX_CHAPTER);
+        return $out;
+    }
+
     /* ── making a claim ──────────────────────────────────────────────────── */
 
     /**
@@ -209,15 +339,36 @@ SQL;
                 : 'This one is with your track lead. You will be able to edit it if they send it back.'];
         }
 
-        $title    = mb_substr(trim((string) ($in['title'] ?? '')), 0, 200);
-        $author   = mb_substr(trim((string) ($in['author'] ?? '')), 0, 120);
+        /* The book comes from the list. A claim made before there was a list
+           names its book in its own words, and keeps doing so — nobody is made
+           to re-record a book they already wrote about. */
+        $legacy = $have && (int) ($have['book_id'] ?? 0) === 0 && trim((string) $have['title']) !== '';
+        $bookId = (int) ($in['book_id'] ?? 0);
+        $chapters = 0;
+        if ($legacy && $bookId === 0) {
+            $title  = mb_substr(trim((string) ($in['title'] ?? '')), 0, 200);
+            $author = mb_substr(trim((string) ($in['author'] ?? '')), 0, 120);
+        } else {
+            $book = self::book($bookId);
+            $same = $have && (int) ($have['book_id'] ?? 0) === $bookId;
+            if (!$book || (!$book['active'] && !$same)) return ['ok' => false, 'error' => 'Choose the book from the list.'];
+            $st = NgvDb::pdo()->prepare("SELECT slot FROM ngv_book_claims WHERE member_id = ? AND book_id = ? AND slot <> ? AND status <> 'rejected' LIMIT 1");
+            $st->execute([$memberId, $bookId, $slot]);
+            $other = $st->fetchColumn();
+            if ($other !== false) return ['ok' => false, 'error' => 'You have that book as book ' . (int) $other . ' already. Choose another.'];
+            $title = (string) $book['title']; $author = (string) $book['author'];
+            /* The count the claim was started with stands, so a corrected list
+               does not reshape a summary half written. */
+            $chapters = $same && (int) $have['chapters'] > 0 ? (int) $have['chapters'] : (int) $book['chapters'];
+        }
+        $notes    = self::chapterNotes($in['chapter_notes'] ?? [], $chapters);
         $started  = self::date((string) ($in['started_on'] ?? ''));
         $finished = self::date((string) ($in['finished_on'] ?? ''));
         $refl     = mb_substr(trim((string) ($in['reflection'] ?? '')), 0, self::MAX_REFLECTION);
         $take     = mb_substr(trim((string) ($in['takeaway'] ?? '')), 0, 600);
 
         if ($submit) {
-            $why = self::whyNotReady($title, $author, $started, $finished, $refl, $take);
+            $why = self::whyNotReady($title, $author, $started, $finished, $refl, $take, $notes);
             if ($why !== '') return ['ok' => false, 'error' => $why];
         }
 
@@ -226,6 +377,9 @@ SQL;
             'slot'        => $slot,
             'title'       => $title,
             'author'      => $author,
+            'book_id'     => $legacy && $bookId === 0 ? 0 : $bookId,
+            'chapters'    => $chapters,
+            'chapter_notes' => $chapters > 0 ? (string) json_encode($notes, JSON_UNESCAPED_UNICODE) : '',
             'started_on'  => $started,
             'finished_on' => $finished,
             'reflection'  => $refl,
@@ -266,13 +420,20 @@ SQL;
     }
 
     /** Why this claim is not ready to submit — '' when it is. */
-    public static function whyNotReady(string $title, string $author, string $started, string $finished, string $refl, string $take): string
+    public static function whyNotReady(string $title, string $author, string $started, string $finished, string $refl, string $take, array $chapterNotes = []): string
     {
         if ($title === '')  return 'Which book? Put the title in.';
         if ($author === '') return 'Who wrote it?';
         if ($started === '' || $finished === '') return 'When did you start it, and when did you finish?';
         if ($finished < $started) return 'You have finished it before you started it — check those dates.';
         if ($finished > self::today()) return 'You cannot finish a book in the future.';
+        foreach (array_values($chapterNotes) as $i => $n) {
+            $c = self::substance((string) $n);
+            if ($c < self::MIN_CHAPTER) {
+                return 'Your summary of chapter ' . ($i + 1) . ' is ' . $c . ' characters. Each chapter needs at least '
+                     . self::MIN_CHAPTER . ' — what the chapter said, in your words.';
+            }
+        }
         $r = self::substance($refl);
         if ($r < self::MIN_REFLECTION) {
             return 'Your reflection is ' . $r . ' characters. We need at least ' . self::MIN_REFLECTION
@@ -320,6 +481,26 @@ SQL;
             } catch (Throwable $e) { error_log('[ngvreading] dupe: ' . $e->getMessage()); }
         }
 
+        /* 1b. A chapter summary in the same words as somebody else's summary of
+               the same book. Everybody reads from one list now, so this is
+               the copy that is easiest to make. */
+        if ((int) ($c['book_id'] ?? 0) > 0 && $c['chapter_notes_list']) {
+            $mine = array_filter(array_map([self::class, 'fingerprint'], $c['chapter_notes_list']));
+            if ($mine) {
+                try {
+                    $st = NgvDb::pdo()->prepare("SELECT member_id, chapter_notes FROM ngv_book_claims WHERE book_id = ? AND id <> ? AND status <> 'draft'");
+                    $st->execute([(int) $c['book_id'], $claimId]);
+                    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $o) {
+                        $theirs = array_map([self::class, 'fingerprint'], (array) (json_decode((string) $o['chapter_notes'], true) ?: []));
+                        if (array_intersect($mine, array_filter($theirs))) {
+                            $flags[] = (int) $o['member_id'] === (int) $c['member_id'] ? 'same-chapter-summary-as-own' : 'same-chapter-summary-as-another-participant';
+                            break;
+                        }
+                    }
+                } catch (Throwable $e) { error_log('[ngvreading] chapter dupe: ' . $e->getMessage()); }
+            }
+        }
+
         /* 2. Read in a day, or finished before they joined the programme. */
         $s = (string) $c['started_on']; $f = (string) $c['finished_on'];
         if ($s !== '' && $f !== '') {
@@ -364,6 +545,8 @@ SQL;
     {
         $map = [
             'same-words-as-another-participant' => 'The same reflection as another participant — check both.',
+            'same-chapter-summary-as-another-participant' => 'A chapter summary in the same words as another participant’s — check both.',
+            'same-chapter-summary-as-own'       => 'A chapter summary they have used before.',
             'started-and-finished-same-day'     => 'Started and finished on the same day.',
             'finished-before-they-enrolled'     => 'Finished before they joined the programme.',
             'more-than-four-in-a-week'          => 'More than four books finished in one week.',
@@ -552,6 +735,9 @@ SQL;
     {
         foreach (['id', 'member_id', 'slot', 'typed_ms', 'paste_count', 'reviewed_by'] as $k) $r[$k] = (int) ($r[$k] ?? 0);
         $r['flags_list'] = array_values(array_filter(explode(',', (string) ($r['flags'] ?? ''))));
+        foreach (['book_id', 'chapters'] as $k) $r[$k] = (int) ($r[$k] ?? 0);
+        $notes = json_decode((string) ($r['chapter_notes'] ?? ''), true);
+        $r['chapter_notes_list'] = is_array($notes) ? array_values(array_map('strval', $notes)) : [];
         $r['reflection_len'] = self::substance((string) ($r['reflection'] ?? ''));
         return $r;
     }

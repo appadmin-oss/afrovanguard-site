@@ -77,6 +77,9 @@ $hero = $c['hero'] ?? [];
     <span>✏️ <b>Admin</b> — every part of this page is editable.</span>
     <a href="/academy/ngv/edit.php">Edit page →</a>
     <a href="/academy/ngv/members.php">Vanguards &amp; applications →</a>
+<?php if (in_array(av_admin_role(), ['admin', 'superadmin'], true)): ?>    <a href="/academy/ngv/fines.php">Record fines →</a>
+    <a href="/academy/ngv/books.php">Book list →</a>
+<?php endif; ?>
     <a href="/academy/ngv/dashboard.php?preview=1">Member dashboard →</a>
     <span class="tag"><?= Ngv::isEnabled() ? 'Published' : 'Hidden (draft)' ?></span>
   </div></div>
@@ -258,6 +261,30 @@ $hero = $c['hero'] ?? [];
 <?php endif; endforeach; ?>
       </div>
 <?php endif; ?>
+    </div>
+  </section>
+<?php endif; ?>
+
+  <!-- Fines: what the programme fines for, the usual amounts (the fines
+       desk's own list, so the page and the desk cannot disagree), and how a
+       vanguard sees, pays or questions one. -->
+<?php if (Ngv::section('fines')): $fineCat = NgvFines::catalogue(); ?>
+  <section class="ngv-section ngv-section--alt" id="fines">
+    <div class="ngv-wrap">
+      <div class="ngv-head">
+        <span class="ngv-eyebrow">Discipline, on the record</span>
+        <h2 class="ngv-h2">Fines</h2>
+      </div>
+      <div class="ngv-fees">
+<?php foreach ($fineCat as $fk => $fc): if ($fk === 'other') continue; ?>
+        <div class="ngv-fee">
+          <h3><?= e((string) $fc['label']) ?></h3>
+          <div class="ngv-fee-amt"><?= (int) $fc['amount'] > 0 ? '₦' . number_format((int) $fc['amount']) : 'Assessed' ?></div>
+          <p class="ngv-fee-desc"><?= (int) $fc['amount'] > 0 ? 'The usual amount.' : 'Priced each time, from what happened.' ?></p>
+        </div>
+<?php endforeach; ?>
+      </div>
+      <p class="ngv-note">Fines are recorded by the NGV office, never by another vanguard. Each one is on your NGV portal under <b>Fines</b> — what it was for, the day, and where it stands — and is paid like any other fee from your account. A fine you think is wrong can be waived or cancelled; ask your track lead, and the reason stays on record.<?= $ngvMember ? ' <a href="/portal/#ngv-fines">See my fines →</a>' : '' ?></p>
     </div>
   </section>
 <?php endif; ?>

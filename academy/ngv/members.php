@@ -370,6 +370,8 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 .bkq-read summary:focus-visible{outline:3px solid #E0A82E;outline-offset:2px}
 .bkq-text{margin-top:10px;font-size:14px;line-height:1.65;max-width:70ch}
 .bkq-take{margin-top:10px;font-size:14px;line-height:1.6;max-width:70ch}
+.bkq-chapters{margin:10px 0 0;padding-left:1.4rem;font-size:14px;line-height:1.6;max-width:70ch}
+.bkq-chapters li{margin-bottom:8px}
 .bkq-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
 .bkq-note{flex:1 1 260px;min-height:40px;padding:9px 11px;border:1px solid var(--line,#e5e7eb);border-radius:9px;font:inherit}
 .bkq-note:focus{outline:3px solid #E0A82E;outline-offset:1px}
@@ -593,6 +595,7 @@ details.sect>summary{margin-bottom:8px}
   <a href="#training">Training fees</a>
   <a href="/academy/ngv/attendance.php">Attendance</a>
   <a href="/academy/ngv/fines.php">Fines</a>
+  <a href="/academy/ngv/books.php">Book list</a>
   <a href="/academy/ngv/edit.php">Edit page</a>
   <a href="/academy/ngv/" target="_blank" rel="noopener">Public ↗</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
@@ -916,7 +919,15 @@ details.sect>summary{margin-bottom:8px}
               </ul>
             <?php endif; ?>
             <details class="bkq-read">
-              <summary>Read what they wrote</summary>
+              <summary>Read what they wrote<?= $bc['chapter_notes_list'] ? ' — ' . count($bc['chapter_notes_list']) . ' chapter' . (count($bc['chapter_notes_list']) === 1 ? '' : 's') . ' and the whole book' : '' ?></summary>
+              <?php if ($bc['chapter_notes_list']): ?>
+                <ol class="bkq-chapters">
+                  <?php foreach ($bc['chapter_notes_list'] as $cn): ?>
+                    <li><?= nl2br($e((string) $cn)) ?></li>
+                  <?php endforeach; ?>
+                </ol>
+                <p class="bkq-take"><strong>The whole book:</strong></p>
+              <?php endif; ?>
               <div class="bkq-text"><?= nl2br($e((string) $bc['reflection'])) ?></div>
               <p class="bkq-take"><strong>What they did with it:</strong>
                 <?= nl2br($e((string) $bc['takeaway'])) ?></p>

@@ -169,6 +169,7 @@ textarea{width:100%;min-height:7rem;font-family:ui-monospace,monospace;font-size
   <a href="/academy/ngv/members.php">Vanguards</a>
   <a href="/academy/ngv/attendance.php">Attendance</a>
   <a href="/academy/ngv/fines.php" aria-current="page">Fines</a>
+  <a href="/academy/ngv/books.php">Book list</a>
   <span class="msg" id="msg" role="status" aria-live="polite"></span>
 </header>
 <main class="wrap">
