@@ -61,7 +61,7 @@ try {
     // ---- Everything else requires admin ----
     require_admin();
     // CSRF for state-changing requests under cookie auth (Bearer is itself a secret).
-    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'guide_ask', 'purge_demo',
+    $writing = in_array($action, ['save', 'delete', 'upload', 'ac_save', 'ac_delete', 'mod_save', 'mod_delete', 'mod_approve', 'mod_reject', 'lesson_save', 'lesson_delete', 'team_save', 'team_delete', 'cel_save', 'cel_delete', 'art_save', 'art_delete', 'mem_save', 'mem_create', 'comm_save', 'comm_delete', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'auth_policy_save', 'apptoken_create', 'apptoken_revoke', 'mail_test', 'mail_gas_check', 'guide_ask', 'purge_demo',
         'mod_reorder', 'lesson_reorder', 'ac_duplicate', 'ac_status', 'roster_enrol', 'roster_unenrol', 'roster_reset', 'cert_issue', 'cert_revoke', 'diary_import_wp',
         'mentorship_approve', 'mentorship_decline', 'mentorship_add', 'mentorship_assign', 'mentorship_reassign', 'mentorship_set_status', 'mentorship_cohort_create', 'mentorship_cohort_status', 'activity_undo',
         'admin_add', 'admin_remove', 'db_test', 'db_migrate', 'brand_save', 'ngv_save', 'ngv_reset', 'ngv_restore',
@@ -100,7 +100,7 @@ try {
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
-        'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
+        'sys_health', 'mail_test', 'mail_gas_check', 'subscribers', 'enrollments', 'audit_log',
         // Seat claims carry names, emails and phone numbers, and resending mail
         // on someone's behalf is a management action. Not for editors.
         'summit_list', 'summit_resend', 'summit_resend_failed', 'summit_export',
@@ -329,12 +329,18 @@ try {
                 'php_mail'  => function_exists('mail'),
             ];
             $smtpSet = defined('SMTP_HOST') && SMTP_HOST !== '' && defined('SMTP_PASSWORD') && SMTP_PASSWORD !== '';
+            $transports['gas']   = Mailer::gasConfigured();
             $transports['relay'] = Mailer::relayConfigured();
-            $would = $smtpSet && $transports['phpmailer']
+            $mode = Mailer::transport();
+            $would = $mode !== 'auto'
+                ? ['smtp' => 'PHPMailer over authenticated SMTP only', 'gas' => 'Google Apps Script only (one-to-one mail; announcements are held)',
+                   'resend' => 'the Resend HTTPS API only', 'host' => 'PHP mail() only'][$mode]
+                : ($smtpSet && $transports['phpmailer']
                 ? 'PHPMailer over authenticated SMTP'
+                : ($transports['gas'] ? 'the site’s own Google Apps Script'
                 : ($transports['relay'] ? 'the Google Apps Script relay (how NGG sends)' : (Mailer::resendConfigured()
                     ? 'the Resend HTTPS API'
-                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing')));
+                    : ($transports['php_mail'] ? 'PHP mail() — unauthenticated, and often filtered' : 'nothing')))));
 
             /* Whether the site's own config.php was READ. Without this the page
                reports an empty host and "not configured", which reads as "you
@@ -376,6 +382,9 @@ try {
                 'transports'  => $transports,
                 'phpmailer'   => $phpmailer,
                 'would_use'   => $would,
+                'mode'        => $mode,
+                'apps_script' => ['configured' => Mailer::gasConfigured(), 'url' => AppsScriptMail::url(),
+                                  'secret_set' => AppsScriptMail::secret() !== ''],
                 'admin_email' => defined('ADMIN_EMAIL') ? ADMIN_EMAIL : '',
             ]);
         }
@@ -393,10 +402,42 @@ try {
                 error_log('[mail_test] ' . $e->getMessage());
                 json_out(['ok' => false, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => '', 'detail' => 'Send failed: ' . $e->getMessage()]);
             }
-            $vianote = $via === 'smtp' ? 'authenticated SMTP' : ($via === 'mail' ? 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) for reliable, non-spam delivery' : '');
-            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via, 'detail' => $sent
-                ? ('Sent via ' . $vianote . ' — check the inbox (and spam folder).')
-                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — nothing is configured. Set MAIL_RELAY_URL + MAIL_RELAY_SECRET (NGG\'s Apps Script, the simplest), or SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password), via .htaccess SetEnv or config.php.'))]);
+            $vianote = match ($via) {
+                'smtp'   => 'authenticated SMTP',
+                'gas'    => 'Google Apps Script (MailApp, from the account that deployed the script)',
+                'relay'  => 'the NGG Apps Script relay',
+                'resend' => 'the Resend HTTPS API',
+                'mail'   => 'PHP mail() — works, but set up SMTP (a Gmail App Password in AV_SMTP_PASSWORD) or Google Apps Script for reliable, non-spam delivery',
+                default  => $via,
+            };
+            // When a fallback carried it, say what failed first — "sent" alone
+            // hides an SMTP that is broken for every message.
+            $before = Mailer::lastFailures();
+            json_out(['ok' => $sent, 'to' => $to, 'configured' => Mailer::configured(), 'transport' => $via,
+                'mode' => Mailer::transport(), 'tried' => Mailer::lastTried(), 'failed_first' => $sent ? $before : [],
+                'detail' => $sent
+                ? ('Sent via ' . $vianote . ($before ? ' — after: ' . implode(' | ', $before) : '') . ' — check the inbox (and spam folder).')
+                : ('Send failed: ' . (Mailer::lastError() ?: 'unknown error') . (Mailer::configured() ? '' : ' — nothing is configured. Set up Google Apps Script (Rules & AI → Setup → Email; docs/EMAIL-APPS-SCRIPT.md — the simplest), or SMTP_HOST, SMTP_USERNAME and AV_SMTP_PASSWORD (a 16-char Gmail App Password), via .htaccess SetEnv or config.php.'))]);
+
+        /* The site's own Google Apps Script: set up? reachable? whose account?
+           how much may it still send today? A READ — it sends nothing — but it
+           is an outbound call, so POST + CSRF like mail_test. */
+        case 'mail_gas_check': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (!av_rate_ok('mail_gas_check', 20, 300)) json_out(['ok' => false, 'error' => 'Too many checks — wait a moment.'], 429);
+            $url = AppsScriptMail::url();
+            $out = ['configured' => AppsScriptMail::configured(), 'url_set' => $url !== '',
+                    'secret_set' => AppsScriptMail::secret() !== '', 'mode' => Mailer::transport(),
+                    'reachable' => false, 'account' => '', 'remaining' => null];
+            if (!$out['configured']) {
+                json_out($out + ['ok' => false, 'detail' => !$out['url_set']
+                    ? 'Not set up: no Apps Script web-app URL. Rules & AI → Setup → Email (step-by-step: docs/EMAIL-APPS-SCRIPT.md).'
+                    : 'Not set up: no Apps Script secret. Rules & AI → Setup → Email → Apps Script secret.']);
+            }
+            $c = AppsScriptMail::boot()->check();
+            json_out(array_merge($out, ['ok' => (bool) $c['ok'], 'reachable' => (bool) $c['reachable'],
+                'account' => (string) $c['account'], 'remaining' => $c['remaining'], 'detail' => (string) $c['detail']]));
+        }
 
         // ---- Studio AI guide: answer "how do I…" questions about running the site ----
         case 'guide_ask': {

@@ -313,6 +313,7 @@ require_once __DIR__ . '/CfisCheckout.php';  /* CACENTRE collects where this sit
 require_once __DIR__ . '/Payments.php';
 // Email is sent exclusively through PHPMailer (see lib/Mailer.php). The former
 // hand-rolled SMTP client (lib/Smtp.php) is retired and no longer loaded.
+require_once __DIR__ . '/AppsScriptMail.php';   /* the site's own Google Apps Script mail road */
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Notify.php';
 require_once __DIR__ . '/Events.php';

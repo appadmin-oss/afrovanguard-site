@@ -131,6 +131,28 @@ final class Config
                 : 'missing — SMTP cannot be used; mail falls back to PHP mail(). Run composer install, or restore lib/vendor/phpmailer.'),
             self::chk('From address', self::has('FROM_EMAIL') ? 'ok' : 'info', self::str('FROM_EMAIL', '—')),
         ]);
+        // Which road mail takes, and the site's own Google Apps Script. No network
+        // call here — this page loads on every visit; System → "Check Apps Script"
+        // asks the script itself.
+        if (class_exists('Mailer') && class_exists('AppsScriptMail')) {
+            $mode = Mailer::transport();
+            $checks[] = self::chk('Sending road', 'info', [
+                'auto'   => 'automatic — SMTP, then Google Apps Script (one-to-one mail), then Resend, then this server’s mail()',
+                'smtp'   => 'SMTP only',
+                'gas'    => 'Google Apps Script only — announcements are held',
+                'resend' => 'Resend API only',
+                'host'   => 'this server’s mail() only',
+            ][$mode] ?? $mode);
+            $gasSet = AppsScriptMail::configured();
+            $gasState = $gasSet ? 'ok' : ($mode === 'gas' ? 'off' : 'warn');
+            $checks[] = self::chk('Google Apps Script', $gasState, $gasSet
+                ? 'set up · ' . AppsScriptMail::url() . ' — press “Check Apps Script” below to see its account and allowance'
+                : (AppsScriptMail::url() !== '' ? 'URL set but no secret — Rules & AI → Setup → Email'
+                    : 'not set up — the road mail takes when SMTP fails (docs/EMAIL-APPS-SCRIPT.md)'));
+            if (Mailer::relayConfigured()) {
+                $checks[] = self::chk('NGG Apps Script relay', 'info', 'MAIL_RELAY_URL set — still used, after the site’s own script');
+            }
+        }
         // The mailbox a seat claim or contact message is announced to. Unset, the
         // staff alert has nowhere to go and is skipped.
         $adminMail = self::has('ADMIN_EMAIL') ? self::str('ADMIN_EMAIL') : (self::has('FROM_EMAIL') ? self::str('FROM_EMAIL') . ' (falls back to From)' : '');

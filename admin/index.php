@@ -837,12 +837,22 @@
 
     <div class="side-card" style="max-width:680px;margin-top:26px">
       <h3>Send a test email</h3>
-      <p class="muted" style="margin-top:-4px">Verify SMTP end-to-end. Sends the brand template through the configured server (Gmail/Workspace) and reports exactly what happened.</p>
+      <p class="muted" style="margin-top:-4px">Verify delivery end-to-end. Sends the brand template the way any one-to-one message goes (SMTP, then Google Apps Script, …) and reports which road carried it and what failed first.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <label class="fld" style="flex:1;min-width:240px;margin:0"><span>To (defaults to ADMIN_EMAIL)</span><input id="mailTestTo" type="email" placeholder="you@example.com" /></label>
         <button type="button" class="btn btn-primary btn-sm" id="mailTestBtn">Send test</button>
       </div>
       <p class="muted tiny" id="mailTestMsg" style="margin-top:10px"></p>
+    </div>
+
+    <div class="side-card" style="max-width:680px;margin-top:18px">
+      <h3>Google Apps Script</h3>
+      <p class="muted" style="margin-top:-4px">The site’s own mail road when SMTP fails: sign-in codes, receipts and replies go out through MailApp from the Google account that deployed <code>apps-script/Afrovanguard_Mail.gs</code> — about 100 recipients a day on Gmail, 1,500 on Workspace. Announcements never use it. Set it up under Rules &amp; AI → Setup → Email (steps in <code>docs/EMAIL-APPS-SCRIPT.md</code>).</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-outline btn-sm" id="gasCheckBtn">Check Apps Script</button>
+        <span class="muted tiny" id="gasCheckMsg"></span>
+      </div>
+      <div id="gasCheckOut" style="margin-top:10px"></div>
     </div>
   </main>
 
@@ -1061,7 +1071,7 @@
     <!-- Setup — provider credentials, editable here instead of in a file -->
     <section class="rt-pane" id="rtSetup" hidden>
       <div class="studio-head">
-        <div><h2>Setup</h2><p class="muted">Connect the AI, the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
+        <div><h2>Setup</h2><p class="muted">Connect the AI, email (the Google Apps Script mail road), the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
         <button class="btn btn-outline btn-sm" id="setupRefresh">Refresh</button>
       </div>
       <div class="setup-warn" id="setupCrypto" hidden></div>
