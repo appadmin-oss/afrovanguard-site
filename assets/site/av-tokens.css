@@ -62,6 +62,13 @@
   --av-on-ink-rule:rgba(255,255,255,.45);
   /* card status bands (≥6:1 with white) */
   --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
+  /* sign in (row 10, design: Afrovanguard Sign In) */
+  --av-placeholder:#9A9DA4;
+  --av-error:#B3261E;
+  --av-step-off:#E1DED7;
+  --av-ok-bg:#EEF6F0;
+  --av-meter-2:#D97706;
+  --av-meter-3:#65A30D;
 
   --av-serif:"Cormorant Garamond",Georgia,serif;
   --av-sans:"Source Sans 3",system-ui,sans-serif;
