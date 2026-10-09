@@ -69,6 +69,27 @@
   --av-ok-bg:#EEF6F0;
   --av-meter-2:#D97706;
   --av-meter-3:#65A30D;
+  /* events (row 13, designs: Afrovanguard Events + Afrovanguard Cover) */
+  --av-text-3:#3D3D3D;
+  --av-live:#22A05A;
+  --av-live-now:#EF4444;
+  --av-feature:#10292C;
+  --av-feature-gold:#E8C26A;
+  --av-feature-muted:#9FB4B6;
+  --av-cov-gold:#E3C37A;
+  --av-cov-summit:#0F2A2C;
+  --av-cov-gala:#15161B;
+  --av-cov-blue:#14283D;     --av-cov-blue-a:#B7D2EA;
+  --av-cov-green:#132D22;    --av-cov-green-a:#B6DCBC;
+  --av-cov-rust:#2E1A18;     --av-cov-rust-a:#EFC0B4;
+  --av-cov-violet:#221D33;   --av-cov-violet-a:#D3C3EA;
+  --av-cov-brown:#33200F;    --av-cov-brown-a:#F0C995;
+  --av-cov-plum:#231B2B;     --av-cov-plum-a:#E6D4A2;
+  --av-cov-navy:#16253F;
+  --av-cov-teal:#122C28;     --av-cov-teal-a:#A8E0CC;
+  --av-cov-nation-a:#CFE3B0;
+  --av-hol-green:#008751; --av-hol-white:#F4F4F0; --av-hol-red:#8F1D1D; --av-hol-forest:#1F5D3A;
+  --av-hol-black:#14161D; --av-hol-orange:#E88B3A; --av-hol-blue:#4F8FC0;
 
   --av-serif:"Cormorant Garamond",Georgia,serif;
   --av-sans:"Source Sans 3",system-ui,sans-serif;
