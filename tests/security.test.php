@@ -97,3 +97,26 @@ ck('next: /\\host is refused', GoogleAuth::safeNext('/\\evil.example') === '/por
 ck('next: a tab-split //host is refused', GoogleAuth::safeNext("/\t/evil.example") === '/portal/');
 ck('next: an absolute URL is refused', GoogleAuth::safeNext('https://evil.example/') === '/portal/');
 ck('next: the signed state carries only a safe path', GoogleAuth::readState(GoogleAuth::makeState('/\\evil.example')) === '/portal/');
+
+/* ══ 6. A community thread is as private as its post ═══════════════════════
+   GET community/api.php?action=replies&id=N returned every reply under any
+   post — members-only and confidential included — to anyone, signed in or not;
+   and any account could reply to or like a post it is not cleared to see. */
+require_once AV_ROOT . '/lib/Community.php';
+$secMk = static function (string $role) use ($secDb): int {
+    $secDb->prepare('INSERT INTO lms_users (name, email, password_hash, role, status, email_verified) VALUES (?,?,?,?,?,1)')
+          ->execute(['C ' . $role, 'c.' . $role . '.' . bin2hex(random_bytes(3)) . '@example.test', 'x', $role, 'active']);
+    return (int) $secDb->lastInsertId();
+};
+$secBoss = $secMk('admin'); $secLearner = $secMk('learner');
+$secConf = Community::createPost($secBoss, 'open-floor', 'Board minutes: salaries', null, false, 'confidential');
+$secPub  = Community::createPost($secBoss, 'open-floor', 'Hello everyone', null, false, 'public');
+Community::reply($secBoss, $secConf, 'The figure is 4.2m');
+Community::reply($secBoss, $secPub, 'Welcome!');
+ck('community: an anonymous reader gets no replies under a confidential post', Community::replies($secConf, 0) === []);
+ck('community: a learner gets no replies under a confidential post', Community::replies($secConf, $secLearner) === []);
+ck('community: a cleared reader still sees them', count(Community::replies($secConf, $secBoss)) === 1);
+ck('community: replies under a public post stay public', count(Community::replies($secPub, 0)) === 1);
+$secComm = (string) file_get_contents(AV_ROOT . '/community/api.php');
+ck('community: reply and like check the post is visible first', substr_count($secComm, 'comm_visible_post((int) ($body[\'id\'] ?? 0), (int) $u[\'id\']);') === 2);
+ck('community: the origin check compares hosts exactly', !str_contains($secComm, 'stripos($host, $oh)'));
