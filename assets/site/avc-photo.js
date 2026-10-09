@@ -139,6 +139,8 @@
             var box = frameFor(g, full.w, full.h) || fallback(full.w, full.h);
             cropper = new window.Cropper(img, {
               aspectRatio: ASPECT, viewMode: 1, autoCropArea: 1, background: false, zoomable: true, responsive: true,
+              // Orientation is already applied (upright()); Cropper's own EXIF re-read fetches the blob, which the CSP refuses.
+              checkOrientation: false,
               ready: function () { cropper.setData(box); check(); }, crop: check,
             });
             if (g && !g.subject) msg('No single face found — frame it by hand.', true);

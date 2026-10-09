@@ -13,6 +13,8 @@
  * Several of them have signed in already. MemberRoster::create() finds an
  * account by email (case-insensitive) and LINKS to it — it never makes a
  * second one; only somebody with no account gets a new one. Then:
+ *   · the name set to the one in this list — it is what the card prints, and
+ *     a sign-in may have left a short form ("Anu O.") that prints as a surname;
  *   · role raised to `member` only if it is below member — an admin or a
  *     coordinator is never lowered, and a learner who signed up through the
  *     Academy becomes the member they are;
@@ -110,6 +112,15 @@ final class MemberSeed
         $c = MemberRoster::create(['name' => $name, 'email' => $email, 'level' => $level, 'role' => 'member'], $actor, 'seed');
         if (empty($c['ok'])) return ['ok' => false, 'code' => $code, 'email' => $email, 'error' => (string) ($c['error'] ?? 'refused')];
         $id = (int) $c['id'];
+
+        /* The name in this list is the one the card prints (owner's records).
+           An account made at sign-in may carry a short form ("Anu O.") that
+           would print as the surname, so the list's name wins. */
+        $had = (string) (Database::pdo()->query('SELECT name FROM lms_users WHERE id = ' . $id)->fetchColumn() ?: '');
+        if ($had !== $name) {
+            Database::pdo()->prepare('UPDATE lms_users SET name = ? WHERE id = ?')->execute([$name, $id]);
+            if (class_exists('AdminAudit')) { try { AdminAudit::log('members', 'member_seed_name', (string) $id, $had . ' → ' . $name, null, $actor); } catch (Throwable $e) {} }
+        }
 
         /* Raise, never lower: a learner becomes a member; staff stay staff. */
         $role = (string) (Database::pdo()->query('SELECT role FROM lms_users WHERE id = ' . $id)->fetchColumn() ?: 'learner');

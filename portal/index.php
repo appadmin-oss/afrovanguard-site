@@ -1523,6 +1523,7 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
           <div class="view-head"><h1><?= $isOrg ? 'Membership' : 'Account' ?></h1></div>
           <div class="pcols">
             <div class="pcol pcol--main">
+<?php require __DIR__ . '/_card.php'; ?>
 <?php if ($isOrg && $dues):
               // Dues fee amounts are intentionally NOT shown on the portal or the
               // public site — only the member's own "Total dues paid" and status.

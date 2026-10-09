@@ -45,6 +45,8 @@ ck('seed: every one of the nine is on the system', $r['ok'] && count($rows) === 
 ck('seed: seven new accounts, two linked to the accounts they already had', $r['created'] === 7 && $r['linked'] === 2);
 ck('seed: Anuoluwapo, who signed in already, is THAT account — matched by email whatever its case',
    ($rows['D-AVM-17-0002']['id'] ?? 0) === $anuId);
+ck('seed: …with the name the card prints — the list’s, not the short form she signed up with',
+   $msPdo->query("SELECT name FROM lms_users WHERE id = {$anuId}")->fetchColumn() === 'Anuoluwapo Ogunbanjo');
 ck('seed: …and a learner who is a member becomes a member', $msPdo->query("SELECT role FROM lms_users WHERE id = {$anuId}")->fetchColumn() === 'member');
 ck('seed: staff are never demoted — Chioma is still an admin, and still her own account',
    ($rows['A-NGV-25-0007']['id'] ?? 0) === $chiId && $msPdo->query("SELECT role FROM lms_users WHERE id = {$chiId}")->fetchColumn() === 'admin');

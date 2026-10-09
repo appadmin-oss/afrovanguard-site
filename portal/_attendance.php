@@ -70,15 +70,7 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
                   $avcSide = 'both';
                   include __DIR__ . '/../partials/id-card.php';
                 ?>
-<?php if ($gpSecure): $gpHasPhoto = !empty($card['photo_url']); ?>
-                <div class="avc-actions avc-self" data-avc-self data-csrf="<?= e(av_csrf_token()) ?>">
-                  <button type="button" class="avc-btn avc-btn--primary" data-avc-self-pick><?= $gpHasPhoto ? 'Change your photo' : 'Add your photo' ?></button>
-<?php if ($gpHasPhoto): ?>                  <button type="button" class="avc-btn" data-avc-self-clear>Remove photo</button>
-<?php endif; ?>                  <input type="file" accept="image/jpeg,image/png,image/webp" hidden data-avc-self-file>
-                </div>
-                <p class="pcard-note" data-avc-self-msg role="status" aria-live="polite">Head and shoulders, facing the camera. It prints on your card; the office prints the card.</p>
-<?php endif; ?>
-                <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?></p>
+                <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?><?= $gpSecure ? ' Your photo is changed under Membership → Your card.' : '' ?></p>
               </div>
             </section>
             <section class="pcard" id="gp-cards">

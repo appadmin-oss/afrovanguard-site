@@ -16,8 +16,16 @@
   /* The card is drawn by the server: after a change, the page draws it again, on this view. */
   function redraw(text) {
     if (note) note.textContent = text;
-    setTimeout(function () { location.hash = 'attendance'; location.reload(); }, 600);
+    setTimeout(function () { location.hash = 'membership'; location.reload(); }, 600);
   }
+  /* Front / back. The button says what it will show, and its pressed state says which side is up. */
+  var flip = box.querySelector('[data-avc-flip]');
+  if (flip) flip.addEventListener('click', function () {
+    var h = box.closest('.avc-holder'), back = h.getAttribute('data-side') === 'front';
+    h.setAttribute('data-side', back ? 'back' : 'front');
+    flip.setAttribute('aria-pressed', String(back));
+    flip.textContent = back ? 'Show front' : 'Show back';
+  });
   box.querySelector('[data-avc-self-pick]').addEventListener('click', function () { file.value = ''; file.click(); });
   file.addEventListener('change', function () {
     var f = file.files && file.files[0]; if (!f) return;

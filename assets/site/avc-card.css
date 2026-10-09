@@ -81,6 +81,8 @@
 .avc-btn{min-height:44px;padding:0 18px;border-radius:var(--av-r-8);border:1px solid var(--av-line-2);background:var(--av-white);color:var(--av-ink);font:600 15px var(--av-sans);display:inline-flex;align-items:center;gap:8px;text-decoration:none;cursor:pointer}
 .avc-btn:hover{border-color:var(--av-ink)}
 .avc-btn--primary{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+/* A link styled as a button keeps the button's ink inside pages that colour their links (the portal). */
+.avc-actions a.avc-btn{color:var(--av-ink)}.avc-actions a.avc-btn--primary{color:var(--av-white)}
 .avc-btn[disabled],.avc-btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
 .avc-skeleton{width:270px;height:428px;border-radius:16px;background:var(--av-stone-3)}
 @media (max-width:359px){.avc{--u:4.6px}}

@@ -121,9 +121,10 @@ $self = (string) file_get_contents(AV_ROOT . '/card/photo.php');
 ck('self: a member changes THEIR card only — the id is the session’s, never the request’s',
    str_contains($self, '$id = (int) $me[\'id\'];') && !str_contains($self, "\$_POST['id']") && !str_contains($self, "\$_GET['id']"));
 ck('self: members only, CSRF-checked and rate-limited', str_contains($self, "LmsAuth::rank('member')") && str_contains($self, 'av_csrf_require();') && str_contains($self, "av_rate_ok('card_photo_self_'"));
-$att = (string) file_get_contents(AV_ROOT . '/portal/_attendance.php');
-ck('portal: the card view offers “Add your photo”, and loads the card’s own styles',
-   str_contains($att, 'Add your photo') && str_contains((string) file_get_contents(AV_ROOT . '/portal/index.php'), "'/assets/site/avc-card.css'"));
+$att = (string) file_get_contents(AV_ROOT . '/portal/_card.php');
+$pidx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+ck('portal: Membership → Your card, for every member with a card — not only those the gate takes — offers “Add your photo”',
+   str_contains($att, 'Add your photo') && str_contains($pidx, "require __DIR__ . '/_card.php';") && str_contains($pidx, "'/assets/site/avc-card.css'"));
 
 $js = (string) file_get_contents(AV_ROOT . '/assets/site/avc-photo.js');
 ck('desk: the crop editor is locked to the panel’s shape and refuses a crop that would print soft',
