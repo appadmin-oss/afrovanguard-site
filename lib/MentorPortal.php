@@ -39,6 +39,10 @@ final class MentorPortal
 {
     public const PER_PAGE = 25;
 
+    /** The roster's search clause — one copy, used by the rows and the counts. */
+    private const LIKE_Q = " AND (u.name LIKE :q ESCAPE '!' OR m.track LIKE :q ESCAPE '!'"
+                         . " OR COALESCE(ch.name,'') LIKE :q ESCAPE '!')";
+
     /** The six steps a pairing walks, in order. Stored as 1..6. */
     public const STAGES = ['Matched', 'Kick-off', 'Goals agreed', 'Meeting regularly', 'Mid-point review', 'Planned close'];
 
@@ -410,8 +414,15 @@ final class MentorPortal
         if ($q !== '') {
             // LIKE wildcards in the search box are the searcher's text, not
             // operators: a mentee called "100%" must be findable.
-            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
-            $search = " AND (u.name LIKE :q ESCAPE '\\' OR m.track LIKE :q ESCAPE '\\' OR COALESCE(ch.name,'') LIKE :q ESCAPE '\\')";
+            //
+            // The escape character is '!' and NOT the backslash every example
+            // uses, because MySQL also treats a backslash as an escape INSIDE a
+            // string literal: ESCAPE '\\' there is an unterminated string and
+            // the whole statement is a syntax error, so search returned nothing
+            // on a server database while working perfectly on SQLite. '!' means
+            // the same thing on all three engines and needs no escaping itself.
+            $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $q) . '%';
+            $search = self::LIKE_Q;
             $p[':q'] = $like;
         }
 
@@ -434,7 +445,7 @@ final class MentorPortal
         try {
             $sel = 'SELECT COUNT(*) AS all_n';
             foreach ($F as $k => $cond) $sel .= ", SUM(CASE WHEN {$cond} THEN 1 ELSE 0 END) AS c_{$k}";
-            $sel .= ", SUM(CASE WHEN ({$F[$filter]})" . ($q !== '' ? " AND (u.name LIKE :q ESCAPE '\\' OR m.track LIKE :q ESCAPE '\\' OR COALESCE(ch.name,'') LIKE :q ESCAPE '\\')" : '') . " THEN 1 ELSE 0 END) AS filtered";
+            $sel .= ", SUM(CASE WHEN ({$F[$filter]})" . ($q !== '' ? self::LIKE_Q : '') . " THEN 1 ELSE 0 END) AS filtered";
             $c = $this->run($sel . ' ' . $base, $p)->fetch(PDO::FETCH_ASSOC) ?: [];
             foreach ($F as $k => $_) $counts[$k] = (int) ($c['c_' . $k] ?? 0);
             $total = (int) ($c['filtered'] ?? 0);
@@ -463,8 +474,36 @@ final class MentorPortal
      */
     private function run(string $sql, array $params): PDOStatement
     {
+        /* Two things PDO will not do for us, both of which fail QUIETLY.
+           1. It refuses a bound parameter the statement does not name, so the
+              filters and sorts that build one SQL string out of several
+              fragments must bind only what their fragment actually used.
+           2. With ATTR_EMULATE_PREPARES off — which this application sets —
+              the placeholders are the DRIVER'S, and MySQL has no notion of one
+              placeholder used twice. A roster query naming :q seven times
+              wants seven parameters and answers HY093. SQLite's driver rewrites
+              repeats for us, which is why this only ever appeared on a server
+              database, and appeared there as an EMPTY ROSTER rather than an
+              error, because the caller logs and returns no rows.
+           So: give every repeat its own name carrying the same value, then bind
+           what survives. */
+        $seen = [];
+        $sql = (string) (preg_replace_callback(
+            '/(?<![:\w]):([a-z_][a-z0-9_]*)/i',
+            static function (array $m) use (&$seen, &$params): string {
+                $key = ':' . $m[1];
+                if (!array_key_exists($key, $params)) return $m[0];   // not one of ours
+                $n = ($seen[$key] = ($seen[$key] ?? 0) + 1);
+                if ($n === 1) return $m[0];
+                $alias = $key . '__r' . $n;
+                $params[$alias] = $params[$key];
+                return $alias;
+            },
+            $sql
+        ) ?? $sql);
+
         $use = [];
-        foreach ($params as $k => $v) if (preg_match('/' . preg_quote($k, '/') . '\\b/', $sql)) $use[$k] = $v;
+        foreach ($params as $k => $v) if (preg_match('/' . preg_quote($k, '/') . '\b/', $sql)) $use[$k] = $v;
         $st = $this->db->prepare($sql);
         $st->execute($use);
         return $st;
