@@ -1,0 +1,170 @@
+<?php
+/**
+ * partials/avh-chrome.php — the Home page's nav, drawer and footer, shared.
+ *
+ * PAGES.md "Shared across pages": every marketing page uses the Home nav
+ * (mega menu ≥ 1180px, drawer below) and footer, reused from the row-4 markup
+ * instead of re-written. This file is that markup, verbatim from index.html;
+ * styles in assets/site/avh.css, behaviour in assets/site/avh.js.
+ *
+ *   PHP pages:    require partials/avh-chrome.php; avh_nav(); … avh_footer();
+ *   Static pages: tools/build-avh-chrome.php splices the same markup between
+ *                 <!-- avh:nav --> … <!-- /avh:nav --> and
+ *                 <!-- avh:foot --> … <!-- /avh:foot -->.
+ *
+ * index.html keeps its own copy (it is the drop-in); this file must match it:
+ * tests/avhchrome.test.php fails on drift.
+ */
+declare(strict_types=1);
+
+/** Nav + backdrop + drawer. */
+function avh_nav(): void
+{
+?>
+<nav class="avh-nav" aria-label="Main" data-avh-nav>
+  <div class="avh-nav-in avh-pad">
+    <a class="avh-brand" href="/" data-avh-close><img src="/assets/site/av-seal.png" alt="" width="40" height="40"><span>Afrovanguard</span></a>
+    <div class="avh-wide">
+        <button type="button" class="avh-navbtn" data-avh-menu="about" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-about">About<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+        <button type="button" class="avh-navbtn" data-avh-menu="academy" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-academy">Academy<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+        <button type="button" class="avh-navbtn" data-avh-menu="projects" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-projects">Projects<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+        <button type="button" class="avh-navbtn" data-avh-menu="involved" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-involved">Get involved<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+        <button type="button" class="avh-navbtn" data-avh-menu="diary" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-diary">Diary<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
+      <a class="avh-signin" href="/login" data-avh-close>Sign in</a>
+      <div class="avh-ctas">
+        <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-close>Join the Movement</a>
+        <a class="avh-donate" href="/donate.html" data-avh-close>Donate</a>
+      </div>
+    </div>
+    <div class="avh-narrow">
+      <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a>
+      <button type="button" class="avh-burger" data-avh-burger aria-label="Open menu" aria-expanded="false" aria-controls="avh-drawer"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+  <div class="avh-mega" id="avh-mega-about" data-avh-panel="about" hidden>
+    <div class="avh-mega-in avh-pad">
+      <div class="avh-mega-intro"><div>About</div><p>One million incorruptible leaders by 2040 — the vision, values and creed behind everything we build.</p><a href="/about.html">Read the ethos <span aria-hidden="true">→</span></a></div>
+      <div class="avh-mega-col"><div>The organisation</div><a href="/about.html">About us</a><a href="/how-it-works">How it works</a><a href="/ethos/">Our ethos</a><a href="/ethos/#leadership">Leadership &amp; model</a></div>
+      <div class="avh-mega-col"><div>Connect</div><a href="/contact.html">Contact us</a><a href="/diary/">The Diary</a><a href="/events/">Events</a></div>
+      <a class="avh-feat" href="/ethos/"><img src="/Images/alimosho.jpg" alt="One million incorruptible leaders by 2040" loading="lazy"><span>Our mission</span><b>One million incorruptible leaders by 2040</b></a>
+    </div>
+  </div>
+  <div class="avh-mega" id="avh-mega-academy" data-avh-panel="academy" hidden>
+    <div class="avh-mega-in avh-pad">
+      <div class="avh-mega-intro"><div>Academy</div><p>Structured leadership formation, practical training and doctrine — where Vanguards are made.</p><a href="/academy/">All programmes <span aria-hidden="true">→</span></a></div>
+      <div class="avh-mega-col"><div>Learn with us</div><a href="/academy/">All programmes</a><a href="/academy/ngv/">NextGen Vanguard</a><a href="/academy/dns/">D'Vanguard National Summit</a><a href="/academy/#membership">Become a member</a><a href="/academy/teach/">Teach with us</a><a href="/academy/verify.php">Verify a certificate</a></div>
+      <div class="avh-mega-col"><div>Get started</div><a href="/login">Create an account</a><a href="/portal/">Member portal</a><a href="/mentorship/become-a-mentor/">Become a mentor</a><a href="/IQ/">IQ — Quizzes &amp; games</a></div>
+      <a class="avh-feat" href="/academy/ngv/"><img src="/Images/gates1.png" alt="NextGen Vanguard — learn, earn &amp; lead" loading="lazy"><span>Flagship programme</span><b>NextGen Vanguard — learn, earn &amp; lead</b></a>
+    </div>
+  </div>
+  <div class="avh-mega" id="avh-mega-projects" data-avh-panel="projects" hidden>
+    <div class="avh-mega-in avh-pad">
+      <div class="avh-mega-intro"><div>Projects</div><p>Technology, creative and leadership initiatives across Lagos and beyond.</p><a href="/projects/">See all projects <span aria-hidden="true">→</span></a></div>
+      <div class="avh-mega-col"><div>Flagship programmes</div><a href="/projects/sts/">Street-To-Stardom</a><a href="/projects/techhome/">Techome</a><a href="/projects/mediapro/">MediaPro</a><a href="https://afg.afrovanguard.org.ng" target="_blank" rel="noopener">Africa GATES<span class="avh-ext"> ↗</span></a></div>
+      <div class="avh-mega-col"><div>More programmes</div><a href="/projects/bec/">Business Executive Club</a><a href="/projects/career-hub/">Career Hub</a><a href="/projects/kap/">Kingdom Advancement</a><a href="https://next.afrovanguard.org.ng/" target="_blank" rel="noopener">Next Generation Genius<span class="avh-ext"> ↗</span></a><a href="/projects/">All projects</a></div>
+      <a class="avh-feat" href="/projects/"><img src="/Images/summer1.png" alt="Programmes changing lives" loading="lazy"><span>Our work</span><b>Programmes changing lives</b></a>
+    </div>
+  </div>
+  <div class="avh-mega" id="avh-mega-involved" data-avh-panel="involved" hidden>
+    <div class="avh-mega-in avh-pad">
+      <div class="avh-mega-intro"><div>Get involved</div><p>Every live appeal says what it is for, how far along it is and what a given amount pays for.</p><a href="/donate.html">See live appeals <span aria-hidden="true">→</span></a></div>
+      <div class="avh-mega-col"><div>Give</div><a href="/give/">Live appeals</a><a href="/donate.html">Donate</a><a href="/academy/#membership">Become a member</a></div>
+      <div class="avh-mega-col"><div>Give your time &amp; grow</div><a href="https://cacentre.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener">Volunteer<span class="avh-ext"> ↗</span></a><a href="/mentorship/become-a-mentor/">Become a mentor</a><a href="/contact.html">Partner with us</a><a href="/franchise">Franchise a CACENTRE</a><a href="https://cacentre.afrovanguard.org.ng" target="_blank" rel="noopener">Visit CACENTRE<span class="avh-ext"> ↗</span></a></div>
+      <a class="avh-feat" href="/give/"><img src="/Images/storm2.jpg" alt="See exactly what we need" loading="lazy"><span>Stand with us</span><b>See exactly what we need</b></a>
+    </div>
+  </div>
+  <div class="avh-mega" id="avh-mega-diary" data-avh-panel="diary" hidden>
+    <div class="avh-mega-in avh-pad">
+      <div class="avh-mega-intro"><div>Diary</div><p>We publish the working — field notes and methodology as we build the movement.</p><a href="/diary/">Read the Diary <span aria-hidden="true">→</span></a></div>
+      <div class="avh-mega-col"><div>Browse the Diary</div><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a></div>
+      <div class="avh-mega-col"><div>Follow along</div><a href="/diary/#subscribe">Subscribe</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a><a href="/ethos/">Our ethos</a><a href="/academy/">Academy</a></div>
+      <a class="avh-feat" href="/diary/"><img src="/Images/bootcamp1.png" alt="Field notes from a youth movement" loading="lazy"><span>The Afrovanguard Diary</span><b>Field notes from a youth movement</b></a>
+    </div>
+  </div>
+</nav>
+
+<div class="avh-backdrop" data-avh-backdrop hidden></div>
+<div class="avh-drawer" id="avh-drawer" role="dialog" aria-modal="true" aria-label="Menu" data-avh-drawer hidden>
+  <div class="avh-drawer-top"><button type="button" class="avh-x" data-avh-drawer-close aria-label="Close menu"><span></span><span></span></button></div>
+  <div class="avh-drawer-body">
+      <div class="avh-acc">
+        <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-about">About<span class="avh-plus" aria-hidden="true"></span></button>
+        <div class="avh-acc-links" id="avh-acc-about" hidden><a href="/about.html">About home</a><a href="/about.html">About us</a><a href="/how-it-works">How it works</a><a href="/ethos/">Our ethos</a><a href="/ethos/#leadership">Leadership &amp; model</a><a href="/contact.html">Contact us</a><a href="/diary/">The Diary</a><a href="/events/">Events</a></div>
+      </div>
+      <div class="avh-acc">
+        <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-academy">Academy<span class="avh-plus" aria-hidden="true"></span></button>
+        <div class="avh-acc-links" id="avh-acc-academy" hidden><a href="/academy/">Academy home</a><a href="/academy/">All programmes</a><a href="/academy/ngv/">NextGen Vanguard</a><a href="/academy/dns/">D'Vanguard National Summit</a><a href="/academy/#membership">Become a member</a><a href="/academy/teach/">Teach with us</a><a href="/academy/verify.php">Verify a certificate</a><a href="/login">Create an account</a><a href="/portal/">Member portal</a><a href="/mentorship/become-a-mentor/">Become a mentor</a><a href="/IQ/">IQ — Quizzes &amp; games</a></div>
+      </div>
+      <div class="avh-acc">
+        <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-projects">Projects<span class="avh-plus" aria-hidden="true"></span></button>
+        <div class="avh-acc-links" id="avh-acc-projects" hidden><a href="/projects/">Projects home</a><a href="/projects/sts/">Street-To-Stardom</a><a href="/projects/techhome/">Techome</a><a href="/projects/mediapro/">MediaPro</a><a href="https://afg.afrovanguard.org.ng" target="_blank" rel="noopener">Africa GATES<span class="avh-ext"> ↗</span></a><a href="/projects/bec/">Business Executive Club</a><a href="/projects/career-hub/">Career Hub</a><a href="/projects/kap/">Kingdom Advancement</a><a href="https://next.afrovanguard.org.ng/" target="_blank" rel="noopener">Next Generation Genius<span class="avh-ext"> ↗</span></a><a href="/projects/">All projects</a></div>
+      </div>
+      <div class="avh-acc">
+        <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-involved">Get involved<span class="avh-plus" aria-hidden="true"></span></button>
+        <div class="avh-acc-links" id="avh-acc-involved" hidden><a href="/donate.html">Get involved home</a><a href="/give/">Live appeals</a><a href="/donate.html">Donate</a><a href="/academy/#membership">Become a member</a><a href="https://cacentre.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener">Volunteer<span class="avh-ext"> ↗</span></a><a href="/mentorship/become-a-mentor/">Become a mentor</a><a href="/contact.html">Partner with us</a><a href="/franchise">Franchise a CACENTRE</a><a href="https://cacentre.afrovanguard.org.ng" target="_blank" rel="noopener">Visit CACENTRE<span class="avh-ext"> ↗</span></a></div>
+      </div>
+      <div class="avh-acc">
+        <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-diary">Diary<span class="avh-plus" aria-hidden="true"></span></button>
+        <div class="avh-acc-links" id="avh-acc-diary" hidden><a href="/diary/">Diary home</a><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a><a href="/diary/#subscribe">Subscribe</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a><a href="/ethos/">Our ethos</a><a href="/academy/">Academy</a></div>
+      </div>
+    <a class="avh-drawer-signin" href="/login">Sign in</a>
+  </div>
+  <div class="avh-drawer-ctas"><a href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a><a href="/donate.html">Donate</a></div>
+</div>
+<?php
+}
+
+/** Footer, with the Diary subscribe. */
+function avh_footer(): void
+{
+?>
+<footer class="avh-foot">
+  <div class="avh-topo" data-avh-topo="light" data-seed="15" aria-hidden="true"></div>
+  <div class="avh-foot-in avh-pad">
+    <div class="avh-foot-top">
+      <div class="avh-foot-brand">
+        <a href="/"><img src="/assets/site/av-seal.png" alt="" width="36" height="36"><span>Afrovanguard</span></a>
+        <p>Ambassadors for Community, Tech &amp; Cultural Advancements. Raising 1 million incorruptible African leaders by 2040.</p>
+      </div>
+      <div class="avh-sub" data-avh-sub>
+        <label for="footer-email">Get the Diary — field notes from the movement</label>
+        <!-- Same endpoint and payload as repo assets/site/chrome.js (.diary-subscribe): POST JSON {email, hp} → {ok, message|error} -->
+        <form data-avh-sub-form method="post" action="/diary/api.php?action=subscribe" novalidate>
+          <input id="footer-email" name="email" type="email" required placeholder="you@example.com" autocomplete="email" aria-describedby="avh-sub-err">
+          <input class="avh-hp" name="hp" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button type="submit">Subscribe</button>
+        </form>
+        <div class="avh-sub-ok" role="status" tabindex="-1" data-avh-sub-ok hidden>✓ You're subscribed to the Diary.</div>
+        <p class="avh-sub-err" id="avh-sub-err" role="alert" data-avh-sub-err hidden></p>
+      </div>
+    </div>
+    <div class="avh-foot-cols">
+      <div class="avh-foot-col"><div class="avh-foot-grp"><div>About</div><a href="/about.html">About us</a><a href="/how-it-works">How it works</a><a href="/ethos/">Our ethos</a><a href="/ethos/#leadership">Leadership &amp; model</a></div><div class="avh-foot-grp"><div>Connect</div><a href="/contact.html">Contact us</a><a href="/events/">Events</a><a href="/login">Sign in</a></div></div>
+      <div class="avh-foot-col"><div class="avh-foot-grp"><div>Academy</div><a href="/academy/">All programmes</a><a href="/academy/ngv/">NextGen Vanguard</a><a href="/academy/dns/">D'Vanguard National Summit</a><a href="/academy/teach/">Teach with us</a><a href="/academy/verify.php">Verify a certificate</a></div><div class="avh-foot-grp"><div>Get started</div><a href="/login">Create an account</a><a href="/portal/">Member portal</a><a href="/IQ/">IQ — Quizzes &amp; games</a></div></div>
+      <div class="avh-foot-col"><div class="avh-foot-grp"><div>Projects</div><a href="/projects/sts/">Street-To-Stardom</a><a href="/projects/techhome/">Techome</a><a href="/projects/mediapro/">MediaPro</a><a href="https://afg.afrovanguard.org.ng" target="_blank" rel="noopener">Africa GATES<small>↗</small></a><a href="/projects/bec/">Business Executive Club</a><a href="/projects/career-hub/">Career Hub</a><a href="/projects/kap/">Kingdom Advancement</a><a href="https://next.afrovanguard.org.ng/" target="_blank" rel="noopener">Next Generation Genius<small>↗</small></a><a href="/projects/">All projects</a></div></div>
+      <div class="avh-foot-col"><div class="avh-foot-grp"><div>Give</div><a href="/give/">Live appeals</a><a href="/donate.html">Donate</a><a href="/academy/#membership">Become a member</a></div><div class="avh-foot-grp"><div>Give your time</div><a href="https://cacentre.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener">Volunteer<small>↗</small></a><a href="/mentorship/become-a-mentor/">Become a mentor</a><a href="/contact.html">Partner with us</a><a href="/franchise">Franchise a CACENTRE</a><a href="https://cacentre.afrovanguard.org.ng" target="_blank" rel="noopener">Visit CACENTRE<small>↗</small></a></div></div>
+      <div class="avh-foot-col"><div class="avh-foot-grp"><div>The Diary</div><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a></div><div class="avh-foot-grp"><div>Policies</div><a href="/privacy-policy/">Privacy Policy</a><a href="/terms/">Terms of Use</a></div></div>
+    </div>
+    <div class="avh-foot-bot">
+      <div class="avh-socials">
+        <a href="https://www.instagram.com/afrovanguard/" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/instagram.svg" alt="" width="18" height="18"></a>
+        <a href="https://twitter.com/afrovanguard" target="_blank" rel="noopener" aria-label="X" title="X"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/x.svg" alt="" width="18" height="18"></a>
+        <a href="https://www.facebook.com/afrovanguard/" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/facebook.svg" alt="" width="18" height="18"></a>
+        <a href="https://www.linkedin.com/company/afrovanguard/" target="_blank" rel="noopener" aria-label="LinkedIn" title="LinkedIn"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/linkedin.svg" alt="" width="18" height="18"></a>
+        <a href="https://www.youtube.com/@afrovanguard" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/youtube.svg" alt="" width="18" height="18"></a>
+      </div>
+      <div class="avh-copy"><span>Afrovanguard © 2018–2026</span><a href="#top" data-avh-top>Back to top</a></div>
+      <div class="avh-loc"><a href="mailto:cacentre@afrovanguard.org.ng"><i></i>Alimosho, Lagos <span>Nigeria</span></a></div>
+    </div>
+  </div>
+</footer>
+<?php
+}
+
+/** The markup as strings (the static-page splicer and the drift test). */
+function avh_chrome_html(): array
+{
+    ob_start(); avh_nav(); $nav = ob_get_clean();
+    ob_start(); avh_footer(); $foot = ob_get_clean();
+    return ['nav' => rtrim((string) $nav), 'foot' => rtrim((string) $foot)];
+}
