@@ -19,7 +19,7 @@ ck('avh chrome: the shared footer is exactly the Home footer', str_contains($hom
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(AV_ROOT, FilesystemIterator::SKIP_DOTS));
 foreach ($it as $f) {
     $p = $f->getPathname();
-    if (!str_ends_with($p, '.html') || str_contains($p, '/vendor/') || str_contains($p, '/node_modules/')) continue;
+    if (!str_ends_with($p, '.html') || str_contains($p, '/vendor/') || str_contains($p, '/node_modules/') || str_contains($p, '/.claude/') || str_contains($p, '/.git/')) continue;
     $h = (string) file_get_contents($p);
     $rel = substr($p, strlen(AV_ROOT) + 1);
     if (str_contains($h, '<!-- avh:nav -->')) ck("avh chrome: $rel nav in sync (php tools/build-avh-chrome.php)", str_contains($h, "<!-- avh:nav -->\n" . $c['nav'] . "\n<!-- /avh:nav -->"));

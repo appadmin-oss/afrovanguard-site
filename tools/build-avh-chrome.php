@@ -22,7 +22,7 @@ $drift = 0;
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
 foreach ($it as $f) {
     $p = $f->getPathname();
-    if (!str_ends_with($p, '.html') || str_contains($p, '/vendor/') || str_contains($p, '/node_modules/')) continue;
+    if (!str_ends_with($p, '.html') || str_contains($p, '/vendor/') || str_contains($p, '/node_modules/') || str_contains($p, '/.claude/') || str_contains($p, '/.git/')) continue;
     $html = (string) file_get_contents($p);
     if (!str_contains($html, '<!-- avh:nav -->') && !str_contains($html, '<!-- avh:foot -->')) continue;
     $new = $html;
