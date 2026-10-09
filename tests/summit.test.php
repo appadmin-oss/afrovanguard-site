@@ -247,7 +247,9 @@ ck('summit: the Academy nav links to it', str_contains(
    run left the old one and appended another. The committed pages had seven. */
 
 // Not index.html: it has carried its own navigation since the row-4 redesign.
-foreach (['about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
+// Nor projects/index.html since row 6: it carries the Home chrome
+// (tests/avhchrome.test.php), which has no search dialog or scrim.
+foreach (['about.html', 'contact.html', 'donate.html'] as $page) {
     $html = (string) @file_get_contents(AV_ROOT . '/' . $page);
     if ($html === '') continue;
     ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);

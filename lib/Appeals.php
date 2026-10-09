@@ -1666,6 +1666,9 @@ SQL;
             $all = @require AV_ROOT . '/lib/projects_content.php';
             if (is_array($all)) {
                 foreach ($all as $slug => $p) {
+                    // Only programmes with a page here: an appeal filed against
+                    // one that lives on another site could never be shown.
+                    if (array_key_exists('local', $p) && !$p['local']) continue;
                     $out[(string) $slug] = (string) ($p['name'] ?? $slug);
                 }
             }
