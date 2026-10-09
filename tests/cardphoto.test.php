@@ -82,9 +82,52 @@ $m = CardPhoto::measure((string) file_get_contents($cpJpeg(800, 800)));
 ck('measure: an implausible first answer gets a second look, told what was wrong', $m['ok'] && $asked === 2);
 unset($GLOBALS['__card_photo_mock']);
 
-$js = (string) file_get_contents(AV_ROOT . '/admin/card-photo.js');
+/* ── From Google: only a real headshot, only when there is no photo ────── */
+$gImg = $cpJpeg(1200, 1200);
+$GLOBALS['__card_photo_fetch'] = static fn(string $u): string => str_contains($u, '=s1200') ? (string) file_get_contents($gImg) : '';
+$headshot = ['subjectFound' => true, 'people' => 1, 'kind' => 'headshot', 'head' => [150, 330, 620, 670], 'face' => [300, 360, 610, 640],
+             'leftEye' => [420, 430], 'rightEye' => [420, 570], 'shoulders' => null];
+$letter = ['subjectFound' => false, 'people' => 0, 'kind' => 'none', 'head' => [0, 0, 1, 1], 'face' => [0, 0, 1, 1], 'leftEye' => [0, 0], 'rightEye' => [0, 0]];
+$GLOBALS['__card_photo_mock'] = static fn(string $x): array => ['ok' => true, 'text' => json_encode($letter)];
+$r = CardPhoto::fromGoogle($cpId, 'https://lh3.googleusercontent.com/a/abc=s96-c');
+ck('google: the default letter avatar (no face) never lands on an ID card', !$r['ok'] && $r['why'] === 'no_single_face' && CardPhoto::of($cpId)['photo'] === '');
+$GLOBALS['__card_photo_mock'] = static fn(string $x): array => ['ok' => true, 'text' => json_encode($headshot)];
+ck('google: only Google’s own photo host is fetched', CardPhoto::fromGoogle($cpId, 'https://evil.example/a.jpg')['why'] === 'not_google');
+$r = CardPhoto::fromGoogle($cpId, 'https://lh3.googleusercontent.com/a/abc=s96-c');
+$gUrl = (string) CardPhoto::of($cpId)['photo'];
+ck('google: a real headshot, asked for at 1200 px, framed head and shoulders, becomes the card photo',
+   $r['ok'] && $gUrl !== '' && Prefs::get($cpId, 'card_photo_source', '') === 'google');
+$gLocal = AV_ROOT . parse_url($gUrl, PHP_URL_PATH);
+$gs = is_file($gLocal) ? getimagesize($gLocal) : [0, 0];
+ck('google: …cut to the panel’s shape', abs($gs[0] / max(1, $gs[1]) - CardPhoto::ASPECT) < 0.01);
+ck('google: a member with a photo keeps it — Google never replaces it', CardPhoto::fromGoogle($cpId, 'https://lh3.googleusercontent.com/a/abc=s96-c')['why'] === 'has_photo');
+$f = CardPhoto::frame(['subject' => true, 'head' => ['x0' => 0.4, 'x1' => 0.6, 'y0' => 0.2, 'y1' => 0.45], 'eyes' => null], 2000, 2000);
+ck('frame: NGG’s rule — the head is 56% of the frame’s height, 11% of it above the crown, the panel’s shape',
+   abs(500 / $f['h'] - 0.56) < 0.01 && abs(($f['h'] * 0.11) - (400 - $f['y'])) < 2 && abs($f['w'] / $f['h'] - CardPhoto::ASPECT) < 0.01);
+$cpPdo->exec("UPDATE lms_users SET role = 'learner' WHERE id = {$cpId}");
+CardPhoto::clear($cpId, 'test');
+ck('google: an Academy learner’s photo is left alone — cards are members’', CardPhoto::fromGoogle($cpId, 'https://lh3.googleusercontent.com/a/abc=s96-c')['why'] === 'not_member');
+$cpPdo->exec("UPDATE lms_users SET role = 'member' WHERE id = {$cpId}");
+unset($GLOBALS['__card_photo_mock'], $GLOBALS['__card_photo_fetch']);
+if (is_file($gLocal)) @unlink($gLocal);
+@unlink($gImg);
+$gsrc = (string) file_get_contents(AV_ROOT . '/auth/google.php');
+ck('google: sign-in hands the photo over after the redirect, so signing in never waits on it',
+   str_contains($gsrc, 'register_shutdown_function') && str_contains($gsrc, 'fastcgi_finish_request') && str_contains($gsrc, 'CardPhoto::fromGoogle($uid, $pic)'));
+ck('google: the id_token’s picture is read', str_contains((string) file_get_contents(AV_ROOT . '/lib/GoogleAuth.php'), "'picture'  => (string) (\$claims['picture'] ?? '')"));
+
+/* ── A member's own photo ─────────────────────────────────────────────── */
+$self = (string) file_get_contents(AV_ROOT . '/card/photo.php');
+ck('self: a member changes THEIR card only — the id is the session’s, never the request’s',
+   str_contains($self, '$id = (int) $me[\'id\'];') && !str_contains($self, "\$_POST['id']") && !str_contains($self, "\$_GET['id']"));
+ck('self: members only, CSRF-checked and rate-limited', str_contains($self, "LmsAuth::rank('member')") && str_contains($self, 'av_csrf_require();') && str_contains($self, "av_rate_ok('card_photo_self_'"));
+$att = (string) file_get_contents(AV_ROOT . '/portal/_attendance.php');
+ck('portal: the card view offers “Add your photo”, and loads the card’s own styles',
+   str_contains($att, 'Add your photo') && str_contains((string) file_get_contents(AV_ROOT . '/portal/index.php'), "'/assets/site/avc-card.css'"));
+
+$js = (string) file_get_contents(AV_ROOT . '/assets/site/avc-photo.js');
 ck('desk: the crop editor is locked to the panel’s shape and refuses a crop that would print soft',
-   str_contains($js, 'aspectRatio: ASPECT') && str_contains($js, 'd.width >= MIN_W && d.height >= MIN_H'));
+   str_contains($js, 'aspectRatio: ASPECT') && str_contains($js, 'c.width >= MIN_W && c.height >= MIN_H'));
 ck('desk: frames head and shoulders by NGG’s rule (head 56% of the height, 11% above the crown)',
    str_contains($js, 'var HEAD = 0.56, TOP = 0.11;'));
 

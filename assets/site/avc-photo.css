@@ -1,0 +1,17 @@
+/* The card photo editor (assets/site/avc-photo.js). Prefix avcph-. Tokens only. */
+.avcph{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;border:1px solid var(--av-line);border-radius:var(--av-r-14);background:var(--av-white);color:var(--av-ink);font-family:var(--av-sans);box-shadow:var(--av-shadow)}
+.avcph::backdrop{background:rgba(17,24,39,.55)}
+.avcph-top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--av-line)}
+.avcph-top h2{margin:0;font-family:var(--av-serif);font-weight:600;font-size:24px}
+.avcph-x{min-width:44px;min-height:44px;border:0;background:transparent;font-size:26px;line-height:1;cursor:pointer;color:var(--av-ink)}
+.avcph-stage{height:min(56vh,480px);margin:16px 20px 0;background:var(--av-stone);border-radius:var(--av-r-10);overflow:hidden}
+.avcph-stage img{display:block;max-width:100%}
+.avcph-msg{margin:12px 20px 0;min-height:20px;font-size:15px}
+.avcph-msg.is-bad{color:var(--av-red)}
+.avcph-hint{margin:4px 20px 0;font-size:14px;color:var(--av-muted)}
+.avcph-foot{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--av-line);margin-top:16px}
+.avcph-btn{min-height:44px;padding:0 18px;border-radius:var(--av-r-8);border:1px solid var(--av-line-2);background:var(--av-white);color:var(--av-ink);font:600 15px var(--av-sans);cursor:pointer}
+.avcph-btn--primary{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+.avcph-btn[disabled]{opacity:.5;cursor:not-allowed}
+.avcph :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+@media (max-width:639px){.avcph-stage{height:52vh;margin:12px 12px 0}.avcph-foot .avcph-btn{flex:1}}

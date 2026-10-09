@@ -172,6 +172,9 @@ final class GoogleAuth
             'name'     => (string) ($claims['name'] ?? ''),
             'verified' => filter_var($claims['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'sub'      => (string) ($claims['sub'] ?? ''),
+            /* The profile photo (the `profile` scope carries it): the member's
+               card photo when they have none yet (CardPhoto::fromGoogle). */
+            'picture'  => (string) ($claims['picture'] ?? ''),
         ];
     }
 }

@@ -10,6 +10,8 @@
 <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/admin/admin.css" rel="stylesheet" />
+  <link href="/assets/site/av-tokens.css" rel="stylesheet" />
+  <link href="/assets/site/avc-photo.css" rel="stylesheet" />
 </head>
 <body class="studio">
   <header class="studio-bar">
@@ -160,16 +162,6 @@
   </main>
 
   <!-- WordPress import modal -->
-  <div class="modal-backdrop" id="cpModal" hidden>
-    <div class="modal-box cp-box" role="dialog" aria-modal="true" aria-labelledby="cpTitle">
-      <div class="modal-top"><h2 id="cpTitle">Card photo</h2><button class="icon-x" id="cpClose" aria-label="Close">×</button></div>
-      <div class="modal-body">
-        <div class="cp-stage"><img id="cpImg" alt="The photo being framed"></div>
-        <p class="cp-msg" id="cpMsg" role="status" aria-live="polite"></p>
-      </div>
-      <div class="modal-foot"><button class="btn btn-outline btn-sm" id="cpCancel" type="button">Cancel</button><button class="btn btn-primary btn-sm" id="cpUse" type="button" disabled>Use this photo</button></div>
-    </div>
-  </div>
   <div class="modal-backdrop" id="wpModal" hidden>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="wpModalTitle">
       <div class="modal-top"><h2 id="wpModalTitle">Import from WordPress</h2><button class="icon-x" id="wpClose" aria-label="Close">×</button></div>
@@ -1330,6 +1322,7 @@
        to a plain textarea, so the editor still works (without the toolbar). -->
   <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
   <script src="/admin/app.js" defer></script>
+  <script src="/assets/site/avc-photo.js" defer></script>
   <script src="/admin/card-photo.js" defer></script>
 </body>
 </html>

@@ -176,9 +176,18 @@ TXT;
         if ($ch > $sh) { $ch = $sh; $cw = (int) round($sh * self::ASPECT); }
         if ($cw < self::MIN_W || $ch < self::MIN_H) { imagedestroy($src); return ['ok' => false, 'error' => self::TOO_SMALL, 'w' => $cw, 'h' => $ch]; }
         $sx = (int) round(($sw - $cw) * 0.5); $sy = (int) round(($sh - $ch) * 0.3);
-        $W = min(self::SAVE_W, $cw); $H = (int) round($W / self::ASPECT);
+        return self::store($memberId, $src, ['x' => $sx, 'y' => $sy, 'w' => $cw, 'h' => $ch], $actor, 'upload');
+    }
+
+    /**
+     * Cut $src to $box (image pixels, the panel's shape), resample to at most
+     * 600 dpi, re-encode and put it on file as the member's card photo.
+     */
+    private static function store(int $memberId, $src, array $box, string $actor, string $source): array
+    {
+        $W = min(self::SAVE_W, (int) $box['w']); $H = (int) round($W / self::ASPECT);
         $dst = imagecreatetruecolor($W, $H);
-        imagecopyresampled($dst, $src, 0, 0, $sx, $sy, $W, $H, $cw, $ch);
+        imagecopyresampled($dst, $src, 0, 0, (int) $box['x'], (int) $box['y'], $W, $H, (int) $box['w'], (int) $box['h']);
         $out = tempnam(sys_get_temp_dir(), 'avcp');
         imagejpeg($dst, $out, 90);               // re-encoded: no EXIF, no location, no colour profile tricks
         imagedestroy($src); imagedestroy($dst);
@@ -194,8 +203,76 @@ TXT;
         $url = self::deliver((string) ($put['url'] ?? ''));
         if ($url === '') return ['ok' => false, 'error' => 'The photo could not be stored.'];
         Prefs::set($memberId, 'card_photo', $url);
-        self::audit('card_photo_set', $memberId, $url, $actor);
+        Prefs::set($memberId, 'card_photo_source', $source);
+        self::audit('card_photo_set', $memberId, $url . ' (' . $source . ')', $actor);
         return ['ok' => true, 'url' => $url, 'w' => $W, 'h' => $H];
+    }
+
+    /* ══ From Google ═════════════════════════════════════════════════════ */
+
+    /**
+     * The Google profile photo as the card photo, when the member has none
+     * (owner, 2026-10-09: "speed the process"). Never replaces a photo
+     * somebody chose. Only with Gemini: a Google photo is often the default
+     * letter avatar, a logo or a group, and only a measurement that finds one
+     * face can tell — without it, nothing is guessed onto an ID card.
+     */
+    public static function fromGoogle(int $memberId, string $picture): array
+    {
+        if ($memberId <= 0 || !class_exists('Prefs')) return ['ok' => false, 'why' => 'no_member'];
+        if (trim(Prefs::get($memberId, 'card_photo', '')) !== '') return ['ok' => false, 'why' => 'has_photo'];
+        /* Cards are members'. An Academy learner's Google photo is left alone. */
+        $role = (string) (Database::pdo()->query('SELECT role FROM lms_users WHERE id = ' . $memberId)->fetchColumn() ?: '');
+        if (!class_exists('LmsAuth') || LmsAuth::rank($role) < LmsAuth::rank('member')) return ['ok' => false, 'why' => 'not_member'];
+        if (!preg_match('~^https://[a-z0-9.-]+\.googleusercontent\.com/~i', $picture)) return ['ok' => false, 'why' => 'not_google'];
+        $mock = isset($GLOBALS['__card_photo_mock']) && is_callable($GLOBALS['__card_photo_mock']);
+        if (!$mock && (!class_exists('Gemini') || !Gemini::configured())) return ['ok' => false, 'why' => 'ai_unavailable'];
+
+        /* Google serves the photo at any size: "=s96-c" becomes "=s1200". */
+        $big = preg_match('~=s\d+(-c)?$~', $picture) ? (string) preg_replace('~=s\d+(-c)?$~', '=s1200', $picture) : $picture . '=s1200';
+        $bytes = isset($GLOBALS['__card_photo_fetch']) && is_callable($GLOBALS['__card_photo_fetch'])
+            ? (string) ($GLOBALS['__card_photo_fetch'])($big)
+            : (string) @file_get_contents($big, false, stream_context_create(['http' => ['timeout' => 8, 'follow_location' => 1, 'max_redirects' => 2]]), 0, 6 * 1048576);
+        if ($bytes === '') return ['ok' => false, 'why' => 'fetch_failed'];
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: '';
+        if (!in_array($mime, self::TYPES, true)) return ['ok' => false, 'why' => 'not_a_photo'];
+
+        $m = self::measure($bytes);
+        $g = $m['geom'] ?? null;
+        if (empty($m['ok']) || empty($g['subject']) || (int) ($g['people'] ?? 1) > 1 || !in_array((string) ($g['kind'] ?? ''), ['headshot', 'half'], true)) {
+            return ['ok' => false, 'why' => 'no_single_face'];
+        }
+        $src = @imagecreatefromstring($bytes);
+        if (!$src) return ['ok' => false, 'why' => 'unreadable'];
+        $box = self::frame($g, imagesx($src), imagesy($src));
+        if (!$box || $box['w'] < self::MIN_W || $box['h'] < self::MIN_H) { imagedestroy($src); return ['ok' => false, 'why' => 'too_small']; }
+        /* Checked again just before writing: a photo the member uploaded while
+           this ran is theirs, and wins. */
+        if (trim(Prefs::get($memberId, 'card_photo', '')) !== '') { imagedestroy($src); return ['ok' => false, 'why' => 'has_photo']; }
+        return self::store($memberId, $src, $box, 'google', 'google');
+    }
+
+    /**
+     * NGG's head-and-shoulders rule (card-photo.jsx cphFrameAi; the same as
+     * assets/site/avc-photo.js frameFor), in image pixels, at the panel's shape.
+     */
+    public static function frame(array $g, int $W, int $H): ?array
+    {
+        if (empty($g['subject']) || empty($g['head'])) return null;
+        $hx0 = $g['head']['x0'] * $W; $hx1 = $g['head']['x1'] * $W; $hy0 = $g['head']['y0'] * $H; $hy1 = $g['head']['y1'] * $H;
+        $headW = $hx1 - $hx0; $headH = $hy1 - $hy0;
+        if ($headW <= 0 || $headH <= 0) return null;
+        $fh = $headH / 0.56; $fw = $fh * self::ASPECT;
+        $minW = max($headW * 1.05, $headW * 1.45); $minH = $headH * 1.1;
+        if ($fw < $minW) { $fw = $minW; $fh = $fw / self::ASPECT; }
+        if ($fh < $minH) { $fh = $minH; $fw = $fh * self::ASPECT; }
+        $s = min(1, $W / $fw, $H / $fh); $fw *= $s; $fh *= $s;
+        $cx = !empty($g['eyes']) && count($g['eyes']) === 2 ? ($g['eyes'][0]['x'] + $g['eyes'][1]['x']) / 2 * $W : ($hx0 + $hx1) / 2;
+        $x = $cx - $fw / 2; $y = $hy0 - 0.11 * $fh;
+        if ($fw >= $headW) $x = min($hx0, max($hx1 - $fw, $x));
+        if ($fh >= $headH) $y = min($hy0, max($hy1 - $fh, $y));
+        $x = min(max(0, $x), $W - $fw); $y = min(max(0, $y), $H - $fh);
+        return ['x' => (int) round($x), 'y' => (int) round($y), 'w' => (int) floor($fw), 'h' => (int) floor($fh)];
     }
 
     /**

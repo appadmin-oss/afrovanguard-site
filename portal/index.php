@@ -117,7 +117,9 @@ render_head([
     'canonical'  => rtrim(SITE_URL, '/') . '/portal/',
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-page portal-app' . ($ptheme === 'dark' ? ' is-dark' : ''),
-    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css', '/academy/ngv/ngv-dashboard.css'],
+    'css'        => ['/portal/portal.css', '/community/community.css', '/portal/community.css', '/assets/vendor/trix/trix.css', '/academy/ngv/ngv-dashboard.css',
+                     /* The member card (Attendance & pass) and its photo editor. */
+                     '/assets/site/av-tokens.css', '/assets/site/avc-card.css', '/assets/site/avc-photo.css'],
     'manifest'   => '/manifest.webmanifest',
 ]);
 
@@ -2746,6 +2748,8 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
   <script src="/portal/diary.js" defer></script>
   <script src="/portal/notebooks.js" defer></script>
   <script src="/portal/commitments.js" defer></script>
+  <script src="/assets/site/avc-photo.js" defer></script>
+  <script src="/portal/card-photo.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>

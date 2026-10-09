@@ -734,8 +734,3 @@ body.studio-authed .studio-side { display: block; }
 .mem-cp-side { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .mem-cp-role { display: flex; flex-direction: column; gap: 4px; font-size: 13px; width: 100%; }
 .mem-cp-role input { min-height: 40px; font-size: 16px; }
-.cp-box { max-width: 760px; }
-.cp-stage { height: min(60vh, 520px); background: rgba(0,0,0,.06); border-radius: 10px; overflow: hidden; }
-.cp-stage img { display: block; max-width: 100%; }
-.cp-msg { margin: 12px 0 0; font-size: 14px; min-height: 20px; }
-.cp-msg.bad { color: var(--danger, #b0361c); }

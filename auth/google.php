@@ -121,6 +121,16 @@ if ($action === 'callback') {
         try { GoogleWorkspaceUser::captureFromSignin($uid, $tokens); }
         catch (Throwable $e) { error_log('[google] connect-on-signin: ' . $e->getMessage()); }
     }
+    /* The Google profile photo becomes the card photo when there is none —
+       after the redirect has gone, so signing in never waits on it. */
+    if ($uid > 0 && ($profile['picture'] ?? '') !== '') {
+        $pic = (string) $profile['picture'];
+        register_shutdown_function(static function () use ($uid, $pic): void {
+            if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+            elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
+            try { CardPhoto::fromGoogle($uid, $pic); } catch (Throwable $e) { error_log('[google] card photo: ' . $e->getMessage()); }
+        });
+    }
     av_oauth_bounce($next); // success → back to where they started
 }
 

@@ -29,7 +29,7 @@ card mentorship/mentor \
 diary/partials.php diary/article.php diary/api.php \
 assets/site/avc-card.css assets/site/avd.css assets/site/avd.js \
 assets/site/avm.css assets/site/avm.js \
-assets/site/avc-print.css assets/site/avc-print.js \
+assets/site/avc-print.css assets/site/avc-print.js assets/site/avc-photo.css assets/site/avc-photo.js \
 index.html assets/site/avh.css assets/site/avh.js"
 
 # Only the paths that exist: the modules land one at a time, and `grep` on a
