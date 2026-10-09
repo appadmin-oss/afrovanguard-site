@@ -65,6 +65,8 @@
   --av-copy-0:#3D3D3D;      /* body copy on sand */
   --av-on-ink-line-2:#2A3344; /* hairline + image bed on ink */
   --av-green-line:#D6EADB;  /* How it works: "Upon attaining" card border */
+  --av-gold-num:#D9B45A;    /* Ethos: large commitment numerals (decorative) */
+  --av-num-idle:#A3A39E;    /* Ethos: idle commitment numbers in the contents list */
   /* card status bands (≥6:1 with white) */
   --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
 
