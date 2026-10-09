@@ -348,6 +348,7 @@ require_once __DIR__ . '/RecallBot.php';
 require_once __DIR__ . '/AttendeeBot.php';
 require_once __DIR__ . '/Meetings.php';
 require_once __DIR__ . '/Storage.php';
+require_once __DIR__ . '/CardPhoto.php';   /* member card photos: framed, resampled, enhanced */
 require_once __DIR__ . '/Tts.php';
 require_once __DIR__ . '/Chioma.php';
 require_once __DIR__ . '/AvRules.php';

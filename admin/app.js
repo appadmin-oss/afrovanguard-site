@@ -64,6 +64,8 @@
   }
   function post(action, payload) { return api(action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
   function uploadFile(file) { var fd = new FormData(); fd.append('file', file); return api('upload', { method: 'POST', body: fd }); }
+  /* For admin/card-photo.js: the same request path, CSRF and toast. */
+  window.AvAdmin = { api: api, post: post, toast: toast };
 
   /* ---- Theme ---- */
   $('#themeToggle').addEventListener('click', function () {
@@ -3199,6 +3201,7 @@
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
       /* Printing is the office's job: PDF for a card printer, PNGs, or an A4 run (card/print.php). */
       $('#mdPrint').href = '/card/print.php?member=' + encodeURIComponent(memOpen);
+      if (window.AvCardPhoto) window.AvCardPhoto.load(memOpen);
       $('#mdPrint').hidden = !(m.cards || []).some(function (c) { return c.kind === 'secure' && c.status === 'active'; });
       $('#mdRetire').hidden = !(m.cards || []).some(function (c) { return c.kind === 'printed' && c.status === 'active'; });
       $('#mdSuspend').textContent = m.status === 'suspended' ? 'Reactivate' : 'Suspend';

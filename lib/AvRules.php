@@ -337,6 +337,16 @@ final class AvRules
             'label' => 'Late fine on probation (₦)',
             'help'  => 'Charged instead of the late fine to a participant on probation. 0 uses the ordinary late fine. The spreadsheet system charged ₦10,000.',
         ],
+        'cards.photo_enhance' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Member cards',
+            'label' => 'Improve card photos',
+            'help'  => 'With Cloudinary set up, card photos are delivered through its automatic improvement (light, contrast, colour). Off: the photo prints as uploaded.',
+        ],
+        'cards.photo_bg_removal' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Member cards',
+            'label' => 'Remove card photo backgrounds',
+            'help'  => 'With Cloudinary set up, the member is cut out and stands on the card’s gold, as the design shows. A Cloudinary add-on that uses credits.',
+        ],
         'gate.fine_phone_signin' => [
             'type' => 'bool', 'default' => true, 'group' => 'Attendance',
             'label' => 'Fine signing in with the phone',

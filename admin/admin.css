@@ -725,3 +725,17 @@ body.studio-authed .studio-side { display: block; }
 .dcm-row { align-items: flex-start; }
 .dcm-body { white-space: pre-wrap; margin: 8px 0 0; }
 .dcm-flag { color: var(--gold-deep); font-weight: 700; }
+
+/* Member desk — the photo and title printed on the member card (admin/card-photo.js) */
+.mem-cardphoto { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px; }
+.mem-cp-frame { width: 188px; aspect-ratio: 47.2 / 35.2; border-radius: 10px; overflow: hidden; background: var(--surface-2, rgba(0,0,0,.05)); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; color: var(--text-muted, inherit); padding: 0; }
+.mem-cp-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mem-cp-frame span { padding: 12px; }
+.mem-cp-side { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.mem-cp-role { display: flex; flex-direction: column; gap: 4px; font-size: 13px; width: 100%; }
+.mem-cp-role input { min-height: 40px; font-size: 16px; }
+.cp-box { max-width: 760px; }
+.cp-stage { height: min(60vh, 520px); background: rgba(0,0,0,.06); border-radius: 10px; overflow: hidden; }
+.cp-stage img { display: block; max-width: 100%; }
+.cp-msg { margin: 12px 0 0; font-size: 14px; min-height: 20px; }
+.cp-msg.bad { color: var(--danger, #b0361c); }

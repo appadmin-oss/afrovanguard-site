@@ -44,7 +44,8 @@ final class Gemini
     /**
      * Generate text. Returns ['ok'=>bool,'text'=>string,'error'=>?string].
      * $opts: system (string), max_tokens (int), temperature (float),
-     *        parts (array of extra content parts, e.g. inline audio).
+     *        parts (array of extra content parts, e.g. inline audio),
+     *        json_schema (a Gemini responseSchema: the reply is JSON of that shape).
      */
     public static function generate(string $prompt, array $opts = []): array
     {
@@ -72,6 +73,10 @@ final class Gemini
                 'temperature'     => (float) ($opts['temperature'] ?? 0.2),
             ],
         ];
+        if (!empty($opts['json_schema']) && is_array($opts['json_schema'])) {
+            $payload['generationConfig']['responseMimeType'] = 'application/json';
+            $payload['generationConfig']['responseSchema'] = $opts['json_schema'];
+        }
         if (trim((string) ($opts['system'] ?? '')) !== '') {
             $payload['systemInstruction'] = ['parts' => [['text' => (string) $opts['system']]]];
         }

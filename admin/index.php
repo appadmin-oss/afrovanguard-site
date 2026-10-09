@@ -160,6 +160,16 @@
   </main>
 
   <!-- WordPress import modal -->
+  <div class="modal-backdrop" id="cpModal" hidden>
+    <div class="modal-box cp-box" role="dialog" aria-modal="true" aria-labelledby="cpTitle">
+      <div class="modal-top"><h2 id="cpTitle">Card photo</h2><button class="icon-x" id="cpClose" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <div class="cp-stage"><img id="cpImg" alt="The photo being framed"></div>
+        <p class="cp-msg" id="cpMsg" role="status" aria-live="polite"></p>
+      </div>
+      <div class="modal-foot"><button class="btn btn-outline btn-sm" id="cpCancel" type="button">Cancel</button><button class="btn btn-primary btn-sm" id="cpUse" type="button" disabled>Use this photo</button></div>
+    </div>
+  </div>
   <div class="modal-backdrop" id="wpModal" hidden>
     <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="wpModalTitle">
       <div class="modal-top"><h2 id="wpModalTitle">Import from WordPress</h2><button class="icon-x" id="wpClose" aria-label="Close">×</button></div>
@@ -597,6 +607,19 @@
           <a class="btn btn-primary btn-sm" id="mdPrint" href="#" target="_blank" rel="noopener">Print card</a>
           <button class="btn btn-outline btn-sm" id="mdReissue">Lost card — issue a new one</button>
           <button class="btn btn-outline btn-sm" id="mdRetire" hidden>Reprinted — retire the old card</button>
+        </div>
+        <h3 class="mem-card-h">On the printed card</h3>
+        <div class="mem-cardphoto" id="mdCardPhoto">
+          <div class="mem-cp-frame"><img id="mdCpImg" alt="Card photo" hidden><span id="mdCpNone">No photo — the card prints initials.</span></div>
+          <div class="mem-cp-side">
+            <div class="editor-actions" style="justify-content:flex-start;padding:0;border:0">
+              <button class="btn btn-outline btn-sm" id="mdCpPick" type="button">Add photo</button>
+              <button class="btn btn-outline btn-sm" id="mdCpClear" type="button" hidden>Remove photo</button>
+            </div>
+            <input type="file" id="mdCpFile" accept="image/jpeg,image/png,image/webp" hidden>
+            <label class="mem-cp-role">Title under the name <input id="md_cardrole" maxlength="40" placeholder="e.g. Chief Servant"></label>
+            <button class="btn btn-outline btn-sm" id="mdRoleSave" type="button">Save title</button>
+          </div>
         </div>
         <details class="mem-history"><summary>What has happened to this member</summary><div id="mdTimeline"></div></details>
       </div>
@@ -1307,5 +1330,6 @@
        to a plain textarea, so the editor still works (without the toolbar). -->
   <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
   <script src="/admin/app.js" defer></script>
+  <script src="/admin/card-photo.js" defer></script>
 </body>
 </html>
