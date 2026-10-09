@@ -327,6 +327,8 @@ require_once __DIR__ . '/AiOps.php';     // cron heartbeat, model spend, and the
 require_once __DIR__ . '/ChatBot.php';   // the Google Chat task bot
 require_once __DIR__ . '/AvEvents.php';
 require_once __DIR__ . '/Mentorship.php';
+require_once __DIR__ . '/MentorAcademy.php';  // what a mentor must know before accepting anyone
+require_once __DIR__ . '/MentorPortal.php';   // the read model behind /mentorship/mentor/
 require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AdminAudit.php';

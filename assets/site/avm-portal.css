@@ -1,0 +1,82 @@
+/* The mentor portal: the handful of rules avm.css does not carry, and three
+   it carries but loses. Loaded after avm.css. Prefix avm-. */
+
+/* ── The search icon ────────────────────────────────────────────────────────
+   Icons::SEARCH is the site's shared magnifier and has no width or height of
+   its own — every other place that uses it sizes it. Unsized inside a flex
+   row it takes an SVG's default 300×150, which crushed the input to 4px wide
+   and drew a magnifier the width of the table across the roster. */
+.avm-search svg{width:18px;height:18px;flex:none;color:var(--av-muted)}
+
+/* ── Button colour ──────────────────────────────────────────────────────────
+   avm.css opens with `.avm button{color:inherit}` — specificity 0,1,1 — and
+   then states `.avm-btn--ink{color:var(--av-white)}` at 0,1,0. The reset wins,
+   so the ink and danger buttons came out ink-on-ink and gold-on-gold: a solid
+   block with an invisible label. Restated where it holds. */
+.avm .avm-btn--ink,.avm .avm-btn--danger{color:var(--av-white)}
+.avm .avm-btn--gold{color:var(--av-ink)}
+.avm .avm-btn--ghost-ink{color:var(--av-white)}
+.avm .avm-report{color:var(--av-red)}
+
+/* ── Form labels ────────────────────────────────────────────────────────────
+   Several views label a field by wrapping it, which stacks only if the label
+   is a block. avm.css styles the controls, not the wrapper. */
+.avm label{display:block}
+.avm-dialog label,.avm-panel>label{font-size:13px;font-weight:600;color:var(--av-text-2);display:flex;flex-direction:column;gap:6px}
+.avm-opt,.avm-seg label,.avm-cats label,.avm-chips label,.avm-log label.avm-opt{font-weight:inherit;color:inherit}
+.avm-seg label,.avm-cats label{display:block}
+
+/* ── Details rows (check-ins) ───────────────────────────────────────────────
+   The disclosure marker is replaced by the row's own affordance on the right. */
+.avm-card>summary::-webkit-details-marker{display:none}
+.avm-card>summary:focus-visible{outline:3px solid var(--av-focus);outline-offset:-3px}
+
+/* ── Keyboard ───────────────────────────────────────────────────────────────
+   kbd in the shortcuts dialog. */
+.avm-dialog kbd{display:inline-block;min-width:22px;padding:2px 6px;border:1px solid var(--av-line-2);
+  border-bottom-width:2px;border-radius:var(--av-r-6);background:var(--av-stone-2);
+  font:600 12px var(--av-sans);text-align:center}
+.avm-dialog dt{margin:0}
+.avm-dialog dd{margin:0;color:var(--av-text-2)}
+
+/* ── Scenario and quiz options ──────────────────────────────────────────────
+   .avm-cats is a grid of category tiles; a single option reuses its tile
+   without its grid. */
+.avm-panel>label.avm-cats,.avm-val label.avm-cats{display:block}
+.avm-panel>label.avm-cats span,.avm-val label.avm-cats span{width:100%}
+
+/* ── Reading width ──────────────────────────────────────────────────────────
+   The Academy is the one place in the portal that is prose. */
+.avm-panel>p{max-width:68ch;text-wrap:pretty}
+
+@media (prefers-reduced-motion:reduce){
+  .avm-skel{animation:none}
+  .avm-btn,.avm-chip,.avm-navlink,.avm-todo{transition:none}
+}
+
+/* ── Contrast ───────────────────────────────────────────────────────────────
+   avm.css gives the sidebar's group labels --av-faint (#8B8B8B) on
+   --av-stone-2, which measures 2.9:1 at 11.5px — under the 4.5:1 G-09 asks
+   for. --av-muted is the token for text that must still be read. */
+.avm-navgroup>span{color:var(--av-muted)}
+
+/* ── Filter chips ───────────────────────────────────────────────────────────
+   The chips are LINKS: the filter is URL state, so each one must be
+   shareable, bookmarkable and openable in a new tab. aria-pressed is not
+   allowed on a link (axe: aria-allowed-attr), and aria-current is what a link
+   to the view you are already in means. avm.css styles the pressed state, so
+   the same ring is restated for the current one. */
+.avm-chip[aria-current="true"]{border:2px solid var(--av-ink);padding:0 11px}
+
+/* ── Touch targets (G-11) ───────────────────────────────────────────────────
+   Four controls the drop-in's phone block misses. The checkbox is the
+   interesting one: a 20px box is a 20px target, and growing the box to 44px
+   draws a checkbox the size of a thumbnail. The BOX stays 20px and the LABEL
+   around it is the 44px target, which is also what a thumb is aiming at. */
+.avm-pick{display:grid;place-items:center;width:20px;height:20px}
+@container avm (max-width:899px){
+  .avm-tr{grid-template-columns:44px minmax(0,1fr)}
+  .avm-pick{width:44px;height:44px;margin-left:-12px}
+  .avm-select,.avm-search input{min-height:44px}
+  .avm-link{display:inline-flex;align-items:center;min-height:44px}
+}

@@ -86,6 +86,16 @@ function mn_av(array $m): string {
       </div>
 <?php endif; ?>
 
+<?php if ($isMentor): ?>
+      <?php /* The route into the portal. Everything a mentor does now lives
+               there; this page stays the mentee side and the directory. */ ?>
+      <div class="cm-card mn-card">
+        <h2 class="mn-h">Your mentees</h2>
+        <p class="mn-sub">Your roster, sessions, values, check-ins and training are in the mentor portal.</p>
+        <p><a class="cm-post-btn" href="/mentorship/mentor/">Open the mentor portal</a></p>
+      </div>
+<?php endif; ?>
+
       <!-- Find a mentor -->
       <div class="cm-card mn-card">
         <h2 class="mn-h">Find a mentor</h2>
