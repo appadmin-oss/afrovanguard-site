@@ -38,10 +38,7 @@ $isOrg     = LmsAuth::isOrgMember($u);
 $isMentor  = Mentorship::isMentor((int) $u['id']);
 $profile   = Mentorship::profile((int) $u['id']);
 $asMentee  = Mentorship::myMentors((int) $u['id']);
-$asMentor  = $isMentor ? Mentorship::myMentees((int) $u['id']) : [];
 $mentors   = Mentorship::availableMentors((int) $u['id']);
-$pending   = array_values(array_filter($asMentor, fn($m) => $m['status'] === 'pending'));
-$activeMen = array_values(array_filter($asMentor, fn($m) => $m['status'] === 'active'));
 // A member's mentorship footprint across every pairing — real hours logged.
 $myStats   = Mentorship::memberConsistency((int) $u['id']);
 $myHours   = (float) ($myStats['hours'] ?? 0);
@@ -71,22 +68,6 @@ function mn_av(array $m): string {
 
   <div class="mn-cols">
     <section class="mn-main">
-<?php if ($pending): ?>
-      <div class="cm-card mn-card">
-        <h2 class="mn-h">Requests for you <span class="mn-badge"><?= count($pending) ?></span></h2>
-<?php foreach ($pending as $m): ?>
-        <div class="mn-row" data-id="<?= (int) $m['id'] ?>">
-          <?= mn_av($m) ?>
-          <div class="mn-row-bd"><b><?= e($m['name']) ?></b><?= $m['message'] !== '' ? '<p class="mn-msg">“' . e($m['message']) . '”</p>' : '' ?></div>
-          <div class="mn-row-ops">
-            <button class="cm-post-btn mn-sm" data-respond="<?= (int) $m['id'] ?>" data-accept="1">Accept</button>
-            <button class="cm-ask-btn mn-sm" data-respond="<?= (int) $m['id'] ?>" data-accept="0">Decline</button>
-          </div>
-        </div>
-<?php endforeach; ?>
-      </div>
-<?php endif; ?>
-
 <?php if ($asMentee): ?>
       <div class="cm-card mn-card">
         <h2 class="mn-h">Your mentors</h2>
@@ -97,35 +78,9 @@ function mn_av(array $m): string {
             <span class="mn-status mn-status--<?= e($m['status']) ?>"><?= $m['status'] === 'pending' ? 'Awaiting reply' : 'Active' ?></span>
 <?= mn_goals_html($m) ?>
 <?= mn_consistency_html($m['consistency'] ?? []) ?>
-<?= mn_sessions_html($m['sessions'], false) ?>
+<?= mn_sessions_html($m['sessions']) ?>
           </div>
           <div class="mn-row-ops"><?= $m['status'] === 'active' ? '<button class="cm-ask-btn mn-sm" data-end="' . (int) $m['id'] . '">End</button>' : '' ?></div>
-        </div>
-<?php endforeach; ?>
-      </div>
-<?php endif; ?>
-
-<?php if ($activeMen): ?>
-      <div class="cm-card mn-card">
-        <h2 class="mn-h">Your mentees</h2>
-<?php foreach ($activeMen as $m): ?>
-        <div class="mn-row mn-row--col" data-id="<?= (int) $m['id'] ?>">
-          <div class="mn-row-top"><?= mn_av($m) ?><div class="mn-row-bd"><b><?= e($m['name']) ?></b><span class="mn-status mn-status--active">Active</span></div></div>
-<?= mn_goals_html($m) ?>
-<?= mn_consistency_html($m['consistency'] ?? []) ?>
-<?= mn_sessions_html($m['sessions'], true) ?>
-          <form class="mn-session-form" data-session="<?= (int) $m['id'] ?>">
-            <select name="type" title="Session type" aria-label="Session type">
-<?php foreach (Mentorship::sessionTypes() as $tk => $tl): ?>              <option value="<?= e($tk) ?>"<?= $tk === 'checkin' ? ' selected' : '' ?>><?= e($tl) ?></option>
-<?php endforeach; ?>
-            </select>
-            <input type="text" name="title" placeholder="Session title (optional — defaults to the type)" />
-            <input type="datetime-local" name="when" />
-            <input type="number" name="duration_min" min="15" max="240" step="15" value="60" title="Planned length (minutes)" aria-label="Session length in minutes" />
-            <input type="url" name="meet_url" placeholder="Google Meet link (optional)" />
-            <input type="text" name="notes" placeholder="Agenda for this session (optional)" />
-            <button type="submit" class="cm-ask-btn mn-sm">+ Schedule</button>
-          </form>
         </div>
 <?php endforeach; ?>
       </div>
@@ -193,7 +148,7 @@ function mn_av(array $m): string {
 
 <?php
 /** Render a small sessions list. (Declared after use is fine in PHP for functions.) */
-function mn_sessions_html(array $sessions, bool $asMentor = false): string {
+function mn_sessions_html(array $sessions): string {
     if (!$sessions) return '';
     $attLabel = ['scheduled' => 'Scheduled', 'attended' => 'Attended', 'missed' => 'Missed', 'cancelled' => 'Cancelled'];
     $out = '<ul class="mn-sessions">';
@@ -216,15 +171,6 @@ function mn_sessions_html(array $sessions, bool $asMentor = false): string {
         if ($meet !== '') $out .= '<a class="mn-join" href="' . e($meet) . '" target="_blank" rel="noopener">▶ Join Meet</a>';
         if ($tr !== '')   $out .= '<a class="mn-transcript" href="' . e($tr) . '" target="_blank" rel="noopener">📄 Transcript</a>';
         $out .= '</div>';
-        if ($asMentor) {
-            $out .= '<div class="mn-sess-ctl">'
-                . '<button type="button" class="mn-chip" data-attend="' . (int) $s['id'] . '" data-status="attended">Attended</button>'
-                . '<button type="button" class="mn-chip" data-attend="' . (int) $s['id'] . '" data-status="missed">Missed</button>'
-                . '<button type="button" class="mn-chip" data-outcome="' . (int) $s['id'] . '">' . ($outcome === '' ? 'Log outcome' : 'Edit outcome') . '</button>'
-                . '<button type="button" class="mn-chip" data-meet="' . (int) $s['id'] . '">' . ($meet === '' ? 'Add Meet' : 'Edit Meet') . '</button>'
-                . '<button type="button" class="mn-chip" data-transcript="' . (int) $s['id'] . '">' . ($tr === '' ? 'Add transcript' : 'Edit transcript') . '</button>'
-                . '</div>';
-        }
         $out .= '</li>';
     }
     return $out . '</ul>';
@@ -235,12 +181,8 @@ function mn_goals_html(array $m): string {
     if (($m['status'] ?? '') !== 'active') return '';
     $g = trim((string) ($m['goals'] ?? ''));
     $id = (int) $m['id'];
-    if ($g === '') {
-        return '<div class="mn-goals mn-goals--empty"><span>No goals set yet.</span>'
-            . '<button type="button" class="mn-goals-edit" data-goals="' . $id . '">Set goals</button></div>';
-    }
-    return '<div class="mn-goals"><span class="mn-goals-lbl">Goals</span><span class="mn-goals-txt">' . e($g) . '</span>'
-        . '<button type="button" class="mn-goals-edit" data-goals="' . $id . '">Edit</button></div>';
+    if ($g === '') return '';
+    return '<div class="mn-goals"><span class="mn-goals-lbl">Goals</span><span class="mn-goals-txt">' . e($g) . '</span></div>';
 }
 
 function mn_consistency_html(array $c): string {
@@ -368,64 +310,9 @@ function mn_consistency_html(array $c): string {
       post('end', { id: +end.getAttribute('data-end') }).then(function (d) { if (d.ok) reloadSoon(); else { end.disabled = false; alert(d.error || 'Failed.'); } });
       return;
     }
-    var att = e.target.closest('[data-attend]');
-    if (att) {
-      var status = att.getAttribute('data-status');
-      var payload = { session_id: +att.getAttribute('data-attend'), status: status };
-      // Marking a session attended logs its length → real mentorship hours.
-      if (status === 'attended') {
-        var mins = prompt('How long did this session run? (minutes)', '60');
-        if (mins === null) return;
-        var n = parseInt(mins, 10);
-        if (isFinite(n) && n > 0) payload.duration_min = n;
-      }
-      att.disabled = true;
-      post('attend', payload)
-        .then(function (d) { if (d.ok) reloadSoon(); else { att.disabled = false; alert(d.error || 'Failed.'); } });
-      return;
-    }
-    var meet = e.target.closest('[data-meet]');
-    if (meet) {
-      var u = prompt('Paste the Google Meet link for this session.\nTip: open meet.google.com/new in another tab to create one, then paste it here.', '');
-      if (u === null) return;
-      post('meet', { session_id: +meet.getAttribute('data-meet'), meet_url: u }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
-      return;
-    }
-    var tr = e.target.closest('[data-transcript]');
-    if (tr) {
-      var t = prompt('Paste the transcript link (a Google Doc or Drive file from the Meet recording).', '');
-      if (t === null) return;
-      post('transcript', { session_id: +tr.getAttribute('data-transcript'), url: t }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
-      return;
-    }
-    var oc = e.target.closest('[data-outcome]');
-    if (oc) {
-      var o = prompt('Record the outcome and action items from this session (what was covered, what the mentee will do next).', '');
-      if (o === null) return;
-      post('outcome', { session_id: +oc.getAttribute('data-outcome'), outcome: o }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
-      return;
-    }
-    var gl = e.target.closest('[data-goals]');
-    if (gl) {
-      var g = prompt('What are the goals for this mentorship? (e.g. "Build confidence leading a team; ship one community project by December.")', '');
-      if (g === null) return;
-      post('goals', { id: +gl.getAttribute('data-goals'), goals: g }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
-    }
   });
 
   document.addEventListener('submit', function (e) {
-    var sf = e.target.closest('[data-session]');
-    if (sf) {
-      e.preventDefault();
-      var title = sf.querySelector('[name=title]').value, when = sf.querySelector('[name=when]').value;
-      if (!title.trim()) { sf.querySelector('[name=title]').focus(); return; }
-      var meetEl = sf.querySelector('[name=meet_url]');
-      var durEl = sf.querySelector('[name=duration_min]');
-      var typeEl = sf.querySelector('[name=type]');
-      var notesEl = sf.querySelector('[name=notes]');
-      post('session', { id: +sf.getAttribute('data-session'), title: title, when: when, meet_url: meetEl ? meetEl.value : '', duration_min: durEl ? (parseInt(durEl.value, 10) || 60) : 60, type: typeEl ? typeEl.value : 'checkin', notes: notesEl ? notesEl.value : '' }).then(function (d) { if (d.ok) reloadSoon(); else alert(d.error || 'Failed.'); });
-      return;
-    }
     if (e.target.id === 'mnBecome') {
       e.preventDefault();
       var f = e.target, msg = f.querySelector('.mn-formmsg');
