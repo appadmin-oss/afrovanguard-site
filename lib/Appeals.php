@@ -2235,6 +2235,9 @@ SQL;
             return (bool) Mailer::send($email, ((string) $u['title'] !== '' ? (string) $u['title'] : 'An update') . ' — ' . (string) $a['title'], $html, [
                 'from'     => defined('DONATIONS_FROM_EMAIL') ? DONATIONS_FROM_EMAIL : null,
                 'fromName' => defined('DONATIONS_FROM_NAME') ? DONATIONS_FROM_NAME : 'Afrovanguard',
+                /* An announcement: it never spends the Google Apps Script
+                   allowance sign-in codes depend on (Mailer::isBulk()). */
+                'bulk'     => true,
                 /* One-click unsubscribe. Without it a send to several hundred
                    donors lands in spam, and a donor who cannot get out
                    complains to their provider rather than to us. */

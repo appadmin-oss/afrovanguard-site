@@ -81,6 +81,23 @@ final class AvSettings
             'help' => 'Only for a gateway, a proxy or Bedrock. Leave blank otherwise.',
         ],
 
+        /* ── Email: the site's own Google Apps Script, and which road mail takes ── */
+        'AV_MAIL_TRANSPORT' => [
+            'group' => 'Email', 'label' => 'Sending road', 'secret' => false, 'type' => 'enum',
+            'options' => ['auto', 'smtp', 'gas', 'resend', 'host'],
+            'help' => 'auto (recommended): SMTP first; if it fails, Google Apps Script for one-to-one mail (sign-in codes, receipts, replies), then Resend, then this server’s own mail. smtp: SMTP only. gas: Google Apps Script only — announcements are held, because its allowance (about 100 recipients a day on Gmail, 1,500 on Workspace) is kept for mail people are waiting for. resend: the Resend API only. host: this server’s mail() only.',
+        ],
+        'AV_GAS_URL' => [
+            'group' => 'Email', 'label' => 'Apps Script web-app URL', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://script.google.com/macros/s/…/exec',
+            'help' => 'The Web app URL of apps-script/Afrovanguard_Mail.gs, from Deploy → Manage deployments in Apps Script. It ends in /exec. Step-by-step: docs/EMAIL-APPS-SCRIPT.md.',
+        ],
+        'AV_GAS_SECRET' => [
+            'group' => 'Email', 'label' => 'Apps Script secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'the SECRET from the top of the script',
+            'help' => 'Exactly the text between the quotes in const SECRET at the top of the script. The script refuses every request without it.',
+        ],
+
         /* ── Gemini ───────────────────────────────────────────────────── */
         /* ── NextGen Genius ─────────────────────────────────────────────── */
         'NGG_WEBHOOK_SECRET' => [
@@ -566,6 +583,15 @@ final class AvSettings
         if ($type === 'url') {
             if (!preg_match('#^https?://#i', $val)) return 'Must be an http or https URL.';
             if (!filter_var($val, FILTER_VALIDATE_URL)) return 'That is not a valid URL.';
+            if ($key === 'AV_GAS_URL') {
+                // `/dev` answers only the script's owner, signed in, in a browser —
+                // it works when they try it and never from this server.
+                $path = rtrim((string) parse_url($val, PHP_URL_PATH), '/');
+                if (stripos($val, 'https://') !== 0) return 'The Apps Script address starts https://script.google.com/.';
+                if (!str_ends_with($path, '/exec')) {
+                    return 'The address must end in /exec — copy the Web app URL from Deploy → Manage deployments, not the editor’s address and not the one ending /dev.';
+                }
+            }
             return '';
         }
         if (strlen($val) > 4000) return 'Too long.';
@@ -658,6 +684,7 @@ final class AvSettings
             ['key' => 'attendee',  'label' => 'Attendee notetaker', 'ready' => class_exists('AttendeeBot') && AttendeeBot::configured()],
             ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
+            ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
         ];
     }
 
@@ -678,6 +705,7 @@ final class AvSettings
                 case 'recall':    $r = self::testRecall(); break;
                 case 'attendee':  $r = self::testAttendee(); break;
                 case 'search':    $r = self::testSearch(); break;
+                case 'apps_script': $r = self::testAppsScript(); break;
             }
         } catch (Throwable $e) {
             error_log('[settings] test ' . $what . ': ' . $e->getMessage());
@@ -763,6 +791,18 @@ final class AvSettings
         $n = count((array) ($res['results'] ?? []));
         return ['ok' => true, 'detail' => 'Connected · ' . $p . ' returned ' . $n . ' result' . ($n === 1 ? '' : 's')
             . ($wasOff ? ' — remember web access is still off in the rules' : '')];
+    }
+
+    /** Ask the Apps Script how much it may still send today. Sends nothing. */
+    private static function testAppsScript(): array
+    {
+        if (!class_exists('AppsScriptMail') || !AppsScriptMail::configured()) {
+            return ['ok' => false, 'detail' => 'Set both the Apps Script web-app URL and its secret first.'];
+        }
+        $c = AppsScriptMail::boot()->check();
+        // Already an operator sentence — not passed through humanise(), which
+        // would turn "quota" into "rate-limited" and lose the instructions.
+        return ['ok' => (bool) $c['ok'], 'detail' => (string) $c['detail']];
     }
 
     /**
