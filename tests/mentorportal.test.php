@@ -440,3 +440,22 @@ ck('goals: removing the last one empties the text and puts the pairing back at '
     (string) $db->query('SELECT goals FROM mentorships WHERE id = ' . $nogoal)->fetchColumn() === ''
     && (int) $db->query('SELECT stage FROM mentorships WHERE id = ' . $nogoal)->fetchColumn() === 2
     && $a->roster('', 'all', 'wait', 1)['counts']['goals'] === 1);
+
+/* ══ THE COORDINATOR ═════════════════════════════════════════════════════
+   The name mentors are pointed at changes when the person changes, and the
+   person changing is exactly when nobody can reach a config file. It is a
+   Studio rule first, the MENTOR_COORDINATOR setting second. */
+
+ck('coordinator: with nothing set, mentors are pointed at "your coordinator" '
+ . 'rather than at a blank',
+    $a->coordinatorFirstName() === 'your coordinator');
+AvRules::save(['mentorship.coordinator_name' => 'Ifeoma Balogun'], 'test');
+ck('coordinator: the Studio rule is used, first name only',
+    (new MentorPortal(11))->coordinatorFirstName() === 'Ifeoma');
+ck('coordinator: a name longer than the field allows is refused, not stored '
+ . 'and then printed',
+    (AvRules::save(['mentorship.coordinator_name' => str_repeat('x', 81)], 'test')['ok'] ?? true) === false);
+AvRules::save(['mentorship.coordinator_name' => ''], 'test');
+ck('coordinator: clearing it goes back to the fallback — a settings field you '
+ . 'cannot empty is a one-way door',
+    (new MentorPortal(11))->coordinatorFirstName() === 'your coordinator');

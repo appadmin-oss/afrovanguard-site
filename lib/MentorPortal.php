@@ -1181,11 +1181,17 @@ final class MentorPortal
      * Who a mentor is told to go to. Read from configuration rather than
      * hard-coded: a name in the source is a person who has left by the time
      * somebody needs them.
+     *
+     * The Studio rule is checked FIRST, because that is the one a coordinator
+     * handing over can change themselves. MENTOR_COORDINATOR (config.php or
+     * env) still works and is the fallback, so nothing that already set it
+     * has to move.
      */
     public function coordinatorFirstName(): string
     {
-        $n = defined('MENTOR_COORDINATOR') ? (string) MENTOR_COORDINATOR : (string) (getenv('MENTOR_COORDINATOR') ?: '');
-        $n = trim($n);
+        $n = '';
+        if (class_exists('AvRules')) { try { $n = trim(AvRules::str('mentorship.coordinator_name')); } catch (Throwable $e) {} }
+        if ($n === '') $n = trim(defined('MENTOR_COORDINATOR') ? (string) MENTOR_COORDINATOR : (string) (getenv('MENTOR_COORDINATOR') ?: ''));
         return $n === '' ? 'your coordinator' : explode(' ', $n)[0];
     }
 

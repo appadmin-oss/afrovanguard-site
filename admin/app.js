@@ -2032,7 +2032,8 @@
         (r.min !== null && r.min !== undefined ? ' min="' + escapeHtml(r.min) + '"' : '') +
         (r.max !== null && r.max !== undefined ? ' max="' + escapeHtml(r.max) + '"' : '') + ' step="1" />';
     } else {
-      input = '<input type="text" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '" />';
+      input = '<input type="text" id="' + id + '" data-key="' + escapeHtml(r.key) + '" value="' + escapeHtml(r.value) + '"' +
+        (r.max !== null && r.max !== undefined ? ' maxlength="' + escapeHtml(r.max) + '"' : '') + ' />';
     }
     var meta = r.source === 'studio' && r.updated_by
       ? '<span class="rule-by">by ' + escapeHtml(r.updated_by) + '</span>' : '';

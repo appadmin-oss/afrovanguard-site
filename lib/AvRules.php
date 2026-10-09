@@ -61,6 +61,15 @@ final class AvRules
             'label' => 'Reminder lead time (hours)',
             'help'  => 'How far ahead of a due meeting the reminder goes out.',
         ],
+        /* Who a mentor is told to go to. A name in the source is a person who
+           has left by the time somebody needs them, and an .env edit needs a
+           file manager; this is the one that can be changed from the Studio by
+           whoever notices the handover first. */
+        'mentorship.coordinator_name' => [
+            'type' => 'str', 'default' => '', 'max' => 80, 'group' => 'Mentorship',
+            'label' => 'Mentorship coordinator',
+            'help'  => 'The name mentors are pointed at on Support and in the portal’s messages — their first name is used. Leave blank to say “your coordinator”. Overrides the MENTOR_COORDINATOR setting.',
+        ],
         'mentorship.inactive_days' => [
             'type' => 'int', 'default' => 21, 'min' => 2, 'max' => 365, 'group' => 'Mentorship',
             'label' => 'Inactivity threshold (days)',
@@ -543,7 +552,10 @@ final class AvRules
 
             case 'str':
             default:
-                return $raw;
+                // Free text, but bounded: this reaches a database column and a
+                // page, and "no stated limit" is how a settings field becomes
+                // a place to paste a document. `max` is the character count.
+                return mb_strlen($raw) > (int) ($def['max'] ?? 200) ? null : $raw;
         }
     }
 
@@ -767,7 +779,9 @@ final class AvRules
             case 'csv':
                 $hint = (string) ($def['item_hint'] ?? '');
                 return 'A comma-separated list' . ($hint !== '' ? ' of ' . $hint . '.' : '.');
-            default:     return 'Text.';
+            default:
+                $max = (int) ($def['max'] ?? 200);
+                return 'Text, up to ' . $max . ' characters.';
         }
     }
 
