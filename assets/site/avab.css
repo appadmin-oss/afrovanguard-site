@@ -190,6 +190,8 @@
   .avab-hero-imgs{gap:8px}
   .avab-btns .avab-btn{flex:1 1 auto}
   .avab-jump-list a{min-height:44px}
+  .avab-crumbs{align-items:center;margin-bottom:28px}
+  .avab-crumbs a{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
   .avab-more{min-height:44px}
   .avab-stats{grid-template-columns:1fr 1fr}
   .avab-stats>div{padding:24px 12px 24px 0}
