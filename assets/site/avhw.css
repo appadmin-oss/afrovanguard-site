@@ -97,7 +97,7 @@
 /* Phone: its own layout — stacked rows, full-width actions, 44px targets */
 @media (max-width:639px){
   .avhw-crumbs{align-items:center;margin-bottom:24px}
-  .avhw-crumbs a{display:inline-flex;align-items:center;min-height:44px}
+  .avhw-crumbs a{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
   .avhw-btns .avhw-btn{flex:1 1 auto}
   .avhw-btns--c .avhw-btn{flex:1 1 100%}
   .avhw-step{grid-template-columns:48px minmax(0,1fr);gap:0 16px}

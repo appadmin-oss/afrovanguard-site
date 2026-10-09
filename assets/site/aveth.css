@@ -113,7 +113,7 @@
 /* Phone: its own layout — contents list folds into a 2-column index, numerals beside headings, 44px targets */
 @media (max-width:639px){
   .aveth-crumbs{align-items:center;margin-bottom:24px}
-  .aveth-crumbs a{display:inline-flex;align-items:center;min-height:44px}
+  .aveth-crumbs a{display:inline-flex;align-items:center;min-height:44px;min-width:44px}
   .aveth-btns .aveth-btn{flex:1 1 auto}
   .aveth-cover{width:min(100%,320px)}
   .aveth-vm-card{min-height:0}
