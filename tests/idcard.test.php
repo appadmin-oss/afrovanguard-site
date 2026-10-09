@@ -129,13 +129,9 @@ ck('avc-card.css: print faces are laid out on the design’s 10px-per-mm canvas,
 /* ══ Printing: staff only, made in the browser ═══════════════════════════ */
 
 $src = (string) file_get_contents(AV_ROOT . '/card/print.php');
-ck('/card/print: an admin of this site, or a link NGG’s server signed — nobody else (owner, 2026-10-09)',
-   str_contains($src, "AdminRoles::can('admin')") && str_contains($src, "hash_hmac('sha256', 'card-print|'"));
+ck('/card/print: an admin of this site only (owner, 2026-10-09)', str_contains($src, "AdminRoles::can('admin')") && !str_contains($src, "\$_GET['ngg']"));
 ck('/card/print: a member cannot print their own card — there is no holder door',
    !str_contains($src, 'LmsAuth::user()'));
-ck('/card/print: an NGG link lives ten minutes and names a LINKED NGG member',
-   str_contains($src, 'abs(time() - (int) $ts) > 600') && str_contains($src, "status = 'linked'"));
-ck('/card/print: the signature is compared in constant time', str_contains($src, 'hash_equals('));
 ck('/card/print: rate limited', str_contains($src, "av_rate_ok('card_print'"));
 ck('/card/print: every opening is on the audit log', str_contains($src, "'card_print_opened'"));
 ck('/card/print: the photo-too-small message is the spec’s, verbatim',

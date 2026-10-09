@@ -3,15 +3,11 @@
  * card/print.php — print one member's card. Staff only.
  *
  * ── WHO MAY PRINT ───────────────────────────────────────────────────────────
- * Printing is an office job (owner, 2026-10-09). Two doors, nothing else:
- *   · an admin of this site (AdminRoles 'admin' or above), from the member desk
- *     or a scanned card's page — ?member=<id>;
- *   · NextGen Genius's Control Room, through a link its server signs with the
- *     shared NGG_WEBHOOK_SECRET — ?ngg=<NGG member id>&ts=<unix>&sig=<hex>,
- *     sig = HMAC-SHA256(secret, "card-print|<ngg>|<ts>"), good for 10 minutes.
- *     The NGG member is the one integrations/ngg.php linked to an account here.
- * A member cannot print their own card. Everyone else is refused the same way
- * whether or not the member exists.
+ * Printing is an office job (owner, 2026-10-09): an admin of this site
+ * (AdminRoles 'admin' or above), from the member desk or a scanned card's
+ * page — ?member=<id>. A member cannot print their own card. NextGen Genius
+ * prints Afrovanguard cards in its own ID Card Studio, from the same partial,
+ * through integrations/ngg-cards.php.
  *
  * ── WHY THE FILES ARE MADE IN THE BROWSER ───────────────────────────────────
  * The site runs on shared hosting: no shell, no Chrome, no Ghostscript. A PHP
@@ -46,36 +42,12 @@ function card_print_refuse(int $status, string $why): never
     exit;
 }
 
-/** The member a valid NGG-signed link names, or 0. */
-function card_print_ngg_member(): int
-{
-    $ngg = trim((string) ($_GET['ngg'] ?? ''));
-    $ts  = (string) ($_GET['ts'] ?? '');
-    $sig = strtolower((string) ($_GET['sig'] ?? ''));
-    if ($ngg === '' || !ctype_digit($ts) || $sig === '') return 0;
-    $secret = trim((string) (getenv('NGG_WEBHOOK_SECRET') ?: (defined('NGG_WEBHOOK_SECRET') ? NGG_WEBHOOK_SECRET : '')));
-    if ($secret === '' || abs(time() - (int) $ts) > 600) return 0;
-    if (!hash_equals(hash_hmac('sha256', 'card-print|' . $ngg . '|' . $ts, $secret), $sig)) return 0;
-    try {
-        $st = Database::pdo()->prepare("SELECT member_id FROM ngv_intake WHERE ngg_member_id = ? AND status = 'linked'");
-        $st->execute([mb_substr($ngg, 0, 64)]);
-        return (int) ($st->fetchColumn() ?: 0);
-    } catch (Throwable $e) { return 0; }
-}
-
 /* ── Who is asking ──────────────────────────────────────────────────────── */
 
-$viaNgg = isset($_GET['ngg']);
-if ($viaNgg) {
-    $target = card_print_ngg_member();
-    if ($target <= 0) card_print_refuse(403, 'This print link is not valid, or it has expired. Open it again from the NGG Control Room.');
-    $actor = 'NGG Control Room';
-} else {
-    if (!AdminRoles::can('admin')) card_print_refuse(403, 'Card printing is for Afrovanguard staff. Open it from the member desk in the admin.');
-    $target = (int) ($_GET['member'] ?? 0);
-    if ($target <= 0) card_print_refuse(404, 'Choose a member on the member desk first.');
-    $actor = av_admin_actor();
-}
+if (!AdminRoles::can('admin')) card_print_refuse(403, 'Card printing is for Afrovanguard staff. Open it from the member desk in the admin.');
+$target = (int) ($_GET['member'] ?? 0);
+if ($target <= 0) card_print_refuse(404, 'Choose a member on the member desk first.');
+$actor = av_admin_actor();
 
 if (!av_rate_ok('card_print', 60, 3600)) card_print_refuse(429, 'A lot of cards have been opened for printing from here in the last hour. Try again later.');
 
