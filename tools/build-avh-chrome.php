@@ -11,6 +11,7 @@
  *   php tools/build-avh-chrome.php --check  # exit 1 on drift, change nothing
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
 require __DIR__ . '/../partials/avh-chrome.php';
 

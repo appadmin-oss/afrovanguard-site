@@ -28,3 +28,18 @@ ck('upload: /uploads/ carries a no-execute .htaccess', is_file(AV_ROOT . '/uploa
     && str_contains((string) file_get_contents(AV_ROOT . '/uploads/.htaccess'), 'php[0-9]?'));
 ck('upload: the shipped .htaccess matches the one written at runtime',
     (string) file_get_contents(AV_ROOT . '/uploads/.htaccess') === Storage::UPLOADS_HTACCESS);
+
+/* ══ 2. Command-line tools, tests and vendor code are not web endpoints ══
+   scripts/seed-mentor-200.php seeds 200 accounts into the LIVE database and
+   tools/gate-revoke.php withdraws passes; both ran for anyone who requested
+   them, because nothing denied the folders. */
+$secRoot = (string) file_get_contents(AV_ROOT . '/.htaccess');
+ck('http: the root .htaccess refuses the CLI/test/vendor folders',
+    str_contains($secRoot, 'RewriteRule ^(tools|scripts|bin|tests|deploy|docs|vendor|partials)(/|$) - [F,L]'));
+ck('http: the STS form backups are refused', str_contains($secRoot, 'RewriteRule ^projects/sts/ceo/api/data(/|$) - [F,L]'));
+foreach (['tools', 'scripts', 'bin', 'tests', 'deploy', 'docs', 'vendor', 'partials', 'lib'] as $secDir) {
+    ck("http: $secDir/ carries its own deny", str_contains((string) @file_get_contents(AV_ROOT . "/$secDir/.htaccess"), 'Require all denied'));
+}
+foreach (['tools/gate-revoke.php', 'scripts/seed-mentor-200.php', 'tests/run.php', 'bin/sync-nav.php', 'tools/build-chrome.php'] as $secCli) {
+    ck("http: $secCli refuses a web request", str_contains((string) file_get_contents(AV_ROOT . '/' . $secCli), "if (PHP_SAPI !== 'cli') { http_response_code(403)"));
+}

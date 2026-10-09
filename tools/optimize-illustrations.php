@@ -13,6 +13,7 @@
  *   <name>@2x.webp  ~1680px wide (retina / large screens)
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 if (!extension_loaded('gd')) { fwrite(STDERR, "GD extension required.\n"); exit(1); }
 
 $root = dirname(__DIR__);

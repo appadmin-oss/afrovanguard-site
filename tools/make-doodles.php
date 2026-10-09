@@ -8,6 +8,7 @@
  *   php tools/make-doodles.php
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 $dir = dirname(__DIR__) . '/assets/doodles';
 @mkdir($dir, 0775, true);
 
