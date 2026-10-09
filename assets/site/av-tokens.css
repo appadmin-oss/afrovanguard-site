@@ -102,7 +102,7 @@
   --av-copy-5:#3D3D3D;        /* hero lead copy */
   --av-line-btn:#BDB8AD;      /* outline button border */
   --av-tag-text:#3D4148;      /* card tag pills */
-  --av-on-ink-line-2:#3A4558; /* pillar pills on ink */
+  --av-on-ink-pill:#3A4558;    /* pillar pills on ink */
   --av-on-ink-line-3:#2A3344; /* pillar rule on ink */
   /* celebrations (row 17 · design: Afrovanguard Celebrations). Occasion art and
      palettes only; used by assets/site/avcel.css + avcel-art.js. */

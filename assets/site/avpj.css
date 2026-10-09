@@ -107,7 +107,7 @@
 .avpj-pillar h3{font-family:var(--av-serif);font-size:32px;font-weight:500;margin:0}
 .avpj-pillar p{font-size:15.5px;line-height:1.65;color:var(--av-on-ink-muted);margin:0}
 .avpj-pillar ul{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.avpj-pillar li{font-size:13.5px;color:var(--av-gold-light);border:1px solid var(--av-on-ink-line-2);padding:5px 12px;border-radius:var(--av-r-pill)}
+.avpj-pillar li{font-size:13.5px;color:var(--av-gold-light);border:1px solid var(--av-on-ink-pill);padding:5px 12px;border-radius:var(--av-r-pill)}
 
 /* From the field */
 .avpj-field{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:clamp(120px,17vw,230px);grid-auto-flow:dense;gap:clamp(8px,1vw,14px)}
