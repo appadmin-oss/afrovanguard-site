@@ -17,11 +17,36 @@ require_once AV_ROOT . '/partials/avev-cover.php';
 $S         = rtrim(SITE_URL, '/');
 $canonical = "$S/events/";
 
-/* @wire: summit, team calendar, Events space posts and the feed */
-$summit        = null;
-$calEmbed      = '';
+require_once AV_ROOT . '/lib/workspace.php';
+
+/* The upcoming list reads the same feed as Home: events-feed.php → AvEvents
+   (Africa GATES, cached 30 min, fail-safe), with our summit at its head. */
+$feedUrl = '/events-feed.php';
+
+/* The org's live Google Calendar embed, when one is configured. */
+$embeds   = function_exists('av_workspace_embeds') ? av_workspace_embeds() : [];
+$calEmbed = (string) ($embeds['calendar'] ?? '');
+
+/* The latest few posts from the community "Events" space (public read). */
 $announcements = [];
-$feedUrl       = '';
+try {
+    if (class_exists('Community')) {
+        foreach (Community::feed('events', 'latest', 4, 0, 0) as $p) {
+            $announcements[] = [
+                'body' => mb_substr(trim((string) ($p['body'] ?? '')), 0, 220),
+                'when' => (string) ($p['created_at'] ?? ''),
+                'who'  => (string) ($p['author'] ?? 'Afrovanguard'),
+            ];
+        }
+    }
+} catch (Throwable $e) { /* community not ready → section simply hidden */ }
+
+/* Our own flagship summit, featured while it is still ahead of us; the band
+   disappears once it is over rather than advertising a finished event. */
+$summit = null; $summitLive = false;
+try {
+    if (class_exists('Summit') && !Summit::isPast()) { $summit = Summit::facts(); $summitLive = Summit::isLive(); }
+} catch (Throwable $e) { $summit = null; }
 
 $kinds = [
     ['Town halls',        'townhall', 'Open sessions where members and the team think out loud about the work and what’s next.'],
