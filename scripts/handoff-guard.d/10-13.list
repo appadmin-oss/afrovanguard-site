@@ -1,0 +1,8 @@
+# Rows 10 (sign in) and 13 (events)
+login/index.php
+assets/site/avsi.css
+assets/site/avsi.js
+events/index.php
+partials/avev-cover.php
+assets/site/avev.css
+assets/site/avev.js
