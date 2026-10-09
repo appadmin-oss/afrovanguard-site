@@ -67,3 +67,28 @@ Each fault says what was wrong, how it showed, and what was done.
    Worker) before the phone fine can fire.
 7. **Card number format.** `MemberCards` mints `AVQR-` + 16 characters; the
    design shows `AVQR-XXXX-XXXX`. It fits the back's cell; untouched.
+
+## Second round (same day)
+
+| # | Fault | How it showed | Fix |
+|---|---|---|---|
+| 15 | `IdCard::number()` read `cardFor()['code']`; `cardFor()` returns a string | Every card printed with **no number**; the chip letter came from the NGV plan, not the level | Number from the gate (NGV) or the recorded member ID (AVM), split into level letter + number; chip = the member's level |
+| 16 | Nothing wrote `card_photo` / `card_role` | Every card printed initials and no title | Member desk: photo + title. Members: Membership → Your card → Add your photo. Google sign-in: profile photo when there is none |
+| 17 | The portal never loaded `avc-card.css` | The member card rendered unstyled in the portal | Loaded |
+| 18 | The card lived only under Attendance & pass (gate or NGV only) | An AVM member could not see their card | Membership → Your card, for every member with a card |
+
+**Founding members** (`lib/MemberSeed.php`): nine people, linked to the
+account they already have by email, else created; the list's names; level from
+the ID; NGV numbers at the gate, AVM numbers as recorded member IDs. Runs once,
+by itself, on the first web request after deploy.
+
+**NGG's ID Card Studio prints Afrovanguard cards** from Afrovanguard's own card
+(`integrations/ngg-cards.php` ↔ nextgengen `domain/ngv-portal.php`,
+`src/modules/idcards/ids-av.jsx`). End to end against both sites: 0.001% of
+pixels off against this site's card at 10px/mm; 9 fronts + 9 backs at 300 dpi;
+logged under "afrovanguard".
+
+**Needs a person:** set the same secret on both sites — `NGG_WEBHOOK_SECRET`
+here, `afrovanguard.ngv_webhook_secret` in NGG's `api/config.php`; deploy the
+cacentre-site gate for the phone fine; Gemini key (`AV_GEMINI_API_KEY`) for
+automatic photo framing and the Google photo.
