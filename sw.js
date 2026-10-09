@@ -7,7 +7,7 @@
    Never caches API responses or authenticated HTML.
    ============================================================ */
 'use strict';
-var VERSION = 'av-pwa-v3';
+var VERSION = 'av-pwa-v4';
 var SHELL = [
   '/assets/site/offline.html',
   '/assets/site/nav.css',
@@ -55,6 +55,14 @@ self.addEventListener('fetch', function (e) {
         return caches.match(req).then(function (hit) { return hit || caches.match('/assets/site/offline.html'); });
       })
     );
+    return;
+  }
+
+  // The admin and the portal are working tools: their scripts must be the
+  // deployed ones, never last week's copy (a stale admin/app.js left the card
+  // photo buttons dead). Network first, the cache only when offline.
+  if (/^\/(admin|portal|card)\//.test(url.pathname) || /\/assets\/site\/avc-/.test(url.pathname)) {
+    e.respondWith(fetch(req).catch(function () { return caches.match(req); }));
     return;
   }
 

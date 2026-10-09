@@ -16,7 +16,17 @@ final class Storage
     public static function mime(string $tmp): string
     {
         if (!is_file($tmp)) return 'application/octet-stream';
-        return (new finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: 'application/octet-stream';
+        // Shared hosts can switch the fileinfo extension off; an image is still an image.
+        if (class_exists('finfo')) {
+            $m = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
+            if (is_string($m) && $m !== '') return $m;
+        }
+        if (function_exists('mime_content_type')) {
+            $m = @mime_content_type($tmp);
+            if (is_string($m) && $m !== '') return $m;
+        }
+        $i = @getimagesize($tmp);
+        return is_array($i) && !empty($i['mime']) ? (string) $i['mime'] : 'application/octet-stream';
     }
 
     /** 'image' | 'document', from MIME (preferred) then extension. */

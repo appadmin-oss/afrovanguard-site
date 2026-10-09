@@ -166,6 +166,7 @@ TXT;
         $mime = Storage::mime($tmp);
         if (!in_array($mime, self::TYPES, true)) return ['ok' => false, 'error' => 'That has to be a photo — JPEG, PNG or WebP.'];
 
+        if (!function_exists('imagecreatefromstring')) return ['ok' => false, 'error' => 'This server has no image library (PHP GD). Ask the host to enable the GD extension.'];
         $src = @imagecreatefromstring((string) file_get_contents($tmp));
         if (!$src) return ['ok' => false, 'error' => 'That photo could not be read.'];
         $sw = imagesx($src); $sh = imagesy($src);
@@ -192,20 +193,43 @@ TXT;
         imagejpeg($dst, $out, 90);               // re-encoded: no EXIF, no location, no colour profile tricks
         imagedestroy($src); imagedestroy($dst);
 
+        /* Cloudinary when it is set up; when it refuses (a wrong key, a full plan,
+           an outbound block), this server's own /uploads — a card photo is never
+           lost to a third party being down. */
+        $put = null; $why = '';
         try {
             $put = Storage::put($out, 'card-' . $memberId . '.jpg', 'image', 'cards');
         } catch (Throwable $e) {
-            @unlink($out);
-            error_log('[card-photo] store: ' . $e->getMessage());
-            return ['ok' => false, 'error' => 'The photo could not be stored.'];
+            $why = $e->getMessage();
+            error_log('[card-photo] store: ' . $why);
+        }
+        if (empty($put['url'])) {
+            try {
+                $put = self::local($out, $memberId);
+            } catch (Throwable $e) {
+                $why .= ($why !== '' ? ' · ' : '') . $e->getMessage();
+                error_log('[card-photo] local: ' . $e->getMessage());
+            }
         }
         @unlink($out);
         $url = self::deliver((string) ($put['url'] ?? ''));
-        if ($url === '') return ['ok' => false, 'error' => 'The photo could not be stored.'];
+        if ($url === '') return ['ok' => false, 'error' => 'The photo could not be stored: ' . ($why !== '' ? $why : 'no storage answered') . '. Check that uploads/ is writable, or the Cloudinary keys.'];
+        if (strlen($url) > 200) return ['ok' => false, 'error' => 'The photo address is too long to keep (' . strlen($url) . ' characters).'];
         Prefs::set($memberId, 'card_photo', $url);
         Prefs::set($memberId, 'card_photo_source', $source);
         self::audit('card_photo_set', $memberId, $url . ' (' . $source . ')', $actor);
         return ['ok' => true, 'url' => $url, 'w' => $W, 'h' => $H];
+    }
+
+    /** This server's own copy, under uploads/cards/ (the web server must be able to write there). */
+    private static function local(string $file, int $memberId): array
+    {
+        $dir = AV_ROOT . '/uploads/cards';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) throw new RuntimeException('uploads/cards could not be created');
+        if (!is_writable($dir)) throw new RuntimeException('uploads/cards is not writable');
+        $name = 'card-' . $memberId . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.jpg';
+        if (!@copy($file, $dir . '/' . $name)) throw new RuntimeException('the file could not be written to uploads/cards');
+        return ['url' => '/uploads/cards/' . $name, 'provider' => 'local'];
     }
 
     /* ══ From Google ═════════════════════════════════════════════════════ */

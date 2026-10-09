@@ -55,12 +55,33 @@
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function stripTags(s) { var d = document.createElement('div'); d.innerHTML = s; return d.textContent || ''; }
 
+  /* The CSRF token lives two hours. A Studio tab left open longer had every save
+     refused ("Session expired") while reads kept working — so a refused write
+     fetches a fresh token and is sent once more. */
   function api(action, opts) {
+    return apiOnce(action, opts).then(function (r) {
+      var o = opts || {};
+      if (o.method !== 'POST' || o._retried || r.status !== 403 || !r.data || !/Session expired/i.test(r.data.error || '')) return r;
+      return apiOnce('session').then(function (s) {
+        if (!s.data || !s.data.ok || !s.data.csrf) return r;
+        csrf = s.data.csrf;
+        return apiOnce(action, Object.assign({}, o, { _retried: true }));
+      });
+    });
+  }
+  function apiOnce(action, opts) {
     opts = opts || {};
     var headers = opts.headers || {};
     if (opts.method === 'POST') headers['X-CSRF-Token'] = csrf;
     return fetch(API + '?action=' + action, { method: opts.method || 'GET', headers: headers, body: opts.body, credentials: 'same-origin' })
-      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); });
+      .then(function (r) {
+        /* A host error page (a PHP fatal, a firewall, a timeout) is not JSON: say what came back
+           instead of failing silently, so "it does not work" always has a reason on screen. */
+        return r.text().then(function (t) {
+          var d; try { d = JSON.parse(t); } catch (e) { d = { ok: false, error: 'The server answered HTTP ' + r.status + ' without data' + (t ? ' — ' + t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140) : '') + '.' }; }
+          return { status: r.status, data: d };
+        });
+      }, function () { return { status: 0, data: { ok: false, error: 'Network error — check the connection and try again.' } }; });
   }
   function post(action, payload) { return api(action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
   function uploadFile(file) { var fd = new FormData(); fd.append('file', file); return api('upload', { method: 'POST', body: fd }); }
@@ -2927,7 +2948,7 @@
      Dashboard, roster, import, duplicates and one member's whole record.
      Every write is validated on the server and refused in words; an import is
      a dry run until the dry run that was read is applied. */
-  var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C'], memT, memPage = 1, memOpen = 0, memFormats = [];
+  var memRoles = ['learner', 'member', 'mentor', 'instructor', 'coordinator', 'admin'], memLevels = ['O', 'A', 'B', 'C', 'D', 'E', 'F', 'G'], memT, memPage = 1, memOpen = 0, memFormats = [];
   var memSel = {}, memPageIds = [], memTotal = 0, memMember = null;
   /* Dues — not the same as being an Afrovanguard member: a learner can pay
      dues and stay a learner, and a member can have none. */
@@ -3404,10 +3425,15 @@
     $('#mdSave').addEventListener('click', function () {
       var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),
                 role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value };
-      post('roster_update', p).then(function (r) {
-        var d = r.data || {};
+      /* The title printed on the card is saved by the same button: people type it
+         and press Save. Both answers are reported; the drawer stays open on a refusal. */
+      var card = window.AvCardPhoto && window.AvCardPhoto.saveTitleIfChanged ? window.AvCardPhoto.saveTitleIfChanged() : Promise.resolve(null);
+      Promise.all([post('roster_update', p), card]).then(function (x) {
+        var d = x[0].data || {}, c = x[1];
         if (!d.ok) { memErrors('#md_errors', d); return; }
-        toast(d.changed.length ? 'Saved: ' + d.changed.join(', ') + '.' : 'Nothing changed.'); closeMember(); loadMembers();
+        if (c && !c.ok) { toast(c.error || 'The card title was not saved.'); return; }
+        var changed = (d.changed || []).slice(); if (c && c.ok) changed.push('card title');
+        toast(changed.length ? 'Saved: ' + changed.join(', ') + '.' : 'Nothing changed.'); closeMember(); loadMembers();
       });
     });
     $('#mdSuspend').addEventListener('click', function () {

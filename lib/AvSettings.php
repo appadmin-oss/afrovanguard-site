@@ -82,6 +82,12 @@ final class AvSettings
         ],
 
         /* ── Gemini ───────────────────────────────────────────────────── */
+        /* ── NextGen Genius ─────────────────────────────────────────────── */
+        'NGG_WEBHOOK_SECRET' => [
+            'group' => 'NextGen Genius', 'label' => 'Shared secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'a long random string',
+            'help' => 'The same value as afrovanguard.ngv_webhook_secret in NGG’s api/config.php. NGG’s ID Card Studio uses it to fetch Afrovanguard member cards, and NGG signs NGV promotions with it.',
+        ],
         'AV_GEMINI_API_KEY' => [
             'group' => 'Gemini (Google)', 'label' => 'API key', 'secret' => true, 'type' => 'text',
             'ph' => 'AIza…',

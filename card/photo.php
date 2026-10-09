@@ -29,14 +29,19 @@ $id = (int) $me['id'];
 $action = (string) ($_GET['action'] ?? '');
 if (!av_rate_ok('card_photo_self_' . $id, $action === 'measure' ? 40 : 20, 3600)) json_out(['ok' => false, 'error' => 'That is a lot of changes for one hour. Try again later.'], 429);
 
+try {
 switch ($action) {
     case 'measure':
         if (empty($_FILES['file']) || (int) $_FILES['file']['size'] > 4 * 1048576) json_out(['ok' => false, 'error' => 'No photo.'], 400);
         json_out(CardPhoto::measure((string) file_get_contents((string) $_FILES['file']['tmp_name'])));
     case 'save':
-        if (empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No photo.'], 400);
+        if (empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No photo arrived — it may be larger than this host accepts.'], 400);
         json_out(CardPhoto::save($id, $_FILES['file'], 'self:' . (string) ($me['email'] ?? $id)));
     case 'clear':
         json_out(CardPhoto::clear($id, 'self:' . (string) ($me['email'] ?? $id)));
+}
+} catch (Throwable $e) {
+    error_log('[card-photo self] ' . $e);
+    json_out(['ok' => false, 'error' => 'Your photo was not saved: ' . $e->getMessage()], 500);
 }
 json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

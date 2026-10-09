@@ -380,3 +380,26 @@ function av_diary_may_read(int $uid, int $entryId): bool {
 
     return false;
 }
+
+/**
+ * The secret shared with NextGen Genius (integrations/ngg.php, ngg-cards.php).
+ *
+ * Shared hosts hand an Apache `SetEnv` to PHP in different places: getenv() on
+ * mod_php, $_SERVER on PHP-FPM/LiteSpeed, and REDIRECT_-prefixed after a
+ * rewrite. Reading only getenv() left the endpoint "not configured" (404) on
+ * hosts where the value was set — NGG then listed no Afrovanguard members.
+ * Also accepted: a config.php constant, .env, and the Studio's settings store.
+ */
+function av_ngg_secret(): string
+{
+    foreach (['NGG_WEBHOOK_SECRET', 'REDIRECT_NGG_WEBHOOK_SECRET'] as $k) {
+        $v = getenv($k);
+        if ($v === false || $v === '') $v = $_SERVER[$k] ?? ($_ENV[$k] ?? '');
+        if (trim((string) $v) !== '') return trim((string) $v);
+    }
+    if (defined('NGG_WEBHOOK_SECRET') && trim((string) NGG_WEBHOOK_SECRET) !== '') return trim((string) NGG_WEBHOOK_SECRET);
+    if (class_exists('AvSettings') && method_exists('AvSettings', 'get')) {
+        try { $v = (string) AvSettings::get('NGG_WEBHOOK_SECRET'); if (trim($v) !== '') return trim($v); } catch (Throwable $e) {}
+    }
+    return '';
+}

@@ -611,6 +611,7 @@
             <input type="file" id="mdCpFile" accept="image/jpeg,image/png,image/webp" hidden>
             <label class="mem-cp-role">Title under the name <input id="md_cardrole" maxlength="40" placeholder="e.g. Chief Servant"></label>
             <button class="btn btn-outline btn-sm" id="mdRoleSave" type="button">Save title</button>
+            <p class="mem-cp-msg" id="mdCpMsg" role="status" aria-live="polite"></p>
           </div>
         </div>
         <details class="mem-history"><summary>What has happened to this member</summary><div id="mdTimeline"></div></details>
@@ -1321,8 +1322,8 @@
        assets/vendor/tinymce/README.md. If it's missing, admin/app.js falls back
        to a plain textarea, so the editor still works (without the toolbar). -->
   <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
-  <script src="/admin/app.js" defer></script>
-  <script src="/assets/site/avc-photo.js" defer></script>
-  <script src="/admin/card-photo.js" defer></script>
+  <script src="/admin/app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>" defer></script>
+  <script src="/assets/site/avc-photo.js?v=<?= (int) @filemtime(dirname(__DIR__) . '/assets/site/avc-photo.js') ?>" defer></script>
+  <script src="/admin/card-photo.js?v=<?= (int) @filemtime(__DIR__ . '/card-photo.js') ?>" defer></script>
 </body>
 </html>

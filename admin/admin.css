@@ -734,3 +734,13 @@ body.studio-authed .studio-side { display: block; }
 .mem-cp-side { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .mem-cp-role { display: flex; flex-direction: column; gap: 4px; font-size: 13px; width: 100%; }
 .mem-cp-role input { min-height: 40px; font-size: 16px; }
+.mem-cp-msg { margin: 0; font-size: 13px; min-height: 1em; }
+.mem-cp-msg.is-bad { color: var(--danger, #b0361c); }
+
+/* Layers. One scale for the Studio, so nothing opens behind something else:
+   bar 50 · sidebar 45 · modal/drawer 1000 · toast 2000. The toast's own rule
+   (diary.css, z 400) put every "Saved" message BEHIND an open member drawer,
+   so a save that worked looked like nothing happened. The card photo editor is
+   a native <dialog> opened with showModal(): it lives in the top layer, above
+   all of these, and says its own messages inside it. */
+.toast { z-index: 2000; }

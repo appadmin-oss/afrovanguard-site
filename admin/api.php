@@ -1271,14 +1271,18 @@ try {
             if ((int) $_FILES['file']['size'] > 4 * 1048576) json_out(['ok' => false, 'error' => 'Too large to measure.'], 413);
             json_out(CardPhoto::measure((string) file_get_contents((string) $_FILES['file']['tmp_name'])));
         case 'card_photo_save':
-            if ($method !== 'POST' || empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No photo.'], 400);
-            json_out(CardPhoto::save((int) ($_POST['id'] ?? 0), $_FILES['file'], av_admin_actor()));
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            if (empty($_FILES['file'])) json_out(['ok' => false, 'error' => 'No photo arrived. The upload may be over the host’s post_max_size (' . ini_get('post_max_size') . ').'], 400);
+            try { json_out(CardPhoto::save((int) ($_POST['id'] ?? 0), $_FILES['file'], av_admin_actor())); }
+            catch (Throwable $e) { error_log('[card-photo] ' . $e); json_out(['ok' => false, 'error' => 'The photo was not saved: ' . $e->getMessage()], 500); }
         case 'card_photo_clear':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            json_out(CardPhoto::clear((int) ($body['id'] ?? 0), av_admin_actor()));
+            try { json_out(CardPhoto::clear((int) ($body['id'] ?? 0), av_admin_actor())); }
+            catch (Throwable $e) { error_log('[card-photo] ' . $e); json_out(['ok' => false, 'error' => 'Not removed: ' . $e->getMessage()], 500); }
         case 'card_role_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            json_out(CardPhoto::setRole((int) ($body['id'] ?? 0), (string) ($body['role'] ?? ''), av_admin_actor()));
+            try { json_out(CardPhoto::setRole((int) ($body['id'] ?? 0), (string) ($body['role'] ?? ''), av_admin_actor())); }
+            catch (Throwable $e) { error_log('[card-photo] ' . $e); json_out(['ok' => false, 'error' => 'The title was not saved: ' . $e->getMessage()], 500); }
         case 'member_seed':
             /* The founding members again (lib/MemberSeed.php). Idempotent. */
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

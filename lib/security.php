@@ -24,7 +24,33 @@ function av_secret(): string {
     $env = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
     if ($env) return $env;
     if (defined('ADMIN_TOKEN') && ADMIN_TOKEN) return (string) ADMIN_TOKEN;
-    return '';
+    return av_secret_generated();
+}
+
+/**
+ * No APP_KEY set (common on a shared host with no shell to edit .env): the
+ * signing key was '' and every signed thing failed closed — the admin could
+ * READ the member desk but every save (a card title, a photo, a member edit)
+ * was refused as "Session expired". A key is now made once, kept in the
+ * database (app_meta) and reused, so it is the same on every request and
+ * survives deploys. Setting APP_KEY still takes precedence.
+ */
+function av_secret_generated(): string {
+    static $k = null;
+    if ($k !== null) return $k;
+    $k = '';
+    if (!class_exists('Database')) return $k;
+    try {
+        $v = (string) (Database::metaGet('app_secret_v1') ?? '');
+        if (strlen($v) < 32) {
+            Database::metaSet('app_secret_v1', bin2hex(random_bytes(32)));
+            $v = (string) (Database::metaGet('app_secret_v1') ?? '');   // re-read: a racing request's value wins
+        }
+        $k = strlen($v) >= 32 ? $v : '';
+    } catch (Throwable $e) {
+        error_log('[security] no APP_KEY and the generated key could not be kept: ' . $e->getMessage());
+    }
+    return $k;
 }
 
 /** Minimum acceptable length for the break-glass ADMIN_TOKEN (superadmin
