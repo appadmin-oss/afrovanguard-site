@@ -1,133 +1,212 @@
 <?php
 /**
- * projects/_detail.php — shared renderer for project detail pages.
+ * projects/_detail.php — one template for every project page (REPLACEMENT_MAP row 6).
  *
- * Each projects/<slug>/index.php is a two-liner:
+ * Design: design/Afrovanguard Project.dc.html. Each projects/<slug>/index.php is
  *     <?php $PROJECT_SLUG = 'techhome'; require dirname(__DIR__) . '/_detail.php';
+ * Content: lib/projects_content.php (via lib/avpj.php). Styles: assets/site/avpj.css.
+ * Chrome: the Home nav and footer (partials/avh-chrome.php).
  *
- * Content lives in lib/projects_content.php; styling in
- * assets/site/project-detail.css. Built on the shared chrome so every project
- * page sits natively in the site (like the ethos page).
+ * Kept from v1: the SEO head (title, description, canonical, OG/Twitter,
+ * CreativeWork + breadcrumb JSON-LD) and the project's own live appeals
+ * (Appeals::forProject), which render only when there are any.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
-require_once AV_ROOT . '/lib/partials.php';
+require_once AV_ROOT . '/lib/avpj.php';
+require_once AV_ROOT . '/partials/avh-chrome.php';
 
-$slug = $PROJECT_SLUG ?? '';
-$all  = require AV_ROOT . '/lib/projects_content.php';
-if (!isset($all[$slug])) { http_response_code(404); echo 'Project not found.'; return; }
-$P = $all[$slug];
+$v = avpj_view(avpj_projects(), (string) ($PROJECT_SLUG ?? ''));
+if ($v === null) {
+    http_response_code(404);
+    if (is_file(AV_ROOT . '/404.html')) readfile(AV_ROOT . '/404.html');
+    return;
+}
+$P    = $v['p'];
+$slug = $v['slug'];
 
 $S         = rtrim(SITE_URL, '/');
 $canonical = "$S/projects/$slug/";
-$fullName  = $P['name'] . ($P['abbr'] !== '' ? ' (' . $P['abbr'] . ')' : '');
-
-$jsonld = [
+$fullName  = $P['name'] . ($P['abbr'] !== $P['name'] ? ' (' . $P['abbr'] . ')' : '');
+$title     = $fullName . ' — Afrovanguard';
+$image     = $S . $P['img'];
+$jsonld = ['@context' => 'https://schema.org', '@graph' => [
     schema_org(),
     ['@type' => 'CreativeWork', '@id' => $canonical . '#project',
-     'name' => $fullName, 'headline' => $P['name'], 'description' => $P['lead'],
-     'about' => $P['about'],
+     'name' => $fullName, 'headline' => $P['name'], 'description' => $P['d'],
+     'about' => $P['tags'], 'image' => $image,
      'isPartOf' => ['@id' => $S . '/#organization'], 'publisher' => ['@id' => $S . '/#organization']],
     schema_breadcrumb([
         ['name' => 'Home', 'url' => "$S/"],
         ['name' => 'Projects', 'url' => "$S/projects/"],
         ['name' => $P['name'], 'url' => $canonical],
     ]),
-];
+]];
 
-render_head([
-    'title' => $fullName . ' — Afrovanguard',
-    'desc'  => $P['lead'],
-    'canonical' => $canonical, 'og_kind' => 'website',
-    'image_alt' => $P['name'] . ' — Afrovanguard',
-    'keywords' => implode(', ', array_merge([$P['name']], $P['abbr'] !== '' ? [$P['abbr']] : [], $P['about'], ['Afrovanguard'])),
-    'css' => ['/assets/site/editorial.css', '/assets/site/project-detail.css'], 'jsonld' => $jsonld,
-]);
-render_nav('projects');
-?>
-<main id="main-content">
-  <section class="pjd-hero">
-    <div class="container">
-      <span class="diary-eyebrow"><?= e($P['eyebrow']) ?></span>
-      <h1><?= $P['title'] /* trusted, authored markup (e.g. <br>) */ ?></h1>
-      <p class="pjd-lead"><?= e($P['lead']) ?></p>
-      <div class="pjd-cta">
-        <a class="btn btn-primary" href="/contact/">Get involved</a>
-        <a class="btn btn-outline" href="/projects/">All projects</a>
+$appeals = class_exists('Appeals') ? Appeals::forProject($slug, 3) : [];
+
+if (function_exists('send_security_headers')) send_security_headers('public');
+?><!DOCTYPE html>
+<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
+<head>
+  <script>document.documentElement.classList.replace('no-js','js')</script>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title><?= e($title) ?></title>
+  <meta name="description" content="<?= e($P['d']) ?>" />
+  <meta name="keywords" content="<?= e(implode(', ', array_merge([$P['name']], $P['abbr'] !== $P['name'] ? [$P['abbr']] : [], $P['tags'], ['Afrovanguard']))) ?>" />
+  <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <link rel="canonical" href="<?= e($canonical) ?>" />
+  <meta name="theme-color" content="rgb(17,24,39)" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Afrovanguard" />
+  <meta property="og:locale" content="en_NG" />
+  <meta property="og:url" content="<?= e($canonical) ?>" />
+  <meta property="og:title" content="<?= e($title) ?>" />
+  <meta property="og:description" content="<?= e($P['d']) ?>" />
+  <meta property="og:image" content="<?= e($image) ?>" />
+  <meta property="og:image:alt" content="<?= e($P['name'] . ' — Afrovanguard') ?>" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@afrovanguard" />
+  <meta name="twitter:title" content="<?= e($title) ?>" />
+  <meta name="twitter:description" content="<?= e($P['d']) ?>" />
+  <meta name="twitter:image" content="<?= e($image) ?>" />
+  <meta name="twitter:image:alt" content="<?= e($P['name'] . ' — Afrovanguard') ?>" />
+  <script type="application/ld+json"><?= json_encode($jsonld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+  <link rel="stylesheet" href="/assets/site/fonts.css" />
+  <link rel="preload" as="image" href="<?= e($P['img']) ?>" fetchpriority="high" />
+  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
+  <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avpj.css" />
+  <script src="/assets/site/avh.js" defer></script>
+</head>
+<body class="avh avpj" id="top">
+<a class="avh-skip" href="#main">Skip to content</a>
+<div class="avh-page">
+<?php avh_nav(); ?>
+<main id="main" tabindex="-1">
+
+<header class="avpj-hero">
+  <img class="avpj-hero-img" src="<?= e($P['img']) ?>" alt="<?= e($P['name']) ?>" fetchpriority="high">
+  <div class="avpj-hero-shade" aria-hidden="true"></div>
+  <div class="avpj-hero-in avh-pad">
+    <div class="avpj-hero-copy">
+      <nav class="avpj-crumbs" aria-label="Breadcrumb"><a href="/projects/">Projects</a><span aria-hidden="true">›</span><span aria-current="page"><?= e($P['abbr']) ?></span></nav>
+      <h1><?= e($P['name']) ?></h1>
+    </div>
+    <span class="avpj-pill"><i class="avpj-dot<?= $P['selective'] ? ' avpj-dot--sel' : '' ?>" aria-hidden="true"></i><?= e($P['status']) ?></span>
+  </div>
+</header>
+
+<section class="avpj-intro avh-pad" aria-label="About <?= e($P['name']) ?>">
+  <div class="avpj-intro-in">
+    <div class="avpj-intro-main">
+      <div class="avpj-eyebrow"><?= e($P['cat']) ?> · Afrovanguard project</div>
+      <p class="avpj-lead"><?= e($P['d']) ?></p>
+      <ul class="avpj-tags avpj-tags--lg" aria-label="Focus">
+<?php foreach ($P['tags'] as $t): ?>        <li><?= e($t) ?></li>
+<?php endforeach; ?>      </ul>
+      <div class="avpj-btns">
+        <a class="avpj-btn" href="<?= e($v['ctaHref']) ?>" target="_blank" rel="noopener"><?= e($v['cta']) ?> →<span class="av-sr"> (opens in a new tab)</span></a>
+        <a class="avpj-btn avpj-btn--line" href="/donate.html">Fund this project</a>
       </div>
     </div>
-  </section>
-
-  <div class="container pjd-body">
-    <section class="pjd-sec" id="foundations">
-      <h2><?= e($P['found_h']) ?></h2>
-      <p class="pjd-sub"><?= e($P['found_sub']) ?></p>
-      <div class="pjd-grid">
-<?php foreach ($P['foundations'] as $i => $f): ?>        <article class="pjd-tile">
-          <span class="pjd-no"><?= $i + 1 ?></span>
-          <h3><?= e($f[0]) ?></h3>
-          <p><?= e($f[1]) ?></p>
-        </article>
-<?php endforeach; ?>
+    <aside class="avpj-facts" aria-label="Project facts">
+      <dl>
+<?php foreach ($v['facts'] as [$k, $val]): ?>        <div><dt><?= e($k) ?></dt><dd><?= e($val) ?></dd></div>
+<?php endforeach; ?>      </dl>
+      <div class="avpj-mail">
+        <div>Talk to the team</div>
+        <a href="mailto:<?= e($P['mail']) ?>"><?= e($P['mail']) ?></a>
       </div>
-    </section>
-
-    <section class="pjd-sec" id="who">
-      <h2>Who it's for</h2>
-      <p class="pjd-sub"><?= e($P['who']) ?></p>
-    </section>
-
-    <?php
-    /* Its own appeals, if there are any. Somebody who has just read what this
-       programme is, is the best-placed person on the site to fund it — sending
-       them to a general index to find it again loses most of them. Rendered
-       server-side because this page is PHP; the static pages hydrate instead. */
-    $pjAppeals = class_exists('Appeals') ? Appeals::forProject($slug, 3) : [];
-    if ($pjAppeals): ?>
-    <section class="pjd-sec" aria-labelledby="pjd-give-h">
-      <h2 id="pjd-give-h">What <?= e($P['name']) ?> needs</h2>
-      <p class="pjd-sub">Live appeals, with what has been raised so far read from the verified payment record.</p>
-      <div class="ed-stories" style="margin-top:var(--afg-space-5)">
-        <?php foreach ($pjAppeals as $pjA): $pjS = Appeals::state($pjA); ?>
-          <a class="ed-story" href="<?= e('/give/' . rawurlencode((string) $pjA['slug']) . '/') ?>">
-            <?php if (!empty($pjA['cover_url'])): ?>
-              <div class="ed-story-img-wrap">
-                <img class="ed-story-img" src="<?= e((string) $pjA['cover_url']) ?>" alt=""
-                     loading="lazy" decoding="async" width="580" height="387">
-              </div>
-            <?php endif; ?>
-            <span class="ed-kicker"><?php
-              if (!empty($pjA['urgent'])) { echo 'Urgent'; }
-              elseif ($pjS['ending_soon'] && !$pjS['ended']) { echo (int) $pjS['days_left'] . ' days left'; }
-              else { echo 'Appeal'; } ?></span>
-            <h3 class="ed-story-title"><?= e((string) $pjA['title']) ?></h3>
-            <?php if (!empty($pjA['tagline'])): ?>
-              <p class="ed-story-excerpt"><?= e(mb_strimwidth((string) $pjA['tagline'], 0, 116, '…')) ?></p>
-            <?php endif; ?>
-            <?php if ($pjS['percent'] !== null): ?>
-              <div class="ed-bar ed-bar--slim<?= $pjS['met'] ? ' is-met' : '' ?>" role="progressbar"
-                   aria-valuenow="<?= (int) $pjS['percent'] ?>" aria-valuemin="0" aria-valuemax="100"
-                   aria-label="<?= (int) $pjS['percent'] ?>% raised"><span style="width:<?= (int) $pjS['percent'] ?>%"></span></div>
-            <?php endif; ?>
-            <div class="ed-story-meta" style="margin-top:var(--afg-space-2)">
-              <strong style="color:var(--afg-ink)"><?= e(Appeals::naira($pjS['raised'])) ?></strong>
-              <?php if ($pjS['goal'] > 0): ?><span>of <?= e(Appeals::naira($pjS['goal'])) ?></span><?php endif; ?>
-            </div>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    </section>
-    <?php endif; ?>
-
-    <section class="pjd-sec" aria-label="Take the next step">
-      <h2>Take the next step</h2>
-      <p class="pjd-sub">This is where it becomes real.</p>
-      <div class="pjd-grid pjd-grid--links">
-        <a class="pjd-tile pjd-tile--link" href="/academy/"><h3>Learn &amp; lead →</h3><p>Free, hands-on programmes in the Afrovanguard Academy.</p></a>
-        <a class="pjd-tile pjd-tile--link" href="/contact/"><h3>Get involved →</h3><p>Apply, partner, or volunteer with <?= e($P['name']) ?>.</p></a>
-        <a class="pjd-tile pjd-tile--link" href="/projects/"><h3>See all projects →</h3><p>Every initiative across the Afrovanguard platform.</p></a>
-      </div>
-    </section>
+    </aside>
   </div>
+</section>
+
+<?php if ($appeals): /* Kept from v1: live appeals filed against this project, hidden when there are none. */ ?>
+<section class="avpj-appeals avh-pad" aria-labelledby="avpj-appeals-h">
+  <div class="avpj-wrap">
+    <div class="avpj-eyebrow">Live appeals</div>
+    <h2 class="avpj-h2 avpj-h2--sm" id="avpj-appeals-h">What <?= e($P['name']) ?> needs</h2>
+    <p class="avpj-sub">What has been raised so far is read from the verified payment record.</p>
+    <div class="avpj-others">
+<?php foreach ($appeals as $a): $st = Appeals::state($a); ?>
+      <a class="avpj-card" href="<?= e('/give/' . rawurlencode((string) $a['slug']) . '/') ?>">
+<?php if (!empty($a['cover_url'])): ?>        <img src="<?= e((string) $a['cover_url']) ?>" alt="" loading="lazy" decoding="async" width="580" height="363">
+<?php endif; ?>        <div class="avpj-card-body">
+          <div class="avpj-kicker"><?php
+            if (!empty($a['urgent'])) echo 'Urgent';
+            elseif ($st['ending_soon'] && !$st['ended']) echo '<span class="av-num">' . (int) $st['days_left'] . '</span> days left';
+            else echo 'Appeal'; ?></div>
+          <div class="avpj-card-t"><?= e((string) $a['title']) ?></div>
+<?php if (!empty($a['tagline'])): ?>          <div class="avpj-card-d"><?= e(mb_strimwidth((string) $a['tagline'], 0, 116, '…')) ?></div>
+<?php endif; if ($st['percent'] !== null): ?>          <div class="avpj-bar" role="progressbar" aria-valuenow="<?= (int) $st['percent'] ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= (int) $st['percent'] ?>% raised"><span style="width:<?= (int) $st['percent'] ?>%"></span></div>
+<?php endif; ?>          <div class="avpj-raised av-num"><strong><?= e(Appeals::naira($st['raised'])) ?></strong><?php if ($st['goal'] > 0): ?> of <?= e(Appeals::naira($st['goal'])) ?><?php endif; ?></div>
+        </div>
+      </a>
+<?php endforeach; ?>
+    </div>
+  </div>
+</section>
+<?php endif; ?>
+
+<section class="avpj-join avh-pad" aria-labelledby="avpj-join-h">
+  <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
+  <div class="avpj-join-in">
+    <div class="avpj-join-head">
+      <div class="avpj-eyebrow">How to join</div>
+      <h2 class="avpj-h2" id="avpj-join-h">From first step to Vanguard</h2>
+      <div class="avpj-gallery">
+<?php foreach ($v['gallery'] as $g): ?>        <img src="<?= e($g) ?>" alt="" loading="lazy" decoding="async" width="400" height="400">
+<?php endforeach; ?>      </div>
+    </div>
+    <ol class="avpj-steps">
+<?php foreach ($v['steps'] as $i => [$t, $d]): ?>      <li><span class="avpj-step-n" aria-hidden="true"><?= $i + 1 ?></span><div><h3><?= e($t) ?></h3><p><?= e($d) ?></p></div></li>
+<?php endforeach; ?>    </ol>
+  </div>
+</section>
+
+<section class="avpj-more avh-pad" aria-labelledby="avpj-more-h">
+  <div class="avpj-wrap">
+    <div class="avpj-more-head">
+      <h2 class="avpj-h2 avpj-h2--md" id="avpj-more-h">Other projects</h2>
+      <a class="avpj-link" href="/projects/">All nine projects →</a>
+    </div>
+    <div class="avpj-others">
+<?php foreach ($v['others'] as $o): ?>
+      <a class="avpj-card" href="<?= e($o['href']) ?>"<?= $o['ext'] ? ' target="_blank" rel="noopener"' : '' ?>>
+        <img src="<?= e($o['img']) ?>" alt="<?= e($o['name']) ?>" loading="lazy" decoding="async" width="580" height="363">
+        <div class="avpj-card-body">
+          <div class="avpj-kicker"><?= e($o['cat']) ?></div>
+          <div class="avpj-card-t"><?= e($o['name']) ?><?= $o['ext'] ? '<span class="av-sr"> (opens in a new tab)</span>' : '' ?></div>
+          <div class="avpj-card-d"><?= e($o['d']) ?></div>
+        </div>
+      </a>
+<?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<section class="avpj-involved avh-pad" aria-labelledby="avpj-inv-h">
+  <div class="avh-topo" data-avh-topo="dark" data-seed="7" aria-hidden="true"></div>
+  <div class="avpj-eyebrow avpj-eyebrow--light avpj-c">Get involved</div>
+  <h2 class="avpj-h2 avpj-h2--xl avpj-c" id="avpj-inv-h">There Is a Place For You</h2>
+  <p>Whether you give, serve, learn, or grow — Afrovanguard has a role for every person who believes in Africa’s next generation.</p>
+  <div class="avpj-inv-ctas">
+    <a class="avpj-gold" href="/donate.html">Donate</a>
+    <a href="/contact.html">Volunteer</a>
+    <a href="/projects/">Apply to a program</a>
+  </div>
+</section>
+
 </main>
-<?php render_footer();
+<?php avh_footer(); ?>
+</div>
+<script src="/assets/site/chioma.js" defer></script>
+<script src="/assets/site/celebrations.js" defer></script>
+</body>
+</html>
