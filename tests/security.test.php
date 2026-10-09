@@ -141,3 +141,8 @@ ck('donations: the mail-sending actions have their own tight limit', str_contain
 ck('contact: the inbox uses the same token check', str_contains((string) file_get_contents(AV_ROOT . '/process-contact.php'), 'av_admin_token_matches($token)'));
 ck('donor dashboard: no donor field reaches innerHTML', !preg_match('/innerHTML = `[^`]*\$\{d\./', (string) file_get_contents(AV_ROOT . '/donor-dashboard.html')));
 ck('admin token: an empty token never matches', av_admin_token_matches('') === false);
+
+/* ══ 9. The web cron key is rate-limited before it is checked ═════════════ */
+$secCron = (string) file_get_contents(AV_ROOT . '/tasks/cron.php');
+ck('cron: guesses are counted before the key is compared',
+    strpos($secCron, "av_rate_ok('cron_web'") < strpos($secCron, 'if (!hash_equals($want, $key))'));
