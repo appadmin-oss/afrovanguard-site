@@ -43,7 +43,9 @@ final class NavSync
      * homepage has no top-level item of its own and so marks nothing.
      */
     public const PAGES = [
-        'index.html'          => '',
+        /* Not index.html: the home page carries its own navigation since the
+           row-4 redesign (assets/site/avh.js — mega menu at ≥1180px, drawer
+           below). Splicing this header into it would put the old nav back. */
         'about.html'          => 'about',
         'contact.html'        => 'about',
         'donate.html'         => 'involved',

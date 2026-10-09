@@ -28,8 +28,8 @@ $S     = rtrim(SITE_URL, '/');
 
 // Public marketing pages and which nav item is "current" on each.
 // (member.html / donor-dashboard.html are app shells — left alone.)
+// Not index.html: since the row-4 redesign it carries its own nav (avh.js).
 $pages = [
-    'index.html'          => 'home',
     'about.html'          => 'about',
     'contact.html'        => 'contact',
     'donate.html'         => '',

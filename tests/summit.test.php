@@ -246,7 +246,8 @@ ck('summit: the Academy nav links to it', str_contains(
    carries the search dialog, which the drawer replacement never matched — every
    run left the old one and appended another. The committed pages had seven. */
 
-foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
+// Not index.html: it has carried its own navigation since the row-4 redesign.
+foreach (['about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
     $html = (string) @file_get_contents(AV_ROOT . '/' . $page);
     if ($html === '') continue;
     ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);
