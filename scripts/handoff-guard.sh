@@ -28,7 +28,8 @@ DIRS="partials/id-card.php portal/your-card.php lib/IdCard.php lib/MentorPortal.
 card mentorship/mentor \
 diary/partials.php diary/article.php diary/api.php \
 assets/site/avc-card.css assets/site/avd.css assets/site/avd.js \
-assets/site/avm.css assets/site/avm.js"
+assets/site/avm.css assets/site/avm.js \
+assets/site/avc-print.css assets/site/avc-print.js"
 
 # Only the paths that exist: the modules land one at a time, and `grep` on a
 # missing path is an error under `set -e` — which would make the gate pass or

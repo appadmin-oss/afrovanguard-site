@@ -594,6 +594,7 @@
         <h3 class="mem-card-h">Cards at the gate</h3>
         <div id="mdCards"></div>
         <div class="editor-actions">
+          <a class="btn btn-primary btn-sm" id="mdPrint" href="#" target="_blank" rel="noopener">Print card</a>
           <button class="btn btn-outline btn-sm" id="mdReissue">Lost card — issue a new one</button>
           <button class="btn btn-outline btn-sm" id="mdRetire" hidden>Reprinted — retire the old card</button>
         </div>

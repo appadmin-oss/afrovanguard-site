@@ -121,7 +121,9 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
 <?php if ($isHolder): ?>    <a class="btn" href="/gate-pass">My gate pass</a>
     <a class="btn ghost" href="/portal/#attendance">My portal</a>
 <?php endif; ?>
-<?php if ($isStaff): ?>    <button type="button" class="btn" onclick="window.print()">Print card</button>
+<?php if ($isStaff && class_exists('AdminRoles') && AdminRoles::can('admin')): ?>    <a class="btn" href="/card/print.php?member=<?= (int) $holder['id'] ?>">Print card</a>
+<?php endif; ?>
+<?php if ($isStaff): ?>
     <a class="btn ghost" href="/academy/ngv/attendance.php">NGV attendance</a>
 <?php endif; ?>
   </nav>

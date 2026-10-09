@@ -3197,6 +3197,9 @@
       ['name', 'email', 'phone', 'centre', 'notes'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
+      /* Printing is the office's job: PDF for a card printer, PNGs, or an A4 run (card/print.php). */
+      $('#mdPrint').href = '/card/print.php?member=' + encodeURIComponent(memOpen);
+      $('#mdPrint').hidden = !(m.cards || []).some(function (c) { return c.kind === 'secure' && c.status === 'active'; });
       $('#mdRetire').hidden = !(m.cards || []).some(function (c) { return c.kind === 'printed' && c.status === 'active'; });
       $('#mdSuspend').textContent = m.status === 'suspended' ? 'Reactivate' : 'Suspend';
       $('#mdSuspend').setAttribute('data-to', m.status === 'suspended' ? 'active' : 'suspended');
@@ -3413,7 +3416,7 @@
       if (!confirm(voidPrinted ? 'Retire the old printed card and issue a new secure one? Both old cards stop at the gate now.' : 'Issue a new secure card? The current one stops at the gate now.')) return;
       post('card_reissue', { id: memOpen, void_printed: voidPrinted }).then(function (r) {
         var d = r.data || {}; if (!d.ok) { toast(d.error || 'Could not issue.'); return; }
-        $('#mdCards').innerHTML = memCardsHTML(d.cards); $('#mdRetire').hidden = true; toast('New card ' + d.code + '.');
+        $('#mdCards').innerHTML = memCardsHTML(d.cards); $('#mdRetire').hidden = true; $('#mdPrint').hidden = false; toast('New card ' + d.code + '.');
       });
     }
     $('#mdReissue').addEventListener('click', function () { reissue(false); });

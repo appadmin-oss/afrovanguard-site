@@ -79,7 +79,7 @@ function send_security_headers(string $page = 'public'): void {
         "font-src 'self' https://fonts.gstatic.com data:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "script-src $script",
-        "connect-src 'self' https://api.cloudinary.com https://api.paystack.co",
+        "connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co",
         "frame-src 'self' https://checkout.paystack.com $frame",
     ];
     header('Content-Security-Policy: ' . implode('; ', $csp));

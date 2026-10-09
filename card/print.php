@@ -1,108 +1,146 @@
 <?php
 /**
- * card/print.php — the member card as a file a printer can use.
+ * card/print.php — print one member's card. Staff only.
  *
- * ── WHY dompdf AND NOT HEADLESS CHROME ──────────────────────────────────────
- * ID_CARD_PRINT §5 offers spatie/browsershot or dompdf/dompdf, and browsershot
- * renders more faithfully. It is still the wrong choice here: DEPLOY.md §126
- * lists "Shared cPanel (no SSH)" as a supported target, and a shared host has
- * no Chrome binary and usually no proc_open either. A renderer that only works
- * on the Docker path would make this feature exist on the documentation and
- * not on the site.
+ * ── WHO MAY PRINT ───────────────────────────────────────────────────────────
+ * Printing is an office job (owner, 2026-10-09). Two doors, nothing else:
+ *   · an admin of this site (AdminRoles 'admin' or above), from the member desk
+ *     or a scanned card's page — ?member=<id>;
+ *   · NextGen Genius's Control Room, through a link its server signs with the
+ *     shared NGG_WEBHOOK_SECRET — ?ngg=<NGG member id>&ts=<unix>&sig=<hex>,
+ *     sig = HMAC-SHA256(secret, "card-print|<ngg>|<ts>"), good for 10 minutes.
+ *     The NGG member is the one integrations/ngg.php linked to an account here.
+ * A member cannot print their own card. Everyone else is refused the same way
+ * whether or not the member exists.
  *
- * dompdf is pure PHP, embeds and subsets fonts, keeps the QR as vector (it is
- * an SVG in the markup), and honours @page size. It renders the SAME partial
- * the screen card uses, which is the point §5 is really making — the card must
- * not drift from itself. TCPDF, named in CHECKLIST G-04, is the PDF DRAWING
- * API §5 explicitly forbids for that exact reason, so it is not used; the
- * contradiction between those two documents is listed in the PR.
- *
- * ── WHAT IS CHECKED, IN ORDER ───────────────────────────────────────────────
- * Access, then rate limit, then photo size, then cache, then render. Access
- * first because an endpoint that rate-limits before it authorises tells a
- * stranger how often other people are printing.
+ * ── WHY THE FILES ARE MADE IN THE BROWSER ───────────────────────────────────
+ * The site runs on shared hosting: no shell, no Chrome, no Ghostscript. A PHP
+ * PDF library re-implements CSS and could not draw this design (no flexbox,
+ * grid, gradients, shadows or clipped corners), so the print came out unlike
+ * the card. Instead the admin's own browser lays out the SAME partial the
+ * screen shows, at its true millimetre size with 3 mm of real bleed, and
+ * snapDOM rasterises it through the browser's own engine — NGG's ID Card
+ * Studio does exactly this, chosen there by measurement (0.0% of pixels off
+ * against Chromium's own screenshot). jsPDF assembles the PDF; JSZip the PNGs.
+ * All three are vendored in assets/vendor/card/, byte-identical to NGG's.
  */
 declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
-require_once __DIR__ . '/../lib/LmsAuth.php';
+require_once __DIR__ . '/../lib/AdminRoles.php';
 require_once __DIR__ . '/../lib/MemberCards.php';
 require_once __DIR__ . '/../lib/NgvCard.php';
 require_once __DIR__ . '/../lib/IdCard.php';
-require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/_render.php';
+
+header('Content-Type: text/html; charset=utf-8');
+header('Cache-Control: no-store, private');
+header('Referrer-Policy: no-referrer');
+header('X-Robots-Tag: noindex, nofollow');
+
+function card_print_refuse(int $status, string $why): never
+{
+    http_response_code($status);
+    echo '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex">'
+       . '<title>Card printing · Afrovanguard</title><p style="font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem">'
+       . e($why) . '</p>';
+    exit;
+}
+
+/** The member a valid NGG-signed link names, or 0. */
+function card_print_ngg_member(): int
+{
+    $ngg = trim((string) ($_GET['ngg'] ?? ''));
+    $ts  = (string) ($_GET['ts'] ?? '');
+    $sig = strtolower((string) ($_GET['sig'] ?? ''));
+    if ($ngg === '' || !ctype_digit($ts) || $sig === '') return 0;
+    $secret = trim((string) (getenv('NGG_WEBHOOK_SECRET') ?: (defined('NGG_WEBHOOK_SECRET') ? NGG_WEBHOOK_SECRET : '')));
+    if ($secret === '' || abs(time() - (int) $ts) > 600) return 0;
+    if (!hash_equals(hash_hmac('sha256', 'card-print|' . $ngg . '|' . $ts, $secret), $sig)) return 0;
+    try {
+        $st = Database::pdo()->prepare("SELECT member_id FROM ngv_intake WHERE ngg_member_id = ? AND status = 'linked'");
+        $st->execute([mb_substr($ngg, 0, 64)]);
+        return (int) ($st->fetchColumn() ?: 0);
+    } catch (Throwable $e) { return 0; }
+}
 
 /* ── Who is asking ──────────────────────────────────────────────────────── */
 
-$me   = LmsAuth::user();
-$meId = (int) ($me['id'] ?? 0);
-if ($meId <= 0) { card_refuse(403, 'Sign in to download your card.'); }
-
-$wanted  = (int) ($_GET['member'] ?? 0);
-$isStaff = LmsAuth::canManageMembers($me);
-$target  = $wanted > 0 ? $wanted : $meId;
-
-/* The holder may have their own; staff may have anybody's. Everyone else is
-   refused — and refused the SAME WAY whether or not the member exists, so the
-   endpoint cannot be used to test which ids are real. */
-if ($target !== $meId && !$isStaff) { card_refuse(403, 'That is not your card.'); }
-
-/* ── Rate limit ─────────────────────────────────────────────────────────── */
-
-if (!card_rate_ok($meId)) {
-    card_refuse(429, 'You have asked for a lot of cards in the last hour. Try again later.');
+$viaNgg = isset($_GET['ngg']);
+if ($viaNgg) {
+    $target = card_print_ngg_member();
+    if ($target <= 0) card_print_refuse(403, 'This print link is not valid, or it has expired. Open it again from the NGG Control Room.');
+    $actor = 'NGG Control Room';
+} else {
+    if (!AdminRoles::can('admin')) card_print_refuse(403, 'Card printing is for Afrovanguard staff. Open it from the member desk in the admin.');
+    $target = (int) ($_GET['member'] ?? 0);
+    if ($target <= 0) card_print_refuse(404, 'Choose a member on the member desk first.');
+    $actor = av_admin_actor();
 }
 
-/* ── What was asked for ─────────────────────────────────────────────────── */
+if (!av_rate_ok('card_print', 60, 3600)) card_print_refuse(429, 'A lot of cards have been opened for printing from here in the last hour. Try again later.');
 
-$format = in_array(($_GET['format'] ?? 'pdf'), ['pdf', 'png'], true) ? $_GET['format'] : 'pdf';
-$layout = in_array(($_GET['layout'] ?? 'single'), ['single', 'a4'], true) ? $_GET['layout'] : 'single';
-$bleed  = ($_GET['bleed'] ?? '1') !== '0';
+$holder = NgvCard::user($target);
+if (!$holder) card_print_refuse(404, 'No such member.');
 
-/* A4 imposition is a staff print run, not something a member needs. */
-if ($layout === 'a4' && !$isStaff) { card_refuse(403, 'That layout is for staff print runs.'); }
-
-$card = IdCard::forMember($target);
-if (trim((string) $card['card_code']) === '') {
-    card_refuse(404, 'No card yet — ask the NGV office.');
-}
-
-/* ── The photo has to be big enough to print ────────────────────────────── */
-
+$card  = IdCard::forMember($target);
 $photo = IdCard::photoCheck($card['photo_url'] ?? null);
-if (!$photo['ok'] && $photo['why'] !== '') { card_refuse(422, $photo['why']); }
-
-/* ── Cache ──────────────────────────────────────────────────────────────── */
-
-$key  = IdCard::cacheKey($target) . '-' . $format . '-' . $layout . '-' . ($bleed ? 'b1' : 'b0');
-$file = card_cache_path($key, $format === 'png' ? 'zip' : 'pdf');
-$name = 'afrovanguard-card-' . ($card['number'] !== '' ? $card['number'] : $card['card_code']);
-
-if (is_file($file) && (time() - (int) @filemtime($file)) < 86400) {
-    card_send($file, $name . ($format === 'png' ? '.zip' : '.pdf'),
-              $format === 'png' ? 'application/zip' : 'application/pdf');
+$noCard = trim((string) $card['card_code']) === '';
+/* Every print opening is on the record: a card is an identity document. */
+if (class_exists('AdminAudit')) {
+    try { AdminAudit::log('members', 'card_print_opened', (string) $target, (string) ($card['card_code'] ?: 'no card'), null, $actor); }
+    catch (Throwable $e) { /* the audit table is optional; printing is not */ }
 }
+$name = 'afrovanguard-card-' . preg_replace('/[^A-Za-z0-9-]/', '', $card['number'] !== '' ? $card['number'] : ($card['card_code'] ?: 'member-' . $target));
+?><!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Print card · <?= e((string) $holder['name']) ?> · Afrovanguard</title>
+<link rel="stylesheet" href="/assets/site/fonts.css">
+<link rel="stylesheet" href="/assets/site/av-tokens.css">
+<link rel="stylesheet" href="/assets/site/avc-card.css">
+<link rel="stylesheet" href="/assets/site/avc-print.css">
+</head>
+<body class="avcp">
+<main class="avcp-main" id="main">
+  <header class="avcp-head">
+    <p class="avcp-eyebrow">Member card · print</p>
+    <h1><?= e((string) $holder['name']) ?></h1>
+    <p class="avcp-sub av-num"><?= e($card['number'] !== '' ? $card['number'] . ' · ' : '') ?><?= e($card['card_code'] ?: 'No card yet') ?> · <?= e($card['band']['label']) ?></p>
+  </header>
 
-/* ── Render ─────────────────────────────────────────────────────────────── */
+<?php if ($noCard): ?>
+  <p class="avcp-msg" role="status">No card yet — issue one from the member desk, then print it.</p>
+<?php else: ?>
+  <div class="avcp-cards" aria-label="The card as it will print">
+    <?php $avcSide = 'both'; include __DIR__ . '/../partials/id-card.php'; ?>
+  </div>
+<?php if (empty($card['photo_url'])): ?>
+  <p class="avcp-msg" role="status">No photo on this card — it prints with the member’s initials.</p>
+<?php endif; ?>
+<?php if (!$photo['ok'] && $photo['why'] !== ''): ?>
+  <p class="avcp-msg avcp-msg--bad" role="alert"><?= e($photo['why']) ?></p>
+<?php endif; ?>
 
-if ($format === 'png') {
-    /* NOT MET, and said rather than faked. §5 wants 300dpi rasters of both
-       faces in a zip. dompdf emits vector PDF; turning that into a raster
-       needs Imagick (absent here) or Ghostscript (absent on shared hosting).
-       Handing back a low-resolution GD approximation would be worse than
-       refusing: somebody would send it to a printer believing it was the
-       300dpi file the page promised. */
-    card_refuse(501, 'PNG download is not available on this server yet. '
-                   . 'The PDF is print-ready — any card printer can use it.');
-}
+  <div class="avcp-actions" data-avcp data-name="<?= e($name) ?>" data-code="<?= e($card['card_code']) ?>">
+    <button type="button" class="avc-btn avc-btn--primary" data-avcp-make="pdf"<?= $photo['ok'] || $photo['why'] === '' ? '' : ' disabled' ?>>Download for printing (PDF)</button>
+    <button type="button" class="avc-btn" data-avcp-make="png"<?= $photo['ok'] || $photo['why'] === '' ? '' : ' disabled' ?>>Download images (PNG)</button>
+    <button type="button" class="avc-btn" data-avcp-make="a4"<?= $photo['ok'] || $photo['why'] === '' ? '' : ' disabled' ?>>A4 sheet, 10 cards (PDF)</button>
+  </div>
+  <p class="avcp-note">Printed at 54 × 85.6 mm with 3 mm bleed. Any card printer can use this file.</p>
+  <p class="avcp-note">A4 sheet: print double-sided, flip on the long edge, then cut on the marks.</p>
+  <div class="avcp-status" role="status" aria-live="polite" data-avcp-status></div>
 
-try {
-    $html = card_html($card, $layout, $bleed);
-    $pdf  = card_pdf($html, $layout);
-} catch (Throwable $e) {
-    error_log('[card/print] ' . $e->getMessage());
-    card_refuse(500, 'We couldn’t make the file. Try again in a minute.');
-}
-
-@file_put_contents($file, $pdf);
-card_send_body($pdf, $name . '.pdf', 'application/pdf');
+  <!-- The farm: the same partial at its true size with real bleed, off screen. -->
+  <div class="avcp-farm" aria-hidden="true">
+    <?php $avcMode = 'print'; $avcSide = 'front'; include __DIR__ . '/../partials/id-card.php'; ?>
+    <?php $avcSide = 'back'; include __DIR__ . '/../partials/id-card.php'; ?>
+  </div>
+<?php endif; ?>
+  <noscript><p class="avcp-msg avcp-msg--bad">The print files are made in this browser. Turn on JavaScript to download them.</p></noscript>
+</main>
+<script src="/assets/site/avc-print.js" defer></script>
+</body>
+</html>

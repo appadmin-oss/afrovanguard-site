@@ -90,88 +90,69 @@ ck('publicFor(): drops the photo — a card found in the street should not hand 
    !array_key_exists('photo_url', $pub));
 ck('publicFor(): drops the family name too', !array_key_exists('family', $pub));
 
-/* ══ The print file ══════════════════════════════════════════════════════ */
+/* ══ A member with a card ═════════════════════════════════════════════════ */
 
-if (class_exists('\\Dompdf\\Dompdf')) {
-    require_once AV_ROOT . '/card/_render.php';
+/* The fatal this caught: issued() read `issued_at` off MemberCards::lookup(),
+   which does not return it — so forMember() died for every member who HAD a
+   card, and the portal card and /q/ died with it. The test member above has
+   no card, which is how that went unseen. */
+MemberCards::issue($uid, 'test', 'test');
+$carded = null;
+try { $carded = IdCard::forMember($uid); } catch (Throwable $e) { $carded = null; }
+ck('forMember(): a member who HAS a card gets one — it does not throw', is_array($carded));
+ck('forMember(): Issued is the card row’s own date, as the design prints it (“06 Oct 2026”)',
+   is_array($carded) && (bool) preg_match('/^\d{2} [A-Z][a-z]{2} \d{4}$/', $carded['issued']));
+ck('forMember(): Category is the tier letter and the plan (“E · Executive”)',
+   is_array($carded) && (bool) preg_match('/^[A-Z] · .+$/u', $carded['category']));
+ck('forMember(): the card’s QR is drawn edge to edge — its white box is the quiet zone, as designed',
+   is_array($carded) && str_starts_with(trim($carded['qr_svg']), '<svg')
+   && strlen($carded['qr_svg']) < strlen(NgvCard::qrSvg(MemberCards::scanUrl($carded['card_code']))));
 
-    $card  = IdCard::forMember($uid);
-    $bleed = true;
-    ob_start();
-    include AV_ROOT . '/card/print-template.php';
-    $html = (string) ob_get_clean();
-    $html = card_inline_assets($html);
+/* ══ The partial is the design ════════════════════════════════════════════ */
 
-    ck('print sheet: the page box is declared at 68 × 99.6 mm — trim plus 3 mm '
-     . 'bleed, plus the crop marks outside it',
-       str_contains($html, '@page{size:68mm 99.6mm;margin:0}'));
-    ck('print sheet: stylesheets are inlined, so the render never depends on '
-     . 'the server being able to fetch its own URLs',
-       !str_contains($html, '<link rel="stylesheet"') && str_contains($html, '<style>'));
-    ck('print sheet: the seal is inlined as a data URI for the same reason',
-       str_contains($html, 'src="data:image/png;base64,'));
-    ck('print sheet: font files resolve to a real path on disk — a webfont URL '
-     . 'dompdf cannot fetch means a core font, and a core font is never embedded',
-       str_contains($html, AV_ROOT . '/assets/site/fonts/'));
-
-    $pdf = card_pdf($html, 'single');
-
-    ck('PDF: two pages, front then back', substr_count($pdf, '/Type /Page') - substr_count($pdf, '/Type /Pages') === 2);
-
-    preg_match('~/MediaBox\s*\[([^\]]+)\]~', $pdf, $m);
-    $box = array_map('floatval', preg_split('/\s+/', trim($m[1] ?? '')) ?: []);
-    $mmW = isset($box[2]) ? round($box[2] / 72 * 25.4, 1) : 0;
-    $mmH = isset($box[3]) ? round($box[3] / 72 * 25.4, 1) : 0;
-    ck("PDF: the page is 68 × 99.6 mm (got {$mmW} × {$mmH})", $mmW === 68.0 && $mmH === 99.6);
-
-    ck('PDF: fonts are embedded', substr_count($pdf, '/FontFile') > 0);
-    preg_match_all('~/BaseFont\s*/([A-Za-z0-9+#-]+)~', $pdf, $fm);
-    $faces = array_unique($fm[1] ?? []);
-    $subset = array_filter($faces, static fn($f) => str_contains($f, '+'));
-    ck('PDF: embedded faces are SUBSET, not whole families — a card carrying '
-     . 'two complete typefaces is a megabyte nobody needs',
-       count($subset) > 0);
-    ck('PDF: Cormorant Garamond is embedded (the spec\'s display face, and NOT '
-     . 'the Cormorant the site\'s existing <link> loads)',
-       (bool) preg_grep('/CormorantGaramond/', $faces));
-    ck('PDF: Source Sans 3 is embedded', (bool) preg_grep('/SourceSans3/', $faces));
-
-    /* The PDF stores Info strings as UTF-16BE with a BOM, so the bytes never
-       match the sentence. Decode rather than strip NULs: the × in “54×85.6”
-       is U+00D7, and dropping its high byte leaves an invalid UTF-8 sequence
-       that compares equal to nothing. */
-    preg_match('~/Subject\s*\(([^)]*)\)~', $pdf, $sm);
-    $subject = ltrim(mb_convert_encoding((string) ($sm[1] ?? ''), 'UTF-8', 'UTF-16BE'), "\u{FEFF}");
-    ck('PDF: the Subject tells the printer what it is holding, verbatim — RGB '
-     . 'sent to a press without that note comes back with the gold wrong',
-       $subject === 'CR80 54×85.6 mm, 3 mm bleed, RGB. Ask the printer to convert to CMYK.');
-} else {
-    ck('PDF: dompdf is installed', false);
+ob_start();
+$card = $carded ?? IdCard::forMember($uid); $avcSide = 'both'; $avcMode = 'screen';
+include AV_ROOT . '/partials/id-card.php';
+$html = (string) ob_get_clean();
+foreach (['Ambassadors for Community, Tech &amp; Cultural Advancements', 'Scan for the live one',
+          'Raising one million incorruptible African leaders by 2040.', 'Issuing officer', 'Holder',
+          'Scan the front to verify', 'afrovanguard.org.ng'] as $copy) {
+    ck("partial: “{$copy}” is on the card, verbatim", str_contains($html, $copy));
 }
+ck('partial: the back’s return address is the organisation’s, never the member’s',
+   str_contains($html, 'please return it to CACENTRE, Alimosho, Lagos, or write to cacentre@afrovanguard.org.ng.'));
+$css = (string) file_get_contents(AV_ROOT . '/assets/site/avc-card.css');
+ck('avc-card.css: no hex colour — every colour is a token', !preg_match('/#[0-9a-fA-F]{3,8}\b/', $css));
+ck('avc-card.css: print faces are laid out on the design’s 10px-per-mm canvas, so its 1px hairlines are whole pixels',
+   str_contains($css, '.avc-face.is-print{--u:10px;--bleed:30px'));
 
-/* ══ Access control ══════════════════════════════════════════════════════ */
+/* ══ Printing: staff only, made in the browser ═══════════════════════════ */
 
 $src = (string) file_get_contents(AV_ROOT . '/card/print.php');
-ck('/card/print: refuses before it rate-limits — an endpoint that counts '
- . 'first tells a stranger how often other people are printing',
-   strpos($src, 'card_refuse(403') < strpos($src, 'card_rate_ok'));
-ck('/card/print: a non-holder non-staff member is refused',
-   str_contains($src, "if (\$target !== \$meId && !\$isStaff) { card_refuse(403"));
-$render = (string) file_get_contents(AV_ROOT . '/card/_render.php');
-ck('/card/print: the rate limit is 20 an hour', str_contains($render, '$n >= 20'));
-ck('/card/print: the A4 imposition is staff-only — it is a print run, not '
- . 'something a member needs',
-   str_contains($src, "\$layout === 'a4' && !\$isStaff"));
-ck('/card/print: a photo too small to print is refused with the spec message',
+ck('/card/print: an admin of this site, or a link NGG’s server signed — nobody else (owner, 2026-10-09)',
+   str_contains($src, "AdminRoles::can('admin')") && str_contains($src, "hash_hmac('sha256', 'card-print|'"));
+ck('/card/print: a member cannot print their own card — there is no holder door',
+   !str_contains($src, 'LmsAuth::user()'));
+ck('/card/print: an NGG link lives ten minutes and names a LINKED NGG member',
+   str_contains($src, 'abs(time() - (int) $ts) > 600') && str_contains($src, "status = 'linked'"));
+ck('/card/print: the signature is compared in constant time', str_contains($src, 'hash_equals('));
+ck('/card/print: rate limited', str_contains($src, "av_rate_ok('card_print'"));
+ck('/card/print: every opening is on the audit log', str_contains($src, "'card_print_opened'"));
+ck('/card/print: the photo-too-small message is the spec’s, verbatim',
    str_contains((string) file_get_contents(AV_ROOT . '/lib/IdCard.php'),
                 'Your photo is too small to print sharply. Upload one at least 800 px wide.'));
-ck('/card/print: the file is named for the member number',
-   str_contains($src, "'afrovanguard-card-'"));
-ck('/card/print: generated files are cached for 24 hours', str_contains($src, '< 86400'));
-ck('cacheKey(): keyed on member, standing code, photo hash and design version '
- . '— a card whose status changed must not serve yesterday\'s file',
-   str_contains((string) file_get_contents(AV_ROOT . '/lib/IdCard.php'),
-                '$memberId, $code, $hash, self::DESIGN_VERSION'));
+
+$js = (string) file_get_contents(AV_ROOT . '/assets/site/avc-print.js');
+ck('print: the PDF is 68 × 99.6 mm — trim, 3 mm bleed, and room for the crop marks', str_contains($js, 'format: [68, 99.6]'));
+ck('print: the Subject tells the printer what it is holding, verbatim',
+   str_contains($js, "'CR80 54×85.6 mm, 3 mm bleed, RGB. Ask the printer to convert to CMYK.'"));
+ck('print: crop marks are 0.25 pt', str_contains($js, '0.25 * 25.4 / 72'));
+ck('print: the PNGs are written as 300 dpi (pHYs 11811 px/m) and sRGB', str_contains($js, '11811') && str_contains($js, "'sRGB'"));
+ck('print: the A4 back page is mirrored for a long-edge flip', str_contains($js, 'COLS - 1 - c'));
+ck('print: the failure message is the spec’s', str_contains($js, 'We couldn’t make the file. Try again in a minute.'));
+foreach (['snapdom.js', 'jspdf.umd.min.js', 'jszip.min.js'] as $lib) {
+    ck("print: {$lib} is vendored, not fetched from a CDN", is_file(AV_ROOT . '/assets/vendor/card/' . $lib));
+}
 
 /* ══ The public page ═════════════════════════════════════════════════════ */
 
