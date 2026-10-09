@@ -52,3 +52,37 @@ $secAdmin = (string) file_get_contents(AV_ROOT . '/admin/api.php');
 ck('admin: any POST counts as a write for CSRF', str_contains($secAdmin, "if (\$method === 'POST') \$writing = true;\n    if (\$writing && !av_admin_bearer_ok()) av_csrf_require();"));
 ck('admin: the CSRF check still runs on writes', str_contains($secAdmin, 'if ($writing && !av_admin_bearer_ok()) av_csrf_require();'));
 ck('admin: mail settings are management-only', (bool) preg_match("/managementOnly = \\[.*'mail_status'/s", $secAdmin));
+
+/* ══ 4. A Studio session bridged from a member ends with the member ════════
+   The bridged admin cookie was a free-standing 12-hour credential: signing out
+   of the site, or being removed from the admin team, left the Studio open on
+   that browser until it expired. */
+$secResetAuth = static function (): void {
+    $r = new ReflectionClass('LmsAuth');
+    foreach (['cache' => null, 'checked' => false] as $k => $v) { $pp = $r->getProperty($k); $pp->setAccessible(true); $pp->setValue(null, $v); }
+};
+$secDb = Database::pdo();
+$secEmail = 'sec.admin.' . bin2hex(random_bytes(3)) . '@afrovanguard.org.ng';
+$secDb->prepare('INSERT INTO lms_users (name, email, password_hash, role, status, email_verified) VALUES (?,?,?,?,?,1)')
+      ->execute(['Sec Admin', $secEmail, 'x', 'member', 'active']);
+$secUid = (int) $secDb->lastInsertId();
+$secTok = bin2hex(random_bytes(20));
+$secDb->prepare('INSERT INTO lms_sessions (token_hash, user_id, ip, ua, expires_at) VALUES (?,?,?,?,?)')
+      ->execute([hash('sha256', $secTok), $secUid, '', '', gmdate('Y-m-d H:i:s', time() + 3600)]);
+AdminRoles::add($secEmail, 'editor', 'test');
+unset($_COOKIE[AV_ADMIN_COOKIE]);
+$_COOKIE[LmsAuth::COOKIE] = $secTok; $secResetAuth();
+ck('admin cookie: a signed-in team member is bridged at their level', AdminRoles::current() === 'editor');
+ck('admin cookie: the bridged cookie is marked as the member\'s', (av_admin_cookie_parse()['src'] ?? '') === 'm');
+AdminRoles::remove($secEmail);
+ck('admin cookie: removal from the team ends the bridged session at once', AdminRoles::current() === '');
+ck('admin cookie: and the stale cookie is cleared', !isset($_COOKIE[AV_ADMIN_COOKIE]));
+AdminRoles::add($secEmail, 'admin', 'test');
+ck('admin cookie: re-bridged at the new level', AdminRoles::current() === 'admin');
+unset($_COOKIE[LmsAuth::COOKIE]); $secResetAuth();
+ck('admin cookie: signing out of the site ends the bridged session', AdminRoles::current() === '');
+av_admin_cookie_issue(3600, 'superadmin', 't');
+ck('admin cookie: a token sign-in stands on its own credential', AdminRoles::current() === 'superadmin');
+$_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value(time() + 3600, 'n', 'superadmin', 'm', 'not-the-key');
+ck('admin cookie: a forged cookie grants nothing', av_admin_cookie_parse() === null && AdminRoles::current() === '');
+unset($_COOKIE[AV_ADMIN_COOKIE]); AdminRoles::remove($secEmail);

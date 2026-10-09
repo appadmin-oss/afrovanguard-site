@@ -158,15 +158,28 @@ function av_csrf_require(): void {
 
 /* ── Admin session cookie (httpOnly, signed) ──────────────────── */
 define('AV_ADMIN_COOKIE', 'av_admin');
-function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin'): void {
+/**
+ * The signed cookie value. `$src` says where the session came from:
+ *   't' — the break-glass token sign-in (its own credential; lives its TTL)
+ *   'm' — bridged from a signed-in member listed in admin_users. Such a cookie
+ *         is only honoured while that member is still signed in AND still an
+ *         admin (AdminRoles::current), so signing out of the site or being
+ *         removed from the admin team ends Studio access at once instead of
+ *         up to 12 hours later.
+ */
+function av_admin_cookie_value(int $exp, string $nonce, string $role, string $src, string $secret): string {
+    $payload = $exp . '.' . $nonce . '.' . $role . '.' . $src;
+    return $payload . '.' . hash_hmac('sha256', $payload, $secret);
+}
+function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin', string $src = 't'): void {
     $secret = av_secret(); if ($secret === '') return;
     $role = preg_replace('/[^a-z]/', '', strtolower($role)) ?: 'superadmin';
+    $src  = $src === 'm' ? 'm' : 't';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(10));
-    $payload = $exp . '.' . $nonce . '.' . $role;            // role travels inside the signed cookie
-    $val = $payload . '.' . hash_hmac('sha256', $payload, $secret);
+    $val = av_admin_cookie_value($exp, $nonce, $role, $src, $secret);   // role travels inside the signed cookie
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-    setcookie(AV_ADMIN_COOKIE, $val, [
+    if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, $val, [
         'expires' => $exp, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
     $_COOKIE[AV_ADMIN_COOKIE] = $val;
@@ -177,23 +190,32 @@ function av_admin_cookie_valid(): bool {
 /** Role carried by a valid admin cookie ('' if none/invalid). Legacy 3-part
  *  cookies (pre-roles) are treated as superadmin for back-compat. */
 function av_admin_cookie_role(): string {
-    $secret = av_secret(); if ($secret === '') return '';
-    $v = $_COOKIE[AV_ADMIN_COOKIE] ?? ''; if ($v === '') return '';
+    return (string) (av_admin_cookie_parse()['role'] ?? '');
+}
+/** ['role' => string, 'src' => 't'|'m'] for a valid cookie, else null. */
+function av_admin_cookie_parse(): ?array {
+    $secret = av_secret(); if ($secret === '') return null;
+    $v = $_COOKIE[AV_ADMIN_COOKIE] ?? ''; if (!is_string($v) || $v === '') return null;
     $p = explode('.', $v);
     if (count($p) === 3) {           // legacy: exp.nonce.sig → superadmin
         [$exp, $nonce, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time()) return '';
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce, $secret), $sig) ? 'superadmin' : '';
+        if (!ctype_digit($exp) || (int) $exp < time()) return null;
+        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce, $secret), $sig) ? ['role' => 'superadmin', 'src' => 't'] : null;
     }
-    if (count($p) === 4) {           // exp.nonce.role.sig
+    if (count($p) === 4) {           // exp.nonce.role.sig (before the source was recorded)
         [$exp, $nonce, $role, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time()) return '';
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce . '.' . $role, $secret), $sig) ? $role : '';
+        if (!ctype_digit($exp) || (int) $exp < time()) return null;
+        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce . '.' . $role, $secret), $sig) ? ['role' => $role, 'src' => 't'] : null;
     }
-    return '';
+    if (count($p) === 5) {           // exp.nonce.role.src.sig
+        [$exp, $nonce, $role, $src, $sig] = $p;
+        if (!ctype_digit($exp) || (int) $exp < time() || ($src !== 't' && $src !== 'm')) return null;
+        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce . '.' . $role . '.' . $src, $secret), $sig) ? ['role' => $role, 'src' => $src] : null;
+    }
+    return null;
 }
 function av_admin_cookie_clear(): void {
-    setcookie(AV_ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
     unset($_COOKIE[AV_ADMIN_COOKIE]);
 }
 
