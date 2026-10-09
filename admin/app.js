@@ -2649,7 +2649,38 @@
       post('mail_test', { to: $('#mailTestTo').value.trim() }).then(function (r) {
         var d = r.data || {};
         msg.style.color = d.ok ? '#2ea043' : '#d22';
-        msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + ')') : ('✗ ' + (d.error || d.detail || 'Failed.'));
+        var road = d.transport ? ' · sent by: ' + d.transport : '';
+        var tried = (d.tried && d.tried.length) ? ' · tried: ' + d.tried.join(' → ') : '';
+        var mode = d.mode ? ' · sending road: ' + d.mode : '';
+        msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + road + tried + mode + ')') : ('✗ ' + (d.error || d.detail || 'Failed.') + tried + mode);
+      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+        .finally(function () { btn.disabled = false; });
+    });
+  }
+  /* The site's own Google Apps Script: set up, reachable, whose account, and
+     how many recipients it may still mail today. Sends nothing. */
+  if ($('#gasCheckBtn')) {
+    $('#gasCheckBtn').addEventListener('click', function () {
+      var btn = this, msg = $('#gasCheckMsg'), out = $('#gasCheckOut');
+      btn.disabled = true; msg.textContent = 'Asking the script…'; msg.style.color = ''; out.innerHTML = '';
+      post('mail_gas_check', {}).then(function (r) {
+        var d = r.data || {};
+        msg.style.color = d.ok ? '#2ea043' : '#d22';
+        msg.textContent = (d.ok ? '✓ ' : '✗ ') + (d.error || d.detail || (d.ok ? 'Working.' : 'Failed.'));
+        var dot = function (on) { return '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (on ? '#2ea043' : '#d22') + '"></span>'; };
+        var row = function (on, label, detail) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.15)">' + dot(on) +
+            '<span style="font-weight:600;flex:0 0 160px">' + escapeHtml(label) + '</span>' +
+            '<span style="color:#5b6472;font-size:13px">' + escapeHtml(detail) + '</span></div>';
+        };
+        if (d.configured === undefined) return;
+        out.innerHTML =
+          row(!!d.configured, 'Configured', d.configured ? 'URL and secret set' : (d.url_set ? 'secret missing' : 'no web-app URL')) +
+          row(!!d.reachable, 'Reachable', d.reachable ? 'the script answered' : (d.configured ? 'no answer from the script' : '—')) +
+          row(!!d.account, 'Sends as', d.account || '—') +
+          row(d.remaining !== null && d.remaining !== undefined && d.remaining > 0, 'Allowance left today',
+              (d.remaining === null || d.remaining === undefined) ? '—' : (d.remaining + ' recipient' + (d.remaining === 1 ? '' : 's'))) +
+          row(true, 'Sending road', d.mode || 'auto');
       }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
