@@ -146,3 +146,8 @@ ck('admin token: an empty token never matches', av_admin_token_matches('') === f
 $secCron = (string) file_get_contents(AV_ROOT . '/tasks/cron.php');
 ck('cron: guesses are counted before the key is compared',
     strpos($secCron, "av_rate_ok('cron_web'") < strpos($secCron, 'if (!hash_equals($want, $key))'));
+
+/* ══ 10. Public AI answers are rate-limited ═══════════════════════════════ */
+$secSearch = (string) file_get_contents(AV_ROOT . '/search.php');
+ck('search: the AI answer is limited before the model is called',
+    strpos($secSearch, "av_rate_ok('search_ai'") !== false && strpos($secSearch, "av_rate_ok('search_ai'") < strpos($secSearch, 'AvBot::reply('));
