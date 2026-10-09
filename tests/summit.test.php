@@ -249,7 +249,8 @@ ck('summit: the Academy nav links to it', str_contains(
 // Not index.html: it has carried its own navigation since the row-4 redesign.
 foreach (['about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
     $html = (string) @file_get_contents(AV_ROOT . '/' . $page);
-    if ($html === '') continue;
+    // Pages on the Home chrome (rows 5–8) carry no old nav; tests/avhchrome.test.php covers them.
+    if ($html === '' || str_contains($html, '<!-- avh:nav -->')) continue;
     ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);
     ck("chrome: {$page} has exactly one drawer scrim", substr_count($html, 'class="scrim"') === 1);
 }
