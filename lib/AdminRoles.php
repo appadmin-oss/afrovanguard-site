@@ -56,18 +56,21 @@ final class AdminRoles
     public static function current(): string
     {
         if (function_exists('av_admin_bearer_ok') && av_admin_bearer_ok()) return 'superadmin';
-        if (function_exists('av_admin_cookie_role')) {
-            $r = av_admin_cookie_role();
-            if ($r !== '') return $r;
-        }
+        $c = function_exists('av_admin_cookie_parse') ? av_admin_cookie_parse() : null;
+        if ($c !== null && $c['src'] !== 'm') return (string) $c['role'];   // token sign-in
+        /* A bridged session is the member's: it holds only while they are
+           signed in and still on the admin team, at the level they hold NOW. */
+        $live = '';
         if (class_exists('LmsAuth')) {
             $u = LmsAuth::user();
-            if ($u && !empty($u['email'])) {
-                $role = self::roleForEmail((string) $u['email']);
-                if ($role !== '') { if (function_exists('av_admin_cookie_issue')) av_admin_cookie_issue(43200, $role); return $role; }
-            }
+            if ($u && !empty($u['email'])) $live = self::roleForEmail((string) $u['email']);
         }
-        return '';
+        if ($live === '') {
+            if ($c !== null && function_exists('av_admin_cookie_clear')) av_admin_cookie_clear();
+            return '';
+        }
+        if (($c === null || $c['role'] !== $live) && function_exists('av_admin_cookie_issue')) av_admin_cookie_issue(43200, $live, 'm');
+        return $live;
     }
 
     public static function orgEmail(string $email): bool

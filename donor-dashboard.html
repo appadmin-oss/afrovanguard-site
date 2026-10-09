@@ -685,14 +685,16 @@ function buildTierGroup(tier, donors) {
     donors.forEach(d => {
       const pCard = document.createElement('div');
       pCard.className = 'platinum-card';
-      pCard.innerHTML = `
-        <div class="platinum-av">${(d.initials||'??').substring(0,2).toUpperCase()}</div>
-        <div>
-          <div class="platinum-name">${d.name || 'Donor'}</div>
-          <div class="platinum-amt">${d.amount_display || ''}</div>
-          <div class="platinum-badge">Platinum Donor · ${d.time_ago || ''}</div>
-        </div>
-      `;
+      /* Built as nodes, like every other donor card: the name is whatever the
+         donor typed, and markup in it must stay text. */
+      const pAv = document.createElement('div'); pAv.className = 'platinum-av';
+      pAv.textContent = (d.initials||'??').substring(0,2).toUpperCase();
+      const pInfo = document.createElement('div');
+      const pName = document.createElement('div'); pName.className = 'platinum-name'; pName.textContent = d.name || 'Donor';
+      const pAmt = document.createElement('div'); pAmt.className = 'platinum-amt'; pAmt.textContent = d.amount_display || '';
+      const pBadge = document.createElement('div'); pBadge.className = 'platinum-badge'; pBadge.textContent = 'Platinum Donor · ' + (d.time_ago || '');
+      pInfo.append(pName, pAmt, pBadge);
+      pCard.append(pAv, pInfo);
       platGrid.appendChild(pCard);
     });
     return group;

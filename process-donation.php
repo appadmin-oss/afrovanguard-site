@@ -590,8 +590,16 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
             $anon     = ($fields['anonymous']??'No') === 'Yes';
             $fn       = trim($fields['first_name'] ?? '');
             $ln       = trim($fields['last_name']  ?? '');
-            $dispName = $anon ? 'Anonymous' : esc(trim("$fn $ln") ?: $email);
-            $initials = $anon ? 'AN' : strtoupper(substr($fn?:$email, 0, 1) . substr($ln, 0, 1));
+            /* The donor wall is public. A charge with no name on the form (a
+               renewal, a dues or course payment on the same account) used to
+               fall back to the payer's EMAIL here, and get_donors published it.
+               Paystack's own customer name next, then a plain "Supporter". */
+            if ($fn === '' && $ln === '') {
+                $fn = trim((string)($tx['customer']['first_name'] ?? ''));
+                $ln = trim((string)($tx['customer']['last_name'] ?? ''));
+            }
+            $dispName = $anon ? 'Anonymous' : esc(trim("$fn $ln") ?: 'Supporter');
+            $initials = $anon ? 'AN' : (strtoupper(substr($fn, 0, 1) . substr($ln, 0, 1)) ?: 'S');
             $entry = [
                 'id'         => $ref,
                 'type'       => 'card',
@@ -633,6 +641,13 @@ if (!rateLimit('all_' . $clientIp, 60, 60)) {
     http_response_code(429);
     header('Retry-After: 60');
     echo json_encode(['success'=>false,'message'=>'Too many requests. Please wait a moment.']);
+    exit;
+}
+/* These two send an email to whatever address the form gives, with text the
+   form chose — a mail relay at 60 a minute. A real donor sends one or two. */
+if (in_array($action, ['submit_contribute','bank_transfer_copy'], true) && !rateLimit('mail_' . $clientIp, 5, 900)) {
+    http_response_code(429);
+    echo json_encode(['success'=>false,'message'=>'Too many requests. Please wait a few minutes.']);
     exit;
 }
 if (in_array($action, ['init_payment','generate_virtual_account','record_donation','record_bank_transfer'])) {
@@ -882,7 +897,7 @@ if ($action==='generate_virtual_account') {
 /* ── record_bank_transfer (admin confirms Zenith manual transfer) */
 if ($action==='record_bank_transfer') {
     $token=trim($input['admin_token']??'');
-    if (!defined('ADMIN_TOKEN')||!hash_equals(ADMIN_TOKEN,$token)){
+    if (!av_admin_token_matches($token)){
         http_response_code(403);echo json_encode(['success'=>false,'message'=>'Unauthorized']);exit;
     }
     foreach(['name','email','amount','campaign'] as $f){
@@ -971,7 +986,7 @@ if ($action==='bank_transfer_copy') {
 /* ── FIX C-02: verify_admin_token (dashboard auth probe) ─────────── */
 if ($action === 'verify_admin_token') {
     $token = trim($input['admin_token'] ?? '');
-    if (!defined('ADMIN_TOKEN') || !hash_equals(ADMIN_TOKEN, $token)) {
+    if (!av_admin_token_matches($token)) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     } else {

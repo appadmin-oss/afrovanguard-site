@@ -31,10 +31,12 @@ try {
     $pdo = Database::pdo();
     if ($action === 'members') {
         $out = av_team_members($pdo);
+        $out['members'] = array_map('av_team_public_dict', $out['members'] ?? []);
     } elseif ($action === 'member') {
         $id = (int) ($_GET['id'] ?? 0);
         if ($id < 1) json_out(['status' => 'error', 'error' => 'A member id is required.'], 400);
         $out = av_team_one($pdo, $id);
+        if (isset($out['member'])) $out['member'] = av_team_public_dict($out['member']);
     } elseif ($action === 'votm') {
         $out = av_votm($pdo);
     } else { // celebrations

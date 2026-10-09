@@ -42,7 +42,12 @@ final class GoogleAuth
     /** Sanitise an intended post-login destination to a same-origin path. */
     public static function safeNext(string $next): string
     {
-        return ($next !== '' && $next[0] === '/' && !str_starts_with($next, '//') && !str_contains($next, "\n")) ? $next : '/portal/';
+        /* A same-site PATH only. Browsers read "/\evil.example" as
+           "//evil.example", and drop tabs and newlines from a URL, so
+           "/\t/evil.example" is one too: a backslash or any control character
+           anywhere sends the visitor home instead of off-site. */
+        return ($next !== '' && $next[0] === '/' && !str_starts_with($next, '//')
+                && !str_contains($next, '\\') && !preg_match('/[\x00-\x1f\x7f]/', $next)) ? $next : '/portal/';
     }
 
     /* ── signed state (also the CSRF token for the callback) ── */

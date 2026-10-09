@@ -9,6 +9,7 @@
  * Exits non-zero if anything fails (so CI goes red). No PHPUnit needed.
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
 $dbFile = sys_get_temp_dir() . '/av-test-' . getmypid() . '.db';
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');

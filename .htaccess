@@ -34,6 +34,14 @@ RewriteRule (^|/)\.(?!well-known/) - [F,L]
 RewriteRule ^lib/  - [F,L]
 RewriteRule ^db/   - [F,L]
 RewriteRule ^data/ - [F,L]
+# Command-line tools, the test suite, Composer's vendor tree, docs and
+# include-only partials are never requested over HTTP. Several of them write to
+# the live database when run (scripts/seed-mentor-200.php seeds 200 accounts,
+# tools/gate-revoke.php withdraws passes) and none of them checks who is asking.
+RewriteRule ^(tools|scripts|bin|tests|deploy|docs|vendor|partials)(/|$) - [F,L]
+# The STS form's local backups (names, emails, WhatsApp numbers). Its own
+# .htaccess is a template the deployer has to merge; this does not depend on it.
+RewriteRule ^projects/sts/ceo/api/data(/|$) - [F,L]
 
 # ── Moved off this site ─────────────────────────────────────────────────────
 # Africa GATES is its own site now. This sits ABOVE the real-file guard below

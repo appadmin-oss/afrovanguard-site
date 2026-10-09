@@ -16,6 +16,7 @@
  * Re-run whenever the nav/footer in lib/partials.php changes.
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
 if (!defined('SITE_URL')) define('SITE_URL', 'https://afrovanguard.org.ng');
 if (!defined('AV_ROOT')) define('AV_ROOT', dirname(__DIR__));

@@ -32,8 +32,10 @@ if (!$cli) {
         exit;
     }
     $key = (string) ($_GET['key'] ?? ($_SERVER['HTTP_X_AV_CRON_KEY'] ?? ''));
-    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
+    /* Counted BEFORE the key is compared: after it, the limit only ever saw
+       correct keys and guessing an 8-character key was unlimited. */
     if (function_exists('av_rate_ok') && !av_rate_ok('cron_web', 30, 60)) { http_response_code(429); echo json_encode(['ok' => false, 'error' => 'Rate limited.']); exit; }
+    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
 }
 
 $max = $cli
