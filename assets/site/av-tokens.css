@@ -26,6 +26,40 @@
   --av-indigo:#4338CA;  --av-indigo-bg:#EEF0FD;
   --av-focus:#2F6FDB;
   --av-registration:#000000; /* crop marks only */
+  /* site pages (row 4 home onward) */
+  --av-body:#1A1A1A;
+  --av-link-hover:#B07E08;
+  --av-nav-text:#2B2F36;
+  --av-nav-sub:#4A4F5C;
+  --av-line-3:#B9B5AC;
+  --av-line-sand:#D9D5CB;
+  --av-line-menu:#E3DFD6;
+  --av-line-menu-2:#ECE9E2;
+  --av-ink-hover:#253047;
+  --av-ink-deep:#0B1220;
+  --av-hero-bg:#1F2937;
+  --av-on-ink-soft:#E7E9EE;
+  --av-on-ink-2:#D6D9DF;
+  --av-sep:#C9C4B8;
+  --av-copy:#4A4A4A;
+  --av-copy-2:#555555;
+  --av-copy-3:#5A5A5A;
+  --av-copy-4:#666666;
+  --av-muted-2:#6B6B6B;
+  --av-slate:#5B5F69;
+  --av-slate-2:#7A7E87;
+  --av-stone-hover:#EBE7DF;
+  --av-sand-hover:#E6E3DC;
+  --av-menu-hover:#F1EFEA;
+  --av-img-bg:#E0DDD5;
+  --av-quote-mark:#C9A24B;
+  --av-gold-hover:#FFC93A;
+  /* member card back (design: Afrovanguard Member ID Card) */
+  --av-on-ink-strong:#E5E7EB;
+  --av-on-ink-label:#9AA1AE;
+  --av-ink-cell:#151C2C;
+  --av-on-ink-hair:rgba(255,255,255,.12);
+  --av-on-ink-rule:rgba(255,255,255,.45);
   /* card status bands (≥6:1 with white) */
   --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
 

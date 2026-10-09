@@ -35,6 +35,15 @@
   src: url('/assets/site/fonts/CormorantGaramond-500.ttf') format('truetype');
 }
 
+/* 500 italic: the mission line on the back of the member card. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/site/fonts/CormorantGaramond-500-italic.ttf') format('truetype');
+}
+
 @font-face {
   font-family: 'Cormorant Garamond';
   font-style: normal;
@@ -49,6 +58,16 @@
   font-weight: 700;
   font-display: swap;
   src: url('/assets/site/fonts/CormorantGaramond-700.ttf') format('truetype');
+}
+
+/* 300: the given name on the member card (avc-card.css .avc-given). Without
+   this file the browser drew it at 400 and dompdf fell back to a core serif. */
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-300.ttf') format('truetype');
 }
 
 @font-face {

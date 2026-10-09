@@ -29,7 +29,7 @@ require_once __DIR__ . '/MemberCards.php';
 final class IdCard
 {
     /** Bumped when the card's design changes, so the print cache misses. */
-    public const DESIGN_VERSION = 1;
+    public const DESIGN_VERSION = 2;
 
     /** The smallest photo that can print sharply at the panel's final size. */
     public const PHOTO_MIN_W = 402;
@@ -67,9 +67,10 @@ final class IdCard
                other things; the partial wants exactly those two. */
             'band'         => self::band($user),
             'status_date'  => date('j M Y'),
-            'qr_svg'       => NgvCard::qrSvg(MemberCards::scanUrl($code)),
+            'qr_svg'       => NgvCard::qrSvg(MemberCards::scanUrl($code), 0),
             'card_code'    => $code,
-            'category'     => self::category($part),
+            /* Design: the tier letter, then the plan — "E · Executive". */
+            'category'     => self::tierLetter($part) . ' · ' . self::category($part),
             'issued'       => self::issued($memberId),
         ];
     }
@@ -283,10 +284,16 @@ final class IdCard
 
     private static function issued(int $id): string
     {
-        $row = MemberCards::lookup(MemberCards::secure($id));
-        $at  = $row ? trim($row['issued_at']) : '';
+        /* From the card row itself. lookup() answers "whose card is this?" and
+           carries no issued_at, so reading it there was a TypeError for every
+           member who actually had a card — the portal card and /q/ both died. */
+        $code = (string) (MemberCards::secure($id) ?? '');
+        $at = '';
+        foreach (MemberCards::of($id) as $c) {
+            if (($c['kind'] ?? '') === 'secure' && ($c['code'] ?? '') === $code) { $at = trim((string) ($c['issued_at'] ?? '')); break; }
+        }
         $ts  = $at !== '' ? strtotime($at) : false;
-        return $ts !== false ? date('M Y', $ts) : date('M Y');
+        return $ts !== false ? date('d M Y', $ts) : date('d M Y');
     }
 
     /** A site-relative URL mapped to a file on disk, or null. */
