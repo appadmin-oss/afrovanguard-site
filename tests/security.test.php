@@ -43,3 +43,12 @@ foreach (['tools', 'scripts', 'bin', 'tests', 'deploy', 'docs', 'vendor', 'parti
 foreach (['tools/gate-revoke.php', 'scripts/seed-mentor-200.php', 'tests/run.php', 'bin/sync-nav.php', 'tools/build-chrome.php'] as $secCli) {
     ck("http: $secCli refuses a web request", str_contains((string) file_get_contents(AV_ROOT . '/' . $secCli), "if (PHP_SAPI !== 'cli') { http_response_code(403)"));
 }
+
+/* ══ 3. Every Studio POST carries a CSRF token ════════════════════════════
+   The CSRF gate keyed off a hand-kept list of action names; promotion_review,
+   aiops_cron, brief_run, dc_publish, superadmin_reveal and others were missing
+   from it and were accepted without a token. */
+$secAdmin = (string) file_get_contents(AV_ROOT . '/admin/api.php');
+ck('admin: any POST counts as a write for CSRF', str_contains($secAdmin, "if (\$method === 'POST') \$writing = true;\n    if (\$writing && !av_admin_bearer_ok()) av_csrf_require();"));
+ck('admin: the CSRF check still runs on writes', str_contains($secAdmin, 'if ($writing && !av_admin_bearer_ok()) av_csrf_require();'));
+ck('admin: mail settings are management-only', (bool) preg_match("/managementOnly = \\[.*'mail_status'/s", $secAdmin));

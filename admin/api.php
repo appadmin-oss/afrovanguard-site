@@ -70,6 +70,12 @@ try {
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
         'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'offline_submit', 'offline_decide', 'card_format_save', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake_email'], true);
+    /* Every POST is a write. The list above used to be the only definition, so
+       a new action that was not added to it — promotion_review/defer/reopen,
+       aiops_cron, brief_run, dc_publish/dc_remove, superadmin_reveal — was
+       accepted with no CSRF token at all. The list stays for the actions that
+       are named in it; the method is the backstop. */
+    if ($method === 'POST') $writing = true;
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -100,7 +106,7 @@ try {
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
-        'sys_health', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
+        'sys_health', 'mail_status', 'mail_test', 'subscribers', 'enrollments', 'audit_log',
         // Seat claims carry names, emails and phone numbers, and resending mail
         // on someone's behalf is a management action. Not for editors.
         'summit_list', 'summit_resend', 'summit_resend_failed', 'summit_export',
