@@ -403,6 +403,12 @@ AvAutomation::register();
 // Collaboration: feed domain events into the team activity stream.
 Collab::bootEvents();
 
+// The founding members (lib/MemberSeed.php): put on the system once, on the
+// first web request after deploy — the host has no shell to run a script.
+// Web only, so the test suite and CLI tools never seed their throwaway DBs.
+require_once __DIR__ . '/MemberSeed.php';
+if (PHP_SAPI !== 'cli') MemberSeed::boot();
+
 // Referral links (/…?ref=<memberId>) drop a short-lived cookie that is consumed
 // when the invited person creates their account (see Levels::boot()).
 if (isset($_GET['ref']) && ctype_digit((string) $_GET['ref']) && empty($_COOKIE['av_ref']) && !headers_sent()) {

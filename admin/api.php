@@ -69,7 +69,7 @@ try {
         'ai_run', 'ai_chat', 'ai_proposal_decide', 'setup_save', 'setup_test',
         'summit_resend', 'summit_resend_failed',
         'ac_grant', 'ac_revoke',
-        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'offline_submit', 'offline_decide', 'card_format_save', 'card_reissue', 'cards_backfill', 'ngv_intake_email'], true);
+        'roster_create', 'roster_update', 'roster_import', 'roster_membership_change', 'roster_bulk', 'id_format_save', 'offline_submit', 'offline_decide', 'card_format_save', 'card_reissue', 'cards_backfill', 'member_seed', 'ngv_intake_email'], true);
     if ($writing && !av_admin_bearer_ok()) av_csrf_require();
 
     /* ── Structured admin levels (editor < admin < superadmin) ──
@@ -96,7 +96,7 @@ try {
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
-        'card_formats', 'card_reissue', 'cards_backfill', 'ngv_intake', 'ngv_intake_email',
+        'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'ngv_intake', 'ngv_intake_email',
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
@@ -1261,6 +1261,10 @@ try {
             $r = MemberCards::backfill(av_admin_actor(), (int) ($body['limit'] ?? 200));
             if ($r['issued']) $lms->audit('card.backfill', '', $r['issued'] . ' cards · ' . $r['remaining'] . ' left', av_admin_actor());
             json_out(['ok' => true] + $r);
+        case 'member_seed':
+            /* The founding members again (lib/MemberSeed.php). Idempotent. */
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(MemberSeed::run(av_admin_actor()));
 
         case 'mem_create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

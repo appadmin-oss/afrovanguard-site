@@ -50,6 +50,13 @@ final class IdCard
         [$given, $family] = self::splitName($name);
 
         $code = (string) (MemberCards::secure($memberId) ?? '');
+        /* The printed ID ("E-AVM-17-0001", "B-NGV-25-0005") is a level letter,
+           then the number. The card prints them apart — the letter in the dark
+           chip, the number beside it — and the letter comes from the member's
+           LEVEL, because the NGV mint writes "A-" for everybody. */
+        $printed = self::printedId($memberId);
+        [, $number] = self::splitId($printed);
+        $level = self::level($memberId);
 
         return [
             'member_id'    => $memberId,
@@ -57,11 +64,11 @@ final class IdCard
             'family'       => $family,
             'initials'     => self::initials($given, $family),
             'role'         => self::role($memberId, $part),
-            'tier_letter'  => self::tierLetter($part),
-            'number'       => self::number($memberId),
+            'tier_letter'  => $level,
+            'number'       => $number,
             'photo_url'    => self::photo($memberId),
             'programmes'   => self::programmes($part),
-            'member_since' => self::since($part),
+            'member_since' => self::since($printed, $part),
             /* The ONLY source of status, per the spec. It takes the USER row
                (it reads the participant itself) and returns label+tone among
                other things; the partial wants exactly those two. */
@@ -69,8 +76,9 @@ final class IdCard
             'status_date'  => date('j M Y'),
             'qr_svg'       => NgvCard::qrSvg(MemberCards::scanUrl($code), 0),
             'card_code'    => $code,
-            /* Design: the tier letter, then the plan — "E · Executive". */
-            'category'     => self::tierLetter($part) . ' · ' . self::category($part),
+            /* Design: the tier letter, then what they are — "E · Senior Multiplier",
+               "B · NextGen Vanguard". */
+            'category'     => $level . ' · ' . self::category($memberId, $printed),
             'issued'       => self::issued($memberId),
         ];
     }
@@ -163,23 +171,42 @@ final class IdCard
     /* ══ ══════════════════════════════════════════════════════════════════ */
 
     /**
-     * The printed member number.
+     * The member's printed ID, whole: the NGV number the gate knows
+     * (GateAttendance, "B-NGV-25-0005") or else the member ID recorded under an
+     * ID format ("E-AVM-17-0001", MemberCards). Never minted here — a second
+     * number would be one the gate does not know.
      *
-     * GateAttendance::cardFor() is where the NGV number already lives — the
-     * v1 card read it from there and the gate scans it. Minting a second
-     * number here would give one member two, and the one on the card would be
-     * the one the gate does not know.
+     * (It used to read `cardFor()['code']`, but cardFor() returns the code as a
+     * string, so every card printed with no number at all.)
      */
-    private static function number(int $id): string
+    public static function printedId(int $id): string
     {
         try {
             if (class_exists('GateAttendance')) {
-                $c = GateAttendance::cardFor($id);
-                $n = trim((string) ($c['code'] ?? $c['number'] ?? ''));
+                $n = trim((string) (GateAttendance::cardFor($id) ?? ''));
                 if ($n !== '') return $n;
             }
-        } catch (\Throwable $e) { /* no gate card yet */ }
+        } catch (\Throwable $e) { /* no gate table yet */ }
+        try {
+            foreach (MemberCards::of($id) as $c) {
+                if (($c['kind'] ?? '') === 'printed' && ($c['status'] ?? '') === 'active'
+                    && str_starts_with((string) ($c['format'] ?? ''), 'id-')) return (string) $c['code'];
+            }
+        } catch (\Throwable $e) { /* no card table yet */ }
         return '';
+    }
+
+    /** "E-AVM-17-0001" → ['E', 'AVM-17-0001']; anything else → ['', itself]. */
+    public static function splitId(string $id): array
+    {
+        return preg_match('/^([A-Z])-([A-Z]+-\d{2}-\d{3,})$/', $id, $m) ? [$m[1], $m[2]] : ['', $id];
+    }
+
+    /** The member's level on the ladder (Levels): the letter in the card's chip. */
+    private static function level(int $id): string
+    {
+        try { if (class_exists('Levels')) return Levels::of($id); } catch (\Throwable $e) {}
+        return 'O';
     }
 
     /** NgvCard::user() is the contract's own reader — not a second query. */
@@ -237,16 +264,6 @@ final class IdCard
         return '';
     }
 
-    /** First letter of the plan or track — the tier chip on the photo. */
-    private static function tierLetter(?array $part): string
-    {
-        foreach (['plan', 'track'] as $k) {
-            $v = trim((string) ($part[$k] ?? ''));
-            if ($v !== '') return mb_strtoupper(mb_substr($v, 0, 1));
-        }
-        return 'M';
-    }
-
     /** A member-set photo. Null is a valid card — the partial draws initials. */
     private static function photo(int $id): ?string
     {
@@ -268,18 +285,28 @@ final class IdCard
         return array_slice(array_values(array_unique($out)), 0, 2);
     }
 
-    private static function since(?array $part): string
+    /** The joining year: the ID's own (…-17-…), else the NGV start date. */
+    private static function since(string $printed, ?array $part): string
     {
+        if (preg_match('/^[A-Z]-[A-Z]+-(\d{2})-/', $printed, $m)) return '20' . $m[1];
         $d = trim((string) ($part['start_date'] ?? ''));
         if ($d === '') return '';
         $ts = strtotime($d);
         return $ts !== false ? date('Y', $ts) : '';
     }
 
-    private static function category(?array $part): string
+    /** What they are: a vanguard, or their place on the ladder ("Senior Multiplier"). */
+    private static function category(int $id, string $printed): string
     {
-        $plan = trim((string) ($part['plan'] ?? ''));
-        return $plan !== '' ? $plan : 'Member';
+        if (str_contains($printed, '-NGV-')) return 'NextGen Vanguard';
+        try {
+            if (class_exists('Levels')) {
+                $label = Levels::labelOf(self::level($id));
+                $label = trim((string) preg_replace('/^Level [A-Z] — /u', '', $label));
+                if ($label !== '') return $label;
+            }
+        } catch (\Throwable $e) {}
+        return 'Member';
     }
 
     private static function issued(int $id): string
