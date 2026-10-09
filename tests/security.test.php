@@ -86,3 +86,14 @@ ck('admin cookie: a token sign-in stands on its own credential', AdminRoles::cur
 $_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value(time() + 3600, 'n', 'superadmin', 'm', 'not-the-key');
 ck('admin cookie: a forged cookie grants nothing', av_admin_cookie_parse() === null && AdminRoles::current() === '');
 unset($_COOKIE[AV_ADMIN_COOKIE]); AdminRoles::remove($secEmail);
+
+/* ══ 5. ?next= stays on this site ═════════════════════════════════════════
+   "/\evil.example" passed the old check (starts with "/", not "//") and a
+   browser follows it to evil.example — after Google sign-in, from a link the
+   attacker chose. */
+ck('next: a plain path is kept', GoogleAuth::safeNext('/academy/x/?a=1') === '/academy/x/?a=1');
+ck('next: //host is refused', GoogleAuth::safeNext('//evil.example') === '/portal/');
+ck('next: /\\host is refused', GoogleAuth::safeNext('/\\evil.example') === '/portal/');
+ck('next: a tab-split //host is refused', GoogleAuth::safeNext("/\t/evil.example") === '/portal/');
+ck('next: an absolute URL is refused', GoogleAuth::safeNext('https://evil.example/') === '/portal/');
+ck('next: the signed state carries only a safe path', GoogleAuth::readState(GoogleAuth::makeState('/\\evil.example')) === '/portal/');
