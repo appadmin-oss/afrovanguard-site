@@ -17,6 +17,10 @@ $desc      = 'How members grow at Afrovanguard: an algorithmic progression built
 $canonical = rtrim(SITE_URL, '/') . '/how-it-works';
 $image     = rtrim(SITE_URL, '/') . '/Images/og-image.png';
 
+// Dues come from the same config as v1 and the portal (lib/bootstrap.php), so the page never quotes a stale amount.
+$MONTHLY = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;
+$ANNUAL  = defined('AV_DUES_ANNUAL_NGN')  ? (int) AV_DUES_ANNUAL_NGN  : 12000;
+
 $ladder = [
     ['b' => 'O', 'k' => 'Where everyone begins', 't' => 'Level O — Foundation Member',
      'd' => 'Every new member enters the Afrovanguard ecosystem as a Level O Member. At this foundational stage you are stress-tested for consistency and teachability.',
@@ -163,7 +167,7 @@ $ladder = [
       </div>
       <div class="avhw-due">
         <span class="avhw-due-k">Level C and above · mandatory</span>
-        <span class="avhw-due-amt"><span class="avhw-due-n av-num">₦1,000<small> / month</small></span><span class="avhw-due-alt av-num">or ₦12,000 / year</span></span>
+        <span class="avhw-due-amt"><span class="avhw-due-n av-num">₦<?= number_format($MONTHLY) ?><small> / month</small></span><span class="avhw-due-alt av-num">or ₦<?= number_format($ANNUAL) ?> / year</span></span>
         <span class="avhw-due-d">Dues become a non-negotiable responsibility of leadership. Pay or renew any time in the <a href="/portal/">member portal</a>.</span>
       </div>
       <div class="avhw-due avhw-due--ink">
