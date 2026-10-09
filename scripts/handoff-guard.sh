@@ -32,6 +32,14 @@ assets/site/avm.css assets/site/avm.js \
 assets/site/avc-print.css assets/site/avc-print.js assets/site/avc-photo.css assets/site/avc-photo.js \
 index.html assets/site/avh.css assets/site/avh.js"
 
+# The site redesign (rows 5–17) adds its pages one row at a time; each row
+# names its own new files in scripts/handoff-guard.d/<row>.list (one path per
+# line), so rows built in parallel never edit the same line here.
+for l in scripts/handoff-guard.d/*.list; do
+  [ -e "$l" ] || continue
+  DIRS="$DIRS $(grep -v '^[[:space:]]*#' "$l" | tr '\n' ' ')"
+done
+
 # Only the paths that exist: the modules land one at a time, and `grep` on a
 # missing path is an error under `set -e` — which would make the gate pass or
 # die for the wrong reason depending on the shell.

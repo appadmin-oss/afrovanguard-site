@@ -29,12 +29,9 @@ $S     = rtrim(SITE_URL, '/');
 // Public marketing pages and which nav item is "current" on each.
 // (member.html / donor-dashboard.html are app shells — left alone.)
 // Not index.html: since the row-4 redesign it carries its own nav (avh.js).
-$pages = [
-    'about.html'          => 'about',
-    'contact.html'        => 'contact',
-    'donate.html'         => '',
-    'projects/index.html' => 'projects',
-];
+// About, contact, donate and projects carry the Home nav since the redesign
+// (rows 5–8): tools/build-avh-chrome.php keeps those. Nothing is left here.
+$pages = [];
 
 /** Canonical full nav (header + scrim + mobile drawer), captured from the
  *  shared partial so static pages get the exact same mega menu + drawer.

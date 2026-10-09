@@ -46,10 +46,9 @@ final class NavSync
         /* Not index.html: the home page carries its own navigation since the
            row-4 redesign (assets/site/avh.js — mega menu at ≥1180px, drawer
            below). Splicing this header into it would put the old nav back. */
-        'about.html'          => 'about',
-        'contact.html'        => 'about',
-        'donate.html'         => 'involved',
-        'projects/index.html' => 'projects',
+        /* Nor about, contact, donate or projects: rows 5–8 of the redesign give
+           them the Home nav too (partials/avh-chrome.php, spliced by
+           tools/build-avh-chrome.php). Nothing static is left to sync. */
     ];
 
     /** The navigation markup for one section, exactly as a PHP page would emit it. */
