@@ -73,10 +73,11 @@ final class Cloudinary
 
     private static function uploadLocal(string $tmpPath, string $originalName, string $folder): array
     {
+        /* The extension comes from the bytes, not the browser: see Storage::safeExt. */
+        if (class_exists('Storage')) Storage::guardUploads();
         $dir = AV_ROOT . '/uploads/' . preg_replace('/[^a-z0-9_-]/', '', $folder);
         if (!is_dir($dir)) @mkdir($dir, 0775, true);
-        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION)) ?: 'jpg';
-        $ext = preg_replace('/[^a-z0-9]/', '', $ext) ?: 'jpg';
+        $ext = class_exists('Storage') ? Storage::safeExt(Storage::mime($tmpPath), $originalName) : 'bin';
         $name = date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
         $dest = $dir . '/' . $name;
         if (!@copy($tmpPath, $dest) && !@move_uploaded_file($tmpPath, $dest)) {
