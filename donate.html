@@ -1,12 +1,297 @@
 <!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
 <head>
+  <script>document.documentElement.classList.replace('no-js','js')</script>
+  <!-- Head carried over from donate.html v1 (title, description, OG, Twitter, canonical). Changes: theme-color as rgb(); dark-theme boot script dropped (tokens are light only). -->
   <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Donate — Afrovanguard | Fund Africa's Next Leaders</title>
+  <meta name="description" content="Fund the next generation of incorruptible African leaders. Your donation supports mentorship, technology training, and youth leadership projects across Nigeria and Alimosho." />
+  <meta name="theme-color" content="rgb(243 180 22)" />
+  <meta property="og:title" content="Donate — Afrovanguard | Fund Africa's Next Leaders" />
+  <meta property="og:description" content="Your gift directly funds mentorship, tech education, and leadership for young Africans. 100% to projects." />
+  <meta property="og:url" content="https://afrovanguard.org.ng/donate/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@afrovanguard" />
+  <link rel="canonical" href="https://afrovanguard.org.ng/donate/" />
+  <link rel="stylesheet" href="/assets/site/fonts.css" />
+  <link rel="preload" as="image" href="/Images/summer6.jpg" fetchpriority="high" />
+  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
+  <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avdn.css" />
+  <script src="/assets/site/avh.js" defer></script>
+  <script src="/assets/site/avdn.js" defer></script>
 </head>
-<body>
-  <main id="main-content">
-  </main>
+<body class="avh" id="top">
+<a class="avh-skip" href="#main">Skip to content</a>
+<div class="avh-page">
+
+<!-- avh:nav --><!-- /avh:nav -->
+
+<main id="main" tabindex="-1" class="avdn">
+
+<header id="donate-form" class="avdn-hero" aria-labelledby="avdn-h1">
+  <div class="avh-topo" data-avh-topo="dark" data-seed="7" aria-hidden="true"></div>
+  <img class="avdn-hero-img" src="/Images/summer6.jpg" alt="Young people learning together at the Alimosho Summer School">
+  <div class="avdn-hero-shade" aria-hidden="true"></div>
+  <div class="avdn-wrap avdn-hero-in">
+    <nav class="avdn-crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><span aria-current="page">Donate</span></nav>
+    <div class="avdn-hero-grid">
+      <div class="avdn-hero-copy">
+        <h1 id="avdn-h1">Your gift changes everything.</h1>
+        <p>Every naira goes directly to young African leaders — mentorship, technology training and community programmes across Alimosho.</p>
+        <ul class="avdn-trust">
+          <li><span aria-hidden="true">✓</span>Zero admin cut</li>
+          <li><span aria-hidden="true">✓</span>Open-ledger accountability</li>
+          <li><span aria-hidden="true">✓</span>Receipt by email</li>
+        </ul>
+      </div>
+
+      <!-- Gift card. Contract unchanged from donate.html v1: POST JSON to /process-donation.php
+           init_payment → {success, authorization_url, reference} → Paystack hosted checkout → /donate?reference=… → record_donation;
+           generate_virtual_account → {account_number, bank_name, account_name, reference, expires_mins}, polled with GET verify_payment;
+           static Zenith account + bank_transfer_copy when no virtual account. -->
+      <div class="avdn-card" data-avdn-card>
+        <p class="avdn-nojs">Card payment needs JavaScript. You can still give by direct bank transfer — see “Before you give” below.</p>
+        <form class="avdn-step" data-avdn-step="1" novalidate aria-label="Choose your gift">
+          <fieldset class="avdn-seg">
+            <legend class="av-sr">Frequency</legend>
+            <label><input type="radio" name="freq" value="One-time" checked><span>One-time</span></label>
+            <label><input type="radio" name="freq" value="Monthly"><span>Monthly<em>Most impact</em></span></label>
+            <label><input type="radio" name="freq" value="Annual"><span>Annual</span></label>
+          </fieldset>
+          <div class="avdn-amt-head">
+            <span id="avdn-amt-l">Choose an amount</span>
+            <fieldset class="avdn-cur">
+              <legend class="av-sr">Currency</legend>
+              <label><input type="radio" name="cur" value="NGN" checked><span>₦ NGN</span></label>
+              <label><input type="radio" name="cur" value="USD"><span>$ USD</span></label>
+              <label><input type="radio" name="cur" value="GBP"><span>£ GBP</span></label>
+            </fieldset>
+          </div>
+          <fieldset class="avdn-amts" aria-labelledby="avdn-amt-l" data-avdn-amts>
+            <label><input type="radio" name="amt" value="0"><span class="av-num" data-ngn="5000" data-usd="5" data-gbp="5">₦5,000</span></label>
+            <label><input type="radio" name="amt" value="1" checked><span class="av-num" data-ngn="10000" data-usd="10" data-gbp="10">₦10,000</span></label>
+            <label><input type="radio" name="amt" value="2"><span class="av-num" data-ngn="25000" data-usd="25" data-gbp="20">₦25,000</span></label>
+            <label><input type="radio" name="amt" value="3"><span class="av-num" data-ngn="50000" data-usd="50" data-gbp="40">₦50,000</span></label>
+            <label><input type="radio" name="amt" value="4"><span class="av-num" data-ngn="100000" data-usd="100" data-gbp="80">₦100,000</span></label>
+            <label><input type="radio" name="amt" value="custom"><span>Other</span></label>
+          </fieldset>
+          <div class="avdn-custom" data-avdn-custom hidden>
+            <label class="avdn-custom-box"><span aria-hidden="true" data-avdn-sym>₦</span><input type="number" inputmode="decimal" min="1" step="any" placeholder="Enter amount" aria-label="Amount" aria-describedby="avdn-custom-err" data-avdn-custom-input></label>
+            <p class="avdn-err" id="avdn-custom-err" hidden></p>
+          </div>
+          <div class="avdn-impact" aria-live="polite">
+            <img src="/Images/bootcamp1.png" alt="" width="56" height="56" data-avdn-impact-img>
+            <div><strong class="av-num" data-avdn-impact-head>₦10,000</strong><br><span data-avdn-impact-line>Funds training for 3 leaders.</span></div>
+          </div>
+          <label class="avdn-field"><span>Direct my gift to</span>
+            <select name="campaign" data-avdn-camp>
+              <option value="general">Where it’s needed most</option>
+              <option value="sts">Street-To-Stardom Campus Tour 2026</option>
+              <option value="s2s">Street-To-Stardom 2026 Season</option>
+              <option value="techhome">CACENTRE Equipment Drive</option>
+            </select>
+          </label>
+          <p class="avdn-camp-stat av-num" data-avdn-camp-stat hidden></p>
+          <button type="submit" class="avdn-go"><span data-avdn-go-label>Give ₦10,000</span> <span aria-hidden="true">→</span></button>
+          <div class="avdn-methods"><span>Card</span><span aria-hidden="true">·</span><span>Bank transfer</span><span aria-hidden="true">·</span><span>USSD</span><span aria-hidden="true">·</span><span>Receipt by email</span></div>
+        </form>
+
+        <form class="avdn-step" data-avdn-step="2" novalidate hidden aria-labelledby="avdn-s2-h">
+          <div class="avdn-s2-top">
+            <button type="button" class="avdn-back" data-avdn-back><span aria-hidden="true">‹</span> Change amount</button>
+            <span class="avdn-sum av-num" data-avdn-sum></span>
+          </div>
+          <h2 id="avdn-s2-h" class="avdn-s2-h" tabindex="-1">Your details</h2>
+          <div class="avdn-alert" role="alert" tabindex="-1" data-avdn-alert hidden></div>
+          <div class="avdn-grid2">
+            <label class="avdn-field"><span>First name <b aria-hidden="true">*</b></span><input name="firstName" type="text" autocomplete="given-name" required maxlength="80" aria-describedby="avdn-fn-err"><em class="avdn-err" id="avdn-fn-err" hidden></em></label>
+            <label class="avdn-field"><span>Last name <b aria-hidden="true">*</b></span><input name="lastName" type="text" autocomplete="family-name" required maxlength="80" aria-describedby="avdn-ln-err"><em class="avdn-err" id="avdn-ln-err" hidden></em></label>
+          </div>
+          <label class="avdn-field"><span>Email for your receipt <b aria-hidden="true">*</b></span><input name="email" type="email" autocomplete="email" required maxlength="254" aria-describedby="avdn-em-err"><em class="avdn-err" id="avdn-em-err" hidden></em></label>
+          <label class="avdn-field"><span>Phone (optional)</span><input name="phone" type="tel" autocomplete="tel" maxlength="30"></label>
+          <label class="avdn-field"><span>A note with your gift (optional)</span><textarea name="message" rows="2" maxlength="500"></textarea></label>
+          <label class="avdn-check"><input type="checkbox" name="anonymous" value="1"><span>Keep my name off the donor wall</span></label>
+          <button type="submit" class="avdn-go" data-avdn-pay><span data-avdn-pay-label>Pay by card</span> <span aria-hidden="true">→</span></button>
+          <button type="button" class="avdn-alt" data-avdn-transfer>Pay by bank transfer</button>
+          <p class="avdn-fine">Secured by Paystack. Card, bank transfer or USSD on the next screen.</p>
+        </form>
+
+        <div class="avdn-step avdn-state" data-avdn-step="busy" hidden role="status" aria-live="polite">
+          <span class="avdn-spin" aria-hidden="true"></span>
+          <p data-avdn-busy-text>Confirming your gift…</p>
+        </div>
+
+        <div class="avdn-step avdn-state" data-avdn-step="done" hidden>
+          <div class="avdn-tick" aria-hidden="true">✓</div>
+          <h2 tabindex="-1" data-avdn-done-h>Thank you</h2>
+          <p data-avdn-done-text>Your gift is confirmed. A receipt is on its way to your email.</p>
+          <button type="button" class="avdn-alt" data-avdn-again>Give again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="avdn-strip" aria-label="Our impact in numbers">
+  <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
+  <dl class="avdn-wrap avdn-strip-in">
+    <div><dt>Lives transformed</dt><dd class="av-num">10,000+</dd></div>
+    <div><dt>Goes to programmes</dt><dd class="av-num">100%</dd></div>
+    <div><dt>Community centres</dt><dd class="av-num">6</dd></div>
+    <div><dt>Active programmes</dt><dd class="av-num">9</dd></div>
+  </dl>
+</section>
+
+<section class="avdn-sec" aria-labelledby="avdn-tiers-h">
+  <div class="avdn-wrap">
+    <div class="avdn-split">
+      <div><div class="avdn-eyebrow">What your gift does</div><h2 id="avdn-tiers-h" class="avdn-h2">See Your Impact</h2></div>
+      <p>Pick a level and we’ll put it to work — select any card to set it as your gift.</p>
+    </div>
+    <ul class="avdn-tiers" data-avdn-tiers>
+      <li><button type="button" data-tier="0"><img src="/Images/gates1.png" alt="" loading="lazy"><span><b class="av-num">₦5,000</b><small>1 week of mentorship</small></span></button></li>
+      <li><button type="button" data-tier="1" class="is-on"><img src="/Images/bootcamp1.png" alt="" loading="lazy"><span><b class="av-num">₦10,000</b><small>Training for 3 leaders</small></span></button></li>
+      <li><button type="button" data-tier="2"><img src="/Images/storm3.png" alt="" loading="lazy"><span><b class="av-num">₦25,000</b><small>A full workshop</small></span></button></li>
+      <li><button type="button" data-tier="3"><img src="/Images/summer1.png" alt="" loading="lazy"><span><b class="av-num">₦50,000</b><small>A month for a centre</small></span></button></li>
+      <li><button type="button" data-tier="4"><img src="/Images/culture1.png" alt="" loading="lazy"><span><b class="av-num">₦100,000</b><small>Fund a full programme</small></span></button></li>
+    </ul>
+  </div>
+</section>
+
+<section class="avdn-sec avdn-sec--ink" aria-labelledby="avdn-lcasp-h">
+  <div class="avh-topo" data-avh-topo="dark" data-seed="15" aria-hidden="true"></div>
+  <div class="avdn-wrap avdn-lcasp">
+    <div>
+      <div class="avdn-eyebrow avdn-eyebrow--light">Where your gift goes</div>
+      <h2 id="avdn-lcasp-h" class="avdn-h2">LCASP 2026 — the ₦40.3M campaign</h2>
+      <p>This year’s campaign funds 900 children, 30 instructors and 20 volunteers across six community centres in Alimosho — with 71% going directly to programme assets.</p>
+      <a class="avdn-gold" href="/give/">See every live appeal</a>
+    </div>
+    <dl class="avdn-lcasp-grid">
+      <div><dt>Children across 6 centres</dt><dd class="av-num">900</dd></div>
+      <div><dt>Instructors</dt><dd class="av-num">30</dd></div>
+      <div><dt>Volunteers</dt><dd class="av-num">20</dd></div>
+      <div><dt>To direct programme assets</dt><dd class="av-num">71%</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="materials" class="avdn-sec" aria-labelledby="avdn-ways-h">
+  <div class="avdn-wrap">
+    <div class="avdn-split">
+      <div><div class="avdn-eyebrow">Beyond money</div><h2 id="avdn-ways-h" class="avdn-h2">Other Ways to Give</h2></div>
+      <p>Equipment, materials and skilled hands keep our centres running. Pick the way that fits you.</p>
+    </div>
+    <ul class="avdn-ways">
+      <li><a href="/contact.html" data-avdn-inkind-open><span class="avdn-k">Materials</span><h3>Donate equipment</h3><p>Books, laptops, cameras, musical instruments and learning materials for our community centres.</p><span class="avdn-cta">Arrange a drop-off <span aria-hidden="true">→</span></span></a></li>
+      <li><a href="https://cacentre.afrovanguard.org.ng/volunteer" target="_blank" rel="noopener"><span class="avdn-k">Time</span><h3>Volunteer your skills</h3><p>Mentor, teach, film or organise — skilled volunteers power every centre.</p><span class="avdn-cta">Join as volunteer <span aria-hidden="true">↗</span></span></a></li>
+      <li><a href="mailto:contact&#64;afrovanguard.org.ng"><span class="avdn-k">Corporate</span><h3>Sponsor a programme</h3><p>For gifts above ₦500,000 or corporate partnerships, we arrange a call and send a formal receipt.</p><span class="avdn-cta">Contact the team <span aria-hidden="true">→</span></span></a></li>
+      <li><a href="/academy/#membership"><span class="avdn-k">Membership</span><h3>Become a member</h3><p>Join the movement with structured growth, accountability and open-ledger dues.</p><span class="avdn-cta">See membership <span aria-hidden="true">→</span></span></a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- Kept from donate.html v1 (not in the design): the donor wall, GET /process-donation.php?action=get_donors -->
+<section class="avdn-sec avdn-sec--paper" aria-labelledby="avdn-wall-h" data-avdn-wall>
+  <div class="avdn-wrap">
+    <div class="avdn-split">
+      <div><div class="avdn-eyebrow">Our community</div><h2 id="avdn-wall-h" class="avdn-h2">The Vanguard Donors</h2></div>
+      <p>These remarkable people are funding Africa’s next generation of incorruptible leaders. Will you join them? <span class="avdn-wall-count av-num" data-avdn-wall-count></span></p>
+    </div>
+    <ul class="avdn-wall" data-avdn-wall-list aria-busy="true">
+      <li class="avdn-skel" aria-hidden="true"></li><li class="avdn-skel" aria-hidden="true"></li><li class="avdn-skel" aria-hidden="true"></li><li class="avdn-skel" aria-hidden="true"></li>
+    </ul>
+    <p class="avdn-wall-msg" data-avdn-wall-empty hidden>No gifts on the wall yet. Yours can be the first.</p>
+    <p class="avdn-wall-msg" data-avdn-wall-error hidden>We couldn’t load the donor wall just now. <button type="button" class="avdn-link" data-avdn-wall-retry>Try again</button></p>
+  </div>
+</section>
+
+<section class="avdn-sec avdn-sec--sand" aria-labelledby="avdn-faq-h">
+  <div class="avh-topo" data-avh-topo="light" data-seed="19" aria-hidden="true"></div>
+  <div class="avdn-wrap avdn-faq">
+    <div><div class="avdn-eyebrow">Giving, answered</div><h2 id="avdn-faq-h" class="avdn-h2">Before You Give</h2><p>Questions about a larger gift? <a href="/contact.html">Talk to the team</a>.</p></div>
+    <div class="avdn-acc" data-avdn-acc>
+      <div><h3><button type="button" aria-expanded="true" aria-controls="avdn-fa1" id="avdn-fq1">Does 100% of my donation really go to programmes?<span class="avdn-plus" aria-hidden="true"></span></button></h3><div id="avdn-fa1" role="region" aria-labelledby="avdn-fq1"><p>Yes. Every gift goes directly into programmes — zero admin cut. Our dues are run on a 100% open ledger.</p></div></div>
+      <div><h3><button type="button" aria-expanded="false" aria-controls="avdn-fa2" id="avdn-fq2">Will I get a receipt?<span class="avdn-plus" aria-hidden="true"></span></button></h3><div id="avdn-fa2" role="region" aria-labelledby="avdn-fq2" hidden><p>Yes — a receipt is sent to your email as soon as your gift is processed.</p></div></div>
+      <div><h3><button type="button" aria-expanded="false" aria-controls="avdn-fa3" id="avdn-fq3">Can I choose what my gift funds?<span class="avdn-plus" aria-hidden="true"></span></button></h3><div id="avdn-fa3" role="region" aria-labelledby="avdn-fq3" hidden><p>Yes. Use “Direct my gift to” to tag your donation to a specific campaign, or leave it where it’s needed most.</p></div></div>
+      <div><h3><button type="button" aria-expanded="false" aria-controls="avdn-fa4" id="avdn-fq4">How do I make a large or corporate donation?<span class="avdn-plus" aria-hidden="true"></span></button></h3><div id="avdn-fa4" role="region" aria-labelledby="avdn-fq4" hidden><p>For donations above NGN 500,000 or corporate gifts, email contact&#64;afrovanguard.org.ng first so we can arrange a call, send a formal receipt, and direct your gift properly.</p></div></div>
+      <div><h3><button type="button" aria-expanded="false" aria-controls="avdn-fa5" id="avdn-fq5">Can I give from outside Nigeria?<span class="avdn-plus" aria-hidden="true"></span></button></h3><div id="avdn-fa5" role="region" aria-labelledby="avdn-fq5" hidden><p>Yes. Switch the currency to USD or GBP and pay by card.</p></div></div>
+      <!-- Kept from donate.html v1 (not in the design): the static Zenith account and the notify links -->
+      <div><h3><button type="button" aria-expanded="false" aria-controls="avdn-fa6" id="avdn-fq6">Can I give by direct bank transfer?<span class="avdn-plus" aria-hidden="true"></span></button></h3><div id="avdn-fa6" role="region" aria-labelledby="avdn-fq6" hidden>
+        <p>Yes. Transfer to our Zenith Bank account, then tell us so we can confirm and send your receipt within 24 hours.</p>
+        <dl class="avdn-bank">
+          <div><dt>Account number</dt><dd class="av-num">1229629683 <button type="button" class="avdn-copy" data-avdn-copy="1229629683" aria-label="Copy account number">Copy</button></dd></div>
+          <div><dt>Account name</dt><dd>Ambassadors for Community, Tech &amp; Cultural Advancements</dd></div>
+          <div><dt>Bank</dt><dd>Zenith Bank · sort code <span class="av-num">057</span></dd></div>
+          <div><dt>USD / international</dt><dd>Email <a href="mailto:donations&#64;afrovanguard.org.ng">donations&#64;afrovanguard.org.ng</a> for wire details</dd></div>
+        </dl>
+        <p class="avdn-notify"><a href="https://wa.me/2349037776318?text=Hello%2C+I%27ve+just+made+a+bank+transfer+to+Afrovanguard.%0A%0AMy+name%3A+%5BYour+Name%5D%0AAmount%3A+%5B%E2%82%A6Amount%5D%0ADate%3A+%5BToday%27s+date%5D%0ABank%3A+%5BYour+Bank%5D" target="_blank" rel="noopener">Notify us on WhatsApp ↗</a><a href="mailto:donations&#64;afrovanguard.org.ng?subject=Bank+Transfer+Confirmation&amp;body=Hello%2C+I+have+made+a+bank+transfer+to+Afrovanguard.%0A%0AName%3A+%5BYour+Name%5D%0AAmount%3A+%5B%E2%82%A6Amount%5D%0ADate%3A+%5BDate%5D%0ABank%3A+%5BYour+Bank%5D">Notify us by email →</a></p>
+        <p class="av-sr" role="status" aria-live="polite" data-avdn-copy-status></p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- avh:foot --><!-- /avh:foot -->
+
+</div>
+
+<!-- Bank transfer dialog (kept from donate.html v1) -->
+<div class="avdn-scrim" data-avdn-scrim hidden></div>
+<div class="avdn-dialog" role="dialog" aria-modal="true" aria-labelledby="avdn-bt-h" data-avdn-bt hidden>
+  <div class="avdn-dlg-head"><h2 id="avdn-bt-h" tabindex="-1">Pay by bank transfer</h2><button type="button" class="avdn-x" data-avdn-close aria-label="Close">×</button></div>
+  <div data-bt="loading" class="avdn-state" role="status"><span class="avdn-spin" aria-hidden="true"></span><p>Setting up your transfer account…</p></div>
+  <div data-bt="account" hidden>
+    <p class="avdn-bt-amt">Transfer exactly <strong class="av-num" data-bt-amount></strong></p>
+    <dl class="avdn-bank">
+      <div><dt>Bank</dt><dd data-bt-bank></dd></div>
+      <div><dt>Account number</dt><dd class="av-num"><span data-bt-acc></span> <button type="button" class="avdn-copy" data-bt-copy aria-label="Copy account number">Copy</button></dd></div>
+      <div><dt>Account name</dt><dd data-bt-name></dd></div>
+      <div data-bt-refrow><dt>Reference</dt><dd class="av-num" data-bt-ref></dd></div>
+    </dl>
+    <div class="avdn-bt-live" data-bt-live>
+      <p><span class="avdn-dot" aria-hidden="true"></span><span data-bt-status role="status">Checking for your transfer…</span></p>
+      <p class="av-num">This account expires in <strong data-bt-timer>30:00</strong></p>
+      <button type="button" class="avdn-alt" data-bt-check>I’ve sent it — check now</button>
+    </div>
+    <p class="avdn-fine" data-bt-note></p>
+  </div>
+  <div data-bt="paid" hidden class="avdn-state"><div class="avdn-tick" aria-hidden="true">✓</div><p><strong>Transfer received.</strong> Thank you — your receipt is on its way.</p><button type="button" class="avdn-go" data-avdn-close>Done</button></div>
+  <div data-bt="expired" hidden class="avdn-state"><p><strong>This account has expired.</strong> If you already sent the money, email donations&#64;afrovanguard.org.ng with your name, amount and date.</p><button type="button" class="avdn-go" data-bt-retry>Get a new account</button></div>
+</div>
+
+<!-- In-kind contribution dialog (kept from donate.html v1: submit_contribute) -->
+<div class="avdn-dialog" role="dialog" aria-modal="true" aria-labelledby="avdn-ik-h" data-avdn-inkind hidden>
+  <div class="avdn-dlg-head"><h2 id="avdn-ik-h" tabindex="-1">Donate equipment or skills</h2><button type="button" class="avdn-x" data-avdn-close aria-label="Close">×</button></div>
+  <form novalidate data-ik-form>
+    <div class="avdn-alert" role="alert" tabindex="-1" data-ik-alert hidden></div>
+    <label class="avdn-field"><span>Your name <b aria-hidden="true">*</b></span><input name="name" type="text" autocomplete="name" required maxlength="100"></label>
+    <label class="avdn-field"><span>Email <b aria-hidden="true">*</b></span><input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+    <label class="avdn-field"><span>What you’re offering <b aria-hidden="true">*</b></span>
+      <select name="contribute_type" required>
+        <option value="">— Select —</option>
+        <option value="equipment">Equipment / materials</option>
+        <option value="skills">Professional skills</option>
+        <option value="volunteer">Volunteer time</option>
+        <option value="mentorship">Mentorship</option>
+        <option value="other">Something else</option>
+      </select>
+    </label>
+    <label class="avdn-field"><span>Tell us about it <b aria-hidden="true">*</b></span><textarea name="description" rows="4" required maxlength="2000"></textarea></label>
+    <button type="submit" class="avdn-go" data-ik-submit><span data-ik-label>Send</span></button>
+  </form>
+  <div data-ik-done hidden class="avdn-state"><div class="avdn-tick" aria-hidden="true">✓</div><p><strong>Thank you.</strong> We’ll be in touch within 48 hours to arrange it.</p><button type="button" class="avdn-go" data-avdn-close>Done</button></div>
+</div>
+
+<script src="/assets/site/chioma.js" defer></script>
+<script src="/assets/site/celebrations.js" defer></script>
 </body>
 </html>
