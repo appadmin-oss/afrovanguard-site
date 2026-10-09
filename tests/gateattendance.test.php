@@ -202,7 +202,11 @@ ck('Gate: probation needs a reason', !GateAttendance::setProbation($eke, '', '',
 ck('Gate: and an end date that has not passed', !GateAttendance::setProbation($eke, '2020-01-01', 'Late three times', 1)['ok']);
 ck('Gate: staff can put a member on probation by name', GateAttendance::setProbation($eke, '', 'Late three times in a week', 1)['ok']
    && str_contains((string) GateAttendance::probationWhy($eke), 'Late three times in a week'));
-GateAttendance::report([$gaIn('pr-3', $eke, '2026-10-07', 'late', 4)]);
+/* Probation set by name starts TODAY, so the arrival that tests it has to be
+   dated today or later — a fixed date here passes until the day it doesn't. */
+$prDay = gmdate('Y-m-d');
+while (in_array(gmdate('D', strtotime($prDay)), ['Sat', 'Sun'], true)) $prDay = gmdate('Y-m-d', strtotime($prDay . ' +1 day'));
+GateAttendance::report([$gaIn('pr-3', $eke, $prDay, 'late', 4)]);
 ck('Gate: …and it applies to the next late arrival', (int) end($gaFines($eke))['amount'] === 10000);
 ck('Gate: lifting it ends it', GateAttendance::liftProbation($eke, 1)['ok'] && !GateAttendance::onProbation($eke));
 Levels::set($eke, 'O', 'test');
