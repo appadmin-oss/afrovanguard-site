@@ -97,6 +97,29 @@
   --av-tag-text:#3D4148;      /* card tag pills */
   --av-on-ink-line-2:#3A4558; /* pillar pills on ink */
   --av-on-ink-line-3:#2A3344; /* pillar rule on ink */
+  /* celebrations (row 17 · design: Afrovanguard Celebrations). Occasion art and
+     palettes only; used by assets/site/avcel.css + avcel-art.js. */
+  --av-cel-ng:#008751; --av-cel-ng-text:#006B40; --av-cel-ng-deep:#003D24; --av-cel-flag-white:#E9EBE6;
+  --av-cel-amber:#E0A820; --av-cel-red:#C0392B; --av-cel-pine:#1F6B45; --av-cel-plum:#8A64A0;
+  --av-cel-sky:#4F8FC0; --av-cel-mute:#7A6F86; --av-cel-wire:#3B3F47; --av-cel-wire-dark:#8A8F99;
+  --av-cel-sun:#F3C33A; --av-cel-orange:#E88B3A; --av-cel-rose:#D94F6B; --av-cel-leaf:#5AA469;
+  --av-cel-leaf-deep:#2F6B3C; --av-cel-sage:#4F7F5B; --av-cel-sage-2:#6F9E7A; --av-cel-pink:#E98AA8;
+  --av-cel-cream:#FFF1C2; --av-cel-yolk:#F3D27A; --av-cel-smile:#4A3505; --av-cel-navy:#1F5D8A;
+  --av-cel-hill:#D9EAD2; --av-cel-hill-2:#B9D8AE; --av-cel-mist:#E7E1EC; --av-cel-lilac:#D7CDE0;
+  --av-cel-lilac-2:#ECE6F0; --av-cel-shell:#EFE3B6; --av-cel-dawn:#F4E7B9; --av-cel-dawn-ray:#E7CF7D;
+  --av-cel-dawn-2:#E3EFDA; --av-cel-dawn-ray-2:#C5DCB8; --av-cel-nine:#F3E3B0; --av-cel-wick:#FFF6D6;
+  --av-cel-paper-dark:#F4F2EE; --av-cel-forest:#1F5D3A; --av-cel-wine:#8F1D1D; --av-cel-soot:#14161D;
+  --av-cel-teal:#0F5B46; --av-cel-teal-deep:#073528; --av-cel-clay:#7A3E1D; --av-cel-steel:#1F4F78;
+  --av-cel-pale-sky:#DBE9F4; --av-cel-violet:#6B4674; --av-cel-violet-2:#C9A0D6; --av-cel-wheat:#E7D9A8;
+  --av-cel-ice:#A9CDEA; --av-cel-heather:#CDB6E6; --av-cel-ember:#B3501E; --av-cel-bronze:#7A5A10;
+  --av-cel-dusk:#5C5266; --av-cel-berry:#A8466A;
+  /* art panels: dark gradient pairs behind the badge */
+  --av-cel-bg-gold-a:#1A1408; --av-cel-bg-gold-b:#3A2B0C; --av-cel-bg-violet-a:#2B1D33; --av-cel-bg-violet-b:#1A1220;
+  --av-cel-bg-green-a:#173A2A; --av-cel-bg-green-b:#0E2419; --av-cel-bg-ash-a:#2A2630; --av-cel-bg-ash-b:#18161C;
+  --av-cel-bg-iron-a:#24262C; --av-cel-bg-iron-b:#14161A; --av-cel-bg-earth-a:#1F2A1C; --av-cel-bg-earth-b:#0F150D;
+  --av-cel-bg-blue-a:#16304A; --av-cel-bg-blue-b:#0F1F33; --av-cel-bg-rust-a:#3A1F0F; --av-cel-bg-rust-b:#1F1008;
+  --av-cel-bg-night-a:#1D2333; --av-cel-bg-night-b:#0D1119; --av-cel-bg-rose-a:#3A1A28; --av-cel-bg-rose-b:#220F18;
+  --av-cel-bg-holly-a:#3A1212; --av-cel-bg-holly-b:#1F0A0A; --av-cel-bg-plum-a:#2B2340; --av-cel-bg-plum-b:#1A1528;
 
   --av-serif:"Cormorant Garamond",Georgia,serif;
   --av-sans:"Source Sans 3",system-ui,sans-serif;

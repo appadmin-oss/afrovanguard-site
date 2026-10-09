@@ -1,350 +1,495 @@
 /* ============================================================
-   assets/site/celebrations.js — the site that celebrates itself.
+   assets/site/celebrations.js — the celebrations pop-up (row 17 v2).
 
-   Fetches today's celebrations (holidays / birthdays / observances from
-   api.php?action=celebrations) and honours them intentionally:
+   Design: “Afrovanguard Celebrations” (5a pop-up, 3b doodle logo,
+   3a scenes, 2b member themes, 2a ring logo).
 
-     • BIRTHDAYS → a dignified, focus-trapped POPUP that honours the person
-       (photo, name, role, a warm message, and a way to celebrate them).
-       One honoree gets a portrait treatment; several get an honour roll.
-       Shown once per day, never nagging.
-     • Holidays / observances → a refined festive banner + logo doodle.
-     • A gentle, on-brand confetti flourish (respecting reduced-motion).
+   Data: GET /api.php?action=celebrations (lib/celebrations.php):
+     celebration  today’s items, ranked; primary is the one card shown
+                  (your birthday › a major holiday › teammates’ birthdays ›
+                  other observances). Admin overrides and uploaded doodle
+                  art come through it.
+     theme        the holiday nearest today (day before → day after), for
+                  the quiet themes on member pages.
 
-   Design tokens (--afg-*) are used with literal fallbacks so it renders
-   correctly on both token-aware pages and plain static pages.
+   When it shows: once per day per celebration (localStorage
+   av.celebrate.seen), never on admin, sign-in or checkout pages, never
+   while a video is playing, and not where the page opts out with
+   data-avcel="off" on <html> or <body>. Member pages (the portal and My
+   Account, or any page with <body data-avcel="member">) also get the
+   2b theme: a 3px stripe, the doodle logo and a dismissible banner.
+
+   Hooks for other pages: <html data-avcel-theme="<key>"> and the class
+   avcel-themed while a theme runs; a ‘avcel:theme’ event on document;
+   window.AvCel = { data, open(), ringLogo(key, caption) }.
+   Nothing loads beyond this file on a day with nothing to celebrate.
    ============================================================ */
 (function () {
   'use strict';
-  var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var GOLD = '#f3b416';
+  if (window.AvCel) return;
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-    });
+  var D = document, root = D.documentElement;
+  var SEAL = '/assets/site/av-seal.png';
+  var reduced = function () { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
+  };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var path = location.pathname;
+  var optedOut = function () { return root.getAttribute('data-avcel') === 'off' || (D.body && D.body.getAttribute('data-avcel') === 'off'); };
+  var NO_POPUP = /^\/(admin|studio|login|signin|sign-in|checkout|pay)(\/|$)|^\/academy\/studio|\/pay(\.php)?\/?$/i.test(path);
+  var isMember = function () { return (D.body && D.body.getAttribute('data-avcel') === 'member') || /^\/(portal|account|my-account|member(\.html)?|donor-dashboard(\.html)?|diary\/me|academy\/ngv\/dashboard)(\/|$|\.php)/i.test(path); };
+  var MOVABLE = { goodfriday: 1, easter: 1, eastermonday: 1, eidfitr: 1, eidadha: 1 };
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var FOUNDED = 2017;
+  var WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  var TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  function words(n) { return n < 20 ? WORDS[n] : n < 100 ? TENS[Math.floor(n / 10)] + (n % 10 ? '-' + WORDS[n % 10] : '') : String(n); }
+  function dayMonth(iso, short) { var p = String(iso || '').split('-'); if (p.length < 3) return ''; var m = MONTHS[+p[1] - 1] || ''; return (+p[2]) + ' ' + (short ? m.slice(0, 3) : m); }
+  function initials(name) { var p = String(name || '').trim().split(/\s+/); return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase(); }
+  function first(name) { return String(name || '').trim().split(/\s+/)[0] || 'friend'; }
+  function safeUrl(u) { u = String(u || ''); return /^(\/[^\/]|https:\/\/)/.test(u) ? u.replace(/["<>\s]/g, '') : ''; }
+  function hex(h) { return /^#[0-9a-fA-F]{6}$/.test(String(h || '')) ? h : ''; }
+  var T = function (fn, ms, bag) { var id = setTimeout(fn, ms); if (bag) bag.push(id); return id; };
+  var icon = function (d, s, w) { return '<svg aria-hidden="true" focusable="false" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round"><path d="' + d + '"/></svg>'; };
+  var X = 'M6 6l12 12M18 6L6 18';
+
+  /* ── assets: tokens + styles + drawings, only when needed ──────── */
+  function ensureCss() {
+    var has = function (h) { return [].some.call(D.querySelectorAll('link[rel="stylesheet"]'), function (l) { return (l.getAttribute('href') || '').indexOf(h) > -1; }); };
+    var add = function (h) { var l = D.createElement('link'); l.rel = 'stylesheet'; l.href = h; D.head.appendChild(l); return l; };
+    if (!has('av-tokens.css') && !getComputedStyle(root).getPropertyValue('--av-cel-ng')) add('/assets/site/av-tokens.css');
+    return has('/avcel.css') ? null : add('/assets/site/avcel.css');
+  }
+  function loadArt(cb) {
+    if (window.AvCelArt) return cb();
+    var s = D.createElement('script'); s.src = '/assets/site/avcel-art.js'; s.async = true;
+    s.onload = function () { if (window.AvCelArt) cb(); };
+    D.head.appendChild(s);
+  }
+  function whenFonts(cb) {
+    var done = false, go = function () { if (!done) { done = true; cb(); } };
+    try { if (D.fonts && D.fonts.load) { D.fonts.load('600 42px "Cormorant Garamond"').then(go, go); setTimeout(go, 1200); return; } } catch (e) { /* old browser */ }
+    go();
   }
 
-  /* ── Styles (injected once) ─────────────────────────────────── */
-  function injectStyles(theme) {
-    if (document.getElementById('av-celebrate-css')) return;
-    var s = document.createElement('style'); s.id = 'av-celebrate-css';
-    s.textContent = [
-      ':root{--avc-accent:' + theme + '}',
-      /* Refined holiday banner */
-      '.av-celebrate{position:relative;z-index:210;overflow:hidden;color:#fff;',
-      'background:linear-gradient(100deg,var(--avc-accent),color-mix(in srgb,var(--avc-accent) 55%,#0b0f1a));',
-      'box-shadow:0 2px 18px rgba(0,0,0,.18)}',
-      '.av-celebrate .avc-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:11px 20px;',
-      "font-family:var(--afg-font-body,'Source Sans 3',system-ui,sans-serif)}",
-      '.av-celebrate .avc-emoji{font-size:26px;line-height:1;animation:avcPop .6s cubic-bezier(.22,1,.36,1) both}',
-      '.av-celebrate .avc-txt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}',
-      '.av-celebrate .avc-kicker{font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;opacity:.82}',
-      '.av-celebrate .avc-txt strong{font-size:14.5px;font-weight:800;letter-spacing:.01em}',
-      '.av-celebrate .avc-txt span.avc-sub{font-size:12.5px;opacity:.92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.av-celebrate .avc-x{margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;',
-      'border-radius:50%;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0}',
-      '.av-celebrate .avc-x:hover{background:rgba(255,255,255,.3)}',
-      '.av-celebrate .avc-shine{position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.22) 50%,transparent 70%);',
-      'transform:translateX(-100%);animation:avcShine 3.4s ease-in-out infinite}',
-      /* Birthday popup */
-      '.avc-modal{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;',
-      'background:rgba(9,12,20,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .28s ease}',
-      '.avc-modal.is-open{opacity:1}',
-      '.avc-card{position:relative;width:min(460px,100%);max-height:calc(100vh - 40px);overflow:auto;',
-      'background:var(--afg-surface,#fff);color:var(--afg-ink,#111827);',
-      'border-radius:var(--afg-radius-lg,22px);box-shadow:0 40px 90px -30px rgba(0,0,0,.6);padding:40px 32px 30px;text-align:center;',
-      "font-family:var(--afg-font-body,'Source Sans 3',system-ui,sans-serif);transform:translateY(14px) scale(.98);opacity:0;",
-      'transition:transform .34s cubic-bezier(.22,.61,.36,1),opacity .34s ease}',
-      '.avc-modal.is-open .avc-card{transform:none;opacity:1}',
-      '.avc-card::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;',
-      'background:linear-gradient(90deg,var(--avc-accent),color-mix(in srgb,var(--avc-accent) 40%,#fff))}',
-      '.avc-seal{font-size:40px;line-height:1;display:inline-block;animation:avcPop .6s cubic-bezier(.22,1,.36,1) both}',
-      '.avc-eyebrow{margin:12px 0 4px;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;',
-      'color:var(--afg-accent-ink,#b07e08)}',
-      /* avatar (shared) */
-      '.avc-av{position:relative;border-radius:50%;background:var(--afg-surface-2,#f4f2ec) center/cover no-repeat;',
-      'border:3px solid var(--avc-accent);box-shadow:0 10px 30px -12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;',
-      "font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-weight:700;color:var(--avc-accent);overflow:hidden;flex-shrink:0}",
-      '.avc-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}',
-      /* single-portrait */
-      '.avc-avatars{display:flex;justify-content:center;margin:14px 0 6px}',
-      '.avc-avatars .avc-av{width:96px;height:96px;font-size:38px}',
-      '.avc-name{margin:6px 0 2px;font-family:var(--afg-font-display,\'Cormorant Garamond\',Georgia,serif);font-weight:700;',
-      'font-size:30px;line-height:1.15;color:var(--afg-ink,#111827)}',
-      '.avc-role{font-size:13px;color:var(--afg-muted,#6b7280);margin:0 0 12px}',
-      /* honour roll (several) */
-      '.avc-people{display:flex;flex-direction:column;gap:10px;margin:16px 0 6px;text-align:left}',
-      '.avc-prow{display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid var(--afg-border,#e5e7eb);',
-      'border-radius:var(--afg-radius-md,14px);background:var(--afg-surface-2,#f7f6f2)}',
-      '.avc-prow .avc-av{width:46px;height:46px;font-size:20px}',
-      '.avc-prow .avc-pn{font-family:var(--afg-font-display,\'Cormorant Garamond\',Georgia,serif);font-weight:700;font-size:19px;line-height:1.1;color:var(--afg-ink,#111827)}',
-      '.avc-prow .avc-pr{font-size:12px;color:var(--afg-muted,#6b7280)}',
-      '.avc-heading{margin:14px 0 2px;font-family:var(--afg-font-display,\'Cormorant Garamond\',Georgia,serif);font-weight:700;font-size:26px;color:var(--afg-ink,#111827)}',
-      /* message + actions */
-      '.avc-message{font-size:15px;line-height:1.6;color:var(--afg-body,#374151);margin:12px auto 22px;max-width:36ch}',
-      '.avc-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}',
-      '.avc-btn{display:inline-flex;align-items:center;gap:6px;padding:11px 18px;border-radius:var(--afg-radius-pill,999px);',
-      'font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;border:1px solid transparent}',
-      '.avc-btn-primary{background:var(--avc-accent);color:#111827}',
-      '.avc-btn-primary:hover{filter:brightness(.96)}',
-      '.avc-btn-ghost{background:transparent;color:var(--afg-ink,#111827);border-color:var(--afg-border,#e5e7eb)}',
-      '.avc-btn-ghost:hover{background:var(--afg-surface-2,#f4f2ec)}',
-      '.avc-foot{margin:16px 0 0;font-size:11.5px;letter-spacing:.02em;color:var(--afg-muted,#6b7280)}',
-      '.avc-foot a{color:var(--afg-accent-ink,#b07e08);text-decoration:none;font-weight:700}',
-      /* private-note form */
-      '.avc-wish{margin:14px auto 0;max-width:340px;text-align:left;display:flex;flex-direction:column;gap:8px}',
-      '.avc-wish input,.avc-wish textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--afg-border,#e5e7eb);',
-      "border-radius:var(--afg-radius-sm,8px);font-family:inherit;font-size:14px;background:var(--afg-surface,#fff);color:var(--afg-ink,#111827)}",
-      '.avc-wish textarea{resize:vertical;min-height:74px}',
-      '.avc-wish input:focus,.avc-wish textarea:focus{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:1px;border-color:transparent}',
-      '.avc-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}',
-      '.avc-wish-row{display:flex;justify-content:flex-end}',
-      '.avc-wish-status{font-size:13px;margin:2px 0 0;text-align:center;color:var(--afg-muted,#6b7280)}',
-      '.avc-wish-status.is-ok{color:var(--afg-success,#16a34a)}',
-      '.avc-wish-status.is-err{color:var(--afg-danger,#b91c1c)}',
-      '.avc-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;',
-      'background:var(--afg-surface-2,#f1f1ee);color:var(--afg-muted,#6b7280);font-size:20px;line-height:1}',
-      '.avc-close:hover{background:var(--afg-border,#e5e7eb);color:var(--afg-ink,#111827)}',
-      '.avc-btn:focus-visible,.avc-close:focus-visible{outline:2px solid var(--afg-focus,#1d4ed8);outline-offset:2px}',
-      /* doodle */
-      '.brand-wordmark.av-doodled,.nav-logo-mark.av-doodled{position:relative}',
-      '.brand-wordmark.av-doodled::after,.nav-logo-mark.av-doodled::after{content:attr(data-emoji);position:absolute;top:-12px;right:-18px;font-size:15px;animation:avcBob 2.2s ease-in-out infinite}',
-      '.brand-wordmark.av-doodled .wm-2,.nav-logo-mark.av-doodled .van{background:linear-gradient(90deg,var(--avc-accent),#fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}',
-      '.nav-logo-doodle-img{height:30px;width:auto;vertical-align:middle;display:block}',
-      /* keyframes */
-      '@keyframes avcPop{0%{transform:scale(0) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}',
-      '@keyframes avcShine{0%,100%{transform:translateX(-120%)}55%{transform:translateX(120%)}}',
-      '@keyframes avcBob{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-3px) rotate(8deg)}}',
-      '@media(prefers-reduced-motion:reduce){.av-celebrate .avc-shine,.nav-logo-mark.av-doodled::after,.avc-seal,.avc-emoji{animation:none}',
-      '.avc-modal,.avc-card{transition:none}}'
-    ].join('');
-    document.head.appendChild(s);
+  /* ── what the card says ───────────────────────────────────────── */
+  function artKeyOf(p) {
+    if (!p) return '';
+    if (p.type === 'birthday') return 'birthday';
+    return window.AvCelArt && window.AvCelArt.has(p.key) ? p.key : '';
   }
-
-  /* ── Avatar: photo with a graceful initials fallback ────────── */
-  function avatarHtml(p) {
-    var ini = (p && p.name ? p.name : '?').trim().charAt(0).toUpperCase();
-    var img = (p && p.photo)
-      ? '<img src="' + String(p.photo).replace(/["<>]/g, '') + '" alt="" onerror="this.remove()">'
-      : '';
-    return '<span class="avc-av" aria-hidden="true">' + esc(ini) + img + '</span>';
+  function uploadedArt(p) {
+    var u = safeUrl(p && p.doodle);
+    return u && u.indexOf('/assets/doodles/') !== 0 ? u : '';
   }
-
-  function firstName(name) { return String(name || '').trim().split(/\s+/)[0] || 'friend'; }
-
-  /* ── Birthday: an honourable popup ──────────────────────────── */
-  function showBirthday(c) {
-    var p = c.primary, theme = p.theme || GOLD;
-    var people = (p.people && p.people.length) ? p.people : [{ name: 'our team' }];
-    var single = people.length === 1 ? people[0] : null;
-    injectStyles(theme);
-
-    var lastFocus = document.activeElement;
-    var modal = document.createElement('div');
-    modal.className = 'avc-modal';
-    modal.style.setProperty('--avc-accent', theme);
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'avcName');
-
-    var body, actions, wishForm = '', foot = 'With gratitude, the whole movement 💛';
-    if (single) {
-      var first = firstName(single.name);
-      body = '<div class="avc-avatars">' + avatarHtml(single) + '</div>'
-        + '<h2 class="avc-name" id="avcName">' + esc(single.name) + '</h2>'
-        + (single.role ? '<p class="avc-role">' + esc(single.role) + '</p>' : '');
-      // Two ways to celebrate: a PRIVATE note (emailed to them) or a PUBLIC post.
-      actions = (single.id ? '<button type="button" class="avc-btn avc-btn-primary" data-wish-private>Send a private note</button>' : '')
-        + '<a class="avc-btn avc-btn-ghost" href="/community/?wish=' + encodeURIComponent(first) + '">Post in the community</a>';
-      if (single.id) {
-        wishForm = '<form class="avc-wish" hidden novalidate data-wish-id="' + esc(String(single.id)) + '">'
-          + '<input class="avc-wish-from" type="text" maxlength="60" autocomplete="name" placeholder="Your name" />'
-          + '<textarea class="avc-wish-text" maxlength="1000" placeholder="Write a birthday note to ' + esc(first) + '…"></textarea>'
-          + '<input class="avc-hp" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />'
-          + '<div class="avc-wish-row"><button type="submit" class="avc-btn avc-btn-primary">Send privately</button></div>'
-          + '<p class="avc-wish-status" role="status" aria-live="polite"></p>'
-          + '</form>';
-        foot += ' · <a href="/member?id=' + encodeURIComponent(single.id) + '">View profile</a>';
+  function artOpts(dateIso) {
+    var y = +String(dateIso || '').slice(0, 4) || new Date().getFullYear(), n = Math.max(1, y - FOUNDED);
+    return { years: n, yearsWord: words(n), since: FOUNDED, year: y };
+  }
+  function model(c, signedIn, member) {
+    var p = c.primary, m = { p: p, date: c.date, art: artKeyOf(p), img: uploadedArt(p), title: p.title || '', msg: p.message || '', opts: artOpts(c.date) };
+    if (p.type === 'birthday' && p.mine) {
+      var per = p.person || {};
+      m.kind = 'mine'; m.cls = 'mine'; m.ini = per.initials || initials(per.name); m.age = per.age || '';
+      m.kicker = 'Today · ' + dayMonth(c.date) + ' · your birthday';
+      if (p.points > 0) m.perk = '+' + p.points + ' birthday points when you sign in at CACENTRE today';
+      m.cta = { label: 'See your birthday card', href: member ? '' : '/portal/' };
+      m.second = 'Maybe later'; m.docks = true;
+    } else if (p.type === 'birthday') {
+      var ppl = p.people || [];
+      if (ppl.length > 1) {
+        m.kind = 'group'; m.cls = 'group'; m.group = ppl; m.kicker = 'Birthdays · today';
+        m.cta = { label: 'Wish them all', href: '/community/' }; m.second = 'Not now';
+      } else {
+        var one = ppl[0] || { name: 'our team' };
+        m.kind = 'mate'; m.cls = 'mate'; m.person = one; m.ini = initials(one.name);
+        m.kicker = 'Birthday · ' + (one.role || 'today');
+        m.cta = one.id ? { label: 'Send ' + first(one.name) + ' a wish', wish: true } : { label: 'Send ' + first(one.name) + ' a wish', href: '/community/?wish=' + encodeURIComponent(first(one.name)) };
+        m.second = 'Not now';
       }
     } else {
-      body = '<h2 class="avc-heading" id="avcName">Happy Birthday to our own</h2>'
-        + '<div class="avc-people">'
-        + people.slice(0, 6).map(function (pp) {
-            return '<div class="avc-prow">' + avatarHtml(pp)
-              + '<div><div class="avc-pn">' + esc(pp.name) + '</div>'
-              + (pp.role ? '<div class="avc-pr">' + esc(pp.role) + '</div>' : '') + '</div></div>';
-          }).join('')
-        + '</div>';
-      actions = '<a class="avc-btn avc-btn-primary" href="/community/">Send warm wishes</a>';
+      m.kind = 'holiday'; m.cls = m.art || 'custom'; m.docks = true;
+      m.kicker = 'Today · ' + (MOVABLE[p.key] && window.AvCelArt.META[p.key] ? window.AvCelArt.META[p.key][0] : dayMonth(c.date, true));
+      m.cta = signedIn ? { label: 'Continue to your portal', href: member ? '' : '/portal/' } : { label: 'Close' };
     }
+    return m;
+  }
 
-    modal.innerHTML =
-      '<div class="avc-card" role="document">'
-      + '<button class="avc-close" type="button" aria-label="Close">&times;</button>'
-      + '<span class="avc-seal" aria-hidden="true">' + esc(p.emoji || '🎂') + '</span>'
-      + '<p class="avc-eyebrow">Today the movement celebrates</p>'
-      + body
-      + '<p class="avc-message">' + esc(p.message || 'Wishing you a wonderful birthday from the whole Afrovanguard family.') + '</p>'
-      + '<div class="avc-actions">' + actions + '</div>'
-      + wishForm
-      + '<p class="avc-foot">' + foot + '</p>'
-      + '</div>';
+  /* ── 3a scene SVG with the 3b logo in it ─────────────────────── */
+  function doodleSvg(k, o, logo) {
+    var A = window.AvCelArt, sc = A.scene(k, o);
+    var word = logo === false ? '' :
+      '<image class="avcel-dseal" href="' + SEAL + '" x="8" y="36" width="56" height="56"/>' +
+      '<g class="avcel-dacc" transform="translate(8 36) scale(1.4)"><g class="avcel-dacc-in">' + A.accInner(k, o) + '</g></g>' +
+      '<text class="avcel-w1" x="74" y="78" style="--i:0">Afr</text>' +
+      '<g class="avcel-wgpos" transform="translate(127 57) scale(.98)"><g class="avcel-wg" style="--i:1">' + A.glyphInner(k, o) + '</g></g>' +
+      '<text class="avcel-w2" x="151" y="78" style="--i:2">vanguard</text>' +
+      '<circle class="avcel-rip" cx="139" cy="69" r="10"/><circle class="avcel-rip avcel-rip--2" cx="139" cy="69" r="10"/>';
+    return '<svg class="avcel-doodle" viewBox="0 0 400 124" aria-hidden="true" focusable="false"><g class="avcel-back">' + sc.b + '</g>' + word + '<g class="avcel-front">' + sc.f + '</g></svg>';
+  }
+  /* Place the glyph and “vanguard” after the measured “Afr”, as the 3b logo spaces them. */
+  function layoutWord(svg) {
+    var w1 = svg.querySelector('.avcel-w1'); if (!w1) return null;
+    var len = 52; try { len = w1.getComputedTextLength() || len; } catch (e) { /* not rendered */ }
+    var gw = 42 * 0.56, gx = 74 + len + 42 * 0.02, gy = 78 + 42 * 0.06 - gw;
+    svg.querySelector('.avcel-wgpos').setAttribute('transform', 'translate(' + gx.toFixed(1) + ' ' + gy.toFixed(1) + ') scale(' + (gw / 24).toFixed(3) + ')');
+    svg.querySelector('.avcel-w2').setAttribute('x', (gx + gw + 42 * 0.01).toFixed(1));
+    [].forEach.call(svg.querySelectorAll('.avcel-rip'), function (r) { r.setAttribute('cx', (gx + gw / 2).toFixed(1)); r.setAttribute('cy', (gy + gw / 2).toFixed(1)); });
+    /* Fold distances: each piece travels 40% of the way back to the seal. */
+    [['.avcel-w1', 74 + len / 2], ['.avcel-wg', gx + gw / 2], ['.avcel-w2', gx + gw + 80]].forEach(function (a) { var el = svg.querySelector(a[0]); if (el) el.style.setProperty('--fx', (-(a[1] - 36) * 0.4).toFixed(1) + 'px'); });
+    return { gx: gx, gy: gy, gw: gw };
+  }
+  function sceneEnd(svg) {
+    var end = 0;
+    [].forEach.call(svg.querySelectorAll('[data-t]'), function (el) { end = Math.max(end, parseFloat(el.getAttribute('data-t')) || 0); });
+    return end;
+  }
 
-    document.body.appendChild(modal);
-    document.documentElement.style.overflow = 'hidden';
-    requestAnimationFrame(function () { modal.classList.add('is-open'); });
-    if (!REDUCED) setTimeout(function () { confetti(theme); }, 240);
+  /* ── 5a · the dialog ──────────────────────────────────────────── */
+  var cur = null, pill = null, payload = null;
 
-    function close() {
-      modal.classList.remove('is-open');
-      document.documentElement.style.overflow = '';
-      document.removeEventListener('keydown', onKey);
-      setTimeout(function () { modal.remove(); }, 300);
-      try { if (lastFocus && lastFocus.focus) lastFocus.focus(); } catch (e) {}
+  function cardHtml(m) {
+    var badge, after = '', i = 0;
+    if (m.kind === 'mine' || m.kind === 'mate') {
+      var photo = m.person && safeUrl(m.person.photo);
+      badge = '<span class="avcel-ini">' + esc(m.ini) + (photo ? '<img src="' + esc(photo) + '" alt="" onerror="this.remove()">' : '') + '</span><img class="avcel-sealov" src="' + SEAL + '" alt="">';
+    } else {
+      badge = '<img src="' + SEAL + '" alt="">';
     }
+    if (m.age) after += '<span class="avcel-age avcel-after" aria-hidden="true" style="--i:' + (i++) + '">' + esc(m.age) + '</span>';
+    var grp = '';
+    if (m.group) {
+      var shown = m.group.slice(0, 5);
+      grp = '<ul class="avcel-group avcel-after" aria-hidden="true" style="--i:' + (i++) + '">' + shown.map(function (g) {
+        var ph = safeUrl(g.photo);
+        return '<li>' + (ph ? '<img src="' + esc(ph) + '" alt="" onerror="this.parentNode.textContent=\'' + esc(initials(g.name)) + '\'">' : esc(initials(g.name))) + '</li>';
+      }).join('') + (m.group.length > 5 ? '<li>+' + (m.group.length - 5) + '</li>' : '') + '</ul>';
+    }
+    var cta = m.cta.href
+      ? '<a class="avcel-cta" href="' + esc(m.cta.href) + '">' + esc(m.cta.label) + '</a>'
+      : '<button type="button" class="avcel-cta"' + (m.cta.wish ? ' aria-expanded="false" aria-controls="avcel-wish"' : ' data-avcel-close') + '>' + esc(m.cta.label) + '</button>';
+    var second = m.second ? '<button type="button" class="avcel-second" data-avcel-close>' + esc(m.second) + '</button>' : '';
+    var wish = '';
+    if (m.cta.wish && m.person) {
+      var f = first(m.person.name);
+      wish = '<form class="avcel-wish" id="avcel-wish" hidden novalidate data-id="' + esc(m.person.id) + '">' +
+        '<label class="av-sr" for="avcel-from">Your name</label><input id="avcel-from" type="text" maxlength="60" autocomplete="name" placeholder="Your name">' +
+        '<label class="av-sr" for="avcel-note">Your note to ' + esc(f) + '</label><textarea id="avcel-note" maxlength="1000" placeholder="Write a birthday note to ' + esc(f) + '…"></textarea>' +
+        '<input class="avcel-hp" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        '<button type="submit" class="avcel-send">Send privately</button>' +
+        '<p class="avcel-status" role="status" aria-live="polite"></p>' +
+        '<p class="avcel-more">Or <a href="/community/?wish=' + encodeURIComponent(f) + '">post in the community</a> · <a href="/member?id=' + encodeURIComponent(m.person.id) + '">View profile</a></p>' +
+        '</form>';
+    }
+    var stage = m.img ? '<img class="avcel-dimg" src="' + esc(m.img) + '" alt="">' : doodleSvg(m.art || 'newyear', m.opts);
+    return '<div class="avcel-dialog" role="dialog" aria-modal="true" aria-labelledby="avcel-title" aria-describedby="avcel-msg" tabindex="-1">' +
+      '<div class="avcel-card avcel-k--' + esc(m.cls) + '">' +
+        '<div class="avcel-art">' +
+          '<div class="avcel-dots" aria-hidden="true"></div>' + after +
+          '<div class="avcel-cream" aria-hidden="true"></div>' +
+          '<div class="avcel-stage" aria-hidden="true">' + stage + '</div>' +
+          '<span class="avcel-badge" aria-hidden="true">' + badge + '</span>' + grp +
+        '</div>' +
+        '<div class="avcel-body">' +
+          '<p class="avcel-kicker">' + esc(m.kicker) + '</p>' +
+          '<h2 class="avcel-title" id="avcel-title">' + esc(m.title) + '</h2>' +
+          '<p class="avcel-msg" id="avcel-msg">' + esc(m.msg) + '</p>' +
+          (m.perk ? '<p class="avcel-perk">' + esc(m.perk) + '</p>' : '') +
+          '<div class="avcel-actions">' + cta + second + '</div>' + wish +
+        '</div>' +
+        '<button type="button" class="avcel-x avcel-x--desk" aria-label="Close" data-avcel-close>' + icon(X, 14, 2.4) + '</button>' +
+      '</div>' +
+      '<button type="button" class="avcel-x avcel-x--phone" aria-label="Close" data-avcel-close>' + icon(X, 18, 2.2) + '</button>' +
+    '</div>';
+  }
+
+  function customVars(el, p) {
+    var h = hex(p && p.theme); if (!h) return;
+    el.style.setProperty('--avcel-c1', h);
+    el.style.setProperty('--avcel-ring', 'conic-gradient(' + h + ',var(--av-gold-light),' + h + ')');
+    el.style.setProperty('--avcel-stripe', 'linear-gradient(90deg,' + h + ',var(--av-gold-light),' + h + ')');
+    el.style.setProperty('--avcel-kfg', 'var(--av-gold-text)');
+    el.style.setProperty('--avcel-a', 'color-mix(in srgb,' + h + ' 45%,var(--av-ink))');
+    el.style.setProperty('--avcel-b', 'color-mix(in srgb,' + h + ' 20%,var(--av-ink-deep))');
+  }
+
+  function focusables(scope) {
+    return [].filter.call(scope.querySelectorAll('a[href],button:not([disabled]),input:not([tabindex="-1"]),textarea,select'), function (el) { return el.getClientRects().length > 0; });
+  }
+
+  function open(m, finished) {
+    if (cur) return;
+    if (pill) { pill.remove(); pill = null; }
+    var last = D.activeElement;
+    var layer = D.createElement('div');
+    layer.className = 'avcel-layer';
+    layer.innerHTML = cardHtml(m);
+    if (m.cls === 'custom') customVars(layer.querySelector('.avcel-card'), m.p);
+    var others = [].filter.call(D.body.children, function (el) { return el !== layer && !el.hasAttribute('inert') && el.tagName !== 'SCRIPT'; });
+    D.body.appendChild(layer);
+    others.forEach(function (el) { el.setAttribute('inert', ''); });
+    var prevOverflow = root.style.overflow; root.style.overflow = 'hidden';
+    var dialog = layer.querySelector('.avcel-dialog'), art = layer.querySelector('.avcel-art');
+    var timers = [], anims = [];
+    cur = { m: m, layer: layer, timers: timers, anims: anims };
+
     function onKey(e) {
-      if (e.key === 'Escape') { close(); return; }
-      if (e.key === 'Tab') {
-        var f = modal.querySelectorAll('a[href],button,input:not([tabindex="-1"]),textarea,select');
-        if (!f.length) return;
-        var first = f[0], last = f[f.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
+      if (e.key !== 'Tab') return;
+      var f = focusables(dialog); if (!f.length) { e.preventDefault(); return; }
+      var a = f[0], z = f[f.length - 1];
+      if (e.shiftKey && (D.activeElement === a || D.activeElement === dialog)) { e.preventDefault(); z.focus(); }
+      else if (!e.shiftKey && D.activeElement === z) { e.preventDefault(); a.focus(); }
+    }
+    function close() {
+      if (!cur) return;
+      timers.forEach(clearTimeout); anims.forEach(function (x) { try { x.cancel(); } catch (e) { /* gone */ } });
+      D.removeEventListener('keydown', onKey, true);
+      others.forEach(function (el) { el.removeAttribute('inert'); });
+      root.style.overflow = prevOverflow;
+      cur = null;
+      var gone = function () { if (layer.parentNode) layer.parentNode.removeChild(layer); };
+      if (reduced()) gone(); else { layer.classList.add('is-leaving'); setTimeout(gone, 200); }
+      if (m.docks) dock(m, true);
+      showPill(m);
+      var back = last && last !== D.body && D.contains(last) ? last : pill;
+      try { if (back && back.focus) back.focus({ preventScroll: true }); } catch (e) { /* detached */ }
+    }
+    cur.close = close;
+    D.addEventListener('keydown', onKey, true);
+    layer.addEventListener('click', function (e) {
+      if (e.target === layer) { close(); return; }
+      if (e.target.closest('[data-avcel-close]')) close();
+      else if (e.target.closest('a.avcel-cta')) { store.set('av.celebrate.seen', payload && payload.tag || ''); }
+    });
+    wireWish(layer, m);
+    try { dialog.focus({ preventScroll: true }); } catch (e) { dialog.focus(); }
+
+    if (finished || reduced()) { art.classList.add('is-final'); return; }
+    intro(art, m, timers, anims);
+  }
+
+  /* Acts 1–3: today’s logo → the scene plays → the letters fold into the
+     seal, the colour spreads from it and the seal lands as the badge. */
+  function intro(art, m, timers, anims) {
+    var stage = art.querySelector('.avcel-stage'), svg = stage.querySelector('svg'), badge = art.querySelector('.avcel-badge');
+    art.classList.add('is-intro');
+    var go = function () {
+      if (svg) { layoutWord(svg); stage.firstChild.classList.add('is-play'); }
+      var end = svg ? 0.9 + sceneEnd(svg) : 1.6;
+      T(exit, (end + 0.9) * 1000, timers);
+    };
+    whenFonts(go);
+    function exit() {
+      art.classList.add('is-exit');
+      T(function () {
+        var ar = art.getBoundingClientRect(), br = badge.getBoundingClientRect();
+        var seal = svg && svg.querySelector('.avcel-dseal'), sr = seal ? seal.getBoundingClientRect() : null;
+        if (!sr || !sr.width) sr = { left: ar.left + ar.width / 2 - 10, top: ar.top + ar.height / 2 - 10, width: 20, height: 20 };
+        var cx = sr.left + sr.width / 2, cy = sr.top + sr.height / 2;
+        var dx = cx - (br.left + br.width / 2), dy = cy - (br.top + br.height / 2), s = sr.width / (br.width * 0.88);
+        if (seal) seal.style.visibility = 'hidden';
+        badge.style.opacity = '1';
+        if (badge.animate) {
+          anims.push(badge.animate([
+            { transform: 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' + s.toFixed(3) + ') rotate(-50deg)' },
+            { transform: 'translate(' + (dx * 0.42).toFixed(1) + 'px,' + (dy * 0.42 - 30).toFixed(1) + 'px) scale(' + ((s + 1) / 2 * 1.1).toFixed(3) + ') rotate(-14deg)', offset: 0.5 },
+            { transform: 'translate(0,0) scale(1.07) rotate(2deg)', offset: 0.82 },
+            { transform: 'none' }
+          ], { duration: 1050, easing: 'cubic-bezier(.55,0,.2,1)' }));
+          var ov = badge.querySelector('.avcel-sealov');
+          if (ov) { ov.style.opacity = '1'; anims.push(ov.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 540, fill: 'forwards' })); }
+          var wash = D.createElement('div'); wash.className = 'avcel-wash'; wash.setAttribute('aria-hidden', 'true');
+          art.querySelector('.avcel-cream').after(wash);
+          var x = cx - ar.left, y = cy - ar.top, R = Math.hypot(ar.width, ar.height) + 20;
+          anims.push(wash.animate([{ clipPath: 'circle(0px at ' + x.toFixed(0) + 'px ' + y.toFixed(0) + 'px)' }, { clipPath: 'circle(' + R.toFixed(0) + 'px at ' + x.toFixed(0) + 'px ' + y.toFixed(0) + 'px)' }], { duration: 950, delay: 60, easing: 'cubic-bezier(.7,0,.2,1)', fill: 'forwards' }));
+        }
+        art.classList.add('is-after');
+        T(function () { art.classList.add('is-washed'); }, 1060, timers);
+        T(function () { badge.classList.add('is-landed'); }, 880, timers);
+        T(function () {
+          art.classList.remove('is-intro', 'is-exit', 'is-after', 'is-washed');
+          art.classList.add('is-final'); badge.style.opacity = '';
+          var w = art.querySelector('.avcel-wash'); if (w) w.remove();
+        }, 1700, timers);
+      }, 300, timers);
+    }
+  }
+
+  /* Private birthday note → process-wish.php (unchanged contract). */
+  function wireWish(layer, m) {
+    var btn = layer.querySelector('.avcel-cta[aria-controls]'), form = layer.querySelector('.avcel-wish');
+    if (!btn || !form) return;
+    btn.addEventListener('click', function () {
+      var show = form.hidden; form.hidden = !show; btn.setAttribute('aria-expanded', String(show));
+      if (!show) return;
+      var ta = form.querySelector('textarea');
+      if (!ta.value) ta.value = 'Happy birthday, ' + first(m.person.name) + '. ';
+      try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { /* fine */ }
+    });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var st = form.querySelector('.avcel-status'), send = form.querySelector('.avcel-send');
+      var say = function (t, k) { st.textContent = t; st.className = 'avcel-status' + (k ? ' is-' + k : ''); };
+      var text = form.querySelector('textarea').value.trim();
+      if (text.length < 2) { say('Write a short note first.', 'err'); form.querySelector('textarea').focus(); return; }
+      send.disabled = true; say('Sending…');
+      var ctl = window.AbortController ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 10000);
+      fetch('/process-wish.php', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, signal: ctl ? ctl.signal : undefined,
+        body: JSON.stringify({ id: form.getAttribute('data-id'), from: form.querySelector('#avcel-from').value.trim(), message: text, company: form.querySelector('.avcel-hp').value.trim() })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        clearTimeout(to);
+        if (d && d.ok) { say('Your note is on its way. Thank you.', 'ok'); form.querySelector('textarea').value = ''; }
+        else { send.disabled = false; say((d && d.error) || 'Could not send just now. Try again in a moment.', 'err'); }
+      }).catch(function () { clearTimeout(to); send.disabled = false; say('Could not reach us. Check your connection and try again.', 'err'); });
+    });
+  }
+
+  function showPill(m) {
+    if (pill) pill.remove();
+    pill = D.createElement('button');
+    pill.type = 'button'; pill.className = 'avcel-pill'; pill.textContent = 'Show the pop-up again';
+    pill.addEventListener('click', function () { open(m, true); });
+    D.body.appendChild(pill);
+    var p = pill; setTimeout(function () { if (pill === p && D.activeElement !== p) { p.remove(); pill = null; } }, 12000);
+  }
+
+  /* ── 3b · the nav logo for the day ────────────────────────────── */
+  function brand() { return D.querySelector('.avh-nav .avh-brand') || D.querySelector('.avh-brand') || D.querySelector('.nav-logo'); }
+  function dock(m, play) {
+    if (m.img) return decorateImg(m.img);
+    decorate(m.art || 'newyear', m.opts, play && !reduced(), m.cls === 'custom' ? m.p : null);
+  }
+  function decorateImg(src) {
+    var b = brand(); if (!b || b.getAttribute('data-avcel') === 'img') return;
+    var word = b.querySelector('.avh-brand > span, .brand-wordmark'); if (!word) return;
+    b.setAttribute('data-avcel', 'img');
+    word.innerHTML = '<img class="avcel-navimg" src="' + esc(src) + '" alt=""><span class="av-sr">Afrovanguard</span>';
+  }
+  function decorate(k, o, play, customP) {
+    var A = window.AvCelArt, b = brand(); if (!A || !b) return;
+    if (b.getAttribute('data-avcel') !== k) {
+      var word = b.querySelector(':scope > span') || b.querySelector('.brand-wordmark .wm-1');
+      if (!word) return;
+      b.setAttribute('data-avcel', k);
+      b.classList.add('avcel-brand', 'avcel-k--' + (A.has(k) ? k : 'custom'));
+      if (customP) customVars(b, customP);
+      if (word.classList.contains('wm-1')) word.innerHTML = '<span aria-hidden="true">Afr' + A.glyph(k, o) + '</span><span class="av-sr">Afro</span>';
+      else word.innerHTML = '<span aria-hidden="true">Afr' + A.glyph(k, o) + 'vanguard</span><span class="av-sr">Afrovanguard</span>';
+      var seal = b.querySelector('img:not(.avcel-navimg)');
+      if (seal && A.accInner(k, o)) {
+        b.insertAdjacentHTML('afterbegin', A.acc(k, o));
+        var sizeAcc = function () { var w = seal.offsetWidth; if (w) { b.style.setProperty('--avcel-seal', w + 'px'); b.style.setProperty('--avcel-seal-x', seal.offsetLeft + 'px'); } };
+        sizeAcc(); if (window.ResizeObserver) new ResizeObserver(sizeAcc).observe(seal);
       }
     }
-    modal.querySelector('.avc-close').addEventListener('click', close);
-    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
-    document.addEventListener('keydown', onKey);
-
-    // Private-note flow: reveal the form, then POST it to process-wish.php.
-    var toggle = modal.querySelector('[data-wish-private]');
-    var wform = modal.querySelector('.avc-wish');
-    if (toggle && wform) {
-      toggle.addEventListener('click', function () {
-        var showing = !wform.hasAttribute('hidden');
-        if (showing) { wform.setAttribute('hidden', ''); return; }
-        wform.removeAttribute('hidden');
-        var ta = wform.querySelector('.avc-wish-text');
-        if (ta && !ta.value) ta.value = 'Happy birthday, ' + firstName(single.name) + '! ';
-        try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
-      });
-      wform.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var status = wform.querySelector('.avc-wish-status');
-        var sendBtn = wform.querySelector('button[type="submit"]');
-        var text = (wform.querySelector('.avc-wish-text').value || '').trim();
-        var fromName = (wform.querySelector('.avc-wish-from').value || '').trim();
-        var hp = (wform.querySelector('.avc-hp').value || '').trim();
-        function say(t, kind) { if (status) { status.textContent = t; status.className = 'avc-wish-status' + (kind ? ' is-' + kind : ''); } }
-        if (text.length < 2) { say('Write a short note first.', 'err'); return; }
-        sendBtn.disabled = true; say('Sending…', '');
-        fetch('/process-wish.php', {
-          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: wform.getAttribute('data-wish-id'), from: fromName, message: text, company: hp })
-        }).then(function (r) { return r.json(); }).then(function (d) {
-          if (d && d.ok) {
-            wform.innerHTML = '<p class="avc-wish-status is-ok">Your note is on its way — thank you 💛</p>';
-          } else { sendBtn.disabled = false; say((d && d.error) || 'Could not send just now.', 'err'); }
-        }).catch(function () { sendBtn.disabled = false; say('Network error — please try again.', 'err'); });
-      });
-    }
-
-    var focusBtn = modal.querySelector('.avc-close'); if (focusBtn) focusBtn.focus();
+    if (play) navPlay(b, k, o);
+  }
+  /* The doodle plays around the nav logo, then settles into the 3b logo. */
+  function navPlay(b, k, o) {
+    var A = window.AvCelArt, seal = b.querySelector('img:not(.avcel-navimg)');
+    b.classList.remove('avcel-brand--pop'); void b.offsetWidth; b.classList.add('avcel-brand--pop');
+    if (!seal || !seal.offsetWidth) return;
+    var br = b.getBoundingClientRect(), sr = seal.getBoundingClientRect(), s = sr.width / 56;
+    var left = sr.left - br.left - 8 * s, top = sr.top - br.top - 36 * s;
+    var room = Math.max(0, D.documentElement.clientWidth - (br.left + left) - 8);
+    var sc = A.scene(k, o), made = [];
+    [['back', sc.b], ['front', sc.f]].forEach(function (pair) {
+      if (!pair[1]) return;
+      var w = D.createElement('span');
+      w.className = 'avcel-navplay avcel-navplay--' + pair[0]; w.setAttribute('aria-hidden', 'true');
+      w.style.cssText = 'left:' + left.toFixed(1) + 'px;top:' + top.toFixed(1) + 'px;width:' + Math.min(400 * s, room).toFixed(1) + 'px;height:' + (124 * s).toFixed(1) + 'px';
+      w.innerHTML = '<svg class="is-play" viewBox="0 0 400 124" width="' + (400 * s).toFixed(1) + '" height="' + (124 * s).toFixed(1) + '" focusable="false">' + pair[1] + '</svg>';
+      b.appendChild(w); made.push(w);
+    });
+    var end = 0; made.forEach(function (w) { end = Math.max(end, sceneEnd(w)); });
+    setTimeout(function () { made.forEach(function (w) { w.classList.add('is-gone'); }); }, (0.15 + end + 1.2) * 1000);
+    setTimeout(function () { made.forEach(function (w) { w.remove(); }); }, (0.15 + end + 1.8) * 1000);
   }
 
-  /* ── Holidays / observances: a refined banner ───────────────── */
-  function showBanner(c) {
-    var p = c.primary, theme = p.theme || GOLD;
-    injectStyles(theme);
-    var bar = document.createElement('div');
-    bar.className = 'av-celebrate'; bar.setAttribute('data-key', p.key || '');
-    bar.setAttribute('role', 'status');
-    bar.style.setProperty('--avc-accent', theme);
-    bar.innerHTML = '<div class="avc-shine" aria-hidden="true"></div><div class="avc-inner">'
-      + '<span class="avc-emoji" aria-hidden="true">' + esc(p.emoji || '🎉') + '</span>'
-      + '<div class="avc-txt"><span class="avc-kicker">Afrovanguard celebrates</span>'
-      + '<strong>' + esc(p.title || 'Celebrating today') + '</strong>'
-      + '<span class="avc-sub">' + esc(p.message || '') + '</span></div>'
-      + '<button class="avc-x" type="button" aria-label="Dismiss">&times;</button></div>';
-    document.body.insertBefore(bar, document.body.firstChild);
-    bar.querySelector('.avc-x').addEventListener('click', function () {
-      try { localStorage.setItem('av.celebrate.dismissed', c.date + ':' + (p.key || '')); } catch (e) {}
-      bar.style.transition = 'transform .3s, opacity .3s';
-      bar.style.transform = 'translateY(-100%)'; bar.style.opacity = '0';
-      setTimeout(function () { bar.remove(); }, 320);
+  /* ── 2b · quiet themes for member pages ───────────────────────── */
+  function applyTheme(th, playNav) {
+    var A = window.AvCelArt, k = A.has(th.key) ? th.key : 'custom';
+    root.classList.add('avcel-themed', 'avcel-k--' + k);
+    root.setAttribute('data-avcel-theme', th.key);
+    if (k === 'custom') customVars(root, th);
+    if (!D.querySelector('.avcel-stripe')) { var s = D.createElement('div'); s.className = 'avcel-stripe'; s.setAttribute('aria-hidden', 'true'); D.body.insertBefore(s, D.body.firstChild); }
+    var dkey = th.date + ':' + th.key;
+    if (store.get('av.celebrate.dismissed') !== dkey && !D.querySelector('.avcel-ban')) {
+      var ban = D.createElement('div');
+      ban.className = 'avcel-ban';
+      ban.innerHTML = A.icon(th.key) + '<span class="avcel-ban-bar" aria-hidden="true"></span><p class="avcel-ban-txt" style="margin:0"><strong>' + esc(th.title) + '.</strong> <span>' + esc(th.message) + '</span></p><button type="button" class="avcel-ban-x">Dismiss</button>';
+      var nav = D.querySelector('.avh-nav') || D.querySelector('header') || D.querySelector('nav');
+      if (nav && nav.parentNode) nav.parentNode.insertBefore(ban, nav.nextSibling);
+      else { var main = D.querySelector('main'); (main || D.body).insertBefore(ban, (main || D.body).firstChild); }
+      ban.querySelector('.avcel-ban-x').addEventListener('click', function () {
+        store.set('av.celebrate.dismissed', dkey);
+        var next = D.querySelector('main') || D.body;
+        ban.remove();
+        try { (next.hasAttribute('tabindex') ? next : D.body).focus({ preventScroll: true }); } catch (e) { /* fine */ }
+      });
+    }
+    var uploaded = uploadedArt(th);
+    if (uploaded) decorateImg(uploaded);
+    else decorate(A.has(th.key) ? th.key : 'newyear', artOpts(th.date), playNav && !reduced(), k === 'custom' ? th : null);
+    try { D.dispatchEvent(new CustomEvent('avcel:theme', { detail: th })); } catch (e) { /* old browser */ }
+  }
+
+  /* ── wait for a quiet moment: page loaded, no video playing ──── */
+  function whenFree(cb) {
+    var playing = function () { return [].some.call(D.querySelectorAll('video'), function (v) { return !v.paused && !v.ended; }); };
+    var tryNow = function () {
+      if (!playing()) return cb();
+      var again = function () { D.removeEventListener('pause', again, true); D.removeEventListener('ended', again, true); setTimeout(tryNow, 400); };
+      D.addEventListener('pause', again, true); D.addEventListener('ended', again, true);
+    };
+    var start = function () { setTimeout(tryNow, 600); };
+    if (D.readyState === 'complete') start(); else window.addEventListener('load', start, { once: true });
+  }
+
+  function start(d) {
+    var c = d.celebration, th = d.theme, member = isMember(), signedIn = !!(c && c.viewer && c.viewer.signed_in);
+
+    var m = c && c.primary ? model(c, signedIn, member) : null;
+    var tag = m ? c.date + ':' + (m.p.key || '') + (m.p.mine ? ':mine' : '') : '';
+    payload = { tag: tag };
+    var willOpen = m && !NO_POPUP && !optedOut() && store.get('av.celebrate.seen') !== tag;
+    if (member && th && th.key) {
+      var navTag = th.date + ':' + th.key, firstToday = store.get('avcel.nav') !== navTag;
+      if (firstToday && !willOpen) store.set('avcel.nav', navTag);
+      applyTheme(th, firstToday && !willOpen);
+    }
+    if (m && m.docks && !willOpen) dock(m, false);
+    window.AvCel.open = function () { if (m) open(m, true); };
+    if (!willOpen) return;
+    whenFree(function () {
+      if (store.get('av.celebrate.seen') === tag) return;
+      store.set('av.celebrate.seen', tag);
+      open(m, false);
     });
   }
 
-  function doodleLogo(p) {
-    var mark = document.querySelector('.nav-logo .brand-wordmark') || document.querySelector('.nav-logo-mark');
-    if (!mark) return;
-    injectStyles(p.theme || GOLD);
-    if (p.doodle) {
-      mark.innerHTML = '<img class="nav-logo-doodle-img" src="' + String(p.doodle).replace(/"/g, '') + '" alt="Afrovanguard" />';
-      return;
+  window.AvCel = {
+    data: null,
+    open: function () {},
+    /* 2a: the seal with a ring of the occasion’s colours and a small-caps caption. */
+    ringLogo: function (k, caption) {
+      return '<span class="avcel-ring avcel-k--' + esc(k) + '" role="img" aria-label="Afrovanguard, ' + esc(caption || '') + '"><span class="avcel-ring-seal"><img src="' + SEAL + '" alt=""></span><span class="avcel-ring-word" aria-hidden="true"><span>Afrovanguard</span><span class="avcel-ring-cap">' + esc(caption || '') + '</span></span></span>';
     }
-    mark.classList.add('av-doodled');
-    mark.setAttribute('data-emoji', p.emoji || '🎉');
-    mark.style.setProperty('--avc-accent', p.theme || GOLD);
-  }
+  };
 
-  function confetti(theme) {
-    if (REDUCED) return;
-    var cv = document.createElement('canvas');
-    cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2147483001';
-    document.body.appendChild(cv);
-    var ctx = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight;
-    // On-brand palette: gold, deep gold, white, movement green, navy.
-    var cols = [theme || GOLD, '#d49a0e', '#ffffff', '#16a34a', '#0d1220'];
-    var parts = [], N = Math.min(150, Math.round(W / 9));
-    for (var i = 0; i < N; i++) parts.push({
-      x: Math.random() * W, y: -20 - Math.random() * H * 0.5,
-      r: 4 + Math.random() * 6, c: cols[i % cols.length],
-      vy: 2 + Math.random() * 3.2, vx: -1.4 + Math.random() * 2.8,
-      rot: Math.random() * 6.28, vr: -0.2 + Math.random() * 0.4
-    });
-    var t0 = performance.now();
-    (function frame(t) {
-      ctx.clearRect(0, 0, W, H);
-      parts.forEach(function (p) {
-        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
-        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c;
-        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6); ctx.restore();
-      });
-      if (t - t0 < 2800) requestAnimationFrame(frame);
-      else { cv.style.transition = 'opacity .5s'; cv.style.opacity = '0'; setTimeout(function () { cv.remove(); }, 520); }
-    })(t0);
-  }
-
-  /* ── Fetch + dispatch ───────────────────────────────────────── */
-  fetch('/api.php?action=celebrations', { credentials: 'same-origin' })
-    .then(function (r) { return r.json(); })
+  if (!window.fetch) return;
+  fetch('/api.php?action=celebrations', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
-      var c = d && d.celebration; if (!c || !c.primary) return;
-      var p = c.primary;
-      doodleLogo(p);
-      var tag = c.date + ':' + (p.key || '');
-
-      if (p.type === 'birthday') {
-        var bseen = '';
-        try { bseen = localStorage.getItem('av.celebrate.bday') || ''; } catch (e) {}
-        if (bseen === tag) return;
-        try { localStorage.setItem('av.celebrate.bday', tag); } catch (e) {}
-        showBirthday(c);
-        return;
-      }
-
-      var dismissed = '';
-      try { dismissed = localStorage.getItem('av.celebrate.dismissed') || ''; } catch (e) {}
-      if (dismissed === tag) return;
-      showBanner(c);
-      var seen = '';
-      try { seen = localStorage.getItem('av.celebrate.seen') || ''; } catch (e) {}
-      if (seen !== tag) {
-        confetti(p.theme);
-        try { localStorage.setItem('av.celebrate.seen', tag); } catch (e) {}
-      }
+      if (!d || (!d.celebration && !(d.theme && isMember()))) return;
+      window.AvCel.data = d;
+      var css = ensureCss();
+      var go = function () { loadArt(function () { start(d); }); };
+      if (css && !css.sheet) { css.addEventListener('load', go, { once: true }); css.addEventListener('error', go, { once: true }); } else go();
     })
-    .catch(function () {});
+    .catch(function () { /* a celebration is never worth an error */ });
 })();

@@ -19,24 +19,28 @@ declare(strict_types=1);
  *   key, name, md (MM-DD), scope (african|international|internal),
  *   emoji, theme (accent hex), message.
  */
-function av_celebration_calendar(): array
+function av_celebration_calendar(?int $year = null): array
 {
+    $year = $year ?: (int) date('Y');
+    // Copy is the design’s (Afrovanguard Celebrations · 5a). Admin overrides win.
+    $ng = ucfirst(av_celebration_words(max(0, $year - 1960)));
+    $av = av_celebration_words(max(0, $year - AV_FOUNDED_YEAR));
     return [
-        ['newyear',      'Happy New Year',                 '01-01', 'international', '🎉', '#f3b416', 'A new year of building a force for good. Happy New Year!'],
-        ['womensday',    "International Women's Day",       '03-08', 'international', '💜', '#7c3aed', 'Celebrating the women shaping a better Africa.'],
-        ['happiness',    'International Day of Happiness',  '03-20', 'international', '😊', '#f59e0b', 'Choosing joy and service today.'],
-        ['earthday',     'Earth Day',                       '04-22', 'international', '🌍', '#16a34a', 'Stewards of the earth — happy Earth Day.'],
-        ['workersday',   "Workers' Day",                    '05-01', 'international', '🛠️', '#0ea5e9', 'Honouring the dignity of work.'],
-        ['africaday',    'Africa Day',                      '05-25', 'african',       '🌍', '#16a34a', 'One Africa, one destiny. Happy Africa Day!'],
-        ['childrensday', "Children's Day",                  '05-27', 'african',       '🧒', '#f59e0b', 'For every child we serve — Happy Children’s Day.'],
-        ['democracyday', 'Democracy Day (Nigeria)',         '06-12', 'african',       '🇳🇬', '#16a34a', 'Celebrating accountable, people-centred governance.'],
-        ['youthday',     'International Youth Day',          '08-12', 'international', '🚀', '#f3b416', 'To the young leaders rising — this day is yours.'],
-        ['peaceday',     'International Day of Peace',       '09-21', 'international', '🕊️', '#0ea5e9', 'Peacebuilders and bridge-builders, today is ours.'],
-        ['independence', 'Nigeria Independence Day',         '10-01', 'african',       '🇳🇬', '#16a34a', 'Happy Independence Day, Nigeria.'],
-        ['girlchild',    'International Day of the Girl',    '10-11', 'international', '🌸', '#ec4899', 'Investing in every girl’s potential.'],
-        ['humanrights',  'Human Rights Day',                '12-10', 'international', '⚖️', '#0ea5e9', 'Human dignity and justice for all.'],
-        ['christmas',    'Merry Christmas',                 '12-25', 'international', '🎄', '#16a34a', 'Peace and goodwill to all. Merry Christmas!'],
-        ['founding',     'Afrovanguard Anniversary',        '07-01', 'internal',      '🎂', '#f3b416', 'Another year of raising incorruptible leaders. Happy anniversary, Afrovanguard!'],
+        ['newyear',      'Happy New Year',                  '01-01', 'international', '🎉', '#f3b416', 'A new year of building a force for good. Thank you for showing up in the last one.'],
+        ['womensday',    'Happy International Women’s Day', '03-08', 'international', '💜', '#7c3aed', 'Celebrating the women of Afrovanguard: the mentors, leaders and members shaping a better Africa.'],
+        ['happiness',    'Happy Day of Happiness',          '03-20', 'international', '😊', '#f59e0b', 'Small acts of service add up. Thank you for being one of ours.'],
+        ['earthday',     'Happy Earth Day',                 '04-22', 'international', '🌍', '#16a34a', 'Plant something, pick something up, or join a clean-up in Alimosho.'],
+        ['workersday',   'Happy Workers’ Day',              '05-01', 'international', '🛠️', '#0ea5e9', 'To everyone who builds, teaches and serves: we see your work. Rest well today.'],
+        ['africaday',    'Happy Africa Day',                '05-25', 'african',       '🌍', '#16a34a', 'One Africa, one destiny. Today we celebrate the continent we are working for.'],
+        ['childrensday', 'Happy Children’s Day',            '05-27', 'african',       '🧒', '#f59e0b', 'For the children we mentor, and the child in every one of us. Thank you for showing up for them.'],
+        ['democracyday', 'Happy Democracy Day',             '06-12', 'african',       '🇳🇬', '#16a34a', 'Democracy is a daily practice. Thank you for leading with integrity.'],
+        ['youthday',     'Happy International Youth Day',   '08-12', 'international', '🚀', '#f3b416', 'Young people aren’t only the future. You’re already leading. Here’s to you.'],
+        ['peaceday',     'International Day of Peace',      '09-21', 'international', '🕊️', '#0ea5e9', 'Peace starts in communities like ours. Thank you for building it.'],
+        ['independence', 'Happy Independence Day',          '10-01', 'african',       '🇳🇬', '#16a34a', $ng . ' years of Nigeria, and ' . $av . ' of Afrovanguard marching with the young people of Alimosho.'],
+        ['girlchild',    'International Day of the Girl',   '10-11', 'international', '🌸', '#ec4899', 'Every girl deserves a mentor and a fair chance. Thank you for being one.'],
+        ['humanrights',  'Human Rights Day',                '12-10', 'international', '⚖️', '#0ea5e9', 'Dignity, equality and justice, for everyone, every day.'],
+        ['christmas',    'Merry Christmas',                 '12-25', 'international', '🎄', '#16a34a', 'Peace and goodwill to you and your family this Christmas.'],
+        ['founding',     ucfirst($av) . ' years of Afrovanguard', '07-01', 'internal', '🎂', '#f3b416', ucfirst($av) . ' years of raising incorruptible leaders. Thank you for being part of the story.'],
     ];
 }
 
@@ -190,15 +194,15 @@ function av_movable_holidays(int $year): array
     $out = [];
     $easter = av_easter_date($year);
     $e = new DateTime($easter);
-    $out[] = [(clone $e)->modify('-2 days')->format('Y-m-d'), 'goodfriday', 'Good Friday', 'international', '✝️', '#6b7280', 'A reflective Good Friday.'];
-    $out[] = [$easter, 'easter', 'Happy Easter', 'international', '🐣', '#16a34a', 'He is risen — Happy Easter!'];
-    $out[] = [(clone $e)->modify('+1 day')->format('Y-m-d'), 'eastermonday', 'Easter Monday', 'international', '🌿', '#16a34a', 'Happy Easter Monday.'];
+    $out[] = [(clone $e)->modify('-2 days')->format('Y-m-d'), 'goodfriday', 'A peaceful Good Friday', 'international', '✝️', '#6b7280', 'Wishing our Christian members a quiet and reflective Good Friday.'];
+    $out[] = [$easter, 'easter', 'Happy Easter', 'international', '🐣', '#16a34a', 'He is risen. Wishing you and your family a joyful Easter.'];
+    $out[] = [(clone $e)->modify('+1 day')->format('Y-m-d'), 'eastermonday', 'Happy Easter Monday', 'international', '🌿', '#16a34a', 'Rest, family and a little more Easter. Enjoy the holiday.'];
     $hy = (int) round(($year - 622) * 33 / 32);
     foreach ([$hy - 1, $hy, $hy + 1] as $h) {
         $fitr = av_jd_to_greg(av_islamic_to_jd($h, 10, 1));   // 1 Shawwal
         $adha = av_jd_to_greg(av_islamic_to_jd($h, 12, 10));  // 10 Dhu al-Hijjah
-        if (substr($fitr, 0, 4) === (string) $year) $out[] = [$fitr, 'eidfitr', 'Eid Mubarak', 'international', '🌙', '#16a34a', 'Eid al-Fitr Mubarak to our Muslim community.'];
-        if (substr($adha, 0, 4) === (string) $year) $out[] = [$adha, 'eidadha', 'Eid al-Adha Mubarak', 'international', '🐑', '#16a34a', 'Eid al-Adha Mubarak — a blessed celebration of sacrifice.'];
+        if (substr($fitr, 0, 4) === (string) $year) $out[] = [$fitr, 'eidfitr', 'Eid Mubarak', 'international', '🌙', '#16a34a', 'Eid al-Fitr Mubarak to our Muslim members, mentors and families. May it be a blessed celebration.'];
+        if (substr($adha, 0, 4) === (string) $year) $out[] = [$adha, 'eidadha', 'Barka da Sallah', 'international', '🐑', '#16a34a', 'Eid al-Adha Mubarak to our Muslim members and families. May your sacrifice be accepted.'];
     }
     return $out;
 }
@@ -222,7 +226,7 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
     }
 
     $items = [];
-    foreach (av_celebration_calendar() as [$key, $name, $cmd, $scope, $emoji, $theme, $message]) {
+    foreach (av_celebration_calendar((int) substr($date, 0, 4)) as [$key, $name, $cmd, $scope, $emoji, $theme, $message]) {
         if ($cmd !== $md) continue;
         $ov = $override[$key] ?? null;
         if ($ov && (int) $ov['enabled'] === 0) continue; // admin disabled this built-in
@@ -266,10 +270,12 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
             $names = array_map(fn($m) => $m['name'], $bdays);
             $items[] = [
                 'type' => 'birthday', 'key' => 'birthday', 'scope' => 'internal',
-                'title' => count($names) === 1 ? ('Happy Birthday, ' . $names[0] . '!') : 'Happy Birthday to our team!',
+                'title' => count($names) === 1
+                    ? ('It’s ' . av_celebration_first($names[0]) . '’s birthday')
+                    : (ucfirst(av_celebration_words(count($names))) . ' birthdays today'),
                 'message' => count($names) === 1
-                    ? ('Wishing ' . $names[0] . ' a wonderful birthday from the whole movement.')
-                    : ('Celebrating ' . implode(', ', $names) . ' today!'),
+                    ? ($names[0] . ' is celebrating today. A short note from you will make their day.')
+                    : (av_celebration_list(array_map('av_celebration_first', $names)) . ' are celebrating. Send one wish to all ' . av_celebration_words(count($names)) . '.'),
                 'emoji' => '🎂', 'theme' => '#f3b416', 'doodle' => '',
                 'people' => array_map(fn($m) => ['name' => $m['name'], 'role' => $m['role'], 'photo' => $m['photo'], 'id' => $m['id']], $bdays),
             ];
@@ -277,17 +283,122 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
     }
 
     if (!$items) return null;
-    // Rank so birthdays and major/religious days outrank generic observances.
-    $weight = function (array $it): int {
-        if ($it['type'] === 'birthday') return 100;
-        $major = ['eidfitr', 'eidadha', 'easter', 'christmas', 'newyear', 'founding'];
-        $notable = ['goodfriday', 'eastermonday', 'africaday', 'independence', 'democracyday', 'childrensday', 'youthday'];
-        if (in_array($it['key'], $major, true)) return 80;
-        if (in_array($it['key'], $notable, true)) return 60;
-        if (($it['scope'] ?? '') === 'african') return 50;
-        if (($it['scope'] ?? '') === 'internal') return 45;
-        return 30;
-    };
+    $weight = 'av_celebration_weight';
     usort($items, fn($a, $b) => $weight($b) <=> $weight($a));
     return ['date' => $date, 'items' => $items, 'primary' => $items[0]];
+}
+
+/** The year Afrovanguard began (the anniversary counts from it). */
+if (!defined('AV_FOUNDED_YEAR')) define('AV_FOUNDED_YEAR', 2017);
+
+/**
+ * Which card wins when several fall on one day. Design (5a): “your birthday,
+ * then a major holiday, then teammates’ birthdays, then other observances.”
+ */
+function av_celebration_weight(array $it): int
+{
+    if ($it['type'] === 'birthday') return !empty($it['mine']) ? 200 : 55;
+    $major = ['eidfitr', 'eidadha', 'easter', 'christmas', 'newyear', 'founding'];
+    $notable = ['goodfriday', 'eastermonday', 'africaday', 'independence', 'democracyday', 'childrensday', 'youthday'];
+    if (in_array($it['key'], $major, true)) return 80;
+    if (in_array($it['key'], $notable, true)) return 60;
+    if (($it['scope'] ?? '') === 'african') return 50;
+    if (($it['scope'] ?? '') === 'internal') return 45;
+    return 30;
+}
+
+/** 0–99 in words (“sixty-six”), for copy that counts years and people. */
+function av_celebration_words(int $n): string
+{
+    $u = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+          'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    $t = [2 => 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    if ($n < 0 || $n > 99) return (string) $n;
+    if ($n < 20) return $u[$n];
+    return $t[intdiv($n, 10)] . ($n % 10 ? '-' . $u[$n % 10] : '');
+}
+
+/** 1st, 2nd, 3rd, 11th, 22nd … */
+function av_celebration_ordinal(int $n): string
+{
+    $s = 'th';
+    if (!in_array($n % 100, [11, 12, 13], true)) $s = [1 => 'st', 2 => 'nd', 3 => 'rd'][$n % 10] ?? 'th';
+    return $n . $s;
+}
+
+function av_celebration_first(string $name): string
+{
+    $p = preg_split('/\s+/', trim($name)) ?: [];
+    return $p[0] ?? '';
+}
+
+/** “A”, “A and B”, “A, B and C”. */
+function av_celebration_list(array $names): string
+{
+    $names = array_values(array_filter($names, fn($n) => $n !== ''));
+    if (count($names) < 2) return $names[0] ?? '';
+    $last = array_pop($names);
+    return implode(', ', $names) . ' and ' . $last;
+}
+
+/**
+ * Add what only the signed-in member should see: their own birthday (5a
+ * “your birthday”), ranked first. $viewer is ['name', 'birthday' => 'MM-DD',
+ * 'year' => int] or null for a visitor. Pure, so it is easy to test.
+ * A member who is also on the Team page is not wished twice.
+ */
+function av_celebration_for_viewer(?array $cel, ?array $viewer, string $date, int $points = 0): ?array
+{
+    if (!$viewer) return $cel;
+    $name = trim((string) ($viewer['name'] ?? ''));
+    $md = (string) ($viewer['birthday'] ?? '');
+    $mine = $md !== '' && (class_exists('Birthdays') ? Birthdays::matches($md, $date) : substr($date, 5) === $md);
+    if (!$mine) {
+        if ($cel) $cel['viewer'] = ['signed_in' => true];
+        return $cel;
+    }
+    $year = (int) ($viewer['year'] ?? 0);
+    $age = $year > 1900 ? ((int) substr($date, 0, 4) - $year) : 0;
+    $first = av_celebration_first($name) ?: 'friend';
+    $parts = preg_split('/\s+/', $name) ?: [];
+    $ini = strtoupper(mb_substr($parts[0] ?? '', 0, 1) . (count($parts) > 1 ? mb_substr((string) end($parts), 0, 1) : ''));
+    $item = [
+        'type' => 'birthday', 'key' => 'birthday', 'scope' => 'internal', 'mine' => true,
+        'title' => 'Happy ' . ($age > 0 ? av_celebration_ordinal($age) . ' ' : '') . 'birthday, ' . $first,
+        'message' => 'From everyone at Afrovanguard, thank you for the way you serve. Have a wonderful day.',
+        'emoji' => '🎂', 'theme' => '#f3b416', 'doodle' => '',
+        'person' => ['name' => $name, 'first' => $first, 'initials' => $ini, 'age' => $age > 0 ? $age : null],
+        'points' => max(0, $points),
+    ];
+    $items = [];
+    foreach (($cel['items'] ?? []) as $it) {
+        if ($it['type'] === 'birthday' && !empty($it['people'])) {
+            $it['people'] = array_values(array_filter($it['people'], fn($p) => strcasecmp(trim((string) $p['name']), $name) !== 0));
+            if (!$it['people']) continue;
+        }
+        $items[] = $it;
+    }
+    array_unshift($items, $item);
+    usort($items, fn($a, $b) => av_celebration_weight($b) <=> av_celebration_weight($a));
+    return ['date' => $date, 'items' => $items, 'primary' => $items[0], 'viewer' => ['signed_in' => true]];
+}
+
+/**
+ * The quiet member-page theme (2b): the holiday nearest $date, from the day
+ * before through the day after. Birthdays never theme a page.
+ * @return array{key:string,title:string,message:string,theme:string,doodle:string,date:string,today:bool}|null
+ */
+function av_celebration_theme(PDO $pdo, string $date): ?array
+{
+    $t = strtotime($date . ' 12:00:00');
+    foreach ([0, -1, 1] as $off) {
+        $d = date('Y-m-d', $t + $off * 86400);
+        $c = av_celebration_today($pdo, $d);
+        foreach (($c['items'] ?? []) as $it) {
+            if ($it['type'] !== 'holiday') continue;
+            return ['key' => $it['key'], 'title' => $it['title'], 'message' => $it['message'], 'theme' => $it['theme'],
+                    'doodle' => $it['doodle'], 'date' => $d, 'today' => $off === 0];
+        }
+    }
+    return null;
 }
