@@ -23,7 +23,7 @@
   --iq-shadow-lg:0 24px 60px -28px rgba(16,24,40,.45);
   --iq-r:16px;
   color:var(--iq-text);
-  font-family:var(--afg-font-body,'Montserrat',system-ui,sans-serif);
+  font-family:var(--afg-font-body,'Source Sans 3',system-ui,sans-serif);
   background:var(--iq-bg);
 }
 :root[data-theme="dark"] .iq,body.is-dark .iq{
@@ -47,7 +47,7 @@
 .iq-kicker{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
   color:var(--iq-gold-deep);margin:0 0 10px}
 :root[data-theme="dark"] .iq-kicker{color:var(--iq-gold)}
-.iq-hero h1{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-weight:700;
+.iq-hero h1{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-weight:700;
   font-size:clamp(30px,5vw,50px);line-height:1.02;letter-spacing:-.015em;margin:0 0 12px;color:var(--iq-text)}
 .iq-lead{font-size:clamp(15px,1.4vw,17px);line-height:1.6;max-width:600px;margin:0 0 22px;color:var(--iq-muted)}
 
@@ -145,7 +145,7 @@
 .iq-score-ring b{position:relative;font-size:27px;font-weight:800;color:var(--iq-text)}
 .iq-result-hero.iq-fail .iq-score-ring{background:conic-gradient(#c9ccd2 calc(var(--p)*1%),var(--iq-surface-2) 0)}
 @keyframes iq-pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
-.iq-result-hero h2{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);margin:6px 0 4px;color:var(--iq-text);font-size:29px}
+.iq-result-hero h2{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);margin:6px 0 4px;color:var(--iq-text);font-size:29px}
 .iq-result-hero.iq-pass h2{color:var(--iq-ok)}
 .iq-note{font-size:13px;color:var(--iq-muted)}
 .iq-badges{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin:8px 0 20px}
@@ -160,7 +160,7 @@
 
 /* ── Leaderboard (with podium) ───────────────────────────────────────── */
 .iq-lb-head{text-align:center;margin-bottom:22px}
-.iq-lb-head h2{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-size:30px;margin:0 0 4px;color:var(--iq-text)}
+.iq-lb-head h2{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-size:30px;margin:0 0 4px;color:var(--iq-text)}
 .iq-lb-head p{font-size:14px;color:var(--iq-muted);margin:0}
 .iq-lb{list-style:none;margin:0 auto;padding:0;max-width:680px;display:flex;flex-direction:column;gap:8px}
 .iq-lb-row{display:grid;grid-template-columns:44px 1fr auto auto;align-items:center;gap:14px;
@@ -189,7 +189,7 @@
 .iq-mem-c.is-up{background:var(--iq-surface-2)}
 .iq-mem-c.is-done{background:var(--iq-ok-bg);border-color:var(--iq-ok);cursor:default}
 .iq-scr{text-align:center;padding:10px 0}
-.iq-scr-word{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-size:44px;letter-spacing:.32em;font-weight:700;color:var(--iq-text);margin:6px 0 4px}
+.iq-scr-word{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-size:44px;letter-spacing:.32em;font-weight:700;color:var(--iq-text);margin:6px 0 4px}
 .iq-scr-in{font:inherit;font-size:19px;text-align:center;text-transform:uppercase;letter-spacing:.15em;padding:13px;width:min(340px,92%);
   border:1.5px solid var(--iq-line);border-radius:13px;margin:10px 0;background:var(--iq-surface);color:var(--iq-text)}
 .iq-scr-in:focus{outline:0;border-color:var(--iq-gold);box-shadow:0 0 0 3px rgba(243,180,22,.2)}
@@ -203,7 +203,7 @@
 .iq-guide-ico{font-size:42px;width:78px;height:78px;border-radius:20px;display:grid;place-items:center;margin:2px auto 14px;
   background:linear-gradient(135deg,var(--iq-surface-2),color-mix(in srgb,var(--iq-gold) 16%,var(--iq-surface-2)))}
 .iq-guide .iq-card-badge{display:inline-block}
-.iq-guide-title{font-family:var(--afg-font-display,'Cormorant',serif);font-size:27px;font-weight:700;margin:10px 0 4px;color:var(--iq-text)}
+.iq-guide-title{font-family:var(--afg-font-display,'Cormorant Garamond',serif);font-size:27px;font-weight:700;margin:10px 0 4px;color:var(--iq-text)}
 .iq-guide-blurb{color:var(--iq-muted);margin:0 0 20px}
 .iq-guide-h{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--iq-gold-deep);margin:0 0 12px}
 :root[data-theme="dark"] .iq-guide-h{color:var(--iq-gold)}
@@ -215,7 +215,7 @@
 .iq-guide-start{min-width:220px}
 .iq-gover{text-align:center;max-width:480px}
 .iq-gover-ic{font-size:52px;line-height:1;margin-bottom:6px;animation:iq-pop .4s ease}
-.iq-gover-title{font-family:var(--afg-font-display,'Cormorant',serif);font-size:29px;margin:0 0 8px;color:var(--iq-text)}
+.iq-gover-title{font-family:var(--afg-font-display,'Cormorant Garamond',serif);font-size:29px;margin:0 0 8px;color:var(--iq-text)}
 .iq-gover-score{font-size:19px;margin-bottom:8px;color:var(--iq-text)}
 .iq-game-title2{font-weight:800;color:var(--iq-text)}
 .iq-game-meta{font-variant-numeric:tabular-nums;color:var(--iq-muted);font-weight:700;background:var(--iq-surface-2);border-radius:999px;padding:5px 12px}
@@ -241,7 +241,7 @@
 
 /* ── Mental math (Number Vanguard) ───────────────────────────────────── */
 .iq-math{text-align:center;padding:10px 0}
-.iq-math-q{font-family:var(--afg-font-display,'Cormorant',serif);font-size:50px;font-weight:700;margin:6px 0 6px;color:var(--iq-text);font-variant-numeric:tabular-nums}
+.iq-math-q{font-family:var(--afg-font-display,'Cormorant Garamond',serif);font-size:50px;font-weight:700;margin:6px 0 6px;color:var(--iq-text);font-variant-numeric:tabular-nums}
 .iq-math-streak{min-height:24px;font-weight:800;margin:12px 0 0}
 .iq-math-streak.is-ok{color:var(--iq-ok)}.iq-math-streak.is-no{color:var(--iq-no)}
 
@@ -252,7 +252,7 @@
 .iq-profile{text-align:left}
 .iq-ptag{display:inline-block;font-size:12px;font-weight:800;padding:5px 14px;border-radius:20px;margin-bottom:12px;letter-spacing:.03em}
 .iq-ptag--a{background:var(--iq-no-bg);color:#a3401f}.iq-ptag--b{background:#f3efe0;color:#85702c}.iq-ptag--c{background:var(--iq-ok-bg);color:#2b6b4a}
-.iq-ptitle{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-size:29px;font-weight:700;margin:0 0 2px;color:var(--iq-text)}
+.iq-ptitle{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-size:29px;font-weight:700;margin:0 0 2px;color:var(--iq-text)}
 .iq-psub{font-size:13px;color:var(--iq-muted);margin:0 0 18px}
 .iq-tally-row{display:flex;gap:12px;margin:0 0 20px}
 .iq-tally{flex:1;text-align:center;background:var(--iq-surface-2);border:1px solid var(--iq-line);border-radius:12px;padding:12px 4px}

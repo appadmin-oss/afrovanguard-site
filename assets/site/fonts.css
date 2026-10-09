@@ -12,8 +12,11 @@
  * weight serves both the screen card and the print sheet, and the two cannot
  * drift onto different typefaces.
  *
- * Cormorant Garamond is NOT Cormorant — the site's existing <link> loads the
- * latter. They are different faces by the same designer. See the PR.
+ * Cormorant Garamond is NOT Cormorant — the site used to load the latter from
+ * Google Fonts. They are different faces by the same designer, and G-06 names
+ * this one. Every weight the site actually asks for has a file here: a weight
+ * with no file is synthesised by the browser, and a faux-bold Cormorant at
+ * 76px is visibly smeared.
  * ========================================================================= */
 
 @font-face {
@@ -41,11 +44,27 @@
 }
 
 @font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/site/fonts/CormorantGaramond-700.ttf') format('truetype');
+}
+
+@font-face {
   font-family: 'Source Sans 3';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
   src: url('/assets/site/fonts/SourceSans3-400.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-500.ttf') format('truetype');
 }
 
 @font-face {

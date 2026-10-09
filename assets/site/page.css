@@ -45,7 +45,7 @@
 
 .page-title {
   margin: 0;
-  font-family: var(--afg-font-display, 'Cormorant', Georgia, serif);
+  font-family: var(--afg-font-display, 'Cormorant Garamond', Georgia, serif);
   font-weight: 700;
   font-size: var(--afg-title-size);
   line-height: var(--afg-title-lh);

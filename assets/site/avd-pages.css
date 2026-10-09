@@ -140,3 +140,11 @@
    was invisible on it. Stated here rather than left to inheritance. */
 .avd-mission h2{color:var(--av-white)}
 .avd-c-head h2,.avd-keep-head h2{color:var(--av-ink)}
+
+/* ── [hidden] must actually hide ────────────────────────────────────────────
+   The drop-in spells out `display:none` for .avd-bar, .avd-menu,
+   .avd-compose-more and .avd-hl when they carry [hidden] — but not for
+   .avd-link, which is the "Resume from m:ss" button. On this site it rendered
+   anyway, as "Resume from" with no time after it, on every entry nobody had
+   ever played. Same treatment as its four siblings. */
+.avd-link[hidden],.avd-chlist[hidden]{display:none}

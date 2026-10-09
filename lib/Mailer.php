@@ -512,7 +512,7 @@ final class Mailer
         }
         $pre = $preheader !== '' ? '<div style="display:none;max-height:0;overflow:hidden;opacity:0">' . htmlspecialchars($preheader) . '</div>' : '';
         return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
-            . '<body style="margin:0;padding:0;background:#f4f2ec;font-family:Montserrat,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#2b2b2e">'
+            . '<body style="margin:0;padding:0;background:#f4f2ec;font-family:\'Source Sans 3\',-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#2b2b2e">'
             . $pre
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ec;padding:28px 12px"><tr><td align="center">'
             . '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.06)">'

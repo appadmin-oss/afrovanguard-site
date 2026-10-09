@@ -354,7 +354,7 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Vanguards · NGV staff</title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
 <style>
 /* ── Book claims awaiting review ─────────────────────────────────────────
    Flagged claims carry a red edge, because the queue puts them first and the
@@ -398,7 +398,7 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
   --topbar:54px;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
 a{color:var(--red)}
 h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px}

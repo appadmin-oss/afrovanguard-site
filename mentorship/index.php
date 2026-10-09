@@ -309,7 +309,7 @@ function mn_consistency_html(array $c): string {
   .mn-standard .mn-std-list li { font-size: 13px; line-height: 1.5; color: var(--body); }
   .mn-standard .mn-std-list b { color: var(--ink); }
   .mn-stats { display: flex; gap: 26px; flex-wrap: wrap; margin: 18px 0 0; padding: 0; }
-  .mn-stat dt { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); }
+  .mn-stat dt { font-family: var(--font-heading, 'Cormorant Garamond', Georgia, serif); font-weight: 700; font-size: 30px; line-height: 1; color: var(--ink); }
   .mn-stat dd { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   .mn-consist { margin: 10px 0 2px; }
   .mn-consist-bar { height: 7px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }

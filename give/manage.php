@@ -142,7 +142,7 @@ $summary = $isAdmin ? Appeals::summary() : ['appeals' => 0, 'raised' => 0, 'goal
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Appeals · Afrovanguard Studio</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
 <link href="/assets/site/tokens.css" rel="stylesheet">
 <link href="/give/manage.css" rel="stylesheet">
 </head>

@@ -32,12 +32,12 @@ header('Cache-Control: public, max-age=300');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e((string) $a['title']) ?></title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
 <style>
   :root { --ink:#111827; --muted:#646b77; --gold:#f3b416; --line:#e5e7eb; --bg:#fff; }
   @media (prefers-color-scheme: dark) { :root { --ink:#f3f4f6; --muted:#9aa2b1; --line:#2a3242; --bg:#0d1220; } }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:'Montserrat',system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  body { margin:0; font-family:'Source Sans 3',system-ui,sans-serif; background:var(--bg); color:var(--ink); }
   .w { border:1px solid var(--line); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; }
   .t { font-size:15px; font-weight:800; line-height:1.3; margin:0; }
   .t a { color:inherit; text-decoration:none; }

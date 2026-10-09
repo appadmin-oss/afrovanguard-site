@@ -13,7 +13,7 @@
   padding: 64px 0 0;
   position: relative;
   overflow: hidden;
-  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .site-footer::before {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
@@ -28,7 +28,7 @@
 .site-footer .footer-grid {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 40px; padding-bottom: 56px;
 }
-.site-footer .footer-logo-mark { font-family: 'Cormorant', Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: .3px; line-height: 1; margin-bottom: 14px; }
+.site-footer .footer-logo-mark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: .3px; line-height: 1; margin-bottom: 14px; }
 .site-footer .footer-logo-mark .afro { color: #fff; }
 .site-footer .footer-logo-mark .van { color: #f3b416; }
 .site-footer .footer-tagline { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.7; max-width: 28ch; margin: 0 0 24px; }

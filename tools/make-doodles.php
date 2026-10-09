@@ -12,8 +12,8 @@ $dir = dirname(__DIR__) . '/assets/doodles';
 @mkdir($dir, 0775, true);
 
 // Wordmark: Afro (white) + vanguard (gold), in a serif that echoes the brand's
-// Cormorant display face. SVG used as <img> can't load webfonts, so we fall back
-// to Georgia — a serif close in feel to Cormorant — instead of the old sans.
+// Cormorant Garamond display face. SVG used as <img> can't load webfonts, so we fall back
+// to Georgia — a serif close in feel to Cormorant Garamond — instead of the old sans.
 function wordmark(): string {
     return '<text x="6" y="38" font-family="Georgia,&apos;Times New Roman&apos;,serif" font-weight="600" '
          . 'font-size="33" letter-spacing="0.2"><tspan fill="#ffffff">Afro</tspan>'

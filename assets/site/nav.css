@@ -107,7 +107,7 @@ html[data-theme="dark"] .nav-utility .theme-toggle .moon { display: block; }
   transform: rotate(45deg);
 }
 .am-head { margin-bottom: 14px; }
-.am-title { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-size: 19px; font-weight: 600; color: var(--m-ink); margin: 0 0 4px; line-height: 1.15; }
+.am-title { font-family: var(--font-heading, 'Cormorant Garamond', Georgia, serif); font-size: 19px; font-weight: 600; color: var(--m-ink); margin: 0 0 4px; line-height: 1.15; }
 .am-sub { font-size: 12.5px; line-height: 1.5; color: var(--m-muted); margin: 0; }
 .am-actions { display: flex; flex-direction: column; gap: 9px; }
 .am-btn {
@@ -155,7 +155,7 @@ html[data-theme="dark"] .nav-utility .theme-toggle .moon { display: block; }
 }
 .nav-logo { display: inline-flex; align-items: center; text-decoration: none; flex-shrink: 0; }
 .site-header .brand-wordmark {
-  font-family: 'Cormorant', Georgia, serif; font-size: 26px; font-weight: 600;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600;
   line-height: 1; letter-spacing: .2px; display: inline-flex; align-items: baseline; white-space: nowrap;
 }
 .site-header .brand-wordmark .wm-1 { color: var(--m-ink); }
@@ -279,7 +279,7 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
   background: linear-gradient(150deg, rgba(11,15,26,.86) 0%, rgba(11,15,26,.5) 55%, rgba(232,163,23,.35) 100%);
 }
 .mega-feature .mf-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--m-gold); }
-.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant', Georgia, serif); font-size: 24px; line-height: 1.1; margin: 8px 0 6px; }
+.mega-feature .mf-title { font-family: var(--font-heading, 'Cormorant Garamond', Georgia, serif); font-size: 24px; line-height: 1.1; margin: 8px 0 6px; }
 .mega-feature .mf-text { font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,0.82); }
 .mega-feature .mf-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 13.5px; font-weight: 800; color: #fff; }
 .mega-feature .mf-cta svg { width: 16px; height: 16px; transition: transform .25s ease; }
@@ -289,7 +289,7 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
 .nav-sub { background: var(--m-surface-2); border-bottom: 1px solid var(--m-divider); }
 .nav-sub-inner { display: flex; align-items: center; gap: 24px; min-height: 54px; padding: 5px 0; }
 .nav-sub-brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; flex-shrink: 0; }
-.nav-sub-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 24px; font-weight: 600; color: var(--m-ink); line-height: 1; }
+.nav-sub-brand .brand-wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 600; color: var(--m-ink); line-height: 1; }
 .nav-sub-brand .brand-logo { height: 28px; }
 .nav-sub-links { display: flex; gap: 2px; list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
 .nav-sub-links a {
@@ -325,7 +325,7 @@ html[data-theme="dark"] .site-header .nav-cta:hover { filter: brightness(1.06); 
    intercept taps on Sign in / Join / Donate. */
 html.av-drawer-open .dock { opacity: 0; visibility: hidden; pointer-events: none; }
 .avd-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--m-divider); }
-.avd-head .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 24px; font-weight: 600; }
+.avd-head .brand-wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 600; }
 .avd-head .brand-wordmark .wm-1 { color: var(--m-ink); } .avd-head .brand-wordmark .wm-2 { color: var(--m-gold-deep); }
 .avd-head .brand-logo { height: 28px; }
 .avd-close { width: 42px; height: 42px; border: 1px solid var(--m-divider); border-radius: 50%; background: transparent; color: var(--m-ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
@@ -335,7 +335,7 @@ html.av-drawer-open .dock { opacity: 0; visibility: hidden; pointer-events: none
 .avd-link, .avd-acc-btn {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   padding: 14px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left;
-  font-family: 'Montserrat', sans-serif; font-size: 16.5px; font-weight: 700; color: var(--m-ink);
+  font-family: 'Source Sans 3', sans-serif; font-size: 16.5px; font-weight: 700; color: var(--m-ink);
   text-decoration: none; min-height: 52px; transition: background .18s ease;
 }
 .avd-link:hover, .avd-acc-btn:hover { background: var(--m-surface-2); }

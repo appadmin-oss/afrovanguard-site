@@ -107,7 +107,7 @@ final class Otp
             'Your sign-in code',
             [
                 'Use this code to sign in to Afrovanguard:',
-                '<div style="font:700 34px/1 \'Montserrat\',Arial,sans-serif;letter-spacing:8px;color:#111827;background:#f6f4ee;border-radius:12px;padding:18px 0;text-align:center;margin:6px 0">' . htmlspecialchars($spaced, ENT_QUOTES) . '</div>',
+                '<div style="font:700 34px/1 \'Source Sans 3\',Arial,sans-serif;letter-spacing:8px;color:#111827;background:#f6f4ee;border-radius:12px;padding:18px 0;text-align:center;margin:6px 0">' . htmlspecialchars($spaced, ENT_QUOTES) . '</div>',
                 'It expires in ' . $mins . ' minutes and can be used once. If you didn’t request this, you can safely ignore this email — no changes were made.',
             ],
             null,

@@ -190,14 +190,10 @@
   <!-- ============================================================
        PERFORMANCE: PRECONNECT & RESOURCE HINTS
        ============================================================ -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-  <!-- Preload hero LCP image -->
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
+<!-- Preload hero LCP image -->
   <link rel="preload" as="image" href="Images/Afrovanguard Volunteers Get-Together- Lagos ChapterOn December 8th, 2024, the Lagos Chapter of  (1).webp" fetchpriority="high" />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-  <style>
+<style>
     /* ================================================================
        DESIGN TOKENS
        ================================================================ */
@@ -220,8 +216,8 @@
       --color-white:         #FFFFFF;
       --color-green:         #22c55e;
 
-      --font-heading: 'Cormorant', Georgia, serif;
-      --font-body:    'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-heading: 'Cormorant Garamond', Georgia, serif;
+      --font-body:    'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
 
       --text-hero:    clamp(36px, 4.5vw + 1rem, 70px);
       --text-h2:      clamp(28px, 3vw + 0.5rem, 46px);
@@ -2840,7 +2836,7 @@
     .dock-fab-label {
       position: absolute; right: 62px; top: 50%; transform: translateY(-50%);
       background: #111827; color: #fff;
-      font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700;
+      font-family: 'Source Sans 3', sans-serif; font-size: 12px; font-weight: 700;
       padding: 6px 12px; border-radius: 9999px;
       white-space: nowrap; pointer-events: none; opacity: 0;
       transition: opacity .18s;
@@ -2894,7 +2890,7 @@
      
     .dock-item-label {
       background: #fff; color: #111827;
-      font-family: 'Montserrat', sans-serif;
+      font-family: 'Source Sans 3', sans-serif;
       font-size: 12.5px; font-weight: 700;
       padding: 7px 13px; border-radius: 9999px;
       box-shadow: 0 2px 12px rgba(17,24,39,.14);
@@ -2944,7 +2940,7 @@
       content: 'AI';
       position: absolute; top: -3px; right: -3px;
       background: #22c55e; color: #fff;
-      font-family: 'Montserrat', sans-serif;
+      font-family: 'Source Sans 3', sans-serif;
       font-size: 7px; font-weight: 900;
       padding: 2px 5px; border-radius: 99px;
       letter-spacing: 0.04em;

@@ -49,20 +49,20 @@
 }
 .legal-hero .container { max-width: var(--legal-measure); }
 .legal-hero .legal-kicker {
-  display: inline-block; font: 700 12px/1 'Montserrat', sans-serif;
+  display: inline-block; font: 700 12px/1 'Source Sans 3', sans-serif;
   letter-spacing: .18em; text-transform: uppercase; color: #f3b416; margin: 0 0 14px;
 }
 .legal-hero h1 {
-  font-family: 'Cormorant', Georgia, serif; font-weight: 700; color: #fff;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; color: #fff;
   font-size: clamp(2.3rem, 4.6vw, 3.3rem); line-height: 1.05; margin: 0 0 12px;
   letter-spacing: -.01em;
 }
 .legal-hero .legal-lede {
-  color: rgba(255,255,255,.78); font: 400 1.06rem/1.6 'Montserrat', sans-serif;
+  color: rgba(255,255,255,.78); font: 400 1.06rem/1.6 'Source Sans 3', sans-serif;
   max-width: 60ch; margin: 0 0 14px;
 }
 .legal-hero .legal-updated {
-  color: rgba(255,255,255,.62); font: 600 13px/1.4 'Montserrat', sans-serif;
+  color: rgba(255,255,255,.62); font: 600 13px/1.4 'Source Sans 3', sans-serif;
   margin: 0; display: inline-flex; align-items: center; gap: 8px;
 }
 .legal-hero .legal-updated::before {
@@ -98,7 +98,7 @@
   padding: 20px 22px; margin: 0 0 36px; background: var(--legal-toc-bg);
 }
 .legal-toc h2 {
-  font: 700 11px/1 'Montserrat', sans-serif; letter-spacing: .15em;
+  font: 700 11px/1 'Source Sans 3', sans-serif; letter-spacing: .15em;
   text-transform: uppercase; color: var(--legal-soft); margin: 0 0 14px;
 }
 .legal-toc ol {
@@ -110,7 +110,7 @@
   counter-increment: toc;
   display: block; padding: 6px 8px; border-radius: 8px;
   color: var(--legal-link); text-decoration: none;
-  font: 500 .92rem/1.4 'Montserrat', sans-serif;
+  font: 500 .92rem/1.4 'Source Sans 3', sans-serif;
   transition: background .15s ease, color .15s ease;
 }
 .legal-toc a::before {
@@ -133,18 +133,18 @@
 
 .legal-section { margin: 0 0 40px; scroll-margin-top: 100px; }
 .legal-section h2 {
-  font-family: 'Cormorant', Georgia, serif; font-weight: 700; color: var(--legal-ink);
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; color: var(--legal-ink);
   font-size: clamp(1.55rem, 2.6vw, 2.05rem); line-height: 1.15; margin: 0 0 14px;
   padding-bottom: 10px; border-bottom: 1px solid var(--legal-rule);
   display: flex; align-items: baseline; gap: .55em;
 }
 .legal-section h2 .legal-num {
-  font: 700 .82rem/1 'Montserrat', sans-serif; letter-spacing: .04em;
+  font: 700 .82rem/1 'Source Sans 3', sans-serif; letter-spacing: .04em;
   color: var(--legal-accent); flex: none;
   transform: translateY(-1px);
 }
 .legal-section h3 {
-  font: 700 1.05rem/1.4 'Montserrat', sans-serif; color: var(--legal-ink);
+  font: 700 1.05rem/1.4 'Source Sans 3', sans-serif; color: var(--legal-ink);
   margin: 26px 0 10px;
 }
 .legal-section p,
@@ -189,7 +189,7 @@
 }
 .legal-contact h2 {
   color: #fff; border: 0; margin: 0 0 8px; padding: 0;
-  font-family: 'Cormorant', Georgia, serif; font-weight: 700; font-size: 1.75rem;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 1.75rem;
 }
 .legal-contact p { color: rgba(255,255,255,.82); margin: 0 0 6px; line-height: 1.65; }
 .legal-contact a { color: #f3b416; font-weight: 600; text-decoration: none; }

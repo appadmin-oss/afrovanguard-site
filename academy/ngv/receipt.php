@@ -63,7 +63,7 @@ $payTo = class_exists('Ngv') ? (string) (Ngv::get()['schedule']['payment'] ?? ''
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $r ? 'Receipt ' . $e($r['no']) : 'Verify receipt' ?> · NextGen Vanguard</title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
 <style>
 /* Same brand tokens as certificate.php — a receipt and a certificate from the
    same programme should not look like they came from two different systems. */
@@ -72,7 +72,7 @@ $payTo = class_exists('Ngv') ? (string) (Ngv::get()['schedule']['payment'] ?? ''
       --void:#c0322b;--void-soft:#fdecec;--void-bd:#f0b4b0;
       --grad:linear-gradient(100deg,#e4162b,#ff6a1a 55%,#ffb703)}
 *{box-sizing:border-box}
-body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:24px}
+body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:24px}
 .bar{max-width:720px;margin:0 auto 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .bar .sp{flex:1}
 .btn{border:0;border-radius:10px;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;background:var(--grad);color:#fff;display:inline-block}

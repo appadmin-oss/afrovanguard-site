@@ -63,7 +63,7 @@ $first = $holder ? (explode(' ', trim((string) $holder['name']))[0] ?: 'Member')
 <style>
 :root{--ink:#15120e;--muted:#4a4f5a;--line:#e3e5ea;--bg:#f5f6f8}
 *{box-sizing:border-box}
-body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:24px 16px}
+body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:24px 16px}
 main{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 .box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px}
 .box h2{margin:0 0 6px;font-size:16px}

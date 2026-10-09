@@ -7,7 +7,7 @@
    tokens (--gold, --ink, --surface, --muted, --divider…) that render_head()
    always loads, so it themes light/dark for free.
 
-   Brand: ink/navy text, gold accents, Cormorant headings + Montserrat body.
+   Brand: ink/navy text, gold accents, Cormorant Garamond headings + Source Sans 3 body.
    Primary action = a dark pill (ink #15140f, white text) per brand.
    ============================================================ */
 
@@ -64,13 +64,13 @@ body.auth-page .read-progress { display: none; }
 }
 .auth-aside__content { position: relative; z-index: 2; display: flex; flex-direction: column; height: 100%; color: #fff; }
 .auth-brand { text-decoration: none; }
-.auth-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: .4px; }
+.auth-brand .brand-wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: .4px; }
 .auth-brand .brand-wordmark .wm-1 { color: #fff; }
 .auth-brand .brand-wordmark .wm-2 { color: var(--auth-gold); }
 
 .auth-aside__copy { margin-top: auto; }
 .auth-aside__copy h2 {
-  font-family: 'Cormorant', Georgia, serif; font-weight: 600;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
   font-size: clamp(30px, 3.4vw, 47px); line-height: 1.04; color: #fff;
   margin: 0 0 16px; max-width: 17ch; text-wrap: balance;
 }
@@ -123,7 +123,7 @@ body.auth-page .read-progress { display: none; }
 
 /* ---- Heading ---- */
 .auth-head { margin-bottom: 24px; }
-.auth-h { font-family: 'Cormorant', Georgia, serif; font-size: clamp(33px, 4.6vw, 44px); line-height: 1.04; color: var(--ink); margin: 0 0 7px; }
+.auth-h { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(33px, 4.6vw, 44px); line-height: 1.04; color: var(--ink); margin: 0 0 7px; }
 .auth-sub { font-size: 14.5px; line-height: 1.55; color: var(--muted); margin: 0; max-width: 40ch; }
 
 .auth-banner {

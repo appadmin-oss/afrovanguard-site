@@ -32,21 +32,21 @@ header('X-Robots-Tag: noindex, follow');      // the appeal is the indexable pag
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Poster — <?= e((string) $a['title']) ?></title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@600;700&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
 <style>
   @page { size: A4 portrait; margin: 14mm; }
   :root { --ink:#0b0e14; --gold:#f3b416; --muted:#5b6170; --line:#d8dbe0; }
   * { box-sizing: border-box; }
-  body { margin:0; background:#f3f4f6; font-family:'Montserrat',system-ui,sans-serif; color:var(--ink); }
+  body { margin:0; background:#f3f4f6; font-family:'Source Sans 3',system-ui,sans-serif; color:var(--ink); }
   .sheet {
     width: 210mm; min-height: 297mm; margin: 16px auto; background:#fff; padding: 18mm 16mm;
     display:flex; flex-direction:column; gap: 9mm;
   }
   .rule { height:8px; background:var(--gold); }
   .eyebrow { font-size:11pt; letter-spacing:.18em; text-transform:uppercase; font-weight:800; color:#8f6606; margin:0; }
-  h1 { font-family:'Cormorant',Georgia,serif; font-size:40pt; line-height:1.02; margin:0; font-weight:700; letter-spacing:-.01em; }
+  h1 { font-family:'Cormorant Garamond',Georgia,serif; font-size:40pt; line-height:1.02; margin:0; font-weight:700; letter-spacing:-.01em; }
   .tag { font-size:13pt; line-height:1.5; color:var(--muted); margin:0; max-width:62ch; }
-  .fig { font-family:'Cormorant',Georgia,serif; font-size:30pt; font-weight:700; margin:0; font-variant-numeric:tabular-nums; }
+  .fig { font-family:'Cormorant Garamond',Georgia,serif; font-size:30pt; font-weight:700; margin:0; font-variant-numeric:tabular-nums; }
   .sub { font-size:11pt; color:var(--muted); margin:2mm 0 0; }
   .bar { height:12px; border:1px solid var(--line); border-radius:99px; overflow:hidden; background:#f4f2ec; }
   .bar > span { display:block; height:100%; background:var(--gold); border-radius:99px; }
@@ -54,14 +54,14 @@ header('X-Robots-Tag: noindex, follow');      // the appeal is the indexable pag
   .need { border-left:4px solid var(--gold); padding-left:5mm; }
   .need .w { font-size:10pt; letter-spacing:.14em; text-transform:uppercase; font-weight:800; color:#8f6606; }
   .need .t { font-size:14pt; font-weight:700; margin:1mm 0; }
-  .need .a { font-family:'Cormorant',Georgia,serif; font-size:20pt; font-weight:700; }
+  .need .a { font-family:'Cormorant Garamond',Georgia,serif; font-size:20pt; font-weight:700; }
   .foot { margin-top:auto; display:flex; gap:8mm; align-items:center; border-top:1px solid var(--line); padding-top:6mm; }
   .foot svg { width:42mm; height:42mm; flex:none; }
   .foot path { fill:#000; }
   .u { font-size:15pt; font-weight:800; word-break:break-all; margin:0 0 2mm; }
   .m { font-size:10.5pt; color:var(--muted); margin:0; line-height:1.5; }
   .print { position:fixed; top:14px; right:14px; padding:10px 18px; border-radius:99px; border:0;
-           background:var(--ink); color:#fff; font:700 14px Montserrat,sans-serif; cursor:pointer; }
+           background:var(--ink); color:#fff; font:700 14px 'Source Sans 3',sans-serif; cursor:pointer; }
   @media print { .print { display:none; } body { background:#fff; } .sheet { margin:0; width:auto; min-height:0; padding:0; } }
 </style>
 </head>

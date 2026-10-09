@@ -8,7 +8,7 @@ body.studio { background: var(--bg); color: var(--body); min-height: 100vh; }
 .studio-burger { display: none; flex-direction: column; justify-content: center; gap: 4px; width: 40px; height: 38px; padding: 0 9px; border: 1px solid rgba(255,255,255,0.22); border-radius: 9px; background: transparent; color: #fff; cursor: pointer; }
 .studio-burger span { display: block; height: 2px; background: currentColor; border-radius: 2px; }
 .studio-brand { display: inline-flex; align-items: baseline; gap: 9px; flex-shrink: 0; }
-.studio-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 25px; font-weight: 600; line-height: 1; letter-spacing: .2px; }
+.studio-brand .brand-wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 25px; font-weight: 600; line-height: 1; letter-spacing: .2px; }
 .studio-brand .wm-1 { color: #fff; } .studio-brand .wm-2 { color: var(--gold); }
 .studio-tag { font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.18); padding: 3px 8px; border-radius: 999px; }
 .studio-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
@@ -48,7 +48,7 @@ body.studio-authed .studio-side { display: block; }
 .studio-login { min-height: calc(100vh - 61px); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .login-card { background: var(--surface); border: 1px solid var(--divider); border-top: 3px solid var(--gold); border-radius: var(--radius-lg); padding: 38px 36px 28px; max-width: 412px; width: 100%; box-shadow: var(--card-shadow); }
 .login-brand { display: inline-flex; align-items: baseline; gap: 8px; margin-bottom: 22px; }
-.login-brand .brand-wordmark { font-family: 'Cormorant', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1; }
+.login-brand .brand-wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1; }
 .login-brand .wm-1 { color: var(--ink); } .login-brand .wm-2 { color: var(--gold-deep, var(--gold)); }
 .login-brand .studio-tag { font-size: 10px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--divider); padding: 3px 8px; border-radius: 999px; }
 .login-card h1 { font-family: var(--font-heading); font-size: 29px; letter-spacing: -0.01em; margin-bottom: 6px; }

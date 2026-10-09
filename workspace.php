@@ -62,7 +62,7 @@ render_head([
   .ws-page{--ws-bg:#0b1220;--ws-surface:#111a2e;--ws-surface-2:#0f1830;--ws-line:#22304d;
     --ws-ink:#eef2fb;--ws-muted:#93a1c0;--ws-accent:var(--afg-accent,#f3b416);--ws-on-accent:#111827;
     background:var(--ws-bg);color:var(--ws-ink);min-height:100vh;
-    font-family:var(--afg-font-body,'Montserrat',system-ui,sans-serif)}
+    font-family:var(--afg-font-body,'Source Sans 3',system-ui,sans-serif)}
   .ws-page.ws-light{--ws-bg:#f5f6fa;--ws-surface:#ffffff;--ws-surface-2:#f0f2f8;--ws-line:#e2e6ef;
     --ws-ink:#131a2b;--ws-muted:#5b6987}
   .ws-page *{box-sizing:border-box}
@@ -116,7 +116,7 @@ render_head([
 
   /* hero */
   .ws-hero{padding:34px 0 10px}
-  .ws-hello{font-family:var(--afg-font-display,'Cormorant',Georgia,serif);font-size:clamp(28px,4vw,40px);
+  .ws-hello{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-size:clamp(28px,4vw,40px);
     font-weight:700;margin:0 0 6px;letter-spacing:-.01em;color:var(--ws-ink)}
   .ws-sub{color:var(--ws-muted);margin:0 0 22px;font-size:15px}
   .ws-sub .em{color:var(--ws-ink);font-weight:600}

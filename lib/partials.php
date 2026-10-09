@@ -124,9 +124,13 @@ function render_head(array $o): void {
 <?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
 <?php endif; ?>  <?= THEME_BOOT ?>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old
+     <link> loaded Cormorant — a different face by the same designer — and
+     'Source Sans 3', from fonts.googleapis.com. Self-hosting is not only about
+     the third-party request: the PDF renderer cannot fetch a webfont, so the
+     printed card and the screen now read off the SAME files and cannot drift
+     onto different typefaces. */ ?>
+  <link href="/assets/site/fonts.css" rel="stylesheet" />
   <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/assets/site/nav.css" rel="stylesheet" />
@@ -323,7 +327,7 @@ function av_subnav_model(): array {
 /**
  * Brand mark for a nav tier. Serves the committed logo image when one is
  * present (drop an SVG/PNG/WebP at /assets/site/logo-<key>.{svg,png,webp}),
- * otherwise an elegant Cormorant wordmark so the chrome is never blank.
+ * otherwise an elegant Cormorant Garamond wordmark so the chrome is never blank.
  * is_file() resolves live on PHP pages and at build time for static pages,
  * so adding a logo file + re-running build-chrome.php swaps the wordmark out.
  */

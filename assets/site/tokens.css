@@ -27,8 +27,8 @@
  *     #b07e08 is 3.60:1 on white: AA for LARGE text only (>=24px, or >=18.66px
  *     bold). The small gold labels this site is fond of — 11px uppercase
  *     eyebrows and column headings — need --afg-gold-ink (5.16:1).
- *   • ONE body font: Montserrat (Inter is dropped — see design-system.md).
- *   • ONE display font: Cormorant. ONE mono: JetBrains Mono.
+ *   • ONE body font: Source Sans 3 (Montserrat dropped — handoff CHECKLIST G-06).
+ *   • ONE display font: Cormorant Garamond. ONE mono: JetBrains Mono.
  *   • 4px spacing scale, tokenized radii/shadows, documented breakpoints.
  * ==========================================================================*/
 
@@ -74,8 +74,8 @@
   --afg-focus-ring:    0 0 0 2px var(--afg-surface), 0 0 0 4px var(--afg-focus);
 
   /* ── Typography ───────────────────────────────────────────────────────── */
-  --afg-font-display:  'Cormorant', Georgia, 'Times New Roman', serif;
-  --afg-font-body:     'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --afg-font-display:  'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --afg-font-body:     'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --afg-font-mono:     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Type scale (1.200 minor-third-ish, tuned) */
