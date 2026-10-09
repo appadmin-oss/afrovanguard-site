@@ -35,6 +35,19 @@ require $ROOT . '/lib/bootstrap.php';
 
 $GLOBALS['__pass'] = 0; $GLOBALS['__fail'] = 0; $GLOBALS['__fails'] = [];
 
+/**
+ * The member portal's source, as one string. Since the v2 shell (row 14) the
+ * portal is portal/index.php plus one file per view in portal/views/ plus the
+ * shell script portal/avp.js; the source checks read all of it, as they read
+ * the single v1 file before.
+ */
+function av_portal_source(): string {
+    $root = dirname(__DIR__) . '/portal';
+    $src = (string) file_get_contents($root . '/index.php');
+    foreach (glob($root . '/views/*.php') ?: [] as $f) $src .= "\n" . (string) file_get_contents($f);
+    return $src . "\n" . (string) @file_get_contents($root . '/avp.js');
+}
+
 function ck(string $label, bool $cond): void {
     if ($cond) { $GLOBALS['__pass']++; }
     else { $GLOBALS['__fail']++; $GLOBALS['__fails'][] = $label; echo "  \033[31mFAIL\033[0m $label\n"; }

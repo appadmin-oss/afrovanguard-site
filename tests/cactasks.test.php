@@ -19,7 +19,7 @@ require_once dirname(__DIR__) . '/lib/CacSso.php';
 require_once dirname(__DIR__) . '/lib/CacTasks.php';
 
 $src    = (string) file_get_contents(dirname(__DIR__) . '/lib/CacTasks.php');
-$portal = (string) file_get_contents(dirname(__DIR__) . '/portal/index.php');
+$portal = av_portal_source();
 $css    = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 
 /* ── It does not COPY. It may write — over there ─────────────────────────

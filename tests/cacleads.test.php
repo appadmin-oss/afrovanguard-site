@@ -23,7 +23,7 @@ require_once dirname(__DIR__) . '/lib/CacLeads.php';
 
 $src    = (string) file_get_contents(dirname(__DIR__) . '/lib/CacLeads.php');
 $api    = (string) file_get_contents(dirname(__DIR__) . '/portal/cac-leads.php');
-$portal = (string) file_get_contents(dirname(__DIR__) . '/portal/index.php');
+$portal = av_portal_source();
 $js     = (string) file_get_contents(dirname(__DIR__) . '/portal/leads.js');
 $css    = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 

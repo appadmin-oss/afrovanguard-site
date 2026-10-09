@@ -145,7 +145,7 @@ $mrPdo->exec("DELETE FROM lms_users WHERE email LIKE '%@roster.test'");
 Database::metaSet('gate_card_formats', '');
 
 /* ── NextGen Vanguard inside the member portal ────────────────────────── */
-$portal = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+$portal = av_portal_source();
 ck('Portal: a vanguard\'s NGV dashboard is a section of the portal, from the same files as the old page',
     str_contains($portal, "NgvMember::isVanguard((int) \$u['id'])") && str_contains($portal, '_dashboard-data.php') && str_contains($portal, '_dashboard-body.php'));
 ck('Portal: …read in its own scope, so its names cannot overwrite the portal\'s', str_contains($portal, 'get_defined_vars()'));
