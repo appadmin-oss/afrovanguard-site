@@ -60,6 +60,10 @@
   --av-ink-cell:#151C2C;
   --av-on-ink-hair:rgba(255,255,255,.12);
   --av-on-ink-rule:rgba(255,255,255,.45);
+  /* about / how it works / ethos (rows 5, 11, 12) */
+  --av-sand-2:#ECEBE8;      /* About journey band */
+  --av-copy-0:#3D3D3D;      /* body copy on sand */
+  --av-on-ink-line-2:#2A3344; /* hairline + image bed on ink */
   /* card status bands (≥6:1 with white) */
   --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
 
