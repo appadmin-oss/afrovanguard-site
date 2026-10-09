@@ -333,3 +333,13 @@ function av_rate_ok(string $bucket, int $max, int $window): bool {
     if (($now % 97) === 0) { foreach ((array) @glob($dir . '/*.json') as $f) { if (@filemtime($f) < $now - 86400) @unlink($f); } }
     return true;
 }
+
+/**
+ * The token a Diary unsubscribe link carries for $email. Unsubscribing used to
+ * need only the address, so anybody could take anybody off the list; a link a
+ * mailing puts in an email should be built with this.
+ */
+function av_unsubscribe_token(string $email): string {
+    $secret = av_secret(); if ($secret === '') return '';
+    return substr(hash_hmac('sha256', 'diary-unsub|' . strtolower(trim($email)), $secret), 0, 32);
+}

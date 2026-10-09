@@ -221,7 +221,11 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();
             $email = strtolower(trim((string) ($body['email'] ?? '')));
-            if ($email !== '') Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
+            $want  = $email !== '' ? av_unsubscribe_token($email) : '';
+            if ($want === '' || !hash_equals($want, (string) ($body['token'] ?? ''))) {
+                json_out(['ok' => false, 'error' => 'Use the unsubscribe link in one of our emails, or write to us and we will take you off the list.'], 403);
+            }
+            Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
             json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
 
         /* ── Personal diary entries (Event / Private / Public) ──

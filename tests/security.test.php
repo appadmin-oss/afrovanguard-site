@@ -151,3 +151,8 @@ ck('cron: guesses are counted before the key is compared',
 $secSearch = (string) file_get_contents(AV_ROOT . '/search.php');
 ck('search: the AI answer is limited before the model is called',
     strpos($secSearch, "av_rate_ok('search_ai'") !== false && strpos($secSearch, "av_rate_ok('search_ai'") < strpos($secSearch, 'AvBot::reply('));
+
+/* ══ 11. Unsubscribing somebody needs their link, not just their address ═ */
+ck('unsubscribe: a token is minted per address', av_unsubscribe_token('a@x.example') !== '' && av_unsubscribe_token('a@x.example') !== av_unsubscribe_token('b@x.example'));
+ck('unsubscribe: the address is normalised', av_unsubscribe_token(' A@X.example ') === av_unsubscribe_token('a@x.example'));
+ck('unsubscribe: the endpoint checks it', str_contains((string) file_get_contents(AV_ROOT . '/diary/api.php'), "hash_equals(\$want, (string) (\$body['token'] ?? ''))"));
