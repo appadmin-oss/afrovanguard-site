@@ -13,19 +13,58 @@
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
+require_once AV_ROOT . '/lib/partials.php';   // av_auth_illustration()
 
-/* @wire: replaced by the real policy, redirect and error reads */
-$next        = '/portal/';
-$authError   = '';
-$illo        = '/Images/summer6.jpg';
-$methods     = ['otp' => true, 'password' => true, 'google' => true];
-$otpLen      = 6;
-$otpMin      = 10;
-$pwMin       = 8;
+/* Guarantee the default Super Admin exists before anyone tries to sign in
+ * (idempotent + fingerprint-guarded → a single cheap lookup once provisioned). */
+if (class_exists('SuperAdmin')) { try { SuperAdmin::ensure(); } catch (Throwable $e) {} }
+
+/* ---- where to send the visitor after sign-in (same-origin path only) ---- */
+$next = (string) ($_GET['next'] ?? '');
+// A backslash or control character is refused too: browsers read "/\\host" as
+// "//host", which would make this an open redirect.
+if ($next === '' || $next[0] !== '/' || str_starts_with($next, '//') || str_contains($next, '\\') || preg_match('/[\x00-\x1F\x7F]/', $next)) {
+    $next = '/portal/';
+}
+
+/* friendly messages for the OAuth / email-verification round-trips (?e=… / ?verify_error=1) */
+$errorMap = [
+    'google_off'        => 'Google sign-in isn’t set up yet — use your email below.',
+    'google_failed'     => 'We couldn’t complete Google sign-in. Please try again, or use your email.',
+    'google_cancelled'  => 'Google sign-in was cancelled.',
+    'google_state'      => 'That sign-in link expired. Please try again.',
+    'rate'              => 'Too many attempts — wait a moment and try again.',
+];
+$authError = $errorMap[(string) ($_GET['e'] ?? '')] ?? '';
+if ($authError === '' && isset($_GET['verify_error'])) {
+    $authError = 'That verification link is invalid or has expired. Sign in below and we can send a new one.';
+}
+
+/* already signed in → straight through */
+if (LmsAuth::user()) { header('Location: ' . $next); exit; }
+
+if (function_exists('send_security_headers')) send_security_headers('public');
+
+/* Studio-scheduled sign-in art wins; otherwise the design's photograph. */
+$illo        = av_auth_illustration() ?: '/Images/summer6.jpg';
+$methods     = AuthPolicy::publicMethods();   // ['otp'=>bool,'password'=>bool,'google'=>bool]
+$otpLen      = AuthPolicy::otpLength();        // 4–8 — drives the segmented code inputs
+$otpMin      = max(1, (int) round(AuthPolicy::otpTtl() / 60));
+$pwMin       = (int) AuthPolicy::get()['password_min_len'];
 $googleStart = '/auth/google/start?next=' . rawurlencode($next);
-$orgDomain   = 'afrovanguard.org.ng';
+$orgDomain   = defined('AV_ORG_DOMAIN') ? (string) AV_ORG_DOMAIN : 'afrovanguard.org.ng';
 $canonical   = rtrim(SITE_URL, '/') . '/login';
-$cfg = ['next' => $next, 'methods' => $methods, 'otpLen' => $otpLen, 'pwMin' => $pwMin, 'orgDomain' => $orgDomain, 'googleOn' => false];
+
+$cfg = [
+    'next'      => $next,
+    'methods'   => $methods,
+    'otpLen'    => $otpLen,
+    'pwMin'     => $pwMin,
+    // Afrovanguard accounts sign in with Google only — the page redirects an
+    // org-domain email to Google (with it pre-filled) instead of code/password.
+    'orgDomain' => $orgDomain,
+    'googleOn'  => GoogleAuth::configured() && ($methods['google'] ?? false),
+];
 
 $title = 'Sign in — Afrovanguard';
 $desc  = 'Sign in to your Afrovanguard account to continue learning, track your progress, and reach members-only programmes and the community.';
