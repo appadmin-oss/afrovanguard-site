@@ -28,6 +28,7 @@ $values      = $ethos['values'];
 $creed       = $ethos['creed'];
 
 /** The whole ethos as plain text (faithful to the PDF), for clients that ask for text. */
+if (!function_exists('ethos_to_text')) {
 function ethos_to_text(array $e): string {
     $nl = "\n"; $hr = str_repeat('=', 72);
     $w  = static fn(string $s): string => wordwrap($s, 78);
@@ -54,6 +55,7 @@ function ethos_to_text(array $e): string {
     $out .= $nl . 'This I affirm — in character, in conduct, and in community.' . $nl;
     $out .= $nl . $hr . $nl . 'Source: ' . rtrim(SITE_URL, '/') . '/assets/docs/afrovanguard-ethos.pdf' . $nl;
     return $out;
+}
 }
 
 $fmt       = strtolower((string) ($_GET['format'] ?? ''));
@@ -124,6 +126,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="stylesheet" href="/assets/site/avh.css" />
   <link rel="stylesheet" href="/assets/site/aveth.css" />
   <script src="/assets/site/avh.js" defer></script>
+  <script src="/assets/site/aveth.js" defer></script>
 </head>
 <body class="avh" id="top">
 <a class="avh-skip" href="#main">Skip to content</a>
