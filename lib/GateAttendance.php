@@ -134,6 +134,7 @@ final class GateAttendance
     public static function lateFine(): int       { return max(0, (int) self::rule('gate.late_fine', 0)); }
     public static function absentFine(): int     { return max(0, (int) self::rule('gate.absent_fine', 0)); }
     public static function lateFineProbation(): int { return max(0, (int) self::rule('gate.late_fine_probation', 0)); }
+    public static function finesPhoneSignin(): bool { return (bool) self::rule('gate.fine_phone_signin', true); }
     /** @return string[] level codes */
     public static function probationLevels(): array
     {
@@ -414,6 +415,9 @@ final class GateAttendance
         }
         if ($status === 'late') self::fineLate($mid, $day, $late);
         else self::award($mid, $day);
+        /* The gate reports a phone pass as method 'pass' (cacentre-site gate,
+           src/index.ts): the member came in without the printed card. */
+        if ((string) ($p['method'] ?? '') === 'pass') self::fineNoCard($mid, $day);
         self::birthday($mid, $day);
         return 'recorded';
     }
@@ -438,6 +442,24 @@ final class GateAttendance
         $fid = NgvLedger::postCharge($memberId, 'fine', $amount, 'late:' . $day,
             ['reason' => 'late', 'note' => 'Late arrival' . ($prob && self::lateFineProbation() > 0 ? ' on probation' : '') . ' — ' . $day . ', ' . $minutes . ' min (CACENTRE gate)', 'source' => 'accrual']);
         if ($fid) Database::pdo()->prepare('UPDATE gate_attendance SET fine_id = ? WHERE member_id = ? AND day = ?')->execute([$fid, $memberId, $day]);
+    }
+
+    /**
+     * Came in on the phone pass: the printed card was left at home (owner,
+     * 2026-10-09). Only somebody who HAS a card can forget it, so a member with
+     * no active secure card is not charged; and, like every gate fine, only an
+     * expected NGV participant. The amount is the Fines desk's "Uniform or ID
+     * card" figure — one price for one offence, set in one place. Once a day:
+     * the ledger refuses a second charge for the same period.
+     */
+    private static function fineNoCard(int $memberId, string $day): void
+    {
+        if (!self::finesPhoneSignin() || !class_exists('NgvLedger') || !class_exists('NgvFines') || !self::expected($memberId)) return;
+        if (!class_exists('MemberCards') || MemberCards::secure($memberId) === null) return;
+        $amount = (int) (NgvFines::catalogue()['uniform']['amount'] ?? 0);
+        if ($amount <= 0) return;
+        NgvLedger::postCharge($memberId, 'fine', $amount, 'nocard:' . $day,
+            ['reason' => 'uniform', 'note' => 'Signed in with the phone, ID card not brought — ' . $day . ' (CACENTRE gate)', 'source' => 'accrual']);
     }
 
     private static function voidFine(int $chargeId, string $why): void

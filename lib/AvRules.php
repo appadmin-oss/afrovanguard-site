@@ -337,6 +337,11 @@ final class AvRules
             'label' => 'Late fine on probation (₦)',
             'help'  => 'Charged instead of the late fine to a participant on probation. 0 uses the ordinary late fine. The spreadsheet system charged ₦10,000.',
         ],
+        'gate.fine_phone_signin' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Attendance',
+            'label' => 'Fine signing in with the phone',
+            'help'  => 'A member who has a printed card and comes in on the phone pass has left the card at home. They are charged the Fines desk’s “Uniform or ID card” amount, once per day. NGV participants only, like every gate fine.',
+        ],
         'gate.probation_levels' => [
             'type' => 'csv', 'default' => 'O', 'group' => 'Attendance',
             'item_pattern' => '/^([A-Z]|none)$/',

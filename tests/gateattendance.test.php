@@ -88,6 +88,30 @@ ck('Gate: …linked from the register row', (int) $gaRow($ada, $d2)['fine_id'] =
 ck('Gate: a member who is not an NGV participant is never fined — there is no account to fine', $gaFines($bola) === []);
 AvRules::save(['gate.late_fine' => '0'], 'test');
 
+/* ── Signing in on the phone: the card was left at home ──────────────────── */
+$gaPass = static function (string $pid, int $mid, string $day) use ($gaIn): array { $p = $gaIn($pid, $mid, $day); $p['method'] = 'pass'; return $p; };
+$dn = '2026-09-26';
+GateAttendance::report([$gaPass('p-n1', $ada, $dn)]);
+ck('Gate: a phone pass from a member with NO printed card is not fined — only somebody who has a card can forget it',
+   array_filter($gaFines($ada), static fn($c) => str_starts_with((string) $c['period'], 'nocard:')) === []);
+MemberCards::issue($ada, 'test', 'test');
+$dn2 = '2026-09-25';
+GateAttendance::report([$gaPass('p-n2', $ada, $dn2), $gaIn('p-n3', $ada, '2026-09-24')]);
+$nc = array_values(array_filter($gaFines($ada), static fn($c) => str_starts_with((string) $c['period'], 'nocard:')));
+ck('Gate: a carded NGV participant who signs in with the phone is fined the Fines desk’s “Uniform or ID card” amount, once, for that day',
+   count($nc) === 1 && $nc[0]['period'] === 'nocard:' . $dn2 && $nc[0]['reason'] === 'uniform'
+   && (int) $nc[0]['amount'] === (int) NgvFines::catalogue()['uniform']['amount'] && (int) $nc[0]['amount'] > 0);
+ck('Gate: …and the card scanned the next day costs nothing', count($nc) === 1);
+MemberCards::issue($bola, 'test', 'test');
+GateAttendance::report([$gaPass('p-n4', $bola, $dn2)]);
+ck('Gate: a member who is not an NGV participant is not fined for the phone either', $gaFines($bola) === []);
+AvRules::save(['gate.fine_phone_signin' => '0'], 'test');
+GateAttendance::report([$gaPass('p-n5', $ada, '2026-09-23')]);
+ck('Gate: with the rule switched off, the phone costs nothing',
+   count(array_filter($gaFines($ada), static fn($c) => str_starts_with((string) $c['period'], 'nocard:'))) === 1);
+AvRules::save(['gate.fine_phone_signin' => '1'], 'test');
+foreach ($gaFines($ada) as $c) if (str_starts_with((string) $c['period'], 'nocard:')) NgvDb::pdo()->exec('DELETE FROM ngv_charges WHERE id = ' . (int) $c['id']);
+
 /* ── Absences ────────────────────────────────────────────────────────────── */
 ck('Gate: absences are not marked until switched on', GateAttendance::sweep('2026-10-02')['off'] ?? false);
 AvRules::save(['gate.mark_absent' => '1', 'gate.absent_fine' => '2000', 'gate.holidays' => '2026-09-30'], 'test');
