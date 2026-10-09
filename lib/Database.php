@@ -366,7 +366,14 @@ final class Database
         $stamp = 'srv:' . self::SCHEMA_REV . ':' . (@md5_file(AV_ROOT . '/db/schema.sql') ?: '0');
         try { if (self::metaGet('schema_state') === $stamp) return; } catch (Throwable $e) { return; /* meta not ready */ }
 
-        foreach (['ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
+        // ensureColumns BELONGS HERE. The SQLite path runs it; this one did not,
+        // and `syncSchemaFromFile()` — which fills the gaps from db/schema.sql —
+        // is SQLite-only too. So on MySQL or Postgres the articles table got
+        // whatever db/schema.<driver>.sql happened to list and nothing since:
+        // series_id, series_part and cover_is_dark were never created on a
+        // server database, on a fresh install or an old one. That is the exact
+        // bug class tests/drift.test.php exists to catch, and it caught it.
+        foreach (['ensureColumns', 'ensureAcademy', 'ensureLmsVerify', 'ensureDiaryEntries'] as $step) {
             try { self::$step(); } catch (Throwable $e) { error_log('[db] server migration ' . $step . ': ' . $e->getMessage()); }
         }
         try { self::metaSet('schema_state', $stamp); self::metaSet('schema_migrated_at', gmdate('c')); }
