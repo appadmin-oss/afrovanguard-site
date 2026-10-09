@@ -22,7 +22,7 @@ $shown = count($roster['rows']);
         <input type="hidden" name="f" value="<?= e($roster['filter']) ?>">
         <label class="avm-search">
           <?= Icons::SEARCH ?><span class="av-sr">Search your mentees</span>
-          <input type="search" name="q" id="q" value="<?= e($roster['q']) ?>" placeholder="Search name, track or chapter" data-avm-q autocomplete="off">
+          <input type="search" name="q" id="q" value="<?= e($roster['q']) ?>" placeholder="Search <?= (int) $roster['all'] ?> mentees by name, track or chapter" data-avm-q autocomplete="off">
         </label>
         <label class="avm-sort">Sort
           <select name="s" data-avm-s>
@@ -49,7 +49,7 @@ $shown = count($roster['rows']);
       <div class="avm-table" data-avm-table>
         <div class="avm-tr avm-tr--head">
           <label class="avm-pick"><input class="avm-ck" type="checkbox" data-avm-all aria-label="Select everyone on this page"></label>
-          <span>Mentee</span><span>Stage</span><span class="r">Last</span><span class="r">Kept</span><span class="next">Next session</span>
+          <span>Mentee</span><span>Stage</span><span class="r">Last session</span><span class="r">Kept</span><span class="next">Next</span>
         </div>
         <div data-avm-rows>
 <?php foreach ($roster['rows'] as $row) require __DIR__ . '/_row.php'; ?>

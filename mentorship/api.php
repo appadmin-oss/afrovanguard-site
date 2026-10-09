@@ -160,7 +160,8 @@ try {
            id arrived in the request body. MentorPortal re-checks ownership on
            each one — including each id inside a bulk action — so an edited id
            gets "not your mentee", not somebody else's. */
-        case 'goals': case 'close-step': case 'close': case 'plan':
+        case 'goals': case 'goal-add': case 'goal-edit': case 'goal-status': case 'goal-remove':
+        case 'close-step': case 'close': case 'plan':
         case 'session-create': case 'session-log': case 'session-missed': case 'session-unlog':
         case 'message': case 'values': case 'checkin': case 'reflect-reply': case 'reflect-unreply':
         case 'request-accept': case 'request-decline': case 'request-undecline':
@@ -197,6 +198,20 @@ try {
             switch ($action) {
                 case 'goals':
                     $out($portal->saveGoals($pid, (string) ($body['goals'] ?? '')));
+
+                case 'goal-add':
+                    $out($portal->addGoal($pid, (string) ($body['title'] ?? ''),
+                                          (string) ($body['measure'] ?? ''), (string) ($body['due'] ?? '')));
+
+                case 'goal-edit':
+                    $out($portal->editGoal($pid, (int) ($body['goal_id'] ?? 0), (string) ($body['title'] ?? ''),
+                                           (string) ($body['measure'] ?? ''), (string) ($body['due'] ?? '')));
+
+                case 'goal-status':
+                    $out($portal->setGoalStatus($pid, (int) ($body['goal_id'] ?? 0), (string) ($body['status'] ?? '')));
+
+                case 'goal-remove':
+                    $out($portal->removeGoal($pid, (int) ($body['goal_id'] ?? 0)));
 
                 case 'close-step':
                     $out($portal->closeStep($pid, (string) ($body['step'] ?? ''), !empty($body['on']) && $body['on'] !== 'false'));

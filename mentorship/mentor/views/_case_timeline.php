@@ -11,7 +11,16 @@ foreach ($c['values'] as $val) {
     $events[] = ['at' => $val['last'], 'what' => $val['label'],
                  'detail' => MentorPortal::LEVELS[max(0, min(3, $val['level']))] . ($val['evidence'] !== '' ? ' — ' . $val['evidence'] : '')];
 }
-if ($c['goals'] !== '') $events[] = ['at' => $c['since'], 'what' => 'Goals agreed', 'detail' => $c['goals']];
+/* One line per goal, and a second when it was met or set aside — the record a
+   closing conversation looks back at. */
+foreach ($c['goals_list'] as $g) {
+    $events[] = ['at' => $g['created_at'] !== '' ? $g['created_at'] : $c['since'], 'what' => 'Goal agreed',
+                 'detail' => $g['title'] . ($g['due_label'] !== '' ? ' — by ' . $g['due_label'] : '')];
+    if ($g['status'] !== 'open' && $g['closed_at'] !== '') {
+        $events[] = ['at' => $g['closed_at'], 'what' => $g['status'] === 'met' ? 'Goal met' : 'Goal set aside',
+                     'detail' => $g['title']];
+    }
+}
 $events[] = ['at' => $c['since'], 'what' => 'Paired', 'detail' => 'You were matched with ' . $c['first'] . '.'];
 usort($events, fn($x, $y) => strtotime($y['at']) <=> strtotime($x['at']));
 ?>

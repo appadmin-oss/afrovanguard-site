@@ -133,19 +133,97 @@
   }
 
   /* ===== case file ===== */
-  var goals = $('[data-avm-goals]');
-  if (goals) {
-    var gv = $('[data-avm-goals-view]', goals), gf = $('[data-avm-goals-form]', goals), ge = $('[data-avm-goals-edit]', goals);
-    ge.addEventListener('click', function () { gv.hidden = true; gf.hidden = false; ge.hidden = true; gf.querySelector('textarea').focus(); });
-    $('[data-avm-goals-cancel]', goals).addEventListener('click', function () { gv.hidden = false; gf.hidden = true; ge.hidden = false; ge.focus(); });
-    goals.addEventListener('submit', function (e) {
-      e.preventDefault(); var t = goals.goals.value.trim();
-      api('goals', { pairing_id: goals.dataset.pairing, goals: t }).then(function () {
-        gv.textContent = t; gv.hidden = false; gf.hidden = true; ge.hidden = false;
-        toast('Goals saved. ' + goals.dataset.first + ' sees them in their portal.');
-      }).catch(fail);
+  /* Goals: the server draws the panel, here and after every write, so a goal
+     the browser shows and a goal the database holds cannot disagree. One
+     form serves add and edit; it is populated from the row's own data-*. */
+  (function () {
+    if (!$('[data-avm-goals]')) return;
+    var pairing = $('[data-avm-goals]').dataset.pairing, first = $('[data-avm-goals]').dataset.first;
+    var panel = function () { return $('[data-avm-goals]'); };
+    var form  = function () { var b = panel(); return b && $('[data-avm-goal-form]', b); };
+
+    function refresh() {
+      return fetch('?v=case&id=' + encodeURIComponent(pairing) + '&partial=goals', { credentials: 'same-origin' })
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          var cur = panel(); if (!cur) return;
+          var box = document.createElement('div'); box.innerHTML = html;
+          if (box.firstElementChild) cur.parentNode.replaceChild(box.firstElementChild, cur);
+        });
+    }
+
+    function openForm(d) {
+      var b = panel(), f = $('[data-avm-goal-form]', b), el = b.elements;
+      el.goal_id.value = d ? d.goal : '';
+      el.title.value   = d ? d.title : '';
+      el.measure.value = d ? d.measure : '';
+      el.due.value     = d ? d.due : '';
+      $('[data-avm-goal-formh]', f).textContent = d ? 'Edit this goal' : 'New goal';
+      $('[data-avm-goal-aside]',  f).hidden = !d || d.status !== 'open';
+      $('[data-avm-goal-back]',   f).hidden = !d || d.status === 'open';
+      $('[data-avm-goal-remove]', f).hidden = !d;
+      $('[data-avm-goal-err]', f).hidden = true;
+      var add = $('[data-avm-goal-new]', b); if (add) add.hidden = true;
+      f.hidden = false; el.title.focus();
+    }
+    function closeForm() {
+      var b = panel(); if (!b) return;
+      $('[data-avm-goal-form]', b).hidden = true;
+      var add = $('[data-avm-goal-new]', b); if (add) { add.hidden = false; add.focus(); }
+    }
+    /* A refusal belongs beside the field that caused it, not in a toast that
+       has gone by the time you look up. */
+    function err(msg) {
+      var f = form(); if (!f || f.hidden) return false;
+      var p = $('[data-avm-goal-err]', f); p.textContent = msg; p.hidden = false; return true;
+    }
+    function write(action, data, msg) {
+      data.pairing_id = pairing;
+      return api(action, data)
+        .then(refresh)
+        .then(function () { if (msg) toast(msg); })
+        .catch(function (x) { if (!(x && x.error && err(x.error))) fail(x); });
+    }
+
+    document.addEventListener('click', function (e) {
+      var b = panel(); if (!b || !e.target.closest) return;
+      var t = e.target.closest('button'); if (!t || !b.contains(t)) return;
+      var gid = function () { return b.elements.goal_id.value; };
+
+      if (t.hasAttribute('data-avm-goal-tick')) {
+        var met = t.getAttribute('aria-pressed') === 'true';
+        write('goal-status', { goal_id: t.dataset.goal, status: met ? 'open' : 'met' },
+              met ? 'Back to working on it.' : 'Goal met. ' + first + ' sees it in their portal.');
+      } else if (t.hasAttribute('data-avm-goal-edit')) {
+        openForm({ goal: t.dataset.goal, title: t.dataset.title, measure: t.dataset.measure,
+                   due: t.dataset.due, status: t.dataset.status });
+      } else if (t.hasAttribute('data-avm-goal-new')) {
+        openForm(null);
+      } else if (t.hasAttribute('data-avm-goal-cancel')) {
+        closeForm();
+      } else if (t.hasAttribute('data-avm-goal-back')) {
+        write('goal-status', { goal_id: gid(), status: 'open' }, 'Back on the list.');
+      } else if (t.hasAttribute('data-avm-goal-aside')) {
+        write('goal-status', { goal_id: gid(), status: 'dropped' }, 'Set aside. It stays in the record.');
+      } else if (t.hasAttribute('data-avm-goal-remove')) {
+        var g = gid();
+        confirmDialog('Remove this goal?',
+          'It goes from the record and from ' + first + '’s portal. “Set aside” keeps what you agreed and marks that you stopped.',
+          'Remove', true).then(function (yes) { if (yes) write('goal-remove', { goal_id: g }, 'Goal removed.'); });
+      }
     });
-  }
+
+    document.addEventListener('submit', function (e) {
+      var b = panel(); if (!b || e.target !== b) return;
+      e.preventDefault();
+      var el = b.elements;
+      var d = { title: el.title.value.trim(), measure: el.measure.value.trim(), due: el.due.value };
+      if (!d.title) { err('Write what you are both working towards.'); el.title.focus(); return; }
+      if (el.goal_id.value) { d.goal_id = el.goal_id.value; write('goal-edit', d, 'Goal updated.'); }
+      else write('goal-add', d, 'Goal saved. ' + first + ' sees it in their portal.');
+    });
+  }());
+
   var plan = $('[data-avm-plan]');
   if (plan) $('[data-avm-plan-go]', plan).addEventListener('click', function (e) {
     var out = $('[data-avm-plan-out]', plan); e.target.disabled = true;

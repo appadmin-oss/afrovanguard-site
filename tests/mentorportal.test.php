@@ -30,7 +30,7 @@ $db = Database::pdo();
 MentorPortal::ensure();
 foreach (['mentorships', 'mentor_sessions', 'mentor_values', 'mentor_checkins',
           'mentor_messages', 'mentor_academy', 'mentor_concerns', 'mentor_undo',
-          'mentor_profiles', 'mentor_cohorts'] as $t) {
+          'mentor_goals', 'mentor_profiles', 'mentor_cohorts'] as $t) {
     try { $db->exec('DELETE FROM ' . $t); } catch (Throwable $e) {}
 }
 
@@ -357,3 +357,86 @@ ck('row: a brand-new pairing is "just started", not "needs attention" — three 
     ($a->roster('Halima', 'all', 'wait', 1)['rows'][0]['health'] ?? '') === 'Just started');
 ck('row: initials come from the name', $row['initials'] === 'NU');
 ck('row: sessions kept is a percentage, or nothing at all', $row['kept'] === null || ($row['kept'] >= 0 && $row['kept'] <= 100));
+
+/* ══ GOALS ═══════════════════════════════════════════════════════════════
+   Goals are rows now. Three things have to hold, and all three are the kind
+   that fail silently: the paragraph a mentor wrote before this existed has to
+   become rows exactly once; mentorships.goals — which the mentee's portal, the
+   roster filter and Today all still read — has to follow every write; and a
+   goal id belonging to someone else's pairing has to be refused, not merely
+   absent from the page.                                                    */
+
+$gc = $a->caseFile($mine);
+ck('goals: the paragraph on an existing pairing becomes one goal row',
+    count($gc['goals_list']) === 1 && $gc['goals_list'][0]['title'] === 'Lead one project.');
+ck('goals: and it is dated when the pairing started, not today — a timeline '
+ . 'that says goals were agreed this morning is a timeline nobody trusts',
+    substr($gc['goals_list'][0]['created_at'], 0, 10) === gmdate('Y-m-d', $now - 60 * 86400));
+ck('goals: opening the case file again does not migrate it a second time',
+    count($a->caseFile($mine)['goals_list']) === 1);
+ck('goals: a pairing with no text has no rows, and nothing is invented',
+    $a->caseFile($nogoal)['goals_list'] === []);
+
+$g1 = $a->addGoal($nogoal, '  Speak at the  chapter meeting ', 'She runs the session herself', '2026-12-01');
+ck('goals: a goal can be added, and the whitespace is tidied',
+    ($g1['ok'] ?? false) && $a->caseFile($nogoal)['goals_list'][0]['title'] === 'Speak at the chapter meeting');
+ck('goals: the first goal moves the pairing to "Goals agreed"',
+    (int) $db->query('SELECT stage FROM mentorships WHERE id = ' . $nogoal)->fetchColumn() === 3);
+ck('goals: and mentorships.goals follows, because the mentee’s own portal, the '
+ . 'roster filter and Today all read that column and none of them changed',
+    (string) $db->query('SELECT goals FROM mentorships WHERE id = ' . $nogoal)->fetchColumn() === 'Speak at the chapter meeting');
+ck('goals: "goals not set" no longer counts it',
+    $a->roster('', 'all', 'wait', 1)['counts']['goals'] === 0);
+ck('goals: a date the browser could not have sent is dropped, not half-parsed',
+    ($a->addGoal($nogoal, 'Second goal', '', '01/12/2026')['ok'] ?? false)
+    && $a->caseFile($nogoal)['goals_list'][1]['due_on'] === '');
+ck('goals: an empty goal is refused',
+    ($a->addGoal($nogoal, '   ', '', '')['ok'] ?? true) === false);
+$a->addGoal($nogoal, 'Third goal', '', '');
+ck('goals: three open goals at a time is the limit, and the fourth says why',
+    ($a->addGoal($nogoal, 'Fourth goal', '', '')['ok'] ?? true) === false
+    && count($a->caseFile($nogoal)['goals_list']) === 3);
+
+$gid = $a->caseFile($nogoal)['goals_list'][0]['id'];
+ck('goals: marking one met records when, and leaves room for another',
+    ($a->setGoalStatus($nogoal, $gid, 'met')['ok'] ?? false)
+    && MentorPortal::goalTally($a->caseFile($nogoal)['goals_list']) ['met'] === 1
+    && $a->caseFile($nogoal)['goals_list'][0]['closed_at'] !== '');
+ck('goals: a met goal still counts as a goal — the pairing has not gone back '
+ . 'to having none',
+    str_contains((string) $db->query('SELECT goals FROM mentorships WHERE id = ' . $nogoal)->fetchColumn(), 'Speak at the chapter meeting'));
+ck('goals: setting one aside keeps the row but takes it out of the live set',
+    ($a->setGoalStatus($nogoal, $gid, 'dropped')['ok'] ?? false)
+    && count($a->caseFile($nogoal)['goals_list']) === 3
+    && !str_contains((string) $db->query('SELECT goals FROM mentorships WHERE id = ' . $nogoal)->fetchColumn(), 'Speak at the chapter meeting'));
+ck('goals: an unknown status is refused',
+    ($a->setGoalStatus($nogoal, $gid, 'finished')['ok'] ?? true) === false);
+
+$mineGoal = $a->caseFile($mine)['goals_list'][0]['id'];
+ck('goals: a goal id from a DIFFERENT pairing of your own is still refused — '
+ . 'ownership of the pairing is not ownership of every goal in the database',
+    ($a->setGoalStatus($nogoal, $mineGoal, 'met')['ok'] ?? true) === false
+    && ($a->editGoal($nogoal, $mineGoal, 'Rewritten', '', '')['ok'] ?? true) === false
+    && ($a->removeGoal($nogoal, $mineGoal)['ok'] ?? true) === false);
+ck('goals: and the goal it pointed at is untouched',
+    $a->caseFile($mine)['goals_list'][0]['title'] === 'Lead one project.'
+    && $a->caseFile($mine)['goals_list'][0]['status'] === 'open');
+ck('goals: the other mentor cannot add one to your pairing',
+    ($b->addGoal($nogoal, 'Mine now', '', '')['ok'] ?? true) === false);
+
+ck('goals: a goal can be reworded',
+    ($a->editGoal($nogoal, $a->caseFile($nogoal)['goals_list'][1]['id'], 'Second goal, reworded', 'How we will know', '2027-01-15')['ok'] ?? false)
+    && $a->caseFile($nogoal)['goals_list'][1]['title'] === 'Second goal, reworded');
+
+/* The plan assistant chases what is still open. A met goal is not the thing
+   to ask about next time, and one set aside is the thing you agreed to stop. */
+$pl = $a->planLines($nogoal);
+ck('plan: it asks about a goal that is still open, never one already met',
+    str_contains($pl['Ask'], 'Second goal, reworded'));
+
+foreach ($a->caseFile($nogoal)['goals_list'] as $g) $a->removeGoal($nogoal, $g['id']);
+ck('goals: removing the last one empties the text and puts the pairing back at '
+ . 'kick-off, rather than leaving it standing at a step it is not on',
+    (string) $db->query('SELECT goals FROM mentorships WHERE id = ' . $nogoal)->fetchColumn() === ''
+    && (int) $db->query('SELECT stage FROM mentorships WHERE id = ' . $nogoal)->fetchColumn() === 2
+    && $a->roster('', 'all', 'wait', 1)['counts']['goals'] === 1);

@@ -65,11 +65,23 @@ if (($_GET['partial'] ?? '') === 'rows' && $v === 'mentees') {
     exit;
 }
 
+/* ── The goals panel, after a goal was added, reworded, met or set aside ───
+   Same renderer as the case file, for the same reason: a goal the browser
+   drew and a goal the server drew cannot drift apart if only one of them
+   knows how to draw it. */
+if (($_GET['partial'] ?? '') === 'goals' && $v === 'case') {
+    $c = $portal->caseFile($id);
+    if (!$c) { http_response_code(404); exit; }
+    header('Content-Type: text/html; charset=utf-8');
+    require __DIR__ . '/views/_case_goals.php';
+    exit;
+}
+
 $HEADS = [
-    'today'       => ['Today', 'What needs you, and what is next.'],
-    'mentees'     => ['Mentees', 'Everyone you are paired with.'],
+    'today'       => ['Today', 'Your next session, and anything waiting on you.'],
+    'mentees'     => ['Mentees', 'The case file for each pairing: goals, sessions, timeline and messages.'],
     'case'        => ['Mentee', 'Their goals, sessions, values and messages.'],
-    'values'      => ['Values', 'The seven Vanguard Quest values, observed with evidence.'],
+    'values'      => ['Values', 'Observe each mentee against the seven values of the Vanguard Quest.'],
     'checkins'    => ['Check-ins', 'Week 1, 2 and 4, then monthly.'],
     'reflections' => ['Reflections', 'Diary entries your mentees shared with you.'],
     'requests'    => ['Requests', 'Members asking you to mentor them.'],
@@ -88,7 +100,7 @@ if ($v === 'case') {
     if (!$case) { http_response_code(404); $v = 'mentees'; }
 }
 [$title, $subtitle] = $HEADS[$v];
-if ($case) { $title = $case['name']; $subtitle = trim($case['track'] . ($case['chapter'] !== '' ? ' · ' . $case['chapter'] : '')); }
+if ($case) { $title = $case['name']; $subtitle = $case['where'] !== '' ? $case['where'] : 'No track set'; }
 
 render_head([
     'title'     => $title . ' — Mentor portal',
@@ -148,7 +160,7 @@ avm_nav('profile', 'Profile', 'person', 0, $v);
     <a class="avm-report" href="?v=concern">Report a concern</a>
     <div class="avm-me">
       <span class="avm-av" aria-hidden="true"><?= e($me['initials']) ?></span>
-      <span><b><?= e($me['name']) ?></b><small><?= e($me['academy_line']) ?></small></span>
+      <span><b><?= e($me['name']) ?></b><small<?= $me['cleared'] ? '' : ' style="color:var(--av-gold-text)"' ?>><?= e($me['academy_line']) ?></small></span>
     </div>
   </aside>
 
@@ -177,5 +189,6 @@ require is_file($view) ? $view : __DIR__ . '/views/today.php';
 
 <div class="avm-toast" data-avm-toast hidden><span></span><button type="button" hidden>Undo</button></div>
 <script src="/assets/site/avm.js" defer></script>
+<script src="/assets/site/avm-extra.js" defer></script>
 </body>
 </html>

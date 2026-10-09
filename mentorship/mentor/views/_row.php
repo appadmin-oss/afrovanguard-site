@@ -10,7 +10,11 @@ $href = '?v=case&amp;id=' . (int) $row['pairing_id']
       . ($roster['q'] !== '' ? '&amp;q=' . rawurlencode($roster['q']) : '')
       . ($roster['filter'] !== 'all' ? '&amp;f=' . e($roster['filter']) : '')
       . ($roster['sort'] !== 'wait' ? '&amp;s=' . e($roster['sort']) : '');
-$sub = trim($row['track'] . ($row['chapter'] !== '' ? ' · ' . $row['chapter'] : ''));
+$sub = $row['where'];
+/* A stage only earns a colour when it asks something of you. Colouring all six
+   would be six colours that mean "a stage exists". */
+$stageClass = $row['stage'] >= 6 ? ' stage--close' : ($row['goals'] === '' ? ' stage--nogoals' : '');
+$stageText  = $row['goals'] === '' && $row['stage'] < 3 ? 'Goals not set' : $row['stage_label'];
 ?>
 <div class="avm-tr">
   <label class="avm-pick"><input class="avm-ck" type="checkbox" data-avm-pick value="<?= (int) $row['pairing_id'] ?>" aria-label="Select <?= e($row['name']) ?>"></label>
@@ -21,9 +25,9 @@ $sub = trim($row['track'] . ($row['chapter'] !== '' ? ' · ' . $row['chapter'] :
       <small><?= e($sub !== '' ? $sub : 'No track set') ?></small>
     </span>
   </a>
-  <span class="stage"><?= e($row['stage_label']) ?></span>
+  <span class="stage<?= $stageClass ?>"><?= e($stageText) ?></span>
   <span class="r <?= $row['days'] !== null && $row['days'] > 21 ? 'av-late' : ($row['days'] !== null && $row['days'] > 14 ? 'av-due' : '') ?>">
-    <?= $row['days'] === null ? '—' : (int) $row['days'] . 'd' ?><span class="av-sr"> since the last session</span>
+    <?= $row['days'] === null ? 'None yet' : (int) $row['days'] . ' days' ?><span class="av-sr"> since the last session</span>
   </span>
   <span class="r"><?= $row['kept'] === null ? '—' : (int) $row['kept'] . '%' ?><span class="av-sr"> of sessions kept</span></span>
   <span class="next"><?= $row['next'] !== null ? e($row['next']) : ($row['to_log'] > 0 ? 'Session to log' : 'Nothing booked') ?></span>

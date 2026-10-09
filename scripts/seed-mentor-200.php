@@ -38,7 +38,7 @@ if ($opt('clean')) {
     $pairs = $db->query("SELECT id FROM mentorships WHERE mentee_id IN ($in) OR mentor_id IN ($in)")->fetchAll(PDO::FETCH_COLUMN) ?: [];
     if ($pairs) {
         $pin = implode(',', array_map('intval', $pairs));
-        foreach (['mentor_sessions', 'mentor_values', 'mentor_checkins', 'mentor_messages'] as $t)
+        foreach (['mentor_sessions', 'mentor_values', 'mentor_checkins', 'mentor_messages', 'mentor_goals'] as $t)
             $db->exec("DELETE FROM {$t} WHERE mentorship_id IN ($pin)");
         $db->exec("DELETE FROM mentorships WHERE id IN ($pin)");
     }
@@ -86,12 +86,28 @@ $first = ['Ada','Chidi','Tunde','Ngozi','Emeka','Bola','Ifeoma','Segun','Amara',
 $last  = ['Okonkwo','Afolabi','Nwosu','Eze','Balogun','Adeyemi','Okeke','Ibrahim','Ogundipe','Chukwu','Lawal','Udo','Bello','Onyeka','Ajayi'];
 $tracks = ['Leadership', 'Public speaking', 'Study habits', 'Enterprise', 'Creative', 'Civic'];
 
+/* Goals, as a mentor actually writes them: one thing, how you will both know
+   it happened, and a date — or no date, which is also real. A pairing gets one
+   to three. */
+$goalBank = [
+    ['Lead one community project before the year ends', 'The project runs and she reports back to the chapter'],
+    ['Speak at a chapter meeting without notes', 'He gets through it and we talk about it afterwards'],
+    ['Hand in every assignment on the day it is due', 'A full term with nothing late'],
+    ['Open a savings account and keep it for six months', 'The account is still open and has money in it'],
+    ['Apply to three sixth forms, with the applications checked first', 'All three are in before the deadline'],
+    ['Run the chapter stall at the anniversary', 'The stall happens and she tells me how it went'],
+    ['Read one book a month and tell me about it', 'Six books, six conversations'],
+    ['Ask for help once before the week it is due', 'He messages me early instead of the night before'],
+];
+
 mt_srand(20261009);
 $now = time();
 $made = 0; $sessions = 0;
 $insUser = $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, status, created_at) VALUES (?,?,?,?,?,?)');
 $insPair = $db->prepare("INSERT INTO mentorships (mentor_id, mentee_id, status, message, created_at, updated_at, segment, cohort_id, programme, origin, goals, stage, track, started_at, ends_at, close_steps)
                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'')");
+$insGoal = $db->prepare("INSERT INTO mentor_goals (mentorship_id, title, measure, due_on, status, sort_no, created_at, updated_at, closed_at)
+                         VALUES (?,?,?,?,?,?,?,?,?)");
 $insSess = $db->prepare("INSERT INTO mentor_sessions (mentorship_id, title, scheduled_at, notes, status, created_at, attendance, duration_min, session_type, outcome, attended_at)
                          VALUES (?,?,?,?,?,?,?,?,?,?,?)");
 $hash = password_hash(bin2hex(random_bytes(12)), PASSWORD_DEFAULT);
@@ -113,6 +129,26 @@ for ($i = 0; $i < $pairs; $i++) {
                        $stage, $tracks[$i % count($tracks)], $began,
                        $stage >= 6 ? gmdate('Y-m-d H:i:s', $now + 20 * 86400) : '']);
     $pairId = (int) $db->lastInsertId();
+
+    /* One to three goals per pairing, some met, some overdue, some with no
+       date. mentorships.goals keeps the live titles so the roster filter and
+       the mentee's own portal read the same thing the case file shows. */
+    if ($hasGoals) {
+        $live = [];
+        $howMany = 1 + $i % 3;
+        for ($g = 0; $g < $howMany; $g++) {
+            [$title, $measure] = $goalBank[($i * 3 + $g) % count($goalBank)];
+            $met   = ($i + $g) % 4 === 0;
+            $aside = !$met && ($i + $g) % 11 === 0;
+            $due   = ($i + $g) % 3 === 0 ? '' : gmdate('Y-m-d', $now + (($i * 17 + $g * 29) % 220 - 60) * 86400);
+            $status = $met ? 'met' : ($aside ? 'dropped' : 'open');
+            $closed = $status === 'open' ? '' : gmdate('Y-m-d H:i:s', $now - (($i + $g) % 40) * 86400);
+            $insGoal->execute([$pairId, $title, $measure, $due, $status, $g, $began, $began, $closed]);
+            if (!$aside) $live[] = $title;
+        }
+        $db->prepare('UPDATE mentorships SET goals = ? WHERE id = ?')
+           ->execute([mb_substr(implode('; ', $live), 0, 2000), $pairId]);
+    }
 
     // A session every fortnight since the pairing began, mostly attended.
     $gapDays = 14;

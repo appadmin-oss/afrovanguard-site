@@ -42,6 +42,25 @@ final class MentorPortal
     /** The six steps a pairing walks, in order. Stored as 1..6. */
     public const STAGES = ['Matched', 'Kick-off', 'Goals agreed', 'Meeting regularly', 'Mid-point review', 'Planned close'];
 
+    /**
+     * Goals are ROWS, not a paragraph.
+     *
+     * The handoff keeps them in one free-text column, which is how the old
+     * page of browser dialogs stored them. A paragraph cannot be half done: "Goals
+     * agreed" becomes a tick box, neither side can say which of the three
+     * things actually happened, and the closing conversation — "look back at
+     * the goals together", step 2 of a planned close — has nothing to look
+     * back AT. So a pairing carries up to three live goals, each with how you
+     * will both know it happened and, if you set one, a date.
+     *
+     * mentorships.goals is kept in step on every write (the live titles,
+     * joined). The mentee's own portal, the roster's "Goals not set" filter
+     * and Today's "Agree goals with …" all read that column and none of them
+     * had to change.
+     */
+    public const GOAL_MAX = 3;
+    public const GOAL_STATUS = ['open' => 'Working on it', 'met' => 'Met', 'dropped' => 'Set aside'];
+
     /** The seven Vanguard Quest values, in the order the spec lists them. */
     public const VALUES = [
         'individuation' => 'Individuation',
@@ -51,6 +70,31 @@ final class MentorPortal
         'responsibility'=> 'Responsibility',
         'culture'       => 'Cultural Appreciation',
         'communal'      => 'Communal Spirit',
+    ];
+
+    /**
+     * What each value is taught by, and the two things a mentor is prompted to
+     * look for. The owner's wording, from the prototype — a value is a thing
+     * young people have been told in a particular sentence, and a mentor
+     * observing it should be reading the same sentence they were taught.
+     */
+    public const VALUE_MOTTO = [
+        'individuation'  => 'Stop copying. Become somebody.',
+        'faith'          => 'Believe something worth dying for.',
+        'diligence'      => 'Talent is cheap. Discipline is rare.',
+        'accountability' => 'Stop explaining. Start answering.',
+        'responsibility' => 'If you see it, own it.',
+        'culture'        => 'You cannot build the future if you are ashamed of your roots.',
+        'communal'       => 'If your success ends with you, it is too small.',
+    ];
+    public const VALUE_CHIPS = [
+        'individuation'  => ['Made a choice that was clearly their own', 'Explained who they are becoming'],
+        'faith'          => ['Acted on a conviction under pressure', 'Named what they believe and why'],
+        'diligence'      => ['Finished what they promised, on time', 'Arrived prepared'],
+        'accountability' => ['Owned a mistake without excuses', 'Repaired something they got wrong'],
+        'responsibility' => ['Fixed a problem nobody assigned', 'Took on a task without being asked'],
+        'culture'        => ['Explained a tradition and what it teaches', 'Brought culture into their work'],
+        'communal'       => ['Helped a peer succeed', 'Shared credit with the team'],
     ];
     public const LEVELS = ['Not seen', 'Emerging', 'Demonstrated', 'Exemplary'];
 
@@ -162,6 +206,18 @@ final class MentorPortal
             created_at TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (entry_id, user_id)
         );
+        CREATE TABLE IF NOT EXISTS mentor_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mentorship_id INTEGER NOT NULL,
+            title VARCHAR(200) NOT NULL DEFAULT '',
+            measure TEXT NOT NULL DEFAULT '',
+            due_on VARCHAR(10) NOT NULL DEFAULT '',
+            status VARCHAR(12) NOT NULL DEFAULT 'open',
+            sort_no INTEGER NOT NULL DEFAULT 0,
+            created_at VARCHAR(32) NOT NULL DEFAULT '',
+            updated_at VARCHAR(32) NOT NULL DEFAULT '',
+            closed_at VARCHAR(32) NOT NULL DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS mentor_undo (
             token VARCHAR(40) PRIMARY KEY,
             mentor_id INTEGER NOT NULL DEFAULT 0,
@@ -188,6 +244,7 @@ final class MentorPortal
         Database::ensureIndex($db, 'idx_mcheckins_pair', 'mentor_checkins', 'mentorship_id, due_at');
         Database::ensureIndex($db, 'idx_mmessages_pair', 'mentor_messages', 'mentorship_id, created_at');
         Database::ensureIndex($db, 'idx_macademy_user', 'mentor_academy', 'user_id, module_key');
+        Database::ensureIndex($db, 'idx_mgoals_pair', 'mentor_goals', 'mentorship_id, sort_no');
 
         // started_at is what "paired since" and "days since" fall back to. A
         // pairing created before this column existed has one — its created_at —
@@ -238,7 +295,8 @@ final class MentorPortal
             'name'         => (string) $u['name'],
             'email'        => (string) $u['email'],
             'initials'     => self::initials((string) $u['name']),
-            'academy_line' => $a['done'] . ' of ' . $a['required'] . ' required modules',
+            'academy_line' => 'Academy ' . $a['done'] . '/' . $a['required'] . ' · ' . ($a['safeguarding_ok'] ? 'cleared' : 'not cleared'),
+            'cleared'      => (bool) $a['safeguarding_ok'],
         ];
     }
 
@@ -363,7 +421,7 @@ final class MentorPortal
         $rows = [];
         try {
             $rows = $this->run(
-                "SELECT m.id AS pairing_id, u.name, m.track, COALESCE(ch.name, '') AS chapter, m.stage,
+                "SELECT m.id AS pairing_id, u.name, m.track, m.programme, COALESCE(ch.name, '') AS chapter, m.stage,
                         {$since} AS since_at, s.next_at, COALESCE(s.to_log,0) AS to_log, m.goals,
                         COALESCE(s.attended,0) AS attended, COALESCE(s.held,0) AS held
                  {$base}{$search} AND ({$F[$filter]})
@@ -434,7 +492,15 @@ final class MentorPortal
             'health'      => $health,
             'tone'        => $tone,
             'track'       => (string) ($r['track'] ?? ''),
+            'programme'   => (string) ($r['programme'] ?? ''),
             'chapter'     => (string) ($r['chapter'] ?? ''),
+            // "NextGen Vanguard · Leadership track · Ikotun chapter" — the three
+            // things that tell one Ada Okonkwo from another at a glance.
+            'where'       => implode(' · ', array_filter([
+                                (string) ($r['programme'] ?? ''),
+                                ($r['track'] ?? '') !== '' ? $r['track'] . ' track' : '',
+                                ($r['chapter'] ?? '') !== '' ? $r['chapter'] . ' chapter' : '',
+                             ])),
             'stage'       => $stage,
             'stage_label' => self::STAGES[$stage - 1],
             'days'        => $days,
@@ -443,6 +509,17 @@ final class MentorPortal
             'goals'       => trim((string) ($r['goals'] ?? '')),
             'next'        => !empty($r['next_at']) ? self::when((string) $r['next_at']) : null,
         ];
+    }
+
+    /** "Today", "Tomorrow", or the weekday — what a person would actually say. */
+    public static function relativeDay(string $ts): string
+    {
+        $t = $ts === '' ? 0 : (strtotime($ts . ' UTC') ?: 0);
+        if (!$t) return '';
+        $days = (int) floor((strtotime(date('Y-m-d', $t)) - strtotime(date('Y-m-d'))) / 86400);
+        if ($days <= 0) return 'Today';
+        if ($days === 1) return 'Tomorrow';
+        return $days < 7 ? date('l', $t) : date('j M', $t);
     }
 
     public static function when(string $ts, string $fmt = 'D j M · g:ia'): string
@@ -480,7 +557,7 @@ final class MentorPortal
         $prof = Mentorship::profile($this->mentorId) ?: [];
         $capacity = max(1, (int) ($prof['capacity'] ?? 3));
 
-        $kpi = ['hours' => 0.0, 'kept' => null, 'values_done' => 0, 'values_total' => 0, 'mentees' => 0, 'capacity' => $capacity];
+        $kpi = ['hours' => 0.0, 'kept' => null, 'attended' => 0, 'held' => 0, 'values_done' => 0, 'values_total' => 0, 'mentees' => 0, 'capacity' => $capacity];
         try {
             $st = $this->db->prepare(
                 "SELECT COALESCE(SUM(s.duration_min),0) AS mins,
@@ -498,7 +575,9 @@ final class MentorPortal
                    FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id WHERE m.mentor_id = ?");
             $st->execute([$this->mentorId]);
             $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-            $kpi['kept'] = ((int) ($r['h'] ?? 0)) > 0 ? (int) round(100 * (int) $r['a'] / (int) $r['h']) : null;
+            $kpi['attended'] = (int) ($r['a'] ?? 0);
+            $kpi['held']     = (int) ($r['h'] ?? 0);
+            $kpi['kept'] = $kpi['held'] > 0 ? (int) round(100 * $kpi['attended'] / $kpi['held']) : null;
 
             $st = $this->db->prepare(
                 "SELECT COUNT(*) AS n,
@@ -527,6 +606,7 @@ final class MentorPortal
                 'name' => (string) $r['name'], 'initials' => self::initials((string) $r['name']),
                 'type' => Mentorship::typeLabel((string) $r['session_type']),
                 'when' => self::when((string) $r['scheduled_at']),
+                'relative' => self::relativeDay((string) $r['scheduled_at']),
                 'minutes' => (int) ($r['duration_min'] ?: 60),
                 'agenda' => trim((string) $r['notes']),
                 'meet_url' => (string) $r['meet_url'],
@@ -535,42 +615,50 @@ final class MentorPortal
 
         // Everything waiting, each with the exact place it is dealt with.
         $todo = [];
-        $add = function (string $what, string $who, string $href) use (&$todo) { $todo[] = ['what' => $what, 'who' => $who, 'href' => $href]; };
+        $add = function (string $what, string $who, string $href, string $tone = 'gold', string $verb = 'Open') use (&$todo) {
+            $todo[] = ['what' => $what, 'who' => $who, 'href' => $href, 'tone' => $tone, 'verb' => $verb];
+        };
         try {
             $st = $this->db->prepare(
-                "SELECT s.id, s.scheduled_at, m.id AS pairing_id, u.name
+                "SELECT s.id, s.scheduled_at, s.title, m.id AS pairing_id, u.name
                    FROM mentor_sessions s JOIN mentorships m ON m.id = s.mentorship_id
                    JOIN lms_users u ON u.id = m.mentee_id
                   WHERE m.mentor_id = ? AND s.attendance = 'scheduled' AND s.scheduled_at <> '' AND s.scheduled_at < ?
                   ORDER BY s.scheduled_at ASC LIMIT 20");
             $st->execute([$this->mentorId, $now]);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r)
-                $add('Log the session from ' . self::when((string) $r['scheduled_at'], 'j M'), (string) $r['name'], '?v=case&id=' . (int) $r['pairing_id'] . '&tab=sessions#s' . (int) $r['id']);
+                $add('Log ' . explode(' ', (string) $r['name'])[0] . '’s session',
+                     trim((string) $r['title']) . ' · ' . self::when((string) $r['scheduled_at'], 'D j M · g:ia'),
+                     '?v=case&id=' . (int) $r['pairing_id'] . '&tab=sessions#s' . (int) $r['id'], 'gold', 'Log it');
 
             $st = $this->db->prepare(
                 "SELECT m.id, u.name FROM mentorships m JOIN lms_users u ON u.id = m.mentee_id
                   WHERE m.mentor_id = ? AND m.status = 'active' AND m.goals = '' ORDER BY u.name LIMIT 20");
             $st->execute([$this->mentorId]);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $add('Agree goals', (string) $r['name'], '?v=case&id=' . (int) $r['id']);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r)
+                $add('Agree goals with ' . (string) $r['name'], 'Set one to three goals at the kick-off', '?v=case&id=' . (int) $r['id'], 'indigo', 'Open');
 
             $st = $this->db->prepare(
                 "SELECT c.id, c.week, m.id AS pairing_id, u.name FROM mentor_checkins c
                    JOIN mentorships m ON m.id = c.mentorship_id JOIN lms_users u ON u.id = m.mentee_id
                   WHERE m.mentor_id = ? AND c.sent_at = '' AND c.due_at <= ? ORDER BY c.due_at ASC LIMIT 20");
             $st->execute([$this->mentorId, $now]);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $add('Week ' . (int) $r['week'] . ' check-in is due', (string) $r['name'], '?v=checkins#c' . (int) $r['id']);
+            $due = $st->fetchAll(PDO::FETCH_ASSOC);
+            if ($due) $add(count($due) === 1 ? 'One check-in for your coordinator' : count($due) . ' check-ins for your coordinator',
+                           'Takes a minute each', '?v=checkins', 'indigo', 'Start');
 
             $st = $this->db->prepare(
                 "SELECT COUNT(*) FROM mentorships WHERE mentor_id = ? AND status = 'pending'");
             $st->execute([$this->mentorId]);
             $n = (int) $st->fetchColumn();
-            if ($n) $add($n === 1 ? 'One request is waiting' : $n . ' requests are waiting', '', '?v=requests');
+            if ($n) $add($n === 1 ? 'One mentorship request' : $n . ' mentorship requests', 'Reply within a week', '?v=requests', 'indigo', 'Review');
 
             $st = $this->db->prepare(
                 "SELECT m.id, u.name FROM mentorships m JOIN lms_users u ON u.id = m.mentee_id
                   WHERE m.mentor_id = ? AND m.status = 'active' AND m.stage >= 6 ORDER BY u.name LIMIT 20");
             $st->execute([$this->mentorId]);
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $add('Plan the close', (string) $r['name'], '?v=case&id=' . (int) $r['id']);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r)
+                $add('Plan the close with ' . (string) $r['name'], 'Look back at the goals together', '?v=case&id=' . (int) $r['id'], 'red', 'Plan');
         } catch (Throwable $e) { error_log('[mentorportal] today todo: ' . $e->getMessage()); }
 
         // "Longest wait first" — the same ordering the roster uses, so the six
@@ -586,7 +674,14 @@ final class MentorPortal
                              'when' => self::when((string) $r['created_at'], 'j M')];
         } catch (Throwable $e) { /* no note */ }
 
-        return ['kpi' => $kpi, 'next' => $next, 'todo' => $todo,
+        // Round-robin by kind, so the first screenful shows every kind of work
+        // waiting rather than the first eight of whichever kind is commonest.
+        $byKind = [];
+        foreach ($todo as $row) $byKind[$row['verb']][] = $row;
+        $mixed = []; $n = $byKind ? max(array_map('count', $byKind)) : 0;
+        for ($i = 0; $i < $n; $i++) foreach ($byKind as $kind => $rows) if (isset($rows[$i])) $mixed[] = $rows[$i];
+
+        return ['kpi' => $kpi, 'next' => $next, 'todo' => $mixed, 'todo_total' => count($todo),
                 'wait' => array_slice($wait['rows'], 0, 6), 'wait_total' => $wait['total'], 'note' => $note];
     }
 
@@ -617,16 +712,25 @@ final class MentorPortal
             'initials'   => self::initials((string) $m['name']),
             'track'      => (string) ($m['track'] ?? ''),
             'chapter'    => (string) $m['chapter'],
+            'where'      => implode(' · ', array_filter([
+                                (string) ($m['programme'] ?? ''),
+                                ($m['track'] ?? '') !== '' ? $m['track'] . ' track' : '',
+                                ((string) $m['chapter']) !== '' ? $m['chapter'] . ' chapter' : '',
+                            ])),
             'since'      => self::when($started, 'j M Y'),
             'stage'      => max(1, min(6, (int) ($m['stage'] ?? 1))),
             'stages'     => self::STAGES,
             'goals'      => trim((string) ($m['goals'] ?? '')),
+            'goals_list' => $this->goalsFor($pairingId, trim((string) ($m['goals'] ?? '')) !== ''),
             'close_steps'=> array_values(array_filter(explode(',', (string) ($m['close_steps'] ?? '')))),
             'sessions'   => $sessions,
             'stats'      => [
                 'hours'    => round($minutes / 60, 1),
                 'sessions' => count($attended),
+                'held'     => count($held),
                 'kept'     => $held ? (int) round(100 * count($attended) / count($held)) : null,
+                'days'     => $last === null ? null
+                    : max(0, (int) floor((time() - (strtotime(((string) $last['when']) . ' UTC') ?: time())) / 86400)),
             ],
             'last'       => $last ? ['when' => self::when((string) $last['when'], 'j M Y'), 'outcome' => trim((string) $last['outcome'])] : null,
             'values'     => $this->valuesFor($pairingId),
@@ -635,11 +739,120 @@ final class MentorPortal
         ];
     }
 
+    /* ── Goals ──────────────────────────────────────────────────────────────
+       One to three per pairing. The legacy paragraph is migrated the first
+       time a case file that has one is opened, so nothing a mentor wrote
+       before this existed is lost or left behind. */
+
+    /**
+     * Every goal of one pairing, oldest first.
+     *
+     * $migrate is the caller saying "this pairing has legacy text worth
+     * turning into rows" — the case file knows, because it has just read the
+     * column. Passing false keeps this to exactly one query.
+     */
+    public function goalsFor(int $pairingId, bool $migrate = true): array
+    {
+        self::ensure();
+        $st = $this->db->prepare(
+            "SELECT id, title, measure, due_on, status, created_at, closed_at
+               FROM mentor_goals WHERE mentorship_id = ? ORDER BY sort_no ASC, id ASC");
+        $st->execute([$pairingId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if (!$rows && $migrate) $rows = $this->migrateGoalText($pairingId);
+
+        $today = gmdate('Y-m-d');
+        $out = [];
+        foreach ($rows as $r) {
+            $status = (string) $r['status'];
+            if (!isset(self::GOAL_STATUS[$status])) $status = 'open';
+            $due = (string) $r['due_on'];
+            $out[] = [
+                'id'         => (int) $r['id'],
+                'title'      => (string) $r['title'],
+                'measure'    => (string) $r['measure'],
+                'due_on'     => $due,
+                'due_label'  => $due === '' ? '' : self::when($due . ' 00:00:00', 'j M Y'),
+                'overdue'    => $status === 'open' && $due !== '' && $due < $today,
+                'status'     => $status,
+                'status_label' => self::GOAL_STATUS[$status],
+                'created_at' => (string) $r['created_at'],
+                'closed_at'  => (string) $r['closed_at'],
+            ];
+        }
+        return $out;
+    }
+
+    /** met / open / set aside, and whether there is room for another. */
+    public static function goalTally(array $items): array
+    {
+        $n = ['met' => 0, 'open' => 0, 'dropped' => 0];
+        foreach ($items as $g) $n[$g['status']]++;
+        $live = $n['met'] + $n['open'];
+        return $n + ['live' => $live, 'total' => count($items), 'can_add' => $n['open'] < self::GOAL_MAX];
+    }
+
+    /**
+     * Turn the pairing's free-text goals into rows, once.
+     *
+     * Conservative on purpose: it splits on line breaks and semicolons, never
+     * on full stops, because "Lead one project and speak at the chapter
+     * meeting by December." is one goal written in one sentence, and chopping
+     * it would put words in the mentor's mouth. $at is when the goals are
+     * recorded as agreed — the pairing's start for a migration, so the
+     * timeline does not claim they were set today.
+     */
+    private function migrateGoalText(int $pairingId, ?string $at = null): array
+    {
+        $st = $this->db->prepare('SELECT goals, started_at, created_at FROM mentorships WHERE id = ?');
+        $st->execute([$pairingId]);
+        $m = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$m) return [];
+        $text = trim(strip_tags((string) ($m['goals'] ?? '')));
+        if ($text === '') return [];
+
+        $when  = $at ?? ((string) ($m['started_at'] ?: $m['created_at']) ?: self::now());
+        $parts = preg_split('/\s*(?:\r?\n|;)+\s*/u', $text) ?: [];
+        $ins   = $this->db->prepare(
+            "INSERT INTO mentor_goals (mentorship_id, title, measure, due_on, status, sort_no, created_at, updated_at, closed_at)
+             VALUES (?, ?, '', '', 'open', ?, ?, ?, '')");
+        $i = 0;
+        foreach ($parts as $t) {
+            $t = self::cleanLine(ltrim($t, "-*\u{2022} \t"), 200);
+            if ($t === '') continue;
+            $ins->execute([$pairingId, $t, $i, $when, $when]);
+            if (++$i >= self::GOAL_MAX) break;
+        }
+        if ($i === 0) return [];
+        $st = $this->db->prepare(
+            "SELECT id, title, measure, due_on, status, created_at, closed_at
+               FROM mentor_goals WHERE mentorship_id = ? ORDER BY sort_no ASC, id ASC");
+        $st->execute([$pairingId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private static function cleanLine(string $s, int $max): string
+    {
+        return mb_substr(trim(preg_replace('/\s+/u', ' ', strip_tags($s)) ?? ''), 0, $max);
+    }
+
+    /** A date the browser sent, or nothing. Never a half-parsed string. */
+    private static function cleanDate(string $s): string
+    {
+        $s = trim($s);
+        if ($s === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $s)) return '';
+        [$y, $m, $d] = array_map('intval', explode('-', $s));
+        return checkdate($m, $d, $y) ? $s : '';
+    }
+
     /** The seven values and when each was last seen, for one pairing. */
     public function valuesFor(int $pairingId): array
     {
         $out = [];
-        foreach (self::VALUES as $k => $label) $out[$k] = ['key' => $k, 'label' => $label, 'level' => 0, 'last' => '', 'evidence' => ''];
+        foreach (self::VALUES as $k => $label) $out[$k] = [
+            'key' => $k, 'label' => $label, 'motto' => self::VALUE_MOTTO[$k] ?? '',
+            'chips' => self::VALUE_CHIPS[$k] ?? [], 'level' => 0, 'last' => '', 'evidence' => '',
+        ];
         try {
             $st = $this->db->prepare(
                 "SELECT value_key, level, evidence, observed_at FROM mentor_values
@@ -983,14 +1196,117 @@ final class MentorPortal
        true here.
        ══════════════════════════════════════════════════════════════════════════ */
 
-    /** Agreeing goals moves the pairing to stage 3 — but never backwards. */
+    /** Add one goal. The first one moves the pairing to "Goals agreed". */
+    public function addGoal(int $pairingId, string $title, string $measure, string $due): array
+    {
+        if (!$this->ownsPairing($pairingId)) return ['ok' => false, 'error' => 'Not your mentee.'];
+        $title = self::cleanLine($title, 200);
+        if ($title === '') return ['ok' => false, 'error' => 'Write what you are both working towards.'];
+
+        $have = $this->goalsFor($pairingId);
+        if (self::goalTally($have)['can_add'] === false) {
+            return ['ok' => false, 'error' => 'Three goals at a time is the limit. Mark one met, or set it aside.'];
+        }
+        $now = self::now();
+        $this->db->prepare(
+            "INSERT INTO mentor_goals (mentorship_id, title, measure, due_on, status, sort_no, created_at, updated_at, closed_at)
+             VALUES (?, ?, ?, ?, 'open', ?, ?, ?, '')")
+            ->execute([$pairingId, $title, self::cleanLine($measure, 300), self::cleanDate($due), count($have), $now, $now]);
+        $this->syncGoalText($pairingId);
+        return ['ok' => true];
+    }
+
+    /** Reword a goal, or change how you will know it happened. */
+    public function editGoal(int $pairingId, int $goalId, string $title, string $measure, string $due): array
+    {
+        if (!$this->ownsPairing($pairingId)) return ['ok' => false, 'error' => 'Not your mentee.'];
+        $title = self::cleanLine($title, 200);
+        if ($title === '') return ['ok' => false, 'error' => 'Write what you are both working towards.'];
+        $st = $this->db->prepare(
+            'UPDATE mentor_goals SET title = ?, measure = ?, due_on = ?, updated_at = ? WHERE id = ? AND mentorship_id = ?');
+        $st->execute([$title, self::cleanLine($measure, 300), self::cleanDate($due), self::now(), $goalId, $pairingId]);
+        if ($st->rowCount() === 0 && !$this->goalExists($pairingId, $goalId)) {
+            return ['ok' => false, 'error' => 'That goal is not on this pairing.'];
+        }
+        $this->syncGoalText($pairingId);
+        return ['ok' => true];
+    }
+
+    /**
+     * Met, set aside, or back to working on it.
+     *
+     * A goal is never deleted by this; "Set aside" keeps it in the record so
+     * the closing conversation can still see what was agreed and what changed.
+     */
+    public function setGoalStatus(int $pairingId, int $goalId, string $status): array
+    {
+        if (!$this->ownsPairing($pairingId)) return ['ok' => false, 'error' => 'Not your mentee.'];
+        if (!isset(self::GOAL_STATUS[$status])) return ['ok' => false, 'error' => 'Unknown status.'];
+        if (!$this->goalExists($pairingId, $goalId)) return ['ok' => false, 'error' => 'That goal is not on this pairing.'];
+        $now = self::now();
+        $this->db->prepare('UPDATE mentor_goals SET status = ?, closed_at = ?, updated_at = ? WHERE id = ? AND mentorship_id = ?')
+            ->execute([$status, $status === 'open' ? '' : $now, $now, $goalId, $pairingId]);
+        $this->syncGoalText($pairingId);
+        return ['ok' => true, 'status' => $status, 'label' => self::GOAL_STATUS[$status]];
+    }
+
+    /** Remove a goal written by mistake. Set aside is the one to use otherwise. */
+    public function removeGoal(int $pairingId, int $goalId): array
+    {
+        if (!$this->ownsPairing($pairingId)) return ['ok' => false, 'error' => 'Not your mentee.'];
+        if (!$this->goalExists($pairingId, $goalId)) return ['ok' => false, 'error' => 'That goal is not on this pairing.'];
+        $this->db->prepare('DELETE FROM mentor_goals WHERE id = ? AND mentorship_id = ?')->execute([$goalId, $pairingId]);
+        $this->syncGoalText($pairingId);
+        return ['ok' => true];
+    }
+
+    private function goalExists(int $pairingId, int $goalId): bool
+    {
+        $st = $this->db->prepare('SELECT 1 FROM mentor_goals WHERE id = ? AND mentorship_id = ?');
+        $st->execute([$goalId, $pairingId]);
+        return (bool) $st->fetchColumn();
+    }
+
+    /**
+     * Keep mentorships.goals — and the stage — telling the truth.
+     *
+     * Everything written before this feature reads that one column: the
+     * mentee's portal, the roster filter, Today's "Agree goals with …", the
+     * seed data. So every goal write rewrites it from the live goals, and the
+     * stage follows: the first goal moves a pairing up to "Goals agreed", and
+     * removing the last one moves it back down to "Kick-off" rather than
+     * leaving a pairing standing at a step it is no longer on. A stage past
+     * agreement is never pulled backwards.
+     */
+    private function syncGoalText(int $pairingId): void
+    {
+        $st = $this->db->prepare('SELECT title, status FROM mentor_goals WHERE mentorship_id = ? ORDER BY sort_no ASC, id ASC');
+        $st->execute([$pairingId]);
+        $live = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            if ((string) $r['status'] !== 'dropped') $live[] = (string) $r['title'];
+        }
+        $sql = $live
+            ? 'UPDATE mentorships SET goals = ?, stage = CASE WHEN stage < 3 THEN 3 ELSE stage END, updated_at = ? WHERE id = ?'
+            : 'UPDATE mentorships SET goals = ?, stage = CASE WHEN stage = 3 THEN 2 ELSE stage END, updated_at = ? WHERE id = ?';
+        $this->db->prepare($sql)->execute([mb_substr(implode('; ', $live), 0, 2000), self::now(), $pairingId]);
+    }
+
+    /**
+     * The whole set at once, as one block of text — what the older client and
+     * the mentee-side import post. Rewritten as rows so there is one shape of
+     * goal in the database, not two.
+     */
     public function saveGoals(int $pairingId, string $goals): array
     {
         if (!$this->ownsPairing($pairingId)) return ['ok' => false, 'error' => 'Not your mentee.'];
         $goals = trim(strip_tags($goals));
         if ($goals === '') return ['ok' => false, 'error' => 'Write what you are working towards.'];
-        $this->db->prepare('UPDATE mentorships SET goals = ?, stage = CASE WHEN stage < 3 THEN 3 ELSE stage END, updated_at = ? WHERE id = ?')
+        $this->db->prepare('DELETE FROM mentor_goals WHERE mentorship_id = ?')->execute([$pairingId]);
+        $this->db->prepare('UPDATE mentorships SET goals = ?, updated_at = ? WHERE id = ?')
             ->execute([mb_substr($goals, 0, 2000), self::now(), $pairingId]);
+        $this->migrateGoalText($pairingId, self::now());
+        $this->syncGoalText($pairingId);
         return ['ok' => true];
     }
 
@@ -1381,7 +1697,11 @@ final class MentorPortal
         $c = $this->caseFile($pairingId);
         if (!$c) return [];
         $first = $c['first'];
-        $goal = $c['goals'] !== '' ? self::firstSentence($c['goals']) : '';
+        /* The goal it asks about is a goal still OPEN — one already met is not
+           the thing to chase, and one set aside is the thing you both agreed
+           to stop chasing. */
+        $open = array_values(array_filter($c['goals_list'], fn($g) => $g['status'] === 'open'));
+        $goal = $open ? self::firstSentence($open[0]['title']) : '';
         $lastOutcome = $c['last']['outcome'] ?? '';
 
         $weakest = null;

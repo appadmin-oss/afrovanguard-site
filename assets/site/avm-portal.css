@@ -14,6 +14,12 @@
    so the ink and danger buttons came out ink-on-ink and gold-on-gold: a solid
    block with an invisible label. Restated where it holds. */
 .avm .avm-btn--ink,.avm .avm-btn--danger{color:var(--av-white)}
+
+/* The UA's [hidden]{display:none} is one class-less rule, so ANY class that
+   sets display beats it and the element stays on screen. avm.css patches this
+   per element as each one is caught (.avm-bulk, .avm-toast); a closed form
+   that ships open is the same bug found again. Fixed once, for the portal. */
+.avm [hidden]{display:none}
 .avm .avm-btn--gold{color:var(--av-ink)}
 .avm .avm-btn--ghost-ink{color:var(--av-white)}
 .avm .avm-report{color:var(--av-red)}
@@ -79,4 +85,155 @@
   .avm-pick{width:44px;height:44px;margin-left:-12px}
   .avm-select,.avm-search input{min-height:44px}
   .avm-link{display:inline-flex;align-items:center;min-height:44px}
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THE PROTOTYPE'S OWN TEXTURE
+
+   avm.css gives the portal its shell, its table and its controls. What it does
+   not carry is the thing that makes the prototype read as designed rather than
+   assembled: almost nothing in it is a plain white bordered box. Status is a
+   tinted pill, the thing you are meant to do next is a gold panel, a figure
+   you are meant to compare sits in a stone inset, and a card that introduces
+   something has a header strip above it rather than a label inside it.
+
+   Without these every panel has the same weight, and a screen with twelve
+   equal panels has no hierarchy at all — which is what "not clean enough"
+   looks like from the inside.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tints ──────────────────────────────────────────────────────────────── */
+.avm-tint{border-radius:var(--av-r-10);padding:12px 14px;background:var(--av-stone)}
+.avm-tint--gold{background:var(--av-gold-soft);border:1px solid var(--av-gold-light)}
+.avm-tint--green{background:var(--av-green-bg)}
+.avm-tint--warn{background:var(--av-gold-soft)}
+.avm-tint--red{background:var(--av-red-bg)}
+.avm-tint b{display:block;font-size:15px;font-weight:700}
+.avm-tint span{display:block;font-size:12.5px;color:var(--av-muted)}
+
+/* The one thing on the screen you are meant to do next. One per view. */
+.avm-act{border:1px solid var(--av-gold-light);border-radius:var(--av-r-12);padding:16px;
+  background:var(--av-gold-soft);display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.avm-act-txt{flex:1;min-width:220px}
+.avm-act h2{margin:0;font-size:15px;font-weight:700}
+.avm-act p{margin:4px 0 0;font-size:13.5px;color:var(--av-text-2);max-width:62ch}
+
+/* ── A card that introduces something, with a strip above it ────────────── */
+.avm-lead{border:1px solid var(--av-line);border-radius:var(--av-r-12);overflow:hidden;background:var(--av-white)}
+.avm-lead>.avm-card-h{border-bottom:0;padding:12px 14px 10px}
+.avm-lead>.avm-next{margin:0 10px 10px;border-radius:var(--av-r-10)}
+
+/* ── Four figures in a row, inside a panel ──────────────────────────────── */
+.avm-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:14px}
+.avm-figs b{display:block;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.avm-figs small{display:block;margin-top:2px;font-size:12.5px;color:var(--av-muted)}
+
+/* ── A level, as a pill ─────────────────────────────────────────────────── */
+.avm-lv{padding:3px 9px;border-radius:var(--av-r-6);font-size:11.5px;font-weight:700;background:var(--av-stone-3);color:var(--av-muted)}
+.avm-lv--1{background:var(--av-indigo-bg);color:var(--av-indigo)}
+.avm-lv--2,.avm-lv--3{background:var(--av-green-bg);color:var(--av-green)}
+.avm-rows{display:flex;flex-direction:column}
+.avm-rows>div{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:7px 0;border-bottom:1px solid var(--av-stone-3);font-size:13.5px}
+.avm-rows>div:last-child{border-bottom:0}
+
+/* ── A stage that means something ───────────────────────────────────────── */
+.avm-tr .stage--close{color:var(--av-gold-text);font-weight:700}
+.avm-tr .stage--nogoals{color:var(--av-indigo);font-weight:700}
+
+/* ── The roster, with room to breathe ───────────────────────────────────── */
+.avm-tr{min-height:64px}
+.avm-who small{margin-top:1px}
+
+/* ── Values ─────────────────────────────────────────────────────────────── */
+.avm-val-h em{font-style:italic;font-weight:400;font-size:13.5px;color:var(--av-muted)}
+.avm-val .avm-seg{grid-template-columns:repeat(4,1fr);gap:8px;padding:0;background:none}
+.avm-val .avm-seg span{height:44px;border:1px solid var(--av-line);background:var(--av-white);font-size:13.5px}
+.avm-val .avm-seg input:checked+span{border:2px solid var(--av-ink);font-weight:700;box-shadow:none}
+.avm-save{position:sticky;bottom:0;z-index:10;margin:0 -2px;padding:12px 2px 2px;
+  background:linear-gradient(to top,var(--av-white) 72%,transparent)}
+.avm-save .avm-btn{width:100%;height:48px;font-size:15px}
+.avm-save p{margin:0 0 8px;font-size:13px;color:var(--av-muted);text-align:center}
+
+/* ── The reading line on Values ─────────────────────────────────────────── */
+.avm-observing{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.avm-observing .avm-progress{flex:1 1 180px}
+
+@container avm (max-width:899px){
+  .avm-val .avm-seg{grid-template-columns:repeat(2,1fr)}
+  .avm-figs{grid-template-columns:repeat(2,1fr)}
+}
+
+/* The stage chip says where the pairing is; its colour says whether that is
+   somewhere you need to act. Green is the default and means "going fine". */
+.avm-stagechip.is-nogoals{background:var(--av-indigo-bg);color:var(--av-indigo)}
+.avm-stagechip.is-closing{background:var(--av-gold-soft);color:var(--av-gold-text)}
+.avm-casebar .pos{text-align:right}
+.avm-casebar .avm-btn[aria-disabled="true"]{opacity:.35}
+
+/* ══ GOALS ════════════════════════════════════════════════════════════════
+   Up to three rows, each with one tick target and one link. The tick is the
+   whole point of the panel, so it is the only filled thing in it; everything
+   else is type and space. A met goal keeps its words — struck through, not
+   deleted — because the close conversation looks back at what was agreed.  */
+.avm-goalbox{display:flex;flex-direction:column;gap:10px}
+.avm-goalsum{margin:0;font-size:13px;color:var(--av-muted)}
+.avm-goalsum b{font-size:13px;font-weight:700;color:var(--av-ink)}
+
+.avm-goalmeter{display:flex;align-items:center;gap:10px;min-width:0}
+.avm-goalbar{flex:0 0 120px;height:4px;border-radius:999px;background:var(--av-stone-2);overflow:hidden}
+.avm-goalbar i{display:block;height:100%;background:var(--av-green);transition:width .2s ease-out}
+
+.avm-goal-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+/* avm.css paints .avm-goals as a stone card; the eyebrow, the meter and the
+   rows all live on it, as the design draws them. */
+.avm-goals{display:flex;flex-direction:column;gap:8px}
+.avm-goal{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:start;gap:12px;
+  padding:12px 0;border-top:1px solid var(--av-stone-3)}
+.avm-goal-list li:first-child{border-top:0}
+/* The circle reads as 26px; the BUTTON is 44 — the touch floor — sitting on a
+   negative margin so the row still lines up on its 28px rail. A hit area faked
+   with a pseudo-element measures 26 to every audit tool that checks. */
+.avm .avm-goal-tick{color:transparent}
+.avm-goal-tick{position:relative;z-index:1;width:44px;height:44px;margin:-8px 0 -8px -9px;flex:none;
+  border:0;background:none;padding:0;color:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center}
+.avm-goal-tick::before{content:"";position:absolute;width:26px;height:26px;border-radius:50%;
+  border:1.5px solid var(--av-line-2);background:var(--av-white)}
+.avm-goal-tick svg{position:relative}
+.avm-goal-tick:hover::before{border-color:var(--av-green)}
+.avm .avm-goal-tick:hover{color:var(--av-line-2)}
+.avm .avm-goal-tick[aria-pressed="true"]{color:var(--av-white)}
+.avm-goal-tick[aria-pressed="true"]::before{background:var(--av-green);border-color:var(--av-green)}
+.avm .avm-goal-tick.is-aside{color:var(--av-muted)}
+.avm-goal-tick.is-aside{width:26px;height:26px;margin:1px 0 0;font-size:13px;cursor:default}
+.avm-goal-tick.is-aside::before{border-style:dashed}
+.avm-goal-t{margin:0;font-size:15px;font-weight:700;line-height:1.45}
+.avm-goal-m{margin:3px 0 0;font-size:13.5px;line-height:1.5;color:var(--av-text-2)}
+.avm-goal-meta{margin:5px 0 0;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--av-muted)}
+.avm-goal-due{font-weight:700;color:var(--av-gold-text)}
+.avm-goal-due.is-over{color:var(--av-red)}
+.avm-goal.is-met .avm-goal-t{text-decoration:line-through;color:var(--av-muted);font-weight:600}
+.avm-goal.is-dropped .avm-goal-t{color:var(--av-muted);font-weight:600}
+.avm-goal.is-dropped .avm-goal-m{display:none}
+.avm-goal-edit{align-self:center}
+.avm-goal-none{margin:0;font-size:14px;line-height:1.55;color:var(--av-text-2)}
+.avm-goal-add{align-self:flex-start}
+
+.avm-goalform{display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:var(--av-r-10);
+  background:var(--av-stone);border:1px solid var(--av-stone-3)}
+.avm-goalform-h{margin:0 0 2px;font-size:14px;font-weight:700}
+.avm-lbl{font-size:13px;font-weight:600;margin-top:4px}
+.avm-lbl em{font-style:normal;font-weight:400;color:var(--av-muted)}
+.avm-goal-date{max-width:200px}
+.avm-goalform-a{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px}
+.avm-goal-del,.avm-goal-aside{margin-left:auto}
+.avm-goal-del{color:var(--av-red)}
+.avm-goal-err{margin:6px 0 0;font-size:13px;font-weight:600;color:var(--av-red)}
+
+@media (prefers-reduced-motion:reduce){.avm-goalbar i{transition:none}}
+@container avm (max-width:599px){
+  .avm-goal{grid-template-columns:26px minmax(0,1fr);row-gap:4px}
+  .avm-goal-edit{grid-column:2;justify-self:start}
+  .avm-goal-del,.avm-goal-aside{margin-left:0}
 }
