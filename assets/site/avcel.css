@@ -1,0 +1,276 @@
+/* ============================================================
+   assets/site/avcel.css — celebrations (row 17).
+   Design: “Afrovanguard Celebrations” — 5a pop-up, 3b doodle logo,
+   3a doodle scenes, 2b member themes, 2a ring logo.
+   Tokens only (assets/site/av-tokens.css). Loaded by celebrations.js
+   on a day with something to celebrate; nothing here is global.
+   ============================================================ */
+
+/* ── 5a · the pop-up ─────────────────────────────────────────── */
+.avcel-layer{position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:24px 16px;
+  background:rgba(10,12,18,.55);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);overflow-y:auto;
+  font-family:var(--av-sans);color:var(--av-ink);-webkit-font-smoothing:antialiased;animation:avcel-scrim .3s ease both}
+.avcel-layer *{box-sizing:border-box}
+.avcel-layer.is-leaving{animation:avcel-scrim-out .2s ease both}
+.avcel-dialog{width:100%;max-width:330px;display:flex;flex-direction:column;align-items:center;gap:20px;margin:auto;outline:none}
+.avcel-layer .avcel-dialog:focus,.avcel-layer .avcel-dialog:focus-visible{outline:none}
+.avcel-card{position:relative;width:100%;border-radius:22px;overflow:hidden;background:var(--av-white);
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.6);animation:avcel-pop .35s cubic-bezier(.2,.8,.2,1) both}
+
+.avcel-art{position:relative;height:200px;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  background:linear-gradient(160deg,var(--avcel-a),var(--avcel-b))}
+.avcel-dots{position:absolute;inset:0;opacity:.9;
+  background:radial-gradient(color-mix(in srgb,var(--av-white) 10%,transparent) 1.2px,transparent 1.6px) 0 0/16px 16px}
+.avcel-k--mine .avcel-dots{background-image:radial-gradient(color-mix(in srgb,var(--av-gold-light) 18%,transparent) 1.2px,transparent 1.6px)}
+.avcel-k--mate .avcel-dots{background-image:radial-gradient(color-mix(in srgb,var(--av-cel-ice) 20%,transparent) 1.2px,transparent 1.6px)}
+.avcel-k--group .avcel-dots{background-image:radial-gradient(color-mix(in srgb,var(--av-cel-heather) 20%,transparent) 1.2px,transparent 1.6px)}
+.avcel-age{position:absolute;font-family:var(--av-serif);font-size:210px;font-weight:500;line-height:1;letter-spacing:-.04em;
+  color:color-mix(in srgb,var(--av-gold-light) 16%,transparent);font-variant-numeric:tabular-nums}
+.avcel-cream,.avcel-wash{position:absolute;inset:0;z-index:1;pointer-events:none}
+.avcel-cream{background:color-mix(in srgb,var(--avcel-c1) 10%,var(--av-paper))}
+.avcel-wash{background:linear-gradient(160deg,var(--avcel-a),var(--avcel-b))}
+.avcel-stage{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;padding-left:7%;pointer-events:none}
+.avcel-stage>svg,.avcel-stage>.avcel-dimg{width:88%}
+.avcel-dimg{display:block;max-height:80%;object-fit:contain}
+.avcel-badge{position:relative;z-index:2;width:96px;height:96px;border-radius:50%;padding:3px;background:var(--avcel-ring);
+  box-shadow:0 14px 30px -12px rgba(0,0,0,.55)}
+.avcel-badge img,.avcel-badge .avcel-ini{width:100%;height:100%;border-radius:50%;display:block;border:3px solid var(--av-white)}
+.avcel-badge .avcel-ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:32px;background:var(--av-gold);color:var(--av-ink)}
+.avcel-badge .avcel-ini img{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px);object-fit:cover}
+.avcel-k--mate .avcel-ini{background:var(--av-indigo-bg);color:var(--av-indigo)}
+.avcel-badge .avcel-sealov{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px);opacity:0}
+.avcel-badge::before,.avcel-badge::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid color-mix(in srgb,var(--av-white) 75%,transparent);opacity:0;pointer-events:none}
+.avcel-badge.is-landed::before{animation:avcel-ripple .95s cubic-bezier(.2,.8,.2,1) both;--s:1.55}
+.avcel-badge.is-landed::after{animation:avcel-ripple .95s cubic-bezier(.2,.8,.2,1) .17s both;--s:2}
+.avcel-group{position:absolute;z-index:2;bottom:16px;display:flex;padding-left:8px;margin:0;list-style:none}
+.avcel-group li{width:34px;height:34px;margin-left:-8px;border-radius:50%;border:2px solid var(--av-white);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--av-indigo-bg);color:var(--av-indigo)}
+.avcel-group li:nth-child(3n+2){background:var(--av-green-bg);color:var(--av-green)}
+.avcel-group li:nth-child(3n){background:var(--av-red-bg);color:var(--av-red)}
+.avcel-group img{width:100%;height:100%;object-fit:cover}
+
+/* Act timing: intro shows the cream + scene; final shows the badge. */
+.avcel-art .avcel-badge,.avcel-art .avcel-after{opacity:0}
+.avcel-art.is-final .avcel-badge,.avcel-art.is-final .avcel-after{opacity:1}
+.avcel-art.is-final .avcel-cream,.avcel-art.is-final .avcel-stage,.avcel-art.is-final .avcel-wash{display:none}
+.avcel-art.is-after .avcel-after{animation:avcel-rise .56s cubic-bezier(.16,1,.3,1) calc(1s + var(--i,0) * .1s) both}
+.avcel-art.is-washed .avcel-cream{opacity:0}
+.avcel-art.is-washed .avcel-wash{animation:avcel-fade-out .45s ease both}
+
+.avcel-body{padding:20px 22px 22px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.avcel-kicker{margin:0;font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--avcel-kfg)}
+.avcel-title{margin:0;font-family:var(--av-serif);font-size:31px;font-weight:500;line-height:1.05;color:var(--av-ink);text-wrap:balance}
+.avcel-msg{margin:0;font-size:14.5px;line-height:1.55;color:var(--av-nav-sub);text-wrap:pretty}
+.avcel-perk{margin:0;display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:var(--av-r-pill);background:var(--av-gold-soft);
+  color:var(--av-gold-text);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.avcel-actions{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:6px}
+.avcel-cta{width:100%;height:46px;border-radius:var(--av-r-12);border:0;background:var(--av-ink);color:var(--av-white);
+  font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:0 16px}
+.avcel-cta:hover{background:var(--av-ink-hover);color:var(--av-white)}
+.avcel-second{min-height:44px;border:0;background:none;padding:4px 12px;font-family:inherit;font-size:14px;font-weight:600;color:var(--av-slate);cursor:pointer}
+.avcel-second:hover{color:var(--av-ink)}
+.avcel-x{border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.avcel-x svg{display:block}
+.avcel-x--desk{display:none}
+.avcel-x--phone{width:46px;height:46px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--av-white) 85%,transparent);
+  background:color-mix(in srgb,var(--av-white) 8%,transparent);color:var(--av-white);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.avcel-layer :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+.avcel-x--phone:focus-visible{outline-color:var(--av-white)}
+
+/* private birthday note (process-wish.php) */
+.avcel-wish{width:100%;display:flex;flex-direction:column;gap:8px;text-align:left;margin-top:4px}
+.avcel-wish[hidden]{display:none}
+.avcel-wish input,.avcel-wish textarea{width:100%;padding:10px 12px;border:1px solid var(--av-line-2);border-radius:var(--av-r-8);
+  font-family:inherit;font-size:16px;background:var(--av-white);color:var(--av-ink)}
+.avcel-wish textarea{resize:vertical;min-height:84px;line-height:1.45}
+.avcel-wish .avcel-send{height:44px;border-radius:var(--av-r-10);border:0;background:var(--av-ink);color:var(--av-white);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.avcel-wish .avcel-send:disabled{opacity:.6;cursor:default}
+.avcel-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}
+.avcel-status{margin:0;font-size:13px;color:var(--av-muted);min-height:1em}
+.avcel-status.is-ok{color:var(--av-green)}
+.avcel-status.is-err{color:var(--av-red)}
+.avcel-more{margin:0;font-size:13px;color:var(--av-muted)}
+.avcel-more a{color:var(--av-gold-text);font-weight:600}
+
+/* Tablet and computer: centred card, art on the left, close top-right. */
+@media (min-width:640px){
+  .avcel-layer{background:rgba(10,12,18,.4);padding:40px 20px}
+  .avcel-dialog{max-width:640px;gap:0}
+  .avcel-card{display:grid;grid-template-columns:260px minmax(0,1fr);border-radius:18px;box-shadow:0 30px 60px -20px rgba(0,0,0,.45)}
+  .avcel-art{height:auto;min-height:270px}
+  .avcel-age{font-size:170px}
+  .avcel-badge{width:84px;height:84px}
+  .avcel-badge .avcel-ini{font-size:28px}
+  .avcel-group li{width:30px;height:30px}
+  .avcel-body{padding:24px 24px 22px;gap:9px;align-items:stretch;text-align:left}
+  .avcel-kicker{padding-right:30px}
+  .avcel-title{font-size:30px;padding-right:20px}
+  .avcel-msg{font-size:14px}
+  .avcel-perk{align-self:flex-start;padding:6px 11px;font-size:12.5px}
+  .avcel-actions{flex-direction:row;flex-wrap:wrap;gap:8px;align-items:center}
+  .avcel-cta{width:auto;height:38px;border-radius:9px;font-size:14px}
+  .avcel-second{min-height:38px;height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--av-line-2);background:var(--av-white);color:var(--av-ink)}
+  .avcel-second:hover{background:var(--av-stone)}
+  .avcel-x--phone{display:none}
+  .avcel-x--desk{display:flex;position:absolute;top:10px;right:10px;z-index:3;width:32px;height:32px;border-radius:50%;background:var(--av-menu-hover);color:var(--av-nav-sub)}
+  .avcel-x--desk:hover{background:var(--av-stone-hover);color:var(--av-ink)}
+}
+
+/* “Show the pop-up again”: the docked card after it closes. Never covers the page. */
+.avcel-pill{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:2147481000;transform:translateX(-50%);
+  height:44px;padding:0 18px;border-radius:var(--av-r-pill);border:0;background:var(--av-ink);color:var(--av-white);
+  font-family:var(--av-sans);font-size:13.5px;font-weight:600;white-space:nowrap;cursor:pointer;box-shadow:var(--av-shadow);
+  animation:avcel-rise .35s cubic-bezier(.16,1,.3,1) both}
+.avcel-pill:focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+@media (min-width:640px){.avcel-pill{height:40px;padding:0 16px}}
+
+/* ── 3a · the scene SVG (viewBox 400 × 124) ──────────────────── */
+.avcel-doodle{display:block;width:100%;height:auto;overflow:visible}
+.avcel-doodle .avcel-w1,.avcel-doodle .avcel-w2{font-family:var(--av-serif);font-size:42px;font-weight:600;fill:var(--av-ink)}
+.avcel-doodle .avcel-ground{fill:color-mix(in srgb,var(--avcel-c1) 10%,var(--av-paper))}
+.avcel-rip{fill:none;stroke:var(--av-quote-mark);stroke-width:1.2;opacity:0}
+.avcel-doodle :is(.avcel-m,.avcel-i,.avcel-wg,.avcel-dacc-in,.avcel-dseal,.avcel-w1,.avcel-w2,.avcel-rip){transform-box:fill-box;transform-origin:50% 50%}
+.avcel-m--draw,.avcel-m--trail{stroke-dasharray:1 1}
+
+/* Entrances play when the scene gets .is-play; --avcel-base is when the scene starts. */
+.is-play{--avcel-base:.9s}
+.is-play .avcel-m{animation-delay:calc(var(--avcel-base) + var(--d,0s));animation-fill-mode:both}
+.is-play .avcel-m--drop{animation-name:avcel-drop;animation-duration:1.15s;animation-timing-function:linear;transform-origin:50% 0}
+.is-play .avcel-m--pop{animation-name:avcel-popin;animation-duration:.68s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+.is-play .avcel-m--burst{animation-name:avcel-burst;animation-duration:.85s;animation-timing-function:cubic-bezier(.12,.9,.25,1)}
+.is-play .avcel-m--float{animation-name:avcel-float;animation-duration:1.5s;animation-timing-function:cubic-bezier(.16,1,.3,1);transform-origin:50% 100%}
+.is-play .avcel-m--fall{animation-name:avcel-fall;animation-duration:1.15s;animation-timing-function:cubic-bezier(.25,.6,.35,1)}
+.is-play .avcel-m--fly{animation-name:avcel-fly;animation-duration:1.3s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+.is-play .avcel-m--spin{animation-name:avcel-spin;animation-duration:1.1s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+.is-play .avcel-m--grow{animation-name:avcel-grow;animation-duration:.7s;animation-timing-function:cubic-bezier(.2,.8,.2,1);transform-origin:50% 100%}
+.is-play .avcel-m--unfurl{animation-name:avcel-unfurl;animation-duration:.85s;animation-timing-function:cubic-bezier(.7,0,.2,1);transform-origin:0 50%}
+.is-play .avcel-m--flip{animation-name:avcel-flip;animation-duration:.44s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+.is-play .avcel-m--fade{animation-name:avcel-fade;animation-duration:.8s;animation-timing-function:ease-out}
+.is-play .avcel-m--draw{animation-name:avcel-draw;animation-duration:.9s;animation-timing-function:cubic-bezier(.6,0,.25,1)}
+.is-play .avcel-m--trail{animation-name:avcel-trail;animation-duration:.56s;animation-timing-function:cubic-bezier(.3,0,.2,1)}
+.is-play .avcel-i{animation-delay:calc(var(--avcel-base) + var(--di,0s));animation-iteration-count:1}
+.is-play .avcel-i--sway{animation-name:avcel-sway;animation-duration:2.8s;animation-timing-function:ease-in-out;transform-origin:50% 0}
+.is-play .avcel-i--bob{animation-name:avcel-bob;animation-duration:2.6s;animation-timing-function:ease-in-out}
+.is-play .avcel-i--twinkle{animation-name:avcel-twinkle;animation-duration:1.6s;animation-timing-function:ease-in-out}
+.is-play .avcel-i--rot{animation-name:avcel-rot;animation-duration:18s;animation-timing-function:linear}
+.is-play .avcel-i--flicker{animation-name:avcel-flicker;animation-duration:.7s;animation-timing-function:ease-in-out;transform-origin:50% 100%}
+
+/* Act 1 · opens on today’s logo: seal and word settle, the symbol pulses, the seal gets its accessory. */
+.is-intro .avcel-dseal,.is-intro .avcel-w1,.is-intro .avcel-w2{animation:avcel-settle .46s cubic-bezier(.16,1,.3,1) both}
+.is-intro .avcel-wg{animation:avcel-pulse .76s ease-in-out .52s both}
+.is-intro .avcel-rip{animation:avcel-rip 1.1s cubic-bezier(.2,.7,.3,1) .6s both;--s:3.2}
+.is-intro .avcel-rip--2{animation-delay:.74s;--s:4.8}
+.is-intro .avcel-dacc-in{animation:avcel-popin .64s cubic-bezier(.2,.8,.2,1) .9s both}
+/* Act 3 · the letters fold into the seal, the scene clears. */
+.is-exit .avcel-w1,.is-exit .avcel-wg,.is-exit .avcel-w2{animation:avcel-fold .44s cubic-bezier(.55,0,.75,.2) calc(var(--i,0) * 22ms) forwards}
+.is-exit .avcel-back,.is-exit .avcel-front,.is-exit .avcel-dacc,.is-exit .avcel-dimg{animation:avcel-fade-out .38s ease-in forwards}
+.is-exit .avcel-stage{animation:avcel-lift .7s ease-in forwards}
+
+/* ── 3b · the doodle logo in the nav ─────────────────────────── */
+.avcel-glyph{display:inline-block;width:.56em;height:.56em;vertical-align:-.06em;margin:0 .01em 0 .02em;overflow:visible}
+.avcel-brand{position:relative;isolation:isolate}
+.avcel-brand>.avcel-acc{position:absolute;left:var(--avcel-seal-x,0px);top:50%;width:var(--avcel-seal,40px);height:var(--avcel-seal,40px);
+  transform:translateY(-50%);overflow:visible;pointer-events:none;transition:opacity .2s ease}
+.avh-nav.is-scrolled .avcel-brand>.avcel-acc{opacity:0}
+.avcel-brand--pop .avcel-glyph{animation:avcel-glyph-in .78s cubic-bezier(.2,.8,.2,1) .47s both;transform-origin:50% 60%}
+.avcel-brand--pop>.avcel-acc{animation:avcel-acc-in .68s cubic-bezier(.2,.8,.2,1) .82s both}
+.avcel-navimg{height:30px;width:auto;display:block}
+.avcel-navplay{position:absolute;overflow:hidden;pointer-events:none;z-index:1}
+.avcel-navplay--back{z-index:-1}
+.avcel-navplay svg{display:block;overflow:visible}
+.avcel-navplay.is-gone{animation:avcel-fade-out .5s ease forwards}
+.avcel-navplay .is-play{--avcel-base:.15s}
+
+/* ── 2b · quiet member-page themes ───────────────────────────── */
+.avcel-stripe{height:3px;background:var(--avcel-stripe)}
+.avcel-ban{position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;padding:9px clamp(16px,3vw,32px);
+  background:color-mix(in srgb,currentColor 3%,transparent);border-bottom:1px solid color-mix(in srgb,currentColor 10%,transparent);
+  font-family:var(--av-sans);font-size:13px;line-height:1.4}
+.avcel-ban-bar{width:3px;align-self:stretch;border-radius:2px;background:var(--avcel-stripe);flex-shrink:0}
+.avcel-ban-txt{flex:1;min-width:0}
+.avcel-ban-txt span{opacity:.72}
+.avcel-ban-ico{position:absolute;right:62px;top:50%;width:58px;height:58px;transform:translateY(-50%) rotate(-8deg);pointer-events:none;
+  fill:none;stroke:var(--avcel-kfg);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;opacity:.2}
+.avcel-ban-x{position:relative;border:0;background:none;padding:2px 4px;min-height:44px;font-family:inherit;font-size:12.5px;font-weight:600;color:inherit;opacity:.72;cursor:pointer}
+.avcel-ban-x:hover{opacity:1}
+.avcel-ban-x:focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+@media (min-width:640px){.avcel-ban-x{min-height:32px}}
+
+/* ── 2a · ring logo (seal + a ring of the occasion’s colours + caption) ── */
+.avcel-ring{display:inline-flex;align-items:center;gap:12px;color:inherit}
+.avcel-ring-seal{width:48px;height:48px;border-radius:50%;padding:2.5px;background:var(--avcel-ring);flex-shrink:0}
+.avcel-ring-seal img{width:100%;height:100%;border-radius:50%;display:block;border:2px solid var(--av-paper)}
+.avcel-ring-word{display:flex;flex-direction:column;gap:3px;line-height:1}
+.avcel-ring-word>span:first-child{font-family:var(--av-serif);font-size:28px;font-weight:600}
+.avcel-ring-cap{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--avcel-kfg)}
+.avcel-ring-cap::before{content:"";width:5px;height:5px;background:currentColor;transform:rotate(45deg)}
+
+/* ── keyframes ───────────────────────────────────────────────── */
+@keyframes avcel-scrim{from{opacity:0}to{opacity:1}}
+@keyframes avcel-scrim-out{from{opacity:1}to{opacity:0}}
+@keyframes avcel-pop{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes avcel-rise{from{opacity:0;transform:translate(var(--tx,0),10px)}to{opacity:1;transform:translate(var(--tx,0),0)}}
+.avcel-pill{--tx:-50%}
+@keyframes avcel-fade{from{opacity:0}to{opacity:1}}
+@keyframes avcel-fade-out{from{opacity:1}to{opacity:0}}
+@keyframes avcel-lift{to{transform:translateY(-8px)}}
+@keyframes avcel-settle{from{opacity:0;transform:translateY(4px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes avcel-pulse{0%{transform:scale(1) rotate(0)}40%{transform:scale(1.32) rotate(-14deg)}70%{transform:scale(.94) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes avcel-rip{0%{opacity:0;transform:scale(.6)}15%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(var(--s,3))}}
+@keyframes avcel-ripple{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(var(--s,1.6))}}
+@keyframes avcel-fold{to{opacity:0;transform:translateX(var(--fx,0px)) scale(.55)}}
+@keyframes avcel-drop{
+  0%{transform:translateY(-14px) rotate(0);opacity:0;animation-timing-function:cubic-bezier(.3,0,.3,1)}
+  28%{transform:translateY(0) rotate(15deg);opacity:1;animation-timing-function:ease-in-out}
+  50%{transform:rotate(-8deg);animation-timing-function:ease-in-out}
+  70%{transform:rotate(4.5deg);animation-timing-function:ease-in-out}
+  86%{transform:rotate(-1.5deg);animation-timing-function:ease-in-out}
+  100%{transform:none;opacity:1}}
+@keyframes avcel-popin{0%{transform:scale(0);opacity:0}25%{opacity:1}60%{transform:scale(1.14)}100%{transform:scale(1);opacity:1}}
+@keyframes avcel-burst{0%{transform:scale(.1) rotate(-30deg);opacity:0}12%{opacity:1}60%{transform:scale(1.1) rotate(0)}100%{transform:scale(1);opacity:1}}
+@keyframes avcel-float{0%{transform:translateY(70px);opacity:0}30%{opacity:1}100%{transform:none;opacity:1}}
+@keyframes avcel-fall{0%{transform:translateY(-70px) rotate(-160deg);opacity:0}20%{opacity:1}100%{transform:none;opacity:1}}
+@keyframes avcel-fly{0%{transform:translate(-80px,22px) rotate(-8deg);opacity:0}25%{opacity:1}100%{transform:none;opacity:1}}
+@keyframes avcel-spin{0%{transform:rotate(-180deg) scale(.3);opacity:0}30%{opacity:1}100%{transform:none;opacity:1}}
+@keyframes avcel-grow{0%{transform:scale(0);opacity:0}65%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes avcel-unfurl{0%{transform:scaleX(0);opacity:0}10%{opacity:1}100%{transform:scaleX(1);opacity:1}}
+@keyframes avcel-flip{0%{transform:scaleY(0);opacity:0}100%{transform:scaleY(1);opacity:1}}
+@keyframes avcel-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes avcel-trail{0%{stroke-dashoffset:1;opacity:1}65%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes avcel-sway{0%,100%{transform:rotate(0)}33%{transform:rotate(3deg)}66%{transform:rotate(-3deg)}}
+@keyframes avcel-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes avcel-twinkle{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes avcel-rot{to{transform:rotate(360deg)}}
+@keyframes avcel-flicker{0%,100%{transform:scaleY(1)}33%{transform:scaleY(1.2)}66%{transform:scaleY(.9)}}
+@keyframes avcel-glyph-in{0%{opacity:0;transform:scale(0) rotate(-120deg)}30%{opacity:1}70%{transform:scale(1.18) rotate(8deg)}100%{opacity:1;transform:none}}
+@keyframes avcel-acc-in{0%{opacity:0;transform:translateY(-50%) scale(.2)}65%{opacity:1;transform:translateY(-50%) scale(1.12)}100%{opacity:1;transform:translateY(-50%) scale(1)}}
+
+/* Members who turn off animation see the finished card and logo. */
+@media (prefers-reduced-motion:reduce){
+  .avcel-layer,.avcel-layer *,.avcel-pill,.avcel-brand *,.avcel-brand>.avcel-acc,.avcel-navplay,.avcel-navplay *{animation:none!important;transition:none!important}
+}
+
+/* ── occasion palettes (tokens from av-tokens.css) ───────────── */
+.avcel-k--newyear{--avcel-c1:var(--av-link-hover);--avcel-ring:conic-gradient(var(--av-link-hover),var(--av-gold-light),var(--av-link-hover));--avcel-stripe:linear-gradient(90deg,var(--av-link-hover),var(--av-gold-light));--avcel-kfg:var(--av-gold-text);--avcel-a:var(--av-cel-bg-gold-a);--avcel-b:var(--av-cel-bg-gold-b)}
+.avcel-k--founding{--avcel-c1:var(--av-link-hover);--avcel-ring:conic-gradient(var(--av-link-hover),var(--av-gold-light),var(--av-link-hover));--avcel-stripe:linear-gradient(90deg,var(--av-link-hover),var(--av-gold-light));--avcel-kfg:var(--av-gold-text);--avcel-a:var(--av-cel-bg-gold-a);--avcel-b:var(--av-cel-bg-gold-b)}
+.avcel-k--womensday{--avcel-c1:var(--av-cel-violet);--avcel-ring:conic-gradient(var(--av-cel-violet),var(--av-cel-violet-2),var(--av-cel-violet));--avcel-stripe:linear-gradient(90deg,var(--av-cel-violet),var(--av-cel-violet-2));--avcel-kfg:var(--av-cel-violet);--avcel-a:var(--av-cel-bg-violet-a);--avcel-b:var(--av-cel-bg-violet-b)}
+.avcel-k--happiness{--avcel-c1:var(--av-cel-amber);--avcel-ring:conic-gradient(var(--av-cel-amber),var(--av-cel-sun),var(--av-cel-orange),var(--av-cel-amber));--avcel-stripe:linear-gradient(90deg,var(--av-cel-amber),var(--av-cel-sun),var(--av-cel-orange));--avcel-kfg:var(--av-gold-text);--avcel-a:var(--av-cel-bg-gold-b);--avcel-b:var(--av-cel-bg-gold-a)}
+.avcel-k--earthday{--avcel-c1:var(--av-cel-sky);--avcel-ring:conic-gradient(var(--av-cel-sky),var(--av-cel-leaf),var(--av-cel-sky));--avcel-stripe:linear-gradient(90deg,var(--av-cel-sky),var(--av-cel-leaf));--avcel-kfg:var(--av-cel-leaf-deep);--avcel-a:var(--av-cel-bg-green-a);--avcel-b:var(--av-cel-bg-green-b)}
+.avcel-k--goodfriday{--avcel-c1:var(--av-cel-mute);--avcel-ring:conic-gradient(var(--av-cel-mute),var(--av-cel-lilac),var(--av-cel-mute));--avcel-stripe:linear-gradient(90deg,var(--av-cel-mute),var(--av-cel-lilac));--avcel-kfg:var(--av-cel-dusk);--avcel-a:var(--av-cel-bg-ash-a);--avcel-b:var(--av-cel-bg-ash-b)}
+.avcel-k--easter{--avcel-c1:var(--av-cel-violet);--avcel-ring:conic-gradient(var(--av-cel-violet),var(--av-cel-wheat),var(--av-cel-sage),var(--av-cel-violet));--avcel-stripe:linear-gradient(90deg,var(--av-cel-violet),var(--av-cel-wheat),var(--av-cel-sage));--avcel-kfg:var(--av-cel-violet);--avcel-a:var(--av-cel-bg-violet-a);--avcel-b:var(--av-cel-bg-violet-b)}
+.avcel-k--eastermonday{--avcel-c1:var(--av-cel-sage);--avcel-ring:conic-gradient(var(--av-cel-sage),var(--av-cel-hill),var(--av-cel-sage));--avcel-stripe:linear-gradient(90deg,var(--av-cel-sage),var(--av-cel-hill));--avcel-kfg:var(--av-cel-leaf-deep);--avcel-a:var(--av-cel-bg-green-a);--avcel-b:var(--av-cel-bg-green-b)}
+.avcel-k--eidfitr{--avcel-c1:var(--av-cel-teal);--avcel-ring:conic-gradient(var(--av-cel-teal),var(--av-quote-mark),var(--av-cel-teal));--avcel-stripe:linear-gradient(90deg,var(--av-cel-teal),var(--av-quote-mark));--avcel-kfg:var(--av-cel-teal);--avcel-a:var(--av-cel-teal);--avcel-b:var(--av-cel-teal-deep)}
+.avcel-k--workersday{--avcel-c1:var(--av-quote-mark);--avcel-ring:conic-gradient(var(--av-quote-mark),var(--av-cel-wire),var(--av-quote-mark));--avcel-stripe:linear-gradient(90deg,var(--av-quote-mark),var(--av-cel-wire));--avcel-kfg:var(--av-cel-bronze);--avcel-a:var(--av-cel-bg-iron-a);--avcel-b:var(--av-cel-bg-iron-b)}
+.avcel-k--africaday{--avcel-c1:var(--av-cel-forest);--avcel-ring:conic-gradient(var(--av-cel-forest),var(--av-quote-mark),var(--av-cel-wine),var(--av-cel-soot),var(--av-cel-forest));--avcel-stripe:linear-gradient(90deg,var(--av-cel-forest),var(--av-quote-mark),var(--av-cel-wine),var(--av-cel-soot));--avcel-kfg:var(--av-cel-forest);--avcel-a:var(--av-cel-bg-earth-a);--avcel-b:var(--av-cel-bg-earth-b)}
+.avcel-k--childrensday{--avcel-c1:var(--av-cel-orange);--avcel-ring:conic-gradient(var(--av-cel-orange),var(--av-cel-sky),var(--av-gold),var(--av-cel-rose),var(--av-cel-orange));--avcel-stripe:linear-gradient(90deg,var(--av-cel-orange),var(--av-cel-sky),var(--av-gold),var(--av-cel-rose));--avcel-kfg:var(--av-cel-ember);--avcel-a:var(--av-cel-bg-blue-a);--avcel-b:var(--av-cel-bg-blue-b)}
+.avcel-k--democracyday{--avcel-c1:var(--av-cel-ng);--avcel-ring:conic-gradient(var(--av-cel-ng),var(--av-cel-flag-white),var(--av-cel-ng));--avcel-stripe:linear-gradient(90deg,var(--av-cel-ng),var(--av-cel-flag-white));--avcel-kfg:var(--av-cel-ng-text);--avcel-a:var(--av-cel-ng-text);--avcel-b:var(--av-cel-ng-deep)}
+.avcel-k--independence{--avcel-c1:var(--av-cel-ng);--avcel-ring:conic-gradient(var(--av-cel-ng),var(--av-cel-flag-white),var(--av-cel-ng),var(--av-cel-ng));--avcel-stripe:linear-gradient(90deg,var(--av-cel-ng),var(--av-cel-flag-white),var(--av-cel-ng));--avcel-kfg:var(--av-cel-ng-text);--avcel-a:var(--av-cel-ng-text);--avcel-b:var(--av-cel-ng-deep)}
+.avcel-k--eidadha{--avcel-c1:var(--av-cel-clay);--avcel-ring:conic-gradient(var(--av-cel-clay),var(--av-quote-mark),var(--av-cel-clay));--avcel-stripe:linear-gradient(90deg,var(--av-cel-clay),var(--av-quote-mark));--avcel-kfg:var(--av-cel-clay);--avcel-a:var(--av-cel-bg-rust-a);--avcel-b:var(--av-cel-bg-rust-b)}
+.avcel-k--youthday{--avcel-c1:var(--av-gold);--avcel-ring:conic-gradient(var(--av-ink),var(--av-gold),var(--av-ink));--avcel-stripe:linear-gradient(90deg,var(--av-ink),var(--av-gold));--avcel-kfg:var(--av-gold-text);--avcel-a:var(--av-cel-bg-night-a);--avcel-b:var(--av-cel-bg-night-b)}
+.avcel-k--peaceday{--avcel-c1:var(--av-cel-sky);--avcel-ring:conic-gradient(var(--av-cel-sky),var(--av-cel-pale-sky),var(--av-cel-sky));--avcel-stripe:linear-gradient(90deg,var(--av-cel-sky),var(--av-cel-pale-sky));--avcel-kfg:var(--av-cel-steel);--avcel-a:var(--av-cel-bg-blue-a);--avcel-b:var(--av-cel-bg-blue-b)}
+.avcel-k--girlchild{--avcel-c1:var(--av-cel-pink);--avcel-ring:conic-gradient(var(--av-cel-pink),var(--av-cel-cream),var(--av-cel-pink));--avcel-stripe:linear-gradient(90deg,var(--av-cel-pink),var(--av-cel-cream));--avcel-kfg:var(--av-cel-berry);--avcel-a:var(--av-cel-bg-rose-a);--avcel-b:var(--av-cel-bg-rose-b)}
+.avcel-k--humanrights{--avcel-c1:var(--av-cel-steel);--avcel-ring:conic-gradient(var(--av-cel-steel),var(--av-quote-mark),var(--av-cel-steel));--avcel-stripe:linear-gradient(90deg,var(--av-cel-steel),var(--av-quote-mark));--avcel-kfg:var(--av-cel-steel);--avcel-a:var(--av-cel-bg-blue-a);--avcel-b:var(--av-cel-bg-blue-b)}
+.avcel-k--christmas{--avcel-c1:var(--av-cel-wine);--avcel-ring:conic-gradient(var(--av-cel-wine),var(--av-quote-mark),var(--av-cel-forest),var(--av-cel-wine));--avcel-stripe:linear-gradient(90deg,var(--av-cel-wine),var(--av-quote-mark),var(--av-cel-forest));--avcel-kfg:var(--av-cel-wine);--avcel-a:var(--av-cel-bg-holly-a);--avcel-b:var(--av-cel-bg-holly-b)}
+.avcel-k--birthday,.avcel-k--mine{--avcel-c1:var(--av-cel-red);--avcel-ring:conic-gradient(var(--av-link-hover),var(--av-gold-light),var(--av-link-hover));--avcel-stripe:linear-gradient(90deg,var(--av-cel-red),var(--av-cel-amber),var(--av-cel-sky));--avcel-kfg:var(--av-gold-text);--avcel-a:var(--av-cel-bg-gold-a);--avcel-b:var(--av-cel-bg-gold-b)}
+.avcel-k--mate{--avcel-c1:var(--av-cel-red);--avcel-ring:conic-gradient(var(--av-cel-ice),var(--av-gold),var(--av-cel-ice));--avcel-stripe:linear-gradient(90deg,var(--av-cel-red),var(--av-cel-amber),var(--av-cel-sky));--avcel-kfg:var(--av-indigo);--avcel-a:var(--av-cel-bg-blue-a);--avcel-b:var(--av-cel-bg-blue-b)}
+.avcel-k--group{--avcel-c1:var(--av-cel-red);--avcel-ring:conic-gradient(var(--av-cel-heather),var(--av-gold),var(--av-cel-heather));--avcel-stripe:linear-gradient(90deg,var(--av-cel-red),var(--av-cel-amber),var(--av-cel-sky));--avcel-kfg:var(--av-gold-text);--avcel-a:var(--av-cel-bg-plum-a);--avcel-b:var(--av-cel-bg-plum-b)}
