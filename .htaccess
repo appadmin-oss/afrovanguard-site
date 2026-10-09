@@ -22,6 +22,14 @@ RewriteEngine On
 # Always allow ACME / domain-verification challenges (SSL renewal, site verify).
 RewriteRule ^\.well-known/ - [L]
 
+# No dotfile is ever served. Apache's own built-in rule covers .ht* and nothing
+# else, so without this a .env placed in the app root — which lib/bootstrap.php
+# accepts, and which is the only option when a file manager cannot reach above
+# the web root — would be downloadable by anyone who guessed the name. The
+# .well-known rule above already exited; the lookahead repeats that guarantee
+# here so the two rules cannot be separated by a later edit and break SSL renewal.
+RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
 # Server-side PHP libraries are require()d, never requested directly over HTTP.
 RewriteRule ^lib/  - [F,L]
 RewriteRule ^db/   - [F,L]
