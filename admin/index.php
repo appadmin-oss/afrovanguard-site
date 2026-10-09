@@ -786,7 +786,7 @@
     <div class="entry-list" id="whDeliveries"></div>
 
     <h2 style="font-family:var(--font-heading);font-size:22px;margin:34px 0 6px">API tokens (inbound)</h2>
-    <p class="muted" style="margin:0 0 14px">Bearer tokens that let apps/other sites call <code>/integrations/api.php</code> — post as the official Afrovanguard bot, emit events, or read the community feed. <a href="/docs/integrations.md" target="_blank" rel="noopener">API docs ↗</a></p>
+    <p class="muted" style="margin:0 0 14px">Bearer tokens that let apps/other sites call <code>/integrations/api.php</code> — post as the official Afrovanguard bot, emit events, or read the community feed. API reference: <code>docs/integrations.md</code> in the code repository.</p>
     <div class="side-card" style="max-width:680px;margin-bottom:20px">
       <h3>Create a token</h3>
       <label class="fld"><span>Name (what is this for?)</span><input id="atName" placeholder="e.g. Discord announcer" /></label>
