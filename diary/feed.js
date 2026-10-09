@@ -48,7 +48,10 @@
       year:  (p.get('year') || '').replace(/\D/g, '').slice(0, 4),
       month: m.slice(0, 2),
       cat:   (p.get('cat') || 'all').replace(/[^a-z0-9\-]/gi, '').toLowerCase() || 'all',
-      q:     (p.get('q') || (searchInput && searchInput.value.trim()) || '')
+      q:     (p.get('q') || (searchInput && searchInput.value.trim()) || ''),
+      // The sort lives in the URL so the progressive pages that load after the
+      // first are sorted the same way the first one was.
+      sort:  ['latest', 'read', 'discussed'].indexOf(p.get('sort') || '') !== -1 ? p.get('sort') : 'latest'
     };
   }
 
@@ -80,25 +83,47 @@
 
   /* Build one <li> — MUST match the SSR markup in index.php so journey.js
      readNodes() and the list view both work identically. */
-  function liHtml(a, num, latest) {
+  /* "3.4k" above a thousand, the plain number below it — mirrors avd_compact()
+     in diary/partials.php so a card rendered here reads like one rendered by
+     the server. */
+  function compact(n) {
+    return n >= 1000 ? String(+(n / 1000).toFixed(1)).replace(/\.0$/, '') + 'k' : String(n);
+  }
+  /* The counts line, and the same three numbers as data for the map's card.
+     Nothing is rendered when the server sent no counts: a card that cannot
+     read its counts shows none, never a fabricated nought. */
+  function countsHtml(c) {
+    if (!c) return '';
+    return '<p class="avd-counts av-num"><span>' + compact(c.views) + ' views</span>'
+      + '<span>' + c.comments + ' comments</span>'
+      + '<span>' + c.claps + ' <span aria-hidden="true">\uD83D\uDC4F</span><span class="av-sr">applause</span></span></p>';
+  }
+  function countsData(c) {
+    return c ? ' data-views="' + c.views + '" data-comments="' + c.comments + '" data-claps="' + c.claps + '"' : '';
+  }
+
+  function liHtml(a, num, latest, counts) {
     var min = parseInt(a.read_minutes || 0, 10) || 0;
     var cat = a.category || '', cslug = a.category_slug || '', pub = a.published || '';
+    var c = counts && counts[a.slug] ? counts[a.slug] : null;
     return '<li><a href="/diary/' + esc(a.slug) + '/" '
       + 'data-cat="' + esc(cslug) + '" data-slug="' + esc(a.slug) + '" '
       + 'data-search="' + esc((a.title + ' ' + cat).toLowerCase()) + '" '
       + 'data-title="' + esc(a.title) + '" data-cat-name="' + esc(cat) + '" '
       + 'data-published="' + esc(pub) + '" data-date="' + esc(a.published_at || '') + '" '
-      + 'data-min="' + min + '" data-num="' + esc(String(num)) + '" data-latest="' + (latest ? '1' : '0') + '">'
+      + 'data-min="' + min + '" data-num="' + esc(String(num)) + '" data-latest="' + (latest ? '1' : '0') + '"'
+      + countsData(c) + '>'
       + '<span class="je-num">' + esc(String(num)) + '</span>'
       + '<span class="je-main">'
       + '<span class="je-cat" data-c="' + esc(cslug) + '">' + esc(cat) + (latest ? ' · Latest' : '') + '</span>'
       + '<span class="je-title">' + esc(a.title) + '</span>'
       + '<span class="je-meta">' + esc(pub) + (min ? ' · ' + min + ' min read' : '') + '</span>'
-      + '</span><span class="je-arrow" aria-hidden="true">→</span></a></li>';
+      + '</span><span class="je-arrow" aria-hidden="true">→</span></a>' + countsHtml(c) + '</li>';
   }
 
   function apiUrl() {
     var p = ['action=list', 'limit=' + PER, 'offset=' + offset];
+    if (state.sort && state.sort !== 'latest') p.push('sort=' + encodeURIComponent(state.sort));
     if (state.year)  p.push('year=' + encodeURIComponent(state.year));
     if (state.month) p.push('month=' + encodeURIComponent(state.month));
     if (state.cat && state.cat !== 'all' && state.cat !== 'saved') p.push('cat=' + encodeURIComponent(state.cat));
@@ -127,7 +152,7 @@
         items.forEach(function (a, k) {
           var g = start + k;
           var latest = (!hasFilter() && g === 0);
-          frag += liHtml(a, latest ? '★' : (total - g), latest);
+          frag += liHtml(a, latest ? '★' : (total - g), latest, d.counts);
         });
         list.insertAdjacentHTML('beforeend', frag);
         offset += items.length;
@@ -149,7 +174,7 @@
         .then(function (r) { return r.json(); })
         .then(function (d) {
           var saved = savedSet(), n = 0, frag = '';
-          (d && d.articles || []).forEach(function (a) { if (saved.indexOf(a.slug) !== -1) { n++; frag += liHtml(a, n, false); } });
+          (d && d.articles || []).forEach(function (a) { if (saved.indexOf(a.slug) !== -1) { n++; frag += liHtml(a, n, false, d.counts); } });
           list.insertAdjacentHTML('beforeend', frag);
           done = true; renderCount(); updateFoot(); changed();
         })
@@ -182,8 +207,10 @@
   if (monthSel) monthSel.addEventListener('change', function () { state.month = monthSel.value; applyFilters(); });
   chips.forEach(function (chip) {
     chip.addEventListener('click', function () {
-      chips.forEach(function (c) { c.classList.remove('active'); });
-      chip.classList.add('active');
+      // aria-pressed, not just a class: the chips are toggle buttons in a
+      // group now, and "active" is a colour a screen reader cannot read.
+      chips.forEach(function (c) { c.classList.remove('active'); c.setAttribute('aria-pressed', 'false'); });
+      chip.classList.add('active'); chip.setAttribute('aria-pressed', 'true');
       state.cat = chip.getAttribute('data-filter') || 'all';
       applyFilters();
     });

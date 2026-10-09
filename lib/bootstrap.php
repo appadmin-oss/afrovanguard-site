@@ -270,6 +270,7 @@ if (!defined('AV_ORG_DOMAIN')) define('AV_ORG_DOMAIN', getenv('AV_ORG_DOMAIN') ?
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/DiaryVisitor.php';   // who is reading, for counting only
 require_once __DIR__ . '/DiaryRepository.php';
 require_once __DIR__ . '/DiaryJournal.php';
 // Notebooks, entry tabs and the finding half (tags / pin / archive / search).

@@ -5,8 +5,16 @@
  *   GET  ?action=list                       → all entries (cards)
  *   GET  ?action=article&slug=<slug>        → one entry (+ sections, claps)
  *   GET  ?action=reactions&slug=<slug>      → live clap total
- *   POST ?action=react      {slug,count}    → increment claps, returns total
  *   POST ?action=subscribe  {email}         → store newsletter subscriber
+ *
+ * Engagement (the entry page's own JS; writes carry X-CSRF):
+ *   POST ?action=view       {slug}          → count a read (deduped per reader)
+ *   POST ?action=clap       {slug}          → one clap, capped at 50 per reader
+ *   POST ?action=save|unsave {slug}         → keep an entry
+ *   GET  ?action=comments&slug&sort&all     → the thread, rendered
+ *   POST ?action=comment    {slug,body,…}   → post one (stored pending)
+ *   POST ?action=comment-like   {id,on}     → like / unlike
+ *   POST ?action=comment-report {id}        → flag for the team
  *
  * Reactions + subscribers persist in SQLite, so engagement is real and
  * shared across every visitor — not just per-browser.
@@ -22,6 +30,27 @@ if ($origin !== '' && preg_match('~^https?://([a-z0-9.-]*\.)?afrovanguard\.org\.
     header('Access-Control-Allow-Headers: Content-Type');
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') { http_response_code(204); exit; }
+
+/**
+ * The page's engagement JS sends the token as `X-CSRF`; the rest of the site
+ * sends `X-CSRF-Token`. Accept either rather than silently rejecting half the
+ * writes — and rather than editing a drop-in file to match the server.
+ */
+function diary_csrf_require(): void
+{
+    // No signing key configured: the page could not MINT a token, so demanding
+    // one would reject every comment on the site with a message about the page
+    // being open too long — an install that looks broken for a reason nobody
+    // can see. Same-origin still applies, and the real problem is said once,
+    // where an operator reads it.
+    if (av_secret() === '') {
+        static $warned = false;
+        if (!$warned) { $warned = true; error_log('[diary] APP_KEY is not set: engagement writes fall back to same-origin only. Set APP_KEY to a long random string.'); }
+        return;
+    }
+    $t = (string) ($_SERVER['HTTP_X_CSRF'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if (!av_csrf_valid($t)) json_out(['ok' => false, 'error' => 'This page has been open a while — reload and try again.'], 403);
+}
 
 try {
     $repo   = new DiaryRepository();
@@ -46,11 +75,14 @@ try {
             $offset = isset($_GET['offset']) ? max(0, (int) $_GET['offset']) : ($page - 1) * $limit;
             $month  = preg_replace('/\D/', '', (string) ($_GET['month'] ?? ''));
             if (strlen($month) === 1) $month = '0' . $month;
+            $sort = (string) ($_GET['sort'] ?? 'latest');
             $res = $repo->page([
                 'year'   => preg_replace('/\D/', '', (string) ($_GET['year'] ?? '')),
                 'month'  => $month,
                 'cat'    => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['cat'] ?? ''))),
+                'author' => preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['author'] ?? ''))),
                 'q'      => (string) ($_GET['q'] ?? ''),
+                'sort'   => in_array($sort, ['latest', 'read', 'discussed'], true) ? $sort : 'latest',
                 'limit'  => $limit,
                 'offset' => $offset,
             ]);
@@ -63,6 +95,13 @@ try {
                 'offset'   => $res['offset'],
                 'hasMore'  => ($res['offset'] + count($res['items'])) < $res['total'],
             ];
+            // Counts by SLUG, not by row id: the cards have never carried an id
+            // and the browser has no use for one. Three queries for the page.
+            $ids = $repo->idsForSlugs(array_column($res['items'], 'slug'));
+            $byId = $ids ? $repo->countsFor(array_values($ids)) : [];
+            $counts = [];
+            foreach ($ids as $slug => $id) if (isset($byId[$id])) $counts[$slug] = $byId[$id];
+            $out['counts'] = $counts;
             if (!empty($_GET['facets'])) $out['facets'] = $repo->facets();
             json_out($out);
         }
@@ -77,32 +116,97 @@ try {
             if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
             json_out(['ok' => true, 'slug' => $slug, 'claps' => $repo->claps($slug)]);
 
-        case 'react':
+        /* ── Engagement: views, applause, saves, the conversation ──────────
+           Writes are same-origin AND carry the CSRF token the page embedded.
+           Same-origin alone is not enough: an Origin header is absent on a
+           form POST from an attacker's page in older browsers, and "absent"
+           has to be allowed for same-site navigations. The token closes it. */
+
+        case 'view':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();
             if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
-            $count = (int) ($body['count'] ?? 1);
-            json_out(['ok' => true, 'slug' => $slug, 'claps' => $repo->addClaps($slug, $count)]);
+            $art = $repo->bySlug($slug);
+            if (!$art) json_out(['ok' => false, 'error' => 'Article not found.'], 404);
+            // No CSRF on a view: it writes a counter, not the reader's data, and
+            // a token that expires mid-read would silently stop counting.
+            json_out(['ok' => true, 'counted' => $repo->recordView((int) $art['id'])]);
 
-        case 'comments':
-            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
-            json_out(['ok' => true, 'slug' => $slug, 'comments' => $repo->comments($slug)]);
-
-        case 'comment':
+        case 'clap':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();
+            diary_csrf_require();
             if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
-            if (trim((string) ($body['hp'] ?? '')) !== '') json_out(['ok' => true, 'comment' => null]); // honeypot
+            if (!av_rate_ok('diary_clap', 120, 600)) json_out(['ok' => false, 'error' => 'That’s a lot of applause — give it a moment.'], 429);
+            $total = $repo->clapOnce($slug);
+            if ($total === null) json_out(['ok' => false, 'capped' => true, 'error' => 'You’ve given this entry all fifty.'], 409);
+            json_out(['ok' => true, 'claps' => $total]);
+
+        case 'save':
+        case 'unsave': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            diary_csrf_require();
+            $art = $slug ? $repo->bySlug($slug) : null;
+            if (!$art) json_out(['ok' => false, 'error' => 'Article not found.'], 404);
+            $me = LmsAuth::user();
+            $uid = $me ? (int) $me['id'] : 0;
+            $ok = $action === 'save' ? $repo->addSave((int) $art['id'], $uid) : $repo->removeSave((int) $art['id'], $uid);
+            json_out(['ok' => $ok, 'saved' => $action === 'save']);
+        }
+
+        case 'comments': {
+            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
+            $art = $repo->bySlug($slug);
+            if (!$art) json_out(['ok' => false, 'error' => 'Article not found.'], 404);
+            $sort = ($_GET['sort'] ?? 'top') === 'new' ? 'new' : 'top';
+            $all  = !empty($_GET['all']);
+            $tree = $repo->commentTree((int) $art['id'], $sort, $all);
+            require_once __DIR__ . '/partials.php';
+            ob_start();
+            if (!$tree) echo '<li class="avd-c-empty">Be the first to add to the conversation.</li>';
+            foreach ($tree as $c) avd_comment($c, false);
+            json_out(['ok' => true, 'html' => ob_get_clean(), 'total' => $repo->threadCount((int) $art['id'])]);
+        }
+
+        case 'comment': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            diary_csrf_require();
+            if ($slug === '') json_out(['ok' => false, 'error' => 'slug required'], 400);
+            if (trim((string) ($body['hp'] ?? '')) !== '') json_out(['ok' => true, 'html' => '']); // honeypot
             if (!av_rate_ok('diary_comment', 8, 600)) json_out(['ok' => false, 'error' => 'You’re commenting quickly — give it a moment.'], 429);
-            // Signed-in members comment under their real name; guests provide one.
             $me   = LmsAuth::user();
             $name = $me ? (string) $me['name'] : (string) ($body['name'] ?? '');
             $text = (string) ($body['body'] ?? '');
-            if (trim($text) === '') json_out(['ok' => false, 'error' => 'Write a comment first.'], 422);
-            if (!$me && trim($name) === '') json_out(['ok' => false, 'error' => 'Add your name.'], 422);
-            $c = $repo->addComment($slug, $name, $text, $me ? (int) $me['id'] : 0);
+            if (mb_strlen(trim($text)) < 3) json_out(['ok' => false, 'error' => 'Write a little more before posting.'], 422);
+            if (trim($name) === '') json_out(['ok' => false, 'error' => 'Add your name to post.'], 422);
+            $c = $repo->addThreadComment(
+                $slug, $name, $text,
+                $me ? (string) ($me['email'] ?? '') : (string) ($body['email'] ?? ''),
+                (int) ($body['parent_id'] ?? 0),
+                $me ? (int) $me['id'] : 0
+            );
             if (!$c) json_out(['ok' => false, 'error' => 'Could not post your comment.'], 422);
-            json_out(['ok' => true, 'comment' => $c]);
+            require_once __DIR__ . '/partials.php';
+            ob_start();
+            avd_comment($c, !empty($c['parent_id']));
+            json_out(['ok' => true, 'html' => ob_get_clean(), 'pending' => true]);
+        }
+
+        case 'comment-like':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            diary_csrf_require();
+            if (!av_rate_ok('diary_clike', 120, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            json_out(['ok' => true, 'likes' => $repo->likeComment((int) ($body['id'] ?? 0), !empty($body['on']) && $body['on'] !== 'false')]);
+
+        case 'comment-report':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            diary_csrf_require();
+            if (!av_rate_ok('diary_creport', 20, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            json_out(['ok' => $repo->reportComment((int) ($body['id'] ?? 0))]);
 
         case 'subscribe':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);

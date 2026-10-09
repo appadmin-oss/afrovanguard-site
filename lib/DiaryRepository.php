@@ -213,48 +213,240 @@ final class DiaryRepository
 
     /* ── Series: group posts into an ordered, numbered series ─────────────── */
     private bool $seriesReady = false;
-    private bool $commentsReady = false;
+    private bool $engagementReady = false;
 
-    /* ── Comments ──────────────────────────────────────────────────────────
-       Lazily-created so the feature needs no migration step. Comments are
-       published on submit (status 'published') but carry a status column so an
-       admin can hide/spam them later. */
-    private function ensureComments(): void
+    /* ── Engagement: views, comments, likes, saves ─────────────────────────
+       The same DDL as db/schema.sql, kept here so an installation that was
+       migrated before this feature existed repairs itself on first use rather
+       than dying on `no such column: parent_id`. syncTablesFromDdl() creates
+       what is missing and ADDS missing columns to what is already there, which
+       is what upgrades the v1 diary_comments table in place: the comments
+       already published keep their rows, their text and their status. */
+    private const ENGAGEMENT_DDL = <<<'SQL'
+CREATE TABLE IF NOT EXISTS diary_views (
+  article_id INTEGER NOT NULL,
+  day        VARCHAR(10) NOT NULL,
+  count      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (article_id, day)
+);
+CREATE TABLE IF NOT EXISTS diary_comments (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id INTEGER NOT NULL DEFAULT 0,
+  parent_id  INTEGER,
+  user_id    INTEGER NOT NULL DEFAULT 0,
+  name       VARCHAR(120) NOT NULL DEFAULT '',
+  email      TEXT NOT NULL DEFAULT '',
+  body       TEXT NOT NULL DEFAULT '',
+  status     VARCHAR(16) NOT NULL DEFAULT 'pending',
+  likes      INTEGER NOT NULL DEFAULT 0,
+  reports    INTEGER NOT NULL DEFAULT 0,
+  ip_hash    VARCHAR(64) NOT NULL DEFAULT '',
+  owner_hash VARCHAR(64) NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS diary_comment_likes (
+  comment_id INTEGER NOT NULL,
+  voter_hash VARCHAR(64) NOT NULL,
+  PRIMARY KEY (comment_id, voter_hash)
+);
+CREATE TABLE IF NOT EXISTS diary_saves (
+  user_id      INTEGER NOT NULL DEFAULT 0,
+  article_id   INTEGER NOT NULL,
+  visitor_hash VARCHAR(64) NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (user_id, article_id, visitor_hash)
+);
+SQL;
+
+    private function ensureEngagement(): void
     {
-        if ($this->commentsReady) return; $this->commentsReady = true;
-        $drv = Database::driver();
-        $ddl = "CREATE TABLE IF NOT EXISTS diary_comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_id INTEGER NOT NULL DEFAULT 0,
-            user_id INTEGER NOT NULL DEFAULT 0,
-            name VARCHAR(120) NOT NULL DEFAULT '',
-            body TEXT NOT NULL DEFAULT '',
-            status VARCHAR(16) NOT NULL DEFAULT 'published',
-            created_at TEXT NOT NULL DEFAULT ''
-        )";
-        try { Database::execSchema($this->db, $ddl); }
-        catch (Throwable $e) { error_log('[diary] ensureComments: ' . $e->getMessage()); }
+        if ($this->engagementReady) return; $this->engagementReady = true;
+        try {
+            Database::syncTablesFromDdl($this->db, self::ENGAGEMENT_DDL, Database::driver(), 'diary');
+            Database::ensureIndex($this->db, 'idx_diary_views_article',    'diary_views',    'article_id');
+            Database::ensureIndex($this->db, 'idx_diary_comments_article', 'diary_comments', 'article_id, status');
+            Database::ensureIndex($this->db, 'idx_diary_comments_parent',  'diary_comments', 'parent_id');
+            Database::ensureIndex($this->db, 'idx_diary_saves_article',    'diary_saves',    'article_id');
+        } catch (Throwable $e) { error_log('[diary] ensureEngagement: ' . $e->getMessage()); }
     }
 
-    /** Published comments for an article slug, oldest first. */
-    public function comments(string $slug): array
+    /* ── Counts ────────────────────────────────────────────────────────────
+       Returned together because they are always shown together, and null when
+       they cannot be read at all. Null is not zero: the card renders nothing
+       rather than telling a reader that an entry hundreds of people have read
+       has never been read. */
+
+    /** ['views','comments','claps'] for one entry, or null if unavailable. */
+    public function counts(int $articleId): ?array
     {
-        $this->ensureComments();
-        $a = $this->bySlug($slug);
-        if (!$a) return [];
+        $all = $this->countsFor([$articleId]);
+        return $all[$articleId] ?? null;
+    }
+
+    /**
+     * The same, for a page of cards — three queries for the whole page rather
+     * than three per card, so a listing of 48 entries is not 144 round trips.
+     */
+    public function countsFor(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) return [];
+        $this->ensureEngagement();
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $out = [];
         try {
-            $st = $this->db->prepare(
-                "SELECT id, name, body, created_at FROM diary_comments
-                 WHERE article_id = ? AND status = 'published' ORDER BY id ASC"
-            );
-            $st->execute([(int) $a['id']]);
-            return $st->fetchAll() ?: [];
+            // The row set starts from ARTICLES, so an id that names no entry
+            // comes back absent rather than as three zeroes — which would read
+            // on a card as a real entry nobody has ever opened.
+            $st = $this->db->prepare("SELECT a.id, a.base_claps + COALESCE(r.claps, 0) n
+                                        FROM articles a LEFT JOIN reactions r ON r.article_id = a.id
+                                       WHERE a.id IN ($in)");
+            $st->execute($ids);
+            foreach ($st->fetchAll() as $r) $out[(int) $r['id']] = ['views' => 0, 'comments' => 0, 'claps' => (int) $r['n']];
+            if (!$out) return [];
+
+            $st = $this->db->prepare("SELECT article_id, COALESCE(SUM(count),0) n FROM diary_views WHERE article_id IN ($in) GROUP BY article_id");
+            $st->execute($ids);
+            foreach ($st->fetchAll() as $r) if (isset($out[(int) $r['article_id']])) $out[(int) $r['article_id']]['views'] = (int) $r['n'];
+
+            $st = $this->db->prepare("SELECT article_id, COUNT(*) n FROM diary_comments WHERE article_id IN ($in) AND status = 'published' GROUP BY article_id");
+            $st->execute($ids);
+            foreach ($st->fetchAll() as $r) if (isset($out[(int) $r['article_id']])) $out[(int) $r['article_id']]['comments'] = (int) $r['n'];
+        } catch (Throwable $e) { error_log('[diary] countsFor: ' . $e->getMessage()); return []; }
+        return $out;
+    }
+
+    /** slug → row id, for the one page of cards being rendered. */
+    public function idsForSlugs(array $slugs): array
+    {
+        $slugs = array_values(array_unique(array_filter(array_map('strval', $slugs))));
+        if (!$slugs) return [];
+        try {
+            $in = implode(',', array_fill(0, count($slugs), '?'));
+            $st = $this->db->prepare("SELECT id, slug FROM articles WHERE slug IN ($in)");
+            $st->execute($slugs);
+            $out = [];
+            foreach ($st->fetchAll() as $r) $out[(string) $r['slug']] = (int) $r['id'];
+            return $out;
         } catch (Throwable $e) { return []; }
     }
 
+    /* ── Views ─────────────────────────────────────────────────────────────
+       One view per reader per entry per 30 minutes. A reader who opens an
+       entry, follows a link and comes back has read it once; a reader who
+       returns the next morning has read it twice, which is true.
+
+       Robots and admins never count. An editor refreshing their own draft is
+       the single easiest way to make a view counter meaningless. */
+    public const VIEW_WINDOW = 1800;
+
+    /** Count a view. Returns true when one was actually recorded. */
+    public function recordView(int $articleId): bool
+    {
+        if ($articleId <= 0) return false;
+        if (DiaryVisitor::isBot() || DiaryVisitor::isAdmin()) return false;
+
+        $seen = DiaryVisitor::map('dv');
+        $key  = (string) $articleId;
+        $now  = time();
+        if (isset($seen[$key]) && ($now - (int) $seen[$key]) < self::VIEW_WINDOW) return false;
+        DiaryVisitor::mapSet('dv', $key, $now);
+
+        $this->ensureEngagement();
+        $day = gmdate('Y-m-d');
+        $now = Database::nowExpr();
+        switch (Database::driver()) {
+            case 'mysql':
+                $sql = 'INSERT INTO diary_views (article_id, day, count) VALUES (?, ?, 1)
+                        ON DUPLICATE KEY UPDATE count = count + 1';
+                break;
+            case 'pgsql':
+                $sql = 'INSERT INTO diary_views (article_id, day, count) VALUES (?, ?, 1)
+                        ON CONFLICT(article_id, day) DO UPDATE SET count = diary_views.count + 1';
+                break;
+            default:
+                $sql = 'INSERT INTO diary_views (article_id, day, count) VALUES (?, ?, 1)
+                        ON CONFLICT(article_id, day) DO UPDATE SET count = count + 1';
+        }
+        unset($now);
+        try { $this->db->prepare($sql)->execute([$articleId, $day]); }
+        catch (Throwable $e) { error_log('[diary] recordView: ' . $e->getMessage()); return false; }
+        return true;
+    }
+
+    /* ── Applause ──────────────────────────────────────────────────────────
+       Fifty per reader per entry, counted server-side. The browser caps at
+       fifty too, but a cap that only the browser enforces is not a cap. */
+    public const CLAP_CAP = 50;
+
+    /** One clap. Returns the new total, or null once this reader has given 50. */
+    public function clapOnce(string $slug): ?int
+    {
+        $a = $this->bySlug($slug);
+        if (!$a) return null;
+        $key  = (string) (int) $a['id'];
+        $mine = (int) (DiaryVisitor::map('dk')[$key] ?? 0);
+        if ($mine >= self::CLAP_CAP) return null;
+        DiaryVisitor::mapSet('dk', $key, $mine + 1);
+        return $this->addClaps($slug, 1);
+    }
+
+    /** How many claps this reader has already given this entry. */
+    public function myClaps(int $articleId): int
+    {
+        return (int) (DiaryVisitor::map('dk')[(string) $articleId] ?? 0);
+    }
+
+    /* ── Saves ─────────────────────────────────────────────────────────────
+       Keyed to the account when there is one and to the reader's cookie when
+       there is not, so Save works for a reader who has not signed in instead
+       of appearing to work and losing the entry on the next page. */
+
+    public function isSaved(int $articleId, int $userId = 0): bool
+    {
+        $this->ensureEngagement();
+        try {
+            $st = $this->db->prepare('SELECT 1 FROM diary_saves WHERE article_id = ? AND ' . ($userId > 0 ? 'user_id = ?' : 'visitor_hash = ?') . ' LIMIT 1');
+            $st->execute([$articleId, $userId > 0 ? $userId : DiaryVisitor::hash('save')]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    public function addSave(int $articleId, int $userId = 0): bool
+    {
+        if ($articleId <= 0) return false;
+        $this->ensureEngagement();
+        try {
+            $sql = Database::insertIgnore('diary_saves', ['user_id', 'article_id', 'visitor_hash', 'created_at']);
+            $this->db->prepare($sql)->execute([$userId, $articleId, $userId > 0 ? '' : DiaryVisitor::hash('save'), gmdate('Y-m-d H:i:s')]);
+            return true;
+        } catch (Throwable $e) { error_log('[diary] addSave: ' . $e->getMessage()); return false; }
+    }
+
+    public function removeSave(int $articleId, int $userId = 0): bool
+    {
+        $this->ensureEngagement();
+        try {
+            $st = $this->db->prepare('DELETE FROM diary_saves WHERE article_id = ? AND ' . ($userId > 0 ? 'user_id = ?' : 'visitor_hash = ?'));
+            $st->execute([$articleId, $userId > 0 ? $userId : DiaryVisitor::hash('save')]);
+            return true;
+        } catch (Throwable $e) { return false; }
+    }
+
+    /* ── Comments ──────────────────────────────────────────────────────────
+       New comments arrive `pending` and are shown to nobody but the person who
+       wrote them, under "Only you can see this until it's reviewed." That is
+       the whole moderation model: a comment is never published by the act of
+       posting it, so the page can never be used to publish something the team
+       has not read.
+
+       One level of replies. parent_id is resolved to the TOP-LEVEL ancestor
+       before it is stored, so a reply to a reply becomes a reply to the thread
+       rather than a third level the renderer cannot draw. */
+
     public function commentCount(int $articleId): int
     {
-        $this->ensureComments();
+        $this->ensureEngagement();
         try {
             $st = $this->db->prepare("SELECT COUNT(*) FROM diary_comments WHERE article_id = ? AND status = 'published'");
             $st->execute([$articleId]);
@@ -262,21 +454,338 @@ final class DiaryRepository
         } catch (Throwable $e) { return 0; }
     }
 
-    /** Add a comment to a published article. Returns the stored row or null. */
-    public function addComment(string $slug, string $name, string $body, int $userId = 0): ?array
+    /**
+     * The thread, ready to render: top-level comments with their replies, in
+     * the shape diary/partials.php draws.
+     *
+     * `$all` false returns the first three top-level comments (every reply to
+     * them comes with them — a conversation cut off mid-answer reads as if the
+     * reply were deleted).
+     */
+    public function commentTree(int $articleId, string $sort = 'top', bool $all = false): array
     {
-        $this->ensureComments();
+        $this->ensureEngagement();
+        $owner = DiaryVisitor::hash('comment');
+        $order = $sort === 'new' ? 'c.id DESC' : 'c.likes DESC, c.id DESC';
+        try {
+            $st = $this->db->prepare(
+                "SELECT c.id, c.parent_id, c.user_id, c.name, c.body, c.status, c.likes, c.created_at, c.owner_hash,
+                        u.role AS author_role
+                   FROM diary_comments c
+                   LEFT JOIN lms_users u ON u.id = c.user_id
+                  WHERE c.article_id = ?
+                    AND (c.status = 'published' OR (c.status = 'pending' AND c.owner_hash = ?))
+                  ORDER BY {$order}"
+            );
+            $st->execute([$articleId, $owner]);
+            $rows = $st->fetchAll() ?: [];
+        } catch (Throwable $e) { error_log('[diary] commentTree: ' . $e->getMessage()); return []; }
+
+        $liked = $this->likedSet(array_map(fn($r) => (int) $r['id'], $rows));
+        $tops = []; $kids = [];
+        foreach ($rows as $r) {
+            $view = $this->commentView($r, $liked);
+            if ((int) ($r['parent_id'] ?? 0) > 0) $kids[(int) $r['parent_id']][] = $view;
+            else $tops[(int) $r['id']] = $view;
+        }
+        // Replies read oldest-first whatever the sort: a conversation is not a
+        // leaderboard, and "Top" sorting the answers scrambles the exchange.
+        foreach ($tops as $id => &$t) {
+            $t['replies'] = $kids[$id] ?? [];
+            usort($t['replies'], fn($x, $y) => $x['id'] <=> $y['id']);
+        }
+        unset($t);
+        $tops = array_values($tops);
+        return $all ? $tops : array_slice($tops, 0, 3);
+    }
+
+    /** One stored row as the view wants it. */
+    private function commentView(array $r, array $liked): array
+    {
+        $name = (string) $r['name'];
+        $parts = preg_split('/\s+/u', trim($name)) ?: [];
+        $initials = mb_strtoupper(mb_substr($parts[0] ?? '?', 0, 1) . (count($parts) > 1 ? mb_substr((string) end($parts), 0, 1) : ''));
+        $ts = strtotime((string) $r['created_at']) ?: time();
+        return [
+            'id'      => (int) $r['id'],
+            'name'    => $name,
+            'initials'=> $initials,
+            'is_team' => in_array((string) ($r['author_role'] ?? ''), ['admin', 'instructor'], true),
+            'date'    => date('j M Y', $ts),
+            'body'    => (string) $r['body'],
+            'likes'   => (int) $r['likes'],
+            'liked'   => isset($liked[(int) $r['id']]),
+            'pending' => (string) $r['status'] === 'pending',
+            'replies' => [],
+        ];
+    }
+
+    /** Which of these comments this reader has already liked. */
+    private function likedSet(array $ids): array
+    {
+        $ids = array_values(array_filter($ids));
+        if (!$ids) return [];
+        try {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $st = $this->db->prepare("SELECT comment_id FROM diary_comment_likes WHERE voter_hash = ? AND comment_id IN ($in)");
+            $st->execute(array_merge([DiaryVisitor::hash('clike')], $ids));
+            $out = [];
+            foreach ($st->fetchAll() as $r) $out[(int) $r['comment_id']] = true;
+            return $out;
+        } catch (Throwable $e) { return []; }
+    }
+
+    /** How many top-level comments are visible to this reader right now. */
+    public function threadCount(int $articleId): int
+    {
+        $this->ensureEngagement();
+        try {
+            $st = $this->db->prepare(
+                "SELECT COUNT(*) FROM diary_comments
+                  WHERE article_id = ? AND parent_id IS NULL
+                    AND (status = 'published' OR (status = 'pending' AND owner_hash = ?))"
+            );
+            $st->execute([$articleId, DiaryVisitor::hash('comment')]);
+            return (int) $st->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /**
+     * Post a comment or a reply. Always stored `pending`.
+     *
+     * The email is stored and never rendered — the view model built by
+     * commentView() has no field to put it in, so there is no later edit that
+     * accidentally prints it.
+     */
+    public function addThreadComment(string $slug, string $name, string $body, string $email = '', int $parentId = 0, int $userId = 0): ?array
+    {
+        $this->ensureEngagement();
         $a = $this->bySlug($slug);
         if (!$a) return null;
-        $name = trim(preg_replace('/\s+/u', ' ', strip_tags($name)));
-        $body = trim(strip_tags($body));
-        $name = mb_substr($name, 0, 120);
-        $body = mb_substr($body, 0, 4000);
-        if ($name === '' || mb_strlen($body) < 2) return null;
-        $now = gmdate('Y-m-d H:i:s');
-        $this->db->prepare('INSERT INTO diary_comments (article_id, user_id, name, body, status, created_at) VALUES (?,?,?,?,?,?)')
-            ->execute([(int) $a['id'], $userId, $name, $body, 'published', $now]);
-        return ['id' => (int) $this->db->lastInsertId(), 'name' => $name, 'body' => $body, 'created_at' => $now];
+        $name = mb_substr(trim((string) preg_replace('/\s+/u', ' ', strip_tags($name))), 0, 120);
+        $body = mb_substr(trim(strip_tags($body)), 0, 4000);
+        if ($name === '' || mb_strlen($body) < 3) return null;
+
+        // One level only: a reply to a reply joins the thread it belongs to.
+        $parent = null;
+        if ($parentId > 0) {
+            $st = $this->db->prepare('SELECT id, parent_id FROM diary_comments WHERE id = ? AND article_id = ?');
+            $st->execute([$parentId, (int) $a['id']]);
+            $row = $st->fetch();
+            if ($row) $parent = (int) ($row['parent_id'] ?: $row['id']);
+        }
+
+        $now   = gmdate('Y-m-d H:i:s');
+        $owner = DiaryVisitor::hash('comment');
+        $ip    = function_exists('av_client_ip') ? av_client_ip() : '';
+        $this->db->prepare(
+            'INSERT INTO diary_comments (article_id, parent_id, user_id, name, email, body, status, likes, reports, ip_hash, owner_hash, created_at)
+             VALUES (?,?,?,?,?,?,?,0,0,?,?,?)'
+        )->execute([
+            (int) $a['id'], $parent, $userId, $name,
+            mb_substr(trim($email), 0, 190), $body, 'pending',
+            $ip === '' ? '' : hash('sha256', 'ip|' . $ip . '|' . av_secret()), $owner, $now,
+        ]);
+
+        $id = (int) $this->db->lastInsertId();
+        return $this->commentView([
+            'id' => $id, 'parent_id' => $parent, 'user_id' => $userId, 'name' => $name,
+            'body' => $body, 'status' => 'pending', 'likes' => 0, 'created_at' => $now,
+            'owner_hash' => $owner, 'author_role' => '',
+        ], []) + ['parent_id' => $parent];
+    }
+
+    /** Like or unlike a comment. Returns the new like count. */
+    public function likeComment(int $commentId, bool $on): int
+    {
+        $this->ensureEngagement();
+        $voter = DiaryVisitor::hash('clike');
+        try {
+            if ($on) {
+                $st = $this->db->prepare(Database::insertIgnore('diary_comment_likes', ['comment_id', 'voter_hash']));
+                $st->execute([$commentId, $voter]);
+                if ($st->rowCount() > 0) $this->db->prepare('UPDATE diary_comments SET likes = likes + 1 WHERE id = ?')->execute([$commentId]);
+            } else {
+                $st = $this->db->prepare('DELETE FROM diary_comment_likes WHERE comment_id = ? AND voter_hash = ?');
+                $st->execute([$commentId, $voter]);
+                if ($st->rowCount() > 0) $this->db->prepare('UPDATE diary_comments SET likes = CASE WHEN likes > 0 THEN likes - 1 ELSE 0 END WHERE id = ?')->execute([$commentId]);
+            }
+            $q = $this->db->prepare('SELECT likes FROM diary_comments WHERE id = ?');
+            $q->execute([$commentId]);
+            return (int) $q->fetchColumn();
+        } catch (Throwable $e) { error_log('[diary] likeComment: ' . $e->getMessage()); return 0; }
+    }
+
+    /**
+     * Flag a comment. A report hides nothing by itself — a comment that three
+     * different readers report goes back to `pending` for the team to look at,
+     * because one reader with a grudge is not a moderation decision.
+     */
+    public const REPORTS_TO_HIDE = 3;
+
+    public function reportComment(int $commentId): bool
+    {
+        $this->ensureEngagement();
+        try {
+            $this->db->prepare('UPDATE diary_comments SET reports = reports + 1 WHERE id = ?')->execute([$commentId]);
+            $this->db->prepare("UPDATE diary_comments SET status = 'pending' WHERE id = ? AND reports >= ? AND status = 'published'")
+                ->execute([$commentId, self::REPORTS_TO_HIDE]);
+            return true;
+        } catch (Throwable $e) { return false; }
+    }
+
+    /* ── Moderation (Diary Studio) ─────────────────────────────────────────
+       Everything a reader posts lands here first. A comment three readers have
+       reported comes back here too, which is why the queue carries the report
+       count: a returning comment is not the same thing as a new one. */
+
+    /** The queue: pending first, then anything published that is being reported. */
+    public function moderationQueue(int $limit = 100): array
+    {
+        $this->ensureEngagement();
+        $limit = max(1, min(500, $limit));
+        try {
+            $rows = $this->db->query(
+                "SELECT c.id, c.article_id, c.parent_id, c.name, c.email, c.body, c.status,
+                        c.likes, c.reports, c.created_at, a.title AS article_title, a.slug AS article_slug
+                   FROM diary_comments c
+                   LEFT JOIN articles a ON a.id = c.article_id
+                  WHERE c.status = 'pending' OR (c.status = 'published' AND c.reports > 0)
+                  ORDER BY c.reports DESC, c.id DESC
+                  LIMIT {$limit}"
+            )->fetchAll() ?: [];
+        } catch (Throwable $e) { error_log('[diary] moderationQueue: ' . $e->getMessage()); return []; }
+        foreach ($rows as &$r) {
+            $r['id'] = (int) $r['id'];
+            $r['reports'] = (int) $r['reports'];
+            $r['is_reply'] = ((int) ($r['parent_id'] ?? 0)) > 0;
+            $r['url'] = '/diary/' . (string) $r['article_slug'] . '/#comments';
+        }
+        return $rows;
+    }
+
+    /** How many comments are waiting. Drives the Studio's badge. */
+    public function moderationCount(): int
+    {
+        $this->ensureEngagement();
+        try {
+            return (int) $this->db->query(
+                "SELECT COUNT(*) FROM diary_comments WHERE status = 'pending' OR (status = 'published' AND reports > 0)"
+            )->fetchColumn();
+        } catch (Throwable $e) { return 0; }
+    }
+
+    /**
+     * Publish or remove one comment.
+     *
+     * Publishing clears the report count: the team has now looked, and leaving
+     * the old reports in place would send the comment straight back into the
+     * queue the next time anybody flagged it, with no way to tell a decision
+     * that had been made from one that had not.
+     *
+     * Removing a top-level comment removes its replies with it. A reply left
+     * under a deleted question reads as an answer to whatever is above it now.
+     */
+    public function setCommentStatus(int $id, string $status): bool
+    {
+        if (!in_array($status, ['published', 'removed', 'pending'], true)) return false;
+        $this->ensureEngagement();
+        try {
+            if ($status === 'published') {
+                $this->db->prepare("UPDATE diary_comments SET status = 'published', reports = 0 WHERE id = ?")->execute([$id]);
+            } else {
+                $this->db->prepare('UPDATE diary_comments SET status = ? WHERE id = ? OR parent_id = ?')->execute([$status, $id, $id]);
+            }
+            return true;
+        } catch (Throwable $e) { error_log('[diary] setCommentStatus: ' . $e->getMessage()); return false; }
+    }
+
+    /* ── Keep reading ──────────────────────────────────────────────────────
+       The related entries the article already names, with their counts, in the
+       shape the Keep reading cards render. */
+    public function keepReading(int $articleId, int $n = 3): array
+    {
+        $cards = array_slice($this->relatedCards($articleId), 0, max(1, $n));
+        if (!$cards) return [];
+        // Cards carry no row id (the public JSON shape has never exposed one), so
+        // the ids are looked up by slug in one query rather than per card.
+        $ids = $this->idsForSlugs(array_column($cards, 'slug'));
+        $counts = $ids ? $this->countsFor(array_values($ids)) : [];
+        $out = [];
+        foreach ($cards as $c) {
+            $id = (int) ($ids[$c['slug']] ?? 0);
+            $out[] = [
+                'category' => (string) $c['category'],
+                'title'    => (string) $c['title'],
+                'url'      => '/diary/' . $c['slug'] . '/',
+                'date'     => (string) $c['published'],
+                'minutes'  => (int) $c['read_minutes'],
+                'views'    => (int) ($counts[$id]['views'] ?? 0),
+            ];
+        }
+        return $out;
+    }
+
+    /* ── The author card ───────────────────────────────────────────────────
+       The byline is prose, so this reads the first name out of it and asks the
+       accounts table whether that person is on the team. When it cannot tell,
+       the role comes back EMPTY rather than invented — a card that calls
+       somebody "Contributor" because nothing was known is a card that lies in
+       a typeface. The stylesheet hides an empty role line. */
+    public function authorCard(array $article): array
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($article['authors_html'] ?? ''))));
+        if ($name === '') $name = 'The Afrovanguard Team';
+        // "Ada Nwosu and Tunde Afolabi" credits the card to the first name.
+        $name = trim((string) preg_split('/\s+(?:and|&|,)\s+/iu', $name)[0]);
+        $parts = preg_split('/\s+/u', $name) ?: [$name];
+
+        $role = '';
+        try {
+            $st = $this->db->prepare('SELECT role FROM lms_users WHERE LOWER(name) = ? LIMIT 1');
+            $st->execute([mb_strtolower($name)]);
+            $r = (string) ($st->fetchColumn() ?: '');
+            if ($r === 'admin' || $r === 'instructor') $role = 'Afrovanguard team';
+        } catch (Throwable $e) { /* no accounts table on this install: no role */ }
+
+        return [
+            'name'     => $name,
+            'slug'     => slugify($name),
+            'role'     => $role,
+            'initials' => mb_strtoupper(mb_substr($parts[0], 0, 1) . (count($parts) > 1 ? mb_substr((string) end($parts), 0, 1) : '')),
+        ];
+    }
+
+    /* ── Audio ─────────────────────────────────────────────────────────────
+       What the Listen button needs before anything has been synthesised: a
+       source and a length. The length is an ESTIMATE from the word count at a
+       narration pace — the exact duration is only knowable once the file
+       exists, and the bar replaces it with the real one from the audio element
+       as soon as it loads. The button is labelled "Listen · 8 min", which is a
+       claim about how long listening takes, not a measurement.
+
+       Null means there is no audio at all, which hides the button — the state
+       §7 calls "audio unavailable". */
+    public const NARRATION_WPM = 150;
+
+    public function audioMeta(int $articleId): ?array
+    {
+        try {
+            $st = $this->db->prepare('SELECT slug, body_html, title, audio_url FROM articles WHERE id = ?');
+            $st->execute([$articleId]);
+            $a = $st->fetch();
+        } catch (Throwable $e) { return null; }
+        if (!$a) return null;
+
+        $words = max(1, str_word_count(strip_tags((string) $a['title'] . ' ' . (string) $a['body_html'])));
+        $seconds = (int) max(30, round($words / self::NARRATION_WPM * 60));
+
+        $narration = trim((string) ($a['audio_url'] ?? ''));
+        if ($narration !== '') return ['kind' => 'narration', 'src' => $narration, 'seconds' => $seconds];
+
+        $tts = class_exists('Tts') && Tts::available() && Tts::engine() !== 'mock' && Tts::ext() === 'mp3';
+        if (!$tts) return null;
+        return ['kind' => 'tts', 'src' => '/diary/audio.php?slug=' . rawurlencode((string) $a['slug']) . '&play=1', 'seconds' => $seconds];
     }
     /* ══ Reference codes ═══════════════════════════════════════════════════
        Every entry carries a short, quotable identifier: AVD-2608-0003 is the
@@ -753,12 +1262,31 @@ final class DiaryRepository
             $params
         )->fetchColumn();
 
+        /* Sort. "Most read" and "most discussed" are counts the reader can see on
+           every card, so they are ordered in SQL against the same aggregates
+           rather than by fetching a page and re-sorting it — a page sorted
+           after the LIMIT is the twelve newest entries in a different order,
+           not the twelve most read. Both fall back to newest on a tie, so the
+           order is stable while every entry still has nought views. */
+        $join = '';
+        $order = 'a.published_at DESC, a.id DESC';
+        $sort = (string) ($opts['sort'] ?? 'latest');
+        if ($sort === 'read' || $sort === 'discussed') {
+            $this->ensureEngagement();
+            if ($sort === 'read') {
+                $join  = ' LEFT JOIN (SELECT article_id, SUM(count) n FROM diary_views GROUP BY article_id) agg ON agg.article_id = a.id';
+            } else {
+                $join  = " LEFT JOIN (SELECT article_id, COUNT(*) n FROM diary_comments WHERE status = 'published' GROUP BY article_id) agg ON agg.article_id = a.id";
+            }
+            $order = 'COALESCE(agg.n, 0) DESC, ' . $order;
+        }
+
         // LIMIT/OFFSET are validated ints, inlined for cross-driver consistency.
         $items = $this->bind(
             'SELECT ' . $this->cardCols() . '
-             FROM articles a JOIN categories c ON c.id = a.category_id
+             FROM articles a JOIN categories c ON c.id = a.category_id' . $join . '
              WHERE ' . $where . '
-             ORDER BY a.published_at DESC, a.id DESC
+             ORDER BY ' . $order . '
              LIMIT ' . $limit . ' OFFSET ' . $offset,
             $params
         )->fetchAll();
@@ -807,6 +1335,16 @@ final class DiaryRepository
         if (!empty($o['cat'])) {
             $where[] = 'c.slug = ?';
             $p[] = (string) $o['cat'];
+        }
+        if (!empty($o['author'])) {
+            // The byline is prose ("Tunde Afolabi and Ada Nwosu"), not a key, so
+            // "more by this writer" matches the slug's words inside it. An entry
+            // with two bylines is correctly found under either name.
+            $words = array_filter(explode('-', strtolower((string) $o['author'])));
+            if ($words) {
+                $where[] = 'LOWER(a.authors_html) LIKE ?';
+                $p[] = '%' . implode('%', $words) . '%';
+            }
         }
         if (!empty($o['q'])) {
             // Escape LIKE wildcards in user input; match title or dek.

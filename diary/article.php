@@ -6,6 +6,8 @@
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once __DIR__ . '/partials.php';   // the engagement blocks (drop-in)
+require_once __DIR__ . '/reader.php';     // the reading rail
 
 $raw  = (string) ($_GET['code'] ?? $_GET['slug'] ?? '');
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower($raw));
@@ -31,9 +33,24 @@ if (!$a) {
 }
 
 $canonical = diary_url($a['slug'] . '/');
-$related   = $repo->relatedCards((int) $a['id']);
 $me        = LmsAuth::user();
 $commentN  = $repo->commentCount((int) $a['id']);
+$counts    = $repo->counts((int) $a['id']);
+$author    = $repo->authorCard($a);
+$audio     = $repo->audioMeta((int) $a['id']);
+// $me is set above from LmsAuth::user().
+$saved     = $repo->isSaved((int) $a['id'], $me ? (int) $me['id'] : 0);
+$clapped   = $repo->myClaps((int) $a['id']) > 0;
+$sections  = $a['sections'] ?? [];
+$seriesNav = null;
+if (!empty($a['series']) && ($a['series']['prev'] || $a['series']['next'])) {
+    $sx = $a['series'];
+    $seriesNav = [
+        'name' => $sx['title'], 'part' => (int) ($sx['part'] ?: 0), 'of' => (int) $sx['count'],
+        'prev' => $sx['prev'] ? ['title' => $sx['prev']['title'], 'url' => '/diary/' . $sx['prev']['slug'] . '/'] : null,
+        'next' => $sx['next'] ? ['title' => $sx['next']['title'], 'url' => '/diary/' . $sx['next']['slug'] . '/'] : null,
+    ];
+}
 $audioDl   = class_exists('Tts') && Tts::available() && Tts::ext() === 'mp3' && Tts::engine() !== 'mock';
 $ogImage   = !empty($a['og_image']) ? $a['og_image'] : diary_url('og/' . $a['slug'] . '.png');
 $cover     = $a['cover_url'] ?? '';
@@ -78,11 +95,13 @@ render_head([
     'tags'      => [$a['category'], 'Afrovanguard', 'Alimosho', 'youth leadership'],
     'keywords'  => $a['category'] . ', Afrovanguard, Alimosho, Lagos, youth leadership, ' . strtolower($a['title']),
     'jsonld'    => [schema_org(), schema_website(), $blogPosting, $crumbs],
+    'csrf'      => true,
+    'css'       => ['/assets/site/avd.css', '/assets/site/avd-pages.css'],
 ]);
 render_nav('diary');
 ?>
 <?php $format = $a['format'] ?? 'standard'; $isFeature = $format === 'feature' && $cover; ?>
-  <main id="main-content">
+  <main id="main-content" class="avd">
     <article class="format-<?= e($format) ?>">
 <?php if ($isFeature): $hcid = (int) ($a['cover_is_dark'] ?? -1); $heroTone = $hcid === 1 ? ' is-on-dark' : ($hcid === 0 ? ' is-on-light' : ''); ?>
       <header class="feature-hero<?= $heroTone ?>" style="background-image:url('<?= e($cover) ?>')">
@@ -102,6 +121,9 @@ render_nav('diary');
           <div class="article-meta">
             <div><div class="meta-label">Written by</div><div class="meta-value"><?= av_byline_html($a['authors_html']) ?></div></div>
             <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= $readMin ?> min read</div></div>
+<?php if ($counts !== null): ?>
+            <div><div class="meta-label">Read</div><div class="meta-value avd-hero-counts"><?php avd_hero_counts($counts); ?></div></div>
+<?php endif; ?>
 <?php if (!empty($a['ref_code'])): ?>
             <div><div class="meta-label">Reference</div><div class="meta-value"><code class="article-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code></div></div>
 <?php endif; ?>
@@ -116,8 +138,10 @@ render_nav('diary');
 <?php endif; ?>
 
       <div class="container">
-        <div class="article-layout<?= empty($a['sections']) ? ' no-toc' : '' ?>">
-          <div class="article-body">
+        <div class="avd-grid">
+<?php avd_rail($sections, $readMin); ?>
+          <article class="avd-article article-body">
+<?php avd_listen($a, $a['slug'], $audio); ?>
 <?php if (!empty($a['series'])): $sx = $a['series']; ?>
             <aside class="series-box" aria-label="Part of a series">
               <div class="series-box-head">
@@ -133,29 +157,25 @@ render_nav('diary');
 <?php endif; ?>
 <?= class_exists('IQ') ? IQ::embedShortcodes($a['body_html']) : $a['body_html'] ?>
 
-<?php if (!empty($a['series']) && ($a['series']['prev'] || $a['series']['next'])): $sx = $a['series']; ?>
-            <nav class="series-nav" aria-label="Series navigation">
-<?php if ($sx['prev']): ?>              <a class="series-step series-prev" href="/diary/<?= e($sx['prev']['slug']) ?>/"><span class="series-dir">← Previous in series</span><strong><?= e($sx['prev']['title']) ?></strong></a>
-<?php else: ?>              <span class="series-step is-empty"></span>
-<?php endif; ?>
-<?php if ($sx['next']): ?>              <a class="series-step series-next" href="/diary/<?= e($sx['next']['slug']) ?>/"><span class="series-dir">Next in series →</span><strong><?= e($sx['next']['title']) ?></strong></a>
-<?php endif; ?>
-            </nav>
-<?php endif; ?>
-          </div>
+            <ul class="avd-tags" aria-label="Filed under">
+              <li><a href="/diary/?cat=<?= e(rawurlencode($a['category_slug'])) ?>"># <?= e($a['category']) ?></a></li>
+            </ul>
+<?php avd_engagement($counts ?? ['claps' => (int) $a['claps'], 'comments' => $commentN], $clapped, $saved, $canonical, $a['title']); ?>
+<?php avd_author($author); ?>
+<?php avd_series($seriesNav); ?>
+<?php avd_comments($a['slug'], $repo->threadCount((int) $a['id']), $repo->commentTree((int) $a['id'], 'top', false), av_csrf_token()); ?>
+          </article>
         </div>
       </div>
 
-<?php if ($related): ?>
-      <section class="similar">
-        <div class="container">
-          <h2>More from the Diary</h2>
-          <div class="post-grid">
-<?php foreach ($related as $r) { render_card($r); } ?>
-          </div>
-        </div>
-      </section>
-<?php endif; ?>
+<?php avd_mission(); ?>
+<?php avd_keep_reading($repo->keepReading((int) $a['id'], 3)); ?>
     </article>
   </main>
+  <div class="avd">
+<?php if ($audio) avd_audio_bar(); ?>
+<?php avd_highlight_toolbar(); ?>
+  </div>
+  <script src="/assets/site/avd-reader.js" defer></script>
+  <script src="/assets/site/avd.js" defer></script>
 <?php render_footer();

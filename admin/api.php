@@ -285,7 +285,9 @@ try {
             json_out(['ok' => true, 'stats' => [
                 'diary_published'   => $cnt("SELECT COUNT(*) FROM articles WHERE status='published'"),
                 'diary_drafts'      => $cnt("SELECT COUNT(*) FROM articles WHERE status<>'published'"),
-                'moderation'        => $pending,
+                // Both things the Moderation tab holds: member submissions and
+                // reader comments. One number, because it is one queue to work.
+                'moderation'        => $pending + $repo->moderationCount(),
                 'inbox'             => $cnt("SELECT COUNT(*) FROM enrollments"),
                 'subscribers'       => $cnt("SELECT COUNT(*) FROM subscribers"),
                 // Active Afrovanguard members — not dues payers (learners pay dues too) and not learners.
@@ -1362,6 +1364,21 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $okr = (new DiaryJournal())->reject((int) ($body['id'] ?? 0), (string) ($body['note'] ?? ''));
             json_out($okr ? ['ok' => true] : ['ok' => false, 'error' => 'Entry not found or already handled.'], $okr ? 200 : 404);
+
+        /* ── Diary comments — the moderation queue ──
+           Nothing a reader writes is public until it passes through here. */
+        case 'dc_queue':
+            json_out(['ok' => true, 'comments' => $repo->moderationQueue(200), 'count' => $repo->moderationCount()]);
+        case 'dc_publish':
+        case 'dc_remove': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $id = (int) ($body['id'] ?? 0);
+            if ($id <= 0) json_out(['ok' => false, 'error' => 'Which comment?'], 422);
+            $to = $action === 'dc_publish' ? 'published' : 'removed';
+            if (!$repo->setCommentStatus($id, $to)) json_out(['ok' => false, 'error' => 'Could not update that comment.'], 500);
+            $lms->audit('diary_comment_' . ($to === 'published' ? 'publish' : 'remove'), (string) $id, '');
+            json_out(['ok' => true, 'status' => $to, 'count' => $repo->moderationCount()]);
+        }
 
         /* ── Academy ── */
         case 'ac_list':       json_out(['ok' => true, 'courses' => $ac->allForAdmin()]);

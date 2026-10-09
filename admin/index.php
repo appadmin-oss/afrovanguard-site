@@ -411,8 +411,13 @@
 
   <!-- DIARY MODERATION (public journal submissions) -->
   <main class="studio-main" id="moderationView" hidden>
-    <div class="studio-head"><div><h1>Diary moderation</h1><p class="muted">Public journal submissions from members, awaiting review. Approving publishes the entry to the Diary feed under the author’s name. Private and event entries are never shown here.</p></div></div>
+    <div class="studio-head"><div><h1>Diary moderation</h1><p class="muted">Everything waiting on a decision. Private and event entries are never shown here.</p></div></div>
+    <h2 class="studio-sec-h">Member submissions</h2>
+    <p class="muted">Public journal submissions from members. Approving publishes the entry to the Diary feed under the author’s name.</p>
     <div class="inbox-list" id="modList"></div>
+    <h2 class="studio-sec-h">Reader comments <span class="badge draft" id="modCommentsBadge" hidden></span></h2>
+    <p class="muted">Nothing a reader writes appears publicly until it is published here. A comment several readers have reported comes back to this list even after it was published.</p>
+    <div class="inbox-list" id="modComments"></div>
   </main>
 
   <!-- MEMBERS — the member desk (lib/MemberRoster.php) -->

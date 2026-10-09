@@ -54,6 +54,17 @@
   }
 
   /* ── Read currently-visible links into node descriptors ────────────── */
+  /* "3.4k views · 12 comments · 88 applause", or nothing when the card carries
+     no counts. Same compaction as avd_compact() on the server. */
+  function countsLine(a) {
+    var v = a.getAttribute('data-views');
+    if (v === null) return '';
+    var n = +v;
+    var short = n >= 1000 ? String(+(n / 1000).toFixed(1)).replace(/\.0$/, '') + 'k' : String(n);
+    return short + ' views · ' + (+a.getAttribute('data-comments')) + ' comments · '
+         + (+a.getAttribute('data-claps')) + ' applause';
+  }
+
   function readNodes() {
     nodes = [].slice.call(list.querySelectorAll('a'))
       .filter(function (a) { return getComputedStyle(a).display !== 'none'; })
@@ -68,6 +79,7 @@
           min: a.getAttribute('data-min') || '',
           num: a.getAttribute('data-num') || '',
           latest: a.getAttribute('data-latest') === '1',
+          counts: countsLine(a),
           year: (date.match(/^\d{4}/) || ['—'])[0],
           color: colorFor(a.getAttribute('data-cat') || '')
         };
@@ -286,6 +298,10 @@
     card.innerHTML = '<span class="jc-cat" style="color:' + nd.color + '">' + escapeHtml(nd.catName) + '</span>'
       + '<span class="jc-title">' + escapeHtml(nd.title) + '</span>'
       + '<span class="jc-meta">' + escapeHtml(nd.published) + (nd.min ? ' · ' + escapeHtml(nd.min) + ' min read' : '') + '</span>'
+      // The map is the default view, so the counts have to live here too —
+      // otherwise "every card shows its counts" means every card but the ones
+      // most readers actually see. Absent counts render nothing, not nought.
+      + (nd.counts ? '<span class="jc-counts av-num">' + escapeHtml(nd.counts) + '</span>' : '')
       + '<span class="jc-go">Read this entry →</span>';
     card.style.borderColor = nd.color;
     card.hidden = false;

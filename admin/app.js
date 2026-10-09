@@ -2645,14 +2645,66 @@
       + '<button class="btn btn-outline btn-sm mod-reject" data-id="' + e.id + '">Reject</button>'
       + '</div></div></div>';
   }
-  function setModBadge(n) { var b = $('#modBadge'); if (!b) return; if (n > 0) { b.textContent = n; b.hidden = false; } else { b.hidden = true; } }
-  function refreshModBadge() { api('mod_queue').then(function (r) { setModBadge((r.data && r.data.ok && r.data.entries) ? r.data.entries.length : 0); }).catch(function () {}); }
+  /* The tab badge counts BOTH queues. Two numbers in one tab would send an
+     editor to look at submissions when it was a comment that was waiting. */
+  var modCounts = { entries: 0, comments: 0 };
+  function setModBadge() {
+    var n = modCounts.entries + modCounts.comments, b = $('#modBadge');
+    if (!b) return;
+    if (n > 0) { b.textContent = n; b.hidden = false; } else { b.hidden = true; }
+    var cb = $('#modCommentsBadge');
+    if (cb) { if (modCounts.comments > 0) { cb.textContent = modCounts.comments; cb.hidden = false; } else { cb.hidden = true; } }
+  }
+  function refreshModBadge() {
+    api('mod_queue').then(function (r) { modCounts.entries = (r.data && r.data.ok && r.data.entries) ? r.data.entries.length : 0; setModBadge(); }).catch(function () {});
+    api('dc_queue').then(function (r) { modCounts.comments = (r.data && r.data.ok) ? (r.data.count || 0) : 0; setModBadge(); }).catch(function () {});
+  }
+
+  /* ---- Diary comments awaiting review ---- */
+  function dcRowHTML(c) {
+    var body = String(c.body || '');
+    var flagged = c.reports > 0;
+    return '<div class="inbox-row dcm-row" data-id="' + c.id + '"><div style="flex:1">'
+      + '<strong>' + escapeHtml(c.name || '(no name)') + '</strong>'
+      + (c.is_reply ? ' <span class="badge draft">Reply</span>' : '')
+      + (flagged ? ' <span class="dcm-flag">Reported ' + c.reports + '×</span>' : '')
+      + '<div class="inbox-meta">' + escapeHtml(c.article_title || '(entry gone)') + ' · ' + escapeHtml(c.created_at || '')
+      + (c.article_slug ? ' · <a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener">Open the entry</a>' : '') + '</div>'
+      + '<p class="inbox-note dcm-body">' + escapeHtml(body.length > 1200 ? body.slice(0, 1199) + '…' : body) + '</p>'
+      + '<div class="mod-actions" style="display:flex;gap:8px;margin-top:10px">'
+      + '<button class="btn btn-primary btn-sm dc-publish" data-id="' + c.id + '">Publish</button>'
+      + '<button class="btn btn-outline btn-sm dc-remove" data-id="' + c.id + '">Remove</button>'
+      + '</div></div></div>';
+  }
+  function loadDiaryComments() {
+    var box = $('#modComments'); if (!box) return Promise.resolve();
+    box.innerHTML = '<p class="muted">Loading…</p>';
+    return api('dc_queue').then(function (r) {
+      var d = r.data || {}, rows = (d.ok && d.comments) || [];
+      modCounts.comments = d.count || rows.length; setModBadge();
+      box.innerHTML = rows.length ? rows.map(dcRowHTML).join('') : '<p class="muted">No comments waiting.</p>';
+    }).catch(function () { box.innerHTML = '<p class="muted">Could not load the comments.</p>'; });
+  }
+  (function () {
+    var box = $('#modComments'); if (!box) return;
+    box.addEventListener('click', function (e) {
+      var pub = e.target.closest('.dc-publish'), rem = e.target.closest('.dc-remove');
+      var btn = pub || rem; if (!btn) return;
+      btn.disabled = true;
+      post(pub ? 'dc_publish' : 'dc_remove', { id: btn.getAttribute('data-id') }).then(function (r) {
+        if (r.data && r.data.ok) { toast(pub ? 'Comment published.' : 'Comment removed.'); loadDiaryComments(); }
+        else { btn.disabled = false; toast((r.data && r.data.error) || 'Could not update that comment.'); }
+      }).catch(function () { btn.disabled = false; toast('Network error'); });
+    });
+  })();
+
   function loadModeration() {
     var box = $('#modList'); box.innerHTML = '<p class="muted">Loading…</p>';
+    loadDiaryComments();
     return api('mod_queue').then(function (r) {
       var d = r.data || {}, rows = (d.ok && d.entries) || [];
-      setModBadge(rows.length);
-      box.innerHTML = rows.length ? rows.map(modRowHTML).join('') : '<p class="muted">Nothing awaiting review right now. 🎉</p>';
+      modCounts.entries = rows.length; setModBadge();
+      box.innerHTML = rows.length ? rows.map(modRowHTML).join('') : '<p class="muted">Nothing awaiting review right now.</p>';
     }).catch(function () { box.innerHTML = '<p class="muted">Could not load the queue.</p>'; });
   }
   (function () {

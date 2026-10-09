@@ -158,6 +158,15 @@
     chBtn.addEventListener('click', function () { var o = chList.hidden; chList.hidden = !o; chBtn.setAttribute('aria-expanded', String(o)); });
     chList.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { a.currentTime = +b.dataset.t; chList.hidden = true; chBtn.setAttribute('aria-expanded', 'false'); chBtn.focus(); } });
     $('[data-avd-close]', bar).addEventListener('click', function () { a.pause(); persist(); bar.hidden = true; playBtn.focus(); });
+    /* MODIFICATION to the drop-in, declared in the PR: the bar's duration starts
+       as an estimate (audio.php cannot measure a file it has not built, and a
+       human-recorded narration lives in a file this server may not hold), so
+       the real one is taken from the element the moment it is known. Without
+       this the scrubber's range stays at the estimate and a seek lands in the
+       wrong minute. */
+    a.addEventListener('loadedmetadata', function () {
+      if (isFinite(a.duration) && a.duration > 0) { dur = a.duration; seek.max = Math.floor(dur); render(); }
+    });
     a.addEventListener('timeupdate', function () { render(); if (Date.now() - lastSave > 5000) { lastSave = Date.now(); persist(); } });
     a.addEventListener('play', function () { render(); live.textContent = 'Playing: ' + chTitle.textContent; });
     a.addEventListener('pause', function () { render(); persist(); live.textContent = 'Paused at ' + fmt(a.currentTime); });

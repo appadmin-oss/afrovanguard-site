@@ -116,7 +116,7 @@
 /* keep reading */
 .avd-keep-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
 .avd-keep-head h2{margin:0;font:400 32px var(--av-serif)}
-.avd-keep-head a{font:600 14px var(--av-sans);color:var(--av-gold-text)}
+.avd-keep-head a{font:600 14px var(--av-sans);color:var(--av-gold-text);display:inline-flex;align-items:center;min-height:44px}
 .avd-keep-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:14px}
 .avd-kcard{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--av-line);border-radius:var(--av-r-12);text-decoration:none;color:var(--av-ink)}
 .avd-kcard strong{font:600 17px/1.35 var(--av-sans)}
@@ -131,3 +131,14 @@
 
 /* toast */
 .avd-toast{position:fixed;z-index:80;left:50%;bottom:96px;transform:translateX(-50%);padding:12px 16px;background:var(--av-ink);color:var(--av-white);border-radius:var(--av-r-10);font:500 14px var(--av-sans);box-shadow:var(--av-shadow)}
+
+/* ── MODIFICATION, declared in the PR ───────────────────────────────────────
+   The drop-in already bumps pills and comment actions to 44px on a phone, so
+   the intent is G-11's 44×44 — but the bumps sit ABOVE the base declarations
+   for .avd-btn and .avd-seg button, which therefore win at equal specificity
+   and leave those two at 40px and 34px. Restated at the end of the file, where
+   they take effect, plus a minimum WIDTH: a 41px-wide Reply is 41px wide. */
+@media (max-width:639px){
+  .avd-btn,.avd-seg button{height:44px}
+  .avd-c-actions button{min-height:44px;min-width:44px;justify-content:center}
+}

@@ -1,0 +1,142 @@
+/* The Diary pages: the reading rail, the body grid, the entry’s typography,
+   and the listing’s sort control and card counts.
+   Companion to avd.css; everything the handoff describes in §4 but ships no
+   CSS for. Prefix avd-. Loaded after diary.css and avd.css on both. */
+
+/* ── Body grid ──────────────────────────────────────────────────────────── */
+.avd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:28px 0 8px}
+@media (min-width:960px){
+  .avd-grid{grid-template-columns:200px minmax(0,700px);gap:64px;justify-content:center;padding:44px 0 8px}
+}
+
+/* ── Typography (§4) ────────────────────────────────────────────────────────
+   19px is the DEFAULT, not a fixed size: --reading-scale is what the A−/A+
+   buttons move, the same variable the site has always used and the same one
+   the boot script restores before first paint, so a reader who set 22px last
+   week does not watch it jump from 19 on every load. The range the buttons
+   allow is 15–22px, which is 0.79–1.16 of the default. */
+.avd-article{font-size:calc(19px * var(--reading-scale));line-height:1.72;color:var(--av-ink-2)}
+.avd-article>p{max-width:68ch;text-wrap:pretty}
+.avd-article>p:first-of-type,.avd-article>.avd-listen+p{font-size:1.08em;color:var(--av-ink)}
+.avd-article h2{font-family:var(--av-serif);font-weight:500;font-size:1.8em;letter-spacing:-.005em;line-height:1.14;margin:2.1em 0 .55em;color:var(--av-ink)}
+.avd-article h2::before{content:none}
+
+/* ── The rail ───────────────────────────────────────────────────────────── */
+.avd-rail{position:sticky;top:calc(var(--header-h) + 8px);z-index:90;background:var(--av-paper);
+  border-bottom:1px solid var(--av-line);margin:0 -18px;padding:0 18px}
+.avd-rail-progress{position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--av-line)}
+.avd-rail-progress span{display:block;height:100%;width:0;background:var(--av-gold);transition:width .12s linear}
+.avd-rail-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0;
+  border:0;background:none;color:var(--av-ink);font:inherit;text-align:left;cursor:pointer}
+.avd-rail-eyebrow{flex:none;font:800 11px var(--av-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--av-muted)}
+.avd-rail-current{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font:600 14px var(--av-sans);color:var(--av-ink)}
+.avd-rail-chev{flex:none;color:var(--av-muted);transition:transform .18s ease}
+.avd-rail-toggle[aria-expanded=true] .avd-rail-chev{transform:rotate(180deg)}
+.avd-rail-panel{display:none;padding:0 0 16px}
+.avd-rail-toggle[aria-expanded=true]+.avd-rail-panel{display:block}
+.avd-rail-head{display:none}
+
+.avd-toc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;
+  border-left:1px solid var(--av-line)}
+.avd-toc a{display:block;padding:9px 0 9px 16px;margin-left:-1px;border-left:2px solid transparent;
+  font:500 14px/1.35 var(--av-sans);color:var(--av-muted);text-decoration:none}
+.avd-toc a:hover{color:var(--av-ink)}
+.avd-toc a.is-active{color:var(--av-ink);border-left-color:var(--av-gold);font-weight:700}
+.avd-rail-left{margin:16px 0 0;font:500 13px var(--av-sans);color:var(--av-muted)}
+
+.avd-size{display:flex;gap:8px;margin-top:12px}
+.avd-size button{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--av-line-2);
+  border-radius:var(--av-r-8);background:var(--av-white);color:var(--av-ink);
+  font:600 14px var(--av-sans);cursor:pointer}
+.avd-size button:last-child{font-size:17px}
+.avd-size button:hover{border-color:var(--av-ink)}
+.avd-size button[disabled]{opacity:.4;cursor:default}
+
+@media (min-width:960px){
+  .avd-rail{position:sticky;top:100px;align-self:start;z-index:1;background:none;border:0;margin:0;padding:0;
+    max-height:calc(100vh - 140px);overflow:auto}
+  .avd-rail-progress,.avd-rail-toggle{display:none}
+  .avd-rail-panel{display:block;padding:0}
+  .avd-rail-head{display:block;margin:0 0 10px;font:800 11px var(--av-sans);letter-spacing:.14em;
+    text-transform:uppercase;color:var(--av-muted)}
+}
+
+/* ── Odds and ends the drop-in markup assumes ───────────────────────────── */
+/* An entry whose byline matches no account has no role to print. An empty
+   paragraph would still take its line height and push the buttons down. */
+.avd-author-role:empty{display:none}
+/* Tags. One pill per category today; the markup is a list so a real tag
+   vocabulary drops in without touching the CSS. */
+.avd-tags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:40px 0 0;padding:0}
+.avd-tags a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid var(--av-line-2);
+  border-radius:var(--av-r-pill);font:500 13px var(--av-sans);color:var(--av-muted);text-decoration:none}
+.avd-tags a:hover{border-color:var(--av-ink);color:var(--av-ink)}
+/* Pull quotes carry the same two share links the selection toolbar offers. */
+.avd-quote-share{display:flex;gap:12px;margin:-18px 0 32px;font:500 13px var(--av-sans)}
+.avd-quote-share a{color:var(--av-muted);text-decoration:none;border-bottom:1px solid var(--av-line-2)}
+.avd-quote-share a:hover{color:var(--av-ink);border-bottom-color:var(--av-ink)}
+
+/* ── Motion ─────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion:reduce){
+  .avd-rail-chev,.avd-rail-progress span{transition:none}
+}
+
+/* ── Listing ────────────────────────────────────────────────────────────── */
+/* The sort form sits before the search and holds one select. It is a real GET
+   form so the control works with JavaScript off; the select submits it. */
+.avd-sortform{display:flex;align-items:center;gap:8px;flex:none}
+.avd-sortform .avd-btn{height:40px}
+
+/* Counts under a card in list view. They sit outside the <a> — a paragraph
+   cannot live inside the card's inline wrapper without the browser hoisting it
+   out of the link — so they are indented to the card's own text column. */
+.journey-canvas-wrap.is-listview .journey-a11y li .avd-counts{margin:0 0 10px;padding:10px 16px 0 62px}
+@media (max-width:680px){
+  .journey-canvas-wrap.is-listview .journey-a11y li .avd-counts{padding-left:14px}
+}
+/* In map view the list is the hidden, crawlable source of truth; its counts go
+   with it, and the map's own card carries them instead. */
+.journey-canvas-wrap:not(.is-listview) .journey-a11y .avd-counts{display:none}
+.jc-counts{display:block;margin-top:6px;font:400 12px var(--av-sans);color:var(--av-muted)}
+
+/* ── Focus ──────────────────────────────────────────────────────────────────
+   tokens.css states the handoff's ring inside :where(), which has no
+   specificity at all, so diary.css's own `a:focus-visible` rule wins every
+   time and the new controls get the site's 2px gold ring instead of the 3px
+   one G-10 asks for. Restated here at a specificity that holds. */
+.avd :focus-visible,.avd:focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+
+/* ── Count separators ───────────────────────────────────────────────────────
+   §3 writes the line as "{views} views · {n} comments · {claps} 👏". The
+   drop-in sets the three spans side by side with a gap and no separator, so
+   the middle dots are added here rather than by editing its markup. */
+.avd-counts span + span::before,
+.avd-hero-counts > * + *::before{content:"·\00a0";color:var(--av-line-2)}
+.avd-hero-counts{display:flex;flex-wrap:wrap;gap:6px}
+
+/* ── Link colour inside the article ─────────────────────────────────────────
+   The entry keeps diary.css's `article-body` class so the prose styles —
+   drop cap, pull quotes, tables, figures — go on working. That also brings
+   `.article-body a { color: gold-deep }`, which is right for a link in a
+   sentence and wrong for the engagement controls: it repainted the author
+   card's buttons gold on white, which axe reads as a contrast failure and a
+   reader reads as a link that looks disabled. The components state their own
+   colour back. */
+.avd-article .avd-btn,
+.avd-article .avd-pill,
+.avd-article .avd-menu a,
+.avd-article .avd-scard,
+.avd-article .avd-c-actions button{color:var(--av-ink)}
+.avd-article .avd-btn--ink,.avd-article .avd-pill--ink{color:var(--av-white)}
+.avd-article .avd-tags a{color:var(--av-muted)}
+.avd-article .avd-tags a:hover{color:var(--av-ink)}
+
+/* ── Headings inside the module ─────────────────────────────────────────────
+   diary.css sets `h1,h2,h3,h4 { color: var(--ink) }` on the ELEMENT. An
+   element rule beats an inherited colour however specific the ancestor, so
+   the mission block's heading came out ink-on-ink: the panel rendered, the
+   gold half of the sentence rendered, and "Don’t just watch the future."
+   was invisible on it. Stated here rather than left to inheritance. */
+.avd-mission h2{color:var(--av-white)}
+.avd-c-head h2,.avd-keep-head h2{color:var(--av-ink)}
