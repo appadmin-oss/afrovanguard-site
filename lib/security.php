@@ -219,6 +219,20 @@ function av_admin_cookie_clear(): void {
     unset($_COOKIE[AV_ADMIN_COOKIE]);
 }
 
+/**
+ * Does $token match the break-glass ADMIN_TOKEN? For the legacy endpoints that
+ * take the token in a body or query (donor dashboard, contact inbox). They
+ * compared against ADMIN_TOKEN whatever its length — config.php can define a
+ * short one, which the Studio refuses (AV_ADMIN_TOKEN_MIN) — with no limit on
+ * guesses. Now: a token too short to be the Studio's is never accepted, and
+ * attempts are counted per IP.
+ */
+function av_admin_token_matches(string $token): bool {
+    if (!av_admin_token_configured()) return false;
+    if (function_exists('av_rate_ok') && defined('AV_ROOT') && !av_rate_ok('admin_token_check', 30, 900)) return false;
+    return $token !== '' && hash_equals((string) ADMIN_TOKEN, $token);
+}
+
 /** True if the request carries a valid Bearer admin token. */
 function av_admin_bearer_ok(): bool {
     if (!av_admin_token_configured()) return false;

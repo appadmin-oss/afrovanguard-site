@@ -131,3 +131,13 @@ ck('team api: the birthday is dropped', !array_key_exists('birthday', $secTeam))
 ck('team api: a deliberately public social email stays', ($secTeam['socials']['email'] ?? '') === 'pub@x.example');
 $secApi = (string) file_get_contents(AV_ROOT . '/api.php');
 ck('team api: both public reads go through the public shape', substr_count($secApi, 'av_team_public_dict') === 2);
+
+/* ══ 8. Donations: the public wall, the admin token, the mail relay ═══════ */
+$secDon = (string) file_get_contents(AV_ROOT . '/process-donation.php');
+ck('donations: the webhook never publishes the payer\'s email as their name', !str_contains($secDon, 'trim("$fn $ln") ?: $email'));
+ck('donations: the token endpoints use the length-checked, rate-limited compare',
+    substr_count($secDon, 'av_admin_token_matches($token)') === 2 && !str_contains($secDon, 'hash_equals(ADMIN_TOKEN'));
+ck('donations: the mail-sending actions have their own tight limit', str_contains($secDon, "['submit_contribute','bank_transfer_copy'], true) && !rateLimit('mail_'"));
+ck('contact: the inbox uses the same token check', str_contains((string) file_get_contents(AV_ROOT . '/process-contact.php'), 'av_admin_token_matches($token)'));
+ck('donor dashboard: no donor field reaches innerHTML', !preg_match('/innerHTML = `[^`]*\$\{d\./', (string) file_get_contents(AV_ROOT . '/donor-dashboard.html')));
+ck('admin token: an empty token never matches', av_admin_token_matches('') === false);
