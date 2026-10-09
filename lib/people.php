@@ -156,6 +156,18 @@ function av_team_members(PDO $pdo): array
     return ['status' => 'ok', 'members' => array_map('av_team_member_dict', av_team_rows($pdo, true))];
 }
 
+/**
+ * The public shape of a team member: everything the directory shows, minus the
+ * private address birthday emails go to and the birthday itself. The public
+ * API served both to anyone, though nothing on the site displays either and
+ * process-wish.php exists precisely so a visitor never sees that address.
+ */
+function av_team_public_dict(array $m): array
+{
+    unset($m['email'], $m['birthday']);
+    return $m;
+}
+
 /** A single member by id (full profile). */
 function av_team_one(PDO $pdo, int $id): array
 {

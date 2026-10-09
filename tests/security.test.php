@@ -120,3 +120,14 @@ ck('community: replies under a public post stay public', count(Community::replie
 $secComm = (string) file_get_contents(AV_ROOT . '/community/api.php');
 ck('community: reply and like check the post is visible first', substr_count($secComm, 'comm_visible_post((int) ($body[\'id\'] ?? 0), (int) $u[\'id\']);') === 2);
 ck('community: the origin check compares hosts exactly', !str_contains($secComm, 'stripos($host, $oh)'));
+
+/* ══ 7. The public team API names people, not their inboxes ════════════════
+   /api.php?action=members returned each team member's private email (the one
+   birthday mail goes to) and birthday to anyone. */
+require_once AV_ROOT . '/lib/people.php';
+$secTeam = av_team_public_dict(['id' => 1, 'name' => 'A', 'email' => 'a@private.example', 'birthday' => '05-04', 'socials' => ['email' => 'pub@x.example']]);
+ck('team api: the private email is dropped', !array_key_exists('email', $secTeam));
+ck('team api: the birthday is dropped', !array_key_exists('birthday', $secTeam));
+ck('team api: a deliberately public social email stays', ($secTeam['socials']['email'] ?? '') === 'pub@x.example');
+$secApi = (string) file_get_contents(AV_ROOT . '/api.php');
+ck('team api: both public reads go through the public shape', substr_count($secApi, 'av_team_public_dict') === 2);
