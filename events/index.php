@@ -99,8 +99,10 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="stylesheet" href="/assets/site/fonts.css" />
   <link rel="stylesheet" href="/assets/site/av-tokens.css" />
   <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avcv.css" />
   <link rel="stylesheet" href="/assets/site/avev.css" />
   <script src="/assets/site/avh.js" defer></script>
+  <script src="/assets/site/avcv.js" defer></script>
   <script src="/assets/site/avev.js" defer></script>
 </head>
 <body class="avh" id="top">

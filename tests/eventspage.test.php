@@ -22,7 +22,7 @@ ck('events page: inside the Home chrome', str_contains($ev, 'class="avh-nav"') &
 ck('events page: hero heading', str_contains($ev, '<h1>Where the movement meets</h1>'));
 ck('events page: list reads the events feed', str_contains($ev, 'data-feed="/events-feed.php"'));
 ck('events page: list starts as a skeleton, not blank', substr_count($ev, 'class="avev-sk"') === 3);
-ck('events page: six things we host', substr_count($ev, '<li><div class="avev-cov') === 6);
+ck('events page: six things we host', substr_count($ev, '<li><div class="avcv ') === 6);
 ck('events page: volunteer link kept', str_contains($ev, 'href="' . e(AV_VOLUNTEER_URL) . '"'));
 ck('events page: get in touch → contact', str_contains($ev, 'href="/contact.html">Get in touch'));
 ck('events page: summit band only while it is ahead', str_contains($ev, 'avev-feat"') === !Summit::isPast());
@@ -33,8 +33,8 @@ ck('cover: hash matches the browser (FNV-1a, UTF-16)', avev_cover_hash('Town hal
     && avev_cover_hash('D’Vanguard National Summit 2026') === 1356020805);
 $c = avev_cover(['title' => 'Independence Day Youth Parade', 'category' => 'meetup', 'date' => '2026-10-01', 'time' => '8:00am', 'location' => 'Alimosho', 'today' => '2026-10-07']);
 ck('cover: past event is marked and says so', str_contains($c, 'is-past') && str_contains($c, 'Took place'));
-ck('cover: holiday stripe on a holiday', str_contains($c, 'avev-hol-independence') && str_contains($c, 'Afrovanguard · Events · Independence Day'));
+ck('cover: holiday stripe on a holiday', str_contains($c, 'avcv-hol-independence') && str_contains($c, 'Afrovanguard · Events · Independence Day'));
 $c = avev_cover(['title' => 'Town hall', 'category' => 'townhall', 'date' => '2026-10-07', 'today' => '2026-10-07']);
 ck('cover: today is live', str_contains($c, 'Live now'));
 $c = avev_cover(['title' => '<b>x</b>', 'category' => 'nope']);
-ck('cover: unknown category falls back, title escaped', str_contains($c, 'avev-cov--general') && !str_contains($c, '<b>'));
+ck('cover: unknown category falls back, title escaped', str_contains($c, 'avcv--general') && !str_contains($c, '<b>'));
