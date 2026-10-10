@@ -7,3 +7,7 @@ lib/QuoteOfWeek.php
 quote-card.php
 assets/og
 assets/fliers
+lib/AvOg.php
+diary/og.php
+give/og.php
+academy/og.php
