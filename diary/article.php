@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once __DIR__ . '/partials.php';   // the engagement blocks (drop-in)
 require_once __DIR__ . '/reader.php';     // the reading rail
+require_once AV_ROOT . '/partials/av-cover.php'; // the cover when an entry has no photo
 
 $raw  = (string) ($_GET['code'] ?? $_GET['slug'] ?? '');
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower($raw));
@@ -96,7 +97,7 @@ render_head([
     'keywords'  => $a['category'] . ', Afrovanguard, Alimosho, Lagos, youth leadership, ' . strtolower($a['title']),
     'jsonld'    => [schema_org(), schema_website(), $blogPosting, $crumbs],
     'csrf'      => true,
-    'css'       => ['/assets/site/avd.css', '/assets/site/avd-pages.css'],
+    'css'       => ['/assets/site/avd.css', '/assets/site/avd-pages.css', '/assets/site/av-tokens.css', '/assets/site/avcv.css'],
 ]);
 render_nav('diary');
 ?>
@@ -134,6 +135,14 @@ render_nav('diary');
 <?php if ($cover && !$isFeature): ?>
       <div class="container">
         <figure class="article-hero"><img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" /></figure>
+      </div>
+<?php elseif (!$isFeature): /* No photo: the shared cover graphic (partials/av-cover.php), never a blank. */ ?>
+      <div class="container">
+        <figure class="article-hero"><?= av_cover([
+            'kind' => 'diary', 'title' => (string) $a['title'], 'category' => mb_strtolower((string) $a['category']),
+            'readTime' => $readMin . ' min read', 'date' => substr((string) ($a['published_at'] ?? ''), 0, 10),
+            'class' => 'avcv--round',
+        ]) ?></figure>
       </div>
 <?php endif; ?>
 
