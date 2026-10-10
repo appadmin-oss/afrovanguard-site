@@ -64,13 +64,13 @@
   --av-band-ok:#0F6B34; --av-band-warn:#8A4B00; --av-band-bad:#A3121F; --av-band-neutral:#3B4252;
 
   /* rows 7–9: contact (avct-), donate (avdn-), give (avgv-) — design values not covered above */
-  --av-copy-dark:#3D3D3D;
-  --av-live:#22A05A; --av-live-ring:rgba(34,160,90,.15); --av-live-bg:#EEF6F0;
-  --av-ink-line:#2A3344; --av-ink-line-2:#3A4558;
-  --av-ink-card:#1A2333; --av-ink-card-2:#1B2334; --av-ink-card-3:#222C40;
-  --av-line-4:#BDB8AD; --av-line-5:#CFCCC5; --av-line-6:#D9D5CC; --av-line-7:#E8E4DA;
-  --av-stone-4:#F2F0EB; --av-gold-wash:#FAF6EA;
-  --av-on-ink-link:#9FC5FF;
+  --av-cdg-copy:#3D3D3D;
+  --av-cdg-live:#22A05A; --av-cdg-live-ring:rgba(34,160,90,.15); --av-cdg-live-bg:#EEF6F0;
+  --av-cdg-ink-line:#2A3344; --av-cdg-ink-line-2:#3A4558;
+  --av-cdg-ink-card:#1A2333; --av-cdg-ink-card-2:#1B2334; --av-cdg-ink-card-3:#222C40;
+  --av-cdg-line-4:#BDB8AD; --av-cdg-line-5:#CFCCC5; --av-cdg-line-6:#D9D5CC; --av-cdg-line-7:#E8E4DA;
+  --av-cdg-stone:#F2F0EB; --av-cdg-gold-wash:#FAF6EA;
+  --av-cdg-on-ink-link:#9FC5FF;
 
   --av-serif:"Cormorant Garamond",Georgia,serif;
   --av-sans:"Source Sans 3",system-ui,sans-serif;
