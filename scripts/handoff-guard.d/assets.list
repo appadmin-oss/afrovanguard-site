@@ -5,3 +5,5 @@ assets/site/avcv.js
 lib/AvImage.php
 lib/QuoteOfWeek.php
 quote-card.php
+assets/og
+assets/fliers
