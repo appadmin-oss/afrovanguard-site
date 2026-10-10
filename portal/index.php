@@ -125,7 +125,7 @@ render_head([
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-app avp' . ($ptheme === 'dark' ? ' is-dark' : ''),
     'css'        => ['/assets/site/av-tokens.css', '/portal/portal.css', '/community/community.css', '/portal/community.css',
-                     '/assets/vendor/trix/trix.css', '/academy/ngv/ngv-dashboard.css',
+                     '/portal/avdy.css', '/academy/ngv/ngv-dashboard.css',
                      /* The member card (Membership → Your card) and its photo editor. */
                      '/assets/site/avc-card.css', '/assets/site/avc-photo.css',
                      /* Last, so the v2 shell wins over the panel stylesheet. */
@@ -385,6 +385,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
   <script src="/portal/palette.js" defer></script>
   <script src="/community/community.js" defer></script>
+  <script src="/portal/avdy.js" defer></script>
   <script src="/portal/commitments.js" defer></script>
   <script src="/assets/site/avc-photo.js" defer></script>
   <script src="/portal/card-photo.js" defer></script>
