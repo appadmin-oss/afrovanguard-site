@@ -256,7 +256,9 @@ foreach (['about.html', 'contact.html', 'donate.html'] as $page) {
     ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);
     ck("chrome: {$page} has exactly one drawer scrim", substr_count($html, 'class="scrim"') === 1);
 }
-ck('chrome: the builder clears loose chrome before injecting', str_contains(
-    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'strip_loose_chrome'));
+// The old-chrome builder is retired: it could only put the site-header nav and
+// its search dialog back. It must not render the old nav into anything.
+ck('chrome: the retired builder writes no chrome', !str_contains(
+    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'file_put_contents'));
 
 $db->exec('DELETE FROM summit_registrations');

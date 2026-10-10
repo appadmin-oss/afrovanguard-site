@@ -48,6 +48,30 @@ final class Icons
     }
 }
 
+/**
+ * The site pages' boot script. Every public page now wears the Home chrome
+ * (partials/avh-chrome.php), and the Home design is light-only — the --av-*
+ * tokens have no dark set and the new nav has no theme toggle. So these pages
+ * are forced light: <html> carries data-theme="light" in the markup itself and
+ * data-theme-lock tells diary.js not to flip it (its `d` shortcut). The visitor's
+ * stored av.theme is left untouched, so the member portal, which keeps its own
+ * dark mode, still honours it. Reveal and reading scale are kept from THEME_BOOT.
+ */
+const THEME_BOOT_SITE = "<script>(function(){var r=document.documentElement;r.classList.replace('no-js','js');r.classList.add('reveal-on');try{var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
+
+/**
+ * Which chrome the current page is drawn in: 'site' (the Home nav and footer,
+ * the default for every public page) or 'app' (a signed-in shell with its own
+ * chrome — the member portal, the mentor portal, the Workspace — which keeps
+ * the legacy head and its own dark mode). render_head() sets it; render_nav()
+ * and render_footer() read it so the three always agree.
+ */
+function av_chrome_mode(?string $set = null): string {
+    static $mode = 'site';
+    if ($set !== null) $mode = $set === 'app' ? 'app' : 'site';
+    return $mode;
+}
+
 const THEME_BOOT = "<script>(function(){var r=document.documentElement;r.classList.add('reveal-on');try{var t=localStorage.getItem('av.theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.setAttribute('data-theme',t);var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
 
 /**
@@ -97,9 +121,10 @@ function render_head(array $o): void {
     $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
     $imageAlt = $o['image_alt'] ?? $title;
     $jsonld = $o['jsonld'] ?? [];
+    $site = av_chrome_mode((string) ($o['chrome'] ?? 'site')) === 'site';
     if (function_exists('send_security_headers')) send_security_headers('public'); ?>
 <!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= $site ? ' class="no-js" data-theme="light" data-theme-lock' : '' ?>>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -142,7 +167,7 @@ function render_head(array $o): void {
   <link rel="alternate" type="application/rss+xml" title="The Afrovanguard Diary" href="<?= e(diary_url('feed.xml')) ?>" />
   <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
 <?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
-<?php endif; ?>  <?= THEME_BOOT ?>
+<?php endif; ?>  <?= $site ? THEME_BOOT_SITE : THEME_BOOT ?>
 
 <?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old
      <link> loaded Cormorant — a different face by the same designer — and
@@ -153,8 +178,19 @@ function render_head(array $o): void {
   <link href="/assets/site/fonts.css" rel="stylesheet" />
   <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
+<?php if ($site): /* The Home chrome and the new system, then avpg.css, which
+     re-points the old --afg-* and Diary tokens at --av-* and sets the type, so
+     the page bodies built on diary.css read as part of the new site. nav.css is
+     the old header's stylesheet and is not loaded. */ ?>
+  <link href="/assets/site/page.css" rel="stylesheet" />
+  <link href="/assets/site/av-tokens.css" rel="stylesheet" />
+  <link href="/assets/site/avh.css" rel="stylesheet" />
+  <link href="/assets/site/avpg.css" rel="stylesheet" />
+  <script src="/assets/site/avh.js" defer></script>
+<?php else: ?>
   <link href="/assets/site/nav.css" rel="stylesheet" />
   <link href="/assets/site/page.css" rel="stylesheet" />
+<?php endif; ?>
 <?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
 <?php endforeach;
   // Studio Design panel brand override — last, so it re-points the accent vars
@@ -168,11 +204,20 @@ function render_head(array $o): void {
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Afrovanguard" />
 <?php endif; ?></head>
+<?php if ($site): /* Home's structure: body.avh, the skip link to #main, the
+     .avh-page wrapper (closed by render_footer). The page's own <main id="main"
+     tabindex="-1"> sits between render_nav() and render_footer(). */ ?>
+<body class="avh avpg<?= !empty($o['body_class']) ? ' ' . e($o['body_class']) : '' ?>" id="top"<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?>>
+<a class="avh-skip" href="#main">Skip to content</a>
+<noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
+<div class="read-progress" id="read-progress"></div>
+<div class="avh-page">
+<?php else: ?>
 <body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?><?= !empty($o['body_class']) ? ' class="' . e($o['body_class']) . '"' : '' ?>>
   <a href="#main-content" class="skip-link">Skip to content</a>
   <noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
   <div class="read-progress" id="read-progress"></div>
-<?php }
+<?php endif; }
 
 /* The other Afrovanguard sites, named once. Every link out was hand-typed,
    which is how four of the five programme links in the footer came to point
@@ -406,7 +451,42 @@ function av_login_url(string $next = ''): string {
     return '/login' . ($next !== '' ? '?next=' . rawurlencode($next) : '');
 }
 
+/**
+ * The Home nav for a page in section $active, as a string.
+ *
+ * avh_nav() is the Home markup verbatim (tests/avhchrome.test.php pins it), so
+ * the section is marked here, on the way out, rather than in the partial:
+ *   - the section's mega-menu button and drawer accordion get data-avh-current
+ *     (avpg.css underlines it) — what the old nav's aria-current on the top
+ *     item said;
+ *   - every menu link to the page being viewed gets aria-current="page".
+ * 'mentorship' lives under Get involved in the menu; '' marks nothing.
+ */
+function av_site_nav(string $active, string $path = ''): string {
+    if (!function_exists('avh_nav')) require_once AV_ROOT . '/partials/avh-chrome.php';
+    ob_start(); avh_nav(); $html = (string) ob_get_clean();
+    $section = ['mentorship' => 'involved', 'people' => 'about'][$active] ?? $active;
+    if ($section !== '' && preg_match('/^[a-z]+$/', $section)) {
+        $html = str_replace('data-avh-menu="' . $section . '"', 'data-avh-menu="' . $section . '" data-avh-current', $html);
+        $html = str_replace('aria-controls="avh-acc-' . $section . '"', 'aria-controls="avh-acc-' . $section . '" data-avh-current', $html);
+    }
+    if ($path !== '' && $path !== '/') {
+        $alts = array_unique([$path, rtrim($path, '/'), rtrim($path, '/') . '/']);
+        foreach ($alts as $p) {
+            if ($p === '') continue;
+            $html = str_replace('<a href="' . e($p) . '">', '<a href="' . e($p) . '" aria-current="page">', $html);
+        }
+    }
+    return $html;
+}
+
 function render_nav(string $active = 'diary', array $opts = []): void {
+    if (av_chrome_mode() === 'site') {
+        // $opts['theme_toggle'] has nothing to do here: the Home nav has no
+        // toggle and site pages are light-only (see THEME_BOOT_SITE).
+        echo av_site_nav($active, (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: ''));
+        return;
+    }
     $S = rtrim(SITE_URL, '/');
     $showToggle = $opts['theme_toggle'] ?? true;
     $model = av_nav_model();
@@ -673,7 +753,21 @@ function av_footer_inner(): void {
   </footer>
 <?php }
 
-function render_footer(): void { ?>
+function render_footer(): void {
+    if (av_chrome_mode() === 'site') {
+        if (!function_exists('avh_footer')) require_once AV_ROOT . '/partials/avh-chrome.php';
+        avh_footer(); ?>
+</div>
+  <script src="/assets/site/nav.js" defer></script>
+  <script src="/assets/site/color-aware.js" defer></script>
+  <script src="/diary/diary.js" defer></script>
+<script src="/assets/site/chioma.js" defer></script>
+<script src="/assets/site/celebrations.js" defer></script>
+</body>
+</html>
+<?php
+        return;
+    } ?>
   <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
 <?php av_footer_inner(); ?>
   <script src="/assets/site/nav.js" defer></script>

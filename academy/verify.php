@@ -17,7 +17,7 @@ render_head([
 ]);
 render_nav('academy');
 ?>
-<main id="main-content">
+<main id="main" tabindex="-1">
   <div class="container" style="max-width:680px;padding:64px 24px 96px;text-align:center">
     <span class="diary-eyebrow" style="justify-content:center">Certificate verification</span>
 <?php if ($cert): ?>

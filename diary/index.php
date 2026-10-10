@@ -58,7 +58,7 @@ render_head([
 ]);
 render_nav('diary');
 ?>
-  <main id="main-content" class="avd">
+  <main id="main" tabindex="-1" class="avd">
     <section class="diary-hero">
       <div class="container">
         <span class="diary-eyebrow">Est. 2018 · Alimosho, Lagos</span>

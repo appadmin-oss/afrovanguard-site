@@ -46,7 +46,7 @@ if ($id) {
     $votm = av_votm($pdo);
     $isVotm = $votm['votm'] && (int) $votm['votm']['id'] === (int) $m['id'];
     ?>
-  <main id="main-content" class="ppl-profile">
+  <main id="main" tabindex="-1" class="ppl-profile">
     <div class="container">
       <nav class="crumb" aria-label="Breadcrumb"><a href="<?= $S ?>/about/">About</a> · <a href="/people/">Our People</a> · <span><?= e($m['name']) ?></span></nav>
       <div class="pp-grid" data-reveal>
@@ -116,7 +116,7 @@ $card = function (array $m) use ($initials, $socIcon, $socHref) {
 <?php return ob_get_clean();
 };
 ?>
-  <main id="main-content" class="ppl-dir">
+  <main id="main" tabindex="-1" class="ppl-dir">
     <section class="ppl-hero">
       <div class="container">
         <p class="ppl-eyebrow">Our People</p>

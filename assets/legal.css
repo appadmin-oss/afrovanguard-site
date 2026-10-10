@@ -241,3 +241,26 @@ html[data-theme="dark"] .legal-callout { background: rgba(243,180,22,.06); }
   .legal-section p, .legal-section li { font-size: 1.0rem; }
   .legal-contact { padding: 24px 22px; }
 }
+
+/* ---- On the new site system (body.avpg: the Home chrome) ----------------
+   The legal pages now sit under the Home nav, so they take the interior-page
+   look of About and How it works: a sand header with ink type instead of the
+   navy band, the --av-* palette and the Home heading weight. Tokens only. */
+.avpg .legal-main {
+  --legal-ink: var(--av-ink);
+  --legal-body: var(--av-copy);
+  --legal-soft: var(--av-muted);
+  --legal-link: var(--av-gold-text);
+  --legal-accent: var(--av-gold-text);
+  --legal-toc-bg: var(--av-stone);
+  --legal-border: var(--av-line);
+  --legal-rule: var(--av-line);
+}
+.avpg .legal-hero { background: var(--av-sand); color: var(--av-ink); padding: clamp(48px, 6vw, 80px) 0 clamp(32px, 4vw, 48px); }
+.avpg .legal-hero::after { background: var(--av-line-2); height: 1px; opacity: 1; }
+.avpg .legal-hero .legal-kicker { color: var(--av-gold-text); letter-spacing: .14em; }
+.avpg .legal-hero h1 { color: var(--av-ink); font-weight: 400; font-size: clamp(44px, 6vw, 72px); line-height: 1; }
+.avpg .legal-hero .legal-lede { color: var(--av-copy-0); }
+.avpg .legal-hero .legal-updated { color: var(--av-muted); }
+.avpg .legal-hero .legal-updated::before { background: var(--av-green); box-shadow: 0 0 0 3px var(--av-green-bg); }
+.avpg .legal-section h2 { font-weight: 500; }

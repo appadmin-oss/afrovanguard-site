@@ -70,7 +70,7 @@ render_nav('academy');
 
 $hero = $c['hero'] ?? [];
 ?>
-<main id="main-content">
+<main id="main" tabindex="-1">
 
 <?php if ($isAdmin): ?>
   <div class="ngv-adminbar"><div class="ngv-wrap">

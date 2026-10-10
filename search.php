@@ -1,6 +1,6 @@
 <?php
 /**
- * search.php — JSON site search for the accessible search modal.
+ * search.php — site search: JSON for the search modal, a page for browsers.
  *
  *   GET ?q=<query>[&ai=1]
  *
@@ -13,6 +13,17 @@
  */
 declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
+
+/* The page view. A browser that navigates here (a search form on the 404 page,
+   a shared link, no JavaScript) asks for text/html and gets the results as a
+   page in the Home chrome — the Home nav has no search dialog, so this is the
+   site's search page. The modal's fetch() sends Accept: *\/* and keeps the JSON;
+   ?format=json forces it. Same results, same ranking (SiteSearch). */
+$accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
+if (($_GET['format'] ?? '') !== 'json' && stripos($accept, 'text/html') !== false) {
+    require AV_ROOT . '/lib/search-page.php';
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');

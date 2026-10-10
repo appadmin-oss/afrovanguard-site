@@ -28,7 +28,7 @@ if (!Mentorship::isMentor($uid)) {
     ]);
     render_nav('mentorship');
     ?>
-  <main id="main-content" class="avm" style="display:block">
+  <main id="main" tabindex="-1" class="avm" style="display:block">
     <div class="avm-body" style="max-width:620px;margin:0 auto">
       <section class="avm-panel">
         <div class="avm-h2row"><h2>The mentor portal</h2></div>
@@ -110,6 +110,7 @@ render_head([
     'csrf'      => true,
     'css'       => ['/assets/site/avm.css', '/assets/site/avm-portal.css'],
     'body_class'=> 'avm-page',
+    'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
 
 /** One query-string, with some keys changed. Keeps the roster's state across links. */

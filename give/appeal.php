@@ -93,7 +93,7 @@ render_nav('involved');
 
 $donateHref = '/donate.html?campaign=' . rawurlencode((string) $a['slug']);
 ?>
-<main id="main-content" class="give-wrap" style="padding-top:var(--afg-space-7);padding-bottom:var(--afg-space-8)">
+<main id="main" tabindex="-1" class="give-wrap" style="padding-top:var(--afg-space-7);padding-bottom:var(--afg-space-8)">
 
   <span class="ed-kicker"><?= e($kindWord[(string) $a['kind']] ?? 'Appeal') ?><?php
       if (!empty($a['location'])): ?> · <?= e((string) $a['location']) ?><?php endif; ?></span>
