@@ -162,7 +162,9 @@
 /* Phone: own layout */
 @media (max-width:639px){
   .avgv-stats{grid-template-columns:1fr 1fr}
-  .avgv-stats div{padding:16px}
+  .avgv-stats div{padding:16px;min-width:0}
+  .avgv-stats dd{font-size:clamp(24px,7.4vw,30px);overflow-wrap:anywhere}
+  .avgv-stats div:last-child:nth-child(odd){grid-column:1/-1}
   .avgv-needs-list,.avgv-tiles{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 8px;scroll-padding:0 20px;gap:12px}
   .avgv-needs-list li{flex:0 0 78%;scroll-snap-align:start}
   .avgv-tiles li{flex:0 0 84%;scroll-snap-align:start}
