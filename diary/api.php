@@ -228,6 +228,37 @@ try {
             Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
             json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
 
+        /* ── Following an author (lib/DiaryFollows.php) ──
+           A signed-in member follows with their account email; a reader without
+           an account sends one. One email per new entry from that author. ── */
+        case 'follow.state': {
+            $u = LmsAuth::user();
+            $f = new DiaryFollows();
+            $author = DiaryFollows::cleanSlug((string) ($_GET['author'] ?? ''));
+            json_out(['ok' => true, 'signedIn' => (bool) $u, 'count' => $f->count($author),
+                'following' => $u ? $f->isFollowing($author, (string) $u['email']) : false]);
+        }
+        case 'follow':
+        case 'unfollow': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            if (!av_rate_ok('diary_follow', 20, 3600)) json_out(['ok' => false, 'error' => 'That is a lot of following — try again in a while.'], 429);
+            if (!empty($body['hp'])) json_out(['ok' => true, 'following' => true, 'count' => 0]);   // honeypot
+            $u = LmsAuth::user();
+            $email = $u ? (string) $u['email'] : (string) ($body['email'] ?? '');
+            $f = new DiaryFollows();
+            $res = $action === 'follow'
+                ? $f->follow((string) ($body['author'] ?? ''), $email, $u ? (int) $u['id'] : 0)
+                : $f->unfollow((string) ($body['author'] ?? ''), $email);
+            json_out($res, $res['ok'] ? 200 : 422);
+        }
+        case 'follow.stop': {
+            // The link in every follow email: one click, no sign-in.
+            $author = (new DiaryFollows())->stopByToken((string) ($_GET['t'] ?? ''));
+            header('Location: ' . diary_url($author !== '' ? '?unfollowed=1' : ''), true, 302);
+            exit;
+        }
+
         /* ── Personal diary entries (Event / Private / Public) ──
            These require a signed-in account. Private + event entries are
            only ever read back to their own author. ── */

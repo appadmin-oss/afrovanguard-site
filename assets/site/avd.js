@@ -59,8 +59,58 @@
     document.addEventListener('click', function (e) { if (!menu.hidden && !e.target.closest('.avd-share')) closeMenu(false); });
     menu.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); closeMenu(true); } });
   }
+  /* Follow the author: one email whenever they publish something new
+     (diary/api.php follow / unfollow / follow.state, lib/DiaryFollows.php).
+     A member follows in one press; a reader without an account leaves an email. */
   var follow = $('[data-avd-follow]');
-  if (follow) follow.addEventListener('click', function () { var on = follow.getAttribute('aria-pressed') !== 'true'; follow.setAttribute('aria-pressed', String(on)); follow.textContent = on ? 'Following' : 'Follow'; });
+  if (follow) {
+    var fForm = $('[data-avd-follow-form]'), fMsg = $('[data-avd-follow-msg]');
+    var author = follow.getAttribute('data-author') || '', first = follow.getAttribute('data-first') || 'them';
+    var signedIn = false;
+    var setF = function (on) { follow.setAttribute('aria-pressed', String(on)); follow.textContent = on ? 'Following' : 'Follow'; };
+    var say = function (t, bad) { if (fMsg) { fMsg.textContent = t || ''; fMsg.classList.toggle('is-bad', !!bad); } };
+    var post = function (action, payload) {
+      return fetch('/diary/api.php?action=' + action, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'The server answered HTTP ' + r.status + '.' }; }); })
+        .catch(function () { return { ok: false, error: 'The connection dropped. Try again.' }; });
+    };
+    fetch('/diary/api.php?action=follow.state&author=' + encodeURIComponent(author), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok) return;
+        signedIn = !!d.signedIn;
+        // A guest's follow lives on the server by email; this browser only remembers that it asked.
+        var mem = false; try { mem = localStorage.getItem('av.follow.' + author) === '1'; } catch (e) {}
+        setF(signedIn ? !!d.following : mem);
+      }).catch(function () {});
+    follow.addEventListener('click', function () {
+      var on = follow.getAttribute('aria-pressed') === 'true';
+      if (!signedIn) {
+        if (on) { say('To stop following, use the link at the foot of any email we send you.'); return; }
+        if (fForm) { fForm.hidden = false; var em = fForm.querySelector('input[type=email]'); if (em) em.focus(); }
+        return;
+      }
+      follow.disabled = true;
+      post(on ? 'unfollow' : 'follow', { author: author }).then(function (d) {
+        follow.disabled = false;
+        if (!d.ok) { say(d.error || 'That did not go through. Try again.', true); return; }
+        setF(!!d.following);
+        say(d.following ? 'You’ll get an email when ' + first + ' publishes something new.' : 'You’ve stopped following ' + first + '.');
+      });
+    });
+    if (fForm) fForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var em = fForm.querySelector('input[type=email]'), btn = fForm.querySelector('button[type=submit]'), email = (em.value || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { say('Enter a valid email address.', true); em.focus(); return; }
+      btn.disabled = true;
+      post('follow', { author: author, email: email, hp: (fForm.querySelector('[name=hp]') || {}).value || '' }).then(function (d) {
+        btn.disabled = false;
+        if (!d.ok) { say(d.error || 'That did not go through. Try again.', true); return; }
+        fForm.hidden = true; setF(true); follow.focus();
+        try { localStorage.setItem('av.follow.' + author, '1'); } catch (e) {}
+        say('You’ll get an email when ' + first + ' publishes something new.');
+      });
+    });
+  }
 
   /* highlight to share (12–280 chars inside the article) */
   var hl = $('[data-avd-hl]'), article = $('article.avd-article') || $('article');

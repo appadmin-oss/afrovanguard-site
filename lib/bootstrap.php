@@ -279,6 +279,7 @@ require_once __DIR__ . '/DiaryJournal.php';
 require_once __DIR__ . '/DiaryNotebooks.php';
 require_once __DIR__ . '/DiaryTabs.php';
 require_once __DIR__ . '/DiaryOrganise.php';
+require_once __DIR__ . '/DiaryFollows.php';
 require_once __DIR__ . '/AcademyRepository.php';
 require_once __DIR__ . '/Ngv.php';
 require_once __DIR__ . '/NgvDb.php';       // separate NextGen Vanguard database (isolated connection)
@@ -450,3 +451,12 @@ function require_admin(): void {
     if (function_exists('av_admin_role') ? av_admin_role() !== '' : (av_admin_cookie_valid() || av_admin_bearer_ok())) return;
     json_out(['ok' => false, 'error' => 'Unauthorized.'], 401);
 }
+
+/* A newly published Diary entry emails its author's followers (once per entry;
+   lib/DiaryFollows.php). Registered here, after both classes are loaded. */
+if (class_exists('Events') && class_exists('DiaryFollows')) {
+    Events::on('diary.published', static function (array $p): void {
+        if (!empty($p['slug'])) (new DiaryFollows())->notifyPublished((string) $p['slug']);
+    });
+}
+
