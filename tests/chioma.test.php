@@ -154,3 +154,42 @@ $chR = Chioma::rescueToolText('Let me look. site_search(query="techome")');
 ck('chioma: a written-out read call is removed but not run', $chR['text'] === 'Let me look.' && ChiomaTools::staged() === [] && $chR['rescued'] === []);
 ck('chioma: ordinary replies are untouched', Chioma::rescueToolText('Head to the Academy (/academy/).')['text'] === 'Head to the Academy (/academy/).');
 ck('chioma: without the tool loop she is not told about tools', !str_contains(Chioma::systemPrompt([], false), 'draft_contact_message') && str_contains(Chioma::systemPrompt([], true), 'draft_contact_message'));
+
+/* ── Who she is talking to (session context) ─────────────────────────────── */
+
+ChiomaTools::setVisitor(null);
+ck('chioma: a stranger is not offered my_overview', !in_array('my_overview', ChiomaTools::available(false), true));
+ck('chioma: events_upcoming is offered to everyone', in_array('events_upcoming', ChiomaTools::available(false), true));
+$mo = ChiomaTools::run('my_overview', []);
+ck('chioma: my_overview with nobody signed in reads nothing', isset($mo['error']) && !isset($mo['courses']));
+$anon = Chioma::systemPrompt(['path' => '/'], true);
+ck('chioma: a stranger is told to sign in for their own record', str_contains($anon, 'not signed in') && str_contains($anon, '/login/'));
+
+ChiomaTools::setVisitor(['id' => 4242, 'name' => 'Adaeze Nwosu', 'email' => 'ada@example.com']);
+ck('chioma: a signed-in visitor is offered my_overview', in_array('my_overview', ChiomaTools::available(false), true));
+$mine = ChiomaTools::run('my_overview', []);
+ck('chioma: my_overview reads the visitor\'s own record', ($mine['name'] ?? '') === 'Adaeze Nwosu' && isset($mine['courses']));
+ChiomaTools::reset();
+$d = ChiomaTools::run('draft_contact_message', ['purpose' => 'general', 'message' => 'I love your works']);
+ck('chioma: a signed-in visitor\'s draft carries their name and email',
+   ($d['staged']['fields']['name'] ?? '') === 'Adaeze Nwosu' && ($d['staged']['fields']['email'] ?? '') === 'ada@example.com');
+$d2 = ChiomaTools::run('draft_contact_message', ['purpose' => 'general', 'message' => 'x', 'name' => 'Someone Else']);
+ck('chioma: a name the visitor gave wins over the account name', ($d2['staged']['fields']['name'] ?? '') === 'Someone Else');
+ChiomaTools::reset();
+
+$signed = Chioma::systemPrompt(['path' => '/portal/', 'me' => ['id' => 4242, 'name' => 'Adaeze Nwosu', 'email' => 'ada@example.com', 'kind' => 'a learner']], true);
+ck('chioma: she knows who is signed in', str_contains($signed, 'SIGNED IN as Adaeze Nwosu (ada@example.com)'));
+ck('chioma: she uses their first name', str_contains($signed, 'Call them Adaeze.'));
+ck('chioma: she is told never to ask for a name or email she has', str_contains($signed, 'Never ask for their name or email'));
+ck('chioma: she is told the date in Lagos', str_contains($signed, 'in Lagos.'));
+ck('chioma: she never discusses another person\'s record', str_contains($signed, 'Never look up, guess at or comment on anybody else'));
+$noTools = Chioma::systemPrompt(['me' => ['id' => 1, 'name' => 'A B', 'email' => 'a@b.co']], false);
+ck('chioma: without tools she is not told to call my_overview', !str_contains($noTools, 'my_overview'));
+ChiomaTools::setVisitor(null);
+
+$ep = (string) file_get_contents(__DIR__ . '/../chioma.php');
+ck('chioma endpoint: the visitor comes from the session, not the request', str_contains($ep, 'LmsAuth::user()') && !preg_match('/\$body\[.me.\]/', $ep));
+$cs = (string) file_get_contents(__DIR__ . '/../lib/Chioma.php');
+ck('chioma: an outside agent webhook never gets the account email', str_contains($cs, "'first_name' =>") && str_contains($cs, 'never their account id or email address'));
+$ev = ChiomaTools::run('events_upcoming', []);
+ck('chioma: events_upcoming always answers, even with nothing on', is_array($ev) && array_key_exists('events', $ev) && isset($ev['note']));

@@ -405,16 +405,32 @@
 
   function saveHistory() { try { sessionStorage.setItem('chioma.history', JSON.stringify(history.slice(-20))); } catch (e) {} }
 
-  var CHIPS = [
-    ['What courses are open?', 'What Academy courses are open right now?'],
-    ['How do I donate?', 'How can I donate?'],
-    ['Get involved', 'How can I get involved or volunteer?'],
-    ['What is Afrovanguard?', 'What is Afrovanguard about?']
-  ];
+  /* Starting points that fit where the visitor is, and whether they are
+     signed in (html.av-si, set in every page head from the session hint).
+     A signed-in member is offered their own record first — Chioma can read
+     it for them (my_overview); a stranger is never offered what she cannot do. */
+  var CHIPS = {
+    me:       [['How am I doing?', 'How am I doing on my courses and programme?'], ['What should I do next?', 'What should I do next?']],
+    academy:  [['What courses are open?', 'What Academy courses are open right now?'], ['How does enrolment work?', 'How does enrolment in the Academy work?']],
+    donate:   [['What does a gift pay for?', 'What does a gift pay for right now?'], ['Can I give materials?', 'Can I donate materials instead of money?']],
+    events:   [['What’s coming up?', 'What events are coming up?'], ['When is the summit?', 'When is the D’Vanguard National Summit?']],
+    diary:    [['Summarise this entry', 'Summarise this Diary entry for me.'], ['More like this', 'Find me more Diary entries like this one.']],
+    contact:  [['Write to the team for me', 'Help me write a message to the team.']],
+    base:     [['What courses are open?', 'What Academy courses are open right now?'], ['What’s coming up?', 'What events are coming up?'],
+               ['Get involved', 'How can I get involved or volunteer?'], ['What is Afrovanguard?', 'What is Afrovanguard about?']]
+  };
+  function chipList() {
+    var signedIn = document.documentElement.classList.contains('av-si');
+    var k = routeKey(), out = [];
+    if (signedIn) out = out.concat(CHIPS.me);
+    if (CHIPS[k]) out = out.concat(CHIPS[k]);
+    CHIPS.base.forEach(function (c) { if (out.length < 4 && !out.some(function (o) { return o[0] === c[0]; })) out.push(c); });
+    return out.slice(0, 4);
+  }
   function renderChips(show) {
     chips.innerHTML = '';
     if (!show) return;
-    CHIPS.forEach(function (c) {
+    chipList().forEach(function (c) {
       var b = el('button', 'ch-chip'); b.type = 'button'; b.textContent = c[0];
       b.addEventListener('click', function () { sendMessage(c[1]); });
       chips.appendChild(b);

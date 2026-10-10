@@ -59,6 +59,24 @@ final class ChiomaTools
     /** Start a turn. Always call this before a run, or state leaks between them. */
     public static function reset(): void { self::$staged = []; self::$sources = []; }
 
+    /**
+     * The signed-in visitor, or null. Set by chioma.php from the SESSION, never
+     * from anything the browser or the model says: `my_overview` reads only
+     * this person's own record, and the drafts fill in only their own name and
+     * email. A visitor who is not signed in gets neither — there is nobody to
+     * read, and the public tools are unchanged.
+     *
+     * @var array{id:int,name:string,email:string}|null
+     */
+    private static ?array $me = null;
+    public static function setVisitor(?array $me): void
+    {
+        self::$me = ($me && (int) ($me['id'] ?? 0) > 0)
+            ? ['id' => (int) $me['id'], 'name' => (string) ($me['name'] ?? ''), 'email' => (string) ($me['email'] ?? '')]
+            : null;
+    }
+    public static function visitor(): ?array { return self::$me; }
+
     /** Forms this turn asked for, in the order they were staged. */
     public static function staged(): array { return self::$staged; }
 
@@ -130,6 +148,17 @@ final class ChiomaTools
                 'required' => ['url'],
             ],
         ],
+        'events_upcoming' => [
+            'act'  => false,
+            'desc' => 'What is coming up: the D\'Vanguard National Summit (dates, venue, whether it is on now) and the latest events from the Afrovanguard events calendar. Use it for any question about events, dates, "what\'s on" or the summit — never recall a date.',
+            'schema' => ['type' => 'object', 'properties' => []],
+        ],
+        'my_overview' => [
+            'act'  => false,
+            'me'   => true,
+            'desc' => 'The SIGNED-IN visitor\'s own record: the courses they are enrolled in with progress and the next lesson, and — if they are in NextGen Vanguard — what they owe and how many of their 24 books are verified. Only ever about the person you are talking to. Use it when they ask about "my courses", "my progress", "what do I owe", "my books", or what to do next.',
+            'schema' => ['type' => 'object', 'properties' => []],
+        ],
         'draft_contact_message' => [
             'act'  => true,
             'desc' => 'Offer the visitor a pre-filled contact form so they can reach the team without leaving the chat. This does NOT send anything — it shows them a form to check and submit. Use it when someone wants to be contacted, has a question you cannot answer, or asks to speak to a person. Fill in whatever they have already told you and leave the rest blank.',
@@ -167,6 +196,7 @@ final class ChiomaTools
     {
         $out = [];
         foreach (self::DEFS as $name => $d) {
+            if (!empty($d['me']) && self::$me === null) continue;
             if (($name === 'web_search' || $name === 'web_fetch')) {
                 if (!$withWeb || !class_exists('AvWeb') || !AvWeb::available($name)) continue;
             }
@@ -207,6 +237,8 @@ final class ChiomaTools
                 case 'appeals_open':   return self::appealsOpen();
                 case 'web_search':     return self::webSearch((string) ($args['query'] ?? ''), (int) ($args['count'] ?? 5));
                 case 'web_fetch':      return self::webFetch((string) ($args['url'] ?? ''));
+                case 'events_upcoming': return self::eventsUpcoming();
+                case 'my_overview':     return self::myOverview();
                 case 'draft_contact_message': return self::draftContact($args);
                 case 'draft_enrolment':       return self::draftEnrolment($args);
             }
@@ -438,6 +470,80 @@ final class ChiomaTools
 
     /* ── Staging an action ────────────────────────────────────────────── */
 
+    private static function eventsUpcoming(): array
+    {
+        $out = ['summit' => null, 'events' => []];
+        if (class_exists('Summit')) {
+            try {
+                if (!Summit::isPast()) {
+                    $f = Summit::facts();
+                    $out['summit'] = [
+                        'name' => (string) ($f['name'] ?? ''), 'dates' => (string) ($f['date_label'] ?? ''),
+                        'on_now' => Summit::isLive(), 'about' => (string) ($f['lede'] ?? ''), 'url' => '/academy/dns/',
+                    ];
+                    self::source((string) ($f['name'] ?? 'Summit'), '/academy/dns/', 'site');
+                }
+            } catch (\Throwable $e) { error_log('[chioma-tool] summit: ' . $e->getMessage()); }
+        }
+        if (class_exists('AvEvents')) {
+            foreach (AvEvents::latest(6) as $e) {
+                $out['events'][] = ['title' => (string) ($e['title'] ?? ''), 'start' => (string) ($e['start'] ?? ''), 'url' => (string) ($e['url'] ?? '')];
+            }
+        }
+        if ($out['summit'] === null && $out['events'] === []) {
+            return $out + ['note' => 'Nothing is listed as coming up. Say so, and point to /events/ for the calendar.'];
+        }
+        return $out + ['note' => 'Quote dates exactly as given. Today is ' . self::today() . '.'];
+    }
+
+    /** Only ever the signed-in visitor's own record (self::$me, from the session). */
+    private static function myOverview(): array
+    {
+        $me = self::$me;
+        if ($me === null) return ['error' => 'The visitor is not signed in, so there is no record to read. Offer /login/.'];
+        $uid = $me['id'];
+        $out = ['name' => $me['name'], 'courses' => [], 'ngv' => null];
+
+        if (class_exists('LmsRepository')) {
+            try {
+                foreach (array_slice((new LmsRepository())->enrolledCourses($uid), 0, 8) as $c) {
+                    $out['courses'][] = [
+                        'title' => (string) $c['title'], 'progress' => (int) $c['pct'] . '%',
+                        'lessons' => (int) $c['done'] . ' of ' . (int) $c['total'],
+                        'certified' => (bool) $c['certified'],
+                        'next_lesson' => is_array($c['next'] ?? null) ? (string) ($c['next']['title'] ?? '') : null,
+                        'url' => '/academy/' . rawurlencode((string) $c['slug']) . '/',
+                    ];
+                }
+            } catch (\Throwable $e) { error_log('[chioma-tool] my courses: ' . $e->getMessage()); }
+        }
+        if (class_exists('NgvMember')) {
+            try {
+                if (NgvMember::participant($uid)) {
+                    $acct = class_exists('NgvLedger') ? NgvLedger::account($uid) : [];
+                    $read = class_exists('NgvReading') ? NgvReading::progress($uid) : [];
+                    $out['ngv'] = [
+                        'owes' => isset($acct['payable']) ? '₦' . number_format((int) $acct['payable']) : null,
+                        'books_verified' => isset($read['verified']) ? (int) $read['verified'] . ' of ' . (int) $read['total'] : null,
+                        'books_waiting' => (int) ($read['waiting'] ?? 0),
+                        'books_to_fix' => (int) ($read['needs_work'] ?? 0),
+                        'where' => '/portal/#ngv',
+                    ];
+                }
+            } catch (\Throwable $e) { error_log('[chioma-tool] my ngv: ' . $e->getMessage()); }
+        }
+        $out['note'] = 'This is the visitor\'s own record — speak to them about it directly, and link the page that lets them act ('
+            . 'a course url, /portal/#ngv for the programme, /portal/#ngv-account to pay).';
+        if ($out['courses'] === [] && $out['ngv'] === null) $out['note'] = 'They have no courses or programme yet. Suggest course_list.';
+        return $out;
+    }
+
+    private static function today(): string
+    {
+        try { return (new \DateTimeImmutable('now', new \DateTimeZone('Africa/Lagos')))->format('l j F Y'); }
+        catch (\Throwable $e) { return date('l j F Y'); }
+    }
+
     private static function draftContact(array $a): array
     {
         // Exactly the keys process-contact.php maps to a label; anything else
@@ -455,8 +561,8 @@ final class ChiomaTools
                 'purpose' => $purpose,
                 'subject' => mb_substr(trim((string) ($a['subject'] ?? '')), 0, 160),
                 'message' => mb_substr($message, 0, 4000),
-                'name'    => mb_substr(trim((string) ($a['name'] ?? '')), 0, 120),
-                'email'   => mb_substr(trim((string) ($a['email'] ?? '')), 0, 254),
+                'name'    => mb_substr(trim((string) ($a['name'] ?? '')) ?: (self::$me['name'] ?? ''), 0, 120),
+                'email'   => mb_substr(trim((string) ($a['email'] ?? '')) ?: (self::$me['email'] ?? ''), 0, 254),
             ],
         ];
         self::$staged[] = $staged;
@@ -480,8 +586,8 @@ final class ChiomaTools
             'fields' => [
                 'course' => $slug,
                 'title'  => $title,
-                'name'   => mb_substr(trim((string) ($a['name'] ?? '')), 0, 120),
-                'email'  => mb_substr(trim((string) ($a['email'] ?? '')), 0, 254),
+                'name'   => mb_substr(trim((string) ($a['name'] ?? '')) ?: (self::$me['name'] ?? ''), 0, 120),
+                'email'  => mb_substr(trim((string) ($a['email'] ?? '')) ?: (self::$me['email'] ?? ''), 0, 254),
                 'phone'  => mb_substr(trim((string) ($a['phone'] ?? '')), 0, 40),
                 'note'   => mb_substr(trim((string) ($a['note'] ?? '')), 0, 1000),
             ],
