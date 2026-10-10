@@ -140,6 +140,15 @@
   --av-dk-indigo-text:#A5B4FC; --av-dk-indigo-bg:rgba(99,102,241,.16);
   --av-dk-header-glass:rgba(14,15,18,.92); --av-dk-shadow:0 12px 40px rgba(0,0,0,.5);
 
+  /* rows 7–9: contact (avct-), donate (avdn-), give (avgv-) — design values not covered above */
+  --av-cdg-copy:#3D3D3D;
+  --av-cdg-live:#22A05A; --av-cdg-live-ring:rgba(34,160,90,.15); --av-cdg-live-bg:#EEF6F0;
+  --av-cdg-ink-line:#2A3344; --av-cdg-ink-line-2:#3A4558;
+  --av-cdg-ink-card:#1A2333; --av-cdg-ink-card-2:#1B2334; --av-cdg-ink-card-3:#222C40;
+  --av-cdg-line-4:#BDB8AD; --av-cdg-line-5:#CFCCC5; --av-cdg-line-6:#D9D5CC; --av-cdg-line-7:#E8E4DA;
+  --av-cdg-stone:#F2F0EB; --av-cdg-gold-wash:#FAF6EA;
+  --av-cdg-on-ink-link:#9FC5FF;
+
   --av-serif:"Cormorant Garamond",Georgia,serif;
   --av-sans:"Source Sans 3",system-ui,sans-serif;
   --av-r-6:6px; --av-r-8:8px; --av-r-10:10px; --av-r-12:12px; --av-r-14:14px; --av-r-pill:999px;

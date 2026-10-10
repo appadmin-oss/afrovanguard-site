@@ -1,355 +1,306 @@
 <?php
 /**
- * give/index.php — every appeal worth showing. /give/
- *
- * The index answers one question before any other: what is Afrovanguard asking
- * for right now, and how close is each one. Urgent and ending-soon appeals sort
- * first, because an index that lists a finished campaign above a closing one is
- * costing the closing one its last week.
+ * give/index.php — live appeals, /give/ (row 9 of the redesign, prefix avgv-).
+ * Design: Afrovanguard Give.dc.html. Data: give/avgv-view.php (Appeals, unchanged from v1).
+ * Chrome: partials/avh-chrome.php. Paying for one item: assets/site/give-pay.js (window.avGive) driven by avgv.js.
  */
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
+require_once AV_ROOT . '/partials/avh-chrome.php';
+require_once __DIR__ . '/avgv-view.php';
 
-$appeals   = Appeals::published(120);
-$summary   = Appeals::summary();
-$needsNow  = Appeals::currentNeedsAll(6);
-$needTotal = Appeals::needsTotal();
-/* The catalogue. Standing items (appeal_id 0) are the organisation's own
-   running needs — the list the donate page used to carry as hand-typed HTML
-   whose counts never moved. */
-$itemCats  = Appeals::itemsByCategory(['appeal_id' => 0, 'limit' => 120]);
-$itemSum   = Appeals::itemsSummary(['appeal_id' => 0, 'limit' => 120]);
+$d = avgv_load();
+$appeals = $d['appeals']; $summary = $d['summary']; $needs = $d['needs'];
+$needTotal = $d['need_total']; $itemCats = $d['item_cats']; $itemSum = $d['item_sum'];
+$N = static fn($n): string => Appeals::naira((int) $n);
 
-/* Live first, then urgency, then how close to done. A funded appeal is a good
-   advertisement for the next one, so it stays on the page — at the bottom. */
-usort($appeals, static function (array $x, array $y): int {
-    $rank = static function (array $a): int {
-        $s = Appeals::state($a);
-        if ((string) $a['status'] !== 'live') return 3;
-        if (!empty($a['urgent'])) return 0;
-        if ($s['ending_soon'] && !$s['ended']) return 1;
-        return 2;
-    };
-    $r = $rank($x) <=> $rank($y);
-    if ($r !== 0) return $r;
-    return ((int) $y['featured']) <=> ((int) $x['featured']);
-});
-
-$canonical = rtrim(SITE_URL, '/') . '/give/';
+$site = rtrim(SITE_URL, '/');
+$canonical = $site . '/give/';
+$title = 'Give — live appeals · Afrovanguard';
 $desc = 'Live appeals from Afrovanguard — what we need today, this week and this season, and exactly what your gift pays for.';
 if ($summary['appeals'] > 0 && $summary['raised'] > 0) {
     $desc = $summary['appeals'] . ' live appeal' . ($summary['appeals'] === 1 ? '' : 's')
-          . ' · ' . Appeals::naira($summary['raised']) . ' raised from ' . $summary['donors'] . ' donors. '
+          . ' · ' . $N($summary['raised']) . ' raised from ' . $summary['donors'] . ' donors. '
           . 'See what we need today and what your gift pays for.';
 }
+$desc = mb_substr($desc, 0, 185);
+$image = $site . '/Images/og-image.png';
+$jsonld = [
+    schema_org(),
+    schema_breadcrumb([['name' => 'Home', 'url' => $site . '/'], ['name' => 'Give', 'url' => $canonical]]),
+    ['@type' => 'ItemList', 'name' => 'Afrovanguard appeals', 'itemListElement' => array_values(array_map(
+        static fn(int $i, array $a): array => ['@type' => 'ListItem', 'position' => $i + 1, 'name' => (string) $a['title'], 'url' => Appeals::url($a)],
+        array_keys($appeals), $appeals))],
+];
+if (function_exists('send_security_headers')) send_security_headers('public');
+?><!DOCTYPE html>
+<html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
+<head>
+  <script>document.documentElement.classList.replace('no-js','js')</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title><?= e($title) ?></title>
+  <meta name="description" content="<?= e($desc) ?>" />
+  <meta name="author" content="Afrovanguard — afrovanguard.org.ng" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="keywords" content="donate Nigeria, charity appeal, Afrovanguard, give, fundraising, community development" />
+  <link rel="canonical" href="<?= e($canonical) ?>" />
+  <meta name="theme-color" content="rgb(17 24 39)" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Afrovanguard" />
+  <meta property="og:locale" content="en_NG" />
+  <meta property="og:title" content="<?= e($title) ?>" />
+  <meta property="og:description" content="<?= e($desc) ?>" />
+  <meta property="og:url" content="<?= e($canonical) ?>" />
+  <meta property="og:image" content="<?= e($image) ?>" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="<?= e($title) ?>" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@afrovanguard" />
+  <meta name="twitter:title" content="<?= e($title) ?>" />
+  <meta name="twitter:description" content="<?= e($desc) ?>" />
+  <meta name="twitter:image" content="<?= e($image) ?>" />
+  <link rel="alternate" type="application/rss+xml" title="Afrovanguard appeals" href="/give/feed.xml" />
+  <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
+  <link rel="stylesheet" href="/assets/site/fonts.css" />
+  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
+  <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avgv.css" />
+  <script src="/assets/site/avh.js" defer></script>
+  <script src="/assets/site/give-pay.js" defer></script>
+  <script src="/assets/site/avgv.js" defer></script>
+</head>
+<body class="avh" id="top">
+<a class="avh-skip" href="#main">Skip to content</a>
+<div class="avh-page">
+<?php avh_nav(); ?>
 
-render_head([
-    'title'     => 'Give — live appeals · Afrovanguard',
-    'desc'      => mb_substr($desc, 0, 185),
-    'canonical' => $canonical,
-    'og_kind'   => 'website',
-    'keywords'  => 'donate Nigeria, charity appeal, Afrovanguard, give, fundraising, community development',
-    'jsonld'    => [
-        schema_org(),
-        schema_breadcrumb([
-            ['name' => 'Home', 'url' => rtrim(SITE_URL, '/') . '/'],
-            ['name' => 'Give', 'url' => $canonical],
-        ]),
-        /* An ItemList of the live appeals. It earns no rich result on its own,
-           but it tells a crawler these are separate things rather than one page
-           of prose — which is how each appeal gets indexed in its own right. */
-        [
-            '@type' => 'ItemList',
-            'name'  => 'Afrovanguard appeals',
-            'itemListElement' => array_values(array_map(
-                static fn(int $i, array $a): array => [
-                    '@type' => 'ListItem', 'position' => $i + 1,
-                    'name' => (string) $a['title'], 'url' => Appeals::url($a),
-                ],
-                array_keys($appeals), $appeals
-            )),
-        ],
-    ],
-    'css'        => ['/assets/site/editorial.css', '/give/give.css'],
-    'body_class' => 'give',
-]);
-render_nav('involved');
-?>
-<main id="main-content">
+<main id="main" tabindex="-1" class="avgv">
 
-  <!-- ── masthead ───────────────────────────────────────────────────────── -->
-  <header class="ed-wrap ed-section ed-section--tight">
-    <span class="ed-kicker">Give</span>
-    <h1 class="ed-display">What we need, and what it costs</h1>
-    <p class="ed-lede">Every appeal below says exactly what it is for, how far along it is, and what a
-      given amount actually pays for. Nothing is rounded up and nothing is guessed.</p>
+<header class="avgv-mast" aria-labelledby="avgv-h1">
+  <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
+  <div class="avgv-wrap">
+    <nav class="avgv-crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/donate.html">Get involved</a><span aria-hidden="true">›</span><span aria-current="page">Live appeals</span></nav>
+    <div class="avgv-mast-top">
+      <h1 id="avgv-h1">What we need, and what it costs</h1>
+      <p>Every appeal says exactly what it is for, how far along it is, and what a given amount pays for. Nothing is rounded up and nothing is guessed.</p>
+    </div>
     <?php if ($summary['appeals'] > 0): ?>
-      <div class="ed-stats" style="margin-top:var(--afg-space-6)">
-        <div class="ed-stat"><span class="ed-stat-n"><?= (int) $summary['appeals'] ?></span><span class="ed-stat-l">Live appeals</span></div>
-        <div class="ed-stat"><span class="ed-stat-n"><?= e(Appeals::naira((int) $summary['raised'])) ?></span><span class="ed-stat-l">Raised</span></div>
-        <?php /* Only when there are any. Offline gifts carry no donor count, so
-                 a stat row reading "₦5,200,000 · 0 donors" states a contradiction
-                 in the largest type on the page. */ ?>
+      <dl class="avgv-stats">
+        <div><dt>Live appeals</dt><dd class="av-num"><?= (int) $summary['appeals'] ?></dd></div>
+        <div><dt>Raised</dt><dd class="av-num"><?= e($N($summary['raised'])) ?></dd></div>
+        <?php /* Offline gifts carry no donor count: never print "0 donors" beside a raised total. */ ?>
         <?php if ($summary['donors'] > 0): ?>
-          <div class="ed-stat"><span class="ed-stat-n"><?= number_format((int) $summary['donors']) ?></span><span class="ed-stat-l">Donors</span></div>
+          <div><dt>Donors</dt><dd class="av-num"><?= number_format((int) $summary['donors']) ?></dd></div>
         <?php elseif ($needTotal['today'] > 0): ?>
-          <div class="ed-stat"><span class="ed-stat-n"><?= e(Appeals::naira((int) $needTotal['today'])) ?></span><span class="ed-stat-l">Needed today</span></div>
+          <div><dt>Needed today</dt><dd class="av-num"><?= e($N($needTotal['today'])) ?></dd></div>
         <?php endif; ?>
         <?php if ($summary['goal'] > 0): ?>
-          <div class="ed-stat"><span class="ed-stat-n"><?= e(Appeals::naira((int) $summary['goal'])) ?></span><span class="ed-stat-l">Together aiming for</span></div>
+          <div><dt>Together aiming for</dt><dd class="av-num"><?= e($N($summary['goal'])) ?></dd></div>
+        <?php endif; ?>
+      </dl>
+    <?php endif; ?>
+  </div>
+</header>
+
+<?php if ($d['error']): ?>
+  <section class="avgv-sec" aria-labelledby="avgv-err-h">
+    <div class="avgv-wrap avgv-state" role="alert">
+      <h2 id="avgv-err-h">We couldn’t load the appeals just now</h2>
+      <p>This is on our side, not yours. Try again in a moment, or give to the general fund in the meantime.</p>
+      <p class="avgv-state-actions"><a class="avgv-btn" href="/give/">Try again</a><a class="avgv-btn avgv-btn--ghost" href="/donate.html">Give to the general fund</a></p>
+    </div>
+  </section>
+<?php endif; ?>
+
+<?php if ($needs): ?>
+  <section class="avgv-needs" aria-labelledby="avgv-needs-h">
+    <div class="avh-topo" data-avh-topo="dark" data-seed="11" aria-hidden="true"></div>
+    <div class="avgv-wrap">
+      <div class="avgv-needs-head">
+        <div><div class="avgv-eyebrow avgv-eyebrow--light">Right now</div><h2 id="avgv-needs-h">What today and this week actually cost</h2></div>
+        <?php if ($needTotal['today'] > 0 || $needTotal['week'] > 0): ?>
+          <p class="avgv-needs-tot">
+            <?php if ($needTotal['today'] > 0): ?><span><strong class="av-num"><?= e($N($needTotal['today'])) ?></strong> needed today</span><?php endif; ?>
+            <?php if ($needTotal['week'] > 0): ?><span><strong class="av-num"><?= e($N($needTotal['week'])) ?></strong> this week</span><?php endif; ?>
+          </p>
         <?php endif; ?>
       </div>
-    <?php endif; ?>
-  </header>
-
-  <?php /* ── the needs board ──────────────────────────────────────────────
-       This goes first, above even the leading appeal. A goal is an institution
-       asking to be cared about; a need is a thing somebody can buy today. */ ?>
-  <?php if ($needsNow): ?>
-    <section class="ed-band" aria-labelledby="needs-h">
-      <div class="ed-wrap">
-        <div class="ed-head">
-          <div>
-            <span class="ed-kicker">Right now</span>
-            <h2 class="ed-h2" id="needs-h">What today and this week actually cost</h2>
-          </div>
-          <?php if ($needTotal['today'] > 0 || $needTotal['week'] > 0): ?>
-            <p class="ed-story-meta" style="margin:0">
-              <?php if ($needTotal['today'] > 0): ?>
-                <span><strong style="color:#fff"><?= e(Appeals::naira((int) $needTotal['today'])) ?></strong> needed today</span>
-              <?php endif; ?>
-              <?php if ($needTotal['week'] > 0): ?>
-                <span><strong style="color:#fff"><?= e(Appeals::naira((int) $needTotal['week'])) ?></strong> this week</span>
-              <?php endif; ?>
-            </p>
-          <?php endif; ?>
-        </div>
-        <div class="ed-needs-board">
-          <?php foreach ($needsNow as $n): ?>
-            <a class="ed-need" href="<?= e($n['appeal']['url']) ?>">
-              <span class="ed-need-when"><?= e($n['cadence'] === 'daily' ? 'Today' : ($n['cadence'] === 'weekly' ? 'This week' : 'Still needed')) ?></span>
-              <span class="ed-need-fig"><?= e(Appeals::naira((int) $n['target_ngn'])) ?></span>
-              <span class="ed-need-title"><?= e((string) $n['title']) ?></span>
-              <?php if ($n['units_target'] > 0 && $n['unit_label'] !== ''): ?>
-                <span class="ed-need-unit"><?= e(number_format((int) $n['units_target']) . ' ' . (string) $n['unit_label']
-                  . ' at ' . Appeals::naira((int) $n['unit_cost']) . ' each') ?></span>
-              <?php endif; ?>
-              <span class="ed-need-for"><?= e((string) $n['appeal']['title']) ?></span>
-            </a>
-          <?php endforeach; ?>
-        </div>
-      </div>
-    </section>
-  <?php endif; ?>
-
-  <div class="ed-wrap"><hr class="ed-rule"></div>
-
-  <?php if (!$appeals): ?>
-    <section class="ed-wrap ed-section">
-      <div class="give-empty">
-        <h2>No appeals are running right now</h2>
-        <p>When there is something specific to raise for, it will appear here with the full figures.<br>
-          In the meantime you can <a href="/donate.html">give to Afrovanguard's general fund</a>.</p>
-      </div>
-    </section>
-  <?php else:
-    /* The first live appeal is the lead and gets the room. Everything after it
-       is a tile — an index where every item is equally loud is an index nobody
-       reads past the third row. */
-    $lead = $appeals[0];
-    $rest = array_slice($appeals, 1);
-    $leadSt = Appeals::state($lead); ?>
-
-    <section class="ed-wrap ed-section" aria-labelledby="lead-h">
-      <a class="ed-story ed-feature" href="<?= e('/give/' . rawurlencode((string) $lead['slug']) . '/') ?>">
-        <div class="ed-story-img-wrap">
-          <img class="ed-story-img" src="<?= e((string) $lead['cover_url'] ?: Appeals::ogUrl($lead)) ?>"
-               alt="" width="960" height="600" fetchpriority="high" decoding="async">
-        </div>
-        <div>
-          <span class="ed-kicker"><?= e($leadSt['urgent'] ? 'Urgent appeal' : 'Leading appeal') ?><?php
-            if (!empty($lead['location'])): ?> · <?= e((string) $lead['location']) ?><?php endif; ?></span>
-          <h2 class="ed-story-title" id="lead-h"><?= e((string) $lead['title']) ?></h2>
-          <?php if (!empty($lead['tagline'])): ?>
-            <p class="ed-story-excerpt" style="font-size:var(--afg-text-md)"><?= e((string) $lead['tagline']) ?></p>
-          <?php endif; ?>
-          <div class="ed-meter" style="margin:var(--afg-space-4) 0">
-            <?php if ($leadSt['percent'] !== null): ?>
-              <div class="ed-bar<?= $leadSt['met'] ? ' is-met' : '' ?>" role="progressbar"
-                   aria-valuenow="<?= (int) $leadSt['percent'] ?>" aria-valuemin="0" aria-valuemax="100"
-                   aria-label="<?= (int) $leadSt['percent'] ?>% raised"><span style="width:<?= (int) $leadSt['percent'] ?>%"></span></div>
+      <ul class="avgv-needs-list">
+        <?php foreach ($needs as $n): $c = (string) $n['cadence']; ?>
+          <li><a href="<?= e((string) $n['appeal']['url']) ?>">
+            <span class="avgv-when avgv-when--<?= e($c === 'daily' ? 'today' : ($c === 'weekly' ? 'week' : 'open')) ?>"><span aria-hidden="true"></span><?= e(avgv_need_when($c)) ?></span>
+            <span class="avgv-fig av-num"><?= e($N($n['target_ngn'])) ?></span>
+            <span class="avgv-need-t"><?= e((string) $n['title']) ?></span>
+            <?php if ((int) $n['units_target'] > 0 && (string) $n['unit_label'] !== ''): ?>
+              <span class="avgv-need-u"><?= e(number_format((int) $n['units_target']) . ' ' . (string) $n['unit_label'] . ' at ' . $N($n['unit_cost']) . ' each') ?></span>
             <?php endif; ?>
-            <div class="ed-figures">
-              <span class="ed-raised"><?= e(Appeals::naira($leadSt['raised'])) ?></span>
-              <span class="ed-goal"><?= $leadSt['goal'] > 0 ? 'of ' . e(Appeals::naira($leadSt['goal'])) : 'raised so far' ?></span>
-            </div>
-          </div>
-          <span class="ed-link">See this appeal</span>
-        </div>
-      </a>
-    </section>
+            <span class="avgv-need-for">For · <?= e((string) $n['appeal']['title']) ?></span>
+          </a></li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+  </section>
+<?php endif; ?>
 
-    <?php if ($rest): ?>
-      <div class="ed-wrap"><hr class="ed-rule"></div>
-      <section class="ed-wrap ed-section" aria-labelledby="more-h">
-        <div class="ed-head">
-          <div><span class="ed-kicker ed-kicker--muted">Also open</span>
-            <h2 class="ed-h2" id="more-h">More ways to give</h2></div>
-          <a class="ed-link" href="/donate.html">Give to the general fund</a>
-        </div>
-        <div class="ed-stories">
-          <?php foreach ($rest as $a): $st = Appeals::state($a); ?>
-            <a class="ed-story" href="<?= e('/give/' . rawurlencode((string) $a['slug']) . '/') ?>">
-              <div class="ed-story-img-wrap">
-                <img class="ed-story-img" src="<?= e((string) $a['cover_url'] ?: Appeals::ogUrl($a)) ?>"
-                     alt="" loading="lazy" decoding="async" width="580" height="387">
-              </div>
-              <span class="ed-kicker"><?php
-                if ((string) $a['status'] === 'funded') { echo 'Funded'; }
-                elseif (!empty($a['urgent'])) { echo 'Urgent'; }
-                elseif ($st['ending_soon'] && !$st['ended']) { echo (int) $st['days_left'] . ' days left'; }
-                else { echo e(ucfirst((string) $a['kind'])); }
-              ?></span>
-              <h3 class="ed-story-title"><?= e((string) $a['title']) ?></h3>
-              <?php if (!empty($a['tagline'])): ?>
-                <p class="ed-story-excerpt"><?= e(mb_strimwidth((string) $a['tagline'], 0, 116, '…')) ?></p>
-              <?php endif; ?>
-              <div class="ed-meter" style="margin-bottom:var(--afg-space-3)">
-                <?php if ($st['percent'] !== null): ?>
-                  <div class="ed-bar<?= $st['met'] ? ' is-met' : '' ?>" role="progressbar"
-                       aria-valuenow="<?= (int) $st['percent'] ?>" aria-valuemin="0" aria-valuemax="100"
-                       aria-label="<?= (int) $st['percent'] ?>% raised"><span style="width:<?= (int) $st['percent'] ?>%"></span></div>
-                <?php endif; ?>
-              </div>
-              <div class="ed-story-meta">
-                <strong style="color:var(--afg-ink)"><?= e(Appeals::naira($st['raised'])) ?></strong>
-                <?php if ($st['goal'] > 0): ?><span>of <?= e(Appeals::naira($st['goal'])) ?></span>
-                <?php elseif ($st['donors'] > 0): ?><span><?= (int) $st['donors'] ?> donors</span>
-                <?php else: ?><span>raised so far</span><?php endif; ?>
-              </div>
-            </a>
-          <?php endforeach; ?>
-        </div>
-      </section>
-    <?php endif; ?>
-  <?php endif; ?>
-
-  <?php if ($itemCats): ?>
-    <!-- ── the catalogue: what a given amount actually buys ──────────────── -->
-    <div class="ed-wrap"><hr class="ed-rule"></div>
-    <section class="ed-section" id="items" aria-labelledby="items-h">
-      <div class="ed-wrap">
-        <div class="ed-head">
-          <div><span class="ed-kicker">The list</span>
-            <h2 class="ed-h2" id="items-h">Exactly what we need, and what each thing costs</h2></div>
-          <?php if ($itemSum['outstanding_ngn'] > 0): ?>
-            <span class="ed-link" style="pointer-events:none"><?= e(Appeals::naira((int) $itemSum['outstanding_ngn'])) ?> outstanding</span>
+<?php if (!$appeals && !$d['error']): ?>
+  <section class="avgv-sec" aria-labelledby="avgv-empty-h">
+    <div class="avgv-wrap avgv-state">
+      <h2 id="avgv-empty-h">No appeals are running right now</h2>
+      <p>When there is something specific to raise for, it will appear here with the full figures. In the meantime you can give to Afrovanguard’s general fund.</p>
+      <p class="avgv-state-actions"><a class="avgv-btn" href="/donate.html">Give to the general fund</a></p>
+    </div>
+  </section>
+<?php elseif ($appeals):
+    $lead = $appeals[0]; $rest = array_slice($appeals, 1); $ls = Appeals::state($lead); $lp = $ls['percent']; ?>
+  <section id="lead" class="avgv-sec avgv-sec--lead" aria-labelledby="avgv-lead-h">
+    <a class="avgv-wrap avgv-lead" href="<?= e('/give/' . rawurlencode((string) $lead['slug']) . '/') ?>">
+      <span class="avgv-lead-img"><img src="<?= e((string) $lead['cover_url'] ?: Appeals::ogUrl($lead)) ?>" alt="" width="960" height="660" fetchpriority="high" decoding="async"></span>
+      <span class="avgv-lead-body">
+        <span class="avgv-kick"><?php if ($ls['urgent']): ?><span class="avgv-urgent">Urgent</span><?php endif; ?><span>Leading appeal<?= !empty($lead['location']) ? ' · ' . e((string) $lead['location']) : '' ?></span></span>
+        <h2 id="avgv-lead-h"><?= e((string) $lead['title']) ?></h2>
+        <?php if (!empty($lead['tagline'])): ?><span class="avgv-lead-d"><?= e((string) $lead['tagline']) ?></span><?php endif; ?>
+        <span class="avgv-lead-meter">
+          <?php if ($lp !== null): ?>
+            <span class="avgv-bar<?= $ls['met'] ? ' is-met' : '' ?>" role="progressbar" aria-valuenow="<?= avgv_pct($lp) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= avgv_pct($lp) ?>% raised"><span style="width:<?= avgv_pct($lp) ?>%"></span></span>
           <?php endif; ?>
-        </div>
-        <p class="ed-lede" style="max-width:62ch">
-          Most giving pages ask for a number and leave you to guess what it does. This is the actual list:
-          what is still needed, what it costs, and how many are already covered. Give the money, or give
-          the thing itself — both count the same here.
-        </p>
+          <span class="avgv-lead-figs"><span><strong class="av-num"><?= e($N($ls['raised'])) ?></strong> <?= $ls['goal'] > 0 ? 'of ' . e($N($ls['goal'])) : 'raised so far' ?></span><span><?= e(avgv_lead_meta($ls)) ?></span></span>
+        </span>
+        <span class="avgv-btn">See this appeal →</span>
+      </span>
+    </a>
+  </section>
 
-        <?php foreach ($itemCats as $cat => $list): ?>
-          <h3 class="gv-cat"><?= e((string) $cat) ?></h3>
-          <ul class="gv-items">
-            <?php foreach ($list as $it): ?>
-              <li class="gv-item<?= $it['is_open'] ? '' : ' is-done' ?>">
-                <?php if (trim((string) $it['image_url']) !== ''): ?>
-                  <img class="gv-item-img" src="<?= e((string) $it['image_url']) ?>" alt=""
-                       width="72" height="72" loading="lazy" decoding="async">
-                <?php endif; ?>
-                <div class="gv-item-main">
-                  <span class="gv-item-name"><?= e((string) $it['title']) ?></span>
-                  <?php if (trim((string) $it['detail']) !== ''): ?>
-                    <span class="gv-item-detail"><?= e((string) $it['detail']) ?></span>
-                  <?php endif; ?>
-                  <?php if ($it['qty_needed'] > 0): ?>
-                    <span class="gv-meter" role="progressbar" aria-valuenow="<?= (int) $it['pct'] ?>"
-                          aria-valuemin="0" aria-valuemax="100"
-                          aria-label="<?= (int) $it['qty_funded'] ?> of <?= (int) $it['qty_needed'] ?> covered">
-                      <span style="width:<?= (int) $it['pct'] ?>%"></span></span>
-                  <?php endif; ?>
+  <?php if ($rest): ?>
+    <section class="avgv-sec" aria-labelledby="avgv-more-h">
+      <div class="avgv-wrap">
+        <div class="avgv-more-head">
+          <div><div class="avgv-eyebrow">Also open</div><h2 id="avgv-more-h" class="avgv-h2">More ways to give</h2></div>
+          <a class="avgv-link" href="/donate.html">Give to the general fund →</a>
+        </div>
+        <ul class="avgv-tiles">
+          <?php foreach ($rest as $a): $st = Appeals::state($a); $funded = (string) $a['status'] === 'funded'; ?>
+            <li><a href="<?= e('/give/' . rawurlencode((string) $a['slug']) . '/') ?>">
+              <span class="avgv-tile-img"><img src="<?= e((string) $a['cover_url'] ?: Appeals::ogUrl($a)) ?>" alt="" width="580" height="387" loading="lazy" decoding="async"><?php if ($funded): ?><span class="avgv-funded">Funded ✓</span><?php endif; ?></span>
+              <span class="avgv-kick<?= $funded ? ' is-funded' : '' ?>"><?= e(avgv_kicker($a, $st)) ?></span>
+              <h3><?= e((string) $a['title']) ?></h3>
+              <?php if (!empty($a['tagline'])): ?><span class="avgv-tile-d"><?= e(mb_strimwidth((string) $a['tagline'], 0, 116, '…')) ?></span><?php endif; ?>
+              <?php if ($st['percent'] !== null): ?>
+                <span class="avgv-bar avgv-bar--thin<?= $st['met'] ? ' is-met' : '' ?>" role="progressbar" aria-valuenow="<?= avgv_pct($st['percent']) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= avgv_pct($st['percent']) ?>% raised"><span style="width:<?= avgv_pct($st['percent']) ?>%"></span></span>
+              <?php endif; ?>
+              <span class="avgv-tile-figs"><strong class="av-num"><?= e($N($st['raised'])) ?></strong> <?php
+                if ($st['goal'] > 0) echo 'of ' . e($N($st['goal']));
+                elseif ($st['donors'] > 0) echo (int) $st['donors'] . ' donors';
+                else echo 'raised so far'; ?></span>
+            </a></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    </section>
+  <?php endif; ?>
+<?php endif; ?>
+
+<?php if ($itemCats): ?>
+  <section id="items" class="avgv-sec avgv-sec--paper" aria-labelledby="avgv-items-h">
+    <div class="avh-topo" data-avh-topo="light" data-seed="15" aria-hidden="true"></div>
+    <div class="avgv-wrap">
+      <div class="avgv-items-head">
+        <div><div class="avgv-eyebrow">The list</div><h2 id="avgv-items-h" class="avgv-h2">Exactly what we need, and what each thing costs</h2></div>
+        <div><p>Give the money, or give the thing itself — both count the same here.</p>
+          <?php if ($itemSum['outstanding_ngn'] > 0): ?><strong class="av-num"><?= e($N($itemSum['outstanding_ngn'])) ?> outstanding across <?= (int) $itemSum['total'] ?> items</strong><?php endif; ?></div>
+      </div>
+      <?php foreach ($itemCats as $cat => $list): ?>
+        <div class="avgv-cat">
+          <h3><?= e((string) $cat) ?></h3>
+          <ul>
+            <?php foreach ($list as $it):
+              $money = (string) $it['kind'] === 'money' && (int) $it['unit_cost'] > 0;
+              $need = (int) $it['qty_needed']; $left = (int) $it['qty_left']; $open = !empty($it['is_open']); ?>
+              <li class="avgv-item<?= $open ? '' : ' is-done' ?>">
+                <div class="avgv-item-main">
+                  <?php if (trim((string) $it['image_url']) !== ''): ?><img src="<?= e((string) $it['image_url']) ?>" alt="" width="56" height="56" loading="lazy" decoding="async"><?php endif; ?>
+                  <div>
+                    <span class="avgv-item-t"><?= e((string) $it['title']) ?></span>
+                    <?php if (trim((string) $it['detail']) !== ''): ?><span class="avgv-item-d"><?= e((string) $it['detail']) ?></span><?php endif; ?>
+                    <span class="avgv-item-meter">
+                      <?php if ($need > 0): ?>
+                        <span class="avgv-bar avgv-bar--item<?= $open ? '' : ' is-met' ?>" role="progressbar" aria-valuenow="<?= avgv_pct($it['pct']) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= (int) $it['qty_funded'] ?> of <?= $need ?> covered"><span style="width:<?= avgv_pct($it['pct']) ?>%"></span></span>
+                      <?php endif; ?>
+                      <span class="av-num"><?= !$open ? 'All ' . $need . ' covered' : ($need > 0 ? $left . ' of ' . $need . ' still needed' : 'Any number welcome') ?></span>
+                    </span>
+                  </div>
                 </div>
-                <div class="gv-item-side">
-                  <?php if ($it['kind'] === 'money' && $it['unit_cost'] > 0): ?>
-                    <span class="gv-item-price"><?= e(Appeals::naira((int) $it['unit_cost'])) ?><?php
-                      if (trim((string) $it['unit_label']) !== ''): ?><small> / <?= e((string) $it['unit_label']) ?></small><?php endif; ?></span>
+                <div class="avgv-item-side">
+                  <span class="avgv-price"><b class="av-num"><?= $money ? e($N($it['unit_cost'])) : 'In kind' ?></b><small><?= $money ? e('per ' . (trim((string) $it['unit_label']) !== '' ? (string) $it['unit_label'] : 'item')) : 'we collect' ?></small></span>
+                  <?php if (!$open): ?>
+                    <span class="avgv-covered">Covered ✓</span>
+                  <?php elseif ($money): ?>
+                    <a class="avgv-fund" href="<?= e('/donate.html?amount=' . (int) $it['unit_cost'] . '&for=' . rawurlencode((string) $it['slug'])) ?>"
+                       data-avgv-pay="<?= (int) $it['unit_cost'] ?>" data-avgv-item="<?= e((string) $it['title']) ?>" data-avgv-slug="<?= e((string) $it['slug']) ?>"
+                       data-avgv-unit="<?= e(trim((string) $it['unit_label']) !== '' ? (string) $it['unit_label'] : 'item') ?>" data-avgv-left="<?= $need > 0 ? $left : 99 ?>">Fund one</a>
                   <?php else: ?>
-                    <span class="gv-item-price gv-item-kind">Given in kind</span>
-                  <?php endif; ?>
-                  <span class="gv-item-left"><?php
-                    if (!$it['is_open']) { echo 'Covered — thank you'; }
-                    elseif ($it['qty_needed'] > 0) { echo (int) $it['qty_left'] . ' still needed'; }
-                    else { echo 'Any number welcome'; } ?></span>
-                  <?php if ($it['is_open']): ?>
-                    <?php /* Money items go to the donation form with the amount
-                             already filled in; in-kind items go to the people who
-                             arrange collection, because a card form cannot take a
-                             laptop. */ ?>
-                    <a class="gv-item-cta"
-                       <?php if ($it['kind'] === 'money'): ?>
-                         data-gv-pay="<?= (int) $it['unit_cost'] ?>"
-                         data-gv-item="<?= e((string) $it['title']) ?>"
-                         data-gv-slug="<?= e((string) $it['slug']) ?>"
-                         href="<?= e('/donate.html?amount=' . (int) $it['unit_cost'] . '&for=' . rawurlencode((string) $it['slug'])) ?>"
-                       <?php else: ?>
-                         href="<?= e('/contact.html?about=' . rawurlencode('Donating: ' . (string) $it['title'])) ?>"
-                       <?php endif; ?>><?= $it['kind'] === 'money' ? 'Fund one' : 'Offer one' ?></a>
+                    <a class="avgv-fund avgv-fund--ghost" href="<?= e('/contact.html?about=' . rawurlencode('Donating: ' . (string) $it['title'])) ?>">Offer one</a>
                   <?php endif; ?>
                 </div>
               </li>
             <?php endforeach; ?>
           </ul>
-        <?php endforeach; ?>
-      </div>
-    </section>
-  <?php endif; ?>
-
-  <!-- ── who runs these ─────────────────────────────────────────────────── -->
-  <div class="ed-wrap"><hr class="ed-rule"></div>
-  <section class="ed-section">
-    <div class="ed-wrap">
-      <div class="ed-feature">
-        <div>
-          <span class="ed-kicker">How this works</span>
-          <h2 class="ed-h2">Every appeal here is ours, and every figure is the verified one</h2>
-          <p class="ed-lede">Afrovanguard runs each of these itself. There are no third-party fundraisers
-            and nobody outside the organisation can start one on this page. Payments are taken by Paystack,
-            and the totals you see are read from the verified payment record — not typed in by us.</p>
-          <a class="ed-link" href="/contact.html">Ask us anything about an appeal</a>
         </div>
-        <figure class="ed-quote">
-          <blockquote>“Tell people exactly what today costs, and they will pay for today.”</blockquote>
-          <figcaption><strong>Afrovanguard</strong>Ambassadors for Community, Tech and Cultural Advancements</figcaption>
-        </figure>
-      </div>
+      <?php endforeach; ?>
     </div>
   </section>
+<?php endif; ?>
 
-  <?php /* One sheet, reused by every "Fund one" on the page. The href on each
-           link stays pointed at the donate page so that somebody without
-           JavaScript — or with a blocked Paystack — still has a way to give;
-           the sheet only takes over when it can actually finish the job. */ ?>
-  <div class="gvpay" id="gvPay" hidden role="dialog" aria-modal="true" aria-labelledby="gvPayTitle">
-    <div class="gvpay-card" role="document">
-      <button type="button" class="gvpay-x" id="gvPayX" aria-label="Close">&times;</button>
-      <h2 class="gvpay-h" id="gvPayTitle">Fund one</h2>
-      <p class="gvpay-what" id="gvPayWhat"></p>
-      <label class="gvpay-field"><span>Your email <em>for the receipt</em></span>
-        <input type="email" id="gvPayEmail" autocomplete="email" placeholder="you@example.com" required></label>
-      <label class="gvpay-field"><span>Your name <em>optional</em></span>
-        <input type="text" id="gvPayName" autocomplete="name" placeholder="So we can thank you properly"></label>
-      <button type="button" class="gvpay-go" id="gvPayGo">Give <span id="gvPayAmt"></span></button>
-      <p class="gvpay-err" id="gvPayErr" role="alert" hidden></p>
-      <p class="gvpay-fine">Card, bank transfer and USSD. Secured by Paystack. You stay on this page.</p>
+<section class="avgv-sec avgv-sec--how" aria-labelledby="avgv-how-h">
+  <div class="avgv-wrap avgv-how">
+    <div>
+      <div class="avgv-eyebrow">How this works</div>
+      <h2 id="avgv-how-h" class="avgv-h2">Every appeal here is ours, and every figure is the verified one</h2>
+      <p>Afrovanguard runs each of these itself — no third-party fundraisers, and nobody outside the organisation can start one here. Payments are taken by Paystack, and the totals are read from the verified payment record, not typed in by us.</p>
+      <a class="avgv-link" href="/contact.html">Ask us anything about an appeal →</a>
     </div>
+    <figure>
+      <span class="avgv-diamond" aria-hidden="true"></span>
+      <blockquote>“Tell people exactly what today costs, and they will pay for today.”</blockquote>
+      <figcaption><strong>Afrovanguard</strong> · Ambassadors for Community, Tech &amp; Cultural Advancements</figcaption>
+    </figure>
   </div>
+</section>
 
 </main>
-<script src="/assets/site/give-pay.js" defer></script>
-<script src="/give/pay-sheet.js" defer></script>
-<?php render_footer();
+<?php avh_footer(); ?>
+</div>
+
+<?php /* One sheet for every "Fund one". Each link keeps its /donate.html href, so with no
+         JavaScript (or a blocked Paystack) there is still a way to give. */ ?>
+<div class="avgv-scrim" data-avgv-scrim hidden></div>
+<div class="avgv-sheet" role="dialog" aria-modal="true" aria-labelledby="avgv-pay-h" data-avgv-sheet hidden>
+  <button type="button" class="avgv-x" data-avgv-close aria-label="Close">×</button>
+  <form novalidate data-avgv-form>
+    <span class="avgv-eyebrow">Fund one</span>
+    <h2 id="avgv-pay-h" tabindex="-1" data-avgv-pay-item></h2>
+    <div class="avgv-qty"><span id="avgv-qty-l">How many?</span>
+      <span class="avgv-stepper" role="group" aria-labelledby="avgv-qty-l"><button type="button" data-avgv-qty="-1" aria-label="Fewer">−</button><output class="av-num" data-avgv-qty-n aria-live="polite">1</output><button type="button" data-avgv-qty="1" aria-label="More">+</button></span></div>
+    <label class="avgv-field"><span>Your email <small>for the receipt</small></span><input type="email" name="email" autocomplete="email" placeholder="you@example.com" required aria-describedby="avgv-pay-err"></label>
+    <label class="avgv-field"><span>Your name <small>optional — so we can thank you properly</small></span><input type="text" name="name" autocomplete="name"></label>
+    <p class="avgv-err" id="avgv-pay-err" role="alert" data-avgv-err hidden></p>
+    <button type="submit" class="avgv-go" data-avgv-go><span data-avgv-go-idle>Give <span class="av-num" data-avgv-amt></span></span><span data-avgv-go-busy hidden>Opening the card form…</span></button>
+    <span class="avgv-fine">Card, bank transfer and USSD · Secured by Paystack · You stay on this page</span>
+  </form>
+  <div class="avgv-done" data-avgv-done hidden>
+    <span class="avgv-tick" aria-hidden="true">✓</span>
+    <h2 tabindex="-1" data-avgv-done-h>Thank you</h2>
+    <p data-avgv-done-p></p>
+    <button type="button" class="avgv-btn avgv-btn--ghost" data-avgv-finish>Done</button>
+  </div>
+</div>
+
+<script src="/assets/site/chioma.js" defer></script>
+<script src="/assets/site/celebrations.js" defer></script>
+</body>
+</html>
