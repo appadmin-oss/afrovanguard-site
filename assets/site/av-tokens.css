@@ -169,3 +169,10 @@
   --av-dl-shade:rgba(0,0,0,.78);  --av-dl-clear:rgba(0,0,0,0);
   --av-dl-ink-clear:rgba(17,24,39,0);  --av-dl-gold-hover:#F6C544;
 }
+/* Portal Diary notebooks (design "Afrovanguard Portal v3", Diary) — portal/avdy.css.
+   The six notebook spine colours are the design's fixed set (DiaryNotebooks::COLOURS). */
+:root{
+  --av-nb-ink:#10292C; --av-nb-green:#237B22; --av-nb-gold:#C9A24B; --av-nb-clay:#B0453F;
+  --av-nb-sky:#3D6F8E; --av-nb-plum:#6B4674; --av-dk-nb-ink:#6F9499;
+  --av-dy-scrim:rgba(17,24,39,.32); --av-dy-scrim-lib:rgba(17,24,39,.24);
+}
