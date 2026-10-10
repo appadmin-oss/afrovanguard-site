@@ -1,0 +1,89 @@
+/* assets/site/avcv.css — the cover graphic for anything without a photo
+   (designs: Afrovanguard Cover + Default Graphics). Markup: partials/av-cover.php
+   (PHP) and assets/site/avcv.js (browser). Tokens only. Sizes are container
+   units, so the type fits whatever card the cover sits in. */
+.avcv{--cv-g:var(--av-cov-gala);--cv-a:var(--av-cov-gold);--cv-ink:var(--av-white);--cv-mut:rgba(255,255,255,.66);
+  --cv-c:color-mix(in srgb,var(--cv-a) 40%,transparent);--cv-c2:color-mix(in srgb,var(--cv-a) 24%,transparent);--cv-c3:color-mix(in srgb,var(--cv-a) 15%,transparent);
+  position:relative;display:block;width:100%;aspect-ratio:var(--cv-ar,16/9);container-type:inline-size;overflow:hidden;isolation:isolate;
+  border-radius:var(--avcv-radius,0);background:var(--cv-g);color:var(--cv-ink);font-family:var(--av-sans);
+  --cv-pad:5.6cqw 6cqw;--cv-seal:5cqw;--cv-bgap:1.6cqw;--cv-small:max(9px,1.7cqw);--cv-kfs:max(10px,1.9cqw);--cv-mfs:max(11px,2.1cqw);
+  --cv-day:11cqw;--cv-gap:1.9cqw;--cv-tfs:7.8cqw;--cv-lines:3;--cv-tmax:90cqw;--cv-stripe:.9cqw;
+  --cv-mask:linear-gradient(100deg,transparent 22%,rgba(0,0,0,.6) 55%,rgba(0,0,0,1) 100%)}
+.avcv--wide{--cv-pad:4.6cqw 5.4cqw;--cv-day:8.5cqw;--cv-tfs:6.2cqw;--cv-lines:2;--cv-tmax:76cqw}
+.avcv--tall{--cv-pad:8cqw;--cv-seal:8cqw;--cv-bgap:2.4cqw;--cv-small:max(9px,2.7cqw);--cv-kfs:max(10px,3cqw);--cv-mfs:max(11px,3.3cqw);
+  --cv-day:17cqw;--cv-gap:3.2cqw;--cv-tfs:10.6cqw;--cv-lines:5;--cv-stripe:1.4cqw;
+  --cv-mask:linear-gradient(180deg,rgba(0,0,0,1) 0%,rgba(0,0,0,.55) 38%,transparent 70%)}
+.avcv.is-long{--cv-tfs:calc(7.8cqw*.85)}
+.avcv.is-longer{--cv-tfs:calc(7.8cqw*.72)}
+.avcv--wide.is-long{--cv-tfs:calc(6.2cqw*.85)}
+.avcv--wide.is-longer{--cv-tfs:calc(6.2cqw*.72)}
+.avcv--tall.is-long{--cv-tfs:calc(10.6cqw*.85)}
+.avcv--tall.is-longer{--cv-tfs:calc(10.6cqw*.72)}
+.avcv.is-past{filter:saturate(.4) brightness(.92)}
+.avcv::before{content:"";position:absolute;inset:0;z-index:-3;background:radial-gradient(75% 90% at var(--cv-gx) 115%,color-mix(in srgb,var(--cv-a) 18%,transparent),transparent 70%)}
+.avcv::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);pointer-events:none}
+.avcv-motif{position:absolute;inset:0;z-index:-2;background-position:var(--cv-mx) var(--cv-my);-webkit-mask-image:var(--cv-mask);mask-image:var(--cv-mask)}
+.avcv-m-arcs .avcv-motif{background-image:repeating-radial-gradient(circle at var(--cv-ox) var(--cv-oy),transparent 0 19px,var(--cv-c2) 19px 20px)}
+.avcv-m-contour .avcv-motif{background-image:repeating-radial-gradient(circle at var(--cv-ox) var(--cv-oy),transparent 0 21px,var(--cv-c2) 21px 22px)}
+.avcv-m-hatch .avcv-motif{background-image:repeating-linear-gradient(var(--cv-ang),var(--cv-c2) 0 1px,transparent 1px 9px)}
+.avcv-m-dots .avcv-motif{background-image:radial-gradient(var(--cv-c) 1px,transparent 1.4px);background-size:14px 14px}
+.avcv-m-grid .avcv-motif{background-image:linear-gradient(var(--cv-c2) 1px,transparent 1px),linear-gradient(90deg,var(--cv-c2) 1px,transparent 1px);background-size:22px 22px}
+/* chevron: the rendered design draws no motif for it (its shorthand is invalid as a background-image), so neither do we — the ground and glow carry it. */
+.avcv-m-rays .avcv-motif{background-image:repeating-conic-gradient(from var(--cv-ang) at 100% 100%,var(--cv-c3) 0 .8deg,transparent .8deg 7deg)}
+.avcv-light{position:absolute;inset:0;z-index:-1;background:radial-gradient(110% 85% at var(--cv-lx) var(--cv-ly),rgba(255,255,255,.09) 0%,rgba(255,255,255,0) 58%),linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.28) 100%)}
+.avcv-grain{position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.085;mix-blend-mode:overlay;background-size:180px 180px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+.avcv-in{position:absolute;inset:0;padding:var(--cv-pad);display:flex;flex-direction:column}
+.avcv-top{display:flex;align-items:center;justify-content:space-between;gap:4cqw}
+.avcv-src{display:flex;align-items:center;gap:var(--cv-bgap);min-width:0}
+.avcv-seal{width:var(--cv-seal);height:var(--cv-seal);border-radius:50%;display:block;flex-shrink:0;background:url(/assets/site/av-seal.png) center/cover no-repeat}
+.avcv-src span:not(.avcv-seal),.avcv-badge{font-size:var(--cv-small);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--cv-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avcv-badge{flex-shrink:0;letter-spacing:.14em}
+.avcv-live{flex-shrink:0;display:flex;align-items:center;gap:1cqw;font-size:var(--cv-small);font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.avcv-live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--av-live-now)}
+@media (prefers-reduced-motion:no-preference){.avcv-live::before{animation:avcv-live 1.4s ease-in-out infinite}}
+@keyframes avcv-live{0%,100%{opacity:1}50%{opacity:.3}}
+.avcv-bot{margin-top:auto;display:flex;flex-direction:column;gap:var(--cv-gap)}
+.avcv-date{display:flex;align-items:baseline;gap:2cqw;line-height:.9}
+.avcv-day{font-family:var(--av-serif);font-weight:500;font-size:var(--cv-day);color:var(--cv-a);font-variant-numeric:lining-nums}
+.avcv-mon{display:flex;flex-direction:column;gap:.6cqw;font-size:var(--cv-small);font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.avcv-mon span:last-child{color:var(--cv-mut);font-weight:600;letter-spacing:.08em}
+.avcv-kick{font-size:var(--cv-kfs);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--cv-a)}
+.avcv-title{font-family:var(--av-serif);font-weight:500;font-size:var(--cv-tfs);line-height:1.04;letter-spacing:-.012em;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:var(--cv-lines);-webkit-box-orient:vertical;overflow:hidden;max-width:var(--cv-tmax)}
+.avcv-bar{display:block;height:max(3px,.6cqw);max-width:64cqw;border-radius:99px;background:rgba(255,255,255,.16);overflow:hidden}
+.avcv-bar span{display:block;height:100%;width:var(--cv-bar,0%);background:var(--cv-a)}
+.avcv-meta{display:flex;align-items:center;gap:1.6cqw;font-size:var(--cv-mfs);color:var(--cv-mut);min-width:0}
+.avcv-meta::before{content:"";width:3.2cqw;height:1px;background:var(--cv-a);flex-shrink:0}
+.avcv-meta span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avcv-stripe{position:absolute;left:0;right:0;bottom:0;height:var(--cv-stripe)}
+.avcv-hol-independence,.avcv-hol-democracyday{background:linear-gradient(90deg,var(--av-hol-green) 0 33.33%,var(--av-hol-white) 33.33% 66.66%,var(--av-hol-green) 66.66%)}
+.avcv-hol-christmas{background:linear-gradient(90deg,var(--av-hol-red),var(--av-quote-mark) 50%,var(--av-hol-forest))}
+.avcv-hol-newyear,.avcv-hol-founding{background:linear-gradient(90deg,var(--av-link-hover),var(--av-gold-light) 50%,var(--av-link-hover))}
+.avcv-hol-africaday{background:linear-gradient(90deg,var(--av-hol-forest) 0 25%,var(--av-quote-mark) 25% 50%,var(--av-hol-red) 50% 75%,var(--av-hol-black) 75%)}
+.avcv-hol-childrensday{background:linear-gradient(90deg,var(--av-gold),var(--av-hol-orange) 50%,var(--av-hol-blue))}
+/* Category grounds and accents */
+.avcv--summit,.avcv--leadership{--cv-g:var(--av-cov-summit)}
+.avcv--gala,.avcv--general{--cv-g:var(--av-cov-gala)}
+.avcv--workshop,.avcv--technology{--cv-g:var(--av-cov-blue);--cv-a:var(--av-cov-blue-a)}
+.avcv--bootcamp{--cv-g:var(--av-cov-green);--cv-a:var(--av-cov-green-a)}
+.avcv--townhall{--cv-g:var(--av-cov-rust);--cv-a:var(--av-cov-rust-a)}
+.avcv--meetup{--cv-g:var(--av-cov-violet);--cv-a:var(--av-cov-violet-a)}
+.avcv--arts,.avcv--culture{--cv-g:var(--av-cov-brown);--cv-a:var(--av-cov-brown-a)}
+.avcv--faith{--cv-g:var(--av-cov-plum);--cv-a:var(--av-cov-plum-a)}
+.avcv--school,.avcv--education{--cv-g:var(--av-cov-navy)}
+.avcv--sports{--cv-g:var(--av-cov-teal);--cv-a:var(--av-cov-teal-a)}
+.avcv--nation{--cv-g:var(--av-cov-green);--cv-a:var(--av-cov-nation-a)}
+/* Light tone — for print and email */
+.avcv--light{--cv-g:var(--av-cov-light);--cv-a:var(--av-gold-text);--cv-ink:var(--av-ink);--cv-mut:var(--av-slate);--cv-c3:color-mix(in srgb,var(--cv-a) 15%,transparent)}
+.avcv--light .avcv-motif{opacity:.7}
+.avcv--light::before{background:radial-gradient(70% 80% at var(--cv-gl) 110%,rgba(176,126,8,.10),transparent 70%)}
+.avcv--light::after{box-shadow:inset 0 0 0 1px rgba(17,24,39,.08)}
+.avcv--light .avcv-light{background:radial-gradient(120% 90% at var(--cv-lx) var(--cv-ly),var(--av-white) 0%,rgba(255,255,255,0) 60%)}
+.avcv--light .avcv-grain{opacity:.1;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+.avcv--light .avcv-bar{background:rgba(17,24,39,.1)}
+@media (prefers-reduced-motion:reduce){.avcv *,.avcv::before{animation:none!important;transition:none!important}}
+/* Fill a media frame the caller already sizes (e.g. a 16:11 box). */
+.avcv--fill{height:100%;aspect-ratio:auto}
+/* The design's default corner, for a cover standing alone (not inside a rounded frame). */
+.avcv--round{--avcv-radius:var(--av-r-14)}
