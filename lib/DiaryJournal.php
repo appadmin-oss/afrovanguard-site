@@ -148,7 +148,14 @@ final class DiaryJournal
     {
         $st = $this->db->prepare('DELETE FROM diary_entries WHERE id = ? AND author_id = ?');
         $st->execute([$id, $authorId]);
-        return $st->rowCount() > 0;
+        if ($st->rowCount() < 1) return false;
+        // What hangs off the entry goes with it: its tags (or the tag counts keep
+        // counting an entry that is gone), its extra tabs, and who it was shared
+        // with. Each table is created lazily, so each is tried on its own.
+        foreach (['DELETE FROM diary_tags WHERE entry_id = ?', 'DELETE FROM diary_entry_tabs WHERE entry_id = ?', 'DELETE FROM diary_shares WHERE entry_id = ?'] as $sql) {
+            try { $this->db->prepare($sql)->execute([$id]); } catch (Throwable $e) { /* table not created yet */ }
+        }
+        return true;
     }
 
     /* ── Private sharing ──────────────────────────────────────────────────

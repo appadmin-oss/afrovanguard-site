@@ -55,3 +55,11 @@ ck('avdy: the owner sees their own entry as theirs', ($dyNb->entries(1, $dyNid)[
 /* Search carries what the editor needs */
 $dyS = (new DiaryOrganise())->search(1, []);
 ck('avdy: search rows carry font and review note', isset($dyS[0]['font'], $dyS[0]['review_note'], $dyS[0]['first_tab_title']));
+
+/* Deleting an entry takes its tags, tabs and shares with it */
+$dyDel = (int) $dyJ->create(1, 'private', 'Gone', '<p>x</p>', date('Y-m-d'))['id'];
+(new DiaryOrganise())->setTags(1, $dyDel, ['vanish']);
+$dyT->add(1, $dyDel, 'T2', 'y');
+$dyJ->deleteOwn(1, $dyDel);
+ck('avdy: a deleted entry\'s tags stop counting', !in_array('vanish', array_column((new DiaryOrganise())->vocabulary(1), 'tag'), true));
+ck('avdy: a deleted entry\'s tabs go too', (int) $dyDb->query('SELECT COUNT(*) FROM diary_entry_tabs WHERE entry_id = ' . $dyDel)->fetchColumn() === 0);
