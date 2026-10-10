@@ -390,6 +390,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="/portal/commitments.js" defer></script>
   <script src="/assets/site/avc-photo.js" defer></script>
   <script src="/portal/card-photo.js" defer></script>
+  <script src="/assets/site/celebrations.js" defer></script>
   <script src="/assets/site/nav.js" defer></script>
 </body>
 </html>
