@@ -108,6 +108,9 @@ RewriteRule ^give/([a-z0-9-]+)/?$ give/appeal.php?slug=$1 [L,QSA]
 # gate reads the same URL for the code inside it — the two-way scan.
 RewriteRule ^q/(AVQR-[A-Za-z0-9]+)/?$ q.php?c=$1 [L,QSA]
 
+# A shared quote of the week (Home share menu): /quote/week-N.
+RewriteRule ^quote/week-([0-9]{1,2})/?$ quote.php?week=$1 [L,QSA]
+
 # People profiles: /people/<id> or /people/<id>-<slug>
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
 
