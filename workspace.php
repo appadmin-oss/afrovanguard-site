@@ -56,6 +56,7 @@ render_head([
     'robots'     => 'noindex, nofollow',
     'body_class' => 'ws-page' . ($theme === 'light' ? ' ws-light' : ''),
     'manifest'   => '/manifest.webmanifest',
+    'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
 ?>
 <style>

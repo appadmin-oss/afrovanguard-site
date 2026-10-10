@@ -22,7 +22,7 @@ render_head([
 ]);
 render_nav('');
 ?>
-  <main id="main-content" class="legal-main">
+  <main id="main" tabindex="-1" class="legal-main">
     <header class="legal-hero">
       <div class="container">
         <span class="legal-kicker">Legal</span>

@@ -1,0 +1,115 @@
+/* Site pages on the shared PHP partials (lib/partials.php render_head, site mode).
+   Prefix avpg-. Tokens only (av-tokens.css).
+
+   Every public page without a design of its own wears the Home nav and footer
+   (partials/avh-chrome.php). Their bodies were built on diary.css, tokens.css
+   and page.css; this sheet lands them on the new system WITHOUT rewriting them:
+     1. the old token layers (--afg-*, and diary.css's --gold/--bg/--ink…) are
+        re-pointed at --av-* values, so every rule that reads them follows;
+     2. the type is the new pair: Cormorant Garamond for headings at the Home
+        weights, Source Sans 3 for the body;
+     3. buttons, in-text links, cards and the page header take the Home shapes.
+   Selectors that set defaults sit in :where() so a page's own class still wins.
+   These pages are light-only (<html data-theme="light" data-theme-lock>). */
+
+/* 1. Old token layers → new tokens ---------------------------------------- */
+:root{
+  --afg-navy:var(--av-ink);
+  --afg-navy-2:var(--av-ink-2);
+  --afg-gold:var(--av-gold);
+  --afg-gold-deep:var(--av-gold-text);
+  --afg-gold-ink:var(--av-gold-text);
+  --afg-gold-soft:var(--av-gold-soft);
+  --afg-accent:var(--av-gold);
+  --afg-accent-ink:var(--av-gold-text);
+  --afg-accent-soft:var(--av-gold-soft);
+  --afg-on-accent:var(--av-ink);
+  --afg-focus:var(--av-focus);
+  --afg-bg:var(--av-white);
+  --afg-surface:var(--av-white);
+  --afg-surface-2:var(--av-stone);
+  --afg-border:var(--av-line);
+  --afg-border-strong:var(--av-line-2);
+  --afg-ink:var(--av-ink);
+  --afg-body:var(--av-copy);
+  --afg-muted:var(--av-muted);
+  --afg-font-display:var(--av-serif);
+  --afg-font-body:var(--av-sans);
+  --afg-radius-sm:var(--av-r-6);
+  --afg-radius-md:var(--av-r-8);
+  --afg-radius-lg:var(--av-r-12);
+
+  /* diary.css */
+  --gold:var(--av-gold);
+  --gold-dark:var(--av-gold-hover);
+  --gold-deep:var(--av-gold-text);
+  --gold-soft:var(--av-gold-soft);
+  --bg:var(--av-white);
+  --bg-warm:var(--av-paper);
+  --surface:var(--av-white);
+  --surface-2:var(--av-stone);
+  --ink:var(--av-ink);
+  --body:var(--av-copy);
+  --muted:var(--av-muted);
+  --divider:var(--av-line);
+  --link:var(--av-gold-text);
+  --code-bg:var(--av-stone);
+  --focus:var(--av-focus);
+  --footer-bg:var(--av-ink);
+  --font-heading:var(--av-serif);
+  --font-body:var(--av-sans);
+  --radius-sm:var(--av-r-6);
+  --radius-md:var(--av-r-8);
+  --radius-lg:var(--av-r-12);
+  --radius-xl:var(--av-r-14);
+}
+
+/* 2. Type ------------------------------------------------------------------ */
+body.avpg{font-family:var(--av-sans);color:var(--av-body);background:var(--av-white)}
+:where(body.avpg main) :where(h1,h2,h3){font-family:var(--av-serif);font-weight:500;color:var(--av-ink);letter-spacing:-.005em;text-wrap:balance}
+:where(body.avpg main) :where(h4,h5,h6){font-family:var(--av-sans);color:var(--av-ink)}
+:where(body.avpg main) :where(p,li,dd,td){color:inherit}
+
+/* avh.css makes every link inherit its colour (right for the chrome); inside a
+   page body a bare link keeps the gold-text link colour it had, and in running
+   text it is underlined so it is not told apart by colour alone. */
+:where(body.avpg main) a{color:var(--link)}
+:where(body.avpg main) :where(p,li,dd,td,blockquote) > a:not([class]){text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+:where(body.avpg main) a:not([class]):hover{color:var(--av-link-hover)}
+
+/* 3. Shapes ---------------------------------------------------------------- */
+/* Buttons: Home's — 8px radius, ink fill, a hairline outline variant. The gold
+   fill stays for .btn-primary (it is the brand action on these pages) but with
+   ink text and no glow. */
+body.avpg .btn{border-radius:var(--av-r-8);font-family:var(--av-sans);font-weight:600;letter-spacing:0;font-size:15px;border-width:1px;box-shadow:none}
+body.avpg .btn:hover{transform:none;box-shadow:none}
+body.avpg .btn-primary{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+body.avpg .btn-primary:hover{background:var(--av-ink-hover);border-color:var(--av-ink-hover);color:var(--av-white)}
+body.avpg .btn-ink{background:var(--av-ink);border-color:var(--av-ink);color:var(--av-white)}
+body.avpg .btn-ink:hover{background:var(--av-ink-hover);color:var(--av-white);opacity:1}
+body.avpg .btn-outline{background:transparent;border-color:var(--av-line-3);color:var(--av-ink)}
+body.avpg .btn-outline:hover{background:var(--av-stone);border-color:var(--av-line-3);color:var(--av-ink)}
+body.avpg .btn-gold{background:var(--av-gold);border-color:var(--av-gold);color:var(--av-ink)}
+
+/* The standard page header (page.css) on the Home rhythm. */
+body.avpg .page-eyebrow{font-weight:700;letter-spacing:.14em;color:var(--av-gold-text)}
+body.avpg .page-title{font-family:var(--av-serif);font-weight:400;font-size:clamp(40px,5vw,64px);line-height:1.02;letter-spacing:-.01em}
+body.avpg .page-lead{color:var(--av-copy)}
+
+/* Focus: one ring, the Home one. */
+body.avpg :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+
+/* The section the page belongs to, in the Home nav (lib/partials.php av_site_nav). */
+.avpg .avh-navbtn[data-avh-current]{color:var(--av-ink);box-shadow:inset 0 -2px 0 var(--av-gold)}
+.avpg .avh-acc button[data-avh-current]{font-weight:700}
+.avpg .avh-mega-col a[aria-current="page"],.avpg .avh-acc-links a[aria-current="page"]{color:var(--av-gold-text);font-weight:600}
+
+/* The read-progress bar sits above the sticky Home nav. */
+.avpg .read-progress{z-index:30}
+
+/* Old chrome helpers some bodies still carry. */
+.avpg .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+@media (prefers-reduced-motion:reduce){
+  .avpg *,.avpg *::before,.avpg *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}

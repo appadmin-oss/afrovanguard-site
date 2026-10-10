@@ -101,7 +101,7 @@ render_head([
 render_nav('diary');
 ?>
 <?php $format = $a['format'] ?? 'standard'; $isFeature = $format === 'feature' && $cover; ?>
-  <main id="main-content" class="avd">
+  <main id="main" tabindex="-1" class="avd">
     <article class="format-<?= e($format) ?>">
 <?php if ($isFeature): $hcid = (int) ($a['cover_is_dark'] ?? -1); $heroTone = $hcid === 1 ? ' is-on-dark' : ($hcid === 0 ? ' is-on-light' : ''); ?>
       <header class="feature-hero<?= $heroTone ?>" style="background-image:url('<?= e($cover) ?>')">

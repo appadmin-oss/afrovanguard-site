@@ -48,7 +48,7 @@ render_head([
 ]);
 render_nav('involved');
 ?>
-<main id="main-content" class="ed-wrap ed-section">
+<main id="main" tabindex="-1" class="ed-wrap ed-section">
   <?php if ($done): ?>
     <span class="ed-kicker">Email preferences</span>
     <h1 class="ed-display">That's done</h1>

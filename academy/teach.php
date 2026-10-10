@@ -59,7 +59,7 @@ render_nav('academy');
 /* ── Not signed in, or not an instructor ── */
 if (!$isInstructor) {
     ?>
-  <main id="main-content">
+  <main id="main" tabindex="-1">
     <div class="container">
       <div class="gate">
         <h2>Instructor access</h2>
@@ -93,7 +93,7 @@ if ($course) {
     foreach ($roster as $r) { if ($r['pct'] >= 100) $done++; elseif ($r['done'] > 0) $active++; else $notStarted++; }
     $statusOf = fn($r) => $r['pct'] >= 100 ? 'completed' : ($r['done'] > 0 ? 'active' : 'notstarted');
     ?>
-  <main id="main-content">
+  <main id="main" tabindex="-1">
     <div class="container teach" data-teach-roster>
       <nav class="breadcrumb"><a href="<?= e(academy_url('teach/')) ?>">Dashboard</a><span class="sep">/</span><span><?= e($course['title']) ?></span></nav>
       <div class="teach-head-row">
@@ -172,7 +172,7 @@ $courses = $user['role'] === 'admin'
 $totLearners = array_sum(array_map(fn($c) => (int) $c['stats']['enrolled'], $courses));
 $totCerts = array_sum(array_map(fn($c) => (int) $c['stats']['completed'], $courses));
 ?>
-  <main id="main-content">
+  <main id="main" tabindex="-1">
     <div class="container teach">
       <span class="diary-eyebrow">Instructor dashboard</span>
       <h1 class="teach-h1">Welcome, <?= e(explode(' ', $user['name'])[0]) ?></h1>

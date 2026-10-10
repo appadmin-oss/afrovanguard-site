@@ -90,7 +90,7 @@ render_nav('about');
   @media(max-width:720px){.fr-split,.fr-flags{grid-template-columns:1fr}.fr-pillars{grid-template-columns:1fr 1fr}}
 </style>
 
-<main id="main-content" class="fr">
+<main id="main" tabindex="-1" class="fr">
   <header class="fr-hero">
     <div class="fr-in">
       <div class="page-head page-head--center" style="padding:0">

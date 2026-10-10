@@ -52,7 +52,9 @@
 
   /* ---- Theme (light/dark) ---- */
   var root = document.documentElement;
-  function applyTheme(t) { root.setAttribute('data-theme', t); set('av.theme', t); }
+  /* Pages in the Home chrome are light-only (lib/partials.php THEME_BOOT_SITE):
+     data-theme-lock means neither the `d` shortcut nor a stray toggle flips them. */
+  function applyTheme(t) { if (root.hasAttribute('data-theme-lock')) return; root.setAttribute('data-theme', t); set('av.theme', t); }
   document.querySelectorAll('.theme-toggle').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var cur = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -290,7 +292,7 @@
     var rows = [
       ['/', 'Focus search'], ['l', 'Listen / pause'], ['d', 'Toggle dark mode'],
       ['b', 'Save / bookmark'], ['t', 'Back to top'], ['?', 'Show this help'], ['Esc', 'Close']
-    ];
+    ].filter(function (r) { return r[0] !== 'd' || !root.hasAttribute('data-theme-lock'); });
     var ov = document.createElement('div');
     ov.id = 'kbd-help'; ov.className = 'kbd-help';
     ov.innerHTML = '<div class="kbd-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">'

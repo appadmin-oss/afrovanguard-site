@@ -131,6 +131,7 @@ render_head([
                      /* Last, so the v2 shell wins over the panel stylesheet. */
                      '/portal/avp.css'],
     'manifest'   => '/manifest.webmanifest',
+    'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
 
 /* Nav model — grouped for flow (Home · Work · Learn · You), with dot colours

@@ -18,7 +18,7 @@ if (!$entry) {
     http_response_code(404);
     render_head(['title' => 'Link not found — Afrovanguard Diary', 'robots' => 'noindex, nofollow']);
     render_nav('diary');
-    echo '<main id="main-content" class="container" style="padding:80px 0;text-align:center">'
+    echo '<main id="main" tabindex="-1" class="container" style="padding:80px 0;text-align:center">'
        . '<h1 style="font-family:var(--font-heading)">This shared entry isn’t available</h1>'
        . '<p style="color:var(--muted)">The link may have been revoked, or it’s incorrect. '
        . '<a href="/diary/">Browse the Diary →</a></p></main>';
@@ -37,7 +37,7 @@ render_head([
 ]);
 render_nav('diary');
 ?>
-<main id="main-content" class="container shared-entry" style="max-width:760px;padding:48px 0 90px">
+<main id="main" tabindex="-1" class="container shared-entry" style="max-width:760px;padding:48px 0 90px">
   <p class="shared-flag" style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold-deep);margin:0 0 14px">
     🔗 Shared privately with you
   </p>
