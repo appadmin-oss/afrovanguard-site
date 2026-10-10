@@ -82,7 +82,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <meta property="og:title" content="<?= e($title) ?>" />
   <meta property="og:description" content="<?= e($desc) ?>" />
   <meta property="og:url" content="<?= e($canonical) ?>" />
-  <meta property="og:image" content="<?= e($S) ?>/Images/og-image.png" />
+  <meta property="og:image" content="<?= e($S) ?>/assets/og/og-default.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="<?= e($title) ?>" />
@@ -90,7 +90,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <meta name="twitter:site" content="@afrovanguard" />
   <meta name="twitter:title" content="<?= e($title) ?>" />
   <meta name="twitter:description" content="<?= e($desc) ?>" />
-  <meta name="twitter:image" content="<?= e($S) ?>/Images/og-image.png" />
+  <meta name="twitter:image" content="<?= e($S) ?>/assets/og/og-default.png" />
   <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@type' => 'CollectionPage', 'name' => $title, 'description' => $desc, 'url' => $canonical,
       'isPartOf' => ['@type' => 'WebSite', 'name' => 'Afrovanguard', 'url' => "$S/"]], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -99,8 +99,10 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="stylesheet" href="/assets/site/fonts.css" />
   <link rel="stylesheet" href="/assets/site/av-tokens.css" />
   <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avcv.css" />
   <link rel="stylesheet" href="/assets/site/avev.css" />
   <script src="/assets/site/avh.js" defer></script>
+  <script src="/assets/site/avcv.js" defer></script>
   <script src="/assets/site/avev.js" defer></script>
 </head>
 <body class="avh" id="top">

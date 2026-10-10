@@ -177,7 +177,7 @@
 
   run('quote', () => {
     const box = $('[data-avh-quote]'); if (!box) return;
-    // Rotation list. Keep in sync with the Quote Card renderer.
+    // Rotation list — the only one: /quote-card.php reads this array (lib/QuoteOfWeek.php). Keep the [text, who, where] shape.
     const QUOTES = [
       ['The trouble with Nigeria is simply and squarely a failure of leadership.', 'Chinua Achebe', 'The Trouble with Nigeria, 1983'],
       ['It always seems impossible until it’s done.', 'Nelson Mandela', 'Statesman, South Africa'],

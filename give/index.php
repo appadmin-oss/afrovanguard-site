@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once AV_ROOT . '/partials/avh-chrome.php';
 require_once __DIR__ . '/avgv-view.php';
+require_once AV_ROOT . '/partials/av-cover.php';
 
 $d = avgv_load();
 $appeals = $d['appeals']; $summary = $d['summary']; $needs = $d['needs'];
@@ -25,7 +26,7 @@ if ($summary['appeals'] > 0 && $summary['raised'] > 0) {
           . 'See what we need today and what your gift pays for.';
 }
 $desc = mb_substr($desc, 0, 185);
-$image = $site . '/Images/og-image.png';
+$image = $site . '/assets/og/og-default.png';
 $jsonld = [
     schema_org(),
     schema_breadcrumb([['name' => 'Home', 'url' => $site . '/'], ['name' => 'Give', 'url' => $canonical]]),
@@ -70,6 +71,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="stylesheet" href="/assets/site/fonts.css" />
   <link rel="stylesheet" href="/assets/site/av-tokens.css" />
   <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avcv.css" />
   <link rel="stylesheet" href="/assets/site/avgv.css" />
   <script src="/assets/site/avh.js" defer></script>
   <script src="/assets/site/give-pay.js" defer></script>
@@ -160,7 +162,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
     $lead = $appeals[0]; $rest = array_slice($appeals, 1); $ls = Appeals::state($lead); $lp = $ls['percent']; ?>
   <section id="lead" class="avgv-sec avgv-sec--lead" aria-labelledby="avgv-lead-h">
     <a class="avgv-wrap avgv-lead" href="<?= e('/give/' . rawurlencode((string) $lead['slug']) . '/') ?>">
-      <span class="avgv-lead-img"><img src="<?= e((string) $lead['cover_url'] ?: Appeals::ogUrl($lead)) ?>" alt="" width="960" height="660" fetchpriority="high" decoding="async"></span>
+      <span class="avgv-lead-img"><?php if ((string) $lead['cover_url'] !== ''): ?><img src="<?= e((string) $lead['cover_url']) ?>" alt="" width="960" height="660" fetchpriority="high" decoding="async"><?php else: ?><?= av_cover_appeal($lead, $ls) ?><?php endif; ?></span>
       <span class="avgv-lead-body">
         <span class="avgv-kick"><?php if ($ls['urgent']): ?><span class="avgv-urgent">Urgent</span><?php endif; ?><span>Leading appeal<?= !empty($lead['location']) ? ' · ' . e((string) $lead['location']) : '' ?></span></span>
         <h2 id="avgv-lead-h"><?= e((string) $lead['title']) ?></h2>
@@ -186,7 +188,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
         <ul class="avgv-tiles">
           <?php foreach ($rest as $a): $st = Appeals::state($a); $funded = (string) $a['status'] === 'funded'; ?>
             <li><a href="<?= e('/give/' . rawurlencode((string) $a['slug']) . '/') ?>">
-              <span class="avgv-tile-img"><img src="<?= e((string) $a['cover_url'] ?: Appeals::ogUrl($a)) ?>" alt="" width="580" height="387" loading="lazy" decoding="async"><?php if ($funded): ?><span class="avgv-funded">Funded ✓</span><?php endif; ?></span>
+              <span class="avgv-tile-img"><?php if ((string) $a['cover_url'] !== ''): ?><img src="<?= e((string) $a['cover_url']) ?>" alt="" width="580" height="387" loading="lazy" decoding="async"><?php else: ?><?= av_cover_appeal($a, $st) ?><?php endif; ?><?php if ($funded): ?><span class="avgv-funded">Funded ✓</span><?php endif; ?></span>
               <span class="avgv-kick<?= $funded ? ' is-funded' : '' ?>"><?= e(avgv_kicker($a, $st)) ?></span>
               <h3><?= e((string) $a['title']) ?></h3>
               <?php if (!empty($a['tagline'])): ?><span class="avgv-tile-d"><?= e(mb_strimwidth((string) $a['tagline'], 0, 116, '…')) ?></span><?php endif; ?>

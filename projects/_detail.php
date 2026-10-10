@@ -15,6 +15,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/avpj.php';
 require_once AV_ROOT . '/partials/avh-chrome.php';
+require_once AV_ROOT . '/partials/av-cover.php';
 
 $v = avpj_view(avpj_projects(), (string) ($PROJECT_SLUG ?? ''));
 if ($v === null) {
@@ -81,6 +82,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <link rel="preload" as="image" href="<?= e($P['img']) ?>" fetchpriority="high" />
   <link rel="stylesheet" href="/assets/site/av-tokens.css" />
   <link rel="stylesheet" href="/assets/site/avh.css" />
+  <link rel="stylesheet" href="/assets/site/avcv.css" />
   <link rel="stylesheet" href="/assets/site/avpj.css" />
   <script src="/assets/site/avh.js" defer></script>
 </head>
@@ -137,6 +139,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 <?php foreach ($appeals as $a): $st = Appeals::state($a); ?>
       <a class="avpj-card" href="<?= e('/give/' . rawurlencode((string) $a['slug']) . '/') ?>">
 <?php if (!empty($a['cover_url'])): ?>        <img src="<?= e((string) $a['cover_url']) ?>" alt="" loading="lazy" decoding="async" width="580" height="363">
+<?php else: ?>        <?= av_cover_appeal($a, $st, '16:9', false) ?>
 <?php endif; ?>        <div class="avpj-card-body">
           <div class="avpj-kicker"><?php
             if (!empty($a['urgent'])) echo 'Urgent';

@@ -98,6 +98,10 @@
   --av-cov-nation-a:#CFE3B0;
   --av-hol-green:#008751; --av-hol-white:#F4F4F0; --av-hol-red:#8F1D1D; --av-hol-forest:#1F5D3A;
   --av-hol-black:#14161D; --av-hol-orange:#E88B3A; --av-hol-blue:#4F8FC0;
+  /* shared assets (cover light tone, quote card, OG images): partials/av-cover.php, lib/AvImage.php */
+  --av-cov-light:#F4F2ED;
+  --av-qc-paper:#F4F2EE;  --av-qc-muted:#B8BCC6;  --av-qc-face:#1F2737;  --av-qc-motto:#E7CF7D;
+  --av-og-frame:#E3D6B0;  --av-og-line:#2A3344;  --av-og-line-2:#3A4558;
 
   /* projects index + detail (row 6: Afrovanguard Projects / Project) */
   --av-copy-5:#3D3D3D;        /* hero lead copy */

@@ -1,0 +1,13 @@
+# Assets (Quote card, Cover + Default graphics, OG images, CIMC flier)
+partials/av-cover.php
+assets/site/avcv.css
+assets/site/avcv.js
+lib/AvImage.php
+lib/QuoteOfWeek.php
+quote-card.php
+assets/og
+assets/fliers
+lib/AvOg.php
+diary/og.php
+give/og.php
+academy/og.php

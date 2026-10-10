@@ -118,7 +118,7 @@ function render_head(array $o): void {
     // caller mistake.
     $title = $o['title'] ?? ''; $desc = $o['desc'] ?? ''; $canonical = $o['canonical'] ?? '';
     $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
-    $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
+    $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/assets/og/og-default.png');
     $imageAlt = $o['image_alt'] ?? $title;
     $jsonld = $o['jsonld'] ?? [];
     $site = av_chrome_mode((string) ($o['chrome'] ?? 'site')) === 'site';
