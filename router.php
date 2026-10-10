@@ -42,6 +42,8 @@ if (preg_match('~^/projects/africa-gates/?(.*)$~', $uri, $m)) {
 if (preg_match('~^/gate-pass/?$~', $uri)) { require __DIR__ . '/gate-pass.php'; return true; }
 // A shared quote of the week: /quote/week-N (quote.php).
 if (preg_match('~^/quote/week-([0-9]{1,2})/?$~', $uri, $m)) { $_GET['week'] = $m[1]; require __DIR__ . '/quote.php'; return true; }
+// The appeals feed Home reads (.htaccess: give/feed.json → give/feed.php?format=json).
+if ($uri === '/give/feed.json') { $_GET['format'] = 'json'; chdir(__DIR__ . '/give'); require __DIR__ . '/give/feed.php'; return true; }
 // A member card's QR: /q/AVQR-… — the holder's page (q.php).
 if (preg_match('~^/q/(AVQR-[A-Za-z0-9]+)/?$~i', $uri, $m)) { $_GET['c'] = $m[1]; require __DIR__ . '/q.php'; return true; }
 if (preg_match('~^/cacentre/?$~', $uri)) { require __DIR__ . '/cacentre.php'; return true; }
