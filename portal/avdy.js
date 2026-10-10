@@ -128,8 +128,8 @@
   }
 
   function loadFonts() {
-    if (document.getElementById('avdy-fonts')) return;
-    var l = document.createElement('link'); l.id = 'avdy-fonts'; l.rel = 'stylesheet'; l.href = FONT_CSS; document.head.appendChild(l);
+    if (document.getElementById('avnb-fonts')) return;
+    var l = document.createElement('link'); l.id = 'avnb-fonts'; l.rel = 'stylesheet'; l.href = FONT_CSS; document.head.appendChild(l);
   }
 
   /* ── Loading ───────────────────────────────────────────────────────── */
@@ -194,22 +194,22 @@
     var c = S.counts || {};
     var buckets = [['all', 'All entries', IC.all, c.all], ['pinned', 'Pinned', IC.pin, c.pinned], ['unfiled', 'Unfiled', IC.inbox, c.unfiled], ['archive', 'Archive', IC.archive, c.archived]];
     q('[data-dy-buckets]').innerHTML = buckets.map(function (b) {
-      return '<button type="button" class="avdy-li" data-dy-scope="' + b[0] + '"' + (S.scope === b[0] ? ' aria-current="true"' : '') + '>' + svg(b[2]) + '<span class="avdy-li-t">' + b[1] + '</span><span class="avdy-li-n av-num">' + (b[3] == null ? '' : b[3]) + '</span></button>';
+      return '<button type="button" class="avnb-li" data-dy-scope="' + b[0] + '"' + (S.scope === b[0] ? ' aria-current="true"' : '') + '>' + svg(b[2]) + '<span class="avnb-li-t">' + b[1] + '</span><span class="avnb-li-n av-num">' + (b[3] == null ? '' : b[3]) + '</span></button>';
     }).join('');
     var mine = S.nbs.filter(function (n) { return n.mine && !n.archived; });
     q('[data-dy-nbs]').innerHTML = mine.length ? mine.map(function (n) {
-      return '<button type="button" class="avdy-li" data-dy-scope="nb:' + n.id + '"' + (S.scope === 'nb:' + n.id ? ' aria-current="true"' : '') + '><span class="avdy-spine" data-c="' + esc(n.colour) + '"></span><span class="avdy-li-t">' + esc(n.name) + '</span>'
-        + (n.shared_link || n.members_n ? '<span class="avdy-li-shared" title="Shared">' + svg(IC.people) + '</span>' : '') + '<span class="avdy-li-n av-num">' + (n.entries || 0) + '</span></button>';
-    }).join('') : '<button type="button" class="avdy-startnb" data-dy-nbnew>Start a notebook</button>';
+      return '<button type="button" class="avnb-li" data-dy-scope="nb:' + n.id + '"' + (S.scope === 'nb:' + n.id ? ' aria-current="true"' : '') + '><span class="avnb-spine" data-c="' + esc(n.colour) + '"></span><span class="avnb-li-t">' + esc(n.name) + '</span>'
+        + (n.shared_link || n.members_n ? '<span class="avnb-li-shared" title="Shared">' + svg(IC.people) + '</span>' : '') + '<span class="avnb-li-n av-num">' + (n.entries || 0) + '</span></button>';
+    }).join('') : '<button type="button" class="avnb-startnb" data-dy-nbnew>Start a notebook</button>';
     var shared = S.nbs.filter(function (n) { return !n.mine; });
     var sh = shared.map(function (n) {
-      return '<button type="button" class="avdy-li" data-dy-scope="nb:' + n.id + '" title="Kept by ' + esc(n.owner_name) + (n.role === 'contributor' ? ' · you can add entries' : ' · read only') + '"' + (S.scope === 'nb:' + n.id ? ' aria-current="true"' : '') + '><span class="avdy-spine" data-c="' + esc(n.colour) + '"></span><span class="avdy-li-t">' + esc(n.name) + '</span><span class="avdy-li-o">' + esc(first(n.owner_name)) + '</span></button>';
+      return '<button type="button" class="avnb-li" data-dy-scope="nb:' + n.id + '" title="Kept by ' + esc(n.owner_name) + (n.role === 'contributor' ? ' · you can add entries' : ' · read only') + '"' + (S.scope === 'nb:' + n.id ? ' aria-current="true"' : '') + '><span class="avnb-spine" data-c="' + esc(n.colour) + '"></span><span class="avnb-li-t">' + esc(n.name) + '</span><span class="avnb-li-o">' + esc(first(n.owner_name)) + '</span></button>';
     }).join('');
-    if (S.shared.length) sh += '<button type="button" class="avdy-li" data-dy-scope="shared"' + (S.scope === 'shared' ? ' aria-current="true"' : '') + '>' + svg(IC.mail) + '<span class="avdy-li-t">Entries shared with you</span><span class="avdy-li-n av-num">' + S.shared.length + '</span></button>';
+    if (S.shared.length) sh += '<button type="button" class="avnb-li" data-dy-scope="shared"' + (S.scope === 'shared' ? ' aria-current="true"' : '') + '>' + svg(IC.mail) + '<span class="avnb-li-t">Entries shared with you</span><span class="avnb-li-n av-num">' + S.shared.length + '</span></button>';
     q('[data-dy-shared]').innerHTML = sh; q('[data-dy-sharedgrp]').hidden = !sh;
     var tg = (S.tags || []).slice(0, 8);
     q('[data-dy-tags]').innerHTML = tg.map(function (t) {
-      return '<button type="button" class="avdy-li avdy-li--tag" data-dy-scope="tag:' + esc(t.tag) + '"' + (S.scope === 'tag:' + t.tag ? ' aria-current="true"' : '') + '><span class="avdy-hash" aria-hidden="true">#</span><span class="avdy-li-t">' + esc(t.tag) + '</span><span class="avdy-li-n av-num">' + t.n + '</span></button>';
+      return '<button type="button" class="avnb-li avnb-li--tag" data-dy-scope="tag:' + esc(t.tag) + '"' + (S.scope === 'tag:' + t.tag ? ' aria-current="true"' : '') + '><span class="avnb-hash" aria-hidden="true">#</span><span class="avnb-li-t">' + esc(t.tag) + '</span><span class="avnb-li-n av-num">' + t.n + '</span></button>';
     }).join('');
     q('[data-dy-tagsgrp]').hidden = !tg.length;
   }
@@ -234,36 +234,36 @@
   function itemHtml(e) {
     var st = stInfo(e), nb = nbOf(e.notebook_id), showNb = nb && !curNb(), showSt = e.kind !== 'private';
     var meta = '';
-    if (e.pinned) meta += '<span class="avdy-m-pin" title="Pinned">' + svg(IC.pin) + '</span>';
-    if (showSt) meta += '<span class="avdy-m-st" data-tone="' + st[1] + '"><span class="avdy-dot"></span>' + (e.kind === 'event' && e.status === 'approved' ? 'Event' : st[0]) + '</span>';
-    if (showNb) meta += '<span class="avdy-m-nb"><span class="avdy-spine avdy-spine--xs" data-c="' + esc(nb.colour) + '"></span><span>' + esc(nb.name) + '</span></span>';
+    if (e.pinned) meta += '<span class="avnb-m-pin" title="Pinned">' + svg(IC.pin) + '</span>';
+    if (showSt) meta += '<span class="avnb-m-st" data-tone="' + st[1] + '"><span class="avnb-dot"></span>' + (e.kind === 'event' && e.status === 'approved' ? 'Event' : st[0]) + '</span>';
+    if (showNb) meta += '<span class="avnb-m-nb"><span class="avnb-spine avnb-spine--xs" data-c="' + esc(nb.colour) + '"></span><span>' + esc(nb.name) + '</span></span>';
     if ((e.tab_count || 1) > 1) meta += '<span>' + e.tab_count + ' tabs</span>';
     if (e.author) meta += '<span>' + esc(first(e.author)) + '</span>';
     var on = S.entry && S.entry.id === e.id;
-    return '<li><button type="button" class="avdy-item" data-dy-pick="' + e.id + '"' + (on ? ' aria-current="true"' : '') + '>'
-      + '<span class="avdy-item-top"><span class="avdy-item-t">' + esc(e.title || 'Untitled') + '</span><span class="avdy-item-d">' + esc(fmtShort(e.entry_date)) + '</span></span>'
-      + '<span class="avdy-item-s">' + esc(e.excerpt || text(e.body) || 'Empty entry') + '</span>'
-      + (meta ? '<span class="avdy-item-m">' + meta + '</span>' : '') + '</button></li>';
+    return '<li><button type="button" class="avnb-item" data-dy-pick="' + e.id + '"' + (on ? ' aria-current="true"' : '') + '>'
+      + '<span class="avnb-item-top"><span class="avnb-item-t">' + esc(e.title || 'Untitled') + '</span><span class="avnb-item-d">' + esc(fmtShort(e.entry_date)) + '</span></span>'
+      + '<span class="avnb-item-s">' + esc(e.excerpt || text(e.body) || 'Empty entry') + '</span>'
+      + (meta ? '<span class="avnb-item-m">' + meta + '</span>' : '') + '</button></li>';
   }
   function renderList() {
     var box = q('[data-dy-list]');
     box.setAttribute('aria-busy', S.loading ? 'true' : 'false');
-    if (S.loading) { box.innerHTML = '<div class="avdy-skel" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'; return; }
+    if (S.loading) { box.innerHTML = '<div class="avnb-skel" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'; return; }
     if (S.error) {
-      box.innerHTML = '<div class="avdy-empty" role="alert"><strong>Your entries could not load</strong><span>' + esc(S.error) + '</span><button type="button" class="avdy-btn" data-dy-retry>Try again</button></div>';
+      box.innerHTML = '<div class="avnb-empty" role="alert"><strong>Your entries could not load</strong><span>' + esc(S.error) + '</span><button type="button" class="avnb-btn" data-dy-retry>Try again</button></div>';
       return;
     }
     var rows = S.list, pins = rows.filter(function (e) { return e.pinned; }), rest = rows.filter(function (e) { return !e.pinned; });
     var html = '';
     if (pins.length && rest.length && S.scope !== 'pinned') {
-      html = '<p class="avdy-grp-l">Pinned</p><ul class="avdy-items">' + pins.map(itemHtml).join('') + '</ul><p class="avdy-grp-l">Entries</p><ul class="avdy-items">' + rest.map(itemHtml).join('') + '</ul>';
-    } else if (rows.length) html = '<ul class="avdy-items">' + rows.map(itemHtml).join('') + '</ul>';
+      html = '<p class="avnb-grp-l">Pinned</p><ul class="avnb-items">' + pins.map(itemHtml).join('') + '</ul><p class="avnb-grp-l">Entries</p><ul class="avnb-items">' + rest.map(itemHtml).join('') + '</ul>';
+    } else if (rows.length) html = '<ul class="avnb-items">' + rows.map(itemHtml).join('') + '</ul>';
     else {
       var nb = curNb(), m;
       if (S.q || S.kind !== 'all') m = ['No entries match', 'Try another word, or clear the filter.', false];
       else if (nb) m = nb.mine || nb.role === 'contributor' ? ['This notebook is empty', 'New entries you start here are filed in it.', true] : ['Nothing here yet', first(nb.owner_name) + ' hasn’t added anything.', false];
       else m = { pinned: ['Nothing pinned', 'Pin up to 8 entries to hold them at the top.', false], archive: ['Archive is empty', 'Archived entries rest here, out of the way.', false], shared: ['Nothing shared with you', 'When a member shares an entry with you, it appears here.', false] }[S.scope] || ['No entries yet', 'Your first one will appear here.', true];
-      html = '<div class="avdy-empty"><strong>' + m[0] + '</strong><span>' + m[1] + '</span>' + (m[2] ? '<button type="button" class="avdy-btn" data-dy-new>New entry</button>' : '') + '</div>';
+      html = '<div class="avnb-empty"><strong>' + m[0] + '</strong><span>' + m[1] + '</span>' + (m[2] ? '<button type="button" class="avnb-btn" data-dy-new>New entry</button>' : '') + '</div>';
     }
     box.innerHTML = html;
     var c = q('[data-dy-count]'); if (c) c.textContent = rows.length + (rows.length === 1 ? ' entry' : ' entries');
@@ -393,7 +393,7 @@
     var st = stInfo(E), stEl = q('[data-dy-st]');
     if (stEl) { stEl.hidden = E.kind === 'private'; stEl.setAttribute('data-tone', st[1]); q('[data-dy-stl]').textContent = st[0]; }
     var sb = statusBtn(E), b = q('[data-dy-submit]');
-    if (b) { b.hidden = !sb; if (sb) { b.textContent = sb[0]; b.setAttribute('data-dy-submit', sb[1]); b.classList.toggle('avdy-btn--ink', sb[2]); } }
+    if (b) { b.hidden = !sb; if (sb) { b.textContent = sb[0]; b.setAttribute('data-dy-submit', sb[1]); b.classList.toggle('avnb-btn--ink', sb[2]); } }
     var rv = q('[data-dy-review]'); if (rv) rv.outerHTML = reviewHtml(E);
   }
   /* After the first save the pin / share buttons become usable; repaint the bar only, so the caret stays put. */
@@ -404,8 +404,8 @@
     if (S.readOnly || E.kind === 'private' || E.status === 'rejected') return '<div data-dy-review hidden></div>';
     var idx = { draft: 0, pending: 2, approved: 3 }[E.status]; if (idx === undefined) idx = 0;
     var steps = ['Draft', 'Submitted', 'In review', 'Published'];
-    return '<div class="avdy-review" data-dy-review><span class="avdy-review-t">' + (E.kind === 'event' ? 'Events are reviewed before they join the Diary’s Events stream' : 'Public entries are reviewed before they join the Diary') + '</span>'
-      + '<ol class="avdy-steps">' + steps.map(function (t, i) { return '<li' + (i <= idx ? ' class="is-on' + (idx === 3 ? ' is-done' : '') + '"' : '') + '>' + t + '</li>'; }).join('') + '</ol></div>';
+    return '<div class="avnb-review" data-dy-review><span class="avnb-review-t">' + (E.kind === 'event' ? 'Events are reviewed before they join the Diary’s Events stream' : 'Public entries are reviewed before they join the Diary') + '</span>'
+      + '<ol class="avnb-steps">' + steps.map(function (t, i) { return '<li' + (i <= idx ? ' class="is-on' + (idx === 3 ? ' is-done' : '') + '"' : '') + '>' + t + '</li>'; }).join('') + '</ol></div>';
   }
   function renderEditor() {
     var doc = q('[data-dy-doc]'), pick = q('[data-dy-placeholder]'), E = S.entry;
@@ -413,43 +413,43 @@
     if (!E) { doc.hidden = true; pick.hidden = false; doc.innerHTML = ''; return; }
     pick.hidden = true; doc.hidden = false;
     var nb = nbOf(E.notebook_id), ed = !S.readOnly, tab = S.tabs[S.ti] || S.tabs[0], st = stInfo(E), sb = statusBtn(E), font = E.font || 'default';
-    var h = '<div class="avdy-bar">'
-      + '<button type="button" class="avdy-ico avdy-back" data-dy-back aria-label="All entries">‹</button>'
-      + '<button type="button" class="avdy-nbbtn" data-dy-menu="move"' + (ed ? ' aria-haspopup="true" aria-expanded="' + (S.menu === 'move') + '"' : '') + ' title="' + (ed ? 'Move to a notebook' : '') + '"><span class="avdy-spine avdy-spine--s" data-c="' + esc(nb ? nb.colour : 'none') + '"></span><span class="avdy-nbbtn-t">' + esc(nb ? nb.name : 'No notebook') + '</span>' + (ed ? svg(IC.chev) : '') + '</button>'
-      + '<span class="avdy-saved" data-dy-saved aria-live="polite">' + esc(savedText()) + '</span>'
-      + '<span class="avdy-bar-r">'
-      + '<span class="avdy-st" data-dy-st data-tone="' + st[1] + '"' + (E.kind === 'private' ? ' hidden' : '') + '><span class="avdy-dot"></span><span data-dy-stl>' + st[0] + '</span></span>'
-      + '<button type="button" class="avdy-btn avdy-btn--sm' + (sb && sb[2] ? ' avdy-btn--ink' : '') + '" data-dy-submit="' + (sb ? sb[1] : '') + '"' + (sb ? '' : ' hidden') + '>' + (sb ? sb[0] : '') + '</button>'
-      + (ed ? '<button type="button" class="avdy-ico' + (E.pinned ? ' is-pin' : '') + '" data-dy-pin aria-pressed="' + !!E.pinned + '" aria-label="' + (E.pinned ? 'Unpin' : 'Pin to top') + '" title="' + (E.pinned ? 'Unpin' : 'Pin to top') + '"' + (E.id ? '' : ' disabled') + '>' + svg(IC.pin) + '</button>'
-        + '<button type="button" class="avdy-ico" data-dy-menu="eshare" aria-haspopup="true" aria-expanded="' + (S.menu === 'eshare') + '" aria-label="Share this entry" title="Share this entry"' + (E.id ? '' : ' disabled') + '>' + svg(IC.link) + '</button>'
-        + '<button type="button" class="avdy-ico" data-dy-menu="more" aria-haspopup="true" aria-expanded="' + (S.menu === 'more' || S.menu === 'font') + '" aria-label="More" title="More">' + svg(IC.more) + '</button>'
-        : '<span class="avdy-ro">Read only</span>')
+    var h = '<div class="avnb-bar">'
+      + '<button type="button" class="avnb-ico avnb-back" data-dy-back aria-label="All entries">‹</button>'
+      + '<button type="button" class="avnb-nbbtn" data-dy-menu="move"' + (ed ? ' aria-haspopup="true" aria-expanded="' + (S.menu === 'move') + '"' : '') + ' title="' + (ed ? 'Move to a notebook' : '') + '"><span class="avnb-spine avnb-spine--s" data-c="' + esc(nb ? nb.colour : 'none') + '"></span><span class="avnb-nbbtn-t">' + esc(nb ? nb.name : 'No notebook') + '</span>' + (ed ? svg(IC.chev) : '') + '</button>'
+      + '<span class="avnb-saved" data-dy-saved aria-live="polite">' + esc(savedText()) + '</span>'
+      + '<span class="avnb-bar-r">'
+      + '<span class="avnb-st" data-dy-st data-tone="' + st[1] + '"' + (E.kind === 'private' ? ' hidden' : '') + '><span class="avnb-dot"></span><span data-dy-stl>' + st[0] + '</span></span>'
+      + '<button type="button" class="avnb-btn avnb-btn--sm' + (sb && sb[2] ? ' avnb-btn--ink' : '') + '" data-dy-submit="' + (sb ? sb[1] : '') + '"' + (sb ? '' : ' hidden') + '>' + (sb ? sb[0] : '') + '</button>'
+      + (ed ? '<button type="button" class="avnb-ico' + (E.pinned ? ' is-pin' : '') + '" data-dy-pin aria-pressed="' + !!E.pinned + '" aria-label="' + (E.pinned ? 'Unpin' : 'Pin to top') + '" title="' + (E.pinned ? 'Unpin' : 'Pin to top') + '"' + (E.id ? '' : ' disabled') + '>' + svg(IC.pin) + '</button>'
+        + '<button type="button" class="avnb-ico" data-dy-menu="eshare" aria-haspopup="true" aria-expanded="' + (S.menu === 'eshare') + '" aria-label="Share this entry" title="Share this entry"' + (E.id ? '' : ' disabled') + '>' + svg(IC.link) + '</button>'
+        + '<button type="button" class="avnb-ico" data-dy-menu="more" aria-haspopup="true" aria-expanded="' + (S.menu === 'more' || S.menu === 'font') + '" aria-label="More" title="More">' + svg(IC.more) + '</button>'
+        : '<span class="avnb-ro">Read only</span>')
       + '</span></div>'
-      + '<div class="avdy-menuhost" data-dy-menuhost></div>';
+      + '<div class="avnb-menuhost" data-dy-menuhost></div>';
     if (S.tabs.length > 1) {
-      h += '<div class="avdy-tabs" role="tablist" aria-label="Tabs in this entry">' + S.tabs.map(function (t, i) {
+      h += '<div class="avnb-tabs" role="tablist" aria-label="Tabs in this entry">' + S.tabs.map(function (t, i) {
         var on = i === S.ti;
-        if (on && ed) return '<div class="avdy-tab is-on" role="presentation"><input class="avdy-tab-in" data-dy-tabname value="' + esc(t.title) + '" maxlength="80" aria-label="Tab name" size="' + Math.max(5, (t.title || '').length + 1) + '">' + (i > 0 ? '<button type="button" class="avdy-tab-x" data-dy-tabdel aria-label="Remove tab" title="Remove tab">' + svg(IC.x) + '</button>' : '') + '</div>';
-        return '<div class="avdy-tab' + (on ? ' is-on' : '') + '" role="presentation"><button type="button" role="tab" aria-selected="' + on + '" data-dy-tab="' + i + '">' + esc(t.title) + '</button></div>';
-      }).join('') + (ed ? '<button type="button" class="avdy-ico avdy-ico--sm" data-dy-tabadd aria-label="Add tab" title="Add tab">' + svg(IC.plus) + '</button>' : '') + '</div>';
+        if (on && ed) return '<div class="avnb-tab is-on" role="presentation"><input class="avnb-tab-in" data-dy-tabname value="' + esc(t.title) + '" maxlength="80" aria-label="Tab name" size="' + Math.max(5, (t.title || '').length + 1) + '">' + (i > 0 ? '<button type="button" class="avnb-tab-x" data-dy-tabdel aria-label="Remove tab" title="Remove tab">' + svg(IC.x) + '</button>' : '') + '</div>';
+        return '<div class="avnb-tab' + (on ? ' is-on' : '') + '" role="presentation"><button type="button" role="tab" aria-selected="' + on + '" data-dy-tab="' + i + '">' + esc(t.title) + '</button></div>';
+      }).join('') + (ed ? '<button type="button" class="avnb-ico avnb-ico--sm" data-dy-tabadd aria-label="Add tab" title="Add tab">' + svg(IC.plus) + '</button>' : '') + '</div>';
     }
-    h += '<div class="avdy-page"><div class="avdy-paper">';
-    if (S.readOnly && S.roNote) h += '<p class="avdy-ronote">' + esc(S.roNote) + '</p>';
-    if (ed && E.kind !== 'private' && E.status === 'rejected' && E.review_note) h += '<div class="avdy-rejected" role="note"><strong>Not approved</strong><span>' + esc(E.review_note) + '</span></div>';
-    h += '<input class="avdy-title" data-dy-title value="' + esc(E.title) + '" placeholder="Untitled" aria-label="Entry title" maxlength="160"' + (ed ? '' : ' readonly') + '>';
-    h += '<div class="avdy-meta">'
-      + '<label class="avdy-date" title="' + (E.kind === 'event' ? 'When it happened — events can be backdated' : 'Entry date') + '"><span>' + esc(fmtLong(E.entry_date)) + '</span>' + (ed ? '<input type="date" data-dy-date value="' + esc(String(E.entry_date).slice(0, 10)) + '" max="' + TODAY + '" aria-label="Entry date">' : '') + '</label>'
-      + '<span class="avdy-vishost"><button type="button" class="avdy-vis" data-dy-menu="vis"' + (ed ? ' aria-haspopup="true" aria-expanded="' + (S.menu === 'vis') + '"' : ' disabled') + '>' + svg(KIND[E.kind][1]) + KIND[E.kind][0] + (ed ? svg(IC.chev) : '') + '</button><span data-dy-vismenu></span></span>'
-      + (E.tags || []).map(function (t) { return '<span class="avdy-tag">#' + esc(t) + (ed ? '<button type="button" data-dy-untag="' + esc(t) + '" aria-label="Remove tag ' + esc(t) + '">' + svg(IC.x) + '</button>' : '') + '</span>'; }).join('')
-      + (ed && (E.tags || []).length < MAX_TAGS ? '<input class="avdy-tagin" data-dy-tagin list="avdy-vocab" placeholder="Add tag" aria-label="Add a tag" maxlength="40"><datalist id="avdy-vocab">' + (S.tags || []).map(function (t) { return '<option value="' + esc(t.tag) + '">'; }).join('') + '</datalist>' : '')
+    h += '<div class="avnb-page"><div class="avnb-paper">';
+    if (S.readOnly && S.roNote) h += '<p class="avnb-ronote">' + esc(S.roNote) + '</p>';
+    if (ed && E.kind !== 'private' && E.status === 'rejected' && E.review_note) h += '<div class="avnb-rejected" role="note"><strong>Not approved</strong><span>' + esc(E.review_note) + '</span></div>';
+    h += '<input class="avnb-title" data-dy-title value="' + esc(E.title) + '" placeholder="Untitled" aria-label="Entry title" maxlength="160"' + (ed ? '' : ' readonly') + '>';
+    h += '<div class="avnb-meta">'
+      + '<label class="avnb-date" title="' + (E.kind === 'event' ? 'When it happened — events can be backdated' : 'Entry date') + '"><span>' + esc(fmtLong(E.entry_date)) + '</span>' + (ed ? '<input type="date" data-dy-date value="' + esc(String(E.entry_date).slice(0, 10)) + '" max="' + TODAY + '" aria-label="Entry date">' : '') + '</label>'
+      + '<span class="avnb-vishost"><button type="button" class="avnb-vis" data-dy-menu="vis"' + (ed ? ' aria-haspopup="true" aria-expanded="' + (S.menu === 'vis') + '"' : ' disabled') + '>' + svg(KIND[E.kind][1]) + KIND[E.kind][0] + (ed ? svg(IC.chev) : '') + '</button><span data-dy-vismenu></span></span>'
+      + (E.tags || []).map(function (t) { return '<span class="avnb-tag">#' + esc(t) + (ed ? '<button type="button" data-dy-untag="' + esc(t) + '" aria-label="Remove tag ' + esc(t) + '">' + svg(IC.x) + '</button>' : '') + '</span>'; }).join('')
+      + (ed && (E.tags || []).length < MAX_TAGS ? '<input class="avnb-tagin" data-dy-tagin list="avnb-vocab" placeholder="Add tag" aria-label="Add a tag" maxlength="40"><datalist id="avnb-vocab">' + (S.tags || []).map(function (t) { return '<option value="' + esc(t.tag) + '">'; }).join('') + '</datalist>' : '')
       + '</div>';
     if (ed && !text(tab.body)) {
-      h += '<div class="avdy-tpl"><span>Start from a template, or just write</span><div>' + TEMPLATES.map(function (t, i) { return '<button type="button" data-dy-tpl="' + i + '" title="' + esc(t[1]) + '">' + esc(t[0]) + '</button>'; }).join('') + '</div></div>';
+      h += '<div class="avnb-tpl"><span>Start from a template, or just write</span><div>' + TEMPLATES.map(function (t, i) { return '<button type="button" data-dy-tpl="' + i + '" title="' + esc(t[1]) + '">' + esc(t[0]) + '</button>'; }).join('') + '</div></div>';
     }
-    h += '<div class="avdy-body" data-dy-body data-font="' + esc(font) + '"' + (ed ? ' contenteditable="true" role="textbox" aria-multiline="true" aria-label="Entry text"' : '') + ' data-ph="Start writing…"></div>';
+    h += '<div class="avnb-body" data-dy-body data-font="' + esc(font) + '"' + (ed ? ' contenteditable="true" role="textbox" aria-multiline="true" aria-label="Entry text"' : '') + ' data-ph="Start writing…"></div>';
     h += reviewHtml(E);
     h += '</div></div>';
-    if (ed) h += '<div class="avdy-fmt" data-dy-fmt role="toolbar" aria-label="Formatting" hidden>' + TOOLS.map(function (t, i) { return '<button type="button" class="' + t[4] + '" data-dy-tool="' + i + '" aria-label="' + t[1] + '" title="' + t[1] + '">' + t[0] + '</button>'; }).join('') + '</div>';
+    if (ed) h += '<div class="avnb-fmt" data-dy-fmt role="toolbar" aria-label="Formatting" hidden>' + TOOLS.map(function (t, i) { return '<button type="button" class="' + t[4] + '" data-dy-tool="' + i + '" aria-label="' + t[1] + '" title="' + t[1] + '">' + t[0] + '</button>'; }).join('') + '</div>';
     doc.innerHTML = h;
     q('[data-dy-body]').innerHTML = tab.body || '';
     renderMenu();
@@ -466,8 +466,8 @@
       var opts = [{ id: 0, name: 'No notebook', sub: 'Keep it loose in your diary', c: 'none' }].concat(S.nbs.filter(function (n) { return (n.mine && !n.archived) || n.role === 'contributor'; }).map(function (n) {
         return { id: n.id, name: n.name, sub: n.mine ? (n.shared_link ? 'Shared by link — they’ll see it' : 'Yours') : n.owner_name + '’s · you can add', c: n.colour };
       }));
-      h = '<div class="avdy-menu avdy-menu--l" role="menu" aria-label="Move to notebook"><p class="avdy-menu-h">Move to notebook</p>' + opts.map(function (o) {
-        return '<button type="button" role="menuitemradio" aria-checked="' + ((E.notebook_id || 0) === o.id) + '" data-dy-move="' + o.id + '"><span class="avdy-spine avdy-spine--l" data-c="' + esc(o.c) + '"></span><span class="avdy-menu-2"><span>' + esc(o.name) + '</span><small>' + esc(o.sub) + '</small></span><span class="avdy-check">' + ((E.notebook_id || 0) === o.id ? '✓' : '') + '</span></button>';
+      h = '<div class="avnb-menu avnb-menu--l" role="menu" aria-label="Move to notebook"><p class="avnb-menu-h">Move to notebook</p>' + opts.map(function (o) {
+        return '<button type="button" role="menuitemradio" aria-checked="' + ((E.notebook_id || 0) === o.id) + '" data-dy-move="' + o.id + '"><span class="avnb-spine avnb-spine--l" data-c="' + esc(o.c) + '"></span><span class="avnb-menu-2"><span>' + esc(o.name) + '</span><small>' + esc(o.sub) + '</small></span><span class="avnb-check">' + ((E.notebook_id || 0) === o.id ? '✓' : '') + '</span></button>';
       }).join('') + '<hr><button type="button" role="menuitem" data-dy-nbnew data-dy-movenew>' + svg(IC.plus) + 'New notebook</button></div>';
     } else if (S.menu === 'more') {
       var fontName = (FONTS.filter(function (f) { return f[0] === (E.font || 'default'); })[0] || FONTS[0])[1];
@@ -479,38 +479,38 @@
         ['md', 'Export as Markdown', IC.down, ''],
         ['delete', S.delArm ? 'Click again to delete' : 'Delete', IC.trash, '']
       ];
-      h = '<div class="avdy-menu avdy-menu--r" role="menu" aria-label="More">' + items.map(function (it) {
+      h = '<div class="avnb-menu avnb-menu--r" role="menu" aria-label="More">' + items.map(function (it) {
         var dis = (it[0] === 'tabadd' && (!E.id || S.tabs.length >= MAX_TABS)) || ((it[0] === 'archive' || it[0] === 'md' || it[0] === 'delete') && !E.id && it[0] !== 'delete');
         return '<button type="button" role="menuitem" data-dy-more="' + it[0] + '"' + (it[0] === 'delete' ? ' class="is-red"' : '') + (dis ? ' disabled' : '') + '>' + svg(it[2]) + '<span>' + it[1] + '</span><small>' + esc(it[3]) + '</small></button>';
       }).join('') + '</div>';
     } else if (S.menu === 'font') {
       loadFonts();
-      h = '<div class="avdy-menu avdy-menu--r" role="menu" aria-label="Handwriting"><p class="avdy-menu-h">Handwriting — how your words look</p>' + FONTS.map(function (f) {
+      h = '<div class="avnb-menu avnb-menu--r" role="menu" aria-label="Handwriting"><p class="avnb-menu-h">Handwriting — how your words look</p>' + FONTS.map(function (f) {
         var on = (E.font || 'default') === f[0];
-        return '<button type="button" role="menuitemradio" aria-checked="' + on + '" data-dy-font="' + f[0] + '"><span class="avdy-fontname" data-font="' + f[0] + '">' + f[1] + '</span><span class="avdy-check">' + (on ? '✓' : '') + '</span></button>';
+        return '<button type="button" role="menuitemradio" aria-checked="' + on + '" data-dy-font="' + f[0] + '"><span class="avnb-fontname" data-font="' + f[0] + '">' + f[1] + '</span><span class="avnb-check">' + (on ? '✓' : '') + '</span></button>';
       }).join('') + '</div>';
     } else if (S.menu === 'eshare') {
-      h = '<div class="avdy-menu avdy-menu--r avdy-menu--pad" role="dialog" aria-label="Share this entry"><strong>Share this entry</strong>'
-        + '<span class="avdy-menu-p">Anyone with the link can read this one entry — not its notebook, and nothing else in your diary.</span>'
-        + (S.shareUrl ? '<div class="avdy-copyrow"><input readonly value="' + esc(S.shareUrl) + '" aria-label="Link to this entry"><button type="button" class="avdy-btn avdy-btn--ink avdy-btn--sm" data-dy-copy="e">' + (S.copied === 'e' ? 'Copied ✓' : 'Copy') + '</button></div><button type="button" class="avdy-linkoff" data-dy-elinkoff>Turn off link</button>'
-          : '<button type="button" class="avdy-btn avdy-btn--ink avdy-btn--sm avdy-self" data-dy-elink>Create link</button>')
-        + '<hr><strong class="avdy-menu-s">Share with a member</strong>'
-        + '<div class="avdy-copyrow"><input type="email" data-dy-pmail placeholder="Member’s email" aria-label="Member’s email"><button type="button" class="avdy-btn avdy-btn--sm" data-dy-padd>Share</button></div>'
-        + '<span class="avdy-menu-err" data-dy-perr role="alert"></span>'
-        + '<ul class="avdy-people">' + (S.people || []).map(function (p) { return '<li><span class="avdy-av" aria-hidden="true">' + esc(ini(p.name)) + '</span><span class="avdy-menu-2"><span>' + esc(p.name) + '</span><small>' + esc(p.email || '') + '</small></span><button type="button" class="avdy-ico avdy-ico--sm" data-dy-prm="' + p.id + '" aria-label="Stop sharing with ' + esc(p.name) + '">' + svg(IC.x) + '</button></li>'; }).join('') + '</ul></div>';
+      h = '<div class="avnb-menu avnb-menu--r avnb-menu--pad" role="dialog" aria-label="Share this entry"><strong>Share this entry</strong>'
+        + '<span class="avnb-menu-p">Anyone with the link can read this one entry — not its notebook, and nothing else in your diary.</span>'
+        + (S.shareUrl ? '<div class="avnb-copyrow"><input readonly value="' + esc(S.shareUrl) + '" aria-label="Link to this entry"><button type="button" class="avnb-btn avnb-btn--ink avnb-btn--sm" data-dy-copy="e">' + (S.copied === 'e' ? 'Copied ✓' : 'Copy') + '</button></div><button type="button" class="avnb-linkoff" data-dy-elinkoff>Turn off link</button>'
+          : '<button type="button" class="avnb-btn avnb-btn--ink avnb-btn--sm avnb-self" data-dy-elink>Create link</button>')
+        + '<hr><strong class="avnb-menu-s">Share with a member</strong>'
+        + '<div class="avnb-copyrow"><input type="email" data-dy-pmail placeholder="Member’s email" aria-label="Member’s email"><button type="button" class="avnb-btn avnb-btn--sm" data-dy-padd>Share</button></div>'
+        + '<span class="avnb-menu-err" data-dy-perr role="alert"></span>'
+        + '<ul class="avnb-people">' + (S.people || []).map(function (p) { return '<li><span class="avnb-av" aria-hidden="true">' + esc(ini(p.name)) + '</span><span class="avnb-menu-2"><span>' + esc(p.name) + '</span><small>' + esc(p.email || '') + '</small></span><button type="button" class="avnb-ico avnb-ico--sm" data-dy-prm="' + p.id + '" aria-label="Stop sharing with ' + esc(p.name) + '">' + svg(IC.x) + '</button></li>'; }).join('') + '</ul></div>';
     } else if (S.menu === 'vis' && vhost) {
       var nb = nbOf(E.notebook_id);
       var vis = [['private', 'Private', IC.lock, nb ? 'Only you, and the people this notebook is shared with.' : 'Only you can see it. It never leaves your diary.'],
         ['public', 'Public', IC.globe, 'Reviewed by the team, then published on the Diary.'],
         ['event', 'Event', IC.cal, 'A public happening for the Events stream. Reviewed first; can be backdated.']];
-      vhost.innerHTML = '<div class="avdy-menu avdy-menu--vis" role="menu" aria-label="Who can see this">' + vis.map(function (v) {
-        return '<button type="button" role="menuitemradio" aria-checked="' + (E.kind === v[0]) + '" data-dy-kindset="' + v[0] + '">' + svg(v[2]) + '<span class="avdy-menu-2"><span>' + v[1] + '</span><small>' + v[3] + '</small></span><span class="avdy-check">' + (E.kind === v[0] ? '✓' : '') + '</span></button>';
+      vhost.innerHTML = '<div class="avnb-menu avnb-menu--vis" role="menu" aria-label="Who can see this">' + vis.map(function (v) {
+        return '<button type="button" role="menuitemradio" aria-checked="' + (E.kind === v[0]) + '" data-dy-kindset="' + v[0] + '">' + svg(v[2]) + '<span class="avnb-menu-2"><span>' + v[1] + '</span><small>' + v[3] + '</small></span><span class="avnb-check">' + (E.kind === v[0] ? '✓' : '') + '</span></button>';
       }).join('') + '</div>';
       focusMenu(vhost); return;
     }
     host.innerHTML = h; focusMenu(host);
   }
-  function focusMenu(host) { var f = host.querySelector('.avdy-menu button:not([disabled]), .avdy-menu input'); if (f) setTimeout(function () { f.focus(); }, 0); }
+  function focusMenu(host) { var f = host.querySelector('.avnb-menu button:not([disabled]), .avnb-menu input'); if (f) setTimeout(function () { f.focus(); }, 0); }
   function openMenu(m, from) {
     if (S.readOnly) return;
     S.menu = S.menu === m ? null : m; S.menuFrom = from || null; S.delArm = false; S.copied = '';
@@ -535,29 +535,29 @@
     if (kind === 'nb') {
       var F = { id: nb ? nb.id : 0, name: nb ? nb.name : '', desc: nb ? nb.description : '', colour: nb ? nb.colour : 'green', moveId: moveId || 0 };
       m._F = F;
-      h = '<div class="avdy-dlg" role="dialog" aria-modal="true" aria-labelledby="avdy-dlg-h">'
-        + '<div class="avdy-dlg-h"><h3 id="avdy-dlg-h">' + (F.id ? 'Notebook settings' : 'New notebook') + '</h3><button type="button" class="avdy-ico avdy-ico--sm" data-dy-close aria-label="Close">' + svg(IC.x) + '</button></div>'
-        + '<div class="avdy-dlg-b">'
-        + '<div class="avdy-nbprev"><span class="avdy-spine avdy-spine--xl" data-dy-fspine data-c="' + esc(F.colour) + '"></span><span class="avdy-menu-2"><strong data-dy-fprev>' + esc(F.name || 'Untitled notebook') + '</strong><small>' + (F.id ? (nb.entries || 0) + ' entries' : 'New · only you') + '</small></span></div>'
-        + '<label class="avdy-fld">Name<input data-dy-fname value="' + esc(F.name) + '" placeholder="What is this notebook for?" maxlength="120"></label>'
-        + '<label class="avdy-fld">Description <small>Optional — shown to anyone you share it with</small><textarea data-dy-fdesc rows="2" maxlength="400">' + esc(F.desc) + '</textarea></label>'
-        + '<div class="avdy-fld" role="radiogroup" aria-label="Spine colour">Spine colour<div class="avdy-sw">' + ['ink', 'green', 'gold', 'clay', 'sky', 'plum'].map(function (c) { return '<button type="button" role="radio" aria-checked="' + (F.colour === c) + '" data-dy-sw="' + c + '" data-c="' + c + '" aria-label="' + c.charAt(0).toUpperCase() + c.slice(1) + '" title="' + c.charAt(0).toUpperCase() + c.slice(1) + '"></button>'; }).join('') + '</div></div>'
-        + '<p class="avdy-dlg-note">Notebooks don’t nest. Use tags for anything that cuts across them.</p>'
-        + '<p class="avdy-menu-err" data-dy-ferr role="alert"></p></div>'
-        + '<div class="avdy-dlg-f">' + (F.id ? '<button type="button" class="avdy-btn avdy-btn--sm" data-dy-nbarchive>Archive</button><button type="button" class="avdy-btn avdy-btn--sm avdy-btn--red" data-dy-nbdel title="Entries return to your diary — nothing is deleted but the notebook">Delete</button>' : '')
-        + '<span class="avdy-dlg-fr"><button type="button" class="avdy-btn avdy-btn--sm" data-dy-close>Cancel</button><button type="button" class="avdy-btn avdy-btn--sm avdy-btn--ink" data-dy-nbsave>' + (F.id ? 'Save' : 'Create notebook') + '</button></span></div></div>';
+      h = '<div class="avnb-dlg" role="dialog" aria-modal="true" aria-labelledby="avnb-dlg-h">'
+        + '<div class="avnb-dlg-h"><h3 id="avnb-dlg-h">' + (F.id ? 'Notebook settings' : 'New notebook') + '</h3><button type="button" class="avnb-ico avnb-ico--sm" data-dy-close aria-label="Close">' + svg(IC.x) + '</button></div>'
+        + '<div class="avnb-dlg-b">'
+        + '<div class="avnb-nbprev"><span class="avnb-spine avnb-spine--xl" data-dy-fspine data-c="' + esc(F.colour) + '"></span><span class="avnb-menu-2"><strong data-dy-fprev>' + esc(F.name || 'Untitled notebook') + '</strong><small>' + (F.id ? (nb.entries || 0) + ' entries' : 'New · only you') + '</small></span></div>'
+        + '<label class="avnb-fld">Name<input data-dy-fname value="' + esc(F.name) + '" placeholder="What is this notebook for?" maxlength="120"></label>'
+        + '<label class="avnb-fld">Description <small>Optional — shown to anyone you share it with</small><textarea data-dy-fdesc rows="2" maxlength="400">' + esc(F.desc) + '</textarea></label>'
+        + '<div class="avnb-fld" role="radiogroup" aria-label="Spine colour">Spine colour<div class="avnb-sw">' + ['ink', 'green', 'gold', 'clay', 'sky', 'plum'].map(function (c) { return '<button type="button" role="radio" aria-checked="' + (F.colour === c) + '" data-dy-sw="' + c + '" data-c="' + c + '" aria-label="' + c.charAt(0).toUpperCase() + c.slice(1) + '" title="' + c.charAt(0).toUpperCase() + c.slice(1) + '"></button>'; }).join('') + '</div></div>'
+        + '<p class="avnb-dlg-note">Notebooks don’t nest. Use tags for anything that cuts across them.</p>'
+        + '<p class="avnb-menu-err" data-dy-ferr role="alert"></p></div>'
+        + '<div class="avnb-dlg-f">' + (F.id ? '<button type="button" class="avnb-btn avnb-btn--sm" data-dy-nbarchive>Archive</button><button type="button" class="avnb-btn avnb-btn--sm avnb-btn--red" data-dy-nbdel title="Entries return to your diary — nothing is deleted but the notebook">Delete</button>' : '')
+        + '<span class="avnb-dlg-fr"><button type="button" class="avnb-btn avnb-btn--sm" data-dy-close>Cancel</button><button type="button" class="avnb-btn avnb-btn--sm avnb-btn--ink" data-dy-nbsave>' + (F.id ? 'Save' : 'Create notebook') + '</button></span></div></div>';
     } else {
       m._nb = nb;
-      h = '<div class="avdy-dlg avdy-dlg--w" role="dialog" aria-modal="true" aria-labelledby="avdy-dlg-h">'
-        + '<div class="avdy-dlg-h"><span class="avdy-spine avdy-spine--m" data-c="' + esc(nb.colour) + '"></span><h3 id="avdy-dlg-h">Share “' + esc(nb.name) + '”</h3><button type="button" class="avdy-ico avdy-ico--sm" data-dy-close aria-label="Close">' + svg(IC.x) + '</button></div>'
-        + '<div class="avdy-dlg-b">'
-        + '<div class="avdy-inv"><input type="email" data-dy-inv placeholder="Member’s email" aria-label="Member’s email"><select data-dy-invrole aria-label="Access"><option value="viewer">Can read</option><option value="contributor">Can add entries</option></select><button type="button" class="avdy-btn avdy-btn--sm avdy-btn--ink" data-dy-invite>Invite</button></div>'
-        + '<p class="avdy-menu-err" data-dy-inverr role="alert"></p>'
-        + '<p class="avdy-dlg-note">They’re told in the portal and by email. It appears in their diary under Shared with me.</p>'
-        + '<ul class="avdy-mem" data-dy-members><li><span class="avdy-av avdy-av--gold" aria-hidden="true">' + esc(ini(ME)) + '</span><span class="avdy-menu-2"><span>' + esc(ME) + ' (you)</span><small>' + esc(MY_EMAIL) + '</small></span><span class="avdy-mem-r">Owner</span></li><li class="avdy-mem-load">Loading who has access…</li></ul>'
-        + '<div class="avdy-linkbox"><div class="avdy-linkbox-h">' + svg(IC.link) + '<span class="avdy-menu-2"><span>Read-only link</span><small>For people without an account. Shows entries, never who else has access.</small></span>'
-        + '<button type="button" class="avdy-switch" role="switch" aria-checked="' + !!nb.shared_link + '" aria-label="Read-only link" data-dy-nblink><span></span></button></div><div data-dy-nblinkrow></div></div>'
-        + '<ul class="avdy-dlg-list"><li>Access follows the notebook, so it covers entries you add later.</li><li>Only you can rename, archive or delete this notebook.</li><li>A contributor’s entries stay theirs — only they can edit them.</li></ul>'
+      h = '<div class="avnb-dlg avnb-dlg--w" role="dialog" aria-modal="true" aria-labelledby="avnb-dlg-h">'
+        + '<div class="avnb-dlg-h"><span class="avnb-spine avnb-spine--m" data-c="' + esc(nb.colour) + '"></span><h3 id="avnb-dlg-h">Share “' + esc(nb.name) + '”</h3><button type="button" class="avnb-ico avnb-ico--sm" data-dy-close aria-label="Close">' + svg(IC.x) + '</button></div>'
+        + '<div class="avnb-dlg-b">'
+        + '<div class="avnb-inv"><input type="email" data-dy-inv placeholder="Member’s email" aria-label="Member’s email"><select data-dy-invrole aria-label="Access"><option value="viewer">Can read</option><option value="contributor">Can add entries</option></select><button type="button" class="avnb-btn avnb-btn--sm avnb-btn--ink" data-dy-invite>Invite</button></div>'
+        + '<p class="avnb-menu-err" data-dy-inverr role="alert"></p>'
+        + '<p class="avnb-dlg-note">They’re told in the portal and by email. It appears in their diary under Shared with me.</p>'
+        + '<ul class="avnb-mem" data-dy-members><li><span class="avnb-av avnb-av--gold" aria-hidden="true">' + esc(ini(ME)) + '</span><span class="avnb-menu-2"><span>' + esc(ME) + ' (you)</span><small>' + esc(MY_EMAIL) + '</small></span><span class="avnb-mem-r">Owner</span></li><li class="avnb-mem-load">Loading who has access…</li></ul>'
+        + '<div class="avnb-linkbox"><div class="avnb-linkbox-h">' + svg(IC.link) + '<span class="avnb-menu-2"><span>Read-only link</span><small>For people without an account. Shows entries, never who else has access.</small></span>'
+        + '<button type="button" class="avnb-switch" role="switch" aria-checked="' + !!nb.shared_link + '" aria-label="Read-only link" data-dy-nblink><span></span></button></div><div data-dy-nblinkrow></div></div>'
+        + '<ul class="avnb-dlg-list"><li>Access follows the notebook, so it covers entries you add later.</li><li>Only you can rename, archive or delete this notebook.</li><li>A contributor’s entries stay theirs — only they can edit them.</li></ul>'
         + '</div></div>';
     }
     m.innerHTML = h; m.hidden = false;
@@ -568,13 +568,13 @@
   function loadMembers(nb) {
     nbGet('members', { id: nb.id }).then(function (d) {
       var ul = q('[data-dy-members]'); if (!ul) return;
-      var load = ul.querySelector('.avdy-mem-load'); if (load) load.remove();
-      qa('.avdy-mem-x', ul).forEach(function (li) { li.remove(); });
-      if (!d.ok) { ul.insertAdjacentHTML('beforeend', '<li class="avdy-mem-load avdy-mem-x">' + esc(d.error || 'Could not load who has access.') + '</li>'); return; }
+      var load = ul.querySelector('.avnb-mem-load'); if (load) load.remove();
+      qa('.avnb-mem-x', ul).forEach(function (li) { li.remove(); });
+      if (!d.ok) { ul.insertAdjacentHTML('beforeend', '<li class="avnb-mem-load avnb-mem-x">' + esc(d.error || 'Could not load who has access.') + '</li>'); return; }
       (d.members || []).forEach(function (p) {
-        ul.insertAdjacentHTML('beforeend', '<li class="avdy-mem-x"><span class="avdy-av" aria-hidden="true">' + esc(ini(p.name)) + '</span><span class="avdy-menu-2"><span>' + esc(p.name) + '</span><small>' + esc(p.email) + '</small></span>'
+        ul.insertAdjacentHTML('beforeend', '<li class="avnb-mem-x"><span class="avnb-av" aria-hidden="true">' + esc(ini(p.name)) + '</span><span class="avnb-menu-2"><span>' + esc(p.name) + '</span><small>' + esc(p.email) + '</small></span>'
           + '<select data-dy-mrole="' + p.id + '" data-email="' + esc(p.email) + '" aria-label="Access for ' + esc(p.name) + '"><option value="viewer"' + (p.role === 'viewer' ? ' selected' : '') + '>Can read</option><option value="contributor"' + (p.role === 'contributor' ? ' selected' : '') + '>Can add entries</option></select>'
-          + '<button type="button" class="avdy-ico avdy-ico--sm" data-dy-munshare="' + p.id + '" aria-label="Remove ' + esc(p.name) + '’s access">' + svg(IC.x) + '</button></li>');
+          + '<button type="button" class="avnb-ico avnb-ico--sm" data-dy-munshare="' + p.id + '" aria-label="Remove ' + esc(p.name) + '’s access">' + svg(IC.x) + '</button></li>');
       });
     });
   }
@@ -582,9 +582,9 @@
     var row = q('[data-dy-nblinkrow]'); if (!row) return;
     if (!on) { row.innerHTML = ''; return; }
     nbPost('link', { id: nb.id }).then(function (d) {
-      if (!d.ok) { row.innerHTML = '<p class="avdy-menu-err">' + esc(d.error || 'The link could not be made.') + '</p>'; return; }
+      if (!d.ok) { row.innerHTML = '<p class="avnb-menu-err">' + esc(d.error || 'The link could not be made.') + '</p>'; return; }
       nb.shared_link = true;
-      row.innerHTML = '<div class="avdy-copyrow"><input readonly value="' + esc(d.url) + '" aria-label="Notebook link"><button type="button" class="avdy-btn avdy-btn--sm" data-dy-copy="nb" data-url="' + esc(d.url) + '">Copy</button></div>';
+      row.innerHTML = '<div class="avnb-copyrow"><input readonly value="' + esc(d.url) + '" aria-label="Notebook link"><button type="button" class="avnb-btn avnb-btn--sm" data-dy-copy="nb" data-url="' + esc(d.url) + '">Copy</button></div>';
     });
   }
 
@@ -603,9 +603,9 @@
 
   /* ── Events ────────────────────────────────────────────────────────── */
   root.addEventListener('click', function (ev) {
-    var t = ev.target.closest('button, a, [data-dy-libscrim]'); if (!t || !root.contains(t)) { if (S.menu && !ev.target.closest('.avdy-menu')) closeMenu(false); return; }
+    var t = ev.target.closest('button, a, [data-dy-libscrim]'); if (!t || !root.contains(t)) { if (S.menu && !ev.target.closest('.avnb-menu')) closeMenu(false); return; }
     var E = S.entry, a;
-    if (S.menu && !t.closest('.avdy-menu') && !t.hasAttribute('data-dy-menu')) closeMenu(false);
+    if (S.menu && !t.closest('.avnb-menu') && !t.hasAttribute('data-dy-menu')) closeMenu(false);
     if (t.hasAttribute('data-dy-libscrim')) return closeLib();
     if (t.hasAttribute('data-dy-new')) return newEntry();
     if ((a = t.getAttribute('data-dy-scope')) !== null) return go(a);
@@ -780,12 +780,12 @@
     var t = ev.target, E = S.entry; if (!E) return;
     if (t.hasAttribute('data-dy-q')) { clearTimeout(t._qt); t._qt = setTimeout(function () { S.q = t.value.trim(); flushNow().then(function () { loadList(true); }); }, 280); return; }
     if (S.readOnly) return;
-    if (t.hasAttribute('data-dy-title')) { E.title = t.value; touch('title'); var it = q('[data-dy-pick="' + E.id + '"] .avdy-item-t'); if (it) it.textContent = E.title || 'Untitled'; return; }
+    if (t.hasAttribute('data-dy-title')) { E.title = t.value; touch('title'); var it = q('[data-dy-pick="' + E.id + '"] .avnb-item-t'); if (it) it.textContent = E.title || 'Untitled'; return; }
     if (t.hasAttribute('data-dy-body')) {
       var html = t.innerHTML; if (text(html) === '' && !/<(li|img)/i.test(html)) html = '';
       S.tabs[S.ti].body = html;
       if (S.ti === 0) touch('body'); else { S.tabs[S.ti]._dirty = true; touch('tabs'); }
-      var tpl = q('.avdy-tpl'); if (tpl && text(html)) tpl.remove();
+      var tpl = q('.avnb-tpl'); if (tpl && text(html)) tpl.remove();
       return;
     }
     if (t.hasAttribute('data-dy-tabname')) { S.tabs[S.ti].title = t.value; S.tabs[S.ti]._titleDirty = true; t.size = Math.max(5, t.value.length + 1); touch('tabTitles'); return; }
@@ -805,7 +805,7 @@
       return;
     }
     if (S.menu && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')) {
-      var items = qa('.avdy-menu button:not([disabled])'); var i = items.indexOf(document.activeElement);
+      var items = qa('.avnb-menu button:not([disabled])'); var i = items.indexOf(document.activeElement);
       if (items.length) { ev.preventDefault(); items[(i + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
       return;
     }

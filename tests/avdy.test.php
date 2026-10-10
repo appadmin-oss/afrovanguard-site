@@ -32,10 +32,10 @@ ck('avdy: a legacy create without the flag still goes to review', $dyJ->create(1
 
 /* Tabs are sanitised */
 $dyT = new DiaryTabs();
-$dyTab = $dyT->add(1, $dyId, 'Two', '<p>ok</p><script>alert(1)</script>');
+$dyTab = $dyT->add(1, $dyId, 'Two', '<p>ok</p><script>evil()</script>');
 $dyAll = $dyT->all($dyId);
 ck('avdy: an added tab body is sanitised', $dyTab['ok'] && !str_contains($dyAll[1]['body'], '<script'));
-$dyT->save(1, $dyId, (int) $dyTab['id'], null, '<p onclick="x()">hi</p><img src=x onerror=alert(1)>');
+$dyT->save(1, $dyId, (int) $dyTab['id'], null, '<p onclick="x()">hi</p><img src=x onerror=evil()>');
 $dyAll = $dyT->all($dyId);
 ck('avdy: a saved tab body is sanitised', !str_contains($dyAll[1]['body'], 'onclick') && !str_contains($dyAll[1]['body'], 'onerror'));
 $dyT->save(1, $dyId, 0, null, '<p>first</p><script>bad()</script>');
