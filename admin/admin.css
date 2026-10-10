@@ -148,8 +148,8 @@ body.studio-authed .studio-side { display: block; }
 .sum-mail { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .sum-mail .pill { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
   border-radius: var(--radius-full); padding: 4px 10px; }
-.sum-mail .pill-ok { background: rgba(46,138,87,.13); color: #2e8a57; }
-.sum-mail .pill-warn { background: rgba(224,161,6,.15); color: #b9770a; }
+.sum-mail .pill-ok { background: rgba(46,138,87,.13); color: var(--st-ok); }
+.sum-mail .pill-warn { background: rgba(224,161,6,.15); color: var(--st-warn); }
 .sum-when { text-align: right; }
 @media (max-width: 760px) {
   .sum-row { grid-template-columns: 1fr auto; }
@@ -357,14 +357,14 @@ body.studio-authed .studio-side { display: block; }
 .db-table tfoot td { font-weight: 700; border-bottom: none; }
 .db-table .db-n { text-align: right; font-variant-numeric: tabular-nums; }
 .db-ok { color: #1a7f37; font-weight: 700; }
-.db-bad { color: #d22; font-weight: 700; }
+.db-bad { color: var(--st-err); font-weight: 700; }
 .db-form .db-row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 560px) { .db-form .db-row3 { grid-template-columns: 1fr; } }
 .db-opts { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
 .db-msg { font-size: 13px; margin: 10px 0 0; min-height: 1em; }
 .db-result { margin-top: 22px; }
 .db-note-ok { color: #1a7f37; font-weight: 600; margin: 0 0 8px; }
-.db-note-bad { color: #d22; font-weight: 600; margin: 0 0 8px; }
+.db-note-bad { color: var(--st-err); font-weight: 600; margin: 0 0 8px; }
 .db-env, .db-log { background: var(--surface-2); border: 1px solid var(--divider); border-radius: var(--radius-sm); padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
 .db-env { color: var(--ink); }
 .db-log { color: var(--muted); max-height: 280px; overflow-y: auto; }
@@ -377,12 +377,15 @@ body.studio-authed .studio-side { display: block; }
 .cel-pv-txt { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .cel-pv-txt strong { font-size: 14px; font-weight: 800; }
 .cel-pv-txt span { font-size: 12.5px; opacity: .92; }
-.cel-pv-off { font-size: 12px; color: #d22; margin: 8px 0 0; }
+.cel-pv-off { font-size: 12px; color: var(--st-err); margin: 8px 0 0; }
 
 /* ── Design studio (brand) preview ── */
 .brand-pv-swatches { display: flex; gap: 10px; margin-bottom: 16px; }
 .brand-pv-swatches span { flex: 1; border-radius: var(--radius-sm); padding: 16px 10px; text-align: center; font-size: 12px; font-weight: 700; color: #1a1205; line-height: 1.5; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
 .brand-pv-demo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+/* The public pages are light: preview the brand on paper in either Studio theme, so the
+   sample link shows the contrast visitors will actually get. */
+.brand-pv-demo { background: #fff; color: #111827; padding: 14px; border-radius: var(--radius-sm); }
 .bpv-btn { border: none; border-radius: var(--radius-full, 999px); padding: 9px 18px; font-weight: 700; font-size: 13px; color: #1a1205; cursor: default; }
 .bpv-badge { border-radius: var(--radius-full, 999px); padding: 4px 12px; font-size: 12px; font-weight: 700; color: #1a1205; }
 .bpv-avatar { width: 40px; height: 40px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 800; color: #1a1205; }
@@ -471,7 +474,7 @@ body.studio-authed .studio-side { display: block; }
 .lab-steps { margin-top: 14px; }
 .lab-steps h4 { font-size: 11.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
 .lab-step { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-left: 3px solid var(--gold, #f3b416); background: var(--surface); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 6px; font-size: 12px; }
-.lab-step.is-bad { border-left-color: #d22; }
+.lab-step.is-bad { border-left-color: var(--st-err); }
 .lab-step code { font-weight: 700; }
 .lab-args { color: var(--muted); font-family: ui-monospace, monospace; font-size: 11.5px; }
 .lab-prev { color: var(--muted); flex: 1 1 100%; font-size: 11.5px; line-height: 1.5; }
@@ -491,7 +494,7 @@ body.studio-authed .studio-side { display: block; }
 .prop-kind { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #1a1205; background: var(--gold, #f3b416); border-radius: 999px; padding: 3px 10px; }
 .prop-status { margin-left: auto; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--divider); border-radius: 999px; padding: 3px 9px; color: var(--muted); }
 .prop-applied { color: #16a34a; border-color: rgba(22,163,74,.4); }
-.prop-rejected { color: #d22; border-color: rgba(210,34,34,.4); }
+.prop-rejected { color: var(--st-err); border-color: rgba(210,34,34,.4); }
 .prop-body { font-size: 13.5px; line-height: 1.6; }
 .prop-body pre { margin: 8px 0 0; padding: 12px; border-radius: var(--radius-sm); background: var(--bg); border: 1px solid var(--divider); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow-y: auto; }
 .prop-why { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider); font-size: 13px; line-height: 1.6; color: var(--body); }
@@ -500,13 +503,13 @@ body.studio-authed .studio-side { display: block; }
 
 /* ── Setup: connecting the AI without editing a file on the server ── */
 .setup-warn { margin: 14px 0 18px; padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid rgba(210,34,34,.35); background: rgba(210,34,34,.07); font-size: 13px; line-height: 1.6; }
-.setup-warn strong { display: block; color: #d22; margin-bottom: 4px; }
+.setup-warn strong { display: block; color: var(--st-err); margin-bottom: 4px; }
 .setup-warn p { margin: 0; }
 
 .setup-tests { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 22px; padding: 12px 14px; border: 1px solid var(--divider); border-radius: var(--radius-md); background: var(--surface); }
 .setup-test-out { font-size: 12px; color: var(--muted); margin-right: 8px; }
 .setup-test-out.is-ok { color: #16a34a; font-weight: 600; }
-.setup-test-out.is-bad { color: #d22; font-weight: 600; }
+.setup-test-out.is-bad { color: var(--st-err); font-weight: 600; }
 
 .setup-group { margin-bottom: 30px; }
 .setup-group h3 { font-family: var(--font-body); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--divider); }
@@ -744,3 +747,20 @@ body.studio-authed .studio-side { display: block; }
    a native <dialog> opened with showModal(): it lives in the top layer, above
    all of these, and says its own messages inside it. */
 .toast { z-index: 2000; }
+
+/* Status text colours, one per theme. The Studio wrote #2ea043 / #e0a106 / #d22 inline:
+   green and amber failed on white (3.1:1, 2.1:1) and red failed on the dark theme (3.9:1).
+   Every status message and dot now uses these, so both themes clear 4.5:1. */
+:root { --st-ok: #1E7A45; --st-warn: #8A6406; --st-err: #B0361C; --st-info: #5F636D; }
+:root[data-theme="dark"] { --st-ok: #4ADE80; --st-warn: #F3C34A; --st-err: #F87171; --st-info: #9A9DA4; }
+
+/* The top bar is dark in both themes. Its outline buttons took --ink, which is the
+   dark ink in the light theme: "View site" and "Log out" read at 1.2:1. */
+.studio-actions .btn-outline { color: #fff; border-color: rgba(255,255,255,.35); }
+.studio-actions .btn-outline:hover { border-color: #fff; }
+
+/* Gold text: the shared --gold-deep (#b07e08) is 3.6:1 on white. The Studio uses the
+   handoff's gold for text, and the light gold on the dark theme. */
+body.studio { --gold-deep: var(--av-gold-text); }
+:root[data-theme="dark"] body.studio { --gold-deep: var(--av-dk-gold-text); }
+.bpv-warn { margin: 10px 0 0; font-size: 13px; color: var(--st-err); }

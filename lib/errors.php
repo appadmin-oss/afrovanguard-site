@@ -80,7 +80,7 @@ a{color:inherit;text-decoration:none}
 .err-illo .fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:rgba(255,255,255,.92)}
 .err-illo .fallback .big{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(72px,14vw,128px);line-height:.9}
 .err-illo .fallback .lbl{font-weight:800;letter-spacing:.18em;text-transform:uppercase;font-size:12px;opacity:.9}
-.err-code{font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-size:13px;margin-bottom:14px}
+.err-code{font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:color-mix(in srgb,var(--accent) 55%,var(--ink));font-size:13px;margin-bottom:14px}
 .err-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(40px,7vw,72px);line-height:1.02;margin:0 0 16px}
 .err-msg{color:var(--muted);font-size:clamp(16px,1.6vw,19px);line-height:1.6;max-width:46ch;margin:0 0 24px}
 .err-poem{margin:0 0 28px;padding:2px 0 2px 18px;border-left:2px solid var(--accent);max-width:46ch}

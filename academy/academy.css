@@ -22,6 +22,7 @@ body.academy {
   --bg: #0A0F1A; --bg-warm: #0E1421; --surface: #121826; --surface-2: #1A2130;
   --ink: #F4F6FA; --ink-2: #F4F6FA; --body: #C5CAD4; --muted: #97A0AE; --divider: #232B3A;
   --footer-bg: #060A12; --link: #f3b416; --card-shadow: 0 24px 60px rgba(0,0,0,0.55);
+  --gold-deep: #f3c34a;   /* the light block's #8f6606 is 3.4:1 on these surfaces */
   --hero-tint: radial-gradient(1200px 520px at 12% -10%, rgba(243,180,22,0.10), transparent 60%),
                linear-gradient(180deg, #0E1421 0%, #0A0F1A 80%);
 }
@@ -42,7 +43,7 @@ body.academy .nav-links a:hover, body.academy .nav-links a[aria-current="page"] 
 body.academy .breadcrumb { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 600; color: var(--muted); margin: 0 0 22px; flex-wrap: wrap; }
 body.academy .breadcrumb a { color: var(--muted); }
 body.academy .breadcrumb a:hover { color: var(--gold-deep); }
-body.academy .breadcrumb .sep { color: var(--divider); font-weight: 700; }
+body.academy .breadcrumb .sep { color: var(--muted); font-weight: 700; }
 body.academy .breadcrumb [aria-current="page"] { color: var(--ink); }
 
 /* ── Eyebrow ──────────────────────────────────────────────────── */
@@ -85,7 +86,7 @@ body.academy .ac-hero h1 {
 .ac-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
 .ac-filters .chip { font-size: 13px; font-weight: 700; padding: 9px 18px; border-radius: var(--radius-full); border: 1px solid var(--divider); background: var(--surface); color: var(--body); cursor: pointer; transition: all var(--t-fast); }
 .ac-filters .chip:hover { border-color: var(--ink); color: var(--ink); }
-.ac-filters .chip.active { background: var(--ink-2); color: #fff; border-color: var(--ink-2); }
+.ac-filters .chip.active { background: var(--ink-2); color: var(--bg); border-color: var(--ink-2); }
 
 /* ============================================================ COURSE GRID + CARDS */
 .ac-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; padding: 28px 0 56px; }
@@ -117,6 +118,7 @@ body.academy .ac-hero h1 {
 /* green-600 (#16a34a) is 3.30:1 on white — fine for a large figure, but
    this is a 14px price, so it needs the 4.5 floor. green-700 is 5.02. */
 .ac-price-open, .ac-price-tracked { color: #15803d; }
+[data-theme="dark"] .ac-price-open, [data-theme="dark"] .ac-price-tracked { color: #34d399; }
 .ac-price-membership { color: var(--gold-deep); }
 .ac-price-paid { color: var(--ink); }
 .ac-price-restricted { color: #b45309; display: inline-flex; align-items: center; gap: 4px; }
@@ -526,7 +528,8 @@ body.academy .course-hero h1 { color: var(--ink); font-family: var(--font-headin
 /* ── NextGen Vanguard promo band (catalogue → programme cross-link) ────── */
 .ngv-promo{display:block;text-decoration:none;margin:22px 0 6px;color:#fff}
 .ngv-promo-inner{display:flex;align-items:center;gap:20px;flex-wrap:wrap;
-  background:linear-gradient(120deg,#ec1c24 0%,#ff6a00 55%,#ffc300 100%);
+  /* deep enough for the white text on it at every point (was #ec1c24→#ffc300: 1.6:1 at the gold end) */
+  background:linear-gradient(120deg,#b91c1c 0%,#c2410c 55%,#a16207 100%);
   border-radius:20px;padding:22px clamp(20px,3vw,32px);box-shadow:0 18px 40px -22px rgba(236,28,36,.6)}
 .ngv-promo-copy{flex:1;min-width:260px;display:grid;gap:4px}
 .ngv-promo-tag{font-weight:700;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;opacity:.92}

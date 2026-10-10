@@ -14,7 +14,7 @@
      gold-soft opacity) intentionally stay literal. */
   --gold:        var(--afg-gold, #f3b416);
   --gold-dark:   #d49a0e;
-  --gold-deep:   var(--afg-gold-deep, #b07e08);
+  --gold-deep:   var(--afg-gold-ink, #8f6606);   /* small gold text: gold-deep (#b07e08) is 3.6:1, large text only */
   --gold-soft:   rgba(243,180,22,0.10);
 
   /* themable surface tokens (LIGHT) — from --afg-* (which flip by data-theme) */
@@ -30,7 +30,7 @@
   --nav-bg-solid:rgba(17,24,39,0.98);
   --nav-text:    rgba(255,255,255,0.85);
   --footer-bg:   #0A0F1A;
-  --link:        var(--afg-accent-ink, #b07e08);
+  --link:        var(--afg-accent-ink, #8f6606);
   --code-bg:     #F4F2EC;
   --card-shadow: 0 24px 60px rgba(17,24,39,0.14);
   --focus:       var(--afg-focus, #1D4ED8);
@@ -136,7 +136,7 @@ img { max-width: 100%; }
 .article-wrap { padding: 48px 0 24px; }
 .breadcrumb { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 28px; }
 .breadcrumb a { color: var(--muted); } .breadcrumb a:hover { color: var(--gold-deep); }
-.breadcrumb .sep { color: var(--divider); }
+.breadcrumb .sep { color: var(--muted); }
 .article-title { font-size: clamp(38px, 6vw, 76px); line-height: 1.02; font-weight: 700; letter-spacing: -0.01em; max-width: 16ch; margin-bottom: 36px; }
 .article-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 22px 0; border-top: 1px dashed var(--divider); border-bottom: 1px dashed var(--divider); max-width: 760px; }
 .meta-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }

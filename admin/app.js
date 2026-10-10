@@ -52,6 +52,13 @@
   function toast(m) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(function () { toastEl.classList.remove('show'); }, 2600); }
   // Covers the single quote too: several render sites put a value inside a
   // single-quoted CSS url('…'), which a bare ' closes.
+  /* Black or white, whichever reads better on a colour the operator picked (WCAG luminance). */
+  function inkOn(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return 'inherit';
+    var v = parseInt(m[1], 16), ch = [v >> 16 & 255, v >> 8 & 255, v & 255].map(function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+    var L = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    return (L + 0.05) / 0.05 >= 1.05 / (L + 0.05) ? 'rgb(17,24,39)' : 'rgb(255,255,255)';
+  }
   function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function stripTags(s) { var d = document.createElement('div'); d.innerHTML = s; return d.textContent || ''; }
 
@@ -1484,7 +1491,7 @@
       post('mentorship_assign', { mentor_id: mtPick.mentor.id, mentee_id: mtPick.mentee.id, cohort_id: parseInt($('#mtCohort').value, 10) || 0, programme: $('#mtProgramme').value.trim() }).then(function (r) {
         var d = r.data || {};
         if (d.ok) { toast('Pairing created.'); $('#mtAssign').hidden = true; mtPick = { mentor: null, mentee: null }; $('#mtMentorSearch').value = ''; $('#mtMenteeSearch').value = ''; $('#mtProgramme').value = ''; loadMentorship(); }
-        else { $('#mtAssignMsg').textContent = d.error || 'Could not assign.'; $('#mtAssignMsg').style.color = '#d22'; btn.disabled = false; }
+        else { $('#mtAssignMsg').textContent = d.error || 'Could not assign.'; $('#mtAssignMsg').style.color = 'var(--st-err)'; btn.disabled = false; }
       });
     });
     // delegated actions across the panels
@@ -1609,10 +1616,10 @@
     var view = $('#adminsView'); if (!view) return;
     $('#adAdd').addEventListener('click', function () {
       var email = $('#adEmail').value.trim(), role = $('#adRole').value, msg = $('#adMsg'), btn = this;
-      if (!email) { msg.textContent = 'Enter an email.'; msg.style.color = '#d22'; return; }
+      if (!email) { msg.textContent = 'Enter an email.'; msg.style.color = 'var(--st-err)'; return; }
       btn.disabled = true;
       post('admin_add', { email: email, role: role }).then(function (r) {
-        var d = r.data || {}; msg.style.color = d.ok ? '#2ea043' : '#d22';
+        var d = r.data || {}; msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
         msg.textContent = d.ok ? ('Granted ' + role + ' access to ' + email + '.') : (d.error || 'Could not grant access.');
         if (d.ok) { $('#adEmail').value = ''; loadAdmins(); }
       }).finally(function () { btn.disabled = false; });
@@ -2508,7 +2515,7 @@
   (function wireDatabase() {
     var view = $('#databaseView'); if (!view) return;
     var msg = $('#dbMsg');
-    function setMsg(t, kind) { msg.textContent = t || ''; msg.style.color = kind === 'err' ? '#d22' : (kind === 'ok' ? '#2ea043' : ''); }
+    function setMsg(t, kind) { msg.textContent = t || ''; msg.style.color = kind === 'err' ? 'var(--st-err)' : (kind === 'ok' ? 'var(--st-ok)' : ''); }
     function params() {
       return { driver: $('#db_driver').value, host: $('#db_host').value.trim(), port: $('#db_port').value.trim(),
         name: $('#db_name').value.trim(), user: $('#db_user').value.trim(), pass: $('#db_pass').value,
@@ -2585,20 +2592,27 @@
     var box = $('#brandPreview'); if (!box) return;
     var a = $('#br_accent').value, d = $('#br_deep').value;
     box.innerHTML =
-      '<div class="brand-pv-swatches"><span style="background:' + a + '">Accent<br>' + escapeHtml(a) + '</span>'
-      + '<span style="background:' + d + ';color:#fff">Deep<br>' + escapeHtml(d) + '</span></div>'
+      '<div class="brand-pv-swatches"><span style="background:' + a + ';color:' + inkOn(a) + '">Accent<br>' + escapeHtml(a) + '</span>'
+      + '<span style="background:' + d + ';color:' + inkOn(d) + '">Deep<br>' + escapeHtml(d) + '</span></div>'
       + '<div class="brand-pv-demo">'
       + '<button class="bpv-btn" style="background:' + a + '">Primary button</button>'
       + '<span class="bpv-badge" style="background:' + a + '">Badge</span>'
       + '<span class="bpv-avatar" style="background:linear-gradient(135deg,' + a + ',' + d + ')">A</span>'
       + '<a class="bpv-link" style="color:' + d + '" href="#" onclick="return false">A sample link →</a>'
-      + '</div>';
+      + '</div>'
+      + (contrastOnWhite(d) < 4.5 ? '<p class="bpv-warn">“Deep” is the colour links and small gold labels are written in. At '
+         + contrastOnWhite(d).toFixed(1) + ':1 on white it is too light to read; choose a darker one (4.5:1 or more).</p>' : '');
+  }
+  function contrastOnWhite(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return 21;
+    var v = parseInt(m[1], 16), ch = [v >> 16 & 255, v >> 8 & 255, v & 255].map(function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+    return 1.05 / (0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2] + 0.05);
   }
   function loadDesign() {
     api('brand_get').then(function (r) {
       var d = r.data || {}; var b = d.brand || d.defaults || {};
       $('#br_accent').value = /^#[0-9a-f]{6}$/i.test(b.accent) ? b.accent : '#f3b416';
-      $('#br_deep').value = /^#[0-9a-f]{6}$/i.test(b.accent_deep) ? b.accent_deep : '#b07e08';
+      $('#br_deep').value = /^#[0-9a-f]{6}$/i.test(b.accent_deep) ? b.accent_deep : '#8f6606';
       renderBrandPreview();
     }).catch(renderBrandPreview);
   }
@@ -2609,17 +2623,17 @@
     $('#brandSave').addEventListener('click', function () {
       var msg = $('#brandMsg'), self = this; self.disabled = true; msg.textContent = 'Saving…'; msg.style.color = '';
       post('brand_save', { accent: $('#br_accent').value, accent_deep: $('#br_deep').value }).then(function (r) {
-        var d = r.data || {}; msg.style.color = d.ok ? '#2ea043' : '#d22';
+        var d = r.data || {}; msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
         msg.textContent = d.ok ? 'Saved — reload any page to see the new brand.' : (d.error || 'Could not save.');
-      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+      }).catch(function () { msg.style.color = 'var(--st-err)'; msg.textContent = 'Network error.'; })
         .finally(function () { self.disabled = false; });
     });
     $('#brandReset').addEventListener('click', function () {
       if (!confirm('Reset the brand back to the default Afrovanguard gold?')) return;
       var msg = $('#brandMsg');
       post('brand_save', { reset: true }).then(function (r) {
-        if (r.data && r.data.ok) { $('#br_accent').value = '#f3b416'; $('#br_deep').value = '#b07e08'; renderBrandPreview(); msg.style.color = '#2ea043'; msg.textContent = 'Reset to default gold — reload to see it.'; }
-        else { msg.style.color = '#d22'; msg.textContent = (r.data && r.data.error) || 'Could not reset.'; }
+        if (r.data && r.data.ok) { $('#br_accent').value = '#f3b416'; $('#br_deep').value = '#b07e08'; renderBrandPreview(); msg.style.color = 'var(--st-ok)'; msg.textContent = 'Reset to default gold — reload to see it.'; }
+        else { msg.style.color = 'var(--st-err)'; msg.textContent = (r.data && r.data.error) || 'Could not reset.'; }
       });
     });
   })();
@@ -2627,14 +2641,14 @@
   /* ---- System / Health ---- */
   function loadSystem() {
     var box = $('#sysHealth'); box.innerHTML = '<p class="muted">Checking…</p>';
-    var dot = { ok: '#2ea043', warn: '#e0a106', off: '#d22', info: '#5b6472' };
+    var dot = { ok: 'var(--st-ok)', warn: 'var(--st-warn)', off: 'var(--st-err)', info: 'var(--st-info)' };
     api('sys_health').then(function (r) {
       if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
       box.innerHTML = (r.data.groups || []).map(function (g) {
         return '<div style="margin:0 0 22px"><h2 style="font-family:var(--font-heading);font-size:20px;margin:0 0 8px">' + escapeHtml(g.group) + '</h2>' +
           (g.checks || []).map(function (c) {
             return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.15)">' +
-              '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (dot[c.state] || '#5b6472') + '"></span>' +
+              '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (dot[c.state] || 'var(--st-info)') + '"></span>' +
               '<span style="font-weight:600;flex:0 0 230px">' + escapeHtml(c.label) + '</span>' +
               '<span style="color:#5b6472;font-size:13px">' + escapeHtml(c.detail || '') + '</span></div>';
           }).join('') + '</div>';
@@ -2648,12 +2662,12 @@
       btn.disabled = true; msg.textContent = 'Sending…'; msg.style.color = '';
       post('mail_test', { to: $('#mailTestTo').value.trim() }).then(function (r) {
         var d = r.data || {};
-        msg.style.color = d.ok ? '#2ea043' : '#d22';
+        msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
         var road = d.transport ? ' · sent by: ' + d.transport : '';
         var tried = (d.tried && d.tried.length) ? ' · tried: ' + d.tried.join(' → ') : '';
         var mode = d.mode ? ' · sending road: ' + d.mode : '';
         msg.textContent = d.ok ? ('✓ ' + (d.detail || 'Sent.') + ' (to ' + d.to + road + tried + mode + ')') : ('✗ ' + (d.error || d.detail || 'Failed.') + tried + mode);
-      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+      }).catch(function () { msg.style.color = 'var(--st-err)'; msg.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
   }
@@ -2665,9 +2679,9 @@
       btn.disabled = true; msg.textContent = 'Asking the script…'; msg.style.color = ''; out.innerHTML = '';
       post('mail_gas_check', {}).then(function (r) {
         var d = r.data || {};
-        msg.style.color = d.ok ? '#2ea043' : '#d22';
+        msg.style.color = d.ok ? 'var(--st-ok)' : 'var(--st-err)';
         msg.textContent = (d.ok ? '✓ ' : '✗ ') + (d.error || d.detail || (d.ok ? 'Working.' : 'Failed.'));
-        var dot = function (on) { return '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (on ? '#2ea043' : '#d22') + '"></span>'; };
+        var dot = function (on) { return '<span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:' + (on ? 'var(--st-ok)' : 'var(--st-err)') + '"></span>'; };
         var row = function (on, label, detail) {
           return '<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(128,128,128,.15)">' + dot(on) +
             '<span style="font-weight:600;flex:0 0 160px">' + escapeHtml(label) + '</span>' +
@@ -2681,7 +2695,7 @@
           row(d.remaining !== null && d.remaining !== undefined && d.remaining > 0, 'Allowance left today',
               (d.remaining === null || d.remaining === undefined) ? '—' : (d.remaining + ' recipient' + (d.remaining === 1 ? '' : 's'))) +
           row(true, 'Sending road', d.mode || 'auto');
-      }).catch(function () { msg.style.color = '#d22'; msg.textContent = 'Network error.'; })
+      }).catch(function () { msg.style.color = 'var(--st-err)'; msg.textContent = 'Network error.'; })
         .finally(function () { btn.disabled = false; });
     });
   }

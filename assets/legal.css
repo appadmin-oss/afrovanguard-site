@@ -140,7 +140,7 @@
 }
 .legal-section h2 .legal-num {
   font: 700 .82rem/1 'Source Sans 3', sans-serif; letter-spacing: .04em;
-  color: var(--legal-accent); flex: none;
+  color: var(--legal-link); flex: none;
   transform: translateY(-1px);
 }
 .legal-section h3 {

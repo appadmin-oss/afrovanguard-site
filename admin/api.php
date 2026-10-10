@@ -962,7 +962,7 @@ try {
             json_out([
                 'ok'       => true,
                 'brand'    => is_array($b) ? $b : null,
-                'defaults' => ['accent' => '#f3b416', 'accent_deep' => '#b07e08'],
+                'defaults' => ['accent' => '#f3b416', 'accent_deep' => '#8f6606'],
             ]);
         }
         case 'brand_save': {

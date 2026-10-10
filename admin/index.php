@@ -830,7 +830,7 @@
   <!-- SYSTEM / HEALTH (configuration & integration status) -->
   <main class="studio-main" id="systemView" hidden>
     <div class="studio-head">
-      <div><h1>System</h1><p class="muted">Configuration &amp; integration health — <b style="color:#2ea043">green</b> ready · <b style="color:#e0a106">amber</b> optional/degraded · <b style="color:#d22">red</b> needs attention.</p></div>
+      <div><h1>System</h1><p class="muted">Configuration &amp; integration health — <b style="color:var(--st-ok)">green</b> ready · <b style="color:var(--st-warn)">amber</b> optional/degraded · <b style="color:var(--st-err)">red</b> needs attention.</p></div>
       <button class="btn btn-outline btn-sm" id="sysRefreshBtn">Refresh</button>
     </div>
     <div id="sysHealth"></div>

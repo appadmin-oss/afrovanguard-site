@@ -11,7 +11,8 @@
 
 :root{
   --ngv-red:#e4162b; --ngv-orange:#ff6a1a; --ngv-gold:#ffb703;
-  --ngv-grad:linear-gradient(100deg,#e4162b,#ff6a1a 55%,#ffb703);
+  /* white text sits on this (the CTA band): the old #e4162b→#ffb703 fell to 1.7:1 at the gold end */
+  --ngv-grad:linear-gradient(100deg,#b91c1c,#c2410c 55%,#a16207);
   --ngv-ink:#16130f;
   --ngv-bg:#ffffff;
   --ngv-bg-alt:#f7f7f9;
