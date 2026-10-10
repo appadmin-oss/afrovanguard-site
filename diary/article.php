@@ -97,7 +97,7 @@ render_head([
     'keywords'  => $a['category'] . ', Afrovanguard, Alimosho, Lagos, youth leadership, ' . strtolower($a['title']),
     'jsonld'    => [schema_org(), schema_website(), $blogPosting, $crumbs],
     'csrf'      => true,
-    'css'       => ['/assets/site/avd.css', '/assets/site/avd-pages.css', '/assets/site/av-tokens.css', '/assets/site/avcv.css'],
+    'css'       => ['/assets/site/avd.css', '/assets/site/avd-pages.css', '/assets/site/av-tokens.css', '/assets/site/avcv.css', '/assets/site/avde.css'],
 ]);
 render_nav('diary');
 ?>
@@ -113,41 +113,57 @@ render_nav('diary');
         </div>
       </header>
 <?php endif; ?>
-      <div class="article-wrap">
-        <div class="container">
 <?php if (!$isFeature): ?>
-          <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span><?= e($a['category']) ?></span></nav>
-          <h1 class="article-title"><?= e($a['title']) ?></h1>
+      <header class="avde-head">
+        <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
+        <div class="avde-head-in">
+          <nav aria-label="Breadcrumb"><ol class="avde-crumbs"><li><a href="/diary/">The Diary</a></li><li><a href="/diary/?cat=<?= e(rawurlencode((string) $a['category_slug'])) ?>" aria-current="page"><?= e($a['category']) ?></a></li></ol></nav>
+          <h1><?= e($a['title']) ?></h1>
+<?php if (trim((string) $a['dek']) !== ''): ?>
+          <p class="avde-dek"><?= e($a['dek']) ?></p>
 <?php endif; ?>
-          <div class="article-meta">
-            <div><div class="meta-label">Written by</div><div class="meta-value"><?= av_byline_html($a['authors_html']) ?></div></div>
-            <div><div class="meta-label">Published</div><div class="meta-value"><?= e($a['published']) ?> · <?= $readMin ?> min read</div></div>
+          <div class="avde-by">
+            <span class="avde-by-who"><span class="avde-av" aria-hidden="true"><?= e(mb_substr((string) ($author['initials'] ?? 'A'), 0, 1)) ?></span><span class="avde-by-name"><?= av_byline_html($a['authors_html']) ?></span></span>
+            <span><?= e($a['published']) ?> · <?= $readMin ?> min read</span>
 <?php if ($counts !== null): ?>
-            <div><div class="meta-label">Read</div><div class="meta-value avd-hero-counts"><?php avd_hero_counts($counts); ?></div></div>
+            <span class="av-num"><?= e(number_format((int) $counts['views'])) ?> views</span>
+            <a class="av-num avde-by-c" href="#comments"><?= (int) $counts['comments'] ?> <?= (int) $counts['comments'] === 1 ? 'comment' : 'comments' ?></a>
 <?php endif; ?>
 <?php if (!empty($a['ref_code'])): ?>
-            <div><div class="meta-label">Reference</div><div class="meta-value"><code class="article-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code></div></div>
+            <code class="avde-ref" title="Quote this code to identify this entry — it never changes"><?= e($a['ref_code']) ?></code>
 <?php endif; ?>
           </div>
         </div>
-      </div>
-
-<?php if ($cover && !$isFeature): ?>
-      <div class="container">
-        <figure class="article-hero"><img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" /></figure>
-      </div>
-<?php elseif (!$isFeature): /* No photo: the shared cover graphic (partials/av-cover.php), never a blank. */ ?>
-      <div class="container">
-        <figure class="article-hero"><?= av_cover([
-            'kind' => 'diary', 'title' => (string) $a['title'], 'category' => mb_strtolower((string) $a['category']),
-            'readTime' => $readMin . ' min read', 'date' => substr((string) ($a['published_at'] ?? ''), 0, 10),
-            'class' => 'avcv--round',
-        ]) ?></figure>
+        <figure class="avde-cover">
+<?php if ($cover): ?>
+          <img src="<?= e($cover) ?>" alt="<?= e($a['title']) ?>" loading="eager" fetchpriority="high">
+<?php else: /* No photo: the shared cover graphic (partials/av-cover.php), never a blank. */ ?>
+          <?= av_cover([
+              'kind' => 'diary', 'title' => (string) $a['title'], 'category' => mb_strtolower((string) $a['category']),
+              'readTime' => $readMin . ' min read', 'date' => substr((string) ($a['published_at'] ?? ''), 0, 10),
+              'ratio' => '16:9', 'class' => 'avcv--fill',
+          ]) ?>
+<?php endif; ?>
+        </figure>
+      </header>
+<?php else: ?>
+      <div class="avde-feat-meta">
+        <div class="avde-by">
+          <span class="avde-by-who"><span class="avde-av" aria-hidden="true"><?= e(mb_substr((string) ($author['initials'] ?? 'A'), 0, 1)) ?></span><span class="avde-by-name"><?= av_byline_html($a['authors_html']) ?></span></span>
+          <span><?= e($a['published']) ?> · <?= $readMin ?> min read</span>
+<?php if ($counts !== null): ?>
+          <span class="av-num"><?= e(number_format((int) $counts['views'])) ?> views</span>
+          <a class="av-num avde-by-c" href="#comments"><?= (int) $counts['comments'] ?> <?= (int) $counts['comments'] === 1 ? 'comment' : 'comments' ?></a>
+<?php endif; ?>
+<?php if (!empty($a['ref_code'])): ?>
+          <code class="avde-ref"><?= e($a['ref_code']) ?></code>
+<?php endif; ?>
+        </div>
       </div>
 <?php endif; ?>
 
-      <div class="container">
-        <div class="avd-grid">
+      <div class="avde-body">
+        <div class="avd-grid<?= $sections ? '' : ' avde-norail' ?>">
 <?php avd_rail($sections, $readMin); ?>
           <article class="avd-article article-body">
 <?php avd_listen($a, $a['slug'], $audio); ?>
@@ -177,8 +193,27 @@ render_nav('diary');
         </div>
       </div>
 
-<?php avd_mission(); ?>
-<?php avd_keep_reading($repo->keepReading((int) $a['id'], 3)); ?>
+      <div class="avde-mission"><?php avd_mission(); ?></div>
+<?php $kr = $repo->keepReading((int) $a['id'], 3); if ($kr): ?>
+      <section class="avde-kr" aria-labelledby="avde-kr-h">
+        <div class="avh-topo" data-avh-topo="light" data-seed="11" aria-hidden="true"></div>
+        <div class="avde-kr-in">
+          <div class="avde-kr-head"><h2 id="avde-kr-h">Keep reading</h2><a href="/diary/">All entries →</a></div>
+          <ul class="avde-kr-grid">
+<?php foreach ($kr as $it): ?>
+            <li><a class="avde-kcard" href="<?= e($it['url']) ?>">
+              <div class="avde-kcard-img"><?php if ($it['cover'] !== ''): ?><img src="<?= e($it['cover']) ?>" alt="" loading="lazy" decoding="async"><?php else: ?><?= av_cover(['kind' => 'diary', 'title' => $it['title'], 'date' => substr($it['published_at'], 0, 10), 'ratio' => '1.91:1', 'class' => 'avcv--fill']) ?><?php endif; ?></div>
+              <div class="avde-kcard-body">
+                <span class="avde-kcard-cat"><?= e($it['category']) ?></span>
+                <span class="avde-kcard-t"><?= e($it['title']) ?></span>
+                <span class="avde-kcard-m av-num"><?= e($it['date']) ?> · <?= (int) $it['minutes'] ?> min read<?= $it['views'] ? ' · ' . e(avd_compact($it['views'])) . ' views' : '' ?></span>
+              </div>
+            </a></li>
+<?php endforeach; ?>
+          </ul>
+        </div>
+      </section>
+<?php endif; ?>
     </article>
   </main>
   <div class="avd">
