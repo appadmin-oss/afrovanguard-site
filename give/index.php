@@ -26,7 +26,7 @@ if ($summary['appeals'] > 0 && $summary['raised'] > 0) {
           . 'See what we need today and what your gift pays for.';
 }
 $desc = mb_substr($desc, 0, 185);
-$image = $site . '/Images/og-image.png';
+$image = $site . '/assets/og/og-default.png';
 $jsonld = [
     schema_org(),
     schema_breadcrumb([['name' => 'Home', 'url' => $site . '/'], ['name' => 'Give', 'url' => $canonical]]),

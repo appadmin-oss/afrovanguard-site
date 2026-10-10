@@ -15,7 +15,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 $title     = 'How Afrovanguard Works — Progressive Growth & Member Alignment';
 $desc      = 'How members grow at Afrovanguard: an algorithmic progression built on verifiable output, mentorship, invisible service, radical transparency and servant leadership — from Foundation Member (Level O) upward.';
 $canonical = rtrim(SITE_URL, '/') . '/how-it-works';
-$image     = rtrim(SITE_URL, '/') . '/Images/og-image.png';
+$image     = rtrim(SITE_URL, '/') . '/assets/og/og-default.png';
 
 // Dues come from the same config as v1 and the portal (lib/bootstrap.php), so the page never quotes a stale amount.
 $MONTHLY = defined('AV_DUES_MONTHLY_NGN') ? (int) AV_DUES_MONTHLY_NGN : 1000;

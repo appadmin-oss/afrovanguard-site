@@ -16,7 +16,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 
 $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
-$fallback = rtrim(SITE_URL, '/') . '/Images/og-image.png';
+$fallback = rtrim(SITE_URL, '/') . '/assets/og/og-default.png';
 $font   = AV_ROOT . '/assets/fonts/display.ttf';
 $fontUI = AV_ROOT . '/assets/fonts/body.ttf';
 

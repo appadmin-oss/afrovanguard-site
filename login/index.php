@@ -86,7 +86,7 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
   <meta property="og:title" content="<?= e($title) ?>" />
   <meta property="og:description" content="<?= e($desc) ?>" />
   <meta property="og:url" content="<?= e($canonical) ?>" />
-  <meta property="og:image" content="<?= e(rtrim(SITE_URL, '/')) ?>/Images/og-image.png" />
+  <meta property="og:image" content="<?= e(rtrim(SITE_URL, '/')) ?>/assets/og/og-default.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@afrovanguard" />
   <meta name="twitter:title" content="<?= e($title) ?>" />
