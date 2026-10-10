@@ -16,7 +16,7 @@
 .portal-app {
   --bg:var(--av-white); --surface:var(--av-white); --surface-2:var(--av-stone-3); --surface-3:var(--av-paper);
   --border:var(--av-line); --border-2:var(--av-line); --border-3:var(--av-line-2);
-  --ink:var(--av-ink); --body:var(--av-text-2); --muted:var(--av-muted-2); --muted-2:var(--av-faint);
+  --ink:var(--av-ink); --body:var(--av-text-2); --muted:var(--av-muted-2); --muted-2:var(--av-faint-text);
   --gold:var(--av-gold); --gold-deep:var(--av-gold-text); --gold-deeper:var(--av-gold-text);
   --gold-soft:var(--av-gold-soft); --gold-soft-bd:var(--av-gold-light); --on-gold:var(--av-ink);
   --green:var(--av-green); --green-dot:var(--av-green-dot); --green-soft:var(--av-green-bg); --green-bd:var(--av-green-bg);
@@ -447,6 +447,8 @@ body.portal-app .read-progress { display:none; }
 /* ---------- chat: channel header, members rail, floating dock, code ---------- */
 /* channel header */
 .tc-ch-ico { flex:none; width:38px; height:38px; border-radius:11px; background:var(--ink); color:var(--gold); display:grid; place-items:center; font-size:19px; font-weight:800; }
+/* In dark, --ink is the light text colour: a light tile with gold on it read at 1.6:1. */
+.portal-app.is-dark .tc-ch-ico { background:var(--surface-2); color:var(--gold-deep); }
 .tc-ch-meta { flex:1; min-width:0; }
 .tc-ch-title { display:flex; align-items:baseline; gap:8px; }
 .tc-ch-title b { font-size:17px; font-weight:800; color:var(--ink); }

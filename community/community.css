@@ -65,10 +65,11 @@
 .cm-av {
   width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--font-heading); font-size: 19px; font-weight: 700; color: #fff;
-  background: var(--c, var(--gold-deep)); line-height: 1; user-select: none;
+  font-family: var(--font-heading); font-size: 19px; font-weight: 700; color: var(--ink);
+  /* a tint of the person's colour under the page's ink: white on gold-deep was 3.2:1 */
+  background: color-mix(in srgb, var(--c, var(--gold)) 30%, var(--surface)); line-height: 1; user-select: none;
 }
-.cm-av--me { background: var(--ink); }
+.cm-av--me { background: var(--ink); color: var(--surface); }
 .cm-composer textarea {
   flex: 1; border: none; resize: vertical; min-height: 46px; background: transparent;
   font-family: var(--font-body); font-size: 15px; line-height: 1.5; color: var(--ink); padding: 9px 2px;
@@ -127,7 +128,7 @@
 .cm-dot { color: var(--muted); }
 .cm-ago { font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .cm-line2 { margin-top: 2px; }
-.cm-space { font-size: 12px; font-weight: 700; color: var(--c, var(--gold-deep)); }
+.cm-space { font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--c, var(--gold-deep)) 65%, var(--ink)); }
 .cm-body { margin: 14px 0 0; font-size: 15px; line-height: 1.62; color: var(--body); white-space: pre-wrap; word-wrap: break-word; }
 .cm-body a { color: var(--link); }
 
@@ -223,7 +224,7 @@
 .cm-dir-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-md); }
 .cm-dir-row:hover { background: var(--surface-2); }
 .cm-dir-row[data-me] { background: var(--gold-soft); }
-.cm-dir-av { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: #fff; background: var(--gold-deep); user-select: none; }
+.cm-dir-av { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--gold) 30%, var(--surface)); user-select: none; }
 .cm-dir-txt { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
 .cm-dir-name { font-size: 13.5px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cm-dir-name em { font-style: normal; font-weight: 600; color: var(--muted); }
@@ -236,7 +237,7 @@
 .cm-chat-log { display: flex; flex-direction: column; gap: 13px; height: 300px; overflow-y: auto; margin: 0 -4px 12px; padding: 2px 4px; }
 .cm-chat-empty { color: var(--muted); font-size: 13px; line-height: 1.5; text-align: center; margin: auto 8px; }
 .cm-chat-row { display: flex; gap: 9px; align-items: flex-start; }
-.cm-chat-av { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: #fff; background: var(--gold-deep); user-select: none; }
+.cm-chat-av { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: var(--ink); background: color-mix(in srgb, var(--gold) 30%, var(--surface)); user-select: none; }
 .cm-chat-row.is-me .cm-chat-av { background: var(--ink); }
 .cm-chat-bd { min-width: 0; flex: 1; }
 .cm-chat-l1 { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
@@ -272,7 +273,8 @@
 .cm-class { font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; border-radius: 999px;
   padding: 1px 7px; margin-left: 2px; border: 1px solid transparent; white-space: nowrap; }
 .cm-class--public { color: #0f766e; background: rgba(13,148,136,.12); }
-.cm-class--members { color: var(--afg-gold-deep,#b07e08); background: rgba(243,180,22,.14); }
+.cm-class--members { color: var(--gold-deep, #8A6406); background: rgba(243,180,22,.14); }
+[data-theme="dark"] .cm-class--members, .is-dark .cm-class--members { color: #F3C34A; }
 .cm-class--confidential { color: #b42318; background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.35); }
 #cmClass { font: inherit; font-size: 12.5px; border: 1px solid var(--cm-line,#e6e2d6); border-radius: 8px; padding: 5px 8px;
   background: var(--cm-surface,#fff); color: inherit; }

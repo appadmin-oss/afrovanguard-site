@@ -13,6 +13,7 @@
   --av-text-2:#454A56;
   --av-muted:#5F636D;
   --av-faint:#8B8B8B;
+  --av-faint-text:#696C74;   /* faint TEXT: --av-faint is 3.0–3.4:1 on paper, so it stays for borders and disabled marks only */
   --av-on-ink-muted:#C9CCD3;
   --av-on-ink-line:#4B5566;
   --av-gold:#F3B416;
@@ -133,7 +134,7 @@
   --av-header-glass:rgba(255,255,255,.92); --av-green-ring:rgba(34,160,90,.18);
   --av-dk-bg:#0E0F12; --av-dk-bg-2:#141518; --av-dk-bg-3:#1C1D22; --av-dk-sel:#24262C;
   --av-dk-line:#26282E; --av-dk-line-2:#1E2025;
-  --av-dk-text:#ECECEC; --av-dk-text-2:#C2C4CA; --av-dk-text-3:#9A9DA4; --av-dk-text-4:#7B7E86;
+  --av-dk-text:#ECECEC; --av-dk-text-2:#C2C4CA; --av-dk-text-3:#9A9DA4; --av-dk-text-4:#9295A0; /* -4 was #7B7E86: 4.1:1 on the dark cards; this is ≥5:1 on every dark surface */
   --av-dk-gold-text:#F3C34A; --av-dk-gold-bg:rgba(243,180,22,.12);
   --av-dk-green-text:#4ADE80; --av-dk-green-bg:rgba(34,197,94,.12);
   --av-dk-red-text:#F87171; --av-dk-red-bg:rgba(248,113,113,.12);

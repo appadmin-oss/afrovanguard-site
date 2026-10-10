@@ -26,7 +26,7 @@
   --avp-ink: var(--av-ink);
   --avp-text-2: var(--av-nav-sub);
   --avp-muted: var(--av-muted-2);
-  --avp-faint: var(--av-faint);
+  --avp-faint: var(--av-faint-text);
   --avp-primary: var(--av-ink);
   --avp-primary-hover: var(--av-ink-hover);
   --avp-on-primary: var(--av-white);

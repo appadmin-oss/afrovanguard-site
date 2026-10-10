@@ -49,7 +49,7 @@
 .portal-app.is-dark #view-community .cm-space-link.is-active { background:var(--gold); color:var(--on-gold); border-color:var(--gold); }
 #view-community .cm-space-dot { width:8px; height:8px; border-radius:50%; flex:none; }
 #view-community .cm-space-name { flex:none; }
-#view-community .cm-space-n { font-size:11px; font-weight:700; opacity:.65; }
+#view-community .cm-space-n { font-size:11px; font-weight:700; color:var(--muted); }
 #view-community .cm-guidelines { display:none; }
 
 /* ---- composer ---- */
@@ -76,11 +76,12 @@
 #view-community .cm-msg.is-ok { color:var(--green); }
 #view-community .cm-msg.is-err { color:var(--red); }
 
-/* avatar chips (gradient) */
+/* avatar chips: a tint of the person's colour with the page's ink on it. White on a
+   gold gradient was 1.9:1 (light and dark); a tint keeps the colour and reads in both. */
 #view-community .cm-av { width:40px; height:40px; border-radius:50%; flex:none; display:flex;
-  align-items:center; justify-content:center; font-weight:700; font-size:15px; color:#fff;
-  background:linear-gradient(135deg, var(--c, var(--gold)), color-mix(in srgb, var(--c, var(--gold)) 55%, #111)); }
-#view-community .cm-av--me { background:linear-gradient(135deg,var(--gold),var(--gold-deep)); }
+  align-items:center; justify-content:center; font-weight:700; font-size:15px; color:var(--ink);
+  background:color-mix(in srgb, var(--c, var(--gold)) 30%, var(--surface)); }
+#view-community .cm-av--me { background:var(--ink); color:var(--surface); }
 
 /* ---- sort tabs + live pill ---- */
 #view-community .cm-sort { display:flex; align-items:center; gap:6px; margin:2px 0 14px; }
@@ -113,7 +114,7 @@
 #view-community .cm-dot { color:var(--muted-2); }
 #view-community .cm-ago { color:var(--muted-2); font-size:12.5px; }
 #view-community .cm-line2 { margin-top:2px; }
-#view-community .cm-space { font-size:12px; font-weight:700; color:var(--c, var(--gold-deep)); }
+#view-community .cm-space { font-size:12px; font-weight:700; color:color-mix(in srgb, var(--c, var(--gold-deep)) 65%, var(--ink)); }
 #view-community .cm-body { color:var(--body); font-size:14.5px; line-height:1.6; word-wrap:break-word; }
 #view-community .cm-bar { display:flex; gap:8px; margin-top:12px; }
 #view-community .cm-act { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:9px;
@@ -158,7 +159,7 @@
 #view-community .cm-dir-row:hover { background:var(--surface-2); }
 #view-community .cm-dir-row[data-me="1"] { background:var(--gold-soft); }
 #view-community .cm-dir-av { width:30px; height:30px; border-radius:50%; flex:none; display:flex; align-items:center;
-  justify-content:center; font-weight:700; font-size:12px; color:#fff; background:linear-gradient(135deg,var(--gold),var(--gold-deep)); }
+  justify-content:center; font-weight:700; font-size:12px; color:var(--ink); background:color-mix(in srgb, var(--gold) 30%, var(--surface)); }
 #view-community .cm-dir-name { display:block; font-size:13.5px; font-weight:600; color:var(--ink); }
 #view-community .cm-dir-name em { color:var(--muted-2); font-style:normal; font-weight:500; }
 #view-community .cm-dir-role { display:block; font-size:11.5px; color:var(--muted); }
@@ -226,7 +227,7 @@
 .cm-class { font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; border-radius: 999px;
   padding: 1px 7px; margin-left: 2px; border: 1px solid transparent; white-space: nowrap; }
 .cm-class--public { color: #0f766e; background: rgba(13,148,136,.12); }
-.cm-class--members { color: var(--afg-gold-deep,#b07e08); background: rgba(243,180,22,.14); }
+.cm-class--members { color: var(--gold-deep, #8A6406); background: rgba(243,180,22,.14); }
 .cm-class--confidential { color: #b42318; background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.35); }
 #cmClass { font: inherit; font-size: 12.5px; border: 1px solid var(--cm-line,#e6e2d6); border-radius: 8px; padding: 5px 8px;
   background: var(--cm-surface,#fff); color: inherit; }
