@@ -100,7 +100,7 @@ body.avpg .page-lead{color:var(--av-copy)}
 body.avpg :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
 
 /* The section the page belongs to, in the Home nav (lib/partials.php av_site_nav). */
-.avpg .avh-navbtn[data-avh-current]{color:var(--av-ink);box-shadow:inset 0 -2px 0 var(--av-gold)}
+.avpg .avh-navbtn[data-avh-current]{color:var(--av-ink);text-decoration:underline 2px var(--av-gold);text-underline-offset:8px}
 .avpg .avh-acc button[data-avh-current]{font-weight:700}
 .avpg .avh-mega-col a[aria-current="page"],.avpg .avh-acc-links a[aria-current="page"]{color:var(--av-gold-text);font-weight:600}
 

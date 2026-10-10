@@ -43,6 +43,14 @@
     'reflections': '#ec4899', 'mission': '#ef4444'
   };
   var colorFor = function (cat) { return PALETTE[cat] || css('--gold', '#f3b416'); };
+  /* The same hues dark enough to READ: the category eyebrow is 9.5px text on the
+     paper, and the fill colours above are 1.9–4.2:1 there. Each of these clears
+     4.5:1 on white and on the map's stone; the marker keeps the bright fill. */
+  var TEXT = {
+    'events': '#1d4ed8', 'methodology': '#15803d', 'vanguard-voices': '#6d28d9',
+    'voices': '#6d28d9', 'reflections': '#be185d', 'mission': '#b91c1c'
+  };
+  var textFor = function (cat) { return TEXT[cat] || css('--gold-deep', '#8a6406'); };
 
   var dpr = Math.max(1, window.devicePixelRatio || 1);
   var nodes = [], years = [], hover = -1, fullscreen = false, raf = 0;
@@ -81,7 +89,8 @@
           latest: a.getAttribute('data-latest') === '1',
           counts: countsLine(a),
           year: (date.match(/^\d{4}/) || ['—'])[0],
-          color: colorFor(a.getAttribute('data-cat') || '')
+          color: colorFor(a.getAttribute('data-cat') || ''),
+          ink: textFor(a.getAttribute('data-cat') || '')
         };
       });
     if (countEl) countEl.textContent = String(nodes.length);
@@ -186,7 +195,7 @@
       ctx.textAlign = onLeft ? 'left' : 'right';
       ctx.textBaseline = 'alphabetic';
       // category eyebrow
-      ctx.fillStyle = nd.color;
+      ctx.fillStyle = nd.ink || nd.color;
       ctx.font = "800 9.5px 'Source Sans 3', system-ui, sans-serif";
       ctx.fillText((nd.catName || '').toUpperCase() + (nd.latest ? '  ·  LATEST' : ''), lx, nd.y - 12);
       // title
