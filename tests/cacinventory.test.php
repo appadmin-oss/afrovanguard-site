@@ -22,7 +22,7 @@ require_once dirname(__DIR__) . '/lib/CacInventory.php';
 
 $src   = (string) file_get_contents(dirname(__DIR__) . '/lib/CacInventory.php');
 $api   = (string) file_get_contents(dirname(__DIR__) . '/portal/cac-inventory.php');
-$portal= (string) file_get_contents(dirname(__DIR__) . '/portal/index.php');
+$portal= av_portal_source();
 $js    = (string) file_get_contents(dirname(__DIR__) . '/portal/inventory.js');
 $css   = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 

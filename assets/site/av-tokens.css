@@ -127,6 +127,18 @@
   --av-cel-bg-blue-a:#16304A; --av-cel-bg-blue-b:#0F1F33; --av-cel-bg-rust-a:#3A1F0F; --av-cel-bg-rust-b:#1F1008;
   --av-cel-bg-night-a:#1D2333; --av-cel-bg-night-b:#0D1119; --av-cel-bg-rose-a:#3A1A28; --av-cel-bg-rose-b:#220F18;
   --av-cel-bg-holly-a:#3A1212; --av-cel-bg-holly-b:#1F0A0A; --av-cel-bg-plum-a:#2B2340; --av-cel-bg-plum-b:#1A1528;
+  /* member portal (row 14, design: Afrovanguard Portal v2; dark values from Portal v3) */
+  --av-green-dot:#22A05A; --av-indigo-dot:#6366F1; --av-alert:#C2410C; --av-scrim:rgba(17,24,39,.35);
+  --av-shadow-pop:0 16px 48px rgba(17,24,39,.14); --av-shadow-drawer:0 20px 60px rgba(17,24,39,.25);
+  --av-header-glass:rgba(255,255,255,.92); --av-green-ring:rgba(34,160,90,.18);
+  --av-dk-bg:#0E0F12; --av-dk-bg-2:#141518; --av-dk-bg-3:#1C1D22; --av-dk-sel:#24262C;
+  --av-dk-line:#26282E; --av-dk-line-2:#1E2025;
+  --av-dk-text:#ECECEC; --av-dk-text-2:#C2C4CA; --av-dk-text-3:#9A9DA4; --av-dk-text-4:#7B7E86;
+  --av-dk-gold-text:#F3C34A; --av-dk-gold-bg:rgba(243,180,22,.12);
+  --av-dk-green-text:#4ADE80; --av-dk-green-bg:rgba(34,197,94,.12);
+  --av-dk-red-text:#F87171; --av-dk-red-bg:rgba(248,113,113,.12);
+  --av-dk-indigo-text:#A5B4FC; --av-dk-indigo-bg:rgba(99,102,241,.16);
+  --av-dk-header-glass:rgba(14,15,18,.92); --av-dk-shadow:0 12px 40px rgba(0,0,0,.5);
 
   --av-serif:"Cormorant Garamond",Georgia,serif;
   --av-sans:"Source Sans 3",system-ui,sans-serif;
