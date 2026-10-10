@@ -24,7 +24,10 @@
   if (document.documentElement.hasAttribute('data-no-chioma')) return;
 
   var ENDPOINT = '/chioma.php';
-  var AVATAR   = '/assets/site/chioma-avatar.png';
+  // A designed avatar is opt-in: <html data-chioma-avatar="/path.png">. Without
+  // it the drawn mark below is used directly, so no page requests a file that
+  // is not there (it used to probe for one on every page view, a 404 each time).
+  var AVATAR   = document.documentElement.getAttribute('data-chioma-avatar') || '';
 
   /* Chioma's mark — a symbol, not a portrait.
 
@@ -35,9 +38,7 @@
      with no gradient or shadow — it has to hold up at 24px on a phone, where
      any shading turns to mud.
 
-     It renders as an <img> when /assets/site/chioma-avatar.png is present, so
-     a designed asset can replace this by dropping the file in, with no code
-     change and no broken-image box while it is absent. */
+     A designed asset can replace it: set data-chioma-avatar on <html>. */
   var MARK_SVG =
     '<svg class="ch-mark-svg" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">' +
       '<path d="M23.39 24.81A11.5 11.5 0 1 1 26.81 12.07" stroke="currentColor" ' +
@@ -54,6 +55,7 @@
   };
 
   function markHTML() {
+    if (!AVATAR) return MARK_SVG;
     return '<img class="ch-mark" src="' + AVATAR + '" alt="" aria-hidden="true" data-ch-mark>';
   }
   // Swap any avatar that fails to load for the inline mark. Bound rather than

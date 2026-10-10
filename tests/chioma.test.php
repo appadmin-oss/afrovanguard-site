@@ -139,3 +139,18 @@ ck('chioma: the action tools are marked as actions',
 if (!AvWeb::available('web_search')) {
     ck('chioma: an unusable web tool is not offered at all', !in_array('web_search', $names, true));
 }
+
+/* ══ A tool call the model WROTE instead of making (reported: the visitor saw
+   "draft_contact_message(message=...)" and no form) ═════════════════════════ */
+ChiomaTools::reset();
+$chR = Chioma::rescueToolText("That is so lovely to hear!\n\nI've left your name open on the form below.\n\ndraft_contact_message(message=\"I love your works!\")");
+ck('chioma: a written-out contact call is removed from the reply', !str_contains($chR['text'], 'draft_contact_message') && str_contains($chR['text'], 'lovely to hear'));
+ck('chioma: …and becomes the real staged form', ($chR['rescued'] ?? []) === ['draft_contact_message'] && (ChiomaTools::staged()[0]['fields']['message'] ?? '') === 'I love your works!');
+ChiomaTools::reset();
+$chR = Chioma::rescueToolText('Sure — `draft_contact_message({"purpose":"volunteer","message":"I want to help"})`');
+ck('chioma: the JSON form of a written call is rescued too', (ChiomaTools::staged()[0]['fields']['purpose'] ?? '') === 'volunteer' && !str_contains($chR['text'], '`'));
+ChiomaTools::reset();
+$chR = Chioma::rescueToolText('Let me look. site_search(query="techome")');
+ck('chioma: a written-out read call is removed but not run', $chR['text'] === 'Let me look.' && ChiomaTools::staged() === [] && $chR['rescued'] === []);
+ck('chioma: ordinary replies are untouched', Chioma::rescueToolText('Head to the Academy (/academy/).')['text'] === 'Head to the Academy (/academy/).');
+ck('chioma: without the tool loop she is not told about tools', !str_contains(Chioma::systemPrompt([], false), 'draft_contact_message') && str_contains(Chioma::systemPrompt([], true), 'draft_contact_message'));

@@ -35,17 +35,8 @@ final class Chioma
         return self::agentConfigured() || (class_exists('AvBot') && AvBot::configured());
     }
 
-    public static function systemPrompt(array $ctx = []): string
-    {
-        $org = defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng';
-        $t = trim((string) ($ctx['title'] ?? '')); $p = trim((string) ($ctx['path'] ?? '')); $s = trim((string) ($ctx['section'] ?? ''));
-        $ctxLine = ($t !== '' || $p !== '')
-            ? "\n\nContext — the visitor is currently on: \"{$t}\" ({$p})" . ($s !== '' ? " in the \"{$s}\" section." : '.') . " Tailor your help to where they are when it's relevant."
-            : '';
-        $knowledge = class_exists('AiKnowledge') ? AiKnowledge::asPromptBlock() : '';
-        return <<<SYS
-You are Chioma — Afrovanguard's operations assistant for the website. Think of yourself as the warm, knowledgeable Nigerian big-sister on the front desk: you make every visitor feel at home, anticipate what they need, and get them where they are going. You are lively but never fake; you're proud of the movement and genuinely glad to help.
-
+    /** What she is told when the tool loop is running (she has hands). */
+    private const TOOLS_PROMPT = <<<'TXT'
 You are not a scripted FAQ. You have tools, and you are expected to use them:
 
 - **Look things up rather than recalling them.** For any question about what Afrovanguard does, offers, teaches or has written, call `site_search` first and `page_read` when a snippet is not enough. The catalogue, the Diary and the people directory all change; your memory of them does not. `course_list` gives the live Academy catalogue.
@@ -54,7 +45,32 @@ You are not a scripted FAQ. You have tools, and you are expected to use them:
 - **Offer to do the thing.** When someone wants to reach the team, `draft_contact_message`; when they want a course, `draft_enrolment`. These put a filled-in form on their screen — they check it and send it themselves. Say so: tell them the form is there and that nothing is sent until they press the button. Fill in only what they actually told you; never invent a name or an email address.
 
 Work in as few tool calls as the question needs — one good search usually beats three.
+TXT;
 
+    /**
+     * What she is told when no tool loop is available (a plain completion). A
+     * model told about tools it cannot call writes the call out as text — the
+     * visitor once read "draft_contact_message(message=...)" under a promise
+     * that a form was on screen. Here she is told plainly that she has none.
+     */
+    private const NO_TOOLS_PROMPT = <<<'TXT'
+In this conversation you cannot look things up or put a form on the visitor's screen, so never write a tool or function call, and never say a form is open. When someone wants to reach the team, send them to the Contact page (/contact.html) — the form is there. When they want a course, send them to the Academy (/academy/).
+
+TXT;
+
+    public static function systemPrompt(array $ctx = [], bool $tools = true): string
+    {
+        $org = defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng';
+        $t = trim((string) ($ctx['title'] ?? '')); $p = trim((string) ($ctx['path'] ?? '')); $s = trim((string) ($ctx['section'] ?? ''));
+        $ctxLine = ($t !== '' || $p !== '')
+            ? "\n\nContext — the visitor is currently on: \"{$t}\" ({$p})" . ($s !== '' ? " in the \"{$s}\" section." : '.') . " Tailor your help to where they are when it's relevant."
+            : '';
+        $knowledge = class_exists('AiKnowledge') ? AiKnowledge::asPromptBlock() : '';
+        $toolsBlock = $tools ? self::TOOLS_PROMPT : self::NO_TOOLS_PROMPT;
+        return <<<SYS
+You are Chioma — Afrovanguard's operations assistant for the website. Think of yourself as the warm, knowledgeable Nigerian big-sister on the front desk: you make every visitor feel at home, anticipate what they need, and get them where they are going. You are lively but never fake; you're proud of the movement and genuinely glad to help.
+
+{$toolsBlock}
 Afrovanguard is a Nigerian-rooted nonprofit raising one million incorruptible African leaders by 2040 through community, technology and cultural advancement. Key places you can guide people to:
 - The Academy (/academy/) — free, hands-on programmes: Techome, MediaPro, Africa GATES, Next Generation Genius.
 - Projects (/projects/) — Street-To-Stardom, LCASP children's programme, and more.
@@ -121,8 +137,9 @@ SYS;
                     'max_turns' => 6,
                 ]);
                 if (!empty($res['ok']) && trim((string) $res['text']) !== '') {
+                    $fixed = self::rescueToolText((string) $res['text']);
                     return [
-                        'ok' => true, 'reply' => trim((string) $res['text']), 'source' => 'agent-tools',
+                        'ok' => true, 'reply' => $fixed['text'], 'source' => 'agent-tools',
                         'actions' => ChiomaTools::staged(), 'sources' => ChiomaTools::sources(),
                         'steps'   => array_map(static fn($s) => ['tool' => $s['tool'] ?? '', 'ok' => (bool) ($s['ok'] ?? false)],
                                                (array) ($res['steps'] ?? [])),
@@ -144,16 +161,84 @@ SYS;
                            'text' => mb_substr($t, 0, 1200)];
             }
             $res = AvRouter::complete(AvRouter::JOB_BULK, $message, [
-                'system' => self::systemPrompt($ctx), 'max_tokens' => 500,
+                'system' => self::systemPrompt($ctx, false), 'max_tokens' => 500,
                 'history' => $hist, 'actor' => 'chioma',
             ]);
             if (!empty($res['ok'])) {
-                return ['ok' => true, 'reply' => $res['text'], 'source' => 'ai', 'actions' => [], 'sources' => [], 'steps' => []];
+                if (class_exists('ChiomaTools')) ChiomaTools::reset();
+                $fixed = self::rescueToolText((string) $res['text']);
+                return ['ok' => true, 'reply' => $fixed['text'], 'source' => 'ai',
+                        'actions' => class_exists('ChiomaTools') ? ChiomaTools::staged() : [], 'sources' => [], 'steps' => []];
             }
         }
         // 4) Scripted fallback.
         return ['ok' => true, 'reply' => self::fallback($message, (string) ($ctx['path'] ?? '')),
                 'source' => 'fallback', 'actions' => [], 'sources' => [], 'steps' => []];
+    }
+
+    /**
+     * A tool call the model WROTE instead of making.
+     *
+     * Some models, offered tools they cannot call natively, print the call —
+     * `draft_contact_message(message="I love your works!")` — and then tell the
+     * visitor the form is on screen. The visitor sees code and no form. This
+     * finds such calls, performs the safe ones (the two act tools only STAGE a
+     * form: ChiomaTools::run never sends anything), and removes the call text.
+     * Read tools written out are removed without running: their result would
+     * arrive after the answer was already written.
+     *
+     * @return array{text:string, rescued:list<string>}
+     */
+    public static function rescueToolText(string $text): array
+    {
+        $names = ['draft_contact_message', 'draft_enrolment', 'site_search', 'page_read', 'course_list', 'appeals_open', 'web_search', 'web_fetch'];
+        $rescued = [];
+        foreach ($names as $name) {
+            $from = 0;
+            while (($at = strpos($text, $name . '(', $from)) !== false) {
+                // Scan to the matching close paren, stepping over quoted strings.
+                $k = $at + strlen($name) + 1; $n = strlen($text); $q = ''; $end = -1;
+                for (; $k < $n; $k++) {
+                    $c = $text[$k];
+                    if ($q !== '') { if ($c === '\\') { $k++; continue; } if ($c === $q) $q = ''; continue; }
+                    if ($c === '"' || $c === "'") { $q = $c; continue; }
+                    if ($c === ')') { $end = $k; break; }
+                }
+                if ($end < 0) break;
+                $raw = trim(substr($text, $at + strlen($name) + 1, $end - $at - strlen($name) - 1));
+                $args = self::parseCallArgs($raw);
+                if (class_exists('ChiomaTools') && ChiomaTools::isAction($name)) {
+                    $r = ChiomaTools::run($name, $args);
+                    if (empty($r['error'])) $rescued[] = $name;
+                }
+                // Remove the call, with any backticks or code fence wrapped round it.
+                $l = $at; $r2 = $end + 1;
+                while ($l > 0 && ($text[$l - 1] === '`')) $l--;
+                while ($r2 < strlen($text) && $text[$r2] === '`') $r2++;
+                $text = substr($text, 0, $l) . substr($text, $r2);
+                $from = $l;
+            }
+        }
+        $text = (string) preg_replace('/```[a-z]*\s*```/i', '', $text);
+        $text = trim((string) preg_replace('/\n{3,}/', "\n\n", $text));
+        if ($text === '' && $rescued) $text = 'I have put a form on your screen with what you told me — check it and press send when you are ready. Nothing is sent until you do.';
+        return ['text' => $text, 'rescued' => $rescued];
+    }
+
+    /** `message="Hi", name='Ada'` or `{"message":"Hi"}` → ['message'=>'Hi', 'name'=>'Ada'] */
+    private static function parseCallArgs(string $raw): array
+    {
+        if ($raw === '') return [];
+        if ($raw[0] === '{') { $j = json_decode($raw, true); return is_array($j) ? $j : []; }
+        $args = [];
+        if (preg_match_all('/(\w+)\s*[=:]\s*("(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|[^,\s)]+)/u', $raw, $mm, PREG_SET_ORDER)) {
+            foreach ($mm as $a) {
+                $v = $a[2];
+                if ($v !== '' && ($v[0] === '"' || $v[0] === "'")) $v = stripcslashes(substr($v, 1, -1));
+                $args[$a[1]] = $v;
+            }
+        }
+        return $args;
     }
 
     /** Forward to the site owner's configured AI agent; returns its reply text or null. */
