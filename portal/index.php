@@ -385,9 +385,6 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
   <script src="/portal/palette.js" defer></script>
   <script src="/community/community.js" defer></script>
-  <script src="/assets/vendor/trix/trix.min.js" defer></script>
-  <script src="/portal/diary.js" defer></script>
-  <script src="/portal/notebooks.js" defer></script>
   <script src="/portal/commitments.js" defer></script>
   <script src="/assets/site/avc-photo.js" defer></script>
   <script src="/portal/card-photo.js" defer></script>
