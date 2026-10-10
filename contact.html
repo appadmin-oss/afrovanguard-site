@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-NG" class="no-js">
 <head>
-  <script>document.documentElement.classList.replace('no-js','js')</script>
+  <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <!-- Head carried over from contact.html v1 (title, description, OG, canonical, JSON-LD). Changes: theme-color as rgb(); dark-theme boot script dropped (tokens are light only). -->
   <meta charset="UTF-8" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -51,14 +51,14 @@
         <button type="button" class="avh-navbtn" data-avh-menu="projects" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-projects">Projects<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="involved" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-involved">Get involved<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="diary" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-diary">Diary<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
-      <a class="avh-signin" href="/login" data-avh-close>Sign in</a>
+      <a class="avh-signin" href="/login" data-avh-close data-avh-guest>Sign in</a><a class="avh-signin avh-member" href="/portal/" data-avh-close>My portal</a>
       <div class="avh-ctas">
-        <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-close>Join the Movement</a>
+        <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-close data-avh-guest>Join the Movement</a>
         <a class="avh-donate" href="/donate.html" data-avh-close>Donate</a>
       </div>
     </div>
     <div class="avh-narrow">
-      <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a>
+      <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-guest>Join the Movement</a><a class="avh-join avh-member" href="/portal/">My portal</a>
       <button type="button" class="avh-burger" data-avh-burger aria-label="Open menu" aria-expanded="false" aria-controls="avh-drawer"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -128,9 +128,9 @@
         <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-diary">Diary<span class="avh-plus" aria-hidden="true"></span></button>
         <div class="avh-acc-links" id="avh-acc-diary" hidden><a href="/diary/">Diary home</a><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a><a href="/diary/#subscribe">Subscribe</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a><a href="/ethos/">Our ethos</a><a href="/academy/">Academy</a></div>
       </div>
-    <a class="avh-drawer-signin" href="/login">Sign in</a>
+    <a class="avh-drawer-signin" href="/login" data-avh-guest>Sign in</a><a class="avh-drawer-signin avh-member" href="/portal/">My portal</a>
   </div>
-  <div class="avh-drawer-ctas"><a href="https://cacentre.afrovanguard.org.ng/volunteer">Join the Movement</a><a href="/donate.html">Donate</a></div>
+  <div class="avh-drawer-ctas"><a href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-guest>Join the Movement</a><a href="/donate.html">Donate</a></div>
 </div>
 <!-- /avh:nav -->
 

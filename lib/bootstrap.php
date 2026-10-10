@@ -291,6 +291,9 @@ require_once __DIR__ . '/Summit.php';       // D'Vanguard National Summit seat r
 require_once __DIR__ . '/AuthPolicy.php';
 require_once __DIR__ . '/Otp.php';
 require_once __DIR__ . '/LmsAuth.php';
+// The "signed in" hint (LmsAuth::HINT) without a session cookie at all is stale:
+// clear it so a static page's nav stops offering My portal after sign-out elsewhere.
+if (PHP_SAPI !== 'cli' && !empty($_COOKIE[LmsAuth::HINT]) && empty($_COOKIE[LmsAuth::COOKIE])) LmsAuth::hint(false);
 /* Handing a signed-in member across to the CACENTRE CRM. Loaded here beside
    LmsAuth because the portal needs it to decide whether to show the link. */
 require_once __DIR__ . '/CacSso.php';

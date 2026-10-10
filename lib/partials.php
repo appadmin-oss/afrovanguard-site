@@ -57,7 +57,7 @@ final class Icons
  * stored av.theme is left untouched, so the member portal, which keeps its own
  * dark mode, still honours it. Reveal and reading scale are kept from THEME_BOOT.
  */
-const THEME_BOOT_SITE = "<script>(function(){var r=document.documentElement;r.classList.replace('no-js','js');r.classList.add('reveal-on');try{var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
+const THEME_BOOT_SITE = "<script>(function(){var r=document.documentElement;r.classList.replace('no-js','js');r.classList.add('reveal-on');if(/(^|; )av_si=1/.test(document.cookie))r.classList.add('av-si');try{var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
 
 /**
  * Which chrome the current page is drawn in: 'site' (the Home nav and footer,

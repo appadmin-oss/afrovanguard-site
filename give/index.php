@@ -38,7 +38,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 ?><!DOCTYPE html>
 <html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
 <head>
-  <script>document.documentElement.classList.replace('no-js','js')</script>
+  <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title><?= e($title) ?></title>

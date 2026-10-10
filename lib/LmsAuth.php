@@ -240,7 +240,24 @@ final class LmsAuth
             Database::pdo()->prepare('DELETE FROM lms_sessions WHERE token_hash = ?')->execute([hash('sha256', $tok)]);
         }
         setcookie(self::COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        self::hint(false);
         unset($_COOKIE[self::COOKIE]); self::$cache = null; self::$checked = false;
+    }
+
+    /**
+     * `av_si` — a readable "signed in" hint for pages the server does not
+     * render (the static .html pages), so their nav can show My portal instead
+     * of Sign in / Join the Movement before first paint. It carries nothing
+     * but "1": the session itself stays in the HttpOnly `av_lms` cookie, and a
+     * hint that outlives its session is cleared the next time PHP sees it.
+     */
+    const HINT = 'av_si';
+    public static function hint(bool $on, int $ttl = 0): void
+    {
+        if ($on) $_COOKIE[self::HINT] = '1'; else unset($_COOKIE[self::HINT]);
+        if (headers_sent()) return;
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        setcookie(self::HINT, $on ? '1' : '', ['expires' => $on ? time() + $ttl : time() - 3600, 'path' => '/', 'secure' => $secure, 'httponly' => false, 'samesite' => 'Lax']);
     }
 
     public static function user(): ?array
@@ -248,13 +265,14 @@ final class LmsAuth
         if (self::$checked) return self::$cache;
         self::$checked = true;
         $tok = $_COOKIE[self::COOKIE] ?? '';
-        if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) return self::$cache = null;
+        if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) { if (!empty($_COOKIE[self::HINT])) self::hint(false); return self::$cache = null; }
         $st = Database::pdo()->prepare(
             'SELECT u.* FROM lms_sessions s JOIN lms_users u ON u.id = s.user_id
              WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = \'active\''
         );
         $st->execute([hash('sha256', $tok), gmdate('Y-m-d H:i:s')]);
         $u = $st->fetch();
+        if (!$u && !empty($_COOKIE[self::HINT])) self::hint(false);
         return self::$cache = ($u ?: null);
     }
 
@@ -284,6 +302,7 @@ final class LmsAuth
             ->execute([hash('sha256', $token), $userId, av_client_ip(), substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240), date('Y-m-d H:i:s', time() + $ttl)]);
         $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         setcookie(self::COOKIE, $token, ['expires' => time() + $ttl, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+        self::hint(true, $ttl);
         $_COOKIE[self::COOKIE] = $token; self::$cache = null; self::$checked = false;
     }
 

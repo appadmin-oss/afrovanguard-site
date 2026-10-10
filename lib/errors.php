@@ -68,7 +68,7 @@ function av_error_render(int $code, bool $static = false): void {
     ?><!DOCTYPE html>
 <html lang="en-NG" class="no-js" data-mood="<?= $esc($mood) ?>">
 <head>
-<script>document.documentElement.classList.replace('no-js','js')</script>
+<script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
 <meta charset="UTF-8" />
 <link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />

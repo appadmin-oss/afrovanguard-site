@@ -422,3 +422,11 @@ body.avh{margin:0;background:var(--av-white);color:var(--av-body);font-family:va
 @media (prefers-reduced-motion:reduce){.avh-shapes{animation:none!important;transform:none!important}.js [data-avh-reveal]{opacity:1;transform:none}.avh-hero-img{transform:none}}
 @media (prefers-reduced-motion:reduce){.avh-tick-track{animation:none}.avh-ticker{overflow-x:auto}}
 @media (prefers-reduced-motion:reduce){.avh *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Signed in (html.av-si, set before first paint from the av_si hint): the nav
+   offers My portal in place of Sign in and Join the Movement. */
+.avh .avh-member{display:none}
+html.av-si .avh [data-avh-guest]{display:none}
+html.av-si .avh .avh-member{display:inline-flex}
+html.av-si .avh .avh-drawer-signin.avh-member{display:block}
+html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
