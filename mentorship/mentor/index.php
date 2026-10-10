@@ -45,7 +45,7 @@ if (!Mentorship::isMentor($uid)) {
 $portal = new MentorPortal($uid);
 
 /* ── Which screen ──────────────────────────────────────────────────────── */
-$VIEWS = ['today', 'mentees', 'case', 'values', 'checkins', 'reflections', 'requests', 'academy', 'module', 'profile', 'support', 'concern'];
+$VIEWS = ['today', 'mentees', 'case', 'values', 'checkins', 'reflections', 'requests', 'academy', 'module', 'profile', 'support', 'concern', 'conduct'];
 $v  = (string) ($_GET['v'] ?? 'today');
 if (!in_array($v, $VIEWS, true)) $v = 'today';
 
@@ -90,6 +90,7 @@ $HEADS = [
     'profile'     => ['Profile', 'How you appear to a member looking for a mentor.'],
     'support'     => ['Support', 'Your coordinator, and how to report a concern.'],
     'concern'     => ['Report a concern', 'It goes straight to the safeguarding lead.'],
+    'conduct'     => ['Fine or award', 'Put a fine or an award forward. The compliance committee decides; nothing happens until it does.'],
 ];
 
 $badges = $portal->navBadges();
@@ -108,7 +109,7 @@ render_head([
     'canonical' => rtrim(SITE_URL, '/') . '/mentorship/mentor/',
     'robots'    => 'noindex, nofollow',
     'csrf'      => true,
-    'css'       => ['/assets/site/avm.css', '/assets/site/avm-portal.css'],
+    'css'       => ['/assets/site/avm.css', '/assets/site/avm-portal.css', '/mentorship/conduct.css'],
     'body_class'=> 'avm-page',
     'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);

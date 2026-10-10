@@ -10,6 +10,7 @@ $navTo = fn(?int $pid): string => $pid === null ? '' : '?v=case&amp;id=' . $pid 
       <div class="avm-casebar">
         <a class="avm-btn" href="<?= $back ?>">‹ All mentees</a>
         <span class="pos"><?= (int) $pos['index'] ?> of <?= (int) $pos['total'] ?></span>
+        <a class="avm-btn" href="?v=conduct&amp;id=<?= (int) $c['pairing_id'] ?>">Fine or award</a>
 <?php if ($pos['prev'] !== null): ?>        <a class="avm-btn" href="<?= $navTo($pos['prev']) ?>" data-avm-prev aria-label="Previous mentee (K)">‹</a>
 <?php else: ?>        <span class="avm-btn" aria-disabled="true">‹</span>
 <?php endif; ?>

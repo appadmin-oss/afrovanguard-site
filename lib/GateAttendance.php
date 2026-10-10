@@ -779,6 +779,18 @@ final class GateAttendance
         }
     }
 
+    /**
+     * Points granted by a decision rather than earned at the gate — an award a
+     * mentor proposed and the compliance committee approved (lib/Conduct.php).
+     * The period names the decision ("award:<case>"), so it is granted once.
+     */
+    public static function grant(int $memberId, string $day, string $period, int $points, string $note): void
+    {
+        if ($memberId <= 0 || $points <= 0 || $period === '') return;
+        self::ensure();
+        self::give($memberId, $day, $period, $points, mb_substr($note, 0, 190));
+    }
+
     private static function give(int $memberId, string $day, string $period, int $points, string $note): void
     {
         Database::pdo()->prepare(Database::insertIgnore('gate_points', ['member_id', 'day', 'period', 'points', 'note', 'created_at']))

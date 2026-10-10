@@ -189,6 +189,17 @@
                 </section>
 <?php endif; ?>
 
+<?php $nAwards = class_exists('Conduct') ? Conduct::awardsFor((int) $u['id']) : []; if ($nAwards): ?>
+                <section class="avng-card" aria-labelledby="avng-aw-h">
+                  <div class="avng-card-h"><h2 id="avng-aw-h">Recognition</h2><span class="av-num"><?= array_sum(array_map(static fn($a) => (int) $a['points'], $nAwards)) ?> points</span></div>
+                  <ul class="avng-rows">
+<?php foreach ($nAwards as $aw): ?>
+                    <li><span class="avng-shelf-t"><span><?= e($aw['title'] !== '' ? $aw['title'] : (Conduct::AWARD_REASONS[$aw['reason']] ?? 'Award')) ?></span><span><?= e(date('j M Y', (int) strtotime($aw['occurred_on']))) ?> · from your mentor</span></span><span class="avng-chip" data-tone="green">+<?= (int) $aw['points'] ?></span></li>
+<?php endforeach; ?>
+                  </ul>
+                </section>
+<?php endif; ?>
+
 <?php if ($nCerts): ?>
                 <section class="avng-card" aria-labelledby="avng-ce-h">
                   <div class="avng-card-h"><h2 id="avng-ce-h">Certifications</h2><span class="av-num"><?= count($nCerts) ?></span></div>
