@@ -2,3 +2,6 @@
 partials/av-cover.php
 assets/site/avcv.css
 assets/site/avcv.js
+lib/AvImage.php
+lib/QuoteOfWeek.php
+quote-card.php
