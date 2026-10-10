@@ -17,8 +17,16 @@
  * than one that is merely wrong, because the reader cannot learn it
  * (WCAG 3.2.3, Consistent Navigation).
  *
- * THE FIX
- * -------
+ * SINCE THE REDESIGN
+ * ------------------
+ * render_nav() emits the Home nav (partials/avh-chrome.php) and the static pages
+ * carry the same markup via tools/build-avh-chrome.php, so there is no second
+ * navigation left to sync. This class keeps locate() — the finder for the OLD
+ * block — so tests/nav.test.php can assert no page still carries it; sync()
+ * only reports and never writes.
+ *
+ * THE FIX (historical)
+ * --------------------
  * av_nav_model() is the single source. This class renders it and splices the
  * result into each static page between the boundaries the markup already has:
  * from `<header class="site-header"` to the closing tag of the drawer that
@@ -51,12 +59,14 @@ final class NavSync
            tools/build-avh-chrome.php). Nothing static is left to sync. */
     ];
 
-    /** The navigation markup for one section, exactly as a PHP page would emit it. */
+    /**
+     * The navigation markup for one section, exactly as a PHP page emits it —
+     * the Home nav (partials/avh-chrome.php) with the section marked, since
+     * render_nav() switched to it. Never the retired site-header markup.
+     */
     public static function region(string $active): string
     {
-        ob_start();
-        render_nav($active, ['theme_toggle' => true]);
-        return (string) ob_get_clean();
+        return av_site_nav($active);
     }
 
     /**
@@ -91,66 +101,25 @@ final class NavSync
     }
 
     /**
-     * Bring one page's navigation up to date.
+     * Report one page's navigation.
      *
-     * @param bool $write false only reports, which is how the test runs.
+     * The sync used to splice the old site-header nav into static pages. Every
+     * page now carries the Home nav (tools/build-avh-chrome.php for .html, the
+     * partial for PHP), so writing that block back would reintroduce the old
+     * chrome. What is left is the check: a page still carrying the old block is
+     * reported as stale (move it to the <!-- avh:nav --> markers); nothing is
+     * ever written.
+     *
      * @return array{ok:bool,changed:bool,reason:string}
      */
     public static function sync(string $absPath, string $active, bool $write = true): array
     {
         if (!is_file($absPath)) return ['ok' => false, 'changed' => false, 'reason' => 'no such file'];
         $html = (string) file_get_contents($absPath);
-        $at = self::locate($html);
-        if ($at === null) return ['ok' => false, 'changed' => false, 'reason' => 'no navigation block found'];
-
-        [$start, $len] = $at;
-        $current = substr($html, $start, $len);
-        $fresh   = trim(self::region($active));
-
-        // Some pages wrap the header in markup of their own — index and
-        // projects close a `.site-top` div between </header> and the drawer's
-        // scrim. That close belongs to the PAGE, not to the navigation, and a
-        // straight replacement would drop it and leave the wrapper open for the
-        // rest of the document. Carry anything found there across.
-        $carry = self::betweenHeaderAndScrim($current);
-        if ($carry !== '' && strpos($fresh, $carry) === false) {
-            $fresh = self::insertAfterHeader($fresh, $carry);
+        if (self::locate($html) !== null) {
+            return ['ok' => true, 'changed' => true, 'reason' => 'still carries the old site-header nav; use the <!-- avh:nav --> markers and php tools/build-avh-chrome.php'];
         }
-
-        // Compare on collapsed whitespace: indentation differs between a file
-        // and a render, and re-indenting every page on every run would bury the
-        // real change in a diff nobody reads.
-        $norm = static fn(string $s): string => trim((string) preg_replace('/\s+/', ' ', $s));
-        if ($norm($current) === $norm($fresh)) return ['ok' => true, 'changed' => false, 'reason' => 'up to date'];
-
-        if ($write) {
-            file_put_contents($absPath, substr($html, 0, $start) . $fresh . substr($html, $start + $len));
-        }
-        return ['ok' => true, 'changed' => true, 'reason' => 'navigation rewritten from av_nav_model()'];
-    }
-
-    /**
-     * Whatever a page keeps between its </header> and the drawer's scrim.
-     *
-     * Returns '' when there is nothing but whitespace and comments to keep,
-     * which is the normal case.
-     */
-    private static function betweenHeaderAndScrim(string $region): string
-    {
-        $endHeader = strpos($region, '</header>');
-        $scrim     = strpos($region, '<div class="scrim"');
-        if ($endHeader === false || $scrim === false || $scrim < $endHeader) return '';
-        $mid = substr($region, $endHeader + 9, $scrim - $endHeader - 9);
-        return trim($mid) === '' ? '' : trim($mid);
-    }
-
-    /** Put the page's own markup back, immediately after the rendered header. */
-    private static function insertAfterHeader(string $fresh, string $carry): string
-    {
-        $endHeader = strpos($fresh, '</header>');
-        if ($endHeader === false) return $fresh;
-        $at = $endHeader + 9;
-        return substr($fresh, 0, $at) . "\n  " . $carry . substr($fresh, $at);
+        return ['ok' => true, 'changed' => false, 'reason' => 'no old navigation'];
     }
 
     /** Every page, reported or rewritten. @return array<string,array> */
