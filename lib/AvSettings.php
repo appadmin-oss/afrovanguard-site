@@ -99,6 +99,17 @@ final class AvSettings
         ],
 
         /* ── Gemini ───────────────────────────────────────────────────── */
+        /* ── CACENTRE gate ───────────────────────────────────────────────── */
+        'GATE_PASS_SECRET' => [
+            'group' => 'CACENTRE gate', 'label' => 'Gate pass secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'at least 32 random characters',
+            'help' => 'The same value as AV_PASS_SECRET on the Cloudflare gate (Workers → cacentre-gate → Settings → Variables and Secrets). Signs members’ phone passes at /gate-pass and the gate’s lookups and check-in reports. At least 32 characters.',
+        ],
+        'GATE_URL' => [
+            'group' => 'CACENTRE gate', 'label' => 'Gate address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://cacentre.afrovanguard.org.ng',
+            'help' => 'Where the gate runs. Used to withdraw a member’s pass when they are suspended. Nothing after the hostname.',
+        ],
         /* ── NextGen Genius ─────────────────────────────────────────────── */
         'NGG_WEBHOOK_SECRET' => [
             'group' => 'NextGen Genius', 'label' => 'Shared secret', 'secret' => true, 'type' => 'text',
