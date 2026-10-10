@@ -11,6 +11,7 @@
  *   POST ?action=share    {id, email, role}          → viewer | contributor
  *   POST ?action=unshare  {id, user_id}
  *   GET  ?action=members&id=N
+ *   GET  ?action=entries&id=N                       → every entry in a notebook you may read
  *   POST ?action=link     {id}                       → mint a read-only link
  *   POST ?action=unlink   {id}
  *
@@ -119,6 +120,11 @@ try {
         case 'unlink':
             $post(); $writeGuard();
             json_out(['ok' => $nb->revokeLink($uid, (int) ($body['id'] ?? 0))]);
+
+        case 'entries':
+            $rows = $nb->entries($uid, (int) ($_GET['id'] ?? 0));
+            if ($rows === null) json_out(['ok' => false, 'error' => 'Not found.'], 404);
+            json_out(['ok' => true, 'entries' => $rows]);
 
         /* ── Tabs ───────────────────────────────────────────────────────── */
 

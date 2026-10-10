@@ -34,7 +34,7 @@ final class DiaryJournal
     private const PUBLIC_CATEGORY = 'Vanguard Voices';
 
     /** Create an entry for a member. Public entries enter the moderation queue. */
-    public function create(int $authorId, string $kind, string $title, string $body, string $entryDate, string $font = 'default'): array
+    public function create(int $authorId, string $kind, string $title, string $body, string $entryDate, string $font = 'default', bool $draft = false): array
     {
         $this->ensureFontColumn();
         $font  = self::validFont($font);
@@ -51,7 +51,9 @@ final class DiaryJournal
 
         // Event + Public are public BY DEFAULT — they enter the moderation queue
         // and become publicly visible on approval. Private stays author-only.
-        $status = in_array($kind, ['public', 'event'], true) ? 'pending' : 'logged';
+        // A draft (the portal notebook's "not submitted yet") is public in kind
+        // but waits outside the queue until its author submits it.
+        $status = in_array($kind, ['public', 'event'], true) ? ($draft ? 'draft' : 'pending') : 'logged';
         $now = date('Y-m-d H:i:s');
         $this->db->prepare(
             'INSERT INTO diary_entries (author_id, kind, title, body, entry_date, status, font, created_at, updated_at)
@@ -93,7 +95,7 @@ final class DiaryJournal
         if (mb_strlen($body) > 40000) return ['ok' => false, 'error' => 'That entry is a little long — trim it down.'];
         $entryDate = array_key_exists('entry_date', $f) ? self::normalizeDate((string) $f['entry_date']) : (string) $row['entry_date'];
         $font  = array_key_exists('font', $f) ? self::validFont((string) $f['font']) : self::validFont((string) ($row['font'] ?? 'default'));
-        $status = in_array($kind, ['public', 'event'], true) ? 'pending' : 'logged';
+        $status = self::nextStatus($row, $kind, $title, $body, $f);
         $now = date('Y-m-d H:i:s');
 
         $this->db->prepare(
@@ -101,6 +103,32 @@ final class DiaryJournal
              WHERE id = ? AND author_id = ?'
         )->execute([$kind, $title, $body, $entryDate, $font, $status, $now, $id, $authorId]);
         return ['ok' => true, 'id' => $id, 'kind' => $kind, 'status' => $status, 'font' => $font];
+    }
+
+    /**
+     * The status an edit leaves an entry in.
+     *
+     * Private is always `logged`. A public or event entry goes back through
+     * review when what the public would read changes — that rule is unchanged —
+     * with three refinements the notebook needs:
+     *   · `draft => true` keeps (or puts) it outside the queue: written, not submitted;
+     *   · `submit => true` sends it to review (`pending`), including a resubmission;
+     *   · an edit that changes nothing the public reads (its font, say) leaves
+     *     a draft a draft and a published entry published.
+     * Without either flag, making an entry public still sends it to review, as
+     * every older caller expects.
+     */
+    private static function nextStatus(array $row, string $kind, string $title, string $body, array $f): string
+    {
+        if (!in_array($kind, ['public', 'event'], true)) return 'logged';
+        if (!empty($f['submit'])) return 'pending';
+        if (!empty($f['draft']))  return 'draft';
+        $was = (string) $row['status'];
+        $wasPublic = in_array((string) $row['kind'], ['public', 'event'], true);
+        $same = $wasPublic && (string) $row['kind'] === $kind && (string) $row['title'] === $title && (string) $row['body'] === $body;
+        if ($was === 'draft' && $wasPublic) return 'draft';
+        if ($same && in_array($was, ['approved', 'pending', 'rejected'], true)) return $was;
+        return 'pending';
     }
 
     /** A member's own stream (all kinds, newest entry-date first). */

@@ -249,7 +249,8 @@ try {
                 (string) ($body['title'] ?? ''),
                 (string) ($body['body'] ?? ''),
                 (string) ($body['entry_date'] ?? date('Y-m-d')),
-                (string) ($body['font'] ?? 'default')
+                (string) ($body['font'] ?? 'default'),
+                !empty($body['draft'])
             );
             json_out($res, $res['ok'] ? 200 : 422);
         }
