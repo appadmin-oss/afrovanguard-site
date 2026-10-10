@@ -40,7 +40,7 @@ return [
 
     'values' => [
         ['Individuation', 'The pursuit of self-discovery, self-mastery, and purpose fulfilment.'],
-        ['Faith', 'Confidence in God, truth, possibility, and the power of righteous action.'],
+        ['Faith', 'A deep belief in our roots — our ancestry, our heritage and the generations who came before us — and the confidence to build on them.'],
         ['Diligence', 'A consistent commitment to excellence, discipline, and productivity.'],
         ['Accountability', 'Ownership of actions, responsibilities, decisions, and outcomes.'],
         ['Responsibility', 'An active commitment to solving problems and advancing society.'],

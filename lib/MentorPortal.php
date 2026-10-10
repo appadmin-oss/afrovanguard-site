@@ -84,7 +84,7 @@ final class MentorPortal
      */
     public const VALUE_MOTTO = [
         'individuation'  => 'Stop copying. Become somebody.',
-        'faith'          => 'Believe something worth dying for.',
+        'faith'          => 'Know where you come from. Build on it.',
         'diligence'      => 'Talent is cheap. Discipline is rare.',
         'accountability' => 'Stop explaining. Start answering.',
         'responsibility' => 'If you see it, own it.',
@@ -93,7 +93,7 @@ final class MentorPortal
     ];
     public const VALUE_CHIPS = [
         'individuation'  => ['Made a choice that was clearly their own', 'Explained who they are becoming'],
-        'faith'          => ['Acted on a conviction under pressure', 'Named what they believe and why'],
+        'faith'          => ['Spoke about their family story or heritage with pride', 'Drew on their roots to make a hard choice'],
         'diligence'      => ['Finished what they promised, on time', 'Arrived prepared'],
         'accountability' => ['Owned a mistake without excuses', 'Repaired something they got wrong'],
         'responsibility' => ['Fixed a problem nobody assigned', 'Took on a task without being asked'],
