@@ -188,3 +188,6 @@ html:has(body.avac){color-scheme:light}
   .avac-plan{justify-self:end}
 }
 @media (prefers-reduced-motion:reduce){.avac *{transition:none!important;animation:none!important}}
+
+/* Touch: 44px tap height. */
+@media (pointer: coarse) { .avac-more { display: inline-flex; align-items: center; min-height: 44px; } }

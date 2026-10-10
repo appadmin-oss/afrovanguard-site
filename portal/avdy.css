@@ -315,3 +315,15 @@
 }
 @media (max-width: 639px) { .avdy { height: calc(100vh - 48px - 62px - 120px); border-radius: var(--av-r-10); } }
 @media (prefers-reduced-motion: reduce) { .avdy *, .avdy *::before { animation: none !important; transition: none !important; } }
+
+/* Touch: 44px tap height for the diary's small buttons. */
+@media (pointer: coarse) { .avnb-btn { min-height: 44px; } }
+
+/* Touch: the library's controls reach 44px to a finger. */
+@media (pointer: coarse) {
+  .avnb-new { height: 44px; }
+  .avnb-startnb { min-height: 44px; }
+  .avnb-export a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+  .avnb-search { height: 44px; }
+  .avnb-search input { align-self: stretch; }
+}

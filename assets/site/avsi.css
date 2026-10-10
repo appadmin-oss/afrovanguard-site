@@ -134,3 +134,6 @@ body.avsi{margin:0;background:var(--av-paper);color:var(--av-ink);font-family:va
 @media (prefers-reduced-motion:reduce){
   .avsi *,.avsi *::before,.avsi *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+
+/* Touch: 44px tap height. */
+@media (pointer: coarse) { .avsi-brand { min-height: 44px; } }

@@ -113,3 +113,6 @@
 
 /* The event cover is the shared renderer: assets/site/avcv.css (partials/av-cover.php). */
 @media (prefers-reduced-motion:reduce){.avev-sk span{animation:none!important;transition:none!important}}
+
+/* Touch: 44px tap height. */
+@media (pointer: coarse) { .avev-full { min-height: 44px; } }

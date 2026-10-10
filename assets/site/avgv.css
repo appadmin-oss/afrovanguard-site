@@ -177,3 +177,6 @@
   .avgv-field input{font-size:16px;height:48px}
 }
 @media (prefers-reduced-motion:reduce){.avgv *,.avgv-sheet *{animation:none!important;transition:none!important}.avgv-lead:hover .avgv-lead-img img,.avgv-tiles a:hover .avgv-tile-img img{transform:none}}
+
+/* Touch: links that act as buttons reach 44px. */
+@media (pointer: coarse) { .avgv-link { display: inline-flex; align-items: center; min-height: 44px; } }

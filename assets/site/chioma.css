@@ -336,3 +336,9 @@ html[data-theme="dark"] .ch-chip:hover, .chioma-root[data-dark="1"] .ch-chip:hov
 }
 
 @media print { .chioma-root { display: none !important; } }
+
+/* Touch: the greeting's close keeps its size and gains a 44px hit area. */
+@media (pointer: coarse) {
+  .chioma-greet .ch-greet-x { position: relative; }
+  .chioma-greet .ch-greet-x::after { content: ""; position: absolute; inset: -10px; }
+}

@@ -430,3 +430,24 @@ html.av-si .avh [data-avh-guest]{display:none}
 html.av-si .avh .avh-member{display:inline-flex}
 html.av-si .avh .avh-drawer-signin.avh-member{display:block}
 html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
+
+/* Touch: every control in the shared chrome is at least 44px tall to a finger.
+   On a mouse the footer keeps its drawn rhythm; on a phone a 20px link in a
+   column of thirty-seven is the commonest mis-tap on the site. Controls drawn
+   small on purpose (the hero's round buttons) keep their look and get an
+   invisible 44px hit area instead. */
+@media (pointer: coarse) {
+  .avh-foot-grp{gap:0}
+  .avh-foot-grp a{display:flex;align-items:center;min-height:44px}
+  .avh-foot-brand a,.avh-loc a,.avh-more{min-height:44px}
+  .avh-copy a{display:inline-flex;align-items:center;min-height:44px}
+  .avh-socials a{width:44px;height:44px}
+  .avh-hero-ctrl button{position:relative}
+  .avh-hero-ctrl button::after{content:"";position:absolute;inset:-7px}
+}
+
+/* Touch: breadcrumbs on every page that has them. Each page names its own
+   trail (avdn-crumbs, avpj-crumbs, …), so they are matched by that shape. */
+@media (pointer: coarse) {
+  [class$="-crumbs"] a,nav[aria-label="Breadcrumb"] a,nav[aria-label="Breadcrumbs"] a{display:inline-flex;align-items:center;min-height:44px}
+}

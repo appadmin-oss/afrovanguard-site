@@ -226,3 +226,6 @@ body.ngv{background:var(--ngv-bg);color:var(--ngv-text)}
   .ngv-about{grid-template-columns:1fr}
   .ngv-about h2{text-align:center}
 }
+
+/* Touch: the contact card's phone and email links reach 44px. */
+@media (pointer: coarse) { .ngv-card a[href^="tel:"], .ngv-card a[href^="mailto:"] { display: inline-flex; align-items: center; min-height: 44px; } }

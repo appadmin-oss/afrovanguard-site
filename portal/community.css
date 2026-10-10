@@ -238,3 +238,6 @@
 .cm-mod-btn { opacity:.5; font-size:13px; padding:4px 6px; line-height:1; }
 .cm-mod-btn:hover { opacity:1; }
 .cm-bar { display:flex; align-items:center; }
+
+/* Touch: space links and sort tabs reach 44px. */
+@media (pointer: coarse) { #view-community .cm-space-link, #view-community .cm-sort-tab { min-height: 44px; display: inline-flex; align-items: center; } }

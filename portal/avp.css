@@ -426,3 +426,10 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 @media (prefers-reduced-motion: reduce) {
   .avp *, .avp *::before, .avp *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Touch: the small text links in view heads and cards, and disclosure rows,
+   reach 44px to a finger without changing how they look on a desktop. */
+@media (pointer: coarse) {
+  .avp .avp-head-link, .avp .pcard-link { display: inline-flex; align-items: center; min-height: 44px; }
+  .avp details > summary { min-height: 44px; display: flex; align-items: center; }
+}

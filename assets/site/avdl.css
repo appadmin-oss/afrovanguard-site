@@ -144,3 +144,8 @@
   .avdl *{transition:none!important;animation:none!important}
   .avdl-feat:hover>img,.avdl-card:hover .avdl-card-img img{transform:none}
 }
+
+/* Touch: 44px tap height. */
+@media (pointer: coarse) { .avdl-own { display: inline-flex; align-items: center; min-height: 44px; } }
+
+@media (pointer: coarse) { .avdl .avdl-feeds a { display: inline-flex; align-items: center; min-height: 44px; padding: 0; } }

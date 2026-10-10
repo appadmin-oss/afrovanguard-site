@@ -192,3 +192,5 @@
   .avct-acc button{font-size:17px;min-height:44px}
 }
 @media (prefers-reduced-motion:reduce){.avct *{animation:none!important;transition:none!important}.avct .avct-qcard:hover{transform:none}}
+
+@media (pointer: coarse) { .avct-visit a { display: inline-flex; align-items: center; min-height: 44px; } }
