@@ -43,9 +43,7 @@ ck('journey: a contributed project ticks that line', $v['needs'][1]['ok'] && $v[
 ck('journey: one engine set shows the engines block', $v['enginesSet'] && $v['engines'][0]['value'] === 62);
 ck('journey: a school cannot pass its module count', (function () use ($jm, $c) { NgvJourney::set($jm, ['school:0' => 40], 7); return NgvJourney::view($jm, $c)['schools'][0]['done'] === 6; })());
 
-/* Content: Faith is belief in one's roots, not religion. */
-ck('journey: the NGV 8 ship', count($c['j_values']) === 8);
-ck('journey: Faith is about roots and ancestry', stripos($c['j_values'][0]['desc'], 'ancestry') !== false && stripos($c['j_values'][0]['desc'], 'God') === false);
+/* Content. */
 ck('journey: the term\'s project and roster start empty', ($c['j_project']['title'] ?? 'x') === '' && $c['j_roster'] === []);
 
 /* The view: classes only, data-driven, the sheet once. */
@@ -70,6 +68,13 @@ $mem = (string) file_get_contents("$root/academy/ngv/members.php");
 ck('desk: journey_set calls NgvJourney::set', str_contains($mem, "\$act === 'journey_set'") && str_contains($mem, 'NgvJourney::set($mid'));
 ck('desk: journey saves are audited', str_contains($mem, "ngv_console_audit('journey'"));
 $ed = (string) file_get_contents("$root/academy/ngv/edit.php");
-ck('editor: the Programme blocks are editable', str_contains($ed, "list:'j_roster'") && str_contains($ed, "path:'j_project.title'") && str_contains($ed, "list:'j_values'"));
+ck('editor: the Programme blocks are editable', str_contains($ed, "list:'j_roster'") && str_contains($ed, "path:'j_project.title'") && str_contains($ed, "list:'j_schools'"));
+/* Cut to the member's own record (owner, 2026-10-10): the brochure is not drawn. */
+foreach (['avng-intro' => 'the intro band', 'avng-pipe' => 'the pipeline', 'avng-v8-h' => 'the NGV 8', 'avng-sm-h' => 'summer mentorship', 'avng-su-h' => 'the summit', 'avng-tr-h' => 'the list of tracks'] as $gone => $what)
+    ck('programme view: ' . $what . ' is not on the dashboard', !str_contains($prog, $gone));
+ck('programme view: the books come before the score', strpos($prog, 'avng-bk-h') < strpos($prog, 'avng-sc-h'));
+ck('programme view: no empty certifications card', str_contains($prog, "<?php if (\$nCerts): ?>\n                <section class=\"avng-card\" aria-labelledby=\"avng-ce-h\">"));
+ck('programme view: schools only once a module is recorded', str_contains($prog, "\$x['done'] > 0"));
+ck('editor: removed blocks are not editable', !str_contains($ed, "id:'j_values'") && !str_contains($ed, "id:'j_summit'"));
 
 NgvDb::pdo()->exec('DELETE FROM ngv_journey');

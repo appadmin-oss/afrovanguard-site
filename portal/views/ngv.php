@@ -12,7 +12,10 @@
 ?>
         <section class="pview" id="view-ngv" data-view="ngv" hidden>
 <?php
-        /* Programme (design "Afrovanguard Portal v4"). Classes only — no inline
+        /* Programme. Built from design "Afrovanguard Portal v4", then cut to what
+           is about THIS member (owner, 2026-10-10): the programme's brochure
+           (pipeline, the NGV 8, summer, summit, the list of tracks) is on the
+           public NGV page, not here. Classes only — no inline
            styles; bars are <progress> so their value needs no style attribute.
            Data: academy/ngv/_dashboard-data.php ($ngvVars), lib/NgvJourney.php,
            the NGV content document, GateAttendance. A block with no data is not
@@ -29,44 +32,24 @@
         $nTrack = (string) $nv['myTrack'];
         $stTone = ['verified' => 'green', 'submitted' => 'indigo', 'resubmit' => 'red', 'rejected' => 'red', 'draft' => 'gold'];
         $stWord = ['verified' => 'Verified', 'submitted' => 'With your track lead', 'resubmit' => 'Needs another look', 'rejected' => 'Not accepted', 'draft' => 'Draft — not sent yet'];
-        $nIntro = (array) ($nc['j_intro'] ?? []); $nPipe = (array) ($nc['j_pipeline'] ?? []); $nLoop = (array) ($nc['j_loop'] ?? []);
         $nProj = (array) ($nc['j_project'] ?? []); $nPast = (array) ($nc['j_project_past'] ?? []);
         $nChap = (array) ($nc['j_chapter'] ?? []); $nRoster = array_values(array_filter((array) ($nc['j_roster'] ?? []), static fn($r) => is_array($r) && trim((string) ($r['name'] ?? '')) !== ''));
-        $nSummer = (array) ($nc['j_summer'] ?? []); $nSummit = (array) ($nc['j_summit'] ?? []);
-        $nValues = array_values(array_filter((array) ($nc['j_values'] ?? []), static fn($r) => is_array($r) && trim((string) ($r['name'] ?? '')) !== ''));
         $nSched = (array) ($nv['sched'] ?? []);
         $nCerts = (array) ($nv['myCerts'] ?? []);
-        $nTracks = (array) ($nv['tracks'] ?? []);
         $nRecorded = array_values(array_filter($nshelf, static fn($b) => ($b['status'] ?? 'empty') !== 'empty'));
         $nFirstEmpty = 0; foreach ($nshelf as $slot => $b) { if (($b['status'] ?? 'empty') === 'empty') { $nFirstEmpty = (int) $slot; break; } }
         $ini = static fn(string $n): string => mb_strtoupper(implode('', array_map(static fn($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/u', trim($n)) ?: [], 0, 2))));
 ?>
           <div class="view-head">
-            <div><h1>Programme</h1><p class="view-sub">Your NextGen Vanguard journey: your level, your Vanguard score, books, the quarterly project, the Academy and your chapter.</p></div>
+            <div><h1>Programme</h1><p class="view-sub">Where you stand in NextGen Vanguard, and what to do next.</p></div>
           </div>
           <div class="avng">
             <div class="avng-strip">
-              <a class="avng-kpi" href="#ngv-track"><span class="avng-kpi-k">Track</span><span class="avng-kpi-v<?= $nTrack === '' ? ' is-gold' : '' ?>"><?= $nTrack !== '' ? e($nTrack) : 'Not chosen' ?></span><span class="avng-kpi-s"><?= $nTrack !== '' ? e((string) $nv['myPlan']) : 'Set by the programme team' ?></span></a>
+              <div class="avng-kpi"><span class="avng-kpi-k">Track</span><span class="avng-kpi-v<?= $nTrack === '' ? ' is-gold' : '' ?>"><?= $nTrack !== '' ? e($nTrack) : 'Not chosen' ?></span><span class="avng-kpi-s"><?= $nTrack !== '' ? e((string) $nv['myPlan']) : 'Set by the programme team' ?></span></div>
               <a class="avng-kpi" href="#books"><span class="avng-kpi-k">Reading</span><span class="avng-kpi-v av-num"><?= (int) $nrp['verified'] ?> / <?= (int) $nrp['total'] ?></span><span class="avng-kpi-s">books this year</span></a>
               <a class="avng-kpi" href="#ngv-account" data-goto="ngv-account"><span class="avng-kpi-k">Balance</span><span class="avng-kpi-v av-num<?= $nOwed > 0 ? ' is-gold' : ' is-green' ?>"><?= $nOwed > 0 ? '₦' . number_format($nOwed) : 'All clear' ?></span><span class="avng-kpi-s"><?= $nOwed > 0 ? 'outstanding' : 'nothing owed' ?></span></a>
               <div class="avng-kpi"><span class="avng-kpi-k">Attendance</span><span class="avng-kpi-v av-num"><?= $nRate !== null ? $nRate . '%' : '—' ?></span><span class="avng-kpi-s"><?= $nPunct !== null ? $nPunct . '% on time' : 'no sessions recorded yet' ?></span></div>
             </div>
-
-            <section class="avng-intro" aria-labelledby="avng-intro-h">
-              <div class="avng-intro-top">
-                <div class="avng-intro-copy"><span class="avng-eyebrow"><?= e((string) ($nIntro['eyebrow'] ?? '')) ?></span><h2 id="avng-intro-h"><?= e((string) ($nIntro['title'] ?? '')) ?></h2><p><?= e((string) ($nIntro['body'] ?? '')) ?></p></div>
-<?php if ($nPipe): ?>
-                <ol class="avng-pipe" aria-label="Leadership pipeline">
-<?php foreach ($nPipe as $pp): if (!is_array($pp)) continue; $here = !empty($pp['here']); ?>
-                  <li class="avng-pipe-i<?= $here ? ' is-here' : '' ?>"><span class="avng-pipe-t"><?= e((string) ($pp['name'] ?? '')) ?><span><?= e((string) ($pp['age'] ?? '')) ?></span></span><span class="avng-pipe-d"><?= e((string) ($pp['desc'] ?? '')) ?></span><?php if ($here): ?><span class="avng-pipe-here">You are here</span><?php endif; ?></li>
-<?php endforeach; ?>
-                </ol>
-<?php endif; ?>
-              </div>
-<?php if ($nLoop): ?>
-              <p class="avng-loop"><?php foreach (array_values($nLoop) as $k => $lp): ?><span><?= e((string) $lp) ?></span><?php if ($k < count($nLoop) - 1): ?><span class="avng-loop-a" aria-hidden="true">→</span><?php endif; ?><?php endforeach; ?><span class="avng-loop-end"><?= e((string) ($nc['j_loop_end'] ?? '')) ?></span></p>
-<?php endif; ?>
-            </section>
 
             <div class="avng-grid">
               <div class="avng-col">
@@ -86,18 +69,6 @@
 <?php endforeach; ?>
                   </ul>
 <?php endif; ?>
-                </section>
-<?php endif; ?>
-
-<?php if ($nj['scored']): ?>
-                <section class="avng-card" aria-labelledby="avng-sc-h">
-                  <div class="avng-card-h"><h2 id="avng-sc-h">The 8-point Vanguard score</h2><span class="av-num"><?= (int) $nj['total'] ?> / 800</span></div>
-                  <ol class="avng-score">
-<?php foreach ($nj['score'] as $k => $sc): ?>
-                    <li><span class="avng-score-t"><span><?= $k + 1 ?> · <?= e($sc['label']) ?></span><b class="av-num"><?= (int) $sc['value'] ?></b></span><progress class="avng-bar" value="<?= (int) $sc['value'] ?>" max="100" aria-label="<?= e($sc['label']) ?>: <?= (int) $sc['value'] ?> of 100"></progress><span class="avng-score-e"><?= e($sc['note']) ?></span></li>
-<?php endforeach; ?>
-                  </ol>
-                  <p class="avng-fine">Each area is scored out of 100 by the NGV office against evidence; the line under it says what it rests on.</p>
                 </section>
 <?php endif; ?>
 
@@ -131,6 +102,19 @@
 <?php require AV_ROOT . '/academy/ngv/_book-modal.php'; ?>
                 </section>
 
+<?php if ($nj['scored']): ?>
+                <section class="avng-card" aria-labelledby="avng-sc-h">
+                  <div class="avng-card-h"><h2 id="avng-sc-h">The 8-point Vanguard score</h2><span class="av-num"><?= (int) $nj['total'] ?> / 800</span></div>
+                  <ol class="avng-score">
+<?php foreach ($nj['score'] as $k => $sc): ?>
+                    <li><span class="avng-score-t"><span><?= $k + 1 ?> · <?= e($sc['label']) ?></span><b class="av-num"><?= (int) $sc['value'] ?></b></span><progress class="avng-bar" value="<?= (int) $sc['value'] ?>" max="100" aria-label="<?= e($sc['label']) ?>: <?= (int) $sc['value'] ?> of 100"></progress><span class="avng-score-e"><?= e($sc['note']) ?></span></li>
+<?php endforeach; ?>
+                  </ol>
+                  <p class="avng-fine">Each area is scored out of 100 by the NGV office against evidence; the line under it says what it rests on.</p>
+                </section>
+<?php endif; ?>
+
+
 <?php if (trim((string) ($nProj['title'] ?? '')) !== ''): $pStep = max(0, min(6, (int) ($nProj['step'] ?? 0))); ?>
                 <section class="avng-card" aria-labelledby="avng-pj-h">
                   <div class="avng-card-h"><h2 id="avng-pj-h">Community project<?= trim((string) ($nProj['quarter'] ?? '')) !== '' ? ' · ' . e((string) $nProj['quarter']) : '' ?></h2><?php if (trim((string) ($nProj['theme'] ?? '')) !== ''): ?><span class="avng-chip" data-tone="gold"><?= e((string) $nProj['theme']) ?></span><?php endif; ?></div>
@@ -157,7 +141,7 @@
                 </section>
 <?php endif; ?>
 
-<?php if ($nj['schools']): ?>
+<?php if (array_filter($nj['schools'], static fn($x) => $x['done'] > 0)): ?>
                 <section class="avng-card" aria-labelledby="avng-sch-h">
                   <div class="avng-card-h"><h2 id="avng-sch-h">Afrovanguard Academy · six schools</h2><span>You graduate on evidence, not attendance</span></div>
                   <ul class="avng-rows">
@@ -168,17 +152,6 @@
                 </section>
 <?php endif; ?>
 
-<?php if ($nTracks): ?>
-                <section class="avng-card" aria-labelledby="avng-tr-h" id="ngv-track">
-                  <div class="avng-card-h"><h2 id="avng-tr-h">Track &amp; plan</h2><span class="avng-chip" data-tone="<?= $nTrack !== '' ? 'green' : 'gold' ?>"><?= $nTrack !== '' ? e($nTrack) : 'Not chosen' ?></span></div>
-                  <ul class="avng-tracks">
-<?php foreach ($nTracks as $tr): if (!is_array($tr) || trim((string) ($tr['name'] ?? '')) === '') continue; $on = (string) $tr['name'] === $nTrack; ?>
-                    <li class="<?= $on ? 'is-on' : '' ?>"<?= $on ? ' aria-current="true"' : '' ?>><span class="avng-radio" aria-hidden="true"></span><span class="avng-shelf-t"><span><?= e((string) $tr['name']) ?></span><span><?= e((string) ($tr['desc'] ?? '')) ?></span></span><?php if ($on && (string) $nv['myPlan'] !== ''): ?><span class="avng-rows-v"><?= e((string) $nv['myPlan']) ?></span><?php endif; ?></li>
-<?php endforeach; ?>
-                  </ul>
-                  <p class="avng-fine">Your track and plan are set by the programme team when you are enrolled. To change either, speak to your track lead.</p>
-                </section>
-<?php endif; ?>
               </div>
 
               <div class="avng-col avng-col--side">
@@ -204,26 +177,6 @@
                 </section>
 <?php endif; ?>
 
-<?php if (trim((string) ($nSummer['body'] ?? '')) !== ''): ?>
-                <section class="avng-card" aria-labelledby="avng-sm-h">
-                  <div class="avng-card-h"><h2 id="avng-sm-h">Summer mentorship</h2><?php if (trim((string) ($nSummer['badge'] ?? '')) !== ''): ?><span class="avng-chip" data-tone="indigo"><?= e((string) $nSummer['badge']) ?></span><?php endif; ?></div>
-                  <p class="avng-p"><?= e((string) $nSummer['body']) ?></p>
-<?php if (trim((string) ($nSummer['quote'] ?? '')) !== ''): ?>
-                  <p class="avng-callout"><b>Leave with a portfolio piece.</b> <?= e((string) $nSummer['quote']) ?></p>
-<?php endif; ?>
-                </section>
-<?php endif; ?>
-
-<?php if (trim((string) ($nSummit['note'] ?? '')) !== ''): ?>
-                <section class="avng-card" aria-labelledby="avng-su-h">
-                  <div class="avng-card-h"><h2 id="avng-su-h">D’Vanguard National Summit</h2><span><?= e((string) ($nSummit['path'] ?? '')) ?></span></div>
-<?php $stg = array_filter(array_map('strval', (array) ($nc['j_summit_stages'] ?? [])), 'strlen'); if ($stg): ?>
-                  <ul class="avng-tags"><?php foreach ($stg as $t): ?><li><?= e($t) ?></li><?php endforeach; ?></ul>
-<?php endif; ?>
-                  <p class="avng-p"><?= e((string) $nSummit['note']) ?></p>
-                </section>
-<?php endif; ?>
-
 <?php if ($nRoster): ?>
                 <section class="avng-card" aria-labelledby="avng-ch-h">
                   <div class="avng-card-h"><h2 id="avng-ch-h">Your chapter</h2><span><?= e(trim((string) ($nChap['name'] ?? '') . (trim((string) ($nChap['place'] ?? '')) !== '' ? ' · ' . $nChap['place'] : ''))) ?></span></div>
@@ -236,29 +189,16 @@
                 </section>
 <?php endif; ?>
 
-<?php if ($nValues): ?>
-                <section class="avng-card" aria-labelledby="avng-v8-h">
-                  <div class="avng-card-h"><h2 id="avng-v8-h">The NGV 8</h2><span>Standards, not slogans</span></div>
-                  <dl class="avng-dl avng-dl--values">
-<?php foreach ($nValues as $vl): ?>
-                    <div><dt><?= e((string) $vl['name']) ?></dt><dd><?= e((string) ($vl['desc'] ?? '')) ?></dd></div>
-<?php endforeach; ?>
-                  </dl>
-                </section>
-<?php endif; ?>
-
-                <section class="avng-card" aria-labelledby="avng-ce-h">
-                  <div class="avng-card-h"><h2 id="avng-ce-h">Certifications</h2></div>
 <?php if ($nCerts): ?>
+                <section class="avng-card" aria-labelledby="avng-ce-h">
+                  <div class="avng-card-h"><h2 id="avng-ce-h">Certifications</h2><span class="av-num"><?= count($nCerts) ?></span></div>
                   <ul class="avng-rows">
 <?php foreach ($nCerts as $ct): ?>
                     <li><span class="avng-shelf-t"><span><?= e((string) ($ct['name'] ?? $ct['title'] ?? 'Certificate')) ?></span></span><span class="avng-chip" data-tone="green">Earned</span></li>
 <?php endforeach; ?>
                   </ul>
-<?php else: ?>
-                  <p class="avng-p">No certifications yet — earn them by completing your track milestones.</p>
-<?php endif; ?>
                 </section>
+<?php endif; ?>
               </div>
             </div>
           </div>

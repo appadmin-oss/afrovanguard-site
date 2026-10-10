@@ -196,15 +196,6 @@ a{color:var(--red)}
     ]},
     /* ── The member portal's Programme view (lib/NgvJourney.php reads these).
        A block left empty is not shown to members. ─────────────────────── */
-    {id:'j_intro',title:'Portal · Programme intro',fields:[
-      {type:'text',path:'j_intro.eyebrow',label:'Eyebrow',half:1},{type:'text',path:'j_intro.title',label:'Heading',half:1},
-      {type:'area',path:'j_intro.body',label:'Text'},{type:'text',path:'j_loop_end',label:'After the loop (e.g. then Mentor → Multiply)'},
-    ]},
-    {id:'j_pipeline',title:'Portal · Leadership pipeline',addLabel:'stage',list:'j_pipeline',itemTitle:'name',item:[
-      {key:'name',label:'Name',half:1},{key:'age',label:'Ages',half:1},{key:'desc',label:'Description',full:1},
-      {key:'here',label:'Mark as “You are here”',type:'bool'},
-    ]},
-    {id:'j_loop',title:'Portal · The loop',linelist:'j_loop',hint:'One step per line (Learn, Build, Serve…).'},
     {id:'j_levels',title:'Portal · Levels',linelist:'j_levels',hint:'One level per line, lowest first. The third is the one members work towards (Vanguard).'},
     {id:'j_schools',title:'Portal · Academy schools',addLabel:'school',list:'j_schools',itemTitle:'name',item:[
       {key:'name',label:'School',half:1},{key:'modules',label:'Modules (number)',half:1},{key:'desc',label:'What it covers',full:1},
@@ -222,17 +213,6 @@ a{color:var(--red)}
     {id:'j_chapter',title:'Portal · Your chapter',addLabel:'member',fields:[
       {type:'text',path:'j_chapter.name',label:'Chapter name',half:1},{type:'text',path:'j_chapter.place',label:'Where',half:1},
     ],list:'j_roster',itemTitle:'name',item:[{key:'name',label:'Name',half:1},{key:'role',label:'Role',half:1}]},
-    {id:'j_values',title:'Portal · The NGV 8',addLabel:'value',list:'j_values',itemTitle:'name',item:[
-      {key:'name',label:'Value',half:1},{key:'desc',label:'What it means',half:1},
-    ]},
-    {id:'j_summer',title:'Portal · Summer mentorship',fields:[
-      {type:'text',path:'j_summer.badge',label:'Badge (e.g. Opens 1 Mar 2027)'},{type:'area',path:'j_summer.body',label:'Text'},
-      {type:'area',path:'j_summer.quote',label:'After “Leave with a portfolio piece.”'},
-    ]},
-    {id:'j_summit',title:'Portal · National Summit',fields:[
-      {type:'text',path:'j_summit.path',label:'Path (Campus → City → National)'},{type:'area',path:'j_summit.note',label:'Text — leave empty to hide'},
-    ]},
-    {id:'j_summit_stages',title:'Portal · Summit stages',linelist:'j_summit_stages',hint:'One per line.'},
     {id:'offices',title:'Offices',addLabel:'office',list:'offices',itemTitle:'name',item:[{key:'name',label:'Office name',half:1},{key:'address',label:'Address',half:1}]},
     {id:'contact',title:'Contact',fields:[
       {type:'text',path:'contact.phone',label:'Phone',half:1},{type:'text',path:'contact.email',label:'Email',half:1},

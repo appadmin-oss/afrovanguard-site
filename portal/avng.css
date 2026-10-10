@@ -1,6 +1,6 @@
 /* ==========================================================================
    portal/avng.css — NGV Programme (design "Afrovanguard Portal v4",
-   Programme). Markup: portal/views/ngv.php, prefix avng-. Colours are the
+   Programme, cut to the member's own record). Markup: portal/views/ngv.php, prefix avng-. Colours are the
    portal shell's --avp-* tokens only (portal/avp.css), so dark mode follows
    the shell. Bars are <progress>, styled here, so no width is ever inline.
    ========================================================================== */
@@ -18,24 +18,6 @@ a.avng-kpi:hover { background: var(--avp-side); }
 .avng-kpi-v.is-green { color: var(--avp-green-tx); }
 .avng-kpi-s { font-size: 12px; color: var(--avp-faint); }
 
-/* The intro band: who NGV is for, the pipeline, the loop. */
-.avng-intro { border: 1px solid var(--avp-line); border-radius: 12px; overflow: hidden; background: var(--avp-side); }
-.avng-intro-top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; padding: 16px 18px; }
-.avng-intro-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 300px; }
-.avng-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--avp-gold-tx); }
-.avng-intro-copy h2 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.25; color: var(--avp-ink); }
-.avng-intro-copy p { margin: 0; font-size: 13.5px; color: var(--avp-muted); line-height: 1.5; }
-.avng-pipe { display: flex; align-items: stretch; gap: 6px; flex: 1 1 440px; min-width: 0; margin: 0; padding: 0; list-style: none; }
-.avng-pipe-i { flex: 1; min-width: 0; border-radius: 8px; border: 1px solid var(--avp-line); background: transparent; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
-.avng-pipe-i.is-here { border-color: var(--avp-gold); background: var(--avp-bg); }
-.avng-pipe-t { display: flex; justify-content: space-between; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--avp-ink); }
-.avng-pipe-t > span { font-size: 11.5px; font-weight: 600; color: var(--avp-muted); white-space: nowrap; }
-.avng-pipe-d { font-size: 12px; color: var(--avp-muted); line-height: 1.35; }
-.avng-pipe-here { margin-top: 3px; font-size: 11px; font-weight: 700; color: var(--avp-gold-tx); }
-.avng-loop { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0; padding: 9px 18px; border-top: 1px solid var(--avp-line); font-size: 12.5px; font-weight: 600; color: var(--avp-text-2); }
-.avng-loop-a { color: var(--avp-faint); }
-.avng-loop-end { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--avp-faint); }
-
 /* Two columns that wrap: the work on the left, the context on the right. */
 .avng-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
 .avng-col { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
@@ -47,8 +29,7 @@ a.avng-kpi:hover { background: var(--avp-side); }
 .avng-card-h > span { font-size: 12.5px; color: var(--avp-muted); text-align: right; }
 .avng-card-h > span.av-num { font-weight: 600; color: var(--avp-ink); font-variant-numeric: tabular-nums; }
 .avng-p { margin: 0; padding: 10px 14px 12px; font-size: 13px; color: var(--avp-text-2); line-height: 1.5; }
-.avng-p + .avng-p, .avng-tags + .avng-p { padding-top: 0; }
-.avng-fine { margin: 0; padding: 8px 14px; font-size: 12px; color: var(--avp-faint); line-height: 1.45; }
+.avng-p + .avng-p, .avng-fine { margin: 0; padding: 8px 14px; font-size: 12px; color: var(--avp-faint); line-height: 1.45; }
 .avng-sub-h { margin: 0; padding: 8px 14px 4px; font-size: 12px; font-weight: 600; color: var(--avp-faint); border-top: 1px solid var(--avp-line-2); background: var(--avp-side); }
 
 .avng-chip { font-size: 11.5px; font-weight: 700; border-radius: 4px; padding: 2px 7px; white-space: nowrap; background: var(--avp-pill); color: var(--avp-text-2); }
@@ -106,7 +87,7 @@ a.avng-kpi:hover { background: var(--avp-side); }
 .avng-callout { margin: 0 14px 10px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--avp-line); border-left: 3px solid var(--avp-dot-indigo); font-size: 12.5px; line-height: 1.5; color: var(--avp-text-2); }
 .avng-record { display: flex; align-items: center; width: calc(100% - 28px); min-height: 44px; margin: 0 14px 12px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--avp-line); background: var(--avp-bg); color: var(--avp-ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .avng-record:hover { border-color: var(--avp-input-hover); }
-.avng-shelf, .avng-rows, .avng-past, .avng-tracks, .avng-people { margin: 0; padding: 0; list-style: none; }
+.avng-shelf, .avng-rows, .avng-past, .avng-people { margin: 0; padding: 0; list-style: none; }
 .avng-shelf > li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 42px; padding: 4px 14px; border-top: 1px solid var(--avp-line-2); }
 .avng-shelf-t { min-width: 0; display: flex; flex-direction: column; }
 .avng-shelf-t > span:first-child { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -136,23 +117,12 @@ a.avng-kpi:hover { background: var(--avp-side); }
 .avng-shelf-t--row { flex-direction: row; justify-content: space-between; gap: 8px; }
 .avng-shelf-t--row > span + span { text-align: right; }
 
-/* Track & plan: read-only — set by the programme team. */
-.avng-tracks > li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 14px; border-bottom: 1px solid var(--avp-line-2); }
-.avng-tracks > li.is-on { background: var(--avp-side); }
-.avng-tracks .avng-shelf-t { flex-direction: row; flex-wrap: wrap; column-gap: 8px; align-items: baseline; }
-.avng-tracks .avng-shelf-t > span:first-child { font-weight: 600; white-space: normal; }
-.avng-radio { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--avp-faint); box-shadow: inset 0 0 0 3px var(--avp-bg); }
-.avng-tracks > li.is-on .avng-radio { border-color: var(--avp-primary); background: var(--avp-primary); box-shadow: inset 0 0 0 3px var(--avp-side); }
-
 /* Lists of terms. */
 .avng-dl { margin: 0; }
 .avng-dl > div { display: grid; grid-template-columns: minmax(0, 120px) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 14px; border-bottom: 1px solid var(--avp-line-2); }
 .avng-dl > div:last-child { border-bottom: 0; }
 .avng-dl dt { font-size: 13px; font-weight: 600; }
 .avng-dl dd { margin: 0; font-size: 12.5px; color: var(--avp-muted); line-height: 1.4; }
-.avng-dl--values > div { padding: 7px 14px; }
-.avng-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 10px 14px 10px; list-style: none; }
-.avng-tags > li { height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--avp-line); font-size: 12px; font-weight: 600; display: flex; align-items: center; }
 
 /* Chapter roster. */
 .avng-people > li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 36px; padding: 3px 14px; border-bottom: 1px solid var(--avp-line-2); }
@@ -163,8 +133,6 @@ a.avng-kpi:hover { background: var(--avp-side); }
 
 /* Narrow: by the Programme's own width, not the window's. */
 @container avng (max-width: 640px) {
-  .avng-pipe { flex-direction: column; flex-basis: 100%; }
-  .avng-loop-end { margin-left: 0; flex-basis: 100%; }
   .avng-score { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .avng-slots { grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: 6px; }
   .avng-slot { height: 16px; }
