@@ -1,2 +1,6 @@
 # Site-wide chrome switch: pages on lib/partials.php wear the Home chrome
 assets/site/avpg.css
+assets/site/averr.css
+tools/build-error-pages.php
+lib/search-page.php
+assets/site/avsr.css
