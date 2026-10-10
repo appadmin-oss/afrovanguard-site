@@ -1,0 +1,37 @@
+/* Error pages (lib/errors.php → 403/404/429/500/503.html). Prefix averr-. Tokens only.
+   They wear the Home nav and footer; the body is one card: words on the left,
+   the illustration (or its numeral fallback) on the right, stacked on phone. */
+.averr{flex:1;display:flex;align-items:center;justify-content:center;padding:clamp(40px,6vw,88px) clamp(20px,3vw,32px);background:var(--av-white)}
+.averr-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,72px);align-items:center;max-width:1080px;width:100%}
+.averr-code{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--av-gold-text);margin:0 0 14px}
+.averr-title{font-family:var(--av-serif);font-weight:400;font-size:clamp(44px,6vw,80px);line-height:1;letter-spacing:-.01em;color:var(--av-ink);margin:0 0 18px;text-wrap:balance}
+.averr-msg{color:var(--av-copy);font-size:clamp(17px,1.6vw,19px);line-height:1.6;max-width:46ch;margin:0 0 24px}
+.averr-poem{margin:0 0 28px;padding:2px 0 2px 18px;border-left:2px solid var(--av-gold);max-width:46ch}
+.averr-poem p{font-family:var(--av-serif);font-style:italic;font-size:clamp(19px,2vw,22px);line-height:1.5;color:var(--av-ink);margin:0}
+.averr-actions{display:flex;flex-wrap:wrap;gap:10px}
+.averr-btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 22px;border-radius:var(--av-r-8);border:1px solid var(--av-ink);background:var(--av-ink);color:var(--av-white);font-size:15px;font-weight:600}
+.avh .averr-btn:hover{background:var(--av-ink-hover);border-color:var(--av-ink-hover);color:var(--av-white)}
+.averr-btn--line{background:transparent;border-color:var(--av-line-3);color:var(--av-ink);font-weight:500}
+.avh .averr-btn--line:hover{background:var(--av-stone);border-color:var(--av-line-3);color:var(--av-ink)}
+.averr-search{display:flex;gap:8px;margin:0 0 22px;max-width:440px}
+.averr-search input{flex:1;min-width:0;height:46px;padding:0 14px;border:1px solid var(--av-line-2);border-radius:var(--av-r-8);background:var(--av-white);color:var(--av-ink);font:inherit;font-size:16px}
+.averr-search input::placeholder{color:var(--av-faint-text)}
+.averr-search button{height:46px;padding:0 18px;border:1px solid var(--av-line-3);border-radius:var(--av-r-8);background:var(--av-stone);color:var(--av-ink);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+.averr-search button:hover{background:var(--av-stone-hover)}
+.averr-illo{position:relative;border-radius:var(--av-r-14);overflow:hidden;background:var(--av-indigo);aspect-ratio:3/4;max-width:420px;width:100%;margin:0 auto;box-shadow:0 30px 70px rgba(17,24,39,.14)}
+[data-mood="stop"] .averr-illo{background:var(--av-gold)}
+[data-mood="examine"] .averr-illo{background:var(--av-band-warn)}
+.averr-illo img{display:block;width:100%;height:100%;object-fit:cover}
+.averr-fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:var(--av-white)}
+[data-mood="stop"] .averr-fallback{color:var(--av-ink)}
+.averr-illo.is-fallback .averr-fallback{display:flex}
+.averr-fallback b{font-family:var(--av-serif);font-weight:400;font-size:clamp(72px,14vw,128px);line-height:.9}
+.averr-fallback span{font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
+@media (max-width:759px){
+  .averr-card{grid-template-columns:1fr;text-align:center}
+  .averr-illo{order:-1;max-width:280px}
+  .averr-msg,.averr-poem,.averr-search{margin-left:auto;margin-right:auto}
+  .averr-poem{text-align:left}
+  .averr-actions{justify-content:center}
+  .averr-btn{flex:1 1 auto}
+}
