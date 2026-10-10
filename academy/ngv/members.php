@@ -242,6 +242,20 @@ if ($method === 'POST') {
         if (empty($r['ok'])) json_out(['ok' => false, 'error' => 'Reminders are switched off.'], 400);
         json_out($r);
     }
+    /* The Programme view's figures (lib/NgvJourney.php). Validated whole
+       before anything is written; an empty box is left as it was. */
+    if ($act === 'journey_set') {
+        if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
+        $vals = [];
+        foreach ((array) ($in['values'] ?? []) as $k => $v) {
+            if (!is_array($v) || !isset($v['value']) || trim((string) $v['value']) === '') continue;
+            $vals[(string) $k] = [$v['value'], (string) ($v['note'] ?? '')];
+        }
+        if (!$vals) json_out(['ok' => false, 'error' => 'Nothing to save.'], 400);
+        $r = NgvJourney::set($mid, $vals, $adminUid);
+        if (!empty($r['ok'])) ngv_console_audit('journey', 'member#' . $mid, count($vals) . ' figures');
+        json_out($r, empty($r['ok']) ? 400 : 200);
+    }
     if ($act === 'cert') {
         if ($mid <= 0) json_out(['ok' => false, 'error' => 'Missing member.'], 400);
         $ok = NgvMember::addCertification($mid, [
@@ -1442,6 +1456,52 @@ details.sect>summary{margin-bottom:8px}
           </details>
         </div>
 
+        <!-- ══ Journey ══════════════════════════════════════════════════════
+             What the member's Programme view draws (lib/NgvJourney.php). Every
+             figure is set here against evidence, and the note says which — the
+             member sees the note under the number. Knowledge, left blank, is
+             verified books × 4. -->
+        <?php $jr = NgvJourney::raw($m); $jc = Ngv::get(); $jLevels = array_values(array_filter(array_map('strval', (array) ($jc['j_levels'] ?? [])), 'strlen'));
+              $jRow = static function (string $k, string $label, int $max) use ($jr, $e): string {
+                  $has = isset($jr[$k]);
+                  return '<div class="grid2"><label>' . $e($label) . ' (0–' . $max . ')<input type="number" min="0" max="' . $max . '" class="j-in" data-k="' . $e($k) . '" value="' . ($has ? (int) $jr[$k]['value'] : '') . '" placeholder="not set"></label>'
+                       . '<label>What it rests on<input class="j-note" data-k="' . $e($k) . '" maxlength="200" value="' . $e($has ? $jr[$k]['note'] : '') . '" placeholder="e.g. 2 peer commendations"></label></div>';
+              }; ?>
+        <div class="sect" id="journey"><h3>Journey</h3>
+          <p class="sub">The level, the 8-point Vanguard score and the five engines on this member's Programme page. Score each area out of 100 against evidence; leave a box empty to leave it unset.</p>
+          <details open><summary class="sub">Level and the evidence for Vanguard</summary>
+            <div class="grid2">
+              <label>Level<select class="j-in" data-k="level">
+                <?php foreach ($jLevels as $li => $ln): ?><option value="<?= $li ?>"<?= (int) ($jr['level']['value'] ?? 0) === $li ? ' selected' : '' ?>><?= $e($ln) ?></option><?php endforeach; ?>
+              </select></label>
+              <label>Community project contributed<select class="j-in" data-k="need:project">
+                <option value="0"<?= empty($jr['need:project']['value']) ? ' selected' : '' ?>>Not yet</option>
+                <option value="1"<?= !empty($jr['need:project']['value']) ? ' selected' : '' ?>>Done</option>
+              </select></label>
+            </div>
+            <div class="grid2">
+              <label>Members mentored<input type="number" min="0" max="50" class="j-in" data-k="need:mentor" value="<?= isset($jr['need:mentor']) ? (int) $jr['need:mentor']['value'] : '' ?>" placeholder="0"></label>
+              <label>Chapter sessions led<input type="number" min="0" max="50" class="j-in" data-k="need:lead" value="<?= isset($jr['need:lead']) ? (int) $jr['need:lead']['value'] : '' ?>" placeholder="0"></label>
+            </div>
+          </details>
+          <details><summary class="sub">The 8-point Vanguard score</summary>
+            <?php foreach (NgvJourney::SCORE as $sk => $sl) echo $jRow('score:' . $sk, $sl, 100); ?>
+          </details>
+          <details><summary class="sub">The five engines (this term, %)</summary>
+            <?php foreach (NgvJourney::ENGINES as $ek => $el) echo $jRow('engine:' . $ek, $el, 100); ?>
+          </details>
+          <?php $jSchools = array_values((array) ($jc['j_schools'] ?? [])); if ($jSchools): ?>
+          <details><summary class="sub">Academy modules completed</summary>
+            <div class="grid2">
+            <?php foreach ($jSchools as $si => $sc): if (!is_array($sc) || trim((string) ($sc['name'] ?? '')) === '') continue; $of = max(1, (int) ($sc['modules'] ?? 6)); ?>
+              <label><?= $e((string) $sc['name']) ?> (of <?= $of ?>)<input type="number" min="0" max="<?= $of ?>" class="j-in" data-k="school:<?= (int) $si ?>" value="<?= isset($jr['school:' . $si]) ? (int) $jr['school:' . $si]['value'] : '' ?>" placeholder="0"></label>
+            <?php endforeach; ?>
+            </div>
+          </details>
+          <?php endif; ?>
+          <div class="btns"><button class="btn primary sm" data-act="journey_set" data-m="<?= $m ?>">Save journey</button></div>
+        </div>
+
         <div class="sect"><h3>Add a certification</h3>
           <input id="c_title" placeholder="Certificate title (required)">
           <div class="grid2">
@@ -1761,6 +1821,13 @@ details.sect>summary{margin-bottom:8px}
                                  if(!confirm('Agree ₦' + body.amount + (body.months>1 ? ' over ' + body.months + ' months?' : ' in full?'))) return; }
       else if(act==='training_stop'){ if(!confirm('Stop future instalments? What is already charged stays on the account.')) return; }
       else if(act==='remind_off'){ body.off = btn.getAttribute('data-off')==='1'; }
+      else if(act==='journey_set'){
+        body.values = {};
+        document.querySelectorAll('#journey .j-in').forEach(function(el){
+          var k = el.getAttribute('data-k'), n = document.querySelector('#journey .j-note[data-k="'+k+'"]');
+          body.values[k] = {value: el.value, note: n ? n.value : ''};
+        });
+      }
       else if(act==='cert'){ body.title=val('c_title'); body.issued_by=val('c_by'); body.issued_on=val('c_on'); if(!body.title){ toast('Title required', false); return; } }
       else if(act==='void'){ body.side=btn.getAttribute('data-side')||'credit'; body.entry_id=parseInt(btn.getAttribute('data-eid')||'0',10);
                              // Voiding a receipted payment emails a cancellation — say so before, not after.

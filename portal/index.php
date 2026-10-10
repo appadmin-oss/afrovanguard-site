@@ -125,7 +125,7 @@ render_head([
     'robots'     => 'noindex, nofollow',
     'body_class' => 'portal-app avp' . ($ptheme === 'dark' ? ' is-dark' : ''),
     'css'        => ['/assets/site/av-tokens.css', '/portal/portal.css', '/community/community.css', '/portal/community.css',
-                     '/portal/avdy.css', '/academy/ngv/ngv-dashboard.css',
+                     '/portal/avdy.css', '/academy/ngv/ngv-dashboard.css', '/portal/avng.css',
                      /* The member card (Membership → Your card) and its photo editor. */
                      '/assets/site/avc-card.css', '/assets/site/avc-photo.css',
                      /* Last, so the v2 shell wins over the panel stylesheet. */

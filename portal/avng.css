@@ -1,0 +1,183 @@
+/* ==========================================================================
+   portal/avng.css — NGV Programme (design "Afrovanguard Portal v4",
+   Programme). Markup: portal/views/ngv.php, prefix avng-. Colours are the
+   portal shell's --avp-* tokens only (portal/avp.css), so dark mode follows
+   the shell. Bars are <progress>, styled here, so no width is ever inline.
+   ========================================================================== */
+
+.avng { display: flex; flex-direction: column; gap: 16px; container-type: inline-size; container-name: avng; }
+
+/* The strip: four figures, each a way into its view. */
+.avng-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--avp-line); border: 1px solid var(--avp-line); border-radius: 10px; overflow: hidden; }
+.avng-kpi { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; min-height: 44px; background: var(--avp-bg); color: var(--avp-ink); text-decoration: none; }
+a.avng-kpi:hover { background: var(--avp-side); }
+.avng-kpi:focus-visible { outline: 2px solid var(--avp-gold); outline-offset: -2px; }
+.avng-kpi-k { font-size: 12.5px; color: var(--avp-muted); }
+.avng-kpi-v { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--avp-ink); overflow-wrap: anywhere; }
+.avng-kpi-v.is-gold { color: var(--avp-gold-tx); }
+.avng-kpi-v.is-green { color: var(--avp-green-tx); }
+.avng-kpi-s { font-size: 12px; color: var(--avp-faint); }
+
+/* The intro band: who NGV is for, the pipeline, the loop. */
+.avng-intro { border: 1px solid var(--avp-line); border-radius: 12px; overflow: hidden; background: var(--avp-side); }
+.avng-intro-top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; padding: 16px 18px; }
+.avng-intro-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 300px; }
+.avng-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--avp-gold-tx); }
+.avng-intro-copy h2 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.25; color: var(--avp-ink); }
+.avng-intro-copy p { margin: 0; font-size: 13.5px; color: var(--avp-muted); line-height: 1.5; }
+.avng-pipe { display: flex; align-items: stretch; gap: 6px; flex: 1 1 440px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.avng-pipe-i { flex: 1; min-width: 0; border-radius: 8px; border: 1px solid var(--avp-line); background: transparent; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.avng-pipe-i.is-here { border-color: var(--avp-gold); background: var(--avp-bg); }
+.avng-pipe-t { display: flex; justify-content: space-between; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--avp-ink); }
+.avng-pipe-t > span { font-size: 11.5px; font-weight: 600; color: var(--avp-muted); white-space: nowrap; }
+.avng-pipe-d { font-size: 12px; color: var(--avp-muted); line-height: 1.35; }
+.avng-pipe-here { margin-top: 3px; font-size: 11px; font-weight: 700; color: var(--avp-gold-tx); }
+.avng-loop { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0; padding: 9px 18px; border-top: 1px solid var(--avp-line); font-size: 12.5px; font-weight: 600; color: var(--avp-text-2); }
+.avng-loop-a { color: var(--avp-faint); }
+.avng-loop-end { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--avp-faint); }
+
+/* Two columns that wrap: the work on the left, the context on the right. */
+.avng-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.avng-col { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.avng-col--side { flex: 1 1 280px; }
+
+.avng-card { border: 1px solid var(--avp-line); border-radius: 10px; overflow: hidden; background: var(--avp-bg); color: var(--avp-ink); }
+.avng-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; padding: 6px 14px; border-bottom: 1px solid var(--avp-line-2); }
+.avng-card-h h2 { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--avp-ink); }
+.avng-card-h > span { font-size: 12.5px; color: var(--avp-muted); text-align: right; }
+.avng-card-h > span.av-num { font-weight: 600; color: var(--avp-ink); font-variant-numeric: tabular-nums; }
+.avng-p { margin: 0; padding: 10px 14px 12px; font-size: 13px; color: var(--avp-text-2); line-height: 1.5; }
+.avng-p + .avng-p, .avng-tags + .avng-p { padding-top: 0; }
+.avng-fine { margin: 0; padding: 8px 14px; font-size: 12px; color: var(--avp-faint); line-height: 1.45; }
+.avng-sub-h { margin: 0; padding: 8px 14px 4px; font-size: 12px; font-weight: 600; color: var(--avp-faint); border-top: 1px solid var(--avp-line-2); background: var(--avp-side); }
+
+.avng-chip { font-size: 11.5px; font-weight: 700; border-radius: 4px; padding: 2px 7px; white-space: nowrap; background: var(--avp-pill); color: var(--avp-text-2); }
+.avng-chip[data-tone="green"] { background: var(--avp-green-bg); color: var(--avp-green-tx); }
+.avng-chip[data-tone="gold"] { background: var(--avp-gold-bg); color: var(--avp-gold-tx); }
+.avng-chip[data-tone="red"] { background: var(--avp-red-bg); color: var(--avp-red-tx); }
+.avng-chip[data-tone="indigo"] { background: var(--avp-indigo-bg); color: var(--avp-indigo-tx); }
+
+/* A step ladder: levels (6) and the project's steps (7). */
+.avng-levels { display: flex; gap: 4px; margin: 0; padding: 12px 14px 8px; list-style: none; }
+.avng-levels > li { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; font-weight: 500; color: var(--avp-faint); line-height: 1.2; text-wrap: balance; }
+.avng-levels > li::before { content: ""; height: 6px; border-radius: 3px; background: var(--avp-line); }
+.avng-levels > li.is-done { color: var(--avp-muted); }
+.avng-levels > li.is-done::before { background: var(--avp-dot-green); }
+.avng-levels > li.is-now { color: var(--avp-ink); font-weight: 700; }
+.avng-levels > li.is-now::before { background: var(--avp-gold); }
+.avng-levels--7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; padding: 0 14px 12px; }
+.avng-levels--7 > li { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avng-levels--7 > li::before { height: 5px; }
+
+.avng-need-h { margin: 0; padding: 4px 14px 8px; font-size: 13px; color: var(--avp-text-2); }
+.avng-needs { margin: 0; padding: 0; list-style: none; }
+.avng-needs > li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 34px; padding: 4px 14px; border-top: 1px solid var(--avp-line-2); }
+.avng-tick { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--avp-faint); color: var(--av-white); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.avng-needs > li.is-ok .avng-tick { background: var(--avp-dot-green); border-color: var(--avp-dot-green); }
+.avng-need-t { font-size: 13.5px; }
+.avng-need-v { font-size: 12.5px; font-weight: 600; color: var(--avp-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.avng-needs > li.is-ok .avng-need-v { color: var(--avp-green-tx); }
+
+/* Bars: <progress>, so the value is an attribute, never a style. */
+.avng-bar { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 4px; border: 0; border-radius: 2px; background: var(--avp-line); color: var(--avp-gold); overflow: hidden; }
+.avng-bar::-webkit-progress-bar { background: var(--avp-line); border-radius: 2px; }
+.avng-bar::-webkit-progress-value { background: var(--avp-gold); border-radius: 2px; }
+.avng-bar::-moz-progress-bar { background: var(--avp-gold); border-radius: 2px; }
+.avng-bar--ink { height: 5px; border-radius: 3px; color: var(--avp-primary); }
+.avng-bar--ink::-webkit-progress-value { background: var(--avp-primary); }
+.avng-bar--ink::-moz-progress-bar { background: var(--avp-primary); }
+
+/* The 8-point score: four across, two on a narrow column. */
+.avng-score { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0; padding: 0; list-style: none; background: var(--avp-line-2); }
+.avng-score > li { background: var(--avp-bg); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.avng-score-t { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; color: var(--avp-muted); }
+.avng-score-t b { color: var(--avp-ink); font-variant-numeric: tabular-nums; }
+.avng-score-e { font-size: 12px; color: var(--avp-faint); line-height: 1.35; }
+
+/* NGV 24/12. Each slot is a button that opens that book's sheet. */
+.avng-slots { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px; padding: 10px 14px 6px; }
+.avng-slot { height: 14px; min-width: 0; padding: 0; border: 0; border-radius: 2px; background: var(--avp-line); cursor: pointer; position: relative; }
+.avng-slot::after { content: ""; position: absolute; inset: -15px -1px; }  /* 44px tap height */
+.avng-slot.is-verified { background: var(--avp-gold); }
+.avng-slot.is-submitted { background: var(--avp-dot-indigo); }
+.avng-slot.is-draft, .avng-slot.is-resubmit, .avng-slot.is-rejected { background: var(--avp-faint); }
+.avng-slot:focus-visible { outline: 2px solid var(--avp-ink); outline-offset: 2px; }
+.avng-pace { margin: 0; padding: 0 14px 10px; font-size: 12.5px; color: var(--avp-muted); }
+.avng-callout { margin: 0 14px 10px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--avp-line); border-left: 3px solid var(--avp-dot-indigo); font-size: 12.5px; line-height: 1.5; color: var(--avp-text-2); }
+.avng-record { display: flex; align-items: center; width: calc(100% - 28px); min-height: 44px; margin: 0 14px 12px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--avp-line); background: var(--avp-bg); color: var(--avp-ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.avng-record:hover { border-color: var(--avp-input-hover); }
+.avng-shelf, .avng-rows, .avng-past, .avng-tracks, .avng-people { margin: 0; padding: 0; list-style: none; }
+.avng-shelf > li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 42px; padding: 4px 14px; border-top: 1px solid var(--avp-line-2); }
+.avng-shelf-t { min-width: 0; display: flex; flex-direction: column; }
+.avng-shelf-t > span:first-child { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avng-shelf-t > span + span { font-size: 12px; color: var(--avp-muted); }
+.avng-btn { min-height: 32px; padding: 0 11px; border-radius: 6px; border: 1px solid var(--avp-line); background: var(--avp-bg); color: var(--avp-ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.avng-btn:hover { background: var(--avp-hover); }
+
+/* Project. */
+.avng-pj-t { margin: 0; padding: 12px 14px 0; font-size: 15px; font-weight: 700; }
+.avng-pj-d { margin: 0; padding: 3px 14px 10px; font-size: 13px; color: var(--avp-muted); line-height: 1.45; }
+.avng-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--avp-line-2); }
+.avng-meta > div { padding: 8px 14px; display: flex; flex-direction: column; gap: 1px; border-right: 1px solid var(--avp-line-2); }
+.avng-meta > div:last-child { border-right: 0; }
+.avng-meta dt { font-size: 12px; color: var(--avp-muted); }
+.avng-meta dd { margin: 0; font-size: 13.5px; font-weight: 600; }
+.avng-past > li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 38px; padding: 4px 14px; border-top: 1px solid var(--avp-line-2); }
+.avng-past-q { font-size: 12px; font-weight: 700; color: var(--avp-muted); }
+
+/* Rows with a bar: schools, engines, certifications. */
+.avng-rows > li { display: grid; grid-template-columns: minmax(0, 1fr) 110px 44px; gap: 12px; align-items: center; min-height: 44px; padding: 5px 14px; border-bottom: 1px solid var(--avp-line-2); }
+.avng-rows > li:last-child { border-bottom: 0; }
+.avng-rows .avng-shelf-t > span:first-child { font-weight: 600; }
+.avng-rows .avng-shelf-t > span + span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avng-rows-v { text-align: right; font-size: 12.5px; font-weight: 600; color: var(--avp-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.avng-rows > li:has(> .avng-chip:only-of-type):not(:has(progress)) { grid-template-columns: minmax(0, 1fr) auto; min-height: 38px; }
+.avng-rows--stack > li { display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 9px 14px; min-height: 0; }
+.avng-shelf-t--row { flex-direction: row; justify-content: space-between; gap: 8px; }
+.avng-shelf-t--row > span + span { text-align: right; }
+
+/* Track & plan: read-only — set by the programme team. */
+.avng-tracks > li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 14px; border-bottom: 1px solid var(--avp-line-2); }
+.avng-tracks > li.is-on { background: var(--avp-side); }
+.avng-tracks .avng-shelf-t { flex-direction: row; flex-wrap: wrap; column-gap: 8px; align-items: baseline; }
+.avng-tracks .avng-shelf-t > span:first-child { font-weight: 600; white-space: normal; }
+.avng-radio { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--avp-faint); box-shadow: inset 0 0 0 3px var(--avp-bg); }
+.avng-tracks > li.is-on .avng-radio { border-color: var(--avp-primary); background: var(--avp-primary); box-shadow: inset 0 0 0 3px var(--avp-side); }
+
+/* Lists of terms. */
+.avng-dl { margin: 0; }
+.avng-dl > div { display: grid; grid-template-columns: minmax(0, 120px) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 14px; border-bottom: 1px solid var(--avp-line-2); }
+.avng-dl > div:last-child { border-bottom: 0; }
+.avng-dl dt { font-size: 13px; font-weight: 600; }
+.avng-dl dd { margin: 0; font-size: 12.5px; color: var(--avp-muted); line-height: 1.4; }
+.avng-dl--values > div { padding: 7px 14px; }
+.avng-tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 10px 14px 10px; list-style: none; }
+.avng-tags > li { height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--avp-line); font-size: 12px; font-weight: 600; display: flex; align-items: center; }
+
+/* Chapter roster. */
+.avng-people > li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 36px; padding: 3px 14px; border-bottom: 1px solid var(--avp-line-2); }
+.avng-people .avng-shelf-t { flex-direction: row; justify-content: space-between; gap: 8px; }
+.avng-people .avng-shelf-t > span:first-child { font-size: 13px; }
+.avng-people .avng-shelf-t > span + span { white-space: nowrap; }
+.avng-av { width: 24px; height: 24px; border-radius: 50%; background: var(--avp-pill); color: var(--avp-text-2); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+/* Narrow: by the Programme's own width, not the window's. */
+@container avng (max-width: 640px) {
+  .avng-pipe { flex-direction: column; flex-basis: 100%; }
+  .avng-loop-end { margin-left: 0; flex-basis: 100%; }
+  .avng-score { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .avng-slots { grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: 6px; }
+  .avng-slot { height: 16px; }
+  .avng-slot::after { inset: -4px -1px; }
+  .avng-levels { flex-wrap: wrap; row-gap: 10px; }
+  .avng-levels > li { flex: 1 1 30%; }
+  .avng-levels--7 { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 8px; }
+  .avng-meta { grid-template-columns: 1fr; }
+  .avng-meta > div { border-right: 0; border-bottom: 1px solid var(--avp-line-2); }
+  .avng-rows > li { grid-template-columns: minmax(0, 1fr) 64px 40px; gap: 8px; }
+  .avng-shelf > li { grid-template-columns: minmax(0, 1fr) auto; }
+  .avng-shelf > li .avng-chip { grid-row: 2; justify-self: start; }
+  .avng-shelf > li .avng-btn { grid-row: 1 / span 2; grid-column: 2; min-height: 44px; }
+  .avng-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { .avng * { transition: none !important; } }
