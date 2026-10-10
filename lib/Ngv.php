@@ -198,6 +198,51 @@ final class Ngv
                 ['name' => 'CACENTRE Egbeda', 'address' => '2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos'],
                 ['name' => 'CACENTRE Okun Alimosho', 'address' => 'Okun Alimosho, Alimosho, Lagos'],
             ],
+
+            /* ── NextGen Vanguard 2.0 — the portal's Programme view (design
+               "Afrovanguard Portal v4"; lib/NgvJourney.php reads these). The
+               structure ships with the programme; the parts that change every
+               term (this quarter's project, the chapter roster) start empty and
+               are shown only once the office fills them in. */
+            'j_intro'    => ['eyebrow' => 'NextGen Vanguard 2.0', 'title' => 'From potential to proof.',
+                             'body' => 'University gives you a degree. NGV helps you build your value: character, competence, contribution and community.'],
+            'j_pipeline' => [
+                ['name' => 'NGG', 'age' => '10–17', 'desc' => 'Discover yourself. Build your values.', 'here' => false],
+                ['name' => 'NGV', 'age' => '18–30', 'desc' => 'Build competence, create value, serve.', 'here' => true],
+                ['name' => 'AfroVanguard', 'age' => '30+', 'desc' => 'Lead institutions, mentor, shape Africa.', 'here' => false],
+            ],
+            'j_loop'     => ['Learn', 'Build', 'Serve', 'Connect', 'Lead'],
+            'j_loop_end' => 'then Mentor → Multiply',
+            'j_levels'   => ['Candidate', 'Member', 'Vanguard', 'Chapter Leader', 'National Vanguard', 'AfroVanguard'],
+            'j_schools'  => [
+                ['name' => 'School of Self', 'desc' => 'Identity, character, discipline, communication', 'modules' => 6],
+                ['name' => 'School of Work', 'desc' => 'CV and portfolio, interviewing, project management', 'modules' => 6],
+                ['name' => 'School of Enterprise', 'desc' => 'Sales, finance, business models, investing', 'modules' => 6],
+                ['name' => 'School of Technology', 'desc' => 'AI, coding, no-code tools, cybersecurity', 'modules' => 6],
+                ['name' => 'School of Culture & Creativity', 'desc' => 'African history, language, music, film, design', 'modules' => 7],
+                ['name' => 'School of Community Leadership', 'desc' => 'Organising, advocacy, fundraising, governance', 'modules' => 7],
+            ],
+            /* The NGV 8. Faith is belief in one's roots — ancestry and heritage —
+               not religious faith (owner, 2026-10-10). */
+            'j_values'   => [
+                ['name' => 'Faith', 'desc' => 'Believe deeply in your roots — your ancestry and heritage'],
+                ['name' => 'Individuation', 'desc' => 'Know who you are and think independently'],
+                ['name' => 'Diligence', 'desc' => 'Do excellent work consistently'],
+                ['name' => 'Accountability', 'desc' => 'Own your results'],
+                ['name' => 'Responsibility', 'desc' => 'Solve problems instead of complaining'],
+                ['name' => 'Cultural Appreciation', 'desc' => 'Know, preserve and advance African identity'],
+                ['name' => 'Communal Spirit', 'desc' => 'Your development must benefit others'],
+                ['name' => 'Value Creation', 'desc' => 'Turn knowledge into useful outcomes'],
+            ],
+            'j_project'      => ['quarter' => '', 'title' => '', 'theme' => '', 'desc' => '', 'step' => 0, 'team' => '', 'budget' => '', 'measure' => ''],
+            'j_project_past' => [],
+            'j_chapter'      => ['name' => '', 'place' => ''],
+            'j_roster'       => [],
+            'j_summer'   => ['badge' => '', 'body' => 'Four to eight weeks with an entrepreneur, professional, artist, technologist or community leader.',
+                             'quote' => '“I built a social media plan that brought in 40 leads” beats “I spent six weeks at an agency”.'],
+            'j_summit'   => ['path' => 'Campus → City → National',
+                             'note' => 'Your chapter sends four delegates, chosen by Vanguard score. Each summit closes with the Vanguard Declaration for the year ahead.'],
+            'j_summit_stages' => ['Assembly', 'Challenge', 'Pitch', 'Debate', 'Showcase', 'Awards', 'Mentorship Exchange'],
         ];
     }
 
