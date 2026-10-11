@@ -38,9 +38,12 @@ function av_celebration_calendar(?int $year = null): array
         ['peaceday',     'International Day of Peace',      '09-21', 'international', '🕊️', '#0ea5e9', 'Peace starts in communities like ours. Thank you for building it.'],
         ['independence', 'Happy Independence Day',          '10-01', 'african',       '🇳🇬', '#16a34a', $ng . ' years of Nigeria, and ' . $av . ' of Afrovanguard marching with the young people of Alimosho.'],
         ['girlchild',    'International Day of the Girl',   '10-11', 'international', '🌸', '#ec4899', 'Every girl deserves a mentor and a fair chance. Thank you for being one.'],
+        // Afrovanguard began on 14 November 2017 (owner, 2026-10-11).
+        ['founding',     ucfirst($av) . ' years of Afrovanguard', '11-14', 'internal', '🎂', '#f3b416', ucfirst($av) . ' years of raising incorruptible leaders. Thank you for being part of the story.'],
         ['humanrights',  'Human Rights Day',                '12-10', 'international', '⚖️', '#0ea5e9', 'Dignity, equality and justice, for everyone, every day.'],
         ['christmas',    'Merry Christmas',                 '12-25', 'international', '🎄', '#16a34a', 'Peace and goodwill to you and your family this Christmas.'],
-        ['founding',     ucfirst($av) . ' years of Afrovanguard', '07-01', 'internal', '🎂', '#f3b416', ucfirst($av) . ' years of raising incorruptible leaders. Thank you for being part of the story.'],
+        // A Nigerian public holiday; not in the design's calendar, so its copy is ours.
+        ['boxingday',    'Happy Boxing Day',                '12-26', 'african',       '🎁', '#16a34a', 'One more day with family. Rest well, and thank you for a year of showing up.'],
     ];
 }
 
@@ -64,6 +67,18 @@ function av_builtin_doodle(string $key): string
 function av_celebrations_ensure(PDO $pdo): void
 {
     static $done = false; if ($done) return; $done = true;
+    av_celebrations_create($pdo);
+    // on_date (YYYY-MM-DD): one year's date for a movable feast, set from the Studio.
+    try {
+        $has = false;
+        $st = $pdo->query('SELECT * FROM celebrations LIMIT 0');
+        for ($i = 0; $i < $st->columnCount(); $i++) if (($st->getColumnMeta($i)['name'] ?? '') === 'on_date') $has = true;
+        if (!$has) $pdo->exec("ALTER TABLE celebrations ADD COLUMN on_date VARCHAR(10) NOT NULL DEFAULT ''");
+    } catch (Throwable $e) { error_log('[celebrations] on_date: ' . $e->getMessage()); }
+}
+
+function av_celebrations_create(PDO $pdo): void
+{
     switch ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)) {
         case 'mysql':
             $pdo->exec("CREATE TABLE IF NOT EXISTS celebrations (
@@ -132,6 +147,7 @@ function av_celebrations_save(PDO $pdo, array $in): int
         'message' => trim((string) ($in['message'] ?? '')),
         'doodle_url' => trim((string) ($in['doodle_url'] ?? '')),
         'enabled' => isset($in['enabled']) ? (!empty($in['enabled']) ? 1 : 0) : 1,
+        'on_date' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($in['on_date'] ?? '')) ? $in['on_date'] : '',
     ];
     $id = (int) ($in['id'] ?? 0);
     if ($id > 0) {
@@ -203,8 +219,119 @@ function av_movable_holidays(int $year): array
         $adha = av_jd_to_greg(av_islamic_to_jd($h, 12, 10));  // 10 Dhu al-Hijjah
         if (substr($fitr, 0, 4) === (string) $year) $out[] = [$fitr, 'eidfitr', 'Eid Mubarak', 'international', '🌙', '#16a34a', 'Eid al-Fitr Mubarak to our Muslim members, mentors and families. May it be a blessed celebration.'];
         if (substr($adha, 0, 4) === (string) $year) $out[] = [$adha, 'eidadha', 'Barka da Sallah', 'international', '🐑', '#16a34a', 'Eid al-Adha Mubarak to our Muslim members and families. May your sacrifice be accepted.'];
+        // Eid-el-Maulud (12 Rabi’ al-Awwal), a Nigerian public holiday; not in the design, so its copy is ours.
+        $maulud = av_jd_to_greg(av_islamic_to_jd($h, 3, 12));
+        if (substr($maulud, 0, 4) === (string) $year) $out[] = [$maulud, 'maulud', 'Happy Eid-el-Maulud', 'international', '🌙', '#16a34a', 'Eid-el-Maulud greetings to our Muslim members, mentors and families. May the day bring peace.'];
     }
     return $out;
+}
+
+/** Every key the built-in calendar can produce (fixed, movable, the anniversary week). */
+function av_celebration_builtin_keys(): array
+{
+    static $keys = null;
+    if ($keys === null) {
+        $keys = array_column(av_celebration_calendar(2026), 0);
+        foreach (av_movable_holidays(2026) as $m) $keys[] = $m[1];
+        $keys[] = 'foundingweek';
+        $keys = array_values(array_unique($keys));
+    }
+    return $keys;
+}
+
+/**
+ * The anniversary countdown: the seven days before 14 November each count down
+ * to it, so the season is felt, not just the day. Not in the design's calendar,
+ * so the copy is ours; the art is the anniversary's.
+ */
+function av_celebration_founding_week(int $year): array
+{
+    $years = max(1, $year - AV_FOUNDED_YEAR);
+    $out = [];
+    for ($d = 7; $d >= 1; $d--) {
+        $date = date('Y-m-d', strtotime(sprintf('%04d-11-14 12:00:00', $year)) - $d * 86400);
+        $left = $d === 1 ? 'Tomorrow' : ucfirst(av_celebration_words($d)) . ' days to go';
+        $out[] = [$date, 'foundingweek', $left . ': ' . av_celebration_words($years) . ' years of Afrovanguard', 'internal', '🎂', '#f3b416',
+            'On 14 November Afrovanguard turns ' . av_celebration_words($years) . '. Thank you for being part of the story.'];
+    }
+    return $out;
+}
+
+/**
+ * Every built-in holiday in $year with its real date, after the Studio's
+ * overrides: a turned-off holiday stays listed with enabled false; a fixed
+ * holiday can be moved (override md); a movable feast can be set for one year
+ * (override on_date), because Eid follows the announced sighting.
+ * Sorted by date. Each item carries what av_celebration_today() shows, plus
+ * date, md, enabled, movable, builtin, moved and override_id for the Studio.
+ */
+function av_celebration_year(PDO $pdo, int $year): array
+{
+    av_celebrations_ensure($pdo);
+    $override = [];
+    foreach ($pdo->query('SELECT * FROM celebrations')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        if ($r['key'] !== '') $override[$r['key']] = $r;
+    }
+    $rows = [];
+    foreach (av_celebration_calendar($year) as [$key, $name, $md, $scope, $emoji, $theme, $message]) {
+        $rows[] = [sprintf('%04d-%s', $year, $md), $key, $name, $scope, $emoji, $theme, $message, false];
+    }
+    foreach (av_movable_holidays($year) as [$date, $key, $name, $scope, $emoji, $theme, $message]) {
+        $rows[] = [$date, $key, $name, $scope, $emoji, $theme, $message, true];
+    }
+    foreach (av_celebration_founding_week($year) as [$date, $key, $name, $scope, $emoji, $theme, $message]) {
+        $rows[] = [$date, $key, $name, $scope, $emoji, $theme, $message, false];
+    }
+    $out = [];
+    foreach ($rows as [$date, $key, $name, $scope, $emoji, $theme, $message, $movable]) {
+        $ov = $override[$key] ?? null;
+        $moved = false;
+        if ($ov) {
+            $on = (string) ($ov['on_date'] ?? '');
+            if ($movable && preg_match('/^\d{4}-\d{2}-\d{2}$/', $on) && (int) substr($on, 0, 4) === $year) { $moved = $on !== $date; $date = $on; }
+            elseif (!$movable && $key !== 'foundingweek' && preg_match('/^\d{2}-\d{2}$/', (string) $ov['md']) && $ov['md'] !== substr($date, 5)) {
+                $date = sprintf('%04d-%s', $year, $ov['md']); $moved = true;
+            }
+        }
+        $out[] = [
+            'type' => 'holiday', 'key' => $key, 'scope' => $scope,
+            // The week counts down by itself; an override only turns it off or re-words the message.
+            'title' => ($ov && $key !== 'foundingweek' && $ov['name'] !== '') ? $ov['name'] : $name,
+            'message' => ($ov && $ov['message'] !== '') ? $ov['message'] : $message,
+            'emoji' => ($ov && $ov['emoji'] !== '') ? $ov['emoji'] : $emoji,
+            'theme' => ($ov && $ov['theme'] !== '') ? $ov['theme'] : $theme,
+            'doodle' => ($ov && $ov['doodle_url'] !== '') ? $ov['doodle_url'] : av_builtin_doodle($key === 'foundingweek' ? 'founding' : $key),
+            'art' => av_celebration_art_key($key),
+            'date' => $date, 'md' => substr($date, 5),
+            'enabled' => !$ov || (int) $ov['enabled'] === 1,
+            'movable' => $movable, 'builtin' => true, 'moved' => $moved,
+            'override_id' => $ov ? (int) $ov['id'] : 0,
+        ];
+    }
+    usort($out, fn($a, $b) => [$a['date'], $a['key']] <=> [$b['date'], $b['key']]);
+    return $out;
+}
+
+/** The year as the Studio lists it: the anniversary countdown is one row, not seven. */
+function av_celebration_year_for_studio(PDO $pdo, int $year): array
+{
+    $out = []; $seen = false;
+    foreach (av_celebration_year($pdo, $year) as $h) {
+        if ($h['key'] === 'foundingweek') {
+            if ($seen) continue;
+            $seen = true;
+            $h['title'] = 'Anniversary countdown, the seven days before 14 November';
+            $h['message'] = 'Each day counts down: “Seven days to go”, then on to “Tomorrow”.';
+        }
+        $out[] = $h;
+    }
+    return $out;
+}
+
+/** The drawn art a holiday wears when it has none of its own. */
+function av_celebration_art_key(string $key): string
+{
+    return ['foundingweek' => 'founding', 'boxingday' => 'christmas', 'maulud' => 'eidfitr'][$key] ?? $key;
 }
 
 /**
@@ -221,37 +348,15 @@ function av_celebration_today(PDO $pdo, ?string $date = null): ?array
     $override = [];   // key => row (admin override/disable of a built-in)
     $customs = [];    // admin custom celebrations for today
     foreach ($rows as $r) {
-        if ($r['key'] !== '') $override[$r['key']] = $r;
+        if ($r['key'] !== '' && in_array($r['key'], av_celebration_builtin_keys(), true)) $override[$r['key']] = $r;
         if ($r['md'] === $md && (int) $r['enabled'] === 1) $customs[] = $r;
     }
 
     $items = [];
-    foreach (av_celebration_calendar((int) substr($date, 0, 4)) as [$key, $name, $cmd, $scope, $emoji, $theme, $message]) {
-        if ($cmd !== $md) continue;
-        $ov = $override[$key] ?? null;
-        if ($ov && (int) $ov['enabled'] === 0) continue; // admin disabled this built-in
-        $items[] = [
-            'type' => 'holiday', 'key' => $key, 'scope' => $scope,
-            'title' => $ov['name'] ?? $name,
-            'message' => ($ov && $ov['message'] !== '') ? $ov['message'] : $message,
-            'emoji' => ($ov && $ov['emoji'] !== '') ? $ov['emoji'] : $emoji,
-            'theme' => ($ov && $ov['theme'] !== '') ? $ov['theme'] : $theme,
-            'doodle' => ($ov && $ov['doodle_url'] !== '') ? $ov['doodle_url'] : av_builtin_doodle($key),
-        ];
-    }
-    // Movable feasts computed for this year (Easter family + Eid), matched by full date.
-    foreach (av_movable_holidays((int) substr($date, 0, 4)) as [$fdate, $key, $name, $scope, $emoji, $theme, $message]) {
-        if ($fdate !== $date) continue;
-        $ov = $override[$key] ?? null;
-        if ($ov && (int) $ov['enabled'] === 0) continue;
-        $items[] = [
-            'type' => 'holiday', 'key' => $key, 'scope' => $scope,
-            'title' => $ov['name'] ?? $name,
-            'message' => ($ov && $ov['message'] !== '') ? $ov['message'] : $message,
-            'emoji' => ($ov && $ov['emoji'] !== '') ? $ov['emoji'] : $emoji,
-            'theme' => ($ov && $ov['theme'] !== '') ? $ov['theme'] : $theme,
-            'doodle' => ($ov && $ov['doodle_url'] !== '') ? $ov['doodle_url'] : av_builtin_doodle($key),
-        ];
+    foreach (av_celebration_year($pdo, (int) substr($date, 0, 4)) as $h) {
+        if ($h['date'] !== $date || !$h['enabled']) continue;
+        unset($h['date'], $h['md'], $h['enabled'], $h['movable'], $h['override_id'], $h['builtin'], $h['moved']);
+        $items[] = $h;
     }
     foreach ($customs as $r) {
         if ($r['key'] !== '' && isset($override[$r['key']])) continue; // already handled as override
@@ -299,7 +404,7 @@ function av_celebration_weight(array $it): int
 {
     if ($it['type'] === 'birthday') return !empty($it['mine']) ? 200 : 55;
     $major = ['eidfitr', 'eidadha', 'easter', 'christmas', 'newyear', 'founding'];
-    $notable = ['goodfriday', 'eastermonday', 'africaday', 'independence', 'democracyday', 'childrensday', 'youthday'];
+    $notable = ['goodfriday', 'eastermonday', 'boxingday', 'maulud', 'africaday', 'independence', 'democracyday', 'childrensday', 'youthday'];
     if (in_array($it['key'], $major, true)) return 80;
     if (in_array($it['key'], $notable, true)) return 60;
     if (($it['scope'] ?? '') === 'african') return 50;
@@ -386,7 +491,7 @@ function av_celebration_for_viewer(?array $cel, ?array $viewer, string $date, in
 /**
  * The quiet member-page theme (2b): the holiday nearest $date, from the day
  * before through the day after. Birthdays never theme a page.
- * @return array{key:string,title:string,message:string,theme:string,doodle:string,date:string,today:bool}|null
+ * @return array{key:string,art:string,title:string,message:string,theme:string,doodle:string,date:string,today:bool}|null
  */
 function av_celebration_theme(PDO $pdo, string $date): ?array
 {
@@ -396,7 +501,7 @@ function av_celebration_theme(PDO $pdo, string $date): ?array
         $c = av_celebration_today($pdo, $d);
         foreach (($c['items'] ?? []) as $it) {
             if ($it['type'] !== 'holiday') continue;
-            return ['key' => $it['key'], 'title' => $it['title'], 'message' => $it['message'], 'theme' => $it['theme'],
+            return ['key' => $it['key'], 'art' => $it['art'] ?? $it['key'], 'title' => $it['title'], 'message' => $it['message'], 'theme' => $it['theme'],
                     'doodle' => $it['doodle'], 'date' => $d, 'today' => $off === 0];
         }
     }

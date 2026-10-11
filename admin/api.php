@@ -210,11 +210,15 @@ try {
         // ---- Celebrations (custom dates + uploaded doodle art) ----
         case 'cel_list':
             require_once AV_ROOT . '/lib/celebrations.php';
-            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => av_celebration_calendar()]);
+            $celYear = max(2000, min(2100, (int) ($_GET['year'] ?? date('Y'))));
+            json_out(['ok' => true, 'celebrations' => av_celebrations_all(Database::pdo()), 'builtins' => av_celebration_calendar(),
+                'year' => $celYear, 'holidays' => av_celebration_year_for_studio(Database::pdo(), $celYear), 'builtin_keys' => av_celebration_builtin_keys()]);
         case 'cel_save':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             require_once AV_ROOT . '/lib/celebrations.php';
-            if (trim((string) ($body['name'] ?? '')) === '' || !preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))) {
+            // A built-in's override may leave the name blank: blank means "keep the calendar's own words".
+            $celBuiltin = in_array(trim((string) ($body['key'] ?? '')), av_celebration_builtin_keys(), true);
+            if ((!$celBuiltin && trim((string) ($body['name'] ?? '')) === '') || !preg_match('/^\d{2}-\d{2}$/', (string) ($body['md'] ?? ''))) {
                 json_out(['ok' => false, 'error' => 'A name and a date (MM-DD) are required.'], 422);
             }
             json_out(['ok' => true, 'id' => av_celebrations_save(Database::pdo(), $body)]);

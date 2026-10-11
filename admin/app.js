@@ -794,24 +794,59 @@
     $('#cDoodleClear').hidden = !cDoodle;
     if (typeof renderCelPreview === 'function') renderCelPreview();
   }
+  var celYear = new Date().getFullYear(), celData = null, celPrefill = null;
+  var CEL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], CEL_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function celDay(iso) { var d = new Date(iso + 'T12:00:00'); return CEL_DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + CEL_MON[d.getMonth()]; }
   function loadCelebrations() {
     var box = $('#celList'), bi = $('#celBuiltins');
     box.innerHTML = '<p class="muted">Loading…</p>'; bi.innerHTML = '';
-    api('cel_list').then(function (r) {
-      if (!r.data || !r.data.ok) { box.innerHTML = '<p class="muted">Could not load.</p>'; return; }
-      var rows = r.data.celebrations || [];
+    $('#celYear').textContent = celYear;
+    api('cel_list&year=' + celYear).then(function (r) {
+      if (!r.data || !r.data.ok) {
+        box.innerHTML = '<p class="muted">Could not load the celebrations. <button type="button" class="btn btn-outline btn-sm" data-celretry>Try again</button></p>';
+        return;
+      }
+      celData = r.data;
+      var keys = r.data.builtin_keys || [];
+      var rows = (r.data.celebrations || []).filter(function (c) { return keys.indexOf(c.key) < 0; });
       box.innerHTML = rows.length ? rows.map(function (c) {
-        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + (c.emoji || '🎉') + ' ' + escapeHtml(c.name) +
+        return '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + escapeHtml(c.emoji || '🎉') + ' ' + escapeHtml(c.name) +
           (parseInt(c.enabled, 10) ? '' : ' <span class="badge draft">Off</span>') + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + (c.key ? ' · overrides “' + escapeHtml(c.key) + '”' : '') + '</div></div>' +
+          '<div class="entry-meta">' + escapeHtml(c.md) + ' · ' + escapeHtml(c.scope) + '</div></div>' +
           '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celedit="' + c.id + '">Edit</button></div></div>';
-      }).join('') : '<p class="muted">No custom celebrations yet — the built-in calendar below runs automatically.</p>';
-      (r.data.builtins || []).forEach(function (b) {
-        bi.innerHTML += '<div class="entry-row"><div class="entry-info"><div class="entry-title">' + b[4] + ' ' + escapeHtml(b[1]) + '</div>' +
-          '<div class="entry-meta">' + escapeHtml(b[2]) + ' · ' + escapeHtml(b[3]) + '</div></div></div>';
-      });
+      }).join('') : '<p class="muted">None yet. Add a date that matters to you, such as a programme launch, with its own art.</p>';
+      var today = new Date(), todayIso = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2), nextMarked = false;
+      bi.innerHTML = (r.data.holidays || []).map(function (h, i) {
+        var next = !nextMarked && h.enabled && h.date >= todayIso; if (next) nextMarked = true;
+        return '<div class="entry-row' + (h.enabled ? '' : ' is-off') + (next ? ' is-next' : '') + '"><div class="entry-info"><div class="entry-title">' +
+          '<span class="cel-date">' + escapeHtml(celDay(h.date)) + '</span> ' + escapeHtml(h.emoji) + ' ' + escapeHtml(h.title) +
+          (next ? ' <span class="badge published">Next</span>' : '') +
+          (h.enabled ? '' : ' <span class="badge draft">Off</span>') + (h.moved ? ' <span class="badge draft">Date set by you</span>' : '') + '</div>' +
+          '<div class="entry-meta">' + escapeHtml(h.scope) + (h.movable ? ' · moves each year' : '') + ' · ' + escapeHtml(h.message) + '</div></div>' +
+          '<div class="entry-ops"><button class="btn btn-outline btn-sm" data-celhol="' + i + '">Edit</button>' +
+          '<button class="btn btn-outline btn-sm" data-celtoggle="' + i + '" aria-pressed="' + (h.enabled ? 'false' : 'true') + '">' + (h.enabled ? 'Turn off' : 'Turn on') + '</button></div></div>';
+      }).join('');
     });
   }
+  function celOverride(h) { return h.override_id ? (celData.celebrations || []).filter(function (c) { return +c.id === h.override_id; })[0] : null; }
+  $('#celYearPrev').addEventListener('click', function () { celYear--; loadCelebrations(); });
+  $('#celYearNext').addEventListener('click', function () { celYear++; loadCelebrations(); });
+  $('#celList').addEventListener('click', function (e) { if (e.target.closest('[data-celretry]')) loadCelebrations(); });
+  $('#celBuiltins').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-celtoggle]'), ed = e.target.closest('[data-celhol]');
+    if (ed) { var h0 = celData.holidays[+ed.getAttribute('data-celhol')]; var o0 = celOverride(h0); celPrefill = h0; openCel(o0 ? +o0.id : null); return; }
+    if (!t) return;
+    var h = celData.holidays[+t.getAttribute('data-celtoggle')], o = celOverride(h);
+    t.disabled = true;
+    post('cel_save', o ? {
+      id: +o.id, key: o.key, name: o.name, message: o.message, md: o.md, scope: o.scope, emoji: o.emoji, theme: o.theme,
+      doodle_url: o.doodle_url, on_date: o.on_date || '', enabled: !h.enabled
+    } : { key: h.key, name: '', message: '', md: h.md, scope: h.scope, emoji: h.emoji, theme: h.theme, enabled: false })
+      .then(function (r) {
+        if (r.data && r.data.ok) { toast(h.enabled ? 'Turned off. It will not show this year or after.' : 'Turned on.'); loadCelebrations(); }
+        else { t.disabled = false; toast((r.data && r.data.error) || 'Could not save. Try again.'); }
+      });
+  });
   $('#celList').addEventListener('click', function (e) { var b = e.target.closest('[data-celedit]'); if (b) openCel(+b.getAttribute('data-celedit')); });
   $('#newCelBtn').addEventListener('click', function () { openCel(null); });
   $('#celBackBtn').addEventListener('click', function () { show('celebrations'); loadCelebrations(); });
@@ -824,8 +859,8 @@
   var editingCel = null;
   function renderCelPreview() {
     var box = $('#celPreview'); if (!box) return;
-    var name = $('#c_name').value.trim() || 'Celebrating today';
-    var msg = $('#c_message').value.trim();
+    var name = $('#c_name').value.trim() || $('#c_name').placeholder.replace(/^e\.g\. /, '') || 'Celebrating today';
+    var msg = $('#c_message').value.trim() || ($('#c_builtinNote').hidden ? '' : $('#c_message').placeholder);
     var emoji = $('#c_emoji').value.trim() || '🎉';
     var theme = /^#[0-9a-f]{6}$/i.test($('#c_theme').value) ? $('#c_theme').value : '#f3b416';
     var off = !$('#c_enabled').checked;
@@ -837,9 +872,23 @@
       + (msg ? '<span>' + escapeHtml(msg) + '</span>' : '') + '</span></div>'
       + (off ? '<p class="cel-pv-off">Disabled — won’t show to members.</p>' : '');
   }
+  function celBuiltinMode(h) {
+    $('#c_builtinNote').hidden = !h; $('#c_onWrap').hidden = !(h && h.movable);
+    $('#c_name').placeholder = h ? h.title : 'e.g. Eid Mubarak';
+    $('#c_message').placeholder = h ? h.message : 'The festive line shown in the banner.';
+    $('#c_name').required = !h;
+    $('#c_key').readOnly = !!h;
+  }
   function openCel(id) {
+    var h = celPrefill; celPrefill = null;
     editingCel = id; $('#celForm').reset(); setCDoodle(''); $('#c_theme').value = '#f3b416';
-    $('#celDeleteBtn').hidden = !id; show('celEdit');
+    $('#celDeleteBtn').hidden = !id; $('#celDeleteBtn').textContent = h ? 'Back to the calendar’s version' : 'Delete';
+    celBuiltinMode(h); show('celEdit');
+    if (h) {
+      $('#c_key').value = h.key; $('#c_md').value = h.md; $('#c_scope').value = h.scope; $('#c_emoji').value = h.emoji;
+      $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(h.theme) ? h.theme : '#f3b416'; $('#c_enabled').checked = !!h.enabled;
+      if (h.movable) $('#c_on').value = h.date;
+    }
     if (!id) { renderCelPreview(); return; }
     api('cel_list').then(function (r) {
       var c = (r.data.celebrations || []).filter(function (x) { return +x.id === id; })[0]; if (!c) return;
@@ -847,6 +896,7 @@
       $('#c_md').value = c.md || ''; $('#c_scope').value = c.scope || 'internal'; $('#c_emoji').value = c.emoji || '';
       $('#c_theme').value = /^#[0-9a-f]{6}$/i.test(c.theme) ? c.theme : '#f3b416';
       $('#c_enabled').checked = parseInt(c.enabled, 10) !== 0; setCDoodle(c.doodle_url || '');
+      if (h) { $('#c_md').value = h.md; if (h.movable) $('#c_on').value = h.date; }
       renderCelPreview();
     });
   }
@@ -854,16 +904,17 @@
   $('#celForm').addEventListener('input', renderCelPreview);
   $('#celForm').addEventListener('change', renderCelPreview);
   $('#celSaveBtn').addEventListener('click', function () {
-    var name = $('#c_name').value.trim();
-    if (!name || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
+    var name = $('#c_name').value.trim(), builtin = !$('#c_builtinNote').hidden, on = $('#c_onWrap').hidden ? '' : $('#c_on').value;
+    if (on) $('#c_md').value = on.slice(5);
+    if ((!name && !builtin) || !/^\d{2}-\d{2}$/.test($('#c_md').value.trim())) { toast('Name and date (MM-DD) are required.'); return; }
     post('cel_save', {
       id: editingCel || 0, name: name, message: $('#c_message').value.trim(), key: $('#c_key').value.trim(),
       md: $('#c_md').value.trim(), scope: $('#c_scope').value, emoji: $('#c_emoji').value.trim() || '🎉',
-      theme: $('#c_theme').value, enabled: $('#c_enabled').checked, doodle_url: cDoodle
+      theme: $('#c_theme').value, enabled: $('#c_enabled').checked, doodle_url: cDoodle, on_date: on
     }).then(function (r) { if (r.data && r.data.ok) { toast('Saved.'); show('celebrations'); loadCelebrations(); } else toast((r.data && r.data.error) || 'Could not save.'); });
   });
   $('#celDeleteBtn').addEventListener('click', function () {
-    if (!editingCel || !confirm('Delete this celebration?')) return;
+    if (!editingCel || !confirm($('#c_builtinNote').hidden ? 'Delete this celebration?' : 'Go back to the calendar’s own words and date?')) return;
     post('cel_delete', { id: editingCel }).then(function () { toast('Deleted.'); show('celebrations'); loadCelebrations(); });
   });
 

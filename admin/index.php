@@ -697,8 +697,17 @@
       <div><h1>Celebrations</h1><p class="muted">Auto-celebrated holidays &amp; dates. Built-ins run automatically; add your own with custom doodle art.</p></div>
       <button class="btn btn-primary" id="newCelBtn">+ Add celebration</button>
     </div>
+    <h2 class="cel-h2">Your own celebrations</h2>
     <div class="entry-list" id="celList"></div>
-    <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Built-in calendar (automatic)</h2>
+    <div class="cel-yearhead">
+      <h2 class="cel-h2">The year’s holidays</h2>
+      <div class="cel-yearnav" role="group" aria-label="Year">
+        <button type="button" class="btn btn-outline btn-sm" id="celYearPrev" aria-label="Previous year">‹</button>
+        <span class="cel-year" id="celYear" aria-live="polite"></span>
+        <button type="button" class="btn btn-outline btn-sm" id="celYearNext" aria-label="Next year">›</button>
+      </div>
+    </div>
+    <p class="muted tiny cel-note">These run by themselves, with this year’s real dates. Edit one to change its words or move its date (Eid follows the announced sighting); turn one off to skip it.</p>
     <div class="entry-list" id="celBuiltins"></div>
   </main>
 
@@ -716,16 +725,18 @@
         <label class="fld"><span>Name</span><input id="c_name" placeholder="e.g. Eid Mubarak" required /></label>
         <label class="fld"><span>Message</span><textarea id="c_message" rows="3" placeholder="The festive line shown in the banner."></textarea></label>
         <label class="fld"><span>Override a built-in (optional key)</span><input id="c_key" placeholder="e.g. christmas — leave blank for a new celebration" /></label>
+        <p class="muted tiny" id="c_builtinNote" hidden>Leave the name or message empty to keep the calendar’s own words, which count the years by themselves.</p>
       </div>
       <aside class="editor-side">
         <div class="side-card">
           <h3>Live preview</h3>
-          <p class="muted tiny" style="margin-top:-4px">Exactly what members see in the banner on the day.</p>
+          <p class="muted tiny cel-pv-note">Exactly what members see in the banner on the day.</p>
           <div class="cel-preview" id="celPreview" aria-live="polite"></div>
         </div>
         <div class="side-card">
           <h3>When &amp; style</h3>
           <label class="fld"><span>Date (MM-DD)</span><input id="c_md" placeholder="12-25" pattern="\d{2}-\d{2}" required /></label>
+          <label class="fld" id="c_onWrap" hidden><span>This year’s date</span><input id="c_on" type="date" /></label>
           <label class="fld"><span>Scope</span><select id="c_scope"><option value="internal">Internal</option><option value="african">African</option><option value="international">International</option></select></label>
           <label class="fld"><span>Emoji</span><input id="c_emoji" placeholder="🎉" maxlength="4" /></label>
           <label class="fld"><span>Theme colour</span><input id="c_theme" type="color" value="#f3b416" /></label>

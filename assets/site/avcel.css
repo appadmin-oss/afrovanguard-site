@@ -187,7 +187,7 @@
   background:color-mix(in srgb,currentColor 3%,transparent);border-bottom:1px solid color-mix(in srgb,currentColor 10%,transparent);
   font-family:var(--av-sans);font-size:13px;line-height:1.4}
 .avcel-ban-bar{width:3px;align-self:stretch;border-radius:2px;background:var(--avcel-stripe);flex-shrink:0}
-.avcel-ban-txt{flex:1;min-width:0}
+.avcel-ban-txt{flex:1;min-width:0;margin:0}
 .avcel-ban-txt span{opacity:.72}
 .avcel-ban-ico{position:absolute;right:62px;top:50%;width:58px;height:58px;transform:translateY(-50%) rotate(-8deg);pointer-events:none;
   fill:none;stroke:var(--avcel-kfg);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;opacity:.2}

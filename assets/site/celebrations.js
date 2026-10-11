@@ -40,7 +40,7 @@
   var optedOut = function () { return root.getAttribute('data-avcel') === 'off' || (D.body && D.body.getAttribute('data-avcel') === 'off'); };
   var NO_POPUP = /^\/(admin|studio|login|signin|sign-in|checkout|pay)(\/|$)|^\/academy\/studio|\/pay(\.php)?\/?$/i.test(path);
   var isMember = function () { return (D.body && D.body.getAttribute('data-avcel') === 'member') || /^\/(portal|account|my-account|member(\.html)?|donor-dashboard(\.html)?|diary\/me|academy\/ngv\/dashboard)(\/|$|\.php)/i.test(path); };
-  var MOVABLE = { goodfriday: 1, easter: 1, eastermonday: 1, eidfitr: 1, eidadha: 1 };
+  var MOVABLE = { goodfriday: 1, easter: 1, eastermonday: 1, eidfitr: 1, eidadha: 1, maulud: 1 };
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   var FOUNDED = 2017;
   var WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
@@ -78,7 +78,8 @@
   function artKeyOf(p) {
     if (!p) return '';
     if (p.type === 'birthday') return 'birthday';
-    return window.AvCelArt && window.AvCelArt.has(p.key) ? p.key : '';
+    var k = p.art || p.key;   // a holiday may wear another's art (Boxing Day → Christmas)
+    return window.AvCelArt && window.AvCelArt.has(k) ? k : '';
   }
   function uploadedArt(p) {
     var u = safeUrl(p && p.doodle);
@@ -412,7 +413,7 @@
 
   /* ── 2b · quiet themes for member pages ───────────────────────── */
   function applyTheme(th, playNav) {
-    var A = window.AvCelArt, k = A.has(th.key) ? th.key : 'custom';
+    var A = window.AvCelArt, ak = th.art || th.key, k = A.has(ak) ? ak : 'custom';
     root.classList.add('avcel-themed', 'avcel-k--' + k);
     root.setAttribute('data-avcel-theme', th.key);
     if (k === 'custom') customVars(root, th);
@@ -421,7 +422,7 @@
     if (store.get('av.celebrate.dismissed') !== dkey && !D.querySelector('.avcel-ban')) {
       var ban = D.createElement('div');
       ban.className = 'avcel-ban';
-      ban.innerHTML = A.icon(th.key) + '<span class="avcel-ban-bar" aria-hidden="true"></span><p class="avcel-ban-txt" style="margin:0"><strong>' + esc(th.title) + '.</strong> <span>' + esc(th.message) + '</span></p><button type="button" class="avcel-ban-x">Dismiss</button>';
+      ban.innerHTML = A.icon(ak) + '<span class="avcel-ban-bar" aria-hidden="true"></span><p class="avcel-ban-txt"><strong>' + esc(th.title) + '.</strong> <span>' + esc(th.message) + '</span></p><button type="button" class="avcel-ban-x">Dismiss</button>';
       var nav = D.querySelector('.avh-nav') || D.querySelector('header') || D.querySelector('nav');
       if (nav && nav.parentNode) nav.parentNode.insertBefore(ban, nav.nextSibling);
       else { var main = D.querySelector('main'); (main || D.body).insertBefore(ban, (main || D.body).firstChild); }
@@ -434,7 +435,7 @@
     }
     var uploaded = uploadedArt(th);
     if (uploaded) decorateImg(uploaded);
-    else decorate(A.has(th.key) ? th.key : 'newyear', artOpts(th.date), playNav && !reduced(), k === 'custom' ? th : null);
+    else decorate(A.has(ak) ? ak : 'newyear', artOpts(th.date), playNav && !reduced(), k === 'custom' ? th : null);
     try { D.dispatchEvent(new CustomEvent('avcel:theme', { detail: th })); } catch (e) { /* old browser */ }
   }
 
