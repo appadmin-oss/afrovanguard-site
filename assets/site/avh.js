@@ -114,18 +114,19 @@
     };
     const syncPlayBtn = () => {
       if (!playBtn) return;
-      playBtn.setAttribute('aria-label', playing ? 'Pause slideshow' : 'Play slideshow');
+      playBtn.setAttribute('aria-label', videoMode ? (playing ? 'Pause video' : 'Play video') : (playing ? 'Pause slideshow' : 'Play slideshow'));
       playBtn.textContent = playing ? '❚❚' : '▶';
     };
     const tick = () => { if (playing && !hold && !document.hidden) show(i + 1); };
     hero.addEventListener('mouseleave', () => { if (!videoMode) { schedule(); syncDots(); } });
-    const schedule = () => { clearInterval(timer); if (!videoMode) timer = setInterval(tick, 6000); };
+    const every = Math.max(3, Math.min(20, Number(hero.dataset.interval) || 6)) * 1000;   // seconds, set in the Studio
+    const schedule = () => { clearInterval(timer); if (!videoMode) timer = setInterval(tick, every); };
 
     if (videoMode) {
       slides.forEach(s => s.remove());
       vid.poster = hero.dataset.poster || ''; vid.src = hero.dataset.video; vid.hidden = false;
       if (playing) vid.play().catch(() => { playing = false; syncPlayBtn(); });
-      render({ href: '/about.html', eyebrow: hero.dataset.videoEyebrow || '', title: hero.dataset.videoTitle || '', sub: hero.dataset.videoSub || '' });
+      render({ href: hero.dataset.videoHref || '/about.html', eyebrow: hero.dataset.videoEyebrow || '', title: hero.dataset.videoTitle || '', sub: hero.dataset.videoSub || '' });
       if (nextBtn) nextBtn.hidden = true;
       if (dotsWrap) dotsWrap.hidden = true;
     } else {

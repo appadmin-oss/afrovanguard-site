@@ -451,3 +451,7 @@ html.av-si .avh .avh-drawer-ctas{grid-template-columns:1fr}
 @media (pointer: coarse) {
   [class$="-crumbs"] a,nav[aria-label="Breadcrumb"] a,nav[aria-label="Breadcrumbs"] a{display:inline-flex;align-items:center;min-height:44px}
 }
+
+/* The Studio's homepage preview (admin/preview.php): says plainly it is a draft. */
+.cms-preview-bar{position:sticky;top:0;z-index:1000;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;padding:10px 16px;background:var(--av-ink);color:var(--av-white);font-size:14px;font-weight:600}
+.cms-preview-bar a{color:var(--av-gold);text-decoration:underline;text-underline-offset:3px}

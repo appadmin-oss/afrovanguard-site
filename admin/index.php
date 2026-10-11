@@ -10,6 +10,7 @@
 <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/admin/admin.css" rel="stylesheet" />
+  <link href="/admin/site.css?v=<?= (int) @filemtime(__DIR__ . '/site.css') ?>" rel="stylesheet" />
   <link href="/assets/site/av-tokens.css" rel="stylesheet" />
   <link href="/assets/site/avc-photo.css" rel="stylesheet" />
 </head>
@@ -38,6 +39,8 @@
       <div class="nav-group">
         <p class="nav-group-h">Content</p>
         <button class="tab" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
+        <button class="tab" data-tab="homepage"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Homepage</span><span class="tab-badge" id="homeBadge" hidden></span></button>
+        <button class="tab" data-tab="media"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg><span>Media</span></button>
         <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
         <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
       </div>
@@ -1224,6 +1227,126 @@
     </div>
   </main>
 
+  <!-- HOMEPAGE (the hero: carousel or one video — admin/site.js, lib/SiteHome.php) -->
+  <main class="studio-main" id="homepageView" hidden>
+    <div class="studio-head">
+      <div><h1>Homepage</h1><p class="muted">The first thing every visitor sees. Save a draft, preview it, then publish. Nothing changes on the site until you publish.</p></div>
+      <div class="cms-actions">
+        <span class="cms-state" id="homeState" role="status" aria-live="polite"></span>
+        <a class="btn btn-outline btn-sm" id="homePreview" href="/admin/preview.php" target="_blank" rel="noopener">Preview</a>
+        <button class="btn btn-outline btn-sm" id="homeDiscard" type="button">Discard draft</button>
+        <button class="btn btn-outline btn-sm" id="homeSave" type="button">Save draft</button>
+        <button class="btn btn-primary btn-sm" id="homePublish" type="button">Publish</button>
+      </div>
+    </div>
+    <p class="cms-msg" id="homeMsg" role="alert" hidden></p>
+    <div class="cms-layout">
+      <div class="cms-col">
+        <section class="side-card">
+          <h3>What the top of the page shows</h3>
+          <div class="cms-seg" role="radiogroup" aria-label="Hero type">
+            <label><input type="radio" name="homeMode" value="carousel"> <span>Carousel of stories</span></label>
+            <label><input type="radio" name="homeMode" value="video"> <span>One video</span></label>
+          </div>
+        </section>
+        <section class="side-card" id="homeCarousel">
+          <div class="cms-card-h"><h3>Slides</h3>
+            <label class="cms-inline">Each slide shows for
+              <select id="homeInterval" aria-label="Seconds per slide"></select></label>
+          </div>
+          <ol class="cms-slides" id="homeSlides"></ol>
+          <button class="btn btn-outline btn-sm" id="homeAddSlide" type="button">+ Add a slide</button>
+        </section>
+        <section class="side-card" id="homeVideo" hidden>
+          <h3>The video</h3>
+          <div class="cms-pickrow">
+            <div class="cms-pick" id="homeVideoPick"></div>
+            <div class="cms-pick" id="homePosterPick"></div>
+          </div>
+          <label class="fld"><span>Small line above the headline</span><input id="hv_eyebrow" maxlength="80"></label>
+          <label class="fld"><span>Headline</span><input id="hv_title" maxlength="120"></label>
+          <label class="fld"><span>Sentence under it</span><textarea id="hv_sub" rows="2" maxlength="240"></textarea></label>
+          <label class="fld"><span>Where it links to</span><input id="hv_href" placeholder="/about.html" maxlength="300"></label>
+          <p class="muted tiny">The video plays muted, on a loop, behind the headline. Visitors who prefer less motion see the poster instead. MP4 (H.264) plays everywhere; keep it under 30 seconds and about 20 MB.</p>
+        </section>
+      </div>
+      <aside class="cms-col cms-col--side">
+        <section class="side-card">
+          <h3>Published versions</h3>
+          <ol class="cms-history" id="homeHistory"></ol>
+          <p class="muted tiny">Restoring a version makes it the draft. Publish it to put it back on the site.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <!-- MEDIA LIBRARY (admin/site.js, lib/Media.php) -->
+  <main class="studio-main" id="mediaView" hidden>
+    <div class="studio-head">
+      <div><h1>Media</h1><p class="muted">Every picture and video the site uses. Upload once, use anywhere. Edit pictures here — the original is always kept.</p></div>
+      <div class="cms-actions">
+        <label class="btn btn-primary btn-sm cms-file">Upload<input type="file" id="mediaFile" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,.m4v,.mov" multiple></label>
+      </div>
+    </div>
+    <div class="cms-toolbar" role="search">
+      <input type="search" id="mediaQ" placeholder="Search by name or description" aria-label="Search media">
+      <div class="cms-seg cms-seg--sm" role="radiogroup" aria-label="Show">
+        <label><input type="radio" name="mediaKind" value="" checked> <span>All</span></label>
+        <label><input type="radio" name="mediaKind" value="image"> <span>Pictures</span></label>
+        <label><input type="radio" name="mediaKind" value="video"> <span>Videos</span></label>
+      </div>
+      <span class="muted" id="mediaCount" role="status" aria-live="polite"></span>
+    </div>
+    <div class="cms-drop" id="mediaDrop">Drop pictures or videos here to upload them</div>
+    <ul class="cms-uploads" id="mediaUploads" aria-live="polite"></ul>
+    <div class="cms-media">
+      <ul class="cms-grid" id="mediaGrid" aria-label="Media"></ul>
+      <aside class="cms-detail side-card" id="mediaDetail" hidden aria-label="Selected item"></aside>
+    </div>
+    <div class="cms-more"><button class="btn btn-outline btn-sm" id="mediaMore" type="button" hidden>Show more</button></div>
+  </main>
+
+  <!-- Choose from the media library (homepage fields) -->
+  <dialog class="cms-dialog" id="mediaPicker" aria-labelledby="mediaPickerH">
+    <div class="cms-dialog-h"><h2 id="mediaPickerH">Choose</h2><button class="cms-x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="cms-toolbar">
+      <input type="search" id="pickQ" placeholder="Search" aria-label="Search the library">
+      <label class="btn btn-outline btn-sm cms-file">Upload new<input type="file" id="pickFile"></label>
+    </div>
+    <ul class="cms-uploads" id="pickUploads" aria-live="polite"></ul>
+    <ul class="cms-grid cms-grid--pick" id="pickGrid"></ul>
+  </dialog>
+
+  <!-- Edit a picture: crop, rotate, flip, size -->
+  <dialog class="cms-dialog cms-dialog--wide" id="imgEditor" aria-labelledby="imgEditorH">
+    <div class="cms-dialog-h"><h2 id="imgEditorH">Edit picture</h2><button class="cms-x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="cms-editor">
+      <div class="cms-stage"><canvas id="edCanvas" tabindex="0" aria-label="The picture and its crop frame. Drag the frame or its corners; or use the arrow keys to move it and Shift with the arrow keys to resize it."></canvas></div>
+      <div class="cms-edtools">
+        <div class="cms-tool"><span class="muted">Shape</span>
+          <div class="cms-seg cms-seg--sm" role="radiogroup" aria-label="Crop shape" id="edAspect"></div></div>
+        <div class="cms-tool"><span class="muted">Turn and flip</span>
+          <div class="cms-btnrow">
+            <button class="btn btn-outline btn-sm" type="button" data-rot="-90">↺ Left</button>
+            <button class="btn btn-outline btn-sm" type="button" data-rot="90">↻ Right</button>
+            <button class="btn btn-outline btn-sm" type="button" data-flip="h" aria-pressed="false">⇋ Mirror</button>
+            <button class="btn btn-outline btn-sm" type="button" data-flip="v" aria-pressed="false">⇵ Upside down</button>
+          </div></div>
+        <div class="cms-tool cms-tool--nums">
+          <label>X<input type="number" id="edX" min="0"></label><label>Y<input type="number" id="edY" min="0"></label>
+          <label>Width<input type="number" id="edW" min="16"></label><label>Height<input type="number" id="edH" min="16"></label>
+        </div>
+        <label class="fld"><span>Largest width (pixels)</span><select id="edMax"></select></label>
+        <p class="muted tiny" id="edInfo"></p>
+        <div class="cms-btnrow">
+          <button class="btn btn-outline btn-sm" type="button" id="edReset">Start over</button>
+          <button class="btn btn-primary btn-sm" type="button" id="edSave">Save picture</button>
+        </div>
+        <p class="cms-msg" id="edMsg" role="alert" hidden></p>
+      </div>
+    </div>
+  </dialog>
+
   <!-- DESIGN STUDIO (superadmin · site brand / accent) -->
   <main class="studio-main" id="designView" hidden>
     <div class="studio-head">
@@ -1335,5 +1458,6 @@
   <script src="/admin/app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>" defer></script>
   <script src="/assets/site/avc-photo.js?v=<?= (int) @filemtime(dirname(__DIR__) . '/assets/site/avc-photo.js') ?>" defer></script>
   <script src="/admin/card-photo.js?v=<?= (int) @filemtime(__DIR__ . '/card-photo.js') ?>" defer></script>
+  <script src="/admin/site.js?v=<?= (int) @filemtime(__DIR__ . '/site.js') ?>" defer></script>
 </body>
 </html>

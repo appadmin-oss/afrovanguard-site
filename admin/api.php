@@ -106,6 +106,8 @@ try {
         'team_list', 'team_get', 'team_save', 'team_delete',
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
+        // The homepage is the organisation's front door: editors draft it, an admin publishes.
+        'home_publish', 'home_restore', 'media_delete',
         'sys_health', 'mail_status', 'mail_test', 'mail_gas_check', 'subscribers', 'enrollments', 'audit_log',
         // Seat claims carry names, emails and phone numbers, and resending mail
         // on someone's behalf is a management action. Not for editors.
@@ -1342,6 +1344,41 @@ try {
             $res = MemberRoster::create(['name' => (string) ($body['name'] ?? '') ?: ucfirst(explode('@', $email)[0]), 'email' => $email,
                                          'role' => (string) ($body['role'] ?? 'member')], av_admin_actor(), 'studio', $memberCtx());
             json_out($res, !empty($res['ok']) ? 200 : (isset($res['code']) ? 403 : 422));
+
+        /* ══ Media library (lib/Media.php) ══ */
+        case 'media_list':
+            json_out(['ok' => true] + Media::list((string) ($_GET['kind'] ?? ''), (string) ($_GET['q'] ?? ''), (int) ($_GET['page'] ?? 1)));
+        case 'media_start':
+            json_out(Media::start((string) ($body['name'] ?? ''), (int) ($body['size'] ?? 0), av_admin_actor()));
+        case 'media_chunk':
+            $raw = base64_decode((string) ($body['data'] ?? ''), true);
+            if ($raw === false) json_out(['ok' => false, 'error' => 'A piece arrived damaged.'], 400);
+            json_out(Media::chunk((string) ($body['token'] ?? ''), (int) ($body['index'] ?? -1), $raw));
+        case 'media_finish':
+            json_out(Media::finish((string) ($body['token'] ?? ''), (string) ($body['alt'] ?? '')));
+        case 'media_describe':
+            json_out(Media::describe((int) ($body['id'] ?? 0), (string) ($body['alt'] ?? ''), (string) ($body['name'] ?? '')));
+        case 'media_edit':
+            json_out(Media::edit((int) ($body['id'] ?? 0), (array) ($body['ops'] ?? []), av_admin_actor()));
+        case 'media_revert':
+            json_out(Media::revert((int) ($body['id'] ?? 0), av_admin_actor()));
+        case 'media_delete':
+            json_out(Media::delete((int) ($body['id'] ?? 0)));
+
+        /* ══ Homepage hero (lib/SiteHome.php) ══ */
+        case 'home_get':
+            json_out(['ok' => true, 'draft' => SiteHome::draft(), 'live' => SiteHome::live(), 'unpublished' => SiteHome::hasUnpublished(),
+                      'history' => array_map(static fn($h) => ['at' => $h['at'], 'by' => $h['by']], SiteHome::history()),
+                      'can_publish' => $role !== 'editor']);
+        case 'home_save':
+            json_out(SiteHome::saveDraft((array) ($body['doc'] ?? [])));
+        case 'home_publish':
+            json_out(SiteHome::publish(av_admin_actor()));
+        case 'home_restore':
+            json_out(SiteHome::restore((int) ($body['index'] ?? -1)));
+        case 'home_discard':
+            SiteHome::discardDraft();
+            json_out(['ok' => true, 'draft' => SiteHome::draft()]);
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));
