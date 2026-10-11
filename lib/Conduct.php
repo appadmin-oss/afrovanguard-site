@@ -372,9 +372,18 @@ final class Conduct
     private static function tellMentor(array $c, bool $approved, string $note): void
     {
         if (!class_exists('Notifications')) return;
-        $what = $c['kind'] === 'fine' ? 'fine' : 'award';
+        /* Name the mentee: "Your award was approved" reads as an award TO the
+           mentor, not one they proposed. */
+        $who = 'your mentee';
         try {
-            Notifications::push((int) $c['mentor_id'], 'conduct', 'Your ' . $what . ' was ' . ($approved ? 'approved' : 'not approved'),
+            $st = Database::pdo()->prepare('SELECT name FROM lms_users WHERE id = ?');
+            $st->execute([(int) $c['mentee_id']]);
+            $n = trim((string) $st->fetchColumn());
+            if ($n !== '') $who = $n;
+        } catch (Throwable $e) {}
+        $what = $c['kind'] === 'fine' ? 'The fine you proposed for ' : 'The award you proposed for ';
+        try {
+            Notifications::push((int) $c['mentor_id'], 'conduct', $what . $who . ' was ' . ($approved ? 'approved' : 'not approved'),
                 $note, '/mentorship/mentor/?v=conduct&id=' . (int) $c['mentorship_id'], 'conduct-decided:' . (int) $c['id']);
         } catch (Throwable $e) { error_log('[conduct] notify mentor: ' . $e->getMessage()); }
     }

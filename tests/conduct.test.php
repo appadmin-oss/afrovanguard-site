@@ -69,6 +69,8 @@ ck('conduct: a case is decided once', !Conduct::decide($fine['id'], $U(9305), tr
 
 $d2 = Conduct::decide($award['id'], $U(9305), true, '');
 ck('conduct: a superadmin approves an award', $d2['ok']);
+$nt = (string) $db->query("SELECT title FROM user_notifications WHERE user_id = 9301 AND kind = 'conduct' ORDER BY id DESC LIMIT 1")->fetchColumn();
+ck('conduct: the mentor is told whose award was decided', $nt === 'The award you proposed for Mentee Chi was approved');
 $pts = (int) $db->query("SELECT SUM(points) FROM gate_points WHERE member_id = 9303")->fetchColumn();
 ck('conduct: an approved award grants its points', $pts === 10);
 GateAttendance::grant(9303, $today, 'award:' . $award['id'], 10, 'again');
