@@ -51,7 +51,16 @@
         <button type="button" class="avh-navbtn" data-avh-menu="projects" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-projects">Projects<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="involved" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-involved">Get involved<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="diary" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-diary">Diary<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
-      <a class="avh-signin" href="/login" data-avh-close data-avh-guest>Sign in</a><a class="avh-signin avh-member" href="/portal/" data-avh-close>My portal</a>
+      <a class="avh-signin" href="/login" data-avh-close data-avh-guest data-avh-login>Sign in</a><a class="avh-signin avh-member" href="/portal/" data-avh-close>My portal</a>
+      <div class="avh-acct" data-avh-acct>
+        <button type="button" class="avh-acct-btn" data-avh-acct-btn data-avh-close aria-expanded="false" aria-haspopup="true" aria-controls="avh-acct-menu"><span class="avh-av" data-avh-me-initial>M</span><span data-avh-me-first>Member</span><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div class="avh-acct-menu" id="avh-acct-menu" data-avh-acct-menu hidden>
+          <div class="avh-acct-head"><span class="avh-av avh-av--lg" data-avh-me-initial>M</span><span class="avh-acct-id"><span class="avh-acct-name" data-avh-me-name>Member</span><span class="avh-acct-email" data-avh-me-email hidden></span></span></div>
+          <a class="avh-acct-cta" href="/portal/">Your portal<span aria-hidden="true">→</span></a>
+          <nav class="avh-acct-links" aria-label="Your account"><a href="/academy/">Academy</a><a href="/diary/">The Diary</a><a href="/community/">Community</a></nav>
+          <button type="button" class="avh-acct-out" data-avh-logout>Sign out</button>
+        </div>
+      </div>
       <div class="avh-ctas">
         <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-close data-avh-guest>Join the Movement</a>
         <a class="avh-donate" href="/donate.html" data-avh-close>Donate</a>
@@ -59,6 +68,7 @@
     </div>
     <div class="avh-narrow">
       <a class="avh-join" href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-guest>Join the Movement</a><a class="avh-join avh-member" href="/portal/">My portal</a>
+      <a class="avh-acct-mini" href="/portal/" aria-label="Your portal"><span class="avh-av" data-avh-me-initial>M</span></a>
       <button type="button" class="avh-burger" data-avh-burger aria-label="Open menu" aria-expanded="false" aria-controls="avh-drawer"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -108,6 +118,7 @@
 <div class="avh-drawer" id="avh-drawer" role="dialog" aria-modal="true" aria-label="Menu" data-avh-drawer hidden>
   <div class="avh-drawer-top"><button type="button" class="avh-x" data-avh-drawer-close aria-label="Close menu"><span></span><span></span></button></div>
   <div class="avh-drawer-body">
+      <div class="avh-drawer-me"><span class="avh-av avh-av--lg" data-avh-me-initial>M</span><span class="avh-acct-id"><span class="avh-acct-name" data-avh-me-name>Member</span><span class="avh-acct-email" data-avh-me-email hidden></span></span><a class="avh-drawer-portal" href="/portal/">Your portal<span aria-hidden="true">→</span></a></div>
       <div class="avh-acc">
         <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-about">About<span class="avh-plus" aria-hidden="true"></span></button>
         <div class="avh-acc-links" id="avh-acc-about" hidden><a href="/about.html">About home</a><a href="/about.html">About us</a><a href="/how-it-works">How it works</a><a href="/ethos/">Our ethos</a><a href="/ethos/#leadership">Leadership &amp; model</a><a href="/contact.html">Contact us</a><a href="/diary/">The Diary</a><a href="/events/">Events</a></div>
@@ -128,7 +139,8 @@
         <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-diary">Diary<span class="avh-plus" aria-hidden="true"></span></button>
         <div class="avh-acc-links" id="avh-acc-diary" hidden><a href="/diary/">Diary home</a><a href="/diary/">All entries</a><a href="/diary/?q=Technology">Technology</a><a href="/diary/?q=Creative">Creative</a><a href="/diary/?q=Leadership">Leadership</a><a href="/diary/#subscribe">Subscribe</a><a href="https://afrovanguard.org.ng/diary/feed.xml">RSS feed</a><a href="/ethos/">Our ethos</a><a href="/academy/">Academy</a></div>
       </div>
-    <a class="avh-drawer-signin" href="/login" data-avh-guest>Sign in</a><a class="avh-drawer-signin avh-member" href="/portal/">My portal</a>
+    <a class="avh-drawer-signin" href="/login" data-avh-guest data-avh-login>Sign in</a><a class="avh-drawer-signin avh-member" href="/portal/">My portal</a>
+    <button type="button" class="avh-drawer-out" data-avh-logout>Sign out</button>
   </div>
   <div class="avh-drawer-ctas"><a href="https://cacentre.afrovanguard.org.ng/volunteer" data-avh-guest>Join the Movement</a><a href="/donate.html">Donate</a></div>
 </div>

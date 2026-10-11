@@ -56,6 +56,50 @@ body.avh{margin:0;background:var(--av-white);color:var(--av-body);font-family:va
 @media (min-width:640px){.avh-narrow .avh-join{display:inline-block}}
 @media (min-width:1180px){.avh-wide{display:flex}.avh-narrow{display:none}}
 
+/* Signed-in member: avh.js adds body.is-member after /academy/api.php?action=me returns a user */
+.avh-acct,.avh-acct-mini,.avh-drawer-me,.avh-drawer-out{display:none}
+.avh.is-member .avh-signin,.avh.is-member .avh-join,.avh.is-member .avh-drawer-signin,.avh.is-member .avh-drawer-ctas a:first-child{display:none}
+.avh.is-member .avh-acct{display:block;position:relative}
+.avh.is-member .avh-acct-mini{display:flex}
+.avh.is-member .avh-drawer-me{display:grid}
+.avh.is-member .avh-drawer-out{display:block}
+.avh.is-member .avh-drawer-ctas{grid-template-columns:1fr}
+.avh-av{width:32px;height:32px;border-radius:50%;background:var(--av-ink);color:var(--av-gold-light);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--av-serif);font-size:16px;font-weight:600;line-height:1;box-shadow:0 0 0 2px var(--av-paper),0 0 0 3px var(--av-gold)}
+.avh-av--lg{width:44px;height:44px;font-size:21px}
+.avh-acct-btn{display:flex;align-items:center;gap:10px;min-height:44px;background:var(--av-white);border:1px solid var(--av-line);border-radius:999px;padding:4px 14px 4px 5px;font-family:inherit;font-size:14.5px;font-weight:600;color:var(--av-ink);cursor:pointer;max-width:210px;transition:border-color .15s,box-shadow .15s}
+.avh-acct-btn>span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avh-acct-btn:hover{border-color:var(--av-line-2)}
+.avh-acct-btn[aria-expanded="true"]{border-color:var(--av-line-2);box-shadow:0 0 0 3px var(--av-sand)}
+.avh-acct-btn svg{width:10px;height:10px;color:var(--av-muted);flex-shrink:0;transition:transform .2s}
+.avh-acct-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.avh-acct-menu{position:absolute;right:0;top:calc(100% + 14px);width:300px;background:var(--av-white);border:1px solid var(--av-line);border-radius:16px;box-shadow:0 1px 2px rgba(17,24,39,.04),0 24px 48px -16px rgba(17,24,39,.22);padding:8px;z-index:30;animation:avh-pop .16s ease-out}
+.avh-acct-menu[hidden]{display:none}
+@keyframes avh-pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.avh-acct-menu{animation:none}}
+.avh-acct-head{display:flex;align-items:center;gap:12px;padding:14px;border-radius:10px;background:var(--av-stone)}
+.avh-acct-id{display:flex;flex-direction:column;gap:3px;min-width:0}
+.avh-acct-name{font-size:15.5px;font-weight:600;line-height:1.2;color:var(--av-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avh-acct-email{font-size:13px;color:var(--av-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avh-acct-email[hidden]{display:none}
+.avh-acct-cta{display:flex;align-items:center;justify-content:space-between;min-height:44px;margin:8px 0 6px;padding:11px 14px;border-radius:10px;background:var(--av-ink);color:var(--av-white);font-size:14.5px;font-weight:600}
+.avh .avh-acct-cta:hover{background:var(--av-ink-hover);color:var(--av-white)}
+.avh-acct-cta span,.avh-drawer-portal span{transition:transform .15s}
+.avh-acct-cta:hover span,.avh-drawer-portal:hover span{transform:translateX(3px)}
+.avh-acct-links{display:flex;flex-direction:column;padding:2px 0 6px}
+.avh-acct-links a{display:flex;align-items:center;min-height:44px;font-size:14.5px;font-weight:500;color:var(--av-nav-text);padding:9px 14px;border-radius:8px}
+.avh .avh-acct-links a:hover{background:var(--av-stone);color:var(--av-ink)}
+.avh-acct-out{display:block;width:calc(100% + 16px);min-height:44px;margin:0 -8px -8px;text-align:left;background:none;border:0;border-top:1px solid var(--av-line);font-family:inherit;font-size:14.5px;font-weight:500;color:var(--av-muted);padding:13px 22px;cursor:pointer;border-radius:0 0 16px 16px}
+.avh-acct-out:hover{color:var(--av-red);background:var(--av-red-bg)}
+.avh-acct-out:disabled,.avh-drawer-out:disabled{opacity:.5;cursor:default}
+.avh-acct-mini{width:44px;height:44px;align-items:center;justify-content:center;border-radius:50%}
+.avh-drawer-me{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px;margin:20px 0 8px;padding:16px;border-radius:14px;background:var(--av-white);border:1px solid var(--av-line)}
+.avh-drawer-portal{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;min-height:44px;font-size:16px;font-weight:600;color:var(--av-ink);background:var(--av-stone);padding:13px 16px;border-radius:10px}
+.avh .avh-drawer-portal:hover{background:var(--av-sand);color:var(--av-ink)}
+.avh-drawer-out{width:100%;text-align:left;background:none;border:0;font-family:inherit;font-size:19px;color:var(--av-muted);padding:24px 0;cursor:pointer}
+.avh-drawer-out:hover{color:var(--av-red)}
+/* The av_si hint's interim "My portal" links give way once the member is confirmed. */
+html.av-si body.avh.is-member .avh-member{display:none}
+
 /* Mega menu (desktop) */
 .avh-mega{position:absolute;left:0;right:0;top:100%;background:var(--av-paper);border-bottom:1px solid var(--av-line);box-shadow:0 24px 40px rgba(17,24,39,.08)}
 .avh-mega[hidden]{display:none}
@@ -386,6 +430,22 @@ body.avh{margin:0;background:var(--av-white);color:var(--av-body);font-family:va
 .avh-story-play::before{content:"";position:absolute;inset:-10px;border-radius:50%;border:1px solid var(--av-gold);opacity:0;animation:avh-ping 2.4s cubic-bezier(.16,1,.3,1) infinite}
 .avh-story-play{position:relative}
 @keyframes avh-ping{0%{opacity:.7;transform:scale(.85)}100%{opacity:0;transform:scale(1.35)}}
+
+/* ===== Balanced grids: fixed column counts so no row is left with a single orphan ===== */
+@media (min-width:640px){
+  .avh-pillars,.avh-features{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .avh-pillars{gap:32px 20px}
+}
+@media (min-width:640px) and (max-width:959px){
+  .avh-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .avh-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .avh-stat:nth-child(odd){border-left:0}
+  .avh-stat:nth-child(n+3){border-top:1px solid var(--av-line-sand)}
+}
+@media (min-width:960px){
+  .avh-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .avh-stats-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 
 /* ===== Phone layout (< 640) ===== */
 @media (max-width:639px){
