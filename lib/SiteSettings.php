@@ -29,7 +29,7 @@ final class SiteSettings
             'email'     => 'cacentre@afrovanguard.org.ng',
             'place'     => 'Alimosho, Lagos',
             'country'   => 'Nigeria',
-            'copyright' => 'Afrovanguard © 2018–2026',
+            'copyright' => 'Afrovanguard © 2017–2026',
             'social'    => [
                 'instagram' => 'https://www.instagram.com/afrovanguard/',
                 'x'         => 'https://twitter.com/afrovanguard',
