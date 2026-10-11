@@ -138,19 +138,19 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 <header class="aveth-hero">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="aveth-wrap">
-    <nav class="aveth-crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/about.html">About</a><span aria-hidden="true">›</span><span aria-current="page">Ethos</span></nav>
+    <nav class="aveth-crumbs" aria-label="Breadcrumb"><a href="/" data-cms="ethos-a-1">Home</a><span aria-hidden="true">›</span><a href="/about.html" data-cms="ethos-a-2">About</a><span aria-hidden="true">›</span><span aria-current="page">Ethos</span></nav>
     <div class="aveth-hero-grid">
       <div class="aveth-hero-copy">
         <div class="aveth-eyebrow">The Force for Good</div>
-        <h1>The Ethos of Afrovanguardism</h1>
+        <h1 data-cms="ethos-h1-1">The Ethos of Afrovanguardism</h1>
         <p><?= e($preamble) ?></p>
         <div class="aveth-btns">
-          <a class="aveth-btn" href="#commitments">Read the nine commitments</a>
+          <a class="aveth-btn" href="#commitments" data-cms="ethos-a-3">Read the nine commitments</a>
           <a class="aveth-btn aveth-btn--line" href="/assets/docs/afrovanguard-ethos.pdf" download>Download PDF <span aria-hidden="true">↓</span></a>
         </div>
       </div>
       <a class="aveth-cover" href="/assets/docs/afrovanguard-ethos.pdf" aria-label="Open the ethos document (PDF)">
-        <picture><source srcset="/assets/img/ethos-cover.webp" type="image/webp" /><img src="/assets/img/ethos-cover.png" alt="The Global Ethos of Afrovanguardism — cover" width="420" height="560" /></picture>
+        <picture><source srcset="/assets/img/ethos-cover.webp" type="image/webp" /><img src="/assets/img/ethos-cover.png" alt="The Global Ethos of Afrovanguardism — cover" width="420" height="560" data-cms="ethos-img-1" /></picture>
       </a>
     </div>
   </div>
@@ -165,8 +165,8 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 
 <section id="purpose" class="aveth-vm" aria-label="Vision and mission">
   <div class="aveth-wrap aveth-vm-grid">
-    <div class="aveth-vm-card aveth-vm-card--ink"><h2 class="aveth-eyebrow">The Vision</h2><p><?= e($ethos['vision']) ?></p></div>
-    <div class="aveth-vm-card"><h2 class="aveth-eyebrow">The Mission</h2><p><?= e($ethos['mission']) ?></p></div>
+    <div class="aveth-vm-card aveth-vm-card--ink"><h2 class="aveth-eyebrow" data-cms="ethos-h2-1">The Vision</h2><p><?= e($ethos['vision']) ?></p></div>
+    <div class="aveth-vm-card"><h2 class="aveth-eyebrow" data-cms="ethos-h2-2">The Mission</h2><p><?= e($ethos['mission']) ?></p></div>
   </div>
 </section>
 
@@ -175,7 +175,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="aveth-wrap">
     <div class="aveth-split">
       <div><div class="aveth-eyebrow">Nine guiding commitments</div><h2 class="aveth-h2" id="aveth-commit-h">Each builds upon the last</h2></div>
-      <p>From the dignity of the person to the stewardship of the earth — nine commitments every Afrovanguard holds, in this order.</p>
+      <p data-cms="ethos-p-1">From the dignity of the person to the stewardship of the earth — nine commitments every Afrovanguard holds, in this order.</p>
     </div>
     <div class="aveth-commit-layout">
       <nav class="aveth-toc" aria-label="Commitments" data-aveth-toc>
@@ -209,7 +209,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="aveth-wrap">
     <div class="aveth-split aveth-split--ink">
       <div><div class="aveth-eyebrow aveth-eyebrow--light">The leadership model</div><h2 class="aveth-h2" id="aveth-lead-h">Six marks of an Afrovanguard leader</h2></div>
-      <p>Taken together, the nine commitments call for a distinct model of leadership.</p>
+      <p data-cms="ethos-p-2">Taken together, the nine commitments call for a distinct model of leadership.</p>
     </div>
     <ol class="aveth-marks">
 <?php foreach ($leadership as $i => $l): ?>
@@ -224,7 +224,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
     <div class="aveth-values-head">
       <div class="aveth-eyebrow">The seven core values</div>
       <h2 class="aveth-h2" id="aveth-values-h">Imbibe. Impact. Influence.</h2>
-      <p>The values a member lives first, then carries into their community, then multiplies in others.</p>
+      <p data-cms="ethos-p-3">The values a member lives first, then carries into their community, then multiplies in others.</p>
     </div>
     <ol class="aveth-values-list">
 <?php foreach ($values as $n => $v): ?>
@@ -243,7 +243,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
       <li><?= e($c) ?></li>
 <?php endforeach; ?>
     </ol>
-    <p class="aveth-affirm">This I affirm — in character, in conduct, and in community</p>
+    <p class="aveth-affirm" data-cms="ethos-p-4">This I affirm — in character, in conduct, and in community</p>
   </div>
 </section>
 
@@ -254,9 +254,9 @@ if (function_exists('send_security_headers')) send_security_headers('public');
       <a class="aveth-btn aveth-btn--line" href="/assets/docs/afrovanguard-ethos.pdf" download>Download the full ethos <span aria-hidden="true">↓</span></a>
     </div>
     <div class="aveth-next-grid">
-      <a href="/academy/"><img src="/Images/bootcamp1.png" alt="" width="640" height="400" loading="lazy"><span><b>Learn &amp; lead <span aria-hidden="true">→</span></b><span>Free, hands-on programmes in the Afrovanguard Academy.</span></span></a>
-      <a href="https://cacentre.afrovanguard.org.ng/volunteer"><img src="/Images/storm2.jpg" alt="" width="640" height="400" loading="lazy"><span><b>Join the movement <span aria-hidden="true">→</span></b><span>Volunteer your time, skills and presence in the community.</span></span></a>
-      <a href="/diary/"><img src="/Images/alimosho.jpg" alt="" width="640" height="400" loading="lazy"><span><b>Read the Diary <span aria-hidden="true">→</span></b><span>Honest field notes on building leaders, in the open.</span></span></a>
+      <a href="/academy/"><img src="/Images/bootcamp1.png" alt="" width="640" height="400" loading="lazy" data-cms="ethos-img-2"><span><b>Learn &amp; lead <span aria-hidden="true">→</span></b><span>Free, hands-on programmes in the Afrovanguard Academy.</span></span></a>
+      <a href="https://cacentre.afrovanguard.org.ng/volunteer"><img src="/Images/storm2.jpg" alt="" width="640" height="400" loading="lazy" data-cms="ethos-img-3"><span><b>Join the movement <span aria-hidden="true">→</span></b><span>Volunteer your time, skills and presence in the community.</span></span></a>
+      <a href="/diary/"><img src="/Images/alimosho.jpg" alt="" width="640" height="400" loading="lazy" data-cms="ethos-img-4"><span><b>Read the Diary <span aria-hidden="true">→</span></b><span>Honest field notes on building leaders, in the open.</span></span></a>
     </div>
   </div>
 </section>

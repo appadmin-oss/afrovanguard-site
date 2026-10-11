@@ -338,6 +338,7 @@ require_once __DIR__ . '/MentorPortal.php';   // the read model behind /mentorsh
 require_once __DIR__ . '/Conduct.php';        // a mentor's fines and awards, approved by the compliance committee
 require_once __DIR__ . '/SiteHome.php';       // the homepage hero as content: draft, preview, publish, history
 require_once __DIR__ . '/Media.php';          // the Studio's media library: chunked upload, image edits
+require_once __DIR__ . '/SitePages.php';          // the Studio's Pages editor: every public page's words, links, pictures
 require_once __DIR__ . '/Prefs.php';
 require_once __DIR__ . '/Notifications.php';
 require_once __DIR__ . '/AdminAudit.php';

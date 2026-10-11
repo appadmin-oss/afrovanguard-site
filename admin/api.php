@@ -107,7 +107,7 @@ try {
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
         // The homepage is the organisation's front door: editors draft it, an admin publishes.
-        'home_publish', 'home_restore', 'media_delete',
+        'home_publish', 'home_restore', 'media_delete', 'page_publish', 'page_restore',
         'sys_health', 'mail_status', 'mail_test', 'mail_gas_check', 'subscribers', 'enrollments', 'audit_log',
         // Seat claims carry names, emails and phone numbers, and resending mail
         // on someone's behalf is a management action. Not for editors.
@@ -158,6 +158,13 @@ try {
         $auditTarget = (string) ($body['slug'] ?? $body['course'] ?? $body['email'] ?? $body['id'] ?? $_GET['slug'] ?? $_GET['id'] ?? '');
         if (isset($body['user_id'])) $auditTarget = trim($auditTarget . ' user#' . (int) $body['user_id']);
         $lms->audit($action, $auditTarget);
+    }
+
+    /* Every write in the content screens is a POST, so the CSRF check above
+       always runs: a GET (an <img> on another site) can never publish. */
+    if ($method !== 'POST' && in_array($action, ['media_start', 'media_chunk', 'media_finish', 'media_describe', 'media_edit', 'media_revert', 'media_delete',
+            'home_save', 'home_publish', 'home_restore', 'home_discard', 'page_save', 'page_publish', 'page_restore', 'page_discard'], true)) {
+        json_out(['ok' => false, 'error' => 'POST required.'], 405);
     }
 
     switch ($action) {
@@ -1383,6 +1390,29 @@ try {
         case 'home_discard':
             SiteHome::discardDraft();
             json_out(['ok' => true, 'draft' => SiteHome::draft()]);
+
+        /* ══ Pages (lib/SitePages.php): every public page's words, links, pictures ══ */
+        case 'pages_list':
+            json_out(['ok' => true, 'pages' => SitePages::index(), 'can_publish' => $role !== 'editor']);
+        case 'page_get':
+            $pf = (string) ($_GET['file'] ?? '');
+            if (!SitePages::known($pf)) json_out(['ok' => false, 'error' => 'That page is not one the Studio edits.'], 404);
+            $phtml = (string) @file_get_contents(SitePages::path($pf));
+            json_out(['ok' => true, 'file' => $pf, 'name' => SitePages::PAGES[$pf], 'href' => SitePages::href($pf),
+                'fields' => SitePages::fields($pf), 'seo' => SitePages::seo($phtml), 'draft' => (object) SitePages::draft($pf),
+                'history' => array_map(static fn($h) => ['at' => $h['at'], 'by' => $h['by'], 'n' => $h['n'] ?? 0], SitePages::history($pf)),
+                'writable' => is_writable(SitePages::path($pf)), 'can_publish' => $role !== 'editor']);
+        case 'page_save':
+            json_out(SitePages::saveDraft((string) ($body['file'] ?? ''), (array) ($body['draft'] ?? [])));
+        case 'page_publish':
+            json_out(SitePages::publish((string) ($body['file'] ?? ''), av_admin_actor()));
+        case 'page_restore':
+            json_out(SitePages::restore((string) ($body['file'] ?? ''), (int) ($body['index'] ?? -1)));
+        case 'page_discard':
+            $pf = (string) ($body['file'] ?? '');
+            if (!SitePages::known($pf)) json_out(['ok' => false, 'error' => 'That page is not one the Studio edits.'], 404);
+            SitePages::discard($pf);
+            json_out(['ok' => true]);
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));

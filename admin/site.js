@@ -1,5 +1,6 @@
-/* admin/site.js — the Studio's content screens: Homepage (lib/SiteHome.php)
-   and Media (lib/Media.php), the library picker, and the picture editor.
+/* admin/site.js — the Studio's content screens: Homepage (lib/SiteHome.php),
+   Pages (lib/SitePages.php) and Media (lib/Media.php), the library picker,
+   and the picture editor.
 
    Uses the Studio's own request path (window.AvAdmin: CSRF, retry, toast).
    Classes only — nothing is positioned with style: the crop frame is drawn on
@@ -404,6 +405,218 @@
     window.addEventListener('beforeunload', function (e) { if (H.dirty) { e.preventDefault(); e.returnValue = ''; } });
   }
 
+  /* ══ Pages (lib/SitePages.php) ═════════════════════════════════════════
+     A page's marked words, links and pictures. The draft holds only what
+     differs from the live page; a field put back to what is live drops out. */
+  var PG = { file: '', page: null, draft: {}, dirty: false, pages: [] };
+  var KIND = { h1: 'Main heading', h2: 'Heading', h3: 'Sub-heading', h4: 'Small heading', p: 'Paragraph', li: 'List item',
+    figcaption: 'Caption', blockquote: 'Quote', dt: 'Term', dd: 'Definition', a: 'Link', img: 'Picture' };
+  function pState(text, kind) { var s = $('#pageState'); s.textContent = text; s.className = 'cms-state' + (kind ? ' is-' + kind : ''); }
+  function pCount(d) { var n = 0; Object.keys(d).forEach(function (k) { n += k === 'seo' ? Object.keys(d.seo).length : 1; }); return n; }
+  function pDirty() { PG.dirty = true; pState('Unsaved changes', 'warn'); }
+  function liveOf(f, prop) { return f[prop] == null ? '' : f[prop]; }
+  function setDraft(f, prop, v) {
+    var d = PG.draft[f.key] || {};
+    if (v === liveOf(f, prop)) delete d[prop]; else d[prop] = v;
+    if (Object.keys(d).length) PG.draft[f.key] = d; else delete PG.draft[f.key];
+    pDirty(); markChanged(f.key);
+  }
+  function valOf(f, prop) { var d = PG.draft[f.key]; return d && d[prop] != null ? d[prop] : liveOf(f, prop); }
+  function markChanged(key) {
+    var row = $('#pageFields [data-key="' + key + '"]'); if (!row) return;
+    var on = !!PG.draft[key]; row.classList.toggle('is-changed', on); $('.cms-undo', row).hidden = !on;
+  }
+  function loadPages(select) {
+    A().api('pages_list').then(function (r) {
+      var d = r.data || {}, ul = $('#pagesList');
+      if (!d.ok) { ul.innerHTML = '<li class="cms-msg">Could not load the pages. <button type="button" class="btn btn-outline btn-sm" data-retry>Try again</button></li>'; return; }
+      PG.pages = d.pages; ul.innerHTML = '';
+      var waiting = 0;
+      d.pages.forEach(function (pg) {
+        var li = el('li'), b = el('button', 'cms-pbtn' + (pg.file === PG.file ? ' is-on' : ''));
+        b.type = 'button'; b.setAttribute('aria-current', pg.file === PG.file ? 'page' : 'false');
+        b.innerHTML = '<span class="cms-pn">' + esc(pg.name) + '</span><span class="cms-pa">' + esc(pg.href) + '</span>' +
+          (pg.pending ? '<span class="cms-pw">' + pg.pending + (pg.pending === 1 ? ' change waiting' : ' changes waiting') + '</span>' : '');
+        b.addEventListener('click', function () { openPage(pg.file); });
+        li.appendChild(b); ul.appendChild(li); if (pg.pending) waiting++;
+      });
+      var badge = $('#pagesBadge'); badge.hidden = !waiting; badge.textContent = waiting || '';
+      if (select && !PG.file && d.pages[0]) openPage(d.pages[0].file);
+    });
+  }
+  function openPage(file) {
+    if (PG.dirty && file !== PG.file && !confirm('You have unsaved changes on this page. Leave without saving them?')) return;
+    PG.file = file; PG.dirty = false; say($('#pageMsg'), '');
+    $$('#pagesList .cms-pbtn').forEach(function (b, i) { var on = PG.pages[i] && PG.pages[i].file === file; b.classList.toggle('is-on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
+    $('#pageEmpty').hidden = false; $('#pageEmpty').textContent = 'Loading…'; $('#pageBody').hidden = true;
+    A().api('page_get&file=' + encodeURIComponent(file)).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#pageEmpty').textContent = d.error || 'Could not load this page.'; return; }
+      PG.page = d; PG.draft = JSON.parse(JSON.stringify(d.draft || {})); if (Array.isArray(PG.draft)) PG.draft = {};
+      $('#pageEmpty').hidden = true; $('#pageBody').hidden = false;
+      $('#pageName').textContent = d.name; $('#pageLive').href = d.href;
+      $('#pagePreview').href = '/admin/preview.php?page=' + encodeURIComponent(file);
+      $('#pagePublish').hidden = !d.can_publish;
+      if (!d.writable) say($('#pageMsg'), 'The server cannot write this page yet, so publishing will fail. In cPanel → File Manager, set the file to 644 and its folder to 755.');
+      var n = pCount(PG.draft);
+      pState(n ? n + (n === 1 ? ' change saved — not yet published' : ' changes saved — not yet published') : 'Matches the live page', n ? 'warn' : 'ok');
+      renderSeo(); renderFields(); renderPageHistory();
+    });
+  }
+  function fieldRow(f) {
+    var row = el('div', 'cms-field'), id = 'pf-' + f.key, label = KIND[f.tag] || 'Text';
+    row.setAttribute('data-key', f.key);
+    var head = el('div', 'cms-field-h');
+    head.innerHTML = '<span class="cms-field-l">' + esc(label) + '</span>';
+    var undo = el('button', 'btn btn-outline btn-sm cms-undo', 'Undo'); undo.type = 'button'; undo.hidden = true;
+    undo.setAttribute('aria-label', 'Undo the change to this ' + label.toLowerCase());
+    undo.addEventListener('click', function () { delete PG.draft[f.key]; pDirty(); var fresh = fieldRow(f); row.replaceWith(fresh); markChanged(f.key); });
+    head.appendChild(undo); row.appendChild(head);
+    if (f.type === 'image') {
+      var box = el('div', 'cms-fimg');
+      var paint = function () {
+        box.innerHTML = '<img src="' + esc(valOf(f, 'src')) + '" alt="">';
+        var b = el('button', 'btn btn-outline btn-sm', 'Change picture'); b.type = 'button';
+        b.addEventListener('click', function () { openPicker('image', function (m) {
+          setDraft(f, 'src', m.url); if (m.alt && valOf(f, 'alt') === liveOf(f, 'alt')) { setDraft(f, 'alt', m.alt); $('#' + id + '-alt').value = m.alt; } paint();
+        }); });
+        box.appendChild(b);
+      };
+      paint(); row.appendChild(box);
+      var alt = el('label', 'fld', '<span>Description for people who cannot see it</span>');
+      var ai = el('input'); ai.id = id + '-alt'; ai.maxLength = 300; ai.value = valOf(f, 'alt');
+      ai.addEventListener('input', function () { setDraft(f, 'alt', ai.value); });
+      alt.appendChild(ai); row.appendChild(alt);
+    } else if (f.type === 'rich') {
+      var bar = el('div', 'cms-richbar'); bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Text style');
+      var ed = el('div', 'cms-rich'); ed.id = id; ed.contentEditable = 'true'; ed.setAttribute('role', 'textbox'); ed.setAttribute('aria-multiline', 'false');
+      ed.setAttribute('aria-label', label); ed.innerHTML = valOf(f, 'value');
+      [['bold', 'B', 'Bold'], ['italic', 'I', 'Italic']].forEach(function (c) {
+        var b = el('button', 'btn btn-outline btn-sm cms-rb cms-rb--' + c[0], c[1]); b.type = 'button'; b.setAttribute('aria-label', c[2]);
+        b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        b.addEventListener('click', function () { ed.focus(); document.execCommand(c[0]); ed.dispatchEvent(new Event('input')); });
+        bar.appendChild(b);
+      });
+      ed.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (e.shiftKey) { document.execCommand('insertLineBreak'); ed.dispatchEvent(new Event('input')); } } });
+      ed.addEventListener('paste', function (e) { e.preventDefault(); var t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t.replace(/\s+/g, ' ')); });
+      ed.addEventListener('input', function () { setDraft(f, 'value', ed.innerHTML.replace(/&nbsp;/g, ' ').trim()); });
+      row.appendChild(bar); row.appendChild(ed);
+    } else {
+      var long = f.tag !== 'a' && (f.value.length > 70 || /^(p|li|blockquote|dd|figcaption)$/.test(f.tag));
+      var inp = el(long ? 'textarea' : 'input'); inp.id = id; inp.value = valOf(f, 'value'); inp.maxLength = 2000;
+      if (long) inp.rows = Math.min(8, Math.max(2, Math.ceil(inp.value.length / 70)));
+      inp.setAttribute('aria-label', label + (f.tag === 'a' ? ' words' : ''));
+      inp.addEventListener('input', function () { setDraft(f, 'value', inp.value.replace(/\s+/g, ' ').trim()); });
+      if (f.tag === 'a') {
+        var two = el('div', 'cms-two');
+        var w = el('label', 'fld', '<span>Words</span>'); w.appendChild(inp);
+        var h = el('label', 'fld', '<span>Goes to</span>'); var hi = el('input'); hi.value = valOf(f, 'href'); hi.maxLength = 300;
+        hi.placeholder = '/about.html, https://…, mailto:…';
+        hi.addEventListener('input', function () { setDraft(f, 'href', hi.value.trim()); });
+        h.appendChild(hi); two.appendChild(w); two.appendChild(h); row.appendChild(two);
+      } else row.appendChild(inp);
+    }
+    if (PG.draft[f.key]) { row.classList.add('is-changed'); undo.hidden = false; }
+    return row;
+  }
+  function renderFields() {
+    var box = $('#pageFields'), q = $('#pageFind').value.trim().toLowerCase(), only = $('#pageOnlyChanged').checked;
+    box.innerHTML = ''; var groups = {}, order = [], shown = 0;
+    PG.page.fields.forEach(function (f) {
+      var hay = ((f.value || '') + ' ' + (f.alt || '') + ' ' + (f.href || '') + ' ' + f.group).toLowerCase();
+      if (q && hay.indexOf(q) < 0) return; if (only && !PG.draft[f.key]) return;
+      if (!groups[f.group]) { groups[f.group] = []; order.push(f.group); }
+      groups[f.group].push(f); shown++;
+    });
+    order.forEach(function (g) {
+      var sec = el('section', 'side-card cms-fgroup'); var h = el('h3'); h.textContent = g; sec.appendChild(h);
+      groups[g].forEach(function (f) { sec.appendChild(fieldRow(f)); }); box.appendChild(sec);
+    });
+    if (!shown) box.appendChild(el('p', 'cms-empty', q || only ? 'Nothing matches. Clear the search to see every field.' : 'This page has nothing the Studio can edit yet.'));
+    $('#pageCount').textContent = shown + (shown === 1 ? ' field' : ' fields');
+  }
+  function seoVal(k) { return PG.draft.seo && PG.draft.seo[k] != null ? PG.draft.seo[k] : (PG.page.seo[k] || ''); }
+  function setSeo(k, v) {
+    var s = PG.draft.seo || {};
+    if (v === (PG.page.seo[k] || '')) delete s[k]; else s[k] = v;
+    if (Object.keys(s).length) PG.draft.seo = s; else delete PG.draft.seo; pDirty();
+  }
+  function renderSeo() {
+    var has = PG.page.seo || {};
+    $('#seoTitle').closest('.fld').hidden = has.title == null; $('#seoDesc').closest('.fld').hidden = has.description == null;
+    $('#seoTitle').value = seoVal('title'); $('#seoDesc').value = seoVal('description'); seoCounts();
+    var box = $('#seoImagePick');
+    if (has.image == null) { box.hidden = true; return; }
+    box.hidden = false;
+    var v = seoVal('image');
+    box.innerHTML = '<span class="cms-pick-l">Share picture</span>' + (v ? '<img src="' + esc(v) + '" alt="">' : '<span class="cms-noimg">None chosen</span>');
+    var b = el('button', 'btn btn-outline btn-sm', 'Change'); b.type = 'button';
+    b.addEventListener('click', function () { openPicker('image', function (m) { setSeo('image', m.url); renderSeo(); }); });
+    box.appendChild(b);
+  }
+  function seoCounts() {
+    var t = $('#seoTitle').value.length, d = $('#seoDesc').value.length;
+    $('#seoTitleN').textContent = t + ' / 60'; $('#seoTitleN').classList.toggle('is-over', t > 60);
+    $('#seoDescN').textContent = d + ' / 155'; $('#seoDescN').classList.toggle('is-over', d > 155);
+  }
+  function renderPageHistory() {
+    var ul = $('#pageHistory'); ul.innerHTML = '';
+    if (!PG.page.history.length) { ul.appendChild(el('li', 'muted', 'Nothing published from here yet.')); return; }
+    PG.page.history.forEach(function (h, i) {
+      var li = el('li'); var t = el('span'); t.textContent = h.at.slice(0, 16) + ' UTC · ' + h.by + ' · ' + h.n + (h.n === 1 ? ' change' : ' changes');
+      li.appendChild(t);
+      if (PG.page.can_publish) {
+        var b = el('button', 'btn btn-outline btn-sm', 'Put back'); b.type = 'button';
+        b.setAttribute('aria-label', 'Put back what the publish of ' + h.at + ' replaced');
+        b.addEventListener('click', function () {
+          if (PG.dirty && !confirm('This replaces your unsaved changes. Go on?')) return;
+          A().post('page_restore', { file: PG.file, index: i }).then(function (x) { var xd = x.data || {}; if (!xd.ok) return say($('#pageMsg'), xd.error || 'Could not put it back.'); PG.dirty = false; A().toast('Put back as your draft'); openPage(PG.file); loadPages(); });
+        });
+        li.appendChild(b);
+      }
+      ul.appendChild(li);
+    });
+  }
+  function savePage() {
+    return A().post('page_save', { file: PG.file, draft: PG.draft }).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { say($('#pageMsg'), d.error || 'Could not save. Your changes are still here; try again.'); pState('Not saved', 'bad'); return false; }
+      say($('#pageMsg'), ''); PG.dirty = false;
+      pState(d.changed ? d.changed + (d.changed === 1 ? ' change saved — not yet published' : ' changes saved — not yet published') : 'Matches the live page', d.changed ? 'warn' : 'ok');
+      loadPages(); return true;
+    }, function () { say($('#pageMsg'), 'The Studio could not be reached. Your changes are still here; try again.'); pState('Not saved', 'bad'); return false; });
+  }
+  function wirePages() {
+    $('#pagesList').addEventListener('click', function (e) { if (e.target.closest('[data-retry]')) loadPages(true); });
+    var deb; $('#pageFind').addEventListener('input', function () { clearTimeout(deb); deb = setTimeout(renderFields, 150); });
+    $('#pageOnlyChanged').addEventListener('change', renderFields);
+    $('#seoTitle').addEventListener('input', function () { setSeo('title', this.value.replace(/\s+/g, ' ').trim()); seoCounts(); });
+    $('#seoDesc').addEventListener('input', function () { setSeo('description', this.value.replace(/\s+/g, ' ').trim()); seoCounts(); });
+    $('#pageSave').addEventListener('click', function () { savePage().then(function (ok) { if (ok) A().toast('Draft saved'); }); });
+    $('#pagePreview').addEventListener('click', function (e) {
+      if (!PG.dirty) return; e.preventDefault(); var href = this.href;
+      savePage().then(function (ok) { if (ok) window.open(href, '_blank', 'noopener'); });
+    });
+    $('#pageDiscard').addEventListener('click', function () {
+      if (!confirm('Throw away the draft for this page and go back to what is live?')) return;
+      A().post('page_discard', { file: PG.file }).then(function () { PG.dirty = false; A().toast('Draft discarded'); openPage(PG.file); loadPages(); });
+    });
+    $('#pagePublish').addEventListener('click', function () {
+      var go = function () {
+        if (!pCount(PG.draft)) { say($('#pageMsg'), 'Nothing to publish: the draft matches the live page.'); return; }
+        if (!confirm('Publish these changes to the ' + PG.page.name + ' page now? Every visitor will see them.')) return;
+        var b = $('#pagePublish'); b.disabled = true;
+        A().post('page_publish', { file: PG.file }).then(function (r) {
+          b.disabled = false; var d = r.data || {};
+          if (!d.ok) { say($('#pageMsg'), d.error || 'Could not publish. Try again.'); return; }
+          A().toast('Published'); openPage(PG.file); loadPages();
+        }, function () { b.disabled = false; say($('#pageMsg'), 'The Studio could not be reached. Nothing was published; try again.'); });
+      };
+      if (PG.dirty) savePage().then(function (ok) { if (ok) go(); }); else go();
+    });
+    window.addEventListener('beforeunload', function (e) { if (PG.dirty) { e.preventDefault(); e.returnValue = ''; } });
+  }
+
   /* ══ Dialogs ══ */
   $$('.cms-dialog [data-close]').forEach(function (b) { b.addEventListener('click', function () { b.closest('dialog').close(); }); });
 
@@ -414,6 +627,7 @@
       if (!wired.common) { wirePicker(); wireEditor(); wired.common = true; }
       if (which === 'media') { if (!wired.media) { wireMedia(); wired.media = true; } loadMedia(true); }
       if (which === 'homepage') { if (!wired.home) { wireHome(); wired.home = true; } loadHome(); }
+      if (which === 'pages') { if (!wired.pages) { wirePages(); wired.pages = true; } loadPages(true); }
     }
   };
 })();

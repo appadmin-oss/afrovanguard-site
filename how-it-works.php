@@ -95,14 +95,14 @@ $ladder = [
 <header class="avhw-hero">
   <div class="avh-topo" data-avh-topo="light" data-seed="7" aria-hidden="true"></div>
   <div class="avhw-wrap">
-    <nav class="avhw-crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span aria-hidden="true">›</span><a href="/about.html">About</a><span aria-hidden="true">›</span><span aria-current="page">How it works</span></nav>
+    <nav class="avhw-crumbs" aria-label="Breadcrumb"><a href="/" data-cms="how-it-works-a-1">Home</a><span aria-hidden="true">›</span><a href="/about.html" data-cms="how-it-works-a-2">About</a><span aria-hidden="true">›</span><span aria-current="page">How it works</span></nav>
     <div class="avhw-hero-grid">
-      <h1>Progressive growth &amp; member alignment</h1>
+      <h1 data-cms="how-it-works-h1-1">Progressive growth &amp; member alignment</h1>
       <div class="avhw-hero-side">
-        <p>We develop leaders through a structured progression built on personal growth, accountability, service, leadership and alignment with our vision and values.</p>
+        <p data-cms="how-it-works-p-1">We develop leaders through a structured progression built on personal growth, accountability, service, leadership and alignment with our vision and values.</p>
         <div class="avhw-btns">
-          <a class="avhw-btn" href="/academy/#membership">Become a member</a>
-          <a class="avhw-btn avhw-btn--line" href="/mentorship/">Find a mentor</a>
+          <a class="avhw-btn" href="/academy/#membership" data-cms="how-it-works-a-3">Become a member</a>
+          <a class="avhw-btn avhw-btn--line" href="/mentorship/" data-cms="how-it-works-a-4">Find a mentor</a>
         </div>
       </div>
     </div>
@@ -121,7 +121,7 @@ $ladder = [
   <div class="avhw-wrap">
     <div class="avhw-split">
       <div><div class="avhw-eyebrow">The path</div><h2 class="avhw-h2" id="avhw-path-h">From your first day to organisational leadership</h2></div>
-      <p>Advancement is strictly algorithmic — based on verifiable output, systemic growth and consistent contribution, <strong>never on length of membership or mere presence</strong>.</p>
+      <p data-cms="how-it-works-p-2">Advancement is strictly algorithmic — based on verifiable output, systemic growth and consistent contribution, <strong>never on length of membership or mere presence</strong>.</p>
     </div>
     <ol class="avhw-ladder">
 <?php foreach ($ladder as $i => $lv): ?>
@@ -157,7 +157,7 @@ $ladder = [
   <div class="avhw-wrap">
     <div class="avhw-split avhw-split--tight">
       <div><div class="avhw-eyebrow">Membership contribution</div><h2 class="avhw-h2" id="avhw-ledger-h">An open, auditable ledger</h2></div>
-      <p>Financial transparency is the ultimate weapon against institutional decay. The ecosystem runs on an immutable contribution ledger that every member can read.</p>
+      <p data-cms="how-it-works-p-3">Financial transparency is the ultimate weapon against institutional decay. The ecosystem runs on an immutable contribution ledger that every member can read.</p>
     </div>
     <div class="avhw-dues">
       <div class="avhw-due">
@@ -168,7 +168,7 @@ $ladder = [
       <div class="avhw-due">
         <span class="avhw-due-k">Level C and above · mandatory</span>
         <span class="avhw-due-amt"><span class="avhw-due-n av-num">₦<?= number_format($MONTHLY) ?><small> / month</small></span><span class="avhw-due-alt av-num">or ₦<?= number_format($ANNUAL) ?> / year</span></span>
-        <span class="avhw-due-d">Dues become a non-negotiable responsibility of leadership. Pay or renew any time in the <a href="/portal/">member portal</a>.</span>
+        <span class="avhw-due-d">Dues become a non-negotiable responsibility of leadership. Pay or renew any time in the <a href="/portal/" data-cms="how-it-works-a-5">member portal</a>.</span>
       </div>
       <div class="avhw-due avhw-due--ink">
         <span class="avhw-due-k">The radical transparency rule</span>
@@ -184,7 +184,7 @@ $ladder = [
     <div class="avhw-ego-head">
       <div class="avhw-eyebrow">Leadership culture</div>
       <h2 class="avhw-h2" id="avhw-ego-h">The ego filter</h2>
-      <p>Before qualifying for Level C, every member proves their ego is entirely subordinate to the mission — moving from consumer to architect of the system.</p>
+      <p data-cms="how-it-works-p-4">Before qualifying for Level C, every member proves their ego is entirely subordinate to the mission — moving from consumer to architect of the system.</p>
     </div>
     <ol class="avhw-ego-list">
       <li><span class="avhw-ego-n">30 min</span><span><b>Pre-event architecture</b><span>Arrive at least 30 minutes before standard meetings — and 2–3 hours early for major programmes — to handle setup, logistics and invisible backend labour.</span></span></li>
@@ -196,11 +196,11 @@ $ladder = [
 
 <section class="avhw-closing" aria-label="Closing">
   <div class="avhw-wrap avhw-closing-in">
-    <blockquote>“Those who faithfully manage the friction of service are engineered to lead.”</blockquote>
+    <blockquote data-cms="how-it-works-blockquote-1">“Those who faithfully manage the friction of service are engineered to lead.”</blockquote>
     <div class="avhw-btns avhw-btns--c">
-      <a class="avhw-btn" href="/portal/">Go to your portal</a>
-      <a class="avhw-btn avhw-btn--line" href="/mentorship/">Find a mentor</a>
-      <a class="avhw-btn avhw-btn--line" href="/franchise">Franchise a CACENTRE</a>
+      <a class="avhw-btn" href="/portal/" data-cms="how-it-works-a-6">Go to your portal</a>
+      <a class="avhw-btn avhw-btn--line" href="/mentorship/" data-cms="how-it-works-a-7">Find a mentor</a>
+      <a class="avhw-btn avhw-btn--line" href="/franchise" data-cms="how-it-works-a-8">Franchise a CACENTRE</a>
     </div>
   </div>
 </section>

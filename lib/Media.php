@@ -351,6 +351,16 @@ final class Media
 
     /* ── Describing, finding, removing ────────────────────────────────── */
 
+    /** The library item a page address belongs to (its master or one of its sizes), if any. */
+    public static function byUrl(string $url): ?array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare('SELECT id FROM media_items WHERE url = ? OR variants LIKE ? ORDER BY id DESC LIMIT 1');
+        $st->execute([$url, '%' . trim((string) json_encode($url), '"') . '%']);
+        $id = $st->fetchColumn();
+        return $id ? self::get((int) $id) : null;
+    }
+
     public static function get(int $id): ?array
     {
         self::ensure();
@@ -401,6 +411,7 @@ final class Media
                 if (str_contains($draft, $j)) $where['draft'] = 'the homepage draft';
             }
         }
+        if (class_exists('SitePages')) foreach (SitePages::usesUrl($urls) as $w) $where[$w] = $w;
         return array_values($where);
     }
 

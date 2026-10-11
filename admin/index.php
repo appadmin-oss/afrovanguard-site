@@ -41,6 +41,7 @@
         <button class="tab" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
         <button class="tab" data-tab="homepage"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Homepage</span><span class="tab-badge" id="homeBadge" hidden></span></button>
         <button class="tab" data-tab="media"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg><span>Media</span></button>
+        <button class="tab" data-tab="pages"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg><span>Pages</span><span class="tab-badge" id="pagesBadge" hidden></span></button>
         <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
         <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
       </div>
@@ -1239,6 +1240,58 @@
   </main>
 
   <!-- HOMEPAGE (the hero: carousel or one video — admin/site.js, lib/SiteHome.php) -->
+  <!-- PAGES (lib/SitePages.php, admin/site.js): every public page's words, links and pictures -->
+  <main class="studio-main" id="pagesView" hidden>
+    <div class="studio-head">
+      <div><h1>Pages</h1><p class="muted">The words, links and pictures on every page of the website, and how each page shows in search and when shared. Save a draft, preview it, then publish. Nothing changes on the site until you publish.</p></div>
+    </div>
+    <div class="cms-pages">
+      <nav class="cms-plist" aria-label="Pages">
+        <ul id="pagesList"><li class="muted">Loading…</li></ul>
+      </nav>
+      <div class="cms-pedit" id="pageEdit">
+        <p class="muted cms-pempty" id="pageEmpty">Choose a page to edit.</p>
+        <div id="pageBody" hidden>
+          <div class="cms-card-h">
+            <div><h2 class="cms-ptitle" id="pageName"></h2><a class="cms-plive" id="pageLive" href="/" target="_blank" rel="noopener">Open the live page ↗</a></div>
+            <div class="cms-actions">
+              <span class="cms-state" id="pageState" role="status" aria-live="polite"></span>
+              <a class="btn btn-outline btn-sm" id="pagePreview" href="/admin/preview.php" target="_blank" rel="noopener">Preview</a>
+              <button class="btn btn-outline btn-sm" id="pageDiscard" type="button">Discard draft</button>
+              <button class="btn btn-outline btn-sm" id="pageSave" type="button">Save draft</button>
+              <button class="btn btn-primary btn-sm" id="pagePublish" type="button">Publish</button>
+            </div>
+          </div>
+          <p class="cms-msg" id="pageMsg" role="alert" hidden></p>
+          <div class="cms-layout">
+            <div class="cms-col">
+              <div class="cms-toolbar" role="search">
+                <input type="search" id="pageFind" placeholder="Find words on this page" aria-label="Find words on this page">
+                <label class="cms-inline"><input type="checkbox" id="pageOnlyChanged"> Only what I changed</label>
+                <span class="muted tiny" id="pageCount" role="status" aria-live="polite"></span>
+              </div>
+              <div id="pageFields"></div>
+            </div>
+            <aside class="cms-col">
+              <section class="side-card" id="pageSeo">
+                <h3>In search and when shared</h3>
+                <label class="fld"><span>Page title <span class="cms-count" id="seoTitleN"></span></span><input id="seoTitle" maxlength="120"></label>
+                <label class="fld"><span>Description <span class="cms-count" id="seoDescN"></span></span><textarea id="seoDesc" rows="4" maxlength="300"></textarea></label>
+                <div class="cms-pick" id="seoImagePick"></div>
+                <p class="muted tiny">Search engines show about 60 characters of the title and 155 of the description. The picture shows when the page is shared (1200 × 630 works best).</p>
+              </section>
+              <section class="side-card">
+                <h3>Published versions</h3>
+                <ul class="cms-history" id="pageHistory"></ul>
+                <p class="muted tiny">Putting a version back makes what it replaced your draft. Publish it to put it back on the site.</p>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
   <main class="studio-main" id="homepageView" hidden>
     <div class="studio-head">
       <div><h1>Homepage</h1><p class="muted">The first thing every visitor sees. Save a draft, preview it, then publish. Nothing changes on the site until you publish.</p></div>
