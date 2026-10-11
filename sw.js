@@ -3,11 +3,12 @@
    Served from the site root so its scope is the whole site.
    - Precaches a small static app shell + an offline page.
    - Navigations: network-first, fall back to the offline page.
-   - Same-origin static assets: stale-while-revalidate.
+   - Scripts and styles: network-first (cache only offline).
+   - Pictures and fonts: stale-while-revalidate.
    Never caches API responses or authenticated HTML.
    ============================================================ */
 'use strict';
-var VERSION = 'av-pwa-v4';
+var VERSION = 'av-pwa-v5';   // a new name empties every older cache on activate
 var SHELL = [
   '/assets/site/offline.html',
   '/assets/site/nav.css',
@@ -66,7 +67,22 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Static assets: stale-while-revalidate.
+  // Scripts and styles: network first, the cache only when offline. A page and
+  // its scripts are deployed together; serving last week's script first is how
+  // the portal's tabs stopped switching views.
+  if (/\.(js|mjs|css)$/i.test(url.pathname)) {
+    e.respondWith(
+      caches.open(VERSION).then(function (c) {
+        return fetch(req).then(function (res) {
+          if (res && res.status === 200 && res.type === 'basic') c.put(req, res.clone());
+          return res;
+        }).catch(function () { return c.match(req); });
+      })
+    );
+    return;
+  }
+
+  // Pictures and fonts: stale-while-revalidate.
   if (isStatic(url)) {
     e.respondWith(
       caches.open(VERSION).then(function (c) {

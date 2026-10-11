@@ -160,6 +160,24 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   </FilesMatch>
 </IfModule>
 
+# ── Scripts and styles: always the deployed copy ────────────────────────────
+# The site has no build step, so a file keeps its name across deploys. The
+# host's default (Cache-Control: max-age=604800) let a browser run last week's
+# script against this week's page for up to seven days: the portal's tabs
+# changed the address but not the view. "no-cache" makes the browser ask each
+# time; an unchanged file answers 304 Not Modified, which costs almost nothing.
+<IfModule mod_expires.c>
+  ExpiresByType application/javascript "access plus 0 seconds"
+  ExpiresByType text/javascript "access plus 0 seconds"
+  ExpiresByType text/css "access plus 0 seconds"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs|css)$">
+    Header unset Expires
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
 # ── Security headers + Content-Security-Policy ──────────────────────────────
 # The CSP allows exactly what the site loads: same-origin + inline (for the
 # app's own inline scripts/styles) plus the specific third parties in use —

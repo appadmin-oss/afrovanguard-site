@@ -116,9 +116,12 @@
     }
     window.avpShowView = showView;
 
+    /* Captured at the document, before any other script: a handler further in
+       that stops the click (or cancels it) can no longer leave the address
+       changed and the view not. */
     document.addEventListener('click', function (e) {
-      var a = e.target.closest('a[data-view], [data-goto]');
-      if (!a || e.defaultPrevented) return;
+      var a = e.target.closest && e.target.closest('a[data-view], [data-goto]');
+      if (!a) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
       var name = a.getAttribute('data-goto') || a.getAttribute('data-view');
       if (a.matches('a[data-view]') && !a.closest('.avp-side, .avp-tabs')) return;
@@ -127,8 +130,11 @@
       drawer.close(true);
       var main = document.getElementById('main-content');
       if (a.closest('.avp-side') && main) main.focus({ preventScroll: true });
-    });
-    window.addEventListener('hashchange', function () { showView((location.hash || '').replace('#', ''), false); });
+    }, true);
+    function fromUrl() { showView((location.hash || '').replace('#', ''), false); }
+    window.addEventListener('hashchange', fromUrl);
+    // Back and Forward after a pushState fire popstate, not hashchange.
+    window.addEventListener('popstate', fromUrl);
     showView((location.hash || '').replace('#', '') || 'overview', false);
     /* Some views carry an element with the view's own name as its id (#tasks,
        #membership), and the browser's fragment jump lands on it after the
