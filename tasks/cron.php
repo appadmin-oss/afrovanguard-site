@@ -48,6 +48,12 @@ if (class_exists('Webhooks')) {
     catch (Throwable $e) { $result['ok'] = false; $result['error'] = $e->getMessage(); error_log('[cron] webhooks: ' . $e->getMessage()); }
 }
 
+/* Content the Studio scheduled (lib/Cms.php): published when its time comes. */
+if (class_exists('Cms')) {
+    try { $due = Cms::runDue(); if ($due) $result['content_published'] = $due; }
+    catch (Throwable $e) { error_log('[cron] content: ' . $e->getMessage()); }
+}
+
 /* Every tick: finish the payments CACENTRE's checkout took that nobody came
    back to tell us about. Our own Paystack retries a webhook until it is
    acknowledged; CACENTRE's checkout is a pull API and pushes nothing, so a

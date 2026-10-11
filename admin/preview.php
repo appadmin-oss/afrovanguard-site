@@ -1,8 +1,9 @@
 <?php
 /**
  * admin/preview.php — a page as it WOULD look with the Studio's draft.
- *   /admin/preview.php              the homepage hero draft (Content → Homepage)
- *   /admin/preview.php?page=<file>  a page's draft (Content → Pages)
+ *   /admin/preview.php              the homepage hero draft (Content → Site → Homepage hero)
+ *   /admin/preview.php?page=<file>  a page's draft (Content → Site)
+ *   /admin/preview.php?site=1       the site details' draft, shown in the homepage's footer
  * Studio users only; never indexed; nothing is written.
  */
 declare(strict_types=1);
@@ -12,7 +13,11 @@ $role = function_exists('av_admin_role') ? av_admin_role() : '';
 if ($role === '') { http_response_code(403); header('Content-Type: text/plain; charset=utf-8'); echo 'Sign in to the Studio to preview.'; exit; }
 
 $page = (string) ($_GET['page'] ?? '');
-if ($page !== '') {
+if (isset($_GET['site'])) {
+    $home = @file_get_contents(SiteHome::indexPath());
+    $html = $home === false ? null : SiteSettings::previewHtml(Cms::draft('site') ?? SiteSettings::live(), $home);
+    $back = '/admin/#site';
+} elseif ($page !== '') {
     if (!SitePages::known($page)) { http_response_code(404); header('Content-Type: text/plain; charset=utf-8'); echo 'That page is not one the Studio edits.'; exit; }
     $path = SitePages::path($page);
     if (str_ends_with($page, '.php')) {
@@ -26,10 +31,10 @@ if ($page !== '') {
     } else {
         $html = SitePages::previewHtml($page);
     }
-    $back = '/admin/#pages';
+    $back = '/admin/#site';
 } else {
     $html = SiteHome::previewHtml(SiteHome::draft());
-    $back = '/admin/#homepage';
+    $back = '/admin/#site';
 }
 if ($html === null) { http_response_code(500); header('Content-Type: text/plain; charset=utf-8'); echo 'The draft could not be previewed. Open the Studio and check it for errors.'; exit; }
 

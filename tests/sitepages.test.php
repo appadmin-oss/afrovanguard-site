@@ -1,7 +1,7 @@
 <?php
 /**
  * tests/sitepages.test.php — every public page's words, links and pictures as
- * content (lib/SitePages.php, Studio → Content → Pages).
+ * content (lib/SitePages.php, Studio → Content → Site).
  *
  *   • Every page in the list is marked, and marking again changes nothing.
  *   • Publishing nothing changes nothing: an untouched page keeps its bytes.
@@ -11,7 +11,7 @@
 declare(strict_types=1);
 $root = dirname(__DIR__);
 
-foreach (array_keys(SitePages::PAGES) as $f) Database::metaSet(SitePages::META . $f, '');
+foreach (array_keys(SitePages::PAGES) as $f) Cms::forget('page:' . $f);
 
 /* ── the pages as shipped ── */
 foreach (SitePages::PAGES as $file => $name) {
@@ -74,7 +74,7 @@ SitePages::saveDraft('about.html', [$img['key'] => ['src' => '/uploads/media/202
 SitePages::publish('about.html', 'test@x');
 SitePages::restore('about.html', 0); SitePages::publish('about.html', 'test@x');
 ck('pages: putting a picture back restores it byte for byte', file_get_contents("$tr/about.html") === file_get_contents("$tr/about.bak"));
-@unlink("$tr/about.bak"); Database::metaSet(SitePages::META . 'about.html', '');
+@unlink("$tr/about.bak"); Cms::forget('page:about.html');
 
 /* the ticker's copy follows the original */
 $idx = (string) file_get_contents("$tr/index.html");
@@ -112,16 +112,15 @@ ck('pages: a picture on a page is reported as in use', in_array('the About page'
 array_map('unlink', array_filter([...glob("$tr/*.*") ?: [], ...glob("$tr/terms/*") ?: []], 'is_file'));
 @rmdir("$tr/terms"); @rmdir($tr);
 SitePages::$root = null;
-foreach (array_keys(SitePages::PAGES) as $f) Database::metaSet(SitePages::META . $f, '');
+foreach (array_keys(SitePages::PAGES) as $f) Cms::forget('page:' . $f);
 
 /* ── the Studio ── */
 $api = (string) file_get_contents("$root/admin/api.php");
 $ui = (string) file_get_contents("$root/admin/index.php");
 $js = (string) file_get_contents("$root/admin/site.js");
-ck('pages: the Studio has the actions', str_contains($api, "case 'pages_list'") && str_contains($api, "case 'page_publish'") && str_contains($api, "case 'page_restore'"));
-ck('pages: editors draft; publishing and putting back are management-only', (bool) preg_match("~managementOnly = \\[.*'page_publish', 'page_restore'~s", $api));
-ck('pages: every content write must be a POST (CSRF always checked)', (bool) preg_match("~\\\$method !== 'POST' && in_array\\(\\\$action, \\[[^\\]]*'home_publish'[^\\]]*'page_publish'~s", $api));
-ck('pages: the Pages screen is in the Content menu', str_contains($ui, 'data-tab="pages"') && str_contains($ui, 'id="pagesView"'));
-ck('pages: no inline style on the Pages screen', !preg_match('~id="pagesView".*?</main>~s', $ui, $m) || !str_contains($m[0], 'style='));
+ck('pages: the Studio edits pages through the content store', str_contains($api, "case 'cms_get'") && str_contains($api, 'SitePages::fields($pf)') && !str_contains($api, "case 'page_publish'"));
+ck('pages: every content write must be a POST (CSRF always checked)', (bool) preg_match('~\\$method !== \'POST\' && in_array\\(\\$action, \\[[^\\]]*\'cms_save\'[^\\]]*\'cms_publish\'~s', $api));
+ck('pages: pages are edited in the Site workspace', str_contains($ui, 'data-tab="site"') && str_contains($ui, 'id="siteView"') && str_contains($ui, 'id="edPage"'));
+ck('pages: no inline style on the Site workspace', !preg_match('~id="siteView".*?</main>~s', $ui, $m) || !str_contains($m[0], 'style='));
 ck('pages: the editor sets no inline style', !preg_match('/style\s*=|\.style\./', $js));
 ck('pages: the preview takes a page', str_contains((string) file_get_contents("$root/admin/preview.php"), 'SitePages::known($page)'));

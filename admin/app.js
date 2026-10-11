@@ -10,8 +10,8 @@
   var currentRole = 'superadmin';   // editor | admin | superadmin (from session)
   var ROLE_RANK = { editor: 1, admin: 2, superadmin: 3 };
   var TAB_MIN = { overview: 'editor', entries: 'editor', moderation: 'editor', academy: 'editor', guide: 'editor',
-    // Content: editors draft the homepage and manage media; publishing checks admin at the API.
-    homepage: 'editor', media: 'editor', pages: 'editor',
+    // Content: editors draft the site and manage media; publishing checks admin at the API.
+    site: 'editor', homepage: 'editor', pages: 'editor', media: 'editor',
     inbox: 'admin', members: 'admin', people: 'admin', celebrations: 'admin', communities: 'admin',
     // Seat claims carry names, emails and phone numbers — admin, like the rest of the PII.
     summit: 'admin',
@@ -43,7 +43,7 @@
     curriculum: $('#curriculumView'), lessonEditor: $('#lessonEditorView'), inbox: $('#inboxView'), moderation: $('#moderationView'),
     people: $('#peopleView'), personEdit: $('#personEditView'),
     celebrations: $('#celebrationsView'), celEdit: $('#celEditView'), communities: $('#communitiesView'), commEdit: $('#commEditView'), webhooks: $('#webhooksView'), whEdit: $('#whEditView'), system: $('#systemView'), signin: $('#signinView'), members: $('#membersView'), guide: $('#guideView'), mentorship: $('#mentorshipView'), activity: $('#activityView'), admins: $('#adminsView'), database: $('#databaseView'), design: $('#designView'), rules: $('#rulesView'), aiops: $('#aiopsView'), summit: $('#summitView'),
-    homepage: $('#homepageView'), media: $('#mediaView'), pages: $('#pagesView')
+    site: $('#siteView'), media: $('#mediaView')
   };
   function show(v) { Object.keys(views).forEach(function (k) { if (views[k]) views[k].hidden = (k !== v); });
     $('#logoutBtn').hidden = (v === 'login'); $('#tabs').hidden = (v === 'login');
@@ -106,6 +106,9 @@
 
   /* ---- Tabs ---- */
   function activateTab(which) {
+    // Homepage and Pages were their own screens; their names open the Site workspace.
+    var siteRef = which === 'homepage' ? 'hero' : '';
+    if (which === 'homepage' || which === 'pages') which = 'site';
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-tab') === which); });
     try { localStorage.setItem('av.studio.tab', which); } catch (e) {}
     if (which === 'overview') { show('overview'); loadOverview(); }
@@ -128,7 +131,8 @@
     else if (which === 'design') { show('design'); loadDesign(); }
     else if (which === 'rules') { show('rules'); loadRules(); }
     else if (which === 'aiops') { show('aiops'); loadAiOps(); }
-    else if (which === 'homepage' || which === 'media' || which === 'pages') { show(which); if (window.AvSite) window.AvSite.open(which); }
+    else if (which === 'site') { show('site'); if (window.AvSite) window.AvSite.open('site', siteRef); }
+    else if (which === 'media') { show('media'); if (window.AvSite) window.AvSite.open('media'); }
     else { show('inbox'); loadInbox(); }
     var on = document.querySelector('.tab.active');
     if (on && on.scrollIntoView) { try { on.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
@@ -3608,7 +3612,11 @@
     applyRoleVisibility();
     var saved = 'overview';
     try { saved = localStorage.getItem('av.studio.tab') || 'overview'; } catch (e) {}
-    if (!document.querySelector('.tab[data-tab="' + saved + '"]') || !roleAllows(saved)) saved = 'overview';
+    // A link into the Studio (the preview's "Back to the Studio") names its screen in the hash.
+    var asked = (location.hash || '').slice(1);
+    if (/^[a-z]+$/.test(asked) && (document.querySelector('.tab[data-tab="' + asked + '"]') || asked === 'homepage' || asked === 'pages')) saved = asked;
+    if (saved !== 'homepage' && saved !== 'pages' && !document.querySelector('.tab[data-tab="' + saved + '"]')) saved = 'overview';
+    if (!roleAllows(saved)) saved = 'overview';
     activateTab(saved);
     refreshModBadge();
   }

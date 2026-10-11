@@ -39,9 +39,8 @@
       <div class="nav-group">
         <p class="nav-group-h">Content</p>
         <button class="tab" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
-        <button class="tab" data-tab="homepage"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Homepage</span><span class="tab-badge" id="homeBadge" hidden></span></button>
+        <button class="tab" data-tab="site"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 16h9"/></svg><span>Site</span><span class="tab-badge" id="siteBadge" hidden></span></button>
         <button class="tab" data-tab="media"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg><span>Media</span></button>
-        <button class="tab" data-tab="pages"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg><span>Pages</span><span class="tab-badge" id="pagesBadge" hidden></span></button>
         <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
         <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
       </div>
@@ -1239,73 +1238,49 @@
     </div>
   </main>
 
-  <!-- HOMEPAGE (the hero: carousel or one video — admin/site.js, lib/SiteHome.php) -->
-  <!-- PAGES (lib/SitePages.php, admin/site.js): every public page's words, links and pictures -->
-  <main class="studio-main" id="pagesView" hidden>
+  <!-- SITE: one workspace for everything the website lets staff edit — the
+       homepage hero, every page, the site details (lib/Cms.php, admin/site.js).
+       Draft → send for review → publish now or on a schedule; every save and
+       publish is a version that can be compared and put back. -->
+  <main class="studio-main" id="siteView" hidden>
     <div class="studio-head">
-      <div><h1>Pages</h1><p class="muted">The words, links and pictures on every page of the website, and how each page shows in search and when shared. Save a draft, preview it, then publish. Nothing changes on the site until you publish.</p></div>
+      <div><h1>Site</h1><p class="muted">Everything on the public website you can change: the homepage hero, the words, links and pictures on every page, and the details every page shares. Nothing changes for visitors until it is published.</p></div>
     </div>
     <div class="cms-pages">
-      <nav class="cms-plist" aria-label="Pages">
-        <ul id="pagesList"><li class="muted">Loading…</li></ul>
+      <nav class="cms-plist" aria-label="Site content">
+        <ul id="siteTree"><li class="muted">Loading…</li></ul>
       </nav>
-      <div class="cms-pedit" id="pageEdit">
-        <p class="muted cms-pempty" id="pageEmpty">Choose a page to edit.</p>
-        <div id="pageBody" hidden>
-          <div class="cms-card-h">
-            <div><h2 class="cms-ptitle" id="pageName"></h2><a class="cms-plive" id="pageLive" href="/" target="_blank" rel="noopener">Open the live page ↗</a></div>
-            <div class="cms-actions">
-              <span class="cms-state" id="pageState" role="status" aria-live="polite"></span>
-              <a class="btn btn-outline btn-sm" id="pagePreview" href="/admin/preview.php" target="_blank" rel="noopener">Preview</a>
-              <button class="btn btn-outline btn-sm" id="pageDiscard" type="button">Discard draft</button>
-              <button class="btn btn-outline btn-sm" id="pageSave" type="button">Save draft</button>
-              <button class="btn btn-primary btn-sm" id="pagePublish" type="button">Publish</button>
-            </div>
-          </div>
-          <p class="cms-msg" id="pageMsg" role="alert" hidden></p>
-          <div class="cms-layout">
-            <div class="cms-col">
-              <div class="cms-toolbar" role="search">
-                <input type="search" id="pageFind" placeholder="Find words on this page" aria-label="Find words on this page">
-                <label class="cms-inline"><input type="checkbox" id="pageOnlyChanged"> Only what I changed</label>
-                <span class="muted tiny" id="pageCount" role="status" aria-live="polite"></span>
-              </div>
-              <div id="pageFields"></div>
-            </div>
-            <aside class="cms-col">
-              <section class="side-card" id="pageSeo">
-                <h3>In search and when shared</h3>
-                <label class="fld"><span>Page title <span class="cms-count" id="seoTitleN"></span></span><input id="seoTitle" maxlength="120"></label>
-                <label class="fld"><span>Description <span class="cms-count" id="seoDescN"></span></span><textarea id="seoDesc" rows="4" maxlength="300"></textarea></label>
-                <div class="cms-pick" id="seoImagePick"></div>
-                <p class="muted tiny">Search engines show about 60 characters of the title and 155 of the description. The picture shows when the page is shared (1200 × 630 works best).</p>
-              </section>
-              <section class="side-card">
-                <h3>Published versions</h3>
-                <ul class="cms-history" id="pageHistory"></ul>
-                <p class="muted tiny">Putting a version back makes what it replaced your draft. Publish it to put it back on the site.</p>
-              </section>
-            </aside>
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
+      <div class="cms-pedit">
+        <section class="cms-pane" id="paneOverview" aria-labelledby="ovTitle">
+          <h2 class="cms-ptitle" id="ovTitle">Overview</h2>
+          <p class="cms-msg" id="ovMsg" role="alert" hidden></p>
+          <div class="cms-ovgroups" id="ovGroups"></div>
+        </section>
 
-  <main class="studio-main" id="homepageView" hidden>
-    <div class="studio-head">
-      <div><h1>Homepage</h1><p class="muted">The first thing every visitor sees. Save a draft, preview it, then publish. Nothing changes on the site until you publish.</p></div>
-      <div class="cms-actions">
-        <span class="cms-state" id="homeState" role="status" aria-live="polite"></span>
-        <a class="btn btn-outline btn-sm" id="homePreview" href="/admin/preview.php" target="_blank" rel="noopener">Preview</a>
-        <button class="btn btn-outline btn-sm" id="homeDiscard" type="button">Discard draft</button>
-        <button class="btn btn-outline btn-sm" id="homeSave" type="button">Save draft</button>
-        <button class="btn btn-primary btn-sm" id="homePublish" type="button">Publish</button>
-      </div>
-    </div>
-    <p class="cms-msg" id="homeMsg" role="alert" hidden></p>
-    <div class="cms-layout">
-      <div class="cms-col">
+        <section class="cms-pane" id="paneDoc" hidden aria-labelledby="docTitle">
+          <div class="cms-docbar">
+            <div class="cms-docid">
+              <h2 class="cms-ptitle" id="docTitle"></h2>
+              <a class="cms-plive" id="docLive" href="/" target="_blank" rel="noopener">Open the live page ↗</a>
+            </div>
+            <div class="cms-actions" role="group" aria-label="Draft and publishing">
+              <span class="cms-state" id="docState" role="status" aria-live="polite"></span>
+              <a class="btn btn-outline btn-sm" id="docPreview" href="/admin/preview.php" target="_blank" rel="noopener">Preview</a>
+              <button class="btn btn-outline btn-sm" id="docHistoryBtn" type="button" aria-pressed="false" aria-controls="docRevs">History</button>
+              <button class="btn btn-outline btn-sm" id="docDiscard" type="button">Discard draft</button>
+              <button class="btn btn-outline btn-sm" id="docSave" type="button">Save draft</button>
+              <button class="btn btn-outline btn-sm" id="wfReject" type="button" hidden>Send back</button>
+              <button class="btn btn-outline btn-sm" id="wfUnschedule" type="button" hidden>Cancel schedule</button>
+              <button class="btn btn-outline btn-sm" id="wfSchedule" type="button" hidden>Schedule…</button>
+              <button class="btn btn-primary btn-sm" id="wfSubmit" type="button" hidden>Send for review</button>
+              <button class="btn btn-primary btn-sm" id="wfPublish" type="button" hidden>Publish</button>
+            </div>
+          </div>
+          <p class="cms-note" id="docNote" role="status" hidden></p>
+          <p class="cms-msg" id="docMsg" role="alert" hidden></p>
+          <div class="cms-docgrid">
+            <div class="cms-col">
+              <div id="edHero" hidden>
         <section class="side-card">
           <h3>What the top of the page shows</h3>
           <div class="cms-seg" role="radiogroup" aria-label="Hero type">
@@ -1333,15 +1308,65 @@
           <label class="fld"><span>Where it links to</span><input id="hv_href" placeholder="/about.html" maxlength="300"></label>
           <p class="muted tiny">The video plays muted, on a loop, behind the headline. Visitors who prefer less motion see the poster instead. MP4 (H.264) plays everywhere; keep it under 30 seconds and about 20 MB.</p>
         </section>
-      </div>
-      <aside class="cms-col cms-col--side">
-        <section class="side-card">
-          <h3>Published versions</h3>
-          <ol class="cms-history" id="homeHistory"></ol>
-          <p class="muted tiny">Restoring a version makes it the draft. Publish it to put it back on the site.</p>
+              </div>
+
+              <div id="edPage" hidden>
+                <section class="side-card" id="pageSeo">
+                <h3>In search and when shared</h3>
+                <label class="fld"><span>Page title <span class="cms-count" id="seoTitleN"></span></span><input id="seoTitle" maxlength="120"></label>
+                <label class="fld"><span>Description <span class="cms-count" id="seoDescN"></span></span><textarea id="seoDesc" rows="4" maxlength="300"></textarea></label>
+                <div class="cms-pick" id="seoImagePick"></div>
+                <p class="muted tiny">Search engines show about 60 characters of the title and 155 of the description. The picture shows when the page is shared (1200 × 630 works best).</p>
+              </section>
+                <div class="cms-toolbar" role="search">
+                  <input type="search" id="pageFind" placeholder="Find words on this page" aria-label="Find words on this page">
+                  <label class="cms-inline"><input type="checkbox" id="pageOnlyChanged"> Only what I changed</label>
+                  <span class="muted tiny" id="pageCount" role="status" aria-live="polite"></span>
+                </div>
+                <div id="pageFields"></div>
+              </div>
+
+              <div id="edSite" hidden>
+                <section class="side-card">
+                  <h3>Contact</h3>
+                  <label class="fld"><span>Contact email (every footer)</span><input id="set_email" type="email" maxlength="190" autocomplete="off"></label>
+                  <div class="cms-two">
+                    <label class="fld"><span>Place</span><input id="set_place" maxlength="80"></label>
+                    <label class="fld"><span>Country</span><input id="set_country" maxlength="60"></label>
+                  </div>
+                  <label class="fld"><span>Copyright line</span><input id="set_copyright" maxlength="120"></label>
+                </section>
+                <section class="side-card">
+                  <h3>Social links</h3>
+                  <div id="setSocials"></div>
+                  <p class="muted tiny">Leave a link empty to hide its icon. Publishing writes the new footer into every page at once.</p>
+                </section>
+              </div>
+            </div>
+            <aside class="cms-col cms-revs" id="docRevs" hidden aria-label="History">
+              <section class="side-card">
+                <div class="cms-card-h"><h3>History</h3><button class="btn btn-outline btn-sm" id="revCmpDraft" type="button" hidden>Compare draft with live</button></div>
+                <ol class="cms-timeline" id="revList"></ol>
+              </section>
+              <section class="side-card" id="revCompare" hidden aria-live="polite">
+                <div class="cms-card-h"><h3 id="revCmpTitle">Compare</h3><button class="cms-x" type="button" id="revCmpClose" aria-label="Close the comparison">×</button></div>
+                <div id="revCmpBody"></div>
+              </section>
+            </aside>
+          </div>
         </section>
-      </aside>
+      </div>
     </div>
+    <dialog class="cms-dialog cms-dialog--sm" id="wfDialog" aria-labelledby="wfDlgTitle">
+      <form method="dialog" id="wfForm">
+        <div class="cms-dialog-h"><h2 id="wfDlgTitle"></h2><button class="cms-x" value="cancel" aria-label="Close">×</button></div>
+        <p class="muted" id="wfDlgText"></p>
+        <label class="fld" id="wfAtWrap" hidden><span>Goes live on (Lagos time)</span><input type="datetime-local" id="wfAt"></label>
+        <label class="fld" id="wfNoteWrap" hidden><span id="wfNoteLabel">Note</span><textarea id="wfNote" rows="3" maxlength="500"></textarea></label>
+        <p class="cms-msg" id="wfDlgMsg" role="alert" hidden></p>
+        <div class="cms-actions cms-dialog-f"><button class="btn btn-outline btn-sm" value="cancel">Cancel</button><button class="btn btn-primary btn-sm" id="wfDlgGo" value="go">OK</button></div>
+      </form>
+    </dialog>
   </main>
 
   <!-- MEDIA LIBRARY (admin/site.js, lib/Media.php) -->

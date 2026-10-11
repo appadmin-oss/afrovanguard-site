@@ -159,18 +159,49 @@ function avh_footer(): void
     </div>
     <div class="avh-foot-bot">
       <div class="avh-socials">
-        <a href="https://www.instagram.com/afrovanguard/" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/instagram.svg" alt="" width="18" height="18"></a>
-        <a href="https://twitter.com/afrovanguard" target="_blank" rel="noopener" aria-label="X" title="X"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/x.svg" alt="" width="18" height="18"></a>
-        <a href="https://www.facebook.com/afrovanguard/" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/facebook.svg" alt="" width="18" height="18"></a>
-        <a href="https://www.linkedin.com/company/afrovanguard/" target="_blank" rel="noopener" aria-label="LinkedIn" title="LinkedIn"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/linkedin.svg" alt="" width="18" height="18"></a>
-        <a href="https://www.youtube.com/@afrovanguard" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/youtube.svg" alt="" width="18" height="18"></a>
+<?php foreach (avh_settings()['social'] as $net => $url): if ($url === '' || !isset(SiteSettings::SOCIALS[$net])) continue; [$label, $icon] = SiteSettings::SOCIALS[$net]; ?>
+        <a href="<?= htmlspecialchars($url, ENT_QUOTES) ?>" target="_blank" rel="noopener" aria-label="<?= $label ?>" title="<?= $label ?>"><img src="https://cdn.jsdelivr.net/npm/simple-icons@10.4.0/icons/<?= $icon ?>.svg" alt="" width="18" height="18"></a>
+<?php endforeach; ?>
       </div>
-      <div class="avh-copy"><span>Afrovanguard © 2018–2026</span><a href="#top" data-avh-top>Back to top</a></div>
-      <div class="avh-loc"><a href="mailto:cacentre@afrovanguard.org.ng"><i></i>Alimosho, Lagos <span>Nigeria</span></a></div>
+      <div class="avh-copy"><span><?= htmlspecialchars(avh_settings()['copyright'], ENT_NOQUOTES) ?></span><a href="#top" data-avh-top>Back to top</a></div>
+      <div class="avh-loc"><a href="mailto:<?= htmlspecialchars(avh_settings()['email'], ENT_QUOTES) ?>"><i></i><?= htmlspecialchars(avh_settings()['place'], ENT_NOQUOTES) ?> <span><?= htmlspecialchars(avh_settings()['country'], ENT_NOQUOTES) ?></span></a></div>
     </div>
   </div>
 </footer>
 <?php
+}
+
+/** The shared details (lib/SiteSettings.php); its defaults when it is not loaded (a CLI build). */
+function avh_settings(): array
+{
+    if (!class_exists('SiteSettings', false)) require_once __DIR__ . '/../lib/SiteSettings.php';
+    return SiteSettings::live();
+}
+
+/** Every static page that carries the shared chrome (marked) or the Home footer (index.html). */
+function avh_chrome_pages(string $root): array
+{
+    $out = [];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    foreach ($it as $f) {
+        $p = $f->getPathname();
+        // Match the skip list against the path below the root, so a checkout that itself sits under .claude/ (a worktree) still works.
+        $sub = substr($p, strlen($root));
+        if (!str_ends_with($p, '.html') || str_contains($sub, '/vendor/') || str_contains($sub, '/node_modules/') || str_contains($sub, '/.claude/') || str_contains($sub, '/.git/') || str_contains($sub, '/uploads/')) continue;
+        $out[] = $p;
+    }
+    sort($out);
+    return $out;
+}
+
+/** $html with the marked nav/foot blocks replaced by $parts (['nav' => …, 'foot' => …]). */
+function avh_chrome_splice(string $html, array $parts): string
+{
+    foreach ($parts as $k => $markup) {
+        $html = (string) preg_replace_callback('~(<!-- avh:' . $k . ' -->)(.*?)(<!-- /avh:' . $k . ' -->)~s',
+            static fn (array $m): string => $m[1] . "\n" . $markup . "\n" . $m[3], $html);
+    }
+    return $html;
 }
 
 /** The markup as strings (the static-page splicer and the drift test). */

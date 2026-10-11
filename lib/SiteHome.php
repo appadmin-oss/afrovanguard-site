@@ -3,7 +3,7 @@
  * lib/SiteHome.php — the homepage hero as content an admin edits.
  *
  * The hero is a carousel of stories, or ONE video. Admins edit it in the
- * Studio (Content → Homepage): slides (image, text, link, order, hidden), the
+ * Studio (Content → Site → Homepage hero): slides (image, text, link, order, hidden), the
  * single video (file, poster, text, link), and how long each slide shows.
  *
  * DRAFT, PREVIEW, PUBLISH, HISTORY
@@ -12,10 +12,11 @@
  *   · Publishing renders the hero and writes it into index.html between the
  *     `<!-- cms:hero -->` markers. The homepage stays a static file — fast,
  *     cacheable, and still up if PHP is not — and only that block changes.
- *   · Every publish keeps the previous version (HISTORY_MAX), with who and when,
- *     and any of them can be restored as the draft.
+ *   · Every publish keeps the previous version, with who and when, and any of
+ *     them can be compared and restored as the draft.
  *
- * Stored in app_meta: site_home_draft, site_home (published), site_home_hist.
+ * Stored by lib/Cms.php as the document 'hero' (drafts, versions, review,
+ * scheduling); this class is what the hero IS: its defaults, rules and markup.
  * defaults() is the hero as it shipped, so publishing the defaults reproduces
  * index.html exactly (tests/sitehome.test.php holds the two together).
  */
@@ -23,10 +24,10 @@ declare(strict_types=1);
 
 final class SiteHome
 {
+    /** Where the first version kept the hero (app_meta); lib/Cms.php imports it once. */
     public const KEY_DRAFT = 'site_home_draft';
     public const KEY_LIVE = 'site_home';
     public const KEY_HIST = 'site_home_hist';
-    public const HISTORY_MAX = 15;
     public const SLIDES_MAX = 10;
     public const MARK_OPEN = '<!-- cms:hero -->';
     public const MARK_CLOSE = '<!-- /cms:hero -->';
@@ -61,17 +62,15 @@ final class SiteHome
 
     /* ── Reading ──────────────────────────────────────────────────────── */
 
-    private static function read(string $key): ?array
+    /* The store is lib/Cms.php (document 'hero'); these read it the way the editor thinks of it. */
+    public static function live(): array { return Cms::liveOf('hero') ?? self::defaults(); }
+    public static function draft(): array { return Cms::draft('hero') ?? self::live(); }
+    /** Earlier versions, newest first: [{id, at, by, doc}]. */
+    public static function history(): array
     {
-        try { $raw = Database::metaGet($key); } catch (Throwable $e) { return null; }
-        $d = $raw ? json_decode((string) $raw, true) : null;
-        return is_array($d) ? $d : null;
+        return array_map(static fn($v) => $v + ['doc' => Cms::revision('hero', $v['id'])['data'] ?? []], Cms::history('hero'));
     }
-
-    public static function live(): array { return self::read(self::KEY_LIVE) ?? self::defaults(); }
-    public static function draft(): array { return self::read(self::KEY_DRAFT) ?? self::live(); }
-    public static function history(): array { return self::read(self::KEY_HIST) ?? []; }
-    public static function hasUnpublished(): bool { return self::read(self::KEY_DRAFT) !== null && self::draft() !== self::live(); }
+    public static function hasUnpublished(): bool { return Cms::draft('hero') !== null; }
 
     /* ── Validating ───────────────────────────────────────────────────── */
 
@@ -151,39 +150,25 @@ final class SiteHome
 
     /* ── Writing ──────────────────────────────────────────────────────── */
 
-    public static function saveDraft(array $in): array
+    public static function saveDraft(array $in, string $by = 'studio'): array
     {
-        $c = self::clean($in);
-        if (!$c['ok']) return $c;
-        Database::metaSet(self::KEY_DRAFT, (string) json_encode($c['doc'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        return ['ok' => true, 'doc' => $c['doc'], 'unpublished' => self::hasUnpublished()];
+        $r = Cms::save('hero', $in, $by);
+        return $r['ok'] ? ['ok' => true, 'doc' => $r['data'], 'unpublished' => self::hasUnpublished()] : $r;
     }
 
-    /** Render the draft into index.html. The version it replaces goes to history. */
-    public static function publish(string $by): array
+    /** Render the draft into index.html. The version it replaces stays in the history. */
+    public static function publish(string $by): array { return Cms::publish('hero', $by); }
+
+    /** Make an earlier version the draft ($index 0 = the one before what is live). */
+    public static function restore(int $index, string $by = 'studio'): array
     {
-        $doc = self::draft();
-        $c = self::clean($doc);
-        if (!$c['ok']) return $c;
-        $w = self::writeIndex(self::heroHtml($c['doc']));
-        if (!$w['ok']) return $w;
-        $hist = self::history();
-        array_unshift($hist, ['at' => gmdate('Y-m-d H:i:s'), 'by' => mb_substr($by, 0, 120), 'doc' => self::live()]);
-        Database::metaSet(self::KEY_HIST, (string) json_encode(array_slice($hist, 0, self::HISTORY_MAX), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        Database::metaSet(self::KEY_LIVE, (string) json_encode($c['doc'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        Database::metaSet(self::KEY_DRAFT, '');
-        return ['ok' => true];
+        $v = self::history()[$index] ?? null;
+        if (!$v) return ['ok' => false, 'error' => 'That version is not in the history.'];
+        $r = Cms::restore('hero', $v['id'], $by);
+        return $r['ok'] ? ['ok' => true, 'doc' => $r['data'], 'unpublished' => self::hasUnpublished()] : $r;
     }
 
-    /** Make an earlier published version the draft. Publishing it is a separate, deliberate step. */
-    public static function restore(int $index): array
-    {
-        $hist = self::history();
-        if (!isset($hist[$index]['doc'])) return ['ok' => false, 'error' => 'That version is not in the history.'];
-        return self::saveDraft((array) $hist[$index]['doc']);
-    }
-
-    public static function discardDraft(): void { Database::metaSet(self::KEY_DRAFT, ''); }
+    public static function discardDraft(string $by = 'studio'): void { Cms::discard('hero', $by); }
 
     /**
      * Replace the marked block in index.html, atomically: write a temp file in

@@ -145,3 +145,53 @@
 .cms-count { font-weight: 400; color: var(--muted); }
 .cms-count.is-over { color: var(--st-warn); font-weight: 700; }
 #seoImagePick img { width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); }
+
+/* Site workspace (lib/Cms.php): tree · document · history */
+.cms-tree-g { margin: 12px 0 2px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.cms-tree-g:first-child { margin-top: 0; }
+.cms-pw--review, .cms-pw--draft { color: var(--st-warn); }
+.cms-pw--scheduled, .cms-pw--live { color: var(--st-ok); }
+.cms-pane { min-width: 0; }
+.cms-ovgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-top: 14px; }
+.cms-ovgroups h3 { margin: 0 0 10px; }
+.cms-ovlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cms-ovlist li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--divider); font-size: 14px; }
+.cms-ovlist li:first-child { border-top: 0; }
+.cms-docbar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.cms-docid { min-width: 0; }
+.cms-note { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--surface-2); font-size: 14px; }
+.cms-note[hidden] { display: none; }
+.cms-docgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+.has-revs .cms-docgrid { grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 1200px) { .has-revs .cms-docgrid { grid-template-columns: 1fr; } }
+.cms-revs { position: sticky; top: 16px; }
+@media (max-width: 1200px) { .cms-revs { position: static; } }
+.cms-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cms-tl { display: flex; flex-direction: column; gap: 4px; padding: 10px 0 10px 14px; border-left: 2px solid var(--divider); position: relative; }
+.cms-tl::before { content: ""; position: absolute; left: -6px; top: 15px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--divider); }
+.cms-tl--publish::before, .cms-tl--baseline::before { background: var(--st-ok); border-color: var(--st-ok); }
+.cms-tl--submit::before, .cms-tl--schedule::before { background: var(--gold); border-color: var(--gold); }
+.cms-tl--reject::before, .cms-tl--failed::before { background: var(--st-err); border-color: var(--st-err); }
+.cms-tl-a { font-weight: 700; font-size: 14px; }
+.cms-tl-n { font-size: 13px; }
+.cms-tl .cms-btnrow { margin-top: 4px; }
+.cms-diff { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cms-diff th, .cms-diff td { text-align: left; vertical-align: top; padding: 8px 6px; border-top: 1px solid var(--divider); overflow-wrap: anywhere; }
+.cms-diff thead th { border-top: 0; font-size: 12px; color: var(--muted); }
+.cms-diff tbody th { font-weight: 600; width: 34%; }
+.cms-del { color: var(--st-err); }
+.cms-ins { color: var(--st-ok); }
+.cms-dialog--sm { width: min(520px, calc(100vw - 32px)); }
+.cms-dialog--sm form > :not(.cms-dialog-h) { margin-left: 18px; margin-right: 18px; }
+.cms-dialog-f { justify-content: flex-end; margin-bottom: 18px; }
+.cms-dialog .fld textarea, .cms-dialog .fld input { width: 100%; box-sizing: border-box; padding: 10px 12px; min-height: 44px; border-radius: var(--radius-sm); border: 1px solid var(--divider); background: var(--bg); color: var(--ink); font: inherit; }
+.cms-dialog--sm > form { margin: 0; }
+/* The editor column narrows when History is open: lay the editors out by the
+   column's own width, not the window's. */
+.cms-docgrid > .cms-col:first-child { container-type: inline-size; }
+@container (max-width: 760px) {
+  .cms-slide { grid-template-columns: 1fr; }
+  .cms-slide-ctl { flex-direction: row; flex-wrap: wrap; }
+  .cms-two { grid-template-columns: 1fr; }
+  .cms-pickrow { grid-template-columns: 1fr; }
+}

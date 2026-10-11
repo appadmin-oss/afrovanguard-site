@@ -47,7 +47,7 @@ ck('home: text is escaped in attributes and content', str_contains(SiteHome::her
 $tmp = sys_get_temp_dir() . '/av-home-' . getmypid() . '.html';
 file_put_contents($tmp, $idx);
 SiteHome::$indexPath = $tmp;
-foreach ([SiteHome::KEY_DRAFT, SiteHome::KEY_LIVE, SiteHome::KEY_HIST] as $k) Database::metaSet($k, '');
+Cms::forget('hero');
 $e = $d; $e['slides'][0]['title'] = 'Nine years. One movement.';
 ck('home: a draft saves', SiteHome::saveDraft($e)['ok'] && SiteHome::hasUnpublished());
 ck('home: a draft does not touch the page', file_get_contents($tmp) === $idx);
@@ -61,7 +61,7 @@ ck('home: discarding the draft returns to what is live', SiteHome::draft()['slid
 file_put_contents($tmp, '<html><body>no markers</body></html>');
 ck('home: a page without markers is refused, not guessed at', !SiteHome::writeIndex('<header></header>')['ok']);
 @unlink($tmp); SiteHome::$indexPath = null;
-foreach ([SiteHome::KEY_DRAFT, SiteHome::KEY_LIVE, SiteHome::KEY_HIST] as $k) Database::metaSet($k, '');
+Cms::forget('hero');
 
 /* ── media: uploads in pieces, pictures processed, edits from the original ── */
 $mr = sys_get_temp_dir() . '/av-media-' . getmypid();
@@ -101,16 +101,16 @@ SiteHome::saveDraft($use);
 ck('media: a picture used on the homepage draft cannot be deleted', !Media::delete($item['id'])['ok']);
 $ed2 = Media::edit($item['id'], ['rotate' => 180], 'test');
 ck('media: editing a picture in use points the homepage draft at the new file', $ed2['repointed'] === 1 && SiteHome::draft()['slides'][0]['image'] === $ed2['item']['url']);
-Database::metaSet(SiteHome::KEY_DRAFT, '');
+Cms::discard('hero', 'test');
 ck('media: once unused it can be deleted, files and all', Media::delete($item['id'])['ok'] && !is_file($mr . $ed2['item']['url']) && !is_file($mr . $item['original']));
 Media::$root = null;
 exec('rm -rf ' . escapeshellarg($mr));
 
 /* ── the Studio wiring ── */
 $api = (string) file_get_contents("$root/admin/api.php");
-ck('studio: publishing the homepage and deleting media are admin-only', preg_match("/managementOnly = \\[.*'home_publish', 'home_restore', 'media_delete'/s", $api) === 1);
+ck('studio: publishing content and deleting media are admin-only', preg_match("/managementOnly = \\[.*'media_delete', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_reject'/s", $api) === 1);
 foreach (['admin/site.js', 'admin/index.php'] as $f) {
     $src2 = (string) file_get_contents("$root/$f");
-    $mine = $f === 'admin/index.php' ? substr($src2, strpos($src2, '<!-- HOMEPAGE'), strpos($src2, '<!-- DESIGN STUDIO') - strpos($src2, '<!-- HOMEPAGE')) : $src2;
+    $mine = $f === 'admin/index.php' ? substr($src2, strpos($src2, '<!-- SITE: one workspace'), strpos($src2, '<!-- DESIGN STUDIO') - strpos($src2, '<!-- SITE: one workspace')) : $src2;
     ck("studio: $f's content screens set no inline styles", !preg_match('/\sstyle\s*=|\.style\./', $mine));
 }

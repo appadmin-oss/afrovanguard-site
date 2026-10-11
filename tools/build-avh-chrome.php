@@ -20,19 +20,10 @@ $check = in_array('--check', $argv, true);
 $c = avh_chrome_html();
 $drift = 0;
 
-$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
-foreach ($it as $f) {
-    $p = $f->getPathname();
-    // Match the skip list against the path below the root, so a checkout that itself sits under .claude/ (a worktree) still works.
-    $sub = substr($p, strlen($root));
-    if (!str_ends_with($p, '.html') || str_contains($sub, '/vendor/') || str_contains($sub, '/node_modules/') || str_contains($sub, '/.claude/') || str_contains($sub, '/.git/')) continue;
+foreach (avh_chrome_pages($root) as $p) {
     $html = (string) file_get_contents($p);
     if (!str_contains($html, '<!-- avh:nav -->') && !str_contains($html, '<!-- avh:foot -->')) continue;
-    $new = $html;
-    foreach (['nav', 'foot'] as $k) {
-        $new = (string) preg_replace_callback('~(<!-- avh:' . $k . ' -->)(.*?)(<!-- /avh:' . $k . ' -->)~s',
-            static fn (array $m): string => $m[1] . "\n" . $c[$k] . "\n" . $m[3], $new);
-    }
+    $new = avh_chrome_splice($html, $c);
     if ($new === $html) continue;
     $drift++;
     $rel = substr($p, strlen($root) + 1);

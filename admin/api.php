@@ -107,7 +107,8 @@ try {
         'wh_list', 'wh_save', 'wh_delete', 'wh_test', 'wh_run', 'apptoken_list', 'apptoken_create', 'apptoken_revoke',
         'ngv_reset', 'ngv_restore',
         // The homepage is the organisation's front door: editors draft it, an admin publishes.
-        'home_publish', 'home_restore', 'media_delete', 'page_publish', 'page_restore',
+        // Content goes live only through an admin: publishing, scheduling and approving.
+        'media_delete', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_reject',
         'sys_health', 'mail_status', 'mail_test', 'mail_gas_check', 'subscribers', 'enrollments', 'audit_log',
         // Seat claims carry names, emails and phone numbers, and resending mail
         // on someone's behalf is a management action. Not for editors.
@@ -163,7 +164,7 @@ try {
     /* Every write in the content screens is a POST, so the CSRF check above
        always runs: a GET (an <img> on another site) can never publish. */
     if ($method !== 'POST' && in_array($action, ['media_start', 'media_chunk', 'media_finish', 'media_describe', 'media_edit', 'media_revert', 'media_delete',
-            'home_save', 'home_publish', 'home_restore', 'home_discard', 'page_save', 'page_publish', 'page_restore', 'page_discard'], true)) {
+            'cms_save', 'cms_discard', 'cms_submit', 'cms_reject', 'cms_publish', 'cms_schedule', 'cms_unschedule', 'cms_restore'], true)) {
         json_out(['ok' => false, 'error' => 'POST required.'], 405);
     }
 
@@ -1376,43 +1377,51 @@ try {
         case 'media_delete':
             json_out(Media::delete((int) ($body['id'] ?? 0)));
 
-        /* ══ Homepage hero (lib/SiteHome.php) ══ */
-        case 'home_get':
-            json_out(['ok' => true, 'draft' => SiteHome::draft(), 'live' => SiteHome::live(), 'unpublished' => SiteHome::hasUnpublished(),
-                      'history' => array_map(static fn($h) => ['at' => $h['at'], 'by' => $h['by']], SiteHome::history()),
-                      'can_publish' => $role !== 'editor']);
-        case 'home_save':
-            json_out(SiteHome::saveDraft((array) ($body['doc'] ?? [])));
-        case 'home_publish':
-            json_out(SiteHome::publish(av_admin_actor()));
-        case 'home_restore':
-            json_out(SiteHome::restore((int) ($body['index'] ?? -1)));
-        case 'home_discard':
-            SiteHome::discardDraft();
-            json_out(['ok' => true, 'draft' => SiteHome::draft()]);
-
-        /* ══ Pages (lib/SitePages.php): every public page's words, links, pictures ══ */
-        case 'pages_list':
-            json_out(['ok' => true, 'pages' => SitePages::index(), 'can_publish' => $role !== 'editor']);
-        case 'page_get':
-            $pf = (string) ($_GET['file'] ?? '');
-            if (!SitePages::known($pf)) json_out(['ok' => false, 'error' => 'That page is not one the Studio edits.'], 404);
-            $phtml = (string) @file_get_contents(SitePages::path($pf));
-            json_out(['ok' => true, 'file' => $pf, 'name' => SitePages::PAGES[$pf], 'href' => SitePages::href($pf),
-                'fields' => SitePages::fields($pf), 'seo' => SitePages::seo($phtml), 'draft' => (object) SitePages::draft($pf),
-                'history' => array_map(static fn($h) => ['at' => $h['at'], 'by' => $h['by'], 'n' => $h['n'] ?? 0], SitePages::history($pf)),
-                'writable' => is_writable(SitePages::path($pf)), 'can_publish' => $role !== 'editor']);
-        case 'page_save':
-            json_out(SitePages::saveDraft((string) ($body['file'] ?? ''), (array) ($body['draft'] ?? [])));
-        case 'page_publish':
-            json_out(SitePages::publish((string) ($body['file'] ?? ''), av_admin_actor()));
-        case 'page_restore':
-            json_out(SitePages::restore((string) ($body['file'] ?? ''), (int) ($body['index'] ?? -1)));
-        case 'page_discard':
-            $pf = (string) ($body['file'] ?? '');
-            if (!SitePages::known($pf)) json_out(['ok' => false, 'error' => 'That page is not one the Studio edits.'], 404);
-            SitePages::discard($pf);
-            json_out(['ok' => true]);
+        /* ══ Site content (lib/Cms.php): the hero, every page, the site details ══
+           One store and one life for each: draft → (review) → publish now or
+           on a schedule; every save and publish is a revision that can be
+           compared and put back. Editors draft and send for review; admins
+           publish, schedule and approve ($managementOnly). */
+        case 'cms_overview':
+            json_out(['ok' => true, 'docs' => Cms::overview(), 'can_publish' => $role !== 'editor']);
+        case 'cms_get':
+            $ref = (string) ($_GET['ref'] ?? '');
+            if (!Cms::known($ref)) json_out(['ok' => false, 'error' => 'That is not something the Studio edits.'], 404);
+            $doc = Cms::doc($ref);
+            $out = ['ok' => true, 'ref' => $ref, 'type' => Cms::type($ref), 'title' => Cms::title($ref), 'href' => Cms::href($ref),
+                'preview' => Cms::previewUrl($ref), 'state' => $doc['state'] ?: 'live', 'note' => (string) $doc['note'],
+                'submitted_by' => $doc['submitted_by'], 'scheduled_at' => $doc['scheduled_at'], 'updated_by' => $doc['updated_by'], 'updated_at' => $doc['updated_at'],
+                'live' => Cms::liveOf($ref) ?? (Cms::type($ref) === 'site' ? SiteSettings::defaults() : []), 'draft' => Cms::draft($ref),
+                'timeline' => Cms::timeline($ref, 40), 'can_publish' => $role !== 'editor'];
+            if ($out['type'] === 'page') {
+                $pf = substr($ref, 5);
+                $out['fields'] = SitePages::fields($pf);
+                $out['seo'] = SitePages::seo((string) @file_get_contents(SitePages::path($pf)));
+                $out['writable'] = is_writable(SitePages::path($pf));
+                $out['draft'] = (object) ($out['draft'] ?? []);
+            }
+            if ($out['type'] === 'site') $out['socials'] = array_map(static fn($x) => $x[0], SiteSettings::SOCIALS);
+            json_out($out);
+        case 'cms_save':
+            json_out(Cms::save((string) ($body['ref'] ?? ''), (array) ($body['data'] ?? []), av_admin_actor()));
+        case 'cms_discard':
+            json_out(Cms::discard((string) ($body['ref'] ?? ''), av_admin_actor()));
+        case 'cms_submit':
+            json_out(Cms::submit((string) ($body['ref'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? '')));
+        case 'cms_reject':
+            json_out(Cms::reject((string) ($body['ref'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? '')));
+        case 'cms_publish':
+            json_out(Cms::publish((string) ($body['ref'] ?? ''), av_admin_actor(), (string) ($body['note'] ?? '')));
+        case 'cms_schedule':
+            json_out(Cms::schedule((string) ($body['ref'] ?? ''), (string) ($body['at'] ?? ''), av_admin_actor()));
+        case 'cms_unschedule':
+            json_out(Cms::unschedule((string) ($body['ref'] ?? ''), av_admin_actor()));
+        case 'cms_restore':
+            json_out(Cms::restore((string) ($body['ref'] ?? ''), (int) ($body['revision'] ?? 0), av_admin_actor()));
+        case 'cms_compare':
+            $ref = (string) ($_GET['ref'] ?? '');
+            if (!Cms::known($ref)) json_out(['ok' => false, 'error' => 'That is not something the Studio edits.'], 404);
+            json_out(Cms::compare($ref, (string) ($_GET['a'] ?? 'live'), (string) ($_GET['b'] ?? 'draft')));
 
         case 'get':
             $slug = preg_replace('/[^a-z0-9\-]/', '', strtolower((string) ($_GET['slug'] ?? '')));

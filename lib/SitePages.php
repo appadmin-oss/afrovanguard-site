@@ -1,6 +1,6 @@
 <?php
 /**
- * lib/SitePages.php — the Studio's Pages editor (Content → Pages).
+ * lib/SitePages.php — the Studio's Pages editor (Content → Site).
  *
  * Every public page's words, links and pictures, edited like a CMS: draft,
  * preview, publish, history. The pages stay what they are — static HTML or a
@@ -16,7 +16,7 @@
  * that would change how many PHP tags a file holds is refused, so an edit can
  * never become code.
  *
- * Storage: app_meta 'site_page:<file>' = {"draft":{key:value},"hist":[…]}.
+ * Drafts, versions, review and scheduling: lib/Cms.php (document 'page:<file>').
  */
 declare(strict_types=1);
 
@@ -33,8 +33,8 @@ final class SitePages
         'privacy-policy/index.php' => 'Privacy policy',
         'terms/index.php'         => 'Terms',
     ];
+    /** Where the first version kept drafts (app_meta); lib/Cms.php imports them once. */
     public const META = 'site_page:';
-    public const HISTORY_MAX = 10;
     public const TEXT_MAX = 2000;
     /** Elements the annotator may mark. */
     public const TEXT_TAGS = ['h1', 'h2', 'h3', 'h4', 'p', 'li', 'figcaption', 'blockquote', 'dt', 'dd'];
@@ -324,30 +324,42 @@ final class SitePages
         return $html;
     }
 
-    /* ── Draft, publish, history ─────────────────────────────────────── */
+    /* ── Versions (the store is lib/Cms.php; a page is the document 'page:<file>') ── */
 
-    private static function state(string $file): array
+    /** Everything the Studio can change on the page, as it is now: key => props, plus 'seo'. */
+    public static function snapshot(string $file): array
     {
-        $j = json_decode((string) Database::metaGet(self::META . $file), true);
-        return is_array($j) ? $j + ['draft' => [], 'hist' => []] : ['draft' => [], 'hist' => []];
+        $html = (string) @file_get_contents(self::path($file));
+        $out = [];
+        foreach (self::scan($html) as $f) {
+            if (isset($out[$f['key']])) continue;   // a visual copy of a field already taken
+            $out[$f['key']] = $f['type'] === 'image'
+                ? array_intersect_key($f, array_flip(['src', 'alt', 'width', 'height', 'srcset', 'sizes']))
+                : (['value' => $f['value']] + ($f['type'] === 'link' ? ['href' => $f['href']] : []));
+        }
+        $seo = self::seo($html);
+        if ($seo) $out['seo'] = $seo;
+        return $out;
     }
 
-    private static function put(string $file, array $s): void
+    /** A snapshot with a draft's changes laid over it. */
+    public static function overlay(array $snap, array $delta): array
     {
-        Database::metaSet(self::META . $file, (string) json_encode($s, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        foreach ($delta as $k => $v) if (is_array($v)) $snap[$k] = array_replace($snap[$k] ?? [], $v);
+        return $snap;
     }
 
     /** Only what differs from the live page: a draft that says nothing new is no draft. */
-    private static function changes(string $file, array $draft): array
+    public static function changes(string $file, array $draft): array
     {
         $html = (string) @file_get_contents(self::path($file));
         $live = [];
-        foreach (self::scan($html) as $f) $live[$f['key']] = $f;
+        foreach (self::scan($html) as $f) $live[$f['key']] = $live[$f['key']] ?? $f;
         $out = [];
         foreach ($draft as $key => $v) {
             if ($key === 'seo') {
                 $now = self::seo($html);
-                $s = array_filter($v, fn($x, $k) => ($now[$k] ?? null) !== $x && isset($now[$k]), ARRAY_FILTER_USE_BOTH);
+                $s = array_filter($v, fn($x, $k) => isset($now[$k]) && $now[$k] !== $x, ARRAY_FILTER_USE_BOTH);
                 if ($s) $out['seo'] = $s;
                 continue;
             }
@@ -358,25 +370,10 @@ final class SitePages
         return $out;
     }
 
-    public static function draft(string $file): array { return self::state($file)['draft']; }
-    public static function history(string $file): array { return self::state($file)['hist']; }
-
-    public static function saveDraft(string $file, array $in): array
-    {
-        $c = self::clean($file, $in);
-        if (!$c['ok']) return $c;
-        $s = self::state($file);
-        $s['draft'] = self::changes($file, $c['draft']);
-        self::put($file, $s);
-        return ['ok' => true, 'changed' => self::count($s['draft'])];
-    }
-
     public static function count(array $draft): int
     {
         $n = 0; foreach ($draft as $k => $v) $n += $k === 'seo' ? count($v) : 1; return $n;
     }
-
-    public static function discard(string $file): void { $s = self::state($file); $s['draft'] = []; self::put($file, $s); }
 
     /** The page as the draft would make it (for the preview). */
     public static function previewHtml(string $file, ?array $draft = null): ?string
@@ -385,54 +382,52 @@ final class SitePages
         return $html === false ? null : self::apply($html, $draft ?? self::draft($file));
     }
 
-    public static function publish(string $file, string $by): array
+    /**
+     * Write $delta into the page, atomically. Refused if it would change how
+     * many PHP tags the file holds: an edit is words, never code.
+     */
+    public static function write(string $file, array $delta): array
     {
         if (!self::known($file)) return ['ok' => false, 'error' => 'That page is not one the Studio edits.'];
-        $s = self::state($file);
-        $draft = self::changes($file, self::clean($file, $s['draft'])['draft'] ?? []);
-        if (!$draft) return ['ok' => false, 'error' => 'Nothing to publish: the draft matches the live page.'];
         $path = self::path($file);
         $html = (string) @file_get_contents($path);
-        // What it said before, so the change can be undone from the history.
-        $before = [];
-        foreach (self::scan($html) as $f) {
-            if (!isset($draft[$f['key']])) continue;
-            $ks = array_keys($draft[$f['key']]);
-            if ($f['type'] === 'image' && in_array('src', $ks, true)) $ks = array_unique(array_merge($ks, ['width', 'height', 'srcset', 'sizes']));
-            foreach ($ks as $k) $before[$f['key']][$k] = $f[$k] ?? '';
-        }
-        if (isset($draft['seo'])) { $now = self::seo($html); foreach (array_keys($draft['seo']) as $k) $before['seo'][$k] = $now[$k] ?? ''; }
-        $new = self::apply($html, $draft);
+        $new = self::apply($html, $delta);
         if (substr_count($new, '<?') !== substr_count($html, '<?')) return ['ok' => false, 'error' => 'The change was refused: it would have altered the page’s code.'];
-        $w = self::write($path, $new, $file);
-        if (!$w['ok']) return $w;
-        array_unshift($s['hist'], ['at' => gmdate('Y-m-d H:i:s'), 'by' => mb_substr($by, 0, 120), 'n' => self::count($draft), 'before' => $before]);
-        $s['hist'] = array_slice($s['hist'], 0, self::HISTORY_MAX);
-        $s['draft'] = [];
-        self::put($file, $s);
-        return ['ok' => true, 'changed' => self::count($draft)];
-    }
-
-    /** Put what a publish replaced back into the draft (to check, then publish). */
-    public static function restore(string $file, int $i): array
-    {
-        $h = self::history($file)[$i]['before'] ?? null;
-        if (!is_array($h)) return ['ok' => false, 'error' => 'That version is not in the history.'];
-        return self::saveDraft($file, $h);
-    }
-
-    private static function write(string $path, string $html, string $file): array
-    {
+        if ($new === $html) return ['ok' => true];
         if (!is_writable($path) || !is_writable(dirname($path))) {
             return ['ok' => false, 'error' => 'The server cannot write ' . $file . '. In cPanel → File Manager, set it to 644 and its folder to 755, then publish again.'];
         }
         $tmp = dirname($path) . '/.' . basename($path) . '.' . bin2hex(random_bytes(4)) . '.tmp';
-        if (@file_put_contents($tmp, $html, LOCK_EX) === false || !@rename($tmp, $path)) {
+        if (@file_put_contents($tmp, $new, LOCK_EX) === false || !@rename($tmp, $path)) {
             @unlink($tmp);
             return ['ok' => false, 'error' => 'Could not write ' . $file . '.'];
         }
         if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
         return ['ok' => true];
+    }
+
+    /* The per-page conveniences, over the store. */
+    public static function draft(string $file): array { return Cms::draft('page:' . $file) ?? []; }
+    public static function history(string $file): array { return Cms::history('page:' . $file); }
+    public static function discard(string $file, string $by = 'studio'): void { Cms::discard('page:' . $file, $by); }
+    public static function saveDraft(string $file, array $in, string $by = 'studio'): array
+    {
+        if (!self::known($file)) return ['ok' => false, 'error' => 'That page is not one the Studio edits.'];
+        $r = Cms::save('page:' . $file, $in, $by);
+        return $r['ok'] ? ['ok' => true, 'changed' => $r['changes']] : $r;
+    }
+    public static function publish(string $file, string $by): array
+    {
+        if (!self::known($file)) return ['ok' => false, 'error' => 'That page is not one the Studio edits.'];
+        return Cms::publish('page:' . $file, $by);
+    }
+    /** Put back the version before the live one ($i = 0), or older. */
+    public static function restore(string $file, int $i, string $by = 'studio'): array
+    {
+        $v = self::history($file)[$i] ?? null;
+        if (!$v) return ['ok' => false, 'error' => 'That version is not in the history.'];
+        $r = Cms::restore('page:' . $file, $v['id'], $by);
+        return $r['ok'] ? ['ok' => true, 'changed' => $r['changes']] : $r;
     }
 
     /** Pages that show, or are about to show, an address (so the library does not delete it from under them). */
@@ -441,7 +436,7 @@ final class SitePages
         $where = [];
         foreach (self::PAGES as $file => $name) {
             $html = (string) @file_get_contents(self::path($file));
-            $draft = json_encode(self::draft($file), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $draft = class_exists('Database', false) ? json_encode(self::draft($file), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : '[]';
             foreach ($urls as $u) {
                 if ($u === '') continue;
                 if (str_contains($html, '"' . $u . '"') || str_contains($html, $u . ' ')) { $where[] = 'the ' . $name . ' page'; break; }
@@ -459,7 +454,7 @@ final class SitePages
             if (!is_file(self::path($file))) continue;
             $html = (string) file_get_contents(self::path($file));
             $out[] = ['file' => $file, 'name' => $name, 'href' => self::href($file), 'fields' => count(self::scan($html)),
-                'pending' => self::count(self::draft($file)), 'published' => self::history($file)[0]['at'] ?? ''];
+                'pending' => self::count(self::draft($file)), 'published' => Cms::versions('page:' . $file)[0]['at'] ?? ''];
         }
         return $out;
     }

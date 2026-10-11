@@ -165,6 +165,11 @@ $knownMetaKeys = [
     // Members' birthday emails (lib/Birthdays). Reviewed: gates no migration.
     // Who has had today's letter. Lost, somebody may get today's twice.
     'member_bday_sent',
+    // The Studio's content store (lib/Cms). Reviewed: gates no migration. Marks
+    // that the first editor's app_meta drafts were brought into cms_docs once.
+    // Lost, the import runs again and finds nothing new to bring (it only
+    // fills a draft or a first version that is not already there).
+    'cms_legacy_imported',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {
