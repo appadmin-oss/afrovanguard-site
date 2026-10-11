@@ -33,7 +33,7 @@ return [
         'img' => '/assets/ngg/p04.jpeg', 'href' => 'https://next.afrovanguard.org.ng/', 'ext' => true, 'local' => false,
         'd' => 'Born from STS, NGG accelerates exceptional talent through competitive challenges, scholarships and stretching programming.',
         'tags' => ['Competitive', 'Scholarships', 'Residential'],
-        'mail' => 'contact@afrovanguard.org.ng',
+        'mail' => 'cacentre@afrovanguard.org.ng',
     ],
     'techhome' => [
         'abbr' => 'Techome', 'name' => 'Techome', 'cat' => 'Technology',
@@ -90,6 +90,6 @@ return [
         'img' => $img('summer1.png'), 'href' => '/academy/', 'ext' => false, 'local' => false,
         'd' => 'Where Vanguards are made — structured leadership formation, practical training and doctrine for the Next Generation Vanguard cohort.',
         'tags' => ['Leadership', 'Doctrine', 'NGV Cohort'],
-        'mail' => 'contact@afrovanguard.org.ng',
+        'mail' => 'cacentre@afrovanguard.org.ng',
     ],
 ];
