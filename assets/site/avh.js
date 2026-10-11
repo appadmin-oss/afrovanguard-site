@@ -43,6 +43,45 @@
     onMq(deskMq, () => set(null));
   });
 
+  run('member', () => {
+    // Same endpoints as assets/site/nav.js: GET /academy/api.php?action=me → {ok, user:{name,email}}; POST ?action=logout.
+    // html.av-si (the av_si cookie hint, read before first paint) shows "My portal" until this call confirms
+    // the member; body.is-member then swaps in the account button. A confirmed "no user" drops the hint.
+    const next = encodeURIComponent(location.pathname + location.search);
+    if (!/^\/login(\/|$)/.test(location.pathname)) $$('[data-avh-login]').forEach(a => a.setAttribute('href', '/login?next=' + next));
+    const btn = $('[data-avh-acct-btn]'), menu = $('[data-avh-acct-menu]'), wrap = $('[data-avh-acct]');
+    if (btn && menu && wrap) {
+      const layer = { close: () => { set(false); btn.focus(); } };
+      const set = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', String(on)); on ? pushLayer(layer) : dropLayer(layer); };
+      btn.addEventListener('click', () => set(menu.hidden));
+      document.addEventListener('click', e => { if (!menu.hidden && !wrap.contains(e.target)) set(false); });
+      wrap.addEventListener('focusout', e => { if (!menu.hidden && e.relatedTarget && !wrap.contains(e.relatedTarget)) set(false); });
+      onMq(deskMq, () => set(false));
+    }
+    document.addEventListener('click', e => {
+      const out = e.target.closest('[data-avh-logout]'); if (!out) return;
+      e.preventDefault(); out.disabled = true;
+      fetch('/academy/api.php?action=logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .catch(() => {}).then(() => location.reload());
+    });
+    const apply = u => {
+      const name = String(u.name || '').trim() || 'Member', first = name.split(/\s+/)[0], initial = name.charAt(0).toUpperCase();
+      $$('[data-avh-me-initial]').forEach(n => { n.textContent = initial; });
+      $$('[data-avh-me-name]').forEach(n => { n.textContent = name; });
+      $$('[data-avh-me-first]').forEach(n => { n.textContent = first; });
+      $$('[data-avh-me-email]').forEach(n => { n.textContent = u.email || ''; n.hidden = !u.email; });
+      if (btn) btn.setAttribute('aria-label', name + ', your account');
+      root.classList.add('is-member');
+    };
+    fetch('/academy/api.php?action=me', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (d && d.ok && d.user) apply(d.user);
+        else if (d) document.documentElement.classList.remove('av-si');
+      })
+      .catch(() => {});
+  });
+
   run('drawer', () => {
     const drawer = $('[data-avh-drawer]'), backdrop = $('[data-avh-backdrop]'), burger = $('[data-avh-burger]');
     if (!drawer || !backdrop || !burger) return;

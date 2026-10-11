@@ -23,7 +23,9 @@ $drift = 0;
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
 foreach ($it as $f) {
     $p = $f->getPathname();
-    if (!str_ends_with($p, '.html') || str_contains($p, '/vendor/') || str_contains($p, '/node_modules/') || str_contains($p, '/.claude/') || str_contains($p, '/.git/')) continue;
+    // Match the skip list against the path below the root, so a checkout that itself sits under .claude/ (a worktree) still works.
+    $sub = substr($p, strlen($root));
+    if (!str_ends_with($p, '.html') || str_contains($sub, '/vendor/') || str_contains($sub, '/node_modules/') || str_contains($sub, '/.claude/') || str_contains($sub, '/.git/')) continue;
     $html = (string) file_get_contents($p);
     if (!str_contains($html, '<!-- avh:nav -->') && !str_contains($html, '<!-- avh:foot -->')) continue;
     $new = $html;
