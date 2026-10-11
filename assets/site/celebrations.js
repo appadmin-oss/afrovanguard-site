@@ -149,7 +149,7 @@
   }
 
   /* ── 5a · the dialog ──────────────────────────────────────────── */
-  var cur = null, pill = null, payload = null;
+  var cur = null, payload = null;
 
   function cardHtml(m) {
     var badge, after = '', i = 0;
@@ -222,7 +222,6 @@
 
   function open(m, finished) {
     if (cur) return;
-    if (pill) { pill.remove(); pill = null; }
     var last = D.activeElement;
     var layer = D.createElement('div');
     layer.className = 'avcel-layer';
@@ -254,8 +253,11 @@
       var gone = function () { if (layer.parentNode) layer.parentNode.removeChild(layer); };
       if (reduced()) gone(); else { layer.classList.add('is-leaving'); setTimeout(gone, 200); }
       if (m.docks) dock(m, true);
-      showPill(m);
-      var back = last && last !== D.body && D.contains(last) ? last : pill;
+      // Focus goes back where it was, else to the page. (There is no "show the
+      // pop-up again" pill any more: it sat over the portal's phone tab bar.)
+      var main = D.querySelector('main, [role="main"]');
+      var back = last && last !== D.body && D.contains(last) ? last : main;
+      if (back === main && main && !main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
       try { if (back && back.focus) back.focus({ preventScroll: true }); } catch (e) { /* detached */ }
     }
     cur.close = close;
@@ -349,14 +351,6 @@
     });
   }
 
-  function showPill(m) {
-    if (pill) pill.remove();
-    pill = D.createElement('button');
-    pill.type = 'button'; pill.className = 'avcel-pill'; pill.textContent = 'Show the pop-up again';
-    pill.addEventListener('click', function () { open(m, true); });
-    D.body.appendChild(pill);
-    var p = pill; setTimeout(function () { if (pill === p && D.activeElement !== p) { p.remove(); pill = null; } }, 12000);
-  }
 
   /* ── 3b · the nav logo for the day ────────────────────────────── */
   function brand() { return D.querySelector('.avh-nav .avh-brand') || D.querySelector('.avh-brand') || D.querySelector('.nav-logo'); }

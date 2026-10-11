@@ -102,3 +102,10 @@ av_celebrations_delete($celPdo, $mf);
 $adm = (string) file_get_contents(AV_ROOT . '/admin/app.js') . (string) file_get_contents(AV_ROOT . '/admin/index.php');
 ck('Celebrations: the Studio lists the year with Edit and Turn off', strpos($adm, 'data-celtoggle') !== false && strpos($adm, 'id="celYearNext"') !== false && strpos($adm, 'id="c_on"') !== false);
 ck('Celebrations: no inline style left on the celebrations screens', !preg_match('/id="celebrationsView".{0,1600}style="/s', $adm));
+
+/* The portal's phone tab bar must stay reachable (owner, 2026-10-11): the
+   "Show the pop-up again" pill sat over it with focus, so every tap re-opened
+   the pop-up. It is gone, and closing hands focus to the page. */
+$celJs = (string) file_get_contents(AV_ROOT . '/assets/site/celebrations.js');
+ck('Celebrations: no "show the pop-up again" pill', !str_contains($celJs, 'avcel-pill') && !str_contains((string) file_get_contents(AV_ROOT . '/assets/site/avcel.css'), '.avcel-pill'));
+ck('Celebrations: closing returns focus to the page, not a floating button', str_contains($celJs, "var back = last && last !== D.body && D.contains(last) ? last : main;"));
