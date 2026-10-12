@@ -1,0 +1,167 @@
+/* Site navigation (every page). The Home handoff's nav — implementation/index.html
+   and avh.css rows "Nav", "Signed-in member", "Mega menu", "Drawer" — moved out of
+   the Home stylesheet so every page draws the same one. Tokens only (av-tokens.css).
+   Scope: the nav, backdrop and drawer sit in one .avh-chrome wrapper, which is
+   display:contents so the sticky bar still sticks to the page, not the wrapper.
+   Switches to the drawer below 1180px (design breakpoint). */
+.avh-chrome{display:contents}
+.avh-chrome *{box-sizing:border-box}
+.avh-nav,.avh-drawer,.avh-sub{font-family:var(--av-sans);-webkit-font-smoothing:antialiased;line-height:normal;text-align:left}
+/* Zero-specificity defaults, as the handoff's :where(.avh): a button's own colour must win */
+:where(.avh-chrome) a{color:inherit;text-decoration:none}
+:where(.avh-chrome) a:hover{color:var(--av-link-hover)}
+.avh-chrome :focus-visible{outline:3px solid var(--av-focus);outline-offset:2px}
+.avh-pad{padding-left:clamp(20px,3vw,32px);padding-right:clamp(20px,3vw,32px)}
+.avh-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* Layers. The handoff stacks the bar at 20, backdrop 40, drawer 50, on a page
+   with nothing else stacked. Every other page here has its own (announcement
+   bars at 100–250, a fixed .site-top at 200, the Chioma dock at 900), and the
+   About banner covered the drawer's close button. The order is the handoff's;
+   only the floor is raised (800 / 950 / 960 below). */
+/* No-JS: hide controls that need avh-nav.js; links stay usable */
+.no-js .avh-burger,.no-js .avh-wide .avh-navbtn{display:none}
+/* Nav */
+.avh-nav{background:var(--av-paper);color:var(--av-ink);position:sticky;top:0;z-index:800;border-bottom:1px solid var(--av-line);transition:box-shadow .2s}
+.avh-nav.is-scrolled{box-shadow:0 4px 16px rgba(17,24,39,.06)}
+.avh-nav-in{max-width:1280px;margin:0 auto;min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.avh-brand{display:flex;align-items:center;color:var(--av-ink)}
+.avh-brand:hover{color:var(--av-ink)}
+.avh-brand img{width:40px;height:40px;margin-right:12px;border-radius:50%;display:block;flex-shrink:0;object-fit:cover;object-position:left center;box-shadow:0 2px 6px -2px rgba(17,24,39,.35);transition:width .3s ease,margin .3s ease,opacity .2s ease}
+.avh-nav.is-scrolled .avh-brand img{width:0;margin-right:0;opacity:0}
+.avh-brand span{font-family:var(--av-serif);font-size:28px;font-weight:600;letter-spacing:.01em;line-height:1}
+.avh-wide{display:none;align-items:center;gap:2px}
+.avh-navbtn{background:transparent;border:0;border-radius:var(--av-r-8);color:var(--av-nav-text);font-family:inherit;font-size:15px;font-weight:500;padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s}
+.avh-navbtn[aria-expanded="true"]{background:var(--av-sand)}
+.avh-navbtn svg{width:10px;height:10px;opacity:.6;transition:transform .2s}
+.avh-navbtn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.avh-signin{font-size:15px;font-weight:500;color:var(--av-nav-text);padding:9px 12px;border-radius:var(--av-r-8)}
+.avh-chrome .avh-signin:hover{background:var(--av-sand);color:var(--av-ink)}
+.avh-ctas{display:flex;align-items:center;gap:8px;margin-left:12px}
+.avh-join{border:1px solid var(--av-line-2);background:var(--av-paper);color:var(--av-nav-text);font-size:15px;font-weight:500;padding:9px 16px;border-radius:var(--av-r-8);white-space:nowrap}
+.avh-chrome .avh-join:hover{background:var(--av-white);border-color:var(--av-line-3);color:var(--av-ink)}
+.avh-donate{background:var(--av-ink);border:1px solid var(--av-ink);color:var(--av-white);font-size:15px;font-weight:600;padding:9px 18px;border-radius:var(--av-r-8)}
+.avh-chrome .avh-donate:hover{background:var(--av-ink-hover);color:var(--av-white)}
+.avh-narrow{display:flex;align-items:center;gap:8px}
+.avh-narrow .avh-join{display:none}
+.avh-burger{width:44px;height:44px;margin-left:6px;margin-right:-10px;border:0;border-radius:var(--av-r-8);background:none;cursor:pointer;position:relative;padding:0}
+.avh-burger:hover{background:var(--av-sand)}
+.avh-burger span{position:absolute;height:1.5px;background:var(--av-ink);border-radius:2px;transform-origin:center;transition:transform .25s ease,opacity .2s}
+.avh-burger span:nth-child(1){left:12px;top:15px;width:20px}
+.avh-burger span:nth-child(2){left:16px;top:21.25px;width:16px}
+.avh-burger span:nth-child(3){left:12px;top:27.5px;width:20px}
+.avh-burger.is-open span:nth-child(1){transform:translateY(6.25px) rotate(45deg)}
+.avh-burger.is-open span:nth-child(2){opacity:0}
+.avh-burger.is-open span:nth-child(3){transform:translateY(-6.25px) rotate(-45deg)}
+@media (min-width:640px){.avh-narrow .avh-join{display:inline-block}}
+/* Signed-in member: avh.js adds body.is-member after /academy/api.php?action=me returns a user */
+.avh-acct,.avh-acct-mini,.avh-drawer-me,.avh-drawer-out{display:none}
+.avh-chrome.is-member .avh-signin,.avh-chrome.is-member .avh-join,.avh-chrome.is-member .avh-drawer-signin,.avh-chrome.is-member .avh-drawer-ctas a:first-child{display:none}
+.avh-chrome.is-member .avh-acct{display:block;position:relative}
+.avh-chrome.is-member .avh-acct-mini{display:flex}
+.avh-chrome.is-member .avh-drawer-me{display:grid}
+.avh-chrome.is-member .avh-drawer-out{display:block}
+.avh-chrome.is-member .avh-drawer-ctas{grid-template-columns:1fr}
+.avh-av{width:32px;height:32px;border-radius:50%;background:var(--av-ink);color:var(--av-gold-light);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--av-serif);font-size:16px;font-weight:600;line-height:1;box-shadow:0 0 0 2px var(--av-paper),0 0 0 3px var(--av-gold)}
+.avh-av--lg{width:44px;height:44px;font-size:21px}
+.avh-acct-btn{display:flex;align-items:center;gap:10px;background:var(--av-white);border:1px solid var(--av-line);border-radius:999px;padding:4px 14px 4px 5px;font-family:inherit;font-size:14.5px;font-weight:600;color:var(--av-ink);cursor:pointer;max-width:210px;transition:border-color .15s,box-shadow .15s}
+.avh-acct-btn>span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avh-acct-btn:hover{border-color:var(--av-line-2)}
+.avh-acct-btn[aria-expanded="true"]{border-color:var(--av-line-2);box-shadow:0 0 0 3px var(--av-sand)}
+.avh-acct-btn svg{width:10px;height:10px;color:var(--av-muted);flex-shrink:0;transition:transform .2s}
+.avh-acct-btn[aria-expanded="true"] svg{transform:rotate(180deg)}
+.avh-acct-menu{position:absolute;right:0;top:calc(100% + 14px);width:300px;background:var(--av-white);border:1px solid var(--av-line);border-radius:16px;box-shadow:0 1px 2px rgba(17,24,39,.04),0 24px 48px -16px rgba(17,24,39,.22);padding:8px;z-index:30;animation:avh-pop .16s ease-out}
+.avh-acct-menu[hidden]{display:none}
+@keyframes avh-pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.avh-acct-menu{animation:none}}
+.avh-acct-head{display:flex;align-items:center;gap:12px;padding:14px;border-radius:10px;background:var(--av-stone)}
+.avh-acct-id{display:flex;flex-direction:column;gap:3px;min-width:0}
+.avh-acct-name{font-size:15.5px;font-weight:600;line-height:1.2;color:var(--av-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avh-acct-email{font-size:13px;color:var(--av-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avh-acct-email[hidden]{display:none}
+.avh-acct-cta{display:flex;align-items:center;justify-content:space-between;margin:8px 0 6px;padding:11px 14px;border-radius:10px;background:var(--av-ink);color:var(--av-white);font-size:14.5px;font-weight:600}
+.avh-chrome .avh-acct-cta:hover{background:var(--av-ink-hover);color:var(--av-white)}
+.avh-acct-cta span,.avh-drawer-portal span{transition:transform .15s}
+.avh-acct-cta:hover span,.avh-drawer-portal:hover span{transform:translateX(3px)}
+.avh-acct-links{display:flex;flex-direction:column;padding:2px 0 6px}
+.avh-acct-links a{font-size:14.5px;font-weight:500;color:var(--av-nav-text);padding:9px 14px;border-radius:8px}
+.avh-chrome .avh-acct-links a:hover{background:var(--av-stone);color:var(--av-ink)}
+.avh-acct-out{display:block;width:calc(100% + 16px);margin:0 -8px -8px;text-align:left;background:none;border:0;border-top:1px solid var(--av-line);font-family:inherit;font-size:14.5px;font-weight:500;color:var(--av-muted);padding:13px 22px;cursor:pointer;border-radius:0 0 16px 16px}
+.avh-acct-out:hover{color:var(--av-red);background:var(--av-red-bg)}
+.avh-acct-out:disabled,.avh-drawer-out:disabled{opacity:.5;cursor:default}
+.avh-acct-mini{width:44px;height:44px;align-items:center;justify-content:center;border-radius:50%}
+.avh-drawer-me{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px;margin:20px 0 8px;padding:16px;border-radius:14px;background:var(--av-white);border:1px solid var(--av-line)}
+.avh-drawer-portal{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;font-size:16px;font-weight:600;color:var(--av-ink);background:var(--av-stone);padding:13px 16px;border-radius:10px}
+.avh-chrome .avh-drawer-portal:hover{background:var(--av-sand);color:var(--av-ink)}
+.avh-drawer-out{width:100%;text-align:left;background:none;border:0;font-family:inherit;font-size:19px;color:var(--av-muted);padding:24px 0;cursor:pointer}
+.avh-drawer-out:hover{color:var(--av-red)}
+@media (min-width:1180px){.avh-wide{display:flex}.avh-narrow{display:none}}
+
+/* Mega menu (desktop) */
+.avh-mega{position:absolute;left:0;right:0;top:100%;background:var(--av-paper);border-bottom:1px solid var(--av-line);box-shadow:0 24px 40px rgba(17,24,39,.08)}
+.avh-mega[hidden]{display:none}
+.avh-mega-in{max-width:1280px;margin:0 auto;padding-top:36px;padding-bottom:40px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr);gap:40px}
+.avh-mega-intro{display:flex;flex-direction:column;gap:12px;padding-right:24px;border-right:1px solid var(--av-line)}
+.avh-mega-intro>div{font-size:13px;font-weight:600;color:var(--av-gold-text)}
+.avh-mega-intro p{font-family:var(--av-serif);font-size:26px;line-height:1.2;margin:0;color:var(--av-ink);text-wrap:pretty}
+.avh-mega-intro a{font-size:14px;font-weight:600;color:var(--av-ink);display:flex;align-items:center;gap:6px;margin-top:6px}
+.avh-mega-col{display:flex;flex-direction:column;gap:2px}
+.avh-mega-col>div{font-size:13px;font-weight:500;color:var(--av-muted-2);margin-bottom:8px}
+.avh-mega-col a{font-size:15.5px;font-weight:500;color:var(--av-ink);padding:7px 10px;margin:0 -10px;border-radius:var(--av-r-6)}
+.avh-chrome .avh-mega-col a:hover{background:var(--av-sand);color:var(--av-ink)}
+.avh-ext{color:var(--av-faint);font-size:13px}
+.avh-feat{display:flex;flex-direction:column;gap:10px;color:var(--av-ink)}
+.avh-chrome .avh-feat:hover{color:var(--av-ink)}
+.avh-feat img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:var(--av-r-10);display:block;background:var(--av-line)}
+.avh-feat span{font-size:12.5px;font-weight:600;color:var(--av-gold-text)}
+.avh-feat b{font-size:16px;font-weight:600;line-height:1.3}
+
+/* Drawer (below 1180) */
+.avh-backdrop{position:fixed;inset:0;background:rgba(17,24,39,.28);z-index:950}
+.avh-drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--av-paper);border-left:1px solid var(--av-line);z-index:960;display:flex;flex-direction:column;box-shadow:-24px 0 48px rgba(17,24,39,.08)}
+.avh-backdrop[hidden],.avh-drawer[hidden]{display:none}
+.avh-drawer-top{display:flex;justify-content:flex-end;align-items:center;min-height:68px;padding:0 clamp(20px,5vw,44px)}
+.avh-x{width:44px;height:44px;margin-right:-12px;border:0;border-radius:var(--av-r-8);background:none;cursor:pointer;position:relative}
+.avh-x:hover{background:var(--av-sand)}
+.avh-x span{position:absolute;left:13px;top:21.5px;width:18px;height:1.25px;background:var(--av-ink);transform:rotate(45deg)}
+.avh-x span+span{transform:rotate(-45deg)}
+.avh-drawer-body{flex:1;overflow-y:auto;padding:0 clamp(20px,5vw,52px)}
+.avh-acc{border-bottom:1px solid var(--av-line)}
+.avh-acc>button{width:100%;background:none;border:0;color:var(--av-ink);font-family:inherit;font-size:19px;font-weight:400;padding:24px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;text-align:left}
+.avh-plus{position:relative;width:16px;height:16px;flex-shrink:0}
+.avh-plus::before,.avh-plus::after{content:"";position:absolute;background:var(--av-ink)}
+.avh-plus::before{left:0;top:7.4px;width:16px;height:1.2px}
+.avh-plus::after{left:7.4px;top:0;width:1.2px;height:16px;transition:transform .25s ease}
+.avh-acc>button[aria-expanded="true"] .avh-plus::after{transform:scaleY(0)}
+.avh-acc-links{display:flex;flex-direction:column;gap:2px;padding:0 0 22px}
+.avh-acc-links[hidden]{display:none}
+.avh-acc-links a{font-size:16px;color:var(--av-nav-sub);padding:9px 0}
+.avh-chrome .avh-acc-links a:hover{color:var(--av-ink)}
+.avh-drawer-signin{display:block;font-size:19px;color:var(--av-ink);padding:24px 0}
+.avh-drawer-ctas{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:20px clamp(20px,5vw,52px) 28px}
+.avh-drawer-ctas a{text-align:center;font-size:16px;padding:13px 10px;border-radius:var(--av-r-8)}
+.avh-drawer-ctas a:first-child{border:1px solid var(--av-line-2);background:var(--av-white);color:var(--av-ink);font-weight:500}
+.avh-drawer-ctas a:last-child{background:var(--av-ink);color:var(--av-white);font-weight:600}
+.avh-chrome .avh-drawer-ctas a:last-child:hover{color:var(--av-white);background:var(--av-ink-hover)}
+
+
+/* Section bar (Academy pages): the second row the repo nav already carried for
+   sections with peer pages. Not in the Home design; kept so those pages keep
+   their section links, drawn on the nav's own tokens. */
+.avh-sub{border-top:1px solid var(--av-line);background:var(--av-paper)}
+.avh-sub-in{max-width:1280px;margin:0 auto;min-height:48px;display:flex;align-items:center;gap:20px;overflow-x:auto}
+.avh-sub-brand{font-family:var(--av-serif);font-size:20px;font-weight:600;color:var(--av-ink);white-space:nowrap}
+.avh-sub-links{display:flex;gap:2px;flex:1}
+.avh-sub-links a{font-size:14.5px;font-weight:500;color:var(--av-nav-text);padding:8px 10px;border-radius:var(--av-r-8);white-space:nowrap}
+.avh-chrome .avh-sub-links a:hover{background:var(--av-sand);color:var(--av-ink)}
+.avh-sub-search{display:flex;align-items:center;gap:8px;border:1px solid var(--av-line-2);border-radius:999px;background:var(--av-white);padding:0 12px;min-height:36px}
+.avh-sub-search input{border:0;background:none;font:inherit;font-size:14px;color:var(--av-ink);width:180px;min-height:34px}
+.avh-sub-search input:focus{outline:none}
+.avh-sub-search:focus-within{outline:3px solid var(--av-focus);outline-offset:2px}
+@media (max-width:1179px){.avh-sub{display:none}}
+
+/* The drawer covers the page: floating docks (the contact/AI dock) step aside
+   so they cannot sit on top of its buttons and swallow taps. */
+html.avh-drawer-open .dock,html.avh-drawer-open .chioma-root{opacity:0;visibility:hidden;pointer-events:none}
+
+.avh-sub-cta{font-size:14.5px;font-weight:600;color:var(--av-ink);padding:8px 14px;border:1px solid var(--av-line-2);border-radius:var(--av-r-8);white-space:nowrap}
+.avh-chrome.is-member .avh-sub-cta{display:none}

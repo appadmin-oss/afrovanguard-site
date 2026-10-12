@@ -19,17 +19,20 @@
  *
  * THE FIX
  * -------
- * av_nav_model() is the single source. This class renders it and splices the
- * result into each static page between the boundaries the markup already has:
- * from `<header class="site-header"` to the closing tag of the drawer that
- * follows it. Nothing else in the file is touched.
+ * av_nav_model() is the single source. This class renders render_nav() and
+ * splices the result into each static page, replacing exactly one block: the
+ * `<div class="avh-chrome" data-avh-chrome>` wrapper that holds the bar, the
+ * backdrop and the drawer, found by counting <div> opens and closes. Nothing
+ * else in the file is touched, so a page that wraps the nav in markup of its
+ * own (index and projects close a fixed `.site-top` after it) keeps it.
  *
  * `bin/sync-nav.php` writes; `tests/nav.test.php` checks. So a change to the
  * menu is made once, and a static page that falls behind fails the suite rather
  * than going unnoticed until someone clicks it.
  *
  * Rendering happens with no session, which is what a static page needs: the
- * signed-out utility bar, never a half-rendered account menu baked into a file.
+ * signed-out bar, never a member baked into a file; avh-nav.js fills the
+ * signed-in state in the browser.
  */
 declare(strict_types=1);
 
@@ -54,39 +57,31 @@ final class NavSync
     public static function region(string $active): string
     {
         ob_start();
-        render_nav($active, ['theme_toggle' => true]);
+        render_nav($active);
         return (string) ob_get_clean();
     }
 
+    /** Where the navigation block starts. */
+    public const OPEN = '<div class="avh-chrome" data-avh-chrome>';
+
     /**
-     * Locate the navigation block in a page's source.
+     * Locate the navigation block in a page's source: from OPEN to the </div>
+     * that closes it, counted rather than searched for, because the block holds
+     * dozens of divs of its own.
      *
-     * The block runs from the opening <header class="site-header"> to the end of
-     * the drawer <nav> that follows it. The closing tag is found by counting
-     * opens and closes rather than by taking the next `</nav>`, because the
-     * header contains a <nav class="nav-inner"> of its own and a naive search
-     * would cut the block in half.
-     *
-     * @return array{0:int,1:int}|null [start, length], or null when absent
+     * @return array{0:int,1:int}|null [start, length], or null when absent or unbalanced
      */
     public static function locate(string $html): ?array
     {
-        $start = strpos($html, '<header class="site-header"');
+        $start = strpos($html, self::OPEN);
         if ($start === false) return null;
-
-        $drawer = strpos($html, '<nav class="av-drawer"', $start);
-        if ($drawer === false) return null;
-
-        $depth = 0; $i = $drawer;
-        while (true) {
-            $open  = strpos($html, '<nav', $i);
-            $close = strpos($html, '</nav>', $i);
-            if ($close === false) return null;
-            if ($open !== false && $open < $close) { $depth++; $i = $open + 4; continue; }
-            $depth--;
-            $i = $close + 6;
-            if ($depth === 0) return [$start, $i - $start];
+        if (!preg_match_all('~<(/?)div\b[^>]*>~i', $html, $m, PREG_OFFSET_CAPTURE, $start)) return null;
+        $depth = 0;
+        foreach ($m[0] as $k => $tag) {
+            $depth += $m[1][$k][0] === '/' ? -1 : 1;
+            if ($depth === 0) return [$start, $tag[1] + strlen($tag[0]) - $start];
         }
+        return null;
     }
 
     /**
@@ -106,16 +101,6 @@ final class NavSync
         $current = substr($html, $start, $len);
         $fresh   = trim(self::region($active));
 
-        // Some pages wrap the header in markup of their own — index and
-        // projects close a `.site-top` div between </header> and the drawer's
-        // scrim. That close belongs to the PAGE, not to the navigation, and a
-        // straight replacement would drop it and leave the wrapper open for the
-        // rest of the document. Carry anything found there across.
-        $carry = self::betweenHeaderAndScrim($current);
-        if ($carry !== '' && strpos($fresh, $carry) === false) {
-            $fresh = self::insertAfterHeader($fresh, $carry);
-        }
-
         // Compare on collapsed whitespace: indentation differs between a file
         // and a render, and re-indenting every page on every run would bury the
         // real change in a diff nobody reads.
@@ -126,30 +111,6 @@ final class NavSync
             file_put_contents($absPath, substr($html, 0, $start) . $fresh . substr($html, $start + $len));
         }
         return ['ok' => true, 'changed' => true, 'reason' => 'navigation rewritten from av_nav_model()'];
-    }
-
-    /**
-     * Whatever a page keeps between its </header> and the drawer's scrim.
-     *
-     * Returns '' when there is nothing but whitespace and comments to keep,
-     * which is the normal case.
-     */
-    private static function betweenHeaderAndScrim(string $region): string
-    {
-        $endHeader = strpos($region, '</header>');
-        $scrim     = strpos($region, '<div class="scrim"');
-        if ($endHeader === false || $scrim === false || $scrim < $endHeader) return '';
-        $mid = substr($region, $endHeader + 9, $scrim - $endHeader - 9);
-        return trim($mid) === '' ? '' : trim($mid);
-    }
-
-    /** Put the page's own markup back, immediately after the rendered header. */
-    private static function insertAfterHeader(string $fresh, string $carry): string
-    {
-        $endHeader = strpos($fresh, '</header>');
-        if ($endHeader === false) return $fresh;
-        $at = $endHeader + 9;
-        return substr($fresh, 0, $at) . "\n  " . $carry . substr($fresh, $at);
     }
 
     /** Every page, reported or rewritten. @return array<string,array> */

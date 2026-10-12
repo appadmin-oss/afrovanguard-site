@@ -241,18 +241,18 @@ foreach ([
 ck('summit: the Academy nav links to it', str_contains(
     (string) @file_get_contents(AV_ROOT . '/lib/partials.php'), "/academy/dns/"));
 
-/* ══ The static-chrome build is idempotent ══════════════════════════════
-   It was not: nav_parts() splits render_nav() at </header>, so the drawer half
-   carries the search dialog, which the drawer replacement never matched — every
-   run left the old one and appended another. The committed pages had seven. */
+/* ══ One navigation per static page, from one writer ═══════════════════
+   build-chrome.php used to write the nav as well as bin/sync-nav.php, and its
+   split at </header> left the search dialog behind on every run — the
+   committed pages had seven. The nav now has one writer and one block. */
 
 foreach (['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html'] as $page) {
     $html = (string) @file_get_contents(AV_ROOT . '/' . $page);
     if ($html === '') continue;
-    ck("chrome: {$page} has exactly one search dialog", substr_count($html, 'id="avSearch"') === 1);
-    ck("chrome: {$page} has exactly one drawer scrim", substr_count($html, 'class="scrim"') === 1);
+    ck("chrome: {$page} has exactly one navigation block", substr_count($html, 'data-avh-chrome') === 1);
+    ck("chrome: {$page} has exactly one drawer", substr_count($html, 'id="avh-drawer"') === 1);
 }
-ck('chrome: the builder clears loose chrome before injecting', str_contains(
-    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'strip_loose_chrome'));
+ck('chrome: the footer builder does not write the navigation', !str_contains(
+    (string) @file_get_contents(AV_ROOT . '/tools/build-chrome.php'), 'render_nav('));
 
 $db->exec('DELETE FROM summit_registrations');

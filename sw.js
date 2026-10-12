@@ -7,11 +7,12 @@
    Never caches API responses or authenticated HTML.
    ============================================================ */
 'use strict';
-var VERSION = 'av-pwa-v3';
+var VERSION = 'av-pwa-v4';
 var SHELL = [
   '/assets/site/offline.html',
-  '/assets/site/nav.css',
-  '/assets/site/nav.js',
+  '/assets/site/av-tokens.css',
+  '/assets/site/avh-nav.css',
+  '/assets/site/avh-nav.js',
   '/diary/diary.css',
   '/portal/portal.css',
   '/assets/site/icon-192.png',

@@ -2746,6 +2746,6 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
   <script src="/portal/diary.js" defer></script>
   <script src="/portal/notebooks.js" defer></script>
   <script src="/portal/commitments.js" defer></script>
-  <script src="/assets/site/nav.js" defer></script>
+  <script src="/assets/site/avh-nav.js" defer></script>
 </body>
 </html>

@@ -27,63 +27,56 @@ foreach (NavSync::all(false) as $page => $r) {
 
 /* ── The block finder is what makes that safe to rewrite ─────────────────── */
 
-// The header holds a <nav class="nav-inner"> of its own, so taking the next
-// </nav> after the drawer opens would cut the block in half and the sync would
+// The block holds dozens of divs of its own, so the finder counts opens and
+// closes; taking the first </div> would cut it in half and the sync would
 // splice mangled markup into five production pages.
 $sample = NavSync::region('about');
 $at = NavSync::locate($sample);
 ck('nav: the navigation block is locatable in a fresh render', $at !== null);
 if ($at !== null) {
-    [$s, $l] = $at;
-    $block = substr($sample, $s, $l);
-    ck('nav: …the block starts at the header', strpos($block, '<header class="site-header"') === 0);
-    ck('nav: …and ends at the drawer, not at the first inner nav',
-       substr(rtrim($block), -6) === '</nav>' && strpos($block, '<nav class="av-drawer"') !== false);
-    ck('nav: …opening and closing nav tags balance',
-       substr_count($block, '<nav') === substr_count($block, '</nav>'));
+    $block = substr($sample, $at[0], $at[1]);
+    ck('nav: …the block starts at the chrome wrapper', strpos($block, NavSync::OPEN) === 0);
+    ck('nav: …and holds the bar, the backdrop and the drawer',
+       strpos($block, 'data-avh-nav') !== false && strpos($block, 'data-avh-backdrop') !== false && strpos($block, 'data-avh-drawer') !== false);
+    ck('nav: …and ends where it balances', trim(substr($sample, $at[0] + $at[1])) === ''
+       && substr_count($block, '<div') === substr_count($block, '</div>'));
 }
 ck('nav: a page with no navigation is reported, not half-written',
    NavSync::locate('<html><body><p>nothing here</p></body></html>') === null);
 
 /* ── The sync leaves the page's own markup alone ─────────────────────────── */
 
-// index and projects wrap the header in a `.site-top` div and close it between
-// </header> and the drawer. That close belongs to the page, and the first
-// version of this sync dropped it — leaving the wrapper open for the rest of
-// the document on two live pages. Balance is asserted here because a stray
-// unclosed div is invisible until a layout collapses.
+// index and projects wrap the nav in a fixed `.site-top` div and close it after
+// the block. That close belongs to the page; a stray unclosed div is invisible
+// until a layout collapses, so every page is asserted to balance outright.
 foreach (array_keys(NavSync::PAGES) as $rel) {
     $src = (string) @file_get_contents(AV_ROOT . '/' . $rel);
     if ($src === '') continue;
-    $at = NavSync::locate($src);
-    if ($at === null) continue;
-    // The property that matters is not that the block balances on its own —
-    // index and projects legitimately close a page wrapper inside it — but
-    // that running the sync does not CHANGE the document's balance. Rendered
-    // in memory, so the test neither writes nor depends on the last run.
-    $before = substr_count($src, '<div') - substr_count($src, '</div>');
-    $fresh  = $src;
-    NavSync::sync(AV_ROOT . '/' . $rel, NavSync::PAGES[$rel], false);
-    $after  = substr_count($fresh, '<div') - substr_count($fresh, '</div>');
-    ck('nav: syncing ' . $rel . ' leaves its div balance untouched', $before === $after);
-
-    // Every one of these pages now balances outright. donate.html did not until
-    // the stray </div> after the material-donation <style> block was removed —
-    // it had closed #panel-material early, so the close labelled
-    // "/#panel-material" was really shutting .container and the one labelled
-    // "/.container" was closing nothing at all.
-    ck('nav: ' . $rel . ' has balanced div markup', $before === 0);
-
-    $region = substr($src, $at[0], $at[1]);
-    $carriedClose = substr_count($region, '</div>') > substr_count($region, '<div');
-    if ($carriedClose) {
-        // Such a page closes a wrapper it opened before the header. The sync
-        // must put that back; its first version dropped it and left the
-        // wrapper open for the rest of two live documents.
-        ck('nav: ' . $rel . ' still closes the wrapper it opens before the header',
-           strpos(substr($region, strpos($region, '</header>')), '</div>') !== false);
-    }
+    ck('nav: ' . $rel . ' has balanced div markup', substr_count($src, '<div') - substr_count($src, '</div>') === 0);
+    ck('nav: ' . $rel . ' loads the nav styles and script',
+       str_contains($src, '/assets/site/avh-nav.css') && str_contains($src, '/assets/site/av-tokens.css') && str_contains($src, '/assets/site/avh-nav.js'));
+    ck('nav: ' . $rel . ' no longer loads the old nav', !str_contains($src, 'href="/assets/site/nav.css"') && !str_contains($src, 'src="/assets/site/nav.js"'));
 }
+
+/* ── The bar is the handoff's, and a static page never carries a member ──── */
+
+$render = NavSync::region('academy');
+ck('nav: every section has a menu button, a mega panel and a drawer accordion',
+   array_reduce(array_keys(av_nav_model()), static fn($ok, $k) => $ok
+       && str_contains($render, 'data-avh-menu="' . $k . '"')
+       && str_contains($render, 'id="avh-mega-' . $k . '"')
+       && str_contains($render, 'id="avh-acc-' . $k . '"'), true));
+ck('nav: the drawer is a modal dialog the burger controls',
+   str_contains($render, 'role="dialog" aria-modal="true"') && str_contains($render, 'aria-controls="avh-drawer"'));
+ck('nav: the signed-in parts render as placeholders only (avh-nav.js fills them)',
+   str_contains($render, 'data-avh-me-name>Member<') && !str_contains($render, '@'));
+ck('nav: the Academy keeps its section bar', str_contains($render, 'class="avh-sub"'));
+ck('nav: other sections have no section bar', !str_contains(NavSync::region('about'), 'class="avh-sub"'));
+$js = (string) @file_get_contents(AV_ROOT . '/assets/site/avh-nav.js');
+ck('nav: the member name is written as text, never as markup',
+   str_contains($js, 'textContent = name') && !str_contains($js, 'innerHTML'));
+ck('nav: sign-out and sign-in links still work on pages without the nav (the portal)',
+   strpos($js, "'[data-logout]'") !== false && strpos($js, "'[data-logout]'") < strpos($js, 'if (!root) return;'));
 
 /* ── Every internal destination exists ───────────────────────────────────── */
 
@@ -91,10 +84,10 @@ $model = av_nav_model();
 $targets = [];
 foreach ($model as $top) {
     $targets[$top['href']] = $top['label'];
-    foreach (($top['mega']['cols'] ?? []) as $col) {
+    foreach (($top['cols'] ?? []) as $col) {
         foreach ($col['links'] as [$label, $href]) $targets[$href] = $label;
     }
-    if (!empty($top['mega']['feature']['href'])) $targets[$top['mega']['feature']['href']] = $top['label'] . ' feature';
+    if (!empty($top['feature']['href'])) $targets[$top['feature']['href']] = $top['label'] . ' feature';
 }
 
 // A menu entry pointing at a path with no page is a dead end the whole site
@@ -142,7 +135,7 @@ ck('nav: no flagship programme still points at the CACENTRE subdomain',
 // page also split the analytics for it.
 $byHref = [];
 foreach ($model as $top) {
-    foreach (($top['mega']['cols'] ?? []) as $col) {
+    foreach (($top['cols'] ?? []) as $col) {
         foreach ($col['links'] as [$label, $href]) $byHref[$href][$label] = true;
     }
 }
@@ -161,7 +154,7 @@ ck('nav: no page is listed under two different names' . ($clash ? ': ' . implode
 ck('nav: an off-site link opens in a new tab', strpos($attrs, 'target="_blank"') !== false);
 ck('nav: …with noopener', strpos($attrs, 'rel="noopener"') !== false);
 ck('nav: …and says where it goes, in text', strpos($mark, 'cacentre.afrovanguard.org.ng') !== false
-   && strpos($mark, 'sr-only') !== false);
+   && strpos($mark, 'avh-sr') !== false);
 ck('nav: …with the arrow hidden from assistive tech', strpos($mark, 'aria-hidden="true"') !== false);
 
 [$sameAttrs, $sameMark] = av_nav_offsite('/academy/');
