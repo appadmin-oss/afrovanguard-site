@@ -33,9 +33,18 @@
       panels.forEach(p => { p.hidden = p.dataset.avhPanel !== k; });
       k ? pushLayer(layer) : dropLayer(layer);
     };
+    // A mouse reaches a button before it clicks it, so hover has already opened
+    // the panel when the click lands, and a plain toggle shut it again under the
+    // pointer: clicking a menu left it closed. A click within moments of a
+    // hover-open keeps the panel; a later click, or a key press, still toggles.
+    let hoverAt = 0;
     btns.forEach(b => {
-      b.addEventListener('mouseenter', () => { if (deskMq.matches) set(b.dataset.avhMenu); });
-      b.addEventListener('click', () => set(open === b.dataset.avhMenu ? null : b.dataset.avhMenu));
+      b.addEventListener('mouseenter', () => { if (deskMq.matches && open !== b.dataset.avhMenu) { set(b.dataset.avhMenu); hoverAt = Date.now(); } });
+      b.addEventListener('click', () => {
+        const k = b.dataset.avhMenu;
+        if (open === k && Date.now() - hoverAt < 600) return;
+        set(open === k ? null : k);
+      });
     });
     $$('[data-avh-close]').forEach(a => a.addEventListener('mouseenter', () => open && set(null)));
     nav.addEventListener('mouseleave', () => { if (open && deskMq.matches) set(null); });
