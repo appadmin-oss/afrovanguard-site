@@ -166,6 +166,13 @@ final class AvSettings
             'ph' => 'https://next.afrovanguard.org.ng',
             'help' => 'Where NextGen Genius runs. This site fetches NGG’s volunteers from there (signed with the shared secret above), so they are recognised when they sign in. Blank uses https://next.afrovanguard.org.ng.',
         ],
+
+        /* ── CACENTRE CRM ─────────────────────────────────────────────────── */
+        'AV_CRM_INTAKE_SECRET' => [
+            'group' => 'CACENTRE CRM', 'label' => 'Audience secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'the secret CACENTRE generated for Afrovanguard',
+            'help' => 'In the CACENTRE console: Audience → Sites → Afrovanguard → Generate secret, then paste it here. Every few minutes this site then sends its Diary and newsletter subscribers, donors, monthly givers and contact-form enquiries to the CRM’s Audience, signed with it. Unsubscribes are sent too. Blank sends nothing.',
+        ],
         'AV_GEMINI_API_KEY' => [
             'group' => 'Gemini (Google)', 'label' => 'API key', 'secret' => true, 'type' => 'text',
             'ph' => 'AIza…',

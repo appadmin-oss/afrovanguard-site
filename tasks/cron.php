@@ -168,6 +168,11 @@ if (class_exists('MeetingMinutes')) {
     $result['meetings_live'] = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
 }
 
+// The CACENTRE CRM's Audience: subscribers, givers and enquiries pushed (signed).
+if (class_exists('CrmAudiencePush')) {
+    try { $result['crm_audience'] = CrmAudiencePush::run(); } catch (Throwable $e) { $result['crm_audience'] = ['ok' => false, 'error' => $e->getMessage()]; }
+}
+
 // Volunteers: NGG's list refreshed every six hours; tomorrow's opportunities reminded.
 if (class_exists('NggVolunteers')) {
     try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }

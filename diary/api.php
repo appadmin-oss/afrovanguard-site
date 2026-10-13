@@ -226,6 +226,12 @@ try {
                 json_out(['ok' => false, 'error' => 'Use the unsubscribe link in one of our emails, or write to us and we will take you off the list.'], 403);
             }
             Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
+            /* The row is gone, so tell the CACENTRE CRM now — or it would go on
+               counting them as somebody the estate may write to. */
+            if (class_exists('CrmAudiencePush')) {
+                CrmAudiencePush::queue(['kind' => 'subscriber', 'ref' => CrmAudiencePush::subscriberRef($email),
+                                        'email' => $email, 'list' => 'The Vanguard Diary', 'status' => 'unsubscribed']);
+            }
             json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
 
         /* ── Following an author (lib/DiaryFollows.php) ──

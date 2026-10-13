@@ -390,6 +390,7 @@ require_once __DIR__ . '/MeetingClock.php';
 require_once __DIR__ . '/Volunteers.php';       /* volunteer teams, roles, hours, the hub */
 require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→review→published, reminders */
 require_once __DIR__ . '/MeetingLive.php';
+require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (signed) to CACENTRE's CRM */
 require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
 require_once __DIR__ . '/VolunteerWork.php';    /* opportunities, kudos, people, the service letter */      /* live capture: Google Meet, notetaker, QR check-in, room captions */
 require_once __DIR__ . '/AvSettings.php';
