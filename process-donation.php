@@ -543,6 +543,17 @@ if ($sig && hash_equals(hash_hmac('sha512',$raw,PAYSTACK_SECRET_KEY),$sig)) {
            reference, so this and the payer's own callback can both fire. */
         $ngvMember = (int) ($tx['metadata']['ngv_member'] ?? 0);
         if ($ref && $ngvMember > 0 && class_exists('NgvLedger')) {
+            /* NAIRA ONLY. The ledger is kept in naira and amount/100 is only
+               naira when the charge was. academy/ngv/pay.php already refuses
+               any other currency on the payer's return; this branch credited
+               a USD charge of 130 as ₦130 — or a cents amount as kobo — with
+               no check at all. A non-naira charge is answered 200 so Paystack
+               does not retry for days, and logged for a person to reconcile. */
+            $ngvCur = strtoupper((string) ($tx['currency'] ?? ''));
+            if ($ngvCur !== 'NGN') {
+                error_log('[AV] ngv webhook: refused ' . $ref . ' — currency "' . $ngvCur . '" is not NGN; not posted to the ledger, reconcile by hand');
+                http_response_code(200); echo json_encode(['received' => true, 'recorded' => false, 'reason' => 'currency']); exit;
+            }
             /* 200 only once it is RECORDED (or was already). Answering 200 to a
                failure told Paystack it was delivered, so it never retried and
                the payment was silently missing from the participant's ledger. */
