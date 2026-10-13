@@ -1790,3 +1790,15 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .dues-off-form button { align-self:end; }
 .dues-off-row { padding:8px 0; border-bottom:1px solid var(--divider, #eee); }
 .dues-off-why { font-size:12px; opacity:.8; margin-top:2px; }
+
+/* Who a task fits (lib/TaskMatch.php) */
+.task-fit { font-size:12.5px; color:var(--muted); }
+.task-fit b { color:var(--ink); }
+.task-give { margin-right:6px; }
+.task-ai-assign { margin-top:10px; }
+.task-suggest { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:-4px 0 12px; }
+.task-suggest-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+.task-suggest-pick { display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; padding:6px 10px; border-radius:10px; border:1px solid var(--border-2); background:var(--surface); color:var(--ink); font:inherit; font-size:13px; font-weight:700; cursor:pointer; text-align:left; min-height:44px; }
+.task-suggest-pick:hover, .task-suggest-pick[aria-pressed="true"] { border-color:var(--gold); box-shadow:var(--shadow-sm); }
+.task-suggest-pick:focus-visible { outline:2px solid var(--gold-deeper); outline-offset:2px; }
+.task-suggest-why { font-weight:500; font-size:11.5px; color:var(--muted); }

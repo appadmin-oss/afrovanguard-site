@@ -317,6 +317,8 @@ final class LmsAuth
         self::hint(true, $ttl);
         $_COOKIE[self::COOKIE] = $token; self::$cache = null; self::$checked = false;
         /* A volunteer is recognised as they sign in (lib/Volunteers.php). */
+        /* An NGG volunteer seeded from a file is linked to them first (lib/VolunteerSeeds.php). */
+        if (class_exists('VolunteerSeeds')) VolunteerSeeds::claim($userId);
         if (class_exists('Volunteers')) Volunteers::recognizeAtLogin($userId);
     }
 

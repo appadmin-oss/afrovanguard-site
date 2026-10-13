@@ -3081,7 +3081,7 @@
     if (which === 'roster') loadMemRoster();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
-    if (which === 'volunteers') loadVolProjects();
+    if (which === 'volunteers') { loadVolProjects(); vsStatus(); }
     if (which === 'offline') loadOffline();
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
@@ -3370,6 +3370,41 @@
           + '</div></div>';
       }).join('');
     });
+  }
+  /* NGG volunteers seeded from a file — linked as they sign in. */
+  var vsText = '', vsName = '', vsDigest = '';
+  function vsStatus() {
+    api('vol_seed_status').then(function (r) {
+      var d = r.data || {}; if (!d.ok) return;
+      $('#vsStatus').textContent = d.seeded ? d.seeded + ' seeded · ' + d.linked + ' signed in and linked · ' + d.waiting + ' waiting for their first sign-in' : 'Nobody seeded yet.';
+    });
+  }
+  function vsRun(apply) {
+    if (!vsText) return;
+    var b = apply ? $('#vsApply') : $('#vsCheck'); b.disabled = true;
+    post('vol_seed_import', { csv: vsText, source: vsName, apply: apply, expect_digest: apply ? vsDigest : '' }).then(function (r) {
+      var d = r.data || {};
+      if (!d.ok) { $('#vsResult').innerHTML = '<div class="mem-errors" role="alert">' + escapeHtml(d.error || 'Refused.') + '</div>'; vsDigest = ''; $('#vsApply').hidden = true; return; }
+      var c = d.counts || {}, MARK = { 'new': '+', update: '~', same: '=', refused: '!' };
+      var head = '<p><b>' + (d.applied ? 'Seeded' : 'Would seed') + '</b> — new ' + c['new'] + ' · updated ' + c.update + ' · already current ' + c.same + ' · refused ' + c.refused + '</p>'
+        + '<p class="muted tiny">' + c.has_account + ' already have an Afrovanguard account' + (d.applied ? ' — ' + d.linked + ' linked now' : ' and are linked when you apply') + '; the rest are linked at their first sign-in.</p>';
+      var rows = (d.rows || []).filter(function (x) { return x.action !== 'same' || (x.notes || []).length; }).map(function (x) {
+        return '<div class="mem-result-row"><span class="mk" aria-hidden="true">' + (MARK[x.action] || '?') + '</span><div><div><b>' + escapeHtml(x.name || '(no name)') + '</b> <span class="muted">' + escapeHtml(x.id) + ' · ' + escapeHtml(x.email) + '</span></div>'
+          + '<div class="muted tiny">' + escapeHtml([x.programme, x.role, x.centre].filter(Boolean).join(' · ')) + (x.account ? ' · has an account' : '') + '<span class="sr-only"> (' + escapeHtml(x.action) + ')</span></div>'
+          + (x.notes || []).map(function (w) { return '<div class="muted tiny">↳ ' + escapeHtml(w) + '</div>'; }).join('') + '</div></div>';
+      }).join('');
+      $('#vsResult').innerHTML = head + rows;
+      if (d.applied) { vsDigest = ''; $('#vsApply').hidden = true; toast('Volunteers seeded.'); vsStatus(); loadVolProjects(); }
+      else { vsDigest = d.digest; var n = c['new'] + c.update; $('#vsApply').hidden = n === 0; $('#vsApply').textContent = 'Seed ' + n + ' volunteer' + (n === 1 ? '' : 's'); }
+    }).catch(function () { toast('Network error.'); }).finally(function () { b.disabled = false; });
+  }
+  if ($('#vsSeed')) {
+    $('#vsFile').addEventListener('change', function () {
+      var f = this.files && this.files[0]; this.value = ''; if (!f) return;
+      f.text().then(function (t) { vsText = t; vsName = f.name; $('#vsFileName').textContent = f.name; $('#vsCheck').disabled = false; vsDigest = ''; $('#vsApply').hidden = true; $('#vsResult').innerHTML = ''; });
+    });
+    $('#vsCheck').addEventListener('click', function () { vsRun(false); });
+    $('#vsApply').addEventListener('click', function () { if (confirm('Seed these volunteers? This is what the check above described.')) vsRun(true); });
   }
   function volProjectMembers(id, name) {
     api('vol_project_members&id=' + id).then(function (r) {

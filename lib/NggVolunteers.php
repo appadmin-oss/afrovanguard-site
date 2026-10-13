@@ -88,6 +88,12 @@ final class NggVolunteers
             credited_minutes INTEGER NOT NULL DEFAULT 0,
             synced_at VARCHAR(32) NOT NULL DEFAULT ''
         )");
+        /* Seeded from a file (lib/VolunteerSeeds.php): what NGG's export has
+           and the sync does not send, and where the row came from. */
+        foreach (['programme' => "VARCHAR(20) NOT NULL DEFAULT ''", 'faculty' => "VARCHAR(80) NOT NULL DEFAULT ''", 'courses' => "VARCHAR(200) NOT NULL DEFAULT ''",
+                  'origin' => "VARCHAR(8) NOT NULL DEFAULT 'ngg'", 'seeded_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'linked_via' => "VARCHAR(8) NOT NULL DEFAULT ''"] as $col => $def) {
+            try { if (!Database::columnExists('ngg_volunteers', $col)) $pdo->exec("ALTER TABLE ngg_volunteers ADD COLUMN $col $def"); } catch (Throwable $e) {}
+        }
         try { $pdo->exec('CREATE INDEX idx_ngg_sess_day ON ngg_sessions (day)'); } catch (Throwable $e) {}
         try { $pdo->exec('CREATE INDEX idx_ngg_sess_vol ON ngg_sessions (volunteer_id)'); } catch (Throwable $e) {}
         try { $pdo->exec('CREATE INDEX idx_ngg_vol_email ON ngg_volunteers (email)'); } catch (Throwable $e) {}
@@ -152,9 +158,10 @@ final class NggVolunteers
             if (!empty($r['done']) || ($r['next'] ?? null) === null) break;
             $after = (int) $r['next'];
         }
-        /* NGG no longer lists them: kept, marked gone. */
+        /* NGG no longer lists them: kept, marked gone. A row seeded from a file
+           and never sent by NGG is not NGG's to retire. */
         $gone = 0;
-        foreach ($pdo->query("SELECT volunteer_id FROM ngg_volunteers WHERE status <> 'gone'")->fetchAll(PDO::FETCH_COLUMN) as $id) {
+        foreach ($pdo->query("SELECT volunteer_id FROM ngg_volunteers WHERE status <> 'gone' AND origin = 'ngg'")->fetchAll(PDO::FETCH_COLUMN) as $id) {
             if (!isset($seen[(string) $id])) { $pdo->prepare("UPDATE ngg_volunteers SET status = 'gone', synced_at = ? WHERE volunteer_id = ?")->execute([$now, $id]); $gone++; }
         }
         $linked = self::link();
@@ -253,12 +260,14 @@ final class NggVolunteers
         $st = $pdo->prepare('SELECT 1 FROM ngg_volunteers WHERE volunteer_id = ?');
         $st->execute([$id]);
         if ($st->fetchColumn()) {
-            $pdo->prepare('UPDATE ngg_volunteers SET member_id=?, name=?, email=?, phone=?, role=?, role_label=?, centre=?, status=?, safeguarding_cleared=?, photo_url=?, joined_at=?, sessions=?, hours=?, certificates=?, points=?, level=?, synced_at=? WHERE volunteer_id=?')
+            $pdo->prepare("UPDATE ngg_volunteers SET member_id=?, name=?, email=?, phone=?, role=?, role_label=?, centre=?, status=?, safeguarding_cleared=?, photo_url=?, joined_at=?, sessions=?, hours=?, certificates=?, points=?, level=?, synced_at=?, origin='ngg' WHERE volunteer_id=?")
                 ->execute(array_merge($row, [$id]));
         } else {
             $pdo->prepare('INSERT INTO ngg_volunteers (member_id, name, email, phone, role, role_label, centre, status, safeguarding_cleared, photo_url, joined_at, sessions, hours, certificates, points, level, synced_at, volunteer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
                 ->execute(array_merge($row, [$id]));
         }
+        $prog = strtolower($s('programme', 20));
+        if ($prog !== '') $pdo->prepare('UPDATE ngg_volunteers SET programme = ? WHERE volunteer_id = ?')->execute([$prog, $id]);
     }
 
     /** Each NGG volunteer to the account with their email here. Returns how many were newly linked. */

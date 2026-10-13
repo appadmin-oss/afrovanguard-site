@@ -100,7 +100,7 @@ try {
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
-        'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign',
+        'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign', 'vol_seed_import', 'vol_seed_status',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email',
@@ -1281,6 +1281,18 @@ try {
         case 'vol_unassign':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             json_out(VolunteerProjects::unassign((int) ($body['id'] ?? 0), (int) ($body['project_id'] ?? 0), (int) $memberCtx()['self_id']));
+        /* ── NGG volunteers seeded from a file, linked as they sign in (lib/VolunteerSeeds.php) ── */
+        case 'vol_seed_status':
+            json_out(['ok' => true] + VolunteerSeeds::status());
+        case 'vol_seed_import':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $parsed = VolunteerSeeds::parseCsv((string) ($body['csv'] ?? ''));
+            if (!$parsed['ok']) json_out($parsed, 422);
+            $apply = !empty($body['apply']);
+            if ($apply && $role !== 'superadmin' && $role !== 'admin') json_out(['ok' => false, 'error' => 'Seeding volunteers needs an Admin. Anybody here can read the dry run.'], 403);
+            $r = VolunteerSeeds::import($parsed['rows'], ['apply' => $apply, 'expect_digest' => (string) ($body['expect_digest'] ?? ''),
+                'source' => mb_substr((string) ($body['source'] ?? ''), 0, 200), 'actor' => av_admin_actor()]);
+            json_out($r, $r['ok'] ? 200 : 422);
         case 'roster_ids':
             json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment']))));
         case 'roster_bulk':

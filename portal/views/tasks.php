@@ -30,6 +30,7 @@
                 </label>
                 <button type="button" class="pbtn pbtn-gold" id="aiGenerate">Generate tasks</button>
               </div>
+              <label class="task-af task-af--check task-ai-assign" id="aiAssignWrap" hidden><input type="checkbox" id="aiAssign"> <span>Assign each task to the best fit (by role, course and centre, spreading the work)</span></label>
               <p class="task-ai-msg" id="aiMsg" hidden></p>
             </div>
           </section>
@@ -108,6 +109,7 @@
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
+              <div class="task-suggest" id="taskSuggest" aria-live="polite" hidden></div>
               <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
                 <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>
                 <button type="button" class="pseg-btn" data-filter="open" aria-pressed="false">Open <span class="pseg-n" id="fcOpen">0</span></button>

@@ -240,7 +240,8 @@ final class Volunteers
         if (class_exists('NggVolunteers')) {
             try {
                 if ($n = NggVolunteers::forUser($u)) {
-                    $out[] = ['source' => 'ngg', 'label' => 'NextGen Genius volunteer', 'detail' => trim(($n['role_label'] ?: ucfirst((string) $n['role'])) . ((string) $n['centre'] !== '' ? ', ' . $n['centre'] : ''), ', '),
+                    $prog = (string) ($n['programme'] ?? '');
+                    $out[] = ['source' => 'ngg', 'label' => $prog === 'summer' ? 'NGG Summer School volunteer' : 'NextGen Genius volunteer', 'detail' => trim(($n['role_label'] ?: ucfirst((string) $n['role'])) . ((string) $n['centre'] !== '' ? ', ' . $n['centre'] : ''), ', '),
                               'since' => substr((string) $n['joined_at'], 0, 10), 'hours' => (int) $n['hours'], 'sessions' => (int) $n['sessions'], 'level' => (string) $n['level'],
                               'safeguarding' => (int) $n['safeguarding_cleared'] === 1, 'photo' => (string) $n['photo_url']];
                 }

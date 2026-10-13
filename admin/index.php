@@ -568,6 +568,15 @@
         <button class="btn btn-primary btn-sm" id="vpAdd">Add project</button>
       </div>
       <div id="vpMembers" class="side-card" hidden></div>
+      <!-- NGG volunteers seeded from a file (lib/VolunteerSeeds.php) -->
+      <div class="side-card vs-seed" id="vsSeed">
+        <h3>Seed NGG volunteers from a file</h3>
+        <p class="muted tiny">NGG’s volunteer export as CSV (volunteerId, name, email, phone, role, programme, centre, faculty, courses, safeguarding, status). Nobody gets an account made for them: each volunteer is linked the moment they sign in to Afrovanguard with that email, and opens their Volunteer dashboard. Anybody who already has an account is linked when you apply.</p>
+        <p class="muted tiny" id="vsStatus" aria-live="polite"></p>
+        <div class="editor-actions"><label class="btn btn-outline btn-sm" for="vsFile">Choose CSV…</label><input type="file" id="vsFile" accept=".csv,text/csv" class="sr-only" /><span class="muted tiny" id="vsFileName"></span></div>
+        <div class="editor-actions"><button class="btn btn-outline btn-sm" id="vsCheck" disabled>Check what would change</button><button class="btn btn-primary btn-sm" id="vsApply" hidden>Seed</button></div>
+        <div id="vsResult" aria-live="polite"></div>
+      </div>
     </section>
 
     <section class="mem-pane" data-pane="dups" hidden>
