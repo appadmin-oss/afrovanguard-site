@@ -176,6 +176,25 @@ if (class_exists('Brief')) {
     });
 }
 
+// Every tick: one page of this site's roster to CACENTRE's person directory —
+// the portal members and the Studio admins, so one human is one record across
+// the estate's five apps instead of twelve unrelated rows. We push; CACENTRE
+// reads nothing of ours (CFIS ADR 22's posture, applied to people instead of
+// money). Bounded to one batch per tick and idempotent: every row upserts on
+// its source key, and the cursor only advances on a push that was accepted.
+//
+// No heartbeat wrapper here, unlike the AI rungs below, and deliberately: a
+// push that silently stops is detected on the RECEIVING side, where
+// DirectorySync already marks an app that has gone quiet for ten days and
+// names it on the directory's own screen. A property cannot reliably report
+// its own silence; the thing waiting to hear from it can.
+//
+// Does nothing at all until DIR_PUSH_SECRET_AVG is set.
+if (class_exists('DirectoryPush') && DirectoryPush::ready()) {
+    try { $result['directory_push'] = DirectoryPush::tick(); }
+    catch (Throwable $e) { error_log('[cron] directory push: ' . $e->getMessage()); }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';

@@ -294,6 +294,7 @@ require_once __DIR__ . '/LmsAuth.php';
 /* Handing a signed-in member across to the CACENTRE CRM. Loaded here beside
    LmsAuth because the portal needs it to decide whether to show the link. */
 require_once __DIR__ . '/CacSso.php';
+require_once __DIR__ . '/DirectoryPush.php';  /* this site's roster, pushed to CACENTRE's person directory */
 require_once __DIR__ . '/GatePass.php';
 require_once __DIR__ . '/Birthdays.php';        /* members' birthdays (the team's are in people.php) */
 require_once __DIR__ . '/GateAttendance.php';   /* what the gate reports back about members */

@@ -28,6 +28,8 @@ ones (full list in `config.example.php`):
 | AI (task planner + "Catch me up") | `ANTHROPIC_API_KEY` **or** `AV_GEMINI_API_KEY` |
 | Payments | `AV_PAYSTACK_PK`, `AV_PAYSTACK_SK` |
 | Web-cron | `AV_CRON_KEY` |
+| CACENTRE handoff | `AV_SSO_SECRET`, `CAC_SITE_URL` |
+| CACENTRE person directory | `DIR_PUSH_SECRET_AVG` (optional — see below) |
 | Database | see below |
 
 ### Database — the same code, any engine
@@ -227,3 +229,53 @@ still work — without shell access.
 Cost is reported in tokens, not money: converting needs a per-model price list
 that changes without notice, and a confident wrong figure is worse than the
 number we actually know.
+
+---
+
+## The CACENTRE person directory (optional)
+
+The estate runs five apps over twelve identity stores with no common key, so
+one person is a dozen unrelated rows and nobody can answer "who is this, and
+what do they have?" without opening five consoles. CACENTRE keeps one record
+per human; this site pushes the two stores it owns — `lms_users` and
+`admin_users` — on the cron tick it already runs.
+
+**We push. CACENTRE reads nothing of ours.** It holds no credential to this
+database, so a break-in there gets a list of names, addresses and roles —
+what it was given on purpose — and not this site's members.
+
+### Turning it on
+
+Set `DIR_PUSH_SECRET_AVG` to 32+ random characters, and the **same value** in
+CACENTRE's `includes/.env`. That is the whole setup: `tasks/cron.php` already
+runs, and the push is one batch per tick.
+
+Unset, nothing happens at all — no pushes, no errors, no log noise. Leave it
+unset until CACENTRE is ready.
+
+For the first sweep, rather than waiting hours for the tick to walk the
+roster:
+
+```
+php tools/directory-backfill.php --dry     # what would be sent
+php tools/directory-backfill.php           # send it
+```
+
+Safe to run twice, and safe to interrupt: every row upserts on its source key
+over there.
+
+### What leaves this site
+
+Name, email address, role, status, last sign-in, and the row's own id — for
+portal members and Studio admins. **No password hash, no session token, no
+postal address, no date of birth.** CACENTRE refuses a field it did not ask
+for rather than ignoring it, so an addition to the shaper fails loudly on the
+first push instead of quietly becoming a second copy of everybody's personal
+data on another host. `tests/directorypush.test.php` asserts the field list as
+a set, and that no credential appears in a shaped row.
+
+The role travels because an operator looking at two candidate records needs
+to know what each account is. **CACENTRE acts on it nowhere** — the same rule
+`lib/CacSso.php` states: this side says who somebody is, never what they may
+do. If permission were read off what we send, adding a role here would
+silently widen access there.
