@@ -121,7 +121,16 @@ $files = glob(__DIR__ . '/*.test.php') ?: [];
 // `php tests/run.php security ngvpay` runs only the files whose names contain a word given.
 $only = array_slice($argv ?? [], 1);
 if ($only) $files = array_values(array_filter($files, static fn($f) => (bool) array_filter($only, static fn($w) => str_contains(basename($f), $w))));
-foreach ($files as $f) { echo "\n# " . basename($f) . "\n"; require $f; }
+foreach ($files as $f) {
+    echo "\n# " . basename($f) . "\n"; require $f;
+    /* A statement left half-read in a global holds an SQLite read snapshot open
+       on the shared connection for the rest of the run. Harmless while this is
+       the only process — but a test that has another process write the same
+       database (the payment race, the webhook over HTTP) then finds every
+       later write here refused as "database is locked", because a connection
+       may not write from a stale snapshot. Close them between files. */
+    foreach ($GLOBALS as $__v) { if ($__v instanceof PDOStatement) $__v->closeCursor(); }
+}
 
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');
 @unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');

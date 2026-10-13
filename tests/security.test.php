@@ -107,7 +107,14 @@ ck('admin cookie: re-bridged at the new level', AdminRoles::current() === 'admin
 unset($_COOKIE[LmsAuth::COOKIE]); $secResetAuth();
 ck('admin cookie: signing out of the site ends the bridged session', AdminRoles::current() === '');
 av_admin_cookie_issue(3600, 'superadmin', 't');
-ck('admin cookie: with no ADMIN_TOKEN there is no token session to stand on', !defined('ADMIN_TOKEN') ? AdminRoles::current() === '' : true);
+/* With no ADMIN_TOKEN there is no token sign-in to stand on. Asked in a child
+   process, because a constant once defined by an earlier file stays defined. */
+$secNoTok = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg(
+    'require ' . var_export(AV_ROOT . '/lib/bootstrap.php', true) . ';'
+    . ' if (defined("ADMIN_TOKEN")) { echo "has-token"; exit; }'
+    . ' $_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value(time() + 600, "n", "superadmin", "t", av_secret());'
+    . ' echo "role=" . AdminRoles::current();') . ' 2>/dev/null');
+ck('admin cookie: with no ADMIN_TOKEN a token-session cookie grants nothing', $secNoTok === 'role=' || $secNoTok === 'has-token');
 if (!defined('ADMIN_TOKEN')) define('ADMIN_TOKEN', 'sec-test-admin-token-0123456789abcdef0123456789');
 av_admin_cookie_issue(3600, 'superadmin', 't');
 ck('admin cookie: a token sign-in stands on its own credential', AdminRoles::current() === 'superadmin');
