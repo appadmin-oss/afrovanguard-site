@@ -306,6 +306,93 @@ final class Volunteers
                 'recent' => array_map(static fn($r) => ['id' => (int) $r['id'], 'day' => (string) $r['day'], 'hours' => round((int) $r['minutes'] / 60, 2), 'activity' => (string) $r['activity'], 'source' => (string) $r['source']], $st->fetchAll(PDO::FETCH_ASSOC))];
     }
 
+    /** Hours a month for the last $months months, oldest first — for the chart. */
+    public static function hoursSeries(int $uid, int $months = 12): array
+    {
+        self::ensure();
+        $today = function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d');
+        $first = new DateTime(substr($today, 0, 7) . '-01');
+        $first->modify('-' . ($months - 1) . ' months');
+        $st = Database::pdo()->prepare('SELECT SUBSTR(day, 1, 7) m, SUM(minutes) s FROM vol_hours WHERE user_id = ? AND day >= ? GROUP BY SUBSTR(day, 1, 7)');
+        $st->execute([$uid, $first->format('Y-m-d')]);
+        $by = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $by[(string) $r['m']] = round((int) $r['s'] / 60, 1);
+        $out = [];
+        for ($i = 0; $i < $months; $i++) {
+            $k = $first->format('Y-m');
+            $out[] = ['month' => $k, 'label' => $first->format('M'), 'long' => $first->format('F Y'), 'hours' => $by[$k] ?? 0];
+            $first->modify('+1 month');
+        }
+        return $out;
+    }
+
+    /** Every hour logged, as CSV, for the volunteer's own records (or a reference letter). */
+    public static function hoursCsv(int $uid): string
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare('SELECT day, minutes, activity, source FROM vol_hours WHERE user_id = ? ORDER BY day, id');
+        $st->execute([$uid]);
+        $f = fopen('php://temp', 'r+');
+        fputcsv($f, ['Date', 'Hours', 'Activity', 'How it was logged'], ',', '"', '\\');
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            /* A leading = + - @ would be a formula to a spreadsheet. */
+            $act = preg_match('/^[=+\-@]/', (string) $r['activity']) ? "'" . $r['activity'] : (string) $r['activity'];
+            fputcsv($f, [$r['day'], round((int) $r['minutes'] / 60, 2), $act, $r['source'] === 'manual' ? 'Logged by me' : 'Meeting attended'], ',', '"', '\\');
+        }
+        rewind($f);
+        return (string) stream_get_contents($f);
+    }
+
+    /**
+     * The open actions from a team's meetings, with who owns them — for its
+     * lead (and coordinators), so nothing agreed in a meeting is forgotten.
+     */
+    public static function teamActions(array $u, int $teamId): array
+    {
+        self::ensure();
+        if (!self::canManageTeam($u, $teamId) && self::roleIn($teamId, (int) $u['id']) === '') return [];
+        $st = Database::pdo()->prepare("SELECT c.id, c.title, c.due, c.status, c.member_id, c.owner_hint, u.name owner, m.title meeting FROM commitments c
+                                        JOIN meetings m ON m.id = c.source_id AND c.source_kind = 'meeting' LEFT JOIN lms_users u ON u.id = c.member_id
+                                        WHERE m.context = 'team' AND m.context_id = ? AND c.status = 'open' ORDER BY c.due, c.id LIMIT 200");
+        try { $st->execute([$teamId]); } catch (Throwable $e) { return []; }
+        $today = gmdate('Y-m-d');
+        return array_map(static fn($r) => ['id' => (int) $r['id'], 'title' => (string) $r['title'], 'due' => (string) $r['due'], 'overdue' => (string) $r['due'] !== '' && (string) $r['due'] < $today,
+                                           'owner' => (string) ($r['owner'] ?: $r['owner_hint'] ?: 'Nobody yet'), 'owner_id' => (int) $r['member_id'], 'from' => (string) $r['meeting']], $st->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** What has happened lately in this person's teams: minutes out, actions done, people joining. */
+    public static function activity(array $u, int $limit = 15): array
+    {
+        self::ensure();
+        $teams = array_column(self::teamsFor($u), 'name', 'id');
+        if (!$teams) return [];
+        $ids = implode(',', array_map('intval', array_keys($teams)));
+        $pdo = Database::pdo(); $out = [];
+        try {
+            foreach ($pdo->query("SELECT mm.published_at at, m.title, m.context_id t FROM meeting_minutes mm JOIN meetings m ON m.id = mm.meeting_id
+                                  WHERE mm.status = 'published' AND m.context = 'team' AND m.context_id IN ($ids) ORDER BY mm.published_at DESC LIMIT 20")->fetchAll(PDO::FETCH_ASSOC) as $r)
+                $out[] = ['at' => (string) $r['at'], 'kind' => 'minutes', 'text' => 'Minutes of ' . $r['title'] . ' were published', 'team' => $teams[(int) $r['t']] ?? ''];
+            foreach ($pdo->query("SELECT c.closed_at at, c.title, u.name, m.context_id t FROM commitments c JOIN meetings m ON m.id = c.source_id AND c.source_kind = 'meeting'
+                                  LEFT JOIN lms_users u ON u.id = c.member_id WHERE c.status = 'done' AND m.context = 'team' AND m.context_id IN ($ids) ORDER BY c.closed_at DESC LIMIT 20")->fetchAll(PDO::FETCH_ASSOC) as $r)
+                $out[] = ['at' => (string) $r['at'], 'kind' => 'done', 'text' => ($r['name'] ?: 'Someone') . ' finished “' . $r['title'] . '”', 'team' => $teams[(int) $r['t']] ?? ''];
+        } catch (Throwable $e) {}
+        foreach ($pdo->query("SELECT tm.joined_at at, u.name, tm.team_id t FROM vol_team_members tm JOIN lms_users u ON u.id = tm.user_id WHERE tm.team_id IN ($ids) ORDER BY tm.joined_at DESC LIMIT 20")->fetchAll(PDO::FETCH_ASSOC) as $r)
+            $out[] = ['at' => (string) $r['at'], 'kind' => 'joined', 'text' => $r['name'] . ' joined ' . ($teams[(int) $r['t']] ?? 'the team'), 'team' => $teams[(int) $r['t']] ?? ''];
+        usort($out, static fn($a, $b) => strcmp($b['at'], $a['at']));
+        return array_slice(array_values(array_filter($out, static fn($e) => $e['at'] !== '')), 0, $limit);
+    }
+
+    /** Which ways a meeting is captured on this site. Everything works with none of them. */
+    public static function integrations(): array
+    {
+        $google = class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled();
+        return ['google_meet' => $google,
+                'notetaker' => class_exists('Meetings') && Meetings::botAllowed() && Meetings::botProvider() === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured(),
+                'live_notetaker' => class_exists('AttendeeBot') && AttendeeBot::configured() && AttendeeBot::webhookSecret() !== '',
+                'assistant' => class_exists('AvAgent') && AvAgent::available(),
+                'pdf' => class_exists('Dompdf\\Dompdf')];
+    }
+
     /** Hours per team member this month, for a lead. */
     public static function teamHours(int $teamId): array
     {
@@ -335,7 +422,8 @@ final class Volunteers
         return ['ok' => true, 'me' => ['id' => $uid, 'name' => (string) $u['name'], 'can_run_teams' => self::canRunTeams($u)],
                 'teams' => $teams, 'all_teams' => self::canRunTeams($u) ? self::teamsFor($u, true) : [],
                 'upcoming' => $meet['upcoming'], 'to_write' => $meet['to_write'], 'to_approve' => $meet['to_approve'], 'published' => $meet['published'],
-                'actions' => $actions, 'hours' => self::hoursFor($uid),
+                'actions' => $actions, 'hours' => self::hoursFor($uid), 'hours_series' => self::hoursSeries($uid, 12),
+                'attendance' => MeetingMinutes::attendanceOf($u), 'activity' => self::activity($u), 'integrations' => self::integrations(),
                 'counts' => ['rsvp' => count(array_filter($meet['upcoming'], static fn($m) => $m['rsvp'] === '')), 'minutes' => count($meet['to_write']) + count($meet['to_approve']),
                              'actions' => count($actions), 'overdue' => count(array_filter($actions, static fn($a) => $a['overdue']))]];
     }

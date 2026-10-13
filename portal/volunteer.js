@@ -52,80 +52,329 @@
 
   /* ══ The hub ══════════════════════════════════════════════════════════ */
 
+  var tab = 'overview', mscope = 'upcoming', mstatus = '', ascope = 'mine', openTeamId = 0, chartTable = false;
+  try { tab = localStorage.getItem('vh.tab') || 'overview'; } catch (e) {}
+
   function load() {
     if (busy) return; busy = true;
     api('hub').then(function (r) {
       busy = false;
-      if (!r.ok) { $('vhUpcoming').innerHTML = '<li class="avp-empty">' + esc(r.error || 'Could not load the hub.') + '</li>'; return; }
+      if (!r.ok) { $('vhNeed').innerHTML = '<li class="avp-empty">' + esc(r.error || 'Could not load the hub.') + '</li>'; return; }
       hub = r; loaded = true; draw();
     });
   }
+  function teamsAll() { return hub.me.can_run_teams ? hub.all_teams : hub.teams; }
+  function fillTeams(sel, withAll) {
+    var el = $(sel), keep = el.value;
+    el.innerHTML = (withAll ? '<option value="0">All my teams</option>' : '') + teamsAll().map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('');
+    if (keep && el.querySelector('option[value="' + keep + '"]')) el.value = keep;
+  }
+  function rel(ts) {
+    var s = ts * 1000 - Date.now(), m = Math.round(s / 60000);
+    if (m <= 0) return 'now';
+    if (m < 60) return 'in ' + m + ' min';
+    if (m < 1440) return 'in ' + Math.round(m / 60) + ' h';
+    var d = Math.round(m / 1440); return d === 1 ? 'tomorrow' : 'in ' + d + ' days';
+  }
+
+  function setTab(t, focus) {
+    tab = t; try { localStorage.setItem('vh.tab', t); } catch (e) {}
+    view.querySelectorAll('[role=tab]').forEach(function (b) {
+      var on = b.getAttribute('data-tab') === t;
+      b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    });
+    view.querySelectorAll('.vh-panel').forEach(function (p) { p.hidden = p.id !== 'vp-' + t; });
+    if (!hub) return;
+    if (t === 'meetings') drawMeetings();
+    if (t === 'minutes') drawMinutesTab();
+    if (t === 'actions') drawActions();
+    if (t === 'teams') drawTeams();
+    if (t === 'hours') drawHours();
+  }
+  var tabs = view.querySelector('.vh-tabs');
+  tabs.addEventListener('click', function (ev) { var b = ev.target.closest('[role=tab]'); if (b) setTab(b.getAttribute('data-tab')); });
+  tabs.addEventListener('keydown', function (ev) {
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(ev.key) < 0) return;
+    var list = Array.prototype.slice.call(tabs.querySelectorAll('[role=tab]')), i = list.findIndex(function (b) { return b.getAttribute('aria-selected') === 'true'; });
+    i = ev.key === 'Home' ? 0 : ev.key === 'End' ? list.length - 1 : (i + (ev.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length;
+    ev.preventDefault(); setTab(list[i].getAttribute('data-tab'), true);
+  });
 
   function draw() {
-    var c = hub.counts;
-    $('vhKRsvp').textContent = c.rsvp; $('vhKMin').textContent = c.minutes; $('vhKAct').textContent = c.actions;
-    $('vhKOverChip').hidden = !c.overdue; $('vhKActS').textContent = c.overdue ? c.overdue + ' overdue' : 'from meetings';
-    $('vhKHours').textContent = hub.hours.month; $('vhKHoursS').textContent = hub.hours.year + ' this year';
+    var c = hub.counts, waiting = c.rsvp + c.minutes;
     $('vhSchedule').hidden = !hub.teams.length && !hub.me.can_run_teams;
     $('vhNewTeam').hidden = !hub.me.can_run_teams;
+    ['vtnMeet', 'vtnMin', 'vtnAct'].forEach(function (id, i) { var n = [c.rsvp, c.minutes, c.overdue][i]; $(id).hidden = !n; $(id).textContent = n; });
+    fillTeams('vhMTeam', true); fillTeams('vhNTeam', true); fillTeams('vhATeam', false);
+    var lead = teamsAll().filter(function (t) { return t.can_manage; });
+    $('vhATeamBtn').hidden = !lead.length && !hub.me.can_run_teams;
 
     var live = hub.upcoming.filter(function (m) { return m.room; });
     $('vhLive').hidden = !live.length;
     $('vhLive').innerHTML = live.map(function (m) {
-      return '<div class="vh-live"><span class="vh-pulse" aria-hidden="true"></span><span class="vh-live-t"><b>' + esc(m.title) + '</b><br>' + (m.live ? 'On now' : 'Starting ' + esc(m.when)) + (m.team ? ' · ' + esc(m.team) : '') + '</span>'
+      return '<div class="vh-live"><span class="vh-pulse" aria-hidden="true"></span><span class="vh-live-t"><b>' + esc(m.title) + '</b><br>' + (m.live ? 'On now' : 'Starting ' + esc(rel(m.ts))) + (m.team ? ' · ' + esc(m.team) : '') + '</span>'
         + (m.meet_url ? '<a class="avp-btn avp-btn--paper" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">Join the call</a>' : '')
         + '<button type="button" class="avp-btn avp-btn--paper" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Open the live room</button></div>';
     }).join('');
 
-    var up = hub.upcoming;
-    $('vhUpN').hidden = !up.length; $('vhUpN').textContent = up.length;
-    $('vhUpcoming').innerHTML = up.length ? up.map(function (m) {
-      var seg = '<span class="vh-seg" role="group" aria-label="Are you coming to ' + esc(m.title) + '?">'
-        + [['yes', 'Coming'], ['maybe', 'Maybe'], ['no', 'Can’t']].map(function (a) {
-          return '<button type="button" data-rsvp="' + a[0] + '" data-id="' + m.id + '" data-occ="' + esc(m.occurrence) + '" aria-pressed="' + (m.rsvp === a[0]) + '">' + a[1] + '</button>';
-        }).join('') + '</span>';
-      var sub = esc(m.when) + ' · ' + m.duration_min + ' min' + (m.frequency_label !== 'One-off' ? ' · ' + esc(m.frequency_label) : '') + (m.team ? ' · ' + esc(m.team) : '')
-        + '<br>' + m.coming + ' coming' + (m.apologies ? ' · ' + m.apologies + ' apolog' + (m.apologies === 1 ? 'y' : 'ies') : '') + ' · ' + m.invited + ' invited';
-      var btns = (m.live ? '' : seg)
-        + (m.room ? '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Live room</button>' : '')
-        + (m.meet_url ? '<a class="avp-btn avp-btn--sq" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">Join</a>' : '')
-        + '<a class="avp-btn avp-btn--sq" href="' + API + '?action=ics&meeting_id=' + m.id + '" title="Add to your calendar">.ics</a>';
-      return row(esc(m.title), sub, btns);
-    }).join('') : '<li class="avp-empty">No meetings coming up.' + (hub.teams.length ? ' Schedule one for your team.' : '') + '</li>';
+    /* KPIs */
+    var next = hub.upcoming.filter(function (m) { return !m.live; })[0];
+    $('vhKNext').textContent = next ? rel(next.ts) : '—';
+    $('vhKNextS').textContent = next ? next.title : 'nothing scheduled';
+    $('vhKWait').textContent = waiting; $('vhKWaitChip').hidden = !waiting;
+    $('vhKWaitS').textContent = waiting ? [c.rsvp ? c.rsvp + ' to answer' : '', c.minutes ? c.minutes + ' minutes' : ''].filter(Boolean).join(' · ') : 'all caught up';
+    $('vhKAct').textContent = c.actions; $('vhKOverChip').hidden = !c.overdue; $('vhKActS').textContent = c.overdue ? c.overdue + ' overdue' : (c.actions ? 'none overdue' : 'nothing open');
+    var a = hub.attendance;
+    $('vhKAtt').textContent = a.rate === null ? '—' : a.rate + '%';
+    $('vhKAttS').textContent = a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' meeting' + (a.present + a.late + a.absent === 1 ? '' : 's') + ' · last six months' : 'no minutes published yet';
+    $('vhKHours').textContent = hub.hours.month;
+    $('vhKSpark').innerHTML = spark(hub.hours_series.slice(-6));
 
-    var todo = hub.to_write.map(function (m) { return { m: m, kind: 'write' }; }).concat(hub.to_approve.map(function (m) { return { m: m, kind: 'approve' }; }));
-    $('vhMinN').hidden = !todo.length; $('vhMinN').textContent = todo.length + ' to do';
-    $('vhMinutes').innerHTML = todo.length ? todo.map(function (t) {
-      var m = t.m;
-      var label = t.kind === 'approve' ? 'Read and approve' : (m.minutes_id ? 'Continue' : 'Write the minutes');
-      return row(esc(m.title), esc(m.when) + (m.team ? ' · ' + esc(m.team) : '') + ' · ' + (t.kind === 'approve' ? 'with you to approve' : (m.minutes_id ? 'draft' : 'not started')),
-        '<button type="button" class="avp-btn avp-btn--sq' + (t.kind === 'approve' ? ' avp-btn--ink' : '') + '" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">' + label + '</button>');
-    }).join('') : '<li class="avp-empty">No minutes waiting on you.</li>';
-    $('vhPublished').innerHTML = hub.published.length ? hub.published.map(function (p) {
-      return row(esc(p.title), esc(p.when) + (p.team ? ' · ' + esc(p.team) : ''),
-        '<button type="button" class="avp-btn avp-btn--sq" data-minutes="' + p.id + '" data-occ="' + esc(p.occurrence) + '">Read</button>'
-        + '<a class="avp-btn avp-btn--sq" href="' + API + '?action=pdf&id=' + p.minutes_id + '">PDF</a>');
-    }).join('') : '<li class="avp-empty">Published minutes appear here.</li>';
+    /* Needs you: one list of everything waiting on this person, most urgent first */
+    var need = [];
+    hub.to_approve.forEach(function (m) { need.push({ w: 0, html: row(esc(m.title), 'Minutes of ' + esc(m.when) + ' — waiting for you to approve', '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Read and approve</button>') }); });
+    hub.to_write.forEach(function (m) { need.push({ w: 1, html: row(esc(m.title), 'Minutes of ' + esc(m.when) + ' — ' + (m.minutes_id ? 'a draft is waiting' : 'not started'), '<button type="button" class="avp-btn avp-btn--sq" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">' + (m.minutes_id ? 'Continue' : 'Write them') + '</button>') }); });
+    hub.actions.filter(function (x) { return x.overdue; }).forEach(function (x) { need.push({ w: 2, html: row(esc(x.title), '<span class="is-overdue">Overdue — was due ' + esc(day(x.due)) + '</span>' + (x.from ? ' · ' + esc(x.from) : ''), '<button type="button" class="avp-btn avp-btn--sq" data-done="' + x.id + '">Done</button>') }); });
+    hub.upcoming.filter(function (m) { return !m.rsvp && !m.live; }).forEach(function (m) { need.push({ w: 3, html: row(esc(m.title), esc(m.when) + ' · are you coming?', seg(m)) }); });
+    need.sort(function (x, y) { return x.w - y.w; });
+    $('vhNeedN').hidden = !need.length; $('vhNeedN').textContent = need.length;
+    $('vhNeed').innerHTML = need.length ? need.map(function (n) { return n.html; }).join('') : '<li class="avp-empty">Nothing needs you. Well done.</li>';
 
-    $('vhActions').innerHTML = hub.actions.length ? hub.actions.map(function (a) {
-      return row(esc(a.title), (a.due ? '<span class="' + (a.overdue ? 'is-overdue' : '') + '">Due ' + esc(day(a.due)) + (a.overdue ? ' — overdue' : '') + '</span>' : '') + (a.from ? ' · ' + esc(a.from) : ''),
-        '<button type="button" class="avp-btn avp-btn--sq" data-done="' + a.id + '">Done</button>');
-    }).join('') : '<li class="avp-empty">No open actions. 🎉</li>';
+    /* The next two weeks: a strip of days, then the meetings in them */
+    var days = [], today = new Date(); today.setHours(0, 0, 0, 0);
+    for (var i = 0; i < 14; i++) { var d = new Date(today.getTime() + i * 86400000); days.push({ d: d, n: 0 }); }
+    var soon = hub.upcoming.filter(function (m) { return m.ts * 1000 < today.getTime() + 14 * 86400000; });
+    soon.forEach(function (m) { var i = Math.floor((m.ts * 1000 - today.getTime()) / 86400000); if (days[i]) days[i].n++; });
+    $('vhWeek').innerHTML = days.map(function (x, i) {
+      return '<span class="vh-day' + (i === 0 ? ' is-today' : '') + (x.n ? ' has' : '') + '" title="' + esc(x.d.toDateString()) + (x.n ? ' — ' + x.n + ' meeting' + (x.n === 1 ? '' : 's') : '') + '"><span>' + x.d.toLocaleDateString(undefined, { weekday: 'narrow' }) + '</span><b>' + x.d.getDate() + '</b><i aria-hidden="true">' + (x.n ? '•'.repeat(Math.min(3, x.n)) : '') + '</i></span>';
+    }).join('');
+    $('vhSoon').innerHTML = soon.length ? soon.slice(0, 5).map(meetRow).join('') : '<li class="avp-empty">No meetings in the next two weeks.</li>';
 
-    var teams = hub.me.can_run_teams ? hub.all_teams : hub.teams;
-    $('vhTeams').innerHTML = teams.length ? teams.map(function (t) {
-      var lead = t.members.filter(function (p) { return p.role === 'lead'; }).map(function (p) { return p.name; }).join(', ');
-      return row(esc(t.name), t.members.length + ' member' + (t.members.length === 1 ? '' : 's') + (lead ? ' · led by ' + esc(lead) : '') + (t.my_role ? ' · you: ' + esc(t.my_role) : ''),
-        '<button type="button" class="avp-btn avp-btn--sq" data-team="' + t.id + '">' + (t.can_manage ? 'Manage' : 'Open') + '</button>');
-    }).join('') : '<li class="avp-empty">You are not on a team yet. A coordinator adds you.</li>';
+    /* Activity */
+    $('vhFeed').innerHTML = hub.activity.length ? hub.activity.map(function (e) {
+      return '<li><span class="vh-feed-i vh-feed-i--' + esc(e.kind) + '" aria-hidden="true">' + ({ minutes: '≡', done: '✓', joined: '+' }[e.kind] || '•') + '</span><span><span>' + esc(e.text) + '</span><small>' + esc(ago(e.at)) + (e.team ? ' · ' + esc(e.team) : '') + '</small></span></li>';
+    }).join('') : '<li class="avp-empty">Nothing yet. When minutes are published or actions done, it shows here.</li>';
 
-    var h = hub.hours;
-    $('vhHours').innerHTML = '<div class="vh-hours-n"><div><b class="av-num">' + h.month + '</b><span>this month</span></div><div><b class="av-num">' + h.year + '</b><span>this year</span></div><div><b class="av-num">' + h.total + '</b><span>in all</span></div></div>'
-      + '<p class="vh-note">Meetings you attend count by themselves once the minutes are out. Log anything else.</p>'
-      + (h.recent.length ? '<ul class="vh-hours-list">' + h.recent.map(function (r) {
-        return '<li><span>' + esc(r.activity) + '</span><span class="vh-note">' + esc(r.day) + ' · ' + r.hours + 'h</span>' + (r.source === 'manual' ? '<button type="button" class="vh-x" data-unhours="' + r.id + '" aria-label="Remove ' + esc(r.activity) + '">×</button>' : '') + '</li>';
-      }).join('') + '</ul>' : '');
+    /* Capture: what this site has switched on — everything works with none */
+    var g = hub.integrations, caps = [
+      ['Answers, reminders and calendar invites', true, 'always on'],
+      ['QR check-in in the room', true, 'always on'],
+      ['Room captions from a browser', !!(window.SpeechRecognition || window.webkitSpeechRecognition), 'needs Chrome, Edge or Safari'],
+      ['Who joined the Google Meet', g.google_meet, 'needs Google Workspace in the Studio'],
+      ['The notetaker (Attendee)', g.notetaker, 'optional — not set up'],
+      ['Notes tidied by the assistant', g.assistant, 'optional — AI is off'],
+    ];
+    $('vhCaps').innerHTML = '<ul class="vh-caps-l">' + caps.map(function (x) { return '<li class="' + (x[1] ? 'on' : 'off') + '"><span aria-hidden="true">' + (x[1] ? '✓' : '–') + '</span><span>' + esc(x[0]) + (x[1] ? '' : '<small>' + esc(x[2]) + '</small>') + '</span></li>'; }).join('') + '</ul>';
+
+    setTab(tab);
   }
+
+  function seg(m) {
+    return '<span class="vh-seg" role="group" aria-label="Are you coming to ' + esc(m.title) + '?">'
+      + [['yes', 'Coming'], ['maybe', 'Maybe'], ['no', 'Can’t']].map(function (a) {
+        return '<button type="button" data-rsvp="' + a[0] + '" data-id="' + m.id + '" data-occ="' + esc(m.occurrence) + '" aria-pressed="' + (m.rsvp === a[0]) + '">' + a[1] + '</button>';
+      }).join('') + '</span>';
+  }
+  function meetRow(m) {
+    var sub = esc(m.when) + ' · ' + m.duration_min + ' min' + (m.frequency_label !== 'One-off' ? ' · ' + esc(m.frequency_label) : '') + (m.team ? ' · ' + esc(m.team) : '')
+      + '<br>' + m.coming + ' coming' + (m.apologies ? ' · ' + m.apologies + ' apolog' + (m.apologies === 1 ? 'y' : 'ies') : '') + ' · ' + m.invited + ' invited'
+      + (m.agenda && m.agenda.length ? '<br><span class="vh-agenda-mini">' + m.agenda.map(esc).join(' · ') + '</span>' : '');
+    var btns = (m.live ? '' : seg(m))
+      + (m.room ? '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Live room</button>' : '')
+      + (m.meet_url ? '<a class="avp-btn avp-btn--sq" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">Join</a>' : '')
+      + '<a class="avp-btn avp-btn--sq" href="' + API + '?action=ics&meeting_id=' + m.id + '" title="Add to your calendar" aria-label="Add ' + esc(m.title) + ' to your calendar">.ics</a>';
+    return row(esc(m.title), sub, btns);
+  }
+  function ago(at) {
+    var t = Date.parse(String(at).replace(' ', 'T') + (String(at).indexOf('T') < 0 ? 'Z' : ''));
+    if (isNaN(t)) return ''; var m = Math.round((Date.now() - t) / 60000);
+    return m < 60 ? (m <= 1 ? 'just now' : m + ' min ago') : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago';
+  }
+  function spark(series) {
+    var max = Math.max.apply(null, series.map(function (x) { return x.hours; }).concat([1])), w = 8, gap = 3;
+    return '<svg viewBox="0 0 ' + (series.length * (w + gap)) + ' 24" width="' + (series.length * (w + gap)) + '" height="24">' + series.map(function (x, i) {
+      var h = Math.max(2, Math.round(x.hours / max * 22));
+      return '<rect x="' + i * (w + gap) + '" y="' + (24 - h) + '" width="' + w + '" height="' + h + '" rx="2" class="' + (i === series.length - 1 ? 'now' : '') + '"><title>' + esc(x.long) + ': ' + x.hours + ' h</title></rect>';
+    }).join('') + '</svg>';
+  }
+
+  /* ── Meetings tab ── */
+  function drawMeetings() {
+    var team = +$('vhMTeam').value;
+    view.querySelectorAll('[data-mscope]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-mscope') === mscope ? 'true' : 'false'); });
+    if (mscope === 'upcoming') {
+      var list = hub.upcoming.filter(function (m) { return !team || m.team_id === team; });
+      $('vhMeetList').innerHTML = list.length ? list.map(meetRow).join('') : '<li class="avp-empty">No meetings coming up' + (team ? ' for this team' : '') + '.</li>';
+      return;
+    }
+    $('vhMeetList').innerHTML = '<li class="avp-empty">Loading…</li>';
+    api('past', null, 'team_id=' + team).then(function (r) {
+      if (!r.ok) { $('vhMeetList').innerHTML = '<li class="avp-empty">' + esc(r.error) + '</li>'; return; }
+      var MARK = { present: 'You came', late: 'You were late', apologies: 'You sent apologies', absent: 'You missed it' };
+      $('vhMeetList').innerHTML = r.meetings.length ? r.meetings.map(function (m) {
+        var st = m.minutes_status === 'published' ? '<span class="avp-chip avp-chip--sm avp-chip--green">Minutes out</span>' : m.minutes_status === 'review' ? '<span class="avp-chip avp-chip--sm avp-chip--indigo">With the chair</span>' : m.minutes_status === 'draft' ? '<span class="avp-chip avp-chip--sm avp-chip--gold">Draft</span>' : '<span class="avp-chip avp-chip--sm">No minutes yet</span>';
+        var btn = m.minutes_status === 'published' || (m.minutes_id && m.can_write) || m.minutes_status === 'review' ? '<button type="button" class="avp-btn avp-btn--sq" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">' + (m.minutes_status === 'published' ? 'Read the minutes' : 'Open the minutes') + '</button>'
+          : m.can_write ? '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Write the minutes</button>' : '';
+        return row(esc(m.title) + ' ' + st, esc(m.when) + (m.team ? ' · ' + esc(m.team) : '') + ' · ' + m.came + ' of ' + m.invited + ' came' + (MARK[m.my_mark] ? ' · ' + MARK[m.my_mark] : ''), btn);
+      }).join('') : '<li class="avp-empty">No past meetings in the last four months.</li>';
+    });
+  }
+  view.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-mscope]'); if (b) { mscope = b.getAttribute('data-mscope'); drawMeetings(); }
+    b = ev.target.closest('[data-mstatus]'); if (b) { mstatus = b.getAttribute('data-mstatus'); drawMinutesTab(); }
+    b = ev.target.closest('[data-ascope]'); if (b) { ascope = b.getAttribute('data-ascope'); drawActions(); }
+    b = ev.target.closest('[data-goto-tab]'); if (b) setTab(b.getAttribute('data-goto-tab'));
+  });
+  $('vhMTeam').addEventListener('change', drawMeetings);
+
+  /* ── Minutes tab ── */
+  var qT;
+  function drawMinutesTab() {
+    view.querySelectorAll('[data-mstatus]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-mstatus') === mstatus ? 'true' : 'false'); });
+    var todo = hub.to_approve.map(function (m) { return [m, 'approve']; }).concat(hub.to_write.map(function (m) { return [m, 'write']; }));
+    $('vhToDoCard').hidden = !todo.length;
+    $('vhToDo').innerHTML = todo.map(function (x) {
+      var m = x[0];
+      return row(esc(m.title), esc(m.when) + ' · ' + (x[1] === 'approve' ? 'with you to approve' : m.minutes_id ? 'draft' : 'not started'),
+        '<button type="button" class="avp-btn avp-btn--sq' + (x[1] === 'approve' ? ' avp-btn--ink' : '') + '" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">' + (x[1] === 'approve' ? 'Read and approve' : m.minutes_id ? 'Continue' : 'Write them') + '</button>');
+    }).join('');
+    api('archive', null, 'status=' + encodeURIComponent(mstatus) + '&team_id=' + (+$('vhNTeam').value) + '&q=' + encodeURIComponent($('vhNQ').value)).then(function (r) {
+      if (!r.ok) { $('vhArchive').innerHTML = '<li class="avp-empty">' + esc(r.error) + '</li>'; return; }
+      var tone = { draft: 'gold', review: 'indigo', published: 'green' };
+      $('vhArchive').innerHTML = r.minutes.length ? r.minutes.map(function (n) {
+        return row(esc(n.title) + ' <span class="avp-chip avp-chip--sm avp-chip--' + tone[n.status] + '">' + esc(n.status_label) + '</span>',
+          esc(n.when) + (n.team ? ' · ' + esc(n.team) : '') + ' · ' + n.decisions + ' decision' + (n.decisions === 1 ? '' : 's') + ', ' + n.actions + ' action' + (n.actions === 1 ? '' : 's') + (n.summary ? '<br>' + esc(n.summary) : ''),
+          '<button type="button" class="avp-btn avp-btn--sq" data-minutes="' + n.id + '" data-occ="' + esc(n.occurrence) + '">Open</button>'
+          + (hub.integrations.pdf ? '<a class="avp-btn avp-btn--sq" href="' + API + '?action=pdf&id=' + n.minutes_id + '">PDF</a>' : '<a class="avp-btn avp-btn--sq" href="' + API + '?action=print&id=' + n.minutes_id + '" target="_blank" rel="noopener">Print</a>'));
+      }).join('') : '<li class="avp-empty">' + ($('vhNQ').value || mstatus ? 'No minutes match.' : 'No minutes yet. They are drafted by themselves when a meeting ends.') + '</li>';
+    });
+  }
+  $('vhNTeam').addEventListener('change', drawMinutesTab);
+  $('vhNQ').addEventListener('input', function () { clearTimeout(qT); qT = setTimeout(drawMinutesTab, 250); });
+
+  /* ── Actions tab ── */
+  function groupActions(list, showOwner) {
+    var today = new Date().toISOString().slice(0, 10), week = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    var g = [['Overdue', []], ['This week', []], ['Later', []], ['No date', []]];
+    list.forEach(function (a) { (a.overdue ? g[0] : !a.due ? g[3] : a.due <= week ? g[1] : g[2])[1].push(a); });
+    var html = g.filter(function (x) { return x[1].length; }).map(function (x) {
+      return '<section class="avp-card"><div class="avp-card-head"><h2>' + x[0] + '</h2><span class="avp-chip avp-chip--sm' + (x[0] === 'Overdue' ? ' avp-chip--red' : '') + '">' + x[1].length + '</span></div><ul class="vh-list">'
+        + x[1].map(function (a) {
+          return row(esc(a.title), (a.due ? '<span class="' + (a.overdue ? 'is-overdue' : '') + '">Due ' + esc(day(a.due)) + '</span>' : 'No due date') + (showOwner ? ' · ' + esc(a.owner) : '') + (a.from ? ' · ' + esc(a.from) : ''),
+            !showOwner || a.owner_id === ME ? '<button type="button" class="avp-btn avp-btn--sq" data-done="' + a.id + '">Done</button>' : '');
+        }).join('') + '</ul></section>';
+    }).join('');
+    return html || '<section class="avp-card"><p class="avp-empty">' + (showOwner ? 'This team has no open actions.' : 'You have no open actions. 🎉') + '</p></section>';
+  }
+  function drawActions() {
+    view.querySelectorAll('[data-ascope]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-ascope') === ascope ? 'true' : 'false'); });
+    $('vhATeamWrap').hidden = ascope !== 'team';
+    if (ascope === 'mine') { $('vhActGroups').innerHTML = groupActions(hub.actions, false); return; }
+    api('team_actions', null, 'team_id=' + (+$('vhATeam').value)).then(function (r) { $('vhActGroups').innerHTML = r.ok ? groupActions(r.actions, true) : '<p class="avp-empty">' + esc(r.error) + '</p>'; });
+  }
+  $('vhATeam').addEventListener('change', drawActions);
+
+  /* ── Teams tab ── */
+  function drawTeams() {
+    var ts = teamsAll();
+    $('vhTeamGrid').hidden = !!openTeamId; $('vhTeamDetail').hidden = !openTeamId;
+    if (openTeamId) return openTeam(openTeamId);
+    $('vhTeamGrid').innerHTML = ts.length ? ts.map(function (t) {
+      var lead = t.members.filter(function (p) { return p.role === 'lead'; }).map(function (p) { return p.name; }).join(', ');
+      var next = hub.upcoming.filter(function (m) { return m.team_id === t.id; })[0];
+      return '<button type="button" class="vh-team" data-team="' + t.id + '"><b>' + esc(t.name) + '</b><span>' + esc(t.purpose || '') + '</span>'
+        + '<span class="vh-avs" aria-label="' + t.members.length + ' members">' + t.members.slice(0, 6).map(function (p) { return '<i title="' + esc(p.name) + '">' + esc(initials(p.name)) + '</i>'; }).join('') + (t.members.length > 6 ? '<i>+' + (t.members.length - 6) + '</i>' : '') + '</span>'
+        + '<small>' + (lead ? 'Led by ' + esc(lead) : 'No lead yet') + (t.my_role ? ' · you: ' + esc(t.my_role) : '') + '</small>'
+        + '<small>' + (next ? 'Next: ' + esc(next.title) + ', ' + esc(rel(next.ts)) : 'No meeting scheduled') + '</small></button>';
+    }).join('') : '<section class="avp-card"><p class="avp-empty">You are not on a team yet. A coordinator adds you.</p></section>';
+  }
+  function openTeam(id) {
+    openTeamId = id; $('vhTeamGrid').hidden = true; $('vhTeamDetail').hidden = false;
+    $('vhTeamDetail').innerHTML = '<section class="avp-card"><p class="avp-empty">Loading…</p></section>';
+    api('team', null, 'id=' + id).then(function (r) {
+      if (!r.ok) { $('vhTeamDetail').innerHTML = '<section class="avp-card"><p class="avp-empty">' + esc(r.error) + '</p></section>'; return; }
+      var t = r.team, hrs = {}; r.hours.forEach(function (h) { hrs[h.id] = h.hours; });
+      var att = r.attendance || {};
+      var h = '<div class="vh-toolbar"><button type="button" class="vh-linkbtn" id="vhTeamBack">← All teams</button></div>'
+        + '<div class="avp-cols"><div class="avp-col avp-col--main">'
+        + '<section class="avp-card"><div class="avp-card-head"><h2>' + esc(t.name) + '</h2>' + (t.can_manage ? '<span class="avp-chip avp-chip--sm avp-chip--indigo">You manage this team</span>' : '') + '</div>'
+        + (t.purpose ? '<p class="vh-note" style="padding:12px 20px 0;margin:0">' + esc(t.purpose) + '</p>' : '')
+        + '<div class="vh-table-wrap"><table class="vh-table"><thead><tr><th scope="col">Member</th><th scope="col">Role</th><th scope="col" class="num">Came</th><th scope="col" class="num">Hours this month</th>' + (t.can_manage ? '<th scope="col"><span class="vh-sr">Remove</span></th>' : '') + '</tr></thead><tbody>'
+        + t.members.map(function (p) {
+          var a = att[p.id];
+          return '<tr><td><b>' + esc(p.name) + '</b><br><small>' + esc(p.email) + '</small></td><td>'
+            + (t.can_manage ? '<select data-role="' + p.id + '" aria-label="Role of ' + esc(p.name) + '">' + ['lead', 'secretary', 'member'].map(function (x) { return '<option value="' + x + '"' + (p.role === x ? ' selected' : '') + '>' + x[0].toUpperCase() + x.slice(1) + '</option>'; }).join('') + '</select>' : esc(p.role))
+            + '</td><td class="num">' + (a && a.rate !== null ? a.rate + '% <small>(' + a.came + '/' + a.counted + ')</small>' : '—') + '</td><td class="num">' + (hrs[p.id] || 0) + '</td>'
+            + (t.can_manage ? '<td><button type="button" class="vh-x" data-rm="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">×</button></td>' : '') + '</tr>';
+        }).join('') + '</tbody></table></div>'
+        + (t.can_manage ? '<form class="vh-addform" id="vhAddMember"><label>Add somebody<input id="ftAdd" type="email" list="ftPeople" autocomplete="off" placeholder="their email" required><datalist id="ftPeople"></datalist></label><select id="ftRole" aria-label="As"><option value="member">Member</option><option value="secretary">Secretary</option><option value="lead">Lead</option></select><button class="avp-btn avp-btn--sq avp-btn--ink" type="submit">Add</button></form><p class="vh-err" id="ftErr" role="alert"></p>' : '')
+        + '</section>'
+        + '<section class="avp-card"><div class="avp-card-head"><h2>Open actions</h2><span class="avp-chip avp-chip--sm">' + r.actions.length + '</span></div><ul class="vh-list">'
+        + (r.actions.length ? r.actions.map(function (a) { return row(esc(a.title), (a.due ? '<span class="' + (a.overdue ? 'is-overdue' : '') + '">Due ' + esc(day(a.due)) + '</span> · ' : '') + esc(a.owner) + (a.from ? ' · ' + esc(a.from) : ''), ''); }).join('') : '<li class="avp-empty">Nothing open.</li>')
+        + '</ul></section></div><div class="avp-col avp-col--side">'
+        + '<section class="avp-card"><div class="avp-card-head"><h2>Coming up</h2></div><ul class="vh-list">' + (r.upcoming.length ? r.upcoming.map(function (m) { return row(esc(m.title), esc(m.when), ''); }).join('') : '<li class="avp-empty">Nothing scheduled.</li>') + '</ul></section>'
+        + '<section class="avp-card"><div class="avp-card-head"><h2>Recent meetings</h2></div><ul class="vh-list">' + (r.past.length ? r.past.map(function (m) { return row(esc(m.title), esc(m.when) + ' · ' + m.came + '/' + m.invited + ' came', m.minutes_status === 'published' ? '<button type="button" class="avp-btn avp-btn--sq" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Minutes</button>' : ''); }).join('') : '<li class="avp-empty">None yet.</li>') + '</ul></section>'
+        + '</div></div>';
+      $('vhTeamDetail').innerHTML = h;
+      $('vhTeamBack').addEventListener('click', function () { openTeamId = 0; drawTeams(); });
+      var d = $('vhTeamDetail');
+      d.onchange = function (ev) {
+        var s = ev.target.closest('[data-role]'); if (!s) return;
+        api('team_member', { team_id: id, who: s.getAttribute('data-role'), role: s.value }).then(function (x) { if (x.ok) { toast('Saved.'); load(); openTeam(id); } else { toast(x.error, true); openTeam(id); } });
+      };
+      d.onclick = function (ev) {
+        var b = ev.target.closest('[data-rm]'); if (!b) return;
+        if (!confirm('Remove them from the team?')) return;
+        api('team_remove', { team_id: id, user_id: +b.getAttribute('data-rm') }).then(function (x) { if (x.ok) { load(); openTeam(id); } else toast(x.error, true); });
+      };
+      var f = $('vhAddMember');
+      if (f) {
+        f.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          api('team_member', { team_id: id, who: val('ftAdd'), role: val('ftRole') }).then(function (x) { if (x.ok) { toast('Added — they are invited to the team’s meetings.'); load(); openTeam(id); } else $('ftErr').textContent = x.error; });
+        });
+        var st; $('ftAdd').addEventListener('input', function () {
+          clearTimeout(st); var q = this.value.trim(); if (q.length < 2) return;
+          st = setTimeout(function () { api('people', null, 'q=' + encodeURIComponent(q)).then(function (x) {
+            $('ftPeople').innerHTML = (x.people || []).map(function (p) { return '<option value="' + esc(p.email) + '">' + esc(p.name) + '</option>'; }).join('');
+          }); }, 200);
+        });
+      }
+    });
+  }
+
+  /* ── Hours tab ── */
+  function drawHours() {
+    var h = hub.hours, s = hub.hours_series;
+    $('vhHoursTot').innerHTML = '<div class="vh-hours-n"><div><b class="av-num">' + h.month + '</b><span>this month</span></div><div><b class="av-num">' + h.year + '</b><span>this year</span></div><div><b class="av-num">' + h.total + '</b><span>in all</span></div></div>';
+    $('vhChartTable').setAttribute('aria-pressed', chartTable ? 'true' : 'false'); $('vhChartTable').textContent = chartTable ? 'Show as a chart' : 'Show as a table';
+    if (chartTable) {
+      $('vhChart').innerHTML = '<table class="vh-table"><thead><tr><th scope="col">Month</th><th scope="col" class="num">Hours</th></tr></thead><tbody>' + s.map(function (x) { return '<tr><td>' + esc(x.long) + '</td><td class="num">' + x.hours + '</td></tr>'; }).join('') + '</tbody></table>';
+    } else {
+      var max = Math.max.apply(null, s.map(function (x) { return x.hours; }).concat([1]));
+      var nice = max <= 5 ? 5 : max <= 10 ? 10 : Math.ceil(max / 10) * 10, H = 160;
+      $('vhChart').innerHTML = '<div class="vh-bars" role="img" aria-label="Hours given each month for the last twelve months. Use Show as a table for the numbers.">'
+        + '<span class="vh-axis" aria-hidden="true"><i>' + nice + '</i><i>' + (nice / 2) + '</i><i>0</i></span>'
+        + s.map(function (x, i) {
+          var hgt = x.hours ? Math.max(3, Math.round(x.hours / nice * H)) : 0;
+          return '<span class="vh-bar' + (i === s.length - 1 ? ' is-now' : '') + '" tabindex="0" data-tip="' + esc(x.long) + ' · ' + x.hours + ' h"><i style="height:' + hgt + 'px"></i><small>' + esc(x.label) + '</small></span>';
+        }).join('') + '</div>';
+    }
+    $('vhHoursList').innerHTML = h.recent.length ? h.recent.map(function (r) {
+      return row(esc(r.activity), esc(day(r.day)) + ' · ' + r.hours + ' h · ' + (r.source === 'manual' ? 'logged by you' : 'meeting attended'),
+        r.source === 'manual' ? '<button type="button" class="vh-x" data-unhours="' + r.id + '" aria-label="Remove ' + esc(r.activity) + '">×</button>' : '');
+    }).join('') + (h.recent.length >= 12 ? '<li class="vh-note" style="padding:10px 20px">The latest twelve. Download the CSV for everything.</li>' : '') : '<li class="avp-empty">Nothing logged yet.</li>';
+    if (!$('lhDay').value) { $('lhDay').value = new Date().toISOString().slice(0, 10); $('lhDay').max = $('lhDay').value; }
+  }
+  $('vhChartTable').addEventListener('click', function () { chartTable = !chartTable; drawHours(); });
+  $('vhLogForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    api('hours', { activity: val('lhAct'), day: val('lhDay'), hours: val('lhH') }).then(function (r) {
+      if (!r.ok) { $('lhErr').textContent = r.error; return; }
+      $('lhErr').textContent = ''; $('lhAct').value = ''; toast('Logged — thank you.'); load();
+    });
+  });
 
   view.addEventListener('click', function (ev) {
     var b = ev.target.closest('button, a'); if (!b) return;
@@ -142,7 +391,7 @@
       fetch('/portal/commitments.php?action=done', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }, body: JSON.stringify({ id: +b.getAttribute('data-done') }) })
         .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) { toast('Done — well done.'); load(); } else toast(r.error || 'Not saved.', true); })
         .catch(function () { toast('No connection.', true); });
-    } else if (b.hasAttribute('data-team')) openTeam(+b.getAttribute('data-team'));
+    } else if (b.hasAttribute('data-team')) { setTab('teams'); openTeam(+b.getAttribute('data-team')); }
     else if (b.hasAttribute('data-unhours')) api('hours_remove', { id: +b.getAttribute('data-unhours') }).then(function (r) { if (r.ok) load(); else toast(r.error, true); });
   });
 
@@ -160,78 +409,37 @@
       });
     };
     d.showModal();
-    var f = d.querySelector('input, select, textarea'); if (f) f.focus();
+    var f = d.querySelector('.vh-form-body input, .vh-form-body select, .vh-form-body textarea'); if (f) f.focus();
   }
   function val(id) { var e = $(id); return e ? e.value : ''; }
 
-  $('vhLogHours').addEventListener('click', function () {
-    form('Log hours', '<label>What you did<input id="fhAct" maxlength="200" required placeholder="e.g. Outreach at Egbeda"></label>'
-      + '<label>Day<input id="fhDay" type="date" max="' + new Date().toISOString().slice(0, 10) + '" value="' + new Date().toISOString().slice(0, 10) + '"></label>'
-      + '<label>Hours<input id="fhH" type="number" min="0.25" max="16" step="0.25" value="2" required></label>', 'Log', function (done) {
-      api('hours', { activity: val('fhAct'), day: val('fhDay'), hours: val('fhH') }).then(done);
-    });
-  });
+  $('vhLogHours').addEventListener('click', function () { setTab('hours'); setTimeout(function () { $('lhAct').focus(); }, 50); });
   $('vhNewTeam').addEventListener('click', function () {
     form('New team', '<label>Name<input id="ftName" maxlength="120" required></label><label class="avp-form-wide" style="justify-self:stretch">What it does<input id="ftPur" maxlength="400"></label>', 'Create', function (done) {
-      api('team_create', { name: val('ftName'), purpose: val('ftPur') }).then(function (r) { done(r); if (r.ok) openTeam(r.id); });
+      api('team_create', { name: val('ftName'), purpose: val('ftPur') }).then(function (r) { done(r); if (r.ok) { setTab('teams'); openTeam(r.id); } });
     });
   });
   $('vhSchedule').addEventListener('click', function () {
-    var teams = hub.me.can_run_teams ? hub.all_teams : hub.teams;
+    var teams = teamsAll();
     var d = new Date(Date.now() + 86400000); d.setMinutes(0, 0, 0);
     var local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    /* The notetaker is offered only where one is set up. Without it the
+       meeting is still captured: check-in, captions, Google's own record. */
+    var bot = hub.integrations.notetaker;
     form('Schedule a team meeting',
-      '<label>Team<select id="fsTeam">' + teams.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('') + '</select></label>'
+      '<label>Team<select id="fsTeam">' + teams.map(function (t) { return '<option value="' + t.id + '"' + (t.id === openTeamId ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select></label>'
       + '<label>Title<input id="fsTitle" maxlength="200" placeholder="Team meeting"></label>'
       + '<label>When<input id="fsWhen" type="datetime-local" value="' + local + '" required></label>'
       + '<label>How long<select id="fsDur"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60" selected>1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option></select></label>'
       + '<label>Repeats<select id="fsFreq"><option value="once">Once</option><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option></select></label>'
       + '<label class="avp-form-wide" style="justify-self:stretch">Agenda — one item a line<textarea id="fsAgenda" rows="4"></textarea></label>'
       + '<label class="avp-form-wide" style="justify-self:stretch">Also invite (emails, optional)<input id="fsExtra" placeholder="guest@example.org"></label>'
-      + '<label class="avp-form-wide" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="fsRec" style="height:auto"> Send the notetaker to record and transcribe</label>',
+      + (bot ? '<label class="avp-form-wide" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="fsRec" style="height:auto"> Send the notetaker to record and transcribe</label>' : ''),
       'Schedule and invite', function (done) {
-        api('schedule', { team_id: +val('fsTeam'), title: val('fsTitle'), when: val('fsWhen'), duration: +val('fsDur'), frequency: val('fsFreq'), agenda: val('fsAgenda'), extra: val('fsExtra'), auto_record: $('fsRec').checked })
+        api('schedule', { team_id: +val('fsTeam'), title: val('fsTitle'), when: val('fsWhen'), duration: +val('fsDur'), frequency: val('fsFreq'), agenda: val('fsAgenda'), extra: val('fsExtra'), auto_record: !!(bot && $('fsRec') && $('fsRec').checked) })
           .then(function (r) { done(r); if (r.ok) toast(r.warning || 'Scheduled — the team has been invited.'); });
       });
   });
-
-  function openTeam(id) {
-    api('team', null, 'id=' + id).then(function (r) {
-      if (!r.ok) return toast(r.error, true);
-      var t = r.team, hrs = {};
-      r.hours.forEach(function (h) { hrs[h.id] = h.hours; });
-      var html = '<p class="vh-note avp-form-wide" style="justify-self:stretch">' + esc(t.purpose || '') + '</p>'
-        + '<ul class="vh-list avp-form-wide" style="justify-self:stretch">' + t.members.map(function (p) {
-          return '<li class="vh-row" style="padding:8px 0"><span class="vh-row-t"><span class="vh-row-title">' + esc(p.name) + '</span><span class="vh-row-sub">' + esc(p.email) + ' · ' + (hrs[p.id] || 0) + 'h this month</span></span><span class="vh-row-btns">'
-            + (t.can_manage ? '<select data-role="' + p.id + '" aria-label="Role of ' + esc(p.name) + '">' + ['lead', 'secretary', 'member'].map(function (x) { return '<option value="' + x + '"' + (p.role === x ? ' selected' : '') + '>' + x[0].toUpperCase() + x.slice(1) + '</option>'; }).join('') + '</select>'
-              + '<button type="button" class="vh-x" data-rm="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">×</button>' : '<span class="avp-chip avp-chip--sm">' + esc(p.role) + '</span>')
-            + '</span></li>';
-        }).join('') + '</ul>'
-        + (t.can_manage ? '<label class="avp-form-wide" style="justify-self:stretch">Add somebody (their email)<input id="ftAdd" type="email" list="ftPeople" autocomplete="off"><datalist id="ftPeople"></datalist></label>' : '');
-      form(t.name, html, t.can_manage ? 'Add' : 'Close', function (done) {
-        if (!t.can_manage || !val('ftAdd')) { $('vhForm').close(); return; }
-        api('team_member', { team_id: id, who: val('ftAdd'), role: 'member' }).then(function (x) { if (x.ok) { load(); openTeam(id); } else done(x); });
-      });
-      var body = $('vhFormBody');
-      body.onchange = function (ev) {
-        var s = ev.target.closest('[data-role]'); if (!s) return;
-        var p = t.members.filter(function (m) { return m.id === +s.getAttribute('data-role'); })[0];
-        api('team_member', { team_id: id, who: String(p.id), role: s.value }).then(function (x) { if (x.ok) { toast('Saved.'); openTeam(id); load(); } else toast(x.error, true); });
-      };
-      body.onclick = function (ev) {
-        var b = ev.target.closest('[data-rm]'); if (!b) return;
-        if (!confirm('Remove them from the team?')) return;
-        api('team_remove', { team_id: id, user_id: +b.getAttribute('data-rm') }).then(function (x) { if (x.ok) { openTeam(id); load(); } else toast(x.error, true); });
-      };
-      var add = $('ftAdd'), st;
-      if (add) add.addEventListener('input', function () {
-        clearTimeout(st); var q = add.value.trim(); if (q.length < 2) return;
-        st = setTimeout(function () { api('people', null, 'q=' + encodeURIComponent(q)).then(function (x) {
-          $('ftPeople').innerHTML = (x.people || []).map(function (p) { return '<option value="' + esc(p.email) + '">' + esc(p.name) + '</option>'; }).join('');
-        }); }, 200);
-      });
-    });
-  }
 
   /* ══ The live room ════════════════════════════════════════════════════ */
 
@@ -391,9 +599,12 @@
         return '<label>' + esc(p.name) + (a && a.answer === 'no' ? ' <span class="vh-src">sent apologies</span>' : '') + '<select data-att="' + p.id + '"' + (ro ? ' disabled' : '') + '>' + MARKS.map(function (k) { return '<option value="' + k[0] + '"' + ((att[p.id] || '') === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></label>';
       }).join('') + '</div></section>';
     h += '<section class="vh-min-sec"><h3>Summary <span class="vh-hint">Markdown works</span></h3><textarea id="mSummary"' + (ro ? ' disabled' : '') + '>' + esc(b.summary) + '</textarea>'
-      + (ro ? '' : '<details style="margin-top:8px"' + (ed.words ? ' open' : '') + '><summary class="vh-note" style="cursor:pointer">' + (ed.words ? 'Turn what was said in the room into the minutes' : 'Paste rough notes and let the assistant sort them into the sections') + '</summary>'
-        + (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mUseWords" style="margin:6px 0">Use what was said in the room</button>' : '')
-        + '<textarea id="mRough" placeholder="Paste your notes or a transcript…"></textarea><button type="button" class="avp-btn avp-btn--sq" id="mTidy" style="margin-top:6px">Tidy into the minutes</button></details>') + '</section>';
+      + (ro ? '' : (hub && hub.integrations.assistant
+          ? '<details style="margin-top:8px"' + (ed.words ? ' open' : '') + '><summary class="vh-note" style="cursor:pointer">' + (ed.words ? 'Turn what was said in the room into the minutes' : 'Paste rough notes and let the assistant sort them into the sections') + '</summary>'
+            + (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mUseWords" style="margin:6px 0">Use what was said in the room</button>' : '')
+            + '<textarea id="mRough" placeholder="Paste your notes or a transcript…"></textarea><button type="button" class="avp-btn avp-btn--sq" id="mTidy" style="margin-top:6px">Tidy into the minutes</button></details>'
+          /* No assistant on this site: what the room heard can still go into the notes, as it was said. */
+          : (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mWordsToNotes" style="margin-top:8px">Add what was said in the room to the notes</button>' : ''))) + '</section>';
     if (b.arising.length) h += '<section class="vh-min-sec"><h3>Matters arising <span class="vh-hint">open actions from earlier meetings</span></h3><ul class="vh-list vh-arising">'
       + b.arising.map(function (a, i) {
         return '<li data-ar="' + i + '"><span>' + esc(a.title) + (a.owner ? ' <span class="vh-note">(' + esc(a.owner) + (a.due ? ', due ' + esc(a.due) : '') + ')</span>' : '') + '</span>'
@@ -460,6 +671,7 @@
       list.insertAdjacentHTML('beforeend', itemRow(k, list.children.length, k === 'agenda' ? { item: '', notes: '' } : k === 'decision' ? '' : { task: '', owner_id: 0, due: '' }, false));
       list.lastElementChild.querySelector('input').focus(); changed();
     } else if (del) { del.closest('li').remove(); changed(); }
+    else if (ev.target.id === 'mWordsToNotes') { var n = $('mNotes'); n.value = (n.value.trim() ? n.value.trim() + '\n\n' : '') + ed.words; changed(); n.focus(); toast('Added to Other notes — trim it to what matters.'); }
     else if (ev.target.id === 'mUseWords') { $('mRough').value = ed.words; $('mRough').focus(); }
     else if (ev.target.id === 'mTidy') {
       var notes = val('mRough'); if (!notes.trim()) return toast('Paste your notes first.', true);
@@ -493,6 +705,6 @@
   document.addEventListener('portal:view', function (e) { if (e.detail && e.detail.view === 'volunteer') load(); });
   if (!view.hidden || location.hash === '#volunteer') load();
   /* Keep "coming up" and "live now" honest while the page sits open. */
-  setInterval(function () { if (!view.hidden && !document.hidden && loaded && !$('vhRoom').open && !$('vhMin').open) load(); }, 60000);
+  setInterval(function () { if (!view.hidden && !document.hidden && loaded && !$('vhRoom').open && !$('vhMin').open && !$('vhForm').open) load(); }, 60000);
   setInterval(function () { if ($('vhRoom').open) tickClock(); }, 1000);
 })();

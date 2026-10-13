@@ -896,6 +896,113 @@ final class MeetingMinutes
 
     /* ══ The hub ════════════════════════════════════════════════════════════ */
 
+    /** Every meeting this person may see: invited, called, or of a team they are on. Rows, not cancelled. */
+    public static function visibleMeetings(array $u): array
+    {
+        self::ensure();
+        $ids = array_column(Meetings::listFor((int) $u['id'], 200), 'id');
+        $teamIds = array_column(Volunteers::teamsFor($u), 'id');
+        if ($teamIds) {
+            $st = Database::pdo()->query("SELECT id FROM meetings WHERE context = 'team' AND context_id IN (" . implode(',', array_map('intval', $teamIds)) . ')');
+            $ids = array_merge($ids, array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
+        }
+        $out = [];
+        foreach (array_unique(array_map('intval', $ids)) as $id) {
+            $m = self::meeting($id);
+            if ($m && (string) $m['status'] !== 'cancelled') $out[$id] = $m;
+        }
+        return $out;
+    }
+
+    /**
+     * Meetings that have happened (the last $days), one row per occurrence:
+     * who came (from the published minutes, else the live log), and where its
+     * minutes stand. Newest first.
+     */
+    public static function past(array $u, int $teamId = 0, int $days = 120): array
+    {
+        $now = time(); $out = [];
+        foreach (self::visibleMeetings($u) as $m) {
+            if ($teamId > 0 && !((string) $m['context'] === 'team' && (int) $m['context_id'] === $teamId)) continue;
+            $team = self::teamOf($m);
+            foreach (self::occurrences($m, $now - $days * 86400, $now) as $ts) {
+                if ($ts + (int) $m['duration_min'] * 60 > $now) continue;
+                $occ = self::occurrenceKey($ts);
+                $min = self::row((int) $m['id'], $occ);
+                $att = $min ? (array) json_decode((string) $min['attendance'], true) : [];
+                if (!$att && class_exists('MeetingLive') && MeetingLive::hasData((int) $m['id'], $occ)) $att = MeetingLive::attendance($m, $occ, self::answers((int) $m['id'], $occ)['by']);
+                $came = count(array_filter($att, static fn($v) => in_array($v, ['present', 'late'], true)));
+                $out[] = ['id' => (int) $m['id'], 'title' => (string) $m['title'], 'team' => $team['name'] ?? '', 'team_id' => $team['id'] ?? 0, 'occurrence' => $occ, 'when' => self::when($occ), 'ts' => $ts,
+                          'came' => $came, 'invited' => count(array_filter(self::invitees((int) $m['id']), static fn($p) => $p['id'] > 0)),
+                          'my_mark' => (string) ($att[(string) $u['id']] ?? ''), 'minutes_id' => $min ? (int) $min['id'] : 0, 'minutes_status' => $min ? (string) $min['status'] : '',
+                          'can_write' => self::canWrite($u, $m, $min)];
+            }
+        }
+        usort($out, static fn($a, $b) => $b['ts'] <=> $a['ts']);
+        return array_slice($out, 0, 200);
+    }
+
+    /** Every set of minutes this person may read, filtered. Newest meeting first. */
+    public static function archive(array $u, string $status = '', int $teamId = 0, string $q = ''): array
+    {
+        $vis = self::visibleMeetings($u);
+        if (!$vis) return [];
+        $st = Database::pdo()->query('SELECT * FROM meeting_minutes WHERE meeting_id IN (' . implode(',', array_keys($vis)) . ') ORDER BY occurrence DESC LIMIT 500');
+        $q = mb_strtolower(trim($q)); $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $min) {
+            $m = $vis[(int) $min['meeting_id']];
+            if ($status !== '' && (string) $min['status'] !== $status) continue;
+            if ($teamId > 0 && !((string) $m['context'] === 'team' && (int) $m['context_id'] === $teamId)) continue;
+            /* A draft is the secretary's and the chair's until it is handed over. */
+            if ((string) $min['status'] === 'draft' && !self::canWrite($u, $m, $min)) continue;
+            $b = (array) json_decode((string) $min['body'], true);
+            if ($q !== '' && !str_contains(mb_strtolower($m['title'] . ' ' . ($b['summary'] ?? '') . ' ' . implode(' ', (array) ($b['decisions'] ?? []))), $q)) continue;
+            $team = self::teamOf($m);
+            $out[] = ['minutes_id' => (int) $min['id'], 'id' => (int) $m['id'], 'title' => (string) $m['title'], 'team' => $team['name'] ?? '', 'occurrence' => (string) $min['occurrence'],
+                      'when' => self::when((string) $min['occurrence']), 'status' => (string) $min['status'], 'status_label' => self::STATUSES[(string) $min['status']] ?? '',
+                      'version' => (int) $min['version'], 'decisions' => count((array) ($b['decisions'] ?? [])), 'actions' => count((array) ($b['actions'] ?? [])),
+                      'summary' => mb_substr(trim(preg_replace('/[*_#>`]/', '', (string) ($b['summary'] ?? '')) ?? ''), 0, 180)];
+        }
+        return $out;
+    }
+
+    /** Per member of a team: how often they came to its meetings (published minutes, last $days). */
+    public static function teamAttendance(int $teamId, int $days = 180): array
+    {
+        self::ensure();
+        $st = Database::pdo()->prepare("SELECT mm.attendance FROM meeting_minutes mm JOIN meetings m ON m.id = mm.meeting_id
+                                        WHERE mm.status = 'published' AND m.context = 'team' AND m.context_id = ? AND mm.occurrence >= ?");
+        $st->execute([$teamId, gmdate('Y-m-d H:i:s', time() - $days * 86400)]);
+        $by = [];
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $a) {
+            foreach ((array) json_decode((string) $a, true) as $pid => $mark) {
+                $b = &$by[(int) $pid]; $b = $b ?? ['came' => 0, 'counted' => 0, 'apologies' => 0];
+                if ($mark === 'apologies') $b['apologies']++;
+                elseif (in_array($mark, ['present', 'late', 'absent'], true)) { $b['counted']++; if ($mark !== 'absent') $b['came']++; }
+                unset($b);
+            }
+        }
+        foreach ($by as &$b) $b['rate'] = $b['counted'] ? (int) round($b['came'] / $b['counted'] * 100) : null;
+        return $by;
+    }
+
+    /** How often this person came, from published minutes in the last $days. */
+    public static function attendanceOf(array $u, int $days = 180): array
+    {
+        $vis = self::visibleMeetings($u);
+        $n = ['present' => 0, 'late' => 0, 'apologies' => 0, 'absent' => 0];
+        if ($vis) {
+            $st = Database::pdo()->prepare("SELECT attendance FROM meeting_minutes WHERE status = 'published' AND occurrence >= ? AND meeting_id IN (" . implode(',', array_keys($vis)) . ')');
+            $st->execute([gmdate('Y-m-d H:i:s', time() - $days * 86400)]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $a) {
+                $mark = (string) (((array) json_decode((string) $a, true))[(string) $u['id']] ?? '');
+                if (isset($n[$mark])) $n[$mark]++;
+            }
+        }
+        $counted = $n['present'] + $n['late'] + $n['absent'];
+        return $n + ['rate' => $counted ? (int) round(($n['present'] + $n['late']) / $counted * 100) : null, 'meetings' => array_sum($n)];
+    }
+
     public static function forHub(array $u): array
     {
         self::ensure();
@@ -903,19 +1010,12 @@ final class MeetingMinutes
         $now = time();
         $up = []; $write = []; $approve = []; $pub = [];
         $seen = [];
-        $mine = Meetings::listFor($uid, 150);
-        $teamIds = array_column(Volunteers::teamsFor($u), 'id');
-        if ($teamIds) {
-            $st = Database::pdo()->query("SELECT id FROM meetings WHERE context = 'team' AND status <> 'cancelled' AND context_id IN (" . implode(',', array_map('intval', $teamIds)) . ')');
-            $have = array_column($mine, 'id');
-            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $mid) if (!in_array((int) $mid, $have, true)) $mine[] = ['id' => (int) $mid];
-        }
-        foreach ($mine as $row) {
-            $m = self::meeting((int) $row['id']);
-            if (!$m || isset($seen[(int) $m['id']]) || (string) $m['status'] === 'cancelled') continue;
+        foreach (self::visibleMeetings($u) as $m) {
+            if (isset($seen[(int) $m['id']])) continue;
             $seen[(int) $m['id']] = true;
             $team = self::teamOf($m);
-            $base = ['id' => (int) $m['id'], 'title' => (string) $m['title'], 'team' => $team['name'] ?? '', 'meet_url' => (string) $m['meet_url'],
+            $base = ['id' => (int) $m['id'], 'title' => (string) $m['title'], 'team' => $team['name'] ?? '', 'team_id' => $team['id'] ?? 0, 'meet_url' => (string) $m['meet_url'],
+                     'agenda' => array_slice(array_column(self::agendaItems((string) $m['agenda']), 'item'), 0, 6),
                      'duration_min' => (int) $m['duration_min'], 'frequency_label' => Meetings::freqLabel((string) $m['frequency']), 'is_chair' => self::isChair($u, $m)];
             $next = self::occurrences($m, $now - (int) $m['duration_min'] * 60, $now + 60 * 86400);
             if ($next) {

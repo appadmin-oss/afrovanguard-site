@@ -4,7 +4,11 @@
  *
  *   GET  ?action=hub                                   → everything the hub shows
  *   GET  ?action=people&q=                             → volunteers by name or email
- *   GET  ?action=team&id=                              → a team, its members and their hours
+ *   GET  ?action=team&id=                              → a team: members, hours, attendance, meetings, open actions
+ *   GET  ?action=past&team_id=                         → meetings that have happened, who came, their minutes
+ *   GET  ?action=archive&status=&team_id=&q=           → every set of minutes I may read
+ *   GET  ?action=team_actions&team_id=                 → a team's open actions (lead, coordinator)
+ *   GET  ?action=hours_csv                             → my hours as a spreadsheet
  *   POST ?action=team_create {name, purpose}
  *   POST ?action=team_update {id, name?, purpose?, archived?}
  *   POST ?action=team_member {team_id, who, role}      → add, or change a role
@@ -73,7 +77,18 @@ try {
             $id = (int) $in('id', 0);
             $t = Volunteers::team($id);
             if (!$t || (Volunteers::roleIn($id, $uid) === '' && !Volunteers::canRunTeams($u))) json_out(['ok' => false, 'error' => 'No such team.'], 404);
-            json_out(['ok' => true, 'team' => $t + ['my_role' => Volunteers::roleIn($id, $uid), 'can_manage' => Volunteers::canManageTeam($u, $id)], 'hours' => Volunteers::teamHours($id)]);
+            $up = array_values(array_filter(MeetingMinutes::forHub($u)['upcoming'], static fn($m) => (int) $m['team_id'] === $id));
+            json_out(['ok' => true, 'team' => $t + ['my_role' => Volunteers::roleIn($id, $uid), 'can_manage' => Volunteers::canManageTeam($u, $id)], 'hours' => Volunteers::teamHours($id),
+                      'attendance' => MeetingMinutes::teamAttendance($id), 'upcoming' => array_slice($up, 0, 5), 'actions' => Volunteers::teamActions($u, $id),
+                      'past' => array_slice(MeetingMinutes::past($u, $id), 0, 8)]);
+        }
+        case 'past':         json_out(['ok' => true, 'meetings' => MeetingMinutes::past($u, (int) $in('team_id', 0))]);
+        case 'archive':      json_out(['ok' => true, 'minutes' => MeetingMinutes::archive($u, (string) $in('status'), (int) $in('team_id', 0), (string) $in('q'))]);
+        case 'team_actions': json_out(['ok' => true, 'actions' => Volunteers::teamActions($u, (int) $in('team_id', 0))]);
+        case 'hours_csv': {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="volunteer-hours.csv"');
+            echo Volunteers::hoursCsv($uid); exit;
         }
         case 'team_create':  json_out(Volunteers::createTeam($u, (string) $in('name'), (string) $in('purpose')));
         case 'team_update':  json_out(Volunteers::updateTeam($u, (int) $in('id', 0), $body));

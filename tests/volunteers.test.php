@@ -190,6 +190,29 @@ ck('Hub: the meeting on now is in the upcoming list, with its room open', ($u0 =
 ck('Hub: hours logged by hand, and removed', ($h = Volunteers::logHours(9304, '', 2.5, 'Outreach at Egbeda'))['ok'] && Volunteers::hoursFor(9304)['month'] == 2.5
     && Volunteers::removeHours(9304, (int) $h['hours']['recent'][0]['id'])['ok'] && !Volunteers::logHours(9304, '2999-01-01', 1, 'x')['ok']);
 
+/* ── The dashboard's views ── */
+$vp->exec("UPDATE meetings SET duration_min = 15 WHERE id = $mid");   /* so it has ended */
+$past = MeetingMinutes::past($sec);
+$vp->exec("UPDATE meetings SET duration_min = 60 WHERE id = $mid");
+ck('Dashboard: past meetings show who came and where the minutes stand', ($p0 = $past[0] ?? null) && $p0['id'] === $mid && $p0['minutes_status'] === 'published' && $p0['came'] >= 3 && $p0['my_mark'] === 'late');
+ck('Dashboard: …filtered by team', MeetingMinutes::past($sec, $tid + 999) === []);
+ck('Dashboard: the minutes archive finds published minutes by what they decided', count(MeetingMinutes::archive($mem, 'published', 0, 'three schools')) === 1 && MeetingMinutes::archive($mem, '', 0, 'no such words') === []);
+$vp->prepare("INSERT INTO meeting_minutes (meeting_id, occurrence, status, secretary_id, body, attendance, created_at, updated_at) VALUES (?, ?, 'draft', 9303, '{}', '{}', '', '')")->execute([$mid, gmdate('Y-m-d H:i:s', $start - 7 * 86400)]);
+ck('Dashboard: a draft is the secretary\'s and chair\'s until it is handed over', count(MeetingMinutes::archive($mem, 'draft')) === 0 && count(MeetingMinutes::archive($sec, 'draft')) === 1);
+$at = MeetingMinutes::attendanceOf($late);
+ck('Dashboard: my attendance — late still counts as came', $at['late'] === 1 && $at['rate'] === 100);
+ck('Dashboard: …apologies are not held against anybody', MeetingMinutes::attendanceOf($mem)['apologies'] === 1 && MeetingMinutes::attendanceOf($mem)['rate'] === null);
+$ta = MeetingMinutes::teamAttendance($tid);
+ck('Dashboard: a team\'s attendance, member by member', ($ta[9303]['rate'] ?? null) === 100 && ($ta[9304]['apologies'] ?? 0) === 1);
+$series = Volunteers::hoursSeries(9303, 12);
+ck('Dashboard: twelve months of hours, oldest first, this month last', count($series) === 12 && $series[11]['month'] === substr(av_today_tz(), 0, 7) && $series[11]['hours'] >= 1.0);
+Volunteers::logHours(9304, '', 1, '=HYPERLINK("http://x")');
+ck('Dashboard: the hours spreadsheet cannot carry a formula', str_contains(Volunteers::hoursCsv(9304), "'=HYPERLINK") && str_starts_with(Volunteers::hoursCsv(9304), 'Date,Hours'));
+ck('Dashboard: a team\'s open actions, for those on it', count(Volunteers::teamActions($lead, $tid)) >= 1 && Volunteers::teamActions($out, $tid) === []);
+ck('Dashboard: the activity in my teams', count(Volunteers::activity($sec)) >= 3);
+$ints = Volunteers::integrations();
+ck('Dashboard: without Attendee, no notetaker is offered — and the hub still works', $ints['notetaker'] === false && Volunteers::hub($sec)['ok'] === true);
+
 /* ── The sweep ── */
 $vp->exec("DELETE FROM meeting_nudges");
 $t0 = time();
