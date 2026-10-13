@@ -68,14 +68,17 @@ ck('it names this site as avg, lives five minutes and carries a nonce',
 $c = CrmAudiencePush::collect();
 $by = [];
 foreach ($c['rows'] as $row) $by[$row['ref']] = $row;
-ck('Diary subscribers are collected', ($by['sub:ada@example.org']['list'] ?? '') === 'The Vanguard Diary');
-ck('a subscriber from another form says where', ($by['sub:bola@example.org']['list'] ?? '') === 'Afrovanguard · footer');
+ck('Diary subscribers are collected', ($by[CrmAudiencePush::subscriberRef('ada@example.org')]['list'] ?? '') === 'The Vanguard Diary');
+ck('a subscriber from another form says where', ($by[CrmAudiencePush::subscriberRef('bola@example.org')]['list'] ?? '') === 'Afrovanguard · footer');
 if ($hasSubs) ck('a monthly giver is a donor with their plan', ($by['plan:SUB_abc']['detail'] ?? '') === '₦5,000 monthly' && $by['plan:SUB_abc']['status'] === 'active');
 ck('a one-off gift is a donor, with what they gave and to what', ($by['gift:PS_1']['detail'] ?? '') === 'Gave ₦5,000 to general');
 ck('an anonymous gift sends no name', isset($by['gift:PS_2']) && ($by['gift:PS_2']['name'] ?? 'x') === '');
-ck('a footer newsletter sign-up is a subscriber', ($by['news:eko@example.org']['list'] ?? '') === 'Afrovanguard newsletter');
+ck('a footer newsletter sign-up is a subscriber', ($by['news:' . sha1('eko@example.org')]['list'] ?? '') === 'Afrovanguard newsletter');
 ck('a contact-form message is an enquiry with its phone and subject', ($by['contact:CTQ_PAR_1']['phone'] ?? '') === '0803 000 1111'
    && ($by['contact:CTQ_PAR_1']['detail'] ?? '') === 'Partnership: A school visit');
+ck('every ref fits CACENTRE\'s 64 characters', max(array_map(static fn($r) => strlen($r['ref']), $c['rows'])) <= 64);
+ck('a long key is hashed, and the same key always gives the same ref', strlen(CrmAudiencePush::ref('gift:', str_repeat('x', 100))) === 45
+   && CrmAudiencePush::ref('gift:', str_repeat('x', 100)) === CrmAudiencePush::ref('gift:', str_repeat('x', 100)));
 ck('and the message itself is never sent', !str_contains(json_encode($c['rows']), 'private words'));
 
 /* ── A failed push moves nothing ─────────────────────────────────────────── */
@@ -102,7 +105,14 @@ ck('the next tick sends nothing it already sent', $r['ok'] === true && $r['sent'
 
 $pdo->exec("INSERT INTO subscribers (email, source, created_at) VALUES ('new@example.org', 'diary', '2026-10-07 09:00:00')");
 CrmAudiencePush::run();
-ck('and only what is new after that', count($sent) === 1 && array_column($sent[0], 'ref') === ['sub:new@example.org']);
+ck('and only what is new after that', count($sent) === 1 && array_column($sent[0], 'ref') === [CrmAudiencePush::subscriberRef('new@example.org')]);
+
+/* ── A row CACENTRE refuses by name is said, not counted as sent ─────────── */
+$pdo->exec("INSERT INTO subscribers (email, source, created_at) VALUES ('odd@example.org', 'diary', '2026-10-08 09:00:00')");
+CrmAudiencePush::$transport = static fn() => ['code' => 200, 'body' => '{"ok":true,"refused":[{"ref":"x","why":"bad-ref"}]}'];
+$r = CrmAudiencePush::run();
+ck('a row CACENTRE refused is counted as refused, not sent', $r['ok'] === true && $r['refused'] === 1 && $r['sent'] === 0
+   && str_contains((string) Database::metaGet('crm_push.last'), '1 refused by CACENTRE'));
 
 /* ── An unsubscribe reaches the CRM though its row is gone ───────────────── */
 $pdo->exec("DELETE FROM subscribers WHERE email = 'ada@example.org'");
@@ -116,7 +126,7 @@ CrmAudiencePush::$transport = static function (string $url, string $body) use (&
     return ['code' => 200, 'body' => '{"ok":true}'];
 };
 CrmAudiencePush::run();
-ck('and is sent under the same ref the subscription was', ($sent[0][0]['ref'] ?? '') === 'sub:ada@example.org' && $sent[0][0]['status'] === 'unsubscribed');
+ck('and is sent under the same ref the subscription was', ($sent[0][0]['ref'] ?? '') === CrmAudiencePush::subscriberRef('ada@example.org') && $sent[0][0]['status'] === 'unsubscribed');
 ck('then leaves the outbox', (int) $pdo->query('SELECT COUNT(*) FROM av_crm_outbox')->fetchColumn() === 0);
 
 $api = (string) file_get_contents(dirname(__DIR__) . '/diary/api.php');

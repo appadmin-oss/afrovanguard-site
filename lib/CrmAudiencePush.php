@@ -87,8 +87,18 @@ final class CrmAudiencePush
         } catch (Throwable $e) { error_log('[crm-push] queue: ' . $e->getMessage()); }
     }
 
-    /** The subscriber row's ref — the email, so an unsubscribe after the row is gone names the same source. */
-    public static function subscriberRef(string $email): string { return 'sub:' . strtolower(trim($email)); }
+    /**
+     * The subscriber row's ref — derived from the address, so an unsubscribe after the row
+     * is gone names the same source. Hashed, because CACENTRE refuses a ref over 64
+     * characters and an address may be 190.
+     */
+    public static function subscriberRef(string $email): string { return 'sub:' . sha1(strtolower(trim($email))); }
+
+    /** A ref that always fits CACENTRE's 64 characters, and is the same every time for the same key. */
+    public static function ref(string $prefix, string $key): string
+    {
+        return strlen($prefix . $key) <= 64 ? $prefix . $key : $prefix . sha1($key);
+    }
 
     /** A push, signed exactly as CACENTRE's CrmAudience::verifyPush() reads it. */
     public static function sign(array $rows, string $secret, ?int $now = null): string
@@ -145,7 +155,7 @@ final class CrmAudiencePush
             $st->execute([$from, $ended]);
             foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
                 $live = (string) $r['status'] === 'active';
-                $rows[] = ['kind' => 'donor', 'ref' => 'plan:' . ((string) $r['sub_code'] !== '' ? (string) $r['sub_code'] : (string) $r['id']),
+                $rows[] = ['kind' => 'donor', 'ref' => self::ref('plan:', (string) $r['sub_code'] !== '' ? (string) $r['sub_code'] : (string) $r['id']),
                            'email' => (string) $r['email'], 'name' => (string) $r['name'], 'list' => 'Monthly givers',
                            'status' => $live ? 'active' : 'closed',
                            'detail' => '₦' . number_format((int) $r['amount_ngn']) . ' ' . (string) $r['interval_k']
@@ -188,12 +198,12 @@ final class CrmAudiencePush
             $email = (string) ($c['email'] ?? '');
             if ($at === '' || $at <= $since || !filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
             if (($c['type'] ?? '') === 'newsletter') {
-                $row = ['kind' => 'subscriber', 'ref' => 'news:' . strtolower($email), 'email' => $email,
+                $row = ['kind' => 'subscriber', 'ref' => 'news:' . sha1(strtolower($email)), 'email' => $email,
                         'list' => 'Afrovanguard newsletter', 'status' => 'subscribed', 'at' => self::at($at)];
             } else {
                 $ref = (string) ($c['ref'] ?? $c['id'] ?? '');
                 if ($ref === '') continue;
-                $row = ['kind' => 'enquiry', 'ref' => 'contact:' . $ref, 'email' => $email,
+                $row = ['kind' => 'enquiry', 'ref' => self::ref('contact:', $ref), 'email' => $email,
                         'phone' => (string) ($c['phone'] ?? ''), 'name' => (string) ($c['name'] ?? ''),
                         'list' => 'Contact form', 'status' => 'active',
                         'detail' => trim((string) ($c['purpose_label'] ?? '') . ': ' . (string) ($c['subject'] ?? ''), ': '),
@@ -220,7 +230,7 @@ final class CrmAudiencePush
             $amt  = (string) ($d['currency'] ?? 'NGN') === 'NGN' ? '₦' . number_format((float) ($d['amount'] ?? 0))
                                                                   : (string) ($d['currency'] ?? '') . ' ' . (string) ($d['amount'] ?? '');
             $out[] = ['at' => $at, 'row' => [
-                'kind' => 'donor', 'ref' => 'gift:' . (string) ($d['reference'] ?? $d['id'] ?? md5($at . $email)),
+                'kind' => 'donor', 'ref' => self::ref('gift:', (string) ($d['reference'] ?? $d['id'] ?? md5($at . $email))),
                 'email' => $email, 'name' => $name, 'list' => 'Donors', 'status' => 'active',
                 'detail' => 'Gave ' . $amt . ' to ' . (string) ($d['campaign'] ?? 'general'), 'at' => self::at($at)]];
             if (count($out) >= $limit) break;
@@ -239,29 +249,34 @@ final class CrmAudiencePush
     public static function run(): array
     {
         if (!self::ready()) return ['ok' => true, 'skipped' => true, 'sent' => 0, 'pushes' => 0, 'why' => 'no CRM secret set'];
-        $sent = 0;
+        $sent = 0; $refused = 0;
         for ($i = 0; $i < self::MAX_PUSHES; $i++) {
             $c = self::collect();
             if (!$c['rows'] && !$c['outbox']) break;
-            $r = $c['rows'] ? self::post($c['rows']) : ['ok' => true];
+            $r = $c['rows'] ? self::post($c['rows']) : ['ok' => true, 'refused' => []];
             if (!$r['ok']) {
                 self::note('failed: ' . $r['error']);
                 return ['ok' => false, 'sent' => $sent, 'pushes' => $i, 'error' => $r['error']];
             }
+            /* A row CACENTRE refused BY NAME is not resent — it would be refused for ever
+               and hold everything behind it — but it is counted and said, never reported
+               as sent. */
+            $refused += count($r['refused']);
+            if ($r['refused']) error_log('[crm-push] refused: ' . json_encode(array_slice($r['refused'], 0, 5)));
             /* Only now: the CRM has it. */
             foreach ($c['cursors'] as $k => $v) Database::metaSet($k, $v);
             if ($c['outbox']) {
                 $in = implode(',', array_map('intval', $c['outbox']));
                 Database::pdo()->exec("DELETE FROM av_crm_outbox WHERE id IN ({$in})");
             }
-            $sent += count($c['rows']);
+            $sent += count($c['rows']) - count($r['refused']);
             if (count($c['rows']) < self::BATCH) break;
         }
-        self::note('sent ' . $sent);
-        return ['ok' => true, 'sent' => $sent, 'pushes' => $i + 1];
+        self::note('sent ' . $sent . ($refused ? ', ' . $refused . ' refused by CACENTRE (see the error log)' : ''));
+        return ['ok' => true, 'sent' => $sent, 'refused' => $refused, 'pushes' => $i + 1];
     }
 
-    /** @return array{ok:bool, error?:string, result?:array} */
+    /** @return array{ok:bool, error?:string, refused?:list<array{ref:string,why:string}>} */
     private static function post(array $rows): array
     {
         $body = (string) json_encode(['token' => self::sign($rows, self::secret())], JSON_UNESCAPED_SLASHES);
@@ -281,7 +296,9 @@ final class CrmAudiencePush
         }
         $j = json_decode((string) ($r['body'] ?? ''), true);
         $code = (int) ($r['code'] ?? 0);
-        if ($code === 200 && is_array($j) && !empty($j['ok'])) return ['ok' => true, 'result' => $j];
+        if ($code === 200 && is_array($j) && !empty($j['ok'])) {
+            return ['ok' => true, 'refused' => array_values(array_filter((array) ($j['refused'] ?? []), 'is_array'))];
+        }
         $err = is_array($j) ? (string) ($j['error'] ?? '') : '';
         return ['ok' => false, 'error' => match (true) {
             $err === 'bad-signature'  => 'CACENTRE refused the signature — the secret here differs from the one it generated.',
