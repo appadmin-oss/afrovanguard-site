@@ -388,6 +388,9 @@ require_once __DIR__ . '/Promotion.php';
 // In-meeting time management (report §10). Reads the agenda §7 produced and
 // warns against it; the portal countdown is exact, cron is the backstop.
 require_once __DIR__ . '/MeetingClock.php';
+require_once __DIR__ . '/Volunteers.php';       /* volunteer teams, roles, hours, the hub */
+require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→review→published, reminders */
+require_once __DIR__ . '/MeetingLive.php';      /* live capture: Google Meet, notetaker, QR check-in, room captions */
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without

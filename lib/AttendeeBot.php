@@ -56,6 +56,41 @@ final class AttendeeBot
 
     public static function apiKey(): string { return self::cfg('AV_ATTENDEE_API_KEY'); }
     public static function configured(): bool { return self::apiKey() !== ''; }
+    /** Settings → Webhooks in Attendee (base64). Set as AV_ATTENDEE_WEBHOOK_SECRET to receive live events. */
+    public static function webhookSecret(): string { return self::cfg('AV_ATTENDEE_WEBHOOK_SECRET'); }
+
+    /**
+     * Attendee signs a webhook as base64(HMAC-SHA256(base64-decoded secret,
+     * the payload as canonical JSON — keys sorted, no spaces)), in the
+     * X-Webhook-Signature header.
+     */
+    public static function verifyWebhook(string $raw, string $signature): bool
+    {
+        $secret = self::webhookSecret();
+        if ($secret === '' || $signature === '') return false;
+        $key = base64_decode($secret, true);
+        if ($key === false) $key = $secret;
+        $obj = json_decode($raw, false);
+        if ($obj === null) return false;
+        $calc = base64_encode(hash_hmac('sha256', self::canonical($obj), $key, true));
+        return hash_equals($calc, trim($signature));
+    }
+
+    /** JSON as Python's json.dumps(sort_keys=True, separators=(",", ":")) writes it. */
+    public static function canonical($v): string
+    {
+        if ($v instanceof stdClass) {
+            $a = get_object_vars($v);
+            ksort($a, SORT_STRING);
+            $parts = [];
+            foreach ($a as $k => $x) $parts[] = json_encode((string) $k) . ':' . self::canonical($x);
+            return '{' . implode(',', $parts) . '}';
+        }
+        if (is_array($v)) return '[' . implode(',', array_map([self::class, 'canonical'], $v)) . ']';
+        if (is_float($v) && floor($v) === $v && abs($v) < 1e15) return number_format($v, 1, '.', '');
+        return (string) json_encode($v, JSON_UNESCAPED_SLASHES);
+    }
+
     public static function botName(): string { return self::cfg('AV_ATTENDEE_BOT_NAME', 'Afrovanguard Notetaker'); }
     public static function base(): string { return rtrim(self::cfg('AV_ATTENDEE_BASE_URL', self::DEFAULT_BASE), '/') . '/api/v1'; }
     /** True when pointed at a self-hosted instance rather than the hosted service. */
@@ -126,7 +161,7 @@ final class AttendeeBot
         if ($hook !== '' && stripos($hook, 'https://') === 0) {
             $body['webhooks'] = [[
                 'url'      => $hook,
-                'triggers' => ['bot.state_change', 'transcript.update'],
+                'triggers' => ['bot.state_change', 'transcript.update', 'participant_events.join_leave'],
             ]];
         }
 

@@ -534,6 +534,7 @@ try {
             if (class_exists('Accountability')) $out['accountability'] = AiOps::run('accountability', static fn() => Accountability::sweep());
             if (class_exists('Agenda'))         $out['agendas']        = AiOps::run('agendas', static fn() => Agenda::sweep());
             if (class_exists('MeetingClock'))   $out['meeting_clock']  = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
+            if (class_exists('MeetingMinutes')) $out['meetings_live']  = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
             if (class_exists('Promotion'))      $out['promotions']     = AiOps::run('promotions', static fn() => Promotion::sweep());
             if (class_exists('Brief')) {
                 AiOps::run('brief', static function () use (&$out) {

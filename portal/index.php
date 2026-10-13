@@ -129,7 +129,7 @@ render_head([
                      /* The member card (Membership → Your card) and its photo editor. */
                      '/assets/site/avc-card.css', '/assets/site/avc-photo.css',
                      /* Last, so the v2 shell wins over the panel stylesheet. */
-                     '/portal/avp.css'],
+                     '/portal/avp.css', '/portal/volunteer.css'],
     'manifest'   => '/manifest.webmanifest',
     'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
@@ -196,6 +196,13 @@ $nav['Learn'] = [
     ['learning', 'Learning', 'gray', $courses ? (string) count($courses) : ''],
     ['mentorship', 'Mentorship', 'gray', $mentorStats['attended'] ? (string) (int) $mentorStats['attended'] : ''],
 ];
+/* Volunteers: the hub — meetings, minutes, actions, teams, hours. The badge
+   counts what is waiting on this person (answers, minutes, overdue actions). */
+$isVol = class_exists('Volunteers') && Volunteers::isVolunteer($u);
+if ($isVol) {
+    $volWaiting = Volunteers::waitingCount($u);
+    $nav['Volunteer'] = [['volunteer', 'Volunteer hub', $volWaiting > 0 ? 'gold' : 'green', $volWaiting > 0 ? (string) $volWaiting : '']];
+}
 $nav['You'] = [
     ['diary', 'Diary', 'gray', $myEntries ? (string) count($myEntries) : ''],
     ['membership', ($isOrg ? 'Membership' : 'Account'), 'gray', ''],
@@ -331,6 +338,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 <?php
         require __DIR__ . '/views/membership.php';
         require __DIR__ . '/views/diary.php';
+        if ($isVol) require __DIR__ . '/views/volunteer.php';
 ?>
       <footer class="avp-foot">
         <span>© 2026 Afrovanguard</span>
@@ -387,6 +395,9 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="/community/community.js" defer></script>
   <script src="/portal/avdy.js" defer></script>
   <script src="/portal/commitments.js" defer></script>
+<?php if ($isVol): ?>  <script src="/assets/vendor/sortable/Sortable.min.js" defer></script>
+  <script src="/portal/volunteer.js" defer></script>
+<?php endif; ?>
   <script src="/assets/site/avc-photo.js" defer></script>
   <script src="/portal/card-photo.js" defer></script>
   <script src="/assets/site/celebrations.js" defer></script>

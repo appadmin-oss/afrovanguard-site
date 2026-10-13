@@ -640,6 +640,60 @@ final class GoogleWorkspace
      * meetings.space.readonly scope; impersonates $hostEmail (a participant).
      * Returns the joined "Speaker: text" transcript, or null if none exists yet.
      */
+    /**
+     * Who is in (or was in) a Meet: the conference for this meeting code that
+     * began at/after $afterTs - 1h — live or ended — and every participant in
+     * it, with when they first joined and last left (null while still in).
+     * Meet REST API v2: conferenceRecords → participants (meetings.space.readonly),
+     * impersonating $hostEmail.
+     *
+     * @return null|array{conference:string, live:bool, start:int, participants:list<array{id:string,name:string,google_user:string,kind:string,start:int,end:?int}>}
+     */
+    public static function meetParticipants(string $meetingCode, string $hostEmail, int $afterTs = 0): ?array
+    {
+        $code = trim($meetingCode);
+        if ($code === '' || $hostEmail === '' || !self::meetEnabled()) return null;
+        $space = self::apiGet(self::meetBase() . '/v2/spaces/' . rawurlencode($code), self::SCOPE_MEET_RO, false, $hostEmail);
+        $spaceName = is_array($space) ? (string) ($space['name'] ?? '') : '';
+        if ($spaceName === '') return null;
+        $q = http_build_query(['filter' => 'space.name="' . $spaceName . '"', 'pageSize' => 10]);
+        $recs = self::apiGet(self::meetBase() . '/v2/conferenceRecords?' . $q, self::SCOPE_MEET_RO, false, $hostEmail);
+        $conf = null;
+        foreach ((is_array($recs) ? ($recs['conferenceRecords'] ?? []) : []) as $r) {
+            $s = strtotime((string) ($r['startTime'] ?? '')) ?: 0;
+            if ($afterTs > 0 && $s > 0 && $s < $afterTs - 3600) continue;
+            if ($conf === null || $s > (strtotime((string) ($conf['startTime'] ?? '')) ?: 0)) $conf = $r;
+        }
+        if (!$conf || empty($conf['name'])) return null;
+        $people = [];
+        $token = '';
+        for ($i = 0; $i < 8; $i++) {
+            $pq = http_build_query(array_filter(['pageSize' => 250, 'pageToken' => $token]));
+            $page = self::apiGet(self::meetBase() . '/v2/' . $conf['name'] . '/participants?' . $pq, self::SCOPE_MEET_RO, false, $hostEmail);
+            if (!is_array($page)) break;
+            foreach (($page['participants'] ?? []) as $p) {
+                $kind = isset($p['signedinUser']) ? 'signedin' : (isset($p['anonymousUser']) ? 'anonymous' : (isset($p['phoneUser']) ? 'phone' : 'unknown'));
+                $who = (array) ($p['signedinUser'] ?? $p['anonymousUser'] ?? $p['phoneUser'] ?? []);
+                $end = !empty($p['latestEndTime']) ? (strtotime((string) $p['latestEndTime']) ?: null) : null;
+                $people[] = ['id' => (string) ($p['name'] ?? ''), 'name' => (string) ($who['displayName'] ?? ''), 'google_user' => (string) ($who['user'] ?? ''),
+                             'kind' => $kind, 'start' => strtotime((string) ($p['earliestStartTime'] ?? '')) ?: 0, 'end' => $end];
+            }
+            $token = (string) ($page['nextPageToken'] ?? '');
+            if ($token === '') break;
+        }
+        return ['conference' => (string) $conf['name'], 'live' => empty($conf['endTime']), 'start' => strtotime((string) ($conf['startTime'] ?? '')) ?: 0, 'participants' => $people];
+    }
+
+    /** A Workspace user's primary email from the id Meet reports ("users/123…"). Null when the directory cannot say. */
+    public static function directoryEmailForId(string $googleUser): ?string
+    {
+        $id = preg_replace('#^users/#', '', trim($googleUser));
+        if ($id === '' || !self::configured() || self::subject() === '') return null;
+        $d = self::apiGet('https://admin.googleapis.com/admin/directory/v1/users/' . rawurlencode($id) . '?fields=primaryEmail', self::SCOPE_DIRECTORY, true);
+        $e = is_array($d) ? strtolower((string) ($d['primaryEmail'] ?? '')) : '';
+        return $e !== '' ? $e : null;
+    }
+
     public static function meetTranscriptText(string $meetingCode, string $hostEmail, int $afterTs = 0): ?string
     {
         $code = trim($meetingCode);

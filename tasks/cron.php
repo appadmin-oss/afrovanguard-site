@@ -157,6 +157,13 @@ if (class_exists('MeetingClock')) {
     $result['meeting_clock'] = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
 }
 
+// Meetings run themselves: who is in the call (Google Meet) while it is on,
+// the transcript and attendance once it ends, the day-before and hour-before
+// reminders, the minutes drafted for the secretary and chased when late.
+if (class_exists('MeetingMinutes')) {
+    $result['meetings_live'] = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
+}
+
 // Report §20: write the case for anyone the rules engine now rates as ready,
 // and tell leadership. One review per member per target level.
 if (class_exists('Promotion')) {

@@ -43,6 +43,11 @@ if ($isNgv && (string) $ngvVars['myTrack'] === '') {
     $attn[] = ['ico' => '→', 'tone' => 'indigo', 'title' => 'Choose your NGV track and plan',
         'sub' => 'It sets your path and your training fee', 'cta' => 'Choose', 'goto' => 'ngv'];
 }
+if (!empty($isVol) && !empty($volWaiting)) {
+    $attn[] = ['ico' => '◆', 'tone' => 'indigo',
+        'title' => $volWaiting . ' thing' . ($volWaiting === 1 ? '' : 's') . ' waiting in your Volunteer hub',
+        'sub' => 'Meetings to answer, minutes to write or approve, actions overdue', 'cta' => 'Open', 'goto' => 'volunteer'];
+}
 if ($postsToday) {
     $attn[] = ['ico' => '#', 'tone' => 'green',
         'title' => $postsToday . ' new community post' . ($postsToday === 1 ? '' : 's') . ' today',

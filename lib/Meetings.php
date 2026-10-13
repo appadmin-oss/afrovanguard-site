@@ -149,7 +149,7 @@ final class Meetings
         $freq = self::freqKey((string) ($in['frequency'] ?? 'once'));
         $agenda = mb_substr(trim((string) ($in['agenda'] ?? '')), 0, 2000);
         $context = (string) ($in['context'] ?? 'workspace');
-        if (!in_array($context, ['workspace', 'mentorship'], true)) $context = 'workspace';
+        if (!in_array($context, ['workspace', 'mentorship', 'team'], true)) $context = 'workspace';
         // Invite the organiser too, so everyone involved gets the calendar invite.
         $emails = self::cleanEmails($in['attendees'] ?? []);
         $me = self::userEmail($uid);
@@ -702,7 +702,11 @@ final class Meetings
             // belongs to without this table being consulted, and the dedup key lets
             // Attendee refuse a second bot for a meeting that already has a live one
             // — the sweep and a hand-pressed button arriving together used to make two.
-            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso, [
+            // With a webhook secret set, Attendee also pushes the meeting LIVE —
+            // joins, leaves and each utterance — to MeetingLive; the sweep's
+            // polling stays the fallback.
+            $hook = AttendeeBot::webhookSecret() !== '' ? self::siteUrl('/portal/meetings.php?action=attendee_webhook') : '';
+            $res = AttendeeBot::createBot($meetUrl, $hook, $joinAtIso, [
                 'metadata' => ['av_meeting_id' => (string) $id, 'av_source' => 'meetings'],
                 'dedup'    => 'av-meeting-' . $id,
             ]);
@@ -1092,7 +1096,7 @@ final class Meetings
         ];
     }
 
-    private static function isParticipant(int $uid, int $id): bool
+    public static function isParticipant(int $uid, int $id): bool
     {
         $st = Database::pdo()->prepare('SELECT creator_id FROM meetings WHERE id = ?');
         $st->execute([$id]);

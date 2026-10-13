@@ -32,6 +32,15 @@ if ($action === 'recall_webhook') {
     json_out(Meetings::recallWebhook((string) ($_GET['t'] ?? ''), is_array($in) ? $in : []));
 }
 
+// The notetaker (Attendee) pushes the meeting live — joins, leaves, each
+// utterance — signed with the project's webhook secret. A service call.
+if ($action === 'attendee_webhook') {
+    if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+    $raw = (string) file_get_contents('php://input');
+    $r = MeetingLive::fromAttendee($raw, (string) ($_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? ''));
+    json_out($r, (int) ($r['status'] ?? 200));
+}
+
 $u = LmsAuth::user();
 if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
 $uid = (int) $u['id'];

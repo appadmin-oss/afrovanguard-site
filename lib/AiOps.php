@@ -52,6 +52,7 @@ final class AiOps
         'accountability' => 'Accountability sweep',
         'agendas'        => 'Agenda drafting',
         'meeting_clock'  => 'Meeting time warnings',
+        'meetings_live'  => 'Meetings: live capture, reminders, minutes',
         'promotions'     => 'Promotion reviews',
         'brief'          => 'Leadership brief',
     ];
