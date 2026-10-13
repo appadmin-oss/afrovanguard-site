@@ -59,6 +59,10 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
+# Published documents by name (doc.php, lib/DocStream.php): ranges, validators,
+# chunked copy. Pages link the static files below; this is the named route.
+RewriteRule ^doc/([a-z0-9-]+)\.pdf$ doc.php?name=$1 [L,QSA]
+
 # Legacy WordPress blog → Diary (permanent)
 RewriteRule ^blog/?(.*)$ /diary/$1 [R=301,L,QSA]
 
@@ -175,6 +179,36 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   <FilesMatch "\.(js|mjs|css)$">
     Header unset Expires
     Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# ── PDFs: by byte range, uncompressed, cached ────────────────────────────────
+# A linearized PDF lets a phone's viewer draw page 1 from the first few hundred
+# KB it asks for — but only if the server answers Range requests, and a
+# compressed response cannot be range-addressed. So: never gzip a PDF (the
+# images inside are already compressed; deflate would only cost CPU and break
+# resuming), always advertise byte ranges, and cache it. The pages link each
+# PDF as /path/file.pdf?v=<content hash> (lib/DocStream.php::stampHtml, kept
+# current by tools/stamp-assets.php); that URL never changes content, so it is
+# cached for a year. An unstamped request revalidates hourly against the ETag.
+<IfModule mod_mime.c>
+  AddType application/pdf .pdf
+</IfModule>
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI "\.pdf$" no-gzip dont-vary
+  SetEnvIfNoCase Request_URI "^/doc/" no-gzip dont-vary
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresByType application/pdf "access plus 1 hour"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.pdf$">
+    Header unset Expires
+    Header set Accept-Ranges "bytes"
+    Header set Cache-Control "public, max-age=3600"
+    <If "%{QUERY_STRING} =~ /(^|&)v=[0-9a-f]{10}(&|$)/">
+      Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
   </FilesMatch>
 </IfModule>
 
