@@ -2019,11 +2019,22 @@ final class NgvLedger
         return 'NGV/' . $year . '/' . str_pad((string) (int) $pay['id'], 6, '0', STR_PAD_LEFT);
     }
 
-    /** Short, unforgeable, storage-free. */
-    public static function receiptCode(int $payId): string
+    /**
+     * Short, unforgeable, storage-free — and '' when there is no key to make it
+     * unforgeable with. With no APP_KEY, no ADMIN_TOKEN and no generated key it
+     * used a fixed literal string as the key, printed in this source: a
+     * code anybody could compute for any payment id, opening any receipt (name,
+     * amount, what it was for) and minting convincing ones. No key now means no
+     * code: receipts are still numbered, but no link is issued and none verifies.
+     * $secret is for the tests; callers pass nothing.
+     */
+    public static function receiptCode(int $payId, ?string $secret = null): string
     {
-        $secret = function_exists('av_secret') ? (string) av_secret() : '';
-        if ($secret === '') $secret = 'ngv-receipt-fallback';
+        $secret ??= function_exists('av_secret') ? (string) av_secret() : '';
+        if ($secret === '') {
+            error_log('[ngv] receipt codes refused: no signing key (set APP_KEY)');
+            return '';
+        }
         return self::RECEIPT_PREFIX . '-' . strtoupper(substr(hash_hmac('sha256', 'ngv-receipt:' . $payId, $secret), 0, 10));
     }
 
@@ -2068,7 +2079,8 @@ final class NgvLedger
     public static function receiptForVerify(int $payId, string $code): ?array
     {
         if ($payId <= 0) return null;
-        if (!hash_equals(self::receiptCode($payId), strtoupper(trim($code)))) return null;
+        $want = self::receiptCode($payId);
+        if ($want === '' || !hash_equals($want, strtoupper(trim($code)))) return null;   // no key: nothing verifies
         return self::receiptFor($payId);
     }
 
@@ -2290,8 +2302,9 @@ final class NgvLedger
         foreach ($pays as $p) {
             $id = (int) $p['id'];
             $total += (int) $p['amount'];
-            $link = $site . '/academy/ngv/receipt.php?id=' . $id . '&c=' . rawurlencode(self::receiptCode($id));
-            $lines[] = '<a href="' . self::esc($link) . '">' . self::esc(self::receiptNo($p)) . '</a> · '
+            $rc = self::receiptCode($id);
+            $link = $site . '/academy/ngv/receipt.php?id=' . $id . '&c=' . rawurlencode($rc);
+            $lines[] = ($rc !== '' ? '<a href="' . self::esc($link) . '">' . self::esc(self::receiptNo($p)) . '</a>' : self::esc(self::receiptNo($p))) . ' · '
                      . self::esc(substr((string) $p['created_at'], 0, 10)) . ' · '
                      . self::esc(self::lineLabel((string) $p['kind']))
                      . ((string) $p['period'] !== '' ? ' ' . self::esc((string) $p['period']) : '')

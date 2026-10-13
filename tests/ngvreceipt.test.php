@@ -92,7 +92,7 @@ ck('ngv receipt: an id that does not exist verifies to nothing',
 /* Constant-time comparison, not `==`. A receipt code is a bearer credential for
    one person's financial record. */
 ck('ngv receipt: the code is compared in constant time',
-   strpos((string) @file_get_contents(AV_ROOT . '/lib/NgvLedger.php'), 'hash_equals(self::receiptCode') !== false);
+   strpos((string) @file_get_contents(AV_ROOT . '/lib/NgvLedger.php'), 'hash_equals($want, strtoupper(trim($code)))') !== false);
 
 /* ══ Only money received ═══════════════════════════════════════════════════ */
 
@@ -410,3 +410,17 @@ ck('ngv receipt: …and the money it prints is cast, not echoed raw',
    strpos($pageCode, "number_format((int) \$r['amount'])") !== false);
 
 $rcReset();
+
+/* ══ No signing key, no receipt code ══════════════════════════════════════
+   With no APP_KEY / ADMIN_TOKEN the HMAC key was the literal string
+   'ngv-receipt-fallback' — printed in the source, so anybody could compute the
+   code for any payment id and open (or forge) its receipt. */
+ck('ngv receipt: with no key there is no code', NgvLedger::receiptCode(1, '') === '');
+ck('ngv receipt: the published fallback key is gone from the source',
+   !str_contains((string) file_get_contents(AV_ROOT . '/lib/NgvLedger.php'), "'ngv-receipt-fallback'"));
+ck('ngv receipt: a code made with the old fallback key does not verify',
+   NgvLedger::receiptForVerify((int) $pay['id'], 'NGVR-' . strtoupper(substr(hash_hmac('sha256', 'ngv-receipt:' . (int) $pay['id'], 'ngv-receipt-fallback'), 0, 10))) === null);
+ck('ngv receipt: an empty code never verifies', NgvLedger::receiptForVerify((int) $pay['id'], '') === null);
+ck('ngv receipt: verification refuses outright when there is no code to compare',
+   str_contains((string) file_get_contents(AV_ROOT . '/lib/NgvLedger.php'), "if (\$want === '' || !hash_equals(\$want, strtoupper(trim(\$code)))) return null;"));
+ck('ngv receipt: with a key, codes still depend on it', NgvLedger::receiptCode(1, 'k1') !== NgvLedger::receiptCode(1, 'k2'));

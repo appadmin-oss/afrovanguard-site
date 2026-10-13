@@ -72,9 +72,35 @@ final class CfisCheckout
         return self::base() !== '' && self::source() !== '' && strlen(self::secret()) >= 32;
     }
 
+    /**
+     * CACENTRE's base URL — https only. The request carries the signed
+     * envelope and the payer's details, and the answer is the URL we send the
+     * payer to: over plain http anybody on the path reads the one and rewrites
+     * the other to a checkout of their own. A non-https CFIS_URL is treated as
+     * not configured (so the checkout is not offered) and logged. Plain http is
+     * allowed only to the loopback host, for a dev server and the test suite.
+     */
     public static function base(): string
     {
-        return rtrim((string) (defined('CFIS_URL') ? CFIS_URL : (getenv('CFIS_URL') ?: '')), '/');
+        $raw = rtrim(trim((string) (defined('CFIS_URL') ? CFIS_URL : (getenv('CFIS_URL') ?: ''))), '/');
+        if ($raw === '') return '';
+        return self::safeBase($raw) ? $raw : '';
+    }
+
+    /** Is $url a base URL this site may send a checkout request to? */
+    public static function safeBase(string $url): bool
+    {
+        $p = parse_url($url);
+        $scheme = strtolower((string) ($p['scheme'] ?? ''));
+        $host   = strtolower(trim((string) ($p['host'] ?? ''), '[]'));
+        if ($host === '' || isset($p['user']) || isset($p['pass'])) $ok = false;
+        elseif ($scheme === 'https') $ok = true;
+        else $ok = $scheme === 'http' && in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+        if (!$ok) {
+            static $said = [];
+            if (!isset($said[$url])) { $said[$url] = true; error_log('[cfis] CFIS_URL refused: it must be an https:// URL (http is allowed only to localhost)'); }
+        }
+        return $ok;
     }
 
     public static function source(): string
