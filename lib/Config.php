@@ -176,6 +176,20 @@ final class Config
             self::chk('Google sign-in (OAuth)', $oauth ? 'ok' : 'warn', $oauth ? 'enabled' : 'not configured — password sign-in still works'),
             self::chk('Workspace API (service account)', $wsApi ? 'ok' : 'warn', $wsApi ? 'configured — live Calendar/Drive reads in the portal' : 'not set — portal uses the launchpad + embeds'),
             self::chk('Directory delegation', ($wsApi && $wsSub !== '') ? 'ok' : 'info', $wsApi ? ($wsSub !== '' ? 'impersonates ' . $wsSub : 'no AV_WS_SUBJECT — directory read disabled') : '—'),
+            self::chk('Google redirect URI', 'info', class_exists('GoogleAuth') ? GoogleAuth::redirectUri() . ' — register exactly this on the OAuth client' : '—'),
+            (static function () {
+                $f = class_exists('GoogleAuth') ? GoogleAuth::lastFailure() : null;
+                return $f ? self::chk('Last Google failure', 'warn', $f['at'] . ' · ' . $f['where'] . ' · ' . $f['why'])
+                          : self::chk('Last Google failure', 'info', 'none recorded');
+            })(),
+            (static function () {
+                $d = class_exists('GoogleWorkspace') ? GoogleWorkspace::lastDirectorySync() : null;
+                if (!$d) return self::chk('Directory sync', 'info', strtolower((string) self::get('AV_WS_DIRECTORY_SYNC', 'off')) === 'daily' ? 'on — not run yet (needs the site cron)' : 'off');
+                $r = (array) ($d['result'] ?? []);
+                return !empty($r['ok'])
+                    ? self::chk('Directory sync', 'ok', (string) $d['at'] . ' · ' . (int) ($r['created'] ?? 0) . ' added, ' . (int) ($r['total'] ?? 0) . ' in the directory')
+                    : self::chk('Directory sync', 'warn', (string) $d['at'] . ' · ' . (string) ($r['error'] ?? 'did not finish'));
+            })(),
             self::chk('Org domain', 'info', self::str('AV_ORG_DOMAIN', 'afrovanguard.org.ng')),
             self::chk('Afrovanguard bot (AI)', (class_exists('AvBot') && AvBot::configured()) ? 'ok' : 'warn',
                 (class_exists('AvBot') && AvBot::configured()) ? ('Claude · ' . AvBot::model()) : 'set ANTHROPIC_API_KEY to enable AI replies'),

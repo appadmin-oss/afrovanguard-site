@@ -184,6 +184,20 @@ if (class_exists('Brief')) {
     });
 }
 
+/* Google Workspace. Both of these were reachable only from tools/gws-*.php on
+   the command line, on a host with no shell: push channels Google expires
+   after about a week were never renewed, so real-time Calendar/Drive updates
+   stopped seven days after anybody connected, and the directory sync the docs
+   describe as nightly never ran at all. */
+if (class_exists('GoogleWatch') && class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured()) {
+    try { $w = GoogleWatch::renewExpiring(); if ($w['renewed'] || $w['failed']) $result['google_watch'] = $w; }
+    catch (Throwable $e) { error_log('[cron] google watch: ' . $e->getMessage()); }
+}
+if (class_exists('GoogleWorkspace') && GoogleWorkspace::directorySyncDue()) {
+    try { $result['google_directory'] = GoogleWorkspace::runDirectorySync(); }
+    catch (Throwable $e) { error_log('[cron] google directory: ' . $e->getMessage()); }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';

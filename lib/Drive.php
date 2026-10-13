@@ -23,15 +23,24 @@ final class Drive
 
     public static function configured(): bool
     {
-        return self::credentials() !== null
-            && defined('AV_GDRIVE_FOLDER_ID') && (string) AV_GDRIVE_FOLDER_ID !== '';
+        return self::credentials() !== null && self::folderId() !== '';
     }
+
+    /* Read through Config, like GoogleWorkspace: a value set on the Studio's
+       Setup screen counts. This read the constants only, so the two classes
+       disagreed about whether the same service account was configured. */
+    private static function cfg(string $k): string
+    {
+        return trim((string) (class_exists('Config') ? Config::get($k, '') : (defined($k) ? constant($k) : '')));
+    }
+
+    private static function folderId(): string { return self::cfg('AV_GDRIVE_FOLDER_ID'); }
 
     /** Parse the service-account JSON (raw or a file path). Returns null if absent/invalid. */
     private static function credentials(): ?array
     {
-        if (!defined('AV_GDRIVE_SERVICE_ACCOUNT') || (string) AV_GDRIVE_SERVICE_ACCOUNT === '') return null;
-        $v = (string) AV_GDRIVE_SERVICE_ACCOUNT;
+        $v = self::cfg('AV_GDRIVE_SERVICE_ACCOUNT');
+        if ($v === '') return null;
         $json = (str_starts_with(ltrim($v), '{')) ? $v : (is_file($v) ? (string) @file_get_contents($v) : '');
         $c = json_decode($json, true);
         return (is_array($c) && !empty($c['client_email']) && !empty($c['private_key'])) ? $c : null;
@@ -78,7 +87,7 @@ final class Drive
         $tok = self::accessToken();
         if (!$tok) throw new RuntimeException('Drive auth failed.');
 
-        $meta = json_encode(['name' => $originalName !== '' ? $originalName : ('document-' . date('Ymd-His')), 'parents' => [AV_GDRIVE_FOLDER_ID]]);
+        $meta = json_encode(['name' => $originalName !== '' ? $originalName : ('document-' . date('Ymd-His')), 'parents' => [self::folderId()]]);
         $boundary = 'av' . bin2hex(random_bytes(8));
         $body = "--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n$meta\r\n"
               . "--$boundary\r\nContent-Type: $mime\r\n\r\n" . (string) file_get_contents($tmpPath) . "\r\n--$boundary--";

@@ -170,6 +170,12 @@ $knownMetaKeys = [
     // Lost, the import runs again and finds nothing new to bring (it only
     // fills a draft or a first version that is not already there).
     'cms_legacy_imported',
+    // Google (lib/GoogleAuth, lib/GoogleWorkspace). Reviewed: gate no migration.
+    // The last failed Google round-trip and the last directory sync, shown on
+    // the System page. Lost, the page says "none recorded" / "not run yet" and
+    // the directory sync runs once more today (it is an idempotent upsert).
+    'google_last_failure',
+    'gws_directory_sync',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

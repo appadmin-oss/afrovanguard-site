@@ -1776,8 +1776,13 @@
             return '<option value="' + escapeHtml(o) + '"' + (o === f.value ? ' selected' : '') + '>'
               + escapeHtml(o === '' ? 'Auto-detect' : o) + '</option>';
           }).join('') + '</select>';
+    } else if (f.type === 'json') {
+      /* A whole key file (a Google service account): it has line breaks, so a
+         one-line field mangles it. Never prefilled — it is a secret. */
+      input = '<textarea id="' + id + '" rows="4" spellcheck="false" autocomplete="off" data-skey="' + escapeHtml(f.key) + '"'
+        + ' placeholder="' + escapeHtml(f.is_set ? 'Stored — paste a new key to replace it' : f.placeholder) + '"></textarea>';
     } else {
-      input = '<input id="' + id + '" type="' + (f.secret ? 'password' : 'text') + '" spellcheck="false" autocomplete="off"'
+      input = '<input id="' + id + '" type="' + (f.secret ? 'password' : (f.type === 'email' ? 'email' : 'text')) + '" spellcheck="false" autocomplete="off"'
         + ' data-skey="' + escapeHtml(f.key) + '"'
         + ' value="' + escapeHtml(f.secret ? '' : f.value) + '"'
         + ' placeholder="' + escapeHtml(f.secret && f.is_set ? 'Stored — type to replace' : f.placeholder) + '" />';
@@ -2916,7 +2921,7 @@
       var d = r.data || {}; if (!d.ok) return;
       apReflect(d.policy);
       var note = $('#apGoogleNote');
-      if (note) note.textContent = d.google_configured ? '— configured' : '— needs AV_GOOGLE_CLIENT_ID (stays off until set)';
+      if (note) note.textContent = d.google_configured ? '— configured' : '— not set up: add the OAuth client ID and secret under Setup → Google sign-in & Workspace';
     });
   }
   if ($('#signinView')) {

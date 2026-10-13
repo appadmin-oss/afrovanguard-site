@@ -98,6 +98,51 @@ final class AvSettings
             'help' => 'Exactly the text between the quotes in const SECRET at the top of the script. The script refuses every request without it.',
         ],
 
+        /* ── Google: sign-in and Workspace ─────────────────────────────────
+           These lived only in config.php or SetEnv, on a host with no shell —
+           so "Continue with Google" and every Workspace panel stayed dark unless
+           somebody edited a file above the web root. */
+        'AV_GOOGLE_CLIENT_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'OAuth client ID', 'secret' => false, 'type' => 'text',
+            'ph' => '1234567890-abc….apps.googleusercontent.com',
+            'help' => 'Google Cloud console → APIs & Services → Credentials → your OAuth 2.0 Client ID (type: Web application). Turns on “Continue with Google” and lets members connect their own Workspace. Its Authorised redirect URI must be exactly this site’s address followed by /auth/google/callback — the test below prints it.',
+        ],
+        'AV_GOOGLE_CLIENT_SECRET' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'OAuth client secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'GOCSPX-…',
+            'help' => 'The client secret shown next to that client ID.',
+        ],
+        'AV_GWS_CONNECT_ON_SIGNIN' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Ask for Workspace access at sign-in', 'secret' => false, 'type' => 'enum',
+            'options' => ['org', 'all', '0'],
+            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from /workspace instead.',
+        ],
+        'AV_GDRIVE_SERVICE_ACCOUNT' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Service account key (JSON)', 'secret' => true, 'type' => 'json',
+            'ph' => '{ "type": "service_account", … }',
+            'help' => 'Paste the whole JSON key of the service account (Google Cloud console → IAM & Admin → Service Accounts → Keys → Add key → JSON). Used for the shared calendar, Meet links, the Drive folder and the directory. It is encrypted here and never shown again.',
+        ],
+        'AV_WS_SUBJECT' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Admin to act as', 'secret' => false, 'type' => 'email',
+            'ph' => 'admin@afrovanguard.org.ng',
+            'help' => 'A real Workspace administrator the service account impersonates through domain-wide delegation. Needed for the directory, Meet records and creating events on someone’s calendar.',
+        ],
+        'AV_WS_CALENDAR_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Shared calendar', 'secret' => false, 'type' => 'text',
+            'ph' => 'mentorship@afrovanguard.org.ng',
+            'help' => 'The calendar sessions are written to and “Coming up” reads from. Blank uses the admin above.',
+        ],
+        'AV_GDRIVE_FOLDER_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Drive folder ID', 'secret' => false, 'type' => 'text',
+            'ph' => 'the id at the end of the folder’s URL',
+            'help' => 'Where uploaded documents are stored and which folder the portal lists. Share the folder with the service account’s email.',
+        ],
+        'AV_WS_DIRECTORY_SYNC' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Add Workspace users as members', 'secret' => false, 'type' => 'enum',
+            'options' => ['off', 'daily'],
+            'help' => 'daily: once a day the site cron reads the Workspace directory and gives every active user a member account (existing accounts are left as they are). Needs the service account, the admin above, and the cron.',
+        ],
+
         /* ── Gemini ───────────────────────────────────────────────────── */
         /* ── CACENTRE gate ───────────────────────────────────────────────── */
         'GATE_PASS_SECRET' => [
@@ -548,6 +593,8 @@ final class AvSettings
             // next API call.
             $bad = self::validate($key, $val);
             if ($bad !== '') { $errors[$key] = $bad; continue; }
+            // A key pasted with its line breaks is stored as one compact line.
+            if (($d['type'] ?? '') === 'json') $val = (string) json_encode(json_decode($val, true), JSON_UNESCAPED_SLASHES);
 
             $store = $val; $isSecret = 0;
             if (!empty($d['secret'])) {
@@ -605,12 +652,36 @@ final class AvSettings
             }
             return '';
         }
+        if ($type === 'email') {
+            return filter_var($val, FILTER_VALIDATE_EMAIL) ? '' : 'Must be an email address.';
+        }
+        if ($type === 'json') return self::validateServiceAccount($val);
+        if ($key === 'AV_GOOGLE_CLIENT_ID' && !preg_match('/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i', $val)) {
+            return 'A Google OAuth client ID ends in .apps.googleusercontent.com — copy the Client ID, not the project number or the secret.';
+        }
         if (strlen($val) > 4000) return 'Too long.';
         // A pasted key with whitespace or quotes in it is the commonest setup
         // mistake and produces a baffling 401 later — reject it here instead.
         if (!empty($d['secret']) && preg_match('/[\s"\']/', $val)) {
             return 'That looks like it has quotes or spaces in it — paste the key on its own.';
         }
+        return '';
+    }
+
+    /**
+     * A Google service-account key, checked the way Google will check it: the
+     * right type, an email to sign as, and a private key openssl can read.
+     * A secret's usual rule (no quotes, no spaces) cannot apply to JSON.
+     */
+    private static function validateServiceAccount(string $val): string
+    {
+        if (strlen($val) > 12000) return 'Too long for a service-account key.';
+        $j = json_decode($val, true);
+        if (!is_array($j)) return 'That is not JSON. Paste the whole downloaded key file, from { to }.';
+        if (($j['type'] ?? '') !== 'service_account') return 'That JSON is not a service-account key (its "type" should be "service_account"). An OAuth client file will not work here.';
+        if (empty($j['client_email']) || !filter_var((string) $j['client_email'], FILTER_VALIDATE_EMAIL)) return 'The key has no client_email.';
+        $pk = (string) ($j['private_key'] ?? '');
+        if ($pk === '' || !function_exists('openssl_pkey_get_private') || openssl_pkey_get_private($pk) === false) return 'The key’s private_key cannot be read. Download a fresh JSON key and paste it unedited.';
         return '';
     }
 
@@ -696,6 +767,8 @@ final class AvSettings
             ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
             ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
+            ['key' => 'google_signin', 'label' => 'Google sign-in', 'ready' => class_exists('GoogleAuth') && GoogleAuth::configured()],
+            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured()],
         ];
     }
 
@@ -717,6 +790,8 @@ final class AvSettings
                 case 'attendee':  $r = self::testAttendee(); break;
                 case 'search':    $r = self::testSearch(); break;
                 case 'apps_script': $r = self::testAppsScript(); break;
+                case 'google_signin': $r = self::testGoogleSignin(); break;
+                case 'google_workspace': $r = self::testGoogleWorkspace(); break;
             }
         } catch (Throwable $e) {
             error_log('[settings] test ' . $what . ': ' . $e->getMessage());
@@ -814,6 +889,32 @@ final class AvSettings
         // Already an operator sentence — not passed through humanise(), which
         // would turn "quota" into "rate-limited" and lose the instructions.
         return ['ok' => (bool) $c['ok'], 'detail' => (string) $c['detail']];
+    }
+
+    private static function testGoogleSignin(): array
+    {
+        if (!class_exists('GoogleAuth') || !GoogleAuth::configured()) return ['ok' => false, 'detail' => 'Set the OAuth client ID and secret first.'];
+        $p = GoogleAuth::probeClient();
+        return ['ok' => (bool) $p['ok'], 'detail' => (string) $p['detail']];
+    }
+
+    private static function testGoogleWorkspace(): array
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::configured()) return ['ok' => false, 'detail' => 'Paste the service account key first.'];
+        $p = GoogleWorkspace::probe();
+        if (empty($p['token_ok'])) {
+            return ['ok' => false, 'detail' => 'Google refused the service account: ' . (string) ($p['error'] ?? 'no reason given')
+                . (($p['subject'] ?? '') !== '' ? '. If this says unauthorized_client, domain-wide delegation has not been granted to client ID '
+                    . (string) ($p['client_id'] ?? '') . ' for these scopes in the Google Admin console.' : '')];
+        }
+        $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
+        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups'] as $k => $label) {
+            if (($p[$k] ?? null) === null) continue;
+            $e = (string) ($p[$k === 'calendar_read' ? 'calendar_error' : $k . '_error'] ?? '');
+            $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
+        }
+        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
+        return ['ok' => !$bad, 'detail' => implode(' · ', $bits)];
     }
 
     /**

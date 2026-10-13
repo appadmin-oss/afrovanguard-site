@@ -36,6 +36,27 @@ final class GoogleWorkspace
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
     private static array $tokens = [];
 
+    /**
+     * Why the last Google call failed, in Google's own words ('' = none). Every
+     * read here returns [] on failure so the portal degrades quietly — which
+     * also meant "no events" and "domain-wide delegation not granted" looked
+     * identical on every screen. The Setup test and System page read this.
+     */
+    private static string $lastError = '';
+    public static function lastError(): string { return self::$lastError; }
+
+    /** Google's error body → one line: "unauthorized_client: Client is unauthorized …". */
+    private static function errorLine(?array $res): string
+    {
+        if (!$res) return 'no response from Google (network or TLS)';
+        $j = $res['json'] ?? null;
+        if (is_array($j)) {
+            if (is_string($j['error'] ?? null)) return $j['error'] . (!empty($j['error_description']) ? ': ' . (string) $j['error_description'] : '');
+            if (is_array($j['error'] ?? null)) return 'HTTP ' . (int) $res['code'] . ': ' . (string) ($j['error']['message'] ?? $j['error']['status'] ?? '');
+        }
+        return 'HTTP ' . (int) ($res['code'] ?? 0);
+    }
+
     public static function configured(): bool { return self::credentials() !== null; }
 
     /** Full write sync is opt-in (creates real calendar events + Meet links). */
@@ -101,6 +122,7 @@ final class GoogleWorkspace
         ]));
         if (!$res || empty($res['json']['access_token'])) {
             if ($res) error_log('[workspace] token error ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 200));
+            self::$lastError = 'token' . ($sub !== '' ? ' (as ' . $sub . ')' : '') . ' — ' . self::errorLine($res);
             return null;
         }
         self::$tokens[$key] = ['v' => (string) $res['json']['access_token'], 'exp' => $now + (int) ($res['json']['expires_in'] ?? 3600)];
@@ -141,6 +163,7 @@ final class GoogleWorkspace
         $res = self::http('GET', $url, $tok);
         if (!$res || $res['code'] >= 400) {
             if ($res) error_log('[workspace] GET ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 200));
+            self::$lastError = 'GET ' . (string) parse_url($url, PHP_URL_PATH) . ' — ' . self::errorLine($res);
             return null;
         }
         return is_array($res['json']) ? $res['json'] : null;
@@ -154,6 +177,7 @@ final class GoogleWorkspace
         $res = self::http($method, $url, $tok, null, $body !== null ? json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : ($method === 'DELETE' ? '' : '{}'));
         if (!$res || $res['code'] >= 400) {
             if ($res) error_log('[workspace] ' . $method . ' ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 300));
+            self::$lastError = $method . ' ' . (string) parse_url($url, PHP_URL_PATH) . ' — ' . self::errorLine($res);
             return null;
         }
         return is_array($res['json']) ? $res['json'] : ($res['code'] < 300 ? ['ok' => true] : null);
@@ -171,7 +195,7 @@ final class GoogleWorkspace
             'timeMin' => gmdate('Y-m-d\TH:i:s\Z'), 'singleEvents' => 'true', 'orderBy' => 'startTime',
             'maxResults' => max(1, min(50, $max)),
         ]);
-        $url = 'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . $q;
+        $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . $q;
         $d = self::apiGet($url, self::SCOPE_CALENDAR, self::subject() !== '');
         if (!$d || empty($d['items'])) return [];
         $out = [];
@@ -203,7 +227,7 @@ final class GoogleWorkspace
             'orderBy' => 'modifiedTime desc', 'pageSize' => max(1, min(100, $max)),
             'supportsAllDrives' => 'true', 'includeItemsFromAllDrives' => 'true',
         ]);
-        $d = self::apiGet('https://www.googleapis.com/drive/v3/files?' . $q, self::SCOPE_DRIVE, self::subject() !== '');
+        $d = self::apiGet(self::apiBase() . '/drive/v3/files?' . $q, self::SCOPE_DRIVE, self::subject() !== '');
         if (!$d || empty($d['files'])) return [];
         $out = [];
         foreach ($d['files'] as $f) {
@@ -223,11 +247,22 @@ final class GoogleWorkspace
     {
         if (!self::configured() || self::subject() === '') return [];
         $domain = (string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng');
-        $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max)), 'orderBy' => 'email', 'viewType' => 'domain_public']);
-        $d = self::apiGet('https://admin.googleapis.com/admin/directory/v1/users?' . $q, self::SCOPE_DIRECTORY, true);
-        if (!$d || empty($d['users'])) return [];
+        /* admin_view, not domain_public: `suspended` and `isAdmin` are admin-only
+           fields, so under domain_public every user read as not suspended and
+           the sync gave suspended staff a member account. Paged: the API returns
+           at most 500 a page, and an organisation past that lost the rest. */
+        $users = []; $page = '';
+        do {
+            $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max - count($users))), 'orderBy' => 'email', 'viewType' => 'admin_view']
+                + ($page !== '' ? ['pageToken' => $page] : []));
+            $d = self::apiGet(self::reportsBase() . '/admin/directory/v1/users?' . $q, self::SCOPE_DIRECTORY, true);
+            if (!$d) break;
+            foreach ((array) ($d['users'] ?? []) as $u) $users[] = $u;
+            $page = (string) ($d['nextPageToken'] ?? '');
+        } while ($page !== '' && count($users) < $max);
+        if (!$users) return [];
         $out = [];
-        foreach ($d['users'] as $u) {
+        foreach ($users as $u) {
             $out[] = [
                 'name'    => (string) ($u['name']['fullName'] ?? ''),
                 'email'   => (string) ($u['primaryEmail'] ?? ''),
@@ -475,7 +510,7 @@ final class GoogleWorkspace
         if (!self::configured() || self::subject() === '') return [];
         $domain = (string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng');
         $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max))]);
-        $d = self::apiGet('https://admin.googleapis.com/admin/directory/v1/groups?' . $q, self::SCOPE_GROUPS, true);
+        $d = self::apiGet(self::reportsBase() . '/admin/directory/v1/groups?' . $q, self::SCOPE_GROUPS, true);
         if (!$d || empty($d['groups'])) return [];
         return array_map(fn($g) => [
             'name'  => (string) ($g['name'] ?? ''),
@@ -498,7 +533,7 @@ final class GoogleWorkspace
         $db = Database::pdo();
         $find = $db->prepare('SELECT id FROM lms_users WHERE email = ?');
         $ins  = $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified, has_password) VALUES (?,?,?,?,1,0)');
-        $upd  = $db->prepare('UPDATE lms_users SET name = ? WHERE id = ? AND (name IS NULL OR name = "")');
+        $upd  = $db->prepare("UPDATE lms_users SET name = ? WHERE id = ? AND (name IS NULL OR name = '')");   // '' not "": a double-quoted "" is an identifier on Postgres and ANSI MySQL
         foreach ($users as $u) {
             $email = strtolower(trim((string) $u['email']));
             if ($email === '' || !empty($u['suspended'])) { $sum['skipped']++; continue; }
@@ -513,6 +548,40 @@ final class GoogleWorkspace
             } catch (Throwable $e) { $sum['skipped']++; }
         }
         return $sum + ['ok' => true, 'total' => count($users)];
+    }
+
+    /** Is the daily directory sync switched on (Setup → AV_WS_DIRECTORY_SYNC) and not yet run today? */
+    public static function directorySyncDue(): bool
+    {
+        if (strtolower(trim((string) Config::get('AV_WS_DIRECTORY_SYNC', 'off'))) !== 'daily') return false;
+        if (!self::configured() || self::subject() === '' || !class_exists('Database')) return false;
+        $last = json_decode((string) (Database::metaGet('gws_directory_sync') ?? ''), true);
+        return !is_array($last) || ($last['day'] ?? '') !== gmdate('Y-m-d');
+    }
+
+    /**
+     * One directory sync, remembered: when it ran and what it did or why it
+     * failed, for the System page. The day is claimed BEFORE the call, so a
+     * failing sync is tried once a day rather than on every five-minute tick.
+     */
+    public static function runDirectorySync(): array
+    {
+        Database::metaSet('gws_directory_sync', (string) json_encode(['day' => gmdate('Y-m-d'), 'at' => gmdate('c'), 'running' => true]));
+        self::$lastError = '';
+        $r = self::syncDirectoryUsers();
+        /* directoryUsers() returns [] on an error as well as on an empty
+           directory; the error is what tells them apart. */
+        if (self::$lastError !== '') $r = ['ok' => false, 'error' => self::$lastError] + $r;
+        Database::metaSet('gws_directory_sync', (string) json_encode(['day' => gmdate('Y-m-d'), 'at' => gmdate('c'), 'result' => $r], JSON_UNESCAPED_SLASHES));
+        return $r;
+    }
+
+    /** The last directory sync, as runDirectorySync() recorded it, or null. */
+    public static function lastDirectorySync(): ?array
+    {
+        if (!class_exists('Database')) return null;
+        $j = json_decode((string) (Database::metaGet('gws_directory_sync') ?? ''), true);
+        return is_array($j) ? $j : null;
     }
 
     /** Fetch a Drive file's text (e.g. a Meet transcript doc) — read-only. */
@@ -622,16 +691,33 @@ final class GoogleWorkspace
     public static function probe(): array
     {
         if (!self::configured()) return ['configured' => false];
+        self::$lastError = '';
         $tok = self::accessToken(self::SCOPE_CALENDAR, self::subject() !== '');
+        $err = self::$lastError;
+        /* Each step reports its OWN error: a 0 beside an error is a failure,
+           a 0 with none is an empty calendar or folder. */
+        $step = static function (callable $f) use (&$err): array {
+            self::$lastError = '';
+            $n = $f();
+            if (self::$lastError !== '' && $err === '') $err = self::$lastError;
+            return ['n' => $n, 'error' => self::$lastError];
+        };
+        $cal = $step(fn() => count(self::calendarEvents(null, 1)));
+        $drv = $step(fn() => count(self::driveFiles(null, 1)));
+        $dir = self::subject() !== '' ? $step(fn() => count(self::directoryUsers(1))) : ['n' => null, 'error' => ''];
+        $grp = self::subject() !== '' ? $step(fn() => count(self::directoryGroups(1))) : ['n' => null, 'error' => ''];
         return [
-            'configured'     => true,
-            'subject'        => self::subject(),
-            'token_ok'       => $tok !== null,
-            'calendar_read'  => count(self::calendarEvents(null, 1)),
-            'calendar_write' => self::calendarWriteEnabled(),
-            'drive'          => count(self::driveFiles(null, 1)),
-            'directory'      => self::subject() !== '' ? count(self::directoryUsers(1)) : null,
-            'groups'         => self::subject() !== '' ? count(self::directoryGroups(1)) : null,
+            'configured'      => true,
+            'service_account' => (string) (self::credentials()['client_email'] ?? ''),
+            'client_id'       => (string) (self::credentials()['client_id'] ?? ''),
+            'subject'         => self::subject(),
+            'token_ok'        => $tok !== null,
+            'calendar_read'   => $cal['n'], 'calendar_error' => $cal['error'],
+            'calendar_write'  => self::calendarWriteEnabled(),
+            'drive'           => $drv['n'], 'drive_error' => $drv['error'],
+            'directory'       => $dir['n'], 'directory_error' => $dir['error'],
+            'groups'          => $grp['n'], 'groups_error' => $grp['error'],
+            'error'           => $err,
         ];
     }
 }
