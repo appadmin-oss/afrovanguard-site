@@ -108,12 +108,12 @@
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
-              <div class="pseg task-filters" id="taskFilters" role="tablist">
-                <button type="button" class="pseg-btn is-on" data-filter="all">All <span class="pseg-n" id="fcAll">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="open">Open <span class="pseg-n" id="fcOpen">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="overdue">Overdue <span class="pseg-n" id="fcOver">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="mine">Mine <span class="pseg-n" id="fcMine">0</span></button>
-                <button type="button" class="pseg-btn" data-filter="done">Done <span class="pseg-n" id="fcDone">0</span></button>
+              <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
+                <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="open" aria-pressed="false">Open <span class="pseg-n" id="fcOpen">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="overdue" aria-pressed="false">Overdue <span class="pseg-n" id="fcOver">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="mine" aria-pressed="false">Mine <span class="pseg-n" id="fcMine">0</span></button>
+                <button type="button" class="pseg-btn" data-filter="done" aria-pressed="false">Done <span class="pseg-n" id="fcDone">0</span></button>
               </div>
               <ul class="task-list" id="taskList"><li class="pc-empty task-empty">Loading your tasks…</li></ul>
             </div>

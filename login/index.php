@@ -122,7 +122,7 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
 
   <section class="avsi-col" aria-labelledby="avsi-h">
     <div class="avsi-top">
-      <a class="avsi-brand" href="/"><img src="/assets/site/av-seal.png" alt="" width="36" height="36" /><span>Afrovanguard</span></a>
+      <a class="avsi-brand" href="/"><img src="/assets/site/av-seal-96.png" alt="" width="36" height="36" /><span>Afrovanguard</span></a>
       <a class="avsi-back" href="/"><span aria-hidden="true">←</span>&nbsp;Back to site</a>
     </div>
     <div class="avsi-center">

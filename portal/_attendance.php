@@ -75,6 +75,7 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
                   require_once __DIR__ . '/../lib/IdCard.php';
                   $card = IdCard::forMember((int) $u['id']);
                   $avcSide = 'both';
+                  $avcSealSrc = '/assets/site/av-seal-256.png';
                   include __DIR__ . '/../partials/id-card.php';
                 ?>
                 <p class="pcard-note"><?= e($gpStanding['detail']) ?><?= $gpSecure ? ' A phone that scans the code opens your card’s page; the desk scanner checks you in from the same code.' : '' ?><?= $gpSecure ? ' Your photo is changed under Membership → Your card.' : '' ?></p>

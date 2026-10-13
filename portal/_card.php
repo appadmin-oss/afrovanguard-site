@@ -22,7 +22,8 @@ if ($ycCode !== null):
                 <div class="pcard-head"><h2 id="yc-h">Your card</h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$card['band']['tone']] ?? 'indigo') ?>"><?= e($card['band']['label']) ?></span></div>
                 <div class="pcard-body">
                   <div class="avc-holder" data-side="front">
-                    <?php $avcSide = 'both'; $avcMode = 'screen'; include __DIR__ . '/../partials/id-card.php'; ?>
+                    <?php $avcSide = 'both'; $avcMode = 'screen'; $avcSealSrc = '/assets/site/av-seal-256.png';
+ include __DIR__ . '/../partials/id-card.php'; ?>
                     <div class="avc-actions avc-self" data-avc-self data-csrf="<?= e(av_csrf_token()) ?>">
                       <button type="button" class="avc-btn" data-avc-flip aria-pressed="false">Show back</button>
                       <button type="button" class="avc-btn avc-btn--primary" data-avc-self-pick><?= $ycHasPhoto ? 'Change your photo' : 'Add your photo' ?></button>

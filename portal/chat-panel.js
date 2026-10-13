@@ -115,11 +115,11 @@
     function updatePresence(count){ if(presEl)presEl.textContent=count||0; }
     function roleTag(r){ return (r==='mentor'||r==='instructor') ? '<span class="tc-role tc-role--mentor">Mentor</span>'
       : (r==='coordinator'||r==='admin') ? '<span class="tc-role tc-role--lead">Lead</span>' : ''; }
-    function memberRow(u){ return '<li class="tc-mem'+(u.online?'':' is-off')+'"><span class="tc-mem-ava">'+esc(u.initial)+(u.online?'<span class="tc-mem-dot"></span>':'')+'</span>'
-      +'<span class="tc-mem-b"><span class="tc-mem-name">'+esc(u.name)+(u.is_me?' <span class="tc-mem-you">you</span>':'')+'</span>'+roleTag(u.role)+'</span></li>'; }
+    function memberRow(u){ return '<li class="tc-mem'+(u.online?'':' is-off')+'"><span class="tc-mem-ava" aria-hidden="true">'+esc(u.initial)+(u.online?'<span class="tc-mem-dot"></span>':'')+'</span>'
+      +'<span class="tc-mem-b"><span class="tc-mem-name">'+esc(u.name)+(u.is_me?' <span class="tc-mem-you">you</span>':'')+'<span class="sr-only">'+(u.online?', online':', offline')+'</span></span>'+roleTag(u.role)+'</span></li>'; }
     function renderMembers(){ if(!membersEl) return; var m=MEMBERS||{mentors:[],members:[]}; var html='';
-      if((m.mentors||[]).length){ html+='<div class="tc-mem-h">Mentors · '+m.mentors.length+'</div>'+m.mentors.map(memberRow).join(''); }
-      html+='<div class="tc-mem-h tc-mem-h--sp">Members · '+(m.members||[]).length+'</div>'+((m.members||[]).length?m.members.map(memberRow).join(''):'<p class="pc-empty">No members yet.</p>');
+      if((m.mentors||[]).length){ html+='<div class="tc-mem-h">Mentors · '+m.mentors.length+'</div><ul class="tc-mem-list">'+m.mentors.map(memberRow).join('')+'</ul>'; }
+      html+='<div class="tc-mem-h tc-mem-h--sp">Members · '+(m.members||[]).length+'</div>'+((m.members||[]).length?'<ul class="tc-mem-list">'+m.members.map(memberRow).join('')+'</ul>':'<p class="pc-empty">No members yet.</p>');
       membersEl.innerHTML=html;
       var total=(m.mentors||[]).length+(m.members||[]).length; if(memberCountEl)memberCountEl.textContent=total?('· '+total+' member'+(total===1?'':'s')):''; }
     function renderTyping(names){ names=names||[]; if(!typingEl) return;

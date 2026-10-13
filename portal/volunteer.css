@@ -394,3 +394,8 @@
 /* A count's spoken words stay inside the (scrolling) tab strip. */
 .vh-tabs button, .vh-tab-n, .vh-seg button { position: relative; }
 .vh-logform input, .vh-logform select { width: 100%; box-sizing: border-box; }
+/* Move up / down: the keyboard's way to reorder (dragging stays for a mouse). */
+.vh-move { display: inline-flex; gap: 2px; }
+.vh-mv { font: inherit; font-size: 14px; line-height: 1; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--avp-input); background: var(--avp-surface, #fff); color: var(--avp-text-2); cursor: pointer; }
+.vh-mv:hover { color: var(--avp-ink); }
+.vh-mv:focus-visible { outline: 3px solid var(--avp-gold); outline-offset: 1px; }

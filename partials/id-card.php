@@ -18,7 +18,9 @@
  */
 $avcMode = $avcMode ?? 'screen';
 $avcSide = $avcSide ?? 'both';
-$seal = '/assets/site/av-seal.png';
+/* A screen may pass the light seal ($avcSealSrc); print and the NGG card
+   export use the full one, which CardBundle looks for by this exact path. */
+$seal = isset($avcSealSrc) && is_string($avcSealSrc) && $avcSealSrc !== '' ? $avcSealSrc : '/assets/site/av-seal.png';
 ?>
 <?php if ($avcSide !== 'back'): ?>
 <article class="avc avc-face avc-front<?= $avcMode === 'print' ? ' is-print' : '' ?>" aria-label="Member card, front">

@@ -397,8 +397,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="<?= e(av_asset('/community/community.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/avdy.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/commitments.js')) ?>" defer></script>
-<?php if ($isVol): ?>  <script src="/assets/vendor/sortable/Sortable.min.js" defer></script>
-  <script src="<?= e(av_asset('/portal/volunteer.js')) ?>" defer></script>
+<?php if ($isVol): ?>  <script src="<?= e(av_asset('/portal/volunteer.js')) ?>" defer></script>
 <?php endif; ?>
   <script src="<?= e(av_asset('/assets/site/avc-photo.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/card-photo.js')) ?>" defer></script>

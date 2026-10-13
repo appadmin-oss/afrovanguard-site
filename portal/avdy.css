@@ -327,3 +327,6 @@
   .avnb-search { height: 44px; }
   .avnb-search input { align-self: stretch; }
 }
+/* The ink button keeps its own text colour; a broader portal rule turned it
+   grey on near-black (3.3:1), unreadable for low vision. */
+.avp .avnb-btn.avnb-btn--ink, .avp .avnb-btn.avnb-btn--ink:hover { color: var(--dy-on-ink); }

@@ -54,6 +54,7 @@
   var LIBS = {
     calendar: { js: '/assets/vendor/fullcalendar/index.global.min.js', ok: function () { return !!window.FullCalendar; } },
     chart: { js: '/assets/vendor/uplot/uPlot.iife.min.js', css: '/assets/vendor/uplot/uPlot.min.css', ok: function () { return !!window.uPlot; } },
+    sortable: { js: '/assets/vendor/sortable/Sortable.min.js', ok: function () { return !!window.Sortable; } },
     picker: { js: '/assets/vendor/tom-select/tom-select.complete.min.js', css: '/assets/vendor/tom-select/tom-select.min.css', ok: function () { return !!window.TomSelect; } },
   }, libWait = {};
   function need(name) {
@@ -824,7 +825,9 @@
   function itemRow(kind, i, data, ro) {
     var dis = ro ? ' disabled' : '';
     var grip = '<span class="vh-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>';
-    var x = ro ? '' : '<button type="button" class="vh-x" data-del="' + kind + '" aria-label="Remove">×</button>';
+    /* Dragging is for a mouse; the arrows move an item for a keyboard or a screen reader. */
+    var x = ro ? '' : '<span class="vh-move"><button type="button" class="vh-mv" data-move="-1" aria-label="Move up">↑</button><button type="button" class="vh-mv" data-move="1" aria-label="Move down">↓</button></span>'
+      + '<button type="button" class="vh-x" data-del="' + kind + '" aria-label="Remove">×</button>';
     if (kind === 'agenda') return '<li class="vh-item" data-k="agenda">' + grip + '<div><input data-f="item" value="' + esc(data.item) + '" aria-label="Agenda item"' + dis + '><textarea data-f="notes" placeholder="What was said and agreed (Markdown works)" aria-label="Notes on ' + esc(data.item) + '"' + dis + '>' + esc(data.notes) + '</textarea></div>' + x + '</li>';
     if (kind === 'decision') return '<li class="vh-item" data-k="decision">' + grip + '<input data-f="text" value="' + esc(data) + '" aria-label="Decision"' + dis + '>' + x + '</li>';
     return '<li class="vh-item vh-item--action" data-k="action">' + grip + '<input data-f="task" value="' + esc(data.task) + '" placeholder="What will be done" aria-label="Action"' + dis + '>'
@@ -847,11 +850,11 @@
         var a = (m.answers.by || {})[p.id];
         return '<label>' + esc(p.name) + (a && a.answer === 'no' ? ' <span class="vh-src">sent apologies</span>' : '') + '<select data-att="' + p.id + '"' + (ro ? ' disabled' : '') + '>' + MARKS.map(function (k) { return '<option value="' + k[0] + '"' + ((att[p.id] || '') === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></label>';
       }).join('') + '</div></section>';
-    h += '<section class="vh-min-sec"><h3>Summary <span class="vh-hint">Markdown works</span></h3><textarea id="mSummary"' + (ro ? ' disabled' : '') + '>' + esc(b.summary) + '</textarea>'
+    h += '<section class="vh-min-sec"><h3>Summary <span class="vh-hint">Markdown works</span></h3><textarea id="mSummary" aria-label="Summary"' + (ro ? ' disabled' : '') + '>' + esc(b.summary) + '</textarea>'
       + (ro ? '' : (hub && hub.integrations.assistant
           ? '<details style="margin-top:8px"' + (ed.words ? ' open' : '') + '><summary class="vh-note" style="cursor:pointer">' + (ed.words ? 'Turn what was said in the room into the minutes' : 'Paste rough notes and let the assistant sort them into the sections') + '</summary>'
             + (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mUseWords" style="margin:6px 0">Use what was said in the room</button>' : '')
-            + '<textarea id="mRough" placeholder="Paste your notes or a transcript…"></textarea><button type="button" class="avp-btn avp-btn--sq" id="mTidy" style="margin-top:6px">Tidy into the minutes</button></details>'
+            + '<textarea id="mRough" aria-label="Rough notes or a transcript to tidy" placeholder="Paste your notes or a transcript…"></textarea><button type="button" class="avp-btn avp-btn--sq" id="mTidy" style="margin-top:6px">Tidy into the minutes</button></details>'
           /* No assistant on this site: what the room heard can still go into the notes, as it was said. */
           : (ed.words ? '<button type="button" class="avp-btn avp-btn--sq" id="mWordsToNotes" style="margin-top:8px">Add what was said in the room to the notes</button>' : ''))) + '</section>';
     if (b.arising.length) h += '<section class="vh-min-sec"><h3>Matters arising <span class="vh-hint">open actions from earlier meetings</span></h3><ul class="vh-list vh-arising">'
@@ -863,8 +866,8 @@
     h += '<section class="vh-min-sec"><h3>Agenda and discussion</h3><ul class="vh-items" id="mAgenda">' + b.agenda.map(function (a, i) { return itemRow('agenda', i, a, ro); }).join('') + '</ul>' + (ro ? '' : '<button type="button" class="vh-add" data-add="agenda">+ Agenda item</button>') + '</section>';
     h += '<section class="vh-min-sec"><h3>Decisions</h3><ul class="vh-items" id="mDecisions">' + b.decisions.map(function (d, i) { return itemRow('decision', i, d, ro); }).join('') + '</ul>' + (ro ? '' : '<button type="button" class="vh-add" data-add="decision">+ Decision</button>') + '</section>';
     h += '<section class="vh-min-sec"><h3>Actions <span class="vh-hint">each becomes a tracked action for its owner when published</span></h3><ul class="vh-items" id="mActions">' + b.actions.map(function (a, i) { return itemRow('action', i, a, ro); }).join('') + '</ul>' + (ro ? '' : '<button type="button" class="vh-add" data-add="action">+ Action</button>') + '</section>';
-    h += '<section class="vh-min-sec"><h3>Other notes</h3><textarea id="mNotes"' + (ro ? ' disabled' : '') + '>' + esc(b.notes) + '</textarea></section>';
-    h += '<section class="vh-min-sec"><h3>Next meeting</h3><input id="mNext" value="' + esc(b.next_meeting) + '" placeholder="e.g. Saturday 9 November, 10am"' + (ro ? ' disabled' : '') + ' style="width:100%"></section>';
+    h += '<section class="vh-min-sec"><h3>Other notes</h3><textarea id="mNotes" aria-label="Other notes"' + (ro ? ' disabled' : '') + '>' + esc(b.notes) + '</textarea></section>';
+    h += '<section class="vh-min-sec"><h3>Next meeting</h3><input id="mNext" aria-label="Next meeting" value="' + esc(b.next_meeting) + '" placeholder="e.g. Saturday 9 November, 10am"' + (ro ? ' disabled' : '') + ' style="width:100%"></section>';
     $('vhMinBody').innerHTML = h;
 
     var f = '';
@@ -876,8 +879,11 @@
     $('vhMinFoot').innerHTML = f;
 
     ed.sortables.forEach(function (s) { try { s.destroy(); } catch (e) {} }); ed.sortables = [];
-    if (!ro && window.Sortable) ['mAgenda', 'mDecisions', 'mActions'].forEach(function (id) {
-      ed.sortables.push(window.Sortable.create($(id), { handle: '.vh-grip', animation: 150, ghostClass: 'vh-ghost', onEnd: changed }));
+    if (!ro) need('sortable').then(function (ok) {
+      if (!ok || !$('vhMin').open) return;
+      ['mAgenda', 'mDecisions', 'mActions'].forEach(function (id) {
+        if ($(id)) ed.sortables.push(window.Sortable.create($(id), { handle: '.vh-grip', animation: 150, ghostClass: 'vh-ghost', onEnd: changed }));
+      });
     });
   }
 
@@ -919,7 +925,20 @@
       var k = add.getAttribute('data-add'), list = $({ agenda: 'mAgenda', decision: 'mDecisions', action: 'mActions' }[k]);
       list.insertAdjacentHTML('beforeend', itemRow(k, list.children.length, k === 'agenda' ? { item: '', notes: '' } : k === 'decision' ? '' : { task: '', owner_id: 0, due: '' }, false));
       list.lastElementChild.querySelector('input').focus(); changed();
-    } else if (del) { del.closest('li').remove(); changed(); }
+    } else if (del) {
+      var gone = del.closest('li'), nextFocus = gone.nextElementSibling || gone.previousElementSibling;
+      gone.remove(); changed(); announce('Removed.');
+      if (nextFocus) { var f = nextFocus.querySelector('input, textarea'); if (f) f.focus(); }
+    } else if (ev.target.closest('[data-move]')) {
+      /* Move an item up or down — the keyboard's and the screen reader's drag. */
+      var mv = ev.target.closest('[data-move]'), li = mv.closest('li'), up = mv.getAttribute('data-move') === '-1';
+      var to = up ? li.previousElementSibling : li.nextElementSibling;
+      if (!to) { announce(up ? 'Already first.' : 'Already last.'); return; }
+      if (up) li.parentNode.insertBefore(li, to); else li.parentNode.insertBefore(to, li);
+      changed(); mv.focus();
+      var pos = Array.prototype.indexOf.call(li.parentNode.children, li) + 1;
+      announce('Moved to position ' + pos + ' of ' + li.parentNode.children.length + '.');
+    }
     else if (ev.target.id === 'mWordsToNotes') { var n = $('mNotes'); n.value = (n.value.trim() ? n.value.trim() + '\n\n' : '') + ed.words; changed(); n.focus(); toast('Added to Other notes — trim it to what matters.'); }
     else if (ev.target.id === 'mUseWords') { $('mRough').value = ed.words; $('mRough').focus(); }
     else if (ev.target.id === 'mTidy') {

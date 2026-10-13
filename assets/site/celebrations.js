@@ -29,7 +29,7 @@
   if (window.AvCel) return;
 
   var D = document, root = D.documentElement;
-  var SEAL = '/assets/site/av-seal.png';
+  var SEAL = '/assets/site/av-seal-256.png';
   var reduced = function () { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
   var store = {
     get: function (k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },

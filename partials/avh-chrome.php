@@ -23,7 +23,7 @@ function avh_nav(): void
 ?>
 <nav class="avh-nav" aria-label="Main" data-avh-nav>
   <div class="avh-nav-in avh-pad">
-    <a class="avh-brand" href="/" data-avh-close><img src="/assets/site/av-seal.png" alt="" width="40" height="40"><span>Afrovanguard</span></a>
+    <a class="avh-brand" href="/" data-avh-close><img src="/assets/site/av-seal-96.png" alt="" width="40" height="40"><span>Afrovanguard</span></a>
     <div class="avh-wide">
         <button type="button" class="avh-navbtn" data-avh-menu="about" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-about">About<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
         <button type="button" class="avh-navbtn" data-avh-menu="academy" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-academy">Academy<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></button>
@@ -135,7 +135,7 @@ function avh_footer(): void
   <div class="avh-foot-in avh-pad">
     <div class="avh-foot-top">
       <div class="avh-foot-brand">
-        <a href="/"><img src="/assets/site/av-seal.png" alt="" width="36" height="36"><span>Afrovanguard</span></a>
+        <a href="/"><img src="/assets/site/av-seal-96.png" alt="" width="36" height="36"><span>Afrovanguard</span></a>
         <p>Ambassadors for Community, Tech &amp; Cultural Advancements. Raising 1 million incorruptible African leaders by 2040.</p>
       </div>
       <div class="avh-sub" data-avh-sub>

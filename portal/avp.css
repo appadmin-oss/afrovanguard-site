@@ -306,7 +306,7 @@ body.avp a:hover { color: var(--avp-gold-tx); }
 .avp .avp-activity .act { padding: 10px 0; border-bottom: 1px solid var(--avp-line-3); }
 .avp .avp-activity .act:last-child { border-bottom: 0; }
 .avp .avp-activity .act > a { grid-column: 1 / -1; color: inherit; }
-.avp .avp-activity .act-ava { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--avp-gold); font-size: 0; overflow: hidden; }
+.avp .avp-activity .act-ava { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--avp-gold); font-size: 0; color: transparent; overflow: hidden; }
 .avp .avp-activity .act:nth-child(3n+2) .act-ava { background: var(--avp-dot-green); }
 .avp .avp-activity .act:nth-child(3n+3) .act-ava { background: var(--avp-dot-indigo); }
 .avp .avp-activity .act-line { display: block; font-size: 14.5px; line-height: 1.45; color: var(--avp-ink); }

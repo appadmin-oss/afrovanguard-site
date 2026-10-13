@@ -36,7 +36,7 @@
 .avcv-in{position:absolute;inset:0;padding:var(--cv-pad);display:flex;flex-direction:column}
 .avcv-top{display:flex;align-items:center;justify-content:space-between;gap:4cqw}
 .avcv-src{display:flex;align-items:center;gap:var(--cv-bgap);min-width:0}
-.avcv-seal{width:var(--cv-seal);height:var(--cv-seal);border-radius:50%;display:block;flex-shrink:0;background:url(/assets/site/av-seal.png) center/cover no-repeat}
+.avcv-seal{width:var(--cv-seal);height:var(--cv-seal);border-radius:50%;display:block;flex-shrink:0;background:url(/assets/site/av-seal-256.png) center/cover no-repeat}
 .avcv-src span:not(.avcv-seal),.avcv-badge{font-size:var(--cv-small);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--cv-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .avcv-badge{flex-shrink:0;letter-spacing:.14em}
 .avcv-live{flex-shrink:0;display:flex;align-items:center;gap:1cqw;font-size:var(--cv-small);font-weight:700;letter-spacing:.14em;text-transform:uppercase}

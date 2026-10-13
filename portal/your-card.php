@@ -12,7 +12,8 @@ $photoTooSmall = $card && !empty($card['photo_too_small']);
     <p>No card yet — ask the NGV office.</p>
   <?php else: ?>
     <div class="avc-holder" data-side="front">
-      <?php $avcSide = 'both'; include __DIR__ . '/../partials/id-card.php'; ?>
+      <?php $avcSide = 'both'; $avcSealSrc = '/assets/site/av-seal-256.png';
+ include __DIR__ . '/../partials/id-card.php'; ?>
       <?php if (empty($card['photo_url'])): ?><a href="/portal/#profile">Add a photo</a><?php endif; ?>
       <?php if ($photoTooSmall): ?><p role="status">Your photo is too small to print sharply. Upload one at least 800 px wide.</p><?php endif; ?>
       <div class="avc-actions">
