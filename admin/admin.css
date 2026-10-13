@@ -775,3 +775,17 @@ body.studio-authed .studio-side { display: block; }
 body.studio { --gold-deep: var(--av-gold-text); }
 :root[data-theme="dark"] body.studio { --gold-deep: var(--av-dk-gold-text); }
 .bpv-warn { margin: 10px 0 0; font-size: 13px; color: var(--st-err); }
+
+/* Volunteers by project (Members → Volunteers) */
+.vp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 14px 0; }
+.vp-card { border: 1px solid var(--line, #e5e2d9); border-radius: 12px; padding: 14px; background: var(--surface, #fff); display: flex; flex-direction: column; gap: 6px; }
+.vp-card.is-off { opacity: .6; }
+.vp-card-h { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.vp-card p { margin: 0; min-height: 2.4em; }
+.vp-card-f { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.vp-card-f .btn:first-of-type { margin-left: auto; }
+.vp-n { font-size: 22px; font-weight: 700; }
+.vp-new { margin-top: 8px; }
+.vp-add { flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.vp-add select { min-width: 0; flex: 1 1 160px; }
+#mdVol .mem-card-row { align-items: center; flex-wrap: wrap; }

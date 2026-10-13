@@ -388,6 +388,7 @@ require_once __DIR__ . '/Promotion.php';
 // warns against it; the portal countdown is exact, cron is the backstop.
 require_once __DIR__ . '/MeetingClock.php';
 require_once __DIR__ . '/Volunteers.php';       /* volunteer teams, roles, hours, the hub */
+require_once __DIR__ . '/VolunteerProjects.php'; /* the projects volunteers serve, and as what */
 require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→review→published, reminders */
 require_once __DIR__ . '/MeetingLive.php';
 require_once __DIR__ . '/CrmAudiencePush.php';  /* this site's people, pushed (signed) to CACENTRE's CRM */

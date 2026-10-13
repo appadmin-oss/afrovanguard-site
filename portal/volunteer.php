@@ -61,7 +61,7 @@ if ($action === 'checkin') {
 }
 
 if (!$u) json_out(['ok' => false, 'error' => 'Please sign in.'], 401);
-if (!Volunteers::isVolunteer($u)) json_out(['ok' => false, 'error' => 'The Volunteer hub is for Afrovanguard volunteers.'], 403);
+if (!Volunteers::canOpenDashboard($u)) json_out(['ok' => false, 'error' => 'The Volunteer dashboard is for Afrovanguard volunteers. The office makes members volunteers.'], 403);
 $uid = (int) $u['id'];
 
 $body = [];
@@ -115,7 +115,7 @@ try {
             header('Content-Disposition: attachment; filename="' . $pdf['name'] . '"');
             echo $pdf['bytes']; exit;
         }
-        case 'team_create':  json_out(Volunteers::createTeam($u, (string) $in('name'), (string) $in('purpose')));
+        case 'team_create':  json_out(Volunteers::createTeam($u, (string) $in('name'), (string) $in('purpose'), (int) $in('project_id', 0)));
         case 'team_update':  json_out(Volunteers::updateTeam($u, (int) $in('id', 0), $body));
         case 'team_member':  json_out(Volunteers::setMember($u, (int) $in('team_id', 0), (string) $in('who'), (string) $in('role', 'member')));
         case 'team_remove':  json_out(Volunteers::removeMember($u, (int) $in('team_id', 0), (int) $in('user_id', 0)));
@@ -131,7 +131,7 @@ try {
         case 'capture':      json_out(MeetingMinutes::capture($u, (int) $in('meeting_id', 0), (string) $in('occurrence'), (string) $in('type'), (string) $in('text'), (int) $in('owner_id', 0), (string) $in('due')));
         case 'here':         json_out(MeetingLive::here($u, (int) $in('meeting_id', 0), (string) $in('occurrence')));
         case 'caption':      json_out(MeetingLive::caption($u, (int) $in('meeting_id', 0), (string) $in('occurrence'), (string) $in('text'), (string) $in('id'), (string) $in('speaker')));
-        case 'hours':        json_out(Volunteers::logHours($uid, (string) $in('day'), $in('hours', 0), (string) $in('activity')));
+        case 'hours':        json_out(Volunteers::logHours($uid, (string) $in('day'), $in('hours', 0), (string) $in('activity'), (int) $in('project_id', 0)));
         case 'hours_remove': json_out(Volunteers::removeHours($uid, (int) $in('id', 0)));
         case 'ics': {
             $ics = MeetingMinutes::ics($u, (int) $in('meeting_id', 0));

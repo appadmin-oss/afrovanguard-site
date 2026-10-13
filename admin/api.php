@@ -100,6 +100,7 @@ try {
         // The member desk names every member, their phone and their birthday.
         'roster_overview', 'roster_list', 'roster_get', 'roster_create', 'roster_update', 'roster_import', 'roster_duplicates',
         'roster_membership', 'roster_membership_change', 'roster_ids', 'roster_bulk', 'roster_timeline', 'id_format_save',
+        'vol_projects', 'vol_project_save', 'vol_project_members', 'vol_unassign',
         // Offline payments name members, show their receipts and move money.
         'offline_list', 'offline_get', 'offline_evidence', 'offline_submit', 'offline_decide',
         'card_formats', 'card_reissue', 'cards_backfill', 'member_seed', 'card_photo_get', 'card_photo_measure', 'card_photo_save', 'card_photo_clear', 'card_role_save', 'ngv_intake', 'ngv_intake_email',
@@ -1268,6 +1269,18 @@ try {
             };
             json_out($r, $r['ok'] ? 200 : (($r['code'] ?? '') === 'superadmin_only' ? 403 : 422));
         /* ── Many members, one declared action ── */
+        /* ── Volunteer projects (lib/VolunteerProjects.php) ── */
+        case 'vol_projects':
+            json_out(['ok' => true, 'projects' => VolunteerProjects::projects(false), 'types' => VolunteerProjects::TYPES]);
+        case 'vol_project_save':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $r = VolunteerProjects::saveProject($body, av_admin_actor());
+            json_out($r, $r['ok'] ? 200 : 422);
+        case 'vol_project_members':
+            json_out(['ok' => true, 'volunteers' => VolunteerProjects::volunteersOf((int) ($_GET['id'] ?? 0))]);
+        case 'vol_unassign':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(VolunteerProjects::unassign((int) ($body['id'] ?? 0), (int) ($body['project_id'] ?? 0), (int) $memberCtx()['self_id']));
         case 'roster_ids':
             json_out(['ok' => true] + MemberRoster::ids(array_intersect_key($_GET, array_flip(['q', 'role', 'status', 'centre', 'level', 'missing', 'kind', 'volunteer', 'membership', 'segment']))));
         case 'roster_bulk':

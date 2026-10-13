@@ -70,6 +70,26 @@ final class NggVolunteers
             gone INTEGER NOT NULL DEFAULT 0,
             error VARCHAR(255) NOT NULL DEFAULT ''
         )");
+        /* Every session an NGG volunteer served at NGG (op "volunteer_sessions"),
+           credited here as volunteer hours on the NextGen Genius project. */
+        Database::execSchema($pdo, "
+        CREATE TABLE IF NOT EXISTS ngg_sessions (
+            session_id INTEGER NOT NULL PRIMARY KEY,
+            volunteer_id VARCHAR(40) NOT NULL DEFAULT '',
+            email VARCHAR(200) NOT NULL DEFAULT '',
+            day VARCHAR(10) NOT NULL DEFAULT '',
+            minutes INTEGER NOT NULL DEFAULT 0,
+            minutes_source VARCHAR(12) NOT NULL DEFAULT '',
+            check_in VARCHAR(40) NOT NULL DEFAULT '',
+            check_out VARCHAR(40) NOT NULL DEFAULT '',
+            centre VARCHAR(80) NOT NULL DEFAULT '',
+            role VARCHAR(40) NOT NULL DEFAULT '',
+            user_id INTEGER NOT NULL DEFAULT 0,
+            credited_minutes INTEGER NOT NULL DEFAULT 0,
+            synced_at VARCHAR(32) NOT NULL DEFAULT ''
+        )");
+        try { $pdo->exec('CREATE INDEX idx_ngg_sess_day ON ngg_sessions (day)'); } catch (Throwable $e) {}
+        try { $pdo->exec('CREATE INDEX idx_ngg_sess_vol ON ngg_sessions (volunteer_id)'); } catch (Throwable $e) {}
         try { $pdo->exec('CREATE INDEX idx_ngg_vol_email ON ngg_volunteers (email)'); } catch (Throwable $e) {}
         try { $pdo->exec('CREATE INDEX idx_ngg_vol_user ON ngg_volunteers (user_id)'); } catch (Throwable $e) {}
     }
@@ -138,7 +158,87 @@ final class NggVolunteers
             if (!isset($seen[(string) $id])) { $pdo->prepare("UPDATE ngg_volunteers SET status = 'gone', synced_at = ? WHERE volunteer_id = ?")->execute([$now, $id]); $gone++; }
         }
         $linked = self::link();
-        return self::log(true, $received, $linked, $gone, '');
+        $sess = self::syncSessions();
+        $out = self::log(true, $received, $linked, $gone, $sess['ok'] ? '' : 'sessions: ' . $sess['error']);
+        return $out + ['sessions' => $sess['received'] ?? 0, 'credited' => $sess['credited'] ?? 0];
+    }
+
+    /** How far back sessions are read again, so a check-out added later is caught. */
+    public const SESSION_REREAD_DAYS = 3;
+
+    /**
+     * Fetch the sessions NGG volunteers served since the last time, and credit
+     * each as hours here (source 'ngg', the NextGen Genius project). Reads a
+     * little behind its cursor — the last few days again — because NGG adds a
+     * check-out to a session row it has already sent, and the minutes follow.
+     */
+    public static function syncSessions(): array
+    {
+        self::ensure();
+        if (!self::configured()) return ['ok' => false, 'error' => 'NGG_WEBHOOK_SECRET is not set.'];
+        $pdo = Database::pdo();
+        $cursor = (int) (Database::metaGet('ngg_sessions_cursor') ?? 0);
+        $since = gmdate('Y-m-d', time() - self::SESSION_REREAD_DAYS * 86400);
+        $st = $pdo->prepare('SELECT MIN(session_id) FROM ngg_sessions WHERE day >= ?');
+        $st->execute([$since]);
+        $recent = (int) ($st->fetchColumn() ?: 0);
+        $after = $recent > 0 ? min($cursor, $recent - 1) : $cursor;
+        $now = gmdate('Y-m-d H:i:s'); $received = 0; $max = $cursor;
+        for ($page = 0; $page < self::MAX_PAGES; $page++) {
+            $r = self::post(['op' => 'volunteer_sessions', 'after' => $after, 'limit' => 500]);
+            if (!$r['ok']) return ['ok' => false, 'error' => (string) $r['error'], 'received' => $received];
+            foreach ((array) ($r['sessions'] ?? []) as $x) {
+                $id = (int) ($x['id'] ?? 0);
+                $day = (string) ($x['date'] ?? '');
+                if ($id <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) continue;
+                $row = [mb_substr((string) ($x['volunteerId'] ?? ''), 0, 40), strtolower(mb_substr(trim((string) ($x['email'] ?? '')), 0, 200)), $day,
+                        max(0, min(Volunteers::MAX_HOURS_DAY * 60, (int) ($x['minutes'] ?? 0))), mb_substr((string) ($x['minutesSource'] ?? ''), 0, 12),
+                        mb_substr((string) ($x['checkInAt'] ?? ''), 0, 40), mb_substr((string) ($x['checkOutAt'] ?? ''), 0, 40),
+                        mb_substr((string) ($x['centre'] ?? ''), 0, 80), mb_substr((string) ($x['role'] ?? ''), 0, 40), $now];
+                $has = $pdo->prepare('SELECT 1 FROM ngg_sessions WHERE session_id = ?');
+                $has->execute([$id]);
+                if ($has->fetchColumn()) {
+                    $pdo->prepare('UPDATE ngg_sessions SET volunteer_id=?, email=?, day=?, minutes=?, minutes_source=?, check_in=?, check_out=?, centre=?, role=?, synced_at=? WHERE session_id=?')->execute(array_merge($row, [$id]));
+                } else {
+                    $pdo->prepare('INSERT INTO ngg_sessions (volunteer_id, email, day, minutes, minutes_source, check_in, check_out, centre, role, synced_at, session_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)')->execute(array_merge($row, [$id]));
+                }
+                $received++; $max = max($max, $id);
+            }
+            if (!empty($r['done']) || ($r['next'] ?? null) === null) break;
+            $after = (int) $r['next'];
+        }
+        Database::metaSet('ngg_sessions_cursor', (string) $max);
+        return ['ok' => true, 'received' => $received, 'credited' => self::creditSessions()];
+    }
+
+    /**
+     * Sessions → hours. Each session is one vol_hours row (source 'ngg',
+     * ref 'ngg:<session id>') for the account the volunteer is linked to;
+     * a session whose minutes changed since (a check-out came in) is
+     * corrected. A volunteer who signs up here later gets their back hours.
+     */
+    public static function creditSessions(): int
+    {
+        self::ensure();
+        Volunteers::ensure();
+        $pdo = Database::pdo();
+        $proj = class_exists('VolunteerProjects') ? VolunteerProjects::nggId() : 0;
+        /* Resolve the account: the linked one, else the session's email. */
+        $pdo->exec("UPDATE ngg_sessions SET user_id = COALESCE((SELECT v.user_id FROM ngg_volunteers v WHERE v.volunteer_id = ngg_sessions.volunteer_id AND v.user_id > 0), 0) WHERE user_id = 0");
+        $pdo->exec("UPDATE ngg_sessions SET user_id = COALESCE((SELECT u.id FROM lms_users u WHERE LOWER(u.email) = ngg_sessions.email), 0) WHERE user_id = 0 AND email <> ''");
+        $n = 0;
+        $rows = $pdo->query('SELECT session_id, user_id, day, minutes, centre, credited_minutes FROM ngg_sessions WHERE user_id > 0 AND minutes > 0 AND credited_minutes <> minutes')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {
+            $ref = 'ngg:' . (int) $r['session_id'];
+            $what = 'NGG session' . ((string) $r['centre'] !== '' ? ' · ' . $r['centre'] : '');
+            if ((int) $r['credited_minutes'] === 0) {
+                Volunteers::autoHours((int) $r['user_id'], (string) $r['day'], (int) $r['minutes'], $what, 'ngg', $ref, $proj);
+            }
+            $pdo->prepare("UPDATE vol_hours SET minutes = ?, project_id = ? WHERE user_id = ? AND source = 'ngg' AND source_ref = ?")->execute([(int) $r['minutes'], $proj, (int) $r['user_id'], $ref]);
+            $pdo->prepare('UPDATE ngg_sessions SET credited_minutes = ? WHERE session_id = ?')->execute([(int) $r['minutes'], (int) $r['session_id']]);
+            $n++;
+        }
+        return $n;
     }
 
     private static function upsert(string $id, array $v, string $now): void

@@ -35,12 +35,41 @@
     return fetch(url, opt).then(function (r) { return r.json().catch(function () { return { ok: false, error: 'The server sent something unreadable.' }; }); })
       .catch(function () { return { ok: false, error: 'No connection. Check your internet and try again.' }; });
   }
+  /* Announcements. The live regions exist from the start (a region added at
+     the moment it speaks is often not read); errors are assertive. The toast
+     stays while the pointer is on it, and long enough to be read. */
+  var say = document.createElement('div'); say.className = 'vh-sr'; say.setAttribute('aria-live', 'polite'); say.setAttribute('aria-atomic', 'true'); document.body.appendChild(say);
+  var sayNow = document.createElement('div'); sayNow.className = 'vh-sr'; sayNow.setAttribute('role', 'alert'); document.body.appendChild(sayNow);
+  function announce(t, urgent) { var el = urgent ? sayNow : say; el.textContent = ''; setTimeout(function () { el.textContent = t; }, 60); }
   function toast(t, bad) {
     var el = $('vhToast');
-    if (!el) { el = document.createElement('div'); el.id = 'vhToast'; el.setAttribute('role', 'status'); el.className = 'vh-toast'; document.body.appendChild(el);
-      el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;padding:10px 16px;border-radius:999px;font-weight:600;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.2);max-width:90vw'; }
+    if (!el) { el = document.createElement('div'); el.id = 'vhToast'; el.className = 'vh-toast'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el);
+      el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;padding:10px 16px;border-radius:999px;font-weight:600;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,.2);max-width:90vw';
+      el.addEventListener('mouseenter', function () { clearTimeout(el._t); }); el.addEventListener('mouseleave', function () { el._t = setTimeout(function () { el.hidden = true; }, 2000); }); }
     el.textContent = t; el.style.background = bad ? '#c0322b' : '#15120e'; el.style.color = '#fff'; el.hidden = false;
-    clearTimeout(el._t); el._t = setTimeout(function () { el.hidden = true; }, 3500);
+    announce(t, !!bad);
+    clearTimeout(el._t); el._t = setTimeout(function () { el.hidden = true; }, 6000);
+  }
+  /* Libraries load when a section first needs them, not with the page. */
+  var LIBS = {
+    calendar: { js: '/assets/vendor/fullcalendar/index.global.min.js', ok: function () { return !!window.FullCalendar; } },
+    chart: { js: '/assets/vendor/uplot/uPlot.iife.min.js', css: '/assets/vendor/uplot/uPlot.min.css', ok: function () { return !!window.uPlot; } },
+    picker: { js: '/assets/vendor/tom-select/tom-select.complete.min.js', css: '/assets/vendor/tom-select/tom-select.min.css', ok: function () { return !!window.TomSelect; } },
+  }, libWait = {};
+  function need(name) {
+    var L = LIBS[name];
+    if (L.ok()) return Promise.resolve(true);
+    if (libWait[name]) return libWait[name];
+    if (L.css) { var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = L.css; document.head.appendChild(l); }
+    return (libWait[name] = new Promise(function (res) {
+      var sc = document.createElement('script'); sc.src = L.js; sc.async = true;
+      sc.onload = function () { res(L.ok()); }; sc.onerror = function () { libWait[name] = null; res(false); };
+      document.head.appendChild(sc);
+    }));
+  }
+  function count(id, n, words) {
+    var el = $(id); el.hidden = !n;
+    el.innerHTML = n ? n + '<span class="vh-sr"> ' + esc(words) + '</span>' : '';
   }
   function initials(n) { return (String(n || '').replace(/[^\p{L}\s]/gu, '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('') || '?').toUpperCase(); }
   function day(iso) { var d = new Date(iso + 'T12:00:00'); return isNaN(d) ? iso : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); }
@@ -52,8 +81,10 @@
 
   /* ══ The hub ══════════════════════════════════════════════════════════ */
 
-  var tab = 'overview', mscope = 'upcoming', mstatus = '', ascope = 'mine', openTeamId = 0, chartTable = false;
-  try { tab = localStorage.getItem('vh.tab') || 'overview'; } catch (e) {}
+  var tab = 'home', mscope = 'upcoming', mstatus = '', ascope = 'mine', openTeamId = 0, chartTable = false;
+  /* Six sections. Older saved tabs map onto them. */
+  var TAB_OF = { overview: 'home', minutes: 'meetings', attendance: 'record', hours: 'record', teams: 'people' };
+  try { tab = localStorage.getItem('vh.tab') || 'home'; tab = TAB_OF[tab] || tab; } catch (e) {}
 
   function load() {
     if (busy) return; busy = true;
@@ -78,6 +109,8 @@
   }
 
   function setTab(t, focus) {
+    t = TAB_OF[t] || t;
+    if (!$('vp-' + t)) t = 'home';
     tab = t; try { localStorage.setItem('vh.tab', t); } catch (e) {}
     view.querySelectorAll('[role=tab]').forEach(function (b) {
       var on = b.getAttribute('data-tab') === t;
@@ -85,18 +118,12 @@
       if (on && focus) b.focus();
     });
     view.querySelectorAll('.vh-panel').forEach(function (p) { p.hidden = p.id !== 'vp-' + t; });
-    /* The welcome is the overview's; the other tabs get straight to work. */
-    view.querySelector('.vh-hero').hidden = t !== 'overview';
-    $('vhBadges').hidden = t !== 'overview';
     if (!hub) return;
     if (t === 'meetings') drawMeetings();
-    if (t === 'minutes') drawMinutesTab();
     if (t === 'actions') drawActions();
-    if (t === 'teams') drawTeams();
-    if (t === 'attendance') drawAttendance();
     if (t === 'opps') drawOpps();
-    if (t === 'people') drawPeople();
-    if (t === 'hours') drawHours();
+    if (t === 'people') { drawTeams(); drawPeople(); }
+    if (t === 'record') drawRecord();
   }
   var tabs = view.querySelector('.vh-tabs');
   tabs.addEventListener('click', function (ev) { var b = ev.target.closest('[role=tab]'); if (b) setTab(b.getAttribute('data-tab')); });
@@ -108,11 +135,11 @@
   });
 
   function draw() {
-    var c = hub.counts, waiting = c.rsvp + c.minutes;
+    var c = hub.counts;
     $('vhSchedule').hidden = !hub.teams.length && !hub.me.can_run_teams;
     $('vhNewTeam').hidden = !hub.me.can_run_teams;
-    ['vtnMeet', 'vtnMin', 'vtnAct'].forEach(function (id, i) { var n = [c.rsvp, c.minutes, c.overdue][i]; $(id).hidden = !n; $(id).textContent = n; });
-    fillTeams('vhMTeam', true); fillTeams('vhNTeam', true); fillTeams('vhATeam', false);
+    count('vtnMeet', c.rsvp, 'to answer'); count('vtnMin', c.minutes, 'waiting on you'); count('vtnAct', c.overdue, 'overdue');
+    fillTeams('vhMTeam', true); fillTeams('vhATeam', false);
     var lead = teamsAll().filter(function (t) { return t.can_manage; });
     $('vhATeamBtn').hidden = !lead.length && !hub.me.can_run_teams;
 
@@ -124,23 +151,7 @@
         + '<button type="button" class="avp-btn avp-btn--paper" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Open the live room</button></div>';
     }).join('');
 
-    drawHero();
-
-    /* KPIs */
-    var next = hub.upcoming.filter(function (m) { return !m.live; })[0];
-    $('vhKNext').textContent = next ? rel(next.ts) : '—';
-    $('vhKNextS').textContent = next ? next.title : 'nothing scheduled';
-    $('vhKWait').textContent = waiting; $('vhKWaitChip').hidden = !waiting;
-    $('vhKWaitS').textContent = waiting ? [c.rsvp ? c.rsvp + ' to answer' : '', c.minutes ? c.minutes + ' minutes' : ''].filter(Boolean).join(' · ') : 'all caught up';
-    $('vhKAct').textContent = c.actions; $('vhKOverChip').hidden = !c.overdue; $('vhKActS').textContent = c.overdue ? c.overdue + ' overdue' : (c.actions ? 'none overdue' : 'nothing open');
-    var a = hub.attendance;
-    var gt = hub.engagement.gate;
-    if (gt && gt.counted) { $('vhKAtt').textContent = gt.rate + '%'; }
-    else $('vhKAtt').textContent = a.rate === null ? '—' : a.rate + '%';
-    if (gt && gt.counted) $('vhKAttS').textContent = 'at the gate · ' + gt.punctuality + '% on time · last 30 days';
-    else $('vhKAttS').textContent = a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' meeting' + (a.present + a.late + a.absent === 1 ? '' : 's') + ' · last six months' : 'no minutes published yet';
-    $('vhKHours').textContent = hub.hours.month;
-    $('vhKSpark').innerHTML = spark(hub.hours_series.slice(-6));
+    drawHead();
 
     /* Needs you: one list of everything waiting on this person, most urgent first */
     var need = [];
@@ -150,131 +161,74 @@
     hub.upcoming.filter(function (m) { return !m.rsvp && !m.live; }).forEach(function (m) { need.push({ w: 3, html: row(esc(m.title), esc(m.when) + ' · are you coming?', seg(m)) }); });
     need.sort(function (x, y) { return x.w - y.w; });
     $('vhNeedN').hidden = !need.length; $('vhNeedN').textContent = need.length;
-    $('vhNeed').innerHTML = need.length ? need.map(function (n) { return n.html; }).join('') : '<li class="avp-empty">Nothing needs you. Well done.</li>';
+    count('vtnHome', need.length, 'need you');
+    $('vhNeed').innerHTML = need.length ? need.map(function (n) { return n.html; }).join('') : '<li class="avp-empty">Nothing needs you right now.</li>';
 
-    /* The next two weeks: a strip of days, then the meetings in them */
-    var days = [], today = new Date(); today.setHours(0, 0, 0, 0);
-    for (var i = 0; i < 14; i++) { var d = new Date(today.getTime() + i * 86400000); days.push({ d: d, n: 0 }); }
-    var soon = hub.upcoming.filter(function (m) { return m.ts * 1000 < today.getTime() + 14 * 86400000; });
-    soon.forEach(function (m) { var i = Math.floor((m.ts * 1000 - today.getTime()) / 86400000); if (days[i]) days[i].n++; });
-    $('vhWeek').innerHTML = days.map(function (x, i) {
-      return '<span class="vh-day' + (i === 0 ? ' is-today' : '') + (x.n ? ' has' : '') + '" title="' + esc(x.d.toDateString()) + (x.n ? ' — ' + x.n + ' meeting' + (x.n === 1 ? '' : 's') : '') + '"><span>' + x.d.toLocaleDateString(undefined, { weekday: 'narrow' }) + '</span><b>' + x.d.getDate() + '</b><i aria-hidden="true">' + (x.n ? '•'.repeat(Math.min(3, x.n)) : '') + '</i></span>';
-    }).join('');
-    $('vhSoon').innerHTML = soon.length ? soon.slice(0, 5).map(meetRow).join('') : '<li class="avp-empty">No meetings in the next two weeks.</li>';
+    /* Coming up: meetings and the shifts I signed up for, next two weeks, in order */
+    var horizon = Date.now() + 14 * 86400000, soon = [];
+    hub.upcoming.forEach(function (m) { if (m.ts * 1000 < horizon && !m.room) soon.push({ ts: m.ts, html: meetRow(m) }); });
+    (hub.opportunities || []).forEach(function (o) {
+      if (o.mine === 'signed' && !o.past && o.ts && o.ts * 1000 < horizon) soon.push({ ts: o.ts, html: row(esc(o.title) + ' <span class="avp-chip avp-chip--sm avp-chip--green">Shift</span>', esc(o.when) + (o.location ? ' · ' + esc(o.location) : ''), '<button type="button" class="avp-btn avp-btn--sq" data-goto-tab="opps">Details</button>') });
+    });
+    soon.sort(function (a, b) { return a.ts - b.ts; });
+    $('vhSoon').innerHTML = soon.length ? soon.slice(0, 6).map(function (x) { return x.html; }).join('') : '<li class="avp-empty">Nothing in the next two weeks.</li>';
 
-    /* Activity */
-    $('vhFeed').innerHTML = hub.activity.length ? hub.activity.map(function (e) {
+    /* This month: hours (and toward the goal), split by project */
+    var h = hub.hours, goal = (hub.engagement && hub.engagement.goal) || 8, pct = Math.min(100, Math.round(h.month / goal * 100));
+    var byp = (h.by_project || []).filter(function (x) { return x.hours > 0; });
+    $('vhMonth').innerHTML = '<div class="vh-month"><b class="av-num">' + h.month + '</b><span>hours this month</span></div>'
+      + '<div class="vh-meter" role="img" aria-label="' + h.month + ' of a ' + goal + '-hour monthly goal"><i style="width:' + pct + '%"></i></div>'
+      + '<p class="vh-note" style="margin:6px 0 0">' + (h.month >= goal ? 'Monthly goal reached — thank you.' : (goal - h.month).toFixed(1).replace(/\.0$/, '') + ' h to this month’s goal of ' + goal + '.') + ' ' + h.total + ' h in all.</p>'
+      + (byp.length ? '<ul class="vh-byp">' + byp.slice(0, 4).map(function (x) { return '<li><span>' + esc(x.name) + '</span><b class="av-num">' + x.hours + ' h</b></li>'; }).join('') + '</ul>' : '');
+
+    $('vhFeed').innerHTML = hub.activity.length ? hub.activity.slice(0, 6).map(function (e) {
       return '<li><span class="vh-feed-i vh-feed-i--' + esc(e.kind) + '" aria-hidden="true">' + ({ minutes: '≡', done: '✓', joined: '+' }[e.kind] || '•') + '</span><span><span>' + esc(e.text) + '</span><small>' + esc(ago(e.at)) + (e.team ? ' · ' + esc(e.team) : '') + '</small></span></li>';
-    }).join('') : '<li class="avp-empty">Nothing yet. When minutes are published or actions done, it shows here.</li>';
+    }).join('') : '<li class="avp-empty">When minutes are published or tasks done, it shows here.</li>';
 
     var kd = hub.kudos || { received: [], count: 0 };
-    $('vhKudos').innerHTML = kd.received.length ? kd.received.slice(0, 3).map(kudosRow).join('') + (kd.count > 3 ? '<li class="vh-note">' + kd.count + ' kudos in all — thank you for what you do.</li>' : '')
-      : '<li class="avp-empty">No kudos yet. Thank somebody — it is the best way to get the habit going.</li>';
+    $('vhKudos').innerHTML = kd.received.length ? kd.received.slice(0, 3).map(kudosRow).join('') + (kd.count > 3 ? '<li class="vh-note">' + kd.count + ' kudos in all.</li>' : '')
+      : '<li class="avp-empty">No kudos yet. Thank somebody who helped you.</li>';
     var open = (hub.opportunities || []).filter(function (o) { return !o.past && !o.mine && !o.full; }).length;
-    $('vtnOpp').hidden = !open; $('vtnOpp').textContent = open;
+    count('vtnOpp', open, 'open to sign up');
 
     /* Capture: what this site has switched on — everything works with none */
     var g = hub.integrations, caps = [
       ['Answers, reminders and calendar invites', true, 'always on'],
       ['QR check-in in the room', true, 'always on'],
       ['Room captions from a browser', !!(window.SpeechRecognition || window.webkitSpeechRecognition), 'needs Chrome, Edge or Safari'],
-      ['Who joined the Google Meet', g.google_meet, 'needs Google Workspace in the Studio'],
+      ['Google Meet: link, attendance, recording and transcript', g.google_meet, 'needs Google Workspace in the Studio'],
       ['The notetaker (Attendee)', g.notetaker, 'optional — not set up'],
       ['Notes tidied by the assistant', g.assistant, 'optional — AI is off'],
     ];
     $('vhCaps').innerHTML = '<ul class="vh-caps-l">' + caps.map(function (x) { return '<li class="' + (x[1] ? 'on' : 'off') + '"><span aria-hidden="true">' + (x[1] ? '✓' : '–') + '</span><span>' + esc(x[0]) + (x[1] ? '' : '<small>' + esc(x[2]) + '</small>') + '</span></li>'; }).join('') + '</ul>';
 
+    fillProjects();
     setTab(tab);
   }
 
-  /* ── The hero: why come back today ── */
-  var LINES = [
-    'Every hour you give moves Afrovanguard forward.',
-    'Small, steady acts build big things.',
-    'Thank you for showing up — it shows.',
-    'Your team is better because you are in it.',
-    'Today is a good day to make a difference.'
-  ];
-  function drawHero() {
-    var e = hub.engagement, now = new Date(), h = now.getHours();
-    var first = (hub.me.name || '').split(/\s+/)[0] || 'there';
+  /* ── The header: greeting, the projects I serve (and as what), one next step ── */
+  function drawHead() {
+    var h = new Date().getHours(), first = (hub.me.name || '').split(/\s+/)[0] || 'there';
     $('vhH').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + ', ' + first + '.';
-    $('vhDate').textContent = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-    var line = LINES[(now.getDate() + hub.me.id) % LINES.length];
-    if (e.streak >= 2) line = 'You have given time ' + e.streak + ' weeks in a row. Keep the run going!';
-    if (e.next && e.next.pct >= 75) line = 'Almost there — ' + Math.round(e.next.pct) + '% of the way to “' + e.next.label + '”.';
-    var me = (e.birthdays || []).filter(function (b) { return b.me && b.in === 0; })[0];
-    if (me) line = 'Happy birthday from all of us at Afrovanguard! 🎉';
-    $('vhLine').textContent = line;
+    var ps = hub.projects || [];
+    $('vhProjects').innerHTML = ps.length ? ps.map(function (p) {
+      return '<li class="vh-proj' + (p.source === 'ngg' ? ' vh-proj--ngg' : '') + '"><b>' + esc(p.name) + '</b><span>' + esc(p.type_label) + (p.centre ? ' · ' + esc(p.centre) : '') + '</span></li>';
+    }).join('') : (hub.me.can_run_teams && !hub.me.volunteer ? '<li class="vh-proj vh-proj--muted"><span>You run volunteer teams</span></li>' : '<li class="vh-proj vh-proj--muted"><span>Not placed on a project yet — the office does this</span></li>');
 
-    var chips = [];
-    chips.push('<span class="vh-chip vh-chip--flame" title="Weeks in a row with something given">' + (e.streak ? '🔥 ' + e.streak + '-week streak' : '🔥 Start a streak this week') + '</span>');
-    if (e.gate) {
-      var t = e.gate.today;
-      chips.push(t ? '<span class="vh-chip vh-chip--' + (t.status === 'late' ? 'gold' : 'green') + '">' + (t.status === 'late' ? '🕘 In late today' : '✓ In today') + (t.in_at ? ' · ' + new Date(t.in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + '</span>'
-                   : '<span class="vh-chip">🚪 Not at the gate today</span>');
-      if (e.gate.points && e.gate.points.month) chips.push('<span class="vh-chip">⭐ ' + e.gate.points.month + ' points this month</span>');
-    }
-    if (e.my_rank && e.my_rank.of > 1) chips.push('<span class="vh-chip">🏅 #' + e.my_rank.rank + ' of ' + e.my_rank.of + ' in your teams</span>');
-    $('vhChips').innerHTML = chips.join('');
-    /* Recognised as — what this site knows makes them a volunteer. */
-    var SRCI = { ngg: '🎓', team: '👥', afrovanguard: '🌍', people: '⭐' };
-    $('vhId').innerHTML = (hub.identity || []).slice(0, 4).map(function (x) {
-      var extra = x.source === 'ngg' ? ' · ' + x.hours + ' NGG hours' + (x.level ? ' · ' + x.level : '') : '';
-      return '<span class="vh-id-i"><span aria-hidden="true">' + (SRCI[x.source] || '•') + '</span><b>' + esc(x.label) + '</b>' + (x.detail ? ' — ' + esc(x.detail) : '') + esc(extra) + '</span>';
-    }).join('');
-
-    /* One next step: the most useful thing to do right now. */
     var step = null, live = hub.upcoming.filter(function (m) { return m.room; })[0];
     if (live) step = ['Open the live room', function () { openRoom(live.id, live.occurrence); }];
     else if (hub.to_approve.length) step = ['Approve the minutes', function () { openMinutes(hub.to_approve[0].id, hub.to_approve[0].occurrence); }];
     else if (hub.to_write.length) step = ['Write the minutes', function () { openMinutes(hub.to_write[0].id, hub.to_write[0].occurrence); }];
-    else if (hub.upcoming.some(function (m) { return !m.rsvp && !m.live; })) step = ['Answer your invitations', function () { setTab('meetings'); }];
-    else if (hub.counts.overdue) step = ['See your overdue actions', function () { setTab('actions'); }];
     $('vhNextStep').hidden = !step;
     if (step) { $('vhNextStep').textContent = step[0] + ' →'; $('vhNextStep').onclick = step[1]; }
-
-    /* The ring: this month's hours toward the goal. */
-    var got = hub.hours.month, goal = e.goal, pct = Math.min(1, got / goal), r = 52, c = 2 * Math.PI * r;
-    $('vhRing').innerHTML = '<svg viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="' + got + ' of ' + goal + ' hours this month">'
-      + '<circle cx="64" cy="64" r="' + r + '" class="vh-ring-bg"/><circle cx="64" cy="64" r="' + r + '" class="vh-ring-fg" stroke-dasharray="' + (c * pct).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 64 64)"/></svg>'
-      + '<span class="vh-ring-t"><b class="av-num">' + got + '</b><small>of ' + goal + ' h this month</small></span>'
-      + (got >= goal ? '<span class="vh-ring-done">Goal reached ✨</span>' : '');
-
-    /* Milestones */
-    var badges = e.earned.slice(-6).map(function (b) { return '<span class="vh-badge" title="' + esc(b.label) + '"><span aria-hidden="true">' + b.emoji + '</span>' + esc(b.label) + '</span>'; }).join('');
-    var next = e.next ? '<span class="vh-next"><span>Next: ' + e.next.emoji + ' ' + esc(e.next.label) + '</span><progress max="100" value="' + e.next.pct + '" aria-label="' + e.next.pct + '% of the way"></progress><small>' + e.next.have + ' / ' + e.next.need + '</small></span>' : '';
-    $('vhBadges').innerHTML = (badges || '<span class="vh-badge vh-badge--empty">Your first milestone is one hour away 🌱</span>') + next;
-    celebrateNew(e.earned);
-
-    /* Side: spotlight, leaderboard, birthdays */
-    var v = e.votm;
-    $('vhSpot').hidden = !v;
-    if (v) $('vhSpot').innerHTML = '<div class="vh-spot-in">' + (v.photo ? '<img src="' + esc(v.photo) + '" alt="" loading="lazy">' : '<span class="vh-spot-av" aria-hidden="true">' + esc(initials(v.name)) + '</span>')
-      + '<div><p class="vh-spot-k" id="vhSpotH">Volunteer of the Month</p><b>' + esc(v.name) + '</b>' + (v.role ? '<small>' + esc(v.role) + '</small>' : '') + (v.reason ? '<p>' + esc(v.reason) + '</p>' : '') + (v.quote ? '<q>' + esc(v.quote) + '</q>' : '') + '</div></div>';
-    $('vhBoardCard').hidden = !e.board.length;
-    $('vhRank').textContent = e.my_rank ? 'You: #' + e.my_rank.rank : '';
-    var top = Math.max.apply(null, e.board.map(function (b) { return b.hours; }).concat([1]));
-    $('vhBoard').innerHTML = e.board.map(function (b) {
-      return '<li class="' + (b.me ? 'is-me' : '') + '"><span class="vh-board-n">' + (['🥇', '🥈', '🥉'][b.rank - 1] || b.rank) + '</span><span class="vh-board-t"><span>' + esc(b.me ? 'You' : b.name) + '</span><span class="vh-board-bar"><i style="width:' + Math.round(b.hours / top * 100) + '%"></i></span></span><b class="av-num">' + b.hours + 'h</b></li>';
-    }).join('');
-    $('vhBdayCard').hidden = !e.birthdays.length;
-    $('vhBdays').innerHTML = e.birthdays.map(function (b) {
-      return '<li><span class="vh-feed-i" aria-hidden="true">🎂</span><span><span>' + esc(b.me ? 'You' : b.name) + '</span><small>' + (b.in === 0 ? 'Today — say happy birthday!' : b.in === 1 ? 'Tomorrow' : day(b.day)) + '</small></span></li>';
-    }).join('');
   }
-  /* A milestone newly earned gets a moment — once. */
-  function celebrateNew(earned) {
-    var seen = []; try { seen = JSON.parse(localStorage.getItem('vh.badges') || '[]'); } catch (x) {}
-    var keys = earned.map(function (b) { return b.key; });
-    var fresh = earned.filter(function (b) { return seen.indexOf(b.key) < 0; });
-    try { localStorage.setItem('vh.badges', JSON.stringify(keys)); } catch (x) {}
-    if (!seen.length || !fresh.length) return;   /* the first visit sets the baseline quietly */
-    var b = fresh[fresh.length - 1];
-    var el = document.createElement('div'); el.className = 'vh-celebrate'; el.setAttribute('role', 'status');
-    el.innerHTML = '<span class="vh-celebrate-e" aria-hidden="true">' + b.emoji + '</span><b>Milestone reached</b><span>' + esc(b.label) + '</span>';
-    document.body.appendChild(el);
-    setTimeout(function () { el.classList.add('out'); }, 4200); setTimeout(function () { el.remove(); }, 5000);
+  /* Project pickers: the log-hours form, and new teams / shifts. */
+  function fillProjects() {
+    var mine = hub.projects || [], all = hub.all_projects || [];
+    $('lhProj').innerHTML = (mine.length ? mine.map(function (p) { return '<option value="' + p.project_id + '">' + esc(p.name) + '</option>'; }).join('') : '') + '<option value="0">Not for one project</option>';
+  }
+  function projectOptions(sel) {
+    return '<option value="0">No particular project</option>' + (hub.all_projects || []).map(function (p) { return '<option value="' + p.id + '"' + (p.id === sel ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('');
   }
 
   function kudosRow(k) {
@@ -309,15 +263,16 @@
     var lead = teamsAll().filter(function (t) { return t.can_manage; });
     var d = new Date(Date.now() + 3 * 86400000); d.setHours(9, 0, 0, 0);
     var local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    form('Post an opportunity',
+    form('Post a shift or event',
       '<label>What<input id="foTitle" maxlength="160" required placeholder="Set up for Community Day"></label>'
       + '<label>For<select id="foTeam">' + (hub.me.can_run_teams ? '<option value="0">Every volunteer</option>' : '') + lead.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('') + '</select></label>'
+      + '<label>Project<select id="foProj">' + projectOptions(0) + '</select></label>'
       + '<label>When<input id="foWhen" type="datetime-local" value="' + local + '" required></label>'
       + '<label>How long<select id="foDur"><option value="60">1 hour</option><option value="120" selected>2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="480">A full day</option></select></label>'
       + '<label>Where<input id="foWhere" maxlength="160" placeholder="CACENTRE, Egbeda"></label>'
       + '<label>Places (0 = no limit)<input id="foSlots" type="number" min="0" max="500" value="0"></label>'
       + '<label class="avp-form-wide" style="justify-self:stretch">Details<textarea id="foDetails" maxlength="3000"></textarea></label>', 'Post', function (done) {
-        api('opp_post', { title: val('foTitle'), team_id: +val('foTeam'), when: val('foWhen'), duration: +val('foDur'), location: val('foWhere'), slots: +val('foSlots'), details: val('foDetails') })
+        api('opp_post', { title: val('foTitle'), team_id: +val('foTeam'), project_id: +val('foProj'), when: val('foWhen'), duration: +val('foDur'), location: val('foWhere'), slots: +val('foSlots'), details: val('foDetails') })
           .then(function (r) { done(r); if (r.ok) { toast('Posted.'); setTab('opps'); } });
       });
   });
@@ -368,16 +323,16 @@
   }
   $('vhPQ').addEventListener('input', function () { clearTimeout(pqT); pqT = setTimeout(drawPeople, 250); });
 
-  /* ── Attendance tab ── */
+  /* ── My record: hours (by project) and attendance ── */
+  function drawRecord() { drawHours(); drawAttendance(); }
   function drawAttendance() {
-    var g = hub.engagement.gate, a = hub.attendance, k = [];
-    if (g) {
-      k.push(['At the gate', g.counted ? g.rate + '%' : '—', 'last 30 days']);
-      k.push(['On time', g.counted ? g.punctuality + '%' : '—', g.late + ' late' + (g.run ? ' · ' + g.run + '-day on-time run' : '')]);
-      k.push(['Grade', g.grade || '—', g.points ? (g.points.month || 0) + ' points this month' : '']);
-    }
-    k.push(['Meetings attended', a.rate === null ? '—' : a.rate + '%', a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' · ' + a.apologies + ' apolog' + (a.apologies === 1 ? 'y' : 'ies') : 'from published minutes']);
-    $('vhAttKpis').innerHTML = k.map(function (x) { return '<div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">' + esc(x[0]) + '</span></div><div class="avp-kpi-v av-num">' + esc(x[1]) + '</div><div class="avp-kpi-s">' + esc(x[2]) + '</div></div>'; }).join('');
+    var g = hub.engagement.gate, a = hub.attendance, h = hub.hours, k = [];
+    k.push(['Hours this month', h.month, h.year + ' this year']);
+    k.push(['Hours in all', h.total, 'meetings, shifts, sessions and logged']);
+    k.push(['Meetings attended', a.rate === null ? '—' : a.rate + '%', a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' · last six months' : 'from published minutes']);
+    if (g) k.push(['At the gate', g.counted ? g.rate + '%' : '—', g.counted ? g.punctuality + '% on time · last 30 days' : 'last 30 days']);
+    if ($('vhGateLine') && g) $('vhGateLine').textContent = g.counted ? g.rate + '% of expected days, ' + g.punctuality + '% on time, in the last 30 days.' : 'Nothing recorded at the gate in the last 30 days.';
+    $('vhRecKpis').innerHTML = k.map(function (x) { return '<div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">' + esc(x[0]) + '</span></div><div class="avp-kpi-v av-num">' + esc(x[1]) + '</div><div class="avp-kpi-s">' + esc(x[2]) + '</div></div>'; }).join('');
     api('past', null, 'team_id=0').then(function (r) {
       if (!r.ok) { $('vhMyMeet').innerHTML = '<li class="avp-empty">' + esc(r.error) + '</li>'; return; }
       var LBL = { present: ['On time', 'green'], late: ['Late', 'gold'], apologies: ['Apologies', 'indigo'], absent: ['Missed', 'red'] };
@@ -425,6 +380,10 @@
   function drawMeetings() {
     var team = +$('vhMTeam').value;
     view.querySelectorAll('[data-mscope]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-mscope') === mscope ? 'true' : 'false'); });
+    $('vhMinWrap').hidden = mscope !== 'minutes'; $('vhNQWrap').hidden = mscope !== 'minutes'; $('vhMeetWrap').hidden = mscope === 'minutes';
+    if (mscope === 'minutes') return drawMinutesTab();
+    if (mscope === 'calendar') return drawCalendar(team);
+    restoreMeetWrap();
     if (mscope === 'upcoming') {
       var list = hub.upcoming.filter(function (m) { return !team || m.team_id === team; });
       $('vhMeetList').innerHTML = list.length ? list.map(meetRow).join('') : '<li class="avp-empty">No meetings coming up' + (team ? ' for this team' : '') + '.</li>';
@@ -441,6 +400,40 @@
         return row(esc(m.title) + ' ' + st, esc(m.when) + (m.team ? ' · ' + esc(m.team) : '') + ' · ' + m.came + ' of ' + m.invited + ' came' + (MARK[m.my_mark] ? ' · ' + MARK[m.my_mark] : ''), btn);
       }).join('') : '<li class="avp-empty">No past meetings in the last four months.</li>';
     });
+  }
+  /* A month calendar of my meetings and shifts (FullCalendar, self-hosted). */
+  var cal = null;
+  function drawCalendar(team) {
+    var wrap = $('vhMeetWrap');
+    if (!window.FullCalendar) {
+      wrap.innerHTML = '<section class="avp-card"><p class="avp-empty" aria-busy="true">Loading the calendar…</p></section>';
+      need('calendar').then(function (ok) { if (mscope !== 'calendar') return; if (ok) drawCalendar(team); else { mscope = 'upcoming'; drawMeetings(); toast('The calendar could not load — here is the list.', true); } });
+      return;
+    }
+    wrap.innerHTML = '<section class="avp-card"><div class="avp-card-body"><div id="vhCal"></div></div></section>';
+    var evs = hub.upcoming.filter(function (m) { return !team || m.team_id === team; }).map(function (m) {
+      return { id: 'm' + m.id + ':' + m.occurrence, title: m.title, start: new Date(m.ts * 1000), end: new Date((m.ts + m.duration_min * 60) * 1000), classNames: ['vh-ev-meet' + (m.rsvp === 'yes' ? ' is-yes' : '')], extendedProps: { kind: 'meet', id: m.id, occ: m.occurrence, room: m.room } };
+    }).concat((hub.opportunities || []).filter(function (o) { return !o.past && o.ts; }).map(function (o) {
+      return { id: 'o' + o.id, title: o.title, start: new Date(o.ts * 1000), end: new Date((o.ts + o.duration_min * 60) * 1000), classNames: ['vh-ev-opp' + (o.mine === 'signed' ? ' is-yes' : '')], extendedProps: { kind: 'opp' } };
+    }));
+    var phone = window.matchMedia('(max-width: 640px)').matches;
+    cal = new FullCalendar.Calendar($('vhCal'), {
+      initialView: phone ? 'listMonth' : 'dayGridMonth', height: 'auto', firstDay: 1, nowIndicator: true, events: evs,
+      headerToolbar: { left: 'prev,next today', center: 'title', right: phone ? '' : 'dayGridMonth,timeGridWeek,listMonth' },
+      buttonText: { today: 'Today', month: 'Month', week: 'Week', list: 'List' },
+      noEventsContent: 'Nothing scheduled.',
+      eventDidMount: function (info) { info.el.setAttribute('aria-label', info.event.title + ', ' + info.event.start.toLocaleString([], { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + (info.event.extendedProps.kind === 'opp' ? ', shift' : ', meeting')); },
+      datesSet: function (d) { announce('Showing ' + d.view.title); },
+      eventClick: function (info) {
+        var x = info.event.extendedProps;
+        if (x.kind === 'opp') { setTab('opps'); return; }
+        if (x.room) openRoom(x.id, x.occ); else { mscope = 'upcoming'; drawMeetings(); }
+      },
+    });
+    cal.render();
+  }
+  function restoreMeetWrap() {
+    if (!$('vhMeetList')) $('vhMeetWrap').innerHTML = '<section class="avp-card"><ul class="vh-list" id="vhMeetList"><li class="avp-empty">Loading…</li></ul></section>';
   }
   view.addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-mscope]'); if (b) { mscope = b.getAttribute('data-mscope'); drawMeetings(); }
@@ -461,7 +454,7 @@
       return row(esc(m.title), esc(m.when) + ' · ' + (x[1] === 'approve' ? 'with you to approve' : m.minutes_id ? 'draft' : 'not started'),
         '<button type="button" class="avp-btn avp-btn--sq' + (x[1] === 'approve' ? ' avp-btn--ink' : '') + '" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">' + (x[1] === 'approve' ? 'Read and approve' : m.minutes_id ? 'Continue' : 'Write them') + '</button>');
     }).join('');
-    api('archive', null, 'status=' + encodeURIComponent(mstatus) + '&team_id=' + (+$('vhNTeam').value) + '&q=' + encodeURIComponent($('vhNQ').value)).then(function (r) {
+    api('archive', null, 'status=' + encodeURIComponent(mstatus) + '&team_id=' + (+$('vhMTeam').value) + '&q=' + encodeURIComponent($('vhNQ').value)).then(function (r) {
       if (!r.ok) { $('vhArchive').innerHTML = '<li class="avp-empty">' + esc(r.error) + '</li>'; return; }
       var tone = { draft: 'gold', review: 'indigo', published: 'green' };
       $('vhArchive').innerHTML = r.minutes.length ? r.minutes.map(function (n) {
@@ -472,7 +465,6 @@
       }).join('') : '<li class="avp-empty">' + ($('vhNQ').value || mstatus ? 'No minutes match.' : 'No minutes yet. They are drafted by themselves when a meeting ends.') + '</li>';
     });
   }
-  $('vhNTeam').addEventListener('change', drawMinutesTab);
   $('vhNQ').addEventListener('input', function () { clearTimeout(qT); qT = setTimeout(drawMinutesTab, 250); });
 
   /* ── Actions tab ── */
@@ -556,6 +548,16 @@
           ev.preventDefault();
           api('team_member', { team_id: id, who: val('ftAdd'), role: val('ftRole') }).then(function (x) { if (x.ok) { toast('Added — they are invited to the team’s meetings.'); load(); openTeam(id); } else $('ftErr').textContent = x.error; });
         });
+        /* Tom Select (self-hosted): search people by name or email as you type. */
+        need('picker').then(function (ok) {
+          if (!ok || !$('ftAdd') || $('ftAdd').tomselect) return;
+          $('ftAdd').type = 'text';
+          new TomSelect($('ftAdd'), { maxItems: 1, create: true, valueField: 'email', labelField: 'name', searchField: ['name', 'email'], placeholder: 'Name or email',
+            createFilter: function (v) { return /@/.test(v); },
+            render: { option: function (p, e) { return '<div><b>' + e(p.name || p.email) + '</b> <small>' + e(p.email) + '</small></div>'; }, item: function (p, e) { return '<div>' + e(p.name || p.email) + '</div>'; },
+                      option_create: function (d, e) { return '<div class="create">Add <b>' + e(d.input) + '</b></div>'; }, no_results: function () { return '<div class="no-results">Type a name or an email</div>'; } },
+            load: function (q, cb) { if (q.length < 2) return cb(); api('people', null, 'q=' + encodeURIComponent(q)).then(function (x) { cb(x.people || []); }); } });
+        });
         var st; $('ftAdd').addEventListener('input', function () {
           clearTimeout(st); var q = this.value.trim(); if (q.length < 2) return;
           st = setTimeout(function () { api('people', null, 'q=' + encodeURIComponent(q)).then(function (x) {
@@ -569,11 +571,16 @@
   /* ── Hours tab ── */
   function drawHours() {
     var h = hub.hours, s = hub.hours_series;
-    $('vhHoursTot').innerHTML = '<div class="vh-hours-n"><div><b class="av-num">' + h.month + '</b><span>this month</span></div><div><b class="av-num">' + h.year + '</b><span>this year</span></div><div><b class="av-num">' + h.total + '</b><span>in all</span></div></div>';
+    var byp = h.by_project || [], top = Math.max.apply(null, byp.map(function (x) { return x.hours; }).concat([1]));
+    $('vhByProj').innerHTML = byp.length ? byp.map(function (x) { return '<li class="vh-byp-row"><span><span>' + esc(x.name) + '</span><span class="vh-meter vh-meter--sm"><i style="width:' + Math.round(x.hours / top * 100) + '%"></i></span></span><b class="av-num">' + x.hours + ' h</b></li>'; }).join('')
+      : '<li class="avp-empty">No hours yet.</li>';
     $('vhChartTable').setAttribute('aria-pressed', chartTable ? 'true' : 'false'); $('vhChartTable').textContent = chartTable ? 'Show as a chart' : 'Show as a table';
     if (chartTable) {
       $('vhChart').innerHTML = '<table class="vh-table"><thead><tr><th scope="col">Month</th><th scope="col" class="num">Hours</th></tr></thead><tbody>' + s.map(function (x) { return '<tr><td>' + esc(x.long) + '</td><td class="num">' + x.hours + '</td></tr>'; }).join('') + '</tbody></table>';
+    } else if (window.uPlot && drawChartU(s)) {
+      /* drawn by uPlot */
     } else {
+      if (!window.uPlot) need('chart').then(function (ok) { if (ok && tab === 'record' && !chartTable) drawChartU(hub.hours_series); });
       var max = Math.max.apply(null, s.map(function (x) { return x.hours; }).concat([1]));
       var nice = max <= 5 ? 5 : max <= 10 ? 10 : Math.ceil(max / 10) * 10, H = 160;
       $('vhChart').innerHTML = '<div class="vh-bars" role="img" aria-label="Hours given each month for the last twelve months. Use Show as a table for the numbers.">'
@@ -584,15 +591,35 @@
         }).join('') + '</div>';
     }
     $('vhHoursList').innerHTML = h.recent.length ? h.recent.map(function (r) {
-      return row(esc(r.activity), esc(day(r.day)) + ' · ' + r.hours + ' h · ' + (r.source === 'manual' ? 'logged by you' : 'meeting attended'),
+      return row(esc(r.activity), esc(day(r.day)) + ' · ' + r.hours + ' h' + (r.project ? ' · ' + esc(r.project) : '') + ' · ' + esc(SRC_LABEL[r.source] || 'recorded'),
         r.source === 'manual' ? '<button type="button" class="vh-x" data-unhours="' + r.id + '" aria-label="Remove ' + esc(r.activity) + '">×</button>' : '');
-    }).join('') + (h.recent.length >= 12 ? '<li class="vh-note" style="padding:10px 20px">The latest twelve. Download the CSV for everything.</li>' : '') : '<li class="avp-empty">Nothing logged yet.</li>';
+    }).join('') + (h.recent.length >= 20 ? '<li class="vh-note" style="padding:10px 20px">The latest twenty. Download the CSV for everything.</li>' : '') : '<li class="avp-empty">Nothing yet. Meetings, shifts and NGG sessions are added for you; log anything else here.</li>';
     if (!$('lhDay').value) { $('lhDay').value = new Date().toISOString().slice(0, 10); $('lhDay').max = $('lhDay').value; }
+  }
+  var SRC_LABEL = { manual: 'logged by you', meeting: 'meeting attended', opportunity: 'shift attended', ngg: 'NGG session' };
+  /* uPlot bars: hours a month, for the last twelve months. */
+  var uplot = null;
+  function drawChartU(s) {
+    try {
+      var el = $('vhChart'); el.innerHTML = '';
+      var w = Math.max(260, el.clientWidth || 600);
+      var xs = s.map(function (_, i) { return i; }), ys = s.map(function (x) { return x.hours; });
+      var ink = getComputedStyle(view).getPropertyValue('--ink') || '#1b1b1b';
+      uplot = new uPlot({
+        width: w, height: 200, legend: { show: false }, cursor: { y: false, points: { show: false } },
+        scales: { x: { time: false, range: [-0.6, s.length - 0.4] }, y: { range: function (u, mn, mx) { return [0, Math.max(4, Math.ceil(mx * 1.2))]; } } },
+        axes: [{ values: function (u, ticks) { return ticks.map(function (t) { return s[t] ? s[t].label : ''; }); }, splits: function () { return xs; }, grid: { show: false }, stroke: ink },
+               { size: 36, stroke: ink, grid: { stroke: 'rgba(127,127,127,.15)' } }],
+        series: [{}, { label: 'Hours', fill: 'rgba(243,180,22,.85)', stroke: '#c48f0a', width: 1, paths: uPlot.paths.bars({ size: [0.6, 48] }), points: { show: false } }],
+      }, [xs, ys], el);
+      el.setAttribute('role', 'img'); el.setAttribute('aria-label', 'Hours given each month for the last twelve months. Use Show as a table for the numbers.');
+      return true;
+    } catch (e) { return false; }
   }
   $('vhChartTable').addEventListener('click', function () { chartTable = !chartTable; drawHours(); });
   $('vhLogForm').addEventListener('submit', function (ev) {
     ev.preventDefault();
-    api('hours', { activity: val('lhAct'), day: val('lhDay'), hours: val('lhH') }).then(function (r) {
+    api('hours', { activity: val('lhAct'), day: val('lhDay'), hours: val('lhH'), project_id: +val('lhProj') }).then(function (r) {
       if (!r.ok) { $('lhErr').textContent = r.error; return; }
       $('lhErr').textContent = ''; $('lhAct').value = ''; toast('Logged — thank you.'); load();
     });
@@ -613,7 +640,7 @@
       fetch('/portal/commitments.php?action=done', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }, body: JSON.stringify({ id: +b.getAttribute('data-done') }) })
         .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) { toast('Done — well done.'); load(); } else toast(r.error || 'Not saved.', true); })
         .catch(function () { toast('No connection.', true); });
-    } else if (b.hasAttribute('data-team')) { setTab('teams'); openTeam(+b.getAttribute('data-team')); }
+    } else if (b.hasAttribute('data-team')) { setTab('people'); openTeam(+b.getAttribute('data-team')); }
     else if (b.hasAttribute('data-unhours')) api('hours_remove', { id: +b.getAttribute('data-unhours') }).then(function (r) { if (r.ok) load(); else toast(r.error, true); });
   });
 
@@ -635,10 +662,10 @@
   }
   function val(id) { var e = $(id); return e ? e.value : ''; }
 
-  $('vhLogHours').addEventListener('click', function () { setTab('hours'); setTimeout(function () { $('lhAct').focus(); }, 50); });
+  $('vhLogHours').addEventListener('click', function () { setTab('record'); setTimeout(function () { $('lhAct').focus(); }, 50); });
   $('vhNewTeam').addEventListener('click', function () {
-    form('New team', '<label>Name<input id="ftName" maxlength="120" required></label><label class="avp-form-wide" style="justify-self:stretch">What it does<input id="ftPur" maxlength="400"></label>', 'Create', function (done) {
-      api('team_create', { name: val('ftName'), purpose: val('ftPur') }).then(function (r) { done(r); if (r.ok) { setTab('teams'); openTeam(r.id); } });
+    form('New team', '<label>Name<input id="ftName" maxlength="120" required></label><label>Project<select id="ftProj">' + projectOptions(0) + '</select></label><label class="avp-form-wide" style="justify-self:stretch">What it does<input id="ftPur" maxlength="400"></label>', 'Create', function (done) {
+      api('team_create', { name: val('ftName'), purpose: val('ftPur'), project_id: +val('ftProj') }).then(function (r) { done(r); if (r.ok) { setTab('people'); openTeam(r.id); } });
     });
   });
   $('vhSchedule').addEventListener('click', function () {
@@ -924,10 +951,11 @@
 
   /* ══ When the view opens ═══════════════════════════════════════════════ */
 
-  if (location.hash === '#attendance') { tab = 'attendance'; try { history.replaceState(null, '', '#volunteer'); } catch (x) {} }
   document.addEventListener('portal:view', function (e) { if (e.detail && e.detail.view === 'volunteer') load(); });
   if (!view.hidden || location.hash === '#volunteer') load();
   /* Keep "coming up" and "live now" honest while the page sits open. */
-  setInterval(function () { if (!view.hidden && !document.hidden && loaded && !$('vhRoom').open && !$('vhMin').open && !$('vhForm').open) load(); }, 60000);
+  /* …but never under somebody's hands: a refresh while focus is inside the
+     dashboard would move a screen reader's place, so it waits. */
+  setInterval(function () { if (!view.hidden && !document.hidden && loaded && !$('vhRoom').open && !$('vhMin').open && !$('vhForm').open && !view.contains(document.activeElement)) load(); }, 60000);
   setInterval(function () { if ($('vhRoom').open) tickClock(); }, 1000);
 })();

@@ -63,6 +63,7 @@ final class VolunteerWork
         try { $pdo->exec('CREATE UNIQUE INDEX uq_vol_signup ON vol_signups (opportunity_id, user_id)'); } catch (Throwable $e) {}
         try { $pdo->exec('CREATE INDEX idx_vol_kudos_to ON vol_kudos (to_id, created_at)'); } catch (Throwable $e) {}
         try { $pdo->exec('CREATE INDEX idx_vol_opp_when ON vol_opportunities (starts_at)'); } catch (Throwable $e) {}
+        try { if (!Database::columnExists('vol_opportunities', 'project_id')) $pdo->exec('ALTER TABLE vol_opportunities ADD COLUMN project_id INTEGER NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -99,10 +100,13 @@ final class VolunteerWork
         try { $dt = new DateTime($when, new DateTimeZone(defined('AV_TZ') ? AV_TZ : 'Africa/Lagos')); } catch (Throwable $e) { return ['ok' => false, 'error' => 'Pick a date and time.']; }
         if ($when === '' || $dt->getTimestamp() < time() - 3600) return ['ok' => false, 'error' => 'Pick a date and time that has not passed.'];
         $pdo = Database::pdo();
-        $pdo->prepare('INSERT INTO vol_opportunities (title, details, location, starts_at, duration_min, slots, team_id, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+        VolunteerProjects::ensure();
+        $proj = (int) ($in['project_id'] ?? 0);
+        if ($proj > 0 && !VolunteerProjects::byId($proj)) $proj = 0;
+        $pdo->prepare('INSERT INTO vol_opportunities (title, details, location, starts_at, duration_min, slots, team_id, created_by, created_at, project_id) VALUES (?,?,?,?,?,?,?,?,?,?)')
             ->execute([$title, mb_substr(trim((string) ($in['details'] ?? '')), 0, 3000), mb_substr(trim((string) ($in['location'] ?? '')), 0, 160),
                        gmdate('Y-m-d H:i:s', $dt->getTimestamp()), max(15, min(720, (int) ($in['duration'] ?? 120))), max(0, min(500, (int) ($in['slots'] ?? 0))),
-                       $team, (int) $u['id'], self::now()]);
+                       $team, (int) $u['id'], self::now(), $proj]);
         $id = (int) $pdo->lastInsertId();
         /* A team's opportunity is announced to the team. */
         if ($team > 0 && ($t = Volunteers::team($team))) {
@@ -180,7 +184,8 @@ final class VolunteerWork
         if (!$st->rowCount()) return ['ok' => false, 'error' => 'They were not signed up.'];
         if ($status === 'attended') {
             $day = function_exists('av_today_tz') ? substr(MeetingMinutes::local((string) $o['starts_at']), 0, 10) : substr((string) $o['starts_at'], 0, 10);
-            if (Volunteers::autoHours($uid, $day, (int) $o['duration_min'], (string) $o['title'], 'opportunity', 'opp:' . $id)) {
+            $proj = (int) ($o['project_id'] ?? 0) ?: ((int) $o['team_id'] > 0 && ($tm = Volunteers::team((int) $o['team_id'])) ? (int) $tm['project_id'] : 0);
+            if (Volunteers::autoHours($uid, $day, (int) $o['duration_min'], (string) $o['title'], 'opportunity', 'opp:' . $id, $proj)) {
                 self::push($uid, 'Thank you for coming to ' . $o['title'], round((int) $o['duration_min'] / 60, 1) . ' hours added to your record.', 'oppdone:' . $id . ':' . $uid);
             }
         } else {

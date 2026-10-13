@@ -18,8 +18,9 @@ declare(strict_types=1);
 
 $np = Database::pdo();
 NggVolunteers::ensure(); VolunteerWork::ensure(); Notifications::ensure();
-foreach (['ngg_volunteers', 'ngg_volunteer_syncs', 'vol_opportunities', 'vol_signups', 'vol_kudos', 'vol_recognitions', 'vol_teams', 'vol_team_members'] as $t) { try { $np->exec('DELETE FROM ' . $t); } catch (Throwable $e) {} }
-$np->exec("DELETE FROM vol_hours WHERE source = 'opportunity'");
+foreach (['ngg_volunteers', 'ngg_volunteer_syncs', 'ngg_sessions', 'vol_opportunities', 'vol_signups', 'vol_kudos', 'vol_recognitions', 'vol_teams', 'vol_team_members'] as $t) { try { $np->exec('DELETE FROM ' . $t); } catch (Throwable $e) {} }
+$np->exec("DELETE FROM vol_hours WHERE source IN ('opportunity', 'ngg')");
+Database::metaSet('ngg_sessions_cursor', '0');
 $np->exec('DELETE FROM lms_users WHERE id BETWEEN 9500 AND 9599');
 $mk = static function (int $id, string $name, string $email, string $role = 'learner') use ($np): array {
     $np->prepare('INSERT INTO lms_users (id, name, email, password_hash, role, status) VALUES (?,?,?,?,?,?)')->execute([$id, $name, $email, 'x', $role, 'active']);
@@ -39,7 +40,20 @@ $feed = [
     ['volunteerId' => 'VOL-3', 'name' => 'Gbenga Admin', 'email' => 'gbenga@ngg.test', 'role' => 'admin', 'centre' => 'Egbeda', 'status' => 'active'],
 ];
 $calls = [];
-NggVolunteers::$transport = static function (string $url, string $raw, array $h) use (&$calls, &$feed) {
+/* Sessions NGG volunteers served (op "volunteer_sessions"), by attendance id. */
+$sessions = [
+    ['id' => 11, 'volunteerId' => 'VOL-1', 'email' => 'ada.ngg@gmail.test', 'date' => gmdate('Y-m-d', time() - 20 * 86400), 'checkInAt' => 'x', 'checkOutAt' => 'y', 'minutes' => 210, 'minutesSource' => 'gate', 'centre' => 'Egbeda', 'role' => 'mentor'],
+    ['id' => 12, 'volunteerId' => 'VOL-1', 'email' => 'ada.ngg@gmail.test', 'date' => gmdate('Y-m-d'), 'checkInAt' => 'x', 'checkOutAt' => '', 'minutes' => 240, 'minutesSource' => 'standard', 'centre' => 'Egbeda', 'role' => 'mentor'],
+    ['id' => 13, 'volunteerId' => 'VOL-3', 'email' => 'gbenga@ngg.test', 'date' => gmdate('Y-m-d'), 'checkInAt' => 'x', 'checkOutAt' => '', 'minutes' => 240, 'minutesSource' => 'standard', 'centre' => 'Egbeda', 'role' => 'admin'],
+];
+$sessAsked = [];
+NggVolunteers::$transport = static function (string $url, string $raw, array $h) use (&$calls, &$feed, &$sessions, &$sessAsked) {
+    $op = (string) (json_decode($raw, true)['op'] ?? '');
+    if ($op === 'volunteer_sessions') {
+        $in = json_decode($raw, true); $sessAsked[] = (int) $in['after'];
+        $page = array_values(array_filter($sessions, fn($x) => $x['id'] > (int) $in['after']));
+        return ['code' => 200, 'body' => json_encode(['ok' => true, 'sessions' => $page, 'next' => null, 'done' => true])];
+    }
     $calls[] = $url;
     $hdr = implode("\n", $h);
     preg_match('/X-NGG-Timestamp: (\d+)/', $hdr, $ts);
@@ -54,6 +68,18 @@ NggVolunteers::$transport = static function (string $url, string $raw, array $h)
 $r = NggVolunteers::sync();
 ck('NGG: the list is fetched, signed, to the end (two pages)', $r['ok'] && $r['received'] === 3 && count($calls) === 2 && str_ends_with($calls[0], '/api/hooks/afrovanguard.php'));
 ck('NGG: …and linked to accounts by email, however NGG cased it', (int) $np->query("SELECT user_id FROM ngg_volunteers WHERE volunteer_id = 'VOL-1'")->fetchColumn() === 9501);
+ck('NGG sessions: every session served is fetched and credited as hours, on the NextGen Genius project', ($r['sessions'] ?? 0) === 3
+    && (int) $np->query("SELECT SUM(minutes) FROM vol_hours WHERE user_id = 9501 AND source = 'ngg'")->fetchColumn() === 450
+    && (int) $np->query("SELECT COUNT(DISTINCT project_id) FROM vol_hours WHERE user_id = 9501 AND source = 'ngg' AND project_id = " . VolunteerProjects::nggId())->fetchColumn() === 1);
+ck('NGG sessions: …only for somebody with an account here — the rest wait', (int) $np->query("SELECT COUNT(*) FROM vol_hours WHERE source = 'ngg' AND user_id NOT IN (9501)")->fetchColumn() === 0);
+$sessions[1]['checkOutAt'] = 'z'; $sessions[1]['minutes'] = 180; $sessions[1]['minutesSource'] = 'gate';
+$sessions[] = ['id' => 14, 'volunteerId' => 'VOL-1', 'email' => 'ada.ngg@gmail.test', 'date' => gmdate('Y-m-d'), 'checkInAt' => 'x', 'checkOutAt' => '', 'minutes' => 240, 'minutesSource' => 'standard', 'centre' => 'Ayobo', 'role' => 'mentor'];
+$sessAsked = [];
+$s2 = NggVolunteers::syncSessions();
+ck('NGG sessions: the next sync reads the last few days again, not everything', $s2['ok'] && $sessAsked === [11] && $s2['received'] === 3);
+ck('NGG sessions: a check-out added later corrects the hours — never counted twice', (int) $np->query("SELECT SUM(minutes) FROM vol_hours WHERE user_id = 9501 AND source = 'ngg'")->fetchColumn() === 210 + 180 + 240
+    && (int) $np->query("SELECT COUNT(*) FROM vol_hours WHERE user_id = 9501 AND source = 'ngg'")->fetchColumn() === 3);
+ck('NGG sessions: in the hours list in words', in_array('NGG session · Ayobo', array_column(Volunteers::hoursFor(9501)['recent'], 'activity'), true));
 ck('NGG: an insecure photo address is not kept', (string) $np->query("SELECT photo_url FROM ngg_volunteers WHERE volunteer_id = 'VOL-2'")->fetchColumn() === '');
 ck('NGG: now Ada is recognised as a volunteer', Volunteers::isVolunteer($ada) && !Volunteers::isVolunteer($bola));
 $id = Volunteers::identity($ada);

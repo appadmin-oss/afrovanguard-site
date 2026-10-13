@@ -276,7 +276,7 @@ ck('Sweep: …once', MeetingMinutes::sweep($t0)['overdue'] === 0);
 
 /* ── The page and the API ── */
 $api = (string) file_get_contents(AV_ROOT . '/portal/volunteer.php');
-ck('API: writes are same-origin + CSRF + rate-limited; the hub is volunteers-only', str_contains($api, 'av_require_write(') && str_contains($api, 'Volunteers::isVolunteer($u)'));
+ck('API: writes are same-origin + CSRF + rate-limited; the dashboard is for volunteers and those who run them', str_contains($api, 'av_require_write(') && str_contains($api, 'Volunteers::canOpenDashboard($u)'));
 $cron = (string) file_get_contents(AV_ROOT . '/tasks/cron.php');
 ck('Cron: the meetings sweep runs with a heartbeat', str_contains($cron, "AiOps::run('meetings_live'") && isset(AiOps::RUNGS['meetings_live']));
 

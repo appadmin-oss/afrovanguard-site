@@ -158,6 +158,11 @@ $knownMetaKeys = [
     // yesterday — it never back-marks history, so it under-marks rather than
     // fining a roster for days nobody was watching.
     'gate_absent_swept_through',
+    // NGG sessions (lib/NggVolunteers::syncSessions). Reviewed: gates no
+    // migration. How far the session feed has been read. Lost, the next sync
+    // reads every session again — each is credited once by its ref, so it
+    // redoes work and double-counts nothing.
+    'ngg_sessions_cursor',
     // Older printed member cards (lib/MemberCards). Reviewed: gates no migration.
     // The shapes the gate decodes old cards by. Lost, those cards stop reading
     // at the gate until re-described; secure cards and NGV numbers are unaffected.

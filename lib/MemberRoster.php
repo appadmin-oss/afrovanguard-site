@@ -397,6 +397,7 @@ final class MemberRoster
             'membership' => Membership::summary($id),
             /* Volunteer is explicit (lib/Volunteers): why, if they are one. */
             'volunteer' => class_exists('Volunteers') ? Volunteers::why($u) : [],
+            'volunteer_projects' => class_exists('VolunteerProjects') ? VolunteerProjects::forUser($u) : [],
         ];
     }
 
@@ -678,8 +679,10 @@ final class MemberRoster
             if (str_starts_with($action, 'volunteer_') && class_exists('Volunteers')) {
                 $by = (int) ($ctx['self_id'] ?? 0);
                 if ($action === 'volunteer_add') {
-                    $r = Volunteers::promote([$id], $by, (string) ($value['note'] ?? ''));
-                    $outcome = $r['added'] ? 'applied' : 'unchanged';
+                    /* On a project, as a type (lib/VolunteerProjects); organisation-wide by default. */
+                    $pj = (int) ($value['project_id'] ?? 0) ?: (int) ((VolunteerProjects::bySlug('afrovanguard') ?? [])['id'] ?? 0);
+                    $r = VolunteerProjects::assign([$id], $pj, (string) ($value['type'] ?? 'general'), $by, (string) ($value['note'] ?? ''));
+                    $outcome = !$r['ok'] ? 'refused' : (($r['placed'] || $r['updated'] || $r['new_volunteers']) ? 'applied' : 'unchanged');
                 } else {
                     $why = Volunteers::why($u);
                     if (!array_intersect($why, ['roster', 'team'])) { $r = ['ok' => true]; $outcome = 'unchanged'; }

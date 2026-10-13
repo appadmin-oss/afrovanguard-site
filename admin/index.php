@@ -437,6 +437,7 @@
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
+      <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
       <button class="subtab" data-mv="offline" role="tab">Offline payments <span class="badge draft" id="offHeldBadge" hidden></span></button>
     </div>
@@ -504,6 +505,8 @@
           <option value="volunteer_remove">Remove from volunteers</option>
         </select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
+        <select id="memBulkProject" hidden aria-label="Project they volunteer on"></select>
+        <select id="memBulkType" hidden aria-label="What they volunteer as"></select>
         <button class="btn btn-primary btn-sm" id="memBulkGo" disabled>Apply</button>
         <button class="btn btn-outline btn-sm" id="memBulkClear">Clear</button>
       </div>
@@ -552,6 +555,21 @@
       <div class="entry-list" id="offList" aria-live="polite"></div>
     </section>
 
+    <!-- Volunteers by project (lib/VolunteerProjects.php) -->
+    <section class="mem-pane" data-pane="volunteers" hidden>
+      <p class="muted">Volunteers serve a project, as a type — a mentor on one, the media volunteer on another. Make members volunteers from the <b>Roster</b> (one, chosen, or every match) or on a member's record. NGG's volunteers are placed by NGG and appear on Next Generation Genius on their own.</p>
+      <div class="vp-grid" id="vpList"><p class="muted">Loading…</p></div>
+      <div class="side-card vp-new">
+        <h3>Add a project</h3>
+        <div class="mem-create-grid">
+          <label class="fld"><span>Name</span><input id="vpName" maxlength="120" placeholder="e.g. Community Health Drive" /></label>
+          <label class="fld"><span>What it is (optional)</span><input id="vpBlurb" maxlength="300" /></label>
+        </div>
+        <button class="btn btn-primary btn-sm" id="vpAdd">Add project</button>
+      </div>
+      <div id="vpMembers" class="side-card" hidden></div>
+    </section>
+
     <section class="mem-pane" data-pane="dups" hidden>
       <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
       <div id="memDups"></div>
@@ -577,7 +595,12 @@
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
         <p class="muted tiny" id="md_lock" hidden></p>
         <h3 class="mem-card-h">Volunteer</h3>
-        <div class="mem-card-row" id="mdVol" aria-live="polite"><span class="muted">…</span></div>
+        <div id="mdVol" aria-live="polite"><span class="muted">…</span></div>
+        <div class="mem-card-row vp-add">
+          <select id="mdVolProject" aria-label="Project"></select>
+          <select id="mdVolType" aria-label="Volunteers as"></select>
+          <button class="btn btn-outline btn-sm" id="mdVolAdd">Place on project</button>
+        </div>
         <h3 class="mem-card-h">Dues</h3>
         <p class="muted tiny">Dues open paid courses. They are not Afrovanguard membership: paying them changes nobody's access level.</p>
         <div id="mdMembership" aria-live="polite"></div>

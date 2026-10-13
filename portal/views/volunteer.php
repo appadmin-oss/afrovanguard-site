@@ -1,11 +1,12 @@
 <?php
 /**
- * portal/views/volunteer.php — the Volunteer hub.
+ * portal/views/volunteer.php — the Volunteer dashboard (volunteers only).
  *
- * One place for a volunteer's activities: the meetings to answer and join,
- * the live room while a meeting is on (who is here, what is said, the
- * check-in QR, decisions and actions captured as they happen), the minutes to
- * write or approve, published minutes, my actions, my teams and my hours.
+ * Six sections, each one job: Home (what needs me, what is next, this
+ * month), Meetings (with their minutes), Tasks, Shifts & events, Teams &
+ * people, My record (hours by project, attendance). The header names the
+ * projects the volunteer serves and as what. The live room and the minutes
+ * editor open over it.
  *
  * The shell draws the frame; portal/volunteer.js fills it from
  * portal/volunteer.php?action=hub, and runs the room and the minutes editor.
@@ -15,180 +16,157 @@ declare(strict_types=1);
 ?>
       <section class="pview avp-view vh" id="view-volunteer" data-view="volunteer" hidden aria-labelledby="vhH"
                data-csrf="<?= e($collabCsrf) ?>" data-me="<?= (int) $u['id'] ?>">
-        <section class="vh-hero" aria-labelledby="vhH">
-          <div class="vh-hero-t">
-            <p class="vh-hero-date" id="vhDate"></p>
-            <h1 class="vh-hero-h" id="vhH">Welcome, <?= e($first) ?>.</h1>
-            <p class="vh-hero-line" id="vhLine">Your meetings, attendance and the difference you make — all in one place.</p>
-            <div class="vh-id" id="vhId" aria-label="Recognised as"></div>
-            <div class="vh-hero-chips" id="vhChips"></div>
-            <div class="vh-hero-cta">
-              <button type="button" class="avp-btn avp-btn--paper" id="vhNextStep" hidden></button>
-              <button type="button" class="avp-btn vh-btn-ghost" id="vhLogHours">Log hours</button>
-              <button type="button" class="avp-btn vh-btn-ghost" id="vhSchedule" hidden>Schedule a meeting</button>
-            </div>
+        <!-- Header: who I am here, and the two things I do most -->
+        <header class="vh-head">
+          <div class="vh-head-t">
+            <p class="vh-eyebrow">Volunteer dashboard</p>
+            <h1 class="vh-h" id="vhH">Welcome, <?= e($first) ?>.</h1>
+            <ul class="vh-projs" id="vhProjects" aria-label="The projects you volunteer on"></ul>
           </div>
-          <div class="vh-hero-ring" id="vhRing" aria-live="polite"></div>
-        </section>
-        <div class="vh-badges" id="vhBadges" aria-label="Your milestones"></div>
+          <div class="vh-head-a">
+            <button type="button" class="avp-btn avp-btn--ink" id="vhNextStep" hidden></button>
+            <button type="button" class="avp-btn" id="vhLogHours">Log hours</button>
+            <button type="button" class="avp-btn" id="vhSchedule" hidden>Schedule a meeting</button>
+          </div>
+        </header>
 
         <div id="vhLive" hidden></div>
 
-        <nav class="vh-tabs" role="tablist" aria-label="Volunteer hub sections">
-          <button type="button" role="tab" id="vt-overview" aria-controls="vp-overview" aria-selected="true" data-tab="overview">Overview</button>
+        <nav class="vh-tabs" role="tablist" aria-label="Volunteer dashboard sections">
+          <button type="button" role="tab" id="vt-home" aria-controls="vp-home" aria-selected="true" data-tab="home">Home <span class="vh-tab-n" id="vtnHome" hidden></span></button>
           <button type="button" role="tab" id="vt-meetings" aria-controls="vp-meetings" aria-selected="false" data-tab="meetings">Meetings <span class="vh-tab-n" id="vtnMeet" hidden></span></button>
-          <button type="button" role="tab" id="vt-attendance" aria-controls="vp-attendance" aria-selected="false" data-tab="attendance">Attendance</button>
-          <button type="button" role="tab" id="vt-opps" aria-controls="vp-opps" aria-selected="false" data-tab="opps">Opportunities <span class="vh-tab-n" id="vtnOpp" hidden></span></button>
-          <button type="button" role="tab" id="vt-minutes" aria-controls="vp-minutes" aria-selected="false" data-tab="minutes">Minutes <span class="vh-tab-n" id="vtnMin" hidden></span></button>
-          <button type="button" role="tab" id="vt-actions" aria-controls="vp-actions" aria-selected="false" data-tab="actions">Actions <span class="vh-tab-n" id="vtnAct" hidden></span></button>
-          <button type="button" role="tab" id="vt-teams" aria-controls="vp-teams" aria-selected="false" data-tab="teams">Teams</button>
-          <button type="button" role="tab" id="vt-people" aria-controls="vp-people" aria-selected="false" data-tab="people">People</button>
-          <button type="button" role="tab" id="vt-hours" aria-controls="vp-hours" aria-selected="false" data-tab="hours">Hours</button>
+          <button type="button" role="tab" id="vt-actions" aria-controls="vp-actions" aria-selected="false" data-tab="actions">Tasks <span class="vh-tab-n" id="vtnAct" hidden></span></button>
+          <button type="button" role="tab" id="vt-opps" aria-controls="vp-opps" aria-selected="false" data-tab="opps">Shifts &amp; events <span class="vh-tab-n" id="vtnOpp" hidden></span></button>
+          <button type="button" role="tab" id="vt-people" aria-controls="vp-people" aria-selected="false" data-tab="people">Teams &amp; people</button>
+          <button type="button" role="tab" id="vt-record" aria-controls="vp-record" aria-selected="false" data-tab="record">My record</button>
         </nav>
 
-        <!-- Overview -->
-        <div class="vh-panel" role="tabpanel" id="vp-overview" aria-labelledby="vt-overview">
-          <div class="avp-kpis vh-kpis" aria-label="At a glance">
-            <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Next meeting</span></div><div class="avp-kpi-v" id="vhKNext">–</div><div class="avp-kpi-s" id="vhKNextS">&nbsp;</div></div>
-            <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Waiting on you</span><span class="avp-chip avp-chip--sm avp-chip--gold" id="vhKWaitChip" hidden>To do</span></div><div class="avp-kpi-v av-num" id="vhKWait">–</div><div class="avp-kpi-s" id="vhKWaitS">&nbsp;</div></div>
-            <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Open actions</span><span class="avp-chip avp-chip--sm avp-chip--red" id="vhKOverChip" hidden>Overdue</span></div><div class="avp-kpi-v av-num" id="vhKAct">–</div><div class="avp-kpi-s" id="vhKActS">&nbsp;</div></div>
-            <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Your attendance</span></div><div class="avp-kpi-v av-num" id="vhKAtt">–</div><div class="avp-kpi-s" id="vhKAttS">last six months</div></div>
-            <div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">Hours this month</span></div><div class="avp-kpi-v av-num" id="vhKHours">–</div><div class="vh-spark" id="vhKSpark" aria-hidden="true"></div></div>
-          </div>
+        <!-- Home: what needs me, what is next, where I stand -->
+        <div class="vh-panel" role="tabpanel" id="vp-home" aria-labelledby="vt-home">
           <div class="avp-cols">
             <div class="avp-col avp-col--main">
               <section class="avp-card" aria-labelledby="vhNeedH">
                 <div class="avp-card-head"><h2 id="vhNeedH">Needs you</h2><span class="avp-chip avp-chip--gold" id="vhNeedN" hidden></span></div>
                 <ul class="vh-list" id="vhNeed"><li class="avp-empty">Loading…</li></ul>
               </section>
-              <section class="avp-card" aria-labelledby="vhWeekH">
-                <div class="avp-card-head"><h2 id="vhWeekH">The next two weeks</h2><button type="button" class="avp-head-link vh-linkbtn" data-goto-tab="meetings">All meetings →</button></div>
-                <div class="vh-week" id="vhWeek"></div>
+              <section class="avp-card" aria-labelledby="vhSoonH">
+                <div class="avp-card-head"><h2 id="vhSoonH">Coming up</h2><button type="button" class="vh-linkbtn" data-goto-tab="meetings">All meetings →</button></div>
                 <ul class="vh-list" id="vhSoon"></ul>
               </section>
             </div>
             <div class="avp-col avp-col--side">
-              <section class="avp-card vh-spot" id="vhSpot" hidden aria-labelledby="vhSpotH"></section>
-              <section class="avp-card" id="vhBoardCard" hidden aria-labelledby="vhBoardH">
-                <div class="avp-card-head"><h2 id="vhBoardH">This month in your teams</h2><span class="avp-chip avp-chip--sm avp-chip--gold" id="vhRank"></span></div>
-                <ol class="vh-board" id="vhBoard"></ol>
+              <section class="avp-card" aria-labelledby="vhMonthH">
+                <div class="avp-card-head"><h2 id="vhMonthH">This month</h2><button type="button" class="vh-linkbtn" data-goto-tab="record">My record →</button></div>
+                <div class="avp-card-body" id="vhMonth"></div>
               </section>
               <section class="avp-card" aria-labelledby="vhKudosH">
                 <div class="avp-card-head"><h2 id="vhKudosH">Kudos</h2><button type="button" class="vh-linkbtn" data-goto-tab="people">Thank someone →</button></div>
                 <ul class="vh-feed" id="vhKudos"></ul>
               </section>
-              <section class="avp-card" id="vhBdayCard" hidden aria-labelledby="vhBdayH">
-                <div class="avp-card-head"><h2 id="vhBdayH">Birthdays coming up</h2></div>
-                <ul class="vh-feed" id="vhBdays"></ul>
-              </section>
               <section class="avp-card" aria-labelledby="vhFeedH">
                 <div class="avp-card-head"><h2 id="vhFeedH">In your teams</h2></div>
                 <ul class="vh-feed" id="vhFeed"></ul>
-              </section>
-              <section class="avp-card" aria-labelledby="vhCapH">
-                <div class="avp-card-head"><h2 id="vhCapH">How meetings are captured</h2></div>
-                <div class="avp-card-body vh-caps" id="vhCaps"></div>
               </section>
             </div>
           </div>
         </div>
 
-        <!-- Meetings -->
+        <!-- Meetings, with their minutes -->
         <div class="vh-panel" role="tabpanel" id="vp-meetings" aria-labelledby="vt-meetings" hidden>
+          <h2 class="vh-sr">Meetings</h2>
           <div class="vh-toolbar">
-            <span class="vh-seg" role="group" aria-label="Which meetings"><button type="button" data-mscope="upcoming" aria-pressed="true">Coming up</button><button type="button" data-mscope="past" aria-pressed="false">Past</button></span>
+            <span class="vh-seg" role="group" aria-label="Which meetings"><button type="button" data-mscope="upcoming" aria-pressed="true">Coming up</button><button type="button" data-mscope="calendar" aria-pressed="false">Calendar</button><button type="button" data-mscope="past" aria-pressed="false">Past</button><button type="button" data-mscope="minutes" aria-pressed="false">Minutes <span class="vh-tab-n" id="vtnMin" hidden></span></button></span>
             <label class="vh-filter">Team <select id="vhMTeam"><option value="0">All my teams</option></select></label>
+            <label class="vh-filter vh-filter--grow" id="vhNQWrap" hidden>Search minutes <input id="vhNQ" type="search" placeholder="Title, summary or a decision"></label>
           </div>
-          <section class="avp-card"><ul class="vh-list" id="vhMeetList"><li class="avp-empty">Loading…</li></ul></section>
-        </div>
-
-        <!-- Attendance -->
-        <div class="vh-panel" role="tabpanel" id="vp-attendance" aria-labelledby="vt-attendance" hidden>
-          <div class="avp-kpis vh-kpis" id="vhAttKpis" aria-label="Your attendance"></div>
-<?php if (($hasGate ?? false) || ($isNgv ?? false)): $gpEmbedded = true; ?>
-          <div class="vh-gate">
-<?php require dirname(__DIR__) . '/_attendance.php'; ?>
+          <div id="vhMeetWrap"><section class="avp-card"><ul class="vh-list" id="vhMeetList"><li class="avp-empty">Loading…</li></ul></section></div>
+          <div id="vhMinWrap" hidden>
+            <div class="vh-toolbar vh-toolbar--sub">
+              <span class="vh-seg" role="group" aria-label="Which minutes"><button type="button" data-mstatus="" aria-pressed="true">All</button><button type="button" data-mstatus="draft" aria-pressed="false">Drafts</button><button type="button" data-mstatus="review" aria-pressed="false">With the chair</button><button type="button" data-mstatus="published" aria-pressed="false">Published</button></span>
+            </div>
+            <section class="avp-card" id="vhToDoCard" hidden><div class="avp-card-head"><h2>Waiting on you</h2></div><ul class="vh-list" id="vhToDo"></ul></section>
+            <section class="avp-card"><ul class="vh-list" id="vhArchive"><li class="avp-empty">Loading…</li></ul></section>
           </div>
-<?php else: ?>
-          <section class="avp-card"><p class="avp-empty">Your days at the CACENTRE gate show here once the gate takes your role. Meetings you attend are below.</p></section>
-<?php endif; ?>
-          <section class="avp-card" aria-labelledby="vhMyMeetH">
-            <div class="avp-card-head"><h2 id="vhMyMeetH">Meetings — were you there?</h2><span class="avp-chip avp-chip--sm" id="vhMyMeetN"></span></div>
-            <ul class="vh-list" id="vhMyMeet"><li class="avp-empty">Loading…</li></ul>
-          </section>
+          <details class="vh-caps-d"><summary>How meetings are captured</summary><div id="vhCaps"></div></details>
         </div>
 
-        <!-- Opportunities -->
-        <div class="vh-panel" role="tabpanel" id="vp-opps" aria-labelledby="vt-opps" hidden>
-          <div class="vh-toolbar"><button type="button" class="avp-btn avp-btn--ink avp-btn--sq" id="vhOppNew" hidden>Post an opportunity</button>
-            <p class="vh-note" style="margin:0">Shifts and events that need hands. Sign up; when it is over, your hours are added for you.</p></div>
-          <div class="vh-opps" id="vhOpps"></div>
-        </div>
-
-        <!-- People -->
-        <div class="vh-panel" role="tabpanel" id="vp-people" aria-labelledby="vt-people" hidden>
-          <div class="vh-toolbar">
-            <label class="vh-filter vh-filter--grow">Find a volunteer <input id="vhPQ" type="search" placeholder="Name, team, centre or role"></label>
-            <span class="vh-seg" role="group" aria-label="Which volunteers"><button type="button" data-psrc="" aria-pressed="true">Everyone</button><button type="button" data-psrc="afrovanguard" aria-pressed="false">Afrovanguard teams</button><button type="button" data-psrc="ngg" aria-pressed="false">NextGen Genius</button></span>
-          </div>
-          <section class="avp-card" id="vhNggCard" hidden><div class="avp-card-body vh-ngg" id="vhNgg"></div></section>
-          <div class="vh-people-grid" id="vhPeople"></div>
-          <section class="avp-card" aria-labelledby="vhWallH"><div class="avp-card-head"><h2 id="vhWallH">Kudos wall</h2></div><ul class="vh-feed" id="vhWall"></ul></section>
-        </div>
-
-        <!-- Minutes -->
-        <div class="vh-panel" role="tabpanel" id="vp-minutes" aria-labelledby="vt-minutes" hidden>
-          <div class="vh-toolbar">
-            <span class="vh-seg" role="group" aria-label="Which minutes"><button type="button" data-mstatus="" aria-pressed="true">All</button><button type="button" data-mstatus="draft" aria-pressed="false">Drafts</button><button type="button" data-mstatus="review" aria-pressed="false">With the chair</button><button type="button" data-mstatus="published" aria-pressed="false">Published</button></span>
-            <label class="vh-filter">Team <select id="vhNTeam"><option value="0">All my teams</option></select></label>
-            <label class="vh-filter vh-filter--grow">Search <input id="vhNQ" type="search" placeholder="Title, summary or a decision"></label>
-          </div>
-          <section class="avp-card" id="vhToDoCard" hidden><div class="avp-card-head"><h2>Waiting on you</h2></div><ul class="vh-list" id="vhToDo"></ul></section>
-          <section class="avp-card"><ul class="vh-list" id="vhArchive"><li class="avp-empty">Loading…</li></ul></section>
-        </div>
-
-        <!-- Actions -->
+        <!-- Tasks: actions from meetings -->
         <div class="vh-panel" role="tabpanel" id="vp-actions" aria-labelledby="vt-actions" hidden>
+          <h2 class="vh-sr">Tasks</h2>
           <div class="vh-toolbar">
-            <span class="vh-seg" role="group" aria-label="Whose actions"><button type="button" data-ascope="mine" aria-pressed="true">Mine</button><button type="button" data-ascope="team" aria-pressed="false" id="vhATeamBtn" hidden>A team’s</button></span>
+            <span class="vh-seg" role="group" aria-label="Whose tasks"><button type="button" data-ascope="mine" aria-pressed="true">Mine</button><button type="button" data-ascope="team" aria-pressed="false" id="vhATeamBtn" hidden>A team’s</button></span>
             <label class="vh-filter" id="vhATeamWrap" hidden>Team <select id="vhATeam"></select></label>
           </div>
           <div id="vhActGroups"></div>
         </div>
 
-        <!-- Teams -->
-        <div class="vh-panel" role="tabpanel" id="vp-teams" aria-labelledby="vt-teams" hidden>
-          <div class="vh-toolbar"><button type="button" class="avp-btn avp-btn--sq" id="vhNewTeam" hidden>New team</button></div>
-          <div class="vh-teams" id="vhTeamGrid"></div>
-          <div id="vhTeamDetail" hidden></div>
+        <!-- Shifts & events -->
+        <div class="vh-panel" role="tabpanel" id="vp-opps" aria-labelledby="vt-opps" hidden>
+          <h2 class="vh-sr">Shifts and events</h2>
+          <div class="vh-toolbar"><p class="vh-note" style="margin:0">Shifts and events that need hands. Sign up; when it is over, your hours are added for you.</p>
+            <button type="button" class="avp-btn avp-btn--ink" id="vhOppNew" hidden>Post a shift or event</button></div>
+          <div class="vh-opps" id="vhOpps"></div>
         </div>
 
-        <!-- Hours -->
-        <div class="vh-panel" role="tabpanel" id="vp-hours" aria-labelledby="vt-hours" hidden>
+        <!-- Teams & people -->
+        <div class="vh-panel" role="tabpanel" id="vp-people" aria-labelledby="vt-people" hidden>
+          <section class="vh-sec" aria-labelledby="vhTeamsH">
+            <div class="vh-sec-head"><h2 id="vhTeamsH">Teams</h2><button type="button" class="avp-btn" id="vhNewTeam" hidden>New team</button></div>
+            <div class="vh-teams" id="vhTeamGrid"></div>
+            <div id="vhTeamDetail" hidden></div>
+          </section>
+          <section class="vh-sec" aria-labelledby="vhPeopleH">
+            <div class="vh-sec-head"><h2 id="vhPeopleH">Volunteers</h2></div>
+            <div class="vh-toolbar">
+              <label class="vh-filter vh-filter--grow">Find a volunteer <input id="vhPQ" type="search" placeholder="Name, project, team, centre or role"></label>
+              <span class="vh-seg" role="group" aria-label="Which volunteers"><button type="button" data-psrc="" aria-pressed="true">Everyone</button><button type="button" data-psrc="afrovanguard" aria-pressed="false">Afrovanguard</button><button type="button" data-psrc="ngg" aria-pressed="false">NextGen Genius</button></span>
+            </div>
+            <section class="avp-card" id="vhNggCard" hidden><div class="avp-card-body vh-ngg" id="vhNgg"></div></section>
+            <div class="vh-people-grid" id="vhPeople"></div>
+          </section>
+          <section class="avp-card" aria-labelledby="vhWallH"><div class="avp-card-head"><h2 id="vhWallH">Kudos wall</h2></div><ul class="vh-feed" id="vhWall"></ul></section>
+        </div>
+
+        <!-- My record: hours (by project) and attendance -->
+        <div class="vh-panel" role="tabpanel" id="vp-record" aria-labelledby="vt-record" hidden>
+          <h2 class="vh-sr">My record</h2>
+          <div class="avp-kpis vh-kpis" id="vhRecKpis" aria-label="Your record"></div>
           <div class="avp-cols">
             <div class="avp-col avp-col--main">
               <section class="avp-card" aria-labelledby="vhChartH">
-                <div class="avp-card-head"><h2 id="vhChartH">Hours given, month by month</h2><button type="button" class="vh-linkbtn" id="vhChartTable" aria-pressed="false">Show as a table</button></div>
+                <div class="avp-card-head"><h2 id="vhChartH">Hours, month by month</h2><button type="button" class="vh-linkbtn" id="vhChartTable" aria-pressed="false">Show as a table</button></div>
                 <div class="avp-card-body"><div class="vh-chart" id="vhChart"></div></div>
               </section>
               <section class="avp-card" aria-labelledby="vhLogH">
-                <div class="avp-card-head"><h2 id="vhLogH">Everything logged</h2><span class="vh-row-btns"><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=service_letter">Certificate of service (PDF)</a><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=hours_csv">Download (CSV)</a></span></div>
+                <div class="avp-card-head"><h2 id="vhLogH">Hours on record</h2><span class="vh-row-btns"><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=service_letter">Certificate of service</a><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=hours_csv">CSV</a></span></div>
                 <ul class="vh-list" id="vhHoursList"></ul>
+              </section>
+              <section class="avp-card" aria-labelledby="vhMyMeetH">
+                <div class="avp-card-head"><h2 id="vhMyMeetH">Meetings — were you there?</h2><span class="avp-chip avp-chip--sm" id="vhMyMeetN"></span></div>
+                <ul class="vh-list" id="vhMyMeet"><li class="avp-empty">Loading…</li></ul>
               </section>
             </div>
             <div class="avp-col avp-col--side">
-              <section class="avp-card"><div class="avp-card-head"><h2>Totals</h2></div><div class="avp-card-body" id="vhHoursTot"></div></section>
               <section class="avp-card" aria-labelledby="vhLogFormH">
                 <div class="avp-card-head"><h2 id="vhLogFormH">Log hours</h2></div>
                 <form class="avp-card-body avp-form vh-logform" id="vhLogForm">
-                  <label>What you did<input id="lhAct" maxlength="200" required placeholder="e.g. Outreach at Egbeda"></label>
+                  <label class="avp-form-wide">What you did<input id="lhAct" maxlength="200" required placeholder="e.g. Outreach at Egbeda"></label>
+                  <label class="avp-form-wide">Project<select id="lhProj"></select></label>
                   <label>Day<input id="lhDay" type="date"></label>
                   <label>Hours<input id="lhH" type="number" min="0.25" max="16" step="0.25" value="2" required></label>
                   <button class="avp-btn avp-btn--ink avp-form-wide" type="submit">Log</button>
                   <p class="vh-err avp-form-wide" id="lhErr" role="alert"></p>
                 </form>
-                <p class="vh-note" style="padding:0 20px 16px">Meetings you attend are counted for you once their minutes are published.</p>
+                <p class="vh-note" style="padding:0 20px 16px">Meetings, shifts and NGG sessions are added for you.</p>
               </section>
+              <section class="avp-card" aria-labelledby="vhByProjH">
+                <div class="avp-card-head"><h2 id="vhByProjH">By project</h2></div>
+                <ul class="vh-feed" id="vhByProj"></ul>
+              </section>
+<?php if (($hasGate ?? false) || ($isNgv ?? false)): ?>
+              <section class="avp-card"><div class="avp-card-head"><h2>At the gate</h2></div>
+                <div class="avp-card-body"><p class="vh-note" id="vhGateLine" style="margin:0 0 10px"></p><a class="avp-btn avp-btn--sq" href="#attendance" data-goto="attendance">Attendance &amp; pass →</a></div></section>
+<?php endif; ?>
             </div>
           </div>
         </div>

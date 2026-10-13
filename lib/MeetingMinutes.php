@@ -634,8 +634,10 @@ final class MeetingMinutes
         }
         $day = substr(self::local($occ), 0, 10);
         $credited = 0;
+        /* A team meeting's hours belong to the team's project. */
+        $proj = (string) $m['context'] === 'team' && ($tm = Volunteers::team((int) $m['context_id'])) ? (int) $tm['project_id'] : 0;
         foreach ($att as $pid => $mark) {
-            if (in_array($mark, ['present', 'late'], true) && Volunteers::autoHours((int) $pid, $day, (int) $m['duration_min'], 'Meeting: ' . $m['title'], 'meeting', 'mtg:' . $m['id'] . ':' . $occ)) $credited++;
+            if (in_array($mark, ['present', 'late'], true) && Volunteers::autoHours((int) $pid, $day, (int) $m['duration_min'], 'Meeting: ' . $m['title'], 'meeting', 'mtg:' . $m['id'] . ':' . $occ, $proj)) $credited++;
         }
         $sent = self::distribute($m, $min, $amended);
         if (class_exists('AdminAudit')) { try { AdminAudit::log('volunteers', $amended ? 'minutes.amend' : 'minutes.publish', 'meeting:' . $m['id'], $m['title'] . ' · ' . $occ . ' · v' . $min['version'], null, 'member'); } catch (Throwable $e) {} }

@@ -31,6 +31,8 @@ final class Volunteers
 {
     public const ROLES = ['lead' => 'Lead', 'secretary' => 'Secretary', 'member' => 'Member'];
     public const MAX_HOURS_DAY = 16;
+    /** How an hour came to be on record, in words. */
+    public const SOURCE_LABEL = ['manual' => 'Logged by me', 'meeting' => 'Meeting attended', 'opportunity' => 'Shift attended', 'ngg' => 'NGG session (from NGG)'];
 
     private static bool $ready = false;
 
@@ -186,6 +188,7 @@ final class Volunteers
         $pdo = Database::pdo();
         $pdo->prepare("UPDATE vol_roster SET status = 'removed', removed_by = ?, removed_at = ? WHERE user_id = ?")->execute([$by, self::now(), $userId]);
         $pdo->prepare('DELETE FROM vol_team_members WHERE user_id = ?')->execute([$userId]);
+        if (class_exists('VolunteerProjects')) VolunteerProjects::endAll($userId);
         if (class_exists('AdminAudit')) { try { AdminAudit::log('members', 'volunteers.remove', 'user#' . $userId, 'taken off the volunteer roster', null, 'user#' . $by); } catch (Throwable $e) {} }
         $u = self::user($userId);
         $still = $u ? array_values(array_diff(self::why($u), ['roster', 'team'])) : [];
@@ -317,7 +320,7 @@ final class Volunteers
 
     /* ══ Teams ══════════════════════════════════════════════════════════════ */
 
-    public static function createTeam(array $u, string $name, string $purpose = ''): array
+    public static function createTeam(array $u, string $name, string $purpose = '', int $projectId = 0): array
     {
         self::ensure();
         if (!self::canRunTeams($u)) return ['ok' => false, 'error' => 'Teams are started by a coordinator.'];
@@ -327,8 +330,10 @@ final class Volunteers
         $st = $pdo->prepare('SELECT id FROM vol_teams WHERE LOWER(name) = ? AND archived = 0');
         $st->execute([mb_strtolower($name)]);
         if ($st->fetchColumn()) return ['ok' => false, 'error' => 'There is already a team called ' . $name . '.'];
-        $pdo->prepare('INSERT INTO vol_teams (name, purpose, created_by, created_at) VALUES (?,?,?,?)')
-            ->execute([$name, mb_substr(trim($purpose), 0, 400), (int) $u['id'], self::now()]);
+        VolunteerProjects::ensure();
+        if ($projectId > 0 && !VolunteerProjects::byId($projectId)) $projectId = 0;
+        $pdo->prepare('INSERT INTO vol_teams (name, purpose, created_by, created_at, project_id) VALUES (?,?,?,?,?)')
+            ->execute([$name, mb_substr(trim($purpose), 0, 400), (int) $u['id'], self::now(), $projectId]);
         $id = (int) $pdo->lastInsertId();
         self::audit('vol.team.create', 'team:' . $id, $name);
         return ['ok' => true, 'id' => $id, 'team' => self::team($id)];
@@ -342,6 +347,7 @@ final class Volunteers
         $sets = []; $args = [];
         if (isset($in['name'])) { $n = mb_substr(trim((string) $in['name']), 0, 120); if ($n === '') return ['ok' => false, 'error' => 'A team needs a name.']; $sets[] = 'name = ?'; $args[] = $n; }
         if (isset($in['purpose'])) { $sets[] = 'purpose = ?'; $args[] = mb_substr(trim((string) $in['purpose']), 0, 400); }
+        if (isset($in['project_id'])) { VolunteerProjects::ensure(); $pj = (int) $in['project_id']; if ($pj > 0 && !VolunteerProjects::byId($pj)) $pj = 0; $sets[] = 'project_id = ?'; $args[] = $pj; }
         if (isset($in['archived']) && self::canRunTeams($u)) { $sets[] = 'archived = ?'; $args[] = !empty($in['archived']) ? 1 : 0; }
         if (!$sets) return ['ok' => true, 'team' => self::team($teamId)];
         $args[] = $teamId;
@@ -414,7 +420,10 @@ final class Volunteers
         $m = Database::pdo()->prepare("SELECT u.id, u.name, u.email, m.role FROM vol_team_members m JOIN lms_users u ON u.id = m.user_id WHERE m.team_id = ?
                                        ORDER BY CASE m.role WHEN 'lead' THEN 0 WHEN 'secretary' THEN 1 ELSE 2 END, u.name");
         $m->execute([$id]);
+        $pj = (int) ($t['project_id'] ?? 0);
+        $pjRow = $pj > 0 && class_exists('VolunteerProjects') ? VolunteerProjects::byId($pj) : null;
         return ['id' => (int) $t['id'], 'name' => (string) $t['name'], 'purpose' => (string) $t['purpose'], 'archived' => (int) $t['archived'] === 1,
+                'project_id' => $pj, 'project' => $pjRow ? (string) $pjRow['name'] : '',
                 'members' => array_map(static fn($r) => ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'email' => (string) $r['email'], 'role' => (string) $r['role']], $m->fetchAll(PDO::FETCH_ASSOC))];
     }
 
@@ -453,9 +462,15 @@ final class Volunteers
     /* ══ Hours ══════════════════════════════════════════════════════════════ */
 
     /** Hours logged by a volunteer for something done outside a meeting. */
-    public static function logHours(int $uid, string $day, $hours, string $activity): array
+    public static function logHours(int $uid, string $day, $hours, string $activity, int $projectId = 0): array
     {
         self::ensure();
+        VolunteerProjects::ensure();
+        /* Hours go to a project the volunteer serves (or none). */
+        if ($projectId > 0) {
+            $u = self::user($uid);
+            if (!$u || !in_array($projectId, array_column(VolunteerProjects::forUser($u), 'project_id'), true)) return ['ok' => false, 'error' => 'Log hours to a project you volunteer on.'];
+        }
         $day = trim($day) === '' ? (function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) : trim($day);
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) || !checkdate((int) substr($day, 5, 2), (int) substr($day, 8, 2), (int) substr($day, 0, 4))) return ['ok' => false, 'error' => 'Pick the day.'];
         if ($day > (function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d'))) return ['ok' => false, 'error' => 'Hours are logged for a day that has happened.'];
@@ -463,20 +478,21 @@ final class Volunteers
         if ($min < 15 || $min > self::MAX_HOURS_DAY * 60) return ['ok' => false, 'error' => 'Between a quarter of an hour and ' . self::MAX_HOURS_DAY . ' hours.'];
         $activity = mb_substr(trim($activity), 0, 200);
         if ($activity === '') return ['ok' => false, 'error' => 'Say what you did.'];
-        Database::pdo()->prepare("INSERT INTO vol_hours (user_id, day, minutes, activity, source, source_ref, created_at) VALUES (?,?,?,?,'manual',?,?)")
-            ->execute([$uid, $day, $min, $activity, 'm' . bin2hex(random_bytes(6)), self::now()]);
+        Database::pdo()->prepare("INSERT INTO vol_hours (user_id, day, minutes, activity, source, source_ref, created_at, project_id) VALUES (?,?,?,?,'manual',?,?,?)")
+            ->execute([$uid, $day, $min, $activity, 'm' . bin2hex(random_bytes(6)), self::now(), $projectId]);
         return ['ok' => true, 'hours' => self::hoursFor($uid)];
     }
 
     /** Logged by the system — once per (person, source, ref), however often it runs. */
-    public static function autoHours(int $uid, string $day, int $minutes, string $activity, string $source, string $ref): bool
+    public static function autoHours(int $uid, string $day, int $minutes, string $activity, string $source, string $ref, int $projectId = 0): bool
     {
         self::ensure();
+        VolunteerProjects::ensure();
         if ($uid <= 0 || $minutes <= 0) return false;
         try {
-            $sql = Database::insertIgnore('vol_hours', ['user_id', 'day', 'minutes', 'activity', 'source', 'source_ref', 'created_at']);
+            $sql = Database::insertIgnore('vol_hours', ['user_id', 'day', 'minutes', 'activity', 'source', 'source_ref', 'created_at', 'project_id']);
             $st = Database::pdo()->prepare($sql);
-            $st->execute([$uid, $day, min($minutes, self::MAX_HOURS_DAY * 60), mb_substr($activity, 0, 200), $source, mb_substr($ref, 0, 64), self::now()]);
+            $st->execute([$uid, $day, min($minutes, self::MAX_HOURS_DAY * 60), mb_substr($activity, 0, 200), $source, mb_substr($ref, 0, 64), self::now(), $projectId]);
             return $st->rowCount() > 0;
         } catch (Throwable $e) { error_log('[volunteers] hours: ' . $e->getMessage()); return false; }
     }
@@ -500,10 +516,12 @@ final class Volunteers
             $st->execute([$uid, $prefix . '%']);
             return round((int) $st->fetchColumn() / 60, 1);
         };
-        $st = $pdo->prepare('SELECT id, day, minutes, activity, source FROM vol_hours WHERE user_id = ? ORDER BY day DESC, id DESC LIMIT 12');
+        VolunteerProjects::ensure();
+        $st = $pdo->prepare('SELECT h.id, h.day, h.minutes, h.activity, h.source, h.project_id, p.name project FROM vol_hours h LEFT JOIN vol_projects p ON p.id = h.project_id WHERE h.user_id = ? ORDER BY h.day DESC, h.id DESC LIMIT 20');
         $st->execute([$uid]);
-        return ['month' => $sum($month), 'year' => $sum($year), 'total' => $sum(''),
-                'recent' => array_map(static fn($r) => ['id' => (int) $r['id'], 'day' => (string) $r['day'], 'hours' => round((int) $r['minutes'] / 60, 2), 'activity' => (string) $r['activity'], 'source' => (string) $r['source']], $st->fetchAll(PDO::FETCH_ASSOC))];
+        return ['month' => $sum($month), 'year' => $sum($year), 'total' => $sum(''), 'by_project' => VolunteerProjects::hoursByProject($uid),
+                'recent' => array_map(static fn($r) => ['id' => (int) $r['id'], 'day' => (string) $r['day'], 'hours' => round((int) $r['minutes'] / 60, 2), 'activity' => (string) $r['activity'],
+                    'source' => (string) $r['source'], 'project_id' => (int) $r['project_id'], 'project' => (string) ($r['project'] ?? '')], $st->fetchAll(PDO::FETCH_ASSOC))];
     }
 
     /** Hours a month for the last $months months, oldest first — for the chart. */
@@ -530,14 +548,15 @@ final class Volunteers
     public static function hoursCsv(int $uid): string
     {
         self::ensure();
-        $st = Database::pdo()->prepare('SELECT day, minutes, activity, source FROM vol_hours WHERE user_id = ? ORDER BY day, id');
+        VolunteerProjects::ensure();
+        $st = Database::pdo()->prepare('SELECT h.day, h.minutes, h.activity, h.source, p.name project FROM vol_hours h LEFT JOIN vol_projects p ON p.id = h.project_id WHERE h.user_id = ? ORDER BY h.day, h.id');
         $st->execute([$uid]);
         $f = fopen('php://temp', 'r+');
-        fputcsv($f, ['Date', 'Hours', 'Activity', 'How it was logged'], ',', '"', '\\');
+        fputcsv($f, ['Date', 'Hours', 'Project', 'Activity', 'How it was logged'], ',', '"', '\\');
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             /* A leading = + - @ would be a formula to a spreadsheet. */
             $act = preg_match('/^[=+\-@]/', (string) $r['activity']) ? "'" . $r['activity'] : (string) $r['activity'];
-            fputcsv($f, [$r['day'], round((int) $r['minutes'] / 60, 2), $act, $r['source'] === 'manual' ? 'Logged by me' : 'Meeting attended'], ',', '"', '\\');
+            fputcsv($f, [$r['day'], round((int) $r['minutes'] / 60, 2), (string) ($r['project'] ?? ''), $act, self::SOURCE_LABEL[$r['source']] ?? 'Recorded'], ',', '"', '\\');
         }
         rewind($f);
         return (string) stream_get_contents($f);
@@ -757,7 +776,10 @@ final class Volunteers
                               'overdue' => (string) $c['due'] !== '' && (string) $c['due'] < gmdate('Y-m-d'), 'from' => MeetingMinutes::sourceTitle($c)];
             }
         }
-        return ['ok' => true, 'me' => ['id' => $uid, 'name' => (string) $u['name'], 'can_run_teams' => self::canRunTeams($u)],
+        VolunteerProjects::ensure();
+        return ['ok' => true, 'me' => ['id' => $uid, 'name' => (string) $u['name'], 'can_run_teams' => self::canRunTeams($u), 'volunteer' => self::isVolunteer($u)],
+                'projects' => VolunteerProjects::forUser($u),
+                'all_projects' => array_values(array_map(static fn($p) => ['id' => $p['id'], 'name' => $p['name']], array_filter(VolunteerProjects::projects(true), static fn($p) => $p['source'] !== 'ngg'))),
                 'teams' => $teams, 'all_teams' => self::canRunTeams($u) ? self::teamsFor($u, true) : [],
                 'upcoming' => $meet['upcoming'], 'to_write' => $meet['to_write'], 'to_approve' => $meet['to_approve'], 'published' => $meet['published'],
                 'actions' => $actions, 'hours' => self::hoursFor($uid), 'hours_series' => self::hoursSeries($uid, 12),

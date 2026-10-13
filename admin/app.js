@@ -3081,6 +3081,7 @@
     if (which === 'roster') loadMemRoster();
     if (which === 'import') loadMemFormats();
     if (which === 'dups') loadMemDups();
+    if (which === 'volunteers') loadVolProjects();
     if (which === 'offline') loadOffline();
   }
   function loadMembers() { memTab(($('.subtab[data-mv].active') || { getAttribute: function () { return 'dash'; } }).getAttribute('data-mv')); }
@@ -3205,6 +3206,8 @@
     sp.indeterminate = onPage > 0 && onPage < memPageIds.length;
     var a = $('#memBulkAction').value, v = $('#memBulkValue');
     v.hidden = !(a === 'centre' || a === 'level' || a === 'membership_grant' || a === 'membership_cancel');
+    $('#memBulkProject').hidden = $('#memBulkType').hidden = a !== 'volunteer_add';
+    if (a === 'volunteer_add') volFillPickers('#memBulkProject', '#memBulkType');
     v.placeholder = a === 'centre' ? 'Centre name' : a === 'level' ? 'Level (' + memLevels.join(', ') + ')' : a === 'membership_grant' ? 'Months, then a reason: 12 Scholarship' : 'Why these memberships end';
     $('#memBulkGo').disabled = !a || n === 0;
   }
@@ -3215,7 +3218,7 @@
     else if (a === 'level') value.level = raw;
     else if (a === 'membership_grant') { var m = raw.match(/^(\d+)\s*(.*)$/); if (!m) { toast('Start with the number of months, e.g. "12 Scholarship".'); return; } value.months = +m[1]; value.note = m[2]; if (/^waiver$/i.test(m[2])) { value.method = 'waiver'; value.note = ''; } }
     else if (a === 'membership_cancel') value.note = raw;
-    else if (a === 'volunteer_add' || a === 'volunteer_remove') action = a;
+    else if (a === 'volunteer_add') { value.project_id = +$('#memBulkProject').value; value.type = $('#memBulkType').value; if (!value.project_id) { toast('Choose the project they volunteer on.'); return; } }
     var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
     if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : '') + (action === 'volunteer_add' ? ' Each gets the Volunteer dashboard and a notification.' : action === 'volunteer_remove' ? ' They leave their volunteer teams; their hours stay on record.' : ''))) return;
     var b = $('#memBulkGo'); b.disabled = true;
@@ -3353,27 +3356,94 @@
   }
   function closeMember() { $('#memDrawer').hidden = true; memOpen = 0; }
 
+  /* Volunteers by project — the office's view of who serves what. */
+  function loadVolProjects() {
+    volMeta = null;
+    volLoadMeta().then(function (m) {
+      $('#vpList').innerHTML = m.projects.map(function (p) {
+        return '<div class="vp-card' + (p.active ? '' : ' is-off') + '"><div class="vp-card-h"><b>' + escapeHtml(p.name) + '</b>'
+          + (p.source === 'ngg' ? ' <span class="badge">from NGG</span>' : '') + (p.active ? '' : ' <span class="badge draft">inactive</span>') + '</div>'
+          + '<p class="muted tiny">' + escapeHtml(p.blurb || '') + '</p>'
+          + '<div class="vp-card-f"><span class="vp-n">' + p.volunteers + '</span><span class="muted tiny">volunteer' + (p.volunteers === 1 ? '' : 's') + '</span>'
+          + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-see" data-id="' + p.id + '" data-name="' + escapeHtml(p.name) + '">See volunteers</button>'
+            + '<button class="btn btn-outline btn-sm vp-tog" data-id="' + p.id + '" data-name="' + escapeHtml(p.name) + '" data-blurb="' + escapeHtml(p.blurb || '') + '" data-on="' + (p.active ? 1 : 0) + '">' + (p.active ? 'Retire' : 'Restore') + '</button>')
+          + '</div></div>';
+      }).join('');
+    });
+  }
+  function volProjectMembers(id, name) {
+    api('vol_project_members&id=' + id).then(function (r) {
+      var v = (r.data && r.data.volunteers) || [], box = $('#vpMembers');
+      box.hidden = false;
+      box.innerHTML = '<h3>' + escapeHtml(name) + ' · ' + v.length + ' volunteer' + (v.length === 1 ? '' : 's') + '</h3>'
+        + (v.length ? v.map(function (x) { return '<div class="mem-card-row"><span>' + escapeHtml(x.name) + '</span><span class="badge">' + escapeHtml(x.type_label) + '</span><span class="muted tiny">since ' + escapeHtml(x.since) + '</span><button class="btn btn-outline btn-sm mem-open" data-id="' + x.id + '" style="margin-left:auto">Open</button></div>'; }).join('')
+          : '<p class="muted">Nobody placed yet. Choose members on the Roster → “Make volunteers”.</p>');
+    });
+  }
+  document.addEventListener('click', function (ev) {
+    var see = ev.target.closest('.vp-see'), tog = ev.target.closest('.vp-tog');
+    if (see) volProjectMembers(+see.getAttribute('data-id'), see.getAttribute('data-name'));
+    if (tog) post('vol_project_save', { id: +tog.getAttribute('data-id'), name: tog.getAttribute('data-name'), blurb: tog.getAttribute('data-blurb'), active: tog.getAttribute('data-on') !== '1' }).then(loadVolProjects);
+    if (ev.target.id === 'vpAdd') {
+      post('vol_project_save', { name: $('#vpName').value, blurb: $('#vpBlurb').value }).then(function (r) {
+        var d = r.data || {}; if (!d.ok) { toast(d.error || 'Refused.'); return; }
+        $('#vpName').value = ''; $('#vpBlurb').value = ''; toast('Project added.'); loadVolProjects();
+      });
+    }
+  });
+
   /* Volunteer — explicit: an admin makes a member one (or a team, NGG or the
      People page does). Being a member is not enough. */
   var VOL_WHY = { roster: 'made a volunteer here', team: 'serves on a volunteer team', ngg: 'an NGG volunteer', people: 'listed as a volunteer on the People page' };
-  function memVolDraw(m) {
-    var why = m.volunteer || [], box = $('#mdVol');
-    var own = why.indexOf('roster') >= 0 || why.indexOf('team') >= 0;
-    box.innerHTML = (why.length ? '<span class="badge published">Volunteer</span><span class="muted">' + why.map(function (w) { return escapeHtml(VOL_WHY[w] || w); }).join(' · ') + '</span>'
-        : '<span class="muted">Not a volunteer.</span>')
-      + (own ? '<button class="btn btn-outline btn-sm" style="margin-left:auto" id="mdVolOff">Remove from volunteers</button>'
-        : !why.length ? '<button class="btn btn-primary btn-sm" style="margin-left:auto" id="mdVolOn">Make volunteer</button>' : '');
-    var on = $('#mdVolOn'), off = $('#mdVolOff');
-    if (on) on.onclick = function () { memVolSet('volunteer_add'); };
-    if (off) off.onclick = function () { if (confirm('Remove ' + m.name + ' from volunteers? They leave their volunteer teams; their hours stay on record.')) memVolSet('volunteer_remove'); };
+  var volMeta = null;   // {projects, types}
+  function volLoadMeta() {
+    if (volMeta) return Promise.resolve(volMeta);
+    return api('vol_projects').then(function (r) { volMeta = { projects: (r.data && r.data.projects) || [], types: (r.data && r.data.types) || {} }; return volMeta; });
   }
-  function memVolSet(action) {
+  function volFillPickers(pSel, tSel) {
+    volLoadMeta().then(function (m) {
+      var p = $(pSel), t = $(tSel), keepP = p.value, keepT = t.value;
+      p.innerHTML = '<option value="">Project…</option>' + m.projects.filter(function (x) { return x.active && x.source !== 'ngg'; })
+        .map(function (x) { return '<option value="' + x.id + '">' + escapeHtml(x.name) + '</option>'; }).join('');
+      t.innerHTML = Object.keys(m.types).map(function (k) { return '<option value="' + k + '">' + escapeHtml(m.types[k]) + '</option>'; }).join('');
+      if (keepP) p.value = keepP; t.value = keepT || 'general';
+    });
+  }
+  function memVolDraw(m) {
+    var why = m.volunteer || [], box = $('#mdVol'), projs = m.volunteer_projects || [];
+    var own = why.indexOf('roster') >= 0 || why.indexOf('team') >= 0;
+    box.innerHTML = '<div class="mem-card-row">' + (why.length ? '<span class="badge published">Volunteer</span><span class="muted">' + why.map(function (w) { return escapeHtml(VOL_WHY[w] || w); }).join(' · ') + '</span>'
+        : '<span class="muted">Not a volunteer. Place them on a project to make them one.</span>')
+      + (own ? '<button class="btn btn-outline btn-sm" style="margin-left:auto" id="mdVolOff">Remove from volunteers</button>' : '') + '</div>'
+      + projs.map(function (p) {
+          return '<div class="mem-card-row"><span class="badge">' + escapeHtml(p.name) + '</span><span>' + escapeHtml(p.type_label) + '</span>'
+            + '<span class="muted tiny">' + (p.source === 'ngg' ? 'placed by NGG' + (p.centre ? ' · ' + escapeHtml(p.centre) : '') : 'since ' + escapeHtml(p.since || '')) + '</span>'
+            + (p.source === 'ngg' ? '' : '<button class="btn btn-outline btn-sm vp-un" style="margin-left:auto" data-p="' + p.project_id + '">End</button>') + '</div>';
+        }).join('');
+    volFillPickers('#mdVolProject', '#mdVolType');
+    var off = $('#mdVolOff');
+    if (off) off.onclick = function () { if (confirm('Remove ' + m.name + ' from volunteers? Every project placement ends and they leave their volunteer teams; their hours stay on record.')) memVolSet('volunteer_remove'); };
+    box.querySelectorAll('.vp-un').forEach(function (b) {
+      b.onclick = function () {
+        post('vol_unassign', { id: memOpen, project_id: +b.getAttribute('data-p') }).then(function () { memVolRefresh(); });
+      };
+    });
+    $('#mdVolAdd').onclick = function () {
+      var pj = +$('#mdVolProject').value; if (!pj) { toast('Choose the project.'); return; }
+      memVolSet('volunteer_add', { project_id: pj, type: $('#mdVolType').value });
+    };
+  }
+  function memVolRefresh() {
     var id = memOpen;
-    post('roster_bulk', { ids: [id], action: action, value: {} }).then(function (r) {
+    api('roster_get&id=' + id).then(function (g) { if (g.data && g.data.member && memOpen === id) memVolDraw(g.data.member); });
+  }
+  function memVolSet(action, value) {
+    var id = memOpen;
+    post('roster_bulk', { ids: [id], action: action, value: value || {} }).then(function (r) {
       var d = r.data || {}, x = (d.results || [])[0] || {};
       if (!d.ok || x.outcome === 'refused') { toast((x && x.error) || d.error || 'Refused.'); }
-      else toast(action === 'volunteer_add' ? 'Now a volunteer.' : 'Removed from volunteers.');
-      api('roster_get&id=' + id).then(function (g) { if (g.data && g.data.member && memOpen === id) memVolDraw(g.data.member); });
+      else toast(action === 'volunteer_add' ? 'Placed on the project.' : 'Removed from volunteers.');
+      memVolRefresh(); volMeta = null;
       loadMemRoster();
     }).catch(function () { toast('Network error.'); });
   }
