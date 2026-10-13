@@ -167,6 +167,16 @@ if (class_exists('MeetingClock')) {
 if (class_exists('MeetingMinutes')) {
     $result['meetings_live'] = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
 }
+// Google Meet upkeep: a Meet link Calendar had not made yet, Google's own
+// recording/transcript/notes switched on where it is not yet; Google's live
+// events drained from Pub/Sub, and the events subscription kept alive.
+if (class_exists('Meetings')) {
+    try { $result['meet_upkeep'] = Meetings::meetUpkeep(); } catch (Throwable $e) { $result['meet_upkeep'] = ['error' => $e->getMessage()]; }
+}
+if (class_exists('MeetEvents') && MeetEvents::configured()) {
+    try { $result['meet_events_sub'] = MeetEvents::renewIfDue(); $result['meet_events'] = MeetEvents::drain(); }
+    catch (Throwable $e) { $result['meet_events'] = ['error' => $e->getMessage()]; }
+}
 
 // The CACENTRE CRM's Audience: subscribers, givers and enquiries pushed (signed).
 if (class_exists('CrmAudiencePush')) {

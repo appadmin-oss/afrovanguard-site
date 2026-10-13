@@ -40,6 +40,7 @@ https://www.googleapis.com/auth/admin.directory.user.readonly,
 https://www.googleapis.com/auth/admin.directory.group.readonly,
 https://www.googleapis.com/auth/meetings.space.readonly,
 https://www.googleapis.com/auth/meetings.space.created,
+https://www.googleapis.com/auth/meetings.space.settings,
 https://www.googleapis.com/auth/admin.reports.audit.readonly,
 https://www.googleapis.com/auth/chat.messages.create
 ```
@@ -51,7 +52,51 @@ screen's **Test Google Workspace** names the refusal (`unauthorized_client`
 means the scope or the client ID is missing from this list).
 
 Enable these APIs on the service account's project as well: Google Calendar API,
-Google Drive API, Admin SDK API, Google Meet REST API, Google Chat API.
+Google Drive API, Admin SDK API, Google Meet REST API, Google Chat API, and — for
+live Meet events — Google Workspace Events API and Cloud Pub/Sub API.
+
+## Meetings that run themselves (Google Meet)
+
+What happens, with nothing for a volunteer to press:
+
+1. **Scheduling** writes the Calendar event with a Meet link (invites go to
+   everyone). Then, as the **organiser** (`AV_MEET_ORGANISER`), the site turns on
+   the space's own **recording, transcript, Gemini notes and attendance report**
+   (`PATCH /v2/spaces/{id}`, `meetings.space.settings`). An edition that refuses
+   recording gets transcript and notes. `AV_MEET_ARTIFACTS` = `all` | `transcript` | `off`.
+2. **During the call** the cron reads who is in (Meet REST `participants`), and
+   the room's own check-in QR and captions keep working.
+3. **After the call** finishing reads every join and leave (`participantSessions`
+   — rejoining counts), waits while Google writes the transcript (tried every 10
+   minutes for two hours, then hourly, up to a day), then takes it speaker by
+   speaker with Gemini's notes after it. The minutes draft is made from it.
+4. **Live events (optional, faster)**: the Workspace Events API sends the
+   organiser's Meet events to a Pub/Sub topic; the cron drains a **pull**
+   subscription every tick (no public URL needed) and renews the events
+   subscription before Google's 7-day limit. A **push** subscription to
+   `/webhooks/google-meet.php` works too; each push is checked against Google's
+   signing keys (firebase/php-jwt) and `AV_MEET_PUSH_AUDIENCE`.
+
+Once, in Google:
+
+- **A licensed organiser mailbox** (e.g. `meetings@`) — Business Standard or
+  higher for recording and transcripts; a Gemini licence for notes. Set it as
+  *Meeting organiser mailbox* (Studio → Setup → Google Meet) and, ideally, as the
+  *Shared calendar*. Recording/transcription start when someone with the
+  privilege joins.
+- **Admin console → Apps → Google Workspace → Google Meet → Meet video settings**:
+  allow recording, transcripts and "Take notes for me".
+- **Domain-wide delegation**: the scopes above, including
+  `meetings.space.settings`.
+- **Pub/Sub (optional)**: create topic `meet-events`; grant
+  `meet-api-event-push@system.gserviceaccount.com` *Pub/Sub Publisher* on it;
+  create a **pull** subscription `meet-events-pull` and grant the service
+  account *Pub/Sub Subscriber* on it. Paste both full names
+  (`projects/…/topics/meet-events`, `projects/…/subscriptions/meet-events-pull`)
+  into Studio → Setup → Google Meet.
+
+Without any of this the meeting still works: Calendar invite and link, our
+own email invite, QR check-in, room captions, and minutes.
 
 ## 3. Configure — from the Studio (no shell needed)
 

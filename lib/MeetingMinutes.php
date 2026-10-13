@@ -108,7 +108,7 @@ final class MeetingMinutes
 
     /* ══ Meetings, occurrences, people ══════════════════════════════════════ */
 
-    private static function meeting(int $id): ?array
+    public static function meeting(int $id): ?array
     {
         $st = Database::pdo()->prepare('SELECT * FROM meetings WHERE id = ?');
         $st->execute([$id]);
@@ -859,6 +859,12 @@ final class MeetingMinutes
      */
     public static function icsFor(array $m, string $method = 'PUBLISH'): string
     {
+        /* spatie/icalendar-generator (MIT): folding, escaping and the time
+           zones done by a library calendar apps are tested against. The
+           hand-written writer below stays as the fallback. */
+        if (class_exists(\Spatie\IcalendarGenerator\Components\Calendar::class)) {
+            try { return self::icsSpatie($m, $method); } catch (Throwable $e) { error_log('[minutes] ics: ' . $e->getMessage()); }
+        }
         $esc = static fn(string $s): string => str_replace(["\\", ';', ',', "\r\n", "\n"], ["\\\\", '\;', '\,', '\n', '\n'], $s);
         $ts = strtotime((string) $m['scheduled_at'] . ' UTC') ?: time();
         $host = parse_url(defined('SITE_URL') ? SITE_URL : 'https://afrovanguard.org.ng', PHP_URL_HOST) ?: 'afrovanguard.org.ng';
@@ -886,6 +892,37 @@ final class MeetingMinutes
         $out = '';
         foreach ($lines as $l) { while (strlen($l) > 74) { $cut = 74; while ($cut > 1 && (ord($l[$cut]) & 0xC0) === 0x80) $cut--; $out .= substr($l, 0, $cut) . "\r\n"; $l = ' ' . substr($l, $cut); } $out .= $l . "\r\n"; }
         return $out;
+    }
+
+    private static function icsSpatie(array $m, string $method): string
+    {
+        $ts = strtotime((string) $m['scheduled_at'] . ' UTC') ?: time();
+        $host = parse_url(defined('SITE_URL') ? SITE_URL : 'https://afrovanguard.org.ng', PHP_URL_HOST) ?: 'afrovanguard.org.ng';
+        $utc = new DateTimeZone('UTC');
+        $url = (string) $m['meet_url'];
+        $desc = trim((string) $m['agenda']) . ($url !== '' ? "\n\nJoin: " . $url : '');
+        $ev = \Spatie\IcalendarGenerator\Components\Event::create((string) $m['title'])
+            ->uniqueIdentifier('meeting-' . (int) $m['id'] . '@' . $host)
+            ->startsAt(new DateTimeImmutable('@' . $ts))
+            ->endsAt(new DateTimeImmutable('@' . ($ts + (int) $m['duration_min'] * 60)))
+            ->createdAt(new DateTimeImmutable('now', $utc))
+            ->sequence(0)
+            ->alertMinutesBefore(30, (string) $m['title']);
+        if ($desc !== '') $ev->description($desc);
+        if ($url !== '') { $ev->url($url)->address($url); if (str_contains($url, 'meet.google.com')) $ev->googleConference($url); }
+        $rrule = Meetings::FREQ[(string) $m['frequency']][1] ?? '';
+        if ($rrule !== '') $ev->rruleAsString($rrule);
+        if ((string) $m['status'] === 'cancelled') $ev->status(\Spatie\IcalendarGenerator\Enums\EventStatus::Cancelled);
+        if ($method === 'REQUEST') {
+            $st = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
+            $st->execute([(int) $m['creator_id']]);
+            $org = $st->fetch(PDO::FETCH_ASSOC) ?: ['name' => 'Afrovanguard', 'email' => 'noreply@' . $host];
+            $ev->organizer((string) $org['email'], (string) $org['name']);
+            foreach (self::invitees((int) $m['id']) as $p) $ev->attendee((string) $p['email'], (string) $p['name'], \Spatie\IcalendarGenerator\Enums\ParticipationStatus::NeedsAction, true);
+        }
+        $cal = \Spatie\IcalendarGenerator\Components\Calendar::create()->productIdentifier('-//Afrovanguard//Volunteer dashboard//EN')->withoutTimezone()->event($ev);
+        $cal->appendProperty(\Spatie\IcalendarGenerator\Properties\TextProperty::create('METHOD', $method === 'REQUEST' ? 'REQUEST' : 'PUBLISH'));
+        return $cal->get();
     }
 
     /** The title of where a commitment came from, for "my actions". */
@@ -1060,7 +1097,16 @@ final class MeetingMinutes
 
     /* ══ The automation ═════════════════════════════════════════════════════ */
 
-    private static function nudgeOnce(int $meetingId, string $occ, string $kind): bool
+    public static function nudged(int $meetingId, string $occ, string $kind): bool
+    {
+        try {
+            $st = Database::pdo()->prepare('SELECT 1 FROM meeting_nudges WHERE meeting_id = ? AND occurrence = ? AND kind = ?');
+            $st->execute([$meetingId, $occ, $kind]);
+            return (bool) $st->fetchColumn();
+        } catch (Throwable $e) { return false; }
+    }
+
+    public static function nudgeOnce(int $meetingId, string $occ, string $kind): bool
     {
         try {
             $st = Database::pdo()->prepare(Database::insertIgnore('meeting_nudges', ['meeting_id', 'occurrence', 'kind', 'sent_at']));
@@ -1091,11 +1137,24 @@ final class MeetingMinutes
             $live = Database::pdo()->query("SELECT * FROM meetings WHERE status <> 'cancelled' ORDER BY id DESC LIMIT 500")->fetchAll(PDO::FETCH_ASSOC);
             foreach ($live as $m) {
                 $dur = (int) $m['duration_min'] * 60;
-                foreach (self::occurrences($m, $now - $dur - 3 * 3600, $now) as $ts) {
+                /* A day back: Google can take hours to write a transcript, and
+                   finishing waits for it (MeetingLive::FINISH_WAIT). */
+                foreach (self::occurrences($m, $now - $dur - MeetingLive::FINISH_WAIT, $now) as $ts) {
                     $occ = self::occurrenceKey($ts);
-                    if ($now <= $ts + $dur + 30 * 60 && (string) $m['meet_url'] !== '') { MeetingLive::pollGoogle($m, $occ); $out['live_polled']++; }
-                    if ($now >= $ts + $dur + 15 * 60 && self::nudgeOnce((int) $m['id'], $occ, 'finished')) { MeetingLive::finish($m, $occ); $out['finished']++; }
-                    if ($now >= $ts + $dur && self::absorb($m, $occ)) $out['absorbed']++;
+                    $recent = $ts >= $now - $dur - 3 * 3600;
+                    if ($recent && $now <= $ts + $dur + 30 * 60 && (string) $m['meet_url'] !== '') { MeetingLive::pollGoogle($m, $occ); $out['live_polled']++; }
+                    /* Finishing is tried every 10 minutes for two hours, then
+                       hourly, until it has a transcript or gives up; each try
+                       is one per window, however often the cron runs. */
+                    $since = $now - ($ts + $dur);
+                    if ($since >= 15 * 60 && !self::nudged((int) $m['id'], $occ, 'finished')) {
+                        $win = $since < 7200 ? 'f10:' . intdiv($since, 600) : 'f60:' . intdiv($since, 3600);
+                        if (self::nudgeOnce((int) $m['id'], $occ, $win)) {
+                            $r = MeetingLive::finish($m, $occ, $now);
+                            if ($r !== MeetingLive::WAITING) { self::nudgeOnce((int) $m['id'], $occ, 'finished'); $out['finished']++; }
+                        }
+                    }
+                    if ($recent && $now >= $ts + $dur && self::absorb($m, $occ)) $out['absorbed']++;
                 }
             }
         }

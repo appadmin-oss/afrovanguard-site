@@ -143,6 +143,37 @@ final class AvSettings
             'help' => 'daily: once a day the site cron reads the Workspace directory and gives every active user a member account (existing accounts are left as they are). Needs the service account, the admin above, and the cron.',
         ],
 
+        /* ── Google Meet: meetings that run themselves ─────────────────────
+           Calendar makes the Meet; these turn on Google's own recording,
+           transcript and notes for it, read it back as the organiser, and
+           take Google's live events from a Pub/Sub queue the cron drains.
+           See docs/google-workspace.md → "Meetings that run themselves". */
+        'AV_MEET_ORGANISER' => [
+            'group' => 'Google Meet', 'label' => 'Meeting organiser mailbox', 'secret' => false, 'type' => 'email',
+            'ph' => 'meetings@afrovanguard.org.ng',
+            'help' => 'A licensed Workspace mailbox that owns every meeting the site makes (its calendar holds the events, its Drive the recordings). Recording, transcripts and notes are switched on as this mailbox, and attendance and transcripts read back as it. Blank uses the shared calendar, then the admin above. Needs Business Standard or higher for recording and transcripts.',
+        ],
+        'AV_MEET_ARTIFACTS' => [
+            'group' => 'Google Meet', 'label' => 'What Google captures', 'secret' => false, 'type' => 'enum',
+            'options' => ['all', 'transcript', 'off'],
+            'help' => 'all (default): recording, transcript, Gemini notes and an attendance report start on their own in every meeting. transcript: transcript and notes, no recording. off: Google captures nothing on its own; the room captions and check-in still work.',
+        ],
+        'AV_MEET_PUBSUB_TOPIC' => [
+            'group' => 'Google Meet', 'label' => 'Pub/Sub topic for Meet events', 'secret' => false, 'type' => 'text',
+            'ph' => 'projects/your-project/topics/meet-events',
+            'help' => 'Optional, for live joins, leaves and "transcript ready" the moment they happen. Create the topic in Google Cloud and give meet-api-event-push@system.gserviceaccount.com the Pub/Sub Publisher role on it. Without it the site still checks Google every few minutes.',
+        ],
+        'AV_MEET_PUBSUB_SUB' => [
+            'group' => 'Google Meet', 'label' => 'Pub/Sub pull subscription', 'secret' => false, 'type' => 'text',
+            'ph' => 'projects/your-project/subscriptions/meet-events-pull',
+            'help' => 'A PULL subscription on that topic; give the service account the Pub/Sub Subscriber role on it. The cron empties it every minute, so the host needs no public webhook.',
+        ],
+        'AV_MEET_PUSH_AUDIENCE' => [
+            'group' => 'Google Meet', 'label' => 'Push audience (optional)', 'secret' => false, 'type' => 'text',
+            'ph' => 'https://afrovanguard.org.ng/webhooks/google-meet.php',
+            'help' => 'Only if you use a PUSH subscription to /webhooks/google-meet.php instead of pull: the audience set on that subscription. Each push is checked against Google’s signing keys and this audience.',
+        ],
+
         /* ── Gemini ───────────────────────────────────────────────────── */
         /* ── CACENTRE gate ───────────────────────────────────────────────── */
         'GATE_PASS_SECRET' => [

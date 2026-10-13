@@ -198,6 +198,17 @@ final class MeetingLive
         return self::$emailCache[$googleUser] = $email;
     }
 
+    /**
+     * Who to read Meet records as: the organiser (who owns every space the
+     * site makes), then the meeting's creator for one made before.
+     */
+    private static function readers(array $m): array
+    {
+        $st = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
+        $st->execute([(int) $m['creator_id']]);
+        return array_values(array_unique(array_filter([GoogleWorkspace::organiser(), strtolower((string) ($st->fetchColumn() ?: ''))])));
+    }
+
     /** Read who is in the Meet now (and who has left), into the log. */
     public static function pollGoogle(array $m, string $occ): int
     {
@@ -205,18 +216,27 @@ final class MeetingLive
         if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return 0;
         $code = (string) ($m['meet_code'] ?? '') ?: GoogleWorkspace::meetCodeFromUrl((string) $m['meet_url']);
         if ($code === '') return 0;
-        $st = Database::pdo()->prepare('SELECT email FROM lms_users WHERE id = ?');
-        $st->execute([(int) $m['creator_id']]);
-        $host = (string) ($st->fetchColumn() ?: '');
         $start = strtotime($occ . ' UTC') ?: 0;
-        $r = GoogleWorkspace::meetParticipants($code, $host, $start);
-        if (!$r) return 0;
+        foreach (self::readers($m) as $who) {
+            $conf = GoogleWorkspace::meetConference($code, $who, $start);
+            if ($conf) return self::recordParticipants($m, $occ, GoogleWorkspace::conferenceParticipants($conf['name'], $who, !$conf['live']));
+        }
+        return 0;
+    }
+
+    /** Google's participants into the log: a join and a leave for each time they were in. */
+    public static function recordParticipants(array $m, string $occ, array $people): int
+    {
         $n = 0;
-        foreach ($r['participants'] as $p) {
-            if ($p['start'] <= 0 || $p['id'] === '') continue;
+        foreach ($people as $p) {
+            if ($p['id'] === '') continue;
             $who = ['name' => $p['name'], 'email' => $p['kind'] === 'signedin' ? self::googleEmail($p['google_user']) : ''];
-            if (self::record((int) $m['id'], $occ, 'join', 'google', 'j:' . $p['id'], $who, $p['start'])) $n++;
-            if ($p['end'] !== null && self::record((int) $m['id'], $occ, 'leave', 'google', 'l:' . $p['id'] . ':' . $p['end'], $who, (int) $p['end'])) $n++;
+            foreach ($p['sessions'] as $i => $x) {
+                if ($x['start'] <= 0) continue;
+                $ref = $x['id'] !== '' ? $x['id'] : $p['id'] . ':' . $i;
+                if (self::record((int) $m['id'], $occ, 'join', 'google', 'j:' . $ref, $who, $x['start'])) $n++;
+                if ($x['end'] !== null && self::record((int) $m['id'], $occ, 'leave', 'google', 'l:' . $ref, $who, (int) $x['end'])) $n++;
+            }
         }
         return $n;
     }
@@ -411,27 +431,61 @@ final class MeetingLive
 
     /* ══ After the meeting ══════════════════════════════════════════════════ */
 
+    /** How long finishing waits for Google's transcript before settling for what it has. */
+    public const FINISH_WAIT = 26 * 3600;
+    public const WAITING = 'waiting';
+
     /**
-     * Once a meeting is over: the log's words become the meeting's transcript
-     * (and so its AI summary, when switched on), unless a transcript for this
-     * occurrence already exists; with no words of our own, Google's transcript
-     * is fetched when Meet made one. Returns what it did.
+     * Once a meeting is over, its transcript — the best there is:
+     *   1. Google's own, speaker by speaker, with Gemini's notes after it,
+     *      when the meeting's Meet was set to transcribe (Meetings::
+     *      configureCapture). Google can take a while; until it is written
+     *      this answers WAITING and the sweep asks again (up to FINISH_WAIT).
+     *      Attendance is read again here, every join and leave.
+     *   2. Otherwise the log's own words: the notetaker or the room captions.
+     *   3. Otherwise, with nothing else, Google's transcript in Drive.
+     * Returns what it did, or WAITING.
      */
-    public static function finish(array $m, string $occ): string
+    public static function finish(array $m, string $occ, ?int $now = null): string
     {
         self::ensure();
+        $now = $now ?? time();
         $id = (int) $m['id'];
         $st = Database::pdo()->prepare('SELECT 1 FROM meeting_transcripts WHERE meeting_id = ? AND created_at >= ? LIMIT 1');
         $st->execute([$id, $occ]);
         if ($st->fetchColumn()) return 'has transcript';
+        $start = strtotime($occ . ' UTC') ?: 0;
+        $age = $now - ($start + (int) $m['duration_min'] * 60);
+        $google = (string) $m['provider'] === 'google' && class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled();
+        $capture = (string) ($m['meet_capture'] ?? '');
+        if ($google && in_array($capture, ['all', 'transcript'], true)) {
+            $code = (string) ($m['meet_code'] ?? '') ?: GoogleWorkspace::meetCodeFromUrl((string) $m['meet_url']);
+            foreach (self::readers($m) as $who) {
+                $conf = GoogleWorkspace::meetConference($code, $who, $start);
+                if (!$conf) continue;
+                if ($conf['live']) return self::WAITING;
+                self::recordParticipants($m, $occ, GoogleWorkspace::conferenceParticipants($conf['name'], $who, true));
+                $t = GoogleWorkspace::conferenceTranscript($conf['name'], $who);
+                if ($t['state'] === 'ready') {
+                    $notes = GoogleWorkspace::conferenceNotes($conf['name'], $who);
+                    Meetings::saveTranscript((int) $m['creator_id'], $id, $t['text'] . ($notes !== '' ? "\n\n— Notes by Gemini —\n" . $notes : ''), 'google');
+                    return 'transcript from Google';
+                }
+                if ($t['state'] === 'pending' && $age < self::FINISH_WAIT) return self::WAITING;
+                break;
+            }
+            /* No conference found yet: Meet's records can lag the call. */
+            if ($age < 2 * 3600 && self::transcript($id, $occ) === '') return self::WAITING;
+        }
         $text = self::transcript($id, $occ);
         if (mb_strlen($text) >= 40) {
             Meetings::saveTranscript((int) $m['creator_id'], $id, $text, 'bot');
             return 'transcript from the room';
         }
-        if ((string) $m['provider'] === 'google' && class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled()) {
+        if ($google) {
             $r = Meetings::pullGoogleTranscript((int) $m['creator_id'], $id);
             if (!empty($r['ok'])) return 'transcript from Google';
+            if (!empty($r['pending']) && $age < self::FINISH_WAIT) return self::WAITING;
         }
         return 'no transcript';
     }

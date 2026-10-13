@@ -88,6 +88,10 @@ final class Meetings
         self::addCol('meetings', 'bot_state', "VARCHAR(16) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'bot_provider', "VARCHAR(16) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'bot_ref', "VARCHAR(128) NOT NULL DEFAULT ''");
+        /* The Meet space Google made for it, and what Google captures there on
+           its own (all | transcript | off | '' = not switched on). */
+        self::addCol('meetings', 'meet_space', "VARCHAR(80) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'meet_capture', "VARCHAR(12) NOT NULL DEFAULT ''");
         self::$ready = true;
     }
 
@@ -133,6 +137,54 @@ final class Meetings
         return ['url' => '', 'provider' => '', 'google_event_id' => ''];
     }
 
+    /**
+     * Switch on Google's own capture for a meeting's Meet (GoogleWorkspace::
+     * configureMeetSpace) and remember the space. A meeting whose capture is
+     * on needs no notetaker: its bot state is 'native'. Best-effort; a failure
+     * leaves the meeting as it was, and the sweep tries again.
+     */
+    public static function configureCapture(int $id, string $code): bool
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return false;
+        try {
+            $r = GoogleWorkspace::configureMeetSpace($code);
+            if (!$r) return false;
+            $db = Database::pdo();
+            $db->prepare('UPDATE meetings SET meet_space = ?, meet_capture = ? WHERE id = ?')->execute([$r['space'], $r['mode'], $id]);
+            if ($r['mode'] !== 'off') $db->prepare("UPDATE meetings SET bot_state = 'native', bot_provider = 'google' WHERE id = ? AND bot_state IN ('', 'pending', 'unconfigured', 'error')")->execute([$id]);
+            return true;
+        } catch (Throwable $e) { error_log('[meetings] capture: ' . $e->getMessage()); return false; }
+    }
+
+    /**
+     * The cron's Meet upkeep: a Meet link Calendar had not made yet is read
+     * again; a meeting whose capture could not be switched on is tried again.
+     * Upcoming meetings only, a handful a tick.
+     */
+    public static function meetUpkeep(): array
+    {
+        self::ensure();
+        $out = ['links' => 0, 'captured' => 0];
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return $out;
+        $db = Database::pdo();
+        $soon = gmdate('Y-m-d H:i:s', time() - 6 * 3600);
+        $st = $db->prepare("SELECT id, google_event_id FROM meetings WHERE status = 'scheduled' AND meet_url = '' AND google_event_id <> '' AND scheduled_at >= ? ORDER BY scheduled_at LIMIT 5");
+        $st->execute([$soon]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) {
+            $url = GoogleWorkspace::eventMeetUrl((string) $m['google_event_id']);
+            if ($url === '') continue;
+            $code = GoogleWorkspace::meetCodeFromUrl($url);
+            $db->prepare("UPDATE meetings SET meet_url = ?, meet_code = ?, provider = 'google' WHERE id = ?")->execute([$url, $code, (int) $m['id']]);
+            $out['links']++;
+        }
+        if (GoogleWorkspace::artifactMode() !== 'off') {
+            $st = $db->prepare("SELECT id, meet_code FROM meetings WHERE status = 'scheduled' AND meet_code <> '' AND meet_capture = '' AND (scheduled_at >= ? OR frequency <> 'once') ORDER BY scheduled_at LIMIT 5");
+            $st->execute([$soon]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) if (self::configureCapture((int) $m['id'], (string) $m['meet_code'])) $out['captured']++;
+        }
+        return $out;
+    }
+
     /** ── Schedule a meeting (workspace or mentorship) ─────────────────── */
     public static function schedule(int $uid, array $in): array
     {
@@ -167,6 +219,8 @@ final class Meetings
         $code = class_exists('GoogleWorkspace') ? GoogleWorkspace::meetCodeFromUrl($link['url']) : '';
         $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
            ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $id]);
+        /* Google records, transcribes and takes notes on its own from here. */
+        if ($code !== '') self::configureCapture($id, $code);
 
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
         foreach ($emails as $e) $ins->execute([$id, $e]);
@@ -435,10 +489,15 @@ final class Meetings
             // 1) The official Meet transcript via the Meet REST API (best source).
             $code = (string) ($m['meet_code'] ?? '');
             if ($code !== '') {
-                $host = self::userEmail((int) $m['creator_id']);
+                /* As the organiser, who owns the space; the creator as a fallback. */
                 $afterTs = strtotime((string) $m['scheduled_at'] . ' UTC') ?: 0;
-                $t = GoogleWorkspace::meetTranscriptText($code, $host, $afterTs);
-                if ($t) return self::saveTranscript($uid, $id, $t, 'google');
+                foreach (array_unique(array_filter([GoogleWorkspace::organiser(), self::userEmail((int) $m['creator_id'])])) as $who) {
+                    $conf = GoogleWorkspace::meetConference($code, $who, $afterTs);
+                    if (!$conf) continue;
+                    $t = GoogleWorkspace::conferenceTranscript($conf['name'], $who);
+                    if ($t['state'] === 'ready') return self::saveTranscript($uid, $id, $t['text'], 'google');
+                    if ($t['state'] === 'pending') return ['ok' => false, 'pending' => true, 'error' => 'Google is still writing the transcript. It arrives here on its own.'];
+                }
             }
             // 2) Fallback: the transcript Doc Meet writes to the host's Drive.
             $files = GoogleWorkspace::driveFiles(null, 60);

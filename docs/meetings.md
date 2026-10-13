@@ -172,14 +172,15 @@ Two behaviours worth knowing, both deliberate:
 
 ### Provider: `google` (Google Meet native)
 
-We create a Meet **space** with Google's own auto-transcription (and recording)
-turned on via the Meet REST API (`POST /v2/spaces` with
-`config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration = ON`),
-impersonating the organiser. Google records/transcribes the call; afterwards
-`GoogleWorkspace::meetTranscriptText()` reads the transcript
-(`conferenceRecords → transcripts → entries`), with the Drive transcript Doc as
-a fallback. Requires the service account to have domain-wide delegation for the
-`meetings.space.created` and `meetings.space.readonly` scopes.
+The Calendar event makes the Meet; the site then switches that space's own
+recording, transcript, Gemini notes and attendance report on, as the organiser
+(`Meetings::configureCapture` → `GoogleWorkspace::configureMeetSpace`, scope
+`meetings.space.settings`). After the call `MeetingLive::finish` reads the
+conference as the organiser — participants with every session, the transcript
+with speakers' names once Google has written it (it waits, retrying, up to a
+day), and the Gemini notes. Google's live events can arrive through Pub/Sub
+(`lib/MeetEvents.php`). See docs/google-workspace.md → "Meetings that run
+themselves" for the one-time setup.
 
 > The low-level **Google Meet Media API** (raw WebRTC media streams) needs an
 > out-of-process media client and cannot run inside PHP. The `google` provider

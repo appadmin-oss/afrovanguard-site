@@ -163,6 +163,12 @@ $knownMetaKeys = [
     // reads every session again — each is credited once by its ref, so it
     // redoes work and double-counts nothing.
     'ngg_sessions_cursor',
+    // Google Meet events (lib/MeetEvents). Reviewed: neither gates a migration.
+    // `meet_events_sub` is the Workspace Events subscription and when it was
+    // renewed — lost, the cron subscribes again. `google_oidc_jwks` is a cache
+    // of Google's PUBLIC signing keys for push tokens, refetched every six
+    // hours; it holds no secret, and a token signed by a key not in it fails.
+    'meet_events_sub', 'google_oidc_jwks',
     // Older printed member cards (lib/MemberCards). Reviewed: gates no migration.
     // The shapes the gate decodes old cards by. Lost, those cards stop reading
     // at the gate until re-described; secure cards and NGV numbers are unaffected.

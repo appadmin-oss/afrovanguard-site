@@ -189,7 +189,7 @@ ck('Minutes: printable for anybody on the meeting, nobody else', is_string(Meeti
 /* ── The calendar file ── */
 $ics = MeetingMinutes::icsFor($m, 'REQUEST');
 $unfolded = str_replace("\r\n ", '', $ics);
-ck('Calendar: an invite a mail client can answer — organiser, attendees, RSVP, the weekly rule', str_contains($ics, "METHOD:REQUEST\r\n") && str_contains($unfolded, 'ORGANIZER;CN=Lanre Lead:mailto:lanre.lead@afrovanguard.org.ng')
+ck('Calendar: an invite a mail client can answer — organiser, attendees, RSVP, the weekly rule', str_contains($ics, "METHOD:REQUEST\r\n") && stripos($unfolded, 'ORGANIZER;CN=Lanre Lead:mailto:lanre.lead@afrovanguard.org.ng') !== false
     && substr_count($unfolded, 'RSVP=TRUE') === 4 && str_contains($ics, "RRULE:FREQ=WEEKLY\r\n"));
 ck('Calendar: …lines folded at 75 octets, as RFC 5545 asks', max(array_map('strlen', explode("\r\n", $ics))) <= 75);
 
