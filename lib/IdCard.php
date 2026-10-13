@@ -108,6 +108,42 @@ final class IdCard
     }
 
     /**
+     * The card partial's full shape, filled from publicFor() and NOTHING else.
+     *
+     * q.php built a stranger's card as forMember() + publicFor(). Array union
+     * keeps the LEFT side's keys, so every forMember field survived — role,
+     * member number, tier letter, programmes, category, issue date, and the
+     * family initial inside `initials` — and only three were patched over by
+     * hand afterwards. A redaction that starts from the full record has to
+     * remember every field it must remove; this one starts from the public
+     * read and can only show what that read contains. Every key the partial
+     * reads is present, blank where publicFor() has no value for it.
+     */
+    public static function strangerCard(int $memberId): array
+    {
+        $pub = self::publicFor($memberId);
+        $given = (string) ($pub['given'] ?? '');
+        $code  = (string) ($pub['card_code'] ?? '');
+        return [
+            'given'        => $given,
+            'family'       => '',
+            'initials'     => $given !== '' ? mb_strtoupper(mb_substr($given, 0, 1)) : '',
+            'role'         => '',
+            'tier_letter'  => '',
+            'number'       => '',
+            'photo_url'    => null,
+            'programmes'   => [],
+            'member_since' => (string) ($pub['member_since'] ?? ''),
+            'band'         => is_array($pub['band'] ?? null) ? $pub['band'] : ['label' => 'Not a member', 'tone' => 'neutral'],
+            'status_date'  => (string) ($pub['status_date'] ?? ''),
+            'qr_svg'       => $code !== '' ? NgvCard::qrSvg(MemberCards::scanUrl($code), 0) : '',
+            'card_code'    => $code,
+            'category'     => '',
+            'issued'       => '',
+        ];
+    }
+
+    /**
      * The band the card prints: the member's own label and its tone.
      *
      * A missing user is not an exception — an id that no longer resolves is a

@@ -96,13 +96,7 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
     require_once __DIR__ . '/lib/IdCard.php';
     $card = $full
         ? IdCard::forMember((int) $holder['id'])
-        : (IdCard::forMember((int) $holder['id']) + IdCard::publicFor((int) $holder['id']));
-    if (!$full) {
-        $pub = IdCard::publicFor((int) $holder['id']);
-        $card['band']   = $pub['band'];
-        $card['family'] = '';
-        $card['photo_url'] = null;
-    }
+        : IdCard::strangerCard((int) $holder['id']);   // built from publicFor() alone
     $avcSide = $full ? 'both' : 'front';
     include __DIR__ . '/partials/id-card.php';
   ?>

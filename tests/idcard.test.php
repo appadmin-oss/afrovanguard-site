@@ -153,9 +153,39 @@ foreach (['snapdom.js', 'jspdf.umd.min.js', 'jszip.min.js'] as $lib) {
 /* ══ The public page ═════════════════════════════════════════════════════ */
 
 $q = (string) file_get_contents(AV_ROOT . '/q.php');
-ck('q.php: a stranger is served publicFor(), not the full card with fields '
- . 'hidden by the template',
-   str_contains($q, 'IdCard::publicFor('));
+ck('q.php: a stranger is served the card built from publicFor() alone, not the '
+ . 'full card with fields patched over',
+   str_contains($q, 'IdCard::strangerCard(') && !preg_match('/forMember\([^;]*\+\s*IdCard::publicFor/', $q));
+
+/* forMember() + publicFor() is an array UNION: the left side's keys win, so
+   the stranger's card carried every forMember field — role, member number,
+   tier, programmes, category, issue date and the family initial. */
+if (is_array($carded ?? null)) {
+    $sc = IdCard::strangerCard($uid);
+    preg_match_all('/\$card\[\'([a-z_]+)\'\]/', (string) file_get_contents(AV_ROOT . '/partials/id-card.php'), $pm);
+    ck('stranger card: has every key the partial reads', count($pm[1]) > 10 && !array_diff(array_unique($pm[1]), array_keys($sc)));
+    ck('stranger card: and nothing publicFor() does not hold (no member id)', !array_key_exists('member_id', $sc));
+    ck('stranger card: no role, number, tier, programmes, category or issue date',
+       $sc['role'] === '' && $sc['number'] === '' && $sc['tier_letter'] === '' && $sc['programmes'] === []
+       && $sc['category'] === '' && $sc['issued'] === '');
+    ck('stranger card: no family name and no family initial', $sc['family'] === '' && !str_contains($sc['initials'], 'N'));
+    ck('stranger card: no photo', $sc['photo_url'] === null);
+    ck('stranger card: the public band, not the member\'s own label', $sc['band'] === IdCard::publicFor($uid)['band']);
+    unset($_COOKIE[LmsAuth::COOKIE], $_COOKIE[AV_ADMIN_COOKIE]);
+    $qr = new ReflectionClass('LmsAuth');
+    foreach (['cache' => null, 'checked' => false] as $k => $v) { $pp = $qr->getProperty($k); $pp->setAccessible(true); $pp->setValue(null, $v); }
+    $html = render_page(AV_ROOT . '/q.php', ['c' => $carded['card_code']]);
+    ck('q.php as a stranger: the page renders the card', str_contains($html, 'avc-given') && str_contains($html, 'Adaeze'));
+    ck('q.php as a stranger: no family name on the page', !str_contains($html, 'Nwosu'));
+    ck('q.php as a stranger: no family initial', !str_contains($html, '>' . e($carded['initials']) . '<'));
+    ck('q.php as a stranger: no tier letter', $carded['tier_letter'] === '' || !str_contains($html, 'avc-tier-letter">' . e($carded['tier_letter']) . '<'));
+    /* (Issued is today here, the same as "Status as of", so it is held by the
+       array check above rather than by searching the page for a date.) */
+    ck('q.php as a stranger: no category or member number',
+       !str_contains($html, e($carded['category']))
+       && ($carded['number'] === '' || !str_contains($html, '>' . e($carded['number']) . '<')));
+    ck('q.php as a stranger: no role line', !str_contains($html, 'avc-role'));
+}
 ck('q.php: the holder and staff see the real card',
    str_contains($q, '$full = $isStaff || $isHolder;'));
 ck('q.php: it is never indexed, by header AND by meta — a search engine '
@@ -172,4 +202,5 @@ ck('q.php: the rebuilt partial draws the card, not the removed NgvCard::html()',
 
 ck('q.php: a stranger gets no family name and no photo — a card found in the '
  . 'street should not hand whoever picked it up a face to go with the name',
-   str_contains($q, "\$card['family'] = ''") && str_contains($q, "\$card['photo_url'] = null"));
+   str_contains((string) file_get_contents(AV_ROOT . '/lib/IdCard.php'), "'family'       => '',")
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/IdCard.php'), "'photo_url'    => null,"));
