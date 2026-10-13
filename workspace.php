@@ -626,7 +626,7 @@ render_head([
   }
 })();
 </script>
-<script src="/portal/team-chat.js" defer></script>
+<script src="<?= e(av_asset('/portal/team-chat.js')) ?>" defer></script>
 <?php
 /** Local greeting by time of day (server tz). */
 function wsGreeting(): string

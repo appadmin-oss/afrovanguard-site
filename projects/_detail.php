@@ -78,13 +78,13 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <meta name="twitter:image" content="<?= e($image) ?>" />
   <meta name="twitter:image:alt" content="<?= e($P['name'] . ' — Afrovanguard') ?>" />
   <script type="application/ld+json"><?= json_encode($jsonld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
-  <link rel="stylesheet" href="/assets/site/fonts.css" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>" />
   <link rel="preload" as="image" href="<?= e($P['img']) ?>" fetchpriority="high" />
-  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
-  <link rel="stylesheet" href="/assets/site/avh.css" />
-  <link rel="stylesheet" href="/assets/site/avcv.css" />
-  <link rel="stylesheet" href="/assets/site/avpj.css" />
-  <script src="/assets/site/avh.js" defer></script>
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avh.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avcv.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avpj.css')) ?>" />
+  <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
 </head>
 <body class="avh avpj" id="top">
 <a class="avh-skip" href="#main">Skip to content</a>
@@ -209,7 +209,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 </main>
 <?php avh_footer(); ?>
 </div>
-<script src="/assets/site/chioma.js" defer></script>
-<script src="/assets/site/celebrations.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
 </body>
 </html>

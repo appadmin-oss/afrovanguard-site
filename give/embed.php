@@ -32,7 +32,7 @@ header('Cache-Control: public, max-age=300');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e((string) $a['title']) ?></title>
-  <link href="/assets/site/fonts.css" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <style>
   :root { --ink:#111827; --muted:#646b77; --gold:#f3b416; --line:#e5e7eb; --bg:#fff; }
   @media (prefers-color-scheme: dark) { :root { --ink:#f3f4f6; --muted:#9aa2b1; --line:#2a3242; --bg:#0d1220; } }

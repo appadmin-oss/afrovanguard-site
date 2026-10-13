@@ -368,7 +368,7 @@ $creditWord = ['payment' => 'Payment', 'waiver' => 'Waived', 'writeoff' => 'Writ
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Vanguards · NGV staff</title>
-  <link href="/assets/site/fonts.css" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <style>
 /* ── Book claims awaiting review ─────────────────────────────────────────
    Flagged claims carry a red edge, because the queue puts them first and the

@@ -63,7 +63,7 @@ $payTo = class_exists('Ngv') ? (string) (Ngv::get()['schedule']['payment'] ?? ''
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $r ? 'Receipt ' . $e($r['no']) : 'Verify receipt' ?> · NextGen Vanguard</title>
-  <link href="/assets/site/fonts.css" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <style>
 /* Same brand tokens as certificate.php — a receipt and a certificate from the
    same programme should not look like they came from two different systems. */

@@ -79,11 +79,11 @@ $ladder = [
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
-  <link rel="stylesheet" href="/assets/site/fonts.css" />
-  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
-  <link rel="stylesheet" href="/assets/site/avh.css" />
-  <link rel="stylesheet" href="/assets/site/avhw.css" />
-  <script src="/assets/site/avh.js" defer></script>
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avh.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avhw.css')) ?>" />
+  <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
 </head>
 <body class="avh" id="top">
 <a class="avh-skip" href="#main">Skip to content</a>
@@ -208,7 +208,7 @@ $ladder = [
 </main>
 <?php avh_footer(); ?>
 </div>
-<script src="/assets/site/chioma.js" defer></script>
-<script src="/assets/site/celebrations.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
 </body>
 </html>

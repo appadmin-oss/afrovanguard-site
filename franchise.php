@@ -380,5 +380,5 @@ render_nav('involved');
     </div>
   </section>
 </main>
-<script src="/assets/site/avfr.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/avfr.js')) ?>" defer></script>
 <?php render_footer();

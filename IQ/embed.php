@@ -19,7 +19,7 @@ $exists = $slug !== '' && IQ::getForPlay($slug) !== null;
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Afrovanguard quiz</title>
-<link rel="stylesheet" href="/IQ/iq.css">
+<link rel="stylesheet" href="<?= e(av_asset('/IQ/iq.css')) ?>">
 <style>body{margin:0;background:transparent}.iq{padding:0}.iq-embeddoc .iq-player{margin:0}</style>
 </head>
 <body class="iq-embeddoc">
@@ -30,6 +30,6 @@ $exists = $slug !== '' && IQ::getForPlay($slug) !== null;
   <section class="iq-view" id="iqPlayer"></section>
 <?php endif; ?>
 </main>
-<script src="/IQ/iq.js" defer></script>
+<script src="<?= e(av_asset('/IQ/iq.js')) ?>" defer></script>
 </body>
 </html>

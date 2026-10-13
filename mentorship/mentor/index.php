@@ -190,7 +190,7 @@ require is_file($view) ? $view : __DIR__ . '/views/today.php';
 <?php require __DIR__ . '/views/_dialogs.php'; ?>
 
 <div class="avm-toast" data-avm-toast hidden><span></span><button type="button" hidden>Undo</button></div>
-<script src="/assets/site/avm.js" defer></script>
-<script src="/assets/site/avm-extra.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/avm.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/avm-extra.js')) ?>" defer></script>
 </body>
 </html>

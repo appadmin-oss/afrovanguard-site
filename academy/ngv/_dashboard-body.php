@@ -647,8 +647,8 @@ $ngvModal      = $ngvModal ?? ($ngvParts === null || in_array('reading', $ngvPar
       </div>
 <?php if ($ngvScript): ?>
 <script>window.NGV_CSRF = <?= json_encode($csrf) ?>;</script>
-<script src="/academy/ngv/pay.js" defer></script>
-<script src="/academy/ngv/reading.js" defer></script>
+<script src="<?= e(av_asset('/academy/ngv/pay.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/academy/ngv/reading.js')) ?>" defer></script>
 <script>
 (function(){
   var NGV_URL = '/academy/ngv/dashboard.php';

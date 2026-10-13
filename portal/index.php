@@ -210,15 +210,15 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   </nav>
 </div>
 
-  <script src="/portal/avp.js" defer></script>
-  <script src="/portal/dues-pay.js" defer></script>
-  <script src="/portal/notifications.js" defer></script>
+  <script src="<?= e(av_asset('/portal/avp.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/dues-pay.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/notifications.js')) ?>" defer></script>
 <?php if ($isVol): ?>  <script src="/assets/vendor/sortable/Sortable.min.js" defer></script>
-  <script src="/portal/volunteer.js" defer></script>
+  <script src="<?= e(av_asset('/portal/volunteer.js')) ?>" defer></script>
 <?php endif; ?>
-  <script src="/assets/site/avc-photo.js" defer></script>
-  <script src="/portal/card-photo.js" defer></script>
-  <script src="/assets/site/celebrations.js" defer></script>
-  <script src="/assets/site/nav.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avc-photo.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/card-photo.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/nav.js')) ?>" defer></script>
 </body>
 </html>

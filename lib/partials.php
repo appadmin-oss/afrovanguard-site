@@ -175,23 +175,23 @@ function render_head(array $o): void {
      the third-party request: the PDF renderer cannot fetch a webfont, so the
      printed card and the screen now read off the SAME files and cannot drift
      onto different typefaces. */ ?>
-  <link href="/assets/site/fonts.css" rel="stylesheet" />
-  <link href="/assets/site/tokens.css" rel="stylesheet" />
-  <link href="/diary/diary.css" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/tokens.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/diary/diary.css')) ?>" rel="stylesheet" />
 <?php if ($site): /* The Home chrome and the new system, then avpg.css, which
      re-points the old --afg-* and Diary tokens at --av-* and sets the type, so
      the page bodies built on diary.css read as part of the new site. nav.css is
      the old header's stylesheet and is not loaded. */ ?>
-  <link href="/assets/site/page.css" rel="stylesheet" />
-  <link href="/assets/site/av-tokens.css" rel="stylesheet" />
-  <link href="/assets/site/avh.css" rel="stylesheet" />
-  <link href="/assets/site/avpg.css" rel="stylesheet" />
-  <script src="/assets/site/avh.js" defer></script>
+  <link href="<?= e(av_asset('/assets/site/page.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/avh.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/avpg.css')) ?>" rel="stylesheet" />
+  <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
 <?php else: ?>
-  <link href="/assets/site/nav.css" rel="stylesheet" />
-  <link href="/assets/site/page.css" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/nav.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/page.css')) ?>" rel="stylesheet" />
 <?php endif; ?>
-<?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
+<?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e(av_asset($href)) ?>" rel="stylesheet" />
 <?php endforeach;
   // Studio Design panel brand override — last, so it re-points the accent vars
   // after every default stylesheet. Validated hex only; empty ⇒ built-in palette.
@@ -758,11 +758,11 @@ function render_footer(): void {
         if (!function_exists('avh_footer')) require_once AV_ROOT . '/partials/avh-chrome.php';
         avh_footer(); ?>
 </div>
-  <script src="/assets/site/nav.js" defer></script>
-  <script src="/assets/site/color-aware.js" defer></script>
-  <script src="/diary/diary.js" defer></script>
-<script src="/assets/site/chioma.js" defer></script>
-<script src="/assets/site/celebrations.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/nav.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/color-aware.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/diary/diary.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
 </body>
 </html>
 <?php
@@ -770,11 +770,11 @@ function render_footer(): void {
     } ?>
   <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
 <?php av_footer_inner(); ?>
-  <script src="/assets/site/nav.js" defer></script>
-  <script src="/assets/site/celebrations.js" defer></script>
-  <script src="/assets/site/color-aware.js" defer></script>
-  <script src="/diary/diary.js" defer></script>
-  <script src="/assets/site/chioma.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/nav.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/color-aware.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/diary/diary.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>
 </body>
 </html>
 <?php }

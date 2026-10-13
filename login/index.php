@@ -96,10 +96,10 @@ $desc  = 'Sign in to your Afrovanguard account to continue learning, track your 
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
-  <link rel="stylesheet" href="/assets/site/fonts.css" />
-  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
-  <link rel="stylesheet" href="/assets/site/avsi.css" />
-  <script src="/assets/site/avsi.js" defer></script>
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/avsi.css')) ?>" />
+  <script src="<?= e(av_asset('/assets/site/avsi.js')) ?>" defer></script>
 </head>
 <body class="avsi">
 <a class="avsi-skip" href="#avsi-card">Skip to sign in</a>

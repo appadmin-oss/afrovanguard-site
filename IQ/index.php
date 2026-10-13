@@ -83,5 +83,5 @@ render_nav('academy');
   </div>
 </main>
 
-<script src="/IQ/iq.js" defer></script>
+<script src="<?= e(av_asset('/IQ/iq.js')) ?>" defer></script>
 <?php render_footer(); ?>

@@ -220,6 +220,6 @@ render_nav('diary');
 <?php if ($audio) avd_audio_bar(); ?>
 <?php avd_highlight_toolbar(); ?>
   </div>
-  <script src="/assets/site/avd-reader.js" defer></script>
-  <script src="/assets/site/avd.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avd-reader.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avd.js')) ?>" defer></script>
 <?php render_footer();

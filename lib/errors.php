@@ -13,6 +13,16 @@
  */
 declare(strict_types=1);
 
+/**
+ * av_asset() when it is loaded, the plain URL when it is not. An error page is
+ * drawn from places that may not have the helpers (a fatal handler, the static
+ * page builder), and it must never fail for want of a cache-busting stamp.
+ */
+function av_err_asset(string $href): string {
+    $h = function_exists('av_asset') ? av_asset($href) : $href;
+    return htmlspecialchars($h, ENT_QUOTES, 'UTF-8');
+}
+
 function av_error_meta(int $code): array {
     $map = [
         400 => ['Bad request', 'That request didn’t make sense to us.', 'lost'],
@@ -76,11 +86,11 @@ function av_error_render(int $code, bool $static = false): void {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="robots" content="noindex, follow" />
 <title><?= $code ?> · <?= $esc($title) ?> — Afrovanguard</title>
-<link rel="stylesheet" href="/assets/site/fonts.css" />
-<link rel="stylesheet" href="/assets/site/av-tokens.css" />
-<link rel="stylesheet" href="/assets/site/avh.css" />
-<link rel="stylesheet" href="/assets/site/averr.css" />
-<script src="/assets/site/avh.js" defer></script>
+<link rel="stylesheet" href="<?= av_err_asset('/assets/site/fonts.css') ?>" />
+<link rel="stylesheet" href="<?= av_err_asset('/assets/site/av-tokens.css') ?>" />
+<link rel="stylesheet" href="<?= av_err_asset('/assets/site/avh.css') ?>" />
+<link rel="stylesheet" href="<?= av_err_asset('/assets/site/averr.css') ?>" />
+<script src="<?= av_err_asset('/assets/site/avh.js') ?>" defer></script>
 </head>
 <body class="avh" id="top">
 <a class="avh-skip" href="#main">Skip to content</a>
@@ -122,8 +132,8 @@ function av_error_render(int $code, bool $static = false): void {
 <?= $foot ?>
 
 </div>
-<script src="/assets/site/chioma.js" defer></script>
-<script src="/assets/site/celebrations.js" defer></script>
+<script src="<?= av_err_asset('/assets/site/chioma.js') ?>" defer></script>
+<script src="<?= av_err_asset('/assets/site/celebrations.js') ?>" defer></script>
 </body>
 </html><?php
     // Generate a fresh Claude poem for NEXT time — only after the response has

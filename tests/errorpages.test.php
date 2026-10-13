@@ -21,7 +21,7 @@ foreach (av_error_static_codes() as $code) {
        str_contains($file, "<!-- avh:nav -->\n" . $chrome['nav'] . "\n<!-- /avh:nav -->")
        && str_contains($file, "<!-- avh:foot -->\n" . $chrome['foot'] . "\n<!-- /avh:foot -->"));
     ck("errors: $code.html loads the new system and no inline <style>",
-       str_contains($file, 'href="/assets/site/av-tokens.css"') && str_contains($file, 'href="/assets/site/averr.css"') && !str_contains($file, '<style'));
+       str_contains($file, 'href="' . av_asset('/assets/site/av-tokens.css') . '"') && str_contains($file, 'href="' . av_asset('/assets/site/averr.css') . '"') && !str_contains($file, '<style'));
     ck("errors: $code.html has Home's skip link and main", str_contains($file, '<a class="avh-skip" href="#main">') && str_contains($file, '<main id="main" tabindex="-1"'));
     ck("errors: $code.html carries no frozen poem", !str_contains($file, 'averr-poem'));
 }

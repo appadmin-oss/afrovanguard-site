@@ -194,10 +194,10 @@ function avac_head(array $o): void
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="192x192" href="/assets/site/icon-192.png" />
   <link rel="apple-touch-icon" href="/assets/site/icon-192.png" />
-  <link rel="stylesheet" href="/assets/site/fonts.css" />
-  <link rel="stylesheet" href="/assets/site/av-tokens.css" />
-<?php foreach (($o['css'] ?? []) as $href): ?>  <link rel="stylesheet" href="<?= e((string) $href) ?>" />
-<?php endforeach; foreach (($o['js'] ?? []) as $src): ?>  <script src="<?= e((string) $src) ?>" defer></script>
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>" />
+  <link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" />
+<?php foreach (($o['css'] ?? []) as $href): ?>  <link rel="stylesheet" href="<?= e(av_asset((string) $href)) ?>" />
+<?php endforeach; foreach (($o['js'] ?? []) as $src): ?>  <script src="<?= e(av_asset((string) $src)) ?>" defer></script>
 <?php endforeach; ?>
 </head>
 <?php }

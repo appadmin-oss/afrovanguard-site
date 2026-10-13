@@ -32,7 +32,7 @@ header('X-Robots-Tag: noindex, follow');      // the appeal is the indexable pag
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Poster — <?= e((string) $a['title']) ?></title>
-  <link href="/assets/site/fonts.css" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
 <style>
   @page { size: A4 portrait; margin: 14mm; }
   :root { --ink:#0b0e14; --gold:#f3b416; --muted:#5b6170; --line:#d8dbe0; }

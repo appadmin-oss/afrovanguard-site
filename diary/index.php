@@ -240,6 +240,6 @@ render_nav('diary');
       </div>
     </section>
   </main>
-  <script src="/assets/site/avcv.js" defer></script>
-  <script src="/assets/site/avdl.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avcv.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/avdl.js')) ?>" defer></script>
 <?php render_footer();

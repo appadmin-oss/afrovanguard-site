@@ -57,9 +57,9 @@ $first = $holder ? (explode(' ', trim((string) $holder['name']))[0] ?: 'Member')
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $holder ? e($full ? (string) $holder['name'] : $first) . ' · NextGen Vanguard card' : 'Member card' ?> · Afrovanguard</title>
-<link rel="stylesheet" href="/assets/site/fonts.css">
-<link rel="stylesheet" href="/assets/site/av-tokens.css">
-<link rel="stylesheet" href="/assets/site/avc-card.css">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/avc-card.css')) ?>">
 <style>
 :root{--ink:#15120e;--muted:#4a4f5a;--line:#e3e5ea;--bg:#f5f6f8}
 *{box-sizing:border-box}

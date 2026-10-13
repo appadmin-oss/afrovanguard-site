@@ -70,10 +70,10 @@ $name = 'afrovanguard-card-' . preg_replace('/[^A-Za-z0-9-]/', '', $card['number
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Print card · <?= e((string) $holder['name']) ?> · Afrovanguard</title>
-<link rel="stylesheet" href="/assets/site/fonts.css">
-<link rel="stylesheet" href="/assets/site/av-tokens.css">
-<link rel="stylesheet" href="/assets/site/avc-card.css">
-<link rel="stylesheet" href="/assets/site/avc-print.css">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/avc-card.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/avc-print.css')) ?>">
 </head>
 <body class="avcp">
 <main class="avcp-main" id="main">
@@ -113,6 +113,6 @@ $name = 'afrovanguard-card-' . preg_replace('/[^A-Za-z0-9-]/', '', $card['number
 <?php endif; ?>
   <noscript><p class="avcp-msg avcp-msg--bad">The print files are made in this browser. Turn on JavaScript to download them.</p></noscript>
 </main>
-<script src="/assets/site/avc-print.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/avc-print.js')) ?>" defer></script>
 </body>
 </html>

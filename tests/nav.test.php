@@ -52,9 +52,9 @@ $headOf = static function (array $o): string {
 };
 $sh = $headOf(['body_class' => 'fr-page']);
 foreach (['/assets/site/av-tokens.css', '/assets/site/avh.css', '/assets/site/avpg.css', '/assets/site/fonts.css'] as $css) {
-    ck("nav: a site page's head loads $css", str_contains($sh, 'href="' . $css . '"'));
+    ck("nav: a site page's head loads $css", str_contains($sh, 'href="' . av_asset($css) . '"'));
 }
-ck("nav: …and avh.js, deferred", str_contains($sh, '<script src="/assets/site/avh.js" defer></script>'));
+ck("nav: …and avh.js, deferred", str_contains($sh, '<script src="' . av_asset('/assets/site/avh.js') . '" defer></script>'));
 ck("nav: …not the old nav stylesheet", !str_contains($sh, '/assets/site/nav.css'));
 ck('nav: …body.avh with the page class kept', str_contains($sh, '<body class="avh avpg fr-page" id="top"'));
 ck('nav: …the Home skip link to #main, then the .avh-page wrapper',
