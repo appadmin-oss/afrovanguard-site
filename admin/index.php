@@ -482,6 +482,7 @@
         <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
+        <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
         <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
         <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
@@ -499,6 +500,8 @@
           <option value="level">Set level…</option>
           <option value="membership_grant">Give months of dues (waiver or reason)…</option>
           <option value="membership_cancel">End dues…</option>
+          <option value="volunteer_add">Make volunteers</option>
+          <option value="volunteer_remove">Remove from volunteers</option>
         </select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
         <button class="btn btn-primary btn-sm" id="memBulkGo" disabled>Apply</button>
@@ -573,6 +576,8 @@
         <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
         <p class="muted tiny" id="md_lock" hidden></p>
+        <h3 class="mem-card-h">Volunteer</h3>
+        <div class="mem-card-row" id="mdVol" aria-live="polite"><span class="muted">…</span></div>
         <h3 class="mem-card-h">Dues</h3>
         <p class="muted tiny">Dues open paid courses. They are not Afrovanguard membership: paying them changes nobody's access level.</p>
         <div id="mdMembership" aria-live="polite"></div>

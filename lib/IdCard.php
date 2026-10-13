@@ -232,6 +232,16 @@ final class IdCard
         return '';
     }
 
+    /**
+     * What to call an ID, by the ID itself: "B-NGV-25-0005" is an NGV ID; an
+     * Afrovanguard member's ("E-AVM-17-0001", or any other format) is a
+     * Member ID. Only a NextGen Vanguard's number is ever called an NGV ID.
+     */
+    public static function kindLabel(string $id): string
+    {
+        return str_contains(strtoupper($id), '-NGV-') ? 'NGV ID' : 'Member ID';
+    }
+
     /** "E-AVM-17-0001" → ['E', 'AVM-17-0001']; anything else → ['', itself]. */
     public static function splitId(string $id): array
     {

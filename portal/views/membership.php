@@ -82,11 +82,14 @@ declare(strict_types=1);
       $bday = Birthdays::of((int) $u['id']); if ($bday): ?>
               <div><dt>Birthday</dt><dd><?= e(Birthdays::label($bday)) ?></dd></div>
 <?php endif; ?>
+<?php /* The ID they hold — an NGV ID only for a vanguard's NGV number. */
+      require_once AV_ROOT . '/lib/IdCard.php';
+      $myId = IdCard::printedId((int) $u['id']);
+      if ($myId !== ''): ?>
+              <div><dt><?= e(IdCard::kindLabel($myId)) ?></dt><dd class="av-num"><?= e($myId) ?></dd></div>
+<?php endif; ?>
 <?php if ($isNgv): ?>
               <div><dt>Programme</dt><dd>NextGen Vanguard<?= $ngvVars['myTrack'] !== '' ? ' · ' . e((string) $ngvVars['myTrack']) : '' ?></dd></div>
-<?php if (($ngvCard = GateAttendance::cardFor((int) $u['id'])) !== null): ?>
-              <div><dt>NGV ID</dt><dd class="av-num"><?= e($ngvCard) ?></dd></div>
-<?php endif; ?>
               <div><dt>NGV account</dt><dd><a href="#ngv-account" data-goto="ngv-account"><?= $ngvOwed > 0 ? '₦' . number_format($ngvOwed) . ' outstanding →' : 'All clear →' ?></a></dd></div>
 <?php endif; ?>
 <?php if ($hasGate): ?>

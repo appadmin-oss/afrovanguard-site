@@ -395,6 +395,8 @@ final class MemberRoster
             'staff' => self::isStaff($u),
             'learner' => !self::isMember($id),
             'membership' => Membership::summary($id),
+            /* Volunteer is explicit (lib/Volunteers): why, if they are one. */
+            'volunteer' => class_exists('Volunteers') ? Volunteers::why($u) : [],
         ];
     }
 
@@ -509,6 +511,11 @@ final class MemberRoster
             if ($kind === 'ngv') $w[] = $ids ? 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')' : '1 = 0';
             elseif ($ids) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', $ids)) . ')';
         }
+        /* Volunteers, or members who are not (lib/Volunteers decides). */
+        $vol = (string) ($f['volunteer'] ?? '');
+        $volIds = class_exists('Volunteers') ? Volunteers::volunteerIds() : [];
+        if ($vol === 'yes') $w[] = $volIds ? 'u.id IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')' : '1 = 0';
+        elseif ($vol === 'no' && $volIds) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')';
         $where = $w ? ' WHERE ' . implode(' AND ', $w) : '';
         $from = ' FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id' . $where;
         $pdo = Database::pdo();
@@ -525,11 +532,11 @@ final class MemberRoster
         $st->execute($a);
         $ngv = self::vanguardIds();
         $now = Membership::now(); $soon = gmdate('Y-m-d H:i:s', time() + Membership::DUE_SOON_DAYS * 86400);
-        $rows = array_map(static function ($r) use ($ngv, $now, $soon) {
+        $rows = array_map(static function ($r) use ($ngv, $now, $soon, $volIds) {
             $pt = (string) ($r['paid_through'] ?? '');
             $r['membership'] = $pt === '' || $pt <= $now ? 'none' : ($pt === '9999-12-31 00:00:00' ? 'lifetime' : ($pt <= $soon ? 'due_soon' : 'current'));
             if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
-            return $r + ['ngv' => isset($ngv[(int) $r['id']])];
+            return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']])];
         }, $st->fetchAll(PDO::FETCH_ASSOC));
         return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size];
     }
@@ -624,7 +631,7 @@ final class MemberRoster
      * refused with a reason); one audit line for the run.
      */
     public const BULK_MAX = 500;
-    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel'];
+    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel', 'volunteer_add', 'volunteer_remove'];
 
     public static function bulk(array $ids, string $action, array $value, string $actor, array $ctx = []): array
     {
@@ -668,7 +675,21 @@ final class MemberRoster
                you selected is not a decision anybody made. One at a time, in
                the drawer, where the guard and the person are both visible. */
             if ($action === 'status' && self::isStaff($u)) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'staff_account', 'error' => $u['name'] . ' is staff — change their status on their own record.']; $refused++; continue; }
-            if (str_starts_with($action, 'membership_')) {
+            if (str_starts_with($action, 'volunteer_') && class_exists('Volunteers')) {
+                $by = (int) ($ctx['self_id'] ?? 0);
+                if ($action === 'volunteer_add') {
+                    $r = Volunteers::promote([$id], $by, (string) ($value['note'] ?? ''));
+                    $outcome = $r['added'] ? 'applied' : 'unchanged';
+                } else {
+                    $why = Volunteers::why($u);
+                    if (!array_intersect($why, ['roster', 'team'])) { $r = ['ok' => true]; $outcome = 'unchanged'; }
+                    else { $r = Volunteers::unpromote($id, $by); $outcome = 'applied'; }
+                    if ($r['ok'] && ($still = array_values(array_diff($why, ['roster', 'team'])))) {
+                        $r = ['ok' => false, 'code' => 'still_volunteer', 'error' => $u['name'] . ' is still a volunteer through ' . implode(' and ', array_map(fn($w) => ['ngg' => 'NGG', 'people' => 'the People page'][$w] ?? $w, $still)) . '.'];
+                        $outcome = 'refused';
+                    }
+                }
+            } elseif (str_starts_with($action, 'membership_')) {
                 if ($ctx && $self === $id) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'own_account', 'error' => 'Your own membership is changed by another admin.']; $refused++; continue; }
                 $r = $action === 'membership_grant'
                     ? Membership::grant($id, ['months' => (int) $value['months'], 'method' => (string) ($value['method'] ?? ''), 'note' => (string) ($value['note'] ?? ''), 'actor' => $actor])

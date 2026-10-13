@@ -3155,6 +3155,7 @@
 
   function memRowHTML(m) {
     var badges = (m.ngv ? ' <span class="badge published" title="Enrolled in NextGen Vanguard, or holds an NGV ID card">NGV</span>' : '')
+      + (m.volunteer ? ' <span class="badge published" title="On the volunteer roster, a team, NGG\'s volunteer list or the People page">Volunteer</span>' : '')
       + (m.status === 'suspended' ? ' <span class="badge draft">suspended</span>' : '')
       + (m.membership && m.membership !== 'none' ? ' <span class="badge ' + (m.membership === 'due_soon' ? 'draft' : 'published') + '" title="' + escapeHtml(m.paid_through ? 'Paid through ' + String(m.paid_through).slice(0, 10) : 'Does not expire') + '">' + escapeHtml(MS_LABEL[m.membership]) + '</span>' : '');
     var meta = [m.email, m.phone, m.centre, 'level ' + (m.level || 'O'), m.role].filter(Boolean).map(escapeHtml).join(' · ');
@@ -3168,7 +3169,7 @@
   function loadMemRoster() {
     var box = $('#memList'); if (!box) return;
     var qs = ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-              'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'sort=' + $('#memSort').value,
+              'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value, 'sort=' + $('#memSort').value,
               'dir=' + ($('#memSort').value === 'name' ? 'asc' : 'desc'), 'page=' + memPage].join('&');
     box.innerHTML = '<p class="muted">Loading…</p>';
     api('roster_list&' + qs).then(function (r) {
@@ -3185,7 +3186,7 @@
   }
   function memFilterQs() {
     return ['q=' + encodeURIComponent($('#memQ').value.trim()), 'role=' + $('#memRole').value, 'status=' + $('#memStatus').value,
-            'kind=' + $('#memKind').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value].join('&');
+            'kind=' + $('#memKind').value, 'volunteer=' + $('#memVolunteer').value, 'missing=' + $('#memMissing').value, 'membership=' + $('#memMembership').value, 'segment=' + $('#memSegment').value].join('&');
   }
 
   /* ── Many members at once ──
@@ -3214,8 +3215,9 @@
     else if (a === 'level') value.level = raw;
     else if (a === 'membership_grant') { var m = raw.match(/^(\d+)\s*(.*)$/); if (!m) { toast('Start with the number of months, e.g. "12 Scholarship".'); return; } value.months = +m[1]; value.note = m[2]; if (/^waiver$/i.test(m[2])) { value.method = 'waiver'; value.note = ''; } }
     else if (a === 'membership_cancel') value.note = raw;
+    else if (a === 'volunteer_add' || a === 'volunteer_remove') action = a;
     var label = $('#memBulkAction').selectedOptions[0].textContent.replace(/…$/, '');
-    if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : ''))) return;
+    if (!confirm(label + ' — ' + n + ' account' + (n === 1 ? '' : 's') + '?' + (action === 'status' && value.status === 'suspended' ? ' They are signed out, and their gate pass stops at the door.' : '') + (action === 'volunteer_add' ? ' Each gets the Volunteer dashboard and a notification.' : action === 'volunteer_remove' ? ' They leave their volunteer teams; their hours stay on record.' : ''))) return;
     var b = $('#memBulkGo'); b.disabled = true;
     post('roster_bulk', { ids: ids, action: action, value: value }).then(function (r) {
       var d = r.data || {};
@@ -3314,7 +3316,7 @@
   /* One member's whole record */
   function memCardsHTML(cards) {
     return (cards || []).filter(function (c) { return c.status === 'active'; }).map(function (c) {
-      var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? 'NGV ID card' : 'Old printed card (' + escapeHtml(c.format) + ')';
+      var kind = c.kind === 'secure' ? 'Secure card' : c.kind === 'ngv' ? (/-NGV-/i.test(c.code) ? 'NGV ID' : 'Member ID') : 'Old printed card (' + escapeHtml(c.format) + ')';
       /* A secure card's QR opens /q/<code>: its live card and standing, and what the gate will say. */
       var open = c.kind === 'secure' ? ' <a class="btn btn-outline btn-sm" style="margin-left:auto" target="_blank" rel="noopener" href="/q/' + encodeURIComponent(c.code) + '">Card &amp; status</a>' : '';
       return '<div class="mem-card-row"><span class="badge published">' + kind + '</span><code>' + escapeHtml(c.code) + '</code>' + open + '</div>';
@@ -3344,11 +3346,37 @@
       $('#md_lock').textContent = locked ? m.name + ' is staff: only a Super Admin changes their access level, status or email.' : '';
       memMember = m; $('#mdMsForm').hidden = true;
       $('#mdMembership').innerHTML = msHTML(m.membership); loadMemMembership();
+      memVolDraw(m);
       memErrors('#md_errors', null);
       $('#memDrawer').hidden = false; $('#md_name').focus();
     });
   }
   function closeMember() { $('#memDrawer').hidden = true; memOpen = 0; }
+
+  /* Volunteer — explicit: an admin makes a member one (or a team, NGG or the
+     People page does). Being a member is not enough. */
+  var VOL_WHY = { roster: 'made a volunteer here', team: 'serves on a volunteer team', ngg: 'an NGG volunteer', people: 'listed as a volunteer on the People page' };
+  function memVolDraw(m) {
+    var why = m.volunteer || [], box = $('#mdVol');
+    var own = why.indexOf('roster') >= 0 || why.indexOf('team') >= 0;
+    box.innerHTML = (why.length ? '<span class="badge published">Volunteer</span><span class="muted">' + why.map(function (w) { return escapeHtml(VOL_WHY[w] || w); }).join(' · ') + '</span>'
+        : '<span class="muted">Not a volunteer.</span>')
+      + (own ? '<button class="btn btn-outline btn-sm" style="margin-left:auto" id="mdVolOff">Remove from volunteers</button>'
+        : !why.length ? '<button class="btn btn-primary btn-sm" style="margin-left:auto" id="mdVolOn">Make volunteer</button>' : '');
+    var on = $('#mdVolOn'), off = $('#mdVolOff');
+    if (on) on.onclick = function () { memVolSet('volunteer_add'); };
+    if (off) off.onclick = function () { if (confirm('Remove ' + m.name + ' from volunteers? They leave their volunteer teams; their hours stay on record.')) memVolSet('volunteer_remove'); };
+  }
+  function memVolSet(action) {
+    var id = memOpen;
+    post('roster_bulk', { ids: [id], action: action, value: {} }).then(function (r) {
+      var d = r.data || {}, x = (d.results || [])[0] || {};
+      if (!d.ok || x.outcome === 'refused') { toast((x && x.error) || d.error || 'Refused.'); }
+      else toast(action === 'volunteer_add' ? 'Now a volunteer.' : 'Removed from volunteers.');
+      api('roster_get&id=' + id).then(function (g) { if (g.data && g.data.member && memOpen === id) memVolDraw(g.data.member); });
+      loadMemRoster();
+    }).catch(function () { toast('Network error.'); });
+  }
 
   /* Import */
   var miText = '', miName = '', miDigest = '';
@@ -3400,7 +3428,7 @@
     document.querySelectorAll('.subtab[data-mv]').forEach(function (b) { b.addEventListener('click', function () { memTab(b.getAttribute('data-mv')); }); });
     $('#memQ').addEventListener('input', function () { clearTimeout(memT); memT = setTimeout(function () { memPage = 1; loadMemRoster(); }, 280); });
     $('#memSegment').innerHTML = '<option value="">Any record</option>' + Object.keys(MEM_SEGMENTS).map(function (k) { return '<option value="' + k + '">' + escapeHtml(MEM_SEGMENTS[k]) + '</option>'; }).join('');
-    ['#memRole', '#memStatus', '#memKind', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
+    ['#memRole', '#memStatus', '#memKind', '#memVolunteer', '#memMissing', '#memMembership', '#memSegment', '#memSort'].forEach(function (s) { $(s).addEventListener('change', function () { memPage = 1; memSel = {}; loadMemRoster(); }); });
     /* A tile opens its list: the roster with exactly that filter and no other. */
     $('#memTiles').addEventListener('click', function (e) {
       if (e.target.closest('#memDashRetry')) { loadMemDash(); return; }

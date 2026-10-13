@@ -17,10 +17,13 @@
  *     meetings to answer, minutes waiting on me, my open actions, my teams,
  *     my hours.
  *
- * Who is a volunteer: an organisation member (LmsAuth::isOrgMember — an
- * elevated role or an org email), anybody on a volunteer team, or anybody the
- * People page lists as a volunteer. Teams are created by coordinators and up;
- * a team's lead manages its members.
+ * Who is a volunteer is EXPLICIT — being an Afrovanguard member is not enough.
+ * Somebody is a volunteer when an admin made them one (the roster,
+ * vol_roster), when they serve on a volunteer team, when NGG lists them as an
+ * NGG volunteer (lib/NggVolunteers), or when the People page lists them as a
+ * volunteer. Coordinators and up open the dashboard to run teams, volunteer
+ * or not. Teams are created by coordinators and up; a team's lead manages its
+ * members.
  */
 declare(strict_types=1);
 
@@ -68,6 +71,19 @@ final class Volunteers
            thing that logs it runs; a manual one carries an empty ref and is not
            constrained. */
         try { $pdo->exec("CREATE UNIQUE INDEX uq_vol_hours_src ON vol_hours (user_id, source, source_ref)"); } catch (Throwable $e) {}
+        /* The roster: who an admin has made a volunteer, and who they took
+           off it. One row a person; removal keeps the row (and who did it). */
+        Database::execSchema($pdo, "
+        CREATE TABLE IF NOT EXISTS vol_roster (
+            user_id INTEGER NOT NULL PRIMARY KEY,
+            status VARCHAR(12) NOT NULL DEFAULT 'active',
+            source VARCHAR(16) NOT NULL DEFAULT 'admin',
+            note VARCHAR(300) NOT NULL DEFAULT '',
+            added_by INTEGER NOT NULL DEFAULT 0,
+            added_at VARCHAR(32) NOT NULL DEFAULT '',
+            removed_by INTEGER NOT NULL DEFAULT 0,
+            removed_at VARCHAR(32) NOT NULL DEFAULT ''
+        )");
     }
 
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
@@ -84,18 +100,129 @@ final class Volunteers
     public static function isVolunteer(array $u): bool
     {
         if (empty($u['id'])) return false;
-        if (LmsAuth::isOrgMember($u)) return true;
+        return self::why($u) !== [];
+    }
+
+    /**
+     * Why somebody is a volunteer — the sources, in order: 'roster' (an admin
+     * made them one), 'team' (they serve on a team), 'ngg' (NGG lists them),
+     * 'people' (the People page lists them). Empty for somebody who is not.
+     */
+    public static function why(array $u): array
+    {
+        if (empty($u['id'])) return [];
         self::ensure();
-        $st = Database::pdo()->prepare('SELECT 1 FROM vol_team_members m JOIN vol_teams t ON t.id = m.team_id WHERE m.user_id = ? AND t.archived = 0 LIMIT 1');
+        $pdo = Database::pdo();
+        $out = [];
+        $st = $pdo->prepare("SELECT 1 FROM vol_roster WHERE user_id = ? AND status = 'active'");
         $st->execute([(int) $u['id']]);
-        if ($st->fetchColumn()) return true;
-        /* An NGG volunteer, by the email NGG knows them by (lib/NggVolunteers). */
-        if (class_exists('NggVolunteers')) { try { if (NggVolunteers::forUser($u)) return true; } catch (Throwable $e) {} }
+        if ($st->fetchColumn()) $out[] = 'roster';
+        $st = $pdo->prepare('SELECT 1 FROM vol_team_members m JOIN vol_teams t ON t.id = m.team_id WHERE m.user_id = ? AND t.archived = 0 LIMIT 1');
+        $st->execute([(int) $u['id']]);
+        if ($st->fetchColumn()) $out[] = 'team';
+        if (class_exists('NggVolunteers')) { try { if (NggVolunteers::forUser($u)) $out[] = 'ngg'; } catch (Throwable $e) {} }
         try {
-            $st = Database::pdo()->prepare("SELECT 1 FROM team WHERE LOWER(email) = ? AND tier = 'volunteer' LIMIT 1");
-            $st->execute([strtolower((string) ($u['email'] ?? ''))]);
-            return (bool) $st->fetchColumn();
-        } catch (Throwable $e) { return false; }
+            $email = strtolower(trim((string) ($u['email'] ?? '')));
+            if ($email !== '') {
+                $st = $pdo->prepare("SELECT 1 FROM team WHERE LOWER(email) = ? AND tier = 'volunteer' AND active = 1 LIMIT 1");
+                $st->execute([$email]);
+                if ($st->fetchColumn()) $out[] = 'people';
+            }
+        } catch (Throwable $e) {}
+        return $out;
+    }
+
+    /** Who opens the Volunteer dashboard: volunteers, and coordinators who run them. */
+    public static function canOpenDashboard(array $u): bool
+    {
+        return self::isVolunteer($u) || self::canRunTeams($u);
+    }
+
+    /* ══ The roster (admin) ═════════════════════════════════════════════════ */
+
+    /**
+     * Make members volunteers. Accepts any number of user ids; somebody
+     * already on the roster is left as they are, somebody removed earlier is
+     * put back. Returns how many were added and how many already were.
+     */
+    public static function promote(array $userIds, int $by, string $note = '', string $source = 'admin'): array
+    {
+        self::ensure();
+        $pdo = Database::pdo();
+        $ids = array_values(array_unique(array_filter(array_map('intval', $userIds), fn($i) => $i > 0)));
+        $added = 0; $already = 0; $missing = 0;
+        $note = mb_substr(trim($note), 0, 300);
+        $now = self::now();
+        foreach ($ids as $id) {
+            $u = self::user($id);
+            if (!$u) { $missing++; continue; }
+            $st = $pdo->prepare('SELECT status FROM vol_roster WHERE user_id = ?');
+            $st->execute([$id]);
+            $cur = $st->fetchColumn();
+            if ($cur === 'active') { $already++; continue; }
+            if ($cur === false) {
+                $pdo->prepare('INSERT INTO vol_roster (user_id, status, source, note, added_by, added_at) VALUES (?,?,?,?,?,?)')->execute([$id, 'active', $source, $note, $by, $now]);
+            } else {
+                $pdo->prepare("UPDATE vol_roster SET status = 'active', source = ?, note = ?, added_by = ?, added_at = ?, removed_by = 0, removed_at = '' WHERE user_id = ?")->execute([$source, $note, $by, $now, $id]);
+            }
+            $added++;
+            if (class_exists('Notifications')) {
+                try { Notifications::push($id, 'volunteer', 'You are now an Afrovanguard volunteer',
+                    'Your Volunteer dashboard is open: your meetings, tasks, shifts and hours in one place.', '/portal/#volunteer', 'volroster:' . $id . ':' . $now); } catch (Throwable $e) {}
+            }
+        }
+        if (class_exists('AdminAudit') && $added) { try { AdminAudit::log('members', 'volunteers.promote', count($ids) === 1 ? 'user#' . $ids[0] : count($ids) . ' members', $added . ' made volunteers' . ($already ? ', ' . $already . ' already were' : '') . ($note !== '' ? ' — ' . $note : ''), null, 'user#' . $by); } catch (Throwable $e) {} }
+        return ['ok' => true, 'added' => $added, 'already' => $already, 'missing' => $missing];
+    }
+
+    /**
+     * Take somebody off the roster. Their teams go too (a team is a
+     * volunteer's), their hours and history stay. An NGG volunteer or a
+     * People-page volunteer is still one by that route — the answer says so.
+     */
+    public static function unpromote(int $userId, int $by): array
+    {
+        self::ensure();
+        $pdo = Database::pdo();
+        $pdo->prepare("UPDATE vol_roster SET status = 'removed', removed_by = ?, removed_at = ? WHERE user_id = ?")->execute([$by, self::now(), $userId]);
+        $pdo->prepare('DELETE FROM vol_team_members WHERE user_id = ?')->execute([$userId]);
+        if (class_exists('AdminAudit')) { try { AdminAudit::log('members', 'volunteers.remove', 'user#' . $userId, 'taken off the volunteer roster', null, 'user#' . $by); } catch (Throwable $e) {} }
+        $u = self::user($userId);
+        $still = $u ? array_values(array_diff(self::why($u), ['roster', 'team'])) : [];
+        return ['ok' => true, 'still' => $still];
+    }
+
+    /**
+     * Every user id that is a volunteer, as a set (id => true): the roster,
+     * team members, NGG volunteers and People-page volunteers by email. One
+     * pass over each source, for lists and filters.
+     */
+    public static function volunteerIds(): array
+    {
+        self::ensure();
+        $pdo = Database::pdo();
+        $ids = [];
+        foreach ($pdo->query("SELECT user_id FROM vol_roster WHERE status = 'active'")->fetchAll(PDO::FETCH_COLUMN) as $i) $ids[(int) $i] = true;
+        foreach ($pdo->query('SELECT m.user_id FROM vol_team_members m JOIN vol_teams t ON t.id = m.team_id WHERE t.archived = 0')->fetchAll(PDO::FETCH_COLUMN) as $i) $ids[(int) $i] = true;
+        if (class_exists('NggVolunteers')) {
+            try {
+                NggVolunteers::ensure();
+                foreach ($pdo->query("SELECT u.id FROM lms_users u JOIN ngg_volunteers n ON n.status = 'active' AND (n.user_id = u.id OR (n.email <> '' AND n.email = LOWER(u.email)))")->fetchAll(PDO::FETCH_COLUMN) as $i) $ids[(int) $i] = true;
+            } catch (Throwable $e) {}
+        }
+        try {
+            foreach ($pdo->query("SELECT u.id FROM lms_users u JOIN team t ON LOWER(t.email) = LOWER(u.email) AND t.tier = 'volunteer' AND t.active = 1 WHERE u.email <> ''")->fetchAll(PDO::FETCH_COLUMN) as $i) $ids[(int) $i] = true;
+        } catch (Throwable $e) {}
+        unset($ids[0]);
+        return $ids;
+    }
+
+    /** The roster status of many users at once: id => ['volunteer' => bool, 'why' => [...]]. */
+    public static function statusFor(array $users): array
+    {
+        $out = [];
+        foreach ($users as $u) $out[(int) $u['id']] = ['volunteer' => ($w = self::why($u)) !== [], 'why' => $w];
+        return $out;
     }
 
     /**
@@ -117,7 +244,7 @@ final class Volunteers
             } catch (Throwable $e) {}
         }
         foreach (self::teamsFor($u) as $t) $out[] = ['source' => 'team', 'label' => $t['name'], 'detail' => self::ROLES[$t['my_role']] ?? 'Member'];
-        if (LmsAuth::isOrgMember($u)) $out[] = ['source' => 'afrovanguard', 'label' => 'Afrovanguard member', 'detail' => ucfirst((string) ($u['role'] ?? 'member'))];
+        if (in_array('roster', self::why($u), true)) $out[] = ['source' => 'afrovanguard', 'label' => 'Afrovanguard volunteer', 'detail' => ''];
         try {
             $st = Database::pdo()->prepare("SELECT role FROM team WHERE LOWER(email) = ? AND tier = 'volunteer' AND active = 1 LIMIT 1");
             $st->execute([strtolower((string) ($u['email'] ?? ''))]);

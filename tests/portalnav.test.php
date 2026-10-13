@@ -30,10 +30,10 @@ ck('portal nav: every view link names a view that exists', (function () use ($id
     $views = [];
     foreach (array_merge([AV_ROOT . '/portal/index.php'], glob(AV_ROOT . '/portal/views/*.php') ?: []) as $f) if (preg_match_all('~class="pview[^"]*"[^>]*data-view="([a-z-]+)"|data-view="([a-z-]+)"[^>]*class="pview~', (string) file_get_contents($f), $m)) foreach (array_merge($m[1], $m[2]) as $v) if ($v !== '') $views[$v] = true;
     // The sidebar and tab bar are drawn from PHP lists of ['id', 'Label', …]; plus any literal link.
-    $nav = substr($idx, (int) strpos($idx, '$nav = [];'), 6000);
+    $nav = substr($idx, (int) strpos($idx, "['overview', 'Today'"), 6000);
     preg_match_all("~\\['([a-z-]+)', '~", $nav, $l);
     preg_match_all('~class="avp-(?:nav-link|tab)[^"]*"[^>]*data-view="([a-z-]+)"~', $idx, $l2);
     $ids = array_unique(array_merge($l[1], $l2[1]));
     foreach ($ids as $v) if (!isset($views[$v])) return false;
-    return count($ids) >= 3;
+    return count($ids) >= 8;
 })());

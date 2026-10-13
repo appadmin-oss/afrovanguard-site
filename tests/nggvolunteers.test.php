@@ -107,6 +107,8 @@ VolunteerWork::mark($coord, $o['id'], 9501, 'attended');
 /* ── Kudos ── */
 ck('Kudos: not to yourself', !VolunteerWork::give($ada, 9501, 'thanks', 'Me!')['ok']);
 ck('Kudos: not to somebody who is no volunteer', !VolunteerWork::give($ada, 9502, 'thanks', 'Thanks')['ok']);
+ck('Kudos: a coordinator is no volunteer until made one', !VolunteerWork::give($ada, 9503, 'thanks', 'Thanks')['ok']);
+Volunteers::promote([9503], 1, 'Runs the events team');
 $k = VolunteerWork::give($ada, 9503, 'teamwork', 'Ran the whole setup day.');
 ck('Kudos: to a volunteer, with a word — and they are told', $k['ok'] && (int) $np->query("SELECT COUNT(*) FROM user_notifications WHERE user_id = 9503 AND title LIKE '%sent you kudos'")->fetchColumn() === 1);
 ck('Kudos: on the receiver\'s list and the team\'s wall', VolunteerWork::kudosFor($coord)['count'] === 1 && count(VolunteerWork::kudosFor($ada)['wall']) === 1);

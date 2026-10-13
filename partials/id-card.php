@@ -1,7 +1,7 @@
 <?php
 /**
  * Member ID card, front + back. Class prefix avc-.
- * Used by: portal "Your NGV ID", q.php (holder/staff), admin print, card/print-template.php.
+ * Used by: portal "Your NGV ID" / "Your Member ID", q.php (holder/staff), admin print, card/print-template.php.
  *
  * Built to design/Afrovanguard Member ID Card.dc.html, which is drawn at 10px per
  * card millimetre: every size in avc-card.css is that design's px ÷ 10, times --u.

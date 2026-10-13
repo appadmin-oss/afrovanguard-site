@@ -27,17 +27,17 @@ $css    = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 ck('the sidebar no longer hides navigation links as you type — the one pattern the evidence '
  . 'says measurably costs discoverability',
    !str_contains($portal, "a.style.display=(!q||t.indexOf(q)>=0)?'':'none'"));
-/* The portal is the Volunteer dashboard and Membership now (owner, 2026-10-13):
-   two places need no search box, so the palette is not offered there. The
-   script stays — it is the console's too — and its behaviours are pinned below. */
-ck('the portal no longer offers the palette: two views need no search box',
-   !str_contains($portal, 'data-cmdk="cmd"') && !str_contains($portal, '/portal/palette.js'));
+ck('and what replaced it is a button, because it opens a dialog',
+   str_contains($portal, '<button class="avp-search" type="button" data-cmdk="cmd">'));
+ck('which says which key it is', str_contains($portal, '<kbd class="cmdk-mod">Ctrl</kbd>'));
 ck('and the script corrects that on a Mac, where the server cannot know',
    str_contains($js, 'k.textContent = MOD;'));
 
 /* ── One list of where you can go ────────────────────────────────────────── */
-ck('where it is used, it reads the page\'s navigation rather than keeping a second copy',
-   str_contains($js, 'navFrom'));
+ck('the palette reads the sidebar rather than keeping a second copy of the panes',
+   str_contains($portal, "'navFrom' => '.pnav-link[data-view]'"));
+ck('a link with no pane behind it is not offered — Academy and the main site leave the app',
+   str_contains($portal, '.pnav-link[data-view]'));
 ck('a badge count is stripped from the label: "Today 3" stops matching the moment somebody '
  . 'clears one', str_contains($js, '.pnav-badge'));
 

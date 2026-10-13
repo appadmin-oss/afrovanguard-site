@@ -41,8 +41,18 @@ $vp->prepare("UPDATE lms_users SET email = 'outsider@gmail.test' WHERE id = 9306
 $out['email'] = 'outsider@gmail.test';
 
 /* ── Who ── */
-ck('Volunteers: an org member is a volunteer', Volunteers::isVolunteer($mem));
-ck('Volunteers: …a learner with a personal email is not', !Volunteers::isVolunteer($out));
+$vp->exec('DELETE FROM vol_roster WHERE user_id BETWEEN 9300 AND 9399');
+ck('Volunteers: being an Afrovanguard member is not being a volunteer', !Volunteers::isVolunteer($mem) && !Volunteers::isVolunteer($out));
+ck('Volunteers: …a coordinator opens the dashboard to run teams without being one', !Volunteers::isVolunteer($coord) && Volunteers::canOpenDashboard($coord) && !Volunteers::canOpenDashboard($mem));
+$pr = Volunteers::promote([9304, 9304, 99999], 9301, 'Outreach drive');
+ck('Volunteers: an admin makes a member a volunteer — once, however often asked', $pr['added'] === 1 && $pr['missing'] === 1 && Volunteers::isVolunteer($mem) && Volunteers::why($mem) === ['roster']
+    && Volunteers::promote([9304], 9301)['already'] === 1);
+ck('Volunteers: …and is told', (int) $vp->query("SELECT COUNT(*) FROM user_notifications WHERE user_id = 9304 AND title LIKE 'You are now%'")->fetchColumn() === 1);
+ck('Volunteers: the set of volunteers for lists and filters', isset(Volunteers::volunteerIds()[9304]) && !isset(Volunteers::volunteerIds()[9305]));
+$un = Volunteers::unpromote(9304, 9301);
+ck('Volunteers: …and takes them off again; nothing else makes them one', $un['ok'] && $un['still'] === [] && !Volunteers::isVolunteer($mem));
+Volunteers::promote([9304], 9301);
+ck('Volunteers: put back, they are one again', Volunteers::isVolunteer($mem));
 
 /* ── Teams ── */
 ck('Volunteers: only a coordinator starts a team', !Volunteers::createTeam($mem, 'Outreach')['ok']);
@@ -232,14 +242,13 @@ ck('Engagement: …the hub carries all of it, with the monthly goal', Volunteers
 ck('Engagement: somebody with nothing yet has no streak and a first milestone ahead', ($e0 = Volunteers::engagement($out))['streak'] === 0 && $e0['earned'] === [] && $e0['next']['key'] === 'first_hour');
 $vp->exec('DELETE FROM gate_attendance WHERE member_id BETWEEN 9300 AND 9399');
 
-/* ── The portal is the dashboard and Membership ── */
+/* ── The portal: the member portal as it was; the dashboard for volunteers ── */
 $idx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
-ck('Portal: the dashboard is the volunteer\'s home, drawn first', strpos($idx, "require __DIR__ . '/views/volunteer.php'") < strpos($idx, "require __DIR__ . '/views/membership.php'")
-    && str_contains((string) file_get_contents(AV_ROOT . '/portal/avp.js'), "var home = views[0].getAttribute('data-view');"));
-ck('Portal: nothing else is drawn — no Today, Suite, Tasks, Chat, Learning, Community, Mentorship, Workspace or Diary',
-    !preg_match("~views/(today|tools|tasks|chat|learning|community|mentorship|inventory|workspace|diary)\.php~", $idx));
+ck('Portal: the member portal is intact — Today, Suite, Tasks, Learning, Diary, Membership',
+    preg_match_all("~views/(today|tools|tasks|learning|diary|membership)\.php~", $idx) >= 6);
+ck('Portal: the Volunteer dashboard is drawn only for volunteers and those who run them',
+    str_contains($idx, '$isVol = class_exists(\'Volunteers\') && Volunteers::canOpenDashboard($u);') && str_contains($idx, "if (\$isVol) require __DIR__ . '/views/volunteer.php';"));
 ck('Portal: vanguards keep their programme', str_contains($idx, "if (\$isNgv) require __DIR__ . '/views/ngv.php';"));
-ck('Portal: attendance is in the dashboard for a volunteer', str_contains((string) file_get_contents(AV_ROOT . '/portal/views/volunteer.php'), "_attendance.php") && str_contains($idx, '$attView = ($hasGate || $isNgv) && !$isVol;'));
 
 /* ── The sweep ── */
 $vp->exec("DELETE FROM meeting_nudges");

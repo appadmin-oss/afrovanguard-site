@@ -86,9 +86,11 @@ ck('the door does not try to decide CRM access itself — that rule lives on the
 
 /* ── The link is hidden when the bridge is off ──────────────────────────── */
 $dash = av_portal_source();
-/* The portal is the Volunteer dashboard and Membership now (owner, 2026-10-13):
-   the door to CACENTRE stays (portal/crm.php), the sidebar link does not. */
-ck('portal: the sidebar no longer links out to the CACENTRE workspace', !str_contains(file_get_contents(AV_ROOT . '/portal/index.php'), 'CacSso::DOOR'));
+ck('portal: the workspace link only shows when a secret is set',
+   str_contains($dash, 'CacSso::ready()') && str_contains($dash, 'CacSso::DOOR'));
+ck('portal: and it is named for the place, not for one screen in it — behind it are '
+ . 'the pipeline, the tasks, the register and writing for the site',
+   str_contains($dash, 'CACENTRE workspace') && !str_contains($dash, '>CRM<'));
 
 /* ── The format is mirrored, and the mirror is named ────────────────────── */
 ck('CacSso: the file names its counterpart, because a wire format defined twice drifts',

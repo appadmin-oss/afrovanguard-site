@@ -3,7 +3,7 @@
  * portal/_attendance.php — "Attendance & pass", the CACENTRE gate inside the portal.
  *
  * The same record /gate-pass shows (lib/GateAttendance.php): the pass to hold
- * up at a desk, the member's NGV card, the last thirty days, points, and
+ * up at a desk, the member's ID card, the last thirty days, points, and
  * telling the office about a day away — in the portal's own cards, so a
  * member does not leave the portal to see their own attendance. /gate-pass
  * stays as the full-screen pass for the desk, one tap away.
@@ -17,6 +17,9 @@ $gpMid = (int) $u['id'];
 $gpWhy = !GatePass::ready() ? 'Gate passes are not switched on yet.' : (GatePass::whyNot($u) ?? '');
 $gpPass = $gpWhy === '' ? GatePass::mint($u) : null;
 $gpCard = GateAttendance::cardFor($gpMid);
+require_once __DIR__ . '/../lib/IdCard.php';
+/* An NGV ID for a vanguard; a Member ID for everybody else (IdCard::kindLabel). */
+$gpIdLabel = IdCard::kindLabel($gpCard ?? IdCard::printedId($gpMid));
 $gpSecure = class_exists('MemberCards') ? MemberCards::secure($gpMid) : null;
 /* The one standing (lib/NgvCard.php): what the card prints, here live. */
 $gpStanding = NgvCard::standing($u);
@@ -66,7 +69,7 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
               </div>
             </section>
             <section class="pcard" id="gp-idcard">
-              <div class="pcard-head"><h2>Your NGV ID</h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$gpStanding['tone']] ?? 'indigo') ?>"><?= e($gpStanding['label']) ?></span></div>
+              <div class="pcard-head"><h2>Your <?= e($gpIdLabel) ?></h2><span class="pchip pchip--<?= e(['ok' => 'green', 'warn' => 'gold', 'bad' => 'red'][$gpStanding['tone']] ?? 'indigo') ?>"><?= e($gpStanding['label']) ?></span></div>
               <div class="pcard-body">
                 <?php
                   require_once __DIR__ . '/../lib/IdCard.php';
@@ -80,7 +83,7 @@ if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, '
             <section class="pcard" id="gp-cards">
               <div class="pcard-head"><h2>Your cards</h2></div>
               <div class="pcard-body ngv-rows">
-<?php if ($gpCard): ?>                <div class="ngv-row"><div><span class="k">NGV ID card</span><span class="d">The number printed on your card — scanned, or typed at the desk.</span></div><span class="amt gp-mono"><?= e($gpCard) ?></span></div>
+<?php if ($gpCard): ?>                <div class="ngv-row"><div><span class="k"><?= e($gpIdLabel) ?></span><span class="d">The number printed on your card — scanned, or typed at the desk.</span></div><span class="amt gp-mono"><?= e($gpCard) ?></span></div>
 <?php endif; ?>
 <?php if ($gpSecure): ?>                <div class="ngv-row"><div><span class="k">Gate card</span><span class="d">The card the office prints for you. Lost it? Tell the office and it stops at once.</span></div><span class="amt gp-mono"><?= e($gpSecure) ?></span></div>
 <?php endif; ?>
