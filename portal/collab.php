@@ -137,6 +137,25 @@ try {
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
 
+        /* ── This week at CACENTRE (lib/CacWeek.php) ─────────────────────
+           The member's commitments for the week and the goals they feed; a
+           task here can count toward one of them. */
+        case 'cac_week':
+            $w = CacWeek::forMember($u, isset($_GET['on']) ? (string) $_GET['on'] : null);
+            json_out($w + ['attached' => (object) CacWeek::attachedFor($uid)]);
+
+        case 'cac_count':
+            $writeGuard();
+            if (!av_rate_ok('collab_cac_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $r = CacWeek::attach($u, (int) ($body['id'] ?? 0), max(0, (int) ($body['commitment_id'] ?? 0)));
+            if ($r['ok']) json_out(['ok' => true, 'week' => $r['week'], 'attached' => (object) CacWeek::attachedFor($uid)]);
+            json_out(['ok' => false, 'error' => match ($r['error']) {
+                'not-yours'      => 'That commitment is not one of yours on CACENTRE.',
+                'unreachable'    => 'CACENTRE did not answer. Nothing was changed.',
+                'not-configured' => 'The link to CACENTRE is not set up here.',
+                default          => $r['error'] !== '' ? $r['error'] : 'CACENTRE refused that.',
+            }], 502);
+
         /* ── A CACENTRE task, changed over there ───────────────────────
            Not stored here. The change is sent to CACENTRE, which holds the
            row and checks the task's owner against it before touching it. One

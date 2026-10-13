@@ -310,6 +310,7 @@ require_once __DIR__ . '/OfflinePayments.php';  /* offline payments, credited on
 require_once __DIR__ . '/NgvIntake.php';        /* NGG promotions to NGV become NGV accounts here */
 require_once __DIR__ . '/NgvFines.php';         /* NGV fines: catalogue, issue, list, import with smart assignment */
 require_once __DIR__ . '/CacTasks.php';   /* the console's tasks, read for the portal */
+require_once __DIR__ . '/CacWeek.php';    /* this week at CACENTRE; portal tasks that count toward it */
 require_once __DIR__ . '/CacInventory.php'; /* and its register, for the same reason */
 require_once __DIR__ . '/CacLeads.php';    /* and the follow-ups a member owes */
 require_once __DIR__ . '/LmsRepository.php';

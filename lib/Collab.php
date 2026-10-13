@@ -394,6 +394,8 @@ final class Collab
         $new = $t['done'] ? 0 : 1;
         Database::pdo()->prepare('UPDATE collab_tasks SET done = ? WHERE id = ?')->execute([$new, $taskId]);
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
+        /* Counted toward a CACENTRE commitment: the tick counts there too. */
+        if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId);
         return (bool) $new;
     }
 
@@ -439,7 +441,9 @@ final class Collab
     public static function deleteTask(int $uid, int $taskId): bool
     {
         self::ensureTasks();
-        if (!self::ownedTask($uid, $taskId)) return false;
+        $t = self::ownedTask($uid, $taskId);
+        if (!$t) return false;
+        if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId, true);
         Database::pdo()->prepare('DELETE FROM collab_tasks WHERE id = ?')->execute([$taskId]);
         return true;
     }

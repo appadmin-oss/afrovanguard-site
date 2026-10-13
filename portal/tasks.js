@@ -47,6 +47,8 @@
       var dm = (t.due&&!t.done) ? dueMeta(t) : null;
       var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
       var goal = t.goal_title ? ' <span class="task-goal" title="Advances a goal">◎ '+esc(t.goal_title)+'</span>' : '';
+      var cw = (typeof ATTACHED!=='undefined' && ATTACHED[t.id] && WEEK && WEEK.commitments) ? (WEEK.commitments.filter(function(c){return c.id===ATTACHED[t.id];})[0]||null) : null;
+      if(cw) goal += ' <span class="task-goal task-goal--cac">Counts toward: '+esc(cw.statement)+'</span>';
       var rel = (t.mine && !t.done) ? '<button type="button" class="task-release" title="Return to the pool" aria-label="Return to pool">↩</button>' : '';
       return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
@@ -169,7 +171,7 @@
     listEl.addEventListener('click', function(e){
       if(e.target.closest('#doneToggle')){ SHOW_DONE=!SHOW_DONE; render(); return; }
       var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
-      if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); } }); }
+      if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); if(ATTACHED[id]) loadWeek(); } }); }
       else if(e.target.closest('.task-release')){ var rt=TASKS.filter(function(t){return t.id===id;})[0]; post('task_release',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } }); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
 
@@ -196,7 +198,49 @@
             : ('Added '+d.created.length+' task'+(d.created.length===1?'':'s')+' to the pool'+(ALLOCATES?', each with who it fits — assign in one click, or let people claim.':' — claim what you can take on.')),'ok'); }
         else { aiSay((d&&d.error)||'Could not generate tasks. Try again.','warn'); } }).catch(function(){ aiBtn.disabled=false; aiBtn.textContent=old; aiSay('Network error — try again.','warn'); }); });
 
+    // ── This week at CACENTRE: commitments, goals, and tasks that count toward them
+    var weekEl=document.getElementById('cacWeek'), weekList=document.getElementById('cacWeekList'), weekMsg=document.getElementById('cacWeekMsg'), WEEK=null, ATTACHED={};
+    function fmtN(n){ n=+n||0; return (Math.round(n*10)/10).toLocaleString(); }
+    function weekSay(msg,tone){ if(!weekMsg) return; weekMsg.hidden=!msg; weekMsg.textContent=msg||''; weekMsg.className='task-ai-msg'+(tone?(' is-'+tone):''); }
+    function taskTitle(id){ var t=TASKS.filter(function(x){return x.id===id;})[0]; return t?t.title:('Task '+id); }
+    function renderWeek(){
+      if(!weekEl||!WEEK) return;
+      if(!WEEK.ok){ weekEl.hidden = WEEK.error==='not-configured'; if(!weekEl.hidden){ weekList.innerHTML='<li class="pc-empty">CACENTRE did not answer just now. Your tasks here are unaffected.</li>'; } return; }
+      weekEl.hidden=false;
+      var r=document.getElementById('cacWeekRange'); if(r&&WEEK.week){ r.textContent=WEEK.week.start+' – '+WEEK.week.end; }
+      if(!WEEK.linked){ weekList.innerHTML='<li class="pc-empty">Your CACENTRE record is not linked to this account yet. Sign in to CACENTRE once from the portal, or ask your coordinator to add this email to your record.</li>'; return; }
+      if(!WEEK.commitments.length){ weekList.innerHTML='<li class="pc-empty">No commitments for this week yet. Set them on CACENTRE — they appear here.</li>'; return; }
+      var open=TASKS.filter(function(t){ return !t.done && (t.mine || t.creator_name==='You'); });
+      weekList.innerHTML=WEEK.commitments.map(function(c){
+        var pct=c.target>0?Math.min(100,Math.round(100*c.delivered/c.target)):0, g=c.goal;
+        var counted=Object.keys(ATTACHED).filter(function(k){return ATTACHED[k]===c.id;}).map(Number);
+        var free=open.filter(function(t){ return !ATTACHED[t.id]; });
+        var gp=g&&g.target?Math.min(100,Math.round(100*g.progress/g.target)):null;
+        return '<li class="cw-item'+(c.status!=='open'?' is-closed':'')+'" data-c="'+c.id+'">'
+          +'<div class="cw-top"><span class="cw-stmt">'+esc(c.statement)+'</span><span class="cw-when">'+(c.period==='daily'?'Daily · ':'')+esc(c.status==='open'?('by '+c.end):c.status)+'</span></div>'
+          +'<div class="cw-meter"><progress max="'+(c.target||1)+'" value="'+Math.min(c.delivered,c.target||1)+'" aria-label="'+esc(c.statement)+': '+fmtN(c.delivered)+' of '+fmtN(c.target)+' '+esc(c.unit)+'"></progress>'
+          +'<span class="cw-num" aria-hidden="true">'+fmtN(c.delivered)+' / '+fmtN(c.target)+' '+esc(c.unit)+' · '+pct+'%</span></div>'
+          +(g?'<div class="cw-goal">Feeds <b>'+esc(g.code?g.code+' · ':'')+esc(g.title)+'</b>'+(gp!==null?' — '+gp+'% of '+fmtN(g.target)+' '+esc(g.unit):'')+(g.due?' · due '+esc(g.due):'')+'</div>':'<div class="cw-goal">Not tied to a goal yet.</div>')
+          +(counted.length?'<ul class="cw-tasks" aria-label="Tasks counting toward this">'+counted.map(function(id){ var t=TASKS.filter(function(x){return x.id===id;})[0];
+              return '<li>'+(t&&t.done?'✓ ':'○ ')+esc(taskTitle(id))+'<span class="sr-only">'+(t&&t.done?', done':', open')+'</span> <button type="button" class="cw-off" data-t="'+id+'">Stop counting<span class="sr-only">: '+esc(taskTitle(id))+'</span></button></li>'; }).join('')+'</ul>':'')
+          +(c.status==='open'&&free.length?'<div class="cw-add"><label class="sr-only" for="cwSel'+c.id+'">A task to count toward: '+esc(c.statement)+'</label>'
+              +'<select id="cwSel'+c.id+'"><option value="">Count one of my tasks toward this…</option>'+free.map(function(t){return '<option value="'+t.id+'">'+esc(t.title)+'</option>';}).join('')+'</select>'
+              +'<button type="button" class="pbtn cw-on">Count it</button></div>':'')
+          +'</li>'; }).join('');
+    }
+    function loadWeek(){ if(!weekEl) return;
+      fetch('/portal/collab.php?action=cac_week',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ WEEK=d||{ok:false}; ATTACHED=(d&&d.attached)||{}; renderWeek(); }).catch(function(){}); }
+    function countTask(taskId, cid){
+      post('cac_count',{id:taskId, commitment_id:cid}).then(function(d){
+        if(d&&d.ok){ ATTACHED=d.attached||{}; if(d.week&&d.week.ok){ WEEK=d.week; } renderWeek(); render(); weekSay(cid?'Counted. Ticking it here now counts on CACENTRE.':'It no longer counts toward that commitment.','ok'); }
+        else weekSay((d&&d.error)||'CACENTRE refused that.','warn'); }).catch(function(){ weekSay('Network error — try again.','warn'); }); }
+    if(weekList) weekList.addEventListener('click', function(e){
+      var li=e.target.closest('.cw-item'); if(!li) return; var cid=+li.getAttribute('data-c');
+      if(e.target.closest('.cw-on')){ var sel=li.querySelector('select'); var tid=sel?+sel.value:0; if(!tid){ weekSay('Choose the task first.','warn'); if(sel)sel.focus(); return; } countTask(tid,cid); }
+      var off=e.target.closest('.cw-off'); if(off) countTask(+off.getAttribute('data-t'),0); });
+
     load();
+    loadWeek();
     setInterval(function(){ post('heartbeat',{}).then(function(d){ if(d&&typeof d.count==='number'){ if(onlineCountEl)onlineCountEl.textContent=d.count; if(tbCount)tbCount.textContent=d.count; if(kpiOnline)kpiOnline.textContent=d.count; if(topOnline)topOnline.hidden=!(d.count>0); } }).catch(function(){}); }, 45000);
     setInterval(load, 90000);
   })();

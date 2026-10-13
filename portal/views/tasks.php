@@ -9,6 +9,23 @@
             <div><h1>Tasks</h1><p class="view-sub">Plan the work, share it with the team, and let AI turn goals into a plan. Anyone can claim an open task.</p></div>
           </div>
 
+          <?php if (class_exists('CacWeek') && CacWeek::ready()): ?>
+          <!-- This week at CACENTRE: the member's commitments for the week and
+               the goals they feed; a task here can count toward one (lib/CacWeek.php). -->
+          <section class="pcard cac-week" id="cacWeek" aria-labelledby="cacWeekH" hidden>
+            <div class="pcard-head">
+              <h2 id="cacWeekH">This week at CACENTRE</h2>
+              <span class="pchip" id="cacWeekRange"></span>
+              <a class="pbtn" href="<?= e(CacWeek::consoleUrl()) ?>" target="_blank" rel="noopener">Open my week<span class="sr-only"> on CACENTRE (opens in a new tab)</span></a>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Your commitments for the week and the goal each one feeds. Count a task from here toward one: when you tick it, it counts on CACENTRE too.</p>
+              <ul class="cw-list" id="cacWeekList" aria-live="polite"></ul>
+              <p class="task-ai-msg" id="cacWeekMsg" role="status" hidden></p>
+            </div>
+          </section>
+          <?php endif; ?>
+
           <!-- AI: turn a goal into a plan of tasks (dropped into the pool) -->
           <section class="pcard task-ai" id="taskAi" data-csrf="<?= e($collabCsrf) ?>" hidden>
             <div class="pcard-head">
