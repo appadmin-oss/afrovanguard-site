@@ -168,6 +168,14 @@ if (class_exists('MeetingMinutes')) {
     $result['meetings_live'] = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
 }
 
+// Volunteers: NGG's list refreshed every six hours; tomorrow's opportunities reminded.
+if (class_exists('NggVolunteers')) {
+    try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
+}
+if (class_exists('VolunteerWork')) {
+    try { $result['opportunity_reminders'] = VolunteerWork::sweep(); } catch (Throwable $e) {}
+}
+
 // Report §20: write the case for anyone the rules engine now rates as ready,
 // and tell leadership. One review per member per target level.
 if (class_exists('Promotion')) {

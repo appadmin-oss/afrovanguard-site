@@ -89,11 +89,84 @@ final class Volunteers
         $st = Database::pdo()->prepare('SELECT 1 FROM vol_team_members m JOIN vol_teams t ON t.id = m.team_id WHERE m.user_id = ? AND t.archived = 0 LIMIT 1');
         $st->execute([(int) $u['id']]);
         if ($st->fetchColumn()) return true;
+        /* An NGG volunteer, by the email NGG knows them by (lib/NggVolunteers). */
+        if (class_exists('NggVolunteers')) { try { if (NggVolunteers::forUser($u)) return true; } catch (Throwable $e) {} }
         try {
             $st = Database::pdo()->prepare("SELECT 1 FROM team WHERE LOWER(email) = ? AND tier = 'volunteer' LIMIT 1");
             $st->execute([strtolower((string) ($u['email'] ?? ''))]);
             return (bool) $st->fetchColumn();
         } catch (Throwable $e) { return false; }
+    }
+
+    /**
+     * Everything this site knows makes somebody a volunteer, in words they
+     * would recognise: "NGG volunteer — Mentor, Egbeda", "Outreach team —
+     * secretary", "Afrovanguard member". Empty for somebody who is not one.
+     */
+    public static function identity(array $u): array
+    {
+        self::ensure();
+        $out = [];
+        if (class_exists('NggVolunteers')) {
+            try {
+                if ($n = NggVolunteers::forUser($u)) {
+                    $out[] = ['source' => 'ngg', 'label' => 'NextGen Genius volunteer', 'detail' => trim(($n['role_label'] ?: ucfirst((string) $n['role'])) . ((string) $n['centre'] !== '' ? ', ' . $n['centre'] : ''), ', '),
+                              'since' => substr((string) $n['joined_at'], 0, 10), 'hours' => (int) $n['hours'], 'sessions' => (int) $n['sessions'], 'level' => (string) $n['level'],
+                              'safeguarding' => (int) $n['safeguarding_cleared'] === 1, 'photo' => (string) $n['photo_url']];
+                }
+            } catch (Throwable $e) {}
+        }
+        foreach (self::teamsFor($u) as $t) $out[] = ['source' => 'team', 'label' => $t['name'], 'detail' => self::ROLES[$t['my_role']] ?? 'Member'];
+        if (LmsAuth::isOrgMember($u)) $out[] = ['source' => 'afrovanguard', 'label' => 'Afrovanguard member', 'detail' => ucfirst((string) ($u['role'] ?? 'member'))];
+        try {
+            $st = Database::pdo()->prepare("SELECT role FROM team WHERE LOWER(email) = ? AND tier = 'volunteer' AND active = 1 LIMIT 1");
+            $st->execute([strtolower((string) ($u['email'] ?? ''))]);
+            if (($r = $st->fetchColumn()) !== false) $out[] = ['source' => 'people', 'label' => 'On the People page', 'detail' => (string) $r ?: 'Volunteer'];
+        } catch (Throwable $e) {}
+        return $out;
+    }
+
+    /**
+     * At sign-in: a volunteer is recognised. The first time, they are welcomed
+     * and told what they are recognised as; every time, the count and the
+     * moment are kept, and an NGG record with their email is linked to them.
+     * Never in the way of signing in.
+     */
+    public static function recognizeAtLogin(int $uid): ?array
+    {
+        try {
+            self::ensure();
+            $pdo = Database::pdo();
+            Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS vol_recognitions (
+                user_id INTEGER NOT NULL PRIMARY KEY,
+                sources VARCHAR(200) NOT NULL DEFAULT '',
+                first_at VARCHAR(32) NOT NULL DEFAULT '',
+                last_at VARCHAR(32) NOT NULL DEFAULT '',
+                logins INTEGER NOT NULL DEFAULT 0
+            )");
+            $st = $pdo->prepare('SELECT id, name, email, role FROM lms_users WHERE id = ?');
+            $st->execute([$uid]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$u || !self::isVolunteer($u)) return null;
+            if (class_exists('NggVolunteers')) NggVolunteers::link();
+            $id = self::identity($u);
+            $sources = implode(',', array_unique(array_column($id, 'source')));
+            $now = self::now();
+            $st = $pdo->prepare('SELECT * FROM vol_recognitions WHERE user_id = ?');
+            $st->execute([$uid]);
+            $had = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$had) {
+                $pdo->prepare('INSERT INTO vol_recognitions (user_id, sources, first_at, last_at, logins) VALUES (?,?,?,?,1)')->execute([$uid, $sources, $now, $now]);
+                $first = $id[0] ?? ['label' => 'volunteer', 'detail' => ''];
+                if (class_exists('Notifications')) {
+                    try { Notifications::push($uid, 'volunteer', 'Welcome to your Volunteer dashboard',
+                        'We recognise you as ' . $first['label'] . ($first['detail'] !== '' ? ' (' . $first['detail'] . ')' : '') . '. Your meetings, attendance and hours are all in one place.', '/portal/#volunteer', 'volwelcome:' . $uid); } catch (Throwable $e) {}
+                }
+            } else {
+                $pdo->prepare('UPDATE vol_recognitions SET sources = ?, last_at = ?, logins = logins + 1 WHERE user_id = ?')->execute([$sources, $now, $uid]);
+            }
+            return ['first' => !$had, 'identity' => $id];
+        } catch (Throwable $e) { error_log('[volunteers] recognise: ' . $e->getMessage()); return null; }
     }
 
     /** Coordinators and up start teams and manage any of them. */
@@ -403,6 +476,9 @@ final class Volunteers
         ['ontime_10', '10 days on time at the gate', '⏰', 'ontime', 10],
         ['streak_4', '4-week streak', '🔥', 'streak', 4],
         ['streak_12', '12-week streak', '💎', 'streak', 12],
+        ['kudos_1', 'First kudos received', '💛', 'kudos', 1],
+        ['kudos_10', '10 kudos received', '💫', 'kudos', 10],
+        ['shifts_5', '5 opportunities served', '🧡', 'shifts', 5],
     ];
 
     /**
@@ -464,7 +540,10 @@ final class Volunteers
         $meetings = (int) $st->fetchColumn();
         $actions = 0;
         try { $st = $pdo->prepare("SELECT COUNT(*) FROM commitments WHERE member_id = ? AND status = 'done'"); $st->execute([$uid]); $actions = (int) $st->fetchColumn(); } catch (Throwable $e) {}
-        $measure = ['hours' => $hours, 'meetings' => $meetings, 'actions' => $actions, 'ontime' => $ontime, 'streak' => $streak];
+        $kudos = 0; $shifts = 0;
+        try { $st = $pdo->prepare('SELECT COUNT(*) FROM vol_kudos WHERE to_id = ?'); $st->execute([$uid]); $kudos = (int) $st->fetchColumn(); } catch (Throwable $e) {}
+        try { $st = $pdo->prepare("SELECT COUNT(*) FROM vol_signups WHERE user_id = ? AND status = 'attended'"); $st->execute([$uid]); $shifts = (int) $st->fetchColumn(); } catch (Throwable $e) {}
+        $measure = ['hours' => $hours, 'meetings' => $meetings, 'actions' => $actions, 'ontime' => $ontime, 'streak' => $streak, 'kudos' => $kudos, 'shifts' => $shifts];
         $earned = []; $next = null;
         foreach (self::MILESTONES as [$key, $label, $emoji, $m, $n]) {
             if ($measure[$m] >= $n) { $earned[] = ['key' => $key, 'label' => $label, 'emoji' => $emoji]; continue; }
@@ -556,7 +635,10 @@ final class Volunteers
                 'upcoming' => $meet['upcoming'], 'to_write' => $meet['to_write'], 'to_approve' => $meet['to_approve'], 'published' => $meet['published'],
                 'actions' => $actions, 'hours' => self::hoursFor($uid), 'hours_series' => self::hoursSeries($uid, 12),
                 'attendance' => MeetingMinutes::attendanceOf($u), 'activity' => self::activity($u), 'integrations' => self::integrations(),
-                'engagement' => self::engagement($u),
+                'engagement' => self::engagement($u), 'identity' => self::identity($u),
+                'opportunities' => class_exists('VolunteerWork') ? VolunteerWork::list($u) : [],
+                'kudos' => class_exists('VolunteerWork') ? VolunteerWork::kudosFor($u) : ['received' => [], 'wall' => [], 'count' => 0],
+                'ngg' => class_exists('NggVolunteers') && self::canRunTeams($u) ? NggVolunteers::status() : null,
                 'counts' => ['rsvp' => count(array_filter($meet['upcoming'], static fn($m) => $m['rsvp'] === '')), 'minutes' => count($meet['to_write']) + count($meet['to_approve']),
                              'actions' => count($actions), 'overdue' => count(array_filter($actions, static fn($a) => $a['overdue']))]];
     }

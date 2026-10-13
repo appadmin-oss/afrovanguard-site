@@ -9,6 +9,11 @@
  *   GET  ?action=archive&status=&team_id=&q=           → every set of minutes I may read
  *   GET  ?action=team_actions&team_id=                 → a team's open actions (lead, coordinator)
  *   GET  ?action=hours_csv                             → my hours as a spreadsheet
+ *   POST ?action=opp_post|opp_cancel|opp_signup|opp_withdraw|opp_mark, GET opp_roster → opportunities
+ *   POST ?action=kudos {to, kind, message}             → thank a volunteer
+ *   GET  ?action=directory&q=&source=                  → Afrovanguard and NGG volunteers
+ *   POST ?action=ngg_sync                              → fetch NGG's volunteers now (coordinators)
+ *   GET  ?action=service_letter                        → my certificate of service, PDF
  *   POST ?action=team_create {name, purpose}
  *   POST ?action=team_update {id, name?, purpose?, archived?}
  *   POST ?action=team_member {team_id, who, role}      → add, or change a role
@@ -89,6 +94,26 @@ try {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="volunteer-hours.csv"');
             echo Volunteers::hoursCsv($uid); exit;
+        }
+        case 'opp_post':     json_out(VolunteerWork::post($u, $body));
+        case 'opp_cancel':   json_out(VolunteerWork::cancel($u, (int) $in('id', 0)));
+        case 'opp_signup':   json_out(VolunteerWork::signup($u, (int) $in('id', 0)));
+        case 'opp_withdraw': json_out(VolunteerWork::withdraw($u, (int) $in('id', 0)));
+        case 'opp_roster':   json_out(VolunteerWork::roster($u, (int) $in('id', 0)));
+        case 'opp_mark':     json_out(VolunteerWork::mark($u, (int) $in('id', 0), (int) $in('user_id', 0), (string) $in('status')));
+        case 'kudos':        json_out(VolunteerWork::give($u, (int) $in('to', 0), (string) $in('kind', 'thanks'), (string) $in('message')));
+        case 'directory':    json_out(['ok' => true, 'people' => VolunteerWork::people($u, (string) $in('q'), (string) $in('source'))]);
+        case 'ngg_sync': {
+            if (!Volunteers::canRunTeams($u)) json_out(['ok' => false, 'error' => 'A coordinator syncs NGG\'s volunteers.'], 403);
+            $r = NggVolunteers::sync();
+            json_out($r + ['status' => NggVolunteers::status()]);
+        }
+        case 'service_letter': {
+            $pdf = VolunteerWork::serviceLetter($u);
+            if ($pdf === null) json_out(['ok' => false, 'error' => 'The letter cannot be made here (PDF support is missing).'], 503);
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $pdf['name'] . '"');
+            echo $pdf['bytes']; exit;
         }
         case 'team_create':  json_out(Volunteers::createTeam($u, (string) $in('name'), (string) $in('purpose')));
         case 'team_update':  json_out(Volunteers::updateTeam($u, (int) $in('id', 0), $body));

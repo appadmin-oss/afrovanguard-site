@@ -316,6 +316,8 @@ final class LmsAuth
         setcookie(self::COOKIE, $token, ['expires' => time() + $ttl, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
         self::hint(true, $ttl);
         $_COOKIE[self::COOKIE] = $token; self::$cache = null; self::$checked = false;
+        /* A volunteer is recognised as they sign in (lib/Volunteers.php). */
+        if (class_exists('Volunteers')) Volunteers::recognizeAtLogin($userId);
     }
 
     /* ── security tables / brute-force lockout ──────────────────────

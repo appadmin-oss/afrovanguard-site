@@ -389,7 +389,9 @@ require_once __DIR__ . '/Promotion.php';
 require_once __DIR__ . '/MeetingClock.php';
 require_once __DIR__ . '/Volunteers.php';       /* volunteer teams, roles, hours, the hub */
 require_once __DIR__ . '/MeetingMinutes.php';   /* answers, minutes draft→review→published, reminders */
-require_once __DIR__ . '/MeetingLive.php';      /* live capture: Google Meet, notetaker, QR check-in, room captions */
+require_once __DIR__ . '/MeetingLive.php';
+require_once __DIR__ . '/NggVolunteers.php';    /* NGG's volunteers, fetched (signed) from NGG */
+require_once __DIR__ . '/VolunteerWork.php';    /* opportunities, kudos, people, the service letter */      /* live capture: Google Meet, notetaker, QR check-in, room captions */
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes
 // that read a bare getenv() (Meetings::botProvider() among them) see them without

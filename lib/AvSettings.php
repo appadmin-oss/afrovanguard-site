@@ -161,6 +161,11 @@ final class AvSettings
             'ph' => 'a long random string',
             'help' => 'The same value as afrovanguard.ngv_webhook_secret in NGG’s api/config.php. NGG’s ID Card Studio uses it to fetch Afrovanguard member cards, and NGG signs NGV promotions with it.',
         ],
+        'NGG_URL' => [
+            'group' => 'NextGen Genius', 'label' => 'NGG address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://next.afrovanguard.org.ng',
+            'help' => 'Where NextGen Genius runs. This site fetches NGG’s volunteers from there (signed with the shared secret above), so they are recognised when they sign in. Blank uses https://next.afrovanguard.org.ng.',
+        ],
         'AV_GEMINI_API_KEY' => [
             'group' => 'Gemini (Google)', 'label' => 'API key', 'secret' => true, 'type' => 'text',
             'ph' => 'AIza…',

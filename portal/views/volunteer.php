@@ -20,6 +20,7 @@ declare(strict_types=1);
             <p class="vh-hero-date" id="vhDate"></p>
             <h1 class="vh-hero-h" id="vhH">Welcome, <?= e($first) ?>.</h1>
             <p class="vh-hero-line" id="vhLine">Your meetings, attendance and the difference you make — all in one place.</p>
+            <div class="vh-id" id="vhId" aria-label="Recognised as"></div>
             <div class="vh-hero-chips" id="vhChips"></div>
             <div class="vh-hero-cta">
               <button type="button" class="avp-btn avp-btn--paper" id="vhNextStep" hidden></button>
@@ -37,9 +38,11 @@ declare(strict_types=1);
           <button type="button" role="tab" id="vt-overview" aria-controls="vp-overview" aria-selected="true" data-tab="overview">Overview</button>
           <button type="button" role="tab" id="vt-meetings" aria-controls="vp-meetings" aria-selected="false" data-tab="meetings">Meetings <span class="vh-tab-n" id="vtnMeet" hidden></span></button>
           <button type="button" role="tab" id="vt-attendance" aria-controls="vp-attendance" aria-selected="false" data-tab="attendance">Attendance</button>
+          <button type="button" role="tab" id="vt-opps" aria-controls="vp-opps" aria-selected="false" data-tab="opps">Opportunities <span class="vh-tab-n" id="vtnOpp" hidden></span></button>
           <button type="button" role="tab" id="vt-minutes" aria-controls="vp-minutes" aria-selected="false" data-tab="minutes">Minutes <span class="vh-tab-n" id="vtnMin" hidden></span></button>
           <button type="button" role="tab" id="vt-actions" aria-controls="vp-actions" aria-selected="false" data-tab="actions">Actions <span class="vh-tab-n" id="vtnAct" hidden></span></button>
           <button type="button" role="tab" id="vt-teams" aria-controls="vp-teams" aria-selected="false" data-tab="teams">Teams</button>
+          <button type="button" role="tab" id="vt-people" aria-controls="vp-people" aria-selected="false" data-tab="people">People</button>
           <button type="button" role="tab" id="vt-hours" aria-controls="vp-hours" aria-selected="false" data-tab="hours">Hours</button>
         </nav>
 
@@ -69,6 +72,10 @@ declare(strict_types=1);
               <section class="avp-card" id="vhBoardCard" hidden aria-labelledby="vhBoardH">
                 <div class="avp-card-head"><h2 id="vhBoardH">This month in your teams</h2><span class="avp-chip avp-chip--sm avp-chip--gold" id="vhRank"></span></div>
                 <ol class="vh-board" id="vhBoard"></ol>
+              </section>
+              <section class="avp-card" aria-labelledby="vhKudosH">
+                <div class="avp-card-head"><h2 id="vhKudosH">Kudos</h2><button type="button" class="vh-linkbtn" data-goto-tab="people">Thank someone →</button></div>
+                <ul class="vh-feed" id="vhKudos"></ul>
               </section>
               <section class="avp-card" id="vhBdayCard" hidden aria-labelledby="vhBdayH">
                 <div class="avp-card-head"><h2 id="vhBdayH">Birthdays coming up</h2></div>
@@ -111,6 +118,24 @@ declare(strict_types=1);
           </section>
         </div>
 
+        <!-- Opportunities -->
+        <div class="vh-panel" role="tabpanel" id="vp-opps" aria-labelledby="vt-opps" hidden>
+          <div class="vh-toolbar"><button type="button" class="avp-btn avp-btn--ink avp-btn--sq" id="vhOppNew" hidden>Post an opportunity</button>
+            <p class="vh-note" style="margin:0">Shifts and events that need hands. Sign up; when it is over, your hours are added for you.</p></div>
+          <div class="vh-opps" id="vhOpps"></div>
+        </div>
+
+        <!-- People -->
+        <div class="vh-panel" role="tabpanel" id="vp-people" aria-labelledby="vt-people" hidden>
+          <div class="vh-toolbar">
+            <label class="vh-filter vh-filter--grow">Find a volunteer <input id="vhPQ" type="search" placeholder="Name, team, centre or role"></label>
+            <span class="vh-seg" role="group" aria-label="Which volunteers"><button type="button" data-psrc="" aria-pressed="true">Everyone</button><button type="button" data-psrc="afrovanguard" aria-pressed="false">Afrovanguard teams</button><button type="button" data-psrc="ngg" aria-pressed="false">NextGen Genius</button></span>
+          </div>
+          <section class="avp-card" id="vhNggCard" hidden><div class="avp-card-body vh-ngg" id="vhNgg"></div></section>
+          <div class="vh-people-grid" id="vhPeople"></div>
+          <section class="avp-card" aria-labelledby="vhWallH"><div class="avp-card-head"><h2 id="vhWallH">Kudos wall</h2></div><ul class="vh-feed" id="vhWall"></ul></section>
+        </div>
+
         <!-- Minutes -->
         <div class="vh-panel" role="tabpanel" id="vp-minutes" aria-labelledby="vt-minutes" hidden>
           <div class="vh-toolbar">
@@ -147,7 +172,7 @@ declare(strict_types=1);
                 <div class="avp-card-body"><div class="vh-chart" id="vhChart"></div></div>
               </section>
               <section class="avp-card" aria-labelledby="vhLogH">
-                <div class="avp-card-head"><h2 id="vhLogH">Everything logged</h2><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=hours_csv">Download (CSV)</a></div>
+                <div class="avp-card-head"><h2 id="vhLogH">Everything logged</h2><span class="vh-row-btns"><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=service_letter">Certificate of service (PDF)</a><a class="avp-btn avp-btn--sq" href="/portal/volunteer.php?action=hours_csv">Download (CSV)</a></span></div>
                 <ul class="vh-list" id="vhHoursList"></ul>
               </section>
             </div>

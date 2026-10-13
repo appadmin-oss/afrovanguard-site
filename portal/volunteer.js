@@ -94,6 +94,8 @@
     if (t === 'actions') drawActions();
     if (t === 'teams') drawTeams();
     if (t === 'attendance') drawAttendance();
+    if (t === 'opps') drawOpps();
+    if (t === 'people') drawPeople();
     if (t === 'hours') drawHours();
   }
   var tabs = view.querySelector('.vh-tabs');
@@ -165,6 +167,12 @@
       return '<li><span class="vh-feed-i vh-feed-i--' + esc(e.kind) + '" aria-hidden="true">' + ({ minutes: '≡', done: '✓', joined: '+' }[e.kind] || '•') + '</span><span><span>' + esc(e.text) + '</span><small>' + esc(ago(e.at)) + (e.team ? ' · ' + esc(e.team) : '') + '</small></span></li>';
     }).join('') : '<li class="avp-empty">Nothing yet. When minutes are published or actions done, it shows here.</li>';
 
+    var kd = hub.kudos || { received: [], count: 0 };
+    $('vhKudos').innerHTML = kd.received.length ? kd.received.slice(0, 3).map(kudosRow).join('') + (kd.count > 3 ? '<li class="vh-note">' + kd.count + ' kudos in all — thank you for what you do.</li>' : '')
+      : '<li class="avp-empty">No kudos yet. Thank somebody — it is the best way to get the habit going.</li>';
+    var open = (hub.opportunities || []).filter(function (o) { return !o.past && !o.mine && !o.full; }).length;
+    $('vtnOpp').hidden = !open; $('vtnOpp').textContent = open;
+
     /* Capture: what this site has switched on — everything works with none */
     var g = hub.integrations, caps = [
       ['Answers, reminders and calendar invites', true, 'always on'],
@@ -209,6 +217,12 @@
     }
     if (e.my_rank && e.my_rank.of > 1) chips.push('<span class="vh-chip">🏅 #' + e.my_rank.rank + ' of ' + e.my_rank.of + ' in your teams</span>');
     $('vhChips').innerHTML = chips.join('');
+    /* Recognised as — what this site knows makes them a volunteer. */
+    var SRCI = { ngg: '🎓', team: '👥', afrovanguard: '🌍', people: '⭐' };
+    $('vhId').innerHTML = (hub.identity || []).slice(0, 4).map(function (x) {
+      var extra = x.source === 'ngg' ? ' · ' + x.hours + ' NGG hours' + (x.level ? ' · ' + x.level : '') : '';
+      return '<span class="vh-id-i"><span aria-hidden="true">' + (SRCI[x.source] || '•') + '</span><b>' + esc(x.label) + '</b>' + (x.detail ? ' — ' + esc(x.detail) : '') + esc(extra) + '</span>';
+    }).join('');
 
     /* One next step: the most useful thing to do right now. */
     var step = null, live = hub.upcoming.filter(function (m) { return m.room; })[0];
@@ -262,6 +276,97 @@
     document.body.appendChild(el);
     setTimeout(function () { el.classList.add('out'); }, 4200); setTimeout(function () { el.remove(); }, 5000);
   }
+
+  function kudosRow(k) {
+    return '<li><span class="vh-feed-i vh-feed-i--done" aria-hidden="true">' + k.emoji + '</span><span><span><b>' + esc(k.from_id === ME ? 'You' : k.from) + '</b> → <b>' + esc(k.to_id === ME ? 'you' : k.to) + '</b>: “' + esc(k.message) + '”</span><small>' + esc(k.label) + ' · ' + esc(ago(k.at)) + '</small></span></li>';
+  }
+  function giveKudos(id, name) {
+    form('Kudos for ' + name, '<label>For<select id="fkKind"><option value="thanks">🙏 Thank you</option><option value="teamwork">🤝 Teamwork</option><option value="leadership">🧭 Leadership</option><option value="extra">🌟 Above and beyond</option></select></label>'
+      + '<label class="avp-form-wide" style="justify-self:stretch">What for<textarea id="fkMsg" maxlength="400" required placeholder="They stayed late to set up the hall…"></textarea></label>', 'Send kudos', function (done) {
+      api('kudos', { to: id, kind: val('fkKind'), message: val('fkMsg') }).then(function (r) { done(r); if (r.ok) toast('Sent — ' + name + ' will see it.'); });
+    });
+  }
+
+  /* ── Opportunities tab ── */
+  function drawOpps() {
+    $('vhOppNew').hidden = !(hub.me.can_run_teams || teamsAll().some(function (t) { return t.can_manage; }));
+    var list = hub.opportunities || [];
+    $('vhOpps').innerHTML = list.length ? list.map(function (o) {
+      var state = o.past ? '<span class="avp-chip avp-chip--sm">Done</span>' : o.mine === 'signed' ? '<span class="avp-chip avp-chip--sm avp-chip--green">You are signed up</span>' : o.full ? '<span class="avp-chip avp-chip--sm avp-chip--red">Full</span>' : '';
+      var spots = o.slots ? o.signed + ' of ' + o.slots + ' places taken' : o.signed + ' signed up';
+      var btn = o.past ? (o.mine === 'attended' ? '<span class="vh-note">You came — thank you</span>' : '')
+        : o.mine === 'signed' ? '<button type="button" class="avp-btn avp-btn--sq" data-opp-out="' + o.id + '">Withdraw</button>'
+        : o.full ? '' : '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-opp-in="' + o.id + '">Sign up</button>';
+      if (o.can_manage) btn += '<button type="button" class="avp-btn avp-btn--sq" data-opp-roster="' + o.id + '" data-title="' + esc(o.title) + '" data-past="' + (o.past ? 1 : 0) + '">' + (o.past ? 'Mark who came' : 'Who is coming') + '</button>'
+        + (o.past ? '' : '<button type="button" class="vh-x" data-opp-cancel="' + o.id + '" aria-label="Cancel ' + esc(o.title) + '">×</button>');
+      var d = new Date(o.ts * 1000);
+      return '<article class="vh-opp' + (o.past ? ' is-past' : '') + '"><div class="vh-opp-date" aria-hidden="true"><b>' + d.getDate() + '</b><span>' + d.toLocaleDateString(undefined, { month: 'short' }) + '</span></div>'
+        + '<div class="vh-opp-t"><h3>' + esc(o.title) + ' ' + state + '</h3><p class="vh-row-sub">' + esc(o.when) + ' · ' + Math.round(o.duration_min / 6) / 10 + ' h' + (o.location ? ' · ' + esc(o.location) : '') + (o.team ? ' · ' + esc(o.team) : '') + ' · ' + spots + '</p>'
+        + (o.details ? '<p class="vh-opp-d">' + esc(o.details) + '</p>' : '') + '</div><div class="vh-row-btns">' + btn + '</div></article>';
+    }).join('') : '<section class="avp-card"><p class="avp-empty">No opportunities posted right now. When one is, it shows here — and you are told if it is your team’s.</p></section>';
+  }
+  $('vhOppNew').addEventListener('click', function () {
+    var lead = teamsAll().filter(function (t) { return t.can_manage; });
+    var d = new Date(Date.now() + 3 * 86400000); d.setHours(9, 0, 0, 0);
+    var local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    form('Post an opportunity',
+      '<label>What<input id="foTitle" maxlength="160" required placeholder="Set up for Community Day"></label>'
+      + '<label>For<select id="foTeam">' + (hub.me.can_run_teams ? '<option value="0">Every volunteer</option>' : '') + lead.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('') + '</select></label>'
+      + '<label>When<input id="foWhen" type="datetime-local" value="' + local + '" required></label>'
+      + '<label>How long<select id="foDur"><option value="60">1 hour</option><option value="120" selected>2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="480">A full day</option></select></label>'
+      + '<label>Where<input id="foWhere" maxlength="160" placeholder="CACENTRE, Egbeda"></label>'
+      + '<label>Places (0 = no limit)<input id="foSlots" type="number" min="0" max="500" value="0"></label>'
+      + '<label class="avp-form-wide" style="justify-self:stretch">Details<textarea id="foDetails" maxlength="3000"></textarea></label>', 'Post', function (done) {
+        api('opp_post', { title: val('foTitle'), team_id: +val('foTeam'), when: val('foWhen'), duration: +val('foDur'), location: val('foWhere'), slots: +val('foSlots'), details: val('foDetails') })
+          .then(function (r) { done(r); if (r.ok) { toast('Posted.'); setTab('opps'); } });
+      });
+  });
+  function openRoster(id, title, past) {
+    api('opp_roster', null, 'id=' + id).then(function (r) {
+      if (!r.ok) return toast(r.error, true);
+      var MARK = { signed: 'Signed up', attended: 'Came', absent: 'Did not come' };
+      form(title, r.roster.length ? '<ul class="vh-list avp-form-wide" style="justify-self:stretch">' + r.roster.map(function (p) {
+        return '<li class="vh-row" style="padding:8px 0"><span class="vh-row-t"><span class="vh-row-title">' + esc(p.name) + '</span><span class="vh-row-sub">' + MARK[p.status] + '</span></span><span class="vh-row-btns">'
+          + (past && r.can_mark ? '<button type="button" class="avp-btn avp-btn--sq' + (p.status === 'attended' ? ' avp-btn--ink' : '') + '" data-mk="' + p.id + '" data-st="attended">Came</button><button type="button" class="avp-btn avp-btn--sq" data-mk="' + p.id + '" data-st="absent">Did not</button>' : '') + '</span></li>';
+      }).join('') + '</ul>' : '<p class="vh-note avp-form-wide">Nobody has signed up yet.</p>', 'Done', function () { $('vhForm').close(); load(); });
+      $('vhFormBody').onclick = function (ev) {
+        var b = ev.target.closest('[data-mk]'); if (!b) return;
+        api('opp_mark', { id: id, user_id: +b.getAttribute('data-mk'), status: b.getAttribute('data-st') }).then(function (x) { if (x.ok) openRoster(id, title, past); else toast(x.error, true); });
+      };
+    });
+  }
+  view.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-opp-in')) api('opp_signup', { id: +b.getAttribute('data-opp-in') }).then(function (r) { if (r.ok) { toast('You are signed up — we will remind you the day before.'); load(); } else toast(r.error, true); });
+    else if (b.hasAttribute('data-opp-out')) api('opp_withdraw', { id: +b.getAttribute('data-opp-out') }).then(function (r) { if (r.ok) { toast('Withdrawn.'); load(); } else toast(r.error, true); });
+    else if (b.hasAttribute('data-opp-cancel')) { if (confirm('Cancel it? Everybody signed up is told.')) api('opp_cancel', { id: +b.getAttribute('data-opp-cancel') }).then(function (r) { if (r.ok) load(); else toast(r.error, true); }); }
+    else if (b.hasAttribute('data-opp-roster')) openRoster(+b.getAttribute('data-opp-roster'), b.getAttribute('data-title'), b.getAttribute('data-past') === '1');
+    else if (b.hasAttribute('data-kudos')) giveKudos(+b.getAttribute('data-kudos'), b.getAttribute('data-name'));
+    else if (b.hasAttribute('data-psrc')) { psrc = b.getAttribute('data-psrc'); drawPeople(); }
+    else if (b.id === 'vhNggSync') { b.disabled = true; b.textContent = 'Syncing…'; api('ngg_sync', {}).then(function (r) { toast(r.ok ? r.received + ' NGG volunteers fetched' + (r.linked ? ', ' + r.linked + ' newly linked' : '') + '.' : r.error, !r.ok); load(); }); }
+  });
+
+  /* ── People tab ── */
+  var psrc = '', pqT;
+  function drawPeople() {
+    view.querySelectorAll('[data-psrc]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-psrc') === psrc ? 'true' : 'false'); });
+    var n = hub.ngg;
+    $('vhNggCard').hidden = !n;
+    if (n) $('vhNgg').innerHTML = '<span><b>NextGen Genius volunteers</b> — ' + (n.configured ? n.count + ' known, ' + n.linked + ' with an account here' + (n.last_good ? ' · last fetched ' + esc(ago(n.last_good)) : ' · never fetched yet') + (n.last && !+n.last.ok ? '<br><span class="is-overdue">Last try: ' + esc(n.last.error) + '</span>' : '') : 'not connected: set the shared secret (NGG_WEBHOOK_SECRET) in the Studio.') + '</span>'
+      + (n.configured ? '<button type="button" class="avp-btn avp-btn--sq" id="vhNggSync">Sync now</button>' : '');
+    var kd = hub.kudos || { wall: [] };
+    $('vhWall').innerHTML = kd.wall.length ? kd.wall.map(kudosRow).join('') : '<li class="avp-empty">Kudos sent in your teams show here.</li>';
+    api('directory', null, 'q=' + encodeURIComponent($('vhPQ').value) + '&source=' + encodeURIComponent(psrc)).then(function (r) {
+      if (!r.ok) { $('vhPeople').innerHTML = '<p class="avp-empty">' + esc(r.error) + '</p>'; return; }
+      $('vhPeople').innerHTML = r.people.length ? r.people.map(function (p) {
+        var tags = p.teams.map(function (t) { return '<span class="vh-tag">' + esc(t) + '</span>'; }).join('') + (p.ngg ? '<span class="vh-tag vh-tag--ngg">NGG · ' + esc(p.ngg.role) + (p.ngg.centre ? ', ' + esc(p.ngg.centre) : '') + '</span>' : '');
+        return '<div class="vh-person">' + (p.photo ? '<img src="' + esc(p.photo) + '" alt="" loading="lazy">' : '<span class="vh-person-av" aria-hidden="true">' + esc(initials(p.name)) + '</span>')
+          + '<div class="vh-person-t"><b>' + esc(p.name) + (p.me ? ' <small>(you)</small>' : '') + '</b><div class="vh-tags">' + tags + '</div>' + (p.ngg && p.ngg.hours ? '<small>' + p.ngg.hours + ' NGG hours' + (p.ngg.level ? ' · ' + esc(p.ngg.level) : '') + '</small>' : '') + '</div>'
+          + (p.user_id && !p.me ? '<button type="button" class="avp-btn avp-btn--sq" data-kudos="' + p.user_id + '" data-name="' + esc(p.name) + '">Send kudos</button>' : '') + '</div>';
+      }).join('') : '<p class="avp-empty">Nobody matches.</p>';
+    });
+  }
+  $('vhPQ').addEventListener('input', function () { clearTimeout(pqT); pqT = setTimeout(drawPeople, 250); });
 
   /* ── Attendance tab ── */
   function drawAttendance() {
