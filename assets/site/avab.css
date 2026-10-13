@@ -16,6 +16,10 @@
 .avh .avab-btn:hover{background:var(--av-ink-hover);border-color:var(--av-ink-hover);color:var(--av-white)}
 .avab-btn--line{background:transparent;border-color:var(--av-line-3);color:var(--av-ink);font-weight:500}
 .avh .avab-btn--line:hover{background:var(--av-white);border-color:var(--av-line-3);color:var(--av-ink)}
+.avab-btn-meta{font-size:13px;font-weight:400;color:var(--av-muted)}
+/* Shown only on a low-memory phone, data saver or 2G (av-lite is set in <head>, before first paint). */
+.avab-docnote{display:none;margin-top:12px;padding:12px 14px;border-left:4px solid var(--av-gold);background:var(--av-gold-soft);color:var(--av-ink);font-size:14.5px;line-height:1.6;border-radius:var(--av-r-6)}
+.av-lite .avab-docnote{display:block}
 .avab-hero,.avab-story,.avab-mission,.avab-ethos,.avab-franchise,.avab-involved{position:relative;overflow:hidden;isolation:isolate}
 .avab img{display:block;max-width:100%;color:transparent}
 
