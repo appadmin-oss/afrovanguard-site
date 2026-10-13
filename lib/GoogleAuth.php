@@ -56,7 +56,7 @@ final class GoogleAuth
         $exp = time() + self::STATE_TTL;
         $nonce = bin2hex(random_bytes(8));
         $payload = $exp . '.' . $nonce . '.' . rtrim(strtr(base64_encode(self::safeNext($next)), '+/', '-_'), '=');
-        return $payload . '.' . hash_hmac('sha256', $payload, av_secret());
+        return $payload . '.' . av_mac('google-state', $payload);
     }
 
     /** Verify a state string; returns the carried `next` path or null if invalid. */
@@ -67,7 +67,7 @@ final class GoogleAuth
         [$exp, $nonce, $b64, $sig] = $p;
         if (!ctype_digit($exp) || (int) $exp < time()) return null;
         if (av_secret() === '') return null;
-        if (!hash_equals(hash_hmac('sha256', "$exp.$nonce.$b64", av_secret()), $sig)) return null;
+        if (!hash_equals(av_mac('google-state', "$exp.$nonce.$b64"), $sig)) return null;
         $next = base64_decode(strtr($b64, '-_', '+/'), true);
         return $next === false ? '/portal/' : self::safeNext($next);
     }

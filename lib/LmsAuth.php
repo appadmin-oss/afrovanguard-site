@@ -242,6 +242,11 @@ final class LmsAuth
         setcookie(self::COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         self::hint(false);
         unset($_COOKIE[self::COOKIE]); self::$cache = null; self::$checked = false;
+        /* Signing out of the site ends the Studio too. A bridged admin cookie
+           would be refused on its next request anyway (AdminRoles::current
+           re-checks the member), but a credential that lingers in the jar after
+           "Sign out" is one a shared computer's next user inherits. */
+        if (function_exists('av_admin_cookie_clear')) av_admin_cookie_clear();
     }
 
     /**

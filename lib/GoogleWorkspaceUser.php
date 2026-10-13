@@ -131,7 +131,7 @@ final class GoogleWorkspaceUser
         $nonce = bin2hex(random_bytes(8));
         $b64 = rtrim(strtr(base64_encode(GoogleAuth::safeNext($next)), '+/', '-_'), '=');
         $payload = 'c.' . $exp . '.' . $nonce . '.' . $uid . '.' . $b64; // 'c' = connect marker
-        return $payload . '.' . hash_hmac('sha256', $payload, av_secret());
+        return $payload . '.' . av_mac('google-connect', $payload);
     }
 
     /** Verify a connect-state; returns ['uid'=>int,'next'=>string] or null. */
@@ -144,7 +144,7 @@ final class GoogleWorkspaceUser
         if (!ctype_digit($uid)) return null;
         if (av_secret() === '') return null;
         $payload = "$mark.$exp.$nonce.$uid.$b64";
-        if (!hash_equals(hash_hmac('sha256', $payload, av_secret()), $sig)) return null;
+        if (!hash_equals(av_mac('google-connect', $payload), $sig)) return null;
         $next = base64_decode(strtr($b64, '-_', '+/'), true);
         return ['uid' => (int) $uid, 'next' => $next === false ? '/workspace' : GoogleAuth::safeNext($next)];
     }

@@ -82,10 +82,58 @@ ck('admin cookie: re-bridged at the new level', AdminRoles::current() === 'admin
 unset($_COOKIE[LmsAuth::COOKIE]); $secResetAuth();
 ck('admin cookie: signing out of the site ends the bridged session', AdminRoles::current() === '');
 av_admin_cookie_issue(3600, 'superadmin', 't');
+ck('admin cookie: with no ADMIN_TOKEN there is no token session to stand on', !defined('ADMIN_TOKEN') ? AdminRoles::current() === '' : true);
+if (!defined('ADMIN_TOKEN')) define('ADMIN_TOKEN', 'sec-test-admin-token-0123456789abcdef0123456789');
+av_admin_cookie_issue(3600, 'superadmin', 't');
 ck('admin cookie: a token sign-in stands on its own credential', AdminRoles::current() === 'superadmin');
 $_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value(time() + 3600, 'n', 'superadmin', 'm', 'not-the-key');
 ck('admin cookie: a forged cookie grants nothing', av_admin_cookie_parse() === null && AdminRoles::current() === '');
 unset($_COOKIE[AV_ADMIN_COOKIE]); AdminRoles::remove($secEmail);
+
+/* ══ 4b. No other signed value is an admin cookie ═════════════════════════
+   av_csrf_token() made exp.nonce.HMAC(exp.nonce) and the admin cookie parser
+   accepted exactly that shape as a "legacy" cookie, returning superadmin. Public
+   pages (/IQ/, the csrf-token meta, the diary comment form) hand such tokens to
+   anonymous visitors: reproduced end to end, a token from GET /IQ/ sent back as
+   av_admin opened the Studio and the NGV member desk. Google's sign-in state
+   (exp.nonce.next.sig) matched the four-part cookie shape the same way. */
+$secAsCookie = static function (string $v): string {
+    $_COOKIE[AV_ADMIN_COOKIE] = $v;
+    $r = AdminRoles::current();
+    unset($_COOKIE[AV_ADMIN_COOKIE]);
+    return $r;
+};
+unset($_COOKIE[LmsAuth::COOKIE]); $secResetAuth();
+$secCsrf = av_csrf_token();
+ck('admin cookie: a CSRF token is a valid CSRF token', av_csrf_valid($secCsrf));
+ck('admin cookie: a CSRF token is refused as an admin cookie', $secAsCookie($secCsrf) === '');
+$secState = GoogleAuth::makeState('/portal/');
+ck('admin cookie: a Google state is a valid Google state', GoogleAuth::readState($secState) === '/portal/');
+ck('admin cookie: a Google sign-in state is refused as an admin cookie', $secAsCookie($secState) === '');
+ck('admin cookie: a Workspace connect state is refused as an admin cookie', $secAsCookie(GoogleWorkspaceUser::makeState(1, '/workspace')) === '');
+$secExp = time() + 3600;
+ck('admin cookie: the old three-part shape signed with the bare key is refused',
+    $secAsCookie($secExp . '.n.' . hash_hmac('sha256', $secExp . '.n', av_secret())) === '');
+ck('admin cookie: the old four-part shape signed with the bare key is refused',
+    $secAsCookie($secExp . '.n.superadmin.' . hash_hmac('sha256', $secExp . '.n.superadmin', av_secret())) === '');
+ck('admin cookie: a five-part cookie MACed without its purpose label is refused',
+    $secAsCookie($secExp . '.n.superadmin.t.' . hash_hmac('sha256', $secExp . '.n.superadmin.t', av_secret())) === '');
+ck('admin cookie: a role outside AdminRoles::RANK is refused even when correctly signed',
+    $secAsCookie(av_admin_cookie_value($secExp, 'n', 'root', 't', av_secret())) === '');
+ck('admin cookie: a correctly signed token cookie still works', $secAsCookie(av_admin_cookie_value($secExp, 'n', 'admin', 't', av_secret())) === 'admin');
+ck('csrf: an admin cookie is not a CSRF token', !av_csrf_valid(av_admin_cookie_value($secExp, 'n', 'admin', 't', av_secret())));
+ck('google state: a CSRF token is not a Google state', GoogleAuth::readState($secCsrf) === null);
+ck('google state: a Workspace connect state is not a sign-in state', GoogleAuth::readState(GoogleWorkspaceUser::makeState(1, '/x')) === null);
+ck('admin cookie: a bridged-shape cookie with nobody signed in grants nothing',
+    $secAsCookie(av_admin_cookie_value($secExp, 'n', 'superadmin', 'm', av_secret())) === '');
+ck('admin cookie: av_admin_cookie_issue refuses to mint an unknown role',
+    (static function () { av_admin_cookie_issue(60, 'owner', 't'); $ok = !isset($_COOKIE[AV_ADMIN_COOKIE]); unset($_COOKIE[AV_ADMIN_COOKIE]); return $ok; })());
+ck('admin cookie: a token session is bound to the ADMIN_TOKEN it was issued under',
+    str_contains((string) file_get_contents(AV_ROOT . '/lib/security.php'), "av_mac('admin-cookie', \$payload . '|' . av_admin_cookie_binding(\$src), \$secret)"));
+/* Member sign-out takes the Studio cookie with it. */
+av_admin_cookie_issue(3600, 'admin', 'm');
+@LmsAuth::logout();   // @: the harness has already sent output, so its setcookie() warns
+ck('admin cookie: signing out of the site clears the admin cookie', !isset($_COOKIE[AV_ADMIN_COOKIE]));
 
 /* ══ 5. ?next= stays on this site ═════════════════════════════════════════
    "/\evil.example" passed the old check (starts with "/", not "//") and a

@@ -138,18 +138,30 @@ function av_emit_event(string $event, array $payload = []): void
 }
 
 /* ── HMAC CSRF tokens (stateless) ─────────────────────────────── */
+/**
+ * Every value this site signs with av_secret() is MACed over a purpose label
+ * ('csrf|', 'admin-cookie|', 'google-state|', …) as well as its payload. The
+ * labels are what keep one signed thing from being accepted as another: a CSRF
+ * token (exp.nonce.MAC) used to be byte-for-byte a "legacy" admin cookie, and
+ * public pages hand CSRF tokens to anonymous visitors — so anybody could sign
+ * in to the Studio as superadmin by sending a token back as av_admin. Shape is
+ * not a type; the label is.
+ */
+function av_mac(string $purpose, string $payload, ?string $secret = null): string {
+    return hash_hmac('sha256', $purpose . '|' . $payload, $secret ?? av_secret());
+}
 function av_csrf_token(int $ttl = 7200): string {
     $secret = av_secret(); if ($secret === '') return '';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(8));
     $payload = $exp . '.' . $nonce;
-    return $payload . '.' . hash_hmac('sha256', $payload, $secret);
+    return $payload . '.' . av_mac('csrf', $payload, $secret);
 }
 function av_csrf_valid(?string $t): bool {
     $secret = av_secret(); if ($secret === '' || !$t) return false;
     $p = explode('.', $t); if (count($p) !== 3) return false;
     [$exp, $nonce, $sig] = $p;
     if (!ctype_digit($exp) || (int) $exp < time()) return false;
-    return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce, $secret), $sig);
+    return hash_equals(av_mac('csrf', $exp . '.' . $nonce, $secret), $sig);
 }
 function av_csrf_require(): void {
     $t = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -169,11 +181,28 @@ define('AV_ADMIN_COOKIE', 'av_admin');
  */
 function av_admin_cookie_value(int $exp, string $nonce, string $role, string $src, string $secret): string {
     $payload = $exp . '.' . $nonce . '.' . $role . '.' . $src;
-    return $payload . '.' . hash_hmac('sha256', $payload, $secret);
+    return $payload . '.' . av_mac('admin-cookie', $payload . '|' . av_admin_cookie_binding($src), $secret);
+}
+/**
+ * What a cookie's MAC is additionally bound to. A token sign-in ('t') stands on
+ * the break-glass ADMIN_TOKEN, so it is bound to a fingerprint of that token:
+ * rotating ADMIN_TOKEN ends every token session at once rather than up to 12
+ * hours later. A bridged cookie ('m') is re-checked against admin_users and the
+ * member's live session on every request (AdminRoles::current), so it needs no
+ * binding of its own.
+ */
+function av_admin_cookie_binding(string $src): string {
+    if ($src !== 't') return '';
+    return defined('ADMIN_TOKEN') ? substr(hash('sha256', 'admin-token-fp|' . (string) ADMIN_TOKEN), 0, 16) : '';
+}
+/** The admin levels a cookie may carry — AdminRoles::RANK, the one list. */
+function av_admin_roles(): array {
+    return class_exists('AdminRoles') ? array_keys(AdminRoles::RANK) : ['editor', 'admin', 'superadmin'];
 }
 function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin', string $src = 't'): void {
     $secret = av_secret(); if ($secret === '') return;
     $role = preg_replace('/[^a-z]/', '', strtolower($role)) ?: 'superadmin';
+    if (!in_array($role, av_admin_roles(), true)) return;
     $src  = $src === 'm' ? 'm' : 't';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(10));
     $val = av_admin_cookie_value($exp, $nonce, $role, $src, $secret);   // role travels inside the signed cookie
@@ -187,32 +216,30 @@ function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin', st
 function av_admin_cookie_valid(): bool {
     return av_admin_cookie_role() !== '';
 }
-/** Role carried by a valid admin cookie ('' if none/invalid). Legacy 3-part
- *  cookies (pre-roles) are treated as superadmin for back-compat. */
+/** Role carried by a valid admin cookie ('' if none/invalid). */
 function av_admin_cookie_role(): string {
     return (string) (av_admin_cookie_parse()['role'] ?? '');
 }
-/** ['role' => string, 'src' => 't'|'m'] for a valid cookie, else null. */
+/**
+ * ['role' => string, 'src' => 't'|'m'] for a valid cookie, else null.
+ *
+ * Only the current five-part shape is read. The three-part "legacy" cookie and
+ * the four-part one are gone: they were MACed over the bare payload, so a CSRF
+ * token (exp.nonce.sig) was a valid legacy superadmin cookie and a Google sign-in
+ * state (exp.nonce.next.sig) a valid four-part one. A Studio session from before
+ * this change signs in again; a bridged member's is re-issued on its next request.
+ */
 function av_admin_cookie_parse(): ?array {
     $secret = av_secret(); if ($secret === '') return null;
     $v = $_COOKIE[AV_ADMIN_COOKIE] ?? ''; if (!is_string($v) || $v === '') return null;
     $p = explode('.', $v);
-    if (count($p) === 3) {           // legacy: exp.nonce.sig → superadmin
-        [$exp, $nonce, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time()) return null;
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce, $secret), $sig) ? ['role' => 'superadmin', 'src' => 't'] : null;
-    }
-    if (count($p) === 4) {           // exp.nonce.role.sig (before the source was recorded)
-        [$exp, $nonce, $role, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time()) return null;
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce . '.' . $role, $secret), $sig) ? ['role' => $role, 'src' => 't'] : null;
-    }
-    if (count($p) === 5) {           // exp.nonce.role.src.sig
-        [$exp, $nonce, $role, $src, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time() || ($src !== 't' && $src !== 'm')) return null;
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce . '.' . $role . '.' . $src, $secret), $sig) ? ['role' => $role, 'src' => $src] : null;
-    }
-    return null;
+    if (count($p) !== 5) return null;
+    [$exp, $nonce, $role, $src, $sig] = $p;
+    if (!ctype_digit($exp) || (int) $exp < time() || ($src !== 't' && $src !== 'm')) return null;
+    if (!in_array($role, av_admin_roles(), true)) return null;
+    if ($src === 't' && av_admin_cookie_binding('t') === '') return null;   // no ADMIN_TOKEN, no token session
+    $want = av_mac('admin-cookie', $exp . '.' . $nonce . '.' . $role . '.' . $src . '|' . av_admin_cookie_binding($src), $secret);
+    return hash_equals($want, $sig) ? ['role' => $role, 'src' => $src] : null;
 }
 function av_admin_cookie_clear(): void {
     if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
