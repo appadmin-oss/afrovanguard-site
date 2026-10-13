@@ -9,6 +9,7 @@
  *   live        true while the conference is still on
  *   norec       true: the edition refuses recording (PATCH with recording → 403)
  *   pull        the messages the next Pub/Sub pull returns (then emptied)
+ *   sub_exists  true: creating the events subscription is refused ALREADY_EXISTS (SUB0 is listed)
  * Every request is appended to MEET_STUB_STATE.log as one JSON line:
  * {method, path, query, sub, body} — `sub` being who the token was minted for.
  */
@@ -83,7 +84,13 @@ if ($path === '/drive/v3/files/doc-N1/export') { header('Content-Type: text/plai
 /* Directory */
 if (preg_match('#^/admin/directory/v1/users/([^/]+)$#', $path, $m)) return $out(200, ['id' => '4242', 'primaryEmail' => urldecode($m[1])]);
 /* Workspace Events */
-if ($path === '/v1/subscriptions' && $method === 'POST') return $out(200, ['name' => 'operations/op1', 'done' => true, 'response' => ['name' => 'subscriptions/SUB1']]);
+if ($path === '/v1/subscriptions' && $method === 'POST') {
+    if (!empty($state['sub_exists'])) return $out(409, ['error' => ['code' => 409, 'status' => 'ALREADY_EXISTS', 'message' => 'subscription already exists']]);
+    return $out(200, ['name' => 'operations/op1', 'done' => true, 'response' => ['name' => 'subscriptions/SUB1']]);
+}
+if ($path === '/v1/subscriptions' && $method === 'GET') return $out(200, ['subscriptions' => !empty($state['sub_exists'])
+    ? [['name' => 'subscriptions/SUB0', 'targetResource' => '//cloudidentity.googleapis.com/users/4242']] : []]);
+if ($path === '/v1/subscriptions/SUB0' && $method === 'PATCH') return $out(404, ['error' => ['code' => 404, 'status' => 'NOT_FOUND']]);
 if ($path === '/v1/subscriptions/SUB1' && $method === 'PATCH') return $out(200, ['name' => 'operations/op2', 'done' => true]);
 /* Pub/Sub */
 if (preg_match('#^/v1/projects/p/subscriptions/meet-pull:pull$#', $path)) {

@@ -73,6 +73,11 @@ if (!is_resource($mStub) || !$mUp) {
               'AV_WS_SUBJECT' => 'admin@afrovanguard.org.ng', 'AV_WS_CALENDAR_ID' => '', 'AV_MEET_ORGANISER' => 'meetings@afrovanguard.org.ng', 'AV_MEET_ARTIFACTS' => 'all'] as $k => $v) putenv($k . '=' . $v);
 
     ck('meet: the organiser is the meetings mailbox, then the calendar, then the admin', GoogleWorkspace::organiser() === 'meetings@afrovanguard.org.ng');
+    putenv('AV_MEET_ORGANISER='); putenv('AV_WS_CALENDAR_ID=c_abc123@group.calendar.google.com');
+    ck('meet: a shared calendar id is not a mailbox Google can act as — the admin is the organiser', GoogleWorkspace::organiser() === 'admin@afrovanguard.org.ng');
+    putenv('AV_WS_CALENDAR_ID=mentorship@afrovanguard.org.ng');
+    ck('meet: a calendar that IS a mailbox still is', GoogleWorkspace::organiser() === 'mentorship@afrovanguard.org.ng');
+    putenv('AV_MEET_ORGANISER=meetings@afrovanguard.org.ng'); putenv('AV_WS_CALENDAR_ID=');
 
     /* Schedule */
     $clearLog();
@@ -137,6 +142,13 @@ if (!is_resource($mStub) || !$mUp) {
         && in_array('google.workspace.meet.transcript.v2.fileGenerated', $post[0]['body']['eventTypes'] ?? [], true));
     ck('events: …and leaves it alone while it is young', MeetEvents::renewIfDue() === null);
     ck('events: …renewing it before Google\'s seven days run out', (MeetEvents::renewIfDue(time() + 5 * 86400)['renewed'] ?? '') === 'subscriptions/SUB1');
+    /* A renewal Google refuses, then a create refused as ALREADY_EXISTS: the existing
+       subscription is found and kept, instead of the site failing every tick. */
+    $setState(['transcript' => 'none', 'sub_exists' => true]);
+    Database::metaSet('meet_events_sub', (string) json_encode(['name' => 'subscriptions/SUB0', 'at' => time() - 6 * 86400]));
+    ck('events: a subscription Google already holds is found and kept, not re-asked for ever', (MeetEvents::renewIfDue()['subscribed'] ?? '') === 'subscriptions/SUB0');
+    $setState(['transcript' => 'none']);
+    Database::metaSet('meet_events_sub', (string) json_encode(['name' => 'subscriptions/SUB1', 'at' => time()]));
     $setState(['transcript' => 'ready', 'conf_start' => gmdate('c', $start), 'conf_end' => gmdate('c', $start + 3600), 'pull' => [
         ['ackId' => 'a1', 'message' => ['attributes' => ['ce-type' => 'google.workspace.meet.transcript.v2.fileGenerated'], 'data' => base64_encode(json_encode(['transcript' => ['name' => 'conferenceRecords/C1/transcripts/T1']]))]],
         ['ackId' => 'a2', 'message' => ['attributes' => ['ce-type' => 'google.workspace.meet.participant.v2.joined'], 'data' => base64_encode(json_encode(['participantSession' => ['name' => 'conferenceRecords/ZZZ/participants/x/participantSessions/y']]))]],

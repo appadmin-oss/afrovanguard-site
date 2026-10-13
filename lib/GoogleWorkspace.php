@@ -752,12 +752,23 @@ final class GoogleWorkspace
     private static function pubsubBase(): string { return rtrim((string) (Config::get('AV_PUBSUB_BASE_URL', '') ?: 'https://pubsub.googleapis.com'), '/'); }
     private static function eventsBase(): string { return rtrim((string) (Config::get('AV_EVENTS_BASE_URL', '') ?: 'https://workspaceevents.googleapis.com'), '/'); }
 
-    /** The mailbox that owns the site's meetings: the Meet organiser, else the shared calendar, else the admin. */
+    /**
+     * The mailbox that owns the site's meetings: the Meet organiser, else the shared calendar, else the admin.
+     *
+     * Every Meet call is made AS this address, so it has to be a mailbox Google lets the
+     * service account impersonate. A shared calendar's id ("…@group.calendar.google.com")
+     * passes an email check and is not one: the token is refused, and every Meet read,
+     * capture setting and event subscription failed for a site whose calendar was a
+     * shared one. Such an id is skipped — the space then belongs to the admin the event
+     * was created as, which is who Google makes the owner.
+     */
     public static function organiser(): string
     {
         foreach ([(string) Config::get('AV_MEET_ORGANISER', ''), (string) Config::get('AV_WS_CALENDAR_ID', ''), self::subject()] as $e) {
             $e = strtolower(trim($e));
-            if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) return $e;
+            if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) continue;
+            if (preg_match('/@(group|resource|import)\.calendar\.google\.com$/', $e)) continue;
+            return $e;
         }
         return '';
     }
@@ -956,12 +967,17 @@ final class GoogleWorkspace
         $body = ['targetResource' => '//cloudidentity.googleapis.com/users/' . $uid, 'eventTypes' => self::MEET_EVENT_TYPES,
                  'notificationEndpoint' => ['pubsubTopic' => $topic], 'payloadOptions' => ['includeResource' => false], 'ttl' => '0s'];
         $op = self::apiSend('POST', self::eventsBase() . '/v1/subscriptions', self::SCOPE_MEET_RO, false, $body, $who);
-        if (!is_array($op)) return '';
-        $name = (string) ($op['response']['name'] ?? $op['name'] ?? '');
+        $name = is_array($op) ? (string) ($op['response']['name'] ?? $op['name'] ?? '') : '';
         if (str_starts_with($name, 'subscriptions/')) return $name;
-        /* A long-running operation: the subscription is listed under the organiser shortly after. */
+        /* Not named: either a long-running operation (listed under the organiser shortly
+           after), or Google refused it as ALREADY_EXISTS — one subscription per user and
+           event types. The second is what a failed renewal leads to, and returning ''
+           there left the site re-asking for ever, while the existing subscription went on
+           working unrenewed until Google expired it. Look for it either way. */
+        $err = self::$lastError;
         $l = self::apiGet(self::eventsBase() . '/v1/subscriptions?' . http_build_query(['filter' => 'event_types:"' . self::MEET_EVENT_TYPES[0] . '"']), self::SCOPE_MEET_RO, false, $who);
         foreach ((is_array($l) ? ($l['subscriptions'] ?? []) : []) as $x) if (($x['targetResource'] ?? '') === $body['targetResource']) return (string) $x['name'];
+        if (!is_array($op)) self::$lastError = $err;
         return '';
     }
 
