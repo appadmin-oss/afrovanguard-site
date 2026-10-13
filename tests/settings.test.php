@@ -117,12 +117,18 @@ ck('settings: a quoted key is refused', empty($quoted['ok']));
 
 $enum = AvSettings::save(['AV_MEET_BOT_PROVIDER' => 'nonsense'], 't');
 ck('settings: an unknown enum value is refused', empty($enum['ok']));
-ck('settings: the refusal lists the options', strpos((string) $enum['errors']['AV_MEET_BOT_PROVIDER'], 'recall') !== false);
-ck('settings: a valid enum value is accepted', !empty(AvSettings::save(['AV_MEET_BOT_PROVIDER' => 'google'], 't')['ok']));
+ck('settings: the refusal lists the options', strpos((string) $enum['errors']['AV_MEET_BOT_PROVIDER'], 'attendee') !== false);
+ck('settings: a valid enum value is accepted', !empty(AvSettings::save(['AV_MEET_BOT_PROVIDER' => 'none'], 't')['ok']));
+// Recall and the custom recorder were retired, so they are no longer choices.
+ck('settings: a retired notetaker is refused', empty(AvSettings::save(['AV_MEET_BOT_PROVIDER' => 'recall'], 't')['ok']));
+ck('settings: the retired recorder URL is no longer a setting', empty(AvSettings::save(['AV_MEET_BOT_JOIN_URL' => 'https://recorder.example/join'], 't')['ok']));
+ck('settings: no Recall key is offered', empty(AvSettings::save(['AV_RECALL_API_KEY' => 'abc123'], 't')['ok']));
 
-$url = AvSettings::save(['AV_MEET_BOT_JOIN_URL' => 'not-a-url'], 't');
+$url = AvSettings::save(['AV_ATTENDEE_BASE_URL' => 'not-a-url'], 't');
 ck('settings: a malformed URL is refused', empty($url['ok']));
-ck('settings: an https URL is accepted', !empty(AvSettings::save(['AV_MEET_BOT_JOIN_URL' => 'https://recorder.example/join'], 't')['ok']));
+ck('settings: an https URL is accepted', !empty(AvSettings::save(['AV_ATTENDEE_BASE_URL' => 'https://meetbot.example.org'], 't')['ok']));
+AvSettings::clear('AV_ATTENDEE_BASE_URL', 't');
+putenv('AV_ATTENDEE_BASE_URL');
 
 $unknown = AvSettings::save(['NOT_A_SETTING' => 'x'], 't');
 ck('settings: an unknown key is refused', empty($unknown['ok']) && isset($unknown['errors']['NOT_A_SETTING']));
@@ -136,9 +142,9 @@ ck('settings: a mixed batch still saves the good key', AvSettings::get('AV_AI_MO
 
 /* ---- A Studio value reaches a bare getenv() consumer ---- */
 $setreset();
-AvSettings::save(['AV_MEET_BOT_PROVIDER' => 'google'], 't');
+AvSettings::save(['AV_MEET_BOT_PROVIDER' => 'attendee'], 't');
 // Meetings::botProvider() reads getenv() directly and was never modified.
-ck('settings: an unmodified getenv() consumer sees it', Meetings::botProvider() === 'google');
+ck('settings: an unmodified getenv() consumer sees it', Meetings::botProvider() === 'attendee');
 AvSettings::clear('AV_MEET_BOT_PROVIDER', 't');
 putenv('AV_MEET_BOT_PROVIDER');
 
@@ -200,7 +206,7 @@ ck('settings: get() refuses a key outside the registry', AvSettings::get('EVIL_I
 $setreset();
 $t = AvSettings::testable();
 $testKeys = array_column($t, 'key');
-ck('settings: every provider is testable', $testKeys === ['anthropic', 'gemini', 'openai', 'attendee', 'recall', 'search', 'apps_script', 'google_signin', 'google_workspace']);
+ck('settings: every provider is testable', $testKeys === ['anthropic', 'gemini', 'openai', 'attendee', 'search', 'apps_script', 'google_signin', 'google_workspace']);
 $notReady = true;
 foreach ($t as $x) if ($x['key'] === 'anthropic' && $x['ready']) $notReady = false;
 ck('settings: an unconfigured provider is not offered as ready', $notReady);

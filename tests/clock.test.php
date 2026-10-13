@@ -236,7 +236,7 @@ ck('cron: the clock sweep is wired in', strpos($cron, 'MeetingClock::sweep()') !
 // was written from memory.
 $src = (string) file_get_contents(AV_ROOT . '/lib/MeetingClock.php');
 ck('seam: in-meeting chat is not silently faked',
-   strpos($src, 'send_chat_message') === false && strpos($src, 'AttendeeBot::') === false && strpos($src, 'RecallBot::') === false);
+   strpos($src, 'send_chat_message') === false && strpos($src, 'AttendeeBot::') === false);
 ck('seam: and the reason is written down', strpos($src, 'NOT implemented') !== false);
 
 $ckReset();

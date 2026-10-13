@@ -206,7 +206,7 @@
                 </div>
                 <input id="tlMeetWho" class="meet-in" placeholder="Invite by email (comma-separated, optional)" maxlength="600">
                 <input id="tlMeetAgenda" class="meet-in" placeholder="Agenda / notes (optional)" maxlength="2000">
-                <label class="meet-bot"><input type="checkbox" id="tlMeetRec"> <span>🤖 Add the recording bot — auto-capture &amp; transcribe this meeting</span></label>
+                <label class="meet-bot" hidden><input type="checkbox" id="tlMeetRec"> <span>🤖 Add the recording bot — auto-capture &amp; transcribe this meeting</span></label>
                 <div class="meet-form-foot">
                   <button type="submit" class="pbtn pbtn-gold">Schedule meeting</button>
                   <span class="poll-msg" id="tlMeetMsg" role="status" aria-live="polite"></span>

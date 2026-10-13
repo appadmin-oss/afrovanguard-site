@@ -356,7 +356,6 @@ require_once __DIR__ . '/GoogleWorkspaceUser.php';
 require_once __DIR__ . '/GoogleWatch.php';
 require_once __DIR__ . '/AvAutomation.php';
 require_once __DIR__ . '/Collab.php';
-require_once __DIR__ . '/RecallBot.php';
 require_once __DIR__ . '/AttendeeBot.php';
 require_once __DIR__ . '/Meetings.php';
 require_once __DIR__ . '/Storage.php';

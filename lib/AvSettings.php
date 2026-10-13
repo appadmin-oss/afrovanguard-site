@@ -24,7 +24,7 @@
  *    different ways — `Config::str()`, a private `cfg()` helper, or a bare
  *    `getenv()`. Rather than hunt down and rewrite each one, apply() publishes
  *    stored settings into the process environment and Config::get() consults this
- *    store first. AvBot, Gemini, RecallBot, AvWeb and Meetings all pick up a
+ *    store first. AvBot, Gemini, AttendeeBot, AvWeb and Meetings all pick up a
  *    Studio value with no edit at all.
  *
  * PRECEDENCE: the Studio wins over `.env`, `config.php` constants and the real
@@ -275,48 +275,29 @@ final class AvSettings
             'help' => 'Whatever you have actually pulled — `ollama list` names them. Either this or the endpoint above marks the local provider available, so set it even when the endpoint is the default one.',
         ],
 
-        /* ── The meeting notetaker ────────────────────────────────────── */
+        /* ── The meeting notetaker (optional) ─────────────────────────── */
+        // Attendee is the only third-party notetaker, and nothing here is
+        // required: with these left blank, meetings are still scheduled and
+        // invites still go out, and minutes come from Google's own transcript,
+        // an uploaded recording or pasted text.
         'AV_MEET_BOT_PROVIDER' => [
-            'group' => 'Meeting notetaker', 'label' => 'Backend', 'secret' => false, 'type' => 'enum',
-            'options' => ['', 'attendee', 'recall', 'google', 'webhook', 'none'],
-            'help' => 'Blank auto-detects, preferring the free options. "google" uses Meet\'s own transcription and costs nothing at all. "attendee" runs an open-source bot you host yourself — free per meeting, you pay only for the container. "recall" is the hosted equivalent, billed per meeting-hour. "none" disables it regardless of keys.',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Notetaker', 'secret' => false, 'type' => 'enum',
+            'options' => ['', 'attendee', 'none'],
+            'help' => 'Optional — the site works without a notetaker. Blank uses Attendee when its API key is set, otherwise Google Meet\'s own transcription when Workspace is connected. "attendee" forces the Attendee bot. "none" switches the notetaker off regardless of keys.',
         ],
         'AV_ATTENDEE_API_KEY' => [
-            'group' => 'Meeting notetaker', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Attendee is the open-source notetaker (github.com/attendee-labs/attendee). Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. There is a hosted service too if you would rather not run it.',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
+            'help' => 'Optional. Attendee is the open-source notetaker (github.com/attendee-labs/attendee) that joins the call, records and transcribes. Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. Leave blank to run without it.',
         ],
         'AV_ATTENDEE_BASE_URL' => [
-            'group' => 'Meeting notetaker', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
             'ph' => 'https://meetbot.your-domain.org',
             'help' => 'Your own instance. Leave blank to use the hosted service at app.attendee.dev — which is not free, so set this if the point was to avoid a per-meeting bill.',
         ],
         'AV_ATTENDEE_BOT_NAME' => [
-            'group' => 'Meeting notetaker', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
             'ph' => 'Afrovanguard Notetaker',
             'help' => 'The name participants see in the meeting.',
-        ],
-        'AV_RECALL_API_KEY' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall.ai API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Only needed for the "recall" backend. Google\'s own Meet transcripts are free and already wired — prefer those unless you also need Zoom or Teams.',
-        ],
-        'AV_RECALL_WEBHOOK_TOKEN' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall webhook token', 'secret' => true, 'type' => 'text',
-            'help' => 'SET THIS if you use Recall. It is the shared secret on the callback URL — without it, anyone who guesses the URL can post a transcript into your meeting records.',
-        ],
-        'AV_RECALL_REGION' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall region', 'secret' => false, 'type' => 'text',
-            'ph' => 'us-west-2',
-            'help' => 'API region host prefix. Leave blank for us-west-2.',
-        ],
-        'AV_RECALL_BOT_NAME' => [
-            'group' => 'Meeting notetaker', 'label' => 'How the bot appears', 'secret' => false, 'type' => 'text',
-            'ph' => 'Afrovanguard Notetaker',
-            'help' => 'The name participants see in the meeting. Make it recognisable — people should know what it is without asking.',
-        ],
-        'AV_MEET_BOT_JOIN_URL' => [
-            'group' => 'Meeting notetaker', 'label' => 'Custom recorder URL', 'secret' => false, 'type' => 'url',
-            'ph' => 'https://recorder.example/join',
-            'help' => 'For the "webhook" backend: your own service that joins the call and posts the transcript back.',
         ],
 
         /* ── Web search ───────────────────────────────────────────────── */
@@ -764,7 +745,6 @@ final class AvSettings
             ['key' => 'gemini',    'label' => 'Gemini', 'ready' => class_exists('Gemini') && Gemini::configured()],
             ['key' => 'openai',    'label' => 'OpenAI', 'ready' => class_exists('OpenAi') && OpenAi::configured()],
             ['key' => 'attendee',  'label' => 'Attendee notetaker', 'ready' => class_exists('AttendeeBot') && AttendeeBot::configured()],
-            ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
             ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
             ['key' => 'google_signin', 'label' => 'Google sign-in', 'ready' => class_exists('GoogleAuth') && GoogleAuth::configured()],
@@ -786,7 +766,6 @@ final class AvSettings
                 case 'anthropic': $r = self::testAnthropic(); break;
                 case 'gemini':    $r = self::testGemini(); break;
                 case 'openai':    $r = self::testOpenAi(); break;
-                case 'recall':    $r = self::testRecall(); break;
                 case 'attendee':  $r = self::testAttendee(); break;
                 case 'search':    $r = self::testSearch(); break;
                 case 'apps_script': $r = self::testAppsScript(); break;
@@ -827,22 +806,6 @@ final class AvSettings
         $res = OpenAi::generate('Reply with the single word: ok', ['max_tokens' => 8, 'temperature' => 0]);
         if (empty($res['ok'])) return ['ok' => false, 'detail' => self::humanise((string) ($res['error'] ?? 'Failed.'))];
         return ['ok' => true, 'detail' => 'Connected · model ' . OpenAi::model()];
-    }
-
-    private static function testRecall(): array
-    {
-        if (!class_exists('RecallBot') || !RecallBot::configured()) return ['ok' => false, 'detail' => 'No Recall.ai API key is set.'];
-        // botStatus() on an id that cannot exist: a bad key fails on auth, a good
-        // key simply finds nothing. No bot is created, so nothing is billed.
-        $probe = RecallBot::botStatus('avsetup-probe-000000000000');
-        $ok = $probe === '';   // '' = reachable but no such bot, which is the pass
-        if (!$ok) return ['ok' => true, 'detail' => 'Connected (unexpected bot state: ' . $probe . ')'];
-        // Distinguish "auth failed" from "no such bot" by checking the webhook
-        // token too, since that is the setting people forget.
-        $warn = RecallBot::webhookToken() === ''
-            ? ' — but no webhook token is set, so the callback URL is unauthenticated'
-            : '';
-        return ['ok' => true, 'detail' => 'Recall.ai reachable' . $warn];
     }
 
     private static function testAttendee(): array

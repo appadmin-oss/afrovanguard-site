@@ -1336,6 +1336,7 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .meet-redo { margin-top:10px; }
 @media (max-width:640px){ .meet-row { grid-template-columns:1fr; } }
 .meet-bot { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--body,#374151); cursor:pointer; }
+.meet-bot[hidden] { display:none; }   /* only offered when a notetaker is available */
 .meet-bot input { width:16px; height:16px; accent-color:var(--gold,#f3b416); }
 .meet-bot-badge { font-size:11px; font-weight:700; background:var(--surface-2,#f4f2ec); color:var(--gold-deep,#b07e08);
   border-radius:999px; padding:2px 9px; margin-left:6px; vertical-align:middle; }

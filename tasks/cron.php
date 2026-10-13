@@ -128,6 +128,10 @@ if (class_exists('Commitments')) {
 if (class_exists('Mentorship')) {
     try { $result['session_bots'] = Mentorship::dispatchDueSessionBots(); }
     catch (Throwable $e) { error_log('[cron] session bots: ' . $e->getMessage()); }
+    // And their transcripts are collected by polling, as meetings' are. Without a
+    // notetaker configured both calls return 0 at once.
+    try { $result['session_transcripts'] = Mentorship::pollSessionBotTranscripts(); }
+    catch (Throwable $e) { error_log('[cron] session transcripts: ' . $e->getMessage()); }
 }
 
 // The accountability pass (report §13, §14): remind the meetings coming due,

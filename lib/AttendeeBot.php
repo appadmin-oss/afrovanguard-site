@@ -2,15 +2,16 @@
 /**
  * lib/AttendeeBot.php — Attendee: the free, self-hostable meeting notetaker.
  *
- * Recall.ai works well and is billed per meeting-hour. For a volunteer
- * organisation running weekly mentorship sessions across a whole movement, that
- * is a bill that grows with exactly the behaviour the system is trying to
- * encourage — which is the wrong shape of cost.
+ * The only third-party meeting bot the site uses, and an optional one: with no
+ * key set, meetings and mentorship sessions run exactly as before and minutes
+ * come from Google's own transcript, an upload or a paste. A hosted bot billed
+ * per meeting-hour was the wrong shape of cost for a volunteer organisation
+ * running weekly sessions across a whole movement, so it was retired.
  *
- * Attendee (github.com/attendee-labs/attendee) is the same idea as an open
- * project: a bot that joins Google Meet, Zoom or Teams, records, and transcribes.
- * Self-hosted, Attendee charges nothing per meeting — you pay for the container it
- * runs in and that is all. There is also a hosted service if you would rather not
+ * Attendee (github.com/attendee-labs/attendee) is an open project: a bot that
+ * joins Google Meet, Zoom or Teams, records, and transcribes. Self-hosted,
+ * Attendee charges nothing per meeting — you pay for the container it runs in
+ * and that is all. There is also a hosted service if you would rather not
  * operate it.
  *
  * It does not bundle a recogniser. Attendee either scrapes the meeting platform's
@@ -33,11 +34,10 @@
  *   AV_ATTENDEE_BOT_IMAGE   path to a PNG or JPEG avatar for the bot. Ignored
  *                           unless the file exists and really is one of those.
  *
- * Shaped deliberately like RecallBot — createBot / botStatus / removeBot /
- * fetchTranscript — so Meetings treats the two interchangeably and switching
- * between them is a dropdown, not a migration.
+ * The surface is createBot / botStatus / removeBot / fetchTranscript, which is
+ * all Meetings and Mentorship need to dispatch a bot and collect its words.
  *
- * One difference worth knowing: Attendee has no dependable "join later" field
+ * One thing worth knowing: Attendee has no dependable "join later" field
  * across versions, so Meetings does not ask it to schedule ahead. The cron sweep
  * sends the bot when the meeting is actually about to start, which is correct
  * regardless of what the instance supports.
@@ -103,9 +103,8 @@ final class AttendeeBot
     /**
      * Send a bot into a meeting. Returns ['ok','bot_id','error','duplicate'].
      *
-     * $joinAtIso is accepted for interface parity with RecallBot and passed
-     * through when supplied, but Meetings dispatches Attendee bots at the time
-     * the meeting starts rather than relying on it.
+     * $joinAtIso is passed through when supplied, but Meetings dispatches
+     * Attendee bots at the time the meeting starts rather than relying on it.
      *
      * $opts carries the things only the caller knows:
      *   metadata  array<string,string> stamped on the bot and echoed back on every
@@ -252,7 +251,7 @@ final class AttendeeBot
 
     /**
      * Normalised status: scheduled | joining | in_call | done | error | ''.
-     * Mapped to the same words RecallBot reports, so callers need no branch.
+     * Mapped to the words Meetings stores in bot_state, so callers need no branch.
      */
     public static function botStatus(string $botId): string
     {

@@ -122,7 +122,9 @@
     h += '<div class="meet-item-main">';
     h += '<div class="meet-item-top"><span class="meet-when">' + esc(fmtWhen(m.when_iso)) + '</span><span class="meet-dur">' + esc(fmtDur(m.duration_min)) + freq + '</span></div>';
     h += '<p class="meet-title">' + esc(m.title);
-    if (m.auto_record || botLive(m)) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
+    // No badge at all when no notetaker is available: "auto (manual)" on every
+    // card is noise on a site that simply runs without one.
+    if (BOT_ALLOWED && (m.auto_record || botLive(m))) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
     h += '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
     h += clockHtml(m);
@@ -134,7 +136,10 @@
     // Somebody who wants a conversation off the record should not have to find
     // the organiser first.
     if (m.meet_url && BOT_ALLOWED) {
-      if (botLive(m)) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-off" data-id="' + m.id + '">Remove the AI</button>';
+      // Google transcribing natively is not a bot in the room, so there is
+      // nothing to remove and nothing to add.
+      if (m.bot_state === 'native') { /* nothing to offer */ }
+      else if (botLive(m)) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-off" data-id="' + m.id + '">Remove the AI</button>';
       else if (BOT_ON_DEMAND) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-on" data-id="' + m.id + '">🤖 Add the AI</button>';
     }
     if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-cancel" data-id="' + m.id + '">Cancel</button>';
@@ -236,6 +241,11 @@
       if (!d || !d.ok) { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; return; }
       ME = d.me || 0; GEMINI = !!d.gemini; BOT = !!d.bot; AGENDA_AI = !!d.agenda_ai;
       BOT_ALLOWED = !!d.bot_allowed; BOT_ON_DEMAND = !!d.bot_on_demand;
+      // The auto-record box is only offered when something can act on it.
+      var rec = document.getElementById('tlMeetRec');
+      var recLabel = rec && rec.closest('label');
+      if (recLabel) recLabel.hidden = !BOT_ALLOWED;
+      if (rec && !BOT_ALLOWED) rec.checked = false;
       render(d.meetings);
     }).catch(function () { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; });
   }

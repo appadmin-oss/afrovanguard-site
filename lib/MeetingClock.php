@@ -33,8 +33,8 @@
  *     tolerance window and recorded — a "5 minutes remaining" notice arriving
  *     after the meeting ended is worse than none, so a stale mark is skipped,
  *     not delivered late.
- *   • POSTING INTO THE MEETING ITSELF is NOT implemented. Attendee and Recall
- *     both expose a send-chat endpoint, but writing a third-party API call that
+ *   • POSTING INTO THE MEETING ITSELF is NOT implemented. Attendee exposes a
+ *     send-chat endpoint, but writing a third-party API call that
  *     cannot be exercised from here would be inventing an integration rather
  *     than building one. `deliver()` is the single seam where it belongs; the
  *     day someone can test against a real provider, it is one method.

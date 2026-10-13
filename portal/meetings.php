@@ -17,19 +17,11 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $action = (string) ($_GET['action'] ?? 'list');
 
-// The recording bot posts transcripts back here — a SERVICE call authed by the
-// per-meeting HMAC token, NOT a user session. Handle it before the auth wall.
-if ($action === 'bot_ingest') {
-    if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-    $in = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST;
-    json_out(Meetings::botIngest((int) ($in['meeting_id'] ?? 0), (string) ($in['token'] ?? ''), (string) ($in['transcript'] ?? '')));
-}
-
-// Recall.ai posts bot status / transcript events here — token-gated service call.
+// Recall.ai is no longer used. Its old webhook gets a loud, harmless refusal
+// rather than falling through to the sign-in wall, so a stale subscription
+// shows up as a 410 in its delivery log instead of a confusing 401.
 if ($action === 'recall_webhook') {
-    if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-    $in = json_decode(file_get_contents('php://input') ?: '', true) ?: [];
-    json_out(Meetings::recallWebhook((string) ($_GET['t'] ?? ''), is_array($in) ? $in : []));
+    json_out(['ok' => false, 'error' => 'Recall is no longer used.'], 410);
 }
 
 // The notetaker (Attendee) pushes the meeting live — joins, leaves, each
