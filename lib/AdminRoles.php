@@ -57,7 +57,10 @@ final class AdminRoles
     {
         if (function_exists('av_admin_bearer_ok') && av_admin_bearer_ok()) return 'superadmin';
         $c = function_exists('av_admin_cookie_parse') ? av_admin_cookie_parse() : null;
-        if ($c !== null && $c['src'] !== 'm') return (string) $c['role'];   // token sign-in
+        /* A token sign-in: av_admin_cookie_parse() has already checked the role
+           against RANK and the MAC against the ADMIN_TOKEN it was issued under,
+           so rotating the token ends it. */
+        if ($c !== null && $c['src'] !== 'm') return (string) $c['role'];
         /* A bridged session is the member's: it holds only while they are
            signed in and still on the admin team, at the level they hold NOW. */
         $live = '';
@@ -123,7 +126,7 @@ final class AdminRoles
 }
 
 /** Global helper used by require_admin() and the API. */
-function av_admin_role(): string { return class_exists('AdminRoles') ? AdminRoles::current() : (av_admin_cookie_valid() || av_admin_bearer_ok() ? 'superadmin' : ''); }
+function av_admin_role(): string { return AdminRoles::current(); }
 
 /**
  * Who is acting, for provenance on records that outlive the session — "who set

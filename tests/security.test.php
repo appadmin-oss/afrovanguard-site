@@ -104,6 +104,12 @@ ck('admin cookie: removal from the team ends the bridged session at once', Admin
 ck('admin cookie: and the stale cookie is cleared', !isset($_COOKIE[AV_ADMIN_COOKIE]));
 AdminRoles::add($secEmail, 'admin', 'test');
 ck('admin cookie: re-bridged at the new level', AdminRoles::current() === 'admin');
+/* The role in a bridged cookie is never trusted over the table. */
+$_COOKIE[AV_ADMIN_COOKIE] = av_admin_cookie_value(time() + 3600, 'n', 'superadmin', 'm', av_secret());
+ck('admin cookie: a bridged cookie claiming more than the table grants gets the table\'s level', AdminRoles::current() === 'admin');
+$secDb->prepare("UPDATE lms_users SET status = 'suspended' WHERE id = ?")->execute([$secUid]); $secResetAuth();
+ck('admin cookie: suspending the member ends their Studio session on the next request', AdminRoles::current() === '');
+$secDb->prepare("UPDATE lms_users SET status = 'active' WHERE id = ?")->execute([$secUid]); $secResetAuth();
 unset($_COOKIE[LmsAuth::COOKIE]); $secResetAuth();
 ck('admin cookie: signing out of the site ends the bridged session', AdminRoles::current() === '');
 av_admin_cookie_issue(3600, 'superadmin', 't');
