@@ -33,6 +33,8 @@ $errorMap = [
     'google_failed'     => 'We couldn’t complete Google sign-in. Please try again, or use your email.',
     'google_cancelled'  => 'Google sign-in was cancelled.',
     'google_state'      => 'That sign-in link expired. Please try again.',
+    'google_unverified' => 'Google hasn’t verified that email address, so it can’t sign you in. Verify it with Google, or use your email below.',
+    'google_inactive'   => 'This account is not active. Please contact us.',
     'rate'              => 'Too many attempts — wait a moment and try again.',
 ];
 $authError = $errorMap[(string) ($_GET['e'] ?? '')] ?? '';

@@ -50,7 +50,7 @@ if ($action === 'start') {
     ]);
     // Connect-on-sign-in: also request offline Workspace scopes so a single
     // Google sign-in both authenticates AND connects their Workspace.
-    $extra = GoogleWorkspaceUser::connectOnSignin() ? GoogleWorkspaceUser::scopes() : '';
+    $extra = GoogleWorkspaceUser::connectOnSignin($hint) ? GoogleWorkspaceUser::scopes() : '';
     header('Location: ' . GoogleAuth::authUrl($state, $hint, $extra));
     exit;
 }
@@ -98,6 +98,7 @@ if ($action === 'callback') {
         $u = LmsAuth::user();
         if (!$u || (int) $u['id'] !== $connState['uid']) av_oauth_bounce('/workspace?e=connect_session');
         $ok = GoogleWorkspaceUser::exchangeAndStore((string) ($_GET['code'] ?? ''), (int) $u['id']);
+        if (!$ok) GoogleAuth::recordFailure('workspace connect', GoogleWorkspaceUser::lastHttpError());
         av_oauth_bounce($connState['next'] . (str_contains($connState['next'], '?') ? '&' : '?') . ($ok ? 'connected=1' : 'e=connect_failed'));
     }
 
@@ -108,16 +109,23 @@ if ($action === 'callback') {
     if ($next === null) av_oauth_bounce('/login?e=google_state');
 
     $tokens = GoogleAuth::exchangeTokens((string) ($_GET['code'] ?? ''));
-    $profile = $tokens ? GoogleAuth::profileFromTokens($tokens) : null;
-    if (!$profile) av_oauth_bounce('/login?e=google_failed');
+    $profile = $tokens ? GoogleAuth::profileFromTokens($tokens, GoogleAuth::stateNonce($state)) : null;
+    if (!$profile) {
+        GoogleAuth::recordFailure('sign-in', $tokens ? 'the id_token was refused (audience, issuer, expiry or nonce)' : GoogleAuth::lastError());
+        av_oauth_bounce('/login?e=google_failed');
+    }
+    /* An address Google has not verified signs nobody in: sign-in finds the
+       account by email, so it would open whoever registered that address here. */
+    if (empty($profile['verified'])) av_oauth_bounce('/login?e=google_unverified');
 
-    $res = LmsAuth::oauthSignIn($profile['email'], $profile['name'], (bool) $profile['verified'], 'google');
-    if (empty($res['ok'])) av_oauth_bounce('/login?e=google_failed');
+    $res = LmsAuth::oauthSignIn($profile['email'], $profile['name'], true, 'google', GoogleAuth::orgVerified($profile));
+    if (empty($res['ok'])) av_oauth_bounce('/login?e=' . (($res['code'] ?? '') === 'inactive' ? 'google_inactive' : 'google_failed'));
 
     // Connect-on-sign-in: if the grant carried offline Workspace scopes, capture
-    // the connection for the just-signed-in member (best-effort — never blocks login).
+    // the connection for the just-signed-in member (best-effort — never blocks
+    // login). captureFromSignin() stores nothing unless an API scope was granted.
     $uid = (int) ($res['user']['id'] ?? 0);
-    if ($uid > 0 && GoogleWorkspaceUser::connectOnSignin()) {
+    if ($uid > 0 && GoogleWorkspaceUser::configured()) {
         try { GoogleWorkspaceUser::captureFromSignin($uid, $tokens); }
         catch (Throwable $e) { error_log('[google] connect-on-signin: ' . $e->getMessage()); }
     }

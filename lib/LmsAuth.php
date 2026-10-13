@@ -201,11 +201,18 @@ final class LmsAuth
      * higher role), then start the session. Created accounts are passwordless
      * (a random unusable hash) so password login can't be used against them.
      */
-    public static function oauthSignIn(string $email, string $name, bool $emailVerified, string $provider = 'google'): array
+    public static function oauthSignIn(string $email, string $name, bool $emailVerified, string $provider = 'google', ?bool $orgDomainVerified = null): array
     {
         $email = strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Your provider did not return a usable email.'];
-        $orgVerified = $emailVerified && self::isOrgEmail($email);
+        /* An unverified address proves nothing about who holds it, and this
+           finds the account BY that address — so it would sign a stranger in
+           as its owner. Refused, whatever the caller does. */
+        if (!$emailVerified) return ['ok' => false, 'code' => 'unverified', 'error' => 'Your provider has not verified that email address.'];
+        /* The member role on an org address also needs the provider to vouch
+           for the domain (Google's hd claim, GoogleAuth::orgVerified). null
+           means the caller has no such signal and the address decides. */
+        $orgVerified = $emailVerified && self::isOrgEmail($email) && ($orgDomainVerified ?? true);
         $db = Database::pdo();
         $u = self::byEmail($email);
         if (!$u) {
@@ -217,7 +224,7 @@ final class LmsAuth
             if ($u && class_exists('Notify')) Notify::welcome($u);
             if ($u && class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => (string) $u['name'], 'role' => (string) $u['role'], 'via' => $provider]);
         } else {
-            if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
+            if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'code' => 'inactive', 'error' => 'This account is not active. Please contact us.'];
             // A successful OAuth sign-in proves email ownership — clear any pending verification.
             if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) {
                 $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
