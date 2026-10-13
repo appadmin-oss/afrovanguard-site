@@ -242,6 +242,32 @@ final class Collab
         return $st->rowCount() > 0;
     }
 
+    /**
+     * Give a task to somebody: the person who created it may, and anybody who
+     * may run teams may hand out a task from the pool. A finished task stays
+     * where it is. The new assignee is told.
+     */
+    public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate): ?array
+    {
+        self::ensureTasks();
+        if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) return null;
+        $st = Database::pdo()->prepare('SELECT * FROM collab_tasks WHERE id = ? AND done = 0');
+        $st->execute([$taskId]);
+        $t = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$t) return null;
+        if ((int) $t['creator_id'] !== $uid && !((int) $t['assignee_id'] === 0 && $mayAllocate)) return null;
+        $u = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
+        $u->execute([$assigneeId]);
+        if (!$u->fetchColumn()) return null;
+        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ? WHERE id = ?')->execute([$assigneeId, $taskId]);
+        if ($assigneeId !== $uid && class_exists('Notifications')) {
+            try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], 'Assigned to you by ' . self::nameOf($uid) . '.', '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
+            catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+        }
+        self::log($uid, self::nameOf($uid), 'assigned a task to ' . self::nameOf($assigneeId), (string) $t['title'], '/portal/#tasks');
+        return self::oneTask($uid, $taskId);
+    }
+
     /* ────────────────────── AI: goal → tasks ─────────────────────── */
 
     /** True when ANY AI backend is wired up — Claude (AvBot) or Gemini. */
@@ -275,7 +301,7 @@ final class Collab
      * The tasks are posted UNCLAIMED so the team can divide the work — exactly
      * the "AI creates tasks from goals, anyone can take them up" flow.
      */
-    public static function aiTasksFromGoal(int $uid, int $goalId, int $max = 6): array
+    public static function aiTasksFromGoal(int $uid, int $goalId, int $max = 6, bool $autoAssign = false): array
     {
         if ($uid <= 0) return ['ok' => false, 'created' => [], 'error' => 'Sign in first.'];
         if (!self::aiAvailable()) return ['ok' => false, 'created' => [], 'error' => 'AI is not configured (set ANTHROPIC_API_KEY or AV_GEMINI_API_KEY).'];
@@ -297,6 +323,8 @@ final class Collab
 
         $prompt = 'GOAL: ' . $goal['title']
             . ($goal['target'] !== '' ? "\nTARGET / SUCCESS METRIC: " . $goal['target'] : '')
+            . (class_exists('TaskMatch') && ($shape = TaskMatch::teamShape()) !== '' ? "\n\nWHO IS AVAILABLE: " . $shape . '.' : '')
+            . (class_exists('TaskMatch') ? "\nAlso give each task a \"kind\" — one of: " . implode(', ', TaskMatch::kindNames()) . ' — so it can go to the right person.' : '')
             . "\n\nBreak this goal into tasks now.";
 
         $res = self::aiComplete($system, $prompt, 900);
@@ -306,18 +334,33 @@ final class Collab
         $items = self::parseAiTasks((string) $res['text']);
         if (!$items) return ['ok' => false, 'created' => [], 'error' => 'The AI did not return usable tasks. Try again.'];
 
-        $created = [];
+        $plan = [];
         foreach (array_slice($items, 0, $max) as $it) {
             $title = trim(mb_substr((string) ($it['title'] ?? ''), 0, 300));
             if ($title === '') continue;
+            $kind = strtolower(trim((string) ($it['kind'] ?? '')));
+            $plan[] = ['title' => $title, 'kind' => class_exists('TaskMatch') && in_array($kind, TaskMatch::kindNames(), true) ? $kind : '', 'it' => $it];
+        }
+        /* Who each task fits, from their labels, spread so one person is not
+           handed the lot. Suggested on every task; assigned only when asked. */
+        $fits = class_exists('TaskMatch') ? TaskMatch::spread($plan) : [];
+        $created = []; $assigned = 0;
+        foreach ($plan as $k => $pl) {
+            $it = $pl['it'];
             $days = (int) ($it['days'] ?? 0);
             $due  = ($days > 0 && $days <= 400) ? gmdate('Y-m-d', strtotime($today . ' +' . $days . ' days') ?: time()) : '';
             $pri  = self::normPriority((string) ($it['priority'] ?? 'normal'));
-            $id = self::addPoolTask($uid, $title, $due, $pri, $goalId);
-            if ($id > 0) { $t = self::oneTask($uid, $id); if ($t) $created[] = $t; }
+            $fit = $fits[$k] ?? null;
+            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId); $assigned++; }
+            else $id = self::addPoolTask($uid, $pl['title'], $due, $pri, $goalId);
+            if ($id > 0 && ($t = self::oneTask($uid, $id))) {
+                if ($fit) $t['suggest'] = ['id' => (int) $fit['id'], 'name' => (string) $fit['name'], 'why' => (string) ($fit['why'][0] ?? $fit['summary'])];
+                $t['kind'] = $pl['kind'];
+                $created[] = $t;
+            }
         }
         if (!$created) return ['ok' => false, 'created' => [], 'error' => 'Could not create tasks.'];
-        return ['ok' => true, 'created' => $created, 'error' => null, 'suggested' => count($items), 'via' => $via];
+        return ['ok' => true, 'created' => $created, 'error' => null, 'suggested' => count($items), 'assigned' => $assigned, 'via' => $via];
     }
 
     /** Tolerantly parse the AI's JSON task array (handles stray prose / code fences). */
@@ -351,6 +394,8 @@ final class Collab
         $new = $t['done'] ? 0 : 1;
         Database::pdo()->prepare('UPDATE collab_tasks SET done = ? WHERE id = ?')->execute([$new, $taskId]);
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
+        /* Counted toward a CACENTRE commitment: the tick counts there too. */
+        if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId);
         return (bool) $new;
     }
 
@@ -396,7 +441,9 @@ final class Collab
     public static function deleteTask(int $uid, int $taskId): bool
     {
         self::ensureTasks();
-        if (!self::ownedTask($uid, $taskId)) return false;
+        $t = self::ownedTask($uid, $taskId);
+        if (!$t) return false;
+        if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId, true);
         Database::pdo()->prepare('DELETE FROM collab_tasks WHERE id = ?')->execute([$taskId]);
         return true;
     }
@@ -485,8 +532,18 @@ final class Collab
     }
 
     /** Members who can be assigned a task (org members), for the allocation picker. */
-    public static function roster(int $limit = 200): array
+    public static function roster(int $limit = 200, bool $withVolunteers = false): array
     {
+        /* Volunteers too, with what they are labelled, for people who hand out
+           work — lib/TaskMatch.php reads both from the same profiles. */
+        if ($withVolunteers && class_exists('TaskMatch')) {
+            try {
+                $out = [];
+                foreach (TaskMatch::profiles() as $p) $out[] = ['id' => $p['id'], 'name' => $p['name'], 'labels' => TaskMatch::summary($p), 'load' => $p['load']];
+                usort($out, static fn($a, $b) => strcasecmp($a['name'], $b['name']));
+                return array_slice($out, 0, max(1, min(500, $limit)));
+            } catch (Throwable $e) { error_log('[collab] roster: ' . $e->getMessage()); }
+        }
         try {
             $domain = strtolower((string) (defined('AV_ORG_DOMAIN') ? AV_ORG_DOMAIN : 'afrovanguard.org.ng'));
             $pdo = Database::pdo();

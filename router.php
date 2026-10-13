@@ -22,6 +22,18 @@ if (preg_match('~^/db(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden
 if (preg_match('~^/(tools|scripts|bin|tests|deploy|docs|vendor|partials|lib)(/|$)~i', $uri)
     || preg_match('~^/projects/sts/ceo/api/data(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
 
+// Published PDFs. `php -S` answers every request with the whole file — no
+// Range, no ETag, no caching — so a viewer's byte-range fetch of page 1 would
+// download everything. In production Apache serves these static files itself
+// (.htaccess, "PDFs"); here DocStream does the same job, and /doc/<name>.pdf
+// is the named route doc.php answers in both.
+if (preg_match('~^/doc/([a-z0-9-]+)\.pdf$~', $uri, $m)) { $_GET['name'] = $m[1]; require __DIR__ . '/doc.php'; return true; }
+if (str_ends_with(strtolower($uri), '.pdf')) {
+    require_once __DIR__ . '/lib/DocStream.php';
+    $docKey = DocStream::keyForPath($uri);
+    if ($docKey !== null) DocStream::send($docKey);
+}
+
 // Serve existing static files (css, js, images, .html) directly.
 if ($uri !== '/' && is_file($path)) { return false; }
 

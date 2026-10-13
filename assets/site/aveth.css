@@ -11,6 +11,17 @@
 .avh .aveth-btn:hover{background:var(--av-ink-hover);border-color:var(--av-ink-hover);color:var(--av-white)}
 .aveth-btn--line{background:transparent;border-color:var(--av-line-3);color:var(--av-ink);font-weight:500}
 .avh .aveth-btn--line:hover{background:var(--av-white);border-color:var(--av-line-3);color:var(--av-ink)}
+.aveth-btn-meta{font-size:13px;font-weight:400;color:var(--av-muted)}
+/* What the PDF costs, and — only on a low-memory phone, data saver or 2G (the
+   av-lite class is set in <head>, before first paint, so nothing shifts) — a
+   word that this page is the light way to read it. */
+.aveth-docmeta{margin-top:12px;font-size:14px;line-height:1.6;color:var(--av-muted)}
+.aveth-docmeta a{color:var(--av-ink);text-decoration:underline;text-underline-offset:2px}
+.aveth-docmeta a:focus-visible,.aveth-btn:focus-visible,.aveth-cover:focus-visible{outline:3px solid var(--av-focus);outline-offset:3px}
+.aveth-docnote{display:none;margin-top:12px;padding:12px 14px;border-left:4px solid var(--av-gold);background:var(--av-gold-soft);color:var(--av-ink);font-size:14.5px;line-height:1.6;border-radius:var(--av-r-6)}
+.av-lite .aveth-docnote{display:block}
+.aveth-hero-copy>p.aveth-docmeta{font-size:15px;margin:-10px 0 0}
+.aveth-hero-copy>p.aveth-docnote{font-size:15px;margin:0;color:var(--av-ink)}
 .aveth-hero,.aveth-commit,.aveth-lead{position:relative;overflow:hidden;isolation:isolate}
 .aveth img{display:block;max-width:100%;color:transparent}
 .aveth-split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:20px 72px;align-items:end;margin-bottom:clamp(40px,5vw,64px)}

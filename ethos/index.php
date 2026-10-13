@@ -13,10 +13,20 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once AV_ROOT . '/lib/partials.php';
 require_once AV_ROOT . '/partials/avh-chrome.php';
+require_once AV_ROOT . '/lib/DocStream.php';
 
 $S = rtrim(SITE_URL, '/');
 $canonical = "$S/ethos/";
 $pdf = "$S/assets/docs/afrovanguard-ethos.pdf";
+/* The ethos is all on this page as text, which is the light way to read it.
+   The PDF (a scan) is the secondary action, with its size and length beside
+   it; the 300 dpi original is there for print. Never embedded. */
+$pdfDoc    = DocStream::doc('afrovanguard-ethos');
+$pdfHref   = DocStream::url('afrovanguard-ethos') ?: '/assets/docs/afrovanguard-ethos.pdf';
+$pdfLabel  = DocStream::meta('afrovanguard-ethos');
+$pdfSize   = $pdfDoc ? DocStream::humanSize($pdfDoc['size']) : '';
+$printHref = DocStream::url('afrovanguard-ethos-print');
+$printLabel = DocStream::meta('afrovanguard-ethos-print');
 $cover = "$S/assets/img/ethos-cover.webp";
 $ogcard = "$S/assets/img/ethos-og.webp";
 
@@ -80,7 +90,7 @@ $jsonld = [
    'description' => $preamble, 'image' => [$ogcard, $cover], 'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $canonical],
    'author' => ['@id' => $S . '/#organization'], 'publisher' => ['@id' => $S . '/#organization'],
    'about' => ['ethics', 'leadership', 'culture', 'governance', 'sustainable development'],
-   'associatedMedia' => ['@type' => 'MediaObject', 'contentUrl' => $pdf, 'encodingFormat' => 'application/pdf', 'name' => 'Afrovanguard Ethos (PDF)']],
+   'associatedMedia' => ['@type' => 'MediaObject', 'contentUrl' => $pdf, 'encodingFormat' => 'application/pdf', 'name' => 'Afrovanguard Ethos (PDF)'] + ($pdfSize !== '' ? ['contentSize' => $pdfSize] : [])],
   schema_breadcrumb([['name' => 'Home', 'url' => "$S/"], ['name' => 'About', 'url' => "$S/about.html"], ['name' => 'Ethos', 'url' => $canonical]]),
 ];
 $two = static fn(int $i): string => str_pad((string) $i, 2, '0', STR_PAD_LEFT);
@@ -90,7 +100,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
 <!DOCTYPE html>
 <html lang="en-NG" prefix="og: https://ogp.me/ns#" class="no-js">
 <head>
-  <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si')</script>
+  <script>document.documentElement.classList.replace('no-js','js');if(/(^|; )av_si=1/.test(document.cookie))document.documentElement.classList.add('av-si');(function(n){try{var c=n.connection||{};if(c.saveData||(n.deviceMemory&&n.deviceMemory<=2)||/(^|-)2g$/.test(c.effectiveType||''))document.documentElement.classList.add('av-lite')}catch(e){}})(navigator)</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title><?= e($title) ?></title>
@@ -146,10 +156,12 @@ if (function_exists('send_security_headers')) send_security_headers('public');
         <p><?= e($preamble) ?></p>
         <div class="aveth-btns">
           <a class="aveth-btn" href="#commitments" data-cms="ethos-a-3">Read the nine commitments</a>
-          <a class="aveth-btn aveth-btn--line" href="/assets/docs/afrovanguard-ethos.pdf" download>Download PDF <span aria-hidden="true">↓</span></a>
+          <a class="aveth-btn aveth-btn--line" href="<?= e($pdfHref) ?>" download="Afrovanguard-Ethos.pdf">Download PDF <span class="aveth-btn-meta">(<?= e($pdfLabel) ?>)</span> <span aria-hidden="true">↓</span></a>
         </div>
+        <p class="aveth-docmeta">The whole ethos is on this page — no download needed.<?php if ($printHref !== ''): ?> For printing: <a href="<?= e($printHref) ?>" download="Afrovanguard-Ethos-print-quality.pdf">print-quality PDF (<?= e($printLabel) ?>)</a>.<?php endif; ?></p>
+        <p class="aveth-docnote av-docnote" role="note"><b>Reading on a phone with little memory or data?</b> This page is the light version: everything in the PDF is here as text. If you want the PDF (<?= e($pdfSize) ?>), it is best downloaded over Wi-Fi.</p>
       </div>
-      <a class="aveth-cover" href="/assets/docs/afrovanguard-ethos.pdf" aria-label="Open the ethos document (PDF)">
+      <a class="aveth-cover" href="#purpose" aria-label="Start reading the ethos on this page">
         <picture><source srcset="/assets/img/ethos-cover.webp" type="image/webp" /><img src="/assets/img/ethos-cover.png" alt="The Global Ethos of Afrovanguardism — cover" width="420" height="560" data-cms="ethos-img-1" /></picture>
       </a>
     </div>
@@ -251,7 +263,7 @@ if (function_exists('send_security_headers')) send_security_headers('public');
   <div class="aveth-wrap">
     <div class="aveth-next-head">
       <div><div class="aveth-eyebrow">Live the ethos</div><h2 class="aveth-h2" id="aveth-next-h">Where it becomes real</h2></div>
-      <a class="aveth-btn aveth-btn--line" href="/assets/docs/afrovanguard-ethos.pdf" download>Download the full ethos <span aria-hidden="true">↓</span></a>
+      <a class="aveth-btn aveth-btn--line" href="<?= e($pdfHref) ?>" download="Afrovanguard-Ethos.pdf">Download the full ethos <span class="aveth-btn-meta">(PDF, <?= e($pdfLabel) ?>)</span> <span aria-hidden="true">↓</span></a>
     </div>
     <div class="aveth-next-grid">
       <a href="/academy/"><img src="/Images/bootcamp1.png" alt="" width="640" height="400" loading="lazy" data-cms="ethos-img-2"><span><b>Learn &amp; lead <span aria-hidden="true">→</span></b><span>Free, hands-on programmes in the Afrovanguard Academy.</span></span></a>

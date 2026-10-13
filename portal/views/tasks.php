@@ -9,6 +9,23 @@
             <div><h1>Tasks</h1><p class="view-sub">Plan the work, share it with the team, and let AI turn goals into a plan. Anyone can claim an open task.</p></div>
           </div>
 
+          <?php if (class_exists('CacWeek') && CacWeek::ready()): ?>
+          <!-- This week at CACENTRE: the member's commitments for the week and
+               the goals they feed; a task here can count toward one (lib/CacWeek.php). -->
+          <section class="pcard cac-week" id="cacWeek" aria-labelledby="cacWeekH" hidden>
+            <div class="pcard-head">
+              <h2 id="cacWeekH">This week at CACENTRE</h2>
+              <span class="pchip" id="cacWeekRange"></span>
+              <a class="pbtn" href="<?= e(CacWeek::consoleUrl()) ?>" target="_blank" rel="noopener">Open my week<span class="sr-only"> on CACENTRE (opens in a new tab)</span></a>
+            </div>
+            <div class="pcard-body">
+              <p class="pcard-note">Your commitments for the week and the goal each one feeds. Count a task from here toward one: when you tick it, it counts on CACENTRE too.</p>
+              <ul class="cw-list" id="cacWeekList" aria-live="polite"></ul>
+              <p class="task-ai-msg" id="cacWeekMsg" role="status" hidden></p>
+            </div>
+          </section>
+          <?php endif; ?>
+
           <!-- AI: turn a goal into a plan of tasks (dropped into the pool) -->
           <section class="pcard task-ai" id="taskAi" data-csrf="<?= e($collabCsrf) ?>" hidden>
             <div class="pcard-head">
@@ -30,6 +47,7 @@
                 </label>
                 <button type="button" class="pbtn pbtn-gold" id="aiGenerate">Generate tasks</button>
               </div>
+              <label class="task-af task-af--check task-ai-assign" id="aiAssignWrap" hidden><input type="checkbox" id="aiAssign"> <span>Assign each task to the best fit (by role, course and centre, spreading the work)</span></label>
               <p class="task-ai-msg" id="aiMsg" hidden></p>
             </div>
           </section>
@@ -108,6 +126,7 @@
                   <button type="submit" class="pbtn pbtn-gold">Add task</button>
                 </div>
               </form>
+              <div class="task-suggest" id="taskSuggest" aria-live="polite" hidden></div>
               <div class="pseg task-filters" id="taskFilters" role="group" aria-label="Show tasks">
                 <button type="button" class="pseg-btn is-on" data-filter="all" aria-pressed="true">All <span class="pseg-n" id="fcAll">0</span></button>
                 <button type="button" class="pseg-btn" data-filter="open" aria-pressed="false">Open <span class="pseg-n" id="fcOpen">0</span></button>

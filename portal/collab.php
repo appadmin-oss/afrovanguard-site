@@ -7,6 +7,8 @@
  *   POST ?action=task_add   → { task }           (body: {title, due})
  *   POST ?action=task_toggle→ { id, done }        (body: {id})
  *   POST ?action=task_delete→ { id }              (body: {id})
+ *   POST ?action=task_suggest → { suggestions }  (body: {title, kind?}) — who it fits
+ *   POST ?action=task_assign  → { task }         (body: {id, assignee})
  *
  * Signed-in members only. Writes require same-origin + a valid CSRF token
  * (X-CSRF-Token header), matching the rest of the portal's endpoints.
@@ -37,6 +39,8 @@ $writeGuard = function () use ($method) {
 $orgGuard = function () use ($isOrg) {
     if (!$isOrg) json_out(['ok' => false, 'error' => 'The task pool is for Afrovanguard members.'], 403);
 };
+/* Who hands out work: organisation members and volunteer coordinators. */
+$allocates = $isOrg || (class_exists('Volunteers') && Volunteers::canRunTeams($u));
 
 try {
     switch ($action) {
@@ -50,13 +54,14 @@ try {
                 'activity' => Collab::recentActivity(18),
                 'tasks'    => Collab::myTasks($uid),
                 'pool'     => $isOrg ? Collab::poolTasks(60) : [],
-                'roster'   => Collab::roster(),
+                'roster'   => Collab::roster(200, $allocates),
+                'allocates'=> $allocates,
                 'ai'       => $isOrg && Collab::aiAvailable(),
                 'goals'    => $isOrg ? array_values(array_filter(Goals::listGoals($uid, 40), fn($g) => empty($g['closed']))) : [],
             ]);
 
         case 'roster':
-            json_out(['ok' => true, 'roster' => Collab::roster()]);
+            json_out(['ok' => true, 'roster' => Collab::roster(200, $allocates)]);
 
         case 'pool':
             $orgGuard();
@@ -107,7 +112,19 @@ try {
             if (!av_rate_ok('collab_ai_' . $uid, 8, 600)) json_out(['ok' => false, 'error' => 'You’ve generated a lot just now — give it a minute.'], 429);
             // AI failures are soft — returned as ok:false with a message the UI
             // shows inline, not an HTTP error (nothing is broken server-side).
-            json_out(Collab::aiTasksFromGoal($uid, (int) ($body['goal_id'] ?? 0), (int) ($body['max'] ?? 6)));
+            json_out(Collab::aiTasksFromGoal($uid, (int) ($body['goal_id'] ?? 0), (int) ($body['max'] ?? 6), !empty($body['auto_assign']) && $allocates));
+
+        /* Who a task fits, from people's labels; AI picks from that shortlist when it is configured. */
+        case 'task_suggest':
+            if (!$allocates) json_out(['ok' => false, 'error' => 'Only people who hand out work see suggestions.'], 403);
+            if (!av_rate_ok('collab_suggest_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            json_out(TaskMatch::suggest((string) ($body['title'] ?? $_GET['title'] ?? ''), 3, (string) ($body['kind'] ?? '')));
+
+        case 'task_assign':
+            $writeGuard();
+            $task = Collab::assignTask($uid, (int) ($body['id'] ?? 0), (int) ($body['assignee'] ?? 0), $allocates);
+            if ($task === null) json_out(['ok' => false, 'error' => 'You cannot give this task to them.'], 403);
+            json_out(['ok' => true, 'task' => $task]);
 
         case 'task_toggle':
             $writeGuard();
@@ -119,6 +136,25 @@ try {
             $writeGuard();
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id']]);
+
+        /* ── This week at CACENTRE (lib/CacWeek.php) ─────────────────────
+           The member's commitments for the week and the goals they feed; a
+           task here can count toward one of them. */
+        case 'cac_week':
+            $w = CacWeek::forMember($u, isset($_GET['on']) ? (string) $_GET['on'] : null);
+            json_out($w + ['attached' => (object) CacWeek::attachedFor($uid)]);
+
+        case 'cac_count':
+            $writeGuard();
+            if (!av_rate_ok('collab_cac_' . $uid, 30, 600)) json_out(['ok' => false, 'error' => 'Slow down a moment.'], 429);
+            $r = CacWeek::attach($u, (int) ($body['id'] ?? 0), max(0, (int) ($body['commitment_id'] ?? 0)));
+            if ($r['ok']) json_out(['ok' => true, 'week' => $r['week'], 'attached' => (object) CacWeek::attachedFor($uid)]);
+            json_out(['ok' => false, 'error' => match ($r['error']) {
+                'not-yours'      => 'That commitment is not one of yours on CACENTRE.',
+                'unreachable'    => 'CACENTRE did not answer. Nothing was changed.',
+                'not-configured' => 'The link to CACENTRE is not set up here.',
+                default          => $r['error'] !== '' ? $r['error'] : 'CACENTRE refused that.',
+            }], 502);
 
         /* ── A CACENTRE task, changed over there ───────────────────────
            Not stored here. The change is sent to CACENTRE, which holds the

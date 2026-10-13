@@ -187,6 +187,10 @@ if (class_exists('CrmAudiencePush')) {
 if (class_exists('NggVolunteers')) {
     try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
 }
+/* Ticks on tasks that count toward a CACENTRE commitment, not sent at the time (lib/CacWeek.php). */
+if (class_exists('CacWeek') && CacWeek::ready()) {
+    try { $result['cac_week_retried'] = CacWeek::retryPending(); } catch (Throwable $e) { $result['cac_week_retried'] = $e->getMessage(); }
+}
 if (class_exists('VolunteerWork')) {
     try { $result['opportunity_reminders'] = VolunteerWork::sweep(); } catch (Throwable $e) {}
 }

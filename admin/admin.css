@@ -790,3 +790,8 @@ body.studio { --gold-deep: var(--av-gold-text); }
 .vp-add select { min-width: 0; flex: 1 1 160px; }
 #mdVol .mem-card-row { align-items: center; flex-wrap: wrap; }
 :root[data-theme="dark"] .badge.published { color: var(--st-ok); }   /* light green on the dark Studio */
+/* On a phone the Studio header's actions wrap under the title instead of
+   pushing the page sideways (log out was off-screen at 390px). */
+@media (max-width: 640px) {
+  .studio-actions { flex-shrink: 1; flex-wrap: wrap; min-width: 0; justify-content: flex-end; }
+}
