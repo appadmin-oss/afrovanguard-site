@@ -213,6 +213,34 @@ ck('Dashboard: the activity in my teams', count(Volunteers::activity($sec)) >= 3
 $ints = Volunteers::integrations();
 ck('Dashboard: without Attendee, no notetaker is offered — and the hub still works', $ints['notetaker'] === false && Volunteers::hub($sec)['ok'] === true);
 
+/* ── What brings people back ── */
+GateAttendance::ensure();
+$vp->exec('DELETE FROM gate_attendance WHERE member_id BETWEEN 9300 AND 9399');
+$today = av_today_tz();
+$vp->prepare("INSERT INTO gate_attendance (member_id, day, status, in_at) VALUES (9303, ?, 'present', ?)")->execute([$today, gmdate('c')]);
+Volunteers::logHours(9303, date('Y-m-d', strtotime($today . ' -7 days')), 2, 'Outreach');
+Volunteers::logHours(9303, date('Y-m-d', strtotime($today . ' -14 days')), 2, 'Outreach');
+Birthdays::ensure();
+$vp->prepare('UPDATE lms_users SET birthday = ? WHERE id = 9305')->execute([date('m-d', strtotime($today . ' +2 days'))]);
+$en = Volunteers::engagement($sec);
+ck('Engagement: a week-by-week streak — this week, last week and the one before', $en['streak'] === 3);
+ck('Engagement: milestones earned are listed, and the nearest one next', in_array('first_hour', array_column($en['earned'], 'key'), true) && $en['next'] !== null && $en['next']['pct'] < 100);
+ck('Engagement: today at the gate', ($en['gate']['today']['status'] ?? '') === 'present');
+ck('Engagement: where I stand this month among my teams', $en['my_rank'] !== null && $en['my_rank']['rank'] === 1 && count($en['board']) <= 5);
+ck('Engagement: a teammate\'s birthday coming up', ($en['birthdays'][0]['name'] ?? '') === 'Lola Late' && $en['birthdays'][0]['in'] === 2);
+ck('Engagement: …the hub carries all of it, with the monthly goal', Volunteers::hub($sec)['engagement']['goal'] === Volunteers::MONTHLY_GOAL);
+ck('Engagement: somebody with nothing yet has no streak and a first milestone ahead', ($e0 = Volunteers::engagement($out))['streak'] === 0 && $e0['earned'] === [] && $e0['next']['key'] === 'first_hour');
+$vp->exec('DELETE FROM gate_attendance WHERE member_id BETWEEN 9300 AND 9399');
+
+/* ── The portal is the dashboard and Membership ── */
+$idx = (string) file_get_contents(AV_ROOT . '/portal/index.php');
+ck('Portal: the dashboard is the volunteer\'s home, drawn first', strpos($idx, "require __DIR__ . '/views/volunteer.php'") < strpos($idx, "require __DIR__ . '/views/membership.php'")
+    && str_contains((string) file_get_contents(AV_ROOT . '/portal/avp.js'), "var home = views[0].getAttribute('data-view');"));
+ck('Portal: nothing else is drawn — no Today, Suite, Tasks, Chat, Learning, Community, Mentorship, Workspace or Diary',
+    !preg_match("~views/(today|tools|tasks|chat|learning|community|mentorship|inventory|workspace|diary)\.php~", $idx));
+ck('Portal: vanguards keep their programme', str_contains($idx, "if (\$isNgv) require __DIR__ . '/views/ngv.php';"));
+ck('Portal: attendance is in the dashboard for a volunteer', str_contains((string) file_get_contents(AV_ROOT . '/portal/views/volunteer.php'), "_attendance.php") && str_contains($idx, '$attView = ($hasGate || $isNgv) && !$isVol;'));
+
 /* ── The sweep ── */
 $vp->exec("DELETE FROM meeting_nudges");
 $t0 = time();

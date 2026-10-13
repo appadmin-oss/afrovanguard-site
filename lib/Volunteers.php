@@ -382,6 +382,138 @@ final class Volunteers
         return array_slice(array_values(array_filter($out, static fn($e) => $e['at'] !== '')), 0, $limit);
     }
 
+    /** Hours a month a volunteer aims for; the ring on the dashboard fills toward it. */
+    public const MONTHLY_GOAL = 8;
+
+    /**
+     * Milestones, earned once and kept. Each is [key, label, emoji, measure,
+     * threshold]; the measure is one of the counts engagement() reads.
+     */
+    public const MILESTONES = [
+        ['first_hour', 'First hour given', '🌱', 'hours', 1],
+        ['hours_10', '10 hours', '⏳', 'hours', 10],
+        ['hours_25', '25 hours', '🥉', 'hours', 25],
+        ['hours_50', '50 hours', '🥈', 'hours', 50],
+        ['hours_100', '100 hours', '🥇', 'hours', 100],
+        ['hours_250', '250 hours', '🏆', 'hours', 250],
+        ['meetings_5', '5 meetings', '🤝', 'meetings', 5],
+        ['meetings_25', '25 meetings', '📣', 'meetings', 25],
+        ['actions_10', '10 actions done', '✅', 'actions', 10],
+        ['actions_50', '50 actions done', '🚀', 'actions', 50],
+        ['ontime_10', '10 days on time at the gate', '⏰', 'ontime', 10],
+        ['streak_4', '4-week streak', '🔥', 'streak', 4],
+        ['streak_12', '12-week streak', '💎', 'streak', 12],
+    ];
+
+    /**
+     * What makes a volunteer want to come back: the streak they are on, the
+     * milestones they have earned and the next one, where they stand this
+     * month among their teams, today at the gate, the people with a birthday
+     * coming, and who the organisation is celebrating.
+     */
+    public static function engagement(array $u): array
+    {
+        self::ensure();
+        $uid = (int) $u['id'];
+        $pdo = Database::pdo();
+        $today = function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d');
+
+        /* Weeks with something given: an hour logged, a meeting attended, a day at the gate. */
+        $since = date('Y-m-d', strtotime($today . ' -26 weeks'));
+        $days = [];
+        $st = $pdo->prepare('SELECT DISTINCT day FROM vol_hours WHERE user_id = ? AND day >= ?');
+        $st->execute([$uid, $since]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $d) $days[] = (string) $d;
+        $gate = null; $ontime = 0;
+        if (class_exists('GateAttendance')) {
+            try {
+                GateAttendance::ensure();
+                $st = $pdo->prepare("SELECT day FROM gate_attendance WHERE member_id = ? AND day >= ? AND status IN ('present', 'late')");
+                $st->execute([$uid, $since]);
+                foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $d) $days[] = (string) $d;
+                $sum = GateAttendance::summary($uid, 30);
+                $hist = GateAttendance::history($uid, 2);
+                $todayRow = null;
+                foreach ($hist as $r) if ((string) $r['day'] === $today) $todayRow = $r;
+                $st = $pdo->prepare("SELECT COUNT(*) FROM gate_attendance WHERE member_id = ? AND status = 'present'");
+                $st->execute([$uid]);
+                $ontime = (int) $st->fetchColumn();
+                if ($sum['counted'] || $todayRow || (class_exists('GatePass') && GatePass::ready())) {
+                    $gate = ['rate' => $sum['rate'], 'punctuality' => $sum['punctuality'], 'grade' => $sum['grade'], 'run' => (int) $sum['streak'],
+                             'counted' => (int) $sum['counted'], 'late' => (int) $sum['late'],
+                             'today' => $todayRow ? ['status' => (string) $todayRow['status'], 'in_at' => (string) $todayRow['in_at'], 'out_at' => (string) ($todayRow['out_at'] ?? '')] : null,
+                             'points' => GateAttendance::points($uid)];
+                }
+            } catch (Throwable $e) { $gate = null; }
+        }
+        $weeks = [];
+        foreach ($days as $d) { $t = strtotime($d . ' 12:00'); if ($t) $weeks[date('o-W', $t)] = true; }
+        $streak = 0;
+        $cursor = strtotime($today . ' 12:00');
+        /* This week counts once something happens in it; until then the run
+           is still alive from last week. */
+        if (!isset($weeks[date('o-W', $cursor)])) $cursor -= 7 * 86400;
+        while (isset($weeks[date('o-W', $cursor)])) { $streak++; $cursor -= 7 * 86400; }
+
+        /* The measures milestones are counted on. */
+        $st = $pdo->prepare('SELECT COALESCE(SUM(minutes), 0) FROM vol_hours WHERE user_id = ?');
+        $st->execute([$uid]);
+        $hours = round((int) $st->fetchColumn() / 60, 1);
+        $st = $pdo->prepare("SELECT COUNT(*) FROM vol_hours WHERE user_id = ? AND source = 'meeting'");
+        $st->execute([$uid]);
+        $meetings = (int) $st->fetchColumn();
+        $actions = 0;
+        try { $st = $pdo->prepare("SELECT COUNT(*) FROM commitments WHERE member_id = ? AND status = 'done'"); $st->execute([$uid]); $actions = (int) $st->fetchColumn(); } catch (Throwable $e) {}
+        $measure = ['hours' => $hours, 'meetings' => $meetings, 'actions' => $actions, 'ontime' => $ontime, 'streak' => $streak];
+        $earned = []; $next = null;
+        foreach (self::MILESTONES as [$key, $label, $emoji, $m, $n]) {
+            if ($measure[$m] >= $n) { $earned[] = ['key' => $key, 'label' => $label, 'emoji' => $emoji]; continue; }
+            $pct = (int) floor($measure[$m] / $n * 100);
+            if ($next === null || $pct > $next['pct']) $next = ['key' => $key, 'label' => $label, 'emoji' => $emoji, 'pct' => $pct, 'have' => $measure[$m], 'need' => $n, 'measure' => $m];
+        }
+
+        /* This month in my teams: hours given, highest first. */
+        $mates = [];
+        foreach (self::teamsFor($u) as $t) foreach ($t['members'] as $p) $mates[(int) $p['id']] = $p['name'];
+        $mates[$uid] = (string) $u['name'];
+        $board = [];
+        if (count($mates) > 1) {
+            $month = substr($today, 0, 7);
+            $ids = implode(',', array_map('intval', array_keys($mates)));
+            $rows = $pdo->query("SELECT user_id, SUM(minutes) m FROM vol_hours WHERE day LIKE '$month%' AND user_id IN ($ids) GROUP BY user_id")->fetchAll(PDO::FETCH_KEY_PAIR);
+            foreach ($mates as $id => $name) $board[] = ['id' => $id, 'name' => $name, 'hours' => round((int) ($rows[$id] ?? 0) / 60, 1), 'me' => $id === $uid];
+            usort($board, static fn($a, $b) => [$b['hours'], $a['name']] <=> [$a['hours'], $b['name']]);
+            foreach ($board as $i => &$b) $b['rank'] = $i + 1;
+            unset($b);
+        }
+        $mine = array_values(array_filter($board, static fn($b) => $b['me']))[0] ?? null;
+
+        /* Birthdays in my teams over the next fortnight. */
+        $bdays = [];
+        if (count($mates) > 1) {
+            try {
+                if (class_exists('Birthdays')) Birthdays::ensure();
+                $ids = implode(',', array_map('intval', array_keys($mates)));
+                foreach ($pdo->query("SELECT id, name, birthday FROM lms_users WHERE id IN ($ids) AND birthday IS NOT NULL AND birthday <> ''")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $md = substr((string) $r['birthday'], -5);
+                    for ($i = 0; $i < 14; $i++) {
+                        $d = date('Y-m-d', strtotime($today . " +$i days"));
+                        if (substr($d, 5) === $md) { $bdays[] = ['name' => (string) $r['name'], 'in' => $i, 'day' => $d, 'me' => (int) $r['id'] === $uid]; break; }
+                    }
+                }
+                usort($bdays, static fn($a, $b) => $a['in'] <=> $b['in']);
+            } catch (Throwable $e) {}
+        }
+
+        $votm = null;
+        if (!function_exists('av_votm') && is_file(__DIR__ . '/people.php')) require_once __DIR__ . '/people.php';
+        if (function_exists('av_votm')) { try { $votm = av_votm($pdo)['votm'] ?? null; } catch (Throwable $e) {} }
+
+        return ['streak' => $streak, 'goal' => self::MONTHLY_GOAL, 'measures' => $measure, 'earned' => $earned, 'next' => $next,
+                'board' => array_slice($board, 0, 5), 'my_rank' => $mine ? ['rank' => $mine['rank'], 'of' => count($board)] : null,
+                'birthdays' => array_slice($bdays, 0, 6), 'votm' => $votm, 'gate' => $gate];
+    }
+
     /** Which ways a meeting is captured on this site. Everything works with none of them. */
     public static function integrations(): array
     {
@@ -424,6 +556,7 @@ final class Volunteers
                 'upcoming' => $meet['upcoming'], 'to_write' => $meet['to_write'], 'to_approve' => $meet['to_approve'], 'published' => $meet['published'],
                 'actions' => $actions, 'hours' => self::hoursFor($uid), 'hours_series' => self::hoursSeries($uid, 12),
                 'attendance' => MeetingMinutes::attendanceOf($u), 'activity' => self::activity($u), 'integrations' => self::integrations(),
+                'engagement' => self::engagement($u),
                 'counts' => ['rsvp' => count(array_filter($meet['upcoming'], static fn($m) => $m['rsvp'] === '')), 'minutes' => count($meet['to_write']) + count($meet['to_approve']),
                              'actions' => count($actions), 'overdue' => count(array_filter($actions, static fn($a) => $a['overdue']))]];
     }

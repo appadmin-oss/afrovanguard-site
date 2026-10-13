@@ -37,10 +37,14 @@ $gpTone = ['present' => 'green', 'late' => 'gold', 'absent' => 'red', 'excused' 
 $gpFlash = (string) ($_COOKIE['av_gp_flash'] ?? '');
 if ($gpFlash !== '') setcookie('av_gp_flash', '', ['expires' => time() - 3600, 'path' => '/portal/']);
 ?>
+<?php if (empty($gpEmbedded)): /* Inside the Volunteer dashboard, its tab is the heading. */ ?>
           <div class="view-head">
             <div><h1>Attendance &amp; pass</h1><p class="view-sub">Your pass for the CACENTRE gate, and what the gate has recorded about you.</p></div>
 <?php if ($gpPass): ?>            <a class="pbtn pbtn-gold" href="/gate-pass">Show my pass full screen</a>
 <?php endif; ?>          </div>
+<?php elseif ($gpPass): ?>
+          <p><a class="pbtn pbtn-gold" href="/gate-pass">Show my gate pass full screen</a></p>
+<?php endif; ?>
 <?php if ($gpFlash !== ''): ?>          <div class="ngv-banner" role="status"><?= e(mb_substr($gpFlash, 0, 300)) ?></div>
 <?php endif; ?>
           <div class="pkpis" aria-label="The last 30 days">

@@ -95,17 +95,20 @@
       if (l && !labelFor[a.getAttribute('data-view')]) labelFor[a.getAttribute('data-view')] = l.textContent.trim();
     });
     labelFor.overview = 'Today';
+    /* Home is the first view the shell drew — the Volunteer dashboard for a
+       volunteer, the programme for a vanguard, Membership for anybody else. */
+    var home = views[0].getAttribute('data-view');
 
     function showView(name, push) {
       var found = views.some(function (v) { return v.getAttribute('data-view') === name; });
-      if (!found) name = 'overview';
+      if (!found) name = home;
       views.forEach(function (v) { v.hidden = v.getAttribute('data-view') !== name; });
       navLinks.forEach(function (l) {
         var on = l.getAttribute('data-view') === name;
         l.classList.toggle('is-active', on);
         if (on) l.setAttribute('aria-current', 'page'); else l.removeAttribute('aria-current');
       });
-      if (crumb) crumb.textContent = labelFor[name] || 'Today';
+      if (crumb) crumb.textContent = labelFor[name] || labelFor[home] || 'Portal';
       window.scrollTo(0, 0);
       if (push && ('#' + name) !== location.hash) {
         try { history.pushState(null, '', '#' + name); } catch (e) { location.hash = name; }
@@ -135,7 +138,7 @@
     window.addEventListener('hashchange', fromUrl);
     // Back and Forward after a pushState fire popstate, not hashchange.
     window.addEventListener('popstate', fromUrl);
-    showView((location.hash || '').replace('#', '') || 'overview', false);
+    showView((location.hash || '').replace('#', '') || home, false);
     /* Some views carry an element with the view's own name as its id (#tasks,
        #membership), and the browser's fragment jump lands on it after the
        first paint. A view opens at its top. */

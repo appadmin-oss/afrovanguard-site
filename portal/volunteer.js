@@ -85,11 +85,15 @@
       if (on && focus) b.focus();
     });
     view.querySelectorAll('.vh-panel').forEach(function (p) { p.hidden = p.id !== 'vp-' + t; });
+    /* The welcome is the overview's; the other tabs get straight to work. */
+    view.querySelector('.vh-hero').hidden = t !== 'overview';
+    $('vhBadges').hidden = t !== 'overview';
     if (!hub) return;
     if (t === 'meetings') drawMeetings();
     if (t === 'minutes') drawMinutesTab();
     if (t === 'actions') drawActions();
     if (t === 'teams') drawTeams();
+    if (t === 'attendance') drawAttendance();
     if (t === 'hours') drawHours();
   }
   var tabs = view.querySelector('.vh-tabs');
@@ -118,6 +122,8 @@
         + '<button type="button" class="avp-btn avp-btn--paper" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Open the live room</button></div>';
     }).join('');
 
+    drawHero();
+
     /* KPIs */
     var next = hub.upcoming.filter(function (m) { return !m.live; })[0];
     $('vhKNext').textContent = next ? rel(next.ts) : '—';
@@ -126,8 +132,11 @@
     $('vhKWaitS').textContent = waiting ? [c.rsvp ? c.rsvp + ' to answer' : '', c.minutes ? c.minutes + ' minutes' : ''].filter(Boolean).join(' · ') : 'all caught up';
     $('vhKAct').textContent = c.actions; $('vhKOverChip').hidden = !c.overdue; $('vhKActS').textContent = c.overdue ? c.overdue + ' overdue' : (c.actions ? 'none overdue' : 'nothing open');
     var a = hub.attendance;
-    $('vhKAtt').textContent = a.rate === null ? '—' : a.rate + '%';
-    $('vhKAttS').textContent = a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' meeting' + (a.present + a.late + a.absent === 1 ? '' : 's') + ' · last six months' : 'no minutes published yet';
+    var gt = hub.engagement.gate;
+    if (gt && gt.counted) { $('vhKAtt').textContent = gt.rate + '%'; }
+    else $('vhKAtt').textContent = a.rate === null ? '—' : a.rate + '%';
+    if (gt && gt.counted) $('vhKAttS').textContent = 'at the gate · ' + gt.punctuality + '% on time · last 30 days';
+    else $('vhKAttS').textContent = a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' meeting' + (a.present + a.late + a.absent === 1 ? '' : 's') + ' · last six months' : 'no minutes published yet';
     $('vhKHours').textContent = hub.hours.month;
     $('vhKSpark').innerHTML = spark(hub.hours_series.slice(-6));
 
@@ -168,6 +177,114 @@
     $('vhCaps').innerHTML = '<ul class="vh-caps-l">' + caps.map(function (x) { return '<li class="' + (x[1] ? 'on' : 'off') + '"><span aria-hidden="true">' + (x[1] ? '✓' : '–') + '</span><span>' + esc(x[0]) + (x[1] ? '' : '<small>' + esc(x[2]) + '</small>') + '</span></li>'; }).join('') + '</ul>';
 
     setTab(tab);
+  }
+
+  /* ── The hero: why come back today ── */
+  var LINES = [
+    'Every hour you give moves Afrovanguard forward.',
+    'Small, steady acts build big things.',
+    'Thank you for showing up — it shows.',
+    'Your team is better because you are in it.',
+    'Today is a good day to make a difference.'
+  ];
+  function drawHero() {
+    var e = hub.engagement, now = new Date(), h = now.getHours();
+    var first = (hub.me.name || '').split(/\s+/)[0] || 'there';
+    $('vhH').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + ', ' + first + '.';
+    $('vhDate').textContent = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    var line = LINES[(now.getDate() + hub.me.id) % LINES.length];
+    if (e.streak >= 2) line = 'You have given time ' + e.streak + ' weeks in a row. Keep the run going!';
+    if (e.next && e.next.pct >= 75) line = 'Almost there — ' + Math.round(e.next.pct) + '% of the way to “' + e.next.label + '”.';
+    var me = (e.birthdays || []).filter(function (b) { return b.me && b.in === 0; })[0];
+    if (me) line = 'Happy birthday from all of us at Afrovanguard! 🎉';
+    $('vhLine').textContent = line;
+
+    var chips = [];
+    chips.push('<span class="vh-chip vh-chip--flame" title="Weeks in a row with something given">' + (e.streak ? '🔥 ' + e.streak + '-week streak' : '🔥 Start a streak this week') + '</span>');
+    if (e.gate) {
+      var t = e.gate.today;
+      chips.push(t ? '<span class="vh-chip vh-chip--' + (t.status === 'late' ? 'gold' : 'green') + '">' + (t.status === 'late' ? '🕘 In late today' : '✓ In today') + (t.in_at ? ' · ' + new Date(t.in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + '</span>'
+                   : '<span class="vh-chip">🚪 Not at the gate today</span>');
+      if (e.gate.points && e.gate.points.month) chips.push('<span class="vh-chip">⭐ ' + e.gate.points.month + ' points this month</span>');
+    }
+    if (e.my_rank && e.my_rank.of > 1) chips.push('<span class="vh-chip">🏅 #' + e.my_rank.rank + ' of ' + e.my_rank.of + ' in your teams</span>');
+    $('vhChips').innerHTML = chips.join('');
+
+    /* One next step: the most useful thing to do right now. */
+    var step = null, live = hub.upcoming.filter(function (m) { return m.room; })[0];
+    if (live) step = ['Open the live room', function () { openRoom(live.id, live.occurrence); }];
+    else if (hub.to_approve.length) step = ['Approve the minutes', function () { openMinutes(hub.to_approve[0].id, hub.to_approve[0].occurrence); }];
+    else if (hub.to_write.length) step = ['Write the minutes', function () { openMinutes(hub.to_write[0].id, hub.to_write[0].occurrence); }];
+    else if (hub.upcoming.some(function (m) { return !m.rsvp && !m.live; })) step = ['Answer your invitations', function () { setTab('meetings'); }];
+    else if (hub.counts.overdue) step = ['See your overdue actions', function () { setTab('actions'); }];
+    $('vhNextStep').hidden = !step;
+    if (step) { $('vhNextStep').textContent = step[0] + ' →'; $('vhNextStep').onclick = step[1]; }
+
+    /* The ring: this month's hours toward the goal. */
+    var got = hub.hours.month, goal = e.goal, pct = Math.min(1, got / goal), r = 52, c = 2 * Math.PI * r;
+    $('vhRing').innerHTML = '<svg viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="' + got + ' of ' + goal + ' hours this month">'
+      + '<circle cx="64" cy="64" r="' + r + '" class="vh-ring-bg"/><circle cx="64" cy="64" r="' + r + '" class="vh-ring-fg" stroke-dasharray="' + (c * pct).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 64 64)"/></svg>'
+      + '<span class="vh-ring-t"><b class="av-num">' + got + '</b><small>of ' + goal + ' h this month</small></span>'
+      + (got >= goal ? '<span class="vh-ring-done">Goal reached ✨</span>' : '');
+
+    /* Milestones */
+    var badges = e.earned.slice(-6).map(function (b) { return '<span class="vh-badge" title="' + esc(b.label) + '"><span aria-hidden="true">' + b.emoji + '</span>' + esc(b.label) + '</span>'; }).join('');
+    var next = e.next ? '<span class="vh-next"><span>Next: ' + e.next.emoji + ' ' + esc(e.next.label) + '</span><progress max="100" value="' + e.next.pct + '" aria-label="' + e.next.pct + '% of the way"></progress><small>' + e.next.have + ' / ' + e.next.need + '</small></span>' : '';
+    $('vhBadges').innerHTML = (badges || '<span class="vh-badge vh-badge--empty">Your first milestone is one hour away 🌱</span>') + next;
+    celebrateNew(e.earned);
+
+    /* Side: spotlight, leaderboard, birthdays */
+    var v = e.votm;
+    $('vhSpot').hidden = !v;
+    if (v) $('vhSpot').innerHTML = '<div class="vh-spot-in">' + (v.photo ? '<img src="' + esc(v.photo) + '" alt="" loading="lazy">' : '<span class="vh-spot-av" aria-hidden="true">' + esc(initials(v.name)) + '</span>')
+      + '<div><p class="vh-spot-k" id="vhSpotH">Volunteer of the Month</p><b>' + esc(v.name) + '</b>' + (v.role ? '<small>' + esc(v.role) + '</small>' : '') + (v.reason ? '<p>' + esc(v.reason) + '</p>' : '') + (v.quote ? '<q>' + esc(v.quote) + '</q>' : '') + '</div></div>';
+    $('vhBoardCard').hidden = !e.board.length;
+    $('vhRank').textContent = e.my_rank ? 'You: #' + e.my_rank.rank : '';
+    var top = Math.max.apply(null, e.board.map(function (b) { return b.hours; }).concat([1]));
+    $('vhBoard').innerHTML = e.board.map(function (b) {
+      return '<li class="' + (b.me ? 'is-me' : '') + '"><span class="vh-board-n">' + (['🥇', '🥈', '🥉'][b.rank - 1] || b.rank) + '</span><span class="vh-board-t"><span>' + esc(b.me ? 'You' : b.name) + '</span><span class="vh-board-bar"><i style="width:' + Math.round(b.hours / top * 100) + '%"></i></span></span><b class="av-num">' + b.hours + 'h</b></li>';
+    }).join('');
+    $('vhBdayCard').hidden = !e.birthdays.length;
+    $('vhBdays').innerHTML = e.birthdays.map(function (b) {
+      return '<li><span class="vh-feed-i" aria-hidden="true">🎂</span><span><span>' + esc(b.me ? 'You' : b.name) + '</span><small>' + (b.in === 0 ? 'Today — say happy birthday!' : b.in === 1 ? 'Tomorrow' : day(b.day)) + '</small></span></li>';
+    }).join('');
+  }
+  /* A milestone newly earned gets a moment — once. */
+  function celebrateNew(earned) {
+    var seen = []; try { seen = JSON.parse(localStorage.getItem('vh.badges') || '[]'); } catch (x) {}
+    var keys = earned.map(function (b) { return b.key; });
+    var fresh = earned.filter(function (b) { return seen.indexOf(b.key) < 0; });
+    try { localStorage.setItem('vh.badges', JSON.stringify(keys)); } catch (x) {}
+    if (!seen.length || !fresh.length) return;   /* the first visit sets the baseline quietly */
+    var b = fresh[fresh.length - 1];
+    var el = document.createElement('div'); el.className = 'vh-celebrate'; el.setAttribute('role', 'status');
+    el.innerHTML = '<span class="vh-celebrate-e" aria-hidden="true">' + b.emoji + '</span><b>Milestone reached</b><span>' + esc(b.label) + '</span>';
+    document.body.appendChild(el);
+    setTimeout(function () { el.classList.add('out'); }, 4200); setTimeout(function () { el.remove(); }, 5000);
+  }
+
+  /* ── Attendance tab ── */
+  function drawAttendance() {
+    var g = hub.engagement.gate, a = hub.attendance, k = [];
+    if (g) {
+      k.push(['At the gate', g.counted ? g.rate + '%' : '—', 'last 30 days']);
+      k.push(['On time', g.counted ? g.punctuality + '%' : '—', g.late + ' late' + (g.run ? ' · ' + g.run + '-day on-time run' : '')]);
+      k.push(['Grade', g.grade || '—', g.points ? (g.points.month || 0) + ' points this month' : '']);
+    }
+    k.push(['Meetings attended', a.rate === null ? '—' : a.rate + '%', a.meetings ? (a.present + a.late) + ' of ' + (a.present + a.late + a.absent) + ' · ' + a.apologies + ' apolog' + (a.apologies === 1 ? 'y' : 'ies') : 'from published minutes']);
+    $('vhAttKpis').innerHTML = k.map(function (x) { return '<div class="avp-kpi"><div class="avp-kpi-top"><span class="avp-kpi-l">' + esc(x[0]) + '</span></div><div class="avp-kpi-v av-num">' + esc(x[1]) + '</div><div class="avp-kpi-s">' + esc(x[2]) + '</div></div>'; }).join('');
+    api('past', null, 'team_id=0').then(function (r) {
+      if (!r.ok) { $('vhMyMeet').innerHTML = '<li class="avp-empty">' + esc(r.error) + '</li>'; return; }
+      var LBL = { present: ['On time', 'green'], late: ['Late', 'gold'], apologies: ['Apologies', 'indigo'], absent: ['Missed', 'red'] };
+      var mine = r.meetings.filter(function (m) { return m.my_mark || m.minutes_status === 'published'; });
+      $('vhMyMeetN').textContent = mine.length;
+      $('vhMyMeet').innerHTML = mine.length ? mine.map(function (m) {
+        var l = LBL[m.my_mark];
+        return row(esc(m.title) + ' ' + (l ? '<span class="avp-chip avp-chip--sm avp-chip--' + l[1] + '">' + l[0] + '</span>' : '<span class="avp-chip avp-chip--sm">Not marked</span>'),
+          esc(m.when) + (m.team ? ' · ' + esc(m.team) : '') + ' · ' + m.came + ' of ' + m.invited + ' came',
+          m.minutes_status === 'published' ? '<button type="button" class="avp-btn avp-btn--sq" data-minutes="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Minutes</button>' : '');
+      }).join('') : '<li class="avp-empty">No meetings recorded yet.</li>';
+    });
   }
 
   function seg(m) {
@@ -702,6 +819,7 @@
 
   /* ══ When the view opens ═══════════════════════════════════════════════ */
 
+  if (location.hash === '#attendance') { tab = 'attendance'; try { history.replaceState(null, '', '#volunteer'); } catch (x) {} }
   document.addEventListener('portal:view', function (e) { if (e.detail && e.detail.view === 'volunteer') load(); });
   if (!view.hidden || location.hash === '#volunteer') load();
   /* Keep "coming up" and "live now" honest while the page sits open. */
