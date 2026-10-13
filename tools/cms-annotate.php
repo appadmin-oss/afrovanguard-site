@@ -9,6 +9,7 @@
  * part of the page source. Rules are in SitePages::annotate().
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
 define('AV_ROOT', dirname(__DIR__));
 require AV_ROOT . '/lib/SiteHome.php';

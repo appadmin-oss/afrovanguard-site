@@ -40,9 +40,34 @@ ck('http: the STS form backups are refused', str_contains($secRoot, 'RewriteRule
 foreach (['tools', 'scripts', 'bin', 'tests', 'deploy', 'docs', 'vendor', 'partials', 'lib'] as $secDir) {
     ck("http: $secDir/ carries its own deny", str_contains((string) @file_get_contents(AV_ROOT . "/$secDir/.htaccess"), 'Require all denied'));
 }
-foreach (['tools/gate-revoke.php', 'scripts/seed-mentor-200.php', 'tests/run.php', 'bin/sync-nav.php', 'tools/build-chrome.php'] as $secCli) {
-    ck("http: $secCli refuses a web request", str_contains((string) file_get_contents(AV_ROOT . '/' . $secCli), "if (PHP_SAPI !== 'cli') { http_response_code(403)"));
+/* Every PHP file under the CLI folders refuses a web request itself, not a
+   named few: a new tool is covered the day it is added. */
+foreach (array_merge(glob(AV_ROOT . '/{tools,scripts,bin}/*.php', GLOB_BRACE) ?: [], [AV_ROOT . '/tests/run.php']) as $secCli) {
+    ck('http: ' . substr($secCli, strlen(AV_ROOT) + 1) . ' refuses a web request',
+        str_contains((string) file_get_contents($secCli), "if (PHP_SAPI !== 'cli') { http_response_code(403)"));
 }
+$secRouter = (string) file_get_contents(AV_ROOT . '/router.php');
+ck('http: the dev router mirrors the CLI-folder deny', str_contains($secRouter, "~^/(tools|scripts|bin|tests|deploy|docs|vendor|partials|lib)(/|$)~i"));
+ck('http: the dev router mirrors the STS data deny', str_contains($secRouter, "~^/projects/sts/ceo/api/data(/|$)~i"));
+/* The suite's NGV connection is the throwaway file whatever the host has
+   configured: NgvDb picks MySQL as soon as AV_NGV_DB_HOST/_NAME/_USER is set,
+   and the NGV tests delete every charge, payment and participant. */
+ck('tests: NGV is forced to SQLite', getenv('AV_NGV_DB_DRIVER') === 'sqlite' && str_starts_with((string) getenv('AV_NGV_DB_DSN'), 'sqlite:'));
+ck('tests: the NGV connection the suite holds is the throwaway file',
+    NgvDb::pdo()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite' && str_contains(NgvDb::sqlitePathPublic(), sys_get_temp_dir()));
+ck('tests: the main DB is forced to SQLite', getenv('AV_DB_DRIVER') === 'sqlite' && Database::pdo()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite');
+
+/* STS form backups: a deny rule that ships, rather than a template to merge. */
+$secSts = (string) @file_get_contents(AV_ROOT . '/projects/sts/ceo/api/data/.htaccess');
+ck('sts: the data folder carries its own deny', str_contains($secSts, 'Require all denied'));
+$secIgn = (string) file_get_contents(AV_ROOT . '/.gitignore');
+ck('sts: the deny is tracked while the data stays ignored',
+    str_contains($secIgn, "projects/sts/ceo/api/data/*\n!projects/sts/ceo/api/data/.htaccess"));
+ck('upload: the no-execute rules are tracked while the uploads stay ignored', str_contains($secIgn, "uploads/*\n!uploads/.htaccess"));
+ck('upload: PHP is switched off in /uploads/ where mod_php reads .htaccess', str_contains(Storage::UPLOADS_HTACCESS, "<IfModule mod_php.c>\n  php_flag engine off"));
+ck('upload: script types lose their handler', str_contains(Storage::UPLOADS_HTACCESS, 'RemoveHandler .php .phtml') && str_contains(Storage::UPLOADS_HTACCESS, 'RemoveType .php .phtml'));
+ck('upload: Cloudinary\'s local fallback names files from the bytes too',
+    str_contains((string) file_get_contents(AV_ROOT . '/lib/Cloudinary.php'), 'Storage::safeExt(Storage::mime($tmpPath), $originalName)'));
 
 /* ══ 3. Every Studio POST carries a CSRF token ════════════════════════════
    The CSRF gate keyed off a hand-kept list of action names; promotion_review,

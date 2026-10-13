@@ -107,7 +107,9 @@ final class Storage
         $root = AV_ROOT . '/uploads';
         if (!is_dir($root)) @mkdir($root, 0775, true);
         $ht = $root . '/.htaccess';
-        if (!is_file($ht)) @file_put_contents($ht, self::UPLOADS_HTACCESS);
+        /* Rewritten when it differs, not only when missing: a host that kept an
+           older copy would otherwise never receive a rule added since. */
+        if (!is_file($ht) || (string) @file_get_contents($ht) !== self::UPLOADS_HTACCESS) @file_put_contents($ht, self::UPLOADS_HTACCESS);
     }
 
     /** The rules /uploads/.htaccess carries (kept in step with the shipped file). */
@@ -117,6 +119,8 @@ final class Storage
         . "  <IfModule mod_authz_core.c>\n    Require all denied\n  </IfModule>\n"
         . "  <IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n  </IfModule>\n"
         . "</FilesMatch>\n"
+        . "<IfModule mod_php.c>\n  php_flag engine off\n</IfModule>\n"
+        . "<IfModule mod_php7.c>\n  php_flag engine off\n</IfModule>\n"
         . "<IfModule mod_mime.c>\n  RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar\n  RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar\n</IfModule>\n"
         . "<IfModule mod_headers.c>\n  Header always set X-Content-Type-Options \"nosniff\"\n  Header always set Content-Security-Policy \"default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox\"\n</IfModule>\n";
 

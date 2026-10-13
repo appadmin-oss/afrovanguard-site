@@ -16,6 +16,11 @@ $path = __DIR__ . $uri;
 // db/private writes its own deny), but this router served any file it found,
 // so the private store (receipts, donor and contact records) was readable here.
 if (preg_match('~^/db(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
+// Mirror the root .htaccess: command-line tools, the test suite, vendor code and
+// the STS form backups are never web endpoints. Without this the dev server ran
+// scripts/seed-mentor-200.php and tests/run.php for anybody who asked.
+if (preg_match('~^/(tools|scripts|bin|tests|deploy|docs|vendor|partials|lib)(/|$)~i', $uri)
+    || preg_match('~^/projects/sts/ceo/api/data(/|$)~i', $uri)) { http_response_code(403); echo 'Forbidden'; return true; }
 
 // Serve existing static files (css, js, images, .html) directly.
 if ($uri !== '/' && is_file($path)) { return false; }

@@ -25,6 +25,14 @@ putenv('AV_DB_DSN=sqlite:' . $dbFile);
 $ngvFile = sys_get_temp_dir() . '/av-test-ngv-' . getmypid() . '.db';
 @unlink($ngvFile); @unlink($ngvFile . '-wal'); @unlink($ngvFile . '-shm');
 putenv('AV_NGV_DB_PATH=' . $ngvFile);
+// And force the DRIVER, not just the path. NgvDb picks MySQL as soon as any of
+// AV_NGV_DB_HOST/_NAME/_USER is set — in the environment or in config.php — and
+// the NGV tests run DELETE FROM ngv_charges / ngv_payments / ngv_participants.
+// On a host configured for a real NGV ledger the path above would be ignored and
+// those deletes would land on it. putenv() wins over a config.php constant.
+putenv('AV_NGV_DB_DRIVER=sqlite');
+putenv('AV_NGV_DB_DSN=sqlite:' . $ngvFile);
+putenv('AV_DB_DRIVER=sqlite');
 putenv('APP_KEY=ci_test_key_0123456789abcdefghij');
 // No outbound mail from the suite. Without this every message shells out to a
 // sendmail that is not there — slow, noisy, and one misconfigured CI runner away
@@ -110,6 +118,9 @@ function reset_users(): void {
 }
 
 $files = glob(__DIR__ . '/*.test.php') ?: [];
+// `php tests/run.php security ngvpay` runs only the files whose names contain a word given.
+$only = array_slice($argv ?? [], 1);
+if ($only) $files = array_values(array_filter($files, static fn($f) => (bool) array_filter($only, static fn($w) => str_contains(basename($f), $w))));
 foreach ($files as $f) { echo "\n# " . basename($f) . "\n"; require $f; }
 
 @unlink($dbFile); @unlink($dbFile . '-wal'); @unlink($dbFile . '-shm');
