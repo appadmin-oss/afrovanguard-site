@@ -765,7 +765,6 @@ final class Database
         // columns without a default stay TEXT: the app stores/compares ISO strings.)
         $ts  = $driver === 'mysql' ? 'DATETIME' : 'TIMESTAMP';
         $sql = preg_replace('/\bTEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+CURRENT_TIMESTAMP/i', $ts . '$1 DEFAULT CURRENT_TIMESTAMP', $sql);
-        if ($driver === 'mysql') $sql = preg_replace("/\bTEXT(\s+NOT\s+NULL)?\s+DEFAULT\s+(''|'[^']*')/i", "VARCHAR(255)$1 DEFAULT $2", $sql);
 
         if ($driver === 'mysql') {
             // Append ENGINE=InnoDB (FKs + transactions) + utf8mb4 (emoji) to every
