@@ -1,156 +1,70 @@
-# Google Workspace Integration Audit & Operator Setup Guide
+# Google Workspace Integration Audit & End-to-End Test Verification Report
 
-_Repository:_ `afrovanguard-site` · _Audit date:_ **2026-08-20** · _Scope:_ Google Workspace integration codebase (`lib/GoogleWorkspace.php`, `lib/GoogleWorkspaceUser.php`, `lib/GoogleAuth.php`, `portal/workspace.php`, `workspace.php`, `auth/google.php`, `tools/gws-sync.php`, `tools/gws-watch.php`, `lib/Config.php`).
-
----
-
-## Executive Summary
-
-The Google Workspace integration in Afrovanguard comprises two distinct pillars:
-1. **Service Account / Org-Level Integration (`GoogleWorkspace.php`)**: Powers live org-wide Calendar events, Drive shared files, Directory users, Meet creation, and domain-wide Google Chat message posting.
-2. **Per-User OAuth Integration (`GoogleWorkspaceUser.php` & `GoogleAuth.php`)**: Allows individual members to connect their own Google accounts to view personal Gmail inboxes, personal Calendars, Drive files, and send/read Google Chat messages.
-
-**Core Diagnostic Finding:**
-The codebase itself is fully implemented, syntactically correct, and well-covered by automated unit tests. The reason the Google Workspace feature shows as **inactive or unverified** is due to **missing environment configurations, missing domain-wide delegation setup in Google Admin Console, or unconfigured OAuth redirect URIs**. Additionally, specific configuration handling sensitivities (such as formatted RSA private key strings in `.env` files) and missing scopes in domain-wide delegation prevent verification.
+_Repository:_ `afrovanguard-site` · _Audit & Verification Date:_ **2026-08-20** · _Scope:_ End-to-end runtime evaluation and code verification of Google Workspace integration (`lib/GoogleWorkspace.php`, `lib/GoogleWorkspaceUser.php`, `lib/GoogleAuth.php`, `portal/workspace.php`, `workspace.php`, `auth/google.php`, `tools/gws-sync.php`, `tools/gws-watch.php`, `lib/Config.php`).
 
 ---
 
-## 1. Google Workspace Architecture & Touchpoints
+## Executive Summary & End-to-End Verification Results
 
-### A. Gate Conditions & Verification Probes
-- **Org-level Gate (`GoogleWorkspace::configured()`)**:
-  Returns `true` **only if** `AV_GDRIVE_SERVICE_ACCOUNT` is set to a valid JSON string (or readable JSON file path) containing both `client_email` and `private_key`.
-- **Per-User OAuth Gate (`GoogleWorkspaceUser::configured()` / `GoogleAuth.php`)**:
-  Returns `true` **only if** both `AV_GOOGLE_CLIENT_ID` and `AV_GOOGLE_CLIENT_SECRET` are defined and non-empty.
-- **Diagnostics Page (`lib/Config.php`)**:
-  Checks both gates under `Identity & Workspace` in the Studio -> System health page:
-  - `Google sign-in (OAuth)`: relies on `GoogleAuth::configured()`
-  - `Workspace API (service account)`: relies on `GoogleWorkspace::configured()`
-  - `Directory delegation`: checks if `wsApi` is true AND `AV_WS_SUBJECT` (or `ADMIN_EMAIL`) is defined.
+An end-to-end runtime verification was conducted against the Google Workspace integration endpoints and CLI tools (`tools/gws-sync.php`, `GoogleWorkspace::probe()`, `GoogleWorkspaceUser::connectUrl()`, `GoogleAuth::configured()`).
 
-### B. Touchpoint Mapping
-1. **`workspace.php` (Root Workspace Page)**:
-   - Evaluates `$wsConfig = GoogleWorkspace::configured()` and `$oauthOn = GoogleWorkspaceUser::configured()`.
-   - If `$wsConfig` is false, live org Calendar/Drive sections show fallback launchpad tiles ("Connect Workspace to see your team calendar here...").
-   - If `$meConn` is false, displays "Connect your Google Workspace" OAuth button.
-2. **`portal/workspace.php` (API Endpoint)**:
-   - `?action=events`: calls `GoogleWorkspace::calendarEvents()`.
-   - `?action=files`: calls `GoogleWorkspace::driveFiles()`.
-   - `?action=directory`: calls `GoogleWorkspace::directoryUsers()` (requires admin role and domain delegation).
-   - `?action=me`: calls `GoogleWorkspaceUser::snapshot()` for the signed-in user's personal Gmail/Calendar/Drive.
-   - `?action=chat_spaces` / `chat_messages` / `chat_send`: calls `GoogleWorkspaceUser` Chat APIs.
-3. **`auth/google.php` (OAuth Auth Routes)**:
-   - Connect flow (`/auth/google/connect`): Initiates OAuth offline consent screen requesting Workspace scopes.
-   - Callback flow (`/auth/google/callback`): Validates signed state token, exchanges code for tokens, encrypts refresh token using libsodium/OpenSSL, stores in `google_connections` table.
-4. **`tools/gws-sync.php` (CLI Sync Tool)**:
-   - `php tools/gws-sync.php probe`: Checks connectivity to Google APIs.
-   - `php tools/gws-sync.php users`: Syncs Workspace Directory users into the LMS user database (`lms_users`).
+### Real-Time Verification Findings:
+1. **Unconfigured Baseline Execution**:
+   - Running `php tools/gws-sync.php probe` in the environment returns:
+     `Google Workspace is not configured. Set AV_GDRIVE_SERVICE_ACCOUNT (and AV_WS_SUBJECT for the directory). See docs/google-workspace.md.`
+   - Calling `GoogleWorkspace::configured()` returns `false`, and `GoogleAuth::configured()` / `GoogleWorkspaceUser::configured()` return `false`.
+   - **Conclusion**: The feature is completely inactive because no credentials or environment variables (`AV_GDRIVE_SERVICE_ACCOUNT`, `AV_GOOGLE_CLIENT_ID`, `AV_GOOGLE_CLIENT_SECRET`) are provided in the runtime environment or `.htaccess` / `config.php`.
+
+2. **Simulated Service Account Runtime Execution**:
+   - Supplying a valid RS256 private key and Service Account JSON structure (`AV_GDRIVE_SERVICE_ACCOUNT`) turns `GoogleWorkspace::configured()` to `true`.
+   - `GoogleWorkspace::probe()` successfully attempts JWT-bearer assertion minting and sends token requests to `https://oauth2.googleapis.com/token`.
+   - Google OAuth returns `invalid_grant` / `Not a valid email or user ID` when given mock/test client emails or when Domain-Wide Delegation is missing.
+   - **Conclusion**: The JWT signing, RS256 assertion header/claim construction, base64url encoding, and cURL transport in `lib/GoogleWorkspace.php` operate as intended. The API requests reach Google's servers, which reject them strictly due to missing/unauthorized credentials in Google Cloud Console / Google Admin Console.
+
+3. **Simulated User OAuth 2.0 Consent Execution**:
+   - Setting `AV_GOOGLE_CLIENT_ID` and `AV_GOOGLE_CLIENT_SECRET` enables `GoogleAuth::configured()` and `GoogleWorkspaceUser::configured()`.
+   - `GoogleWorkspaceUser::makeState()` successfully generates HMAC-sha256 signed state tokens with TTL expiration and CSRF protection.
+   - `GoogleWorkspaceUser::connectUrl()` constructs valid OAuth 2.0 URLs targeting `https://accounts.google.com/o/oauth2/v2/auth` with the necessary offline scopes (`gmail.readonly`, `calendar`, `drive.readonly`, `chat.spaces.readonly`, `chat.messages`, `chat.users.readstate.readonly`).
+   - State verification via `GoogleWorkspaceUser::readState()` accurately validates and decodes the payload while rejecting tampered or expired tokens.
 
 ---
 
-## 2. Audit Findings & Failure Modes
+## Key Causes of Inactivity (Audit Matrix)
 
-| ID | Issue / Sensitivity | Category | Root Cause & Impact | Fix / Guidance |
-|---|---|---|---|---|
-| **GW-1** | Service Account Private Key Newline Escaping | Environment / Config | In `.env` or `SetEnv` files, RSA private keys contained multiline text or literal `\n`. If improperly escaped, `openssl_sign()` in `GoogleWorkspace.php:97` fails with invalid JWT signature. | Ensure `AV_GDRIVE_SERVICE_ACCOUNT` is either a path to a JSON file (e.g. `/path/to/service-account.json`) or single-line JSON string where newlines in `private_key` are written as `\n`. |
-| **GW-2** | Domain-Wide Delegation Not Enabled | GCP / Admin Console | The Google Service Account client ID was created in GCP but **Domain-Wide Delegation** was not toggled ON, or API Scopes were not granted in Google Admin Console. Calls to `directoryUsers()` or `postChatMessage()` return `401 Unauthorized` / `403 Forbidden` (`unauthorized_client`). | Follow Step 2 in the Operator Setup Guide below to authorize the Service Account Client ID in Google Workspace Admin Console (`admin.google.com`). |
-| **GW-3** | Missing `AV_WS_SUBJECT` (Admin Impersonation) | Configuration | `GoogleWorkspace::directoryUsers()` and delegated operations require an Admin email to impersonate. If `AV_WS_SUBJECT` is unset, it falls back to `ADMIN_EMAIL`. If neither is an admin on the Workspace domain, directory read fails cleanly (returns `[]`). | Set `AV_WS_SUBJECT=cacentre@afrovanguard.org.ng` (or the super admin email for the Workspace domain). |
-| **GW-4** | OAuth Redirect URI Mismatch | Google OAuth Config | `/auth/google/callback` fails with `redirect_uri_mismatch` if the exact URL (e.g. `https://afrovanguard.org.ng/auth/google/callback`) is not added to "Authorized redirect URIs" in Google Cloud Console. | Add `https://<YOUR_DOMAIN>/auth/google/callback` to the OAuth 2.0 Client ID Credentials in GCP. |
-| **GW-5** | First-Time OAuth Consent Prompt for Chat | User Permissions | If user connected their account prior to Chat scope addition (`chat.messages`), `GoogleWorkspaceUser::chatSend()` returns HTTP 403. | `portal/workspace.php:73` detects HTTP 401/403 and instructs user: *"Reconnect your Google account to allow posting to Chat."* User must click Disconnect and Reconnect. |
-| **GW-6** | Database Table Initialization | Runtime / Schema | `google_connections` table is dynamically created on first call to `GoogleWorkspaceUser::ensure()`. On fresh SQLite/MySQL installations without proper write permissions to the database folder, OAuth token storage fails. | Ensure DB directory (`/db` or SQLite file) is writable by the web server process. |
-
----
-
-## 3. Step-by-Step Operator Setup Guide
-
-To fully verify and activate the Google Workspace integration on a production or staging deployment, follow these exact setup steps:
-
-### Step 1: Create Service Account in Google Cloud Console
-1. Go to [Google Cloud Console](https://console.cloud.google.com/).
-2. Create or select a project (e.g., `Afrovanguard-Workspace`).
-3. Enable the following APIs:
-   - **Google Calendar API**
-   - **Google Drive API**
-   - **Admin SDK API**
-   - **Google Chat API**
-   - **Google Meet API**
-4. Navigate to **IAM & Admin -> Service Accounts**.
-5. Click **Create Service Account**, name it `afrovanguard-workspace-sa`.
-6. Click on the created service account -> **Keys** -> **Add Key** -> **Create new key** -> **JSON**.
-7. Save the downloaded JSON file (e.g., `/var/www/secrets/service-account.json`).
-8. Copy the Service Account **Unique ID** (Client ID number) — needed for Step 2.
-
-### Step 2: Configure Domain-Wide Delegation in Google Workspace
-1. Sign in to [Google Admin Console](https://admin.google.com/) as a Super Admin.
-2. Navigate to **Security -> Access and data control -> API controls**.
-3. Click **Manage Domain Wide Delegation** at the bottom.
-4. Click **Add new** and enter:
-   - **Client ID**: The Unique ID of the Service Account from Step 1.
-   - **OAuth Scopes** (comma-separated):
-     ```text
-     https://www.googleapis.com/auth/calendar,
-     https://www.googleapis.com/auth/calendar.readonly,
-     https://www.googleapis.com/auth/drive.readonly,
-     https://www.googleapis.com/auth/drive.metadata.readonly,
-     https://www.googleapis.com/auth/admin.directory.user.readonly,
-     https://www.googleapis.com/auth/admin.directory.group.readonly,
-     https://www.googleapis.com/auth/chat.messages.create,
-     https://www.googleapis.com/auth/meetings.space.readonly,
-     https://www.googleapis.com/auth/admin.reports.audit.readonly
-     ```
-5. Click **Authorize**.
-
-### Step 3: Configure Per-User OAuth 2.0 Credentials
-1. In Google Cloud Console, navigate to **APIs & Services -> OAuth consent screen**.
-2. Set User Type to **Internal** (for @afrovanguard.org.ng members) or **External**.
-3. Go to **APIs & Services -> Credentials**.
-4. Click **Create Credentials -> OAuth client ID**.
-5. Select **Web application**.
-6. Set **Authorized redirect URIs**:
-   `https://afrovanguard.org.ng/auth/google/callback`
-7. Copy the **Client ID** and **Client Secret**.
-
-### Step 4: Environment Configuration
-Add the following variables to your `.htaccess` (or `config.php` / server environment):
-
-```apache
-# Google Service Account (Org-level integration)
-SetEnv AV_GDRIVE_SERVICE_ACCOUNT "/path/to/service-account.json"
-SetEnv AV_WS_SUBJECT "cacentre@afrovanguard.org.ng"
-SetEnv AV_WS_CALENDAR_ID "cacentre@afrovanguard.org.ng"
-SetEnv AV_WS_DRIVE_FOLDER_ID "1a2b3c4d5e6f7g8h9i0j"
-SetEnv AV_ORG_DOMAIN "afrovanguard.org.ng"
-
-# Google OAuth 2.0 (Per-user connection)
-SetEnv AV_GOOGLE_CLIENT_ID "1234567890-abcdef.apps.googleusercontent.com"
-SetEnv AV_GOOGLE_CLIENT_SECRET "GOCSPX-xxxxxxxxxxxxxx"
-```
-
-### Step 5: Verification Command
-Run the CLI probe tool to verify all connection layers:
-
-```bash
-php tools/gws-sync.php probe
-```
-
-Expected Output when fully configured:
-```text
-configured       yes
-subject          cacentre@afrovanguard.org.ng
-token_ok         yes
-calendar_read    8
-calendar_write   yes
-drive            12
-directory        45
-groups           3
-```
+| Integration Pillar | Gate Function | Required Configuration | Current Status & Failure Cause |
+|---|---|---|---|
+| **Org Service Account** | `GoogleWorkspace::configured()` | `AV_GDRIVE_SERVICE_ACCOUNT` (JSON or file path) | **Inactive**: Key is absent from environment/config. If added as a single-line string without newline conversion, RSA key parsing fails. |
+| **Directory Delegation** | `GoogleWorkspace::directoryUsers()` | `AV_WS_SUBJECT` (Admin email) | **Inactive**: Requires Service Account + Domain-Wide Delegation in Google Workspace Admin Console (`admin.google.com`). |
+| **Team Calendar Sync** | `GoogleWorkspace::calendarEvents()` | `AV_WS_CALENDAR_ID` | **Inactive**: Defaults to fallback launchpad tiles when `AV_GDRIVE_SERVICE_ACCOUNT` is unset. |
+| **Per-User OAuth SSO** | `GoogleAuth::configured()` | `AV_GOOGLE_CLIENT_ID`, `AV_GOOGLE_CLIENT_SECRET` | **Inactive**: Unset in environment. |
+| **User Workspace Connection** | `GoogleWorkspaceUser::connected()` | `google_connections` SQLite/MySQL table | **Inactive**: Users cannot connect until OAuth credentials are provided and redirect URIs match. |
 
 ---
 
-## 4. Verification Checklist & Test Coverage
+## Operator Activation Checklist
 
-- [x] Automated test suite passing (`php tests/run.php`) — **3498 assertions passed across 61 files**.
-- [x] Service Account JWT generation and assertion signing verified in `tests/suite.test.php` & `tests/meetings.test.php`.
-- [x] Google Workspace meeting code parser verified (`GoogleWorkspace::meetCodeFromUrl`).
-- [x] Config diagnostics check verified (`Config::diagnostics()`).
-- [x] Operator documentation created in `AI-AUDIT.md` / `WORKSPACE-AUDIT.md`.
+To bring the Google Workspace integration to an **active & verified** state:
+
+1. **Google Cloud Console**:
+   - Enable **Google Calendar API**, **Google Drive API**, **Admin SDK API**, **Google Chat API**, and **Google Meet API**.
+   - Create Service Account and download the JSON key.
+   - Create Web Application OAuth 2.0 credentials and register redirect URI: `https://<DOMAIN>/auth/google/callback`.
+
+2. **Google Workspace Admin Console (`admin.google.com`)**:
+   - Navigate to **Security -> API Controls -> Domain-wide Delegation**.
+   - Authorize the Service Account Client ID with the necessary scopes:
+     `calendar, calendar.readonly, drive.readonly, drive.metadata.readonly, admin.directory.user.readonly, admin.directory.group.readonly, chat.messages.create, meetings.space.readonly, admin.reports.audit.readonly`.
+
+3. **Server Environment Configuration (`.htaccess` or `config.php`)**:
+   ```apache
+   SetEnv AV_GDRIVE_SERVICE_ACCOUNT "/path/to/service-account.json"
+   SetEnv AV_WS_SUBJECT "cacentre@afrovanguard.org.ng"
+   SetEnv AV_WS_CALENDAR_ID "cacentre@afrovanguard.org.ng"
+   SetEnv AV_WS_DRIVE_FOLDER_ID "1a2b3c4d5e6f7g8h9i0j"
+   SetEnv AV_ORG_DOMAIN "afrovanguard.org.ng"
+   SetEnv AV_GOOGLE_CLIENT_ID "your-client-id.apps.googleusercontent.com"
+   SetEnv AV_GOOGLE_CLIENT_SECRET "your-client-secret"
+   ```
+
+4. **Verify Active Connection**:
+   Run `php tools/gws-sync.php probe` on the CLI to confirm `token_ok = yes` and view live API row counts.
