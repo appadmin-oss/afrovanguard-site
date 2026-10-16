@@ -9,6 +9,7 @@
  *   live        true while the conference is still on
  *   norec       true: the edition refuses recording (PATCH with recording → 403)
  *   pull        the messages the next Pub/Sub pull returns (then emptied)
+ *   deny_scopes scopes the token endpoint refuses (domain-wide delegation not granted)
  *   sub_exists  true: creating the events subscription is refused ALREADY_EXISTS (SUB0 is listed)
  * Every request is appended to MEET_STUB_STATE.log as one JSON line:
  * {method, path, query, sub, body} — `sub` being who the token was minted for.
@@ -32,6 +33,9 @@ file_put_contents($stateFile . '.log', json_encode(['method' => $method, 'path' 
 if ($path === '/token') {
     $p = explode('.', (string) ($_POST['assertion'] ?? ''));
     $c = json_decode((string) base64_decode(strtr($p[1] ?? '', '-_', '+/')), true) ?: [];
+    if (in_array((string) ($c['scope'] ?? ''), (array) ($state['deny_scopes'] ?? []), true)) {
+        return $out(401, ['error' => 'unauthorized_client', 'error_description' => 'Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.']);
+    }
     return $out(200, ['access_token' => 'tok:' . (string) ($c['sub'] ?? ''), 'expires_in' => 3599]);
 }
 /* Calendar: create an event with a Meet; read it back. */

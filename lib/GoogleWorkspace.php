@@ -1004,6 +1004,51 @@ final class GoogleWorkspace
     }
 
     /**
+     * Every scope the site asks Google for while acting AS a Workspace user, with the
+     * feature that needs it. Domain-wide delegation in the Google Admin console must
+     * list each of these against the service account's client ID; one that is missing
+     * is refused only when that feature runs ("unauthorized_client"), so a probe that
+     * tried one scope reported the connection healthy while Meet, scheduling and the
+     * rest failed. Pub/Sub is not here: the service account uses it as itself.
+     */
+    public const DELEGATED_SCOPES = [
+        self::SCOPE_CALENDAR          => 'reading the calendar',
+        self::SCOPE_CALENDAR_RW       => 'scheduling meetings and events',
+        self::SCOPE_DRIVE             => 'listing the Drive folder',
+        self::SCOPE_DRIVE_RO          => 'reading transcripts and notes',
+        self::SCOPE_DIRECTORY         => 'the staff directory',
+        self::SCOPE_GROUPS            => 'directory groups',
+        self::SCOPE_MEET_RO           => 'reading Meet attendance and transcripts',
+        self::SCOPE_MEET_SETTINGS     => 'switching on Meet recording and notes',
+        self::SCOPE_REPORTS           => 'Meet minutes from the audit log',
+        self::SCOPE_CHAT              => 'posting to Google Chat',
+    ];
+
+    /**
+     * Ask Google for a token for each delegated scope, as the admin. Returns
+     * [scope => '' when granted, else Google's reason].
+     *
+     * @return array<string,string>
+     */
+    public static function scopeCheck(?string $asUser = null): array
+    {
+        $who = $asUser ?: self::subject();
+        if (!self::configured() || $who === '') return [];
+        $out = [];
+        foreach (array_keys(self::DELEGATED_SCOPES) as $scope) {
+            self::$lastError = '';
+            $out[$scope] = self::accessToken($scope, false, $who) !== null ? '' : (self::$lastError ?: 'refused');
+        }
+        return $out;
+    }
+
+    /** The comma-separated line to paste into Admin console → Security → API controls → Domain-wide delegation. */
+    public static function delegationLine(): string
+    {
+        return implode(',', array_keys(self::DELEGATED_SCOPES));
+    }
+
+    /**
      * Connectivity probe for the Studio → System page. Reports what actually
      * works against live Google, without leaking tokens.
      */
@@ -1038,6 +1083,7 @@ final class GoogleWorkspace
             'groups'          => $grp['n'], 'groups_error' => $grp['error'],
             'meet_organiser'  => self::organiser(), 'meet_capture' => self::artifactMode(),
             'meet_events'     => (string) Config::get('AV_MEET_PUBSUB_SUB', '') !== '',
+            'scopes'          => self::subject() !== '' ? self::scopeCheck() : [],
             'error'           => $err,
         ];
     }

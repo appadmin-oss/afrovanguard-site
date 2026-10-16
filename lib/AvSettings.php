@@ -920,7 +920,18 @@ final class AvSettings
             $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
         }
         $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
-        return ['ok' => !$bad, 'detail' => implode(' · ', $bits)];
+        /* Every scope the features use, not only the four read above: a scope left out of
+           domain-wide delegation fails only when its feature runs, so this used to say ✓
+           while scheduling and Meet were refused. */
+        $missing = [];
+        foreach ((array) ($p['scopes'] ?? []) as $scope => $why) {
+            if ((string) $why !== '') $missing[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope);
+        }
+        if ($missing) {
+            $bits[] = 'not granted: ' . implode(', ', $missing) . '. In the Google Admin console → Security → API controls → Domain-wide delegation, edit client ID '
+                . (string) ($p['client_id'] ?? '') . ' and set its scopes to exactly: ' . GoogleWorkspace::delegationLine();
+        }
+        return ['ok' => !$bad && !$missing, 'detail' => implode(' · ', $bits)];
     }
 
     /**

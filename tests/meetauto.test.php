@@ -176,6 +176,21 @@ if (!is_resource($mStub) || !$mUp) {
     $other = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]); openssl_pkey_export($other, $otherPem);
     ck('push: …nor one signed with a key that is not Google\'s', MeetEvents::verifyPush('Bearer ' . \Firebase\JWT\JWT::encode($good + ['exp' => time() + 600], $otherPem, 'RS256', 'k1')) === null);
 
+    /* Domain-wide delegation granted for some scopes and not others: the Studio's test
+       names what is missing and gives the exact line to paste, rather than ✓. */
+    $setState(['transcript' => 'none', 'deny_scopes' => [GoogleWorkspace::SCOPE_MEET_SETTINGS, GoogleWorkspace::SCOPE_CALENDAR_RW]]);
+    putenv('AV_WS_SUBJECT=scopes.admin@afrovanguard.org.ng');   // a fresh subject: no token cached for it
+    $sc = GoogleWorkspace::scopeCheck();
+    ck('scopes: every delegated scope is asked for, and the refused ones say why', count($sc) === count(GoogleWorkspace::DELEGATED_SCOPES)
+        && str_contains($sc[GoogleWorkspace::SCOPE_MEET_SETTINGS], 'unauthorized_client') && $sc[GoogleWorkspace::SCOPE_CALENDAR] === '');
+    $t = AvSettings::test('google_workspace');
+    ck('scopes: the Studio test names the missing ones and the line to paste', empty($t['ok'])
+        && str_contains((string) $t['detail'], 'switching on Meet recording and notes') && str_contains((string) $t['detail'], 'scheduling meetings and events')
+        && str_contains((string) $t['detail'], GoogleWorkspace::delegationLine()));
+    ck('scopes: the line lists every scope once, comma-separated, as the Admin console takes it',
+        GoogleWorkspace::delegationLine() === implode(',', array_keys(GoogleWorkspace::DELEGATED_SCOPES)) && !str_contains(GoogleWorkspace::delegationLine(), ' '));
+    putenv('AV_WS_SUBJECT=admin@afrovanguard.org.ng'); $setState(['transcript' => 'none']);
+
     $mp->prepare('DELETE FROM meeting_live_events WHERE meeting_id = ?')->execute([$mid]);
     $mp->prepare('DELETE FROM meeting_transcripts WHERE meeting_id = ?')->execute([$mid]);
     $mp->prepare('DELETE FROM meeting_nudges WHERE meeting_id = ?')->execute([$mid]);
