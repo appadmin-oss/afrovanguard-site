@@ -265,6 +265,54 @@ final class Meetings
         return $out;
     }
 
+    /**
+     * ── Start a call now ─────────────────────────────────────────────────
+     *
+     * An instant Meet room: no Calendar event, so nothing to wait for and no
+     * calendar to clutter. It is still a meeting here — a row starting now, its
+     * space remembered — so the cron reads its attendance, transcript and notes
+     * exactly as it does a scheduled one. Anybody named is sent the link.
+     */
+    public static function startNow(int $uid, array $in): array
+    {
+        self::ensure();
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) {
+            return ['ok' => false, 'error' => 'Google Workspace is not connected, so a Meet room cannot be opened.'];
+        }
+        $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 200);
+        if ($title === '') $title = 'Quick call';
+        $dur = max(5, min(600, (int) ($in['duration'] ?? 60)));
+        $agenda = mb_substr(trim((string) ($in['agenda'] ?? '')), 0, 2000);
+        $emails = self::cleanEmails($in['attendees'] ?? []);
+        $me = self::userEmail($uid);
+        if ($me !== '' && filter_var($me, FILTER_VALIDATE_EMAIL)) { array_unshift($emails, $me); $emails = array_values(array_unique($emails)); }
+
+        $space = GoogleWorkspace::createMeetSpace();
+        if (!$space) {
+            $why = GoogleWorkspace::lastError();
+            return ['ok' => false, 'error' => 'Google did not open a Meet room' . ($why !== '' ? ': ' . $why : '.')
+                . (str_contains($why, 'unauthorized_client') ? ' Add the meetings.space.created scope to domain-wide delegation (Studio → Setup → Test Google Workspace names what is missing).' : '')];
+        }
+
+        $now = time();
+        $db = Database::pdo();
+        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+           ->execute([$uid, $title, $agenda, gmdate('Y-m-d H:i:s', $now), $dur, 'once', 'workspace', 0, 0, 'scheduled', self::now()]);
+        $id = (int) $db->lastInsertId();
+        $db->prepare("UPDATE meetings SET meet_url = ?, provider = 'google', meet_code = ?, meet_space = ?, meet_capture = ? WHERE id = ?")
+           ->execute([$space['uri'], $space['code'], $space['space'], $space['mode'], $id]);
+        if ($space['mode'] !== 'off') $db->prepare("UPDATE meetings SET bot_state = 'native', bot_provider = 'google' WHERE id = ?")->execute([$id]);
+
+        $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
+        foreach ($emails as $e) $ins->execute([$id, $e]);
+        // The link goes to whoever was named — the starter has it on screen already.
+        $others = array_values(array_filter($emails, static fn($e) => strcasecmp($e, $me) !== 0));
+        if ($others) self::sendInvites($id, $title, $now, $dur, 'once', $agenda, $emails, $space['uri'], $uid, false);
+
+        if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => gmdate('Y-m-d H:i:s', $now), 'instant' => true]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'id' => $id, 'url' => $space['uri'], 'meeting' => self::get($uid, $id)];
+    }
+
     /** Meetings the user created or is invited to, upcoming first then recent. */
     public static function listFor(int $uid, int $limit = 60): array
     {

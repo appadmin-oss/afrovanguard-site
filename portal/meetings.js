@@ -276,6 +276,30 @@
     }).catch(function () { say('Network error.'); });
   });
 
+  // Start a call now — an instant Meet room, no calendar event
+  var nowBtn = document.getElementById('tlMeetNow');
+  nowBtn && nowBtn.addEventListener('click', function () {
+    // Opened before the request, while the click still counts as the user's: a
+    // window opened after an await is blocked as a pop-up.
+    var win = window.open('', '_blank');
+    nowBtn.disabled = true;
+    say('Opening a Meet room…');
+    post('instant', {
+      title: (document.getElementById('tlMeetTitle').value || '').trim(),
+      attendees: document.getElementById('tlMeetWho').value || '',
+      agenda: document.getElementById('tlMeetAgenda').value || ''
+    }).then(function (d) {
+      nowBtn.disabled = false;
+      if (!d || !d.ok || !d.url) { if (win) win.close(); say((d && d.error) || 'Could not open a Meet room.'); return; }
+      if (win) { win.opener = null; win.location.href = d.url; } else { window.location.href = d.url; }
+      say('Call started ✓', true);
+      form && form.reset();
+      document.getElementById('tlMeetDur').value = '30';
+      load();
+      setTimeout(function () { say(''); }, 2500);
+    }).catch(function () { nowBtn.disabled = false; if (win) win.close(); say('Network error.'); });
+  });
+
   // Delegated actions on the list
   listEl && listEl.addEventListener('click', function (e) {
     var t = e.target;

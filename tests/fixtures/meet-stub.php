@@ -46,6 +46,11 @@ if (preg_match('#^/calendar/v3/calendars/[^/]+/events/([\w-]+)$#', $path)) {
     return $out(200, ['id' => 'ev-1', 'hangoutLink' => 'https://meet.google.com/abc-defg-hij']);
 }
 /* Meet */
+/* An instant room. With norec the edition refuses a recording config, as it does a PATCH. */
+if ($path === '/v2/spaces' && $method === 'POST') {
+    if (!empty($state['norec']) && str_contains($raw, 'recordingConfig')) return $out(403, ['error' => ['code' => 403, 'message' => 'Recording is not available for this edition.', 'status' => 'PERMISSION_DENIED']]);
+    return $out(200, ['name' => 'spaces/S9', 'meetingUri' => 'https://meet.google.com/now-room-xyz', 'meetingCode' => 'now-room-xyz']);
+}
 if ($path === '/v2/spaces/abc-defg-hij' && $method === 'GET') return $out(200, ['name' => 'spaces/S1', 'meetingCode' => 'abc-defg-hij']);
 if ($path === '/v2/spaces/S1' && $method === 'PATCH') {
     if (!empty($state['norec']) && str_contains(urldecode($query), 'recordingConfig')) return $out(403, ['error' => ['code' => 403, 'message' => 'Recording is not available for this edition.', 'status' => 'PERMISSION_DENIED']]);

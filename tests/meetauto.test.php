@@ -176,6 +176,44 @@ if (!is_resource($mStub) || !$mUp) {
     $other = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]); openssl_pkey_export($other, $otherPem);
     ck('push: …nor one signed with a key that is not Google\'s', MeetEvents::verifyPush('Bearer ' . \Firebase\JWT\JWT::encode($good + ['exp' => time() + 600], $otherPem, 'RS256', 'k1')) === null);
 
+    /* Start a call now: an instant Meet room, saved as a meeting starting now */
+    $sent = [];
+    /* Mail is off for the suite; lifted only while every road is a fake, as appsscriptmail does. */
+    putenv('AV_MAIL_DISABLED=0');
+    Mailer::fakeRoads(['smtp' => static function (array $m) use (&$sent): bool { $sent[] = $m['to']; return true; }]);
+    $clearLog(); $setState(['transcript' => 'none']);
+    $now = Meetings::startNow(9801, ['title' => 'MA Quick sync', 'attendees' => 'bisi@afrovanguard.org.ng, not-an-email']);
+    $nowRow = $now['ok'] ? $mp->query('SELECT * FROM meetings WHERE id = ' . (int) $now['id'])->fetch(PDO::FETCH_ASSOC) : [];
+    $made = array_values(array_filter($readLog(), fn($x) => $x['path'] === '/v2/spaces' && $x['method'] === 'POST'));
+    ck('now: a Meet room is opened at once, as the organiser, with no Calendar event', !empty($now['ok']) && ($now['url'] ?? '') === 'https://meet.google.com/now-room-xyz'
+        && ($made[0]['sub'] ?? '') === 'meetings@afrovanguard.org.ng'
+        && !array_filter($readLog(), fn($x) => str_contains($x['path'], '/calendar/')));
+    ck('now: Google captures it from the start — recording, transcript, notes, attendance', ($made[0]['body']['config']['artifactConfig']['recordingConfig']['autoRecordingGeneration'] ?? '') === 'ON'
+        && ($made[0]['body']['config']['artifactConfig']['smartNotesConfig']['autoSmartNotesGeneration'] ?? '') === 'ON'
+        && ($made[0]['body']['config']['attendanceReportGenerationType'] ?? '') === 'GENERATE_REPORT');
+    ck('now: it is a meeting starting now, its space remembered, so the cron reads it back like any other', ($nowRow['status'] ?? '') === 'scheduled'
+        && abs(strtotime((string) ($nowRow['scheduled_at'] ?? '') . ' UTC') - time()) < 120 && ($nowRow['meet_space'] ?? '') === 'spaces/S9'
+        && ($nowRow['meet_code'] ?? '') === 'now-room-xyz' && ($nowRow['bot_state'] ?? '') === 'native');
+    ck('now: the person named is emailed the link; a bad address is dropped', in_array('bisi@afrovanguard.org.ng', $sent, true) && !in_array('not-an-email', $sent, true));
+    $setState(['transcript' => 'none', 'norec' => true]);
+    $now2 = Meetings::startNow(9801, ['title' => 'MA Quick sync 2']);
+    ck('now: an edition without recording still gets a room, with transcript and notes', !empty($now2['ok'])
+        && (string) $mp->query('SELECT meet_capture FROM meetings WHERE id = ' . (int) $now2['id'])->fetchColumn() === 'transcript');
+    $setState(['transcript' => 'none', 'deny_scopes' => [GoogleWorkspace::SCOPE_MEET_CREATED]]);
+    putenv('AV_MEET_ORGANISER=rooms@afrovanguard.org.ng');   // a fresh mailbox: no token cached for it
+    $now3 = Meetings::startNow(9801, ['title' => 'MA Quick sync 3']);
+    ck('now: without the scope, nothing is saved and the operator is told which scope to add', empty($now3['ok'])
+        && str_contains((string) $now3['error'], 'meetings.space.created') && !$mp->query("SELECT COUNT(*) FROM meetings WHERE title = 'MA Quick sync 3'")->fetchColumn());
+    putenv('AV_MEET_ORGANISER=meetings@afrovanguard.org.ng'); $setState(['transcript' => 'none']);
+    Mailer::fakeRoads(null); putenv('AV_MAIL_DISABLED=1');
+    $mp->exec("DELETE FROM meeting_attendees WHERE meeting_id IN (SELECT id FROM meetings WHERE title LIKE 'MA Quick sync%')");
+    $mp->exec("DELETE FROM meetings WHERE title LIKE 'MA Quick sync%'");
+    $api = (string) file_get_contents(AV_ROOT . '/portal/meetings.php');
+    $view = (string) file_get_contents(AV_ROOT . '/portal/views/tools.php');
+    ck('now: the portal has the button and the endpoint behind the write guard', str_contains($view, 'id="tlMeetNow"')
+        && str_contains($api, "case 'instant':") && str_contains(substr($api, (int) strpos($api, "case 'instant':"), 300), '$writeGuard();')
+        && str_contains($api, 'Meetings::startNow('));
+
     /* Domain-wide delegation granted for some scopes and not others: the Studio's test
        names what is missing and gives the exact line to paste, rather than ✓. */
     $setState(['transcript' => 'none', 'deny_scopes' => [GoogleWorkspace::SCOPE_MEET_SETTINGS, GoogleWorkspace::SCOPE_CALENDAR_RW]]);

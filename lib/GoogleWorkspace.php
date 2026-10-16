@@ -33,6 +33,7 @@ final class GoogleWorkspace
     const SCOPE_REPORTS   = 'https://www.googleapis.com/auth/admin.reports.audit.readonly'; // org Meet audit log
     const SCOPE_CHAT      = 'https://www.googleapis.com/auth/chat.messages.create';         // post messages AS the impersonated member
     const SCOPE_MEET_SETTINGS = 'https://www.googleapis.com/auth/meetings.space.settings';  // turn on recording/transcript/notes on a Calendar-made space
+    const SCOPE_MEET_CREATED = 'https://www.googleapis.com/auth/meetings.space.created';     // open an instant Meet room with no Calendar event
     const SCOPE_PUBSUB    = 'https://www.googleapis.com/auth/pubsub';                       // drain the Meet events queue (the service account itself)
 
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
@@ -604,29 +605,40 @@ final class GoogleWorkspace
     }
 
     /**
-     * Create a Meet space with Google's NATIVE auto-transcription (and optional
-     * auto-recording) turned on, via the Meet REST API. This is the server-drivable
-     * "Meet media" path: Google itself records/transcribes the call, and we later
-     * read the transcript with meetTranscriptText(). Impersonates the host so the
-     * space is owned by a real user. Returns ['uri','code','space'] or null.
+     * Open an instant Meet room — no Calendar event, no invite from Google — owned
+     * by the organiser mailbox (the same owner every scheduled meeting has, so the
+     * attendance, transcript and notes are read back the same way). Needs the
+     * meetings.space.created scope. Returns ['uri','code','space','mode'] or null.
      */
-    public static function createMeetSpace(string $hostEmail, bool $autoTranscribe = true, bool $autoRecord = false): ?array
+    public static function createMeetSpace(string $hostEmail = '', ?string $mode = null): ?array
     {
-        if ($hostEmail === '' || !self::meetEnabled()) return null;
-        $cfg = ['accessType' => 'TRUSTED', 'entryPointAccess' => 'ALL'];
-        $artifact = [];
-        if ($autoTranscribe) $artifact['transcriptionConfig'] = ['autoTranscriptionGeneration' => 'ON'];
-        if ($autoRecord)     $artifact['recordingConfig']     = ['autoRecordingGeneration' => 'ON'];
-        if ($artifact) $cfg['artifactConfig'] = $artifact;
-        // meetings.space.created scope is required to create spaces.
-        $scope = 'https://www.googleapis.com/auth/meetings.space.created';
-        $d = self::apiSend('POST', self::meetBase() . '/v2/spaces', $scope, false, ['config' => $cfg], $hostEmail);
-        if (!is_array($d) || empty($d['meetingUri'])) return null;
-        return [
-            'uri'   => (string) $d['meetingUri'],
-            'code'  => (string) ($d['meetingCode'] ?? self::meetCodeFromUrl((string) $d['meetingUri'])),
-            'space' => (string) ($d['name'] ?? ''),
-        ];
+        $host = $hostEmail !== '' ? $hostEmail : self::organiser();
+        if ($host === '' || !self::meetEnabled()) return null;
+        $mode = $mode ?? self::artifactMode();
+        /* Capture is part of the space from the start: the same recording, transcript,
+           Gemini notes and attendance report a scheduled meeting gets after the fact.
+           An edition that refuses recording is asked again without it, as
+           configureMeetSpace() does — a room with no recording beats no room. */
+        $tries = $mode === 'all' ? ['all', 'transcript'] : [$mode];
+        foreach ($tries as $try) {
+            $cfg = ['accessType' => 'TRUSTED', 'entryPointAccess' => 'ALL'];
+            if ($try !== 'off') {
+                $art = ['transcriptionConfig' => ['autoTranscriptionGeneration' => 'ON'], 'smartNotesConfig' => ['autoSmartNotesGeneration' => 'ON']];
+                if ($try === 'all') $art['recordingConfig'] = ['autoRecordingGeneration' => 'ON'];
+                $cfg['artifactConfig'] = $art;
+                $cfg['attendanceReportGenerationType'] = 'GENERATE_REPORT';
+            }
+            $d = self::apiSend('POST', self::meetBase() . '/v2/spaces', self::SCOPE_MEET_CREATED, false, ['config' => $cfg], $host);
+            if (is_array($d) && !empty($d['meetingUri'])) {
+                return [
+                    'uri'   => (string) $d['meetingUri'],
+                    'code'  => (string) ($d['meetingCode'] ?? self::meetCodeFromUrl((string) $d['meetingUri'])),
+                    'space' => (string) ($d['name'] ?? ''),
+                    'mode'  => $try,
+                ];
+            }
+        }
+        return null;
     }
 
     /** Extract a Meet code (e.g. "abc-defg-hij") from a Meet URL. */
@@ -1020,6 +1032,7 @@ final class GoogleWorkspace
         self::SCOPE_GROUPS            => 'directory groups',
         self::SCOPE_MEET_RO           => 'reading Meet attendance and transcripts',
         self::SCOPE_MEET_SETTINGS     => 'switching on Meet recording and notes',
+        self::SCOPE_MEET_CREATED      => 'starting an instant Meet room',
         self::SCOPE_REPORTS           => 'Meet minutes from the audit log',
         self::SCOPE_CHAT              => 'posting to Google Chat',
     ];

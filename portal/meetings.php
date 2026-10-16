@@ -74,6 +74,11 @@ try {
             $writeGuard();
             json_out(Meetings::schedule($uid, is_array($body) ? $body : []));
 
+        case 'instant':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(Meetings::startNow($uid, is_array($body) ? $body : []));
+
         case 'cancel':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();

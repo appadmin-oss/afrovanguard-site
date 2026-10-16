@@ -57,6 +57,11 @@ live Meet events — Google Workspace Events API and Cloud Pub/Sub API.
 
 ## Meetings that run themselves (Google Meet)
 
+**Start a call now** (portal → Tools → Meetings) opens an instant Meet room with no
+Calendar event (`Meetings::startNow` → `createMeetSpace`, scope
+`meetings.space.created`), owned by the organiser mailbox and captured from the
+start like a scheduled meeting. Anybody named in the invite box is emailed the link.
+
 What happens, with nothing for a volunteer to press:
 
 1. **Scheduling** writes the Calendar event with a Meet link (invites go to
