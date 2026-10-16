@@ -357,6 +357,44 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
                     'title' => $postsToday . ' new community post' . ($postsToday === 1 ? '' : 's') . ' today',
                     'sub' => 'Catch up with members', 'cta' => 'Open', 'goto' => 'community'];
             }
+/* ── "WHAT ARE YOU WORKING ON?" ──────────────────────────────────────────
+   The centre asked for a to-do prompt on the member's screen. It is here
+   rather than only in the console because this is where a member actually
+   is, and the answer becomes an ordinary task — CACENTRE already reads this
+   list over the bridge the two sites have shared since the task feature
+   shipped (CrmAvTasks → integrations/cacentre-tasks.php), so nothing new
+   had to be connected and there is still one list rather than two.
+
+   IT ASKS ONLY WHEN THERE IS NOTHING TO SHOW. A member who has already
+   written down what they are doing has answered the question; asking again
+   is a prompt they learn to dismiss without reading, and the next one that
+   matters gets dismissed with it. So: no open task due today or overdue, on
+   either side of the bridge. */
+$todayKey = date('Y-m-d');
+$hasPlan  = false;
+foreach (array_merge($myTasks, $cacTasks) as $t) {
+    if (!empty($t['done'])) continue;
+    $due = trim((string) ($t['due'] ?? ''));
+    if ($due === '' || $due <= $todayKey) { $hasPlan = true; break; }
+}
+if ($isOrg && !$hasPlan):
+?>          <section class="pcard today-ask" id="askTask" data-csrf="<?= e($collabCsrf) ?>" data-today="<?= e($todayKey) ?>">
+            <div class="pcard-head"><h2>What are you working on?</h2><span class="pchip pchip--gold"><?= e(date('D, M j')) ?></span></div>
+            <div class="pcard-body">
+              <p class="pcard-note">Nothing on your list for today. Write down one thing — it shows up here and in the centre's console, and you can tick it off from either.</p>
+              <form class="ask-row" id="askTaskForm" autocomplete="off">
+                <label class="sr-only" for="askTaskTitle">Your task</label>
+                <input class="pinp" id="askTaskTitle" maxlength="200" placeholder="e.g. Call the three families from Saturday" required>
+                <div class="ask-btns">
+                  <button class="pbtn pbtn-gold" type="submit" data-when="today">For today</button>
+                  <button class="pbtn pbtn-soft" type="button" id="askTaskNext" data-when="next">Next, no date</button>
+                </div>
+              </form>
+              <p class="pc-empty" id="askTaskMsg" role="status" aria-live="polite" hidden></p>
+            </div>
+          </section>
+<?php
+            endif;
             if ($attn):
 ?>          <section class="pcard today-attn">
             <div class="pcard-head"><h2>Needs your attention</h2><span class="pchip pchip--gold"><?= e(date('D, M j')) ?></span></div>
@@ -1802,6 +1840,57 @@ if ($hasGate && !$isNgv) $nav['You'][] = ['attendance', 'Attendance & pass', 'gr
   <script>
   /* Collaboration — presence, activity, tasks (with the filter chips). */
   (function () {
+  /* ── "What are you working on?" ──────────────────────────────────────
+     Posts through the SAME endpoint the task list uses — portal/collab.php,
+     action task_add — rather than a door of its own. One writer means one
+     place the rate limit, the CSRF check and the ownership rule live, and
+     the task it creates is an ordinary task: CACENTRE reads it over the
+     bridge the two sites already share, so nothing new is connected. */
+  (function () {
+    var card = document.getElementById('askTask'); if (!card) return;
+    var form = document.getElementById('askTaskForm');
+    var input = document.getElementById('askTaskTitle');
+    var msg = document.getElementById('askTaskMsg');
+    var csrf = card.getAttribute('data-csrf') || '';
+    var today = card.getAttribute('data-today') || '';
+    var busy = false;
+
+    function say(t, bad) { msg.hidden = false; msg.textContent = t; msg.style.color = bad ? '#a32b1c' : ''; }
+
+    async function add(when) {
+      var title = (input.value || '').trim();
+      if (!title) { say('Write the one thing first.', true); input.focus(); return; }
+      if (busy) return;
+      busy = true;
+      say('Saving…');
+      var r;
+      try {
+        var res = await fetch('/portal/collab.php?action=task_add', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          /* "Next" carries no date on purpose. A task with a made-up due
+             date is overdue by tomorrow, and an overdue list nobody meant
+             is the thing that makes people stop reading the list. */
+          body: JSON.stringify({ title: title, due: when === 'today' ? today : '', priority: 'normal' })
+        });
+        r = await res.json();
+      } catch (e) { r = { ok: false, error: 'The network did not answer. Nothing was saved.' }; }
+      busy = false;
+      if (!r || !r.ok) { say((r && r.error) || 'It was not saved.', true); return; }
+      /* The card has done its job: the question now has an answer, so it
+         goes rather than sitting there asking it again. */
+      card.hidden = true;
+      var list = document.getElementById('taskList');
+      if (list) { try { list.dispatchEvent(new CustomEvent('tasks:reload', { bubbles: true })); } catch (e) {} }
+      var kpi = document.getElementById('kpiTasks');
+      if (kpi) kpi.textContent = String((parseInt(kpi.textContent, 10) || 0) + 1);
+    }
+
+    if (form) form.addEventListener('submit', function (ev) { ev.preventDefault(); add('today'); });
+    var next = document.getElementById('askTaskNext');
+    if (next) next.addEventListener('click', function () { add('next'); });
+  })();
+
     var root = document.getElementById('tasks'); if (!root) return;
     var CAC_OPEN = parseInt(root.getAttribute('data-cac-open') || '0', 10) || 0;
     var csrf = root.getAttribute('data-csrf') || '';

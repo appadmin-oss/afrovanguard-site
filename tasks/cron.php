@@ -195,6 +195,21 @@ if (class_exists('DirectoryPush') && DirectoryPush::ready()) {
     catch (Throwable $e) { error_log('[cron] directory push: ' . $e->getMessage()); }
 }
 
+// Every tick: send a few of whatever CACENTRE handed us.
+//
+// The two sites are metered separately by their hosts, so this is the half of
+// the organisation's outbound allowance that used to go unused while CACENTRE
+// spent its own. A queue that drains rather than a send in one request, for
+// Appeals' reason: a shared host meters by the hour, and a job that spends the
+// whole window has also stopped this site's password resets and receipts.
+//
+// Everything here goes out under THIS SITE's name, which is the name the
+// recipient signed up under. Nothing happens until CACENTRE offers a batch.
+if (class_exists('CacMail')) {
+    try { $result['cac_mail'] = CacMail::drain(); }
+    catch (Throwable $e) { error_log('[cron] cac mail: ' . $e->getMessage()); }
+}
+
 // Daily: email today's birthday people (idempotent — safe to run every tick).
 if (is_file(AV_ROOT . '/lib/people.php')) {
     require_once AV_ROOT . '/lib/people.php';

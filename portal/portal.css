@@ -1777,3 +1777,30 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .dues-off-form button { align-self:end; }
 .dues-off-row { padding:8px 0; border-bottom:1px solid var(--divider, #eee); }
 .dues-off-why { font-size:12px; opacity:.8; margin-top:2px; }
+
+/* ── "What are you working on?" ────────────────────────────────────────────
+   The prompt that appears on Today when a member has nothing on their list.
+   Layout in the stylesheet rather than inline, so it can be corrected from
+   here; the only thing it asks of the markup is the two class names. */
+.today-ask .ask-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.today-ask .pinp {
+  flex:1 1 18rem; min-width:0; padding:9px 11px;
+  border:1px solid var(--border-2); border-radius:9px;
+  background:var(--surface); color:var(--ink); font:inherit; font-size:14px;
+}
+.today-ask .pinp:focus-visible { outline:2px solid var(--gold); outline-offset:1px; }
+.today-ask .ask-btns { display:flex; gap:8px; flex-wrap:wrap; }
+/* At phone width the two buttons sit under the field rather than squeezing
+   it to nothing — a 6rem input is a field nobody can read their own
+   sentence back in. */
+@media (max-width:30rem) {
+  .today-ask .ask-row { flex-direction:column; align-items:stretch; }
+  .today-ask .ask-btns { justify-content:flex-start; }
+}
+/* Visible to a screen reader, not to the eye. The field has a placeholder,
+   and a placeholder is not a label: it disappears the moment somebody types
+   and was never announced to begin with. */
+.today-ask .sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
