@@ -72,7 +72,7 @@ final class CacInventory
         if (isset(self::$memo[$key])) return self::$memo[$key];
 
         $url  = CacTasks::site() . self::PATH
-              . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId]))
+              . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId], 'inventory'))
               . ($q ? '&' . http_build_query($q) : '');
         $body = self::get($url);
 

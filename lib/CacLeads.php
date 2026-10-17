@@ -53,7 +53,7 @@ final class CacLeads
             return self::$memo[$memberId] = array_merge($blank, ['error' => 'not-configured']);
         }
 
-        $url  = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId]));
+        $url  = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId], 'leads'));
         $body = self::get($url);
         if ($body === null) return self::$memo[$memberId] = array_merge($blank, ['error' => 'unreachable']);
 
@@ -87,7 +87,7 @@ final class CacLeads
         if (trim((string) ($fields['summary'] ?? '')) === '') return $bad('no-summary');
         if (!CacSso::ready()) return $bad('not-configured');
 
-        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId]));
+        $url = CacTasks::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId], 'leads'));
         $raw = self::send($url, array_merge(['action' => 'log', 'id' => $leadId], $fields));
         if ($raw === null) return $bad('unreachable');
 

@@ -88,6 +88,10 @@ if ((int) ($claims['exp'] ?? 0) < $now - 60) $refuse('expired');
    a reason to answer. Sixty seconds of skew, as the bridge allows. */
 if ((int) ($claims['iat'] ?? 0) > $now + 60) $refuse('not-yet');
 
+/* Only a token CACENTRE minted for THIS door (CrmAvTasks mints role
+   'cac-tasks'): the mail door's token, or a sign-in link minted here, is not
+   one, as integrations/cacentre-mail.php refuses this door's. */
+if ((string) ($claims['role'] ?? '') !== 'cac-tasks') $refuse('wrong-purpose');
 $uid = (int) ($claims['uid'] ?? 0);
 if ($uid <= 0) $refuse('no-member');
 

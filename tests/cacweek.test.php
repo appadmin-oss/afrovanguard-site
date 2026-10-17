@@ -51,6 +51,13 @@ if (!is_resource($stub) || !$up) {
     $c = $w['commitments'][0] ?? [];
     ck('week: the commitment and the goal it feeds', ($c['id'] ?? 0) === 7 && ($c['goal']['title'] ?? '') === 'Twelve sessions' && (float) $c['goal']['progress'] === 4.0);
     ck('week: only what the portal draws is kept', !isset($c['goal']['secret']));
+$tok = json_decode((string) base64_decode(strtr(explode('.', CacSso::mint(['id' => 1], 'week'))[1], '-_', '+/')), true);
+ck('door: a week token names its door', ($tok['aud'] ?? '') === 'week');
+$link = CacSso::linkFor(['id' => 1, 'email' => 'a@b.test']);
+parse_str((string) parse_url($link, PHP_URL_QUERY), $lq);
+$ltok = json_decode((string) base64_decode(strtr(explode('.', (string) $lq['t'])[1], '-_', '+/')), true);
+ck('door: a sign-in link says it is one, so CACENTRE will not spend it at a server door', ($ltok['aud'] ?? '') === 'sso');
+ck('door: the tasks door here takes only CACENTRE\'s tasks token', str_contains((string) file_get_contents(AV_ROOT . '/integrations/cacentre-tasks.php'), "!== 'cac-tasks') \$refuse('wrong-purpose')"));
 
     $t1 = Collab::addTask(9901, 'Plan session one');
     $t2 = Collab::addTask(9901, 'Book the hall');

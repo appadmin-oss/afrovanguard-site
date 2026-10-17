@@ -140,12 +140,16 @@ final class CacSso
     /**
      * Mint an assertion for a signed-in member.
      *
-     * @param array $u a row from LmsAuth::user()
+     * @param array  $u   a row from LmsAuth::user()
+     * @param string $aud the door it is for — 'sso' (a sign-in link), 'tasks',
+     *                    'week', 'inventory', 'leads'. CACENTRE refuses a token
+     *                    at any other door, so a sign-in link (which travels in
+     *                    a browser's address bar) cannot be spent at a server door.
      */
-    public static function mint(array $u): string
+    public static function mint(array $u, string $aud = ''): string
     {
         $now = time();
-        $payload = json_encode([
+        $payload = json_encode(($aud !== '' ? ['aud' => $aud] : []) + [
             'iss'   => 'av',
             'sub'   => strtolower(trim((string) ($u['email'] ?? ''))),
             'uid'   => (int) ($u['id'] ?? 0),
@@ -172,7 +176,7 @@ final class CacSso
      */
     public static function linkFor(array $u, string $next = self::HOME): string
     {
-        return self::landing() . '?t=' . rawurlencode(self::mint($u))
+        return self::landing() . '?t=' . rawurlencode(self::mint($u, 'sso'))
              . '&next=' . rawurlencode(self::path($next));
     }
 

@@ -48,7 +48,7 @@ final class CacWeek
 
     private static function token(array $u): string
     {
-        return CacSso::mint(['id' => (int) $u['id'], 'email' => (string) ($u['email'] ?? ''), 'name' => (string) ($u['name'] ?? '')]);
+        return CacSso::mint(['id' => (int) $u['id'], 'email' => (string) ($u['email'] ?? ''), 'name' => (string) ($u['name'] ?? '')], 'week');
     }
 
     /**
