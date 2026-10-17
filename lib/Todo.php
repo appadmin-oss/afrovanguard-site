@@ -103,7 +103,7 @@ final class Todo
             }
         } catch (Throwable $e) {}
         $parts = array_values(array_filter([$member ? 'Member' : '', $ngv ? 'NextGen Vanguard' : '', $volLabel]));
-        return ['member' => $member, 'ngv' => $ngv, 'volunteer' => $vol, 'label' => $parts ? implode(' · ', $parts) : 'Learner',
+        return ['member' => $member, 'ngv' => $ngv, 'volunteer' => $vol, 'label' => $parts ? implode(' · ', $parts) : 'Learner', 'parts' => $parts ?: ['Learner'],
                 'first' => trim(explode(' ', (string) ($u['name'] ?? ''))[0])];
     }
 
@@ -224,10 +224,10 @@ final class Todo
         $t = $d['today'];
         $mine = static fn(array $x, string $meta) => ['id' => 'av' . $x['id'], 'title' => $x['title'], 'meta' => $meta,
             'urgent' => !empty($x['overdue']) || $x['priority'] === 'high',
-            'tick' => ['action' => 'task_toggle', 'body' => ['id' => $x['id']], 'label' => 'Done']];
+            'tick' => ['action' => 'task_toggle', 'body' => ['id' => $x['id']], 'label' => 'Done', 'undo' => true]];
         $sec = [];
         $flat = static fn(array $x, string $pre) => ['id' => $pre . ($x['id'] ?? substr(md5($x['title']), 0, 8)), 'title' => $x['title'], 'meta' => $x['meta'],
-            'urgent' => (bool) $x['urgent'], 'href' => $x['href'] ?? null, 'acts' => $x['acts'] ?? null];
+            'urgent' => (bool) $x['urgent'], 'href' => $x['href'] ?? null, 'acts' => $x['acts'] ?? null, 'kind' => $x['kind'] ?? 'task'];
         if ($d['volunteer']) $sec[] = ['key' => 'volunteer', 'ctx' => 'volunteer', 'title' => 'Volunteering', 'nudge' => (bool) array_filter(array_column($d['volunteer'], 'nudge')),
             'items' => array_map(static fn($x) => $flat($x, 'v'), $d['volunteer'])];
         if ($d['member']) $sec[] = ['key' => 'member', 'ctx' => 'member', 'title' => !empty($d['role']['member']) ? 'Your membership' : 'Your account', 'nudge' => (bool) array_filter(array_column($d['member'], 'nudge')),
@@ -252,6 +252,37 @@ final class Todo
            leads with Volunteering). */
         $order = ['assigned' => 0, 'due' => 1, 'volunteer' => 2, 'member' => 3, 'cac' => 4, 'week' => 5, 'suggested' => 6];
         usort($sec, static fn($a, $b) => $order[$a['key']] <=> $order[$b['key']]);
+        return self::dress($sec);
+    }
+
+    /** What the pop-up draws beside each item: an icon for its kind, and a badge. */
+    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'cac' => 'cac', 'week' => 'goal', 'suggested' => 'spark'];
+
+    public static function dress(array $sec): array
+    {
+        foreach ($sec as &$s) {
+            foreach ($s['items'] as &$it) {
+                $it['kind'] = $it['kind'] ?? (self::SECTION_KIND[$s['key']] ?? 'task');
+                $meta = (string) ($it['meta'] ?? '');
+                $badge = null;
+                if ($it['kind'] === 'live')                                    $badge = ['text' => 'Live', 'tone' => 'green'];
+                elseif (str_starts_with($meta, 'Overdue'))                     $badge = ['text' => 'Overdue', 'tone' => 'red'];
+                elseif ($it['kind'] === 'rsvp')                                $badge = ['text' => 'Reply', 'tone' => 'accent'];
+                elseif ($s['key'] === 'assigned')                              $badge = ['text' => 'New', 'tone' => 'accent'];
+                elseif (str_starts_with($meta, 'Today') || str_contains($meta, '· Today')) $badge = ['text' => 'Today', 'tone' => 'accent'];
+                elseif ($it['kind'] === 'dues' || $it['kind'] === 'ngv')       $badge = ['text' => 'Due', 'tone' => !empty($it['urgent']) ? 'red' : 'accent'];
+                elseif ($s['key'] === 'suggested')                             $badge = ['text' => 'For you', 'tone' => 'muted'];
+                $it['badge'] = $badge;
+                /* The badge says it; the meta line need not say it again. */
+                if ($badge && $badge['text'] === 'Overdue' && preg_match('/^Overdue · (\d{4}-\d{2}-\d{2})( · )?(.*)$/', $meta, $mm)) {
+                    $it['meta'] = trim('Was due ' . gmdate('j M', strtotime($mm[1] . ' 12:00 UTC') ?: time()) . ($mm[3] !== '' ? ' · ' . $mm[3] : ''));
+                } elseif ($badge && $badge['text'] === 'Today') {
+                    $it['meta'] = trim((string) preg_replace('/(^Today( · )?)|( · Today$)/', '', $meta));
+                }
+            }
+            unset($it);
+        }
+        unset($s);
         return $sec;
     }
 }

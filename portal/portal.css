@@ -1855,5 +1855,6 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
 .today-ask .pc-empty.is-bad { color:var(--red); }
 
 /* The to-do pop-up in the portal's own colours (portal/todo-pop.css). */
-.tdp.tdp--av { --tdp-bg: var(--surface); --tdp-ink: var(--ink); --tdp-muted: var(--muted); --tdp-line: var(--border-2);
-  --tdp-accent: var(--gold-deeper); --tdp-accent-bg: var(--gold-soft); --tdp-red: var(--red); font-family: var(--sans, inherit); }
+.tdp.tdp--av { --tdp-bg: var(--surface); --tdp-bg-2: var(--surface-2); --tdp-ink: var(--ink); --tdp-muted: var(--muted); --tdp-line: var(--border-2);
+  --tdp-accent: var(--gold-deeper); --tdp-accent-bg: var(--gold-soft); --tdp-accent-solid: var(--gold); --tdp-on-accent: var(--on-gold);
+  --tdp-red: var(--red); --tdp-red-bg: var(--red-soft); --tdp-green: var(--green); --tdp-green-bg: var(--green-soft); font-family: var(--sans, inherit); }
