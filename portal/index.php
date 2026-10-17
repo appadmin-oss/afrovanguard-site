@@ -364,7 +364,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
 </div>
 <?php if ($isOrg) require __DIR__ . '/views/meet-modal.php'; ?>
 <?php if (class_exists('Todo') && Todo::enabled()): /* the to-do pop-up: one list across both sites (lib/Todo.php) */ ?>
-<div class="tdp" id="todoPop" data-src="/portal/collab.php" data-csrf="<?= e($collabCsrf) ?>" data-key="av-<?= (int) $u['id'] ?>" hidden></div>
+<div class="tdp tdp--av" id="todoPop" data-src="/portal/collab.php" data-csrf="<?= e($collabCsrf) ?>" data-key="av-<?= (int) $u['id'] ?>" hidden></div>
 <?php endif; ?>
 
   <script src="<?= e(av_asset('/portal/avp.js')) ?>" defer></script>

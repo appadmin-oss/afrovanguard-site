@@ -334,7 +334,7 @@ final class TaskMatch
     {
         static $done = false; if ($done) return; $done = true;
         Collab::myTasks(0, 1);
-        foreach (['auto_assigned_at', 'assigned_at'] as $c) {
+        foreach (['auto_assigned_at', 'assigned_at', 'assigned_by'] as $c) {
             try { if (!Database::columnExists('collab_tasks', $c)) Database::pdo()->exec("ALTER TABLE collab_tasks ADD COLUMN $c VARCHAR(32) NOT NULL DEFAULT ''"); } catch (Throwable $e) {}
         }
     }

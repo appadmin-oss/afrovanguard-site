@@ -46,7 +46,7 @@ final class Todo
                 if ($t['done'] || (int) $t['assignee_id'] !== $uid) continue;
                 $row = ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'due' => (string) $t['due'],
                         'priority' => (string) $t['priority'], 'overdue' => (bool) $t['overdue'],
-                        'from' => (int) $t['creator_id'] !== $uid ? (string) $t['creator_name'] : ''];
+                        'from' => (int) $t['assigned_by'] !== $uid ? (string) $t['assigned_by_name'] : ''];
                 $created = (string) ($t['assigned_at'] ?? '');
                 if ($row['from'] !== '' && $created >= $fresh) $out['assigned'][] = $row + ['at' => $created];
                 elseif ($row['due'] !== '' && $row['due'] <= $today) $out['due'][] = $row;

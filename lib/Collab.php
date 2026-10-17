@@ -221,8 +221,10 @@ final class Collab
     {
         self::ensureTasks();
         if ($uid <= 0 || $taskId <= 0) return null;
-        $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ? WHERE id = ? AND assignee_id = 0 AND done = 0');
-        $st->execute([$uid, $taskId]);
+        if (class_exists('TaskMatch')) TaskMatch::ensure();
+        /* Taken by themselves: not "assigned to you" in the to-do pop-up. */
+        $st = Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ? AND assignee_id = 0 AND done = 0');
+        $st->execute([$uid, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
         if ($st->rowCount() === 0) return null;   // already claimed / done / gone
         $task = self::oneTask($uid, $taskId);
         if ($task) self::log($uid, self::nameOf($uid), 'claimed a task', $task['title'], '/portal/#tasks');
@@ -260,7 +262,7 @@ final class Collab
         $u->execute([$assigneeId]);
         if (!$u->fetchColumn()) return null;
         if (class_exists('TaskMatch')) TaskMatch::ensure();
-        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ? WHERE id = ?')->execute([$assigneeId, gmdate('Y-m-d H:i:s'), $taskId]);
+        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ?, assigned_by = ? WHERE id = ?')->execute([$assigneeId, gmdate('Y-m-d H:i:s'), (string) $uid, $taskId]);
         if ($assigneeId !== $uid && class_exists('Notifications')) {
             try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
             catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
@@ -517,6 +519,9 @@ final class Collab
             'created_at'    => (string) ($r['created_at'] ?? ''),
             /* When it was given to its assignee (a pool task given later), else when it was made. */
             'assigned_at'   => (string) (($r['assigned_at'] ?? '') !== '' ? $r['assigned_at'] : ($r['created_at'] ?? '')),
+            /* Who gave it to them: whoever assigned it, else whoever made it. */
+            'assigned_by'   => (int) (($r['assigned_by'] ?? '') !== '' ? $r['assigned_by'] : $creator),
+            'assigned_by_name' => ($ab = (int) (($r['assigned_by'] ?? '') !== '' ? $r['assigned_by'] : $creator)) === $uid ? 'You' : self::nameOf($ab),
             'creator_name'  => $creator === $uid ? 'You' : self::nameOf($creator),
             'goal_id'       => $goalId,
             'goal_title'    => $goalId > 0 ? self::goalTitle($goalId) : '',

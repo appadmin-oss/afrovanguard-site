@@ -47,6 +47,9 @@ ck('todo: a suggestion carries its own action, so the pop-up knows nothing about
 ck('todo: an overdue task is marked urgent', $sec[1]['items'][0]['urgent'] === true && str_starts_with($sec[1]['items'][0]['meta'], 'Overdue'));
 ck('todo: a learner who is neither member nor volunteer is offered nothing to take', !Todo::mayTake($learner) && Todo::for($learner)['suggested'] === []);
 ck('todo: a volunteer may take', Todo::mayTake($cook));
+Collab::claimTask(9952, $pool1);
+ck('todo: a pool task they took themselves is not "assigned to you"', !in_array($pool1, array_column(Todo::for($cook)['assigned'], 'id'), true));
+Collab::releaseTask(9952, $pool1);
 AvRules::save(['tasks.todo_popup' => '0'], 'test');
 ck('todo: switched off in the Studio, the list is empty and says so', Todo::for($cook)['enabled'] === false && Todo::for($cook)['assigned'] === []);
 AvRules::save(['tasks.todo_popup' => '1'], 'test');
