@@ -46,6 +46,7 @@
 .tdp-head h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--tdp-ink); }
 .tdp-head h2:focus { outline: none; }
 .tdp-head h2:focus-visible { outline: 2px solid var(--tdp-accent); outline-offset: 3px; border-radius: 4px; }
+.tdp-role { margin: 2px 0 0; font-size: 12.5px; color: var(--tdp-muted); }
 .tdp-date { font-weight: 500; font-size: 13px; color: var(--tdp-muted); margin-left: 6px; }
 .tdp-x { width: 44px; height: 44px; border: 0; background: none; color: var(--tdp-muted); font-size: 24px; line-height: 1; cursor: pointer; border-radius: 10px; }
 .tdp-x:hover { color: var(--tdp-ink); }
@@ -58,7 +59,8 @@
 .tdp-item.is-urgent { box-shadow: inset 3px 0 0 var(--tdp-red); }
 .tdp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .tdp-title { font-size: 14px; font-weight: 650; color: var(--tdp-ink); overflow-wrap: anywhere; }
-.tdp-title a { color: inherit; }
+.tdp-title a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--tdp-line); }
+.tdp-title a:hover { text-decoration-color: currentColor; }
 .tdp-meta { font-size: 12.5px; color: var(--tdp-muted); }
 .tdp-item.is-urgent .tdp-meta { color: var(--tdp-red); }
 .tdp-txt progress { width: 100%; height: 6px; accent-color: var(--tdp-accent); }

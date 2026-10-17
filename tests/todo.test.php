@@ -76,6 +76,51 @@ TaskMatch::autoAssign();
 ck('sweep: handed back, it is not pushed on anybody again', $who($pool2) === 0);
 ck('sweep: and the one it was given to sees it as just assigned', in_array($pool1, array_column(Todo::for($cook)['assigned'], 'id'), true));
 
+/* ── Tailored: a member, a volunteer, a learner ── */
+$mem = $mk(9960, 'Mo Member', 'mo.td@afrovanguard.org.ng', 'member');
+$md = Todo::for($mem);
+ck('member: the role reads as a member', $md['role']['member'] && !$md['role']['volunteer'] && $md['role']['label'] === 'Member');
+ck('member: dues never paid are on the list, under their membership', ($md['member'][0]['kind'] ?? '') === 'dues' && ($md['member'][0]['href'] ?? '') === '#membership');
+ck('member: …but dues alone do not pop the list open every day', empty($md['member'][0]['nudge']));
+ck('member: no volunteering section for somebody who does not volunteer', $md['volunteer'] === []);
+Commitments::ensure();
+$tdp->prepare("INSERT INTO commitments (source_kind, source_id, title, member_id, due, status, created_at) VALUES ('meeting', 0, 'Send the venue list', ?, ?, 'open', ?)")->execute([9960, $yday, gmdate('Y-m-d H:i:s')]);
+$cm = (int) $tdp->lastInsertId();
+$md = Todo::for($mem);
+$act = array_values(array_filter($md['member'], fn($x) => ($x['kind'] ?? '') === 'action'))[0] ?? null;
+ck('member: an overdue action they agreed to, with Done that posts to the commitments door', $act && $act['urgent'] && $act['acts'][0]['url'] === '/portal/commitments.php' && $act['acts'][0]['body'] === ['id' => $cm]);
+$ms = Todo::sections($md);
+ck('member: the section is called Your membership and says when to open', ($ms[0]['key'] ?? '') === 'member' && $ms[0]['title'] === 'Your membership' && $ms[0]['nudge'] === true && $ms[0]['ctx'] === 'member');
+
+/* a volunteer with a meeting to answer and a shift tomorrow */
+$team = Volunteers::createTeam($boss, 'TD Outreach');
+Volunteers::setMember($boss, $team['id'], $clerk['email'], 'member');
+$when = (new DateTime('+2 days', new DateTimeZone(AV_TZ)))->format('Y-m-d\TH:i');
+MeetingMinutes::scheduleForTeam($boss, (int) $team['id'], ['title' => 'TD planning call', 'when' => $when, 'duration' => 45, 'frequency' => 'once']);
+$tom = (new DateTime('+1 day', new DateTimeZone(AV_TZ)))->format('Y-m-d\TH:i');
+$op = VolunteerWork::post($boss, ['title' => 'TD set-up day', 'when' => $tom, 'duration' => 120, 'slots' => 3, 'location' => 'Ikotun', 'team_id' => $team['id']]);
+VolunteerWork::signup($clerk, (int) $op['id']);
+$vd = Todo::for($clerk);
+ck('volunteer: the role names what they volunteer as', $vd['role']['volunteer'] && str_contains($vd['role']['label'], 'Summer School'));
+$kinds = array_column($vd['volunteer'], 'kind');
+ck('volunteer: a meeting not yet answered is asked, with Coming / Can\'t come', in_array('rsvp', $kinds, true));
+$rs = array_values(array_filter($vd['volunteer'], fn($x) => $x['kind'] === 'rsvp'))[0] ?? [];
+ck('volunteer: …which post the RSVP to the volunteer door', ($rs['acts'][0]['url'] ?? '') === '/portal/volunteer.php' && ($rs['acts'][0]['body']['answer'] ?? '') === 'yes' && ($rs['acts'][1]['body']['answer'] ?? '') === 'no');
+ck('volunteer: tomorrow\'s shift is on the list, with where', in_array('shift', $kinds, true) && str_contains(implode(' ', array_column($vd['volunteer'], 'meta')), 'Ikotun'));
+$vs = Todo::sections($vd);
+ck('volunteer: Volunteering is its own section, for the Volunteer dashboard to lead with', in_array('volunteer', array_column($vs, 'key'), true) && array_values(array_filter($vs, fn($x) => $x['key'] === 'volunteer'))[0]['ctx'] === 'volunteer');
+MeetingMinutes::rsvp($clerk, (int) $rs['acts'][0]['body']['meeting_id'], (string) $rs['acts'][0]['body']['occurrence'], 'yes', '');
+ck('volunteer: answered, it is not asked again', !in_array('rsvp', array_column(Todo::for($clerk)['volunteer'], 'kind'), true));
+
+$ld = Todo::for($learner);
+ck('learner: a learner is a learner, with nothing invented for them', $ld['role']['label'] === 'Learner' && $ld['member'] === [] && $ld['volunteer'] === []);
+
+$js = (string) file_get_contents(AV_ROOT . '/portal/todo-pop.js');
+ck('pop-up: on the Volunteer dashboard the volunteering section goes first', str_contains($js, "if (h === 'volunteer') return 'volunteer';") && str_contains($js, 'function ordered()'));
+ck('pop-up: a button may post to another door of the same site', str_contains($js, '(spec.url || src)'));
+ck('pop-up: it opens for what is worth opening for, as the server says', str_contains($js, '!!s.nudge'));
+
+$tdp->exec('DELETE FROM commitments WHERE member_id = 9960');
 AvRules::save(['tasks.auto_assign_hours' => '24'], 'test');
 $tdp->exec('DELETE FROM collab_tasks');
 $tdp->exec('DELETE FROM ngg_volunteers');

@@ -119,7 +119,7 @@ try {
         /* ── The to-do pop-up (lib/Todo.php, portal/todo.js) ─────────── */
         case 'todo':
             $td = Todo::for($u);
-            json_out(['ok' => true, 'enabled' => $td['enabled'], 'sections' => Todo::sections($td), 'all' => '/portal/#tasks']);
+            json_out(['ok' => true, 'enabled' => $td['enabled'], 'role' => $td['role'], 'sections' => Todo::sections($td), 'all' => $td['role']['member'] || $td['role']['volunteer'] ? '/portal/#tasks' : '/portal/']);
 
         case 'todo_take':
             $writeGuard();
