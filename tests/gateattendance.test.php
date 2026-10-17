@@ -117,6 +117,9 @@ ck('Gate: absences are not marked until switched on', GateAttendance::sweep('202
 AvRules::save(['gate.mark_absent' => '1', 'gate.absent_fine' => '2000', 'gate.holidays' => '2026-09-30'], 'test');
 Database::metaSet('gate_absent_swept_through', '2026-09-29');
 $chi = $gaUser('Chi Vanguard'); $gaEnrol($chi, 'Chi Vanguard');
+/* The excuse window is two weeks back from "today"; these checks are about
+   fixed days, so today is pinned to the morning after them. */
+GateAttendance::$todayForTests = '2026-10-02';
 GateAttendance::requestExcuse($chi, '2026-10-01', 'Exam at school');
 $s = GateAttendance::sweep('2026-10-02');
 ck('Gate: the sweep covers the days since the last one, up to yesterday', $s['days'] === 2 && $s['through'] === '2026-10-01');
@@ -148,6 +151,8 @@ AvRules::save(['gate.mark_absent' => '0', 'gate.absent_fine' => '0', 'gate.holid
 ck('Gate: an excuse needs a reason', !GateAttendance::requestExcuse($ada, '2026-10-05', '')['ok']);
 ck('Gate: nobody is excused from a day the gate has them in', !GateAttendance::requestExcuse($ada, $day, 'I was ill')['ok']);
 ck('Gate: and one request per day', GateAttendance::requestExcuse($ada, '2026-10-05', 'Hospital')['ok'] && !GateAttendance::requestExcuse($ada, '2026-10-05', 'Again')['ok']);
+
+GateAttendance::$todayForTests = null;
 
 /* ── Leave: a request with a duration ────────────────────────────────────── */
 $lvDay = fn(int $n) => date('Y-m-d', strtotime((function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) . ' ' . ($n >= 0 ? '+' : '') . $n . ' days'));

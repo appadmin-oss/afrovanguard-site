@@ -126,7 +126,9 @@ final class GateAttendance
     }
 
     private static function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
-    private static function today(): string { return function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d'); }
+    /** Tests pin "today" so a check written about fixed days keeps passing as the calendar moves on. */
+    public static ?string $todayForTests = null;
+    private static function today(): string { return self::$todayForTests ?? (function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')); }
     private static function rule(string $k, $fallback)
     {
         try { return class_exists('AvRules') ? AvRules::get($k) : $fallback; } catch (Throwable $e) { return $fallback; }
