@@ -187,6 +187,14 @@ $knownMetaKeys = [
     // the directory sync runs once more today (it is an idempotent upsert).
     'google_last_failure',
     'gws_directory_sync',
+    // The person directory push (lib/DirectoryPush). Reviewed: gates no migration.
+    // How far the roster sweep has walked lms_users. Lost, it starts again at
+    // the top: every row is re-sent and upserts on its source key over there,
+    // so the cost is one extra sweep's traffic and nothing else. It is a
+    // position, never a record of what was sent — losing it cannot lose an
+    // account, which is why a cursor was the right shape and a watermark of
+    // "what changed" was not.
+    'dir_push_cursor',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

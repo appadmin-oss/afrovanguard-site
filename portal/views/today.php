@@ -88,6 +88,41 @@ if ($dues) {
           </div>
         </div>
 
+<?php
+/* ── "WHAT ARE YOU WORKING ON?" ──────────────────────────────────────────
+   The centre asked for a to-do prompt on the member's screen. The answer
+   becomes an ordinary task — CACENTRE already reads this list over the
+   bridge the two sites share (CrmAvTasks → integrations/cacentre-tasks.php),
+   so there is still one list rather than two.
+
+   IT ASKS ONLY WHEN THERE IS NOTHING TO SHOW: no open task due today or
+   overdue, on either side of the bridge. */
+$todayKey = date('Y-m-d');
+$hasPlan  = false;
+foreach (array_merge($myTasks, $cacTasks) as $t) {
+    if (!empty($t['done'])) continue;
+    $due = trim((string) ($t['due'] ?? ''));
+    if ($due === '' || $due <= $todayKey) { $hasPlan = true; break; }
+}
+if ($isOrg && !$hasPlan):
+?>
+        <section class="pcard today-ask" id="askTask" data-csrf="<?= e($collabCsrf) ?>" data-today="<?= e($todayKey) ?>" aria-labelledby="askTaskH">
+          <div class="pcard-head"><h2 id="askTaskH">What are you working on?</h2><span class="pchip pchip--gold"><?= e(date('D, M j')) ?></span></div>
+          <div class="pcard-body">
+            <p class="pcard-note">Nothing on your list for today. Write down one thing — it shows up here and in the centre's console, and you can tick it off from either.</p>
+            <form class="ask-row" id="askTaskForm" autocomplete="off">
+              <label class="sr-only" for="askTaskTitle">Your task</label>
+              <input class="pinp" id="askTaskTitle" maxlength="200" placeholder="e.g. Call the three families from Saturday" required>
+              <div class="ask-btns">
+                <button class="pbtn pbtn-gold" type="submit" data-when="today">For today</button>
+                <button class="pbtn pbtn-soft" type="button" id="askTaskNext" data-when="next">Next, no date</button>
+              </div>
+            </form>
+            <p class="pc-empty" id="askTaskMsg" role="status" aria-live="polite" hidden></p>
+          </div>
+        </section>
+<?php endif; ?>
+
         <section class="avp-card avp-attn" aria-labelledby="avpAttnH">
           <div class="avp-card-head"><h2 id="avpAttnH">Needs your attention</h2><span class="avp-chip avp-chip--gold"><?= e(date('D, M j')) ?></span></div>
 <?php if ($attn): ?>

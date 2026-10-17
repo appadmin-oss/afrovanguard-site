@@ -253,3 +253,41 @@
     if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
   });
 })();
+
+/* ── "What are you working on?" (portal/views/today.php) ──────────────────
+   Posts through the SAME endpoint the task list uses — portal/collab.php,
+   action task_add — so the rate limit, the CSRF check and the ownership rule
+   live in one place, and CACENTRE reads the task over the bridge it already has. */
+(function () {
+  var card = document.getElementById('askTask'); if (!card) return;
+  var form = document.getElementById('askTaskForm');
+  var input = document.getElementById('askTaskTitle');
+  var msg = document.getElementById('askTaskMsg');
+  var csrf = card.getAttribute('data-csrf') || '';
+  var today = card.getAttribute('data-today') || '';
+  var busy = false;
+  function say(t, bad) { msg.hidden = false; msg.textContent = t; msg.classList.toggle('is-bad', !!bad); }
+  function add(when) {
+    var title = (input.value || '').trim();
+    if (!title) { say('Write the one thing first.', true); input.focus(); return; }
+    if (busy) return;
+    busy = true; say('Saving…');
+    /* "Next" carries no date on purpose: a made-up due date is overdue by tomorrow. */
+    fetch('/portal/collab.php?action=task_add', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ title: title, due: when === 'today' ? today : '', priority: 'normal' })
+    }).then(function (r) { return r.json(); }).catch(function () { return { ok: false, error: 'The network did not answer. Nothing was saved.' }; })
+      .then(function (r) {
+        busy = false;
+        if (!r || !r.ok) { say((r && r.error) || 'It was not saved.', true); return; }
+        card.hidden = true;
+        try { document.dispatchEvent(new CustomEvent('av:tasks-changed')); } catch (e) {}
+        var kpi = document.getElementById('kpiTasks');
+        if (kpi) kpi.textContent = String((parseInt(kpi.textContent, 10) || 0) + 1);
+      });
+  }
+  if (form) form.addEventListener('submit', function (ev) { ev.preventDefault(); add('today'); });
+  var next = document.getElementById('askTaskNext');
+  if (next) next.addEventListener('click', function () { add('next'); });
+})();
