@@ -300,6 +300,79 @@ final class TaskMatch
         return implode(', ', $bits);
     }
 
+    /* ══ For one person: what in the pool fits them ════════════════════════ */
+
+    /**
+     * Pool tasks that fit this person, best first — what the to-do pop-up
+     * offers as "Suggested for you". Labels only (no AI call): it is asked on
+     * every page load. [['id','title','due','priority','why','score']…]
+     */
+    public static function forUser(int $uid, int $n = 3): array
+    {
+        $p = self::profiles()[$uid] ?? null;
+        if (!$p || !class_exists('Collab')) return [];
+        $out = [];
+        foreach (Collab::poolTasks(60) as $t) {
+            if ((int) ($t['creator_id'] ?? 0) === $uid) continue;   /* they posted it: they know it is there */
+            [$score, $why] = self::score($p, (string) $t['title'], '');
+            if ($score < 2) continue;
+            $out[] = ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'due' => (string) $t['due'],
+                      'priority' => (string) $t['priority'], 'score' => $score, 'why' => (string) ($why[0] ?? '')];
+        }
+        usort($out, static fn($a, $b) => $b['score'] <=> $a['score']);
+        return array_slice($out, 0, max(1, $n));
+    }
+
+    /* ══ The sweep: a task nobody took goes to whoever fits ═══════════════ */
+
+    /** How sure the labels must be before a task is given rather than suggested. */
+    private const ASSIGN_MIN_SCORE = 2.0;
+    /** Nobody is handed a task while they hold this many open. */
+    private const ASSIGN_MAX_LOAD = 6;
+
+    public static function ensure(): void
+    {
+        static $done = false; if ($done) return; $done = true;
+        Collab::myTasks(0, 1);
+        foreach (['auto_assigned_at', 'assigned_at'] as $c) {
+            try { if (!Database::columnExists('collab_tasks', $c)) Database::pdo()->exec("ALTER TABLE collab_tasks ADD COLUMN $c VARCHAR(32) NOT NULL DEFAULT ''"); } catch (Throwable $e) {}
+        }
+    }
+
+    /**
+     * From the cron. A pool task unclaimed for tasks.auto_assign_hours goes to
+     * the best fit — labels make the shortlist, AI (when configured) picks from
+     * it — unless nobody fits well or the best fit is already loaded. A task
+     * is only ever given once this way: handed back, it stays in the pool for
+     * a person to decide. Returns what it did.
+     */
+    public static function autoAssign(?int $now = null, int $max = 10): array
+    {
+        $hours = class_exists('AvRules') ? AvRules::int('tasks.auto_assign_hours') : 0;
+        $out = ['assigned' => 0, 'left' => 0, 'off' => $hours <= 0];
+        if ($hours <= 0) return $out;
+        self::ensure();
+        $now = $now ?? time();
+        $st = Database::pdo()->prepare("SELECT * FROM collab_tasks WHERE assignee_id = 0 AND done = 0 AND auto_assigned_at = '' AND created_at <> '' AND created_at <= ? ORDER BY id ASC LIMIT " . max(1, $max));
+        $st->execute([gmdate('Y-m-d H:i:s', $now - $hours * 3600)]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+            $title = (string) $t['title'];
+            $short = array_values(array_filter(self::shortlist($title, 10, '', [(int) $t['creator_id']]),
+                static fn($r) => $r['score'] >= self::ASSIGN_MIN_SCORE && $r['load'] < self::ASSIGN_MAX_LOAD));
+            $pick = $short[0] ?? null;
+            if ($pick && count($short) > 1 && Collab::aiAvailable()) $pick = self::aiPick($title, $short, 1)[0] ?? $pick;
+            /* Marked either way: a task nobody fits is not re-scored every tick. */
+            Database::pdo()->prepare('UPDATE collab_tasks SET auto_assigned_at = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s', $now), (int) $t['id']]);
+            if (!$pick) { $out['left']++; continue; }
+            $why = 'Nobody had taken it in ' . $hours . ' hours, and it fits you: ' . ($pick['why'][0] ?? $pick['summary']) . '. Not for you? Hand it back to the pool from Tasks.';
+            if (Collab::assignTask((int) $t['creator_id'], (int) $t['id'], (int) $pick['id'], true, $why)) {
+                $out['assigned']++;
+                if (isset(self::$profiles[(int) $pick['id']])) self::$profiles[(int) $pick['id']]['load']++;
+            }
+        }
+        return $out;
+    }
+
     /** For tests: forget the cached profiles. */
     public static function forget(): void { self::$profiles = null; }
 }

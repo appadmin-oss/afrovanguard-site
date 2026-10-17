@@ -187,6 +187,11 @@ if (class_exists('CrmAudiencePush')) {
 if (class_exists('NggVolunteers')) {
     try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
 }
+/* A pool task nobody took in tasks.auto_assign_hours goes to whoever fits it best (lib/TaskMatch.php). */
+if (class_exists('TaskMatch')) {
+    try { $aa = TaskMatch::autoAssign(); if (!empty($aa['assigned']) || !empty($aa['left'])) $result['tasks_auto_assigned'] = $aa; }
+    catch (Throwable $e) { error_log('[cron] auto-assign: ' . $e->getMessage()); }
+}
 /* Ticks on tasks that count toward a CACENTRE commitment, not sent at the time (lib/CacWeek.php). */
 if (class_exists('CacWeek') && CacWeek::ready()) {
     try { $result['cac_week_retried'] = CacWeek::retryPending(); } catch (Throwable $e) { $result['cac_week_retried'] = $e->getMessage(); }

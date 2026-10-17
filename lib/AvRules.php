@@ -322,6 +322,16 @@ final class AvRules
             'label' => 'Holidays',
             'help'  => 'Dates (YYYY-MM-DD) nobody is expected in. Nobody is marked absent or fined on them.',
         ],
+        'tasks.auto_assign_hours' => [
+            'type' => 'int', 'default' => 24, 'min' => 0, 'max' => 720, 'group' => 'Tasks',
+            'label' => 'Assign unclaimed pool tasks after (hours)',
+            'help'  => 'A task left in the shared pool this long goes to the person whose role, course, centre and project fit it best, with the lightest open load (AI picks from that shortlist when it is configured). They are told, and can hand it back to the pool. 0: never — suggestions only.',
+        ],
+        'tasks.todo_popup' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Tasks',
+            'label' => 'To-do pop-up',
+            'help'  => 'On the portal and the Volunteer dashboard, a pop-up with what is due today, what was just assigned, this week at CACENTRE, and pool tasks that fit the member. Off: the Tasks screen only.',
+        ],
         'gate.mark_absent' => [
             'type' => 'bool', 'default' => false, 'group' => 'Attendance',
             'label' => 'Mark absences',

@@ -129,7 +129,7 @@ render_head([
                      /* The member card (Membership → Your card) and its photo editor. */
                      '/assets/site/avc-card.css', '/assets/site/avc-photo.css',
                      /* Last, so the v2 shell wins over the panel stylesheet. */
-                     '/portal/avp.css', '/portal/volunteer.css'],
+                     '/portal/avp.css', '/portal/volunteer.css', '/portal/todo-pop.css'],
     'manifest'   => '/manifest.webmanifest',
     'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
@@ -363,9 +363,13 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   </nav>
 </div>
 <?php if ($isOrg) require __DIR__ . '/views/meet-modal.php'; ?>
+<?php if (class_exists('Todo') && Todo::enabled()): /* the to-do pop-up: one list across both sites (lib/Todo.php) */ ?>
+<div class="tdp" id="todoPop" data-src="/portal/collab.php" data-csrf="<?= e($collabCsrf) ?>" data-key="av-<?= (int) $u['id'] ?>" hidden></div>
+<?php endif; ?>
 
   <script src="<?= e(av_asset('/portal/avp.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/tasks.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/todo-pop.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/chat-panel.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/meet-modal.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/dues-pay.js')) ?>" defer></script>

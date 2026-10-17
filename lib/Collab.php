@@ -247,7 +247,7 @@ final class Collab
      * may run teams may hand out a task from the pool. A finished task stays
      * where it is. The new assignee is told.
      */
-    public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate): ?array
+    public static function assignTask(int $uid, int $taskId, int $assigneeId, bool $mayAllocate, string $why = ''): ?array
     {
         self::ensureTasks();
         if ($uid <= 0 || $taskId <= 0 || $assigneeId <= 0) return null;
@@ -259,9 +259,10 @@ final class Collab
         $u = Database::pdo()->prepare("SELECT 1 FROM lms_users WHERE id = ? AND status = 'active'");
         $u->execute([$assigneeId]);
         if (!$u->fetchColumn()) return null;
-        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ? WHERE id = ?')->execute([$assigneeId, $taskId]);
+        if (class_exists('TaskMatch')) TaskMatch::ensure();
+        Database::pdo()->prepare('UPDATE collab_tasks SET assignee_id = ?, assigned_at = ? WHERE id = ?')->execute([$assigneeId, gmdate('Y-m-d H:i:s'), $taskId]);
         if ($assigneeId !== $uid && class_exists('Notifications')) {
-            try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], 'Assigned to you by ' . self::nameOf($uid) . '.', '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
+            try { Notifications::push($assigneeId, 'task', 'New task: ' . $t['title'], ($why !== '' ? $why : 'Assigned to you by ' . self::nameOf($uid) . '.'), '/portal/#tasks', 'task:' . $taskId . ':' . $assigneeId); }
             catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
         }
         self::log($uid, self::nameOf($uid), 'assigned a task to ' . self::nameOf($assigneeId), (string) $t['title'], '/portal/#tasks');
@@ -513,6 +514,9 @@ final class Collab
             'assignee_name' => $assignee === 0 ? 'Unclaimed' : ($assignee === $uid ? 'You' : self::nameOf($assignee)),
             'assigned_out'  => $creator === $uid && $assignee !== $uid && $assignee !== 0, // I gave this to someone
             'creator_id'    => $creator,
+            'created_at'    => (string) ($r['created_at'] ?? ''),
+            /* When it was given to its assignee (a pool task given later), else when it was made. */
+            'assigned_at'   => (string) (($r['assigned_at'] ?? '') !== '' ? $r['assigned_at'] : ($r['created_at'] ?? '')),
             'creator_name'  => $creator === $uid ? 'You' : self::nameOf($creator),
             'goal_id'       => $goalId,
             'goal_title'    => $goalId > 0 ? self::goalTitle($goalId) : '',

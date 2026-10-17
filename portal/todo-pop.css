@@ -1,0 +1,74 @@
+/* portal/todo-pop.css — the to-do pop-up (portal/todo-pop.js). The same file
+   ships in CACENTRE's console; it reads the host's tokens where they exist
+   and falls back to its own, so it sits right on either site. */
+.tdp {
+  --tdp-bg: var(--surface, #fff);
+  --tdp-ink: var(--ink, #14161a);
+  --tdp-muted: var(--muted, #5b6170);
+  --tdp-line: var(--border-2, #e3e1db);
+  --tdp-accent: var(--gold-deeper, #8a6512);
+  --tdp-accent-bg: var(--gold-soft, #f7efdc);
+  --tdp-red: var(--red, #a32b1c);
+  --tdp-shadow: 0 12px 40px rgba(20, 22, 26, .18);
+  position: fixed; right: 16px; bottom: 16px; z-index: 900; font: inherit; color: var(--tdp-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tdp:not([data-host-theme]) {
+    --tdp-bg: var(--surface, #1b1d22); --tdp-ink: var(--ink, #f2f1ee); --tdp-muted: var(--muted, #a9adb6);
+    --tdp-line: var(--border-2, #33363d); --tdp-accent: var(--gold-deeper, #e5c372); --tdp-accent-bg: var(--gold-soft, #2c2617);
+    --tdp-red: var(--red, #ff9f8f); --tdp-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+  }
+}
+.tdp-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.tdp-launch {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--tdp-line); background: var(--tdp-bg); color: var(--tdp-ink); font: inherit; font-weight: 700; font-size: 14px;
+  box-shadow: var(--tdp-shadow); cursor: pointer;
+}
+.tdp-launch:hover { border-color: var(--tdp-accent); }
+.tdp-n { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--tdp-accent); color: var(--tdp-bg); font-size: 12px; display: inline-grid; place-items: center; }
+.tdp-panel {
+  width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 620px); display: flex; flex-direction: column;
+  background: var(--tdp-bg); border: 1px solid var(--tdp-line); border-radius: 16px; box-shadow: var(--tdp-shadow); overflow: hidden;
+}
+.tdp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 10px 16px; border-bottom: 1px solid var(--tdp-line); }
+.tdp-head h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--tdp-ink); }
+.tdp-head h2:focus { outline: none; }
+.tdp-head h2:focus-visible { outline: 2px solid var(--tdp-accent); outline-offset: 3px; border-radius: 4px; }
+.tdp-date { font-weight: 500; font-size: 13px; color: var(--tdp-muted); margin-left: 6px; }
+.tdp-x { width: 44px; height: 44px; border: 0; background: none; color: var(--tdp-muted); font-size: 24px; line-height: 1; cursor: pointer; border-radius: 10px; }
+.tdp-x:hover { color: var(--tdp-ink); }
+.tdp-body { overflow: auto; padding: 4px 0 8px; overscroll-behavior: contain; }
+.tdp-sec h3 { margin: 10px 16px 4px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--tdp-muted); }
+.tdp-c { font-weight: 600; }
+.tdp-sec ul { list-style: none; margin: 0; padding: 0; }
+.tdp-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 16px; border-top: 1px solid var(--tdp-line); }
+.tdp-sec ul .tdp-item:first-child { border-top: 0; }
+.tdp-item.is-urgent { box-shadow: inset 3px 0 0 var(--tdp-red); }
+.tdp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tdp-title { font-size: 14px; font-weight: 650; color: var(--tdp-ink); overflow-wrap: anywhere; }
+.tdp-title a { color: inherit; }
+.tdp-meta { font-size: 12.5px; color: var(--tdp-muted); }
+.tdp-item.is-urgent .tdp-meta { color: var(--tdp-red); }
+.tdp-txt progress { width: 100%; height: 6px; accent-color: var(--tdp-accent); }
+.tdp-acts { display: flex; gap: 6px; flex-shrink: 0; }
+.tdp-tick, .tdp-take, .tdp-later {
+  min-height: 36px; padding: 0 12px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--tdp-line); background: var(--tdp-bg); color: var(--tdp-ink);
+}
+.tdp-take { background: var(--tdp-accent-bg); border-color: var(--tdp-accent); color: var(--tdp-accent); }
+.tdp-tick:hover, .tdp-later:hover { border-color: var(--tdp-accent); }
+.tdp-tick:disabled, .tdp-take:disabled { opacity: .6; cursor: wait; }
+.tdp-panel button:focus-visible, .tdp-launch:focus-visible, .tdp-all:focus-visible { outline: 2px solid var(--tdp-accent); outline-offset: 2px; }
+.tdp-empty { margin: 14px 16px; color: var(--tdp-muted); font-size: 14px; }
+.tdp-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--tdp-line); }
+.tdp-all { font-weight: 700; font-size: 14px; color: var(--tdp-accent); }
+/* A phone: a sheet along the bottom, above the browser's own bar. */
+@media (max-width: 600px) {
+  .tdp { right: 8px; left: 8px; bottom: 8px; display: flex; justify-content: flex-end; flex-direction: column; align-items: flex-end; }
+  .tdp-panel { width: 100%; max-height: 72vh; border-radius: 16px; }
+  .tdp-item { flex-wrap: wrap; }
+  .tdp-acts { width: 100%; justify-content: flex-end; }
+  .tdp-tick, .tdp-take { min-height: 44px; }
+}
+@media print { .tdp { display: none !important; } }

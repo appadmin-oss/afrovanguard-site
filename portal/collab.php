@@ -9,6 +9,8 @@
  *   POST ?action=task_delete→ { id }              (body: {id})
  *   POST ?action=task_suggest → { suggestions }  (body: {title, kind?}) — who it fits
  *   POST ?action=task_assign  → { task }         (body: {id, assignee})
+ *   GET  ?action=todo         → the to-do pop-up's list (lib/Todo.php)
+ *   POST ?action=todo_take    → { task }         (body: {id}) — take a suggested pool task
  *
  * Signed-in members only. Writes require same-origin + a valid CSRF token
  * (X-CSRF-Token header), matching the rest of the portal's endpoints.
@@ -113,6 +115,18 @@ try {
             // AI failures are soft — returned as ok:false with a message the UI
             // shows inline, not an HTTP error (nothing is broken server-side).
             json_out(Collab::aiTasksFromGoal($uid, (int) ($body['goal_id'] ?? 0), (int) ($body['max'] ?? 6), !empty($body['auto_assign']) && $allocates));
+
+        /* ── The to-do pop-up (lib/Todo.php, portal/todo.js) ─────────── */
+        case 'todo':
+            $td = Todo::for($u);
+            json_out(['ok' => true, 'enabled' => $td['enabled'], 'sections' => Todo::sections($td), 'all' => '/portal/#tasks']);
+
+        case 'todo_take':
+            $writeGuard();
+            if (!Todo::mayTake($u)) json_out(['ok' => false, 'error' => 'Taking pool tasks is for members and volunteers.'], 403);
+            $task = Collab::claimTask($uid, (int) ($body['id'] ?? 0));
+            if ($task === null) json_out(['ok' => false, 'error' => 'Somebody took that one a moment ago.'], 409);
+            json_out(['ok' => true, 'task' => $task]);
 
         /* Who a task fits, from people's labels; AI picks from that shortlist when it is configured. */
         case 'task_suggest':
