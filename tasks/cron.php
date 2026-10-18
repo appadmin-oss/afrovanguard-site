@@ -187,6 +187,11 @@ if (class_exists('CrmAudiencePush')) {
 if (class_exists('NggVolunteers')) {
     try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
 }
+/* Tasks come from goals: an open goal with nothing open under it is planned (lib/GoalPlanner.php). */
+if (class_exists('GoalPlanner')) {
+    try { $gp = GoalPlanner::sweep(); if (!empty($gp['planned'])) $result['goals_planned'] = $gp; }
+    catch (Throwable $e) { error_log('[cron] goal planner: ' . $e->getMessage()); }
+}
 /* A pool task nobody took in tasks.auto_assign_hours goes to whoever fits it best (lib/TaskMatch.php). */
 if (class_exists('TaskMatch')) {
     try { $aa = TaskMatch::autoAssign(); if (!empty($aa['assigned']) || !empty($aa['left'])) $result['tasks_auto_assigned'] = $aa; }

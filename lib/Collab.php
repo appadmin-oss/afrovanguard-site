@@ -397,6 +397,8 @@ final class Collab
         $new = $t['done'] ? 0 : 1;
         Database::pdo()->prepare('UPDATE collab_tasks SET done = ? WHERE id = ?')->execute([$new, $taskId]);
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
+        /* A step towards a goal: the goal's progress follows. */
+        if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         /* Counted toward a CACENTRE commitment: the tick counts there too. */
         if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId);
         return (bool) $new;

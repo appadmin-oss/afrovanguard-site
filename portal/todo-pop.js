@@ -13,6 +13,8 @@
  *   another endpoint of the same site (an RSVP, a commitment done).
  *   item.kind picks its icon; item.badge {text, tone} its label; tick.undo
  *   says ticking it again puts it back (Undo is offered for a few seconds).
+ *   section.group 'goals' (with sub and progress) files it under the Goals tab:
+ *   a goal and the steps drawn from it. Tasks elsewhere name their goal (item.goal).
  *   section.ctx ('work'|'member'|'volunteer') puts the section that matches
  *   the screen somebody is on first; section.nudge says whether it is worth
  *   opening the pop-up for; data.role.label says who the list is for.
@@ -62,17 +64,21 @@
   function icon(name, cls) { return '<svg class="' + (cls || 'tdp-ico') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + (ICON[name] || ICON.task) + '</svg>'; }
 
   /* ── What there is ─────────────────────────────────────────────────── */
-  /* What needs doing (the week's commitments and suggestions are not chores). */
+  /* Where a section lives: Now (what needs doing), Goals (each goal and its
+     steps, and the week's commitments), For you (suggestions). */
+  function where(s) { return s.key === 'suggested' ? 'you' : (s.group === 'goals' || s.key === 'week') ? 'goals' : 'now'; }
+  /* What needs doing — counted once, from Now. */
   function count() {
     var n = 0;
-    (data.sections || []).forEach(function (s) { if (s.key !== 'week' && s.key !== 'suggested') n += s.items.length; });
+    (data.sections || []).forEach(function (s) { if (where(s) === 'now') n += s.items.length; });
     return n;
   }
   function urgentCount() {
     var n = 0;
-    (data.sections || []).forEach(function (s) { if (s.key !== 'week' && s.key !== 'suggested') s.items.forEach(function (it) { if (it.urgent) n++; }); });
+    (data.sections || []).forEach(function (s) { if (where(s) === 'now') s.items.forEach(function (it) { if (it.urgent) n++; }); });
     return n;
   }
+  function inTab(t) { return (data.sections || []).filter(function (s) { return where(s) === t; }); }
   function newest() {
     var a = (data.sections || []).filter(function (s) { return s.key === 'assigned'; })[0];
     return a && a.items.length ? String(a.items[0].fresh || '') : '';
@@ -95,11 +101,7 @@
   function ordered() {
     var ctx = viewCtx(), list = (data.sections || []).slice();
     if (ctx !== 'work') list = list.filter(function (s) { return s.ctx === ctx; }).concat(list.filter(function (s) { return s.ctx !== ctx; }));
-    return list.filter(function (s) {
-      if (tab === 'week') return s.key === 'week';
-      if (tab === 'you') return s.key === 'suggested';
-      return s.key !== 'week' && s.key !== 'suggested';
-    });
+    return list.filter(function (s) { return where(s) === tab; });
   }
 
   /* ── Building ──────────────────────────────────────────────────────── */
@@ -161,7 +163,7 @@
     var title = it.href ? '<a href="' + esc(it.href) + '">' + esc(it.title) + '</a>' : esc(it.title);
     return '<li class="tdp-item' + (it.urgent ? ' is-urgent' : '') + '" data-id="' + esc(it.id) + '">' + lead
       + '<div class="tdp-txt"><span class="tdp-title">' + title + '</span>'
-      + '<span class="tdp-meta">' + badge(it.badge) + (it.urgent && !(it.badge && it.badge.tone === 'red') ? '<span class="tdp-sr">Urgent. </span>' : '') + (it.meta ? '<span>' + esc(it.meta) + '</span>' : '') + '</span>'
+      + '<span class="tdp-meta">' + badge(it.badge) + (it.goal ? '<span class="tdp-goal">' + icon('goal', 'tdp-goal-i') + '<span class="tdp-sr">Goal: </span>' + esc(it.goal) + '</span>' : '') + (it.urgent && !(it.badge && it.badge.tone === 'red') ? '<span class="tdp-sr">Urgent. </span>' : '') + (it.meta ? '<span>' + esc(it.meta) + '</span>' : '') + '</span>'
       + (typeof it.progress === 'number' ? '<span class="tdp-bar" role="img" aria-label="' + Math.round(it.progress * 100) + '% done"><span style="width:' + Math.round(it.progress * 100) + '%"></span></span>' : '')
       + (btns ? '<span class="tdp-acts">' + btns + '</span>' : '')
       + '</div></li>';
@@ -169,8 +171,9 @@
 
   function tabs() {
     var t = [['now', 'Now', count()]];
-    if (has('week')) t.push(['week', 'This week', (data.sections.filter(function (s) { return s.key === 'week'; })[0] || { items: [] }).items.length]);
-    if (has('suggested')) t.push(['you', 'For you', (data.sections.filter(function (s) { return s.key === 'suggested'; })[0] || { items: [] }).items.length]);
+    var goals = inTab('goals'), you = inTab('you');
+    if (goals.length) t.push(['goals', 'Goals', goals.length]);
+    if (you.length) t.push(['you', 'For you', you.reduce(function (n, s) { return n + s.items.length; }, 0)]);
     if (t.length === 1) { tab = 'now'; return ''; }
     if (!t.some(function (x) { return x[0] === tab; })) tab = 'now';
     return '<div class="tdp-tabs" role="group" aria-label="Show">' + t.map(function (x) {
@@ -192,7 +195,9 @@
     var secs = ordered();
     var empty = tab === 'now'
       ? '<div class="tdp-empty">' + icon('check', 'tdp-empty-i') + '<p class="tdp-empty-t">You’re all caught up</p><p class="tdp-empty-s">' + (has('suggested') ? 'Want something to do? Look under For you.' : 'New work will show up here the moment it lands.') + '</p></div>'
-      : '<div class="tdp-empty"><p class="tdp-empty-s">Nothing here.</p></div>';
+      : tab === 'goals'
+        ? '<div class="tdp-empty">' + icon('goal', 'tdp-empty-i') + '<p class="tdp-empty-t">No goal steps for you yet</p><p class="tdp-empty-s">When a goal is set, its steps are drawn up and given to whoever fits them.</p></div>'
+        : '<div class="tdp-empty"><p class="tdp-empty-s">Nothing here.</p></div>';
     panel.innerHTML =
       '<div class="tdp-grab" aria-hidden="true"></div>'
       + '<header class="tdp-head">'
@@ -207,7 +212,17 @@
       +   (done ? ' · ' + done + ' done today' : '') + '</span></p></div>'
       + tabs()
       + '<div class="tdp-body">' + (secs.length ? secs.map(function (s) {
-          return '<section class="tdp-sec tdp-sec--' + esc(s.key) + '" aria-labelledby="tdpS' + esc(s.key) + '"><h3 id="tdpS' + esc(s.key) + '">' + esc(s.title) + ' <span class="tdp-c">' + s.items.length + '</span></h3><ul>' + s.items.map(item).join('') + '</ul></section>';
+          var sid = esc(s.id || s.key);
+          if (s.group === 'goals') {
+            var pct = Math.round((s.progress || 0) * 100);
+            return '<section class="tdp-sec tdp-sec--goal" aria-labelledby="tdpS' + sid + '"><div class="tdp-goalhead">' + icon('goal', 'tdp-goalhead-i')
+              + '<div class="tdp-goalhead-t"><h3 id="tdpS' + sid + '">' + esc(s.title) + '</h3>'
+              + (s.sub ? '<span class="tdp-goalhead-s">' + esc(s.sub) + '</span>' : '')
+              + (typeof s.progress === 'number' ? '<span class="tdp-bar" role="img" aria-label="Goal ' + pct + '% done"><span style="width:' + pct + '%"></span></span>' : '')
+              + '</div><span class="tdp-goalhead-p" aria-hidden="true">' + (typeof s.progress === 'number' ? pct + '%' : '') + '</span></div>'
+              + '<ul>' + s.items.map(item).join('') + '</ul></section>';
+          }
+          return '<section class="tdp-sec tdp-sec--' + esc(s.key) + '" aria-labelledby="tdpS' + sid + '"><h3 id="tdpS' + sid + '">' + esc(s.title) + ' <span class="tdp-c">' + s.items.length + '</span></h3><ul>' + s.items.map(item).join('') + '</ul></section>';
         }).join('') : empty) + '</div>'
       + '<div class="tdp-toast" hidden></div>'
       + '<footer class="tdp-foot"><a href="' + esc(data.all || '#') + '" class="tdp-all">All tasks' + icon('arrow', 'tdp-all-i') + '</a>'
@@ -278,7 +293,7 @@
       var ld = lastDone; lastDone = null; clearTimeout(undoTimer);
       post(ld.spec).then(function (r) {
         if (!r || !r.ok) { say((r && r.error) || 'That could not be undone.'); return; }
-        var sec = (data.sections || []).filter(function (s) { return s.key === ld.s.key; })[0];
+        var sec = (data.sections || []).filter(function (s) { return (s.id || s.key) === (ld.s.id || ld.s.key); })[0];
         if (!sec) { sec = ld.s; sec.items = []; data.sections.push(sec); }
         sec.items.splice(Math.min(ld.i, sec.items.length), 0, ld.it);
         doneToday(-1); draw(); say('Put back: ' + ld.it.title + '.');

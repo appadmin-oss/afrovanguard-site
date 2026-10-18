@@ -33,7 +33,7 @@
               <span class="pchip pchip--indigo">Beta</span>
             </div>
             <div class="pcard-body">
-              <p class="pcard-note">Pick a team goal — AI breaks it into concrete tasks with deadlines and posts them to the pool for anyone to pick up.</p>
+              <p class="pcard-note">Tasks come from goals: every open goal's steps are drawn up by themselves and given to whoever fits them. Plan more steps for a goal here, now.</p>
               <div class="task-ai-row">
                 <label class="task-af task-af--grow"><span>Goal</span>
                   <select id="aiGoal" aria-label="Goal to plan"><option value="">Loading goals…</option></select>

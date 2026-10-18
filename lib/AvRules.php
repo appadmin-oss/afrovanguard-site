@@ -327,6 +327,16 @@ final class AvRules
             'label' => 'Assign unclaimed pool tasks after (hours)',
             'help'  => 'A task left in the shared pool this long goes to the person whose role, course, centre and project fit it best, with the lightest open load (AI picks from that shortlist when it is configured). They are told, and can hand it back to the pool. 0: never — suggestions only.',
         ],
+        'tasks.from_goals' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Tasks',
+            'label' => 'Draw tasks from goals',
+            'help'  => 'An open goal with nothing open under it is broken into steps (by AI when it is configured), and each step goes to whoever fits it best. With no AI, its author is given one task: agree the next step. Its progress then follows its tasks.',
+        ],
+        'tasks.goal_replan_days' => [
+            'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 90, 'group' => 'Tasks',
+            'label' => 'Plan a goal again after (days)',
+            'help'  => 'A goal whose steps were removed is planned again after this long. A goal whose steps are all done is planned again the next day.',
+        ],
         'tasks.todo_popup' => [
             'type' => 'bool', 'default' => true, 'group' => 'Tasks',
             'label' => 'To-do pop-up',

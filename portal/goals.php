@@ -36,7 +36,13 @@ try {
             $writeGuard();
             $id = Goals::create($uid, (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''));
             if (!$id) json_out(['ok' => false, 'error' => 'Add an objective.'], 422);
-            json_out(['ok' => true, 'id' => $id]);
+            /* Tasks come from goals: its first steps are drawn now and given to
+               whoever fits them (lib/GoalPlanner.php). Failing that, the cron does it. */
+            $plan = ['created' => 0];
+            if (class_exists('GoalPlanner') && GoalPlanner::enabled()) {
+                try { $plan = GoalPlanner::plan($id); } catch (Throwable $e) { error_log('[goals] plan: ' . $e->getMessage()); }
+            }
+            json_out(['ok' => true, 'id' => $id, 'steps' => (int) ($plan['created'] ?? 0), 'via' => (string) ($plan['via'] ?? '')]);
 
         case 'edit':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

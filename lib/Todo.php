@@ -37,8 +37,9 @@ final class Todo
         $uid = (int) ($u['id'] ?? 0);
         $out = ['ok' => true, 'enabled' => self::enabled(), 'today' => gmdate('Y-m-d'), 'role' => self::role($u),
                 'assigned' => [], 'due' => [], 'cac' => [], 'week' => [], 'suggested' => [], 'cac_url' => '',
-                'member' => [], 'volunteer' => []];
+                'member' => [], 'volunteer' => [], 'goals' => []];
         if ($uid <= 0 || !$out['enabled']) return $out;
+        $out['goals']     = class_exists('GoalPlanner') ? (static function () use ($uid) { try { return GoalPlanner::forUser($uid); } catch (Throwable $e) { error_log('[todo] goals: ' . $e->getMessage()); return []; } })() : [];
         $out['member']    = self::memberItems($u, $out['role']);
         $out['volunteer'] = $out['role']['volunteer'] ? self::volunteerItems($u) : [];
         $today = $out['today'];
@@ -48,7 +49,7 @@ final class Todo
             foreach (Collab::myTasks($uid, 100) as $t) {
                 if ($t['done'] || (int) $t['assignee_id'] !== $uid) continue;
                 $row = ['id' => (int) $t['id'], 'title' => (string) $t['title'], 'due' => (string) $t['due'],
-                        'priority' => (string) $t['priority'], 'overdue' => (bool) $t['overdue'],
+                        'priority' => (string) $t['priority'], 'overdue' => (bool) $t['overdue'], 'goal' => (string) ($t['goal_title'] ?? ''),
                         'from' => (int) $t['assigned_by'] !== $uid ? (string) $t['assigned_by_name'] : ''];
                 $created = (string) ($t['assigned_at'] ?? '');
                 if ($row['from'] !== '' && $created >= $fresh) $out['assigned'][] = $row + ['at' => $created];
@@ -219,11 +220,11 @@ final class Todo
         $when = static function (string $due, string $today): string {
             if ($due === '') return '';
             if ($due < $today) return 'Overdue · ' . $due;
-            return $due === $today ? 'Today' : $due;
+            return $due === $today ? 'Today' : 'Due ' . gmdate('D j M', strtotime($due . ' 12:00 UTC') ?: time());
         };
         $t = $d['today'];
         $mine = static fn(array $x, string $meta) => ['id' => 'av' . $x['id'], 'title' => $x['title'], 'meta' => $meta,
-            'urgent' => !empty($x['overdue']) || $x['priority'] === 'high',
+            'urgent' => !empty($x['overdue']) || $x['priority'] === 'high', 'goal' => (string) ($x['goal'] ?? ''),
             'tick' => ['action' => 'task_toggle', 'body' => ['id' => $x['id']], 'label' => 'Done', 'undo' => true]];
         $sec = [];
         $flat = static fn(array $x, string $pre) => ['id' => $pre . ($x['id'] ?? substr(md5($x['title']), 0, 8)), 'title' => $x['title'], 'meta' => $x['meta'],
@@ -238,7 +239,17 @@ final class Todo
         if ($d['cac']) $sec[] = ['key' => 'cac', 'ctx' => 'work', 'nudge' => true, 'title' => 'At CACENTRE', 'items' => array_map(static fn($x) => [
             'id' => 'cac' . $x['id'], 'title' => $x['title'], 'meta' => $when($x['due'], $t), 'urgent' => $x['due'] < $t,
             'tick' => ['action' => 'cac_toggle', 'body' => ['id' => $x['id']], 'label' => 'Done']], $d['cac'])];
-        if ($d['week']) $sec[] = ['key' => 'week', 'ctx' => 'work', 'nudge' => false, 'title' => 'This week at CACENTRE', 'items' => array_map(static fn($c) => [
+        /* Tasks come from goals: each goal they have steps in, with its
+           progress, and their open steps under it. */
+        foreach ($d['goals'] ?? [] as $g) {
+            $total = $g['open'] + $g['done'];
+            $sec[] = ['key' => 'goal', 'id' => 'goal' . $g['id'], 'group' => 'goals', 'ctx' => 'work', 'nudge' => false,
+                'title' => $g['title'], 'progress' => $total > 0 ? $g['done'] / $total : $g['progress'] / 100,
+                'sub' => $g['done'] . ' of ' . $total . ' step' . ($total === 1 ? '' : 's') . ' done' . ($g['target'] !== '' ? ' · ' . $g['target'] : ''),
+                'items' => array_map(static fn($x) => $mine(['id' => $x['id'], 'title' => $x['title'], 'overdue' => $x['overdue'], 'priority' => $x['priority'], 'goal' => ''],
+                    $x['due'] !== '' ? $when($x['due'], $t) : 'No date') + ['kind' => 'action'], $g['tasks'])];
+        }
+        if ($d['week']) $sec[] = ['key' => 'week', 'group' => 'goals', 'ctx' => 'work', 'nudge' => false, 'title' => 'This week at CACENTRE', 'items' => array_map(static fn($c) => [
             'id' => 'wk' . $c['id'], 'title' => $c['statement'],
             'meta' => rtrim(rtrim(number_format((float) $c['delivered'], 1), '0'), '.') . ' of ' . rtrim(rtrim(number_format((float) $c['target'], 1), '0'), '.') . ' ' . $c['unit']
                       . ' · by ' . $c['end'] . ($c['goal'] !== '' ? ' · feeds ' . $c['goal'] : ''),
@@ -250,13 +261,13 @@ final class Todo
         /* The order a day reads them; the pop-up puts the section that
            matches the screen somebody is on first (the Volunteer dashboard
            leads with Volunteering). */
-        $order = ['assigned' => 0, 'due' => 1, 'volunteer' => 2, 'member' => 3, 'cac' => 4, 'week' => 5, 'suggested' => 6];
+        $order = ['assigned' => 0, 'due' => 1, 'volunteer' => 2, 'member' => 3, 'cac' => 4, 'goal' => 5, 'week' => 6, 'suggested' => 7];
         usort($sec, static fn($a, $b) => $order[$a['key']] <=> $order[$b['key']]);
         return self::dress($sec);
     }
 
     /** What the pop-up draws beside each item: an icon for its kind, and a badge. */
-    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'cac' => 'cac', 'week' => 'goal', 'suggested' => 'spark'];
+    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'cac' => 'cac', 'week' => 'goal', 'goal' => 'task', 'suggested' => 'spark'];
 
     public static function dress(array $sec): array
     {
