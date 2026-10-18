@@ -187,6 +187,11 @@ if (class_exists('CrmAudiencePush')) {
 if (class_exists('NggVolunteers')) {
     try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
 }
+/* CACENTRE's goals: mirrored here, their steps planned and counted toward the owner's week (lib/CacGoals.php). */
+if (class_exists('CacGoals')) {
+    try { $cg = CacGoals::syncIfDue(); if ($cg !== null) $result['cac_goals'] = $cg; }
+    catch (Throwable $e) { error_log('[cron] cac goals: ' . $e->getMessage()); }
+}
 /* Tasks come from goals: an open goal with nothing open under it is planned (lib/GoalPlanner.php). */
 if (class_exists('GoalPlanner')) {
     try { $gp = GoalPlanner::sweep(); if (!empty($gp['planned'])) $result['goals_planned'] = $gp; }
