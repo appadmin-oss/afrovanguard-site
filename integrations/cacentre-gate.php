@@ -45,7 +45,13 @@ $sig = (string) ($_SERVER['HTTP_X_GATE_SIGNATURE'] ?? '');
 $in  = json_decode($raw, true);
 if (!is_array($in)) $in = [];
 $purpose = isset($in['op']) ? 'resolve' : 'report';
-if (!GatePass::verify($purpose, $ts, $raw, $sig)) $out(['ok' => false, 'code' => 'bad_signature'], 401);
+if (!GatePass::verify($purpose, $ts, $raw, $sig)) {
+    /* Why, so CACENTRE's Desks page can say which side to fix. Fingerprints
+       and a clock gap only: nothing here helps forge a signature. */
+    $why = GatePass::why($purpose, $ts, $raw, $sig, (string) ($_SERVER['HTTP_X_GATE_KEY'] ?? ''));
+    error_log('[cacentre-gate] refused a signature: ' . json_encode($why));
+    $out(['ok' => false, 'code' => 'bad_signature'] + $why, 401);
+}
 
 if ($purpose === 'report') {
     $passages = is_array($in['passages'] ?? null) ? $in['passages'] : [];

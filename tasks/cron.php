@@ -132,6 +132,9 @@ if (class_exists('Mentorship')) {
     // notetaker configured both calls return 0 at once.
     try { $result['session_transcripts'] = Mentorship::pollSessionBotTranscripts(); }
     catch (Throwable $e) { error_log('[cron] session transcripts: ' . $e->getMessage()); }
+    /* A session on Google Meet transcribes itself; its transcript is read back as its minutes. */
+    try { $result['session_google_transcripts'] = Mentorship::pullGoogleTranscripts(); }
+    catch (Throwable $e) { error_log('[cron] session google transcripts: ' . $e->getMessage()); }
 }
 
 // The accountability pass (report §13, §14): remind the meetings coming due,

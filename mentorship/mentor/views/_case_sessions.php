@@ -48,8 +48,41 @@ $past  = fn(array $sx): bool => $sx['attendance'] === 'scheduled' && $sx['when']
               <button class="avm-btn" type="button" data-avm-missed>They missed it</button>
             </div>
           </form>
+<?php elseif ($att === 'scheduled' && $sx['when'] !== ''): ?>
+          <span class="avm-pill avm-st--scheduled"><?= e($LABEL['scheduled']) ?></span>
+          <button type="button" class="avm-btn" data-avm-edit-open aria-expanded="false">Edit</button>
+          <form class="avm-log" data-avm-edit hidden>
+            <label>Type
+              <select class="avm-select" name="type">
+<?php foreach (Mentorship::sessionTypes() as $k => $label): ?>                <option value="<?= e($k) ?>"<?= $k === $sx['type'] ? ' selected' : '' ?>><?= e($label) ?></option>
+<?php endforeach; ?>
+              </select>
+            </label>
+            <label>When <input class="avm-input" type="datetime-local" name="when" value="<?= e($sx['when_local']) ?>" required></label>
+            <label>How long
+              <select class="avm-select" name="minutes">
+<?php foreach ([30, 45, 60, 90, 120] as $mins): ?>                <option value="<?= $mins ?>"<?= $mins === ((int) $sx['duration_min'] ?: 60) ? ' selected' : '' ?>><?= $mins ?> minutes</option>
+<?php endforeach; ?>
+              </select>
+            </label>
+            <label>Agenda <input class="avm-input" type="text" name="agenda" maxlength="200" value="<?= e($sx['notes']) ?>"></label>
+            <p style="margin:0;font-size:12px;color:var(--av-muted)">Your mentee’s Google Calendar invite moves with it.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="avm-btn avm-btn--ink" type="submit">Save changes</button>
+            </div>
+          </form>
 <?php else: ?>
           <span class="avm-pill avm-st--<?= e($att) ?>"><?= e($LABEL[$att] ?? $att) ?></span>
+<?php endif; ?>
+<?php /* What Google captures in the session's Meet: the transcript comes back here as minutes. */
+      $cap = (string) ($sx['capture'] ?? ''); if ($sx['meet_url'] !== '' && $att === 'scheduled'): ?>
+          <small class="avm-cap" style="flex-basis:100%;color:var(--av-muted)"><?= e(match (true) {
+              $cap === 'all' => 'Google records and transcribes this session; the transcript becomes its minutes here.',
+              $cap === 'transcript' => 'Google transcribes this session; the transcript becomes its minutes here.',
+              $cap === 'off' => 'Automatic transcripts are switched off for meetings.',
+              ($sx['capture_note'] ?? '') !== '' => 'No automatic transcript: ' . $sx['capture_note'],
+              default => 'Paste or attach the transcript afterwards to get its minutes.',
+          }) ?></small>
 <?php endif; ?>
         </div>
 <?php endforeach; endif; ?>

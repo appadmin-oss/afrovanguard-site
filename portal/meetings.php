@@ -56,6 +56,7 @@ try {
             $drafts = Agenda::pendingForMany(array_column($mtgs, 'id'));
             foreach ($mtgs as $i => $mm) {
                 $mtgs[$i]['agenda_draft'] = ($mm['creator_id'] ?? 0) === $uid ? ($drafts[$mm['id']] ?? null) : null;
+                $mtgs[$i]['can_edit'] = ($mm['creator_id'] ?? 0) === $uid || Meetings::mayManage($uid, (int) $mm['id']);
                 // Only for a meeting actually in progress — computing a clock for
                 // a calendar of future meetings is work nobody reads.
                 $cl = ($mm['status'] ?? '') === 'scheduled' ? MeetingClock::state((int) $mm['id']) : null;
@@ -64,7 +65,9 @@ try {
             json_out(['ok' => true, 'meetings' => $mtgs, 'freq' => $freq, 'me' => $uid, 'agenda_ai' => Agenda::enabled(),
                 'gemini' => class_exists('Gemini') && Gemini::configured(), 'audio' => Meetings::audioTranscription(),
                 'bot' => Meetings::botConfigured(), 'bot_provider' => Meetings::botProvider(),
-                'bot_allowed' => Meetings::botAllowed(), 'bot_on_demand' => Meetings::botOnDemandAllowed()]);
+                'bot_allowed' => Meetings::botAllowed(), 'bot_on_demand' => Meetings::botOnDemandAllowed(),
+                /* Whether a meeting scheduled now transcribes itself, and if not why — said on the form, before it is made. */
+                'capture' => Meetings::captureReadiness()]);
 
         case 'get':
             $m = Meetings::get($uid, (int) ($_GET['id'] ?? 0));
@@ -85,7 +88,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             json_out(Meetings::update($uid, (int) ($body['id'] ?? 0), array_intersect_key(is_array($body) ? $body : [],
-                array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'attendees', 'auto_record']))));
+                array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'attendees', 'auto_record'])), Meetings::mayManage($uid, (int) ($body['id'] ?? 0))));
 
         /* What a repeat rule would do, before it is saved: read-only, so no write guard. */
         case 'repeat_preview':
@@ -95,7 +98,7 @@ try {
         case 'cancel':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            json_out(Meetings::cancel($uid, (int) ($body['id'] ?? 0)));
+            json_out(Meetings::cancel($uid, (int) ($body['id'] ?? 0), Meetings::mayManage($uid, (int) ($body['id'] ?? 0))));
 
         /* ── Report §10: the clock. Reading it is participant-gated; ticking an
            agenda item is open to any participant, because the outstanding count

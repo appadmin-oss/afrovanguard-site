@@ -149,6 +149,25 @@ final class GatePass
     }
 
     /**
+     * Why verify() said no, for the gate to tell CACENTRE: 'headers' (no
+     * signature arrived — something between strips them), 'clock' (more than
+     * five minutes apart), 'secret' (the gate's secret fingerprint is not
+     * ours), 'altered' (same secret, yet the signature does not match what
+     * arrived — the request was changed on its way), or 'unknown' (an older
+     * gate sends no fingerprint). With the fingerprints and the clock gap.
+     */
+    public static function why(string $purpose, string $ts, string $body, string $sig, string $gateKey): array
+    {
+        $site = self::fingerprint();
+        $out = ['reason' => 'unknown', 'site_key' => $site, 'gate_key' => $gateKey];
+        if ($ts === '' || $sig === '') return ['reason' => 'headers'] + $out;
+        if (!ctype_digit($ts) || abs(time() - (int) $ts) > 300) return ['reason' => 'clock', 'skew' => ctype_digit($ts) ? time() - (int) $ts : null] + $out;
+        if ($gateKey === '') return $out;
+        if (!hash_equals($site, strtolower($gateKey))) return ['reason' => 'secret'] + $out;
+        return ['reason' => 'altered'] + $out;
+    }
+
+    /**
      * A pass for this member, good from now for ttl() seconds.
      *
      * @return array{token:string, url:string, exp:int}
