@@ -1804,3 +1804,28 @@ trix-toolbar .trix-button.trix-active { background:var(--gold-soft); }
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
+
+/* ---------- asking finance for money (portal/money-requests.js) ---------- */
+/* The same grid the offline-payment form uses: short fields side by side,
+   the long ones across. Laid out here rather than inline so it can be
+   corrected from the stylesheet. */
+.mr-form { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:10px; }
+.mr-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; }
+.mr-form input, .mr-form select, .mr-form textarea {
+  padding:8px 10px; border-radius:8px; border:1px solid var(--divider,#ddd);
+  font:inherit; background:var(--surface,#fff); color:inherit; width:100%; }
+.mr-form textarea { resize:vertical; }
+.mr-form .mr-wide, .mr-form details, .mr-form button { grid-column:1 / -1; }
+.mr-form details { font-size:12.5px; }
+.mr-form details label { margin-top:8px; }
+.mr-form button { justify-self:start; }
+/* One row per request. The status chip and the money are the two things
+   somebody is scanning for, so they sit on the ends of the first line. */
+.mr-row { padding:11px 0; border-top:1px solid var(--line,#e5e7eb); }
+.mr-row:first-child { border-top:0; }
+.mr-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.mr-head strong { font-size:14px; color:var(--ink); }
+.mr-sub { margin:3px 0 0; font-size:12.5px; color:var(--muted); line-height:1.5; }
+.mr-sub.is-bad { color:var(--red); }
+.mr-row .pbtn { margin-top:8px; }
+.enroll-msg.is-bad { color:var(--red); }
