@@ -155,6 +155,11 @@ final class CacSso
             'uid'   => (int) ($u['id'] ?? 0),
             'name'  => mb_substr(trim((string) ($u['name'] ?? '')), 0, 120),
             'role'  => mb_substr(trim((string) ($u['role'] ?? '')), 0, 40),
+            /* An Afrovanguard member (LmsAuth::isOrgMember): CACENTRE gives such a
+               member a person record and a CRM login of its own the first time
+               they arrive — with no postings and no scopes, so it grants nothing —
+               rather than asking them to have been entered there first. */
+            'org'   => class_exists('LmsAuth') && ($u['email'] ?? '') !== '' && LmsAuth::isOrgMember($u),
             'nonce' => bin2hex(random_bytes(16)),
             'iat'   => $now,
             'exp'   => $now + self::TTL,
@@ -162,6 +167,21 @@ final class CacSso
 
         $body = self::b64((string) $payload);
         return 'v1.' . $body . '.' . self::b64(hash_hmac('sha256', $body, self::secret(), true));
+    }
+
+    /**
+     * Who to sign a server door's token for: the member's row (id, email, name,
+     * role), so CACENTRE can recognise them by more than a number. A bare id
+     * when the row cannot be read.
+     */
+    public static function member(int $id): array
+    {
+        if ($id <= 0 || !class_exists('Database')) return ['id' => $id];
+        try {
+            $st = Database::pdo()->prepare("SELECT id, email, name, role FROM lms_users WHERE id = ? AND status = 'active'");
+            $st->execute([$id]);
+            return $st->fetch(PDO::FETCH_ASSOC) ?: ['id' => $id];
+        } catch (Throwable $e) { return ['id' => $id]; }
     }
 
     /**

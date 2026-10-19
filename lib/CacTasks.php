@@ -70,7 +70,7 @@ final class CacTasks
                 ['ok' => false, 'tasks' => [], 'error' => 'not-configured', 'url' => self::consoleUrl()];
         }
 
-        $url  = self::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId], 'tasks'));
+        $url  = self::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(CacSso::member($memberId), 'tasks'));
         $body = self::get($url);
 
         if ($body === null) {
@@ -111,7 +111,7 @@ final class CacTasks
         if (!in_array($action, ['toggle', 'update'], true)) return $bad('unknown-action');
         if (!CacSso::ready())                               return $bad('not-configured');
 
-        $url = self::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => $memberId], 'tasks'));
+        $url = self::site() . self::PATH . '?t=' . rawurlencode(CacSso::mint(CacSso::member($memberId), 'tasks'));
         $raw = self::send($url, array_merge(['action' => $action, 'id' => $taskId], $fields));
         if ($raw === null) return $bad('unreachable');
 

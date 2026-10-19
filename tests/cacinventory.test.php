@@ -58,7 +58,7 @@ ck('…and the reason itself goes to the administrators, never to a member', !pr
 /* ── The member is never named in a query string ─────────────────────────── */
 ck('the member id comes from this site\'s session', str_contains($api, '$uid = (int) $u[\'id\'];'));
 ck('…and travels inside the signature, where the caller cannot change it',
-   str_contains($src, "CacSso::mint(['id' => \$memberId], 'inventory')"));
+   str_contains($src, "CacSso::mint(CacSso::member(\$memberId), 'inventory')"));
 ck('only the filters the far side reads are forwarded, so a stray query parameter on the '
  . 'portal\'s own URL cannot be pushed into somebody else\'s API',
    str_contains($src, "foreach (['q', 'category', 'site', 'status', 'page'] as \$k)"));

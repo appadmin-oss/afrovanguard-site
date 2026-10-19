@@ -64,7 +64,7 @@ ck('it is for org members', str_contains($api, 'LmsAuth::isOrgMember($u)'));
 
 /* ── The member is never named in a query string ─────────────────────────── */
 ck('the member id comes from this site\'s session', str_contains($api, '$uid    = (int) $u[\'id\'];'));
-ck('…and travels inside the signature', str_contains($src, "CacSso::mint(['id' => \$memberId], 'leads')"));
+ck('…and travels inside the signature', str_contains($src, "CacSso::mint(CacSso::member(\$memberId), 'leads')"));
 
 /* ── Another system's data is bounded before this page renders it ────────── */
 /* Named rather than counted: a count passes while the field somebody just
