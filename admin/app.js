@@ -3331,7 +3331,7 @@
       var m = r.data && r.data.member; if (!m) { toast('Could not open.'); return; }
       $('#mdTitle').textContent = m.name + (m.ngv ? ' · NextGen Vanguard' : m.learner ? ' · Academy learner (not a member)' : '');
       memFill('#md_role', memRoles, m.role); memFill('#md_level', memLevels, m.level || 'O', function (x) { return 'Level ' + x; });
-      ['name', 'email', 'phone', 'centre', 'notes'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
+      ['name', 'email', 'phone', 'centre', 'notes', 'work_roles', 'about'].forEach(function (k) { $('#md_' + k).value = m[k] || ''; });
       $('#md_bday').value = m.birthday || ''; $('#md_joined').value = m.joined_on || '';
       $('#mdCards').innerHTML = memCardsHTML(m.cards);
       /* Printing is the office's job: PDF for a card printer, PNGs, or an A4 run (card/print.php). */
@@ -3666,7 +3666,8 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#memDrawer').hidden) closeMember(); });
     $('#mdSave').addEventListener('click', function () {
       var p = { id: memOpen, name: $('#md_name').value.trim(), email: $('#md_email').value.trim(), phone: $('#md_phone').value.trim(), centre: $('#md_centre').value.trim(),
-                role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value };
+                role: $('#md_role').value, level: $('#md_level').value, birthday: $('#md_bday').value.trim(), joined_on: $('#md_joined').value, notes: $('#md_notes').value,
+                work_roles: $('#md_work_roles').value.trim(), about: $('#md_about').value.trim() };
       /* The title printed on the card is saved by the same button: people type it
          and press Save. Both answers are reported; the drawer stays open on a refusal. */
       var card = window.AvCardPhoto && window.AvCardPhoto.saveTitleIfChanged ? window.AvCardPhoto.saveTitleIfChanged() : Promise.resolve(null);

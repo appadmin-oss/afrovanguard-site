@@ -6,6 +6,9 @@
  * the site already knows and nobody has to type again:
  *
  *   · their member role and level (coordinator, member…)
+ *   · their WORK ROLES, as many as they hold (Media, Events, Instructor —
+ *     set on the member desk), and what they do, in their own words
+ *   · their self-declared skills, and their mentor headline
  *   · each volunteer placement: the project and the type (Mentor on NGG,
  *     Media on MediaPro — lib/VolunteerProjects.php)
  *   · their NGG record, synced or seeded: role, programme, centre, faculty
@@ -61,11 +64,15 @@ final class TaskMatch
 
     private static ?array $profiles = null;
 
+    /** Tests only: stands in for the model in assignMany() — fn(system, prompt, opts) → ['ok','text']. */
+    public static ?Closure $aiForTests = null;
+
     /* ══ Profiles ═══════════════════════════════════════════════════════════ */
 
     /**
-     * Everybody work can go to — organisation members and volunteers — with
-     * their labels and open load: id => ['id','name','labels'=>[…],'centre','load','role'].
+     * Everybody work can go to — every member (MemberRoster's definition),
+     * staff on the organisation's domain, and volunteers — with their labels,
+     * what they do, and open load: id => ['id','name','labels'=>[…],'about','centre','load','role'].
      */
     public static function profiles(bool $fresh = false): array
     {
@@ -79,19 +86,42 @@ final class TaskMatch
             foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $i) $ids[(int) $i] = true;
         } catch (Throwable $e) {}
         if (class_exists('Volunteers')) { try { $ids += Volunteers::volunteerIds(); } catch (Throwable $e) {} }
+        if (class_exists('MemberRoster')) {
+            try { foreach ($pdo->query('SELECT u.id FROM lms_users u WHERE u.status = \'active\' AND ' . MemberRoster::memberWhere() . ' ORDER BY u.id DESC LIMIT 800')->fetchAll(PDO::FETCH_COLUMN) as $i) $ids[(int) $i] = true; } catch (Throwable $e) {}
+        }
         unset($ids[0]);
         if (!$ids) return self::$profiles = [];
         $in = implode(',', array_map('intval', array_keys($ids)));
         $out = [];
         foreach ($pdo->query("SELECT id, name, email, role FROM lms_users WHERE id IN ($in) AND status = 'active'")->fetchAll(PDO::FETCH_ASSOC) as $u) {
             $out[(int) $u['id']] = ['id' => (int) $u['id'], 'name' => (string) ($u['name'] ?: explode('@', (string) $u['email'])[0]),
-                'email' => strtolower((string) $u['email']), 'role' => (string) $u['role'], 'labels' => [], 'centre' => '', 'load' => 0];
+                'email' => strtolower((string) $u['email']), 'role' => (string) $u['role'], 'labels' => [], 'about' => '', 'centre' => '', 'load' => 0];
             if (!in_array((string) $u['role'], ['', 'learner', 'member'], true)) $out[(int) $u['id']]['labels'][] = (string) $u['role'];
         }
         $add = static function (int $id, string $label) use (&$out): void {
             $label = trim($label);
             if ($label !== '' && isset($out[$id]) && !in_array($label, $out[$id]['labels'], true)) $out[$id]['labels'][] = $label;
         };
+        /* Their work roles — several each — and what they do, from the member desk and their own card. */
+        try {
+            if (class_exists('MemberRoster')) MemberRoster::ensure();
+            foreach ($pdo->query("SELECT user_id, work_roles, about FROM member_profiles WHERE user_id IN ($in) AND (work_roles <> '' OR about <> '')")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $id = (int) $r['user_id'];
+                foreach (class_exists('MemberRoster') ? MemberRoster::workRoles((string) $r['work_roles']) : [] as $role) $add($id, $role);
+                if (isset($out[$id])) $out[$id]['about'] = mb_substr((string) $r['about'], 0, 300);
+            }
+        } catch (Throwable $e) {}
+        /* Skills they declared, and a mentor's headline */
+        try {
+            foreach ($pdo->query("SELECT user_id, pref_value FROM user_prefs WHERE pref_key = 'skills' AND user_id IN ($in)")->fetchAll(PDO::FETCH_NUM) as [$id, $v]) {
+                foreach (array_slice(array_filter(array_map('trim', explode(',', (string) $v))), 0, 8) as $sk) $add((int) $id, $sk);
+            }
+        } catch (Throwable $e) {}
+        try {
+            foreach ($pdo->query("SELECT user_id, headline FROM mentor_profiles WHERE headline <> '' AND user_id IN ($in)")->fetchAll(PDO::FETCH_NUM) as [$id, $h]) {
+                if (isset($out[(int) $id]) && $out[(int) $id]['about'] === '') $out[(int) $id]['about'] = mb_substr((string) $h, 0, 300);
+            }
+        } catch (Throwable $e) {}
         /* Volunteer placements */
         try {
             foreach ($pdo->query("SELECT a.user_id, a.type, p.name FROM vol_assignments a JOIN vol_projects p ON p.id = a.project_id WHERE a.status = 'active' AND a.user_id IN ($in)")->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -135,7 +165,7 @@ final class TaskMatch
     /** One line a person would recognise: "Instructor — Catering · NGG Summer School · Egbeda". */
     public static function summary(array $p): string
     {
-        $bits = array_slice($p['labels'], 0, 3);
+        $bits = array_slice($p['labels'], 0, 6);
         if ($p['centre'] !== '') $bits[] = $p['centre'];
         return implode(' · ', $bits);
     }
@@ -185,6 +215,14 @@ final class TaskMatch
             if (mb_strlen($w) < 4) continue;
             if ($p['centre'] !== '' && mb_strtolower($p['centre']) === $w) { $score += 2.5; $why[] = 'At the ' . $p['centre'] . ' centre'; continue; }
             if (str_contains($labels, $w)) { $score += 2; $why[] = '“' . $w . '” is in ' . self::labelWith($p, $w); }
+        }
+        /* What they say they do: a word of the task in it, or a kind of work it names. */
+        $about = mb_strtolower((string) ($p['about'] ?? ''));
+        if ($about !== '') {
+            $hit = '';
+            foreach (self::words($title) as $w) if (mb_strlen($w) >= 4 && !str_contains($labels, $w) && str_contains($about, $w)) { $hit = $w; break; }
+            if ($hit === '') foreach ($kinds as $k) { foreach (self::KINDS[$k][0] as $kw) if (mb_strlen($kw) >= 4 && str_contains($about, $kw)) { $hit = $kw; break 2; } }
+            if ($hit !== '') { $score += 1.5; $why[] = 'Says they do “' . $hit . '”'; }
         }
         if (in_array('children', $kinds, true) && str_contains($labels, 'safeguarding cleared')) { $score += 1; $why[] = 'Safeguarding cleared'; }
         /* Load: the willing are not handed everything. */
@@ -238,9 +276,9 @@ final class TaskMatch
     private static function aiPick(string $title, array $short, int $n): array
     {
         $lines = [];
-        foreach ($short as $s) $lines[] = '#' . $s['id'] . ' ' . $s['name'] . ' — ' . ($s['summary'] ?: 'no labels') . ' — ' . $s['load'] . ' open tasks';
+        foreach ($short as $s) $lines[] = self::candidateLine($s);
         $system = 'You assign work in Afrovanguard, a Nigerian nonprofit run by volunteers. Choose the best people for the TASK from the CANDIDATES only, '
-            . 'by fit of role, course, faculty and centre, and spread the work: prefer someone with fewer open tasks when the fit is close. '
+            . 'by fit of their roles (a person may hold several), what they say they do, course, faculty and centre, and spread the work: prefer someone with fewer open tasks when the fit is close. '
             . 'Respond with ONLY a JSON array, best first, at most ' . $n . ' items: [{"id":<candidate number>,"why":"<one short reason, under 15 words>"}]';
         $prompt = "TASK: " . $title . "\n\nCANDIDATES:\n" . implode("\n", $lines);
         $r = class_exists('AvAgent') ? AvAgent::complete($system, $prompt, ['max_tokens' => 300, 'temperature' => 0.1, 'actor' => 'tasks.match']) : ['ok' => false];
@@ -261,6 +299,69 @@ final class TaskMatch
             if (count($out) >= $n) break;
         }
         return array_values($out);
+    }
+
+    /** A candidate as the model sees them: number, name, roles and labels, what they do, load. Never an email or a phone. */
+    private static function candidateLine(array $s): string
+    {
+        $about = trim((string) (self::$profiles[$s['id']]['about'] ?? ''));
+        return '#' . $s['id'] . ' ' . $s['name'] . ' — ' . ($s['summary'] ?: 'no labels')
+            . ($about !== '' ? ' — says: "' . str_replace(["\n", '"'], [' ', "'"], mb_substr($about, 0, 200)) . '"' : '')
+            . ' — ' . $s['load'] . ' open tasks';
+    }
+
+    /**
+     * Several tasks — a goal's steps — given out at once, by AI when it is
+     * configured: it reads each step against the people whose roles (several
+     * each) and own description fit it, and spreads the work. A step it finds
+     * nobody for is null, and stays in the pool for whoever takes it. Its
+     * answer is held to each step's own shortlist; without AI, or if it fails,
+     * the labels decide (spread()). Returns taskKey => suggestion|null.
+     *
+     * @param array<int|string, array{title:string, kind?:string}> $tasks
+     */
+    public static function assignMany(array $tasks, array $exclude = []): array
+    {
+        $ai = self::$aiForTests ?? ((class_exists('Collab') && Collab::aiAvailable() && class_exists('AvAgent')) ? [AvAgent::class, 'complete'] : null);
+        if (!$tasks || !$ai) return self::spread($tasks, $exclude);
+        self::profiles();
+        $shorts = []; $cands = []; $lines = []; $n = 0; $keyOf = [];
+        foreach ($tasks as $k => $t) {
+            $n++; $keyOf[$n] = $k;
+            $shorts[$k] = [];
+            foreach (self::shortlist((string) $t['title'], 6, (string) ($t['kind'] ?? ''), $exclude) as $r) { $shorts[$k][$r['id']] = $r; $cands[$r['id']] = $r; }
+            $lines[] = $n . '. ' . $t['title'] . ((string) ($t['kind'] ?? '') !== '' ? ' [' . $t['kind'] . ']' : '');
+        }
+        if (!$cands) return self::spread($tasks, $exclude);
+        $system = 'You assign the steps of a goal in Afrovanguard, a Nigerian nonprofit run by volunteers. For each STEP choose one person from the CANDIDATES, '
+            . 'by fit of their roles (a person may hold several) and what they say they do; then course, faculty and centre. Spread the work: do not give one person '
+            . 'most of the steps when another fits nearly as well, and count their open tasks. If nobody\'s roles or description really fit a step, answer null for it — '
+            . 'it will wait in the pool for a volunteer to take. Respond with ONLY a JSON array: [{"step":<number>,"id":<candidate number or null>,"why":"<under 15 words>"}]';
+        $prompt = "STEPS:\n" . implode("\n", $lines) . "\n\nCANDIDATES:\n" . implode("\n", array_map([self::class, 'candidateLine'], array_values($cands)));
+        $r = $ai($system, $prompt, ['max_tokens' => 600, 'temperature' => 0.1, 'actor' => 'tasks.match']);
+        $text = (string) preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim((string) ($r['text'] ?? '')));
+        $j = empty($r['ok']) ? null : json_decode($text, true);
+        if (!is_array($j) && !empty($r['ok']) && preg_match('/\[.*\]/s', $text, $m)) $j = json_decode($m[0], true);
+        if (!is_array($j)) return self::spread($tasks, $exclude);
+
+        $out = []; $answered = [];
+        foreach ($j as $row) {
+            if (!is_array($row)) continue;
+            $k = $keyOf[(int) ($row['step'] ?? 0)] ?? null;
+            if ($k === null || array_key_exists($k, $answered)) continue;
+            $answered[$k] = true;
+            $id = $row['id'] ?? null;
+            if ($id === null || $id === '' || $id === 'null' || (int) $id <= 0) { $out[$k] = null; continue; }   /* nobody fits: the pool */
+            $fit = $shorts[$k][(int) $id] ?? null;                                                              /* only that step's shortlist */
+            if (!$fit) { unset($answered[$k]); continue; }
+            $why = trim(mb_substr((string) ($row['why'] ?? ''), 0, 140));
+            if ($why !== '') array_unshift($fit['why'], $why);
+            $out[$k] = $fit;
+            if (isset(self::$profiles[$fit['id']])) self::$profiles[$fit['id']]['load']++;
+        }
+        /* A step the model skipped, or answered with someone off its list: the labels decide it. */
+        $rest = array_diff_key($tasks, $answered);
+        return $rest ? $out + self::spread($rest, $exclude) : $out;
     }
 
     /**

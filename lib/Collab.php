@@ -344,9 +344,11 @@ final class Collab
             $kind = strtolower(trim((string) ($it['kind'] ?? '')));
             $plan[] = ['title' => $title, 'kind' => class_exists('TaskMatch') && in_array($kind, TaskMatch::kindNames(), true) ? $kind : '', 'it' => $it];
         }
-        /* Who each task fits, from their labels, spread so one person is not
-           handed the lot. Suggested on every task; assigned only when asked. */
-        $fits = class_exists('TaskMatch') ? TaskMatch::spread($plan) : [];
+        /* Who each task fits — by AI when configured, reading their roles (several
+           each) and what they say they do — spread so one person is not handed
+           the lot. A step nobody fits stays in the pool. Suggested on every
+           task; assigned only when asked. */
+        $fits = class_exists('TaskMatch') ? TaskMatch::assignMany($plan) : [];
         $created = []; $assigned = 0;
         foreach ($plan as $k => $pl) {
             $it = $pl['it'];

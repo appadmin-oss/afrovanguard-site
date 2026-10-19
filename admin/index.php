@@ -600,6 +600,9 @@
           <label class="fld"><span>Birthday</span><input id="md_bday" maxlength="10" placeholder="1998-07-14 or 07-14" /></label>
           <label class="fld"><span>Joined</span><input id="md_joined" type="date" /></label>
         </div>
+        <label class="fld"><span>Work roles</span><input id="md_work_roles" maxlength="300" placeholder="Media, Events, Instructor" aria-describedby="md_work_roles_h" /></label>
+        <p class="muted tiny" id="md_work_roles_h">As many as they do, separated by commas. Tasks drawn from goals go to whoever’s roles and description fit.</p>
+        <label class="fld"><span>What they do</span><textarea id="md_about" rows="2" maxlength="600" placeholder="Runs the Egbeda Saturday class; good with video editing."></textarea></label>
         <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
         <p class="muted tiny" id="md_lock" hidden></p>

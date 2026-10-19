@@ -91,6 +91,47 @@ $c = array_values(array_filter($r, fn($x) => $x['id'] === 9801))[0] ?? [];
 ck('assign: the allocator’s roster includes volunteers, with their labels', str_contains((string) ($c['labels'] ?? ''), 'Catering'));
 ck('assign: the plain roster stays organisation-only', !in_array(9801, array_column(Collab::roster(200, false), 'id'), true));
 
+/* Members with several roles, and what they say they do */
+MemberRoster::ensure();
+$tp->exec('DELETE FROM member_profiles WHERE user_id BETWEEN 9800 AND 9819');
+$multi = $mk(9810, 'Ifeoma Many', 'ifeoma@gmail.test', 'member');
+$quiet = $mk(9811, 'Jide Plain', 'jide@gmail.test', 'member');
+ck('roles: a member holds several work roles, set on the member desk', MemberRoster::update(9810, ['work_roles' => 'Media, Events; events , Fundraising'], 'test')['ok']
+   && MemberRoster::get(9810)['work_roles'] === 'Media, Events, Fundraising');
+ck('roles: and says what they do, in their own words', MemberRoster::setAbout(9811, 'I run the Saturday robotics club and fix the laptops.') && MemberRoster::get(9811)['about'] !== '');
+TaskMatch::forget();
+$pr = TaskMatch::profiles(true);
+ck('roles: any member — not only staff and volunteers — can be given work', isset($pr[9810], $pr[9811]));
+ck('roles: every one of their roles is a label', count(array_intersect(['Media', 'Events', 'Fundraising'], $pr[9810]['labels'] ?? [])) === 3);
+ck('roles: a task fits any of their roles — the sponsor letter goes to the fundraiser', in_array(9810, array_column(TaskMatch::shortlist('Write to three sponsors', 3), 'id'), true));
+ck('roles: what they say they do counts too', in_array(9811, array_column(TaskMatch::shortlist('Prepare the robotics kits', 3), 'id'), true));
+
+/* A goal's steps, given out by AI from each step's shortlist; nobody fits → the pool */
+$steps = [['title' => 'Write to three sponsors', 'kind' => 'fundraising'], ['title' => 'Prepare the robotics kits', 'kind' => ''], ['title' => 'Paint the mural on the east wall', 'kind' => '']];
+$seen = '';
+TaskMatch::$aiForTests = static function (string $sys, string $prompt) use (&$seen): array {
+    $seen = $prompt;
+    return ['ok' => true, 'text' => '[{"step":1,"id":9810,"why":"Fundraising is one of her roles"},{"step":2,"id":9811,"why":"Runs the robotics club"},{"step":3,"id":null,"why":"Nobody paints"}]'];
+};
+TaskMatch::forget();
+$fits = TaskMatch::assignMany($steps);
+ck('ai: each step goes to whom the AI chose, with its reason', ($fits[0]['id'] ?? 0) === 9810 && ($fits[1]['id'] ?? 0) === 9811 && str_contains((string) ($fits[0]['why'][0] ?? ''), 'Fundraising'));
+ck('ai: a step it finds nobody for stays in the pool', array_key_exists(2, $fits) && $fits[2] === null);
+ck('ai: it was shown their roles and what they say, never an email', str_contains($seen, 'Media · Events · Fundraising') && str_contains($seen, 'robotics club') && !str_contains($seen, '@gmail.test'));
+TaskMatch::forget();
+$byLabels = (int) (TaskMatch::spread([$steps[0]])[0]['id'] ?? 0);
+TaskMatch::$aiForTests = static fn(): array => ['ok' => true, 'text' => '[{"step":1,"id":9808,"why":"not on the list"},{"step":2,"id":9811}]'];
+TaskMatch::forget();
+$fits = TaskMatch::assignMany($steps);
+ck('ai: someone off a step’s shortlist is refused — the labels decide that step', $byLabels > 0 && $byLabels !== 9808 && ($fits[0]['id'] ?? 0) === $byLabels && ($fits[1]['id'] ?? 0) === 9811);
+TaskMatch::$aiForTests = static fn(): array => ['ok' => false, 'text' => ''];
+TaskMatch::forget();
+ck('ai: the model failing is no loss — the labels decide', (TaskMatch::assignMany($steps)[0]['id'] ?? 0) === $byLabels);
+TaskMatch::$aiForTests = null;
+ck('goal steps: drawn by AI are given out this way, and the rest are pool tasks', str_contains((string) file_get_contents(AV_ROOT . '/lib/Collab.php'), 'TaskMatch::assignMany($plan)')
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/Collab.php'), 'else $id = self::addPoolTask($uid, $pl[\'title\'], $due, $pri, $goalId);'));
+$tp->exec('DELETE FROM member_profiles WHERE user_id BETWEEN 9800 AND 9819');
+
 $tp->exec('DELETE FROM collab_tasks');
 foreach (['ngg_volunteers', 'vol_assignments', 'vol_roster'] as $t) $tp->exec('DELETE FROM ' . $t);
 $tp->exec('DELETE FROM lms_users WHERE id BETWEEN 9800 AND 9819');

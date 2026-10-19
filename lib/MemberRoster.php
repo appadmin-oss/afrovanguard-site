@@ -87,6 +87,11 @@ final class MemberRoster
             source      VARCHAR(16) NOT NULL DEFAULT '',
             updated_at  VARCHAR(32) NOT NULL DEFAULT ''
         )");
+        /* What work a member does — several roles, and a line in their own words
+           — so tasks go to the right person (lib/TaskMatch.php). */
+        foreach (['work_roles' => "VARCHAR(300) NOT NULL DEFAULT ''", 'about' => "VARCHAR(600) NOT NULL DEFAULT ''"] as $col => $decl) {
+            try { if (!Database::columnExists('member_profiles', $col)) $pdo->exec("ALTER TABLE member_profiles ADD COLUMN $col $decl"); } catch (Throwable $e) {}
+        }
         Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS member_import_runs (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             digest     VARCHAR(64) NOT NULL,
@@ -182,7 +187,36 @@ final class MemberRoster
             $c['joined_on'] = $j;
         }
         if (array_key_exists('notes', $d)) $c['notes'] = mb_substr(trim((string) $d['notes']), 0, 4000);
+        if (array_key_exists('work_roles', $d)) $c['work_roles'] = implode(', ', self::workRoles($d['work_roles']));
+        if (array_key_exists('about', $d)) $c['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $d['about']) ?? ''), 0, 600);
         return ['ok' => !$e, 'clean' => $c, 'errors' => $e];
+    }
+
+    /**
+     * A member's work roles: several, as a list or "Media, Events, Instructor".
+     * Trimmed, at most eight, each under 40 characters, no repeats.
+     */
+    public static function workRoles(mixed $v): array
+    {
+        $parts = is_array($v) ? $v : preg_split('/[,;\n]+/u', (string) $v);
+        $out = [];
+        foreach ($parts ?: [] as $r) {
+            $r = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $r) ?? ''), 0, 40);
+            if ($r !== '' && !in_array(mb_strtolower($r), array_map('mb_strtolower', $out), true)) $out[] = $r;
+            if (count($out) >= 8) break;
+        }
+        return $out;
+    }
+
+    /** A member describing their own work: their line, in their words. Roles are the office's to set. */
+    public static function setAbout(int $uid, string $about): bool
+    {
+        self::ensure();
+        if (!self::user($uid)) return false;
+        $p = self::profile($uid);
+        $p['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', $about) ?? ''), 0, 600);
+        self::writeProfile($uid, $p, (string) ($p['source'] ?: 'self'));
+        return true;
     }
 
     /* ══ Who may change what ════════════════════════════════════════════════
@@ -348,8 +382,9 @@ final class MemberRoster
             if (Birthdays::of($id) !== $was) $changed[] = 'birthday';
         }
         $p = self::profile($id);
-        foreach (['phone', 'centre', 'joined_on', 'notes'] as $k) if (array_key_exists($k, $c) && (string) $c[$k] !== (string) ($p[$k] ?? '')) $changed[] = $k;
-        if (array_intersect($changed, ['phone', 'centre', 'joined_on', 'notes'])) self::writeProfile($id, $c + $p, (string) ($p['source'] ?? 'studio'));
+        $fields = ['phone', 'centre', 'joined_on', 'notes', 'work_roles', 'about'];
+        foreach ($fields as $k) if (array_key_exists($k, $c) && (string) $c[$k] !== (string) ($p[$k] ?? '')) $changed[] = $k;
+        if (array_intersect($changed, $fields)) self::writeProfile($id, $c + $p, (string) ($p['source'] ?? 'studio'));
         if ($changed) self::lms()->audit('member.update', (string) $u['email'], implode(', ', $changed), $actor);
         return ['ok' => true, 'changed' => $changed, 'member' => self::get($id)];
     }
@@ -357,12 +392,13 @@ final class MemberRoster
     private static function writeProfile(int $id, array $c, string $source): void
     {
         $pdo = Database::pdo();
-        $vals = [mb_substr((string) ($c['phone'] ?? ''), 0, 24), mb_substr((string) ($c['centre'] ?? ''), 0, 60), (string) ($c['joined_on'] ?? ''), (string) ($c['notes'] ?? ''), $source, self::now()];
-        $st = $pdo->prepare('UPDATE member_profiles SET phone = ?, centre = ?, joined_on = ?, notes = ?, source = ?, updated_at = ? WHERE user_id = ?');
+        $vals = [mb_substr((string) ($c['phone'] ?? ''), 0, 24), mb_substr((string) ($c['centre'] ?? ''), 0, 60), (string) ($c['joined_on'] ?? ''), (string) ($c['notes'] ?? ''),
+                 mb_substr((string) ($c['work_roles'] ?? ''), 0, 300), mb_substr((string) ($c['about'] ?? ''), 0, 600), $source, self::now()];
+        $st = $pdo->prepare('UPDATE member_profiles SET phone = ?, centre = ?, joined_on = ?, notes = ?, work_roles = ?, about = ?, source = ?, updated_at = ? WHERE user_id = ?');
         $st->execute([...$vals, $id]);
         if ($st->rowCount() === 0) {
             $chk = $pdo->prepare('SELECT 1 FROM member_profiles WHERE user_id = ?'); $chk->execute([$id]);
-            if (!$chk->fetchColumn()) $pdo->prepare('INSERT INTO member_profiles (phone, centre, joined_on, notes, source, updated_at, user_id) VALUES (?,?,?,?,?,?,?)')->execute([...$vals, $id]);
+            if (!$chk->fetchColumn()) $pdo->prepare('INSERT INTO member_profiles (phone, centre, joined_on, notes, work_roles, about, source, updated_at, user_id) VALUES (?,?,?,?,?,?,?,?,?)')->execute([...$vals, $id]);
         }
     }
 
@@ -375,9 +411,9 @@ final class MemberRoster
 
     private static function profile(int $id): array
     {
-        $st = Database::pdo()->prepare('SELECT phone, centre, joined_on, notes, source FROM member_profiles WHERE user_id = ?');
+        $st = Database::pdo()->prepare('SELECT phone, centre, joined_on, notes, work_roles, about, source FROM member_profiles WHERE user_id = ?');
         $st->execute([$id]);
-        return $st->fetch(PDO::FETCH_ASSOC) ?: ['phone' => '', 'centre' => '', 'joined_on' => '', 'notes' => '', 'source' => ''];
+        return $st->fetch(PDO::FETCH_ASSOC) ?: ['phone' => '', 'centre' => '', 'joined_on' => '', 'notes' => '', 'work_roles' => '', 'about' => '', 'source' => ''];
     }
 
     /** A member's whole record, for the drawer. */

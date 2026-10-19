@@ -1204,7 +1204,7 @@ try {
             json_out($r, $r['ok'] ? 200 : (isset($r['code']) ? 403 : 422));
         case 'roster_update':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-            $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes']));
+            $patch = array_intersect_key($body, array_flip(['name', 'email', 'phone', 'centre', 'role', 'status', 'level', 'birthday', 'joined_on', 'notes', 'work_roles', 'about']));
             $r = MemberRoster::update((int) ($body['id'] ?? 0), $patch, av_admin_actor(), $memberCtx());
             json_out($r, $r['ok'] ? 200 : (in_array($r['code'] ?? '', ['own_account', 'staff_account', 'role_ceiling', 'admin_email', 'org_email'], true) ? 403 : 422));
         /* ── Dues membership (lib/Membership.php) ── */
