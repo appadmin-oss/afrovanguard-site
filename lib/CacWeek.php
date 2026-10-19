@@ -207,6 +207,7 @@ final class CacWeek
         }
         curl_setopt_array($ch, $opts);
         $out = curl_exec($ch);
+        if (class_exists('CacBridge')) CacBridge::see($ch, $out, 'week');
         curl_close($ch);
         return $out === false || $out === '' ? null : (string) $out;
     }

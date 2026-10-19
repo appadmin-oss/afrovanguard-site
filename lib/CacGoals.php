@@ -168,6 +168,7 @@ final class CacGoals
         if (str_starts_with($url, 'https://')) { $o[CURLOPT_SSL_VERIFYPEER] = true; $o[CURLOPT_SSL_VERIFYHOST] = 2; }
         curl_setopt_array($ch, $o);
         $body = curl_exec($ch);
+        if (class_exists('CacBridge')) CacBridge::see($ch, $body, 'goals');
         curl_close($ch);
         return $body === false || $body === '' ? null : (string) $body;
     }

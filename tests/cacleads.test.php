@@ -40,7 +40,8 @@ ck('a member id of nothing makes no request at all', $r['ok'] === false && $r['l
 ck('no shared secret has its own answer', str_contains($src, "'not-configured'"));
 ck('the console being down has another', str_contains($src, "'unreachable'"));
 ck('each becomes a sentence a member can act on, not the word the wire used',
-   str_contains($api, 'The console did not answer.'));
+   str_contains($api, 'the administrators have been told'));
+ck('…and the reason itself goes to the administrators, never to a member', !preg_match('/HTTP|AV_SSO_SECRET|errors\.log/', php_strip_whitespace(dirname(__DIR__) . '/portal/cac-leads.php')));
 
 /* ── The log is the point, and it is required to say something ───────────── */
 ck('a log with nothing in it is refused before a request is even made',

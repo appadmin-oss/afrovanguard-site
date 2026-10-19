@@ -52,7 +52,8 @@ ck('the console being down has another, distinct from nothing matching',
 ck('and the centre not keeping a register at all has a third',
    str_contains($src, "'off'") && str_contains($api, "'off'"));
 ck('each of those becomes a sentence a member can act on, not the word the wire used',
-   str_contains($api, 'The console did not answer.'));
+   str_contains($api, 'CacBridge::MEMBER'));
+ck('…and the reason itself goes to the administrators, never to a member', !preg_match('/HTTP|AV_SSO_SECRET|errors\.log/', php_strip_whitespace(dirname(__DIR__) . '/portal/cac-inventory.php')));
 
 /* ── The member is never named in a query string ─────────────────────────── */
 ck('the member id comes from this site\'s session', str_contains($api, '$uid = (int) $u[\'id\'];'));

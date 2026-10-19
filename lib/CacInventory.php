@@ -180,6 +180,7 @@ final class CacInventory
             CURLOPT_USERAGENT      => 'Afrovanguard/1.0 (+inventory)',
         ]);
         $body = curl_exec($ch);
+        if (class_exists('CacBridge')) CacBridge::see($ch, $body, 'inventory');
         $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
         return ($body === false || $code !== 200) ? null : (string) $body;

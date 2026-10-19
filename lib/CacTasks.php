@@ -143,6 +143,7 @@ final class CacTasks
             CURLOPT_USERAGENT      => 'Afrovanguard/1.0 (+tasks)',
         ]);
         $out = curl_exec($ch);
+        if (class_exists('CacBridge')) CacBridge::see($ch, $out, 'tasks');
         curl_close($ch);
         /* The body comes back on a refusal too: the far side says which
            refusal it was, and the screen needs to pass that on. */
@@ -207,6 +208,7 @@ final class CacTasks
                 CURLOPT_USERAGENT      => 'Afrovanguard/1.0 (+tasks)',
             ]);
             $body = curl_exec($ch);
+            if (class_exists('CacBridge')) CacBridge::see($ch, $body, 'tasks');
             $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             curl_close($ch);
             return ($body === false || $code !== 200) ? null : (string) $body;

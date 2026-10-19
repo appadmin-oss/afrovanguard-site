@@ -162,7 +162,7 @@
     } catch (e) {
       busy = false;
       tableEl.hidden = true; moreEl.hidden = true;
-      say('Could not reach the register just now. Nothing is wrong with your search — try again in a moment.', true);
+      say('The register could not be loaded just now. Your search is fine; try again shortly.', true);
       return;
     }
     busy = false;

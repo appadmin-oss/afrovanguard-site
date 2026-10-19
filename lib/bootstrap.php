@@ -299,6 +299,7 @@ if (PHP_SAPI !== 'cli' && !empty($_COOKIE[LmsAuth::HINT]) && empty($_COOKIE[LmsA
 /* Handing a signed-in member across to the CACENTRE CRM. Loaded here beside
    LmsAuth because the portal needs it to decide whether to show the link. */
 require_once __DIR__ . '/CacSso.php';
+require_once __DIR__ . '/CacBridge.php';  /* a failing CACENTRE link is told to the admins, not the members */
 require_once __DIR__ . '/DirectoryPush.php';
 require_once __DIR__ . '/CacMail.php';        /* CACENTRE's bulk mail, sent from here under this site's name */  /* this site's roster, pushed to CACENTRE's person directory */
 require_once __DIR__ . '/GatePass.php';

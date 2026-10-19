@@ -289,6 +289,7 @@ final class CrmAudiencePush
                 CURLOPT_FOLLOWLOCATION => false, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'Afrovanguard/1.0 (+crm-audience)']);
             $out = curl_exec($ch);
+            if (class_exists('CacBridge')) CacBridge::see($ch, $out, 'audiences');
             $r = ['code' => (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE), 'body' => is_string($out) ? $out : '', 'error' => curl_error($ch)];
             curl_close($ch);
         } else {

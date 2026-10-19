@@ -178,10 +178,10 @@ try {
             if ($r['ok']) json_out(['ok' => true, 'week' => $r['week'], 'attached' => (object) CacWeek::attachedFor($uid)]);
             json_out(['ok' => false, 'error' => match ($r['error']) {
                 'not-yours'      => 'That commitment is not one of yours on CACENTRE.',
-                'unreachable'    => 'CACENTRE did not answer. Nothing was changed.',
+                'unreachable'    => 'CACENTRE is not available right now. Nothing was changed, and the administrators have been told.',
                 'not-configured' => 'The link to CACENTRE is not set up here.',
                 default          => $r['error'] !== '' ? $r['error'] : 'CACENTRE refused that.',
-            }], 502);
+            }], 503);
 
         /* ── A CACENTRE task, changed over there ───────────────────────
            Not stored here. The change is sent to CACENTRE, which holds the
@@ -202,10 +202,10 @@ try {
             json_out(['ok' => false, 'error' => match ($r['error']) {
                 'not-yours'      => 'That task is not yours.',
                 'bad-due'        => 'The console will not take that date.',
-                'unreachable'    => 'The console did not answer. Nothing was changed.',
+                'unreachable'    => 'CACENTRE is not available right now. Nothing was changed, and the administrators have been told.',
                 'not-configured' => 'The link to the console is not set up here.',
                 default          => 'The console refused that change.',
-            }], 502);
+            }], 503);
 
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

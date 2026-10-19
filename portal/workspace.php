@@ -76,7 +76,7 @@ try {
                 'error' => $needsReconnect
                     ? 'Reconnect your Google account to allow posting to Chat.'
                     : ('Could not send' . ($code ? ' (Google ' . $code . ').' : '.')),
-            ], 502);
+            ], 503);
         }
         default:
             json_out(['ok' => false, 'error' => 'Unknown action.'], 400);

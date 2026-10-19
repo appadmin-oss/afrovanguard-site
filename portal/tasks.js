@@ -230,7 +230,7 @@
     function taskTitle(id){ var t=TASKS.filter(function(x){return x.id===id;})[0]; return t?t.title:('Task '+id); }
     function renderWeek(){
       if(!weekEl||!WEEK) return;
-      if(!WEEK.ok){ weekEl.hidden = WEEK.error==='not-configured'; if(!weekEl.hidden){ weekList.innerHTML='<li class="pc-empty">CACENTRE did not answer just now. Your tasks here are unaffected.</li>'; } return; }
+      if(!WEEK.ok){ weekEl.hidden = WEEK.error==='not-configured'; if(!weekEl.hidden){ weekList.innerHTML='<li class="pc-empty">CACENTRE is not available right now. Your tasks here are unaffected.</li>'; } return; }
       weekEl.hidden=false;
       var r=document.getElementById('cacWeekRange'); if(r&&WEEK.week){ r.textContent=WEEK.week.start+' – '+WEEK.week.end; }
       if(!WEEK.linked){ weekList.innerHTML='<li class="pc-empty">Your CACENTRE record is not linked to this account yet. Sign in to CACENTRE once from the portal, or ask your coordinator to add this email to your record.</li>'; return; }

@@ -61,10 +61,10 @@ try {
            console did not answer knows to try again in a minute. */
         json_out(['ok' => false, 'error' => match ($r['error']) {
             'not-configured' => 'The link to the console is not set up here yet.',
-            'unreachable'    => 'The console did not answer. Nothing is wrong with your search — try again in a moment.',
+            'unreachable'    => CacBridge::MEMBER,
             'off'            => 'The centre does not keep its register in the console.',
             default          => 'The console refused that.',
-        }, 'url' => $r['url']], 502);
+        }, 'url' => $r['url']], 503);
     }
 
     json_out([
