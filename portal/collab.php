@@ -168,6 +168,14 @@ try {
            The member's commitments for the week and the goals they feed; a
            task here can count toward one of them. */
         case 'cac_week':
+            /* CACENTRE's goals arrive from the cron (CacGoals::syncIfDue, hourly at
+               most). Where the host's cron is not running they never would; so the
+               Tasks page also asks — after its answer has gone out, so nobody waits. */
+            if (class_exists('CacGoals')) register_shutdown_function(static function (): void {
+                if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+                elseif (function_exists('litespeed_finish_request')) litespeed_finish_request();
+                try { CacGoals::syncIfDue(); } catch (Throwable $e) { error_log('[cac-goals] from tasks: ' . $e->getMessage()); }
+            });
             $w = CacWeek::forMember($u, isset($_GET['on']) ? (string) $_GET['on'] : null);
             json_out($w + ['attached' => (object) CacWeek::attachedFor($uid)]);
 

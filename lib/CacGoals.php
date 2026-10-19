@@ -14,8 +14,10 @@
  *     week (lib/CacWeek.php), so ticking a step here counts there, and a new
  *     week's commitment picks the open steps up.
  *
- * A goal whose owner has no portal account here is left out and counted: its
- * steps would have nobody to answer for them. Fails soft: CACENTRE down is a
+ * The owner is the member CACENTRE has linked, or else the one member here
+ * that any of the owner's addresses there names (owner_emails). A goal whose
+ * owner is neither is left out and counted: its steps would have nobody to
+ * answer for them. Fails soft: CACENTRE down is a
  * tick that does nothing.
  */
 declare(strict_types=1);
@@ -26,6 +28,7 @@ final class CacGoals
 {
     public const PATH = '/api/afrovanguard-goals.php';
     private const EVERY = 3600;
+    private const RETRY = 600;
     private const OPEN = ['active', 'at_risk', 'behind'];
     private const PLAN_PER_TICK = 3;
     private const ATTACH_PER_TICK = 25;
@@ -51,7 +54,10 @@ final class CacGoals
         $last = (int) (Database::metaGet('cac_goals_synced_at') ?? 0);
         if ($last > $now - self::EVERY) return null;
         Database::metaSet('cac_goals_synced_at', (string) $now);
-        return self::sync($now);
+        $r = self::sync($now);
+        /* CACENTRE down or refusing: try again in ten minutes, not an hour. */
+        if (empty($r['ok'])) Database::metaSet('cac_goals_synced_at', (string) ($now - self::EVERY + self::RETRY));
+        return $r;
     }
 
     public static function sync(?int $now = null): array
@@ -69,7 +75,9 @@ final class CacGoals
         foreach (array_slice((array) ($d['goals'] ?? []), 0, 300) as $g) {
             if (!is_array($g) || (int) ($g['id'] ?? 0) <= 0) continue;
             $out['goals']++;
-            $owner = self::user((int) ($g['owner_av'] ?? 0));
+            /* The owner: by the link CACENTRE holds, else by an address CACENTRE
+               has for them that names exactly one member here. */
+            $owner = self::user((int) ($g['owner_av'] ?? 0)) ?? self::byEmails((array) ($g['owner_emails'] ?? []));
             $st = $pdo->prepare('SELECT * FROM team_goals WHERE cac_goal_id = ? LIMIT 1');
             $st->execute([(int) $g['id']]);
             $had = $st->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -158,6 +166,18 @@ final class CacGoals
         $st = Database::pdo()->prepare("SELECT id, name, email FROM lms_users WHERE id = ? AND status = 'active'");
         $st->execute([$id]);
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** The one active member any of these addresses names; null for none, or for two (never a guess). */
+    private static function byEmails(array $emails): ?array
+    {
+        $emails = array_values(array_unique(array_filter(array_map(static fn($e) => strtolower(trim((string) $e)), array_slice($emails, 0, 10)),
+            static fn($e) => (bool) filter_var($e, FILTER_VALIDATE_EMAIL))));
+        if (!$emails) return null;
+        $st = Database::pdo()->prepare("SELECT id, name, email FROM lms_users WHERE LOWER(email) IN (" . implode(',', array_fill(0, count($emails), '?')) . ") AND status = 'active' LIMIT 2");
+        $st->execute($emails);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        return count($rows) === 1 ? $rows[0] : null;
     }
 
     private static function get(string $url): ?string

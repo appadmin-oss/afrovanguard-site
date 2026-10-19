@@ -74,7 +74,9 @@ final class CacWeek
         $d = json_decode($raw, true);
         if (!is_array($d) || empty($d['ok'])) return ['error' => is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreadable'] + $base;
         $week = is_array($d['week'] ?? null) ? ['start' => (string) ($d['week']['start'] ?? ''), 'end' => (string) ($d['week']['end'] ?? '')] : null;
-        return ['ok' => true, 'linked' => !empty($d['linked']), 'week' => $week, 'commitments' => self::clean($d['commitments'] ?? []), 'error' => ''] + $base;
+        /* Why CACENTRE found nobody (its OsAvIdentity): 'no-match' | 'ambiguous' | 'taken'. */
+        $why = in_array($d['why'] ?? '', ['no-match', 'ambiguous', 'taken'], true) ? (string) $d['why'] : '';
+        return ['ok' => true, 'linked' => !empty($d['linked']), 'why' => $why, 'week' => $week, 'commitments' => self::clean($d['commitments'] ?? []), 'error' => ''] + $base;
     }
 
     /** Only what the portal draws, typed. */

@@ -233,7 +233,14 @@
       if(!WEEK.ok){ weekEl.hidden = WEEK.error==='not-configured'; if(!weekEl.hidden){ weekList.innerHTML='<li class="pc-empty">CACENTRE is not available right now. Your tasks here are unaffected.</li>'; } return; }
       weekEl.hidden=false;
       var r=document.getElementById('cacWeekRange'); if(r&&WEEK.week){ r.textContent=WEEK.week.start+' – '+WEEK.week.end; }
-      if(!WEEK.linked){ weekList.innerHTML='<li class="pc-empty">Your CACENTRE record is not linked to this account yet. Sign in to CACENTRE once from the portal, or ask your coordinator to add this email to your record.</li>'; return; }
+      if(!WEEK.linked){
+        /* What CACENTRE said, and the one thing that fixes it: an address on the
+           person record there that names this account, and only this one. */
+        var me=(document.getElementById('cacWeek').getAttribute('data-email')||'this email');
+        var why = WEEK.why==='ambiguous' ? 'CACENTRE has more than one person with '+esc(me)+', so it will not guess which is you. Ask your coordinator to remove it from the record that is not yours.'
+          : WEEK.why==='taken' ? 'Your CACENTRE record is already linked to a different portal account. Ask your coordinator to check it.'
+          : 'CACENTRE has no person record with '+esc(me)+'. Ask your coordinator to add it to your record (on your person, your staff record or your console login) — it links by itself the next time this page loads.';
+        weekList.innerHTML='<li class="pc-empty">'+why+'</li>'; return; }
       if(!WEEK.commitments.length){ weekList.innerHTML='<li class="pc-empty">No commitments for this week yet. Set them on CACENTRE — they appear here.</li>'; return; }
       var open=TASKS.filter(function(t){ return !t.done && (t.mine || t.creator_name==='You'); });
       weekList.innerHTML=WEEK.commitments.map(function(c){

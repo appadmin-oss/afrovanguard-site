@@ -12,7 +12,7 @@
           <?php if (class_exists('CacWeek') && CacWeek::ready()): ?>
           <!-- This week at CACENTRE: the member's commitments for the week and
                the goals they feed; a task here can count toward one (lib/CacWeek.php). -->
-          <section class="pcard cac-week" id="cacWeek" aria-labelledby="cacWeekH" hidden>
+          <section class="pcard cac-week" id="cacWeek" aria-labelledby="cacWeekH" data-email="<?= e((string) ($u['email'] ?? '')) ?>" hidden>
             <div class="pcard-head">
               <h2 id="cacWeekH">This week at CACENTRE</h2>
               <span class="pchip" id="cacWeekRange"></span>
