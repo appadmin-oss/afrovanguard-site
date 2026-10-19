@@ -33,10 +33,14 @@ final class CacGoals
     /* Bumped when what a sync does changes, so a new version reads CACENTRE at
        once rather than an hour after the old one last did (and dropped what
        the new one would keep). */
-    public const VERSION = 4;
+    public const VERSION = 5;
     private const RETRY = 600;
-    /* What CACENTRE's console calls open: a goal starts there as a draft. */
-    private const OPEN = ['draft', 'active', 'at_risk', 'behind'];
+    /* Work still to do: what CACENTRE's console calls open (a goal starts there
+       as a draft), and missed goals — past their date, not done. Only achieved
+       and cancelled goals are finished. */
+    private const OPEN = ['draft', 'active', 'at_risk', 'behind', 'missed'];
+    /* How a goal stands at CACENTRE, said on its line here. */
+    private const STANDING = ['at_risk' => 'at risk at CACENTRE', 'behind' => 'behind at CACENTRE', 'missed' => 'missed its date at CACENTRE — still to finish'];
     private const PLAN_PER_TICK = 3;
     private const ATTACH_PER_TICK = 25;
 
@@ -109,7 +113,8 @@ final class CacGoals
             $title = mb_substr(trim(((string) ($g['code'] ?? '') !== '' ? $g['code'] . ' · ' : '') . (string) ($g['title'] ?? '')), 0, 300);
             /* Held for somebody (or nobody) there: say who, so the steward is not read as the owner. */
             $held = $linked ? '' : ((string) ($g['owner_name'] ?? '') !== '' ? ' · owner at CACENTRE: ' . $g['owner_name'] : ' · no owner at CACENTRE yet');
-            $target = mb_substr(trim(self::targetText($g) . $held, ' ·'), 0, 200);
+            $standing = self::STANDING[(string) ($g['status'] ?? '')] ?? '';
+            $target = mb_substr(trim(self::targetText($g) . ($standing !== '' ? ' · ' . $standing : '') . $held, ' ·'), 0, 200);
             /* A commitment is the real owner's: a goal the steward holds counts toward none. */
             $cid = $linked ? max(0, (int) ($g['commitment_id'] ?? 0)) : 0;
             if ($had) {

@@ -37,7 +37,9 @@ $orphan = ['id' => 42, 'code' => 'G-42', 'title' => 'Nobody here owns this', 'st
 $byMail = ['id' => 43, 'code' => 'G-43', 'title' => 'Owner known by email', 'status' => 'draft', 'owner_av' => 0, 'owner_emails' => ['ola@cacentre.test', 'OLA.GOAL@mail.test'], 'commitment_id' => 0];
 /* No owner at all there: still comes across, held by the steward, and says so. */
 $ownerless = ['id' => 44, 'code' => 'G-44', 'title' => 'Nobody owns this yet', 'status' => 'draft', 'owner_av' => 0, 'owner_emails' => [], 'owner_name' => '', 'commitment_id' => 0, 'due_on' => '2026-12-31'];
-file_put_contents($state, json_encode(['goals' => [$goal, $orphan, $byMail, $ownerless]]));
+/* Past its date and not done there: still work to finish, so it stays open here, and says so. */
+$missed = ['id' => 45, 'code' => 'G-45', 'title' => 'Ten home visits', 'status' => 'missed', 'owner_av' => 9911, 'commitment_id' => 0, 'due_on' => '2026-10-01'];
+file_put_contents($state, json_encode(['goals' => [$goal, $orphan, $byMail, $ownerless, $missed]]));
 $secret = str_repeat('s', 48);
 $stub = $port > 0 ? @proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, AV_ROOT . '/tests/fixtures/cac-goals-stub.php'],
     [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'a'], 2 => ['file', '/dev/null', 'a']], $pipes, null, array_merge(getenv(), ['CAC_STUB_STATE' => $state, 'AV_SSO_SECRET' => $secret])) : null;
@@ -51,13 +53,16 @@ if (!is_resource($stub) || !$up) {
     $mirror = static fn(int $cac) => ($q = $gp->query('SELECT * FROM team_goals WHERE cac_goal_id = ' . $cac)->fetch(PDO::FETCH_ASSOC)) ?: null;
 
     $r = CacGoals::sync();
-    ck('cac goals: read over the bridge', $r['ok'] && $r['goals'] === 4);
+    ck('cac goals: read over the bridge', $r['ok'] && $r['goals'] === 5);
+    $ms45 = $mirror(45);
+    ck('cac goals: a goal that missed its date there is still open here — it is not done', $ms45 && (int) $ms45['closed'] === 0);
+    ck('cac goals: …and its line says it missed its date', $ms45 && str_contains((string) $ms45['target'], 'missed its date'));
     /* A new version reads at once, not an hour after the old one did. */
     Database::metaSet('cac_goals_synced_at', (string) time()); Database::metaSet('cac_goals_ver', '1');
     ck('cac goals: a new version of the sync reads CACENTRE at once', CacGoals::syncIfDue() !== null && Database::metaGet('cac_goals_ver') === (string) CacGoals::VERSION);
     ck('cac goals: …and then waits its hour', CacGoals::syncIfDue() === null);
     $cs = CacGoals::status();
-    ck('cac goals: the Tasks page can say what CACENTRE last answered', $cs['ready'] && $cs['last']['ok'] && $cs['last']['goals'] === 4);
+    ck('cac goals: the Tasks page can say what CACENTRE last answered', $cs['ready'] && $cs['last']['ok'] && $cs['last']['goals'] === 5);
     ck('cac goals: an owner CACENTRE has not linked is found by an address it has for them', ($bm = $mirror(43)) && (int) $bm['author_id'] === 9911);
     ck('cac goals: a goal still in draft there is open here, as the console lists it', $bm && (int) $bm['closed'] === 0);
     $m = $mirror(41);
