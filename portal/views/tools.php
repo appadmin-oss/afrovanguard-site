@@ -176,7 +176,7 @@
 <?php if ($isOrg): ?>
             <div class="suite-app" data-app="meet" hidden>
           <!-- Standardized meetings: schedule (with a link + cadence) and get AI minutes -->
-          <section class="pcard tool-meet" id="tlMeet" data-csrf="<?= e($collabCsrf) ?>">
+          <section class="pcard tool-meet" id="tlMeet" data-csrf="<?= e($collabCsrf) ?>" data-email="<?= e(strtolower((string) ($u['email'] ?? ''))) ?>">
             <div class="pcard-head"><h2>🎥 Meetings</h2><span class="pchip pchip--indigo">Members · shared</span></div>
             <div class="pcard-body">
               <form id="tlMeetForm" class="meet-form" autocomplete="off">
@@ -185,25 +185,23 @@
                   <label class="meet-f"><span>When</span><input type="datetime-local" id="tlMeetWhen" class="meet-in"></label>
                   <label class="meet-f"><span>Length</span>
                     <select id="tlMeetDur" class="meet-in">
+                      <option value="10">10 min</option>
                       <option value="15">15 min</option>
+                      <option value="20">20 min</option>
                       <option value="30" selected>30 min</option>
                       <option value="45">45 min</option>
                       <option value="60">1 hour</option>
                       <option value="90">1.5 hours</option>
                       <option value="120">2 hours</option>
-                    </select>
-                  </label>
-                  <label class="meet-f"><span>Repeats</span>
-                    <select id="tlMeetFreq" class="meet-in">
-                      <option value="once" selected>One-off</option>
-                      <option value="daily">Every day</option>
-                      <option value="weekdays">Every weekday</option>
-                      <option value="weekly">Every week</option>
-                      <option value="biweekly">Every 2 weeks</option>
-                      <option value="monthly">Every month</option>
+                      <option value="180">3 hours</option>
+                      <option value="240">4 hours</option>
+                      <option value="360">6 hours</option>
+                      <option value="480">All day (8 hours)</option>
                     </select>
                   </label>
                 </div>
+                <!-- How it repeats: quick choices, or Custom… (portal/repeat.js) -->
+                <div class="meet-repeat" id="tlMeetRepeat"></div>
                 <input id="tlMeetWho" class="meet-in" placeholder="Invite by email (comma-separated, optional)" maxlength="600">
                 <input id="tlMeetAgenda" class="meet-in" placeholder="Agenda / notes (optional)" maxlength="2000">
                 <label class="meet-bot" hidden><input type="checkbox" id="tlMeetRec"> <span>🤖 Add the recording bot — auto-capture &amp; transcribe this meeting</span></label>

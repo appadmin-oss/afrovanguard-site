@@ -186,6 +186,10 @@ $knownMetaKeys = [
     // the System page. Lost, the page says "none recorded" / "not run yet" and
     // the directory sync runs once more today (it is an idempotent upsert).
     'google_last_failure',
+    // The last time Google answered a service-account call (lib/GoogleWorkspace,
+    // hourly at most). Reviewed: gates no migration. Lost, a failure recorded
+    // before it reads as current until the next success, an hour at most.
+    'google_last_ok',
     'gws_directory_sync',
     // The person directory push (lib/DirectoryPush). Reviewed: gates no migration.
     // How far the roster sweep has walked lms_users. Lost, it starts again at

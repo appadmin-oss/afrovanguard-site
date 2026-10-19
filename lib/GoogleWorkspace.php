@@ -46,7 +46,37 @@ final class GoogleWorkspace
      * identical on every screen. The Setup test and System page read this.
      */
     private static string $lastError = '';
+    /** The scope the last refused token was asked for — the one to add to delegation. */
+    private static string $lastScope = '';
     public static function lastError(): string { return self::$lastError; }
+
+    /** Tests only: forget minted tokens, so a scope refused later is asked for again. */
+    public static function forgetTokens(): void { self::$tokens = []; self::$lastError = ''; self::$lastScope = ''; }
+
+    /**
+     * Why Google said no, and what fixes it — for the screen where somebody
+     * is waiting on it (a meeting without a link, a Meet room that would not
+     * open), not just the Studio's test page. '' when there is no error.
+     */
+    public static function explain(string $err = ''): string
+    {
+        $err = $err !== '' ? $err : self::$lastError;
+        if (!self::configured()) return 'Google Workspace is not set up on this site: an administrator adds the service account key in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
+        if ($err === '') return '';
+        $fix = match (true) {
+            str_contains($err, 'unauthorized_client') => 'Domain-wide delegation does not grant ' . (self::$lastScope !== '' ? 'the scope ' . self::$lastScope : 'the scope this needs')
+                . ' — add it in the Admin console (Security → API controls → Domain-wide delegation). Studio → Rules & AI → Setup → Test Google Workspace lists every scope to grant.',
+            str_contains($err, 'invalid_grant') && (str_contains($err, 'account') || str_contains($err, 'email') || str_contains($err, 'sub')) => 'The “Admin to act as” address is not a user in your Workspace. Set it in Studio → Rules & AI → Setup to a real administrator.',
+            str_contains($err, 'invalid_grant') => 'Google refused the service account key — it may have been deleted or rotated. Paste a fresh JSON key in Studio → Rules & AI → Setup.',
+            str_contains($err, 'forbiddenForServiceAccounts') => 'A service account cannot invite people on its own. Set “Admin to act as” in Studio → Rules & AI → Setup, and grant it domain-wide delegation.',
+            str_contains($err, 'Invalid conference type') => 'Google Meet is not enabled for the calendar being written to. Turn Meet on for that account in the Admin console.',
+            str_contains($err, 'HTTP 404') || str_contains($err, 'notFound') => 'Google could not find the calendar or file. Check “Shared calendar” in Studio → Rules & AI → Setup, and that it is shared with the admin.',
+            str_contains($err, 'HTTP 403') => 'Google refused permission. The account may lack the licence or the API may be off in Google Cloud for this project.',
+            str_contains($err, 'no response') => 'Google could not be reached from this server (network or TLS).',
+            default => 'Studio → Rules & AI → Setup → Test Google Workspace shows what to change.',
+        };
+        return 'Google said: ' . $err . '. ' . $fix;
+    }
 
     /** Google's error body → one line: "unauthorized_client: Client is unauthorized …". */
     private static function errorLine(?array $res): string
@@ -58,6 +88,25 @@ final class GoogleWorkspace
             if (is_array($j['error'] ?? null)) return 'HTTP ' . (int) $res['code'] . ': ' . (string) ($j['error']['message'] ?? $j['error']['status'] ?? '');
         }
         return 'HTTP ' . (int) ($res['code'] ?? 0);
+    }
+
+    /**
+     * Remember Google's latest refusal, and its latest success, where the
+     * portal can show an administrator what is wrong (GoogleHub::problem) —
+     * a failure here used to reach only an error log on a shared host, and
+     * every screen showed the same calm "nothing yet".
+     */
+    private static function noteFailure(): void
+    {
+        if (class_exists('GoogleAuth')) GoogleAuth::recordFailure('workspace', self::$lastError . (self::$lastScope !== '' ? ' [' . self::$lastScope . ']' : ''));
+    }
+    private static function noteOk(): void
+    {
+        static $done = false; if ($done || !class_exists('Database')) return; $done = true;
+        try {
+            $last = (string) (Database::metaGet('google_last_ok') ?? '');
+            if ($last === '' || strtotime($last) < time() - 3600) Database::metaSet('google_last_ok', gmdate('c'));
+        } catch (Throwable $e) {}
     }
 
     public static function configured(): bool { return self::credentials() !== null; }
@@ -126,6 +175,8 @@ final class GoogleWorkspace
         if (!$res || empty($res['json']['access_token'])) {
             if ($res) error_log('[workspace] token error ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 200));
             self::$lastError = 'token' . ($sub !== '' ? ' (as ' . $sub . ')' : '') . ' — ' . self::errorLine($res);
+            self::$lastScope = $scope;
+            self::noteFailure();
             return null;
         }
         self::$tokens[$key] = ['v' => (string) $res['json']['access_token'], 'exp' => $now + (int) ($res['json']['expires_in'] ?? 3600)];
@@ -167,8 +218,10 @@ final class GoogleWorkspace
         if (!$res || $res['code'] >= 400) {
             if ($res) error_log('[workspace] GET ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 200));
             self::$lastError = 'GET ' . (string) parse_url($url, PHP_URL_PATH) . ' — ' . self::errorLine($res);
+            self::noteFailure();
             return null;
         }
+        self::noteOk();
         return is_array($res['json']) ? $res['json'] : null;
     }
 
@@ -181,8 +234,10 @@ final class GoogleWorkspace
         if (!$res || $res['code'] >= 400) {
             if ($res) error_log('[workspace] ' . $method . ' ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 300));
             self::$lastError = $method . ' ' . (string) parse_url($url, PHP_URL_PATH) . ' — ' . self::errorLine($res);
+            self::noteFailure();
             return null;
         }
+        self::noteOk();
         return is_array($res['json']) ? $res['json'] : ($res['code'] < 300 ? ['ok' => true] : null);
     }
 

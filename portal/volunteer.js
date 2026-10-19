@@ -361,7 +361,8 @@
     var btns = (m.live ? '' : seg(m))
       + (m.room ? '<button type="button" class="avp-btn avp-btn--sq avp-btn--ink" data-room="' + m.id + '" data-occ="' + esc(m.occurrence) + '">Live room</button>' : '')
       + (m.meet_url ? '<a class="avp-btn avp-btn--sq" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">Join</a>' : '')
-      + '<a class="avp-btn avp-btn--sq" href="' + API + '?action=ics&meeting_id=' + m.id + '" title="Add to your calendar" aria-label="Add ' + esc(m.title) + ' to your calendar">.ics</a>';
+      + '<a class="avp-btn avp-btn--sq" href="' + API + '?action=ics&meeting_id=' + m.id + '" title="Add to your calendar" aria-label="Add ' + esc(m.title) + ' to your calendar">.ics</a>'
+      + (m.edit ? '<button type="button" class="avp-btn avp-btn--sq" data-medit="' + m.id + '" aria-label="Change ' + esc(m.title) + '">' + (m.edit.no_link ? '⚠ Add Meet link' : 'Edit') + '</button>' : '');
     return row(esc(m.title), sub, btns);
   }
   function ago(at) {
@@ -635,7 +636,8 @@
         if (!r.ok) return toast(r.error, true);
         toast(ans === 'yes' ? 'See you there.' : ans === 'no' ? 'Apologies sent.' : 'Noted.'); load();
       });
-    } else if (b.hasAttribute('data-room')) openRoom(+b.getAttribute('data-room'), b.getAttribute('data-occ'));
+    } else if (b.hasAttribute('data-medit')) editMeeting(+b.getAttribute('data-medit'));
+    else if (b.hasAttribute('data-room')) openRoom(+b.getAttribute('data-room'), b.getAttribute('data-occ'));
     else if (b.hasAttribute('data-minutes')) openMinutes(+b.getAttribute('data-minutes'), b.getAttribute('data-occ'));
     else if (b.hasAttribute('data-done')) {
       fetch('/portal/commitments.php?action=done', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }, body: JSON.stringify({ id: +b.getAttribute('data-done') }) })
@@ -662,6 +664,7 @@
     var f = d.querySelector('.vh-form-body input, .vh-form-body select, .vh-form-body textarea'); if (f) f.focus();
   }
   function val(id) { var e = $(id); return e ? e.value : ''; }
+  var DURS = [[15, '15 minutes'], [20, '20 minutes'], [30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], [90, '1½ hours'], [120, '2 hours'], [180, '3 hours'], [240, '4 hours'], [480, 'All day (8 hours)']];
 
   $('vhLogHours').addEventListener('click', function () { setTab('record'); setTimeout(function () { $('lhAct').focus(); }, 50); });
   $('vhNewTeam').addEventListener('click', function () {
@@ -680,16 +683,43 @@
       '<label>Team<select id="fsTeam">' + teams.map(function (t) { return '<option value="' + t.id + '"' + (t.id === openTeamId ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select></label>'
       + '<label>Title<input id="fsTitle" maxlength="200" placeholder="Team meeting"></label>'
       + '<label>When<input id="fsWhen" type="datetime-local" value="' + local + '" required></label>'
-      + '<label>How long<select id="fsDur"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60" selected>1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option></select></label>'
-      + '<label>Repeats<select id="fsFreq"><option value="once">Once</option><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option></select></label>'
+      + '<label>How long<select id="fsDur">' + DURS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === 60 ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'
+      + '<div class="avp-form-wide vh-repeat" id="fsRepeat"></div>'
       + '<label class="avp-form-wide" style="justify-self:stretch">Agenda — one item a line<textarea id="fsAgenda" rows="4"></textarea></label>'
       + '<label class="avp-form-wide" style="justify-self:stretch">Also invite (emails, optional)<input id="fsExtra" placeholder="guest@example.org"></label>'
       + (bot ? '<label class="avp-form-wide" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="fsRec" style="height:auto"> Send the notetaker to record and transcribe</label>' : ''),
       'Schedule and invite', function (done) {
-        api('schedule', { team_id: +val('fsTeam'), title: val('fsTitle'), when: val('fsWhen'), duration: +val('fsDur'), frequency: val('fsFreq'), agenda: val('fsAgenda'), extra: val('fsExtra'), auto_record: !!(bot && $('fsRec') && $('fsRec').checked) })
+        api('schedule', { team_id: +val('fsTeam'), title: val('fsTitle'), when: val('fsWhen'), duration: +val('fsDur'), repeat: rep ? rep.value() : { freq: 'once' }, agenda: val('fsAgenda'), extra: val('fsExtra'), auto_record: !!(bot && $('fsRec') && $('fsRec').checked) })
           .then(function (r) { done(r); if (r.ok) toast(r.warning || 'Scheduled — the team has been invited.'); });
       });
+    /* How it repeats: quick choices, or Custom… (portal/repeat.js). */
+    var rep = window.AVRepeat ? window.AVRepeat($('fsRepeat'), { when: $('fsWhen'), idp: 'fs', csrf: CSRF }) : null;
   });
+
+  /* Change a meeting: the schedule form, filled in, sending only what changed. */
+  function editMeeting(id) {
+    var m = (hub.upcoming || []).filter(function (x) { return x.id === id; })[0];
+    if (!m || !m.edit) return;
+    var e = m.edit, opt = function (v, l, cur) { return '<option value="' + v + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + l + '</option>'; };
+    form('Change “' + e.title + '”',
+      '<label>Title<input id="feTitle" maxlength="200" value="' + esc(e.title) + '"></label>'
+      + '<label>When<input id="feWhen" type="datetime-local" value="' + esc(e.when) + '" required></label>'
+      + '<label>How long<select id="feDur">' + DURS.concat(DURS.some(function (o) { return o[0] === e.duration; }) ? [] : [[e.duration, e.duration + ' minutes']]).map(function (o) { return opt(o[0], o[1], e.duration); }).join('') + '</select></label>'
+      + '<div class="avp-form-wide vh-repeat" id="feRepeat"></div>'
+      + '<label class="avp-form-wide" style="justify-self:stretch">Agenda — one item a line<textarea id="feAgenda" rows="4">' + esc(e.agenda) + '</textarea></label>'
+      + '<label class="avp-form-wide" style="justify-self:stretch">Also invite (emails, optional)<input id="feExtra" placeholder="guest@example.org"></label>'
+      + '<p class="avp-form-wide vh-form-note">Everyone invited is told what changed' + (e.no_link ? ', and Google is asked again for the Meet link' : '') + '.</p>',
+      'Save changes', function (done) {
+        var body = { id: id }, cur = { title: val('feTitle'), when: val('feWhen'), duration: +val('feDur'), agenda: val('feAgenda') };
+        Object.keys(cur).forEach(function (k) { if (String(cur[k]) !== String(e[k])) body[k] = cur[k]; });
+        if (rep && JSON.stringify(rep.value()) !== was) body.repeat = rep.value();
+        if (val('feExtra').trim()) body.extra = val('feExtra');
+        api('meeting_update', body).then(function (r) { done(r); if (r.ok) { toast(r.warning || 'Saved — everyone invited has the change.', !!r.warning); load(); } });
+      });
+    var rep = window.AVRepeat ? window.AVRepeat($('feRepeat'), { when: $('feWhen'), idp: 'fe', csrf: CSRF }) : null;
+    if (rep) rep.set(e.repeat || null);
+    var was = rep ? JSON.stringify(rep.value()) : '';
+  }
 
   /* ══ The live room ════════════════════════════════════════════════════ */
 

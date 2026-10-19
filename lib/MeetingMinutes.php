@@ -115,27 +115,10 @@ final class MeetingMinutes
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    private static function step(string $freq): string
-    {
-        return match ($freq) { 'daily', 'weekdays' => '+1 day', 'weekly' => '+1 week', 'biweekly' => '+2 weeks', 'monthly' => '+1 month', default => '' };
-    }
-
-    /** Starts of a meeting's occurrences between two moments, oldest first. Bounded. */
+    /** Starts of a meeting's occurrences between two moments, oldest first: its rule (Meetings::rule). */
     public static function occurrences(array $m, int $from, int $to): array
     {
-        $ts = strtotime((string) $m['scheduled_at'] . ' UTC');
-        if ($ts === false) return [];
-        $step = self::step((string) $m['frequency']);
-        if ($step === '') return $ts >= $from && $ts <= $to ? [$ts] : [];
-        $out = [];
-        $dt = (new DateTime('@' . $ts))->setTimezone(new DateTimeZone('UTC'));
-        for ($i = 0; $i < 1500 && $dt->getTimestamp() <= $to; $i++) {
-            $t = $dt->getTimestamp();
-            $weekend = (string) $m['frequency'] === 'weekdays' && (int) $dt->format('N') > 5;
-            if ($t >= $from && !$weekend) $out[] = $t;
-            $dt->modify($step);
-        }
-        return $out;
+        return Meetings::startsBetween($m, $from, $to);
     }
 
     /** The occurrence a reader means: the one on now or next, else the last one. */
@@ -237,8 +220,38 @@ final class MeetingMinutes
             'when' => (string) ($in['when'] ?? ''), 'duration' => (int) ($in['duration'] ?? 60), 'frequency' => (string) ($in['frequency'] ?? 'once'),
             'agenda' => (string) ($in['agenda'] ?? ''), 'attendees' => array_values(array_unique($emails)),
             'context' => 'team', 'context_id' => $teamId, 'auto_record' => !empty($in['auto_record']),
-        ]);
+        ] + (array_key_exists('repeat', $in) ? ['repeat' => $in['repeat']] : []));
         return $r;
+    }
+
+    /**
+     * Change a team meeting: its organiser, the team's lead or secretary, or
+     * somebody who runs teams may. Extra guests are added to the team's own
+     * people, as when it was called (Meetings::update does the rest).
+     */
+    public static function updateForTeam(array $u, int $meetingId, array $in): array
+    {
+        self::ensure();
+        $m = self::meeting($meetingId);
+        if (!$m) return ['ok' => false, 'error' => 'No such meeting.'];
+        $uid = (int) $u['id'];
+        $t = (string) $m['context'] === 'team' ? Volunteers::team((int) $m['context_id']) : null;
+        if (!self::mayEdit($u, $m)) return ['ok' => false, 'error' => 'Only the organiser or the team’s lead can change this meeting.'];
+        $fields = array_intersect_key($in, array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'auto_record']));
+        if (array_key_exists('extra', $in) && $t) {
+            $emails = array_column($t['members'], 'email');
+            foreach (preg_split('/[,;\s]+/', (string) $in['extra']) ?: [] as $e) if (filter_var(trim($e), FILTER_VALIDATE_EMAIL)) $emails[] = strtolower(trim($e));
+            $fields['attendees'] = array_values(array_unique($emails));
+        }
+        return Meetings::update($uid, $meetingId, $fields, true);
+    }
+
+    /** May this person change the meeting? Its organiser, whoever runs teams, the team's lead or secretary. */
+    public static function mayEdit(array $u, array $m): bool
+    {
+        $uid = (int) $u['id'];
+        if ((int) $m['creator_id'] === $uid || Volunteers::canRunTeams($u)) return true;
+        return (string) $m['context'] === 'team' && in_array(Volunteers::roleIn((int) $m['context_id'], $uid), ['lead', 'secretary'], true);
     }
 
     /** Somebody joined a team: invite them to its meetings still to come. */
@@ -729,7 +742,7 @@ final class MeetingMinutes
     {
         $t = self::teamOf($m);
         return ['id' => (int) $m['id'], 'title' => (string) $m['title'], 'occurrence' => $occ, 'when' => self::when($occ), 'local' => self::local($occ),
-                'duration_min' => (int) $m['duration_min'], 'meet_url' => (string) $m['meet_url'], 'frequency' => (string) $m['frequency'],
+                'duration_min' => (int) $m['duration_min'], 'meet_url' => (string) $m['meet_url'], 'frequency' => (string) $m['frequency'], 'frequency_label' => Meetings::cadence($m),
                 'team' => $t ? ['id' => $t['id'], 'name' => $t['name']] : null, 'is_chair' => self::isChair($u, $m),
                 'invitees' => self::invitees((int) $m['id']), 'answers' => self::answers((int) $m['id'], $occ)];
     }
@@ -868,12 +881,18 @@ final class MeetingMinutes
         $esc = static fn(string $s): string => str_replace(["\\", ';', ',', "\r\n", "\n"], ["\\\\", '\;', '\,', '\n', '\n'], $s);
         $ts = strtotime((string) $m['scheduled_at'] . ' UTC') ?: time();
         $host = parse_url(defined('SITE_URL') ? SITE_URL : 'https://afrovanguard.org.ng', PHP_URL_HOST) ?: 'afrovanguard.org.ng';
-        $rrule = Meetings::FREQ[(string) $m['frequency']][1] ?? '';
+        /* A series is anchored on the meeting clock (TZID), so "Mondays at
+           10:00" is read as Mondays where the meeting is, not in UTC. */
+        $rec = Meetings::recurrenceLines($m);
+        $loc = Meetings::seriesStart($m);
+        $tzid = 'TZID=' . $loc->getTimezone()->getName() . ':';
         $desc = trim((string) $m['agenda']) . ((string) $m['meet_url'] !== '' ? "\n\nJoin: " . $m['meet_url'] : '');
         $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Afrovanguard//Volunteer hub//EN', 'CALSCALE:GREGORIAN', 'METHOD:' . ($method === 'REQUEST' ? 'REQUEST' : 'PUBLISH'), 'BEGIN:VEVENT',
-            'UID:meeting-' . (int) $m['id'] . '@' . $host, 'DTSTAMP:' . gmdate('Ymd\THis\Z'), 'DTSTART:' . gmdate('Ymd\THis\Z', $ts),
-            'DTEND:' . gmdate('Ymd\THis\Z', $ts + (int) $m['duration_min'] * 60), 'SUMMARY:' . $esc((string) $m['title'])];
-        if ($rrule !== '') $lines[] = 'RRULE:' . $rrule;
+            'UID:meeting-' . (int) $m['id'] . '@' . $host, 'DTSTAMP:' . gmdate('Ymd\THis\Z'),
+            $rec ? 'DTSTART;' . $tzid . $loc->format('Ymd\THis') : 'DTSTART:' . gmdate('Ymd\THis\Z', $ts),
+            $rec ? 'DTEND;' . $tzid . $loc->modify('+' . (int) $m['duration_min'] . ' minutes')->format('Ymd\THis') : 'DTEND:' . gmdate('Ymd\THis\Z', $ts + (int) $m['duration_min'] * 60),
+            'SUMMARY:' . $esc((string) $m['title'])];
+        foreach ($rec as $l) $lines[] = $l;
         $lines[] = 'SEQUENCE:0';
         if ($method === 'REQUEST') {
             $st = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
@@ -910,8 +929,16 @@ final class MeetingMinutes
             ->alertMinutesBefore(30, (string) $m['title']);
         if ($desc !== '') $ev->description($desc);
         if ($url !== '') { $ev->url($url)->address($url); if (str_contains($url, 'meet.google.com')) $ev->googleConference($url); }
-        $rrule = Meetings::FREQ[(string) $m['frequency']][1] ?? '';
-        if ($rrule !== '') $ev->rruleAsString($rrule);
+        $rule = Meetings::rule($m);
+        if ($rule !== null) {
+            /* On the meeting clock, so the rule's days are that zone's days. */
+            $loc = Meetings::seriesStart($m);
+            $ev->startsAt($loc)->endsAt($loc->modify('+' . (int) $m['duration_min'] . ' minutes'));
+            $ev->rruleAsString(substr(Meetings::recurrenceLines($m)[0], strlen('RRULE:')));
+            if (!empty($rule['skip'])) {
+                $ev->doNotRepeatOn(array_map(static fn($d) => new DateTimeImmutable($d . ' ' . $loc->format('H:i:s'), $loc->getTimezone()), $rule['skip']));
+            }
+        }
         if ((string) $m['status'] === 'cancelled') $ev->status(\Spatie\IcalendarGenerator\Enums\EventStatus::Cancelled);
         if ($method === 'REQUEST') {
             $st = Database::pdo()->prepare('SELECT name, email FROM lms_users WHERE id = ?');
@@ -920,7 +947,9 @@ final class MeetingMinutes
             $ev->organizer((string) $org['email'], (string) $org['name']);
             foreach (self::invitees((int) $m['id']) as $p) $ev->attendee((string) $p['email'], (string) $p['name'], \Spatie\IcalendarGenerator\Enums\ParticipationStatus::NeedsAction, true);
         }
-        $cal = \Spatie\IcalendarGenerator\Components\Calendar::create()->productIdentifier('-//Afrovanguard//Volunteer dashboard//EN')->withoutTimezone()->event($ev);
+        $cal = \Spatie\IcalendarGenerator\Components\Calendar::create()->productIdentifier('-//Afrovanguard//Volunteer dashboard//EN')->event($ev);
+        /* A one-off is a UTC moment; a series keeps its zone (TZID + VTIMEZONE), or its days drift. */
+        if ($rule === null) $cal->withoutTimezone();
         $cal->appendProperty(\Spatie\IcalendarGenerator\Properties\TextProperty::create('METHOD', $method === 'REQUEST' ? 'REQUEST' : 'PUBLISH'));
         return $cal->get();
     }
@@ -1055,7 +1084,14 @@ final class MeetingMinutes
             $team = self::teamOf($m);
             $base = ['id' => (int) $m['id'], 'title' => (string) $m['title'], 'team' => $team['name'] ?? '', 'team_id' => $team['id'] ?? 0, 'meet_url' => (string) $m['meet_url'],
                      'agenda' => array_slice(array_column(self::agendaItems((string) $m['agenda']), 'item'), 0, 6),
-                     'duration_min' => (int) $m['duration_min'], 'frequency_label' => Meetings::freqLabel((string) $m['frequency']), 'is_chair' => self::isChair($u, $m)];
+                     'duration_min' => (int) $m['duration_min'], 'frequency_label' => Meetings::cadence($m), 'is_chair' => self::isChair($u, $m)];
+            /* What the edit form needs, for whoever may change it (updateForTeam's rule). */
+            if (self::mayEdit($u, $m)) {
+                $tzU = function_exists('av_user_tz') ? av_user_tz($uid) : 'Africa/Lagos';
+                $base['edit'] = ['title' => (string) $m['title'], 'agenda' => (string) $m['agenda'], 'frequency' => (string) $m['frequency'], 'repeat' => Meetings::rule($m), 'duration' => (int) $m['duration_min'],
+                    'when' => (new DateTime((string) $m['scheduled_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone($tzU))->format('Y-m-d\\TH:i'),
+                    'no_link' => (string) $m['meet_url'] === ''];
+            }
             $next = self::occurrences($m, $now - (int) $m['duration_min'] * 60, $now + 60 * 86400);
             if ($next) {
                 $occ = self::occurrenceKey($next[0]);

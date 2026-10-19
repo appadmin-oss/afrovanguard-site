@@ -362,6 +362,7 @@ require_once __DIR__ . '/GoogleWatch.php';
 require_once __DIR__ . '/AvAutomation.php';
 require_once __DIR__ . '/Collab.php';
 require_once __DIR__ . '/AttendeeBot.php';
+require_once __DIR__ . '/Recurrence.php';  /* how a meeting repeats: one rule for Google, the list, the clock and the minutes */
 require_once __DIR__ . '/Meetings.php';
 require_once __DIR__ . '/Storage.php';
 require_once __DIR__ . '/CardPhoto.php';   /* member card photos: framed, resampled, enhanced */

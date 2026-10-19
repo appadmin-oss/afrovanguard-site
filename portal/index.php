@@ -377,6 +377,7 @@ $roleName = $isNgv ? 'NextGen Vanguard' : ($isOrg ? e($accessLevel) : 'Learner')
   <script src="<?= e(av_asset('/portal/mentor-meet.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/team-chat.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/tools.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/portal/repeat.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/meetings.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/notifications.js')) ?>" defer></script>
   <script src="<?= e(av_asset('/portal/directory.js')) ?>" defer></script>

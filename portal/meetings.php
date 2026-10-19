@@ -4,7 +4,9 @@
  *
  *   GET  ?action=list                                  → { ok, meetings, freq }
  *   GET  ?action=get&id=N                              → { ok, meeting }
- *   POST ?action=schedule {title,when,duration,frequency,agenda,attendees,context,context_id}
+ *   POST ?action=schedule {title,when,duration,frequency|repeat,agenda,attendees,context,context_id}
+ *   POST ?action=update {id, title?, when?, duration?, frequency?|repeat?, agenda?, attendees?, auto_record?}
+ *   POST ?action=repeat_preview {when, repeat}          → { ok, label, dates[], never, moved } (lib/Recurrence.php)
  *   POST ?action=cancel {id}
  *   POST ?action=transcript {id, text, source}         → structure Otter-style
  *   POST ?action=pull_transcript {id}                  → best-effort Google Meet pull
@@ -60,7 +62,7 @@ try {
                 $mtgs[$i]['clock'] = ($cl && (!empty($cl['running']) || !empty($cl['overrun']))) ? $cl : null;
             }
             json_out(['ok' => true, 'meetings' => $mtgs, 'freq' => $freq, 'me' => $uid, 'agenda_ai' => Agenda::enabled(),
-                'gemini' => class_exists('Gemini') && Gemini::configured(),
+                'gemini' => class_exists('Gemini') && Gemini::configured(), 'audio' => Meetings::audioTranscription(),
                 'bot' => Meetings::botConfigured(), 'bot_provider' => Meetings::botProvider(),
                 'bot_allowed' => Meetings::botAllowed(), 'bot_on_demand' => Meetings::botOnDemandAllowed()]);
 
@@ -78,6 +80,17 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             json_out(Meetings::startNow($uid, is_array($body) ? $body : []));
+
+        case 'update':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(Meetings::update($uid, (int) ($body['id'] ?? 0), array_intersect_key(is_array($body) ? $body : [],
+                array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'attendees', 'auto_record']))));
+
+        /* What a repeat rule would do, before it is saved: read-only, so no write guard. */
+        case 'repeat_preview':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(Meetings::previewRepeat($uid, (string) ($body['when'] ?? ''), $body['repeat'] ?? null));
 
         case 'cancel':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

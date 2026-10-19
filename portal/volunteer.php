@@ -120,6 +120,7 @@ try {
         case 'team_member':  json_out(Volunteers::setMember($u, (int) $in('team_id', 0), (string) $in('who'), (string) $in('role', 'member')));
         case 'team_remove':  json_out(Volunteers::removeMember($u, (int) $in('team_id', 0), (int) $in('user_id', 0)));
         case 'schedule':     json_out(MeetingMinutes::scheduleForTeam($u, (int) $in('team_id', 0), $body));
+        case 'meeting_update': json_out(MeetingMinutes::updateForTeam($u, (int) $in('id', 0), $body));
         case 'rsvp':         json_out(MeetingMinutes::rsvp($u, (int) $in('meeting_id', 0), (string) $in('occurrence'), (string) $in('answer'), (string) $in('note')));
         case 'minutes':      json_out(MeetingMinutes::open($u, (int) $in('meeting_id', 0), (string) $in('occurrence')));
         case 'minutes_save': json_out(MeetingMinutes::save($u, (int) $in('id', 0), (array) $in('body', []), (array) $in('attendance', []), (int) $in('secretary_id', 0)));
