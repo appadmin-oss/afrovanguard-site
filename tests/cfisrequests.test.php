@@ -106,17 +106,21 @@ ck('and no category list is invented while finance cannot be asked for one '
 ck('the portal has an endpoint for it',
    is_file(AV_ROOT . '/portal/money-requests.php'));
 
-$card = (string) @file_get_contents(AV_ROOT . '/portal/index.php');
-ck('and a card on the portal home, so there is a way to reach it',
-   str_contains($card, 'id="moneyRequests"') && str_contains($card, 'money-requests.js'));
-ck('the card is not limited to org accounts — a facilitator who paid a bus '
- . 'fare out of their own pocket is exactly who it is for',
+$card = (string) @file_get_contents(AV_ROOT . '/portal/views/membership.php');
+ck('and a card on the membership view, so there is a way to reach it',
+   str_contains($card, 'id="moneyRequests"'));
+ck('whose script the portal loads',
+   str_contains((string) @file_get_contents(AV_ROOT . '/portal/index.php'), 'money-requests.js'));
+ck('the card is not inside the org-only dues block — a facilitator who paid '
+ . 'a bus fare out of their own pocket is exactly who it is for',
    (function ($c) {
        $at = strpos($c, 'id="moneyRequests"');
-       $before = substr($c, max(0, $at - 900), 900);
-       /* The dues card above it closes its $isOrg block before this one
-          opens; if the card were inside that block it could not. */
-       return $at !== false && str_contains($before, '<?php endif; ?>');
+       if ($at === false) return false;
+       /* Count the $isOrg blocks opened and closed before this point: if
+          the card sat inside one, an if would be open here. */
+       $before = substr($c, 0, $at);
+       return substr_count($before, '<?php if ($isOrg') === substr_count($before, '<?php endif; ?>')
+           || !str_contains(substr($c, max(0, $at - 400), 400), '<?php if ($isOrg');
    })($card));
 
 $js = (string) @file_get_contents(AV_ROOT . '/portal/money-requests.js');
