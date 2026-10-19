@@ -16,8 +16,10 @@
  *
  * The owner is the member CACENTRE has linked, or else the one member here
  * that any of the owner's addresses there names (owner_emails). A goal whose
- * owner is neither is left out and counted: its steps would have nobody to
- * answer for them. Fails soft: CACENTRE down is a
+ * owner is neither still comes across, held by the portal's steward (the
+ * first administrator) with the owner's name on it: its steps go to whoever
+ * fits, and the rest wait in the pool. Only a site with no administrator at
+ * all leaves a goal out. Fails soft: CACENTRE down is a
  * tick that does nothing.
  */
 declare(strict_types=1);
@@ -64,7 +66,8 @@ final class CacGoals
     {
         self::ensure();
         $now = $now ?? time();
-        $out = ['ok' => false, 'goals' => 0, 'mirrored' => 0, 'closed' => 0, 'no_owner' => 0, 'planned' => 0, 'attached' => 0, 'error' => ''];
+        $out = ['ok' => false, 'goals' => 0, 'mirrored' => 0, 'closed' => 0, 'stewarded' => 0, 'no_owner' => 0, 'planned' => 0, 'attached' => 0, 'error' => ''];
+        $steward = self::steward();
         if (!self::ready()) { $out['error'] = 'not-configured'; return $out; }
         $raw = self::get(CacSso::base() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => 0], 'goals')));
         $d = $raw === null ? null : json_decode($raw, true);
@@ -78,6 +81,11 @@ final class CacGoals
             /* The owner: by the link CACENTRE holds, else by an address CACENTRE
                has for them that names exactly one member here. */
             $owner = self::user((int) ($g['owner_av'] ?? 0)) ?? self::byEmails((array) ($g['owner_emails'] ?? []));
+            /* An owner who is not on the portal does not keep the goal off it: the
+               portal's steward holds it, its steps still go to whoever fits (and
+               the rest wait in the pool), and the owner's name stays on it. */
+            $linked = $owner !== null;
+            if (!$owner && $steward) { $owner = $steward; $out['stewarded']++; }
             $st = $pdo->prepare('SELECT * FROM team_goals WHERE cac_goal_id = ? LIMIT 1');
             $st->execute([(int) $g['id']]);
             $had = $st->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -88,8 +96,9 @@ final class CacGoals
                 continue;
             }
             $title = mb_substr(trim(((string) ($g['code'] ?? '') !== '' ? $g['code'] . ' · ' : '') . (string) ($g['title'] ?? '')), 0, 300);
-            $target = mb_substr(self::targetText($g), 0, 200);
-            $cid = max(0, (int) ($g['commitment_id'] ?? 0));
+            $target = mb_substr(trim(self::targetText($g) . (!$linked && (string) ($g['owner_name'] ?? '') !== '' ? ' · owner at CACENTRE: ' . $g['owner_name'] : ''), ' ·'), 0, 200);
+            /* A commitment is the real owner's: a goal the steward holds counts toward none. */
+            $cid = $linked ? max(0, (int) ($g['commitment_id'] ?? 0)) : 0;
             if ($had) {
                 $pdo->prepare('UPDATE team_goals SET title = ?, target = ?, author_id = ?, closed = ?, cac_commitment_id = ?, cac_code = ?, updated_at = ? WHERE id = ?')
                     ->execute([$title, $target, (int) $owner['id'], $open ? 0 : 1, $cid, (string) ($g['code'] ?? ''), gmdate('Y-m-d H:i:s', $now), (int) $had['id']]);
@@ -103,6 +112,7 @@ final class CacGoals
             }
             self::mirrorMeasure($gid, $g);
             $out['mirrored']++;
+            /* Steps count toward a commitment only when it is the real owner's. */
             if ($open) $mirrors[$gid] = ['owner' => $owner, 'cid' => $cid];
         }
 
@@ -158,6 +168,16 @@ final class CacGoals
         if ((string) ($g['due_on'] ?? '') !== '') $parts[] = 'by ' . gmdate('j M Y', strtotime($g['due_on'] . ' 12:00 UTC') ?: time());
         $line = trim(implode(' ', $parts));
         return trim($line . ((string) ($g['entity'] ?? '') !== '' ? ' · ' . $g['entity'] : ''), ' ·');
+    }
+
+    /** Who holds a goal whose owner is not on the portal: the first active administrator. */
+    private static function steward(): ?array
+    {
+        try {
+            $rows = Database::pdo()->query("SELECT id, name, email, role FROM lms_users WHERE status = 'active' ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) { return null; }
+        foreach ($rows as $r) if (LmsAuth::rank((string) $r['role']) >= LmsAuth::ROLE_RANK['admin']) return ['id' => $r['id'], 'name' => $r['name'], 'email' => $r['email']];
+        return null;
     }
 
     private static function user(int $id): ?array

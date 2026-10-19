@@ -76,7 +76,8 @@ final class CacWeek
         $week = is_array($d['week'] ?? null) ? ['start' => (string) ($d['week']['start'] ?? ''), 'end' => (string) ($d['week']['end'] ?? '')] : null;
         /* Why CACENTRE found nobody (its OsAvIdentity): 'no-match' | 'ambiguous' | 'taken'. */
         $why = in_array($d['why'] ?? '', ['no-match', 'ambiguous', 'taken'], true) ? (string) $d['why'] : '';
-        return ['ok' => true, 'linked' => !empty($d['linked']), 'why' => $why, 'week' => $week, 'commitments' => self::clean($d['commitments'] ?? []), 'error' => ''] + $base;
+        return ['ok' => true, 'linked' => !empty($d['linked']), 'why' => $why, 'roles' => isset($d['roles']) ? (int) $d['roles'] : null,
+                'week' => $week, 'commitments' => self::clean($d['commitments'] ?? []), 'error' => ''] + $base;
     }
 
     /** Only what the portal draws, typed. */

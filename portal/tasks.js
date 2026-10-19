@@ -241,7 +241,12 @@
           : WEEK.why==='taken' ? 'Your CACENTRE record is already linked to a different portal account. Ask your coordinator to check it.'
           : 'CACENTRE keeps a week for Afrovanguard members, and this account ('+esc(me)+') is not one. Sign in with your Afrovanguard account.';
         weekList.innerHTML='<li class="pc-empty">'+why+'</li>'; return; }
-      if(!WEEK.commitments.length){ weekList.innerHTML='<li class="pc-empty">No commitments for this week yet. Set them on CACENTRE — they appear here.</li>'; return; }
+      if(!WEEK.commitments.length){
+        /* No role at a centre yet: nothing to commit to, and saying "set them" would send the member looking for a form they do not have. */
+        weekList.innerHTML = WEEK.roles===0
+          ? '<li class="pc-empty">You are on CACENTRE, but not yet in a role at a centre, so there is nothing to commit to this week. The CACENTRE goals are below, and their steps are open to you.</li>'
+          : '<li class="pc-empty">No commitments for this week yet. Open my week to set them — they appear here.</li>';
+        return; }
       var open=TASKS.filter(function(t){ return !t.done && (t.mine || t.creator_name==='You'); });
       weekList.innerHTML=WEEK.commitments.map(function(c){
         var pct=c.target>0?Math.min(100,Math.round(100*c.delivered/c.target)):0, g=c.goal;
