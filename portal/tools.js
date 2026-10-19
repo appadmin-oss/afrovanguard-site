@@ -40,6 +40,8 @@
     }
     home.addEventListener('click', function (e) { var t = e.target.closest('[data-app]'); if (t) openApp(t.getAttribute('data-app')); });
     back.addEventListener('click', toHome);
+    /* /portal/?app=goals#tools opens that app — how the to-do pop-up sends an owner to check in. */
+    try { var want = new URLSearchParams(location.search).get('app'); if (want) setTimeout(function () { openApp(want); }, 0); } catch (e) {}
     // Reset to the launcher only when the Suite NAV LINK is clicked (the whole
     // view carries data-view="tools", so scope to the sidebar link itself).
     document.addEventListener('click', function (e) { if (e.target.closest('a.pnav-link[data-view="tools"]')) setTimeout(toHome, 0); });
@@ -326,7 +328,10 @@
     return fetch(url + '?action=' + action, { credentials: 'same-origin' }).then(function (r) { return r.json(); });
   }
   function onToolsOpen(fn) {
-    document.addEventListener('click', function (e) { if (e.target.closest('[data-view="tools"]')) setTimeout(function () { if (!document.getElementById('view-tools').hidden) fn(); }, 90); });
+    /* The Suite's nav link, not the view: the whole view carries data-view="tools", so
+       matching it reloaded every app on every click inside the Suite — and a reload
+       sent with a save could land after it and paint the old answer back. */
+    document.addEventListener('click', function (e) { if (e.target.closest('a[data-view="tools"], button[data-view="tools"]')) setTimeout(function () { if (!document.getElementById('view-tools').hidden) fn(); }, 90); });
     window.addEventListener('hashchange', function () { if (location.hash === '#tools') setTimeout(function () { if (!document.getElementById('view-tools').hidden) fn(); }, 90); });
     if (!document.getElementById('view-tools').hidden) fn();
   }
@@ -443,63 +448,184 @@
     onToolsOpen(load); window.__suiteRefresh['board'] = load;
   })();
 
-  /* ---- Goals & OKRs (org-shared, DB-backed) ---- */
+  /* ---- Goals & OKRs (org-shared, DB-backed) ----
+     A goal says what it measures; its owner checks in weekly (the number,
+     confidence 1–10, what changed, what is in the way); health is progress
+     against time gone; the forecast is drawn from what actually got done
+     (lib/GoalTrack.php). Progress is never typed. */
   (function () {
     var card = document.getElementById('tlGoals');
     if (!card) return;                       // org-only (server-gated)
     var csrf = card.getAttribute('data-csrf') || '';
-    var form = document.getElementById('tlGoalForm'), titleEl = document.getElementById('tlGoalTitle'),
-        targetEl = document.getElementById('tlGoalTarget'), listEl = document.getElementById('tlGoalList'),
-        msg = document.getElementById('tlGoalMsg');
-    var DATA = [];
+    var $id = function (i) { return document.getElementById(i); };
+    var form = $id('tlGoalForm'), listEl = $id('tlGoalList'), msg = $id('tlGoalMsg');
+    var F = { title: $id('tlGoalTitle'), purpose: $id('tlGoalPurpose'), unit: $id('tlGoalUnit'), baseline: $id('tlGoalBase'),
+              target_value: $id('tlGoalTo'), direction: $id('tlGoalDir'), start_on: $id('tlGoalStart'), due_on: $id('tlGoalDue'),
+              done_when: $id('tlGoalDone'), context: $id('tlGoalBg'), audience: $id('tlGoalAud'), scope: $id('tlGoalScope'),
+              constraints: $id('tlGoalCons'), risks: $id('tlGoalRisk'), resources: $id('tlGoalRes'), skills: $id('tlGoalSkills'), links: $id('tlGoalLinks') };
+    var CTX = ['done_when', 'context', 'audience', 'scope', 'constraints', 'risks', 'resources', 'skills', 'links'];
+    var CTX_LABEL = { done_when: 'Done when', context: 'Background', audience: 'Who it serves', scope: 'Scope', constraints: 'Constraints',
+                      risks: 'Risks', resources: 'Resources', skills: 'Skills needed', links: 'References' };
+    function ctxHTML(g) {
+      var c = g.context || {}, rows = CTX.filter(function (k) { return c[k]; });
+      var f = g.foundation;
+      var meter = f && !g.mirror && !g.closed ? '<span class="goal-found' + (f.score < 50 ? ' is-thin' : '') + '" title="' + esc(f.missing.length ? 'Would help: ' + f.missing.join(', ') : 'The planner has what it needs') + '">Planner context ' + f.score + '%</span>' : '';
+      if (!rows.length) return meter ? '<p class="goal-meta">' + meter + '</p>' : '';
+      return '<details class="goal-ctxv"><summary>Context' + (meter ? ' · ' + meter : '') + '</summary><dl>'
+        + rows.map(function (k) {
+            var v = k === 'links'
+              ? c[k].split(/\n+/).map(function (l) { l = l.trim(); return /^https?:\/\//i.test(l) ? '<a href="' + esc(l) + '" target="_blank" rel="noopener noreferrer">' + esc(l) + '</a>' : esc(l); }).join('<br>')
+              : esc(c[k]).replace(/\n/g, '<br>');
+            return '<dt>' + CTX_LABEL[k] + '</dt><dd>' + v + '</dd>';
+          }).join('') + '</dl></details>';
+    }
+    var DATA = [], EDITING = 0, OPEN = {};
+    var HEALTH = { on_track: ['On track', 'ok'], at_risk: ['At risk', 'warn'], behind: ['Behind', 'bad'], completed: ['Target reached', 'ok'],
+                   not_started: ['Not started', ''], no_date: ['No due date', ''], unmeasured: ['No progress yet', ''], closed: ['Closed', ''] };
     function say(t, k) { if (msg) { msg.textContent = t || ''; msg.className = 'poll-msg' + (k ? ' is-' + k : ''); } }
+    function num(v) { if (v === null || v === undefined) return '—'; var r = Math.round(v * 100) / 100; return r.toLocaleString(); }
+    function day(d) { if (!d) return ''; var x = new Date(d.replace(' ', 'T') + (d.length > 10 ? 'Z' : 'T00:00:00')); return isNaN(x) ? d : x.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); }
+    function ago(d) { if (!d) return ''; var x = new Date(d.replace(' ', 'T') + 'Z'); var n = Math.floor((Date.now() - x) / 86400000); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
     function goalHTML(g) {
-      var edit = g.mine ? '<button type="button" class="goal-step" data-edit="' + g.id + '">Edit</button>' : '';
-      var ctrl = g.mine && !g.closed
-        ? '<div class="goal-ctrl"><button type="button" class="goal-step" data-dec="' + g.id + '">−10</button>'
-          + '<button type="button" class="goal-step" data-inc="' + g.id + '">+10</button>' + edit
+      var h = HEALTH[(g.health && g.health.state) || 'unmeasured'] || ['', ''];
+      if (g.closed) h = [g.status === 'abandoned' ? 'Dropped' : 'Achieved', g.status === 'abandoned' ? '' : 'ok'];
+      var pct = g.pct == null ? 0 : g.pct, fill = Math.min(100, pct);
+      var exp = g.health && g.health.expected != null && !g.closed ? Math.round(g.health.expected * 100) : null;
+      var st = g.steps || { total: 0, done: 0 };
+      var measure = g.measured
+        ? '<p class="goal-num"><b>' + num(g.current_value != null ? g.current_value : g.baseline) + '</b> of ' + num(g.target_value) + ' ' + esc(g.unit)
+          + (g.baseline != null ? ' <span>from ' + num(g.baseline) + (g.direction === 'decrease' ? ', lower is better' : g.direction === 'maintain' ? ', held steady' : '') + '</span>' : '') + '</p>'
+        : (g.target ? '<p class="goal-target">🎯 ' + esc(g.target) + '</p>' : '<p class="goal-num goal-num--steps">Tracked by its steps</p>');
+      var stepsLine = st.total ? '<span>Steps ' + st.done + ' of ' + st.total + ' done' + (st.doing ? ' · ' + st.doing + ' doing' : '') + (st.blocked ? ' · <em class="is-bad">' + st.blocked + ' blocked</em>' : '') + '</span>' : '<span>No steps yet</span>';
+      var meta = [];
+      if (g.due_on) meta.push('Due ' + esc(day(g.due_on)));
+      if (g.forecast && g.forecast.date) meta.push('Likely ' + esc(day(g.forecast.date)) + (g.forecast.late_days > 3 ? ' <em class="is-bad">(' + g.forecast.late_days + ' days late)</em>' : g.forecast.late_days < -3 ? ' (early)' : ''));
+      if (g.confidence) meta.push('Confidence <b>' + g.confidence + '</b>/10');
+      if (g.checked_in_at) meta.push('Checked in ' + esc(ago(g.checked_in_at)));
+      var lc = g.last_checkin && (g.last_checkin.note || g.last_checkin.blocker)
+        ? '<blockquote class="goal-ci">' + (g.last_checkin.note ? esc(g.last_checkin.note) : '') + (g.last_checkin.blocker ? '<span class="goal-ci-b">In the way: ' + esc(g.last_checkin.blocker) + '</span>' : '') + '<cite>' + esc(g.last_checkin.by || '') + '</cite></blockquote>' : '';
+      var warns = (g.warnings || []).slice(0, 3).map(function (w) { return '<li class="goal-w goal-w--' + esc(w.kind) + '">' + esc(w.text) + '</li>'; }).join('');
+      var own = g.mine && !g.closed && !g.mirror;
+      var acts = own ? '<div class="goal-ctrl">'
+          + '<button type="button" class="pbtn pbtn-gold goal-act" data-ci="' + g.id + '" aria-expanded="' + (OPEN[g.id] === 'ci') + '">' + (g.checkin_due ? 'Check in — due' : 'Check in') + '</button>'
+          + '<button type="button" class="goal-step" data-edit="' + g.id + '">Edit</button>'
+          + '<button type="button" class="goal-step" data-close="' + g.id + '" aria-expanded="' + (OPEN[g.id] === 'close') + '">Close</button>'
           + '<button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>'
-        : (g.mine ? '<div class="goal-ctrl">' + edit + '<button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>' : '');
-      return '<article class="goal' + (g.closed ? ' is-done' : '') + '" data-id="' + g.id + '">'
-        + '<div class="goal-top"><h3>' + esc(g.title) + '</h3>' + (g.closed ? '<span class="poll-tag">Done</span>' : '<span class="goal-pct">' + g.progress + '%</span>') + '</div>'
-        + (g.target ? '<p class="goal-target">🎯 ' + esc(g.target) + '</p>' : '')
-        + '<div class="goal-bar"><span style="width:' + g.progress + '%"></span></div>'
-        + '<div class="goal-foot"><span>' + esc(g.author) + '</span>' + ctrl + '</div>'
+        : (g.mine && !g.mirror ? '<div class="goal-ctrl"><button type="button" class="goal-x" data-del="' + g.id + '">Delete</button></div>' : '');
+      var who = g.mirror ? 'From CACENTRE' + (g.code ? ' · ' + esc(g.code) : '') + ' — measured there' : esc(g.author);
+      return '<article class="goal goal--' + esc(h[1] || 'none') + (g.closed ? ' is-done' : '') + '" data-id="' + g.id + '">'
+        + '<div class="goal-top"><h3>' + esc(g.title) + '</h3><span class="goal-health goal-health--' + esc(h[1] || 'none') + '">' + esc(h[0]) + '</span></div>'
+        + (g.purpose ? '<p class="goal-why">' + esc(g.purpose) + '</p>' : '')
+        + (g.context && g.context.done_when ? '<p class="goal-why"><b>Done when:</b> ' + esc(g.context.done_when) + '</p>' : '')
+        + measure
+        + '<div class="goal-bar" role="img" aria-label="' + pct + '% done' + (exp != null ? ', ' + exp + '% expected by today' : '') + '"><span style="width:' + fill + '%"></span>'
+        + (exp != null && exp > 0 && exp < 100 ? '<i class="goal-pace" style="left:' + exp + '%" title="Where it should be by today"></i>' : '') + '</div>'
+        + '<div class="goal-line"><span class="goal-pct">' + (g.pct == null ? '—' : pct + '%') + '</span>' + stepsLine + '</div>'
+        + (meta.length ? '<p class="goal-meta">' + meta.join(' · ') + '</p>' : '')
+        + ctxHTML(g)
+        + lc + (warns && !g.closed ? '<ul class="goal-warns">' + warns + '</ul>' : '')
+        + (g.closed && g.closed_note ? '<p class="goal-why">' + esc(g.closed_note) + '</p>' : '')
+        + '<div class="goal-foot"><span>' + who + '</span>' + acts + '</div>'
+        + (OPEN[g.id] === 'ci' ? checkinForm(g) : '') + (OPEN[g.id] === 'close' ? closeForm(g) : '')
         + '</article>';
+    }
+    function checkinForm(g) {
+      var conf = '';
+      for (var i = 1; i <= 10; i++) conf += '<label class="goal-conf"><input type="radio" name="conf' + g.id + '" value="' + i + '"' + (i === (g.confidence || 0) ? ' checked' : '') + '><span>' + i + '</span></label>';
+      return '<form class="goal-sub" data-ciform="' + g.id + '">'
+        + (g.measured ? '<label class="goal-lbl">The number now (' + esc(g.unit || 'value') + ')<input name="value" class="goal-in goal-in--sm" inputmode="decimal" value="' + (g.current_value != null ? g.current_value : '') + '" required></label>' : '')
+        + '<fieldset class="goal-conf-set"><legend>How sure are you of hitting it? <span class="goal-opt">10 = certain</span></legend>' + conf + '</fieldset>'
+        + '<label class="goal-lbl">What changed this week<input name="note" class="goal-in goal-in--sm" maxlength="500"></label>'
+        + '<label class="goal-lbl">What is in the way <span class="goal-opt">optional — the next steps are planned around it</span><input name="blocker" class="goal-in goal-in--sm" maxlength="300"></label>'
+        + '<div class="goal-row goal-row--end"><span class="poll-msg" role="status" aria-live="polite"></span><button type="button" class="goal-step" data-cancel="' + g.id + '">Cancel</button><button type="submit" class="pbtn pbtn-gold">Save check-in</button></div></form>';
+    }
+    function closeForm(g) {
+      return '<form class="goal-sub" data-closeform="' + g.id + '">'
+        + '<fieldset class="goal-conf-set"><legend>How did it end?</legend>'
+        + '<label class="goal-radio"><input type="radio" name="st' + g.id + '" value="achieved" checked> Achieved</label>'
+        + '<label class="goal-radio"><input type="radio" name="st' + g.id + '" value="abandoned"> Dropped</label></fieldset>'
+        + '<label class="goal-lbl">How it went <span class="goal-opt">the line anybody reads a year from now</span><input name="note" class="goal-in goal-in--sm" maxlength="300"></label>'
+        + '<p class="goal-opt">Its unclaimed steps are removed; steps people hold stay theirs.</p>'
+        + '<div class="goal-row goal-row--end"><button type="button" class="goal-step" data-cancel="' + g.id + '">Cancel</button><button type="submit" class="pbtn pbtn-gold">Close goal</button></div></form>';
     }
     function render(goals) {
       DATA = goals || [];
-      listEl.innerHTML = goals && goals.length ? goals.map(goalHTML).join('')
-        : '<p class="pc-empty">No goals yet — set an objective above.</p>';
+      /* A refresh must not wipe a check-in being typed: keep what is in any
+         open form, and the focus, across the redraw. */
+      var kept = {}, focus = document.activeElement && listEl.contains(document.activeElement) ? document.activeElement : null, fName = '', fForm = '';
+      [].forEach.call(listEl.querySelectorAll('form.goal-sub'), function (f) {
+        var k = f.getAttribute('data-ciform') ? 'ci' + f.getAttribute('data-ciform') : 'cl' + f.getAttribute('data-closeform'), v = {};
+        [].forEach.call(f.elements, function (el) { if (!el.name) return; if (el.type === 'radio') { if (el.checked) v[el.name] = el.value; } else v[el.name] = el.value; });
+        kept[k] = v;
+        if (focus && f.contains(focus)) { fName = focus.name; fForm = k; }
+      });
+      listEl.innerHTML = DATA.length ? DATA.map(goalHTML).join('')
+        : '<p class="pc-empty">No goals yet — set an objective above, and say how you will know it is done.</p>';
+      [].forEach.call(listEl.querySelectorAll('form.goal-sub'), function (f) {
+        var k = f.getAttribute('data-ciform') ? 'ci' + f.getAttribute('data-ciform') : 'cl' + f.getAttribute('data-closeform'), v = kept[k];
+        if (!v) return;
+        [].forEach.call(f.elements, function (el) { if (!el.name || !(el.name in v)) return; if (el.type === 'radio') el.checked = el.value === v[el.name]; else el.value = v[el.name]; });
+        if (fForm === k && fName && f.elements[fName] && f.elements[fName].focus) { try { (f.elements[fName].length && !f.elements[fName].tagName ? f.elements[fName][0] : f.elements[fName]).focus(); } catch (e) {} }
+      });
     }
-    function load() { suiteGet('/portal/goals.php', 'list').then(function (d) { if (d && d.ok) render(d.goals); }).catch(function () {}); }
+    /* Only the newest answer is drawn: replies can arrive out of order. */
+    var seq = 0;
+    function load() { var my = ++seq; suiteGet('/portal/goals.php', 'list').then(function (d) { if (my === seq && d && d.ok) render(d.goals); }).catch(function () {}); }
     function findG(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return null; }
-    function bump(id, delta) {
-      var el = listEl.querySelector('.goal[data-id="' + id + '"] .goal-pct');
-      var cur = el ? parseInt(el.textContent, 10) || 0 : 0;
-      suitePost('/portal/goals.php', 'progress', csrf, { id: id, pct: Math.max(0, Math.min(100, cur + delta)) }).then(function (d) { if (d.ok) load(); });
+    function payload() {
+      var b = {}; Object.keys(F).forEach(function (k) { if (F[k]) b[k] = (F[k].value || '').trim(); }); b.target = ''; return b;
+    }
+    function resetForm() {
+      Object.keys(F).forEach(function (k) { if (F[k]) F[k].value = k === 'direction' ? 'increase' : ''; });
+      EDITING = 0; var btn = form.querySelector('[type=submit]'); if (btn) btn.textContent = 'Add goal';
+      var det = $id('tlGoalCtx'); if (det) det.open = false;
     }
     form && form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var t = (titleEl.value || '').trim();
-      if (!t) { say('Add an objective.', 'err'); return; }
-      suitePost('/portal/goals.php', 'create', csrf, { title: t, target: targetEl.value || '' }).then(function (d) {
-        if (!d.ok) { say(d.error || 'Could not add.', 'err'); return; }
-        titleEl.value = ''; targetEl.value = ''; say(''); load();
+      var b = payload();
+      if (!b.title) { say('Add an objective.', 'err'); F.title.focus(); return; }
+      if (b.target_value && !b.unit) { say('Say what the number counts — members, naira, sessions…', 'err'); F.unit.focus(); return; }
+      if (EDITING) b.id = EDITING;
+      suitePost('/portal/goals.php', EDITING ? 'edit' : 'create', csrf, b).then(function (d) {
+        if (!d.ok) { say(d.error || 'Could not save.', 'err'); return; }
+        say(EDITING ? 'Saved.' : (d.steps ? 'Added — ' + d.steps + ' first step' + (d.steps === 1 ? '' : 's') + ' drawn.' : 'Added.'), 'ok');
+        resetForm(); load();
       }).catch(function () { say('Network error.', 'err'); });
     });
     listEl.addEventListener('click', function (e) {
-      var inc = e.target.closest('[data-inc]'); if (inc) { bump(+inc.getAttribute('data-inc'), 10); return; }
-      var dec = e.target.closest('[data-dec]'); if (dec) { bump(+dec.getAttribute('data-dec'), -10); return; }
-      var ed = e.target.closest('[data-edit]');
-      if (ed) {
-        var g = findG(+ed.getAttribute('data-edit')); if (!g) return;
-        var nt = prompt('Objective:', g.title); if (nt === null) return;
-        var ng = prompt('Target metric (optional):', g.target || ''); if (ng === null) ng = g.target || '';
-        if (!nt.trim()) return;
-        suitePost('/portal/goals.php', 'edit', csrf, { id: g.id, title: nt, target: ng }).then(function (d) { if (d.ok) load(); }); return;
+      var b;
+      if ((b = e.target.closest('[data-ci]'))) { var i = +b.getAttribute('data-ci'); OPEN[i] = OPEN[i] === 'ci' ? '' : 'ci'; render(DATA); var f = listEl.querySelector('[data-ciform="' + i + '"] input'); if (f) f.focus(); return; }
+      if ((b = e.target.closest('[data-close]'))) { var c = +b.getAttribute('data-close'); OPEN[c] = OPEN[c] === 'close' ? '' : 'close'; render(DATA); return; }
+      if ((b = e.target.closest('[data-cancel]'))) { OPEN[+b.getAttribute('data-cancel')] = ''; render(DATA); return; }
+      if ((b = e.target.closest('[data-edit]'))) {
+        var g = findG(+b.getAttribute('data-edit')); if (!g) return;
+        EDITING = g.id;
+        F.title.value = g.title || ''; F.purpose.value = g.purpose || ''; F.unit.value = g.unit || '';
+        F.baseline.value = g.baseline != null ? g.baseline : ''; F.target_value.value = g.target_value != null ? g.target_value : '';
+        F.direction.value = g.direction || 'increase'; F.start_on.value = g.start_on || ''; F.due_on.value = g.due_on || '';
+        var cx = g.context || {};
+        CTX.forEach(function (k) { if (F[k]) F[k].value = cx[k] || ''; });
+        var det = $id('tlGoalCtx'); if (det) det.open = true;
+        var btn = form.querySelector('[type=submit]'); if (btn) btn.textContent = 'Save goal';
+        say('Editing “' + g.title + '”.'); F.title.focus(); form.scrollIntoView({ block: 'nearest' }); return;
       }
-      var dl = e.target.closest('[data-del]'); if (dl) { if (confirm('Delete this goal?')) suitePost('/portal/goals.php', 'delete', csrf, { id: +dl.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+      if ((b = e.target.closest('[data-del]'))) { if (confirm('Delete this goal? Its check-ins go with it.')) suitePost('/portal/goals.php', 'delete', csrf, { id: +b.getAttribute('data-del') }).then(function (d) { if (d.ok) load(); }); }
+    });
+    listEl.addEventListener('submit', function (e) {
+      var f = e.target, id;
+      if ((id = +f.getAttribute('data-ciform'))) {
+        e.preventDefault();
+        var c = f.querySelector('input[type=radio]:checked'), out = f.querySelector('.poll-msg');
+        if (!c) { if (out) out.textContent = 'How sure are you, 1 to 10?'; return; }
+        suitePost('/portal/goals.php', 'checkin', csrf, { id: id, value: f.elements.value ? f.elements.value.value : '', confidence: +c.value, note: f.elements.note.value, blocker: f.elements.blocker.value }).then(function (d) {
+          if (!d.ok) { if (out) out.textContent = d.error || 'Could not save.'; return; }
+          OPEN[id] = ''; load();
+        });
+      } else if ((id = +f.getAttribute('data-closeform'))) {
+        e.preventDefault();
+        var s2 = f.querySelector('input[type=radio]:checked');
+        suitePost('/portal/goals.php', 'close', csrf, { id: id, status: s2 ? s2.value : 'achieved', note: f.elements.note.value }).then(function (d) { if (d.ok) { OPEN[id] = ''; load(); } });
+      }
     });
     onToolsOpen(load); window.__suiteRefresh['goals'] = load;
   })();

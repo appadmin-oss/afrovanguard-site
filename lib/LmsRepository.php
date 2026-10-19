@@ -536,17 +536,43 @@ final class LmsRepository
                 . var_export($paidKobo, true) . ' kobo < owed ' . (int) $p['amount_kobo']);
             return false;
         }
-        $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=?")->execute([gmdate('Y-m-d H:i:s'), $reference]);
+        /* ONE CLAIM, ONE GRANT. The webhook, the browser's return and the
+           cron sweep can all arrive for the same reference at once, and each
+           read 'pending' above. The update used to be unconditional, so every
+           one of them went on to grantMembership — and a renewal extends from
+           the later of now or the paid-through date, so one payment bought two
+           years. The status test is in the UPDATE now, and only the caller
+           whose UPDATE changed the row grants; the others see it already paid.
+           The claim and the grant commit together, so a grant that throws does
+           not leave a row marked paid with nothing behind it. */
+        $own = !$this->db->inTransaction();
+        if ($own) $this->db->beginTransaction();
+        try {
+            $st = $this->db->prepare("UPDATE payments SET status='paid', paid_at=? WHERE reference=? AND status <> 'paid'");
+            $st->execute([gmdate('Y-m-d H:i:s'), $reference]);
+            if ($st->rowCount() !== 1) {
+                if ($own) $this->db->commit();
+                return true;                            // somebody else claimed it: paid, and granted once, by them
+            }
+            if ($p['kind'] === 'course' && $p['course_id']) {
+                $this->enrol((int) $p['user_id'], (int) $p['course_id']);
+            } elseif ($p['kind'] === 'membership') {
+                $this->grantMembership((int) $p['user_id'], (int) ($p['months'] ?? 12) ?: 12);
+            }
+            if ($own) $this->db->commit();
+        } catch (Throwable $e) {
+            if ($own && $this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+        /* Mail after the commit: a slow mailer must not hold the write lock. */
         $user = $this->userRow((int) $p['user_id']);
-        if ($p['kind'] === 'course' && $p['course_id']) {
-            $this->enrol((int) $p['user_id'], (int) $p['course_id']);
-            if ($user && class_exists('Notify')) {
+        if ($user && class_exists('Notify')) {
+            if ($p['kind'] === 'course' && $p['course_id']) {
                 $c = $this->courseRow((int) $p['course_id']);
                 if ($c) Notify::enrolled($user, $c);
+            } elseif ($p['kind'] === 'membership') {
+                Notify::membership($user);
             }
-        } elseif ($p['kind'] === 'membership') {
-            $this->grantMembership((int) $p['user_id'], (int) ($p['months'] ?? 12) ?: 12);
-            if ($user && class_exists('Notify')) Notify::membership($user);
         }
         return true;
     }

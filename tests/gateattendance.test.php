@@ -88,11 +88,38 @@ ck('Gate: …linked from the register row', (int) $gaRow($ada, $d2)['fine_id'] =
 ck('Gate: a member who is not an NGV participant is never fined — there is no account to fine', $gaFines($bola) === []);
 AvRules::save(['gate.late_fine' => '0'], 'test');
 
+/* ── Signing in on the phone: the card was left at home ──────────────────── */
+$gaPass = static function (string $pid, int $mid, string $day) use ($gaIn): array { $p = $gaIn($pid, $mid, $day); $p['method'] = 'pass'; return $p; };
+$dn = '2026-09-26';
+GateAttendance::report([$gaPass('p-n1', $ada, $dn)]);
+ck('Gate: a phone pass from a member with NO printed card is not fined — only somebody who has a card can forget it',
+   array_filter($gaFines($ada), static fn($c) => str_starts_with((string) $c['period'], 'nocard:')) === []);
+MemberCards::issue($ada, 'test', 'test');
+$dn2 = '2026-09-25';
+GateAttendance::report([$gaPass('p-n2', $ada, $dn2), $gaIn('p-n3', $ada, '2026-09-24')]);
+$nc = array_values(array_filter($gaFines($ada), static fn($c) => str_starts_with((string) $c['period'], 'nocard:')));
+ck('Gate: a carded NGV participant who signs in with the phone is fined the Fines desk’s “Uniform or ID card” amount, once, for that day',
+   count($nc) === 1 && $nc[0]['period'] === 'nocard:' . $dn2 && $nc[0]['reason'] === 'uniform'
+   && (int) $nc[0]['amount'] === (int) NgvFines::catalogue()['uniform']['amount'] && (int) $nc[0]['amount'] > 0);
+ck('Gate: …and the card scanned the next day costs nothing', count($nc) === 1);
+MemberCards::issue($bola, 'test', 'test');
+GateAttendance::report([$gaPass('p-n4', $bola, $dn2)]);
+ck('Gate: a member who is not an NGV participant is not fined for the phone either', $gaFines($bola) === []);
+AvRules::save(['gate.fine_phone_signin' => '0'], 'test');
+GateAttendance::report([$gaPass('p-n5', $ada, '2026-09-23')]);
+ck('Gate: with the rule switched off, the phone costs nothing',
+   count(array_filter($gaFines($ada), static fn($c) => str_starts_with((string) $c['period'], 'nocard:'))) === 1);
+AvRules::save(['gate.fine_phone_signin' => '1'], 'test');
+foreach ($gaFines($ada) as $c) if (str_starts_with((string) $c['period'], 'nocard:')) NgvDb::pdo()->exec('DELETE FROM ngv_charges WHERE id = ' . (int) $c['id']);
+
 /* ── Absences ────────────────────────────────────────────────────────────── */
 ck('Gate: absences are not marked until switched on', GateAttendance::sweep('2026-10-02')['off'] ?? false);
 AvRules::save(['gate.mark_absent' => '1', 'gate.absent_fine' => '2000', 'gate.holidays' => '2026-09-30'], 'test');
 Database::metaSet('gate_absent_swept_through', '2026-09-29');
 $chi = $gaUser('Chi Vanguard'); $gaEnrol($chi, 'Chi Vanguard');
+/* The excuse window is two weeks back from "today"; these checks are about
+   fixed days, so today is pinned to the morning after them. */
+GateAttendance::$todayForTests = '2026-10-02';
 GateAttendance::requestExcuse($chi, '2026-10-01', 'Exam at school');
 $s = GateAttendance::sweep('2026-10-02');
 ck('Gate: the sweep covers the days since the last one, up to yesterday', $s['days'] === 2 && $s['through'] === '2026-10-01');
@@ -124,6 +151,8 @@ AvRules::save(['gate.mark_absent' => '0', 'gate.absent_fine' => '0', 'gate.holid
 ck('Gate: an excuse needs a reason', !GateAttendance::requestExcuse($ada, '2026-10-05', '')['ok']);
 ck('Gate: nobody is excused from a day the gate has them in', !GateAttendance::requestExcuse($ada, $day, 'I was ill')['ok']);
 ck('Gate: and one request per day', GateAttendance::requestExcuse($ada, '2026-10-05', 'Hospital')['ok'] && !GateAttendance::requestExcuse($ada, '2026-10-05', 'Again')['ok']);
+
+GateAttendance::$todayForTests = null;
 
 /* ── Leave: a request with a duration ────────────────────────────────────── */
 $lvDay = fn(int $n) => date('Y-m-d', strtotime((function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')) . ' ' . ($n >= 0 ? '+' : '') . $n . ' days'));
@@ -185,6 +214,20 @@ ck('Gate: a suspended member’s card resolves with the reason, not as active',
    GateAttendance::assignCard($sus, '', 1)['ok'] && GateAttendance::resolveCard((string) GateAttendance::cardFor($sus))['person']['status'] !== 'active');
 ck('Gate: search finds active members by name, and never a suspended one',
    in_array((string) $ada, array_column(GateAttendance::search('vanguard'), 'ref'), true) && GateAttendance::search('pended') === []);
+
+/* Who the gate counts as a member: the site's own definition, not a fixed list. */
+$gaSec = $gaUser('Gatewho Secretary', 'secretary');
+$gaLrn = $gaUser('Gatewho Learner', 'learner');
+$gaVan = $gaUser('Gatewho Vanguard', 'learner'); $gaEnrol($gaVan, 'Gatewho Vanguard');
+$gaFound = array_column(GateAttendance::search('gatewho'), 'ref');
+ck('Gate: a member with a role beyond the old list (secretary) is found at the desk', in_array((string) $gaSec, $gaFound, true));
+ck('Gate: a NextGen Vanguard whose account began as a learner is found too', in_array((string) $gaVan, $gaFound, true));
+ck('Gate: a learner who is no member is not', !in_array((string) $gaLrn, $gaFound, true));
+ck('Gate: and the pass agrees with the desk', GatePass::roleAllowed(['id' => $gaVan, 'role' => 'learner']) && !GatePass::roleAllowed(['id' => $gaLrn, 'role' => 'learner']));
+ck('Gate: search by email finds them as well', in_array((string) $gaSec, array_column(GateAttendance::search('gatewho.secretary'), 'ref'), true));
+putenv('GATE_PASS_ROLES=admin,member');
+ck('Gate: GATE_PASS_ROLES, when set, still decides', !GatePass::roleAllowed(['id' => $gaSec, 'role' => 'secretary']) && GatePass::roleAllowed(['id' => 1, 'role' => 'member']));
+putenv('GATE_PASS_ROLES');
 
 /* ── Probation ───────────────────────────────────────────────────────────── */
 foreach (['gate_probation', 'gate_points'] as $t) $gaPdo->exec('DELETE FROM ' . $t);

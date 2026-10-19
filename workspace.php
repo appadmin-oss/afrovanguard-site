@@ -41,6 +41,11 @@ $parts      = preg_split('/\s+/', $name) ?: [];
 $initials   = strtoupper(substr((string) ($parts[0] ?? 'A'), 0, 1) . substr((string) ($parts[1] ?? ''), 0, 1)) ?: 'A';
 $theme      = (($_COOKIE['av_portal_theme'] ?? 'dark') === 'light') ? 'light' : 'dark';
 
+/* What the Google connect round-trip came back with. auth/google.php has always
+   returned here with ?connected=1 or ?e=…, and nothing read either: a failed
+   connect landed on the same page as before with no word about it. */
+$wsNotice = av_workspace_notice((string) ($_GET['e'] ?? ''), isset($_GET['connected']));
+
 // Quick-action deep links (org-scoped where Google supports it).
 $act = [
     'compose' => av_ws_link('AV_WS_MAIL_URL', "https://mail.google.com/a/$domain") . '#compose',
@@ -56,6 +61,7 @@ render_head([
     'robots'     => 'noindex, nofollow',
     'body_class' => 'ws-page' . ($theme === 'light' ? ' ws-light' : ''),
     'manifest'   => '/manifest.webmanifest',
+    'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
 ?>
 <style>
@@ -116,6 +122,9 @@ render_head([
 
   /* hero */
   .ws-hero{padding:34px 0 10px}
+  .ws-notice{margin:18px 0 0;padding:12px 16px;border-radius:12px;border:1px solid var(--ws-line);background:var(--ws-surface);font-weight:600}
+  .ws-notice--ok{border-color:#2f8f5b}
+  .ws-notice--err{border-color:#d0505f}
   .ws-hello{font-family:var(--afg-font-display,'Cormorant Garamond',Georgia,serif);font-size:clamp(28px,4vw,40px);
     font-weight:700;margin:0 0 6px;letter-spacing:-.01em;color:var(--ws-ink)}
   .ws-sub{color:var(--ws-muted);margin:0 0 22px;font-size:15px}
@@ -312,6 +321,9 @@ render_head([
 </header>
 
 <main id="main-content" class="ws-wrap">
+<?php if ($wsNotice): ?>
+  <p class="ws-notice ws-notice--<?= e($wsNotice['tone']) ?>" role="<?= $wsNotice['tone'] === 'ok' ? 'status' : 'alert' ?>"><?= e($wsNotice['text']) ?></p>
+<?php endif; ?>
 
   <section class="ws-hero">
     <h1 class="ws-hello"><?= wsGreeting() ?>, <?= e($first) ?>.</h1>
@@ -614,7 +626,7 @@ render_head([
   }
 })();
 </script>
-<script src="/portal/team-chat.js" defer></script>
+<script src="<?= e(av_asset('/portal/team-chat.js')) ?>" defer></script>
 <?php
 /** Local greeting by time of day (server tz). */
 function wsGreeting(): string

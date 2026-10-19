@@ -24,7 +24,10 @@
   if (document.documentElement.hasAttribute('data-no-chioma')) return;
 
   var ENDPOINT = '/chioma.php';
-  var AVATAR   = '/assets/site/chioma-avatar.png';
+  // A designed avatar is opt-in: <html data-chioma-avatar="/path.png">. Without
+  // it the drawn mark below is used directly, so no page requests a file that
+  // is not there (it used to probe for one on every page view, a 404 each time).
+  var AVATAR   = document.documentElement.getAttribute('data-chioma-avatar') || '';
 
   /* Chioma's mark — a symbol, not a portrait.
 
@@ -35,9 +38,7 @@
      with no gradient or shadow — it has to hold up at 24px on a phone, where
      any shading turns to mud.
 
-     It renders as an <img> when /assets/site/chioma-avatar.png is present, so
-     a designed asset can replace this by dropping the file in, with no code
-     change and no broken-image box while it is absent. */
+     A designed asset can replace it: set data-chioma-avatar on <html>. */
   var MARK_SVG =
     '<svg class="ch-mark-svg" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">' +
       '<path d="M23.39 24.81A11.5 11.5 0 1 1 26.81 12.07" stroke="currentColor" ' +
@@ -54,6 +55,7 @@
   };
 
   function markHTML() {
+    if (!AVATAR) return MARK_SVG;
     return '<img class="ch-mark" src="' + AVATAR + '" alt="" aria-hidden="true" data-ch-mark>';
   }
   // Swap any avatar that fails to load for the inline mark. Bound rather than
@@ -403,16 +405,32 @@
 
   function saveHistory() { try { sessionStorage.setItem('chioma.history', JSON.stringify(history.slice(-20))); } catch (e) {} }
 
-  var CHIPS = [
-    ['What courses are open?', 'What Academy courses are open right now?'],
-    ['How do I donate?', 'How can I donate?'],
-    ['Get involved', 'How can I get involved or volunteer?'],
-    ['What is Afrovanguard?', 'What is Afrovanguard about?']
-  ];
+  /* Starting points that fit where the visitor is, and whether they are
+     signed in (html.av-si, set in every page head from the session hint).
+     A signed-in member is offered their own record first — Chioma can read
+     it for them (my_overview); a stranger is never offered what she cannot do. */
+  var CHIPS = {
+    me:       [['How am I doing?', 'How am I doing on my courses and programme?'], ['What should I do next?', 'What should I do next?']],
+    academy:  [['What courses are open?', 'What Academy courses are open right now?'], ['How does enrolment work?', 'How does enrolment in the Academy work?']],
+    donate:   [['What does a gift pay for?', 'What does a gift pay for right now?'], ['Can I give materials?', 'Can I donate materials instead of money?']],
+    events:   [['What’s coming up?', 'What events are coming up?'], ['When is the summit?', 'When is the D’Vanguard National Summit?']],
+    diary:    [['Summarise this entry', 'Summarise this Diary entry for me.'], ['More like this', 'Find me more Diary entries like this one.']],
+    contact:  [['Write to the team for me', 'Help me write a message to the team.']],
+    base:     [['What courses are open?', 'What Academy courses are open right now?'], ['What’s coming up?', 'What events are coming up?'],
+               ['Get involved', 'How can I get involved or volunteer?'], ['What is Afrovanguard?', 'What is Afrovanguard about?']]
+  };
+  function chipList() {
+    var signedIn = document.documentElement.classList.contains('av-si');
+    var k = routeKey(), out = [];
+    if (signedIn) out = out.concat(CHIPS.me);
+    if (CHIPS[k]) out = out.concat(CHIPS[k]);
+    CHIPS.base.forEach(function (c) { if (out.length < 4 && !out.some(function (o) { return o[0] === c[0]; })) out.push(c); });
+    return out.slice(0, 4);
+  }
   function renderChips(show) {
     chips.innerHTML = '';
     if (!show) return;
-    CHIPS.forEach(function (c) {
+    chipList().forEach(function (c) {
       var b = el('button', 'ch-chip'); b.type = 'button'; b.textContent = c[0];
       b.addEventListener('click', function () { sendMessage(c[1]); });
       chips.appendChild(b);

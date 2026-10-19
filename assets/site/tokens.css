@@ -58,7 +58,7 @@
 
   /* Accent (semantic wrappers over the brand gold) */
   --afg-accent:        var(--afg-gold);        /* fills, active bars       */
-  --afg-accent-ink:    var(--afg-gold-deep);   /* accent TEXT (AA)         */
+  --afg-accent-ink:    var(--afg-gold-ink);    /* accent TEXT: AA at any size (5.16:1); gold-deep is large-text only */
   --afg-accent-soft:   var(--afg-gold-soft);
   --afg-on-accent:     #111827;                /* text on a gold fill      */
 
@@ -139,6 +139,8 @@
     --afg-body:          #c3cad6;
     --afg-muted:         #8a93a3;
     --afg-accent-ink:    #f3b416;              /* gold is AA on dark, so text can use it */
+    --afg-gold-ink:      #f3c34a;              /* small gold text on dark (the light value is 2.9:1 here) */
+    --afg-gold-deep:     #f3b416;
     --afg-success:       #34d399;
     --afg-danger:        #f87171;
     --afg-on-accent:     #111827;
@@ -158,6 +160,8 @@
   --afg-body:          #c3cad6;
   --afg-muted:         #8a93a3;
   --afg-accent-ink:    #f3b416;
+  --afg-gold-ink:      #f3c34a;
+  --afg-gold-deep:     #f3b416;
   --afg-success:       #34d399;
   --afg-danger:        #f87171;
   --afg-on-accent:     #111827;
@@ -174,7 +178,7 @@
   --afg-ink:           #111827;
   --afg-body:          #374151;
   --afg-muted:         #646b77;   /* keep in step with the :root default above */
-  --afg-accent-ink:    var(--afg-gold-deep);
+  --afg-accent-ink:    var(--afg-gold-ink);
   --afg-success:       #16a34a;
   --afg-danger:        #b91c1c;
 }

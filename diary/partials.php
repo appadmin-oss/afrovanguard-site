@@ -116,8 +116,17 @@ function avd_author(array $au): void { $first = explode(' ', $au['name'])[0]; ?>
       <p class="avd-author-role"><?= e($au['role']) ?></p>
       <div class="avd-row">
         <a class="avd-btn" href="/diary/?author=<?= e(rawurlencode($au['slug'])) ?>">More by <?= e($first) ?></a>
-        <button type="button" class="avd-btn" data-avd-follow aria-pressed="false">Follow</button>
+        <button type="button" class="avd-btn" data-avd-follow data-author="<?= e($au['slug']) ?>" data-first="<?= e($first) ?>" aria-pressed="false">Follow</button>
       </div>
+      <form class="avd-follow-form" data-avd-follow-form hidden novalidate>
+        <label for="avd-follow-email">Get an email when <?= e($first) ?> publishes something new.</label>
+        <div class="avd-follow-row">
+          <input id="avd-follow-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+          <input type="text" name="hp" class="avd-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button type="submit" class="avd-btn avd-btn--ink">Follow</button>
+        </div>
+      </form>
+      <p class="avd-follow-msg" data-avd-follow-msg role="status" aria-live="polite"></p>
     </div>
   </aside>
 <?php }

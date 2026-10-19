@@ -8,9 +8,13 @@
  * back to a core font it never embeds if it cannot — which is how a card gets
  * printed in Helvetica.
  *
- * TTF, not WOFF2: dompdf reads TrueType. Browsers read it too, so one file per
- * weight serves both the screen card and the print sheet, and the two cannot
- * drift onto different typefaces.
+ * WOFF2 first, TTF second. Browsers take the WOFF2: the same faces, subset to
+ * Latin, Latin Extended (with Yoruba's dotted and toned letters) and the
+ * naira sign, about a seventh of the size (2.8 MB → 0.4 MB for the set).
+ * dompdf reads only TrueType and skips the WOFF2 source, so the printed card
+ * still embeds the TTF — the same typeface, from the same family files.
+ * Regenerate after changing a TTF: pyftsubset X.ttf --flavor=woff2 with the
+ * same --unicodes (see docs/performance.md).
  *
  * Cormorant Garamond is NOT Cormorant — the site used to load the latter from
  * Google Fonts. They are different faces by the same designer, and G-06 names
@@ -24,7 +28,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/assets/site/fonts/CormorantGaramond-400.ttf') format('truetype');
+  src: url('/assets/site/fonts/CormorantGaramond-400.woff2') format('woff2'), url('/assets/site/fonts/CormorantGaramond-400.ttf') format('truetype');
 }
 
 @font-face {
@@ -32,7 +36,16 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/assets/site/fonts/CormorantGaramond-500.ttf') format('truetype');
+  src: url('/assets/site/fonts/CormorantGaramond-500.woff2') format('woff2'), url('/assets/site/fonts/CormorantGaramond-500.ttf') format('truetype');
+}
+
+/* 500 italic: the mission line on the back of the member card. */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/site/fonts/CormorantGaramond-500-italic.woff2') format('woff2'), url('/assets/site/fonts/CormorantGaramond-500-italic.ttf') format('truetype');
 }
 
 @font-face {
@@ -40,7 +53,7 @@
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/assets/site/fonts/CormorantGaramond-600.ttf') format('truetype');
+  src: url('/assets/site/fonts/CormorantGaramond-600.woff2') format('woff2'), url('/assets/site/fonts/CormorantGaramond-600.ttf') format('truetype');
 }
 
 @font-face {
@@ -48,7 +61,17 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/assets/site/fonts/CormorantGaramond-700.ttf') format('truetype');
+  src: url('/assets/site/fonts/CormorantGaramond-700.woff2') format('woff2'), url('/assets/site/fonts/CormorantGaramond-700.ttf') format('truetype');
+}
+
+/* 300: the given name on the member card (avc-card.css .avc-given). Without
+   this file the browser drew it at 400 and dompdf fell back to a core serif. */
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/assets/site/fonts/SourceSans3-300.woff2') format('woff2'), url('/assets/site/fonts/SourceSans3-300.ttf') format('truetype');
 }
 
 @font-face {
@@ -56,7 +79,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/assets/site/fonts/SourceSans3-400.ttf') format('truetype');
+  src: url('/assets/site/fonts/SourceSans3-400.woff2') format('woff2'), url('/assets/site/fonts/SourceSans3-400.ttf') format('truetype');
 }
 
 @font-face {
@@ -64,7 +87,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/assets/site/fonts/SourceSans3-500.ttf') format('truetype');
+  src: url('/assets/site/fonts/SourceSans3-500.woff2') format('woff2'), url('/assets/site/fonts/SourceSans3-500.ttf') format('truetype');
 }
 
 @font-face {
@@ -72,7 +95,7 @@
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/assets/site/fonts/SourceSans3-600.ttf') format('truetype');
+  src: url('/assets/site/fonts/SourceSans3-600.woff2') format('woff2'), url('/assets/site/fonts/SourceSans3-600.ttf') format('truetype');
 }
 
 @font-face {
@@ -80,7 +103,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/assets/site/fonts/SourceSans3-700.ttf') format('truetype');
+  src: url('/assets/site/fonts/SourceSans3-700.woff2') format('woff2'), url('/assets/site/fonts/SourceSans3-700.ttf') format('truetype');
 }
 
 @font-face {
@@ -88,5 +111,5 @@
   font-style: normal;
   font-weight: 800;
   font-display: swap;
-  src: url('/assets/site/fonts/SourceSans3-800.ttf') format('truetype');
+  src: url('/assets/site/fonts/SourceSans3-800.woff2') format('woff2'), url('/assets/site/fonts/SourceSans3-800.ttf') format('truetype');
 }

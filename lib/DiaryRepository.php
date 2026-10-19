@@ -721,6 +721,9 @@ SQL;
                 'date'     => (string) $c['published'],
                 'minutes'  => (int) $c['read_minutes'],
                 'views'    => (int) ($counts[$id]['views'] ?? 0),
+                'slug'     => (string) $c['slug'],
+                'cover'    => (string) ($c['cover_url'] ?? ''),
+                'published_at' => (string) ($c['published_at'] ?? ''),
             ];
         }
         return $out;

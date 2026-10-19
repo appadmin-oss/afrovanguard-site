@@ -115,7 +115,7 @@ The word doing the work is **active** (§4A): "Simply listing two names should n
 | Agenda storage | ✅ | `meetings.agenda` column |
 | **Agenda auto-proposal (§7)** | ❌ | column exists; nothing generates it |
 | Pre-meeting pack distribution (§8) | ❌ | — |
-| Transcript capture | ✅ | `pullGoogleTranscript()` — Meet REST API, then Drive Doc fallback; `RecallBot` recorder bots; manual paste |
+| Transcript capture | ✅ | `pullGoogleTranscript()` — Meet REST API, then Drive Doc fallback; optional Attendee notetaker (`AttendeeBot`); manual paste |
 | **AI minutes: summary / highlights / decisions / action items (§11)** | ✅ | `Meetings::structure()` — Gemini Flash preferred, Anthropic fallback, strict-JSON prompt, `do not invent facts` |
 | Minutes distribution | ⚠️ partial | stored + viewable; not pushed to participants |
 | **Action items → task system (§11)** | ❌ **the critical gap** | `structure()` returns `[{task, owner}]`, written to `meeting_transcripts.action_items` as a **JSON blob** and rendered read-only in `portal/meetings.js:60`. Never becomes a `collab_tasks` row. No `owner_id`, no deadline, no follow-up, no reminder. The owner is a **name string**, not a member. |
@@ -362,7 +362,7 @@ The report's three-level cost framing (§35) is sound. Its cost *drivers* need c
 - Anthropic for the bot/agenda — controllable via `AV_AI_MODEL`. `lib/AvBot.php` defaults to an Opus-class model; **for the sweep and agenda drafting, set a cheaper tier.** Reserve the expensive model for member-facing conversation. This one env var is the largest single lever on recurring AI spend.
 - Google Workspace — already paid.
 - Hosting — already paid; shared cPanel is sufficient, which is why `tasks/cron.php` exists in its web-triggerable form.
-- Optional: Recall.ai recorder bots — **the one genuinely usage-priced external service.** Per-meeting-hour. Make it opt-in per meeting, not default-on; Google's own Meet transcripts are free and already wired.
+- Optional: the Attendee notetaker — free per meeting when self-hosted (a small container), billed per meeting on its hosted service. Opt-in per meeting, not default-on; Google's own Meet transcripts are free and already wired. (Recall.ai, which billed per meeting-hour, was retired.)
 
 **One-off:** the ~17–22 dev-days for the accountability core. Then reassess after the pilot.
 

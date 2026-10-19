@@ -71,7 +71,7 @@ if ($action === 'pay_init') {
 
     if ($planCode !== '') {
         $url = Payments::paystackInitPlan((string) $u['email'], $planCode, $reference, $callback, $meta);
-        if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 502);
+        if (!$url) json_out(['ok' => false, 'error' => 'Could not start the payment. Please try again in a moment.'], 503);
         json_out(['ok' => true, 'authorization_url' => $url, 'reference' => $reference]);
     }
 
@@ -81,7 +81,7 @@ if ($action === 'pay_init') {
         (string) ($u['name'] ?? ''), $meta
     );
     if (empty($started['ok'])) {
-        json_out(['ok' => false, 'error' => (string) ($started['error'] ?? 'Could not start the payment.')], 502);
+        json_out(['ok' => false, 'error' => (string) ($started['error'] ?? 'Could not start the payment.')], 503);
     }
     json_out(['ok' => true, 'authorization_url' => $started['url'], 'reference' => $reference]);
 }

@@ -17,22 +17,27 @@
  * than one that is merely wrong, because the reader cannot learn it
  * (WCAG 3.2.3, Consistent Navigation).
  *
- * THE FIX
- * -------
- * av_nav_model() is the single source. This class renders render_nav() and
- * splices the result into each static page, replacing exactly one block: the
- * `<div class="avh-chrome" data-avh-chrome>` wrapper that holds the bar, the
- * backdrop and the drawer, found by counting <div> opens and closes. Nothing
- * else in the file is touched, so a page that wraps the nav in markup of its
- * own (index and projects close a fixed `.site-top` after it) keeps it.
+ * SINCE THE REDESIGN
+ * ------------------
+ * render_nav() emits the Home nav (partials/avh-chrome.php) and the static pages
+ * carry the same markup via tools/build-avh-chrome.php, so there is no second
+ * navigation left to sync. This class keeps locate() — the finder for the OLD
+ * block — so tests/nav.test.php can assert no page still carries it; sync()
+ * only reports and never writes.
+ *
+ * THE FIX (historical)
+ * --------------------
+ * av_nav_model() is the single source. This class renders it and splices the
+ * result into each static page between the boundaries the markup already has:
+ * from `<header class="site-header"` to the closing tag of the drawer that
+ * follows it. Nothing else in the file is touched.
  *
  * `bin/sync-nav.php` writes; `tests/nav.test.php` checks. So a change to the
  * menu is made once, and a static page that falls behind fails the suite rather
  * than going unnoticed until someone clicks it.
  *
  * Rendering happens with no session, which is what a static page needs: the
- * signed-out bar, never a member baked into a file; avh-nav.js fills the
- * signed-in state in the browser.
+ * signed-out utility bar, never a half-rendered account menu baked into a file.
  */
 declare(strict_types=1);
 
@@ -46,71 +51,75 @@ final class NavSync
      * homepage has no top-level item of its own and so marks nothing.
      */
     public const PAGES = [
-        'index.html'          => '',
-        'about.html'          => 'about',
-        'contact.html'        => 'about',
-        'donate.html'         => 'involved',
-        'projects/index.html' => 'projects',
+        /* Not index.html: the home page carries its own navigation since the
+           row-4 redesign (assets/site/avh.js — mega menu at ≥1180px, drawer
+           below). Splicing this header into it would put the old nav back. */
+        /* Nor about, contact, donate or projects: rows 5–8 of the redesign give
+           them the Home nav too (partials/avh-chrome.php, spliced by
+           tools/build-avh-chrome.php). Nothing static is left to sync. */
     ];
 
-    /** The navigation markup for one section, exactly as a PHP page would emit it. */
+    /**
+     * The navigation markup for one section, exactly as a PHP page emits it —
+     * the Home nav (partials/avh-chrome.php) with the section marked, since
+     * render_nav() switched to it. Never the retired site-header markup.
+     */
     public static function region(string $active): string
     {
-        ob_start();
-        render_nav($active);
-        return (string) ob_get_clean();
+        return av_site_nav($active);
     }
 
-    /** Where the navigation block starts. */
-    public const OPEN = '<div class="avh-chrome" data-avh-chrome>';
-
     /**
-     * Locate the navigation block in a page's source: from OPEN to the </div>
-     * that closes it, counted rather than searched for, because the block holds
-     * dozens of divs of its own.
+     * Locate the navigation block in a page's source.
      *
-     * @return array{0:int,1:int}|null [start, length], or null when absent or unbalanced
+     * The block runs from the opening <header class="site-header"> to the end of
+     * the drawer <nav> that follows it. The closing tag is found by counting
+     * opens and closes rather than by taking the next `</nav>`, because the
+     * header contains a <nav class="nav-inner"> of its own and a naive search
+     * would cut the block in half.
+     *
+     * @return array{0:int,1:int}|null [start, length], or null when absent
      */
     public static function locate(string $html): ?array
     {
-        $start = strpos($html, self::OPEN);
+        $start = strpos($html, '<header class="site-header"');
         if ($start === false) return null;
-        if (!preg_match_all('~<(/?)div\b[^>]*>~i', $html, $m, PREG_OFFSET_CAPTURE, $start)) return null;
-        $depth = 0;
-        foreach ($m[0] as $k => $tag) {
-            $depth += $m[1][$k][0] === '/' ? -1 : 1;
-            if ($depth === 0) return [$start, $tag[1] + strlen($tag[0]) - $start];
+
+        $drawer = strpos($html, '<nav class="av-drawer"', $start);
+        if ($drawer === false) return null;
+
+        $depth = 0; $i = $drawer;
+        while (true) {
+            $open  = strpos($html, '<nav', $i);
+            $close = strpos($html, '</nav>', $i);
+            if ($close === false) return null;
+            if ($open !== false && $open < $close) { $depth++; $i = $open + 4; continue; }
+            $depth--;
+            $i = $close + 6;
+            if ($depth === 0) return [$start, $i - $start];
         }
-        return null;
     }
 
     /**
-     * Bring one page's navigation up to date.
+     * Report one page's navigation.
      *
-     * @param bool $write false only reports, which is how the test runs.
+     * The sync used to splice the old site-header nav into static pages. Every
+     * page now carries the Home nav (tools/build-avh-chrome.php for .html, the
+     * partial for PHP), so writing that block back would reintroduce the old
+     * chrome. What is left is the check: a page still carrying the old block is
+     * reported as stale (move it to the <!-- avh:nav --> markers); nothing is
+     * ever written.
+     *
      * @return array{ok:bool,changed:bool,reason:string}
      */
     public static function sync(string $absPath, string $active, bool $write = true): array
     {
         if (!is_file($absPath)) return ['ok' => false, 'changed' => false, 'reason' => 'no such file'];
         $html = (string) file_get_contents($absPath);
-        $at = self::locate($html);
-        if ($at === null) return ['ok' => false, 'changed' => false, 'reason' => 'no navigation block found'];
-
-        [$start, $len] = $at;
-        $current = substr($html, $start, $len);
-        $fresh   = trim(self::region($active));
-
-        // Compare on collapsed whitespace: indentation differs between a file
-        // and a render, and re-indenting every page on every run would bury the
-        // real change in a diff nobody reads.
-        $norm = static fn(string $s): string => trim((string) preg_replace('/\s+/', ' ', $s));
-        if ($norm($current) === $norm($fresh)) return ['ok' => true, 'changed' => false, 'reason' => 'up to date'];
-
-        if ($write) {
-            file_put_contents($absPath, substr($html, 0, $start) . $fresh . substr($html, $start + $len));
+        if (self::locate($html) !== null) {
+            return ['ok' => true, 'changed' => true, 'reason' => 'still carries the old site-header nav; use the <!-- avh:nav --> markers and php tools/build-avh-chrome.php'];
         }
-        return ['ok' => true, 'changed' => true, 'reason' => 'navigation rewritten from av_nav_model()'];
+        return ['ok' => true, 'changed' => false, 'reason' => 'no old navigation'];
     }
 
     /** Every page, reported or rewritten. @return array<string,array> */

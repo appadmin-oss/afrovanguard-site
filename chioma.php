@@ -39,6 +39,17 @@ $ctx = [
     'section' => preg_replace('/[^a-z0-9 \-]/i', '', (string) ($page['section'] ?? '')),
 ];
 
+// Who is asking — from the session, never from the request body. Only their own
+// name and email reach the model, and only their own record is readable
+// (ChiomaTools::myOverview).
+$who = class_exists('LmsAuth') ? LmsAuth::user() : null;
+if ($who && (int) ($who['id'] ?? 0) > 0) {
+    $kind = (class_exists('NgvMember') && NgvMember::participant((int) $who['id'])) ? 'a NextGen Vanguard member'
+          : ((class_exists('LmsAuth') && LmsAuth::isOrgMember($who)) ? 'an Afrovanguard member' : 'a learner');
+    $ctx['me'] = ['id' => (int) $who['id'], 'name' => (string) ($who['name'] ?? ''), 'email' => (string) ($who['email'] ?? ''), 'kind' => $kind];
+}
+if (class_exists('ChiomaTools')) ChiomaTools::setVisitor($ctx['me'] ?? null);
+
 // History → [{role:user|bot, text}] (most recent kept). Chioma normalises further.
 $history = [];
 foreach ((array) ($body['history'] ?? []) as $h) {

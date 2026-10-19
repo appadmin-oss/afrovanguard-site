@@ -24,7 +24,7 @@
  *    different ways — `Config::str()`, a private `cfg()` helper, or a bare
  *    `getenv()`. Rather than hunt down and rewrite each one, apply() publishes
  *    stored settings into the process environment and Config::get() consults this
- *    store first. AvBot, Gemini, RecallBot, AvWeb and Meetings all pick up a
+ *    store first. AvBot, Gemini, AttendeeBot, AvWeb and Meetings all pick up a
  *    Studio value with no edit at all.
  *
  * PRECEDENCE: the Studio wins over `.env`, `config.php` constants and the real
@@ -81,7 +81,129 @@ final class AvSettings
             'help' => 'Only for a gateway, a proxy or Bedrock. Leave blank otherwise.',
         ],
 
+        /* ── Email: the site's own Google Apps Script, and which road mail takes ── */
+        'AV_MAIL_TRANSPORT' => [
+            'group' => 'Email', 'label' => 'Sending road', 'secret' => false, 'type' => 'enum',
+            'options' => ['auto', 'smtp', 'gas', 'resend', 'host'],
+            'help' => 'auto (recommended): SMTP first; if it fails, Google Apps Script for one-to-one mail (sign-in codes, receipts, replies), then Resend, then this server’s own mail. smtp: SMTP only. gas: Google Apps Script only — announcements are held, because its allowance (about 100 recipients a day on Gmail, 1,500 on Workspace) is kept for mail people are waiting for. resend: the Resend API only. host: this server’s mail() only.',
+        ],
+        'AV_GAS_URL' => [
+            'group' => 'Email', 'label' => 'Apps Script web-app URL', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://script.google.com/macros/s/…/exec',
+            'help' => 'The Web app URL of apps-script/Afrovanguard_Mail.gs, from Deploy → Manage deployments in Apps Script. It ends in /exec. Step-by-step: docs/EMAIL-APPS-SCRIPT.md.',
+        ],
+        'AV_GAS_SECRET' => [
+            'group' => 'Email', 'label' => 'Apps Script secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'the SECRET from the top of the script',
+            'help' => 'Exactly the text between the quotes in const SECRET at the top of the script. The script refuses every request without it.',
+        ],
+
+        /* ── Google: sign-in and Workspace ─────────────────────────────────
+           These lived only in config.php or SetEnv, on a host with no shell —
+           so "Continue with Google" and every Workspace panel stayed dark unless
+           somebody edited a file above the web root. */
+        'AV_GOOGLE_CLIENT_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'OAuth client ID', 'secret' => false, 'type' => 'text',
+            'ph' => '1234567890-abc….apps.googleusercontent.com',
+            'help' => 'Google Cloud console → APIs & Services → Credentials → your OAuth 2.0 Client ID (type: Web application). Turns on “Continue with Google” and lets members connect their own Workspace. Its Authorised redirect URI must be exactly this site’s address followed by /auth/google/callback — the test below prints it.',
+        ],
+        'AV_GOOGLE_CLIENT_SECRET' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'OAuth client secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'GOCSPX-…',
+            'help' => 'The client secret shown next to that client ID.',
+        ],
+        'AV_GWS_CONNECT_ON_SIGNIN' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Ask for Workspace access at sign-in', 'secret' => false, 'type' => 'enum',
+            'options' => ['org', 'all', '0'],
+            'help' => 'org (default): only someone signing in with an organisation address is also asked for Gmail, Calendar, Drive and Chat access. all: everybody is — a personal Gmail account then sees an “unverified app” warning unless Google has verified the app. 0: never; members connect from /workspace instead.',
+        ],
+        'AV_GDRIVE_SERVICE_ACCOUNT' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Service account key (JSON)', 'secret' => true, 'type' => 'json',
+            'ph' => '{ "type": "service_account", … }',
+            'help' => 'Paste the whole JSON key of the service account (Google Cloud console → IAM & Admin → Service Accounts → Keys → Add key → JSON). Used for the shared calendar, Meet links, the Drive folder and the directory. It is encrypted here and never shown again.',
+        ],
+        'AV_WS_SUBJECT' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Admin to act as', 'secret' => false, 'type' => 'email',
+            'ph' => 'admin@afrovanguard.org.ng',
+            'help' => 'A real Workspace administrator the service account impersonates through domain-wide delegation. Needed for the directory, Meet records and creating events on someone’s calendar.',
+        ],
+        'AV_WS_CALENDAR_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Shared calendar', 'secret' => false, 'type' => 'text',
+            'ph' => 'mentorship@afrovanguard.org.ng',
+            'help' => 'The calendar sessions are written to and “Coming up” reads from. Blank uses the admin above.',
+        ],
+        'AV_GDRIVE_FOLDER_ID' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Drive folder ID', 'secret' => false, 'type' => 'text',
+            'ph' => 'the id at the end of the folder’s URL',
+            'help' => 'Where uploaded documents are stored and which folder the portal lists. Share the folder with the service account’s email.',
+        ],
+        'AV_WS_DIRECTORY_SYNC' => [
+            'group' => 'Google sign-in & Workspace', 'label' => 'Add Workspace users as members', 'secret' => false, 'type' => 'enum',
+            'options' => ['off', 'daily'],
+            'help' => 'daily: once a day the site cron reads the Workspace directory and gives every active user a member account (existing accounts are left as they are). Needs the service account, the admin above, and the cron.',
+        ],
+
+        /* ── Google Meet: meetings that run themselves ─────────────────────
+           Calendar makes the Meet; these turn on Google's own recording,
+           transcript and notes for it, read it back as the organiser, and
+           take Google's live events from a Pub/Sub queue the cron drains.
+           See docs/google-workspace.md → "Meetings that run themselves". */
+        'AV_MEET_ORGANISER' => [
+            'group' => 'Google Meet', 'label' => 'Meeting organiser mailbox', 'secret' => false, 'type' => 'email',
+            'ph' => 'meetings@afrovanguard.org.ng',
+            'help' => 'A licensed Workspace mailbox that owns every meeting the site makes (its calendar holds the events, its Drive the recordings). Recording, transcripts and notes are switched on as this mailbox, and attendance and transcripts read back as it. Blank uses the shared calendar, then the admin above. Needs Business Standard or higher for recording and transcripts.',
+        ],
+        'AV_MEET_ARTIFACTS' => [
+            'group' => 'Google Meet', 'label' => 'What Google captures', 'secret' => false, 'type' => 'enum',
+            'options' => ['all', 'transcript', 'off'],
+            'help' => 'all (default): recording, transcript, Gemini notes and an attendance report start on their own in every meeting. transcript: transcript and notes, no recording. off: Google captures nothing on its own; the room captions and check-in still work.',
+        ],
+        'AV_MEET_PUBSUB_TOPIC' => [
+            'group' => 'Google Meet', 'label' => 'Pub/Sub topic for Meet events', 'secret' => false, 'type' => 'text',
+            'ph' => 'projects/your-project/topics/meet-events',
+            'help' => 'Optional, for live joins, leaves and "transcript ready" the moment they happen. Create the topic in Google Cloud and give meet-api-event-push@system.gserviceaccount.com the Pub/Sub Publisher role on it. Without it the site still checks Google every few minutes.',
+        ],
+        'AV_MEET_PUBSUB_SUB' => [
+            'group' => 'Google Meet', 'label' => 'Pub/Sub pull subscription', 'secret' => false, 'type' => 'text',
+            'ph' => 'projects/your-project/subscriptions/meet-events-pull',
+            'help' => 'A PULL subscription on that topic; give the service account the Pub/Sub Subscriber role on it. The cron empties it every minute, so the host needs no public webhook.',
+        ],
+        'AV_MEET_PUSH_AUDIENCE' => [
+            'group' => 'Google Meet', 'label' => 'Push audience (optional)', 'secret' => false, 'type' => 'text',
+            'ph' => 'https://afrovanguard.org.ng/webhooks/google-meet.php',
+            'help' => 'Only if you use a PUSH subscription to /webhooks/google-meet.php instead of pull: the audience set on that subscription. Each push is checked against Google’s signing keys and this audience.',
+        ],
+
         /* ── Gemini ───────────────────────────────────────────────────── */
+        /* ── CACENTRE gate ───────────────────────────────────────────────── */
+        'GATE_PASS_SECRET' => [
+            'group' => 'CACENTRE gate', 'label' => 'Gate pass secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'at least 32 random characters',
+            'help' => 'The same value as AV_PASS_SECRET on the Cloudflare gate (Workers → cacentre-gate → Settings → Variables and Secrets). Signs members’ phone passes at /gate-pass and the gate’s lookups and check-in reports. At least 32 characters. If CACENTRE says Afrovanguard refused the gate’s signature, compare the fingerprint shown here with the one CACENTRE shows under Attendance → Desks: different fingerprints mean different secrets.',
+        ],
+        'GATE_URL' => [
+            'group' => 'CACENTRE gate', 'label' => 'Gate address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://cacentre.afrovanguard.org.ng',
+            'help' => 'Where the gate runs. Used to withdraw a member’s pass when they are suspended. Nothing after the hostname.',
+        ],
+        /* ── NextGen Genius ─────────────────────────────────────────────── */
+        'NGG_WEBHOOK_SECRET' => [
+            'group' => 'NextGen Genius', 'label' => 'Shared secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'a long random string',
+            'help' => 'The same value as afrovanguard.ngv_webhook_secret in NGG’s api/config.php. NGG’s ID Card Studio uses it to fetch Afrovanguard member cards, and NGG signs NGV promotions with it.',
+        ],
+        'NGG_URL' => [
+            'group' => 'NextGen Genius', 'label' => 'NGG address', 'secret' => false, 'type' => 'url',
+            'ph' => 'https://next.afrovanguard.org.ng',
+            'help' => 'Where NextGen Genius runs. This site fetches NGG’s volunteers from there (signed with the shared secret above), so they are recognised when they sign in. Blank uses https://next.afrovanguard.org.ng.',
+        ],
+
+        /* ── CACENTRE CRM ─────────────────────────────────────────────────── */
+        'AV_CRM_INTAKE_SECRET' => [
+            'group' => 'CACENTRE CRM', 'label' => 'Audience secret', 'secret' => true, 'type' => 'text',
+            'ph' => 'the secret CACENTRE generated for Afrovanguard',
+            'help' => 'In the CACENTRE console: Audience → Sites → Afrovanguard → Generate secret, then paste it here. Every few minutes this site then sends its Diary and newsletter subscribers, donors, monthly givers and contact-form enquiries to the CRM’s Audience, signed with it. Unsubscribes are sent too. Blank sends nothing.',
+        ],
         'AV_GEMINI_API_KEY' => [
             'group' => 'Gemini (Google)', 'label' => 'API key', 'secret' => true, 'type' => 'text',
             'ph' => 'AIza…',
@@ -196,48 +318,29 @@ final class AvSettings
             'help' => 'Whatever you have actually pulled — `ollama list` names them. Either this or the endpoint above marks the local provider available, so set it even when the endpoint is the default one.',
         ],
 
-        /* ── The meeting notetaker ────────────────────────────────────── */
+        /* ── The meeting notetaker (optional) ─────────────────────────── */
+        // Attendee is the only third-party notetaker, and nothing here is
+        // required: with these left blank, meetings are still scheduled and
+        // invites still go out, and minutes come from Google's own transcript,
+        // an uploaded recording or pasted text.
         'AV_MEET_BOT_PROVIDER' => [
-            'group' => 'Meeting notetaker', 'label' => 'Backend', 'secret' => false, 'type' => 'enum',
-            'options' => ['', 'attendee', 'recall', 'google', 'webhook', 'none'],
-            'help' => 'Blank auto-detects, preferring the free options. "google" uses Meet\'s own transcription and costs nothing at all. "attendee" runs an open-source bot you host yourself — free per meeting, you pay only for the container. "recall" is the hosted equivalent, billed per meeting-hour. "none" disables it regardless of keys.',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Notetaker', 'secret' => false, 'type' => 'enum',
+            'options' => ['', 'attendee', 'none'],
+            'help' => 'Optional — the site works without a notetaker. Blank uses Attendee when its API key is set, otherwise Google Meet\'s own transcription when Workspace is connected. "attendee" forces the Attendee bot. "none" switches the notetaker off regardless of keys.',
         ],
         'AV_ATTENDEE_API_KEY' => [
-            'group' => 'Meeting notetaker', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Attendee is the open-source notetaker (github.com/attendee-labs/attendee). Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. There is a hosted service too if you would rather not run it.',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Attendee API key', 'secret' => true, 'type' => 'text',
+            'help' => 'Optional. Attendee is the open-source notetaker (github.com/attendee-labs/attendee) that joins the call, records and transcribes. Self-hosted it charges nothing per meeting, so it costs you a small always-on container. The recogniser is separate: Meet\'s own captions are free, or you add a Deepgram/OpenAI key inside Attendee and that provider bills you. Leave blank to run without it.',
         ],
         'AV_ATTENDEE_BASE_URL' => [
-            'group' => 'Meeting notetaker', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'Attendee instance URL', 'secret' => false, 'type' => 'url',
             'ph' => 'https://meetbot.your-domain.org',
             'help' => 'Your own instance. Leave blank to use the hosted service at app.attendee.dev — which is not free, so set this if the point was to avoid a per-meeting bill.',
         ],
         'AV_ATTENDEE_BOT_NAME' => [
-            'group' => 'Meeting notetaker', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
+            'group' => 'Meeting notetaker (optional)', 'label' => 'How the Attendee bot appears', 'secret' => false, 'type' => 'text',
             'ph' => 'Afrovanguard Notetaker',
             'help' => 'The name participants see in the meeting.',
-        ],
-        'AV_RECALL_API_KEY' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall.ai API key', 'secret' => true, 'type' => 'text',
-            'help' => 'Only needed for the "recall" backend. Google\'s own Meet transcripts are free and already wired — prefer those unless you also need Zoom or Teams.',
-        ],
-        'AV_RECALL_WEBHOOK_TOKEN' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall webhook token', 'secret' => true, 'type' => 'text',
-            'help' => 'SET THIS if you use Recall. It is the shared secret on the callback URL — without it, anyone who guesses the URL can post a transcript into your meeting records.',
-        ],
-        'AV_RECALL_REGION' => [
-            'group' => 'Meeting notetaker', 'label' => 'Recall region', 'secret' => false, 'type' => 'text',
-            'ph' => 'us-west-2',
-            'help' => 'API region host prefix. Leave blank for us-west-2.',
-        ],
-        'AV_RECALL_BOT_NAME' => [
-            'group' => 'Meeting notetaker', 'label' => 'How the bot appears', 'secret' => false, 'type' => 'text',
-            'ph' => 'Afrovanguard Notetaker',
-            'help' => 'The name participants see in the meeting. Make it recognisable — people should know what it is without asking.',
-        ],
-        'AV_MEET_BOT_JOIN_URL' => [
-            'group' => 'Meeting notetaker', 'label' => 'Custom recorder URL', 'secret' => false, 'type' => 'url',
-            'ph' => 'https://recorder.example/join',
-            'help' => 'For the "webhook" backend: your own service that joins the call and posts the transcript back.',
         ],
 
         /* ── Web search ───────────────────────────────────────────────── */
@@ -444,6 +547,8 @@ final class AvSettings
                 // A secret shows only a masked tail; a plain setting shows itself.
                 'value'      => $secret ? '' : $live,
                 'preview'    => $secret ? self::maskOf($live) : '',
+                /* The gate secret's fingerprint, to compare with the gate's when it is refused. */
+                'fingerprint'=> $key === 'GATE_PASS_SECRET' && $live !== '' && class_exists('GatePass') ? GatePass::fingerprint($live) : '',
                 'source'     => $src['source'],
                 'shadowing'  => $src['shadowing'],
                 'updated_by' => $meta[$key]['by'] ?? '',
@@ -514,6 +619,8 @@ final class AvSettings
             // next API call.
             $bad = self::validate($key, $val);
             if ($bad !== '') { $errors[$key] = $bad; continue; }
+            // A key pasted with its line breaks is stored as one compact line.
+            if (($d['type'] ?? '') === 'json') $val = (string) json_encode(json_decode($val, true), JSON_UNESCAPED_SLASHES);
 
             $store = $val; $isSecret = 0;
             if (!empty($d['secret'])) {
@@ -560,7 +667,23 @@ final class AvSettings
         if ($type === 'url') {
             if (!preg_match('#^https?://#i', $val)) return 'Must be an http or https URL.';
             if (!filter_var($val, FILTER_VALIDATE_URL)) return 'That is not a valid URL.';
+            if ($key === 'AV_GAS_URL') {
+                // `/dev` answers only the script's owner, signed in, in a browser —
+                // it works when they try it and never from this server.
+                $path = rtrim((string) parse_url($val, PHP_URL_PATH), '/');
+                if (stripos($val, 'https://') !== 0) return 'The Apps Script address starts https://script.google.com/.';
+                if (!str_ends_with($path, '/exec')) {
+                    return 'The address must end in /exec — copy the Web app URL from Deploy → Manage deployments, not the editor’s address and not the one ending /dev.';
+                }
+            }
             return '';
+        }
+        if ($type === 'email') {
+            return filter_var($val, FILTER_VALIDATE_EMAIL) ? '' : 'Must be an email address.';
+        }
+        if ($type === 'json') return self::validateServiceAccount($val);
+        if ($key === 'AV_GOOGLE_CLIENT_ID' && !preg_match('/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i', $val)) {
+            return 'A Google OAuth client ID ends in .apps.googleusercontent.com — copy the Client ID, not the project number or the secret.';
         }
         if (strlen($val) > 4000) return 'Too long.';
         // A pasted key with whitespace or quotes in it is the commonest setup
@@ -568,6 +691,23 @@ final class AvSettings
         if (!empty($d['secret']) && preg_match('/[\s"\']/', $val)) {
             return 'That looks like it has quotes or spaces in it — paste the key on its own.';
         }
+        return '';
+    }
+
+    /**
+     * A Google service-account key, checked the way Google will check it: the
+     * right type, an email to sign as, and a private key openssl can read.
+     * A secret's usual rule (no quotes, no spaces) cannot apply to JSON.
+     */
+    private static function validateServiceAccount(string $val): string
+    {
+        if (strlen($val) > 12000) return 'Too long for a service-account key.';
+        $j = json_decode($val, true);
+        if (!is_array($j)) return 'That is not JSON. Paste the whole downloaded key file, from { to }.';
+        if (($j['type'] ?? '') !== 'service_account') return 'That JSON is not a service-account key (its "type" should be "service_account"). An OAuth client file will not work here.';
+        if (empty($j['client_email']) || !filter_var((string) $j['client_email'], FILTER_VALIDATE_EMAIL)) return 'The key has no client_email.';
+        $pk = (string) ($j['private_key'] ?? '');
+        if ($pk === '' || !function_exists('openssl_pkey_get_private') || openssl_pkey_get_private($pk) === false) return 'The key’s private_key cannot be read. Download a fresh JSON key and paste it unedited.';
         return '';
     }
 
@@ -650,8 +790,10 @@ final class AvSettings
             ['key' => 'gemini',    'label' => 'Gemini', 'ready' => class_exists('Gemini') && Gemini::configured()],
             ['key' => 'openai',    'label' => 'OpenAI', 'ready' => class_exists('OpenAi') && OpenAi::configured()],
             ['key' => 'attendee',  'label' => 'Attendee notetaker', 'ready' => class_exists('AttendeeBot') && AttendeeBot::configured()],
-            ['key' => 'recall',    'label' => 'Recall.ai notetaker', 'ready' => class_exists('RecallBot') && RecallBot::configured()],
             ['key' => 'search',    'label' => 'Web search', 'ready' => class_exists('AvWeb') && AvWeb::searchProvider() !== ''],
+            ['key' => 'apps_script', 'label' => 'Apps Script mail', 'ready' => class_exists('AppsScriptMail') && AppsScriptMail::configured()],
+            ['key' => 'google_signin', 'label' => 'Google sign-in', 'ready' => class_exists('GoogleAuth') && GoogleAuth::configured()],
+            ['key' => 'google_workspace', 'label' => 'Google Workspace', 'ready' => class_exists('GoogleWorkspace') && GoogleWorkspace::configured()],
         ];
     }
 
@@ -669,9 +811,11 @@ final class AvSettings
                 case 'anthropic': $r = self::testAnthropic(); break;
                 case 'gemini':    $r = self::testGemini(); break;
                 case 'openai':    $r = self::testOpenAi(); break;
-                case 'recall':    $r = self::testRecall(); break;
                 case 'attendee':  $r = self::testAttendee(); break;
                 case 'search':    $r = self::testSearch(); break;
+                case 'apps_script': $r = self::testAppsScript(); break;
+                case 'google_signin': $r = self::testGoogleSignin(); break;
+                case 'google_workspace': $r = self::testGoogleWorkspace(); break;
             }
         } catch (Throwable $e) {
             error_log('[settings] test ' . $what . ': ' . $e->getMessage());
@@ -709,22 +853,6 @@ final class AvSettings
         return ['ok' => true, 'detail' => 'Connected · model ' . OpenAi::model()];
     }
 
-    private static function testRecall(): array
-    {
-        if (!class_exists('RecallBot') || !RecallBot::configured()) return ['ok' => false, 'detail' => 'No Recall.ai API key is set.'];
-        // botStatus() on an id that cannot exist: a bad key fails on auth, a good
-        // key simply finds nothing. No bot is created, so nothing is billed.
-        $probe = RecallBot::botStatus('avsetup-probe-000000000000');
-        $ok = $probe === '';   // '' = reachable but no such bot, which is the pass
-        if (!$ok) return ['ok' => true, 'detail' => 'Connected (unexpected bot state: ' . $probe . ')'];
-        // Distinguish "auth failed" from "no such bot" by checking the webhook
-        // token too, since that is the setting people forget.
-        $warn = RecallBot::webhookToken() === ''
-            ? ' — but no webhook token is set, so the callback URL is unauthenticated'
-            : '';
-        return ['ok' => true, 'detail' => 'Recall.ai reachable' . $warn];
-    }
-
     private static function testAttendee(): array
     {
         if (!class_exists('AttendeeBot') || !AttendeeBot::configured()) return ['ok' => false, 'detail' => 'No Attendee API key is set.'];
@@ -757,6 +885,55 @@ final class AvSettings
         $n = count((array) ($res['results'] ?? []));
         return ['ok' => true, 'detail' => 'Connected · ' . $p . ' returned ' . $n . ' result' . ($n === 1 ? '' : 's')
             . ($wasOff ? ' — remember web access is still off in the rules' : '')];
+    }
+
+    /** Ask the Apps Script how much it may still send today. Sends nothing. */
+    private static function testAppsScript(): array
+    {
+        if (!class_exists('AppsScriptMail') || !AppsScriptMail::configured()) {
+            return ['ok' => false, 'detail' => 'Set both the Apps Script web-app URL and its secret first.'];
+        }
+        $c = AppsScriptMail::boot()->check();
+        // Already an operator sentence — not passed through humanise(), which
+        // would turn "quota" into "rate-limited" and lose the instructions.
+        return ['ok' => (bool) $c['ok'], 'detail' => (string) $c['detail']];
+    }
+
+    private static function testGoogleSignin(): array
+    {
+        if (!class_exists('GoogleAuth') || !GoogleAuth::configured()) return ['ok' => false, 'detail' => 'Set the OAuth client ID and secret first.'];
+        $p = GoogleAuth::probeClient();
+        return ['ok' => (bool) $p['ok'], 'detail' => (string) $p['detail']];
+    }
+
+    private static function testGoogleWorkspace(): array
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::configured()) return ['ok' => false, 'detail' => 'Paste the service account key first.'];
+        $p = GoogleWorkspace::probe();
+        if (empty($p['token_ok'])) {
+            return ['ok' => false, 'detail' => 'Google refused the service account: ' . (string) ($p['error'] ?? 'no reason given')
+                . (($p['subject'] ?? '') !== '' ? '. If this says unauthorized_client, domain-wide delegation has not been granted to client ID '
+                    . (string) ($p['client_id'] ?? '') . ' for these scopes in the Google Admin console.' : '')];
+        }
+        $bits = ['signed in as ' . (string) $p['service_account'] . ((string) ($p['subject'] ?? '') !== '' ? ' acting for ' . $p['subject'] : '')];
+        foreach (['calendar_read' => 'calendar', 'drive' => 'Drive folder', 'directory' => 'directory', 'groups' => 'groups'] as $k => $label) {
+            if (($p[$k] ?? null) === null) continue;
+            $e = (string) ($p[$k === 'calendar_read' ? 'calendar_error' : $k . '_error'] ?? '');
+            $bits[] = $label . ($e !== '' ? ' ✗ ' . $e : ' ✓');
+        }
+        $bad = array_filter(['calendar_error', 'drive_error', 'directory_error', 'groups_error'], static fn($k) => (string) ($p[$k] ?? '') !== '');
+        /* Every scope the features use, not only the four read above: a scope left out of
+           domain-wide delegation fails only when its feature runs, so this used to say ✓
+           while scheduling and Meet were refused. */
+        $missing = [];
+        foreach ((array) ($p['scopes'] ?? []) as $scope => $why) {
+            if ((string) $why !== '') $missing[] = (GoogleWorkspace::DELEGATED_SCOPES[$scope] ?? $scope);
+        }
+        if ($missing) {
+            $bits[] = 'not granted: ' . implode(', ', $missing) . '. In the Google Admin console → Security → API controls → Domain-wide delegation, edit client ID '
+                . (string) ($p['client_id'] ?? '') . ' and set its scopes to exactly: ' . GoogleWorkspace::delegationLine();
+        }
+        return ['ok' => !$bad && !$missing, 'detail' => implode(' · ', $bits)];
     }
 
     /**

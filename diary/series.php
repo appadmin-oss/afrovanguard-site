@@ -15,7 +15,7 @@ if (!$series) {
     http_response_code(404);
     render_head(['title' => 'Series not found — The Afrovanguard Diary', 'robots' => 'noindex']);
     render_nav('diary');
-    echo '<main class="container" style="padding:80px 20px;text-align:center"><h1>Series not found</h1><p><a href="/diary/">← Back to the Diary</a></p></main>';
+    echo '<main id="main" tabindex="-1" class="container" style="padding:80px 20px;text-align:center"><h1>Series not found</h1><p><a href="/diary/">← Back to the Diary</a></p></main>';
     render_footer();
     exit;
 }
@@ -37,7 +37,7 @@ render_head([
 ]);
 render_nav('diary');
 ?>
-<main id="main-content">
+<main id="main" tabindex="-1">
   <section class="series-page">
     <div class="container">
       <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/diary/">The Diary</a><span class="sep">/</span><span>Series</span></nav>

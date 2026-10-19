@@ -31,12 +31,15 @@
     var meta = [card.role]; if (card.level) meta.push('Level ' + card.level);
     var mine = card.is_me
       ? '<button type="button" class="mcard-edit" data-edit-skills>' + (card.skills && card.skills.length ? 'Edit skills' : 'Add your skills') + '</button>'
+        + ' <button type="button" class="mcard-edit" data-edit-about>' + (card.about ? 'Edit what you do' : 'Say what you do') + '</button>'
       : '';
     return '<div class="mcard-top"><span class="mcard-av">' + esc(card.initial) + '</span>'
       + '<div class="mcard-id"><span class="mcard-name">' + esc(card.name) + (card.is_me ? ' <em>(you)</em>' : '') + '</span>'
       + '<span class="mcard-role">' + esc(meta.join(' · ')) + '</span></div></div>'
       + (card.local_time ? '<div class="mcard-row">🕒 <b>' + esc(card.local_time) + '</b> local' + (card.tz ? ' <span class="mcard-tz">' + esc(card.tz.split('/').pop().replace('_', ' ')) + '</span>' : '') + '</div>' : '')
       + (card.headline ? '<p class="mcard-headline">' + esc(card.headline) + '</p>' : '')
+      + ((card.work_roles || []).length ? '<div class="mcard-row">' + esc(card.work_roles.join(' · ')) + '</div>' : '')
+      + (card.about ? '<p class="mcard-headline">' + esc(card.about) + '</p>' : '')
       + (skills ? '<div class="mcard-skills">' + skills + '</div>' : (card.is_me ? '' : ''))
       + (mine ? '<div class="mcard-foot">' + mine + '</div>' : '');
   }
@@ -75,6 +78,15 @@
     scheduleHide();
   });
   document.addEventListener('click', function (e) {
+    var about = e.target.closest('[data-edit-about]');
+    if (about) {
+      var was = (cache[curId] && cache[curId].about) || '';
+      var a = prompt('What you do — tasks drawn from goals go to whoever it fits (a line or two):', was); if (a === null) return;
+      fetch('/portal/directory.php?action=set_about', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ about: a }) })
+        .then(function (r) { return r.json(); }).then(function (d) { if (d && d.ok) { cache[d.card.id] = d.card; pop.innerHTML = render(d.card); } });
+      return;
+    }
     var edit = e.target.closest('[data-edit-skills]');
     if (edit) {
       var cur = (cache[curId] && cache[curId].skills || []).join(', ');

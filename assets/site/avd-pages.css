@@ -148,3 +148,15 @@
    anyway, as "Resume from" with no time after it, on every entry nobody had
    ever played. Same treatment as its four siblings. */
 .avd-link[hidden],.avd-chlist[hidden]{display:none}
+
+/* Follow the author — the reader's email, when they are not signed in. */
+.avd-follow-form { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.avd-follow-form label { font: 500 14px/1.45 var(--av-sans); color: var(--av-ink); }
+.avd-follow-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.avd-follow-row input[type=email] { flex: 1 1 200px; min-width: 0; height: 44px; padding: 0 14px; border-radius: var(--av-r-8); border: 1px solid var(--av-line-2); background: var(--av-white); font: 400 16px var(--av-sans); color: var(--av-ink); }
+.avd-follow-row input[type=email]:focus { border-color: var(--av-ink); outline: none; }
+.avd-follow-row .avd-btn { min-height: 44px; }
+.avd-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.avd-follow-msg { margin: 10px 0 0; font: 500 14px/1.45 var(--av-sans); color: var(--av-gold-text); }
+.avd-follow-msg:empty { display: none; }
+.avd-follow-msg.is-bad { color: var(--av-alert); }

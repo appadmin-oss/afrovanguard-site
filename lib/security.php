@@ -24,7 +24,33 @@ function av_secret(): string {
     $env = getenv('APP_KEY') ?: getenv('AV_APP_KEY');
     if ($env) return $env;
     if (defined('ADMIN_TOKEN') && ADMIN_TOKEN) return (string) ADMIN_TOKEN;
-    return '';
+    return av_secret_generated();
+}
+
+/**
+ * No APP_KEY set (common on a shared host with no shell to edit .env): the
+ * signing key was '' and every signed thing failed closed — the admin could
+ * READ the member desk but every save (a card title, a photo, a member edit)
+ * was refused as "Session expired". A key is now made once, kept in the
+ * database (app_meta) and reused, so it is the same on every request and
+ * survives deploys. Setting APP_KEY still takes precedence.
+ */
+function av_secret_generated(): string {
+    static $k = null;
+    if ($k !== null) return $k;
+    $k = '';
+    if (!class_exists('Database')) return $k;
+    try {
+        $v = (string) (Database::metaGet('app_secret_v1') ?? '');
+        if (strlen($v) < 32) {
+            Database::metaSet('app_secret_v1', bin2hex(random_bytes(32)));
+            $v = (string) (Database::metaGet('app_secret_v1') ?? '');   // re-read: a racing request's value wins
+        }
+        $k = strlen($v) >= 32 ? $v : '';
+    } catch (Throwable $e) {
+        error_log('[security] no APP_KEY and the generated key could not be kept: ' . $e->getMessage());
+    }
+    return $k;
 }
 
 /** Minimum acceptable length for the break-glass ADMIN_TOKEN (superadmin
@@ -79,7 +105,7 @@ function send_security_headers(string $page = 'public'): void {
         "font-src 'self' https://fonts.gstatic.com data:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "script-src $script",
-        "connect-src 'self' https://api.cloudinary.com https://api.paystack.co",
+        "connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co",
         "frame-src 'self' https://checkout.paystack.com $frame",
     ];
     header('Content-Security-Policy: ' . implode('; ', $csp));
@@ -112,18 +138,30 @@ function av_emit_event(string $event, array $payload = []): void
 }
 
 /* ── HMAC CSRF tokens (stateless) ─────────────────────────────── */
+/**
+ * Every value this site signs with av_secret() is MACed over a purpose label
+ * ('csrf|', 'admin-cookie|', 'google-state|', …) as well as its payload. The
+ * labels are what keep one signed thing from being accepted as another: a CSRF
+ * token (exp.nonce.MAC) used to be byte-for-byte a "legacy" admin cookie, and
+ * public pages hand CSRF tokens to anonymous visitors — so anybody could sign
+ * in to the Studio as superadmin by sending a token back as av_admin. Shape is
+ * not a type; the label is.
+ */
+function av_mac(string $purpose, string $payload, ?string $secret = null): string {
+    return hash_hmac('sha256', $purpose . '|' . $payload, $secret ?? av_secret());
+}
 function av_csrf_token(int $ttl = 7200): string {
     $secret = av_secret(); if ($secret === '') return '';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(8));
     $payload = $exp . '.' . $nonce;
-    return $payload . '.' . hash_hmac('sha256', $payload, $secret);
+    return $payload . '.' . av_mac('csrf', $payload, $secret);
 }
 function av_csrf_valid(?string $t): bool {
     $secret = av_secret(); if ($secret === '' || !$t) return false;
     $p = explode('.', $t); if (count($p) !== 3) return false;
     [$exp, $nonce, $sig] = $p;
     if (!ctype_digit($exp) || (int) $exp < time()) return false;
-    return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce, $secret), $sig);
+    return hash_equals(av_mac('csrf', $exp . '.' . $nonce, $secret), $sig);
 }
 function av_csrf_require(): void {
     $t = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -132,15 +170,45 @@ function av_csrf_require(): void {
 
 /* ── Admin session cookie (httpOnly, signed) ──────────────────── */
 define('AV_ADMIN_COOKIE', 'av_admin');
-function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin'): void {
+/**
+ * The signed cookie value. `$src` says where the session came from:
+ *   't' — the break-glass token sign-in (its own credential; lives its TTL)
+ *   'm' — bridged from a signed-in member listed in admin_users. Such a cookie
+ *         is only honoured while that member is still signed in AND still an
+ *         admin (AdminRoles::current), so signing out of the site or being
+ *         removed from the admin team ends Studio access at once instead of
+ *         up to 12 hours later.
+ */
+function av_admin_cookie_value(int $exp, string $nonce, string $role, string $src, string $secret): string {
+    $payload = $exp . '.' . $nonce . '.' . $role . '.' . $src;
+    return $payload . '.' . av_mac('admin-cookie', $payload . '|' . av_admin_cookie_binding($src), $secret);
+}
+/**
+ * What a cookie's MAC is additionally bound to. A token sign-in ('t') stands on
+ * the break-glass ADMIN_TOKEN, so it is bound to a fingerprint of that token:
+ * rotating ADMIN_TOKEN ends every token session at once rather than up to 12
+ * hours later. A bridged cookie ('m') is re-checked against admin_users and the
+ * member's live session on every request (AdminRoles::current), so it needs no
+ * binding of its own.
+ */
+function av_admin_cookie_binding(string $src): string {
+    if ($src !== 't') return '';
+    return defined('ADMIN_TOKEN') ? substr(hash('sha256', 'admin-token-fp|' . (string) ADMIN_TOKEN), 0, 16) : '';
+}
+/** The admin levels a cookie may carry — AdminRoles::RANK, the one list. */
+function av_admin_roles(): array {
+    return class_exists('AdminRoles') ? array_keys(AdminRoles::RANK) : ['editor', 'admin', 'superadmin'];
+}
+function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin', string $src = 't'): void {
     $secret = av_secret(); if ($secret === '') return;
     $role = preg_replace('/[^a-z]/', '', strtolower($role)) ?: 'superadmin';
+    if (!in_array($role, av_admin_roles(), true)) return;
+    $src  = $src === 'm' ? 'm' : 't';
     $exp = time() + $ttl; $nonce = bin2hex(random_bytes(10));
-    $payload = $exp . '.' . $nonce . '.' . $role;            // role travels inside the signed cookie
-    $val = $payload . '.' . hash_hmac('sha256', $payload, $secret);
+    $val = av_admin_cookie_value($exp, $nonce, $role, $src, $secret);   // role travels inside the signed cookie
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-    setcookie(AV_ADMIN_COOKIE, $val, [
+    if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, $val, [
         'expires' => $exp, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax',
     ]);
     $_COOKIE[AV_ADMIN_COOKIE] = $val;
@@ -148,27 +216,48 @@ function av_admin_cookie_issue(int $ttl = 43200, string $role = 'superadmin'): v
 function av_admin_cookie_valid(): bool {
     return av_admin_cookie_role() !== '';
 }
-/** Role carried by a valid admin cookie ('' if none/invalid). Legacy 3-part
- *  cookies (pre-roles) are treated as superadmin for back-compat. */
+/** Role carried by a valid admin cookie ('' if none/invalid). */
 function av_admin_cookie_role(): string {
-    $secret = av_secret(); if ($secret === '') return '';
-    $v = $_COOKIE[AV_ADMIN_COOKIE] ?? ''; if ($v === '') return '';
+    return (string) (av_admin_cookie_parse()['role'] ?? '');
+}
+/**
+ * ['role' => string, 'src' => 't'|'m'] for a valid cookie, else null.
+ *
+ * Only the current five-part shape is read. The three-part "legacy" cookie and
+ * the four-part one are gone: they were MACed over the bare payload, so a CSRF
+ * token (exp.nonce.sig) was a valid legacy superadmin cookie and a Google sign-in
+ * state (exp.nonce.next.sig) a valid four-part one. A Studio session from before
+ * this change signs in again; a bridged member's is re-issued on its next request.
+ */
+function av_admin_cookie_parse(): ?array {
+    $secret = av_secret(); if ($secret === '') return null;
+    $v = $_COOKIE[AV_ADMIN_COOKIE] ?? ''; if (!is_string($v) || $v === '') return null;
     $p = explode('.', $v);
-    if (count($p) === 3) {           // legacy: exp.nonce.sig → superadmin
-        [$exp, $nonce, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time()) return '';
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce, $secret), $sig) ? 'superadmin' : '';
-    }
-    if (count($p) === 4) {           // exp.nonce.role.sig
-        [$exp, $nonce, $role, $sig] = $p;
-        if (!ctype_digit($exp) || (int) $exp < time()) return '';
-        return hash_equals(hash_hmac('sha256', $exp . '.' . $nonce . '.' . $role, $secret), $sig) ? $role : '';
-    }
-    return '';
+    if (count($p) !== 5) return null;
+    [$exp, $nonce, $role, $src, $sig] = $p;
+    if (!ctype_digit($exp) || (int) $exp < time() || ($src !== 't' && $src !== 'm')) return null;
+    if (!in_array($role, av_admin_roles(), true)) return null;
+    if ($src === 't' && av_admin_cookie_binding('t') === '') return null;   // no ADMIN_TOKEN, no token session
+    $want = av_mac('admin-cookie', $exp . '.' . $nonce . '.' . $role . '.' . $src . '|' . av_admin_cookie_binding($src), $secret);
+    return hash_equals($want, $sig) ? ['role' => $role, 'src' => $src] : null;
 }
 function av_admin_cookie_clear(): void {
-    setcookie(AV_ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    if (!headers_sent()) setcookie(AV_ADMIN_COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
     unset($_COOKIE[AV_ADMIN_COOKIE]);
+}
+
+/**
+ * Does $token match the break-glass ADMIN_TOKEN? For the legacy endpoints that
+ * take the token in a body or query (donor dashboard, contact inbox). They
+ * compared against ADMIN_TOKEN whatever its length — config.php can define a
+ * short one, which the Studio refuses (AV_ADMIN_TOKEN_MIN) — with no limit on
+ * guesses. Now: a token too short to be the Studio's is never accepted, and
+ * attempts are counted per IP.
+ */
+function av_admin_token_matches(string $token): bool {
+    if (!av_admin_token_configured()) return false;
+    if (function_exists('av_rate_ok') && defined('AV_ROOT') && !av_rate_ok('admin_token_check', 30, 900)) return false;
+    return $token !== '' && hash_equals((string) ADMIN_TOKEN, $token);
 }
 
 /** True if the request carries a valid Bearer admin token. */
@@ -270,4 +359,14 @@ function av_rate_ok(string $bucket, int $max, int $window): bool {
     // Opportunistic prune (~1% of calls) so stale buckets don't accumulate.
     if (($now % 97) === 0) { foreach ((array) @glob($dir . '/*.json') as $f) { if (@filemtime($f) < $now - 86400) @unlink($f); } }
     return true;
+}
+
+/**
+ * The token a Diary unsubscribe link carries for $email. Unsubscribing used to
+ * need only the address, so anybody could take anybody off the list; a link a
+ * mailing puts in an email should be built with this.
+ */
+function av_unsubscribe_token(string $email): string {
+    $secret = av_secret(); if ($secret === '') return '';
+    return substr(hash_hmac('sha256', 'diary-unsub|' . strtolower(trim($email)), $secret), 0, 32);
 }

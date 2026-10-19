@@ -84,6 +84,13 @@ final class MemberDirectory
         $tz   = function_exists('av_user_tz') ? av_user_tz($uid) : (defined('AV_TZ') ? AV_TZ : 'UTC');
         $skills = class_exists('Prefs') ? array_values(array_filter(array_map('trim', explode(',', Prefs::get($uid, 'skills', ''))))) : [];
         $level = (int) ($r['level'] ?? 0);
+        $work = ['work_roles' => '', 'about' => ''];
+        try {
+            if (class_exists('MemberRoster')) MemberRoster::ensure();
+            $st = Database::pdo()->prepare('SELECT work_roles, about FROM member_profiles WHERE user_id = ?');
+            $st->execute([$uid]);
+            $work = $st->fetch(PDO::FETCH_ASSOC) ?: $work;
+        } catch (Throwable $e) {}
         return [
             'id'         => $uid,
             'name'       => $name,
@@ -92,6 +99,9 @@ final class MemberDirectory
             'level'      => $level > 0 ? $level : null,
             'headline'   => mb_substr(trim((string) ($r['headline'] ?? '')), 0, 160),
             'skills'     => array_slice($skills, 0, 8),
+            /* What they do: several roles (set at the office) and a line in their own words. */
+            'work_roles' => class_exists('MemberRoster') ? MemberRoster::workRoles((string) $work['work_roles']) : [],
+            'about'      => (string) $work['about'],
             'tz'         => $tz,
             'local_time' => function_exists('av_now_tz') ? av_now_tz('H:i', $tz) : '',
             'is_me'      => $uid === $viewerId,

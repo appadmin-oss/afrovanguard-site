@@ -128,7 +128,7 @@ render_nav('about');
 
 <?php if (!$isOrg): ?>
   <!-- ===================== ACCESS GATE (non-members) ===================== -->
-  <main id="main-content" class="bp">
+  <main id="main" tabindex="-1" class="bp">
     <section class="bp-gate">
       <div class="bp-gate-card">
         <span class="bp-gate-badge">🔒 Members only</span>
@@ -151,7 +151,7 @@ render_nav('about');
   </main>
 <?php else: ?>
   <!-- ===================== MEMBERS' DOCUMENT ===================== -->
-  <main id="main-content" class="bp">
+  <main id="main" tabindex="-1" class="bp">
     <header class="bp-hero">
       <div class="bp-in">
         <p class="bp-kicker"><span class="bp-lock">🔒</span> Members only · The Governing Council</p>

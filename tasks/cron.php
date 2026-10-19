@@ -32,8 +32,10 @@ if (!$cli) {
         exit;
     }
     $key = (string) ($_GET['key'] ?? ($_SERVER['HTTP_X_AV_CRON_KEY'] ?? ''));
-    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
+    /* Counted BEFORE the key is compared: after it, the limit only ever saw
+       correct keys and guessing an 8-character key was unlimited. */
     if (function_exists('av_rate_ok') && !av_rate_ok('cron_web', 30, 60)) { http_response_code(429); echo json_encode(['ok' => false, 'error' => 'Rate limited.']); exit; }
+    if (!hash_equals($want, $key)) { http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Forbidden.']); exit; }
 }
 
 $max = $cli
@@ -44,6 +46,12 @@ $result = ['ok' => true, 'at' => gmdate('c')];
 if (class_exists('Webhooks')) {
     try { $result['webhooks'] = Webhooks::runQueue($max); }
     catch (Throwable $e) { $result['ok'] = false; $result['error'] = $e->getMessage(); error_log('[cron] webhooks: ' . $e->getMessage()); }
+}
+
+/* Content the Studio scheduled (lib/Cms.php): published when its time comes. */
+if (class_exists('Cms')) {
+    try { $due = Cms::runDue(); if ($due) $result['content_published'] = $due; }
+    catch (Throwable $e) { error_log('[cron] content: ' . $e->getMessage()); }
 }
 
 /* Every tick: finish the payments CACENTRE's checkout took that nobody came
@@ -120,6 +128,10 @@ if (class_exists('Commitments')) {
 if (class_exists('Mentorship')) {
     try { $result['session_bots'] = Mentorship::dispatchDueSessionBots(); }
     catch (Throwable $e) { error_log('[cron] session bots: ' . $e->getMessage()); }
+    // And their transcripts are collected by polling, as meetings' are. Without a
+    // notetaker configured both calls return 0 at once.
+    try { $result['session_transcripts'] = Mentorship::pollSessionBotTranscripts(); }
+    catch (Throwable $e) { error_log('[cron] session transcripts: ' . $e->getMessage()); }
 }
 
 // The accountability pass (report §13, §14): remind the meetings coming due,
@@ -149,6 +161,55 @@ if (class_exists('MeetingClock')) {
     $result['meeting_clock'] = AiOps::run('meeting_clock', static fn() => MeetingClock::sweep());
 }
 
+// Meetings run themselves: who is in the call (Google Meet) while it is on,
+// the transcript and attendance once it ends, the day-before and hour-before
+// reminders, the minutes drafted for the secretary and chased when late.
+if (class_exists('MeetingMinutes')) {
+    $result['meetings_live'] = AiOps::run('meetings_live', static fn() => MeetingMinutes::sweep());
+}
+// Google Meet upkeep: a Meet link Calendar had not made yet, Google's own
+// recording/transcript/notes switched on where it is not yet; Google's live
+// events drained from Pub/Sub, and the events subscription kept alive.
+if (class_exists('Meetings')) {
+    try { $result['meet_upkeep'] = Meetings::meetUpkeep(); } catch (Throwable $e) { $result['meet_upkeep'] = ['error' => $e->getMessage()]; }
+}
+if (class_exists('MeetEvents') && MeetEvents::configured()) {
+    try { $result['meet_events_sub'] = MeetEvents::renewIfDue(); $result['meet_events'] = MeetEvents::drain(); }
+    catch (Throwable $e) { $result['meet_events'] = ['error' => $e->getMessage()]; }
+}
+
+// The CACENTRE CRM's Audience: subscribers, givers and enquiries pushed (signed).
+if (class_exists('CrmAudiencePush')) {
+    try { $result['crm_audience'] = CrmAudiencePush::run(); } catch (Throwable $e) { $result['crm_audience'] = ['ok' => false, 'error' => $e->getMessage()]; }
+}
+
+// Volunteers: NGG's list refreshed every six hours; tomorrow's opportunities reminded.
+if (class_exists('NggVolunteers')) {
+    try { $result['ngg_volunteers'] = NggVolunteers::syncIfDue(); } catch (Throwable $e) { $result['ngg_volunteers'] = ['ok' => false, 'error' => $e->getMessage()]; }
+}
+/* CACENTRE's goals: mirrored here, their steps planned and counted toward the owner's week (lib/CacGoals.php). */
+if (class_exists('CacGoals')) {
+    try { $cg = CacGoals::syncIfDue(); if ($cg !== null) $result['cac_goals'] = $cg; }
+    catch (Throwable $e) { error_log('[cron] cac goals: ' . $e->getMessage()); }
+}
+/* Tasks come from goals: an open goal with nothing open under it is planned (lib/GoalPlanner.php). */
+if (class_exists('GoalPlanner')) {
+    try { $gp = GoalPlanner::sweep(); if (!empty($gp['planned'])) $result['goals_planned'] = $gp; }
+    catch (Throwable $e) { error_log('[cron] goal planner: ' . $e->getMessage()); }
+}
+/* A pool task nobody took in tasks.auto_assign_hours goes to whoever fits it best (lib/TaskMatch.php). */
+if (class_exists('TaskMatch')) {
+    try { $aa = TaskMatch::autoAssign(); if (!empty($aa['assigned']) || !empty($aa['left'])) $result['tasks_auto_assigned'] = $aa; }
+    catch (Throwable $e) { error_log('[cron] auto-assign: ' . $e->getMessage()); }
+}
+/* Ticks on tasks that count toward a CACENTRE commitment, not sent at the time (lib/CacWeek.php). */
+if (class_exists('CacWeek') && CacWeek::ready()) {
+    try { $result['cac_week_retried'] = CacWeek::retryPending(); } catch (Throwable $e) { $result['cac_week_retried'] = $e->getMessage(); }
+}
+if (class_exists('VolunteerWork')) {
+    try { $result['opportunity_reminders'] = VolunteerWork::sweep(); } catch (Throwable $e) {}
+}
+
 // Report §20: write the case for anyone the rules engine now rates as ready,
 // and tell leadership. One review per member per target level.
 if (class_exists('Promotion')) {
@@ -174,6 +235,20 @@ if (class_exists('Brief')) {
             ? ['wrote' => implode(' and ', $wrote), 'skipped' => false]
             : ['skipped' => true, 'why' => 'no brief was due'];
     });
+}
+
+/* Google Workspace. Both of these were reachable only from tools/gws-*.php on
+   the command line, on a host with no shell: push channels Google expires
+   after about a week were never renewed, so real-time Calendar/Drive updates
+   stopped seven days after anybody connected, and the directory sync the docs
+   describe as nightly never ran at all. */
+if (class_exists('GoogleWatch') && class_exists('GoogleWorkspaceUser') && GoogleWorkspaceUser::configured()) {
+    try { $w = GoogleWatch::renewExpiring(); if ($w['renewed'] || $w['failed']) $result['google_watch'] = $w; }
+    catch (Throwable $e) { error_log('[cron] google watch: ' . $e->getMessage()); }
+}
+if (class_exists('GoogleWorkspace') && GoogleWorkspace::directorySyncDue()) {
+    try { $result['google_directory'] = GoogleWorkspace::runDirectorySync(); }
+    catch (Throwable $e) { error_log('[cron] google directory: ' . $e->getMessage()); }
 }
 
 // Every tick: one page of this site's roster to CACENTRE's person directory —

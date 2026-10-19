@@ -31,16 +31,33 @@ try {
     $pdo = Database::pdo();
     if ($action === 'members') {
         $out = av_team_members($pdo);
+        $out['members'] = array_map('av_team_public_dict', $out['members'] ?? []);
     } elseif ($action === 'member') {
         $id = (int) ($_GET['id'] ?? 0);
         if ($id < 1) json_out(['status' => 'error', 'error' => 'A member id is required.'], 400);
         $out = av_team_one($pdo, $id);
+        if (isset($out['member'])) $out['member'] = av_team_public_dict($out['member']);
     } elseif ($action === 'votm') {
         $out = av_votm($pdo);
     } else { // celebrations
         if (is_file(AV_ROOT . '/lib/celebrations.php')) {
             require_once AV_ROOT . '/lib/celebrations.php';
-            $out = ['status' => 'ok', 'celebration' => av_celebration_today($pdo)];
+            $date = date('Y-m-d');
+            $cel = av_celebration_today($pdo, $date);
+            // The signed-in member's own birthday (design 5a, “your birthday”).
+            // Per-user, so this response must never be cached by a proxy.
+            header('Cache-Control: private, no-store');
+            try {
+                $u = class_exists('LmsAuth') ? LmsAuth::user() : null;
+                if ($u) {
+                    $b = class_exists('Birthdays') ? Birthdays::of((int) $u['id']) : null;
+                    $pts = class_exists('GateAttendance') ? (int) (GateAttendance::pointRules()['birthday'] ?? 0) : 0;
+                    $cel = av_celebration_for_viewer($cel, ['name' => (string) $u['name'], 'birthday' => $b['birthday'] ?? '', 'year' => $b['year'] ?? 0], $date, $pts);
+                }
+            } catch (Throwable $e) { error_log('[api] celebrations viewer: ' . $e->getMessage()); }
+            $theme = null;
+            try { $theme = av_celebration_theme($pdo, $date); } catch (Throwable $e) { error_log('[api] celebrations theme: ' . $e->getMessage()); }
+            $out = ['status' => 'ok', 'celebration' => $cel, 'theme' => $theme];
             // Best-effort lazy trigger so birthday emails still go out on hosts
             // without a configured cron. Idempotent (once per person per day),
             // and wrapped so it can never affect this response.

@@ -330,7 +330,7 @@ if ($method === 'GET') {
 
     if ($action === 'get_messages') {
         $token = trim($_GET['admin_token'] ?? '');
-        if (!defined('ADMIN_TOKEN') || !hash_equals(ADMIN_TOKEN, $token)) {
+        if (!av_admin_token_matches($token)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
             exit;

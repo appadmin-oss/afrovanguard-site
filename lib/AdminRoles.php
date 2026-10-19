@@ -56,18 +56,24 @@ final class AdminRoles
     public static function current(): string
     {
         if (function_exists('av_admin_bearer_ok') && av_admin_bearer_ok()) return 'superadmin';
-        if (function_exists('av_admin_cookie_role')) {
-            $r = av_admin_cookie_role();
-            if ($r !== '') return $r;
-        }
+        $c = function_exists('av_admin_cookie_parse') ? av_admin_cookie_parse() : null;
+        /* A token sign-in: av_admin_cookie_parse() has already checked the role
+           against RANK and the MAC against the ADMIN_TOKEN it was issued under,
+           so rotating the token ends it. */
+        if ($c !== null && $c['src'] !== 'm') return (string) $c['role'];
+        /* A bridged session is the member's: it holds only while they are
+           signed in and still on the admin team, at the level they hold NOW. */
+        $live = '';
         if (class_exists('LmsAuth')) {
             $u = LmsAuth::user();
-            if ($u && !empty($u['email'])) {
-                $role = self::roleForEmail((string) $u['email']);
-                if ($role !== '') { if (function_exists('av_admin_cookie_issue')) av_admin_cookie_issue(43200, $role); return $role; }
-            }
+            if ($u && !empty($u['email'])) $live = self::roleForEmail((string) $u['email']);
         }
-        return '';
+        if ($live === '') {
+            if ($c !== null && function_exists('av_admin_cookie_clear')) av_admin_cookie_clear();
+            return '';
+        }
+        if (($c === null || $c['role'] !== $live) && function_exists('av_admin_cookie_issue')) av_admin_cookie_issue(43200, $live, 'm');
+        return $live;
     }
 
     public static function orgEmail(string $email): bool
@@ -120,7 +126,7 @@ final class AdminRoles
 }
 
 /** Global helper used by require_admin() and the API. */
-function av_admin_role(): string { return class_exists('AdminRoles') ? AdminRoles::current() : (av_admin_cookie_valid() || av_admin_bearer_ok() ? 'superadmin' : ''); }
+function av_admin_role(): string { return AdminRoles::current(); }
 
 /**
  * Who is acting, for provenance on records that outlive the session — "who set

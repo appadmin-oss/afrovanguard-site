@@ -317,6 +317,7 @@ final class DirectoryPush
             CURLOPT_POSTFIELDS => json_encode(['token' => $token], JSON_UNESCAPED_SLASHES),
         ]);
         $body = curl_exec($ch);
+        if (class_exists('CacBridge')) CacBridge::see($ch, $body, 'directory');
         $err = curl_error($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);

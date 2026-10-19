@@ -198,6 +198,27 @@ final class Ngv
                 ['name' => 'CACENTRE Egbeda', 'address' => '2 Abolude / Oremeji Street, Bakery Bus Stop, Egbeda, Lagos'],
                 ['name' => 'CACENTRE Okun Alimosho', 'address' => 'Okun Alimosho, Alimosho, Lagos'],
             ],
+
+            /* ── NextGen Vanguard 2.0 — the portal's Programme view (design
+               "Afrovanguard Portal v4"; lib/NgvJourney.php reads these). The
+               levels and schools ship with the programme; the parts that change
+               every term (this quarter's project, the chapter roster) start empty
+               and are shown only once the office fills them in. The programme's
+               brochure (pipeline, the NGV 8, summer, summit) is the public NGV
+               page's, not the member's dashboard. */
+            'j_levels'   => ['Candidate', 'Member', 'Vanguard', 'Chapter Leader', 'National Vanguard', 'AfroVanguard'],
+            'j_schools'  => [
+                ['name' => 'School of Self', 'desc' => 'Identity, character, discipline, communication', 'modules' => 6],
+                ['name' => 'School of Work', 'desc' => 'CV and portfolio, interviewing, project management', 'modules' => 6],
+                ['name' => 'School of Enterprise', 'desc' => 'Sales, finance, business models, investing', 'modules' => 6],
+                ['name' => 'School of Technology', 'desc' => 'AI, coding, no-code tools, cybersecurity', 'modules' => 6],
+                ['name' => 'School of Culture & Creativity', 'desc' => 'African history, language, music, film, design', 'modules' => 7],
+                ['name' => 'School of Community Leadership', 'desc' => 'Organising, advocacy, fundraising, governance', 'modules' => 7],
+            ],
+            'j_project'      => ['quarter' => '', 'title' => '', 'theme' => '', 'desc' => '', 'step' => 0, 'team' => '', 'budget' => '', 'measure' => ''],
+            'j_project_past' => [],
+            'j_chapter'      => ['name' => '', 'place' => ''],
+            'j_roster'       => [],
         ];
     }
 

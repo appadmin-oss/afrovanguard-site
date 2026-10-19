@@ -20,7 +20,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 $out = static function (array $b, int $code = 200): void { http_response_code($code); echo json_encode($b, JSON_UNESCAPED_SLASHES); exit; };
 
-$secret = (string) (getenv('NGG_WEBHOOK_SECRET') ?: (defined('NGG_WEBHOOK_SECRET') ? NGG_WEBHOOK_SECRET : ''));
+$secret = av_ngg_secret();
 if (trim($secret) === '') $out(['ok' => false, 'error' => 'not-configured'], 404);
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') $out(['ok' => false, 'error' => 'POST only.'], 405);
 

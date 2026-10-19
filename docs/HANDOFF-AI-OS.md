@@ -81,7 +81,7 @@ suite really does reach the network).
 | `556dac9` | `AvSettings` — set the AI up from the Studio |
 | `47341fa` | Docs: the Setup screen and the three config layers |
 | `3db4cc4` | OpenAI as a third provider, plus Whisper |
-| `7242349` | Attendee — a free alternative to Recall — and transcript polling |
+| `7242349` | Attendee — the free, self-hostable notetaker — and transcript polling |
 
 Suite green: **666 assertions across 7 files** (`php tests/run.php`).
 
@@ -219,7 +219,7 @@ try/caught, because it runs on early paths where the database may not exist.
 
 **Connection tests** (`AvSettings::test()`) make the cheapest real call each
 provider offers — one token for Claude, a lookup for an impossible bot id for
-Recall so nothing is billed. Failures are translated into something actionable
+Attendee so no bot is created. Failures are translated into something actionable
 (`"The key was rejected. Check it was pasted whole, with no spaces."`) and never
 echo a raw response body, which can contain the key.
 
@@ -247,17 +247,15 @@ provider-neutral above all three.
 |---|---|---|
 | `google` | **free** | Already on Workspace. Meet transcribes itself, no bot. **Start here.** |
 | `attendee` | **free self-hosted** | Need Zoom/Teams too, or no Workspace scopes. Open source; you pay for a container, plus a recogniser unless you use Meet's captions |
-| `webhook` | **free self-hosted** | Your own recorder |
-| `recall` | **per meeting-hour** | You would rather pay than operate a container |
 
-Attendee is preferred over Recall when both are configured, because between
-equivalent capabilities the free one should win by default. One trap worth
-knowing: **`AV_ATTENDEE_BASE_URL` left blank uses Attendee's hosted service,
+Both are optional — with neither, the site runs normally and minutes come from
+an upload or a paste. Attendee is the only third-party bot; Recall.ai and the
+custom webhook recorder were retired. One trap worth knowing: **`AV_ATTENDEE_BASE_URL` left blank uses Attendee's hosted service,
 which is billed** — that quietly defeats the point of choosing it. The Studio
 test reports which of the two you are actually talking to.
 
-`Meetings::pollBotTranscripts()` means **no public webhook is required** for
-either bot. The cron asks each bot in flight whether it has finished and ingests
+`Meetings::pollBotTranscripts()` (and `Mentorship::pollSessionBotTranscripts()`
+for sessions) means **no public webhook is required** for the bot. The cron asks each bot in flight whether it has finished and ingests
 when it has, so shared hosting, a staging domain or a site that just moved all
 work with no inbound callback.
 
@@ -321,8 +319,6 @@ Real defects, not just new features:
   `join_at`, clamped so it's never in the past.
 - **A failed bot dispatch was never retried** — it just never arrived, silently.
   `Meetings::dispatchDueBots()` now sweeps on every cron tick.
-- **`RecallBot::http()` treated 204 as an error**, so every successful bot
-  removal would have reported failure.
 
 ---
 
@@ -335,7 +331,7 @@ already exist.
 | To enable | Set |
 |---|---|
 | AI minutes | `AV_GEMINI_API_KEY` (preferred) or `ANTHROPIC_API_KEY` |
-| Meet notetaker (bot in the room) | `AV_RECALL_API_KEY` + **`AV_RECALL_WEBHOOK_TOKEN`** |
+| Meet notetaker (bot in the room, optional) | `AV_ATTENDEE_API_KEY` + `AV_ATTENDEE_BASE_URL` |
 | Meet notetaker (free path) | nothing — Google's own transcripts are already wired |
 | The cron sweep | `AV_CRON_KEY`, hit `tasks/cron.php` every few minutes |
 | Tools + the chat console | nothing beyond an AI key — on by default |
@@ -355,9 +351,9 @@ Three layers, and it is worth keeping them straight:
 | `AvRules` | *Whether* the AI may do a thing, and within what thresholds | Studio → Rules |
 | `AvPrompts` / `AvKnowledge` | *How* it should behave, and what it knows | Studio → Prompts / Knowledge |
 
-**Two cost levers worth knowing.** Recall.ai is the one genuinely usage-priced
-service (per meeting-hour) — Google's own Meet transcripts are free and already
-wired, so prefer those unless you need Zoom/Teams. And `AV_AI_MODEL` defaults to
+**Two cost levers worth knowing.** Attendee left on its hosted service is
+billed per meeting — self-host it, or prefer Google's own Meet transcripts, which
+are free and already wired, unless you need Zoom/Teams. And `AV_AI_MODEL` defaults to
 an Opus-class model in `AvBot.php`, which is wrong for a nightly sweep; set a
 cheaper tier and reserve the expensive model for member-facing conversation.
 
@@ -409,9 +405,9 @@ by a test failing, both now pinned:
 **Mentorship's own `addSession()` path has no notetaker.**~~ **Fixed in
 `e27385a`.** Sessions now store transcript text and structured minutes
 (`mentor_session_minutes`), carry the same bot columns as meetings, and have
-`inviteSessionBot()` / `removeSessionBot()` / `dispatchDueSessionBots()`. Recall
-posts every bot to one webhook, so a bot id matching no meeting falls through to
-the session lookup. `session.minutes` is deliberately a *record*, not an
+`inviteSessionBot()` / `removeSessionBot()` / `dispatchDueSessionBots()`, and
+`pollSessionBotTranscripts()` collects a finished Attendee bot's transcript on
+the cron, as it does for meetings. `session.minutes` is deliberately a *record*, not an
 assessment — no field judges anyone, and personal difficulty is captured only as
 far as it explains a blockage, because people who were not in the room read it.
 

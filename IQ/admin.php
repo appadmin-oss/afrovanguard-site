@@ -21,7 +21,7 @@ render_head([
 ]);
 render_nav('academy');
 ?>
-<main id="main-content" class="iq" data-csrf="<?= e($csrf) ?>">
+<main id="main" tabindex="-1" class="iq" data-csrf="<?= e($csrf) ?>">
   <header class="iq-hero"><div class="iq-in">
     <p class="iq-kicker">✎ IQ Author</p>
     <h1>Quiz authoring</h1>

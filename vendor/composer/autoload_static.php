@@ -23,6 +23,7 @@ class ComposerStaticInita106d71b58e411efe3efebee01c3f910
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
             'Svg\\' => 4,
+            'Spatie\\IcalendarGenerator\\' => 26,
             'Sabberworm\\CSS\\' => 15,
         ),
         'P' => 
@@ -71,6 +72,10 @@ class ComposerStaticInita106d71b58e411efe3efebee01c3f910
         'Svg\\' => 
         array (
             0 => __DIR__ . '/..' . '/dompdf/php-svg-lib/src/Svg',
+        ),
+        'Spatie\\IcalendarGenerator\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/spatie/icalendar-generator/src',
         ),
         'Sabberworm\\CSS\\' => 
         array (

@@ -5,6 +5,7 @@
  *   GET  ?action=card&id=N        → { ok, card }
  *   GET  ?action=list&q=          → { ok, members:[…] }
  *   POST ?action=set_skills {skills} → { ok, card }
+ *   POST ?action=set_about {about}   → { ok, card }   what you do, in your words
  *
  * Org members only; the write is same-origin + CSRF + rate-limited.
  */
@@ -36,6 +37,12 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             av_require_write($uid, 'directory', 30);
             MemberDirectory::setSkills($uid, (string) ($body['skills'] ?? ''));
+            json_out(['ok' => true, 'card' => MemberDirectory::card($uid, $uid)]);
+
+        case 'set_about':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            av_require_write($uid, 'directory', 30);
+            MemberRoster::setAbout($uid, (string) ($body['about'] ?? ''));
             json_out(['ok' => true, 'card' => MemberDirectory::card($uid, $uid)]);
 
         default:

@@ -16,6 +16,7 @@
  * addresses) so --clean can take it all away again and leave real data alone.
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 
 $opt = static function (string $name, $default = null) use ($argv) {

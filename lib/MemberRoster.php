@@ -87,6 +87,11 @@ final class MemberRoster
             source      VARCHAR(16) NOT NULL DEFAULT '',
             updated_at  VARCHAR(32) NOT NULL DEFAULT ''
         )");
+        /* What work a member does — several roles, and a line in their own words
+           — so tasks go to the right person (lib/TaskMatch.php). */
+        foreach (['work_roles' => "VARCHAR(300) NOT NULL DEFAULT ''", 'about' => "VARCHAR(600) NOT NULL DEFAULT ''"] as $col => $decl) {
+            try { if (!Database::columnExists('member_profiles', $col)) $pdo->exec("ALTER TABLE member_profiles ADD COLUMN $col $decl"); } catch (Throwable $e) {}
+        }
         Database::execSchema($pdo, "CREATE TABLE IF NOT EXISTS member_import_runs (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             digest     VARCHAR(64) NOT NULL,
@@ -182,7 +187,36 @@ final class MemberRoster
             $c['joined_on'] = $j;
         }
         if (array_key_exists('notes', $d)) $c['notes'] = mb_substr(trim((string) $d['notes']), 0, 4000);
+        if (array_key_exists('work_roles', $d)) $c['work_roles'] = implode(', ', self::workRoles($d['work_roles']));
+        if (array_key_exists('about', $d)) $c['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $d['about']) ?? ''), 0, 600);
         return ['ok' => !$e, 'clean' => $c, 'errors' => $e];
+    }
+
+    /**
+     * A member's work roles: several, as a list or "Media, Events, Instructor".
+     * Trimmed, at most eight, each under 40 characters, no repeats.
+     */
+    public static function workRoles(mixed $v): array
+    {
+        $parts = is_array($v) ? $v : preg_split('/[,;\n]+/u', (string) $v);
+        $out = [];
+        foreach ($parts ?: [] as $r) {
+            $r = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $r) ?? ''), 0, 40);
+            if ($r !== '' && !in_array(mb_strtolower($r), array_map('mb_strtolower', $out), true)) $out[] = $r;
+            if (count($out) >= 8) break;
+        }
+        return $out;
+    }
+
+    /** A member describing their own work: their line, in their words. Roles are the office's to set. */
+    public static function setAbout(int $uid, string $about): bool
+    {
+        self::ensure();
+        if (!self::user($uid)) return false;
+        $p = self::profile($uid);
+        $p['about'] = mb_substr(trim(preg_replace('/\s+/u', ' ', $about) ?? ''), 0, 600);
+        self::writeProfile($uid, $p, (string) ($p['source'] ?: 'self'));
+        return true;
     }
 
     /* ══ Who may change what ════════════════════════════════════════════════
@@ -348,8 +382,9 @@ final class MemberRoster
             if (Birthdays::of($id) !== $was) $changed[] = 'birthday';
         }
         $p = self::profile($id);
-        foreach (['phone', 'centre', 'joined_on', 'notes'] as $k) if (array_key_exists($k, $c) && (string) $c[$k] !== (string) ($p[$k] ?? '')) $changed[] = $k;
-        if (array_intersect($changed, ['phone', 'centre', 'joined_on', 'notes'])) self::writeProfile($id, $c + $p, (string) ($p['source'] ?? 'studio'));
+        $fields = ['phone', 'centre', 'joined_on', 'notes', 'work_roles', 'about'];
+        foreach ($fields as $k) if (array_key_exists($k, $c) && (string) $c[$k] !== (string) ($p[$k] ?? '')) $changed[] = $k;
+        if (array_intersect($changed, $fields)) self::writeProfile($id, $c + $p, (string) ($p['source'] ?? 'studio'));
         if ($changed) self::lms()->audit('member.update', (string) $u['email'], implode(', ', $changed), $actor);
         return ['ok' => true, 'changed' => $changed, 'member' => self::get($id)];
     }
@@ -357,12 +392,13 @@ final class MemberRoster
     private static function writeProfile(int $id, array $c, string $source): void
     {
         $pdo = Database::pdo();
-        $vals = [mb_substr((string) ($c['phone'] ?? ''), 0, 24), mb_substr((string) ($c['centre'] ?? ''), 0, 60), (string) ($c['joined_on'] ?? ''), (string) ($c['notes'] ?? ''), $source, self::now()];
-        $st = $pdo->prepare('UPDATE member_profiles SET phone = ?, centre = ?, joined_on = ?, notes = ?, source = ?, updated_at = ? WHERE user_id = ?');
+        $vals = [mb_substr((string) ($c['phone'] ?? ''), 0, 24), mb_substr((string) ($c['centre'] ?? ''), 0, 60), (string) ($c['joined_on'] ?? ''), (string) ($c['notes'] ?? ''),
+                 mb_substr((string) ($c['work_roles'] ?? ''), 0, 300), mb_substr((string) ($c['about'] ?? ''), 0, 600), $source, self::now()];
+        $st = $pdo->prepare('UPDATE member_profiles SET phone = ?, centre = ?, joined_on = ?, notes = ?, work_roles = ?, about = ?, source = ?, updated_at = ? WHERE user_id = ?');
         $st->execute([...$vals, $id]);
         if ($st->rowCount() === 0) {
             $chk = $pdo->prepare('SELECT 1 FROM member_profiles WHERE user_id = ?'); $chk->execute([$id]);
-            if (!$chk->fetchColumn()) $pdo->prepare('INSERT INTO member_profiles (phone, centre, joined_on, notes, source, updated_at, user_id) VALUES (?,?,?,?,?,?,?)')->execute([...$vals, $id]);
+            if (!$chk->fetchColumn()) $pdo->prepare('INSERT INTO member_profiles (phone, centre, joined_on, notes, work_roles, about, source, updated_at, user_id) VALUES (?,?,?,?,?,?,?,?,?)')->execute([...$vals, $id]);
         }
     }
 
@@ -375,9 +411,9 @@ final class MemberRoster
 
     private static function profile(int $id): array
     {
-        $st = Database::pdo()->prepare('SELECT phone, centre, joined_on, notes, source FROM member_profiles WHERE user_id = ?');
+        $st = Database::pdo()->prepare('SELECT phone, centre, joined_on, notes, work_roles, about, source FROM member_profiles WHERE user_id = ?');
         $st->execute([$id]);
-        return $st->fetch(PDO::FETCH_ASSOC) ?: ['phone' => '', 'centre' => '', 'joined_on' => '', 'notes' => '', 'source' => ''];
+        return $st->fetch(PDO::FETCH_ASSOC) ?: ['phone' => '', 'centre' => '', 'joined_on' => '', 'notes' => '', 'work_roles' => '', 'about' => '', 'source' => ''];
     }
 
     /** A member's whole record, for the drawer. */
@@ -395,6 +431,9 @@ final class MemberRoster
             'staff' => self::isStaff($u),
             'learner' => !self::isMember($id),
             'membership' => Membership::summary($id),
+            /* Volunteer is explicit (lib/Volunteers): why, if they are one. */
+            'volunteer' => class_exists('Volunteers') ? Volunteers::why($u) : [],
+            'volunteer_projects' => class_exists('VolunteerProjects') ? VolunteerProjects::forUser($u) : [],
         ];
     }
 
@@ -509,6 +548,11 @@ final class MemberRoster
             if ($kind === 'ngv') $w[] = $ids ? 'u.id IN (' . implode(',', array_map('intval', $ids)) . ')' : '1 = 0';
             elseif ($ids) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', $ids)) . ')';
         }
+        /* Volunteers, or members who are not (lib/Volunteers decides). */
+        $vol = (string) ($f['volunteer'] ?? '');
+        $volIds = class_exists('Volunteers') ? Volunteers::volunteerIds() : [];
+        if ($vol === 'yes') $w[] = $volIds ? 'u.id IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')' : '1 = 0';
+        elseif ($vol === 'no' && $volIds) $w[] = 'u.id NOT IN (' . implode(',', array_map('intval', array_keys($volIds))) . ')';
         $where = $w ? ' WHERE ' . implode(' AND ', $w) : '';
         $from = ' FROM lms_users u LEFT JOIN member_profiles p ON p.user_id = u.id' . $where;
         $pdo = Database::pdo();
@@ -525,11 +569,11 @@ final class MemberRoster
         $st->execute($a);
         $ngv = self::vanguardIds();
         $now = Membership::now(); $soon = gmdate('Y-m-d H:i:s', time() + Membership::DUE_SOON_DAYS * 86400);
-        $rows = array_map(static function ($r) use ($ngv, $now, $soon) {
+        $rows = array_map(static function ($r) use ($ngv, $now, $soon, $volIds) {
             $pt = (string) ($r['paid_through'] ?? '');
             $r['membership'] = $pt === '' || $pt <= $now ? 'none' : ($pt === '9999-12-31 00:00:00' ? 'lifetime' : ($pt <= $soon ? 'due_soon' : 'current'));
             if ($r['membership'] === 'lifetime') $r['paid_through'] = null;
-            return $r + ['ngv' => isset($ngv[(int) $r['id']])];
+            return $r + ['ngv' => isset($ngv[(int) $r['id']]), 'volunteer' => isset($volIds[(int) $r['id']])];
         }, $st->fetchAll(PDO::FETCH_ASSOC));
         return ['members' => $rows, 'total' => $total, 'page' => $page, 'page_size' => $size];
     }
@@ -624,7 +668,7 @@ final class MemberRoster
      * refused with a reason); one audit line for the run.
      */
     public const BULK_MAX = 500;
-    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel'];
+    public const BULK_ACTIONS = ['status', 'centre', 'level', 'membership_grant', 'membership_cancel', 'volunteer_add', 'volunteer_remove'];
 
     public static function bulk(array $ids, string $action, array $value, string $actor, array $ctx = []): array
     {
@@ -668,7 +712,23 @@ final class MemberRoster
                you selected is not a decision anybody made. One at a time, in
                the drawer, where the guard and the person are both visible. */
             if ($action === 'status' && self::isStaff($u)) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'staff_account', 'error' => $u['name'] . ' is staff — change their status on their own record.']; $refused++; continue; }
-            if (str_starts_with($action, 'membership_')) {
+            if (str_starts_with($action, 'volunteer_') && class_exists('Volunteers')) {
+                $by = (int) ($ctx['self_id'] ?? 0);
+                if ($action === 'volunteer_add') {
+                    /* On a project, as a type (lib/VolunteerProjects); organisation-wide by default. */
+                    $pj = (int) ($value['project_id'] ?? 0) ?: (int) ((VolunteerProjects::bySlug('afrovanguard') ?? [])['id'] ?? 0);
+                    $r = VolunteerProjects::assign([$id], $pj, (string) ($value['type'] ?? 'general'), $by, (string) ($value['note'] ?? ''));
+                    $outcome = !$r['ok'] ? 'refused' : (($r['placed'] || $r['updated'] || $r['new_volunteers']) ? 'applied' : 'unchanged');
+                } else {
+                    $why = Volunteers::why($u);
+                    if (!array_intersect($why, ['roster', 'team'])) { $r = ['ok' => true]; $outcome = 'unchanged'; }
+                    else { $r = Volunteers::unpromote($id, $by); $outcome = 'applied'; }
+                    if ($r['ok'] && ($still = array_values(array_diff($why, ['roster', 'team'])))) {
+                        $r = ['ok' => false, 'code' => 'still_volunteer', 'error' => $u['name'] . ' is still a volunteer through ' . implode(' and ', array_map(fn($w) => ['ngg' => 'NGG', 'people' => 'the People page'][$w] ?? $w, $still)) . '.'];
+                        $outcome = 'refused';
+                    }
+                }
+            } elseif (str_starts_with($action, 'membership_')) {
                 if ($ctx && $self === $id) { $results[] = ['id' => $id, 'name' => $u['name'], 'outcome' => 'refused', 'code' => 'own_account', 'error' => 'Your own membership is changed by another admin.']; $refused++; continue; }
                 $r = $action === 'membership_grant'
                     ? Membership::grant($id, ['months' => (int) $value['months'], 'method' => (string) ($value['method'] ?? ''), 'note' => (string) ($value['note'] ?? ''), 'actor' => $actor])

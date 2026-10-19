@@ -44,7 +44,7 @@ $action = (string) ($_GET['action'] ?? 'list');
 $sentence = static function (string $why): string {
     return match ($why) {
         'not-configured' => 'The link to the console is not set up here yet.',
-        'unreachable'    => 'The console did not answer. Nothing was changed — try again in a moment.',
+        'unreachable'    => 'CACENTRE is not available right now. Nothing was changed, and the administrators have been told.',
         'not-yours'      => 'That follow-up is not yours.',
         'no-summary'     => 'Say what happened, even briefly. A tick that records nothing is how the centre ended up with ninety leads and no notes.',
         default          => str_starts_with($why, 'refused: ')
@@ -59,7 +59,7 @@ try {
             json_out(['ok' => false, 'error' => 'Too many requests — give it a moment.'], 429);
         }
         $r = CacLeads::forMember($uid);
-        if (!$r['ok']) json_out(['ok' => false, 'error' => $sentence($r['error']), 'url' => $r['url']], 502);
+        if (!$r['ok']) json_out(['ok' => false, 'error' => $sentence($r['error']), 'url' => $r['url']], 503);
         json_out(['ok' => true, 'leads' => $r['leads'], 'url' => $r['url']]);
     }
 
@@ -76,7 +76,7 @@ try {
             'next_action'    => (string) ($body['next_action'] ?? ''),
             'next_action_at' => (string) ($body['next_action_at'] ?? ''),
         ]);
-        if (!$r['ok']) json_out(['ok' => false, 'error' => $sentence($r['error'])], 502);
+        if (!$r['ok']) json_out(['ok' => false, 'error' => $sentence($r['error'])], 503);
         json_out(['ok' => true]);
     }
 

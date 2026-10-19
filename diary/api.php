@@ -221,8 +221,49 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
             require_same_origin();
             $email = strtolower(trim((string) ($body['email'] ?? '')));
-            if ($email !== '') Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
+            $want  = $email !== '' ? av_unsubscribe_token($email) : '';
+            if ($want === '' || !hash_equals($want, (string) ($body['token'] ?? ''))) {
+                json_out(['ok' => false, 'error' => 'Use the unsubscribe link in one of our emails, or write to us and we will take you off the list.'], 403);
+            }
+            Database::pdo()->prepare('DELETE FROM subscribers WHERE email = ?')->execute([$email]);
+            /* The row is gone, so tell the CACENTRE CRM now — or it would go on
+               counting them as somebody the estate may write to. */
+            if (class_exists('CrmAudiencePush')) {
+                CrmAudiencePush::queue(['kind' => 'subscriber', 'ref' => CrmAudiencePush::subscriberRef($email),
+                                        'email' => $email, 'list' => 'The Vanguard Diary', 'status' => 'unsubscribed']);
+            }
             json_out(['ok' => true, 'message' => 'You have been unsubscribed.']);
+
+        /* ── Following an author (lib/DiaryFollows.php) ──
+           A signed-in member follows with their account email; a reader without
+           an account sends one. One email per new entry from that author. ── */
+        case 'follow.state': {
+            $u = LmsAuth::user();
+            $f = new DiaryFollows();
+            $author = DiaryFollows::cleanSlug((string) ($_GET['author'] ?? ''));
+            json_out(['ok' => true, 'signedIn' => (bool) $u, 'count' => $f->count($author),
+                'following' => $u ? $f->isFollowing($author, (string) $u['email']) : false]);
+        }
+        case 'follow':
+        case 'unfollow': {
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required'], 405);
+            require_same_origin();
+            if (!av_rate_ok('diary_follow', 20, 3600)) json_out(['ok' => false, 'error' => 'That is a lot of following — try again in a while.'], 429);
+            if (!empty($body['hp'])) json_out(['ok' => true, 'following' => true, 'count' => 0]);   // honeypot
+            $u = LmsAuth::user();
+            $email = $u ? (string) $u['email'] : (string) ($body['email'] ?? '');
+            $f = new DiaryFollows();
+            $res = $action === 'follow'
+                ? $f->follow((string) ($body['author'] ?? ''), $email, $u ? (int) $u['id'] : 0)
+                : $f->unfollow((string) ($body['author'] ?? ''), $email);
+            json_out($res, $res['ok'] ? 200 : 422);
+        }
+        case 'follow.stop': {
+            // The link in every follow email: one click, no sign-in.
+            $author = (new DiaryFollows())->stopByToken((string) ($_GET['t'] ?? ''));
+            header('Location: ' . diary_url($author !== '' ? '?unfollowed=1' : ''), true, 302);
+            exit;
+        }
 
         /* ── Personal diary entries (Event / Private / Public) ──
            These require a signed-in account. Private + event entries are
@@ -245,7 +286,8 @@ try {
                 (string) ($body['title'] ?? ''),
                 (string) ($body['body'] ?? ''),
                 (string) ($body['entry_date'] ?? date('Y-m-d')),
-                (string) ($body['font'] ?? 'default')
+                (string) ($body['font'] ?? 'default'),
+                !empty($body['draft'])
             );
             json_out($res, $res['ok'] ? 200 : 422);
         }

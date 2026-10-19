@@ -88,6 +88,15 @@ final class Meetings
         self::addCol('meetings', 'bot_state', "VARCHAR(16) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'bot_provider', "VARCHAR(16) NOT NULL DEFAULT ''");
         self::addCol('meetings', 'bot_ref', "VARCHAR(128) NOT NULL DEFAULT ''");
+        /* The Meet space Google made for it, and what Google captures there on
+           its own (all | transcript | off | '' = not switched on). */
+        self::addCol('meetings', 'meet_space', "VARCHAR(80) NOT NULL DEFAULT ''");
+        self::addCol('meetings', 'meet_capture', "VARCHAR(12) NOT NULL DEFAULT ''");
+        /* Why Google would not switch recording on, in words — shown on the meeting, not only in a log. */
+        self::addCol('meetings', 'capture_note', "VARCHAR(500) NOT NULL DEFAULT ''");
+        /* How it repeats, as lib/Recurrence.php's rule (JSON); '' means the
+           one-word `frequency` still says it (meetings made before rules). */
+        self::addCol('meetings', 'recur', "VARCHAR(2000) NOT NULL DEFAULT ''");
         self::$ready = true;
     }
 
@@ -103,7 +112,86 @@ final class Meetings
     private static function now(): string { return gmdate('Y-m-d H:i:s'); }
 
     public static function freqLabel(string $f): string { return self::FREQ[$f][0] ?? self::FREQ['once'][0]; }
-    private static function freqKey(string $f): string { return isset(self::FREQ[$f]) ? $f : 'once'; }
+    private static function freqKey(string $f): string { return isset(self::FREQ[$f]) || $f === 'custom' ? $f : 'once'; }
+
+    /* ── How a meeting repeats (lib/Recurrence.php) ────────────────────────
+       Everything that asks "when does this happen" asks here: the list, the
+       clock, the minutes, the invite, the calendar file and Google. */
+
+    /** The series start, on the meeting clock (the timezone Google expands in). */
+    public static function seriesStart(array $m): DateTimeImmutable
+    {
+        return Recurrence::local((string) ($m['scheduled_at'] ?? '') ?: gmdate('Y-m-d H:i:s'));
+    }
+
+    /** The meeting's rule; null for a one-off. Old meetings read their one word. */
+    public static function rule(array $m): ?array
+    {
+        $start = self::seriesStart($m);
+        $j = (string) ($m['recur'] ?? '');
+        return $j !== '' ? Recurrence::normalise($j, $start) : Recurrence::fromPreset((string) ($m['frequency'] ?? 'once'), $start);
+    }
+
+    /** "Every 2 weeks on Mon and Thu, until 30 Jun 2027" — or "One-off". */
+    public static function cadence(array $m): string { return Recurrence::label(self::rule($m), self::seriesStart($m)); }
+
+    /** Google's recurrence lines for the meeting (empty for a one-off). */
+    public static function recurrenceLines(array $m): array { return Recurrence::lines(self::rule($m), self::seriesStart($m)); }
+
+    /** UTC starts of the next $limit occurrences not over by $from (plus $grace seconds). */
+    public static function upcomingStarts(array $m, int $from, int $limit = 1, int $grace = 0): array
+    {
+        $dur = max(1, (int) ($m['duration_min'] ?? 30));
+        return array_map(static fn(DateTimeImmutable $d) => $d->getTimestamp(),
+            Recurrence::upcoming(self::rule($m), self::seriesStart($m), $from - $grace, $limit, $dur));
+    }
+
+    /** UTC starts between two moments, oldest first. */
+    public static function startsBetween(array $m, int $from, int $to): array
+    {
+        $rule = self::rule($m); $start = self::seriesStart($m);
+        if ($rule === null) { $t = $start->getTimestamp(); return $t >= $from && $t <= $to ? [$t] : []; }
+        $out = [];
+        foreach (Recurrence::each($rule, $start) as $d) {
+            $t = $d->getTimestamp();
+            if ($t > $to) break;
+            if ($t >= $from) $out[] = $t;
+            if (count($out) >= 1500) break;
+        }
+        return $out;
+    }
+
+    /**
+     * The rule a form asked for, against a start: `repeat` (a rule, or
+     * {freq:'once'}), else the one-word `frequency`. [rule|null, preset word].
+     */
+    private static function askedRule(array $in, DateTimeImmutable $start): array
+    {
+        $rule = array_key_exists('repeat', $in)
+            ? Recurrence::normalise(is_string($in['repeat']) ? json_decode($in['repeat'], true) : $in['repeat'], $start)
+            : Recurrence::fromPreset(self::freqKey((string) ($in['frequency'] ?? 'once')), $start);
+        return [$rule, Recurrence::presetOf($rule, $start)];
+    }
+
+    /**
+     * What a rule would do, before anybody saves it: its words, and the next
+     * dates on the viewer's clock. For the form's preview.
+     */
+    public static function previewRepeat(int $uid, string $when, $repeat, int $limit = 6): array
+    {
+        $tz = function_exists('av_user_tz') ? av_user_tz($uid) : 'Africa/Lagos';
+        $ts = self::localToTs(trim($when), $tz);
+        if ($ts <= 0) return ['ok' => false, 'error' => 'Pick a date and time first.'];
+        $start = Recurrence::local(gmdate('Y-m-d H:i:s', $ts));
+        $rule = Recurrence::normalise(is_string($repeat) ? json_decode($repeat, true) : $repeat, $start);
+        $first = Recurrence::first($rule, $start);
+        if ($first === null) return ['ok' => true, 'label' => Recurrence::label($rule, $start), 'dates' => [], 'never' => true];
+        $view = new DateTimeZone($tz);
+        $dates = array_map(static fn(DateTimeImmutable $d) => $d->setTimezone($view)->format('D j M Y, H:i'),
+            Recurrence::upcoming($rule, $first, $first->getTimestamp(), $limit));
+        return ['ok' => true, 'label' => Recurrence::label($rule, $first), 'dates' => $dates, 'never' => false,
+                'moved' => $first->getTimestamp() !== $start->getTimestamp() ? $first->setTimezone($view)->format('D j M Y, H:i') : ''];
+    }
 
     /**
      * Provision a Google Meet link by creating a real Google Calendar event —
@@ -113,24 +201,78 @@ final class Meetings
      * ['url','provider','google_event_id']; url is '' when Google Workspace
      * Calendar isn't connected (caller surfaces a "connect Google" warning).
      */
-    public static function provisionLink(string $title, string $startIso, int $durationMin, array $emails, string $agenda, string $frequency): array
+    public static function provisionLink(string $title, string $startIso, int $durationMin, array $emails, string $agenda, array|string $recurrence): array
     {
-        $frequency = self::freqKey($frequency);
+        /* The rule's lines (Recurrence::lines), or an old one-word cadence. */
+        if (is_string($recurrence)) {
+            $start = Recurrence::local(gmdate('Y-m-d H:i:s', strtotime($startIso) ?: time()));
+            $recurrence = Recurrence::lines(Recurrence::fromPreset(self::freqKey($recurrence), $start), $start);
+        }
         if (class_exists('GoogleWorkspace') && GoogleWorkspace::calendarWriteEnabled()) {
             try {
-                $rrule = self::FREQ[$frequency][1] ?? '';
                 $ev = GoogleWorkspace::createMeetEvent(
                     $title, $startIso, $durationMin, $emails,
                     $agenda !== '' ? $agenda : 'Afrovanguard meeting.',
                     null, true,
-                    $rrule !== '' ? ['RRULE:' . $rrule] : []
+                    $recurrence
                 );
                 if ($ev && !empty($ev['meet_url'])) {
                     return ['url' => (string) $ev['meet_url'], 'provider' => 'google', 'google_event_id' => (string) ($ev['id'] ?? '')];
                 }
             } catch (Throwable $e) { error_log('[meetings] google: ' . $e->getMessage()); }
         }
-        return ['url' => '', 'provider' => '', 'google_event_id' => ''];
+        return ['url' => '', 'provider' => '', 'google_event_id' => '', 'error' => class_exists('GoogleWorkspace') ? GoogleWorkspace::lastError() : ''];
+    }
+
+    /**
+     * Switch on Google's own capture for a meeting's Meet (GoogleWorkspace::
+     * configureMeetSpace) and remember the space. A meeting whose capture is
+     * on needs no notetaker: its bot state is 'native'. Best-effort; a failure
+     * leaves the meeting as it was, and the sweep tries again.
+     */
+    public static function configureCapture(int $id, string $code): bool
+    {
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return false;
+        try {
+            $r = GoogleWorkspace::configureMeetSpace($code);
+            $db = Database::pdo();
+            if (!$r) {
+                $db->prepare('UPDATE meetings SET capture_note = ? WHERE id = ?')->execute([mb_substr(GoogleWorkspace::explain(), 0, 500), $id]);
+                return false;
+            }
+            $db->prepare("UPDATE meetings SET meet_space = ?, meet_capture = ?, capture_note = '' WHERE id = ?")->execute([$r['space'], $r['mode'], $id]);
+            if ($r['mode'] !== 'off') $db->prepare("UPDATE meetings SET bot_state = 'native', bot_provider = 'google' WHERE id = ? AND bot_state IN ('', 'pending', 'unconfigured', 'error')")->execute([$id]);
+            return true;
+        } catch (Throwable $e) { error_log('[meetings] capture: ' . $e->getMessage()); return false; }
+    }
+
+    /**
+     * The cron's Meet upkeep: a Meet link Calendar had not made yet is read
+     * again; a meeting whose capture could not be switched on is tried again.
+     * Upcoming meetings only, a handful a tick.
+     */
+    public static function meetUpkeep(): array
+    {
+        self::ensure();
+        $out = ['links' => 0, 'captured' => 0];
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) return $out;
+        $db = Database::pdo();
+        $soon = gmdate('Y-m-d H:i:s', time() - 6 * 3600);
+        $st = $db->prepare("SELECT id, google_event_id FROM meetings WHERE status = 'scheduled' AND meet_url = '' AND google_event_id <> '' AND scheduled_at >= ? ORDER BY scheduled_at LIMIT 5");
+        $st->execute([$soon]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) {
+            $url = GoogleWorkspace::eventMeetUrl((string) $m['google_event_id']);
+            if ($url === '') continue;
+            $code = GoogleWorkspace::meetCodeFromUrl($url);
+            $db->prepare("UPDATE meetings SET meet_url = ?, meet_code = ?, provider = 'google' WHERE id = ?")->execute([$url, $code, (int) $m['id']]);
+            $out['links']++;
+        }
+        if (GoogleWorkspace::artifactMode() !== 'off') {
+            $st = $db->prepare("SELECT id, meet_code FROM meetings WHERE status = 'scheduled' AND meet_code <> '' AND meet_capture = '' AND (scheduled_at >= ? OR frequency <> 'once') ORDER BY scheduled_at LIMIT 5");
+            $st->execute([$soon]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) if (self::configureCapture((int) $m['id'], (string) $m['meet_code'])) $out['captured']++;
+        }
+        return $out;
     }
 
     /** ── Schedule a meeting (workspace or mentorship) ─────────────────── */
@@ -145,11 +287,19 @@ final class Meetings
         $tz   = function_exists('av_user_tz') ? av_user_tz($uid) : 'Africa/Lagos';
         $ts   = self::localToTs($when, $tz);
         $whenUtc = gmdate('Y-m-d H:i:s', $ts);
-        $dur  = max(5, min(600, (int) ($in['duration'] ?? 30)));
-        $freq = self::freqKey((string) ($in['frequency'] ?? 'once'));
+        $dur  = max(5, min(720, (int) ($in['duration'] ?? 30)));
+        /* The rule, and the first time it really happens: a series asked for
+           "Mondays and Thursdays" from a Tuesday starts on the Thursday, here
+           and at Google alike. */
+        $start = Recurrence::local($whenUtc);
+        [$rule, $freq] = self::askedRule($in, $start);
+        $first = Recurrence::first($rule, $start);
+        if ($first === null) return ['ok' => false, 'error' => 'That repeat never happens: its end comes before its first date.'];
+        $ts = $first->getTimestamp(); $whenUtc = gmdate('Y-m-d H:i:s', $ts);
+        $recur = $rule !== null && $freq === 'custom' ? (string) json_encode($rule) : '';
         $agenda = mb_substr(trim((string) ($in['agenda'] ?? '')), 0, 2000);
         $context = (string) ($in['context'] ?? 'workspace');
-        if (!in_array($context, ['workspace', 'mentorship'], true)) $context = 'workspace';
+        if (!in_array($context, ['workspace', 'mentorship', 'team'], true)) $context = 'workspace';
         // Invite the organiser too, so everyone involved gets the calendar invite.
         $emails = self::cleanEmails($in['attendees'] ?? []);
         $me = self::userEmail($uid);
@@ -157,16 +307,19 @@ final class Meetings
         $autoRec = !empty($in['auto_record']) ? 1 : 0;
 
         $db = Database::pdo();
-        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-           ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $context, (int) ($in['context_id'] ?? 0), $autoRec, 'scheduled', self::now()]);
+        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, recur, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+           ->execute([$uid, $title, $agenda, $whenUtc, $dur, $freq, $recur, $context, (int) ($in['context_id'] ?? 0), $autoRec, 'scheduled', self::now()]);
         $id = (int) $db->lastInsertId();
+        $row = ['scheduled_at' => $whenUtc, 'frequency' => $freq, 'recur' => $recur, 'duration_min' => $dur];
 
         // Google Meet is the only provider: create the Calendar event (which
         // syncs calendars + sends the invite) and take its Meet link.
-        $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, $freq);
+        $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, self::recurrenceLines($row));
         $code = class_exists('GoogleWorkspace') ? GoogleWorkspace::meetCodeFromUrl($link['url']) : '';
         $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
            ->execute([$link['url'], $link['provider'], $link['google_event_id'], $code, $id]);
+        /* Google records, transcribes and takes notes on its own from here. */
+        if ($code !== '') self::configureCapture($id, $code);
 
         $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
         foreach ($emails as $e) $ins->execute([$id, $e]);
@@ -184,19 +337,16 @@ final class Meetings
         // create the event this is a second touch rather than the only one,
         // which is the correct trade: a duplicate invite is a minor annoyance,
         // a missed meeting is not.
-        self::sendInvites($id, $title, $ts, $dur, $freq, $agenda, $emails, $link['url'], $uid, (bool) $autoRec && self::botAllowed());
+        self::sendInvites($id, $title, $ts, $dur, self::cadence($row), $agenda, $emails, $link['url'], $uid, (bool) $autoRec && self::botAllowed());
 
-        // The AI notetaker (optional). Recall and Google can be told about a
-        // meeting well ahead of time — Recall holds the bot until join_at, Google
-        // transcribes the space natively. A custom webhook worker cannot be, so
-        // for that provider the meeting is left PENDING and the cron sweep sends
-        // the bot when the meeting is actually about to start.
+        // The AI notetaker (optional). Google transcribes the space natively, so
+        // it can be told about a meeting well ahead. Attendee has no dependable
+        // join-later field across versions, so a distant meeting is left PENDING
+        // and the cron sweep sends the bot when it is actually about to start.
+        // With no notetaker at all, nothing here makes a network call.
         if ($autoRec && self::botAllowed() && $link['url'] !== '') {
             $provider = self::botProvider();
-            // Recall and Google can be told about a meeting well ahead. Attendee
-            // has no dependable join-later field across versions and a custom
-            // worker cannot schedule at all, so both wait for the sweep.
-            if (in_array($provider, ['webhook', 'attendee'], true) && $ts > time() + 3600) {
+            if ($provider === 'attendee' && $ts > time() + 3600) {
                 $db->prepare("UPDATE meetings SET bot_state = 'pending', bot_provider = ? WHERE id = ?")->execute([$provider, $id]);
             } else {
                 self::requestBot($id, $link['url'], $provider, self::botJoinAtIso($whenUtc));
@@ -210,8 +360,56 @@ final class Meetings
 
         if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => $whenUtc]); } catch (Throwable $e) {} }
         $out = ['ok' => true, 'id' => $id, 'meeting' => self::get($uid, $id)];
-        if ($link['url'] === '') $out['warning'] = 'Meeting saved, but no Google Meet link could be created — connect Google Workspace Calendar so links and invites are sent.';
+        if ($link['url'] === '') $out['warning'] = 'Meeting saved and everyone was emailed, but Google did not make a Meet link. '
+            . (class_exists('GoogleWorkspace') ? GoogleWorkspace::explain($link['error'] ?? '') : '') . ' Edit the meeting once that is fixed and the link is added.';
         return $out;
+    }
+
+    /**
+     * ── Start a call now ─────────────────────────────────────────────────
+     *
+     * An instant Meet room: no Calendar event, so nothing to wait for and no
+     * calendar to clutter. It is still a meeting here — a row starting now, its
+     * space remembered — so the cron reads its attendance, transcript and notes
+     * exactly as it does a scheduled one. Anybody named is sent the link.
+     */
+    public static function startNow(int $uid, array $in): array
+    {
+        self::ensure();
+        if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::meetEnabled()) {
+            return ['ok' => false, 'error' => 'A Meet room cannot be opened yet. ' . (class_exists('GoogleWorkspace') ? GoogleWorkspace::explain() : 'Google Workspace is not set up on this site.')];
+        }
+        $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 200);
+        if ($title === '') $title = 'Quick call';
+        $dur = max(5, min(600, (int) ($in['duration'] ?? 60)));
+        $agenda = mb_substr(trim((string) ($in['agenda'] ?? '')), 0, 2000);
+        $emails = self::cleanEmails($in['attendees'] ?? []);
+        $me = self::userEmail($uid);
+        if ($me !== '' && filter_var($me, FILTER_VALIDATE_EMAIL)) { array_unshift($emails, $me); $emails = array_values(array_unique($emails)); }
+
+        $space = GoogleWorkspace::createMeetSpace();
+        if (!$space) {
+            $why = GoogleWorkspace::lastError();
+            return ['ok' => false, 'error' => 'Google did not open a Meet room. ' . GoogleWorkspace::explain($why)];
+        }
+
+        $now = time();
+        $db = Database::pdo();
+        $db->prepare('INSERT INTO meetings (creator_id, title, agenda, scheduled_at, duration_min, frequency, context, context_id, auto_record, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+           ->execute([$uid, $title, $agenda, gmdate('Y-m-d H:i:s', $now), $dur, 'once', 'workspace', 0, 0, 'scheduled', self::now()]);
+        $id = (int) $db->lastInsertId();
+        $db->prepare("UPDATE meetings SET meet_url = ?, provider = 'google', meet_code = ?, meet_space = ?, meet_capture = ? WHERE id = ?")
+           ->execute([$space['uri'], $space['code'], $space['space'], $space['mode'], $id]);
+        if ($space['mode'] !== 'off') $db->prepare("UPDATE meetings SET bot_state = 'native', bot_provider = 'google' WHERE id = ?")->execute([$id]);
+
+        $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
+        foreach ($emails as $e) $ins->execute([$id, $e]);
+        // The link goes to whoever was named — the starter has it on screen already.
+        $others = array_values(array_filter($emails, static fn($e) => strcasecmp($e, $me) !== 0));
+        if ($others) self::sendInvites($id, $title, $now, $dur, 'once', $agenda, $emails, $space['uri'], $uid, false);
+
+        if (class_exists('Events')) { try { Events::emit('meeting.scheduled', ['id' => $id, 'by' => $uid, 'at' => gmdate('Y-m-d H:i:s', $now), 'instant' => true]); } catch (Throwable $e) {} }
+        return ['ok' => true, 'id' => $id, 'url' => $space['uri'], 'meeting' => self::get($uid, $id)];
     }
 
     /** Meetings the user created or is invited to, upcoming first then recent. */
@@ -301,6 +499,149 @@ final class Meetings
             try { GoogleWorkspace::deleteCalendarEvent((string) $r['google_event_id']); } catch (Throwable $e) {}
         }
         return ['ok' => true];
+    }
+
+    /**
+     * ── Change a meeting ──────────────────────────────────────────────────
+     *
+     * There was no way to: a wrong time or a missing person meant cancelling
+     * and scheduling again, which sent everybody a cancellation and a second
+     * invite and lost the minutes' thread. Now the organiser (or, for a team
+     * meeting, whoever runs the team — $mayManage) changes what is wrong:
+     * title, time, length, cadence, agenda, who is invited, recording.
+     *
+     * The Calendar event is patched (Google tells its invitees), and our own
+     * email goes out too, as it does on scheduling: "Updated" to everyone when
+     * the time, length, cadence or link changed; the invite to anybody newly
+     * added. A meeting Google never gave a link — Workspace was not working
+     * when it was made — is given one now, if Google will.
+     */
+    public static function update(int $uid, int $id, array $in, bool $mayManage = false): array
+    {
+        self::ensure();
+        $db = Database::pdo();
+        $st = $db->prepare('SELECT * FROM meetings WHERE id = ?');
+        $st->execute([$id]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return ['ok' => false, 'error' => 'Meeting not found.'];
+        if ((int) $r['creator_id'] !== $uid && !$mayManage) return ['ok' => false, 'error' => 'Only the organiser can change this meeting.'];
+        if ((string) $r['status'] !== 'scheduled') return ['ok' => false, 'error' => 'A cancelled meeting cannot be changed. Schedule a new one.'];
+
+        $set = [];
+        if (array_key_exists('title', $in)) {
+            $t = mb_substr(trim((string) $in['title']), 0, 200);
+            if ($t === '') return ['ok' => false, 'error' => 'Give the meeting a title.'];
+            if ($t !== (string) $r['title']) $set['title'] = $t;
+        }
+        $ts = strtotime((string) $r['scheduled_at'] . ' UTC') ?: time();
+        if (array_key_exists('when', $in) && trim((string) $in['when']) !== '') {
+            $tz = function_exists('av_user_tz') ? av_user_tz($uid) : 'Africa/Lagos';
+            $new = self::localToTs(trim((string) $in['when']), $tz);
+            if ($new <= 0) return ['ok' => false, 'error' => 'Pick a date and time.'];
+            if (gmdate('Y-m-d H:i:s', $new) !== (string) $r['scheduled_at']) { $set['scheduled_at'] = gmdate('Y-m-d H:i:s', $new); $ts = $new; }
+        }
+        if (array_key_exists('duration', $in)) { $d = max(5, min(720, (int) $in['duration'])); if ($d !== (int) $r['duration_min']) $set['duration_min'] = $d; }
+        /* The rule: asked for, or kept — and either way read against the start
+           as it now is, which moves to the rule's first date when they differ. */
+        $start = Recurrence::local(gmdate('Y-m-d H:i:s', $ts));
+        $oldRule = self::rule($r);
+        if (array_key_exists('repeat', $in) || array_key_exists('frequency', $in)) {
+            [$rule, $f] = self::askedRule($in, $start);
+        } elseif ((string) ($r['recur'] ?? '') === '') {
+            /* A simple cadence follows the date: weekly on Tuesdays moved to a
+               Wednesday is weekly on Wednesdays. */
+            $rule = Recurrence::fromPreset(self::freqKey((string) $r['frequency']), $start);
+            $f = Recurrence::presetOf($rule, $start);
+        } else {
+            /* A rule somebody wrote keeps its days; the date moves to its first. */
+            $rule = $oldRule === null ? null : Recurrence::normalise($oldRule, $start);
+            $f = Recurrence::presetOf($rule, $start);
+        }
+        $first = Recurrence::first($rule, $start);
+        if ($first === null) return ['ok' => false, 'error' => 'That repeat never happens: its end comes before its first date.'];
+        if ($first->getTimestamp() !== $ts) { $ts = $first->getTimestamp(); $set['scheduled_at'] = gmdate('Y-m-d H:i:s', $ts); }
+        if (($set['scheduled_at'] ?? null) === (string) $r['scheduled_at']) unset($set['scheduled_at']);
+        $recur = $rule !== null && $f === 'custom' ? (string) json_encode($rule) : '';
+        if ($f !== self::freqKey((string) $r['frequency']) || $recur !== (string) ($r['recur'] ?? '')) { $set['frequency'] = $f; $set['recur'] = $recur; }
+        if (array_key_exists('agenda', $in)) { $a = mb_substr(trim((string) $in['agenda']), 0, 2000); if ($a !== (string) $r['agenda']) $set['agenda'] = $a; }
+        if (array_key_exists('auto_record', $in)) { $ar = !empty($in['auto_record']) ? 1 : 0; if ($ar !== (int) ($r['auto_record'] ?? 0)) $set['auto_record'] = $ar; }
+
+        /* Who is invited: the list given, the organiser always on it. */
+        $before = self::attendees($id);
+        $emails = $before;
+        if (array_key_exists('attendees', $in)) {
+            $emails = self::cleanEmails($in['attendees']);
+            $org = self::userEmail((int) $r['creator_id']);
+            if ($org !== '' && filter_var($org, FILTER_VALIDATE_EMAIL)) { array_unshift($emails, $org); $emails = array_values(array_unique($emails)); }
+        }
+        $added = array_values(array_udiff($emails, $before, 'strcasecmp'));
+        $removed = array_values(array_udiff($before, $emails, 'strcasecmp'));
+        /* Nothing changed, but a link is missing: asking again is the point. */
+        $needLink = (string) $r['meet_url'] === '' && (string) $r['google_event_id'] === '';
+        if (!$set && !$added && !$removed && !$needLink) return ['ok' => true, 'changed' => [], 'meeting' => self::get($uid, $id)];
+
+        if ($set) {
+            $cols = implode(', ', array_map(static fn($c) => "$c = ?", array_keys($set)));
+            $db->prepare("UPDATE meetings SET $cols WHERE id = ?")->execute([...array_values($set), $id]);
+        }
+        if ($added || $removed) {
+            $db->prepare('DELETE FROM meeting_attendees WHERE meeting_id = ?')->execute([$id]);
+            $ins = $db->prepare('INSERT INTO meeting_attendees (meeting_id, email) VALUES (?,?)');
+            foreach ($emails as $e) $ins->execute([$id, $e]);
+        }
+        $m = array_merge($r, $set);
+        $title = (string) $m['title']; $dur = (int) $m['duration_min']; $cad = self::cadence($m); $agenda = (string) $m['agenda'];
+        $warning = '';
+
+        /* Google: patch the event, or — never given one — make it now. */
+        $url = (string) $r['meet_url'];
+        if (class_exists('GoogleWorkspace')) {
+            if ((string) $r['google_event_id'] !== '') {
+                $patch = [];
+                if (isset($set['title'])) $patch['summary'] = $title;
+                if (isset($set['agenda'])) $patch['description'] = $agenda !== '' ? $agenda : 'Afrovanguard meeting.';
+                if (isset($set['scheduled_at']) || isset($set['duration_min'])) {
+                    $tzG = (string) Config::get('AV_WS_TZ', 'Africa/Lagos');
+                    $patch['start'] = ['dateTime' => gmdate('c', $ts), 'timeZone' => $tzG];
+                    $patch['end'] = ['dateTime' => gmdate('c', $ts + $dur * 60), 'timeZone' => $tzG];
+                }
+                /* The rule's lines hang off the start (BYDAY, BYMONTHDAY, the skipped dates' times): either moving sends them again. */
+                if (isset($set['frequency']) || isset($set['scheduled_at'])) $patch['recurrence'] = self::recurrenceLines($m);
+                if ($added || $removed) $patch['attendees'] = array_map(static fn($e) => ['email' => $e], $emails);
+                if ($patch && !GoogleWorkspace::updateCalendarEvent((string) $r['google_event_id'], $patch)) {
+                    $warning = 'Saved, and everyone was emailed, but Google Calendar was not updated. ' . GoogleWorkspace::explain();
+                }
+            } elseif ($url === '') {
+                $link = self::provisionLink($title, gmdate('c', $ts), $dur, $emails, $agenda, self::recurrenceLines($m));
+                if ($link['url'] !== '') {
+                    $url = $link['url'];
+                    $code = GoogleWorkspace::meetCodeFromUrl($url);
+                    $db->prepare('UPDATE meetings SET meet_url = ?, provider = ?, google_event_id = ?, meet_code = ? WHERE id = ?')
+                       ->execute([$url, $link['provider'], $link['google_event_id'], $code, $id]);
+                    if ($code !== '') self::configureCapture($id, $code);
+                } else {
+                    $warning = 'Saved, but there is still no Meet link. ' . GoogleWorkspace::explain($link['error'] ?? '');
+                }
+            }
+        }
+
+        /* Tell people: everyone when when/how changed; the newly invited either way. */
+        $big = isset($set['scheduled_at']) || isset($set['duration_min']) || isset($set['frequency']) || $url !== (string) $r['meet_url'];
+        $rec = (bool) ($m['auto_record'] ?? 0) && self::botAllowed();
+        if ($big) self::sendInvites($id, $title, $ts, $dur, $cad, $agenda, $emails, $url, (int) $r['creator_id'], $rec, true);
+        elseif ($added) self::sendInvites($id, $title, $ts, $dur, $cad, $agenda, $added, $url, (int) $r['creator_id'], $rec);
+
+        /* The notetaker follows the meeting: a moved one is sent when it is about to start. */
+        if (isset($set['auto_record'])) {
+            $db->prepare('UPDATE meetings SET bot_state = ? WHERE id = ? AND bot_state NOT IN (\'native\', \'in_call\', \'done\')')
+               ->execute([$set['auto_record'] ? ($url !== '' && self::botAllowed() ? 'pending' : 'unconfigured') : '', $id]);
+        } elseif (isset($set['scheduled_at'])) {
+            $db->prepare("UPDATE meetings SET bot_state = 'pending' WHERE id = ? AND bot_state = 'requested'")->execute([$id]);
+        }
+        if (class_exists('Events')) { try { Events::emit('meeting.updated', ['id' => $id, 'by' => $uid, 'changed' => array_keys($set)]); } catch (Throwable $e) {} }
+        $out = ['ok' => true, 'changed' => array_merge(array_keys($set), $added || $removed ? ['attendees'] : []), 'meeting' => self::get($uid, $id) ?? self::shape(array_merge($r, $set, ['meet_url' => $url]), $uid)];
+        if ($warning !== '') $out['warning'] = $warning;
+        return $out;
     }
 
     /** ── Transcripts: store raw + AI-structure Otter-style ────────────── */
@@ -431,23 +772,24 @@ final class Meetings
         if (!self::isParticipant($uid, $id)) return ['ok' => false, 'error' => 'Not your meeting.'];
         $m = self::get($uid, $id);
         if (!$m) return ['ok' => false, 'error' => 'Meeting not found.'];
-        // Recall.ai meeting → pull straight from the bot.
-        if (($m['bot_provider'] ?? '') === 'recall' && ($m['bot_ref'] ?? '') !== '') {
-            $r = self::ingestFromRecall((string) $m['bot_ref']);
-            if (!empty($r['ok'])) return array_merge($r, ['transcript' => self::transcript($id)]);
-            // fall through to Google if Recall isn't ready
-        }
         if (!class_exists('GoogleWorkspace') || !GoogleWorkspace::configured()) {
-            return ['ok' => false, 'error' => 'Google Workspace isn’t connected — paste the transcript instead.'];
+            return ['ok' => false, 'error' => GoogleWorkspace::explain() . ' Until then, paste the transcript here.'];
         }
         try {
             // 1) The official Meet transcript via the Meet REST API (best source).
             $code = (string) ($m['meet_code'] ?? '');
+            $held = false;
             if ($code !== '') {
-                $host = self::userEmail((int) $m['creator_id']);
+                /* As the organiser, who owns the space; the creator as a fallback. */
                 $afterTs = strtotime((string) $m['scheduled_at'] . ' UTC') ?: 0;
-                $t = GoogleWorkspace::meetTranscriptText($code, $host, $afterTs);
-                if ($t) return self::saveTranscript($uid, $id, $t, 'google');
+                foreach (array_unique(array_filter([GoogleWorkspace::organiser(), self::userEmail((int) $m['creator_id'])])) as $who) {
+                    $conf = GoogleWorkspace::meetConference($code, $who, $afterTs);
+                    if (!$conf) continue;
+                    $held = true;
+                    $t = GoogleWorkspace::conferenceTranscript($conf['name'], $who);
+                    if ($t['state'] === 'ready') return self::saveTranscript($uid, $id, $t['text'], 'google');
+                    if ($t['state'] === 'pending') return ['ok' => false, 'pending' => true, 'error' => 'Google is still writing the transcript. It arrives here on its own.'];
+                }
             }
             // 2) Fallback: the transcript Doc Meet writes to the host's Drive.
             $files = GoogleWorkspace::driveFiles(null, 60);
@@ -458,7 +800,12 @@ final class Meetings
                 if ($name === '') continue;
                 if (mb_strpos($name, 'transcript') !== false && ($needle === '' || mb_strpos($name, mb_substr($needle, 0, 24)) !== false)) { $best = $f; break; }
             }
-            if (!$best || empty($best['id'])) return ['ok' => false, 'error' => 'No matching Meet transcript found on Drive yet. It can take a few minutes after the call — or paste it here.'];
+            if (!$best || empty($best['id'])) {
+                $why = GoogleWorkspace::lastError();
+                return ['ok' => false, 'error' => $why !== '' ? 'Google would not give the transcript. ' . GoogleWorkspace::explain($why)
+                    : ($code !== '' && !$held ? 'Nobody has joined this meeting’s Meet yet, so there is no transcript.'
+                    : 'Google has no transcript for this call — transcription may have been off. It can also take a few minutes after the call; or paste it here.')];
+            }
             $text = GoogleWorkspace::driveText((string) $best['id']);
             if (!$text) return ['ok' => false, 'error' => 'Found the transcript file but couldn’t read it.'];
             return self::saveTranscript($uid, $id, $text, 'google');
@@ -499,6 +846,12 @@ final class Meetings
     }
 
     /** ── The AI notetaker ─────────────────────────────────────────────── */
+
+    /** Can an uploaded recording be transcribed here? Whisper or Gemini. */
+    public static function audioTranscription(): bool
+    {
+        return (class_exists('OpenAi') && OpenAi::configured()) || (class_exists('Gemini') && Gemini::configured());
+    }
 
     /** A recording bot is available if ANY provider is wired. */
     public static function botConfigured(): bool { return self::botProvider() !== ''; }
@@ -594,8 +947,7 @@ final class Meetings
         $prov = (string) $m['bot_provider'];
         if ($ref !== '') {
             $r = null;
-            if ($prov === 'recall' && class_exists('RecallBot'))          $r = RecallBot::removeBot($ref);
-            elseif ($prov === 'attendee' && class_exists('AttendeeBot'))  $r = AttendeeBot::removeBot($ref);
+            if ($prov === 'attendee' && class_exists('AttendeeBot')) $r = AttendeeBot::removeBot($ref);
             if ($r !== null && empty($r['ok'])) {
                 error_log('[meetings] removeBot: ' . (string) ($r['error'] ?? ''));
                 return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
@@ -610,8 +962,8 @@ final class Meetings
     /**
      * Dispatch bots for meetings that are about to start.
      *
-     * Two jobs. Providers that cannot be told to join later (the custom webhook
-     * worker) need sending at the right moment rather than at schedule time. And
+     * Two jobs. A notetaker that cannot be told to join later (Attendee) needs
+     * sending at the right moment rather than at schedule time. And
      * any dispatch that failed — the provider was down, the key was missing, the
      * Meet link had not been provisioned yet — gets another chance here instead
      * of being lost silently.
@@ -653,48 +1005,39 @@ final class Meetings
     }
 
     /**
-     * Which recording-bot backend to use. Forced by AV_MEET_BOT_PROVIDER
-     * (recall|google|webhook|none), else auto-detected: Recall.ai → custom
-     * webhook worker → Google Meet native transcription.
+     * Which notetaker to use: 'attendee', 'google' or '' for none.
+     *
+     * Attendee is the only third-party meeting bot, and it is optional — the site
+     * works without it. AV_MEET_BOT_PROVIDER can force 'attendee' or switch the
+     * notetaker off with 'none'; anything else is auto-detected. Google's own Meet
+     * transcription is not a bot at all, but it is how transcripts arrive without
+     * one, so it counts as the fallback.
      */
     public static function botProvider(): string
     {
         $p = strtolower(trim((string) getenv('AV_MEET_BOT_PROVIDER')));
-        if (in_array($p, ['recall', 'attendee', 'google', 'webhook', 'none'], true)) return $p === 'none' ? '' : $p;
-        // Attendee before Recall when both are configured: same capability, and
-        // self-hosted it costs nothing per meeting-hour.
+        if ($p === 'none') return '';
+        if ($p === 'attendee') return 'attendee';
         if (class_exists('AttendeeBot') && AttendeeBot::configured()) return 'attendee';
-        if (class_exists('RecallBot') && RecallBot::configured()) return 'recall';
-        if (trim((string) getenv('AV_MEET_BOT_JOIN_URL')) !== '') return 'webhook';
         if (class_exists('GoogleWorkspace') && GoogleWorkspace::meetEnabled()) return 'google';
         return '';
     }
 
     /**
-     * Dispatch the recording bot for a meeting to the chosen provider:
-     *   • recall  — send a Recall.ai bot to join, record & transcribe; it posts
-     *               transcript events back to the recall_webhook endpoint.
-     *   • google  — Google records/transcribes the space natively; nothing to
-     *               request now (we pull the transcript afterwards).
-     *   • webhook — POST the join details to a custom recorder (AV_MEET_BOT_JOIN_URL)
-     *               that calls back into bot_ingest.
-     * Best-effort; on failure the manual paste / Google-transcript paths remain.
+     * Dispatch the notetaker for a meeting to the chosen provider:
+     *   • attendee — send the Attendee bot to join, record and transcribe; the
+     *                cron sweep polls it for the transcript afterwards.
+     *   • google   — Google records/transcribes the space natively; nothing to
+     *                request now (we pull the transcript afterwards).
+     * Anything else records 'unconfigured' without a network call. Best-effort;
+     * on failure the manual paste / Google-transcript paths remain.
      */
     private static function requestBot(int $id, string $meetUrl, string $provider, string $joinAtIso = ''): void
     {
         $db = Database::pdo();
         $state = 'unconfigured'; $ref = '';
 
-        if ($provider === 'recall' && class_exists('RecallBot') && RecallBot::configured()) {
-            $wh = self::siteUrl('/portal/meetings.php?action=recall_webhook');
-            $wt = RecallBot::webhookToken();
-            if ($wt !== '') $wh .= '&t=' . rawurlencode($wt);
-            // Without join_at the bot joins the instant it is created — so a bot
-            // for next Tuesday's meeting sits in an empty room today and gives up.
-            $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
-            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
-            else { $state = 'error'; error_log('[meetings] recall: ' . (string) ($res['error'] ?? '')); }
-        } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
+        if ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
             // No webhook is passed: the cron sweep polls for the transcript, so a
             // site on shared hosting needs no publicly reachable callback at all.
             //
@@ -702,7 +1045,11 @@ final class Meetings
             // belongs to without this table being consulted, and the dedup key lets
             // Attendee refuse a second bot for a meeting that already has a live one
             // — the sweep and a hand-pressed button arriving together used to make two.
-            $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso, [
+            // With a webhook secret set, Attendee also pushes the meeting LIVE —
+            // joins, leaves and each utterance — to MeetingLive; the sweep's
+            // polling stays the fallback.
+            $hook = AttendeeBot::webhookSecret() !== '' ? self::siteUrl('/portal/meetings.php?action=attendee_webhook') : '';
+            $res = AttendeeBot::createBot($meetUrl, $hook, $joinAtIso, [
                 'metadata' => ['av_meeting_id' => (string) $id, 'av_source' => 'meetings'],
                 'dedup'    => 'av-meeting-' . $id,
             ]);
@@ -719,28 +1066,6 @@ final class Meetings
             // Google Meet is recording/transcribing natively (space created with
             // auto-transcription ON) — pull the transcript after the call.
             $state = 'native';
-        } elseif ($provider === 'webhook') {
-            $ok = false;
-            try {
-                if (function_exists('curl_init')) {
-                    $payload = [
-                        'meeting_id' => $id, 'join_url' => $meetUrl,
-                        'callback' => self::siteUrl('/portal/meetings.php?action=bot_ingest'),
-                        'token' => self::botToken($id),
-                        'join_at' => $joinAtIso,
-                    ];
-                    $ch = curl_init(trim((string) getenv('AV_MEET_BOT_JOIN_URL')));
-                    curl_setopt_array($ch, [
-                        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
-                        CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5,
-                        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES),
-                        CURLOPT_HTTPHEADER => ['content-type: application/json'],
-                    ]);
-                    $r = curl_exec($ch); $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
-                    $ok = is_string($r) && $code < 400;
-                }
-            } catch (Throwable $e) { error_log('[meetings] bot join: ' . $e->getMessage()); }
-            $state = $ok ? 'requested' : 'error';
         }
         $db->prepare('UPDATE meetings SET bot_state = ?, bot_provider = ?, bot_ref = ? WHERE id = ?')
            ->execute([$state, $provider, $ref, $id]);
@@ -749,9 +1074,9 @@ final class Meetings
     /**
      * Collect transcripts for bots that have finished.
      *
-     * The webhook path still works, but it requires the site to be publicly
-     * reachable at a stable URL — which a shared-hosting deployment behind a
-     * staging domain, or one that has just moved, often is not. Polling removes
+     * A push callback requires the site to be publicly reachable at a stable
+     * URL — which a shared-hosting deployment behind a staging domain, or one
+     * that has just moved, often is not. Polling removes
      * that requirement entirely: the cron asks each bot in flight whether it is
      * done, and ingests when it is. A self-hosted notetaker therefore needs no
      * inbound callback at all.
@@ -772,7 +1097,7 @@ final class Meetings
             $since = gmdate('Y-m-d H:i:s', time() - 86400);
             $st = $db->prepare(
                 "SELECT id, bot_provider, bot_ref FROM meetings
-                  WHERE bot_ref <> '' AND bot_provider IN ('recall','attendee')
+                  WHERE bot_ref <> '' AND bot_provider = 'attendee'
                     AND bot_state IN ('requested','joining','in_call')
                     AND scheduled_at >= ?
                   ORDER BY scheduled_at ASC"
@@ -780,12 +1105,9 @@ final class Meetings
             $st->execute([$since]);
             foreach (array_slice($st->fetchAll(PDO::FETCH_ASSOC) ?: [], 0, max(1, $limit)) as $r) {
                 $id   = (int) $r['id'];
-                $prov = (string) $r['bot_provider'];
                 $ref  = (string) $r['bot_ref'];
 
-                $state = $prov === 'attendee' && class_exists('AttendeeBot')
-                    ? AttendeeBot::botStatus($ref)
-                    : (class_exists('RecallBot') ? RecallBot::botStatus($ref) : '');
+                $state = class_exists('AttendeeBot') ? AttendeeBot::botStatus($ref) : '';
 
                 // Keep the stored state honest even before the transcript lands,
                 // so the portal shows "in the meeting" rather than "will join".
@@ -799,9 +1121,7 @@ final class Meetings
                 }
                 if ($state !== 'done') continue;   // unknown: leave it for the next tick
 
-                $text = $prov === 'attendee' && class_exists('AttendeeBot')
-                    ? AttendeeBot::fetchTranscript($ref)
-                    : (class_exists('RecallBot') ? RecallBot::fetchTranscript($ref) : '');
+                $text = class_exists('AttendeeBot') ? AttendeeBot::fetchTranscript($ref) : '';
                 if ($text === '') continue;        // ended but still transcribing
 
                 $res = self::botIngest($id, self::botToken($id), $text);
@@ -816,47 +1136,7 @@ final class Meetings
         return rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . $path;
     }
 
-    /**
-     * Recall.ai webhook: on a terminal bot status, fetch the transcript and
-     * store structured minutes. Auth is the shared webhook token (query ?t=).
-     * Returns the API shape.
-     */
-    public static function recallWebhook(string $token, array $payload): array
-    {
-        self::ensure();
-        $expected = class_exists('RecallBot') ? RecallBot::webhookToken() : '';
-        if ($expected === '' || !hash_equals($expected, (string) $token)) return ['ok' => false, 'error' => 'Bad token.'];
-        $event = (string) ($payload['event'] ?? '');
-        $data  = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $botId = (string) ($data['bot_id'] ?? ($data['bot']['id'] ?? ''));
-        if ($botId === '') return ['ok' => true, 'note' => 'no bot id'];
-        // Act on completion; ignore in-progress chatter.
-        $status = (string) ($data['status']['code'] ?? $data['status'] ?? '');
-        $terminal = in_array($status, ['done', 'call_ended', 'analysis_done', 'completed'], true) || strpos($event, 'done') !== false;
-        if (!$terminal) return ['ok' => true, 'note' => 'ignored ' . $event . '/' . $status];
-        return self::ingestFromRecall($botId);
-    }
-
-    /** Find the meeting for a Recall bot id, fetch its transcript, structure it. */
-    public static function ingestFromRecall(string $botId): array
-    {
-        self::ensure();
-        if (!class_exists('RecallBot')) return ['ok' => false, 'error' => 'Recall not available.'];
-        $st = Database::pdo()->prepare('SELECT id FROM meetings WHERE bot_ref = ? ORDER BY id DESC LIMIT 1');
-        $st->execute([$botId]);
-        $mid = (int) ($st->fetchColumn() ?: 0);
-        if ($mid <= 0) {
-            // Mentorship sessions dispatch their own bots through the same webhook,
-            // so a bot id that matches no meeting may still be one of theirs.
-            if (class_exists('Mentorship')) return Mentorship::ingestSessionFromRecall($botId);
-            return ['ok' => false, 'error' => 'Unknown bot.'];
-        }
-        $text = RecallBot::fetchTranscript($botId);
-        if ($text === '') return ['ok' => false, 'error' => 'Transcript not ready.'];
-        return self::botIngest($mid, self::botToken($mid), $text);
-    }
-
-    /** HMAC token the recorder must echo back when posting a transcript. */
+    /** HMAC token that authorises writing a bot transcript into a meeting. */
     public static function botToken(int $id): string
     {
         $secret = function_exists('av_secret') ? (string) av_secret() : (defined('APP_KEY') ? (string) APP_KEY : 'av');
@@ -864,9 +1144,9 @@ final class Meetings
     }
 
     /**
-     * Ingestion endpoint for the recorder bot: it posts back the transcript (and
-     * we structure it) once the meeting ends. Auth is the per-meeting HMAC token
-     * (no user session — the bot is a service). Returns the API shape.
+     * Store a notetaker's transcript (and structure it) once the meeting ends.
+     * Called by the poll sweep, which has no user session, so the per-meeting
+     * HMAC token stands in for one. Returns the API shape.
      */
     public static function botIngest(int $id, string $token, string $transcript): array
     {
@@ -916,43 +1196,21 @@ final class Meetings
      *
      * Deriving it keeps a single source of truth (the series start + the rule)
      * instead of a stored "next" that drifts whenever a job fails to run.
-     * Month steps use DateTime's own arithmetic so a series that starts on the
-     * 31st behaves the same way Google's does.
+     * The rule is expanded on the meeting clock (lib/Recurrence.php), the way
+     * Google expands it, so both say the same date.
      */
-    private static function nextOccurrence(string $startUtc, string $freq, ?int $now = null): string
+    private static function nextOccurrence(array $r, ?int $now = null): string
     {
-        $now = $now ?? time();
-        $ts  = strtotime($startUtc . ' UTC');
-        if ($ts === false) return $startUtc;
-        if ($freq === 'once' || $ts >= $now) return $startUtc;
-
-        $dt = (new DateTime('@' . $ts))->setTimezone(new DateTimeZone('UTC'));
-        $step = match ($freq) {
-            'daily'    => '+1 day',
-            'weekly'   => '+1 week',
-            'biweekly' => '+2 weeks',
-            'monthly'  => '+1 month',
-            'weekdays' => '+1 day',
-            default    => '',
-        };
-        if ($step === '') return $startUtc;
-
-        // Bounded walk: a series started years ago must not spin. 800 steps
-        // covers two years of daily and far more of anything else; past that we
-        // hand back the start rather than guess.
-        for ($i = 0; $i < 800 && $dt->getTimestamp() < $now; $i++) {
-            $dt->modify($step);
-            if ($freq === 'weekdays') {
-                while (in_array((int) $dt->format('N'), [6, 7], true)) $dt->modify('+1 day');
-            }
-        }
-        return $dt->getTimestamp() >= $now ? $dt->format('Y-m-d H:i:s') : $startUtc;
+        $n = Recurrence::upcoming(self::rule($r), self::seriesStart($r), $now ?? time(), 1);
+        /* A series that has ended reads as where it started, as before. */
+        return $n ? gmdate('Y-m-d H:i:s', $n[0]->getTimestamp()) : (string) $r['scheduled_at'];
     }
 
     private static function shape(array $r, int $viewerId = 0): array
     {
         $freq = self::freqKey((string) ($r['frequency'] ?? 'once'));
-        $next = self::nextOccurrence((string) $r['scheduled_at'], $freq);
+        $rule = self::rule($r);
+        $next = self::nextOccurrence($r);
         return [
             'id'          => (int) $r['id'],
             'title'       => (string) $r['title'],
@@ -963,17 +1221,31 @@ final class Meetings
             // `scheduled_at` stays as the series start so nothing downstream
             // that already relies on it changes meaning.
             'next_at'     => $next,
-            'is_series'   => $freq !== 'once',
+            'is_series'   => $rule !== null,
             'when_iso'    => gmdate('c', strtotime($next . ' UTC') ?: time()),
+            /* For the edit form: the start, on the viewer's own clock, as a datetime-local value. */
+            'when_local'  => (static function () use ($r, $viewerId): string {
+                try { return (new DateTime((string) $r['scheduled_at'], new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(function_exists('av_user_tz') ? av_user_tz($viewerId) : 'Africa/Lagos'))->format('Y-m-d\\TH:i'); }
+                catch (Throwable $e) { return ''; }
+            })(),
             'duration_min'=> (int) $r['duration_min'],
             'frequency'   => $freq,
-            'frequency_label' => self::freqLabel($freq),
+            'frequency_label' => Recurrence::label($rule, self::seriesStart($r)),
+            /* The rule itself, for the edit form; and the next few dates, so a
+               reader sees "Thu 14, Mon 25, Thu 28…" rather than working it out. */
+            'repeat'      => $rule,
+            'upcoming'    => $rule === null ? [] : array_map(static fn(DateTimeImmutable $d) => gmdate('c', $d->getTimestamp()),
+                                Recurrence::upcoming($rule, self::seriesStart($r), time(), 4, (int) $r['duration_min'])),
             'context'     => (string) $r['context'],
             'context_id'  => (int) $r['context_id'],
             'provider'    => (string) $r['provider'],
             'meet_url'    => (string) $r['meet_url'],
             'meet_code'   => (string) ($r['meet_code'] ?? ''),
             'auto_record' => (int) ($r['auto_record'] ?? 0) === 1,
+            /* What Google captures in this meeting's Meet: all (recording, transcript, notes),
+               transcript (the edition has no recording), off, or '' with the reason why not. */
+            'capture'     => (string) ($r['meet_capture'] ?? ''),
+            'capture_note'=> (string) ($r['capture_note'] ?? ''),
             'bot_state'   => (string) ($r['bot_state'] ?? ''),
             'bot_provider'=> (string) ($r['bot_provider'] ?? ''),
             'bot_ref'     => (string) ($r['bot_ref'] ?? ''),
@@ -1004,7 +1276,7 @@ final class Meetings
     private static function sendInvites(
         int $id, string $title, int $ts, int $durationMin, string $freq,
         string $agenda, array $emails, string $meetUrl, int $organiserId,
-        bool $recorded = false
+        bool $recorded = false, bool $updated = false
     ): void {
         if (!class_exists('Mailer') || $emails === []) return;
 
@@ -1020,8 +1292,9 @@ final class Meetings
         } catch (Throwable $e) {}
 
         $site  = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
-        $cad   = self::freqLabel($freq);
-        $subj  = 'Meeting: ' . $title;
+        /* A one-word cadence, or the rule's own words (Meetings::cadence). */
+        $cad   = isset(self::FREQ[$freq]) ? self::freqLabel($freq) : $freq;
+        $subj  = ($updated ? 'Updated: ' : 'Meeting: ') . $title;
 
         foreach ($emails as $to) {
             try {
@@ -1039,7 +1312,9 @@ final class Meetings
                 $whenLine = $when->format('l j F Y, H:i') . ' (' . $tz . ')';
 
                 $lines = [
-                    ($organiser !== '' ? htmlspecialchars($organiser) . ' has' : 'You have been') . ' invited you to <strong>' . htmlspecialchars($title) . '</strong>.',
+                    $updated
+                        ? '<strong>' . htmlspecialchars($title) . '</strong> has changed' . ($organiser !== '' ? ' — ' . htmlspecialchars($organiser) . ' updated it' : '') . '. Here is how it stands now.'
+                        : ($organiser !== '' ? htmlspecialchars($organiser) . ' has' : 'You have been') . ' invited you to <strong>' . htmlspecialchars($title) . '</strong>.',
                     '<strong>When:</strong> ' . htmlspecialchars($whenLine) . '<br>'
                         . '<strong>Length:</strong> ' . $durationMin . ' minutes<br>'
                         . '<strong>Repeats:</strong> ' . htmlspecialchars($cad),
@@ -1058,7 +1333,7 @@ final class Meetings
                     ? ['text' => 'Join the meeting', 'url' => $meetUrl]
                     : ['text' => 'Open it in the portal', 'url' => $site . '/portal/#meetings'];
 
-                $html = Mailer::shell('You’re invited: ' . $title, $lines, $cta,
+                $html = Mailer::shell(($updated ? 'Changed: ' : 'You’re invited: ') . $title, $lines, $cta,
                     'Meeting invitation from Afrovanguard.');
                 Mailer::send($to, $subj, $html);
             } catch (Throwable $e) {
@@ -1092,7 +1367,7 @@ final class Meetings
         ];
     }
 
-    private static function isParticipant(int $uid, int $id): bool
+    public static function isParticipant(int $uid, int $id): bool
     {
         $st = Database::pdo()->prepare('SELECT creator_id FROM meetings WHERE id = ?');
         $st->execute([$id]);

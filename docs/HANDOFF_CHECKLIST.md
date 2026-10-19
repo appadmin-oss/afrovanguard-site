@@ -186,3 +186,64 @@ Three things that need a person, not a commit:
 3. **Seed data is seeded data.** `php scripts/seed-mentor-200.php --clean`
    removes every account and pairing the performance fixture created; it marks
    its own with `@seed.invalid` addresses and touches nothing else.
+
+---
+
+## Second pass, 2026-10-09 — Module 1 redone, Row 4 (Home)
+
+Branch `claude/vibrant-cray-3gmdum` on this history. Faults found and their
+fixes are in `docs/AUDIT-2026-10-09-card-and-home.md`. Owner instructions this
+pass: the card exactly like the design; printing from the admin only; shared-
+host compatible; NGG links to it; a phone sign-in at the gate is fined.
+
+```
+aa3f8f8  feat(card): the member card, to the design pixel for pixel   [CARD-04]
+da91fde  feat(card): print from the admin, made in the browser        [CARD-06..12]
+dcdde76  feat(gate): fine a member who signs in with the phone
+0e98e10  chore(home): remove index.html v1                            [PG-4-01]
+5d532ea  feat(home): add index.html v2, the drop-in, unmodified       [PG-4-01] [G-02b]
+4fec12a  feat(home): wire the new home page                           [PG-4-15] [PG-4-17]
+```
+
+### Module 1 · ID card print (replaces the ticks above)
+
+- [x] CARD-01 `NgvCard::html()` / `css()` gone; call sites use the partial
+- [x] CARD-02 Status only from `NgvCard::standing()`
+- [x] CARD-03 54 × 85.6 mm, 3 mm safe area (design radius 3.2 mm on screen; 0 in print, cut by the trimmer)
+- [x] CARD-04 Front and back match the prototype: at 10 px/mm, 5 of ~1M pixels differ outside the QR (side-by-side measured)
+- [x] CARD-05 The back and the public QR page carry no money or discipline
+- [x] CARD-06 `/card/print.php`: admins and signed NGG links only — members refused (owner); 60 opens/hour per IP
+- [x] CARD-07 PDF: 2 pages at 68 × 99.6 mm, bleed box 60 × 91.6 mm, crop marks 0.25 pt × 3 mm 1 mm off the bleed, file `afrovanguard-card-{AVM}.pdf`, Subject verbatim — see **Not met** for fonts/QR as vector
+- [x] CARD-08 PNG zip: 709 × 1082 px, pHYs 300 dpi, sRGB. A4 10-up with the back mirrored for long-edge duplex
+- [x] CARD-09 "Status as of {date}" on the band
+- [ ] CARD-10 24 h cache — **Not met**, see below
+- [x] CARD-11 Admin print page: PDF primary, PNG, A4; the member portal shows the card (Attendance & pass) with no download (owner)
+- [x] CARD-12 States: no card yet, photo missing, photo too small (buttons disabled), generating, generation failed with Retry
+- [x] CARD-13 PDF opened and rasterised with Ghostscript; page boxes and metadata checked with pypdf
+
+### Row 4 · Home
+
+- [x] PG-4-01 Old `index.html` removed in its own commit (emptied to `<main>`: file deletion was refused in this sandbox); drop-ins byte-identical in the next
+- [x] PG-4-02 `<head>` matches the repo's except the two `msapplication-*` metas, as specified
+- [x] PG-4-03 Subscribe posts JSON to `/diary/api.php?action=subscribe` (exists)
+- [x] PG-4-04 `/assets/ngg/p04.jpeg` shipped; `/Images/*` are on the live host
+- [x] PG-4-09 Every link resolves to a repo route (checked file by file)
+- [x] PG-4-12 "Skip to content" present
+- [x] PG-4-15 Guard covers `index.html`, `avh.css`, `avh.js`; passes
+- [x] PG-4-16 No Google Fonts request
+- [x] PG-4-17 `chioma.js` and `celebrations.js` load; `nav.js`, `chrome.js`, `appeals-band.js` do not. Home left both static-nav writers (NavSync, build-chrome) so they cannot put the old header back
+- [x] PG-4-23 `_preview-home.html` not copied
+- [x] PG-4-10 Rendered at 390 / 834 / 1280 / 1440: no horizontal scroll, no script errors; matches `screenshots/*-home-*`
+- [ ] PG-4-05/06/07/08/11/13/14/18–22/24/25 — behaviour shipped as the drop-in wrote it; not separately exercised in this pass
+
+### Not met (this pass)
+
+| ID | Reason | Proposed follow-up |
+|---|---|---|
+| CARD-07 (vector) | Faces are 600 dpi images in the PDF, not embedded fonts and a vector QR. Exactness on shared hosting means the browser draws the card; a PHP PDF library cannot draw this design (that was fault 1) | Owner to confirm; a card printer takes 600 dpi |
+| CARD-10 | No server cache: the file is made in the staff member's browser, in ~3 s | None needed |
+| G-01 (deletions) | `card/_render.php`, `card/print-template.php`, `card/print-a4.php`, `portal/your-card.php` are orphaned but still in the tree: this session could not delete files. `dompdf/dompdf` is unused | Delete them; `composer remove dompdf/dompdf` |
+| G-04 | Three browser libraries added (`assets/vendor/card/`: snapDOM 3.3.0, jsPDF 2.5.2, JSZip 3.10.1) | Byte-identical to NGG's vendored copies; owner approved the approach |
+| — | No write path for `card_photo` / `card_role`: every card prints initials and no role | Decide who sets them |
+| — | Back's return address is the organisation's (design); §4 forbids addresses | Owner to confirm |
+| — | Phone-sign-in fine needs the cacentre-site gate deployed (`method: 'pass'`) | Deploy the Worker |

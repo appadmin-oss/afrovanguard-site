@@ -42,8 +42,13 @@ function av_config_present(string $const): bool {
 /* ─── Email (SMTP + fallbacks) ─────────────────────────────────
  * Powers donation receipts, contact replies AND Academy emails
  * (welcome / enrolment / membership / certificate-ready) via the
- * shared lib/Mailer.php. Delivery order (first that works wins):
- *   PHPMailer/SMTP  →  Resend (HTTPS API)  →  mail()
+ * shared lib/Mailer.php. Delivery order on the default road, `auto`
+ * (first that works wins):
+ *   PHPMailer/SMTP  →  Google Apps Script  →  NGG relay  →  Resend (HTTPS API)  →  mail()
+ * The two Apps Script roads carry one-to-one mail only (sign-in codes,
+ * receipts, replies); announcements go SMTP → Resend → mail(). The road is
+ * chosen in Studio → Rules & AI → Setup → Email → Sending road
+ * (AV_MAIL_TRANSPORT = auto | smtp | gas | resend | host).
  * PHPMailer is the ONLY SMTP transport — the hand-rolled lib/Smtp.php was
  * retired — and it is bundled (no Composer install needed on the host). If it
  * is ever missing, SMTP is skipped entirely and mail degrades to PHP mail();
@@ -95,9 +100,18 @@ define('DONATIONS_FROM_NAME',  'Afrovanguard');
 // domain in Resend first. Set via .htaccess: SetEnv AV_RESEND_KEY re_...
 // define('RESEND_KEY', _av_require_env('AV_RESEND_KEY'));
 
-// Google Apps Script relay — how NextGenGen delivers on this host, and the
-// simplest path here: no SMTP port, API key or DNS record. Tried after SMTP,
-// before Resend. NGG's deployment works: its apps_script_url and shared_secret.
+// Google Apps Script — the site's OWN mail script (apps-script/Afrovanguard_Mail.gs).
+// The simplest path on a host that blocks SMTP: no port, API key or DNS record;
+// MailApp sends from the Google account that deployed it (~100 recipients/day on
+// Gmail, 1,500 on Workspace), attachments included. Tried after SMTP. Set it in
+// the Studio — Rules & AI → Setup → Email — step by step in docs/EMAIL-APPS-SCRIPT.md.
+// A Studio value wins; these are the fallbacks (GAS_URL / GAS_SECRET also accepted):
+// define('AV_GAS_URL',    'https://script.google.com/macros/s/…/exec');
+// define('AV_GAS_SECRET', _av_require_env('AV_GAS_SECRET'));   // = const SECRET in the script
+// define('AV_MAIL_TRANSPORT', 'auto');   // auto | smtp | gas | resend | host
+//
+// Legacy: the relay on NextGenGen's protocol (op sendMail, ?sig=HMAC). Still
+// honoured when set, after the site's own script; no attachments.
 // Set via .htaccess: SetEnv MAIL_RELAY_URL https://script.google.com/macros/s/…/exec
 //                    SetEnv MAIL_RELAY_SECRET <NGG shared_secret>
 // (read from the environment automatically; or define them here.)

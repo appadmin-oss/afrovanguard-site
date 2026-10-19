@@ -1,0 +1,12 @@
+# Academy: catalogue (avac-), course (avco-), lesson player (avle-)
+academy/index.php
+academy/_avac.php
+academy/avac.css
+academy/avac.js
+academy/course.php
+academy/avco.css
+academy/avco.js
+academy/learn.php
+academy/avle.css
+academy/avle.js
+tests/avac.test.php

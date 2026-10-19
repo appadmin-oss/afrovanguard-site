@@ -483,6 +483,49 @@ final class DiaryNotebooks
      * Either alone would let somebody either file other people's writing or
      * push their own into a notebook they were only given reading rights on.
      */
+    /**
+     * The entries in one notebook, for anyone who may read it: the owner, and
+     * everyone it is shared with. Every author's entries, newest first, each
+     * marked with whether THIS reader may edit it (only its author may — a
+     * contributor's entries stay theirs). Archived entries stay out.
+     *
+     * @return list<array>|null null when the reader has no access at all
+     */
+    public function entries(int $userId, int $notebookId, int $limit = 200): ?array
+    {
+        self::ensure();
+        if ($notebookId <= 0 || !$this->canRead($userId, $notebookId)) return null;
+        DiaryOrganise::ensure();
+        DiaryTabs::ensure();
+        $lim = max(1, min(200, $limit));
+        $st = $this->db->prepare(
+            'SELECT e.*, u.name AS author_name FROM diary_entries e
+             JOIN lms_users u ON u.id = e.author_id
+             WHERE e.notebook_id = ? AND e.archived = 0
+             ORDER BY e.pinned DESC, e.entry_date DESC, e.id DESC LIMIT ' . $lim
+        );
+        $st->execute([$notebookId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $ids  = array_map(static fn (array $r): int => (int) $r['id'], $rows);
+        $tags = (new DiaryOrganise($this->db))->tagsForMany($ids);
+        $tabs = (new DiaryTabs($this->db))->countsFor($ids);
+        return array_map(static function (array $r) use ($userId, $tags, $tabs): array {
+            $id = (int) $r['id']; $mine = (int) $r['author_id'] === $userId;
+            return [
+                'id' => $id, 'kind' => (string) $r['kind'], 'title' => (string) $r['title'],
+                'body' => (string) $r['body'], 'entry_date' => (string) $r['entry_date'],
+                'status' => (string) $r['status'], 'notebook_id' => (int) $r['notebook_id'],
+                'pinned' => (int) ($r['pinned'] ?? 0) === 1, 'archived' => false,
+                'tags' => $tags[$id] ?? [], 'tab_count' => $tabs[$id] ?? 1,
+                'excerpt' => DiaryJournal::excerpt((string) $r['body']),
+                'font' => DiaryJournal::validFont((string) ($r['font'] ?? 'default')),
+                'review_note' => $mine ? (string) ($r['review_note'] ?? '') : '',
+                'first_tab_title' => (string) ($r['first_tab_title'] ?? ''),
+                'mine' => $mine, 'author' => $mine ? '' : (string) $r['author_name'],
+            ];
+        }, $rows);
+    }
+
     public function moveEntry(int $userId, int $entryId, int $notebookId): bool
     {
         self::ensure();

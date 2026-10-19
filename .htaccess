@@ -34,6 +34,14 @@ RewriteRule (^|/)\.(?!well-known/) - [F,L]
 RewriteRule ^lib/  - [F,L]
 RewriteRule ^db/   - [F,L]
 RewriteRule ^data/ - [F,L]
+# Command-line tools, the test suite, Composer's vendor tree, docs and
+# include-only partials are never requested over HTTP. Several of them write to
+# the live database when run (scripts/seed-mentor-200.php seeds 200 accounts,
+# tools/gate-revoke.php withdraws passes) and none of them checks who is asking.
+RewriteRule ^(tools|scripts|bin|tests|deploy|docs|vendor|partials)(/|$) - [F,L]
+# The STS form's local backups (names, emails, WhatsApp numbers). Its own
+# .htaccess is a template the deployer has to merge; this does not depend on it.
+RewriteRule ^projects/sts/ceo/api/data(/|$) - [F,L]
 
 # ── Moved off this site ─────────────────────────────────────────────────────
 # Africa GATES is its own site now. This sits ABOVE the real-file guard below
@@ -50,6 +58,10 @@ RewriteRule ^projects/africa-gates/?(.*)$ https://afg.afrovanguard.org.ng/$1 [R=
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
+
+# Published documents by name (doc.php, lib/DocStream.php): ranges, validators,
+# chunked copy. Pages link the static files below; this is the named route.
+RewriteRule ^doc/([a-z0-9-]+)\.pdf$ doc.php?name=$1 [L,QSA]
 
 # Legacy WordPress blog → Diary (permanent)
 RewriteRule ^blog/?(.*)$ /diary/$1 [R=301,L,QSA]
@@ -100,6 +112,9 @@ RewriteRule ^give/([a-z0-9-]+)/?$ give/appeal.php?slug=$1 [L,QSA]
 # gate reads the same URL for the code inside it — the two-way scan.
 RewriteRule ^q/(AVQR-[A-Za-z0-9]+)/?$ q.php?c=$1 [L,QSA]
 
+# A shared quote of the week (Home share menu): /quote/week-N.
+RewriteRule ^quote/week-([0-9]{1,2})/?$ quote.php?week=$1 [L,QSA]
+
 # People profiles: /people/<id> or /people/<id>-<slug>
 RewriteRule ^people/([0-9]+)(?:-[^/]*)?/?$ people/index.php?id=$1 [L,QSA]
 
@@ -149,6 +164,54 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   </FilesMatch>
 </IfModule>
 
+# ── Scripts and styles: always the deployed copy ────────────────────────────
+# The site has no build step, so a file keeps its name across deploys. The
+# host's default (Cache-Control: max-age=604800) let a browser run last week's
+# script against this week's page for up to seven days: the portal's tabs
+# changed the address but not the view. "no-cache" makes the browser ask each
+# time; an unchanged file answers 304 Not Modified, which costs almost nothing.
+<IfModule mod_expires.c>
+  ExpiresByType application/javascript "access plus 0 seconds"
+  ExpiresByType text/javascript "access plus 0 seconds"
+  ExpiresByType text/css "access plus 0 seconds"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs|css)$">
+    Header unset Expires
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+# ── PDFs: by byte range, uncompressed, cached ────────────────────────────────
+# A linearized PDF lets a phone's viewer draw page 1 from the first few hundred
+# KB it asks for — but only if the server answers Range requests, and a
+# compressed response cannot be range-addressed. So: never gzip a PDF (the
+# images inside are already compressed; deflate would only cost CPU and break
+# resuming), always advertise byte ranges, and cache it. The pages link each
+# PDF as /path/file.pdf?v=<content hash> (lib/DocStream.php::stampHtml, kept
+# current by tools/stamp-assets.php); that URL never changes content, so it is
+# cached for a year. An unstamped request revalidates hourly against the ETag.
+<IfModule mod_mime.c>
+  AddType application/pdf .pdf
+</IfModule>
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI "\.pdf$" no-gzip dont-vary
+  SetEnvIfNoCase Request_URI "^/doc/" no-gzip dont-vary
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresByType application/pdf "access plus 1 hour"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.pdf$">
+    Header unset Expires
+    Header set Accept-Ranges "bytes"
+    Header set Cache-Control "public, max-age=3600"
+    <If "%{QUERY_STRING} =~ /(^|&)v=[0-9a-f]{10}(&|$)/">
+      Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+  </FilesMatch>
+</IfModule>
+
 # ── Security headers + Content-Security-Policy ──────────────────────────────
 # The CSP allows exactly what the site loads: same-origin + inline (for the
 # app's own inline scripts/styles) plus the specific third parties in use —
@@ -161,7 +224,7 @@ RewriteRule ^([a-z0-9_-]+)/?$ /$1.php [L,QSA]
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always unset Content-Security-Policy
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com; img-src 'self' data: blob: https:; media-src 'self' https: blob:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co; connect-src 'self' https://api.cloudinary.com https://api.paystack.co https://cdn.jsdelivr.net; frame-src 'self' https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.soundcloud.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://www.google.com https://maps.google.com https://docs.google.com https://drive.google.com https://calendar.google.com https://flo.uri.sh https://public.flourish.studio https://www.facebook.com https://web.facebook.com https://anchor.fm https://embed.music.apple.com https://www.canva.com https://datawrapper.dwcdn.net"
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://cacentre.afrovanguard.org.ng https://checkout.paystack.com; img-src 'self' data: blob: https:; media-src 'self' https: blob:; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://ajax.googleapis.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://platform.instagram.com https://js.paystack.co; connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com https://api.paystack.co https://cdn.jsdelivr.net; frame-src 'self' https://checkout.paystack.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://player.soundcloud.com https://platform.twitter.com https://www.instagram.com https://www.tiktok.com https://www.google.com https://maps.google.com https://docs.google.com https://drive.google.com https://calendar.google.com https://flo.uri.sh https://public.flourish.studio https://www.facebook.com https://web.facebook.com https://anchor.fm https://embed.music.apple.com https://www.canva.com https://datawrapper.dwcdn.net"
 </IfModule>
 
 # ── Error pages ─────────────────────────────────────────────────────────────

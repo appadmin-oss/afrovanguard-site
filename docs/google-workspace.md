@@ -37,10 +37,85 @@ https://www.googleapis.com/auth/calendar.readonly,
 https://www.googleapis.com/auth/drive.readonly,
 https://www.googleapis.com/auth/drive.metadata.readonly,
 https://www.googleapis.com/auth/admin.directory.user.readonly,
-https://www.googleapis.com/auth/admin.directory.group.readonly
+https://www.googleapis.com/auth/admin.directory.group.readonly,
+https://www.googleapis.com/auth/meetings.space.readonly,
+https://www.googleapis.com/auth/meetings.space.created,
+https://www.googleapis.com/auth/meetings.space.settings,
+https://www.googleapis.com/auth/admin.reports.audit.readonly,
+https://www.googleapis.com/auth/chat.messages.create
 ```
 
-## 3. Configure env (see `.env.example`)
+The last four are used by Meet attendance/transcripts (`lib/GoogleWorkspace.php`
+`meetConferenceForCode`, `createMeetSpace`, `reportsMeetSeconds`) and by posting
+to Chat as a member. Leave one out and only that feature fails; the Setup
+screen's **Test Google Workspace** names the refusal (`unauthorized_client`
+means the scope or the client ID is missing from this list).
+
+Enable these APIs on the service account's project as well: Google Calendar API,
+Google Drive API, Admin SDK API, Google Meet REST API, Google Chat API, and — for
+live Meet events — Google Workspace Events API and Cloud Pub/Sub API.
+
+## Meetings that run themselves (Google Meet)
+
+**Start a call now** (portal → Tools → Meetings) opens an instant Meet room with no
+Calendar event (`Meetings::startNow` → `createMeetSpace`, scope
+`meetings.space.created`), owned by the organiser mailbox and captured from the
+start like a scheduled meeting. Anybody named in the invite box is emailed the link.
+
+What happens, with nothing for a volunteer to press:
+
+1. **Scheduling** writes the Calendar event with a Meet link (invites go to
+   everyone). Then, as the **organiser** (`AV_MEET_ORGANISER`), the site turns on
+   the space's own **recording, transcript, Gemini notes and attendance report**
+   (`PATCH /v2/spaces/{id}`, `meetings.space.settings`). An edition that refuses
+   recording gets transcript and notes. `AV_MEET_ARTIFACTS` = `all` | `transcript` | `off`.
+2. **During the call** the cron reads who is in (Meet REST `participants`), and
+   the room's own check-in QR and captions keep working.
+3. **After the call** finishing reads every join and leave (`participantSessions`
+   — rejoining counts), waits while Google writes the transcript (tried every 10
+   minutes for two hours, then hourly, up to a day), then takes it speaker by
+   speaker with Gemini's notes after it. The minutes draft is made from it.
+4. **Live events (optional, faster)**: the Workspace Events API sends the
+   organiser's Meet events to a Pub/Sub topic; the cron drains a **pull**
+   subscription every tick (no public URL needed) and renews the events
+   subscription before Google's 7-day limit. A **push** subscription to
+   `/webhooks/google-meet.php` works too; each push is checked against Google's
+   signing keys (firebase/php-jwt) and `AV_MEET_PUSH_AUDIENCE`.
+
+Once, in Google:
+
+- **A licensed organiser mailbox** (e.g. `meetings@`) — Business Standard or
+  higher for recording and transcripts; a Gemini licence for notes. Set it as
+  *Meeting organiser mailbox* (Studio → Setup → Google Meet) and, ideally, as the
+  *Shared calendar*. Recording/transcription start when someone with the
+  privilege joins.
+- **Admin console → Apps → Google Workspace → Google Meet → Meet video settings**:
+  allow recording, transcripts and "Take notes for me".
+- **Domain-wide delegation**: the scopes above, including
+  `meetings.space.settings`.
+- **Pub/Sub (optional)**: create topic `meet-events`; grant
+  `meet-api-event-push@system.gserviceaccount.com` *Pub/Sub Publisher* on it;
+  create a **pull** subscription `meet-events-pull` and grant the service
+  account *Pub/Sub Subscriber* on it. Paste both full names
+  (`projects/…/topics/meet-events`, `projects/…/subscriptions/meet-events-pull`)
+  into Studio → Setup → Google Meet.
+
+Without any of this the meeting still works: Calendar invite and link, our
+own email invite, QR check-in, room captions, and minutes.
+
+## 3. Configure — from the Studio (no shell needed)
+
+Studio → **Setup → Google sign-in & Workspace** holds every value below. Secrets
+(the OAuth client secret, the service-account JSON key) are encrypted at rest
+and never shown again; paste the whole downloaded key file into the key field.
+A value set there wins over `config.php` and SetEnv. Then press **Test Google
+sign-in** and **Test Google Workspace**: the first proves the client ID/secret
+with Google and prints the redirect URI to register; the second reports
+calendar, Drive, directory and groups one by one, with Google's own reason for
+any refusal. Studio → **System** shows the redirect URI, the last failed Google
+round-trip (with Google's reason) and the last directory sync.
+
+The same keys still work from `config.php` / SetEnv:
 
 ```
 AV_GDRIVE_SERVICE_ACCOUNT= <json or path>
@@ -52,6 +127,14 @@ AV_ORG_DOMAIN=afrovanguard.org.ng
 ```
 
 ## 4. Verify & run
+
+From the Studio: the two Setup tests above. Directory sync: set **Add Workspace
+users as members** to `daily` and the site cron (`tasks/cron.php`, which a
+cPanel Cron Job or an external pinger can call without a shell) runs it once a
+day. It uses the directory's admin view, so suspended users are skipped, and
+pages through the whole directory. The same cron renews push channels.
+
+From a shell, if there is one:
 
 ```
 php tools/gws-sync.php probe     # shows token_ok, calendar_read/write, drive, directory, groups
@@ -73,6 +156,38 @@ A nightly cron keeps members in sync:
   event. If Workspace is off, the mentor adds a Meet link manually as before.
 - **Members** — `tools/gws-sync.php users` (or the cron) upserts every active
   directory user into the LMS as a verified member, by email. Idempotent.
+
+## Google sign-in: the OAuth client
+
+1. Google Cloud console → APIs & Services → **Credentials → Create credentials →
+   OAuth client ID → Web application**.
+2. **Authorised redirect URIs**: exactly `https://afrovanguard.org.ng/auth/google/callback`
+   (the site's `SITE_URL` + `/auth/google/callback`; the Setup test prints it).
+   One URI serves both sign-in and the Workspace connect flow. Add the `www.`
+   variant only if `SITE_URL` uses it — the start step bounces to `SITE_URL`'s
+   host first, so the state cookie and the callback are on the same host.
+3. **OAuth consent screen**: user type **External** if learners with personal
+   Google accounts are to sign in (Internal refuses every account outside the
+   Workspace tenant with `org_internal`). Publish it to **In production**: in
+   Testing, only listed test users can sign in and Google expires every refresh
+   token after 7 days (the site now clears such a connection and asks the member
+   to reconnect, and the System page names it). Add the scopes `openid`, `email`,
+   `profile`; add Gmail/Calendar/Drive/Chat only if members will connect their
+   Workspace — `gmail.readonly` is a restricted scope and needs Google's
+   verification for an External app.
+
+What sign-in enforces: a signed, 10-minute `state` pinned to a cookie; the OIDC
+`nonce` from that state checked in the id_token; `aud`, `iss` and `exp` on the
+id_token; **an address Google has not verified signs nobody in**; and the
+member role for an `@afrovanguard.org.ng` address needs Google's `hd` claim to
+name the domain (an unmanaged consumer account on an org address signs in as a
+learner).
+
+By default only someone signing in with an org address is also asked for
+Workspace scopes (`AV_GWS_CONNECT_ON_SIGNIN` = `org`; `all` or `0` on the Setup
+screen). Everybody else signs in with `openid email profile` only and can
+connect Workspace later from `/workspace`, which now says whether the connect
+worked.
 
 ## Enterprise: per-user Workspace (the site acts AS each member)
 

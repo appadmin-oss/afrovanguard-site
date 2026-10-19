@@ -10,6 +10,7 @@
  *   php tools/build-favicon.php
  */
 declare(strict_types=1);
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 $root = dirname(__DIR__);
 $srcPng = $root . '/assets/site/icon-192.png';
 

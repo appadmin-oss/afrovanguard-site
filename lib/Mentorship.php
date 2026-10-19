@@ -967,15 +967,10 @@ final class Mentorship
     /** Dispatch a bot for a session and record its state. */
     private static function requestSessionBot(int $sessionId, string $meetUrl, string $joinAtIso): array
     {
+        // With no notetaker configured this records 'unconfigured' and makes no
+        // network call; the session itself carries on regardless.
         $state = 'unconfigured'; $ref = ''; $provider = Meetings::botProvider();
-        if ($provider === 'recall' && class_exists('RecallBot') && RecallBot::configured()) {
-            $wh = rtrim((string) (defined('SITE_URL') ? SITE_URL : ''), '/') . '/portal/meetings.php?action=recall_webhook';
-            $wt = RecallBot::webhookToken();
-            if ($wt !== '') $wh .= '&t=' . rawurlencode($wt);
-            $res = RecallBot::createBot($meetUrl, $wh, $joinAtIso);
-            if (!empty($res['ok'])) { $state = 'requested'; $ref = (string) $res['bot_id']; }
-            else { $state = 'error'; error_log('[mentorship] recall: ' . (string) ($res['error'] ?? '')); }
-        } elseif ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
+        if ($provider === 'attendee' && class_exists('AttendeeBot') && AttendeeBot::configured()) {
             $res = AttendeeBot::createBot($meetUrl, '', $joinAtIso, [
                 'metadata' => ['av_session_id' => (string) $sessionId, 'av_source' => 'mentorship'],
                 'dedup'    => 'av-session-' . $sessionId,
@@ -1012,8 +1007,7 @@ final class Mentorship
         $prov = (string) ($s['bot_provider'] ?? '');
         if ($ref !== '') {
             $r = null;
-            if ($prov === 'recall' && class_exists('RecallBot'))         $r = RecallBot::removeBot($ref);
-            elseif ($prov === 'attendee' && class_exists('AttendeeBot')) $r = AttendeeBot::removeBot($ref);
+            if ($prov === 'attendee' && class_exists('AttendeeBot')) $r = AttendeeBot::removeBot($ref);
             if ($r !== null && empty($r['ok'])) return ['ok' => false, 'error' => 'Could not remove the notetaker — try again in a moment.'];
         }
         try {
@@ -1023,26 +1017,56 @@ final class Mentorship
     }
 
     /**
-     * A Recall bot reported in for a SESSION rather than a workspace meeting.
-     * Called by Meetings::ingestFromRecall when the bot id matches no meeting.
+     * Collect transcripts from session notetakers that have finished — the
+     * same polling Meetings::pollBotTranscripts() does for workspace meetings,
+     * so a session's minutes arrive without any inbound callback. Only bots in
+     * flight from the last day are asked. Returns how many were ingested.
      */
-    public static function ingestSessionFromRecall(string $botId): array
+    public static function pollSessionBotTranscripts(int $limit = 20): int
     {
         self::ensure();
-        self::ensureMinutes();
-        if (!class_exists('RecallBot')) return ['ok' => false, 'error' => 'Recall not available.'];
+        if (!class_exists('Meetings') || !Meetings::botAllowed() || !class_exists('AttendeeBot')) return 0;
+        $n = 0;
         try {
-            $st = Database::pdo()->prepare('SELECT id FROM mentor_sessions WHERE bot_ref = ? ORDER BY id DESC LIMIT 1');
-            $st->execute([$botId]);
-            $sid = (int) ($st->fetchColumn() ?: 0);
-            if ($sid <= 0) return ['ok' => false, 'error' => 'Unknown bot.'];
+            $db = Database::pdo();
+            $st = $db->prepare(
+                "SELECT id, bot_ref FROM mentor_sessions
+                  WHERE bot_ref <> '' AND bot_provider = 'attendee'
+                    AND bot_state IN ('requested','joining','in_call')
+                    AND scheduled_at >= ?
+                  ORDER BY scheduled_at ASC"
+            );
+            $st->execute([gmdate('Y-m-d H:i:s', time() - 86400)]);
+            foreach (array_slice($st->fetchAll(PDO::FETCH_ASSOC) ?: [], 0, max(1, $limit)) as $r) {
+                $sid = (int) $r['id'];
+                $ref = (string) $r['bot_ref'];
+                $state = AttendeeBot::botStatus($ref);
+                if ($state === '') continue;   // unreachable or unknown: try next tick
+                if ($state !== 'done') {
+                    $db->prepare('UPDATE mentor_sessions SET bot_state = ? WHERE id = ?')->execute([$state, $sid]);
+                    continue;
+                }
+                $text = AttendeeBot::fetchTranscript($ref);
+                if ($text === '') continue;     // ended but still transcribing
+                if (!empty(self::ingestSessionBotTranscript($sid, $text)['ok'])) $n++;
+            }
+        } catch (Throwable $e) { error_log('[mentorship] pollSessionBotTranscripts: ' . $e->getMessage()); }
+        return $n;
+    }
 
-            $text = RecallBot::fetchTranscript($botId);
-            if ($text === '') return ['ok' => false, 'error' => 'Transcript not ready.'];
-
-            // A service callback has no signed-in user, so the ownership check
-            // that saveSessionTranscript() performs cannot apply. The bot id is
-            // the credential here: it was issued by us for this session.
+    /**
+     * Store a notetaker's transcript for a session and structure it.
+     *
+     * The sweep has no signed-in user, so the ownership check that
+     * saveSessionTranscript() performs cannot apply. The bot reference is the
+     * credential here: it was issued by us for this session.
+     */
+    private static function ingestSessionBotTranscript(int $sid, string $text): array
+    {
+        self::ensureMinutes();
+        $text = trim($text);
+        if ($sid <= 0 || $text === '') return ['ok' => false, 'error' => 'Nothing to ingest.'];
+        try {
             $db = Database::pdo();
             $db->prepare('DELETE FROM mentor_session_minutes WHERE session_id = ?')->execute([$sid]);
             $db->prepare('INSERT INTO mentor_session_minutes (session_id, source, raw_text, structured, created_at) VALUES (?,?,?,0,?)')
@@ -1059,7 +1083,7 @@ final class Mentorship
             $db->prepare("UPDATE mentor_sessions SET bot_state = 'done' WHERE id = ?")->execute([$sid]);
             return ['ok' => true, 'session_id' => $sid, 'structured' => !empty($s['ok'])];
         } catch (Throwable $e) {
-            error_log('[mentorship] ingestSessionFromRecall: ' . $e->getMessage());
+            error_log('[mentorship] ingestSessionBotTranscript: ' . $e->getMessage());
             return ['ok' => false, 'error' => 'Could not ingest that transcript.'];
         }
     }

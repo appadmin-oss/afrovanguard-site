@@ -220,3 +220,21 @@ function av_workspace_icon(string $key): string
     $p = $paths[$key] ?? '<circle cx="12" cy="12" r="9"/>';
     return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $p . '</svg>';
 }
+
+/**
+ * The sentence /workspace shows after the Google connect round-trip, or null.
+ * Codes are the ones auth/google.php sends back; an unknown one shows nothing.
+ *
+ * @return array{tone:string,text:string}|null
+ */
+function av_workspace_notice(string $code, bool $connected): ?array
+{
+    if ($connected && $code === '') return ['tone' => 'ok', 'text' => 'Google is connected. Your mail, calendar and files will show here.'];
+    $map = [
+        'connect_failed'    => 'Google did not finish connecting. Try again; if it keeps failing, an administrator can see why on the Studio’s System page.',
+        'connect_cancelled' => 'Connecting Google was cancelled. Nothing was changed.',
+        'connect_session'   => 'You were signed out (or signed in as somebody else) while Google was connecting. Sign in and try again.',
+        'rate'              => 'Too many attempts — wait a few minutes and try again.',
+    ];
+    return isset($map[$code]) ? ['tone' => 'err', 'text' => $map[$code]] : null;
+}

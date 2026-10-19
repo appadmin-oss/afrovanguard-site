@@ -56,7 +56,7 @@ final class NgvCard
             return $s('suspended', 'Suspended', 'bad', 'This account is suspended. Ask at the NGV office.', 'Not active');
         }
         if ($pstat === 'withdrawn') return $s('withdrawn', 'Withdrawn', 'bad', 'Withdrawn from the NextGen Vanguard programme.', 'Not active');
-        if (!$p && class_exists('GatePass') && !in_array(strtolower((string) ($u['role'] ?? 'learner')), GatePass::roles(), true)) {
+        if (!$p && class_exists('GatePass') && !GatePass::roleAllowed($u)) {
             return $s('not_member', 'Not a member', 'neutral', 'This account is not an Afrovanguard member.', 'Not a member');
         }
         if ($pstat === 'completed') return $s('completed', 'Programme completed', 'neutral', 'Completed the NextGen Vanguard programme.', 'Alumnus · programme completed');
@@ -104,11 +104,18 @@ final class NgvCard
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /** The QR for a URL, as inline SVG. Level Q: a printed card gets scuffed in a wallet. */
-    public static function qrSvg(string $url): string
+    /**
+     * The QR for a URL, as inline SVG. Level Q: a printed card gets scuffed in a wallet.
+     *
+     * $quiet is the margin in modules. 4 everywhere the code stands alone. The
+     * member card passes 0 because its design draws the code edge to edge in
+     * a white box whose padding, border and the light card around it are the
+     * quiet zone — a second one inside the box shrank every module by a fifth.
+     */
+    public static function qrSvg(string $url, int $quiet = 4): string
     {
         $o = new QROptions([
-            'outputInterface' => QRMarkupSVG::class, 'eccLevel' => EccLevel::Q, 'addQuietzone' => true, 'quietzoneSize' => 4,
+            'outputInterface' => QRMarkupSVG::class, 'eccLevel' => EccLevel::Q, 'addQuietzone' => $quiet > 0, 'quietzoneSize' => max(0, $quiet),
             'outputBase64' => false, 'svgAddXmlHeader' => false, 'drawLightModules' => false, 'connectPaths' => true,
         ]);
         return (new QRCode($o))->render($url);

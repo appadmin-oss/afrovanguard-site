@@ -126,7 +126,9 @@ final class GateAttendance
     }
 
     private static function now(): string { return gmdate('Y-m-d\TH:i:s\Z'); }
-    private static function today(): string { return function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d'); }
+    /** Tests pin "today" so a check written about fixed days keeps passing as the calendar moves on. */
+    public static ?string $todayForTests = null;
+    private static function today(): string { return self::$todayForTests ?? (function_exists('av_today_tz') ? av_today_tz() : date('Y-m-d')); }
     private static function rule(string $k, $fallback)
     {
         try { return class_exists('AvRules') ? AvRules::get($k) : $fallback; } catch (Throwable $e) { return $fallback; }
@@ -134,6 +136,7 @@ final class GateAttendance
     public static function lateFine(): int       { return max(0, (int) self::rule('gate.late_fine', 0)); }
     public static function absentFine(): int     { return max(0, (int) self::rule('gate.absent_fine', 0)); }
     public static function lateFineProbation(): int { return max(0, (int) self::rule('gate.late_fine_probation', 0)); }
+    public static function finesPhoneSignin(): bool { return (bool) self::rule('gate.fine_phone_signin', true); }
     /** @return string[] level codes */
     public static function probationLevels(): array
     {
@@ -207,7 +210,7 @@ final class GateAttendance
     {
         if (!$u) return 'Not an Afrovanguard member.';
         if ((string) ($u['status'] ?? 'active') !== 'active') return 'This account is suspended. Ask at the office.';
-        if (class_exists('GatePass') && !in_array(strtolower((string) ($u['role'] ?? 'learner')), GatePass::roles(), true)) {
+        if (class_exists('GatePass') && !GatePass::roleAllowed($u)) {
             return 'Gate passes are for Afrovanguard members.';
         }
         $overdue = self::overdueFine((int) $u['id']);
@@ -283,8 +286,12 @@ final class GateAttendance
         /* Wildcards dropped rather than escaped: LIKE escaping differs between
            SQLite, MySQL and Postgres, and nobody's name needs a % in it. */
         $like = '%' . str_replace(['%', '_', '\\'], '', mb_strtolower($q)) . '%';
-        $st = Database::pdo()->prepare("SELECT id, name, email, role, status FROM lms_users WHERE status = 'active' AND LOWER(name) LIKE ? ORDER BY name LIMIT 25");
-        $st->execute([$like]);
+        /* Members only, in the query — filtering afterwards meant 25 learners
+           called Ade could hide the one member called Ade. With GATE_PASS_ROLES
+           set the roles decide, as they do for a pass (GatePass::roleAllowed). */
+        $members = class_exists('MemberRoster') && !(class_exists('GatePass') && GatePass::rolesSet()) ? ' AND ' . MemberRoster::memberWhere() : '';
+        $st = Database::pdo()->prepare("SELECT u.id, u.name, u.email, u.role, u.status FROM lms_users u WHERE u.status = 'active' AND (LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ?){$members} ORDER BY u.name LIMIT 25");
+        $st->execute([$like, $like]);
         $out = [];
         foreach ($st->fetchAll() as $u) {
             $p = self::personFor($u);
@@ -414,6 +421,9 @@ final class GateAttendance
         }
         if ($status === 'late') self::fineLate($mid, $day, $late);
         else self::award($mid, $day);
+        /* The gate reports a phone pass as method 'pass' (cacentre-site gate,
+           src/index.ts): the member came in without the printed card. */
+        if ((string) ($p['method'] ?? '') === 'pass') self::fineNoCard($mid, $day);
         self::birthday($mid, $day);
         return 'recorded';
     }
@@ -438,6 +448,24 @@ final class GateAttendance
         $fid = NgvLedger::postCharge($memberId, 'fine', $amount, 'late:' . $day,
             ['reason' => 'late', 'note' => 'Late arrival' . ($prob && self::lateFineProbation() > 0 ? ' on probation' : '') . ' — ' . $day . ', ' . $minutes . ' min (CACENTRE gate)', 'source' => 'accrual']);
         if ($fid) Database::pdo()->prepare('UPDATE gate_attendance SET fine_id = ? WHERE member_id = ? AND day = ?')->execute([$fid, $memberId, $day]);
+    }
+
+    /**
+     * Came in on the phone pass: the printed card was left at home (owner,
+     * 2026-10-09). Only somebody who HAS a card can forget it, so a member with
+     * no active secure card is not charged; and, like every gate fine, only an
+     * expected NGV participant. The amount is the Fines desk's "Uniform or ID
+     * card" figure — one price for one offence, set in one place. Once a day:
+     * the ledger refuses a second charge for the same period.
+     */
+    private static function fineNoCard(int $memberId, string $day): void
+    {
+        if (!self::finesPhoneSignin() || !class_exists('NgvLedger') || !class_exists('NgvFines') || !self::expected($memberId)) return;
+        if (!class_exists('MemberCards') || MemberCards::secure($memberId) === null) return;
+        $amount = (int) (NgvFines::catalogue()['uniform']['amount'] ?? 0);
+        if ($amount <= 0) return;
+        NgvLedger::postCharge($memberId, 'fine', $amount, 'nocard:' . $day,
+            ['reason' => 'uniform', 'note' => 'Signed in with the phone, ID card not brought — ' . $day . ' (CACENTRE gate)', 'source' => 'accrual']);
     }
 
     private static function voidFine(int $chargeId, string $why): void
@@ -755,6 +783,18 @@ final class GateAttendance
         if ($pts > 0 && class_exists('Birthdays') && Birthdays::isOn($memberId, $day)) {
             self::give($memberId, $day, 'birthday:' . substr($day, 0, 4), $pts, 'Happy birthday');
         }
+    }
+
+    /**
+     * Points granted by a decision rather than earned at the gate — an award a
+     * mentor proposed and the compliance committee approved (lib/Conduct.php).
+     * The period names the decision ("award:<case>"), so it is granted once.
+     */
+    public static function grant(int $memberId, string $day, string $period, int $points, string $note): void
+    {
+        if ($memberId <= 0 || $points <= 0 || $period === '') return;
+        self::ensure();
+        self::give($memberId, $day, $period, $points, mb_substr($note, 0, 190));
     }
 
     private static function give(int $memberId, string $day, string $period, int $points, string $note): void

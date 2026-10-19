@@ -46,15 +46,30 @@ final class GoogleWorkspaceUser
         return $s !== '' ? $s : self::DEFAULT_SCOPES;
     }
 
-    /** Should ordinary Google sign-in ALSO request offline Workspace access
-     *  (so it captures a connection)? On by default once OAuth is configured;
-     *  set AV_GWS_CONNECT_ON_SIGNIN=0 to keep sign-in lightweight. */
-    public static function connectOnSignin(): bool
+    /**
+     * Should this Google sign-in ALSO request offline Workspace access (so it
+     * captures a connection)?
+     *
+     * By default only for an address at the organisation's domain. It used to
+     * be on for EVERY sign-in, so a learner signing in with a personal Gmail
+     * account was asked to let the site read their Gmail, Calendar, Drive and
+     * Chat — restricted scopes that put an unverified-app warning in front of
+     * them, and that an Internal consent screen refuses outright for anybody
+     * outside the tenant. Sign-in itself then failed for the very people the
+     * button is offered to.
+     *
+     *   AV_GWS_CONNECT_ON_SIGNIN = org (default) | all | 0
+     *
+     * $email is the address the person typed (the login hint), when there is one.
+     */
+    public static function connectOnSignin(string $email = ''): bool
     {
         if (!self::configured()) return false;
-        $v = getenv('AV_GWS_CONNECT_ON_SIGNIN');
-        if ($v === false || trim((string) $v) === '') return true;
-        return !in_array(strtolower(trim((string) $v)), ['0', 'off', 'false', 'no'], true);
+        $v = strtolower(trim((string) getenv('AV_GWS_CONNECT_ON_SIGNIN')));
+        if (in_array($v, ['0', 'off', 'false', 'no'], true)) return false;
+        if (in_array($v, ['all', '1', 'on', 'true', 'yes'], true)) return true;
+        $at = strrchr(strtolower(trim($email)), '@');
+        return $at !== false && substr($at, 1) === GoogleAuth::orgDomain();
     }
 
     /** True if a scope string carries at least one Workspace API scope (i.e. more
@@ -131,7 +146,7 @@ final class GoogleWorkspaceUser
         $nonce = bin2hex(random_bytes(8));
         $b64 = rtrim(strtr(base64_encode(GoogleAuth::safeNext($next)), '+/', '-_'), '=');
         $payload = 'c.' . $exp . '.' . $nonce . '.' . $uid . '.' . $b64; // 'c' = connect marker
-        return $payload . '.' . hash_hmac('sha256', $payload, av_secret());
+        return $payload . '.' . av_mac('google-connect', $payload);
     }
 
     /** Verify a connect-state; returns ['uid'=>int,'next'=>string] or null. */
@@ -144,7 +159,7 @@ final class GoogleWorkspaceUser
         if (!ctype_digit($uid)) return null;
         if (av_secret() === '') return null;
         $payload = "$mark.$exp.$nonce.$uid.$b64";
-        if (!hash_equals(hash_hmac('sha256', $payload, av_secret()), $sig)) return null;
+        if (!hash_equals(av_mac('google-connect', $payload), $sig)) return null;
         $next = base64_decode(strtr($b64, '-_', '+/'), true);
         return ['uid' => (int) $uid, 'next' => $next === false ? '/workspace' : GoogleAuth::safeNext($next)];
     }
@@ -152,7 +167,7 @@ final class GoogleWorkspaceUser
     public static function connectUrl(string $state, string $loginHint = ''): string
     {
         $params = [
-            'client_id'             => AV_GOOGLE_CLIENT_ID,
+            'client_id'             => GoogleAuth::clientId(),
             'redirect_uri'          => GoogleAuth::redirectUri(),
             'response_type'         => 'code',
             'scope'                 => self::scopes(),
@@ -175,8 +190,8 @@ final class GoogleWorkspaceUser
         if (!self::configured() || $code === '' || $uid <= 0) return false;
         $tok = self::post(self::tokenUrl(), [
             'code'          => $code,
-            'client_id'     => AV_GOOGLE_CLIENT_ID,
-            'client_secret' => AV_GOOGLE_CLIENT_SECRET,
+            'client_id'     => GoogleAuth::clientId(),
+            'client_secret' => GoogleAuth::clientSecret(),
             'redirect_uri'  => GoogleAuth::redirectUri(),
             'grant_type'    => 'authorization_code',
         ]);
@@ -276,13 +291,25 @@ final class GoogleWorkspaceUser
     private static function refresh(int $uid, string $refreshToken): ?string
     {
         $tok = self::post(self::tokenUrl(), [
-            'client_id'     => AV_GOOGLE_CLIENT_ID,
-            'client_secret' => AV_GOOGLE_CLIENT_SECRET,
+            'client_id'     => GoogleAuth::clientId(),
+            'client_secret' => GoogleAuth::clientSecret(),
             'refresh_token' => $refreshToken,
             'grant_type'    => 'refresh_token',
         ]);
         if (!is_array($tok) || empty($tok['access_token'])) {
             error_log('[gws-user] refresh failed for uid ' . $uid);
+            /* invalid_grant means the refresh token is dead for good: the
+               member revoked access, changed their password, or — the common
+               case — the OAuth consent screen is in "Testing", where Google
+               expires every refresh token after seven days. Keeping it made the
+               connection read as live for ever while every panel came back
+               empty. Forget it, so /workspace asks them to connect again. */
+            if (str_contains(self::$lastHttp['body'], 'invalid_grant')) {
+                Database::pdo()->prepare("UPDATE google_connections SET refresh_token='', access_token='', access_expires=0, updated_at=? WHERE user_id=?")
+                    ->execute([gmdate('Y-m-d H:i:s'), $uid]);
+                error_log('[gws-user] refresh token for uid ' . $uid . ' was refused (invalid_grant) — connection cleared; they must reconnect');
+                if (class_exists('GoogleAuth')) GoogleAuth::recordFailure('workspace refresh', 'invalid_grant for member ' . $uid . ' — connection cleared; if this recurs every 7 days the OAuth consent screen is still in Testing');
+            }
             return null;
         }
         $expires = time() + max(0, (int) ($tok['expires_in'] ?? 3600)) - self::SKEW;
@@ -571,9 +598,11 @@ final class GoogleWorkspaceUser
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         if (!is_string($res) || $http < 200 || $http >= 300) {
+            self::$lastHttp = ['code' => (int) $http, 'body' => substr((string) $res, 0, 300)];
             error_log('[gws-user] POST ' . $url . ' → HTTP ' . $http . ' ' . substr((string) $res, 0, 200));
             return null;
         }
+        self::$lastHttp = ['code' => (int) $http, 'body' => ''];
         $j = json_decode($res, true);
         return is_array($j) ? $j : null;
     }

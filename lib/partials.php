@@ -48,6 +48,30 @@ final class Icons
     }
 }
 
+/**
+ * The site pages' boot script. Every public page now wears the Home chrome
+ * (partials/avh-chrome.php), and the Home design is light-only — the --av-*
+ * tokens have no dark set and the new nav has no theme toggle. So these pages
+ * are forced light: <html> carries data-theme="light" in the markup itself and
+ * data-theme-lock tells diary.js not to flip it (its `d` shortcut). The visitor's
+ * stored av.theme is left untouched, so the member portal, which keeps its own
+ * dark mode, still honours it. Reveal and reading scale are kept from THEME_BOOT.
+ */
+const THEME_BOOT_SITE = "<script>(function(){var r=document.documentElement;r.classList.replace('no-js','js');r.classList.add('reveal-on');if(/(^|; )av_si=1/.test(document.cookie))r.classList.add('av-si');try{var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
+
+/**
+ * Which chrome the current page is drawn in: 'site' (the Home nav and footer,
+ * the default for every public page) or 'app' (a signed-in shell with its own
+ * chrome — the member portal, the mentor portal, the Workspace — which keeps
+ * the legacy head and its own dark mode). render_head() sets it; render_nav()
+ * and render_footer() read it so the three always agree.
+ */
+function av_chrome_mode(?string $set = null): string {
+    static $mode = 'site';
+    if ($set !== null) $mode = $set === 'app' ? 'app' : 'site';
+    return $mode;
+}
+
 const THEME_BOOT = "<script>(function(){var r=document.documentElement;r.classList.add('reveal-on');try{var t=localStorage.getItem('av.theme');if(!t){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}r.setAttribute('data-theme',t);var s=localStorage.getItem('av.scale');if(s)r.style.setProperty('--reading-scale',s);}catch(e){}})();</script>";
 
 /**
@@ -94,12 +118,13 @@ function render_head(array $o): void {
     // caller mistake.
     $title = $o['title'] ?? ''; $desc = $o['desc'] ?? ''; $canonical = $o['canonical'] ?? '';
     $slug = $o['slug'] ?? ''; $ogKind = $o['og_kind'] ?? 'article';
-    $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/Images/og-image.png');
+    $image = $o['image'] ?? (rtrim(SITE_URL, '/') . '/assets/og/og-default.png');
     $imageAlt = $o['image_alt'] ?? $title;
     $jsonld = $o['jsonld'] ?? [];
+    $site = av_chrome_mode((string) ($o['chrome'] ?? 'site')) === 'site';
     if (function_exists('send_security_headers')) send_security_headers('public'); ?>
 <!DOCTYPE html>
-<html lang="en-NG" prefix="og: https://ogp.me/ns#">
+<html lang="en-NG" prefix="og: https://ogp.me/ns#"<?= $site ? ' class="no-js" data-theme="light" data-theme-lock' : '' ?>>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -142,7 +167,7 @@ function render_head(array $o): void {
   <link rel="alternate" type="application/rss+xml" title="The Afrovanguard Diary" href="<?= e(diary_url('feed.xml')) ?>" />
   <link rel="sitemap" type="application/xml" href="<?= e(diary_url('sitemap.xml')) ?>" />
 <?php if ($jsonld): ?>  <script type="application/ld+json"><?= json_encode(count($jsonld) === 1 ? $jsonld[0] : ['@context' => 'https://schema.org', '@graph' => $jsonld], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
-<?php endif; ?>  <?= THEME_BOOT ?>
+<?php endif; ?>  <?= $site ? THEME_BOOT_SITE : THEME_BOOT ?>
 
 <?php /* G-06: Cormorant Garamond and Source Sans 3, self-hosted. The old
      <link> loaded Cormorant — a different face by the same designer — and
@@ -150,13 +175,23 @@ function render_head(array $o): void {
      the third-party request: the PDF renderer cannot fetch a webfont, so the
      printed card and the screen now read off the SAME files and cannot drift
      onto different typefaces. */ ?>
-  <link href="/assets/site/fonts.css" rel="stylesheet" />
-  <link href="/assets/site/tokens.css" rel="stylesheet" />
-  <link href="/diary/diary.css" rel="stylesheet" />
-  <link href="/assets/site/av-tokens.css" rel="stylesheet" />
-  <link href="/assets/site/avh-nav.css" rel="stylesheet" />
-  <link href="/assets/site/page.css" rel="stylesheet" />
-<?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e($href) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/fonts.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/tokens.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/diary/diary.css')) ?>" rel="stylesheet" />
+<?php if ($site): /* The Home chrome and the new system, then avpg.css, which
+     re-points the old --afg-* and Diary tokens at --av-* and sets the type, so
+     the page bodies built on diary.css read as part of the new site. nav.css is
+     the old header's stylesheet and is not loaded. */ ?>
+  <link href="<?= e(av_asset('/assets/site/page.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/avh.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/avpg.css')) ?>" rel="stylesheet" />
+  <script src="<?= e(av_asset('/assets/site/avh.js')) ?>" defer></script>
+<?php else: ?>
+  <link href="<?= e(av_asset('/assets/site/nav.css')) ?>" rel="stylesheet" />
+  <link href="<?= e(av_asset('/assets/site/page.css')) ?>" rel="stylesheet" />
+<?php endif; ?>
+<?php foreach (($o['css'] ?? []) as $href): ?>  <link href="<?= e(av_asset($href)) ?>" rel="stylesheet" />
 <?php endforeach;
   // Studio Design panel brand override — last, so it re-points the accent vars
   // after every default stylesheet. Validated hex only; empty ⇒ built-in palette.
@@ -169,11 +204,20 @@ function render_head(array $o): void {
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Afrovanguard" />
 <?php endif; ?></head>
+<?php if ($site): /* Home's structure: body.avh, the skip link to #main, the
+     .avh-page wrapper (closed by render_footer). The page's own <main id="main"
+     tabindex="-1"> sits between render_nav() and render_footer(). */ ?>
+<body class="avh avpg<?= !empty($o['body_class']) ? ' ' . e($o['body_class']) : '' ?>" id="top"<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?>>
+<a class="avh-skip" href="#main">Skip to content</a>
+<noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
+<div class="read-progress" id="read-progress"></div>
+<div class="avh-page">
+<?php else: ?>
 <body<?= $slug ? ' data-slug="' . e($slug) . '"' : '' ?><?= !empty($o['body_class']) ? ' class="' . e($o['body_class']) . '"' : '' ?>>
   <a href="#main-content" class="skip-link">Skip to content</a>
   <noscript><style>[data-reveal],.reveal-stagger>*{opacity:1!important;transform:none!important}</style></noscript>
   <div class="read-progress" id="read-progress"></div>
-<?php }
+<?php endif; }
 
 /* The other Afrovanguard sites, named once. Every link out was hand-typed,
    which is how four of the five programme links in the footer came to point
@@ -187,23 +231,49 @@ const AV_VOLUNTEER_URL = AV_CACENTRE_URL . '/volunteer';
 const AV_EVENTS_URL = AV_AFG_URL . '/events';
 
 /**
- * The navigation model — the single definition for the whole site. PHP pages
- * render it live through render_nav(); the static .html pages get the same
- * markup written in by bin/sync-nav.php (lib/NavSync.php), and the suite fails
- * when one falls behind. Each section opens a mega panel at ≥ 1180px and an
- * accordion in the drawer below that.
- *
- * Copy and images are the 9th-anniversary handoff's (implementation/index.html):
- * `intro` and `intro_cta` head the panel, `feature` is the picture card. Links
- * are root-relative so they work on any host; only genuine off-site subdomains
- * stay absolute, and av_nav_offsite() marks those as leaving.
+ * Canonical primary navigation model — the single definition for the whole
+ * site (PHP pages render it live; static pages get it injected by
+ * tools/build-chrome.php). Each item is a top-level link; items with a
+ * "mega" key open a mega-menu panel (columns of links + a featured card
+ * whose illustration lives at /assets/illustrations/nav-<key>.webp).
+ * Custom-owned sections use root-relative paths (served ahead of WordPress).
  */
+/**
+ * Mark up a navigation link that leaves this site.
+ *
+ * The mega panels emitted a bare <a href> for every entry, so a link to the
+ * cacentre or next subdomain was indistinguishable from one to a page here —
+ * the menu had a hand-typed "↗" inside one label as a workaround, which only
+ * that one link got and which a screen reader reads as an arrow glyph.
+ *
+ * Returns the attributes plus a marker: a visual arrow that is hidden from
+ * assistive tech, and the destination named in words for anyone who cannot
+ * see it. Same-site links get nothing, which is the point.
+ *
+ * @return array{0:string,1:string} [attributes, trailing markup]
+ */
+function av_nav_offsite(string $href): array
+{
+    if (!preg_match('~^https?://~i', $href)) return ['', ''];
+    $host = strtolower((string) parse_url($href, PHP_URL_HOST));
+    $self = strtolower((string) parse_url(SITE_URL, PHP_URL_HOST));
+    // www.example.org and example.org are the same site to a reader.
+    $bare = static fn(string $h): string => preg_replace('~^www\.~', '', $h) ?? $h;
+    if ($host === '' || $bare($host) === $bare($self)) return ['', ''];
+    return [
+        ' target="_blank" rel="noopener"',
+        ' <span class="nav-ext" aria-hidden="true">↗</span><span class="sr-only"> (opens ' . e($host) . ' in a new tab)</span>',
+    ];
+}
+
 function av_nav_model(): array {
+    // Same-site links are root-relative so they work on ANY host (production,
+    // preview, local, or while DNS still points at the old site); only genuine
+    // off-site subdomains (cacentre/next/…) stay absolute.
     $V = AV_VOLUNTEER_URL;
     return [
-        'about' => ['label' => 'About', 'href' => '/about.html',
-            'intro' => 'One million incorruptible leaders by 2040 — the vision, values and creed behind everything we build.',
-            'intro_cta' => 'Read the ethos',
+        // WHO WE ARE
+        'about'   => ['label' => 'About', 'href' => '/about.html', 'mega' => [
             'cols' => [
                 ['title' => 'The organisation', 'links' => [
                     ['About us', '/about.html'], ['How it works', '/how-it-works'],
@@ -213,12 +283,10 @@ function av_nav_model(): array {
                     ['Contact us', '/contact.html'], ['The Diary', '/diary/'], ['Events', AV_EVENTS_URL],
                 ]],
             ],
-            'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'href' => '/ethos/', 'img' => '/Images/alimosho.jpg'],
-        ],
-        // Learning only; on-the-ground programmes live under Projects.
-        'academy' => ['label' => 'Academy', 'href' => '/academy/',
-            'intro' => 'Structured leadership formation, practical training and doctrine — where Vanguards are made.',
-            'intro_cta' => 'All programmes',
+            'feature' => ['kicker' => 'Our mission', 'title' => 'One million incorruptible leaders by 2040', 'text' => 'The vision, values and creed behind everything we build.', 'href' => '/ethos/', 'cta' => 'Read the ethos'],
+        ]],
+        // LEARN — the Academy platform (learning only; on-the-ground programmes live under Projects)
+        'academy' => ['label' => 'Academy', 'href' => '/academy/', 'mega' => [
             'cols' => [
                 ['title' => 'Learn with us', 'links' => [
                     ['All programmes', '/academy/'], ['NextGen Vanguard', '/academy/ngv/'],
@@ -232,45 +300,48 @@ function av_nav_model(): array {
                     ['IQ — Quizzes & games', '/IQ/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Flagship programme', 'title' => 'NextGen Vanguard — learn, earn & lead', 'href' => '/academy/ngv/', 'img' => '/Images/gates1.png'],
-        ],
-        // Every flagship programme with a page here links here; only what has
-        // no page on this site goes out to its own.
-        'projects' => ['label' => 'Projects', 'href' => '/projects/',
-            'intro' => 'Technology, creative and leadership initiatives across Lagos and beyond.',
-            'intro_cta' => 'See all projects',
+            'feature' => ['kicker' => 'Flagship programme', 'title' => 'NextGen Vanguard — learn, earn & lead', 'text' => 'Future-ready tech, media, business & leadership skills, weekly stipends and six global certifications for young Africans.', 'href' => '/academy/ngv/', 'cta' => 'Explore NextGen Vanguard'],
+        ]],
+        // WHAT WE DO ON THE GROUND — flagship programmes (distinct from Academy learning)
+        'projects' => ['label' => 'Projects', 'href' => '/projects/', 'mega' => [
             'cols' => [
+                // Every flagship programme has a real page on THIS site, and the
+                // menu used to send all of them to the cacentre/next subdomains
+                // instead — so the local pages were orphaned from the navigation
+                // and every visitor who opened a programme left the site to read
+                // about it. Local first; only what has no page here stays remote.
                 ['title' => 'Flagship programmes', 'links' => [
-                    ['Street-To-Stardom', '/projects/sts/'], ['Techome', '/projects/techhome/'],
-                    ['MediaPro', '/projects/mediapro/'], ['Africa GATES', AV_AFG_URL],
+                    ['Street-To-Stardom', '/projects/sts/'],
+                    ['Techome', '/projects/techhome/'],
+                    ['MediaPro', '/projects/mediapro/'],
+                    /* Its own site now; av_nav_offsite() marks it as leaving. */
+                    ['Africa GATES', AV_AFG_URL],
                 ]],
                 ['title' => 'More programmes', 'links' => [
-                    ['Business Executive Club', '/projects/bec/'], ['Career Hub', '/projects/career-hub/'],
+                    ['Business Executive Club', '/projects/bec/'],
+                    ['Career Hub', '/projects/career-hub/'],
                     ['Kingdom Advancement', '/projects/kap/'],
                     ['Next Generation Genius', 'https://next.afrovanguard.org.ng/'],
                     ['All projects', '/projects/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'href' => '/projects/', 'img' => '/Images/summer1.png'],
-        ],
-        // One home for every conversion path.
-        'involved' => ['label' => 'Get involved', 'href' => '/donate.html',
-            'intro' => 'Every live appeal says what it is for, how far along it is and what a given amount pays for.',
-            'intro_cta' => 'See live appeals',
+            'feature' => ['kicker' => 'Our work', 'title' => 'Programmes changing lives', 'text' => 'Technology, creative and leadership initiatives across Lagos and beyond.', 'href' => '/projects/', 'cta' => 'See all projects'],
+        ]],
+        // HOW TO HELP — one clear home for every conversion path
+        'involved' => ['label' => 'Get involved', 'href' => '/donate.html', 'mega' => [
             'cols' => [
                 ['title' => 'Give', 'links' => [
-                    ['Live appeals', '/give/'], ['Donate', '/donate.html'], ['Become a member', '/academy/#membership'],
+                    ['Live appeals', '/give/'], ['Donate', '/donate.html'],
+                    ['Become a member', '/academy/#membership'],
                 ]],
                 ['title' => 'Give your time & grow', 'links' => [
                     ['Volunteer', $V], ['Become a mentor', '/mentorship/become-a-mentor/'], ['Partner with us', '/contact.html'],
-                    ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE', AV_CACENTRE_URL],
+                    ['Franchise a CACENTRE', '/franchise'], ['Visit CACENTRE', 'https://cacentre.afrovanguard.org.ng'],
                 ]],
             ],
-            'feature' => ['kicker' => 'Stand with us', 'title' => 'See exactly what we need', 'href' => '/give/', 'img' => '/Images/storm2.jpg'],
-        ],
-        'diary' => ['label' => 'Diary', 'href' => '/diary/',
-            'intro' => 'We publish the working — field notes and methodology as we build the movement.',
-            'intro_cta' => 'Read the Diary',
+            'feature' => ['kicker' => 'Stand with us', 'title' => 'See exactly what we need', 'text' => 'Every live appeal says what it is for, how far along it is and what a given amount actually pays for.', 'href' => '/give/', 'cta' => 'See live appeals'],
+        ]],
+        'diary'   => ['label' => 'Diary', 'href' => '/diary/', 'mega' => [
             'cols' => [
                 ['title' => 'Browse the Diary', 'links' => [
                     ['All entries', '/diary/'], ['Technology', '/diary/?q=Technology'],
@@ -281,47 +352,62 @@ function av_nav_model(): array {
                     ['Our ethos', '/ethos/'], ['Academy', '/academy/'],
                 ]],
             ],
-            'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'Field notes from a youth movement', 'href' => '/diary/', 'img' => '/Images/bootcamp1.png'],
-        ],
+            'feature' => ['kicker' => 'The Afrovanguard Diary', 'title' => 'We publish the working', 'text' => 'Field notes and methodology as we build the movement.', 'href' => '/diary/', 'cta' => 'Read the Diary'],
+        ]],
     ];
 }
 
-/**
- * Mark up a navigation link that leaves this site: a new tab, a decorative
- * arrow hidden from assistive tech, and the destination named in words for
- * anyone who cannot see it. Same-site links (www or not) get nothing.
- *
- * @return array{0:string,1:string} [attributes, trailing markup]
- */
-function av_nav_offsite(string $href): array
-{
-    if (!preg_match('~^https?://~i', $href)) return ['', ''];
-    $host = strtolower((string) parse_url($href, PHP_URL_HOST));
-    $self = strtolower((string) parse_url(SITE_URL, PHP_URL_HOST));
-    $bare = static fn(string $h): string => preg_replace('~^www\.~', '', $h) ?? $h;
-    if ($host === '' || $bare($host) === $bare($self)) return ['', ''];
-    return [
-        ' target="_blank" rel="noopener"',
-        '<span class="avh-ext" aria-hidden="true"> ↗</span><span class="avh-sr"> (opens ' . e($host) . ' in a new tab)</span>',
-    ];
+/** Back-compat simple list (label,href) — used by older callers. */
+function av_nav_items(): array {
+    $out = [];
+    foreach (av_nav_model() as $k => $v) { $out[$k] = [$v['label'], $v['href']]; }
+    return $out;
 }
 
 /**
- * The section bar: a second row under the nav for sections whose peer pages a
- * reader moves between. Keyed by the active section; only the Academy has one.
+ * Contextual section sub-navigation — the SECOND nav tier (the Asana-style
+ * "section bar"). Rendered ONLY for sections that genuinely have peer
+ * sub-pages worth moving between — used deliberately, never on every page.
+ * Keyed by the active nav section. Each entry: a section brand, its links,
+ * an optional in-section search, and an optional right-aligned action.
  */
 function av_subnav_model(): array {
     return [
         'academy' => [
+            'key'    => 'academy',
             'brand'  => ['label' => 'Academy', 'href' => '/academy/'],
             'links'  => [
-                ['Programmes', '/academy/#catalogue'], ['NextGen Vanguard', '/academy/ngv/'],
-                ["DNS '26", '/academy/dns/'], ['Membership', '/academy/#membership'], ['Teach', '/academy/teach/'],
+                ['Programmes',  '/academy/#catalogue'],
+                ['NextGen Vanguard', '/academy/ngv/'],
+                ["DNS '26",     '/academy/dns/'],
+                ['Membership',  '/academy/#membership'],
+                ['Teach',       '/academy/teach/'],
             ],
             'search' => ['placeholder' => 'Search the Academy…', 'target' => '/academy/'],
             'cta'    => ['label' => 'Log in', 'href' => '/login?next=/academy/'],
         ],
     ];
+}
+
+/**
+ * Brand mark for a nav tier. Serves the committed logo image when one is
+ * present (drop an SVG/PNG/WebP at /assets/site/logo-<key>.{svg,png,webp}),
+ * otherwise an elegant Cormorant Garamond wordmark so the chrome is never blank.
+ * is_file() resolves live on PHP pages and at build time for static pages,
+ * so adding a logo file + re-running build-chrome.php swaps the wordmark out.
+ */
+function av_brand_mark(string $key = 'afrovanguard'): string {
+    foreach (['.svg', '.png', '.webp'] as $ext) {
+        $rel = '/assets/site/logo-' . $key . $ext;
+        if (is_file(AV_ROOT . $rel)) {
+            $alt = $key === 'academy' ? 'Afrovanguard Academy' : 'Afrovanguard';
+            return '<img class="brand-logo brand-logo--' . e($key) . '" src="' . e($rel) . '" alt="' . e($alt) . '" />';
+        }
+    }
+    if ($key === 'academy') {
+        return '<span class="brand-wordmark brand-wordmark--academy">Academy</span>';
+    }
+    return '<span class="brand-wordmark"><span class="wm-1">Afro</span><span class="wm-2">vanguard</span></span>';
 }
 
 /**
@@ -366,95 +452,197 @@ function av_login_url(string $next = ''): string {
 }
 
 /**
- * The site navigation: sticky bar with mega menus at ≥ 1180px, a drawer below,
- * and the signed-in state avh-nav.js fills from /academy/api.php?action=me.
- * Markup is the 9th-anniversary handoff's (implementation/index.html), drawn
- * from av_nav_model() so a link changes in one place. Rendered with no session:
- * a static page must never have a member baked into it.
+ * The Home nav for a page in section $active, as a string.
  *
- * Needs /assets/site/av-tokens.css + avh-nav.css (render_head) and avh-nav.js
- * (render_footer). $active picks the section bar; the bar carries no "current"
- * state because the handoff's menu buttons open panels rather than pages.
+ * avh_nav() is the Home markup verbatim (tests/avhchrome.test.php pins it), so
+ * the section is marked here, on the way out, rather than in the partial:
+ *   - the section's mega-menu button and drawer accordion get data-avh-current
+ *     (avpg.css underlines it) — what the old nav's aria-current on the top
+ *     item said;
+ *   - every menu link to the page being viewed gets aria-current="page".
+ * 'mentorship' lives under Get involved in the menu; '' marks nothing.
  */
-function render_nav(string $active = '', array $opts = []): void {
+function av_site_nav(string $active, string $path = ''): string {
+    if (!function_exists('avh_nav')) require_once AV_ROOT . '/partials/avh-chrome.php';
+    ob_start(); avh_nav(); $html = (string) ob_get_clean();
+    $section = ['mentorship' => 'involved', 'people' => 'about'][$active] ?? $active;
+    if ($section !== '' && preg_match('/^[a-z]+$/', $section)) {
+        $html = str_replace('data-avh-menu="' . $section . '"', 'data-avh-menu="' . $section . '" data-avh-current', $html);
+        $html = str_replace('aria-controls="avh-acc-' . $section . '"', 'aria-controls="avh-acc-' . $section . '" data-avh-current', $html);
+    }
+    if ($path !== '' && $path !== '/') {
+        $alts = array_unique([$path, rtrim($path, '/'), rtrim($path, '/') . '/']);
+        foreach ($alts as $p) {
+            if ($p === '') continue;
+            $html = str_replace('<a href="' . e($p) . '">', '<a href="' . e($p) . '" aria-current="page">', $html);
+        }
+    }
+    return $html;
+}
+
+function render_nav(string $active = 'diary', array $opts = []): void {
+    if (av_chrome_mode() === 'site') {
+        // $opts['theme_toggle'] has nothing to do here: the Home nav has no
+        // toggle and site pages are light-only (see THEME_BOOT_SITE).
+        echo av_site_nav($active, (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: ''));
+        return;
+    }
+    $S = rtrim(SITE_URL, '/');
+    $showToggle = $opts['theme_toggle'] ?? true;
     $model = av_nav_model();
     $sub = av_subnav_model()[$active] ?? null;
-    $V = AV_VOLUNTEER_URL;
-    $chev = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
-    $link = static function (string $label, string $href): string {
-        [$xa, $xm] = av_nav_offsite($href);
-        return '<a href="' . e($href) . '"' . $xa . '>' . e($label) . $xm . '</a>';
-    };
+    $cur = fn($n) => $n === $active ? ' aria-current="page"' : '';
+    // Only reference a mega-feature illustration when the file actually exists —
+    // otherwise the browser 404s on a missing background image.
+    $illo = function ($k) { $rel = '/assets/illustrations/nav-' . $k . '.webp'; return is_file(AV_ROOT . $rel) ? $rel : ''; };
 ?>
-<div class="avh-chrome" data-avh-chrome>
-<nav class="avh-nav" aria-label="Main" data-avh-nav>
-  <div class="avh-nav-in avh-pad">
-    <a class="avh-brand" href="/" data-avh-close><img src="/assets/site/av-seal.png" alt="" width="40" height="40"><span>Afrovanguard</span></a>
-    <div class="avh-wide">
-<?php foreach ($model as $k => $it): ?>
-      <button type="button" class="avh-navbtn" data-avh-menu="<?= e($k) ?>" aria-expanded="false" aria-haspopup="true" aria-controls="avh-mega-<?= e($k) ?>"><?= e($it['label']) . $chev ?></button>
-<?php endforeach; ?>
-      <a class="avh-signin" href="/login" data-avh-close data-avh-login>Sign in</a>
-      <div class="avh-acct" data-avh-acct>
-        <button type="button" class="avh-acct-btn" data-avh-acct-btn data-avh-close aria-expanded="false" aria-haspopup="true" aria-controls="avh-acct-menu"><span class="avh-av" data-avh-me-initial>M</span><span data-avh-me-first>Member</span><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <div class="avh-acct-menu" id="avh-acct-menu" data-avh-acct-menu hidden>
-          <div class="avh-acct-head"><span class="avh-av avh-av--lg" data-avh-me-initial>M</span><span class="avh-acct-id"><span class="avh-acct-name" data-avh-me-name>Member</span><span class="avh-acct-email" data-avh-me-email hidden></span></span></div>
-          <a class="avh-acct-cta" href="/portal/">Your portal<span aria-hidden="true">→</span></a>
-          <nav class="avh-acct-links" aria-label="Your account"><a href="/academy/">Academy</a><a href="/diary/">The Diary</a><a href="/community/">Community</a></nav>
-          <button type="button" class="avh-acct-out" data-avh-logout>Sign out</button>
+  <header class="site-header<?= $sub ? ' has-subnav' : '' ?>" id="site-header" role="banner" data-section="<?= e($active) ?>">
+    <!-- Tier 0 · thin utility strip (secondary actions) -->
+    <div class="nav-utility-bar">
+      <div class="container">
+        <div class="nav-utility">
+          <div class="nav-utility-actions">
+<?php if ($showToggle): ?>            <button class="icon-btn theme-toggle" type="button" aria-label="Toggle dark mode" data-tip="Toggle theme"><?= Icons::SUN . Icons::MOON ?></button>
+<?php endif; ?>            <a class="nav-signin-link" data-login-link href="/login">Sign in</a>
+            <div class="nav-account" id="navAuth">
+              <button class="acct-btn" id="acctBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu" data-tip="Account" aria-label="Your account">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></svg>
+              </button>
+              <div class="acct-menu" id="acctMenu" role="menu" aria-label="Account" hidden>
+                <div class="am-head">
+                  <p class="am-title">Your Afrovanguard account</p>
+                  <p class="am-sub">Sign in to track your learning, certificates and saved entries.</p>
+                </div>
+                <div class="am-actions">
+                  <a class="am-btn am-btn-primary" data-login-link href="/login">Sign in</a>
+                  <a class="am-btn am-btn-ghost" id="acctCreate" href="/login">Create account</a>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="avh-ctas">
-        <a class="avh-join" href="<?= e($V) ?>" data-avh-close>Join the Movement</a>
-        <a class="avh-donate" href="/donate.html" data-avh-close>Donate</a>
+    </div>
+    <!-- Tier 1 · global brand bar -->
+    <div class="container">
+        <nav class="nav-inner" aria-label="Main navigation">
+          <a href="/" class="nav-logo" aria-label="Afrovanguard — Home"><?= av_brand_mark('afrovanguard') ?></a>
+          <span class="nav-divider" aria-hidden="true"></span>
+          <ul class="nav-links" role="list">
+<?php foreach ($model as $k => $it): if (empty($it['mega'])): ?>
+            <li><a href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a></li>
+<?php else: ?>
+            <li class="has-mega" data-mega="<?= e($k) ?>">
+              <a href="<?= e($it['href']) ?>"<?= $cur($k) ?> aria-haspopup="true" aria-expanded="false"><?= e($it['label']) ?> <?= Icons::CHEVRON ?></a>
+              <div class="mega" role="region" aria-label="<?= e($it['label']) ?> menu">
+                <div class="mega-inner">
+                  <div class="mega-cols">
+<?php foreach ($it['mega']['cols'] as $col): ?>                    <div class="mega-col">
+                      <p class="mega-h"><?= e($col['title']) ?></p>
+                      <ul role="list">
+<?php foreach ($col['links'] as [$ll, $lh]): [$xa, $xm] = av_nav_offsite($lh); ?>                        <li><a href="<?= e($lh) ?>"<?= $xa ?>><?= e($ll) . $xm ?></a></li>
+<?php endforeach; ?>                      </ul>
+                    </div>
+<?php endforeach; ?>                  </div>
+<?php $f = $it['mega']['feature']; $fimg = $illo($k); ?>                  <a class="mega-feature<?= $fimg === '' ? ' mega-feature--plain' : '' ?>" href="<?= e($f['href']) ?>"<?= $fimg !== '' ? ' style="background-image:url(\'' . e($fimg) . '\')"' : '' ?>>
+                    <span class="mf-kicker"><?= e($f['kicker']) ?></span>
+                    <span class="mf-title"><?= e($f['title']) ?></span>
+                    <span class="mf-text"><?= e($f['text']) ?></span>
+                    <span class="mf-cta"><?= e($f['cta']) ?> <?= Icons::ARROW ?></span>
+                  </a>
+                </div>
+              </div>
+            </li>
+<?php endif; endforeach; ?>          </ul>
+          <div class="nav-actions">
+            <a class="nav-search-btn" id="navSearchBtn" href="/diary/" data-search-open aria-haspopup="dialog" aria-label="Search Afrovanguard"><?= Icons::SEARCH ?><span>Search</span></a>
+            <a href="/donate.html" class="nav-donate-btn">Donate</a>
+            <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="nav-cta">Join the Movement</a>
+          </div>
+          <button class="nav-burger" id="avBurger" aria-controls="avDrawer" aria-expanded="false" aria-label="Open menu">
+            <span class="nav-toggle-line line-1"></span><span class="nav-toggle-line line-2"></span><span class="nav-toggle-line line-3"></span>
+          </button>
+        </nav>
+    </div>
+<?php if ($sub): ?>
+    <!-- Tier 2 · contextual section bar (sticks on scroll) -->
+    <div class="nav-sub" aria-label="<?= e($sub['brand']['label']) ?> section navigation">
+      <div class="container">
+        <div class="nav-sub-inner">
+          <a class="nav-sub-brand" href="<?= e($sub['brand']['href']) ?>"><?= av_brand_mark($sub['key'] ?? 'afrovanguard') ?></a>
+          <ul class="nav-sub-links" role="list">
+<?php foreach ($sub['links'] as [$ll, $lh]): [$xa, $xm] = av_nav_offsite($lh); ?>            <li><a href="<?= e($lh) ?>"<?= $xa ?>><?= e($ll) . $xm ?></a></li>
+<?php endforeach; ?>          </ul>
+          <div class="nav-sub-actions">
+<?php if (!empty($sub['search'])): ?>            <form class="nav-sub-search" role="search" action="<?= e($sub['search']['target']) ?>" method="get">
+              <?php /* The pill is the label, so its whole area takes the click —
+                       not just the 18px-tall input sitting inside it. */ ?>
+              <label class="nav-sub-search-field">
+                <span class="sr-only">Search this section</span>
+                <?= Icons::SEARCH ?><input type="search" name="q" placeholder="<?= e($sub['search']['placeholder']) ?>" />
+              </label>
+            </form>
+<?php endif; if (!empty($sub['cta'])): ?>            <a class="nav-sub-cta" id="navSubLogin" data-login-link href="<?= e($sub['cta']['href']) ?>"><?= e($sub['cta']['label']) ?></a>
+<?php endif; ?>          </div>
+        </div>
       </div>
     </div>
-    <div class="avh-narrow">
-      <a class="avh-join" href="<?= e($V) ?>">Join the Movement</a>
-      <a class="avh-acct-mini" href="/portal/" aria-label="Your portal"><span class="avh-av" data-avh-me-initial>M</span></a>
-      <button type="button" class="avh-burger" data-avh-burger aria-label="Open menu" aria-expanded="false" aria-controls="avh-drawer"><span></span><span></span><span></span></button>
-    </div>
-  </div>
-<?php if ($sub): ?>
-  <div class="avh-sub" aria-label="<?= e($sub['brand']['label']) ?> section">
-    <div class="avh-sub-in avh-pad">
-      <a class="avh-sub-brand" href="<?= e($sub['brand']['href']) ?>"><?= e($sub['brand']['label']) ?></a>
-      <div class="avh-sub-links"><?php foreach ($sub['links'] as [$ll, $lh]) echo $link($ll, $lh); ?></div>
-<?php if (!empty($sub['search'])): ?>      <form class="avh-sub-search" role="search" action="<?= e($sub['search']['target']) ?>" method="get"><label><span class="avh-sr">Search this section</span><input type="search" name="q" placeholder="<?= e($sub['search']['placeholder']) ?>"></label></form>
-<?php endif; if (!empty($sub['cta'])): ?>      <a class="avh-sub-cta" href="<?= e($sub['cta']['href']) ?>" data-avh-login><?= e($sub['cta']['label']) ?></a>
 <?php endif; ?>
+  </header>
+  <div class="scrim" data-close-drawer></div>
+  <!-- Accessible site search (AI-integrated) — opened from the Search control -->
+  <div class="av-search" id="avSearch" hidden>
+    <div class="av-search-backdrop" data-search-close></div>
+    <div class="av-search-dialog" role="dialog" aria-modal="true" aria-labelledby="avSearchTitle">
+      <h2 id="avSearchTitle" class="sr-only">Search Afrovanguard</h2>
+      <form class="av-search-bar" id="avSearchForm" role="search">
+        <?= Icons::SEARCH ?>
+        <input type="search" id="avSearchInput" name="q" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Search the site, or ask a question…" aria-label="Search Afrovanguard" aria-controls="avSearchResults" />
+        <button type="button" class="av-search-close" data-search-close aria-label="Close search"><?= Icons::CLOSE ?></button>
+      </form>
+      <div class="av-search-body">
+        <div class="av-search-ai" id="avSearchAi" hidden>
+          <div class="avs-ai-head"><span class="avs-ai-badge">Chioma · AI</span></div>
+          <div class="avs-ai-text" id="avSearchAiText" aria-live="polite"></div>
+        </div>
+        <div class="av-search-results" id="avSearchResults" role="listbox" aria-label="Search results"></div>
+        <p class="av-search-hint" id="avSearchHint">Type to search pages, the Diary and the Academy — or press <kbd>Enter</kbd> to ask the assistant.</p>
+      </div>
     </div>
   </div>
-<?php endif; foreach ($model as $k => $it): $f = $it['feature']; ?>
-  <div class="avh-mega" id="avh-mega-<?= e($k) ?>" data-avh-panel="<?= e($k) ?>" hidden>
-    <div class="avh-mega-in avh-pad">
-      <div class="avh-mega-intro"><div><?= e($it['label']) ?></div><p><?= e($it['intro']) ?></p><a href="<?= e($it['href']) ?>"><?= e($it['intro_cta']) ?> <span aria-hidden="true">→</span></a></div>
-<?php foreach ($it['cols'] as $col): ?>
-      <div class="avh-mega-col"><div><?= e($col['title']) ?></div><?php foreach ($col['links'] as [$ll, $lh]) echo $link($ll, $lh); ?></div>
-<?php endforeach; ?>
-      <a class="avh-feat" href="<?= e($f['href']) ?>"><img src="<?= e($f['img']) ?>" alt="<?= e($f['title']) ?>" loading="lazy"><span><?= e($f['kicker']) ?></span><b><?= e($f['title']) ?></b></a>
+  <nav class="av-drawer" id="avDrawer" aria-label="Mobile navigation" inert>
+    <div class="avd-head">
+      <a href="/" class="nav-logo"><?= av_brand_mark('afrovanguard') ?></a>
+      <button class="avd-close" data-close-drawer aria-label="Close menu"><?= Icons::CLOSE ?></button>
     </div>
-  </div>
-<?php endforeach; ?>
-</nav>
-
-<div class="avh-backdrop" data-avh-backdrop hidden></div>
-<div class="avh-drawer" id="avh-drawer" role="dialog" aria-modal="true" aria-label="Menu" data-avh-drawer hidden>
-  <div class="avh-drawer-top"><button type="button" class="avh-x" data-avh-drawer-close aria-label="Close menu"><span></span><span></span></button></div>
-  <div class="avh-drawer-body">
-    <div class="avh-drawer-me"><span class="avh-av avh-av--lg" data-avh-me-initial>M</span><span class="avh-acct-id"><span class="avh-acct-name" data-avh-me-name>Member</span><span class="avh-acct-email" data-avh-me-email hidden></span></span><a class="avh-drawer-portal" href="/portal/">Your portal<span aria-hidden="true">→</span></a></div>
-<?php foreach ($model as $k => $it): ?>
-    <div class="avh-acc">
-      <button type="button" data-avh-acc aria-expanded="false" aria-controls="avh-acc-<?= e($k) ?>"><?= e($it['label']) ?><span class="avh-plus" aria-hidden="true"></span></button>
-      <div class="avh-acc-links" id="avh-acc-<?= e($k) ?>" hidden><?= $link($it['label'] . ' home', $it['href']) ?><?php foreach ($it['cols'] as $col) foreach ($col['links'] as [$ll, $lh]) echo $link($ll, $lh); ?></div>
+    <div class="avd-scroll">
+<?php if ($sub): ?>      <div class="avd-section">
+        <p class="avd-section-h"><?= e($sub['brand']['label']) ?></p>
+<?php foreach ($sub['links'] as [$ll, $lh]): [$xa, $xm] = av_nav_offsite($lh); ?>        <a class="avd-sub" href="<?= e($lh) ?>"<?= $xa ?>><?= e($ll) . $xm ?></a>
+<?php endforeach; ?>      </div>
+<?php endif; foreach ($model as $k => $it): if (empty($it['mega'])): ?>
+      <a class="avd-link" href="<?= e($it['href']) ?>"<?= $cur($k) ?>><?= e($it['label']) ?></a>
+<?php else: ?>
+      <div class="avd-acc">
+        <button class="avd-acc-btn" aria-expanded="false"><span><?= e($it['label']) ?></span><?= Icons::CHEVRON ?></button>
+        <div class="avd-acc-panel">
+          <a class="avd-sub avd-sub-lead" href="<?= e($it['href']) ?>"><?= e($it['label']) ?> home</a>
+<?php foreach ($it['mega']['cols'] as $col): foreach ($col['links'] as [$ll, $lh]): ?>          <a class="avd-sub" href="<?= e($lh) ?>"><?= e($ll) ?></a>
+<?php endforeach; endforeach; ?>        </div>
+      </div>
+<?php endif; endforeach; ?>    </div>
+    <div class="avd-foot">
+      <a href="/login" class="btn btn-outline" data-login-link style="width:100%;">Sign in</a>
+      <a href="<?= e(AV_VOLUNTEER_URL) ?>" class="btn btn-primary" style="width:100%;">Join the Movement</a>
+      <a href="/donate.html" class="btn btn-outline" style="width:100%;">Donate</a>
+      <div class="avd-social">
+        <a href="https://www.instagram.com/afrovanguard/" aria-label="Instagram" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85C2.4 3.93 3.92 2.38 7.15 2.23 8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.28 2.69.08 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zM12 16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg></a>
+        <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><?= Icons::X ?></a>
+        <a href="https://www.linkedin.com/company/afrovanguard/" aria-label="LinkedIn" target="_blank" rel="noopener"><?= Icons::LI ?></a>
+      </div>
     </div>
-<?php endforeach; ?>
-    <a class="avh-drawer-signin" href="/login" data-avh-login>Sign in</a>
-    <button type="button" class="avh-drawer-out" data-avh-logout>Sign out</button>
-  </div>
-  <div class="avh-drawer-ctas"><a href="<?= e($V) ?>">Join the Movement</a><a href="/donate.html">Donate</a></div>
-</div>
-</div>
+  </nav>
 <?php }
 
 /** A single entry card (used on the index and in related rails). */
@@ -565,14 +753,28 @@ function av_footer_inner(): void {
   </footer>
 <?php }
 
-function render_footer(): void { ?>
+function render_footer(): void {
+    if (av_chrome_mode() === 'site') {
+        if (!function_exists('avh_footer')) require_once AV_ROOT . '/partials/avh-chrome.php';
+        avh_footer(); ?>
+</div>
+  <script src="<?= e(av_asset('/assets/site/nav.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/color-aware.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/diary/diary.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
+</body>
+</html>
+<?php
+        return;
+    } ?>
   <button class="to-top" aria-label="Back to top" title="Back to top (t)"><?= Icons::ARROW_UP ?></button>
 <?php av_footer_inner(); ?>
-  <script src="/assets/site/avh-nav.js" defer></script>
-  <script src="/assets/site/celebrations.js" defer></script>
-  <script src="/assets/site/color-aware.js" defer></script>
-  <script src="/diary/diary.js" defer></script>
-  <script src="/assets/site/chioma.js" defer></script>
+  <script src="<?= e(av_asset('/assets/site/nav.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/celebrations.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/color-aware.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/diary/diary.js')) ?>" defer></script>
+  <script src="<?= e(av_asset('/assets/site/chioma.js')) ?>" defer></script>
 </body>
 </html>
 <?php }

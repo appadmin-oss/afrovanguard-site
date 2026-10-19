@@ -38,15 +38,15 @@ ck('polls: non-author cannot close', !Polls::close(2, $p));
 ck('polls: author closes', Polls::close(1, $p));
 ck('polls: no vote on closed', !Polls::vote(2, $p, 1));
 
-/* ---- Goals: progress clamp + auto-close ---- */
+/* ---- Goals: progress is measured, never typed (tests/goaltrack.test.php has the rest) ---- */
 reset_users();
 $g = Goals::create(1, 'Reach 500', '500');
 ck('goals: create', $g > 0);
 ck('goals: non-author cannot set', !Goals::setProgress(2, $g, 50));
 Goals::setProgress(1, $g, 150);
 $gd = Goals::listGoals(1, 10)[0];
-ck('goals: clamp to 100', $gd['progress'] === 100);
-ck('goals: auto-close at 100', $gd['closed'] === true);
+ck('goals: a typed number no longer moves progress', $gd['progress'] === 0);
+ck('goals: nor closes the goal — closing is the owner’s decision', $gd['closed'] === false);
 
 /* ---- Reminders: due/overdue/toggle ---- */
 reset_users();
@@ -257,7 +257,7 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('meet: schedule with auto_record', !empty($r['ok']));
     $mid = (int) $r['id'];
     ck('meet: auto_record persisted', ($r['meeting']['auto_record'] ?? false) === true);
-    ck('meet: bot marked unconfigured w/o recorder', ($r['meeting']['bot_state'] ?? '') === 'unconfigured');
+    ck('meet: bot marked unconfigured w/o a notetaker', ($r['meeting']['bot_state'] ?? '') === 'unconfigured');
     $tok = Meetings::botToken($mid);
     ck('meet: botIngest rejects bad token', empty(Meetings::botIngest($mid, 'nope', 'x')['ok']));
     ck('meet: botIngest accepts valid token', !empty(Meetings::botIngest($mid, $tok, 'Speaker 1: hello team.')['ok']));
@@ -265,25 +265,30 @@ require_once AV_ROOT . '/lib/Community.php';
     ck('meet: meetCodeFromUrl parses', GoogleWorkspace::meetCodeFromUrl('https://meet.google.com/abc-defg-hij?x=1') === 'abc-defg-hij');
 })();
 
-/* ---- Meetings: bot providers (Recall.ai + Google native) ---- */
+/* ---- Meetings: notetaker providers (Attendee, optional + Google native) ---- */
 (function () {
-    require_once AV_ROOT . '/lib/RecallBot.php';
+    require_once AV_ROOT . '/lib/AttendeeBot.php';
     require_once AV_ROOT . '/lib/Meetings.php';
     reset_users();
-    ck('recall: not configured without key', RecallBot::configured() === false);
-    ck('recall: createBot clean error unconfigured', empty(RecallBot::createBot('https://meet.google.com/x')['ok']));
-    ck('recall: fetchTranscript empty when unconfigured', RecallBot::fetchTranscript('bot_1') === '');
+    ck('attendee: not configured without key', AttendeeBot::configured() === false);
+    ck('attendee: createBot clean error unconfigured', empty(AttendeeBot::createBot('https://meet.google.com/x')['ok']));
+    ck('attendee: fetchTranscript empty when unconfigured', AttendeeBot::fetchTranscript('bot_1') === '');
 
     // Provider selection honours the explicit override.
     putenv('AV_MEET_BOT_PROVIDER=none');
     ck('provider: none disables bot', Meetings::botProvider() === '' && Meetings::botConfigured() === false);
+    putenv('AV_MEET_BOT_PROVIDER=attendee');
+    ck('provider: forced attendee', Meetings::botProvider() === 'attendee');
+    // Retired values are not honoured; they fall back to auto-detection.
     putenv('AV_MEET_BOT_PROVIDER=recall');
-    ck('provider: forced recall', Meetings::botProvider() === 'recall');
+    ck('provider: recall is no longer a provider', Meetings::botProvider() !== 'recall');
+    putenv('AV_MEET_BOT_PROVIDER=webhook');
+    ck('provider: webhook is no longer a provider', Meetings::botProvider() !== 'webhook');
     putenv('AV_MEET_BOT_PROVIDER');   // unset
 
-    // recall webhook auth (no token configured → rejects).
-    ck('recall: webhook rejects when no token set', empty(Meetings::recallWebhook('anything', ['event' => 'bot.status_change'])['ok']));
-    ck('recall: ingest unknown bot', empty(Meetings::ingestFromRecall('nope')['ok']));
+    // The Recall code paths are gone, not merely unused.
+    ck('recall: RecallBot no longer exists', !class_exists('RecallBot', false) && !is_file(AV_ROOT . '/lib/RecallBot.php'));
+    ck('recall: no Recall entry points on Meetings', !method_exists('Meetings', 'recallWebhook') && !method_exists('Meetings', 'ingestFromRecall'));
 })();
 
 /* ---- IQ: Incorruptible Quiz (quizzes, grading, leaderboard, shortcode) ---- */

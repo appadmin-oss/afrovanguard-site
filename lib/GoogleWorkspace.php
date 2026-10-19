@@ -32,9 +32,82 @@ final class GoogleWorkspace
     const SCOPE_MEET_RO   = 'https://www.googleapis.com/auth/meetings.space.readonly'; // read conference records
     const SCOPE_REPORTS   = 'https://www.googleapis.com/auth/admin.reports.audit.readonly'; // org Meet audit log
     const SCOPE_CHAT      = 'https://www.googleapis.com/auth/chat.messages.create';         // post messages AS the impersonated member
+    const SCOPE_MEET_SETTINGS = 'https://www.googleapis.com/auth/meetings.space.settings';  // turn on recording/transcript/notes on a Calendar-made space
+    const SCOPE_MEET_CREATED = 'https://www.googleapis.com/auth/meetings.space.created';     // open an instant Meet room with no Calendar event
+    const SCOPE_PUBSUB    = 'https://www.googleapis.com/auth/pubsub';                       // drain the Meet events queue (the service account itself)
 
     /** @var array<string,array{v:string,exp:int}> per-request token cache, keyed by scope+subject */
     private static array $tokens = [];
+
+    /**
+     * Why the last Google call failed, in Google's own words ('' = none). Every
+     * read here returns [] on failure so the portal degrades quietly — which
+     * also meant "no events" and "domain-wide delegation not granted" looked
+     * identical on every screen. The Setup test and System page read this.
+     */
+    private static string $lastError = '';
+    /** The scope the last refused token was asked for — the one to add to delegation. */
+    private static string $lastScope = '';
+    public static function lastError(): string { return self::$lastError; }
+
+    /** Tests only: forget minted tokens, so a scope refused later is asked for again. */
+    public static function forgetTokens(): void { self::$tokens = []; self::$lastError = ''; self::$lastScope = ''; }
+
+    /**
+     * Why Google said no, and what fixes it — for the screen where somebody
+     * is waiting on it (a meeting without a link, a Meet room that would not
+     * open), not just the Studio's test page. '' when there is no error.
+     */
+    public static function explain(string $err = ''): string
+    {
+        $err = $err !== '' ? $err : self::$lastError;
+        if (!self::configured()) return 'Google Workspace is not set up on this site: an administrator adds the service account key in Studio → Rules & AI → Setup → Google sign-in & Workspace.';
+        if ($err === '') return '';
+        $fix = match (true) {
+            str_contains($err, 'unauthorized_client') => 'Domain-wide delegation does not grant ' . (self::$lastScope !== '' ? 'the scope ' . self::$lastScope : 'the scope this needs')
+                . ' — add it in the Admin console (Security → API controls → Domain-wide delegation). Studio → Rules & AI → Setup → Test Google Workspace lists every scope to grant.',
+            str_contains($err, 'invalid_grant') && (str_contains($err, 'account') || str_contains($err, 'email') || str_contains($err, 'sub')) => 'The “Admin to act as” address is not a user in your Workspace. Set it in Studio → Rules & AI → Setup to a real administrator.',
+            str_contains($err, 'invalid_grant') => 'Google refused the service account key — it may have been deleted or rotated. Paste a fresh JSON key in Studio → Rules & AI → Setup.',
+            str_contains($err, 'forbiddenForServiceAccounts') => 'A service account cannot invite people on its own. Set “Admin to act as” in Studio → Rules & AI → Setup, and grant it domain-wide delegation.',
+            str_contains($err, 'Invalid conference type') => 'Google Meet is not enabled for the calendar being written to. Turn Meet on for that account in the Admin console.',
+            str_contains($err, 'HTTP 404') || str_contains($err, 'notFound') => 'Google could not find the calendar or file. Check “Shared calendar” in Studio → Rules & AI → Setup, and that it is shared with the admin.',
+            str_contains($err, 'HTTP 403') => 'Google refused permission. The account may lack the licence or the API may be off in Google Cloud for this project.',
+            str_contains($err, 'no response') => 'Google could not be reached from this server (network or TLS).',
+            default => 'Studio → Rules & AI → Setup → Test Google Workspace shows what to change.',
+        };
+        return 'Google said: ' . $err . '. ' . $fix;
+    }
+
+    /** Google's error body → one line: "unauthorized_client: Client is unauthorized …". */
+    private static function errorLine(?array $res): string
+    {
+        if (!$res) return 'no response from Google (network or TLS)';
+        $j = $res['json'] ?? null;
+        if (is_array($j)) {
+            if (is_string($j['error'] ?? null)) return $j['error'] . (!empty($j['error_description']) ? ': ' . (string) $j['error_description'] : '');
+            if (is_array($j['error'] ?? null)) return 'HTTP ' . (int) $res['code'] . ': ' . (string) ($j['error']['message'] ?? $j['error']['status'] ?? '');
+        }
+        return 'HTTP ' . (int) ($res['code'] ?? 0);
+    }
+
+    /**
+     * Remember Google's latest refusal, and its latest success, where the
+     * portal can show an administrator what is wrong (GoogleHub::problem) —
+     * a failure here used to reach only an error log on a shared host, and
+     * every screen showed the same calm "nothing yet".
+     */
+    private static function noteFailure(): void
+    {
+        if (class_exists('GoogleAuth')) GoogleAuth::recordFailure('workspace', self::$lastError . (self::$lastScope !== '' ? ' [' . self::$lastScope . ']' : ''));
+    }
+    private static function noteOk(): void
+    {
+        static $done = false; if ($done || !class_exists('Database')) return; $done = true;
+        try {
+            $last = (string) (Database::metaGet('google_last_ok') ?? '');
+            if ($last === '' || strtotime($last) < time() - 3600) Database::metaSet('google_last_ok', gmdate('c'));
+        } catch (Throwable $e) {}
+    }
 
     public static function configured(): bool { return self::credentials() !== null; }
 
@@ -101,6 +174,9 @@ final class GoogleWorkspace
         ]));
         if (!$res || empty($res['json']['access_token'])) {
             if ($res) error_log('[workspace] token error ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 200));
+            self::$lastError = 'token' . ($sub !== '' ? ' (as ' . $sub . ')' : '') . ' — ' . self::errorLine($res);
+            self::$lastScope = $scope;
+            self::noteFailure();
             return null;
         }
         self::$tokens[$key] = ['v' => (string) $res['json']['access_token'], 'exp' => $now + (int) ($res['json']['expires_in'] ?? 3600)];
@@ -141,8 +217,11 @@ final class GoogleWorkspace
         $res = self::http('GET', $url, $tok);
         if (!$res || $res['code'] >= 400) {
             if ($res) error_log('[workspace] GET ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 200));
+            self::$lastError = 'GET ' . (string) parse_url($url, PHP_URL_PATH) . ' — ' . self::errorLine($res);
+            self::noteFailure();
             return null;
         }
+        self::noteOk();
         return is_array($res['json']) ? $res['json'] : null;
     }
 
@@ -154,8 +233,11 @@ final class GoogleWorkspace
         $res = self::http($method, $url, $tok, null, $body !== null ? json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : ($method === 'DELETE' ? '' : '{}'));
         if (!$res || $res['code'] >= 400) {
             if ($res) error_log('[workspace] ' . $method . ' ' . $url . ' → ' . $res['code'] . ': ' . substr((string) $res['body'], 0, 300));
+            self::$lastError = $method . ' ' . (string) parse_url($url, PHP_URL_PATH) . ' — ' . self::errorLine($res);
+            self::noteFailure();
             return null;
         }
+        self::noteOk();
         return is_array($res['json']) ? $res['json'] : ($res['code'] < 300 ? ['ok' => true] : null);
     }
 
@@ -171,7 +253,7 @@ final class GoogleWorkspace
             'timeMin' => gmdate('Y-m-d\TH:i:s\Z'), 'singleEvents' => 'true', 'orderBy' => 'startTime',
             'maxResults' => max(1, min(50, $max)),
         ]);
-        $url = 'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . $q;
+        $url = self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events?' . $q;
         $d = self::apiGet($url, self::SCOPE_CALENDAR, self::subject() !== '');
         if (!$d || empty($d['items'])) return [];
         $out = [];
@@ -203,7 +285,7 @@ final class GoogleWorkspace
             'orderBy' => 'modifiedTime desc', 'pageSize' => max(1, min(100, $max)),
             'supportsAllDrives' => 'true', 'includeItemsFromAllDrives' => 'true',
         ]);
-        $d = self::apiGet('https://www.googleapis.com/drive/v3/files?' . $q, self::SCOPE_DRIVE, self::subject() !== '');
+        $d = self::apiGet(self::apiBase() . '/drive/v3/files?' . $q, self::SCOPE_DRIVE, self::subject() !== '');
         if (!$d || empty($d['files'])) return [];
         $out = [];
         foreach ($d['files'] as $f) {
@@ -223,11 +305,22 @@ final class GoogleWorkspace
     {
         if (!self::configured() || self::subject() === '') return [];
         $domain = (string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng');
-        $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max)), 'orderBy' => 'email', 'viewType' => 'domain_public']);
-        $d = self::apiGet('https://admin.googleapis.com/admin/directory/v1/users?' . $q, self::SCOPE_DIRECTORY, true);
-        if (!$d || empty($d['users'])) return [];
+        /* admin_view, not domain_public: `suspended` and `isAdmin` are admin-only
+           fields, so under domain_public every user read as not suspended and
+           the sync gave suspended staff a member account. Paged: the API returns
+           at most 500 a page, and an organisation past that lost the rest. */
+        $users = []; $page = '';
+        do {
+            $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max - count($users))), 'orderBy' => 'email', 'viewType' => 'admin_view']
+                + ($page !== '' ? ['pageToken' => $page] : []));
+            $d = self::apiGet(self::reportsBase() . '/admin/directory/v1/users?' . $q, self::SCOPE_DIRECTORY, true);
+            if (!$d) break;
+            foreach ((array) ($d['users'] ?? []) as $u) $users[] = $u;
+            $page = (string) ($d['nextPageToken'] ?? '');
+        } while ($page !== '' && count($users) < $max);
+        if (!$users) return [];
         $out = [];
-        foreach ($d['users'] as $u) {
+        foreach ($users as $u) {
             $out[] = [
                 'name'    => (string) ($u['name']['fullName'] ?? ''),
                 'email'   => (string) ($u['primaryEmail'] ?? ''),
@@ -475,7 +568,7 @@ final class GoogleWorkspace
         if (!self::configured() || self::subject() === '') return [];
         $domain = (string) Config::get('AV_ORG_DOMAIN', 'afrovanguard.org.ng');
         $q = http_build_query(['domain' => $domain, 'maxResults' => max(1, min(500, $max))]);
-        $d = self::apiGet('https://admin.googleapis.com/admin/directory/v1/groups?' . $q, self::SCOPE_GROUPS, true);
+        $d = self::apiGet(self::reportsBase() . '/admin/directory/v1/groups?' . $q, self::SCOPE_GROUPS, true);
         if (!$d || empty($d['groups'])) return [];
         return array_map(fn($g) => [
             'name'  => (string) ($g['name'] ?? ''),
@@ -498,7 +591,7 @@ final class GoogleWorkspace
         $db = Database::pdo();
         $find = $db->prepare('SELECT id FROM lms_users WHERE email = ?');
         $ins  = $db->prepare('INSERT INTO lms_users (name, email, password_hash, role, email_verified, has_password) VALUES (?,?,?,?,1,0)');
-        $upd  = $db->prepare('UPDATE lms_users SET name = ? WHERE id = ? AND (name IS NULL OR name = "")');
+        $upd  = $db->prepare("UPDATE lms_users SET name = ? WHERE id = ? AND (name IS NULL OR name = '')");   // '' not "": a double-quoted "" is an identifier on Postgres and ANSI MySQL
         foreach ($users as $u) {
             $email = strtolower(trim((string) $u['email']));
             if ($email === '' || !empty($u['suspended'])) { $sum['skipped']++; continue; }
@@ -513,6 +606,40 @@ final class GoogleWorkspace
             } catch (Throwable $e) { $sum['skipped']++; }
         }
         return $sum + ['ok' => true, 'total' => count($users)];
+    }
+
+    /** Is the daily directory sync switched on (Setup → AV_WS_DIRECTORY_SYNC) and not yet run today? */
+    public static function directorySyncDue(): bool
+    {
+        if (strtolower(trim((string) Config::get('AV_WS_DIRECTORY_SYNC', 'off'))) !== 'daily') return false;
+        if (!self::configured() || self::subject() === '' || !class_exists('Database')) return false;
+        $last = json_decode((string) (Database::metaGet('gws_directory_sync') ?? ''), true);
+        return !is_array($last) || ($last['day'] ?? '') !== gmdate('Y-m-d');
+    }
+
+    /**
+     * One directory sync, remembered: when it ran and what it did or why it
+     * failed, for the System page. The day is claimed BEFORE the call, so a
+     * failing sync is tried once a day rather than on every five-minute tick.
+     */
+    public static function runDirectorySync(): array
+    {
+        Database::metaSet('gws_directory_sync', (string) json_encode(['day' => gmdate('Y-m-d'), 'at' => gmdate('c'), 'running' => true]));
+        self::$lastError = '';
+        $r = self::syncDirectoryUsers();
+        /* directoryUsers() returns [] on an error as well as on an empty
+           directory; the error is what tells them apart. */
+        if (self::$lastError !== '') $r = ['ok' => false, 'error' => self::$lastError] + $r;
+        Database::metaSet('gws_directory_sync', (string) json_encode(['day' => gmdate('Y-m-d'), 'at' => gmdate('c'), 'result' => $r], JSON_UNESCAPED_SLASHES));
+        return $r;
+    }
+
+    /** The last directory sync, as runDirectorySync() recorded it, or null. */
+    public static function lastDirectorySync(): ?array
+    {
+        if (!class_exists('Database')) return null;
+        $j = json_decode((string) (Database::metaGet('gws_directory_sync') ?? ''), true);
+        return is_array($j) ? $j : null;
     }
 
     /** Fetch a Drive file's text (e.g. a Meet transcript doc) — read-only. */
@@ -533,29 +660,40 @@ final class GoogleWorkspace
     }
 
     /**
-     * Create a Meet space with Google's NATIVE auto-transcription (and optional
-     * auto-recording) turned on, via the Meet REST API. This is the server-drivable
-     * "Meet media" path: Google itself records/transcribes the call, and we later
-     * read the transcript with meetTranscriptText(). Impersonates the host so the
-     * space is owned by a real user. Returns ['uri','code','space'] or null.
+     * Open an instant Meet room — no Calendar event, no invite from Google — owned
+     * by the organiser mailbox (the same owner every scheduled meeting has, so the
+     * attendance, transcript and notes are read back the same way). Needs the
+     * meetings.space.created scope. Returns ['uri','code','space','mode'] or null.
      */
-    public static function createMeetSpace(string $hostEmail, bool $autoTranscribe = true, bool $autoRecord = false): ?array
+    public static function createMeetSpace(string $hostEmail = '', ?string $mode = null): ?array
     {
-        if ($hostEmail === '' || !self::meetEnabled()) return null;
-        $cfg = ['accessType' => 'TRUSTED', 'entryPointAccess' => 'ALL'];
-        $artifact = [];
-        if ($autoTranscribe) $artifact['transcriptionConfig'] = ['autoTranscriptionGeneration' => 'ON'];
-        if ($autoRecord)     $artifact['recordingConfig']     = ['autoRecordingGeneration' => 'ON'];
-        if ($artifact) $cfg['artifactConfig'] = $artifact;
-        // meetings.space.created scope is required to create spaces.
-        $scope = 'https://www.googleapis.com/auth/meetings.space.created';
-        $d = self::apiSend('POST', self::meetBase() . '/v2/spaces', $scope, false, ['config' => $cfg], $hostEmail);
-        if (!is_array($d) || empty($d['meetingUri'])) return null;
-        return [
-            'uri'   => (string) $d['meetingUri'],
-            'code'  => (string) ($d['meetingCode'] ?? self::meetCodeFromUrl((string) $d['meetingUri'])),
-            'space' => (string) ($d['name'] ?? ''),
-        ];
+        $host = $hostEmail !== '' ? $hostEmail : self::organiser();
+        if ($host === '' || !self::meetEnabled()) return null;
+        $mode = $mode ?? self::artifactMode();
+        /* Capture is part of the space from the start: the same recording, transcript,
+           Gemini notes and attendance report a scheduled meeting gets after the fact.
+           An edition that refuses recording is asked again without it, as
+           configureMeetSpace() does — a room with no recording beats no room. */
+        $tries = $mode === 'all' ? ['all', 'transcript'] : [$mode];
+        foreach ($tries as $try) {
+            $cfg = ['accessType' => 'TRUSTED', 'entryPointAccess' => 'ALL'];
+            if ($try !== 'off') {
+                $art = ['transcriptionConfig' => ['autoTranscriptionGeneration' => 'ON'], 'smartNotesConfig' => ['autoSmartNotesGeneration' => 'ON']];
+                if ($try === 'all') $art['recordingConfig'] = ['autoRecordingGeneration' => 'ON'];
+                $cfg['artifactConfig'] = $art;
+                $cfg['attendanceReportGenerationType'] = 'GENERATE_REPORT';
+            }
+            $d = self::apiSend('POST', self::meetBase() . '/v2/spaces', self::SCOPE_MEET_CREATED, false, ['config' => $cfg], $host);
+            if (is_array($d) && !empty($d['meetingUri'])) {
+                return [
+                    'uri'   => (string) $d['meetingUri'],
+                    'code'  => (string) ($d['meetingCode'] ?? self::meetCodeFromUrl((string) $d['meetingUri'])),
+                    'space' => (string) ($d['name'] ?? ''),
+                    'mode'  => $try,
+                ];
+            }
+        }
+        return null;
     }
 
     /** Extract a Meet code (e.g. "abc-defg-hij") from a Meet URL. */
@@ -571,6 +709,60 @@ final class GoogleWorkspace
      * meetings.space.readonly scope; impersonates $hostEmail (a participant).
      * Returns the joined "Speaker: text" transcript, or null if none exists yet.
      */
+    /**
+     * Who is in (or was in) a Meet: the conference for this meeting code that
+     * began at/after $afterTs - 1h — live or ended — and every participant in
+     * it, with when they first joined and last left (null while still in).
+     * Meet REST API v2: conferenceRecords → participants (meetings.space.readonly),
+     * impersonating $hostEmail.
+     *
+     * @return null|array{conference:string, live:bool, start:int, participants:list<array{id:string,name:string,google_user:string,kind:string,start:int,end:?int}>}
+     */
+    public static function meetParticipants(string $meetingCode, string $hostEmail, int $afterTs = 0): ?array
+    {
+        $code = trim($meetingCode);
+        if ($code === '' || $hostEmail === '' || !self::meetEnabled()) return null;
+        $space = self::apiGet(self::meetBase() . '/v2/spaces/' . rawurlencode($code), self::SCOPE_MEET_RO, false, $hostEmail);
+        $spaceName = is_array($space) ? (string) ($space['name'] ?? '') : '';
+        if ($spaceName === '') return null;
+        $q = http_build_query(['filter' => 'space.name="' . $spaceName . '"', 'pageSize' => 10]);
+        $recs = self::apiGet(self::meetBase() . '/v2/conferenceRecords?' . $q, self::SCOPE_MEET_RO, false, $hostEmail);
+        $conf = null;
+        foreach ((is_array($recs) ? ($recs['conferenceRecords'] ?? []) : []) as $r) {
+            $s = strtotime((string) ($r['startTime'] ?? '')) ?: 0;
+            if ($afterTs > 0 && $s > 0 && $s < $afterTs - 3600) continue;
+            if ($conf === null || $s > (strtotime((string) ($conf['startTime'] ?? '')) ?: 0)) $conf = $r;
+        }
+        if (!$conf || empty($conf['name'])) return null;
+        $people = [];
+        $token = '';
+        for ($i = 0; $i < 8; $i++) {
+            $pq = http_build_query(array_filter(['pageSize' => 250, 'pageToken' => $token]));
+            $page = self::apiGet(self::meetBase() . '/v2/' . $conf['name'] . '/participants?' . $pq, self::SCOPE_MEET_RO, false, $hostEmail);
+            if (!is_array($page)) break;
+            foreach (($page['participants'] ?? []) as $p) {
+                $kind = isset($p['signedinUser']) ? 'signedin' : (isset($p['anonymousUser']) ? 'anonymous' : (isset($p['phoneUser']) ? 'phone' : 'unknown'));
+                $who = (array) ($p['signedinUser'] ?? $p['anonymousUser'] ?? $p['phoneUser'] ?? []);
+                $end = !empty($p['latestEndTime']) ? (strtotime((string) $p['latestEndTime']) ?: null) : null;
+                $people[] = ['id' => (string) ($p['name'] ?? ''), 'name' => (string) ($who['displayName'] ?? ''), 'google_user' => (string) ($who['user'] ?? ''),
+                             'kind' => $kind, 'start' => strtotime((string) ($p['earliestStartTime'] ?? '')) ?: 0, 'end' => $end];
+            }
+            $token = (string) ($page['nextPageToken'] ?? '');
+            if ($token === '') break;
+        }
+        return ['conference' => (string) $conf['name'], 'live' => empty($conf['endTime']), 'start' => strtotime((string) ($conf['startTime'] ?? '')) ?: 0, 'participants' => $people];
+    }
+
+    /** A Workspace user's primary email from the id Meet reports ("users/123…"). Null when the directory cannot say. */
+    public static function directoryEmailForId(string $googleUser): ?string
+    {
+        $id = preg_replace('#^users/#', '', trim($googleUser));
+        if ($id === '' || !self::configured() || self::subject() === '') return null;
+        $d = self::apiGet(self::reportsBase() . '/admin/directory/v1/users/' . rawurlencode($id) . '?fields=primaryEmail', self::SCOPE_DIRECTORY, true);
+        $e = is_array($d) ? strtolower((string) ($d['primaryEmail'] ?? '')) : '';
+        return $e !== '' ? $e : null;
+    }
+
     public static function meetTranscriptText(string $meetingCode, string $hostEmail, int $afterTs = 0): ?string
     {
         $code = trim($meetingCode);
@@ -615,6 +807,315 @@ final class GoogleWorkspace
         return $joined !== '' ? $joined : null;
     }
 
+    /* ══ Meetings that run themselves ════════════════════════════════════
+       Calendar makes the Meet (createMeetEvent). Then, as the ORGANISER —
+       the mailbox that owns the space, the only one who can change it and
+       always able to read it back — the space is told to record, transcribe,
+       take notes and report attendance on its own; afterwards the records
+       are read as the organiser too (a creator who never joined could not).
+       Live events (join, leave, ended, transcript ready) come through the
+       Workspace Events API into a Pub/Sub topic the cron drains (MeetEvents). */
+
+    private static function pubsubBase(): string { return rtrim((string) (Config::get('AV_PUBSUB_BASE_URL', '') ?: 'https://pubsub.googleapis.com'), '/'); }
+    private static function eventsBase(): string { return rtrim((string) (Config::get('AV_EVENTS_BASE_URL', '') ?: 'https://workspaceevents.googleapis.com'), '/'); }
+
+    /**
+     * The mailbox that owns the site's meetings: the Meet organiser, else the shared calendar, else the admin.
+     *
+     * Every Meet call is made AS this address, so it has to be a mailbox Google lets the
+     * service account impersonate. A shared calendar's id ("…@group.calendar.google.com")
+     * passes an email check and is not one: the token is refused, and every Meet read,
+     * capture setting and event subscription failed for a site whose calendar was a
+     * shared one. Such an id is skipped — the space then belongs to the admin the event
+     * was created as, which is who Google makes the owner.
+     */
+    public static function organiser(): string
+    {
+        foreach ([(string) Config::get('AV_MEET_ORGANISER', ''), (string) Config::get('AV_WS_CALENDAR_ID', ''), self::subject()] as $e) {
+            $e = strtolower(trim($e));
+            if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) continue;
+            if (preg_match('/@(group|resource|import)\.calendar\.google\.com$/', $e)) continue;
+            return $e;
+        }
+        return '';
+    }
+
+    /** What Google captures on its own: all | transcript | off. */
+    public static function artifactMode(): string
+    {
+        $m = strtolower(trim((string) Config::get('AV_MEET_ARTIFACTS', 'all')));
+        return in_array($m, ['all', 'transcript', 'off'], true) ? $m : 'all';
+    }
+
+    /** An event's Meet link, re-read — Calendar can create the conference a moment after the event. */
+    public static function eventMeetUrl(string $eventId, ?string $calendarId = null): string
+    {
+        $cal = $calendarId ?: (string) (Config::get('AV_WS_CALENDAR_ID', '') ?: self::subject());
+        if ($eventId === '' || $cal === '' || !self::configured()) return '';
+        $d = self::apiGet(self::apiBase() . '/calendar/v3/calendars/' . rawurlencode($cal) . '/events/' . rawurlencode($eventId) . '?conferenceDataVersion=1', self::SCOPE_CALENDAR_RW, self::subject() !== '');
+        return is_array($d) ? (string) ($d['hangoutLink'] ?? self::meetFrom($d)) : '';
+    }
+
+    /**
+     * Switch on Google's own capture for a Calendar-made Meet: recording,
+     * transcript and Gemini notes start when someone with the privilege joins,
+     * and Meet writes an attendance report. Settings can only be changed by the
+     * space's owner, so this acts as the organiser. When the edition refuses
+     * recording, it tries again with transcript and notes only.
+     *
+     * @return null|array{space:string, code:string, mode:string}
+     */
+    public static function configureMeetSpace(string $meetingCode, ?string $organiser = null): ?array
+    {
+        $code = trim($meetingCode);
+        $who = $organiser ?: self::organiser();
+        if ($code === '' || $who === '' || !self::meetEnabled()) return null;
+        $space = self::apiGet(self::meetBase() . '/v2/spaces/' . rawurlencode($code), self::SCOPE_MEET_SETTINGS, false, $who);
+        $name = is_array($space) ? (string) ($space['name'] ?? '') : '';
+        if ($name === '') return null;
+        $mode = self::artifactMode();
+        if ($mode === 'off') return ['space' => $name, 'code' => $code, 'mode' => 'off'];
+        foreach ($mode === 'all' ? ['all', 'transcript'] : ['transcript'] as $try) {
+            $art = ['transcriptionConfig' => ['autoTranscriptionGeneration' => 'ON'], 'smartNotesConfig' => ['autoSmartNotesGeneration' => 'ON']];
+            $mask = ['config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration', 'config.artifactConfig.smartNotesConfig.autoSmartNotesGeneration', 'config.attendanceReportGenerationType'];
+            if ($try === 'all') { $art['recordingConfig'] = ['autoRecordingGeneration' => 'ON']; $mask[] = 'config.artifactConfig.recordingConfig.autoRecordingGeneration'; }
+            $body = ['config' => ['artifactConfig' => $art, 'attendanceReportGenerationType' => 'GENERATE_REPORT']];
+            $r = self::apiSend('PATCH', self::meetBase() . '/v2/' . $name . '?updateMask=' . rawurlencode(implode(',', $mask)), self::SCOPE_MEET_SETTINGS, false, $body, $who);
+            if ($r !== null) return ['space' => $name, 'code' => $code, 'mode' => $try];
+        }
+        return null;
+    }
+
+    /** The newest conference held in a space at or after $afterTs − 1 h (live or ended). */
+    public static function meetConference(string $meetingCode, ?string $organiser = null, int $afterTs = 0): ?array
+    {
+        $code = trim($meetingCode);
+        $who = $organiser ?: self::organiser();
+        if ($code === '' || $who === '' || !self::meetEnabled()) return null;
+        $space = self::apiGet(self::meetBase() . '/v2/spaces/' . rawurlencode($code), self::SCOPE_MEET_RO, false, $who);
+        $spaceName = is_array($space) ? (string) ($space['name'] ?? '') : '';
+        if ($spaceName === '') return null;
+        $recs = self::apiGet(self::meetBase() . '/v2/conferenceRecords?' . http_build_query(['filter' => 'space.name="' . $spaceName . '"', 'pageSize' => 25]), self::SCOPE_MEET_RO, false, $who);
+        $conf = null;
+        foreach ((is_array($recs) ? ($recs['conferenceRecords'] ?? []) : []) as $r) {
+            $st = strtotime((string) ($r['startTime'] ?? '')) ?: 0;
+            if ($afterTs > 0 && $st > 0 && $st < $afterTs - 3600) continue;
+            if ($conf === null || $st > (strtotime((string) ($conf['startTime'] ?? '')) ?: 0)) $conf = $r;
+        }
+        if (!$conf || empty($conf['name'])) return null;
+        return ['name' => (string) $conf['name'], 'space' => $spaceName, 'live' => empty($conf['endTime']),
+                'start' => strtotime((string) ($conf['startTime'] ?? '')) ?: 0, 'end' => !empty($conf['endTime']) ? (strtotime((string) $conf['endTime']) ?: 0) : 0];
+    }
+
+    /** One conference record by name (for an event that names it). */
+    public static function conferenceRecord(string $name, ?string $organiser = null): ?array
+    {
+        $who = $organiser ?: self::organiser();
+        if (!preg_match('#^conferenceRecords/[\w-]+$#', $name) || $who === '') return null;
+        $r = self::apiGet(self::meetBase() . '/v2/' . $name, self::SCOPE_MEET_RO, false, $who);
+        return is_array($r) ? ['name' => $name, 'space' => (string) ($r['space'] ?? ''), 'live' => empty($r['endTime']),
+                               'start' => strtotime((string) ($r['startTime'] ?? '')) ?: 0, 'end' => !empty($r['endTime']) ? (strtotime((string) $r['endTime']) ?: 0) : 0] : null;
+    }
+
+    /**
+     * Every participant of a conference, with each separate time they were
+     * in (participantSessions) — leaving and rejoining is two sessions, so
+     * the minutes someone was really there add up.
+     *
+     * @return list<array{id:string,name:string,google_user:string,kind:string,sessions:list<array{start:int,end:?int}>}>
+     */
+    public static function conferenceParticipants(string $conference, ?string $organiser = null, bool $withSessions = true): array
+    {
+        $who = $organiser ?: self::organiser();
+        if ($conference === '' || $who === '') return [];
+        $out = []; $token = '';
+        for ($i = 0; $i < 8; $i++) {
+            $page = self::apiGet(self::meetBase() . '/v2/' . $conference . '/participants?' . http_build_query(array_filter(['pageSize' => 250, 'pageToken' => $token])), self::SCOPE_MEET_RO, false, $who);
+            if (!is_array($page)) break;
+            foreach (($page['participants'] ?? []) as $p) {
+                $kind = isset($p['signedinUser']) ? 'signedin' : (isset($p['anonymousUser']) ? 'anonymous' : (isset($p['phoneUser']) ? 'phone' : 'unknown'));
+                $u = (array) ($p['signedinUser'] ?? $p['anonymousUser'] ?? $p['phoneUser'] ?? []);
+                $sess = [];
+                if ($withSessions && !empty($p['name'])) {
+                    $sp = self::apiGet(self::meetBase() . '/v2/' . $p['name'] . '/participantSessions?pageSize=100', self::SCOPE_MEET_RO, false, $who);
+                    foreach ((is_array($sp) ? ($sp['participantSessions'] ?? []) : []) as $x) {
+                        $sess[] = ['id' => (string) ($x['name'] ?? ''), 'start' => strtotime((string) ($x['startTime'] ?? '')) ?: 0, 'end' => !empty($x['endTime']) ? (strtotime((string) $x['endTime']) ?: null) : null];
+                    }
+                }
+                if (!$sess) $sess[] = ['id' => '', 'start' => strtotime((string) ($p['earliestStartTime'] ?? '')) ?: 0, 'end' => !empty($p['latestEndTime']) ? (strtotime((string) $p['latestEndTime']) ?: null) : null];
+                $out[] = ['id' => (string) ($p['name'] ?? ''), 'name' => (string) ($u['displayName'] ?? ''), 'google_user' => (string) ($u['user'] ?? ''), 'kind' => $kind, 'sessions' => $sess];
+            }
+            $token = (string) ($page['nextPageToken'] ?? '');
+            if ($token === '') break;
+        }
+        return $out;
+    }
+
+    /**
+     * The conference's transcript as "Name: words" lines — speakers by the
+     * name Meet shows, not a participant number. state: 'none' (no transcript
+     * was made), 'pending' (Google is still writing it), 'ready'.
+     *
+     * @return array{state:string, text:string, doc:string}
+     */
+    public static function conferenceTranscript(string $conference, ?string $organiser = null): array
+    {
+        $who = $organiser ?: self::organiser();
+        $none = ['state' => 'none', 'text' => '', 'doc' => ''];
+        if ($conference === '' || $who === '') return $none;
+        $trs = self::apiGet(self::meetBase() . '/v2/' . $conference . '/transcripts', self::SCOPE_MEET_RO, false, $who);
+        $list = is_array($trs) ? ($trs['transcripts'] ?? []) : [];
+        if (!$list) return $none;
+        $t = $list[0];
+        if ((string) ($t['state'] ?? '') !== 'FILE_GENERATED') return ['state' => 'pending', 'text' => '', 'doc' => ''];
+        $names = [];
+        foreach (self::conferenceParticipants($conference, $who, false) as $p) $names[$p['id']] = $p['name'];
+        $out = []; $token = '';
+        for ($i = 0; $i < 30; $i++) {
+            $e = self::apiGet(self::meetBase() . '/v2/' . $t['name'] . '/entries?' . http_build_query(array_filter(['pageSize' => 1000, 'pageToken' => $token])), self::SCOPE_MEET_RO, false, $who);
+            if (!is_array($e)) break;
+            foreach (($e['transcriptEntries'] ?? []) as $en) {
+                $txt = trim((string) ($en['text'] ?? ''));
+                if ($txt === '') continue;
+                $pid = (string) ($en['participant'] ?? '');
+                $out[] = (($names[$pid] ?? '') !== '' ? $names[$pid] : 'Someone') . ': ' . $txt;
+            }
+            $token = (string) ($e['nextPageToken'] ?? '');
+            if ($token === '') break;
+        }
+        return ['state' => $out ? 'ready' : 'pending', 'text' => implode("\n", $out), 'doc' => (string) ($t['docsDestination']['document'] ?? '')];
+    }
+
+    /** Gemini's notes for a conference, as plain text (from the Doc Meet wrote). '' when none. */
+    public static function conferenceNotes(string $conference, ?string $organiser = null): string
+    {
+        $who = $organiser ?: self::organiser();
+        if ($conference === '' || $who === '') return '';
+        $n = self::apiGet(self::meetBase() . '/v2/' . $conference . '/smartNotes', self::SCOPE_MEET_RO, false, $who);
+        foreach ((is_array($n) ? ($n['smartNotes'] ?? []) : []) as $x) {
+            if ((string) ($x['state'] ?? '') !== 'FILE_GENERATED') continue;
+            $doc = (string) ($x['docsDestination']['document'] ?? '');
+            if ($doc === '') continue;
+            $tok = self::accessToken(self::SCOPE_DRIVE_RO, false, $who);
+            if (!$tok) return '';
+            $r = self::http('GET', self::apiBase() . '/drive/v3/files/' . rawurlencode($doc) . '/export?mimeType=text/plain', $tok);
+            if ($r && $r['code'] < 300 && is_string($r['body'])) return mb_substr(trim($r['body']), 0, 60000);
+        }
+        return '';
+    }
+
+    /** A Workspace user's id ("users/123…") from their email — Workspace Events targets a user by id. */
+    public static function directoryUserId(string $email): string
+    {
+        if ($email === '' || !self::configured() || self::subject() === '') return '';
+        $d = self::apiGet(self::reportsBase() . '/admin/directory/v1/users/' . rawurlencode($email) . '?fields=id', self::SCOPE_DIRECTORY, true);
+        return is_array($d) && !empty($d['id']) ? (string) $d['id'] : '';
+    }
+
+    /* ── Workspace Events + Pub/Sub ─────────────────────────────────────── */
+
+    public const MEET_EVENT_TYPES = [
+        'google.workspace.meet.conference.v2.started', 'google.workspace.meet.conference.v2.ended',
+        'google.workspace.meet.participant.v2.joined', 'google.workspace.meet.participant.v2.left',
+        'google.workspace.meet.transcript.v2.fileGenerated', 'google.workspace.meet.recording.v2.fileGenerated',
+        'google.workspace.meet.smartNote.v2.fileGenerated',
+    ];
+
+    /**
+     * Subscribe to every Meet event of the organiser's spaces, into the topic.
+     * Without resource data a subscription lives up to 7 days; renew it
+     * (eventsRenew) before then. Returns the subscription name or ''.
+     */
+    public static function eventsSubscribe(string $topic, ?string $organiser = null): string
+    {
+        $who = $organiser ?: self::organiser();
+        $uid = self::directoryUserId($who);
+        if ($uid === '' || $topic === '') { if ($uid === '') self::$lastError = 'could not find the organiser ' . $who . ' in the directory'; return ''; }
+        $body = ['targetResource' => '//cloudidentity.googleapis.com/users/' . $uid, 'eventTypes' => self::MEET_EVENT_TYPES,
+                 'notificationEndpoint' => ['pubsubTopic' => $topic], 'payloadOptions' => ['includeResource' => false], 'ttl' => '0s'];
+        $op = self::apiSend('POST', self::eventsBase() . '/v1/subscriptions', self::SCOPE_MEET_RO, false, $body, $who);
+        $name = is_array($op) ? (string) ($op['response']['name'] ?? $op['name'] ?? '') : '';
+        if (str_starts_with($name, 'subscriptions/')) return $name;
+        /* Not named: either a long-running operation (listed under the organiser shortly
+           after), or Google refused it as ALREADY_EXISTS — one subscription per user and
+           event types. The second is what a failed renewal leads to, and returning ''
+           there left the site re-asking for ever, while the existing subscription went on
+           working unrenewed until Google expired it. Look for it either way. */
+        $err = self::$lastError;
+        $l = self::apiGet(self::eventsBase() . '/v1/subscriptions?' . http_build_query(['filter' => 'event_types:"' . self::MEET_EVENT_TYPES[0] . '"']), self::SCOPE_MEET_RO, false, $who);
+        foreach ((is_array($l) ? ($l['subscriptions'] ?? []) : []) as $x) if (($x['targetResource'] ?? '') === $body['targetResource']) return (string) $x['name'];
+        if (!is_array($op)) self::$lastError = $err;
+        return '';
+    }
+
+    /** Push a subscription's expiry out again (ttl 0 = as long as Google allows). */
+    public static function eventsRenew(string $subscription, ?string $organiser = null): bool
+    {
+        $who = $organiser ?: self::organiser();
+        if (!str_starts_with($subscription, 'subscriptions/') || $who === '') return false;
+        return self::apiSend('PATCH', self::eventsBase() . '/v1/' . $subscription . '?updateMask=ttl', self::SCOPE_MEET_RO, false, ['ttl' => '0s'], $who) !== null;
+    }
+
+    /** Pull waiting messages from a Pub/Sub subscription (as the service account). */
+    public static function pubsubPull(string $subscription, int $max = 100): array
+    {
+        if (!preg_match('#^projects/[^/]+/subscriptions/[^/]+$#', $subscription) || !self::configured()) return [];
+        $r = self::apiSend('POST', self::pubsubBase() . '/v1/' . $subscription . ':pull', self::SCOPE_PUBSUB, false, ['maxMessages' => max(1, min(1000, $max))]);
+        return is_array($r) ? (array) ($r['receivedMessages'] ?? []) : [];
+    }
+
+    public static function pubsubAck(string $subscription, array $ackIds): bool
+    {
+        if (!$ackIds) return true;
+        return self::apiSend('POST', self::pubsubBase() . '/v1/' . $subscription . ':acknowledge', self::SCOPE_PUBSUB, false, ['ackIds' => array_values($ackIds)]) !== null;
+    }
+
+    /**
+     * Every scope the site asks Google for while acting AS a Workspace user, with the
+     * feature that needs it. Domain-wide delegation in the Google Admin console must
+     * list each of these against the service account's client ID; one that is missing
+     * is refused only when that feature runs ("unauthorized_client"), so a probe that
+     * tried one scope reported the connection healthy while Meet, scheduling and the
+     * rest failed. Pub/Sub is not here: the service account uses it as itself.
+     */
+    public const DELEGATED_SCOPES = [
+        self::SCOPE_CALENDAR          => 'reading the calendar',
+        self::SCOPE_CALENDAR_RW       => 'scheduling meetings and events',
+        self::SCOPE_DRIVE             => 'listing the Drive folder',
+        self::SCOPE_DRIVE_RO          => 'reading transcripts and notes',
+        self::SCOPE_DIRECTORY         => 'the staff directory',
+        self::SCOPE_GROUPS            => 'directory groups',
+        self::SCOPE_MEET_RO           => 'reading Meet attendance and transcripts',
+        self::SCOPE_MEET_SETTINGS     => 'switching on Meet recording and notes',
+        self::SCOPE_MEET_CREATED      => 'starting an instant Meet room',
+        self::SCOPE_REPORTS           => 'Meet minutes from the audit log',
+        self::SCOPE_CHAT              => 'posting to Google Chat',
+    ];
+
+    /**
+     * Ask Google for a token for each delegated scope, as the admin. Returns
+     * [scope => '' when granted, else Google's reason].
+     *
+     * @return array<string,string>
+     */
+    public static function scopeCheck(?string $asUser = null): array
+    {
+        $who = $asUser ?: self::subject();
+        if (!self::configured() || $who === '') return [];
+        $out = [];
+        foreach (array_keys(self::DELEGATED_SCOPES) as $scope) {
+            self::$lastError = '';
+            $out[$scope] = self::accessToken($scope, false, $who) !== null ? '' : (self::$lastError ?: 'refused');
+        }
+        return $out;
+    }
+
+    /** The comma-separated line to paste into Admin console → Security → API controls → Domain-wide delegation. */
+    public static function delegationLine(): string
+    {
+        return implode(',', array_keys(self::DELEGATED_SCOPES));
+    }
+
     /**
      * Connectivity probe for the Studio → System page. Reports what actually
      * works against live Google, without leaking tokens.
@@ -622,16 +1123,36 @@ final class GoogleWorkspace
     public static function probe(): array
     {
         if (!self::configured()) return ['configured' => false];
+        self::$lastError = '';
         $tok = self::accessToken(self::SCOPE_CALENDAR, self::subject() !== '');
+        $err = self::$lastError;
+        /* Each step reports its OWN error: a 0 beside an error is a failure,
+           a 0 with none is an empty calendar or folder. */
+        $step = static function (callable $f) use (&$err): array {
+            self::$lastError = '';
+            $n = $f();
+            if (self::$lastError !== '' && $err === '') $err = self::$lastError;
+            return ['n' => $n, 'error' => self::$lastError];
+        };
+        $cal = $step(fn() => count(self::calendarEvents(null, 1)));
+        $drv = $step(fn() => count(self::driveFiles(null, 1)));
+        $dir = self::subject() !== '' ? $step(fn() => count(self::directoryUsers(1))) : ['n' => null, 'error' => ''];
+        $grp = self::subject() !== '' ? $step(fn() => count(self::directoryGroups(1))) : ['n' => null, 'error' => ''];
         return [
-            'configured'     => true,
-            'subject'        => self::subject(),
-            'token_ok'       => $tok !== null,
-            'calendar_read'  => count(self::calendarEvents(null, 1)),
-            'calendar_write' => self::calendarWriteEnabled(),
-            'drive'          => count(self::driveFiles(null, 1)),
-            'directory'      => self::subject() !== '' ? count(self::directoryUsers(1)) : null,
-            'groups'         => self::subject() !== '' ? count(self::directoryGroups(1)) : null,
+            'configured'      => true,
+            'service_account' => (string) (self::credentials()['client_email'] ?? ''),
+            'client_id'       => (string) (self::credentials()['client_id'] ?? ''),
+            'subject'         => self::subject(),
+            'token_ok'        => $tok !== null,
+            'calendar_read'   => $cal['n'], 'calendar_error' => $cal['error'],
+            'calendar_write'  => self::calendarWriteEnabled(),
+            'drive'           => $drv['n'], 'drive_error' => $drv['error'],
+            'directory'       => $dir['n'], 'directory_error' => $dir['error'],
+            'groups'          => $grp['n'], 'groups_error' => $grp['error'],
+            'meet_organiser'  => self::organiser(), 'meet_capture' => self::artifactMode(),
+            'meet_events'     => (string) Config::get('AV_MEET_PUBSUB_SUB', '') !== '',
+            'scopes'          => self::subject() !== '' ? self::scopeCheck() : [],
+            'error'           => $err,
         ];
     }
 }

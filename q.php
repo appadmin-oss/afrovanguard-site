@@ -57,9 +57,9 @@ $first = $holder ? (explode(' ', trim((string) $holder['name']))[0] ?: 'Member')
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $holder ? e($full ? (string) $holder['name'] : $first) . ' · NextGen Vanguard card' : 'Member card' ?> · Afrovanguard</title>
-<link rel="stylesheet" href="/assets/site/fonts.css">
-<link rel="stylesheet" href="/assets/site/av-tokens.css">
-<link rel="stylesheet" href="/assets/site/avc-card.css">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/fonts.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/av-tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(av_asset('/assets/site/avc-card.css')) ?>">
 <style>
 :root{--ink:#15120e;--muted:#4a4f5a;--line:#e3e5ea;--bg:#f5f6f8}
 *{box-sizing:border-box}
@@ -96,13 +96,7 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
     require_once __DIR__ . '/lib/IdCard.php';
     $card = $full
         ? IdCard::forMember((int) $holder['id'])
-        : (IdCard::forMember((int) $holder['id']) + IdCard::publicFor((int) $holder['id']));
-    if (!$full) {
-        $pub = IdCard::publicFor((int) $holder['id']);
-        $card['band']   = $pub['band'];
-        $card['family'] = '';
-        $card['photo_url'] = null;
-    }
+        : IdCard::strangerCard((int) $holder['id']);   // built from publicFor() alone
     $avcSide = $full ? 'both' : 'front';
     include __DIR__ . '/partials/id-card.php';
   ?>
@@ -121,7 +115,9 @@ button.btn{border:0;font:inherit;font-weight:700;cursor:pointer}
 <?php if ($isHolder): ?>    <a class="btn" href="/gate-pass">My gate pass</a>
     <a class="btn ghost" href="/portal/#attendance">My portal</a>
 <?php endif; ?>
-<?php if ($isStaff): ?>    <button type="button" class="btn" onclick="window.print()">Print card</button>
+<?php if ($isStaff && class_exists('AdminRoles') && AdminRoles::can('admin')): ?>    <a class="btn" href="/card/print.php?member=<?= (int) $holder['id'] ?>">Print card</a>
+<?php endif; ?>
+<?php if ($isStaff): ?>
     <a class="btn ghost" href="/academy/ngv/attendance.php">NGV attendance</a>
 <?php endif; ?>
   </nav>

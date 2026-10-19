@@ -79,8 +79,9 @@
 @media (max-width: 600px)  { .site-footer .footer-grid { grid-template-columns: 1fr; gap: 28px; } }
 
 /* ============================================================
-   Dark mode for the static pages (PHP pages theme from diary.css). The theme
-   follows the visitor's system setting, or a saved av.theme. Here we only flip the semantic tokens;
+   Dark mode for the static pages. The theme TOGGLE control itself is owned
+   by assets/site/nav.css (PHP pages theme from diary.css) — kept in ONE
+   place to avoid override layers. Here we only flip the semantic tokens;
    white card surfaces are remapped to a dark surface below.
    ============================================================ */
 html[data-theme="dark"] {

@@ -174,7 +174,7 @@ render_head([
 ]);
 render_nav('academy');
 ?>
-<main id="main-content" class="ed-wrap ed-section" style="max-width:720px">
+<main id="main" tabindex="-1" class="ed-wrap ed-section" style="max-width:720px">
   <?php if (!$u): ?>
     <span class="ed-kicker ed-kicker--muted">Payment</span>
     <h1 class="ed-h2">Please sign in</h1>

@@ -403,7 +403,8 @@ ck('book list: a claim from before the list can still be put right in its own wo
 $bkPage = (string) @file_get_contents(AV_ROOT . '/academy/ngv/books.php');
 ck('book list: the list page is for admins, and checks the request',
    str_contains($bkPage, "in_array(\$role, ['admin', 'superadmin'], true)") && str_contains($bkPage, 'av_csrf_require()') && str_contains($bkPage, 'require_same_origin()'));
-$bkBody = (string) @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php');
+// The claim sheet is its own partial, drawn once per page (academy/ngv/_book-modal.php).
+$bkBody = (string) @file_get_contents(AV_ROOT . '/academy/ngv/_dashboard-body.php') . (string) @file_get_contents(AV_ROOT . '/academy/ngv/_book-modal.php');
 ck('book list: the vanguard chooses the book, and has nowhere to type a title',
    str_contains($bkBody, 'id="bkBook"') && !str_contains($bkBody, 'id="bkBookTitle"') && str_contains($bkBody, 'id="bkChapters"'));
 

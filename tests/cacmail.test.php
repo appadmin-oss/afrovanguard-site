@@ -139,7 +139,7 @@ ck('CacMail: and the door only takes — it never sends inside the request CACEN
  * checked here is the two decisions behind it; the rendering itself is a
  * template and is checked by eye.
  */
-$portal = (string) @file_get_contents(AV_ROOT . '/portal/index.php');
+$portal = av_portal_source();   /* index.php, its views and avp.js — the prompt lives in views/today.php */
 
 /* IT USES THE CONNECTION THAT ALREADY EXISTS. The answer becomes an
    ordinary task, written through the same endpoint the task list uses, and

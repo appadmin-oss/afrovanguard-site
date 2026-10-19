@@ -10,6 +10,50 @@ function e(?string $s): string {
     return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/**
+ * A local stylesheet or script URL stamped with a hash of the file's contents
+ * (/assets/site/avh.css → /assets/site/avh.css?v=3f9a1c2b7d).
+ *
+ * The site is deployed by uploading files by hand, so a page can reach the
+ * host before (or without) the stylesheet it was written against — and a
+ * browser or proxy can hold last week's copy even when both arrived. A page
+ * from the current markup drawn with an older avh.css put "Sign in", "My
+ * portal" and an unstyled account button in the bar at once. With the hash in
+ * the URL a page can only ever ask for the file it matches; when the file is
+ * missing or unreadable the URL is returned unchanged.
+ */
+function av_asset(string $href): string {
+    static $memo = [];
+    if (!preg_match('~^/[^?#]+\.(css|js)$~', $href) || str_contains($href, '..')) return $href;
+    if (!array_key_exists($href, $memo)) {
+        $root = defined('AV_ROOT') ? AV_ROOT : dirname(__DIR__);
+        $file = $root . $href;
+        $memo[$href] = is_file($file) ? substr((string) md5_file($file), 0, 10) : '';
+    }
+    return $memo[$href] === '' ? $href : $href . '?v=' . $memo[$href];
+}
+
+/**
+ * Stamp every local stylesheet and script a static page links with av_asset()'s
+ * content hash, replacing any stamp already there. The .html pages cannot call
+ * PHP, so tools/stamp-assets.php writes the result into them and
+ * tests/assetstamp.test.php fails when a file has changed under its stamp.
+ */
+function av_stamp_html(string $html): string {
+    return (string) preg_replace_callback(
+        '~(<(?:link|script)\b[^>]*?\b(?:href|src)=")(/[^"?#<>\s]+\.(?:css|js))(?:\?v=[0-9a-f]*)?(")~i',
+        static fn(array $m): string => $m[1] . av_asset($m[2]) . $m[3],
+        $html
+    );
+}
+
+/** The static pages av_stamp_html() keeps current (tools/stamp-assets.php). */
+function av_static_pages(): array {
+    return ['index.html', 'about.html', 'contact.html', 'donate.html', 'projects/index.html',
+            '403.html', '404.html', '429.html', '500.html', '503.html',
+            'member.html', 'donor-dashboard.html', 'assets/site/offline.html'];
+}
+
 /** URL/anchor-safe slug. */
 function slugify(string $s): string {
     $s = strtolower(trim($s));
@@ -379,4 +423,27 @@ function av_diary_may_read(int $uid, int $entryId): bool {
     } catch (Throwable $e) { /* ditto */ }
 
     return false;
+}
+
+/**
+ * The secret shared with NextGen Genius (integrations/ngg.php, ngg-cards.php).
+ *
+ * Shared hosts hand an Apache `SetEnv` to PHP in different places: getenv() on
+ * mod_php, $_SERVER on PHP-FPM/LiteSpeed, and REDIRECT_-prefixed after a
+ * rewrite. Reading only getenv() left the endpoint "not configured" (404) on
+ * hosts where the value was set — NGG then listed no Afrovanguard members.
+ * Also accepted: a config.php constant, .env, and the Studio's settings store.
+ */
+function av_ngg_secret(): string
+{
+    foreach (['NGG_WEBHOOK_SECRET', 'REDIRECT_NGG_WEBHOOK_SECRET'] as $k) {
+        $v = getenv($k);
+        if ($v === false || $v === '') $v = $_SERVER[$k] ?? ($_ENV[$k] ?? '');
+        if (trim((string) $v) !== '') return trim((string) $v);
+    }
+    if (defined('NGG_WEBHOOK_SECRET') && trim((string) NGG_WEBHOOK_SECRET) !== '') return trim((string) NGG_WEBHOOK_SECRET);
+    if (class_exists('AvSettings') && method_exists('AvSettings', 'get')) {
+        try { $v = (string) AvSettings::get('NGG_WEBHOOK_SECRET'); if (trim($v) !== '') return trim($v); } catch (Throwable $e) {}
+    }
+    return '';
 }

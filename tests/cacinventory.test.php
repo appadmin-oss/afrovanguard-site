@@ -22,7 +22,7 @@ require_once dirname(__DIR__) . '/lib/CacInventory.php';
 
 $src   = (string) file_get_contents(dirname(__DIR__) . '/lib/CacInventory.php');
 $api   = (string) file_get_contents(dirname(__DIR__) . '/portal/cac-inventory.php');
-$portal= (string) file_get_contents(dirname(__DIR__) . '/portal/index.php');
+$portal= av_portal_source();
 $js    = (string) file_get_contents(dirname(__DIR__) . '/portal/inventory.js');
 $css   = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 
@@ -52,12 +52,13 @@ ck('the console being down has another, distinct from nothing matching',
 ck('and the centre not keeping a register at all has a third',
    str_contains($src, "'off'") && str_contains($api, "'off'"));
 ck('each of those becomes a sentence a member can act on, not the word the wire used',
-   str_contains($api, 'The console did not answer.'));
+   str_contains($api, 'CacBridge::MEMBER'));
+ck('…and the reason itself goes to the administrators, never to a member', !preg_match('/HTTP|AV_SSO_SECRET|errors\.log/', php_strip_whitespace(dirname(__DIR__) . '/portal/cac-inventory.php')));
 
 /* ── The member is never named in a query string ─────────────────────────── */
 ck('the member id comes from this site\'s session', str_contains($api, '$uid = (int) $u[\'id\'];'));
 ck('…and travels inside the signature, where the caller cannot change it',
-   str_contains($src, "CacSso::mint(['id' => \$memberId])"));
+   str_contains($src, "CacSso::mint(CacSso::member(\$memberId), 'inventory')"));
 ck('only the filters the far side reads are forwarded, so a stray query parameter on the '
  . 'portal\'s own URL cannot be pushed into somebody else\'s API',
    str_contains($src, "foreach (['q', 'category', 'site', 'status', 'page'] as \$k)"));

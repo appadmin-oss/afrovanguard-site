@@ -4,7 +4,9 @@
  *
  *   GET  ?action=list                                  → { ok, meetings, freq }
  *   GET  ?action=get&id=N                              → { ok, meeting }
- *   POST ?action=schedule {title,when,duration,frequency,agenda,attendees,context,context_id}
+ *   POST ?action=schedule {title,when,duration,frequency|repeat,agenda,attendees,context,context_id}
+ *   POST ?action=update {id, title?, when?, duration?, frequency?|repeat?, agenda?, attendees?, auto_record?}
+ *   POST ?action=repeat_preview {when, repeat}          → { ok, label, dates[], never, moved } (lib/Recurrence.php)
  *   POST ?action=cancel {id}
  *   POST ?action=transcript {id, text, source}         → structure Otter-style
  *   POST ?action=pull_transcript {id}                  → best-effort Google Meet pull
@@ -17,19 +19,20 @@ require_once dirname(__DIR__) . '/lib/bootstrap.php';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $action = (string) ($_GET['action'] ?? 'list');
 
-// The recording bot posts transcripts back here — a SERVICE call authed by the
-// per-meeting HMAC token, NOT a user session. Handle it before the auth wall.
-if ($action === 'bot_ingest') {
-    if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-    $in = json_decode(file_get_contents('php://input') ?: '', true) ?: $_POST;
-    json_out(Meetings::botIngest((int) ($in['meeting_id'] ?? 0), (string) ($in['token'] ?? ''), (string) ($in['transcript'] ?? '')));
+// Recall.ai is no longer used. Its old webhook gets a loud, harmless refusal
+// rather than falling through to the sign-in wall, so a stale subscription
+// shows up as a 410 in its delivery log instead of a confusing 401.
+if ($action === 'recall_webhook') {
+    json_out(['ok' => false, 'error' => 'Recall is no longer used.'], 410);
 }
 
-// Recall.ai posts bot status / transcript events here — token-gated service call.
-if ($action === 'recall_webhook') {
+// The notetaker (Attendee) pushes the meeting live — joins, leaves, each
+// utterance — signed with the project's webhook secret. A service call.
+if ($action === 'attendee_webhook') {
     if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
-    $in = json_decode(file_get_contents('php://input') ?: '', true) ?: [];
-    json_out(Meetings::recallWebhook((string) ($_GET['t'] ?? ''), is_array($in) ? $in : []));
+    $raw = (string) file_get_contents('php://input');
+    $r = MeetingLive::fromAttendee($raw, (string) ($_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? ''));
+    json_out($r, (int) ($r['status'] ?? 200));
 }
 
 $u = LmsAuth::user();
@@ -59,7 +62,7 @@ try {
                 $mtgs[$i]['clock'] = ($cl && (!empty($cl['running']) || !empty($cl['overrun']))) ? $cl : null;
             }
             json_out(['ok' => true, 'meetings' => $mtgs, 'freq' => $freq, 'me' => $uid, 'agenda_ai' => Agenda::enabled(),
-                'gemini' => class_exists('Gemini') && Gemini::configured(),
+                'gemini' => class_exists('Gemini') && Gemini::configured(), 'audio' => Meetings::audioTranscription(),
                 'bot' => Meetings::botConfigured(), 'bot_provider' => Meetings::botProvider(),
                 'bot_allowed' => Meetings::botAllowed(), 'bot_on_demand' => Meetings::botOnDemandAllowed()]);
 
@@ -72,6 +75,22 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             json_out(Meetings::schedule($uid, is_array($body) ? $body : []));
+
+        case 'instant':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(Meetings::startNow($uid, is_array($body) ? $body : []));
+
+        case 'update':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            $writeGuard();
+            json_out(Meetings::update($uid, (int) ($body['id'] ?? 0), array_intersect_key(is_array($body) ? $body : [],
+                array_flip(['title', 'when', 'duration', 'frequency', 'repeat', 'agenda', 'attendees', 'auto_record']))));
+
+        /* What a repeat rule would do, before it is saved: read-only, so no write guard. */
+        case 'repeat_preview':
+            if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
+            json_out(Meetings::previewRepeat($uid, (string) ($body['when'] ?? ''), $body['repeat'] ?? null));
 
         case 'cancel':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);

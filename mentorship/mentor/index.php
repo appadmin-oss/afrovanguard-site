@@ -28,7 +28,7 @@ if (!Mentorship::isMentor($uid)) {
     ]);
     render_nav('mentorship');
     ?>
-  <main id="main-content" class="avm" style="display:block">
+  <main id="main" tabindex="-1" class="avm" style="display:block">
     <div class="avm-body" style="max-width:620px;margin:0 auto">
       <section class="avm-panel">
         <div class="avm-h2row"><h2>The mentor portal</h2></div>
@@ -45,7 +45,7 @@ if (!Mentorship::isMentor($uid)) {
 $portal = new MentorPortal($uid);
 
 /* ── Which screen ──────────────────────────────────────────────────────── */
-$VIEWS = ['today', 'mentees', 'case', 'values', 'checkins', 'reflections', 'requests', 'academy', 'module', 'profile', 'support', 'concern'];
+$VIEWS = ['today', 'mentees', 'case', 'values', 'checkins', 'reflections', 'requests', 'academy', 'module', 'profile', 'support', 'concern', 'conduct'];
 $v  = (string) ($_GET['v'] ?? 'today');
 if (!in_array($v, $VIEWS, true)) $v = 'today';
 
@@ -90,6 +90,7 @@ $HEADS = [
     'profile'     => ['Profile', 'How you appear to a member looking for a mentor.'],
     'support'     => ['Support', 'Your coordinator, and how to report a concern.'],
     'concern'     => ['Report a concern', 'It goes straight to the safeguarding lead.'],
+    'conduct'     => ['Fine or award', 'Put a fine or an award forward. The compliance committee decides; nothing happens until it does.'],
 ];
 
 $badges = $portal->navBadges();
@@ -108,8 +109,9 @@ render_head([
     'canonical' => rtrim(SITE_URL, '/') . '/mentorship/mentor/',
     'robots'    => 'noindex, nofollow',
     'csrf'      => true,
-    'css'       => ['/assets/site/avm.css', '/assets/site/avm-portal.css'],
+    'css'       => ['/assets/site/avm.css', '/assets/site/avm-portal.css', '/mentorship/conduct.css'],
     'body_class'=> 'avm-page',
+    'chrome'     => 'app', /* its own shell and theme; not the Home chrome */
 ]);
 
 /** One query-string, with some keys changed. Keeps the roster's state across links. */
@@ -188,7 +190,7 @@ require is_file($view) ? $view : __DIR__ . '/views/today.php';
 <?php require __DIR__ . '/views/_dialogs.php'; ?>
 
 <div class="avm-toast" data-avm-toast hidden><span></span><button type="button" hidden>Undo</button></div>
-<script src="/assets/site/avm.js" defer></script>
-<script src="/assets/site/avm-extra.js" defer></script>
+<script src="<?= e(av_asset('/assets/site/avm.js')) ?>" defer></script>
+<script src="<?= e(av_asset('/assets/site/avm-extra.js')) ?>" defer></script>
 </body>
 </html>

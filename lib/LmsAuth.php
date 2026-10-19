@@ -201,11 +201,18 @@ final class LmsAuth
      * higher role), then start the session. Created accounts are passwordless
      * (a random unusable hash) so password login can't be used against them.
      */
-    public static function oauthSignIn(string $email, string $name, bool $emailVerified, string $provider = 'google'): array
+    public static function oauthSignIn(string $email, string $name, bool $emailVerified, string $provider = 'google', ?bool $orgDomainVerified = null): array
     {
         $email = strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => 'Your provider did not return a usable email.'];
-        $orgVerified = $emailVerified && self::isOrgEmail($email);
+        /* An unverified address proves nothing about who holds it, and this
+           finds the account BY that address — so it would sign a stranger in
+           as its owner. Refused, whatever the caller does. */
+        if (!$emailVerified) return ['ok' => false, 'code' => 'unverified', 'error' => 'Your provider has not verified that email address.'];
+        /* The member role on an org address also needs the provider to vouch
+           for the domain (Google's hd claim, GoogleAuth::orgVerified). null
+           means the caller has no such signal and the address decides. */
+        $orgVerified = $emailVerified && self::isOrgEmail($email) && ($orgDomainVerified ?? true);
         $db = Database::pdo();
         $u = self::byEmail($email);
         if (!$u) {
@@ -217,7 +224,7 @@ final class LmsAuth
             if ($u && class_exists('Notify')) Notify::welcome($u);
             if ($u && class_exists('Events')) Events::emit('member.created', ['email' => $email, 'name' => (string) $u['name'], 'role' => (string) $u['role'], 'via' => $provider]);
         } else {
-            if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'error' => 'This account is not active. Please contact us.'];
+            if (($u['status'] ?? 'active') !== 'active') return ['ok' => false, 'code' => 'inactive', 'error' => 'This account is not active. Please contact us.'];
             // A successful OAuth sign-in proves email ownership — clear any pending verification.
             if ($emailVerified && (int) ($u['email_verified'] ?? 0) === 0) {
                 $db->prepare('UPDATE lms_users SET email_verified = 1, verify_hash = NULL, verify_expires = NULL WHERE id = ?')->execute([$u['id']]);
@@ -240,7 +247,29 @@ final class LmsAuth
             Database::pdo()->prepare('DELETE FROM lms_sessions WHERE token_hash = ?')->execute([hash('sha256', $tok)]);
         }
         setcookie(self::COOKIE, '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        self::hint(false);
         unset($_COOKIE[self::COOKIE]); self::$cache = null; self::$checked = false;
+        /* Signing out of the site ends the Studio too. A bridged admin cookie
+           would be refused on its next request anyway (AdminRoles::current
+           re-checks the member), but a credential that lingers in the jar after
+           "Sign out" is one a shared computer's next user inherits. */
+        if (function_exists('av_admin_cookie_clear')) av_admin_cookie_clear();
+    }
+
+    /**
+     * `av_si` — a readable "signed in" hint for pages the server does not
+     * render (the static .html pages), so their nav can show My portal instead
+     * of Sign in / Join the Movement before first paint. It carries nothing
+     * but "1": the session itself stays in the HttpOnly `av_lms` cookie, and a
+     * hint that outlives its session is cleared the next time PHP sees it.
+     */
+    const HINT = 'av_si';
+    public static function hint(bool $on, int $ttl = 0): void
+    {
+        if ($on) $_COOKIE[self::HINT] = '1'; else unset($_COOKIE[self::HINT]);
+        if (headers_sent()) return;
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        setcookie(self::HINT, $on ? '1' : '', ['expires' => $on ? time() + $ttl : time() - 3600, 'path' => '/', 'secure' => $secure, 'httponly' => false, 'samesite' => 'Lax']);
     }
 
     public static function user(): ?array
@@ -248,13 +277,14 @@ final class LmsAuth
         if (self::$checked) return self::$cache;
         self::$checked = true;
         $tok = $_COOKIE[self::COOKIE] ?? '';
-        if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) return self::$cache = null;
+        if (!$tok || !preg_match('/^[a-f0-9]{40}$/', $tok)) { if (!empty($_COOKIE[self::HINT])) self::hint(false); return self::$cache = null; }
         $st = Database::pdo()->prepare(
             'SELECT u.* FROM lms_sessions s JOIN lms_users u ON u.id = s.user_id
              WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = \'active\''
         );
         $st->execute([hash('sha256', $tok), gmdate('Y-m-d H:i:s')]);
         $u = $st->fetch();
+        if (!$u && !empty($_COOKIE[self::HINT])) self::hint(false);
         return self::$cache = ($u ?: null);
     }
 
@@ -284,7 +314,12 @@ final class LmsAuth
             ->execute([hash('sha256', $token), $userId, av_client_ip(), substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240), date('Y-m-d H:i:s', time() + $ttl)]);
         $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         setcookie(self::COOKIE, $token, ['expires' => time() + $ttl, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+        self::hint(true, $ttl);
         $_COOKIE[self::COOKIE] = $token; self::$cache = null; self::$checked = false;
+        /* A volunteer is recognised as they sign in (lib/Volunteers.php). */
+        /* An NGG volunteer seeded from a file is linked to them first (lib/VolunteerSeeds.php). */
+        if (class_exists('VolunteerSeeds')) VolunteerSeeds::claim($userId);
+        if (class_exists('Volunteers')) Volunteers::recognizeAtLogin($userId);
     }
 
     /* ── security tables / brute-force lockout ──────────────────────

@@ -23,7 +23,7 @@ require_once dirname(__DIR__) . '/lib/CacLeads.php';
 
 $src    = (string) file_get_contents(dirname(__DIR__) . '/lib/CacLeads.php');
 $api    = (string) file_get_contents(dirname(__DIR__) . '/portal/cac-leads.php');
-$portal = (string) file_get_contents(dirname(__DIR__) . '/portal/index.php');
+$portal = av_portal_source();
 $js     = (string) file_get_contents(dirname(__DIR__) . '/portal/leads.js');
 $css    = (string) file_get_contents(dirname(__DIR__) . '/portal/portal.css');
 
@@ -40,7 +40,8 @@ ck('a member id of nothing makes no request at all', $r['ok'] === false && $r['l
 ck('no shared secret has its own answer', str_contains($src, "'not-configured'"));
 ck('the console being down has another', str_contains($src, "'unreachable'"));
 ck('each becomes a sentence a member can act on, not the word the wire used',
-   str_contains($api, 'The console did not answer.'));
+   str_contains($api, 'the administrators have been told'));
+ck('…and the reason itself goes to the administrators, never to a member', !preg_match('/HTTP|AV_SSO_SECRET|errors\.log/', php_strip_whitespace(dirname(__DIR__) . '/portal/cac-leads.php')));
 
 /* ── The log is the point, and it is required to say something ───────────── */
 ck('a log with nothing in it is refused before a request is even made',
@@ -63,7 +64,7 @@ ck('it is for org members', str_contains($api, 'LmsAuth::isOrgMember($u)'));
 
 /* ── The member is never named in a query string ─────────────────────────── */
 ck('the member id comes from this site\'s session', str_contains($api, '$uid    = (int) $u[\'id\'];'));
-ck('…and travels inside the signature', str_contains($src, "CacSso::mint(['id' => \$memberId])"));
+ck('…and travels inside the signature', str_contains($src, "CacSso::mint(CacSso::member(\$memberId), 'leads')"));
 
 /* ── Another system's data is bounded before this page renders it ────────── */
 /* Named rather than counted: a count passes while the field somebody just

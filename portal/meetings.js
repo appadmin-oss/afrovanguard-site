@@ -15,7 +15,7 @@
   var msg = document.getElementById('tlMeetMsg');
   var API = '/portal/meetings.php';
   var AGENDA_AI = false;
-  var ME = 0, GEMINI = false, BOT = false, BOT_ALLOWED = false, BOT_ON_DEMAND = false;
+  var ME = 0, GEMINI = false, AUDIO = false, BOT = false, BOT_ALLOWED = false, BOT_ON_DEMAND = false;
 
   function post(action, body) {
     return fetch(API + '?action=' + action, {
@@ -76,10 +76,10 @@
       wrap += '<div class="meet-tr-btns">';
       wrap += '<button type="button" class="pbtn pbtn-gold pbtn-sm meet-tr-save" data-id="' + m.id + '">Generate minutes</button>';
       wrap += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-tr-pull" data-id="' + m.id + '">Pull Google Meet transcript</button>';
-      wrap += '<label class="pbtn pbtn-ghost pbtn-sm meet-tr-uplabel">Upload recording<input type="file" class="meet-tr-file" accept="audio/*,video/mp4,video/webm" data-id="' + m.id + '" hidden></label>';
+      if (AUDIO) wrap += '<label class="pbtn pbtn-ghost pbtn-sm meet-tr-uplabel" tabindex="0">Upload a recording<input type="file" class="meet-tr-file" accept="audio/*,video/mp4,video/webm" data-id="' + m.id + '" hidden></label>';
       wrap += '<span class="meet-tr-msg" role="status" aria-live="polite"></span>';
       wrap += '</div>';
-      wrap += '<p class="meet-tr-help">' + (GEMINI ? 'Recordings are transcribed by Gemini Flash.' : 'Set AV_GEMINI_API_KEY to enable audio transcription &amp; AI minutes.') + '</p>';
+      wrap += '<p class="meet-tr-help">' + (AUDIO ? 'A recording of up to about 19 MB is transcribed, then turned into minutes.' : 'Uploading a recording needs a transcription key (OpenAI or Gemini) in Studio → Setup → AI. Google’s own transcript and a pasted one work without it.') + '</p>';
       wrap += '</details>';
     }
     return wrap + '</div>';
@@ -114,6 +114,19 @@
     }
   }
 
+  /* What Google records in this meeting, said plainly — and why not, when it will not. */
+  function captureHtml(m, isOwner) {
+    if (!m.meet_url) return '';
+    var t = '', cls = '';
+    if (m.capture === 'all') { t = '● Google records this call, with a transcript and notes — they come here afterwards.'; cls = 'is-on'; }
+    else if (m.capture === 'transcript') { t = 'Transcript and notes on. Recording is not available on this Google Workspace edition.'; cls = 'is-part'; }
+    else if (m.capture === 'off') { t = 'Google capture is switched off for meetings (Studio → Setup → Google Meet).'; }
+    else if (m.capture_note) { t = 'Not recording. ' + m.capture_note; cls = 'is-bad'; }
+    else return '';
+    if (cls === 'is-bad' && !isOwner) t = 'Not recording — Google refused; the organiser can see why.';
+    return '<p class="meet-capture ' + cls + '">' + esc(t) + '</p>';
+  }
+
   function meetingCard(m) {
     var prov = 'Google Meet';
     var freq = m.frequency && m.frequency !== 'once' ? ' · 🔁 ' + esc(m.frequency_label) : '';
@@ -122,21 +135,32 @@
     h += '<div class="meet-item-main">';
     h += '<div class="meet-item-top"><span class="meet-when">' + esc(fmtWhen(m.when_iso)) + '</span><span class="meet-dur">' + esc(fmtDur(m.duration_min)) + freq + '</span></div>';
     h += '<p class="meet-title">' + esc(m.title);
-    if (m.auto_record || botLive(m)) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
+    // No badge at all when no notetaker is available: "auto (manual)" on every
+    // card is noise on a site that simply runs without one.
+    if (BOT_ALLOWED && (m.auto_record || botLive(m))) h += ' <span class="meet-bot-badge" title="' + esc(botTitle(m)) + '">🤖 ' + esc(botLabel(m)) + '</span>';
     h += '</p>';
+    /* A series says when it comes round next, after this one. */
+    var then = (m.upcoming || []).slice(1, 4);
+    if (then.length) h += '<p class="meet-then">Then ' + then.map(function (d) { return esc(new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })); }).join(' · ') + '</p>';
     if (m.agenda) h += '<p class="meet-agenda">' + esc(m.agenda) + '</p>';
+    h += captureHtml(m, isOwner);
     h += clockHtml(m);
     h += agendaDraftHtml(m);
     h += '<div class="meet-actions">';
     if (m.meet_url) h += '<a class="pbtn pbtn-soft pbtn-sm" href="' + esc(m.meet_url) + '" target="_blank" rel="noopener">▶ Join · ' + esc(prov) + '</a>';
-    else h += '<span class="meet-pending">⚠ Meet link pending — connect Google Workspace</span>';
+    else if (isOwner) h += '<button type="button" class="pbtn pbtn-soft pbtn-sm meet-link" data-id="' + m.id + '">⚠ No Meet link — add it</button>';
+    else h += '<span class="meet-pending">⚠ No Meet link yet — the organiser has been told why</span>';
     // Anyone in the meeting can add or remove the notetaker — not just the owner.
     // Somebody who wants a conversation off the record should not have to find
     // the organiser first.
     if (m.meet_url && BOT_ALLOWED) {
-      if (botLive(m)) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-off" data-id="' + m.id + '">Remove the AI</button>';
+      // Google transcribing natively is not a bot in the room, so there is
+      // nothing to remove and nothing to add.
+      if (m.bot_state === 'native') { /* nothing to offer */ }
+      else if (botLive(m)) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-off" data-id="' + m.id + '">Remove the AI</button>';
       else if (BOT_ON_DEMAND) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-bot-on" data-id="' + m.id + '">🤖 Add the AI</button>';
     }
+    if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-edit" data-id="' + m.id + '">Edit</button>';
     if (isOwner) h += '<button type="button" class="pbtn pbtn-ghost pbtn-sm meet-cancel" data-id="' + m.id + '">Cancel</button>';
     h += '</div>';
     h += transcriptHtml(m);
@@ -234,11 +258,72 @@
   function load() {
     get('list').then(function (d) {
       if (!d || !d.ok) { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; return; }
-      ME = d.me || 0; GEMINI = !!d.gemini; BOT = !!d.bot; AGENDA_AI = !!d.agenda_ai;
+      ME = d.me || 0; GEMINI = !!d.gemini; AUDIO = !!d.audio; BOT = !!d.bot; AGENDA_AI = !!d.agenda_ai;
       BOT_ALLOWED = !!d.bot_allowed; BOT_ON_DEMAND = !!d.bot_on_demand;
+      // The auto-record box is only offered when something can act on it.
+      var rec = document.getElementById('tlMeetRec');
+      var recLabel = rec && rec.closest('label');
+      if (recLabel) recLabel.hidden = !BOT_ALLOWED;
+      if (rec && !BOT_ALLOWED) rec.checked = false;
       render(d.meetings);
     }).catch(function () { listEl.innerHTML = '<p class="pc-empty">Could not load meetings.</p>'; });
   }
+
+  /* ── Editing: the schedule form, filled with the meeting, saves changes instead. ── */
+  var EDIT = null, LAST = [];
+  var $ = function (id) { return document.getElementById(id); };
+  /* How it repeats (portal/repeat.js): quick choices, or every N days/weeks/months/years,
+     on chosen days, ending on a date or after a number of times, skipping dates. */
+  var REP = $('tlMeetRepeat') && window.AVRepeat ? window.AVRepeat($('tlMeetRepeat'), { when: $('tlMeetWhen'), idp: 'tlMeet', csrf: csrf }) : null;
+  /* A length the list does not offer (an older meeting's) is added, not lost. */
+  function setDur(n) {
+    var sel = $('tlMeetDur'); n = String(n || 30);
+    if (!sel.querySelector('option[value="' + n + '"]')) { var o = document.createElement('option'); o.value = n; o.textContent = n + ' min'; sel.appendChild(o); }
+    sel.value = n;
+  }
+  function formVals() {
+    return {
+      title: ($('tlMeetTitle').value || '').trim(), when: $('tlMeetWhen').value || '',
+      duration: +$('tlMeetDur').value || 30, repeat: REP ? REP.value() : { freq: 'once' },
+      attendees: ($('tlMeetWho').value || '').trim(), agenda: $('tlMeetAgenda').value || '',
+      auto_record: !!($('tlMeetRec') && $('tlMeetRec').checked)
+    };
+  }
+  function startEdit(m) {
+    var me = (root.getAttribute('data-email') || '').toLowerCase();
+    var who = (m.attendees || []).filter(function (e) { return e.toLowerCase() !== me; }).join(', ');
+    $('tlMeetTitle').value = m.title; $('tlMeetWhen').value = m.when_local || '';
+    setDur(m.duration_min); if (REP) REP.set(m.repeat || null);
+    $('tlMeetWho').value = who; $('tlMeetAgenda').value = m.agenda || '';
+    if ($('tlMeetRec')) $('tlMeetRec').checked = !!m.auto_record;
+    EDIT = { id: m.id, orig: formVals() };
+    var sub = form.querySelector('[type=submit]'); if (sub) { sub.setAttribute('data-label', sub.textContent); sub.textContent = 'Save changes'; }
+    if ($('tlMeetNow')) $('tlMeetNow').hidden = true;
+    var x = $('tlMeetEditCancel');
+    if (!x) { x = document.createElement('button'); x.type = 'button'; x.id = 'tlMeetEditCancel'; x.className = 'pbtn pbtn-ghost'; x.textContent = 'Stop editing'; x.addEventListener('click', function () { endEdit(); say(''); }); sub && sub.parentNode.insertBefore(x, sub.nextSibling); }
+    x.hidden = false;
+    say('Editing “' + m.title + '” — change what is wrong and save. Everyone invited is told.');
+    form.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); $('tlMeetTitle').focus();
+  }
+  function endEdit() {
+    EDIT = null; form.reset(); $('tlMeetDur').value = '30'; if (REP) REP.reset();
+    var sub = form.querySelector('[type=submit]'); if (sub && sub.getAttribute('data-label')) sub.textContent = sub.getAttribute('data-label');
+    if ($('tlMeetNow')) $('tlMeetNow').hidden = false;
+    if ($('tlMeetEditCancel')) $('tlMeetEditCancel').hidden = true;
+  }
+  listEl && listEl.addEventListener('click', function (e) {
+    var b = e.target.closest('.meet-edit');
+    if (b) { var id = +b.getAttribute('data-id'); get('get&id=' + id).then(function (d) { if (d && d.ok) startEdit(d.meeting); else say((d && d.error) || 'Could not open that meeting.'); }); return; }
+    var l = e.target.closest('.meet-link');
+    if (l) {
+      l.disabled = true; l.textContent = 'Asking Google…';
+      post('update', { id: +l.getAttribute('data-id') }).then(function (d) {
+        if (!d || !d.ok) { say((d && d.error) || 'Could not add the link.'); l.disabled = false; return; }
+        if (d.warning) say(d.warning); else say('Meet link added ✓ — everyone has it', true);
+        load();
+      });
+    }
+  });
 
   // Schedule
   form && form.addEventListener('submit', function (e) {
@@ -247,23 +332,56 @@
     var when = document.getElementById('tlMeetWhen').value || '';
     if (!title) { say('Give the meeting a title.'); return; }
     if (!when) { say('Pick a date and time.'); return; }
+    var vals = formVals();
+    if (EDIT) {
+      /* Only what changed: an untouched start is not sent, so a series keeps its first date. */
+      var body = { id: EDIT.id }, n = 0;
+      Object.keys(vals).forEach(function (k) { if (JSON.stringify(vals[k]) !== JSON.stringify(EDIT.orig[k])) { body[k] = vals[k]; n++; } });
+      if (!n) { endEdit(); say('Nothing changed.'); return; }
+      say('Saving…');
+      post('update', body).then(function (d) {
+        if (!d || !d.ok) { say((d && d.error) || 'Could not save.'); return; }
+        endEdit();
+        if (d.warning) say(d.warning); else { say('Saved ✓ — everyone has the change', true); setTimeout(function () { say(''); }, 3000); }
+        load();
+      }).catch(function () { say('Network error.'); });
+      return;
+    }
     say('Scheduling…');
-    post('schedule', {
-      title: title, when: when,
-      duration: +document.getElementById('tlMeetDur').value || 30,
-      frequency: document.getElementById('tlMeetFreq').value || 'once',
-      attendees: document.getElementById('tlMeetWho').value || '',
-      agenda: document.getElementById('tlMeetAgenda').value || '',
-      auto_record: !!(document.getElementById('tlMeetRec') && document.getElementById('tlMeetRec').checked),
-      context: 'workspace'
-    }).then(function (d) {
+    vals.context = 'workspace';
+    post('schedule', vals).then(function (d) {
       if (!d || !d.ok) { say((d && d.error) || 'Could not schedule.'); return; }
-      if (d.warning) { say(d.warning); } else { say('Scheduled ✓ — invite sent', true); }
+      /* A warning stays until it is read — it is the only place the reason appears. */
+      if (d.warning) { say(d.warning); } else { say('Scheduled ✓ — invite sent', true); setTimeout(function () { say(''); }, 2500); }
       form.reset();
+      document.getElementById('tlMeetDur').value = '30';
+      if (REP) REP.reset();
+      load();
+    }).catch(function () { say('Network error.'); });
+  });
+
+  // Start a call now — an instant Meet room, no calendar event
+  var nowBtn = document.getElementById('tlMeetNow');
+  nowBtn && nowBtn.addEventListener('click', function () {
+    // Opened before the request, while the click still counts as the user's: a
+    // window opened after an await is blocked as a pop-up.
+    var win = window.open('', '_blank');
+    nowBtn.disabled = true;
+    say('Opening a Meet room…');
+    post('instant', {
+      title: (document.getElementById('tlMeetTitle').value || '').trim(),
+      attendees: document.getElementById('tlMeetWho').value || '',
+      agenda: document.getElementById('tlMeetAgenda').value || ''
+    }).then(function (d) {
+      nowBtn.disabled = false;
+      if (!d || !d.ok || !d.url) { if (win) win.close(); say((d && d.error) || 'Could not open a Meet room.'); return; }
+      if (win) { win.opener = null; win.location.href = d.url; } else { window.location.href = d.url; }
+      say('Call started ✓', true);
+      form && form.reset();
       document.getElementById('tlMeetDur').value = '30';
       load();
       setTimeout(function () { say(''); }, 2500);
-    }).catch(function () { say('Network error.'); });
+    }).catch(function () { nowBtn.disabled = false; if (win) win.close(); say('Network error.'); });
   });
 
   // Delegated actions on the list

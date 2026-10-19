@@ -35,6 +35,7 @@ function avd_rail(array $sections, int $readMinutes): void
       </ol>
       <p class="avd-rail-left av-num"><span data-avd-left><?= $readMinutes ?></span> min left</p>
       <div class="avd-size" role="group" aria-label="Text size">
+        <span class="avd-size-l" aria-hidden="true">Text size</span>
         <button type="button" data-avd-size="-1" aria-label="Smaller text">A−</button>
         <button type="button" data-avd-size="1" aria-label="Larger text">A+</button>
       </div>

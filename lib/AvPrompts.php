@@ -81,6 +81,8 @@ final class AvPrompts
                 . "- Set a realistic \"days\" value: the number of days FROM TODAY the task should be done by (spread them out; earlier tasks "
                 . "get smaller numbers). Today is {{today}}.\n"
                 . "- priority is one of: high, normal, low.\n"
+                . "- Work from everything given about the goal: plan toward DONE WHEN, for WHO IT SERVES, within SCOPE, CONSTRAINTS and RESOURCES, "
+                . "and with RISKS in mind. Never repeat a step listed as ALREADY DONE or ALREADY OPEN; build on them. Use REFERENCES by name where useful.\n"
                 . "- Do NOT invent specific external facts, names, or figures. Keep titles under 120 characters.\n\n"
                 . "Respond with ONLY a JSON array, no prose, no code fences. Shape:\n"
                 . "[{\"title\":\"...\",\"priority\":\"high|normal|low\",\"days\":<integer 1-60>}]",

@@ -1,0 +1,50 @@
+/* ==========================================================================
+   mentorship/conduct.css — fines and awards (lib/Conduct.php): the mentor's
+   "Fine or award" screen in the mentor portal, and the compliance committee's
+   queue at /mentorship/compliance/. Prefix avcd-. Tokens only; classes only.
+   ========================================================================== */
+
+.avcd { display: flex; flex-direction: column; gap: 12px; }
+.avcd h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.avcd-p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--av-text-2); }
+.avcd-list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+.avcd-list a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--av-line); border-radius: 999px; color: var(--av-ink); text-decoration: none; }
+.avcd-kind { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--av-gold-text); }
+
+.avcd-note { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--av-line); font-size: 14px; line-height: 1.5; }
+.avcd-note.is-ok { border-left: 3px solid var(--av-green); background: var(--av-green-bg); color: var(--av-green); }
+.avcd-note.is-bad { border-left: 3px solid var(--av-red); background: var(--av-red-bg); color: var(--av-red); }
+
+.avcd-switch { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--av-stone-3); align-self: flex-start; }
+.avcd-tab { display: inline-flex; align-items: center; min-height: 40px; padding: 0 18px; border-radius: 999px; color: var(--av-text-2); font-size: 14px; font-weight: 600; text-decoration: none; }
+.avcd-tab.is-on { background: var(--av-white); color: var(--av-ink); box-shadow: 0 0 0 1px var(--av-line); }
+.avcd-tab:focus-visible, .avcd-list a:focus-visible { outline: 2px solid var(--av-gold); outline-offset: 2px; }
+
+.avcd-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
+.avcd-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--av-ink); }
+.avcd-form small { font-weight: 400; font-size: 12.5px; color: var(--av-muted-2); }
+.avcd-form .avm-select, .avcd-form .avm-input { min-height: 44px; width: 100%; }
+.avcd-span { grid-column: 1 / -1; }
+
+.avcd-cases { margin: 0; padding: 0; list-style: none; }
+.avcd-cases > li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 0; border-top: 1px solid var(--av-line); }
+.avcd-cases > li:first-child { border-top: 0; }
+.avcd-cases form { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.avcd-what { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.avcd-what span { font-size: 13px; color: var(--av-text-2); line-height: 1.45; }
+.avcd-ev { margin: 4px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--av-stone-3); font-size: 13.5px; line-height: 1.5; color: var(--av-ink); white-space: pre-line; }
+.avcd-chip { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; background: var(--av-stone-3); color: var(--av-text-2); }
+.avcd-chip[data-tone="green"] { background: var(--av-green-bg); color: var(--av-green); }
+.avcd-chip[data-tone="red"] { background: var(--av-red-bg); color: var(--av-red); }
+.avcd-chip[data-tone="gold"] { background: var(--av-gold-soft); color: var(--av-gold-text); }
+.avcd-decide input[type="text"] { flex: 1 1 220px; min-height: 44px; padding: 0 12px; border: 1px solid var(--av-line); border-radius: 8px; font: inherit; font-size: 14px; }
+.avcd-decide button { min-height: 44px; }
+
+/* The committee's page, outside the mentor portal. */
+.avcd-page { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 16px; }
+.avcd-page > header h1 { margin: 0 0 6px; font-size: 28px; }
+.avcd-page > header p { margin: 0; color: var(--av-text-2); line-height: 1.5; max-width: 64ch; }
+.avcd-box { border: 1px solid var(--av-line); border-radius: 12px; padding: 16px; background: var(--av-white); display: flex; flex-direction: column; gap: 10px; }
+.avcd-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.avcd-tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--av-line); color: var(--av-text-2); text-decoration: none; font-size: 14px; }
+.avcd-tabs a[aria-current] { border-color: var(--av-gold); background: var(--av-gold-soft); color: var(--av-ink); }

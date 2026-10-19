@@ -10,6 +10,9 @@
 <link href="/assets/site/tokens.css" rel="stylesheet" />
   <link href="/diary/diary.css" rel="stylesheet" />
   <link href="/admin/admin.css" rel="stylesheet" />
+  <link href="/admin/site.css?v=<?= (int) @filemtime(__DIR__ . '/site.css') ?>" rel="stylesheet" />
+  <link href="/assets/site/av-tokens.css" rel="stylesheet" />
+  <link href="/assets/site/avc-photo.css" rel="stylesheet" />
 </head>
 <body class="studio">
   <header class="studio-bar">
@@ -36,6 +39,8 @@
       <div class="nav-group">
         <p class="nav-group-h">Content</p>
         <button class="tab" data-tab="entries"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4z"/><path d="M16 6h4v12a2 2 0 0 1-2 2"/><path d="M8 8h4M8 12h4"/></svg><span>Diary</span></button>
+        <button class="tab" data-tab="site"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h6M7 16h9"/></svg><span>Site</span><span class="tab-badge" id="siteBadge" hidden></span></button>
+        <button class="tab" data-tab="media"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg><span>Media</span></button>
         <button class="tab" data-tab="moderation"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-2.9 7.3-7 8-4.1-.7-7-3.8-7-8V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>Moderation</span><span class="tab-badge" id="modBadge" hidden></span></button>
         <button class="tab" data-tab="inbox"><svg class="t-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h5l2 3h4l2-3h5"/><path d="M5 5h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg><span>Inbox</span></button>
       </div>
@@ -432,6 +437,7 @@
       <button class="subtab active" data-mv="dash" role="tab">Dashboard</button>
       <button class="subtab" data-mv="roster" role="tab">Roster</button>
       <button class="subtab" data-mv="import" role="tab">Import</button>
+      <button class="subtab" data-mv="volunteers" role="tab">Volunteers</button>
       <button class="subtab" data-mv="dups" role="tab">Duplicates</button>
       <button class="subtab" data-mv="offline" role="tab">Offline payments <span class="badge draft" id="offHeldBadge" hidden></span></button>
     </div>
@@ -477,6 +483,7 @@
         <select id="memRole" aria-label="Filter by access level"><option value="">All access levels</option></select>
         <select id="memStatus" aria-label="Filter by status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <select id="memKind" aria-label="Which accounts"><option value="">Afrovanguard members</option><option value="ngv">NextGen Vanguards</option><option value="member">Members who are not NGV</option><option value="learner">Academy learners (not members)</option><option value="all">Every account</option></select>
+        <select id="memVolunteer" aria-label="Volunteers"><option value="">Volunteers or not</option><option value="yes">Volunteers</option><option value="no">Not volunteers</option></select>
         <select id="memMissing" aria-label="Members with something missing"><option value="">Complete or not</option><option value="phone">No phone</option><option value="birthday">No birthday</option><option value="card">No gate card</option></select>
         <select id="memSegment" aria-label="Dashboard list"><option value="">Any record</option></select>
         <select id="memMembership" aria-label="Filter by dues"><option value="">Any dues</option><option value="member">Paying dues</option><option value="lifetime">Lifetime dues</option><option value="current">Dues paid</option><option value="due_soon">Dues due within 30 days</option><option value="lapsed">Dues lapsed</option><option value="cancelled">Dues ended by the office</option><option value="never">Never paid dues</option></select>
@@ -494,8 +501,12 @@
           <option value="level">Set level…</option>
           <option value="membership_grant">Give months of dues (waiver or reason)…</option>
           <option value="membership_cancel">End dues…</option>
+          <option value="volunteer_add">Make volunteers</option>
+          <option value="volunteer_remove">Remove from volunteers</option>
         </select>
         <input id="memBulkValue" hidden aria-label="Value for the action" />
+        <select id="memBulkProject" hidden aria-label="Project they volunteer on"></select>
+        <select id="memBulkType" hidden aria-label="What they volunteer as"></select>
         <button class="btn btn-primary btn-sm" id="memBulkGo" disabled>Apply</button>
         <button class="btn btn-outline btn-sm" id="memBulkClear">Clear</button>
       </div>
@@ -544,6 +555,30 @@
       <div class="entry-list" id="offList" aria-live="polite"></div>
     </section>
 
+    <!-- Volunteers by project (lib/VolunteerProjects.php) -->
+    <section class="mem-pane" data-pane="volunteers" hidden>
+      <p class="muted">Volunteers serve a project, as a type — a mentor on one, the media volunteer on another. Make members volunteers from the <b>Roster</b> (one, chosen, or every match) or on a member's record. NGG's volunteers are placed by NGG and appear on Next Generation Genius on their own.</p>
+      <div class="vp-grid" id="vpList"><p class="muted">Loading…</p></div>
+      <div class="side-card vp-new">
+        <h3>Add a project</h3>
+        <div class="mem-create-grid">
+          <label class="fld"><span>Name</span><input id="vpName" maxlength="120" placeholder="e.g. Community Health Drive" /></label>
+          <label class="fld"><span>What it is (optional)</span><input id="vpBlurb" maxlength="300" /></label>
+        </div>
+        <button class="btn btn-primary btn-sm" id="vpAdd">Add project</button>
+      </div>
+      <div id="vpMembers" class="side-card" hidden></div>
+      <!-- NGG volunteers seeded from a file (lib/VolunteerSeeds.php) -->
+      <div class="side-card vs-seed" id="vsSeed">
+        <h3>Seed NGG volunteers from a file</h3>
+        <p class="muted tiny">NGG’s volunteer export as CSV (volunteerId, name, email, phone, role, programme, centre, faculty, courses, safeguarding, status). Nobody gets an account made for them: each volunteer is linked the moment they sign in to Afrovanguard with that email, and opens their Volunteer dashboard. Anybody who already has an account is linked when you apply.</p>
+        <p class="muted tiny" id="vsStatus" aria-live="polite"></p>
+        <div class="editor-actions"><label class="btn btn-outline btn-sm" for="vsFile">Choose CSV…</label><input type="file" id="vsFile" accept=".csv,text/csv" class="sr-only" /><span class="muted tiny" id="vsFileName"></span></div>
+        <div class="editor-actions"><button class="btn btn-outline btn-sm" id="vsCheck" disabled>Check what would change</button><button class="btn btn-primary btn-sm" id="vsApply" hidden>Seed</button></div>
+        <div id="vsResult" aria-live="polite"></div>
+      </div>
+    </section>
+
     <section class="mem-pane" data-pane="dups" hidden>
       <p class="muted">Records that look like one person — the same name, or the same phone. Shown, never merged: a person decides.</p>
       <div id="memDups"></div>
@@ -565,9 +600,19 @@
           <label class="fld"><span>Birthday</span><input id="md_bday" maxlength="10" placeholder="1998-07-14 or 07-14" /></label>
           <label class="fld"><span>Joined</span><input id="md_joined" type="date" /></label>
         </div>
+        <label class="fld"><span>Work roles</span><input id="md_work_roles" maxlength="300" placeholder="Media, Events, Instructor" aria-describedby="md_work_roles_h" /></label>
+        <p class="muted tiny" id="md_work_roles_h">As many as they do, separated by commas. Tasks drawn from goals go to whoever’s roles and description fit.</p>
+        <label class="fld"><span>What they do</span><textarea id="md_about" rows="2" maxlength="600" placeholder="Runs the Egbeda Saturday class; good with video editing."></textarea></label>
         <label class="fld"><span>Notes</span><textarea id="md_notes" rows="3"></textarea></label>
         <div class="mem-errors" id="md_errors" role="alert" hidden></div>
         <p class="muted tiny" id="md_lock" hidden></p>
+        <h3 class="mem-card-h">Volunteer</h3>
+        <div id="mdVol" aria-live="polite"><span class="muted">…</span></div>
+        <div class="mem-card-row vp-add">
+          <select id="mdVolProject" aria-label="Project"></select>
+          <select id="mdVolType" aria-label="Volunteers as"></select>
+          <button class="btn btn-outline btn-sm" id="mdVolAdd">Place on project</button>
+        </div>
         <h3 class="mem-card-h">Dues</h3>
         <p class="muted tiny">Dues open paid courses. They are not Afrovanguard membership: paying them changes nobody's access level.</p>
         <div id="mdMembership" aria-live="polite"></div>
@@ -594,8 +639,23 @@
         <h3 class="mem-card-h">Cards at the gate</h3>
         <div id="mdCards"></div>
         <div class="editor-actions">
+          <a class="btn btn-primary btn-sm" id="mdPrint" href="#" target="_blank" rel="noopener">Print card</a>
           <button class="btn btn-outline btn-sm" id="mdReissue">Lost card — issue a new one</button>
           <button class="btn btn-outline btn-sm" id="mdRetire" hidden>Reprinted — retire the old card</button>
+        </div>
+        <h3 class="mem-card-h">On the printed card</h3>
+        <div class="mem-cardphoto" id="mdCardPhoto">
+          <div class="mem-cp-frame"><img id="mdCpImg" alt="Card photo" hidden><span id="mdCpNone">No photo — the card prints initials.</span></div>
+          <div class="mem-cp-side">
+            <div class="editor-actions" style="justify-content:flex-start;padding:0;border:0">
+              <button class="btn btn-outline btn-sm" id="mdCpPick" type="button">Add photo</button>
+              <button class="btn btn-outline btn-sm" id="mdCpClear" type="button" hidden>Remove photo</button>
+            </div>
+            <input type="file" id="mdCpFile" accept="image/jpeg,image/png,image/webp" hidden>
+            <label class="mem-cp-role">Title under the name <input id="md_cardrole" maxlength="40" placeholder="e.g. Chief Servant"></label>
+            <button class="btn btn-outline btn-sm" id="mdRoleSave" type="button">Save title</button>
+            <p class="mem-cp-msg" id="mdCpMsg" role="status" aria-live="polite"></p>
+          </div>
         </div>
         <details class="mem-history"><summary>What has happened to this member</summary><div id="mdTimeline"></div></details>
       </div>
@@ -677,8 +737,17 @@
       <div><h1>Celebrations</h1><p class="muted">Auto-celebrated holidays &amp; dates. Built-ins run automatically; add your own with custom doodle art.</p></div>
       <button class="btn btn-primary" id="newCelBtn">+ Add celebration</button>
     </div>
+    <h2 class="cel-h2">Your own celebrations</h2>
     <div class="entry-list" id="celList"></div>
-    <h2 style="font-family:var(--font-heading);font-size:22px;margin:28px 0 12px">Built-in calendar (automatic)</h2>
+    <div class="cel-yearhead">
+      <h2 class="cel-h2">The year’s holidays</h2>
+      <div class="cel-yearnav" role="group" aria-label="Year">
+        <button type="button" class="btn btn-outline btn-sm" id="celYearPrev" aria-label="Previous year">‹</button>
+        <span class="cel-year" id="celYear" aria-live="polite"></span>
+        <button type="button" class="btn btn-outline btn-sm" id="celYearNext" aria-label="Next year">›</button>
+      </div>
+    </div>
+    <p class="muted tiny cel-note">These run by themselves, with this year’s real dates. Edit one to change its words or move its date (Eid follows the announced sighting); turn one off to skip it.</p>
     <div class="entry-list" id="celBuiltins"></div>
   </main>
 
@@ -696,16 +765,18 @@
         <label class="fld"><span>Name</span><input id="c_name" placeholder="e.g. Eid Mubarak" required /></label>
         <label class="fld"><span>Message</span><textarea id="c_message" rows="3" placeholder="The festive line shown in the banner."></textarea></label>
         <label class="fld"><span>Override a built-in (optional key)</span><input id="c_key" placeholder="e.g. christmas — leave blank for a new celebration" /></label>
+        <p class="muted tiny" id="c_builtinNote" hidden>Leave the name or message empty to keep the calendar’s own words, which count the years by themselves.</p>
       </div>
       <aside class="editor-side">
         <div class="side-card">
           <h3>Live preview</h3>
-          <p class="muted tiny" style="margin-top:-4px">Exactly what members see in the banner on the day.</p>
+          <p class="muted tiny cel-pv-note">Exactly what members see in the banner on the day.</p>
           <div class="cel-preview" id="celPreview" aria-live="polite"></div>
         </div>
         <div class="side-card">
           <h3>When &amp; style</h3>
           <label class="fld"><span>Date (MM-DD)</span><input id="c_md" placeholder="12-25" pattern="\d{2}-\d{2}" required /></label>
+          <label class="fld" id="c_onWrap" hidden><span>This year’s date</span><input id="c_on" type="date" /></label>
           <label class="fld"><span>Scope</span><select id="c_scope"><option value="internal">Internal</option><option value="african">African</option><option value="international">International</option></select></label>
           <label class="fld"><span>Emoji</span><input id="c_emoji" placeholder="🎉" maxlength="4" /></label>
           <label class="fld"><span>Theme colour</span><input id="c_theme" type="color" value="#f3b416" /></label>
@@ -769,7 +840,7 @@
     <div class="entry-list" id="whDeliveries"></div>
 
     <h2 style="font-family:var(--font-heading);font-size:22px;margin:34px 0 6px">API tokens (inbound)</h2>
-    <p class="muted" style="margin:0 0 14px">Bearer tokens that let apps/other sites call <code>/integrations/api.php</code> — post as the official Afrovanguard bot, emit events, or read the community feed. <a href="/docs/integrations.md" target="_blank" rel="noopener">API docs ↗</a></p>
+    <p class="muted" style="margin:0 0 14px">Bearer tokens that let apps/other sites call <code>/integrations/api.php</code> — post as the official Afrovanguard bot, emit events, or read the community feed. API reference: <code>docs/integrations.md</code> in the code repository.</p>
     <div class="side-card" style="max-width:680px;margin-bottom:20px">
       <h3>Create a token</h3>
       <label class="fld"><span>Name (what is this for?)</span><input id="atName" placeholder="e.g. Discord announcer" /></label>
@@ -813,19 +884,29 @@
   <!-- SYSTEM / HEALTH (configuration & integration status) -->
   <main class="studio-main" id="systemView" hidden>
     <div class="studio-head">
-      <div><h1>System</h1><p class="muted">Configuration &amp; integration health — <b style="color:#2ea043">green</b> ready · <b style="color:#e0a106">amber</b> optional/degraded · <b style="color:#d22">red</b> needs attention.</p></div>
+      <div><h1>System</h1><p class="muted">Configuration &amp; integration health — <b style="color:var(--st-ok)">green</b> ready · <b style="color:var(--st-warn)">amber</b> optional/degraded · <b style="color:var(--st-err)">red</b> needs attention.</p></div>
       <button class="btn btn-outline btn-sm" id="sysRefreshBtn">Refresh</button>
     </div>
     <div id="sysHealth"></div>
 
     <div class="side-card" style="max-width:680px;margin-top:26px">
       <h3>Send a test email</h3>
-      <p class="muted" style="margin-top:-4px">Verify SMTP end-to-end. Sends the brand template through the configured server (Gmail/Workspace) and reports exactly what happened.</p>
+      <p class="muted" style="margin-top:-4px">Verify delivery end-to-end. Sends the brand template the way any one-to-one message goes (SMTP, then Google Apps Script, …) and reports which road carried it and what failed first.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <label class="fld" style="flex:1;min-width:240px;margin:0"><span>To (defaults to ADMIN_EMAIL)</span><input id="mailTestTo" type="email" placeholder="you@example.com" /></label>
         <button type="button" class="btn btn-primary btn-sm" id="mailTestBtn">Send test</button>
       </div>
       <p class="muted tiny" id="mailTestMsg" style="margin-top:10px"></p>
+    </div>
+
+    <div class="side-card" style="max-width:680px;margin-top:18px">
+      <h3>Google Apps Script</h3>
+      <p class="muted" style="margin-top:-4px">The site’s own mail road when SMTP fails: sign-in codes, receipts and replies go out through MailApp from the Google account that deployed <code>apps-script/Afrovanguard_Mail.gs</code> — about 100 recipients a day on Gmail, 1,500 on Workspace. Announcements never use it. Set it up under Rules &amp; AI → Setup → Email (steps in <code>docs/EMAIL-APPS-SCRIPT.md</code>).</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-outline btn-sm" id="gasCheckBtn">Check Apps Script</button>
+        <span class="muted tiny" id="gasCheckMsg"></span>
+      </div>
+      <div id="gasCheckOut" style="margin-top:10px"></div>
     </div>
   </main>
 
@@ -1044,7 +1125,7 @@
     <!-- Setup — provider credentials, editable here instead of in a file -->
     <section class="rt-pane" id="rtSetup" hidden>
       <div class="studio-head">
-        <div><h2>Setup</h2><p class="muted">Connect the AI, the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
+        <div><h2>Setup</h2><p class="muted">Connect the AI, email (the Google Apps Script mail road), the meeting notetaker and web search. Keys are encrypted before they are stored and are never shown again — you will only ever see the last few characters.</p></div>
         <button class="btn btn-outline btn-sm" id="setupRefresh">Refresh</button>
       </div>
       <div class="setup-warn" id="setupCrypto" hidden></div>
@@ -1197,6 +1278,204 @@
     </div>
   </main>
 
+  <!-- SITE: one workspace for everything the website lets staff edit — the
+       homepage hero, every page, the site details (lib/Cms.php, admin/site.js).
+       Draft → send for review → publish now or on a schedule; every save and
+       publish is a version that can be compared and put back. -->
+  <main class="studio-main" id="siteView" hidden>
+    <div class="studio-head">
+      <div><h1>Site</h1><p class="muted">Everything on the public website you can change: the homepage hero, the words, links and pictures on every page, and the details every page shares. Nothing changes for visitors until it is published.</p></div>
+    </div>
+    <div class="cms-pages">
+      <nav class="cms-plist" aria-label="Site content">
+        <ul id="siteTree"><li class="muted">Loading…</li></ul>
+      </nav>
+      <div class="cms-pedit">
+        <section class="cms-pane" id="paneOverview" aria-labelledby="ovTitle">
+          <h2 class="cms-ptitle" id="ovTitle">Overview</h2>
+          <p class="cms-msg" id="ovMsg" role="alert" hidden></p>
+          <div class="cms-ovgroups" id="ovGroups"></div>
+        </section>
+
+        <section class="cms-pane" id="paneDoc" hidden aria-labelledby="docTitle">
+          <div class="cms-docbar">
+            <div class="cms-docid">
+              <h2 class="cms-ptitle" id="docTitle"></h2>
+              <a class="cms-plive" id="docLive" href="/" target="_blank" rel="noopener">Open the live page ↗</a>
+            </div>
+            <div class="cms-actions" role="group" aria-label="Draft and publishing">
+              <span class="cms-state" id="docState" role="status" aria-live="polite"></span>
+              <a class="btn btn-outline btn-sm" id="docPreview" href="/admin/preview.php" target="_blank" rel="noopener">Preview</a>
+              <button class="btn btn-outline btn-sm" id="docHistoryBtn" type="button" aria-pressed="false" aria-controls="docRevs">History</button>
+              <button class="btn btn-outline btn-sm" id="docDiscard" type="button">Discard draft</button>
+              <button class="btn btn-outline btn-sm" id="docSave" type="button">Save draft</button>
+              <button class="btn btn-outline btn-sm" id="wfReject" type="button" hidden>Send back</button>
+              <button class="btn btn-outline btn-sm" id="wfUnschedule" type="button" hidden>Cancel schedule</button>
+              <button class="btn btn-outline btn-sm" id="wfSchedule" type="button" hidden>Schedule…</button>
+              <button class="btn btn-primary btn-sm" id="wfSubmit" type="button" hidden>Send for review</button>
+              <button class="btn btn-primary btn-sm" id="wfPublish" type="button" hidden>Publish</button>
+            </div>
+          </div>
+          <p class="cms-note" id="docNote" role="status" hidden></p>
+          <p class="cms-msg" id="docMsg" role="alert" hidden></p>
+          <div class="cms-docgrid">
+            <div class="cms-col">
+              <div id="edHero" hidden>
+        <section class="side-card">
+          <h3>What the top of the page shows</h3>
+          <div class="cms-seg" role="radiogroup" aria-label="Hero type">
+            <label><input type="radio" name="homeMode" value="carousel"> <span>Carousel of stories</span></label>
+            <label><input type="radio" name="homeMode" value="video"> <span>One video</span></label>
+          </div>
+        </section>
+        <section class="side-card" id="homeCarousel">
+          <div class="cms-card-h"><h3>Slides</h3>
+            <label class="cms-inline">Each slide shows for
+              <select id="homeInterval" aria-label="Seconds per slide"></select></label>
+          </div>
+          <ol class="cms-slides" id="homeSlides"></ol>
+          <button class="btn btn-outline btn-sm" id="homeAddSlide" type="button">+ Add a slide</button>
+        </section>
+        <section class="side-card" id="homeVideo" hidden>
+          <h3>The video</h3>
+          <div class="cms-pickrow">
+            <div class="cms-pick" id="homeVideoPick"></div>
+            <div class="cms-pick" id="homePosterPick"></div>
+          </div>
+          <label class="fld"><span>Small line above the headline</span><input id="hv_eyebrow" maxlength="80"></label>
+          <label class="fld"><span>Headline</span><input id="hv_title" maxlength="120"></label>
+          <label class="fld"><span>Sentence under it</span><textarea id="hv_sub" rows="2" maxlength="240"></textarea></label>
+          <label class="fld"><span>Where it links to</span><input id="hv_href" placeholder="/about.html" maxlength="300"></label>
+          <p class="muted tiny">The video plays muted, on a loop, behind the headline. Visitors who prefer less motion see the poster instead. MP4 (H.264) plays everywhere; keep it under 30 seconds and about 20 MB.</p>
+        </section>
+              </div>
+
+              <div id="edPage" hidden>
+                <section class="side-card" id="pageSeo">
+                <h3>In search and when shared</h3>
+                <label class="fld"><span>Page title <span class="cms-count" id="seoTitleN"></span></span><input id="seoTitle" maxlength="120"></label>
+                <label class="fld"><span>Description <span class="cms-count" id="seoDescN"></span></span><textarea id="seoDesc" rows="4" maxlength="300"></textarea></label>
+                <div class="cms-pick" id="seoImagePick"></div>
+                <p class="muted tiny">Search engines show about 60 characters of the title and 155 of the description. The picture shows when the page is shared (1200 × 630 works best).</p>
+              </section>
+                <div class="cms-toolbar" role="search">
+                  <input type="search" id="pageFind" placeholder="Find words on this page" aria-label="Find words on this page">
+                  <label class="cms-inline"><input type="checkbox" id="pageOnlyChanged"> Only what I changed</label>
+                  <span class="muted tiny" id="pageCount" role="status" aria-live="polite"></span>
+                </div>
+                <div id="pageFields"></div>
+              </div>
+
+              <div id="edSite" hidden>
+                <section class="side-card">
+                  <h3>Contact</h3>
+                  <label class="fld"><span>Contact email (every footer)</span><input id="set_email" type="email" maxlength="190" autocomplete="off"></label>
+                  <div class="cms-two">
+                    <label class="fld"><span>Place</span><input id="set_place" maxlength="80"></label>
+                    <label class="fld"><span>Country</span><input id="set_country" maxlength="60"></label>
+                  </div>
+                  <label class="fld"><span>Copyright line</span><input id="set_copyright" maxlength="120"></label>
+                </section>
+                <section class="side-card">
+                  <h3>Social links</h3>
+                  <div id="setSocials"></div>
+                  <p class="muted tiny">Leave a link empty to hide its icon. Publishing writes the new footer into every page at once.</p>
+                </section>
+              </div>
+            </div>
+            <aside class="cms-col cms-revs" id="docRevs" hidden aria-label="History">
+              <section class="side-card">
+                <div class="cms-card-h"><h3>History</h3><button class="btn btn-outline btn-sm" id="revCmpDraft" type="button" hidden>Compare draft with live</button></div>
+                <ol class="cms-timeline" id="revList"></ol>
+              </section>
+              <section class="side-card" id="revCompare" hidden aria-live="polite">
+                <div class="cms-card-h"><h3 id="revCmpTitle">Compare</h3><button class="cms-x" type="button" id="revCmpClose" aria-label="Close the comparison">×</button></div>
+                <div id="revCmpBody"></div>
+              </section>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+    <dialog class="cms-dialog cms-dialog--sm" id="wfDialog" aria-labelledby="wfDlgTitle">
+      <form method="dialog" id="wfForm">
+        <div class="cms-dialog-h"><h2 id="wfDlgTitle"></h2><button class="cms-x" value="cancel" aria-label="Close">×</button></div>
+        <p class="muted" id="wfDlgText"></p>
+        <label class="fld" id="wfAtWrap" hidden><span>Goes live on (Lagos time)</span><input type="datetime-local" id="wfAt"></label>
+        <label class="fld" id="wfNoteWrap" hidden><span id="wfNoteLabel">Note</span><textarea id="wfNote" rows="3" maxlength="500"></textarea></label>
+        <p class="cms-msg" id="wfDlgMsg" role="alert" hidden></p>
+        <div class="cms-actions cms-dialog-f"><button class="btn btn-outline btn-sm" value="cancel">Cancel</button><button class="btn btn-primary btn-sm" id="wfDlgGo" value="go">OK</button></div>
+      </form>
+    </dialog>
+  </main>
+
+  <!-- MEDIA LIBRARY (admin/site.js, lib/Media.php) -->
+  <main class="studio-main" id="mediaView" hidden>
+    <div class="studio-head">
+      <div><h1>Media</h1><p class="muted">Every picture and video the site uses. Upload once, use anywhere. Edit pictures here — the original is always kept.</p></div>
+      <div class="cms-actions">
+        <label class="btn btn-primary btn-sm cms-file">Upload<input type="file" id="mediaFile" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,.m4v,.mov" multiple></label>
+      </div>
+    </div>
+    <div class="cms-toolbar" role="search">
+      <input type="search" id="mediaQ" placeholder="Search by name or description" aria-label="Search media">
+      <div class="cms-seg cms-seg--sm" role="radiogroup" aria-label="Show">
+        <label><input type="radio" name="mediaKind" value="" checked> <span>All</span></label>
+        <label><input type="radio" name="mediaKind" value="image"> <span>Pictures</span></label>
+        <label><input type="radio" name="mediaKind" value="video"> <span>Videos</span></label>
+      </div>
+      <span class="muted" id="mediaCount" role="status" aria-live="polite"></span>
+    </div>
+    <div class="cms-drop" id="mediaDrop">Drop pictures or videos here to upload them</div>
+    <ul class="cms-uploads" id="mediaUploads" aria-live="polite"></ul>
+    <div class="cms-media">
+      <ul class="cms-grid" id="mediaGrid" aria-label="Media"></ul>
+      <aside class="cms-detail side-card" id="mediaDetail" hidden aria-label="Selected item"></aside>
+    </div>
+    <div class="cms-more"><button class="btn btn-outline btn-sm" id="mediaMore" type="button" hidden>Show more</button></div>
+  </main>
+
+  <!-- Choose from the media library (homepage fields) -->
+  <dialog class="cms-dialog" id="mediaPicker" aria-labelledby="mediaPickerH">
+    <div class="cms-dialog-h"><h2 id="mediaPickerH">Choose</h2><button class="cms-x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="cms-toolbar">
+      <input type="search" id="pickQ" placeholder="Search" aria-label="Search the library">
+      <label class="btn btn-outline btn-sm cms-file">Upload new<input type="file" id="pickFile"></label>
+    </div>
+    <ul class="cms-uploads" id="pickUploads" aria-live="polite"></ul>
+    <ul class="cms-grid cms-grid--pick" id="pickGrid"></ul>
+  </dialog>
+
+  <!-- Edit a picture: crop, rotate, flip, size -->
+  <dialog class="cms-dialog cms-dialog--wide" id="imgEditor" aria-labelledby="imgEditorH">
+    <div class="cms-dialog-h"><h2 id="imgEditorH">Edit picture</h2><button class="cms-x" type="button" data-close aria-label="Close">×</button></div>
+    <div class="cms-editor">
+      <div class="cms-stage"><canvas id="edCanvas" tabindex="0" aria-label="The picture and its crop frame. Drag the frame or its corners; or use the arrow keys to move it and Shift with the arrow keys to resize it."></canvas></div>
+      <div class="cms-edtools">
+        <div class="cms-tool"><span class="muted">Shape</span>
+          <div class="cms-seg cms-seg--sm" role="radiogroup" aria-label="Crop shape" id="edAspect"></div></div>
+        <div class="cms-tool"><span class="muted">Turn and flip</span>
+          <div class="cms-btnrow">
+            <button class="btn btn-outline btn-sm" type="button" data-rot="-90">↺ Left</button>
+            <button class="btn btn-outline btn-sm" type="button" data-rot="90">↻ Right</button>
+            <button class="btn btn-outline btn-sm" type="button" data-flip="h" aria-pressed="false">⇋ Mirror</button>
+            <button class="btn btn-outline btn-sm" type="button" data-flip="v" aria-pressed="false">⇵ Upside down</button>
+          </div></div>
+        <div class="cms-tool cms-tool--nums">
+          <label>X<input type="number" id="edX" min="0"></label><label>Y<input type="number" id="edY" min="0"></label>
+          <label>Width<input type="number" id="edW" min="16"></label><label>Height<input type="number" id="edH" min="16"></label>
+        </div>
+        <label class="fld"><span>Largest width (pixels)</span><select id="edMax"></select></label>
+        <p class="muted tiny" id="edInfo"></p>
+        <div class="cms-btnrow">
+          <button class="btn btn-outline btn-sm" type="button" id="edReset">Start over</button>
+          <button class="btn btn-primary btn-sm" type="button" id="edSave">Save picture</button>
+        </div>
+        <p class="cms-msg" id="edMsg" role="alert" hidden></p>
+      </div>
+    </div>
+  </dialog>
+
   <!-- DESIGN STUDIO (superadmin · site brand / accent) -->
   <main class="studio-main" id="designView" hidden>
     <div class="studio-head">
@@ -1305,6 +1584,9 @@
        assets/vendor/tinymce/README.md. If it's missing, admin/app.js falls back
        to a plain textarea, so the editor still works (without the toolbar). -->
   <script src="/assets/vendor/tinymce/tinymce.min.js"></script>
-  <script src="/admin/app.js" defer></script>
+  <script src="/admin/app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>" defer></script>
+  <script src="/assets/site/avc-photo.js?v=<?= (int) @filemtime(dirname(__DIR__) . '/assets/site/avc-photo.js') ?>" defer></script>
+  <script src="/admin/card-photo.js?v=<?= (int) @filemtime(__DIR__ . '/card-photo.js') ?>" defer></script>
+  <script src="/admin/site.js?v=<?= (int) @filemtime(__DIR__ . '/site.js') ?>" defer></script>
 </body>
 </html>

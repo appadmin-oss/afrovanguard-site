@@ -88,6 +88,10 @@ if ((int) ($claims['exp'] ?? 0) < $now - 60) $refuse('expired');
    a reason to answer. Sixty seconds of skew, as the bridge allows. */
 if ((int) ($claims['iat'] ?? 0) > $now + 60) $refuse('not-yet');
 
+/* Only a token CACENTRE minted for THIS door (CrmAvTasks mints role
+   'cac-tasks'): the mail door's token, or a sign-in link minted here, is not
+   one, as integrations/cacentre-mail.php refuses this door's. */
+if ((string) ($claims['role'] ?? '') !== 'cac-tasks') $refuse('wrong-purpose');
 $uid = (int) ($claims['uid'] ?? 0);
 if ($uid <= 0) $refuse('no-member');
 
@@ -133,6 +137,18 @@ if ($method === 'POST') {
                     'priority' => (string) $t['priority'],
                 ]], JSON_UNESCAPED_SLASHES);
                 exit;
+
+            case 'take':
+                /* A pool task the console's to-do pop-up suggested. The same
+                   rule as the portal's: members and volunteers take work. */
+                $st = Database::pdo()->prepare('SELECT * FROM lms_users WHERE id = ?');
+                $st->execute([$uid]);
+                $who = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$who || !Todo::mayTake($who)) $refuse('not-allowed', 403);
+                $t = Collab::claimTask($uid, $taskId);
+                if ($t === null) $refuse('taken', 409);
+                echo json_encode(['ok' => true, 'id' => (int) $t['id']], JSON_UNESCAPED_SLASHES);
+                exit;
         }
     } catch (Throwable $e) {
         error_log('[cacentre-tasks] write: ' . $e->getMessage());
@@ -162,4 +178,13 @@ foreach ($rows as $r) {
     ];
 }
 
-echo json_encode(['ok' => true, 'tasks' => $out], JSON_UNESCAPED_SLASHES);
+/* Pool tasks their labels fit — the console's to-do pop-up offers these as
+   "Suggested for you" (lib/TaskMatch.php). Never more than the title and why. */
+$suggested = [];
+try {
+    if (class_exists('TaskMatch')) {
+        foreach (TaskMatch::forUser($uid, 3) as $sg) $suggested[] = ['id' => $sg['id'], 'title' => $sg['title'], 'due' => $sg['due'], 'why' => $sg['why']];
+    }
+} catch (Throwable $e) { error_log('[cacentre-tasks] suggest: ' . $e->getMessage()); }
+
+echo json_encode(['ok' => true, 'tasks' => $out, 'suggested' => $suggested], JSON_UNESCAPED_SLASHES);

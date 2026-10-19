@@ -158,6 +158,17 @@ $knownMetaKeys = [
     // yesterday — it never back-marks history, so it under-marks rather than
     // fining a roster for days nobody was watching.
     'gate_absent_swept_through',
+    // NGG sessions (lib/NggVolunteers::syncSessions). Reviewed: gates no
+    // migration. How far the session feed has been read. Lost, the next sync
+    // reads every session again — each is credited once by its ref, so it
+    // redoes work and double-counts nothing.
+    'ngg_sessions_cursor',
+    // Google Meet events (lib/MeetEvents). Reviewed: neither gates a migration.
+    // `meet_events_sub` is the Workspace Events subscription and when it was
+    // renewed — lost, the cron subscribes again. `google_oidc_jwks` is a cache
+    // of Google's PUBLIC signing keys for push tokens, refetched every six
+    // hours; it holds no secret, and a token signed by a key not in it fails.
+    'meet_events_sub', 'google_oidc_jwks',
     // Older printed member cards (lib/MemberCards). Reviewed: gates no migration.
     // The shapes the gate decodes old cards by. Lost, those cards stop reading
     // at the gate until re-described; secure cards and NGV numbers are unaffected.
@@ -165,6 +176,21 @@ $knownMetaKeys = [
     // Members' birthday emails (lib/Birthdays). Reviewed: gates no migration.
     // Who has had today's letter. Lost, somebody may get today's twice.
     'member_bday_sent',
+    // The Studio's content store (lib/Cms). Reviewed: gates no migration. Marks
+    // that the first editor's app_meta drafts were brought into cms_docs once.
+    // Lost, the import runs again and finds nothing new to bring (it only
+    // fills a draft or a first version that is not already there).
+    'cms_legacy_imported',
+    // Google (lib/GoogleAuth, lib/GoogleWorkspace). Reviewed: gate no migration.
+    // The last failed Google round-trip and the last directory sync, shown on
+    // the System page. Lost, the page says "none recorded" / "not run yet" and
+    // the directory sync runs once more today (it is an idempotent upsert).
+    'google_last_failure',
+    // The last time Google answered a service-account call (lib/GoogleWorkspace,
+    // hourly at most). Reviewed: gates no migration. Lost, a failure recorded
+    // before it reads as current until the next success, an hour at most.
+    'google_last_ok',
+    'gws_directory_sync',
     // The person directory push (lib/DirectoryPush). Reviewed: gates no migration.
     // How far the roster sweep has walked lms_users. Lost, it starts again at
     // the top: every row is re-sent and upserts on its source key over there,
@@ -173,6 +199,11 @@ $knownMetaKeys = [
     // account, which is why a cursor was the right shape and a watermark of
     // "what changed" was not.
     'dir_push_cursor',
+    // CACENTRE's goals (lib/CacGoals). Reviewed: gates no migration. When the
+    // goals were last read, and what that run did (shown for support). Lost,
+    // the next cron tick reads them again: mirrors upsert on cac_goal_id, so
+    // nothing doubles.
+    'cac_goals_synced_at', 'cac_goals_last', 'cac_goals_ver', 'cac_bridge_last',
 ];
 $foundKeys = [];
 foreach (glob(AV_ROOT . '/lib/*.php') as $f) {

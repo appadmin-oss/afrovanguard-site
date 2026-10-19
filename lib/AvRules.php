@@ -322,6 +322,26 @@ final class AvRules
             'label' => 'Holidays',
             'help'  => 'Dates (YYYY-MM-DD) nobody is expected in. Nobody is marked absent or fined on them.',
         ],
+        'tasks.auto_assign_hours' => [
+            'type' => 'int', 'default' => 24, 'min' => 0, 'max' => 720, 'group' => 'Tasks',
+            'label' => 'Assign unclaimed pool tasks after (hours)',
+            'help'  => 'A task left in the shared pool this long goes to the person whose role, course, centre and project fit it best, with the lightest open load (AI picks from that shortlist when it is configured). They are told, and can hand it back to the pool. 0: never — suggestions only.',
+        ],
+        'tasks.from_goals' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Tasks',
+            'label' => 'Draw tasks from goals',
+            'help'  => 'An open goal with nothing open under it is broken into steps (by AI when it is configured), and each step goes to whoever fits it best. With no AI, its author is given one task: agree the next step. Its progress then follows its tasks.',
+        ],
+        'tasks.goal_replan_days' => [
+            'type' => 'int', 'default' => 7, 'min' => 1, 'max' => 90, 'group' => 'Tasks',
+            'label' => 'Plan a goal again after (days)',
+            'help'  => 'A goal whose steps were removed is planned again after this long. A goal whose steps are all done is planned again the next day.',
+        ],
+        'tasks.todo_popup' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Tasks',
+            'label' => 'To-do pop-up',
+            'help'  => 'On the portal and the Volunteer dashboard, a pop-up with what is due today, what was just assigned, this week at CACENTRE, and pool tasks that fit the member. Off: the Tasks screen only.',
+        ],
         'gate.mark_absent' => [
             'type' => 'bool', 'default' => false, 'group' => 'Attendance',
             'label' => 'Mark absences',
@@ -336,6 +356,21 @@ final class AvRules
             'type' => 'int', 'default' => 0, 'min' => 0, 'max' => 100000, 'group' => 'Attendance',
             'label' => 'Late fine on probation (₦)',
             'help'  => 'Charged instead of the late fine to a participant on probation. 0 uses the ordinary late fine. The spreadsheet system charged ₦10,000.',
+        ],
+        'cards.photo_enhance' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Member cards',
+            'label' => 'Improve card photos',
+            'help'  => 'With Cloudinary set up, card photos are delivered through its automatic improvement (light, contrast, colour). Off: the photo prints as uploaded.',
+        ],
+        'cards.photo_bg_removal' => [
+            'type' => 'bool', 'default' => false, 'group' => 'Member cards',
+            'label' => 'Remove card photo backgrounds',
+            'help'  => 'With Cloudinary set up, the member is cut out and stands on the card’s gold, as the design shows. A Cloudinary add-on that uses credits.',
+        ],
+        'gate.fine_phone_signin' => [
+            'type' => 'bool', 'default' => true, 'group' => 'Attendance',
+            'label' => 'Fine signing in with the phone',
+            'help'  => 'A member who has a printed card and comes in on the phone pass has left the card at home. They are charged the Fines desk’s “Uniform or ID card” amount, once per day. NGV participants only, like every gate fine.',
         ],
         'gate.probation_levels' => [
             'type' => 'csv', 'default' => 'O', 'group' => 'Attendance',

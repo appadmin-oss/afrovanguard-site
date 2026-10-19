@@ -33,8 +33,8 @@
  *     tolerance window and recorded — a "5 minutes remaining" notice arriving
  *     after the meeting ended is worse than none, so a stale mark is skipped,
  *     not delivered late.
- *   • POSTING INTO THE MEETING ITSELF is NOT implemented. Attendee and Recall
- *     both expose a send-chat endpoint, but writing a third-party API call that
+ *   • POSTING INTO THE MEETING ITSELF is NOT implemented. Attendee exposes a
+ *     send-chat endpoint, but writing a third-party API call that
  *     cannot be exercised from here would be inventing an integration rather
  *     than building one. `deliver()` is the single seam where it belongs; the
  *     day someone can test against a real provider, it is one method.
@@ -139,7 +139,7 @@ final class MeetingClock
         } catch (Throwable $e) { error_log('[clock] state: ' . $e->getMessage()); return $out; }
 
         $dur   = max(1, (int) $m['duration_min']);
-        $start = self::occurrenceStart((string) $m['scheduled_at'], (string) $m['frequency'], $dur);
+        $start = self::occurrenceStart((string) $m['scheduled_at'], (string) $m['frequency'], $dur, (string) ($m['recur'] ?? ''));
         if ($start === 0) return $out;
         $end   = $start + $dur * 60;
         $now   = time();
@@ -252,7 +252,7 @@ final class MeetingClock
 
         try {
             $rows = Database::pdo()->query(
-                "SELECT id, duration_min, scheduled_at, frequency FROM meetings
+                "SELECT id, duration_min, scheduled_at, frequency, recur FROM meetings
                   WHERE status = 'scheduled' AND scheduled_at <> ''"
             )->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) { error_log('[clock] sweep: ' . $e->getMessage()); return $out; }
@@ -261,7 +261,7 @@ final class MeetingClock
         foreach ($rows as $r) {
             $id  = (int) $r['id'];
             $dur = max(1, (int) $r['duration_min']);
-            $start = self::occurrenceStart((string) $r['scheduled_at'], (string) $r['frequency'], $dur);
+            $start = self::occurrenceStart((string) $r['scheduled_at'], (string) $r['frequency'], $dur, (string) ($r['recur'] ?? ''));
             if ($start === 0) continue;
             $end = $start + $dur * 60;
             if ($now < $start || $now > $end) continue;             // not running
@@ -338,29 +338,14 @@ final class MeetingClock
      * skips straight past a meeting currently in progress — the one case a clock
      * cares about. This steps until the END is in the future instead.
      */
-    public static function occurrenceStart(string $startUtc, string $freq, int $durationMin): int
+    public static function occurrenceStart(string $startUtc, string $freq, int $durationMin, string $recur = ''): int
     {
         $ts = strtotime(trim($startUtc) . ' UTC');
         if ($ts === false || $ts === 0) return 0;
-        $step = match ($freq) {
-            'daily', 'weekdays' => '+1 day',
-            'weekly'            => '+1 week',
-            'biweekly'          => '+2 weeks',
-            'monthly'           => '+1 month',
-            default             => '',
-        };
-        $end = $ts + max(1, $durationMin) * 60;
-        if ($step === '' || $end + self::OVERRUN_GRACE >= time()) return $ts;
-
-        try {
-            $dt = (new DateTime('@' . $ts))->setTimezone(new DateTimeZone('UTC'));
-            for ($i = 0; $i < 800; $i++) {
-                $dt->modify($step);
-                if ($freq === 'weekdays' && (int) $dt->format('N') > 5) continue;
-                if ($dt->getTimestamp() + max(1, $durationMin) * 60 + self::OVERRUN_GRACE >= time()) return $dt->getTimestamp();
-            }
-        } catch (Throwable $e) { /* fall through */ }
-        return $ts;
+        $m = ['scheduled_at' => trim($startUtc), 'frequency' => $freq, 'recur' => $recur, 'duration_min' => max(1, $durationMin)];
+        /* The one running now (its end plus the grace not yet past), or the next. */
+        $n = Meetings::upcomingStarts($m, time(), 1, self::OVERRUN_GRACE);
+        return $n ? $n[0] : $ts;
     }
 
     /** @return array<int,true> resolved item indexes */

@@ -24,7 +24,7 @@ render_nav('mentorship');
 
 if (!$u):
 ?>
-<main id="main-content" class="cm"><div class="cm-wrap"><div class="mn-gate cm-card" style="max-width:560px;margin:60px auto;padding:36px">
+<main id="main" tabindex="-1" class="cm"><div class="cm-wrap"><div class="mn-gate cm-card" style="max-width:560px;margin:60px auto;padding:36px">
   <header class="page-head page-head--center" style="padding:0">
     <p class="page-eyebrow">Mentor network</p>
     <h1 class="page-title">Mentorship</h1>
@@ -49,7 +49,7 @@ function mn_av(array $m): string {
     return '<span class="cm-av" style="--c:#27607a;width:40px;height:40px;font-size:17px">' . e($m['initial']) . '</span>';
 }
 ?>
-<main id="main-content" class="cm mn"><div class="cm-wrap">
+<main id="main" tabindex="-1" class="cm mn"><div class="cm-wrap">
   <header class="cm-hero">
     <div class="cm-hero-txt">
       <span class="cm-online"><span class="cm-online-dot"></span>Mentor network</span>
