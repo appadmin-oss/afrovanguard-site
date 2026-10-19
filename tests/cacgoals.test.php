@@ -50,6 +50,12 @@ if (!is_resource($stub) || !$up) {
 
     $r = CacGoals::sync();
     ck('cac goals: read over the bridge', $r['ok'] && $r['goals'] === 3);
+    /* A new version reads at once, not an hour after the old one did. */
+    Database::metaSet('cac_goals_synced_at', (string) time()); Database::metaSet('cac_goals_ver', '1');
+    ck('cac goals: a new version of the sync reads CACENTRE at once', CacGoals::syncIfDue() !== null && Database::metaGet('cac_goals_ver') === (string) CacGoals::VERSION);
+    ck('cac goals: …and then waits its hour', CacGoals::syncIfDue() === null);
+    $cs = CacGoals::status();
+    ck('cac goals: the Tasks page can say what CACENTRE last answered', $cs['ready'] && $cs['last']['ok'] && $cs['last']['goals'] === 3);
     ck('cac goals: an owner CACENTRE has not linked is found by an address it has for them', ($bm = $mirror(43)) && (int) $bm['author_id'] === 9911);
     $m = $mirror(41);
     ck('cac goals: mirrored here, owned by the owner’s portal account', $m && (int) $m['author_id'] === 9911 && $m['title'] === 'G-41 · Twelve sessions' && (int) $m['closed'] === 0);

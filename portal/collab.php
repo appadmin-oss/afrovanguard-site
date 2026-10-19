@@ -60,10 +60,22 @@ try {
                 'allocates'=> $allocates,
                 'ai'       => $isOrg && Collab::aiAvailable(),
                 'goals'    => $isOrg ? array_values(array_filter(Goals::listGoals($uid, 40), fn($g) => empty($g['closed']))) : [],
+                /* Where CACENTRE's goals stand, so an empty list says why; and an
+                   administrator may read them now (cac_goals_sync). */
+                'cac_goals'=> $isOrg && class_exists('CacGoals') ? CacGoals::status() + ['can_sync' => LmsAuth::atLeast($u, 'admin')] : null,
             ]);
 
         case 'roster':
             json_out(['ok' => true, 'roster' => Collab::roster(200, $allocates)]);
+
+        /* An administrator reads CACENTRE's goals now, rather than waiting for the hour. */
+        case 'cac_goals_sync':
+            $writeGuard();
+            if (!LmsAuth::atLeast($u, 'admin')) json_out(['ok' => false, 'error' => 'Administrators only.'], 403);
+            if (!class_exists('CacGoals') || !CacGoals::ready()) json_out(['ok' => false, 'error' => 'The CACENTRE link is not set up here.'], 503);
+            $r = CacGoals::sync();
+            json_out(['ok' => true, 'result' => $r, 'cac_goals' => CacGoals::status() + ['can_sync' => true],
+                      'goals' => array_values(array_filter(Goals::listGoals($uid, 40), fn($g) => empty($g['closed'])))]);
 
         case 'pool':
             $orgGuard();

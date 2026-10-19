@@ -30,6 +30,10 @@ final class CacGoals
 {
     public const PATH = '/api/afrovanguard-goals.php';
     private const EVERY = 3600;
+    /* Bumped when what a sync does changes, so a new version reads CACENTRE at
+       once rather than an hour after the old one last did (and dropped what
+       the new one would keep). */
+    public const VERSION = 3;
     private const RETRY = 600;
     private const OPEN = ['active', 'at_risk', 'behind'];
     private const PLAN_PER_TICK = 3;
@@ -54,7 +58,9 @@ final class CacGoals
         if (!self::ready()) return null;
         $now = $now ?? time();
         $last = (int) (Database::metaGet('cac_goals_synced_at') ?? 0);
-        if ($last > $now - self::EVERY) return null;
+        $fresh = (string) (Database::metaGet('cac_goals_ver') ?? '') === (string) self::VERSION;
+        if ($fresh && $last > $now - self::EVERY) return null;
+        Database::metaSet('cac_goals_ver', (string) self::VERSION);
         Database::metaSet('cac_goals_synced_at', (string) $now);
         $r = self::sync($now);
         /* CACENTRE down or refusing: try again in ten minutes, not an hour. */
@@ -71,7 +77,11 @@ final class CacGoals
         if (!self::ready()) { $out['error'] = 'not-configured'; return $out; }
         $raw = self::get(CacSso::base() . self::PATH . '?t=' . rawurlencode(CacSso::mint(['id' => 0], 'goals')));
         $d = $raw === null ? null : json_decode($raw, true);
-        if (!is_array($d) || empty($d['ok'])) { $out['error'] = is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreachable'; return $out; }
+        if (!is_array($d) || empty($d['ok'])) {
+            $out['error'] = is_array($d) ? (string) ($d['error'] ?? 'refused') : 'unreachable';
+            Database::metaSet('cac_goals_last', (string) json_encode(['at' => gmdate('Y-m-d H:i:s', $now)] + $out));
+            return $out;
+        }
         $out['ok'] = true;
         $pdo = Database::pdo();
         $mirrors = [];
@@ -168,6 +178,20 @@ final class CacGoals
         if ((string) ($g['due_on'] ?? '') !== '') $parts[] = 'by ' . gmdate('j M Y', strtotime($g['due_on'] . ' 12:00 UTC') ?: time());
         $line = trim(implode(' ', $parts));
         return trim($line . ((string) ($g['entity'] ?? '') !== '' ? ' · ' . $g['entity'] : ''), ' ·');
+    }
+
+    /**
+     * Where the goals stand, for the Tasks page: whether the link is set up,
+     * and the last read — when, whether it worked, how many open goals
+     * CACENTRE had and how many came across.
+     */
+    public static function status(): array
+    {
+        $l = json_decode((string) (Database::metaGet('cac_goals_last') ?? ''), true);
+        return ['ready' => self::ready(), 'last' => is_array($l) ? [
+            'at' => (string) ($l['at'] ?? ''), 'ok' => !empty($l['ok']), 'goals' => (int) ($l['goals'] ?? 0),
+            'mirrored' => (int) ($l['mirrored'] ?? 0), 'stewarded' => (int) ($l['stewarded'] ?? 0), 'error' => (string) ($l['error'] ?? ''),
+        ] : null];
     }
 
     /** Who holds a goal whose owner is not on the portal: the first active administrator. */

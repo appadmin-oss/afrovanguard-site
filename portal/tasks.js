@@ -19,7 +19,7 @@
         poolChk=document.getElementById('taskPool'),
         focusWrap=document.getElementById('taskFocus'), ringEl=document.getElementById('taskRing'),
         ringNEl=document.getElementById('taskRingN'), focusTxt=document.getElementById('taskFocusTxt');
-    var TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false, ALLOCATES=false, SUGGESTED={};
+    var CG=null, TASKS=[], POOL=[], GOALS=[], FILTER='all', SHOW_DONE=false, ALLOCATES=false, SUGGESTED={};
     function ymd(off){ var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(off||0)); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
     var TODAY=ymd(0), TOMORROW=ymd(1), WEEK_END=ymd(7);
     function isOverdue(t){ return !t.done && t.due && (t.overdue || t.due < TODAY); }
@@ -84,9 +84,27 @@
     }
     function fillGoals(){
       if(!aiGoalSel) return;
-      if(!GOALS.length){ aiGoalSel.innerHTML='<option value="">No open goals — add one in Suite → Goals</option>'; if(aiBtn)aiBtn.disabled=true; return; }
+      if(!GOALS.length){ aiGoalSel.innerHTML='<option value="">No open goals yet</option>'; if(aiBtn)aiBtn.disabled=true; cgNote(); return; }
       aiGoalSel.innerHTML = GOALS.map(function(g){ return '<option value="'+g.id+'">'+esc(g.title)+'</option>'; }).join('');
       if(aiBtn)aiBtn.disabled=false;
+    }
+    /* Why the list is empty: what CACENTRE last answered, in a sentence; and,
+       for an administrator, reading it now instead of waiting for the hour. */
+    function cgNote(){
+      if(!aiMsgEl || !CG) return;
+      var L=CG.last, when=L&&L.at ? new Date(L.at.replace(' ','T')+'Z').toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      var t = !CG.ready ? 'CACENTRE is not linked to this site, so its goals cannot come across. Add one in Suite → Goals.'
+        : !L ? 'CACENTRE’s goals have not been read yet — they come across within the hour.'
+        : !L.ok ? 'CACENTRE could not be read'+(when?' ('+when+')':'')+'. '+(CG.can_sync?'Reason: '+L.error+'. ':'')+'It is tried again every ten minutes.'
+        : L.goals===0 ? 'CACENTRE has no open goals'+(when?' (read '+when+')':'')+'. Add one there, or here in Suite → Goals.'
+        : 'CACENTRE has '+L.goals+' open goal'+(L.goals===1?'':'s')+(when?' (read '+when+')':'')+', and they are coming across — refresh in a minute.';
+      aiMsgEl.hidden=false; aiMsgEl.className='task-ai-msg';
+      aiMsgEl.innerHTML=esc(t)+(CG.can_sync && CG.ready ? ' <button type="button" class="pbtn pbtn-sm" id="cgSync">Read CACENTRE goals now</button>' : '');
+      var b=document.getElementById('cgSync');
+      if(b) b.addEventListener('click',function(){ b.disabled=true; b.textContent='Reading…';
+        post('cac_goals_sync',{}).then(function(d){ if(!d||!d.ok){ aiSay((d&&d.error)||'Could not read CACENTRE.','bad'); return; }
+          CG=d.cac_goals; GOALS=d.goals||[]; fillGoals(); if(GOALS.length) aiSay(GOALS.length+' goal'+(GOALS.length===1?'':'s')+' from CACENTRE and here.','ok'); load(); })
+        .catch(function(){ b.disabled=false; b.textContent='Read CACENTRE goals now'; }); });
     }
     function aiSay(msg,tone){ if(!aiMsgEl) return; aiMsgEl.hidden=!msg; aiMsgEl.textContent=msg||''; aiMsgEl.className='task-ai-msg'+(tone?(' is-'+tone):''); }
     function fillRoster(roster){ var sel=document.getElementById('taskAssignee'); if(!sel||!roster) return;
@@ -134,7 +152,7 @@
     function renderActivity(items){ items=items||[]; actEl.innerHTML = items.length ? items.map(function(a){ var obj=a.object?' <b>'+esc(a.object)+'</b>':''; var inner='<span class="act-ava" aria-hidden="true">'+esc(a.initials)+'</span><span class="act-body"><span class="act-line"><b>'+esc(a.actor)+'</b> '+esc(a.verb)+obj+'</span><span class="act-ago">'+esc(a.ago)+'</span></span>'; return '<li class="act">'+(a.url?'<a href="'+esc(a.url)+'">'+inner+'</a>':inner)+'</li>'; }).join('') : '<li class="pc-empty">No activity yet.</li>'; }
 
     function load(){ fetch('/portal/collab.php?action=bootstrap',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){ if(!d||!d.ok) return;
-        TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates;
+        TASKS=d.tasks||[]; GOALS=d.goals||[]; ALLOCATES=!!d.allocates; CG=d.cac_goals||null;
         POOL=(d.pool||[]).map(function(t){ return SUGGESTED[t.id]?Object.assign({},t,{suggest:SUGGESTED[t.id]}):t; });
         var aw=document.getElementById('aiAssignWrap'); if(aw) aw.hidden=!ALLOCATES;
         render(); renderPool(); renderActivity(d.activity); renderOnline(d.online,d.count); fillRoster(d.roster); fillGoals();
