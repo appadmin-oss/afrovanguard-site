@@ -146,6 +146,19 @@ try {
             if ($done === null) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
             json_out(['ok' => true, 'id' => (int) $body['id'], 'done' => $done]);
 
+        /* Where a task is: to do, doing, blocked (on what), done — and how big. */
+        case 'task_state':
+            $writeGuard();
+            $r = Collab::setState($uid, (int) ($body['id'] ?? 0), (string) ($body['state'] ?? ''), (string) ($body['reason'] ?? ''));
+            if (isset($r['error'])) json_out(['ok' => false, 'error' => $r['error']], 422);
+            json_out(['ok' => true, 'task' => $r]);
+
+        case 'task_size':
+            $writeGuard();
+            $t = Collab::setSize($uid, (int) ($body['id'] ?? 0), (string) ($body['size'] ?? ''));
+            if ($t === null) json_out(['ok' => false, 'error' => 'Task not found.'], 404);
+            json_out(['ok' => true, 'task' => $t]);
+
         case 'task_delete':
             $writeGuard();
             if (!Collab::deleteTask($uid, (int) ($body['id'] ?? 0))) json_out(['ok' => false, 'error' => 'Task not found.'], 404);

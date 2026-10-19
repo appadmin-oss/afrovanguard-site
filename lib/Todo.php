@@ -37,9 +37,11 @@ final class Todo
         $uid = (int) ($u['id'] ?? 0);
         $out = ['ok' => true, 'enabled' => self::enabled(), 'today' => gmdate('Y-m-d'), 'role' => self::role($u),
                 'assigned' => [], 'due' => [], 'cac' => [], 'week' => [], 'suggested' => [], 'cac_url' => '',
-                'member' => [], 'volunteer' => [], 'goals' => []];
+                'member' => [], 'volunteer' => [], 'goals' => [], 'checkins' => []];
         if ($uid <= 0 || !$out['enabled']) return $out;
         $out['goals']     = class_exists('GoalPlanner') ? (static function () use ($uid) { try { return GoalPlanner::forUser($uid); } catch (Throwable $e) { error_log('[todo] goals: ' . $e->getMessage()); return []; } })() : [];
+        /* Goals they own that are owed their weekly check-in (lib/GoalTrack.php). */
+        $out['checkins']  = class_exists('GoalTrack') ? (static function () use ($uid) { try { return array_map(static fn($g) => GoalTrack::shape($g, $uid), GoalTrack::dueFor($uid)); } catch (Throwable $e) { error_log('[todo] check-ins: ' . $e->getMessage()); return []; } })() : [];
         $out['member']    = self::memberItems($u, $out['role']);
         $out['volunteer'] = $out['role']['volunteer'] ? self::volunteerItems($u) : [];
         $today = $out['today'];
@@ -241,13 +243,24 @@ final class Todo
             'tick' => ['action' => 'cac_toggle', 'body' => ['id' => $x['id']], 'label' => 'Done']], $d['cac'])];
         /* Tasks come from goals: each goal they have steps in, with its
            progress, and their open steps under it. */
+        /* A goal owed its owner's check-in: the number, how sure they are, what is in the way. */
+        if ($d['checkins'] ?? []) $sec[] = ['key' => 'checkin', 'group' => 'goals', 'ctx' => 'work', 'nudge' => true, 'title' => 'Check in on your goals', 'items' => array_map(static fn($g) => [
+            'id' => 'ci' . $g['id'], 'title' => $g['title'], 'kind' => 'goal', 'urgent' => in_array($g['health']['state'], ['behind', 'at_risk'], true),
+            'meta' => trim(self::healthWord($g) . ' · ' . ($g['checked_in_at'] !== '' ? 'last check-in ' . gmdate('j M', strtotime($g['checked_in_at'] . ' UTC') ?: time()) : 'never checked in'), ' ·'),
+            'progress' => $g['progress'] === null ? null : max(0.0, min(1.0, (float) $g['progress'])),
+            'href' => '/portal/?app=goals#tools', 'acts' => null], $d['checkins'])];
         foreach ($d['goals'] ?? [] as $g) {
             $total = $g['open'] + $g['done'];
+            $track = class_exists('GoalTrack') && ($row = GoalTrack::row((int) $g['id'])) ? GoalTrack::shape($row) : null;
+            $progress = $track && $track['progress'] !== null ? max(0.0, min(1.0, (float) $track['progress'])) : ($total > 0 ? $g['done'] / $total : $g['progress'] / 100);
+            $sub = $track && $track['measured']
+                ? GoalTrack::fmt($track['current_value'] ?? $track['baseline']) . ' of ' . GoalTrack::fmt($track['target_value']) . ' ' . $track['unit'] . ' · ' . $g['done'] . ' of ' . $total . ' step' . ($total === 1 ? '' : 's') . ' done'
+                : $g['done'] . ' of ' . $total . ' step' . ($total === 1 ? '' : 's') . ' done' . ($g['target'] !== '' ? ' · ' . $g['target'] : '');
+            if ($track && ($hw = self::healthWord($track)) !== '') $sub = $hw . ' · ' . $sub;
             $sec[] = ['key' => 'goal', 'id' => 'goal' . $g['id'], 'group' => 'goals', 'ctx' => 'work', 'nudge' => false,
-                'title' => $g['title'], 'progress' => $total > 0 ? $g['done'] / $total : $g['progress'] / 100,
-                'sub' => $g['done'] . ' of ' . $total . ' step' . ($total === 1 ? '' : 's') . ' done' . ($g['target'] !== '' ? ' · ' . $g['target'] : ''),
+                'title' => $g['title'], 'progress' => $progress, 'sub' => $sub,
                 'items' => array_map(static fn($x) => $mine(['id' => $x['id'], 'title' => $x['title'], 'overdue' => $x['overdue'], 'priority' => $x['priority'], 'goal' => ''],
-                    $x['due'] !== '' ? $when($x['due'], $t) : 'No date') + ['kind' => 'action'], $g['tasks'])];
+                    trim(($x['state'] === 'blocked' ? 'Blocked: ' . $x['blocked_reason'] . ' · ' : ($x['state'] === 'doing' ? 'Doing · ' : '')) . ($x['due'] !== '' ? $when($x['due'], $t) : 'No date'), ' ·')) + ['kind' => 'action'], $g['tasks'])];
         }
         if ($d['week']) $sec[] = ['key' => 'week', 'group' => 'goals', 'ctx' => 'work', 'nudge' => false, 'title' => 'This week at CACENTRE', 'items' => array_map(static fn($c) => [
             'id' => 'wk' . $c['id'], 'title' => $c['statement'],
@@ -261,13 +274,22 @@ final class Todo
         /* The order a day reads them; the pop-up puts the section that
            matches the screen somebody is on first (the Volunteer dashboard
            leads with Volunteering). */
-        $order = ['assigned' => 0, 'due' => 1, 'volunteer' => 2, 'member' => 3, 'cac' => 4, 'goal' => 5, 'week' => 6, 'suggested' => 7];
+        $order = ['assigned' => 0, 'due' => 1, 'volunteer' => 2, 'member' => 3, 'cac' => 4, 'checkin' => 5, 'goal' => 6, 'week' => 7, 'suggested' => 8];
         usort($sec, static fn($a, $b) => $order[$a['key']] <=> $order[$b['key']]);
         return self::dress($sec);
     }
 
     /** What the pop-up draws beside each item: an icon for its kind, and a badge. */
-    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'cac' => 'cac', 'week' => 'goal', 'goal' => 'task', 'suggested' => 'spark'];
+    public const SECTION_KIND = ['assigned' => 'task', 'due' => 'task', 'cac' => 'cac', 'week' => 'goal', 'goal' => 'task', 'checkin' => 'goal', 'suggested' => 'spark'];
+
+    /** A goal's health in a word or two, for a line in the pop-up. */
+    public static function healthWord(array $g): string
+    {
+        return match ($g['health']['state'] ?? '') {
+            'on_track' => 'On track', 'at_risk' => 'At risk', 'behind' => 'Behind', 'completed' => 'Target reached',
+            'not_started' => 'Not started', default => '',
+        };
+    }
 
     public static function dress(array $sec): array
     {
@@ -283,6 +305,7 @@ final class Todo
                 elseif (str_starts_with($meta, 'Today') || str_contains($meta, '· Today')) $badge = ['text' => 'Today', 'tone' => 'accent'];
                 elseif ($it['kind'] === 'dues' || $it['kind'] === 'ngv')       $badge = ['text' => 'Due', 'tone' => !empty($it['urgent']) ? 'red' : 'accent'];
                 elseif ($s['key'] === 'suggested')                             $badge = ['text' => 'For you', 'tone' => 'muted'];
+                elseif ($s['key'] === 'checkin')                               $badge = ['text' => 'Check in', 'tone' => !empty($it['urgent']) ? 'red' : 'accent'];
                 $it['badge'] = $badge;
                 /* The badge says it; the meta line need not say it again. */
                 if ($badge && $badge['text'] === 'Overdue' && preg_match('/^Overdue · (\d{4}-\d{2}-\d{2})( · )?(.*)$/', $meta, $mm)) {

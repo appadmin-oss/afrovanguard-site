@@ -277,12 +277,25 @@
             <div class="pcard-head"><h2>◎ Goals &amp; OKRs</h2><span class="pchip pchip--indigo">Members · shared</span></div>
             <div class="pcard-body">
               <form id="tlGoalForm" class="goal-form" autocomplete="off">
-                <input id="tlGoalTitle" class="goal-in" placeholder="Set an objective…" maxlength="300">
-                <div class="goal-row">
-                  <input id="tlGoalTarget" class="goal-in goal-in--sm" placeholder="Target metric (optional)" maxlength="200">
+                <label class="goal-lbl" for="tlGoalTitle">Objective</label>
+                <input id="tlGoalTitle" class="goal-in" placeholder="What do we mean to achieve?" maxlength="300" required>
+                <label class="goal-lbl" for="tlGoalPurpose">Why it matters <span class="goal-opt">optional</span></label>
+                <input id="tlGoalPurpose" class="goal-in goal-in--sm" placeholder="The answer to “why are we doing this” in six months" maxlength="500">
+                <fieldset class="goal-measure">
+                  <legend>How we will know <span class="goal-opt">a number makes progress real — steps done is only effort</span></legend>
+                  <div class="goal-grid">
+                    <label><span>Unit</span><input id="tlGoalUnit" class="goal-in goal-in--sm" placeholder="members" maxlength="24"></label>
+                    <label><span>From</span><input id="tlGoalBase" class="goal-in goal-in--sm" inputmode="decimal" placeholder="200"></label>
+                    <label><span>To</span><input id="tlGoalTo" class="goal-in goal-in--sm" inputmode="decimal" placeholder="500"></label>
+                    <label><span>Good is</span><select id="tlGoalDir" class="goal-in goal-in--sm"><option value="increase">Higher</option><option value="decrease">Lower</option><option value="maintain">Held steady</option></select></label>
+                    <label><span>Starts</span><input id="tlGoalStart" class="goal-in goal-in--sm" type="date"></label>
+                    <label><span>Due</span><input id="tlGoalDue" class="goal-in goal-in--sm" type="date"></label>
+                  </div>
+                </fieldset>
+                <div class="goal-row goal-row--end">
+                  <span class="poll-msg" id="tlGoalMsg" role="status" aria-live="polite"></span>
                   <button type="submit" class="pbtn pbtn-gold">Add goal</button>
                 </div>
-                <span class="poll-msg" id="tlGoalMsg" role="status" aria-live="polite"></span>
               </form>
               <div class="goal-list" id="tlGoalList"><p class="pc-empty">Loading goals…</p></div>
             </div>

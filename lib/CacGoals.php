@@ -93,6 +93,7 @@ final class CacGoals
                 if ($gid <= 0) continue;
                 $pdo->prepare('UPDATE team_goals SET cac_goal_id = ?, cac_commitment_id = ?, cac_code = ? WHERE id = ?')->execute([(int) $g['id'], $cid, (string) ($g['code'] ?? ''), $gid]);
             }
+            self::mirrorMeasure($gid, $g);
             $out['mirrored']++;
             if ($open) $mirrors[$gid] = ['owner' => $owner, 'cid' => $cid];
         }
@@ -120,6 +121,24 @@ final class CacGoals
         }
         Database::metaSet('cac_goals_last', (string) json_encode(['at' => gmdate('Y-m-d H:i:s', $now)] + $out));
         return $out;
+    }
+
+    /**
+     * The goal's measure as CACENTRE holds it — unit, baseline, target,
+     * direction, where the number stands, start and due — so GoalTrack judges
+     * the mirror by the same number, pace and thresholds CACENTRE does. A
+     * mirror is measured there; nobody checks in on it here.
+     */
+    private static function mirrorMeasure(int $gid, array $g): void
+    {
+        if (class_exists('GoalTrack')) GoalTrack::ensure();
+        $n = static fn($v) => $v === null || $v === '' || !is_numeric($v) ? null : (float) $v;
+        $dir = in_array($g['direction'] ?? '', ['increase', 'decrease', 'maintain'], true) ? $g['direction'] : 'increase';
+        $d = static fn($v) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $v) ? (string) $v : '';
+        Database::pdo()->prepare('UPDATE team_goals SET unit = ?, baseline = ?, target_value = ?, current_value = ?, direction = ?, start_on = ?, due_on = ? WHERE id = ?')
+            ->execute([mb_substr((string) ($g['unit'] ?? ''), 0, 24), $n($g['baseline'] ?? null), $n($g['target'] ?? null), $n($g['progress'] ?? null), $dir,
+                       $d($g['started_on'] ?? ''), $d($g['due_on'] ?? ''), $gid]);
+        if (class_exists('GoalTrack')) GoalTrack::refresh($gid);
     }
 
     /** "12 count by 31 Oct · MAM Academy" — what the goal is measured by, in a line. */

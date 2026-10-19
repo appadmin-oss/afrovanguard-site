@@ -129,7 +129,7 @@ TaskMatch::forget();
 ck('ai: the model failing is no loss — the labels decide', (TaskMatch::assignMany($steps)[0]['id'] ?? 0) === $byLabels);
 TaskMatch::$aiForTests = null;
 ck('goal steps: drawn by AI are given out this way, and the rest are pool tasks', str_contains((string) file_get_contents(AV_ROOT . '/lib/Collab.php'), 'TaskMatch::assignMany($plan)')
-   && str_contains((string) file_get_contents(AV_ROOT . '/lib/Collab.php'), 'else $id = self::addPoolTask($uid, $pl[\'title\'], $due, $pri, $goalId);'));
+   && str_contains((string) file_get_contents(AV_ROOT . '/lib/Collab.php'), 'else $id = self::addPoolTask($uid, $pl[\'title\'], $due, $pri, $goalId, $size);'));
 $tp->exec('DELETE FROM member_profiles WHERE user_id BETWEEN 9800 AND 9819');
 
 $tp->exec('DELETE FROM collab_tasks');

@@ -107,18 +107,11 @@ final class GoalPlanner
         return $out;
     }
 
-    /** A step was ticked or put back: the goal's progress is done over total. */
+    /** A step was ticked, put back or resized: the goal's progress follows. */
     public static function syncProgress(int $goalId): void
     {
-        if ($goalId <= 0) return;
-        try {
-            self::ensure();
-            $c = self::counts($goalId);
-            $total = $c['open'] + $c['done'];
-            if ($total === 0) return;
-            Database::pdo()->prepare('UPDATE team_goals SET progress = ?, updated_at = ? WHERE id = ? AND closed = 0')
-                ->execute([(int) round(100 * $c['done'] / $total), gmdate('Y-m-d H:i:s'), $goalId]);
-        } catch (Throwable $e) { error_log('[goal-planner] progress: ' . $e->getMessage()); }
+        /* The number when the goal has one, the steps by size when it does not (lib/GoalTrack.php). */
+        if ($goalId > 0 && class_exists('GoalTrack')) GoalTrack::refresh($goalId);
     }
 
     /**

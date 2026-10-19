@@ -50,10 +50,22 @@
       var cw = (typeof ATTACHED!=='undefined' && ATTACHED[t.id] && WEEK && WEEK.commitments) ? (WEEK.commitments.filter(function(c){return c.id===ATTACHED[t.id];})[0]||null) : null;
       if(cw) goal += ' <span class="task-goal task-goal--cac">Counts toward: '+esc(cw.statement)+'</span>';
       var rel = (t.mine && !t.done) ? '<button type="button" class="task-release" title="Return to the pool" aria-label="Return to pool">↩</button>' : '';
-      return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+'" data-id="'+t.id+'">'
+      /* Where it is and how big (lib/Collab.php setState/setSize): a step that
+         is blocked says on what, and work that has sat too long says so. */
+      var st = t.state || (t.done ? 'done' : 'todo'), ctl = '', note = '';
+      if(!t.done){
+        ctl = '<select class="task-state-sel is-'+esc(st)+'" aria-label="Where this task is: '+esc(t.title)+'">'
+          + [['todo','To do'],['doing','Doing'],['blocked','Blocked…'],['done','Done']].map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===st?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>'
+          + '<select class="task-size-sel" aria-label="Size of this task" title="Size: S an hour or two, M a day, L several days">'
+          + [['','Size'],['S','S'],['M','M'],['L','L']].map(function(o){ return '<option value="'+o[0]+'"'+(o[0]===(t.size||'')?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>';
+        if(st==='blocked' && t.blocked_reason) note += '<span class="task-blocked">Blocked: '+esc(t.blocked_reason)+'</span>';
+        var sk = t.stuck || {};
+        if(sk.flag) note += '<span class="task-stuck">'+({blocked:'Blocked',stalled:'In progress',ageing:'Untouched'}[sk.flag]||'Waiting')+' '+(+sk.days||0)+' days</span>';
+      }
+      return '<li class="task task--pri-'+esc(t.priority||'normal')+(t.done?' is-done':'')+' task--'+esc(st)+'" data-id="'+t.id+'">'
       +'<button type="button" class="task-check" aria-label="Toggle done">'+(t.done?'✓':'')+'</button>'
-      +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+'</span>'
-      +priTag(t)+due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
+      +'<span class="task-title">'+esc(t.title)+(who?' <span class="task-who">'+who+'</span>':'')+goal+(note?'<span class="task-notes">'+note+'</span>':'')+'</span>'
+      +ctl+priTag(t)+due+rel+'<button type="button" class="task-del" aria-label="Delete task">✕</button></li>'; }
     function poolHtml(t){
       var dm = t.due ? dueMeta(t) : null;
       var due = dm ? '<span class="task-due'+(dm.tone?' is-'+dm.tone:'')+'">'+esc(dm.label)+'</span>' : '';
@@ -171,9 +183,22 @@
     listEl.addEventListener('click', function(e){
       if(e.target.closest('#doneToggle')){ SHOW_DONE=!SHOW_DONE; render(); return; }
       var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
-      if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done}):t;}); render(); if(ATTACHED[id]) loadWeek(); } }); }
+      if(e.target.closest('.task-check')){ post('task_toggle',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.map(function(t){return t.id===id?Object.assign({},t,{done:d.done,state:d.done?'done':(t.started_at?'doing':'todo'),stuck:{flag:'',days:0}}):t;}); render(); if(ATTACHED[id]) loadWeek(); } }); }
       else if(e.target.closest('.task-release')){ var rt=TASKS.filter(function(t){return t.id===id;})[0]; post('task_release',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); if(rt){ POOL.unshift(Object.assign({},rt,{open:true,mine:false,assignee_id:0,assignee_name:'Unclaimed'})); renderPool(); } } }); }
       else if(e.target.closest('.task-del')){ post('task_delete',{id:id}).then(function(d){ if(d&&d.ok){ TASKS=TASKS.filter(function(t){return t.id!==id;}); render(); } }); } });
+
+    // state and size
+    listEl.addEventListener('change', function(e){
+      var li=e.target.closest('.task'); if(!li) return; var id=+li.getAttribute('data-id');
+      var put=function(d){ if(d&&d.ok&&d.task){ TASKS=TASKS.map(function(t){return t.id===id?d.task:t;}); render(); if(ATTACHED[id]&&d.task.done) loadWeek(); } else { if(d&&d.error) alert(d.error); render(); } };
+      if(e.target.classList.contains('task-state-sel')){
+        var v=e.target.value, reason='';
+        if(v==='blocked'){ reason=prompt('What is it blocked on? Whoever gave it to you is told.')||''; if(!reason.trim()){ render(); return; } }
+        post('task_state',{id:id,state:v,reason:reason}).then(put);
+      } else if(e.target.classList.contains('task-size-sel')){
+        post('task_size',{id:id,size:e.target.value}).then(put);
+      }
+    });
 
     // claim from the pool
     if(poolEl) poolEl.addEventListener('click', function(e){ var give=e.target.closest('.task-give'); if(!give) return;

@@ -38,15 +38,15 @@ ck('polls: non-author cannot close', !Polls::close(2, $p));
 ck('polls: author closes', Polls::close(1, $p));
 ck('polls: no vote on closed', !Polls::vote(2, $p, 1));
 
-/* ---- Goals: progress clamp + auto-close ---- */
+/* ---- Goals: progress is measured, never typed (tests/goaltrack.test.php has the rest) ---- */
 reset_users();
 $g = Goals::create(1, 'Reach 500', '500');
 ck('goals: create', $g > 0);
 ck('goals: non-author cannot set', !Goals::setProgress(2, $g, 50));
 Goals::setProgress(1, $g, 150);
 $gd = Goals::listGoals(1, 10)[0];
-ck('goals: clamp to 100', $gd['progress'] === 100);
-ck('goals: auto-close at 100', $gd['closed'] === true);
+ck('goals: a typed number no longer moves progress', $gd['progress'] === 0);
+ck('goals: nor closes the goal — closing is the owner’s decision', $gd['closed'] === false);
 
 /* ---- Reminders: due/overdue/toggle ---- */
 reset_users();

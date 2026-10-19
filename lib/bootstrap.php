@@ -402,6 +402,7 @@ require_once __DIR__ . '/VolunteerSeeds.php';   /* NGG volunteers seeded from a 
 require_once __DIR__ . '/TaskMatch.php';        /* who a task fits, from people's labels (+ AI) */
 require_once __DIR__ . '/Todo.php';             /* the to-do pop-up: one list across both sites */
 require_once __DIR__ . '/GoalPlanner.php';      /* tasks come from goals */
+require_once __DIR__ . '/GoalTrack.php';        /* how a goal is measured, judged and forecast, and how its steps move it */
 require_once __DIR__ . '/VolunteerWork.php';    /* opportunities, kudos, people, the service letter */      /* live capture: Google Meet, notetaker, QR check-in, room captions */
 require_once __DIR__ . '/AvSettings.php';
 // Publish Studio-managed credentials into the process environment, so classes

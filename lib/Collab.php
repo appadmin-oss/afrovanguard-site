@@ -166,21 +166,45 @@ final class Collab
         // set this); 0 = standalone. Added idempotently.
         try { if (!Database::columnExists('collab_tasks', 'goal_id')) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN goal_id INTEGER NOT NULL DEFAULT 0"); }
         catch (Throwable $e) { /* already there / driver quirk */ }
+        /* Where a task is, not only whether it is done: started, blocked (and
+           on what), finished — each with its time — and how big it is. A step
+           that is "open" for three weeks and one begun yesterday looked the
+           same; now one of them is flagged (self::flagOf). */
+        foreach (['state' => "VARCHAR(8) NOT NULL DEFAULT ''", 'blocked_reason' => "VARCHAR(300) NOT NULL DEFAULT ''", 'size' => "VARCHAR(1) NOT NULL DEFAULT ''",
+                  'started_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'state_at' => "VARCHAR(32) NOT NULL DEFAULT ''", 'done_at' => "VARCHAR(32) NOT NULL DEFAULT ''"] as $c => $decl) {
+            try { if (!Database::columnExists('collab_tasks', $c)) $pdo->exec("ALTER TABLE collab_tasks ADD COLUMN $c $decl"); } catch (Throwable $e) {}
+        }
     }
+
+    /** The states a task moves through. Done is also kept in `done`, which everything else reads. */
+    public const STATES = ['todo', 'doing', 'blocked', 'done'];
+
+    /**
+     * How much a step weighs toward its goal: S 1, M 2, L 4 (an unsized step
+     * counts as M). Sizes double rather than add, because people estimate
+     * relative size well and absolute effort badly — and a big step finished
+     * should move a goal more than a small one.
+     */
+    public const POINTS = ['S' => 1, 'M' => 2, 'L' => 4];
+    public static function points(string $size): int { return self::POINTS[strtoupper($size)] ?? 2; }
+    private static function normSize(string $s): string { $s = strtoupper(trim($s)); return isset(self::POINTS[$s]) ? $s : ''; }
+
+    /** Days after which work in a state is flagged: blocked is chased fastest. */
+    public const STUCK_DAYS = ['blocked' => 2, 'doing' => 7, 'todo' => 14];
 
     /** Valid task priorities (low → normal → high). */
     private static function normPriority(string $p): string { $p = strtolower(trim($p)); return in_array($p, ['low','normal','high'], true) ? $p : 'normal'; }
 
     /** Create a task. Assignee defaults to the creator. Returns the new id or 0. */
-    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0): int
+    public static function addTask(int $creatorId, string $title, int $assigneeId = 0, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = ''): int
     {
         $title = trim(mb_substr(trim($title), 0, 300));
         if ($creatorId <= 0 || $title === '') return 0;
         self::ensureTasks();
         $assignee = $assigneeId > 0 ? $assigneeId : $creatorId;
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
-        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, created_at) VALUES (?,?,?,0,?,?,?,?)')
-            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), gmdate('Y-m-d H:i:s')]);
+        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at) VALUES (?,?,?,0,?,?,?,?,'todo',?)")
+            ->execute([$creatorId, $assignee, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), gmdate('Y-m-d H:i:s')]);
         $newId = (int) Database::pdo()->lastInsertId();
         // Notify + email the assignee when a task is delegated to them (not self-assigned).
         if ($assignee !== $creatorId && class_exists('Notifications')) {
@@ -199,14 +223,14 @@ final class Collab
      * member can claim it. Returns the new id or 0. Logs to the team activity
      * feed so the pool feels alive.
      */
-    public static function addPoolTask(int $creatorId, string $title, string $due = '', string $priority = 'normal', int $goalId = 0): int
+    public static function addPoolTask(int $creatorId, string $title, string $due = '', string $priority = 'normal', int $goalId = 0, string $size = ''): int
     {
         $title = trim(mb_substr(trim($title), 0, 300));
         if ($creatorId <= 0 || $title === '') return 0;
         self::ensureTasks();
         $due = preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($due)) ? trim($due) : '';
-        Database::pdo()->prepare('INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, created_at) VALUES (?,0,?,0,?,?,?,?)')
-            ->execute([$creatorId, $title, $due, self::normPriority($priority), max(0, $goalId), gmdate('Y-m-d H:i:s')]);
+        Database::pdo()->prepare("INSERT INTO collab_tasks (creator_id, assignee_id, title, done, due, priority, goal_id, size, state, created_at) VALUES (?,0,?,0,?,?,?,?,'todo',?)")
+            ->execute([$creatorId, $title, $due, self::normPriority($priority), max(0, $goalId), self::normSize($size), gmdate('Y-m-d H:i:s')]);
         $newId = (int) Database::pdo()->lastInsertId();
         self::log($creatorId, self::nameOf($creatorId), 'posted a task to the pool', $title, '/portal/#tasks');
         return $newId;
@@ -328,6 +352,8 @@ final class Collab
             . ($goal['target'] !== '' ? "\nTARGET / SUCCESS METRIC: " . $goal['target'] : '')
             . (class_exists('TaskMatch') && ($shape = TaskMatch::teamShape()) !== '' ? "\n\nWHO IS AVAILABLE: " . $shape . '.' : '')
             . (class_exists('TaskMatch') ? "\nAlso give each task a \"kind\" — one of: " . implode(', ', TaskMatch::kindNames()) . ' — so it can go to the right person.' : '')
+            . "\nAnd a \"size\": S (an hour or two), M (a day or so) or L (several days). Prefer steps that move the goal's number over steps that only prepare for it."
+            . (class_exists('GoalTrack') ? GoalTrack::planningContext($goalId) : '')
             . "\n\nBreak this goal into tasks now.";
 
         $res = self::aiComplete($system, $prompt, 900);
@@ -356,8 +382,9 @@ final class Collab
             $due  = ($days > 0 && $days <= 400) ? gmdate('Y-m-d', strtotime($today . ' +' . $days . ' days') ?: time()) : '';
             $pri  = self::normPriority((string) ($it['priority'] ?? 'normal'));
             $fit = $fits[$k] ?? null;
-            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId); $assigned++; }
-            else $id = self::addPoolTask($uid, $pl['title'], $due, $pri, $goalId);
+            $size = strtoupper(trim((string) ($it['size'] ?? '')));
+            if ($autoAssign && $fit) { $id = self::addTask($uid, $pl['title'], (int) $fit['id'], $due, $pri, $goalId, $size); $assigned++; }
+            else $id = self::addPoolTask($uid, $pl['title'], $due, $pri, $goalId, $size);
             if ($id > 0 && ($t = self::oneTask($uid, $id))) {
                 if ($fit) $t['suggest'] = ['id' => (int) $fit['id'], 'name' => (string) $fit['name'], 'why' => (string) ($fit['why'][0] ?? $fit['summary'])];
                 $t['kind'] = $pl['kind'];
@@ -397,13 +424,82 @@ final class Collab
         $t = self::ownedTask($uid, $taskId);
         if (!$t) return null;
         $new = $t['done'] ? 0 : 1;
-        Database::pdo()->prepare('UPDATE collab_tasks SET done = ? WHERE id = ?')->execute([$new, $taskId]);
+        $now = gmdate('Y-m-d H:i:s');
+        /* Ticked: done, and when — the finish times are what a goal's
+           forecast is drawn from (GoalTrack::forecast). Put back: where it was
+           before, or to do. */
+        Database::pdo()->prepare('UPDATE collab_tasks SET done = ?, state = ?, state_at = ?, done_at = ?, blocked_reason = ? WHERE id = ?')
+            ->execute([$new, $new ? 'done' : ((string) ($t['started_at'] ?? '') !== '' ? 'doing' : 'todo'), $now, $new ? $now : '', '', $taskId]);
         if ($new === 1) self::log($uid, self::nameOf($uid), 'completed a task', (string) $t['title'], '/portal/#tasks');
         /* A step towards a goal: the goal's progress follows. */
         if ((int) ($t['goal_id'] ?? 0) > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress((int) $t['goal_id']);
         /* Counted toward a CACENTRE commitment: the tick counts there too. */
         if ((int) ($t['cac_commitment_id'] ?? 0) > 0 && class_exists('CacWeek')) CacWeek::changed($taskId);
         return (bool) $new;
+    }
+
+    /**
+     * Move a task: to do, doing, blocked (saying on what), done. Done goes
+     * through toggleTask, so a goal's progress and a CACENTRE commitment
+     * follow as they always have. A block tells whoever gave the task out,
+     * because a block nobody hears about is just a slower failure.
+     * Returns the shaped task, or ['error'=>…].
+     */
+    public static function setState(int $uid, int $taskId, string $state, string $reason = ''): array
+    {
+        self::ensureTasks();
+        $t = self::ownedTask($uid, $taskId);
+        if (!$t) return ['error' => 'Task not found.'];
+        $state = strtolower(trim($state));
+        if (!in_array($state, self::STATES, true)) return ['error' => 'A task is to do, doing, blocked or done.'];
+        $reason = trim(mb_substr(preg_replace('/\s+/u', ' ', $reason) ?? '', 0, 300));
+        if ($state === 'blocked' && $reason === '') return ['error' => 'What is it blocked on? Whoever can unblock it needs to know.'];
+        if (($state === 'done') !== (bool) $t['done']) {
+            self::toggleTask($uid, $taskId);
+            if ($state === 'done') return self::oneTask($uid, $taskId) ?? ['error' => 'Task not found.'];
+        }
+        $now = gmdate('Y-m-d H:i:s');
+        Database::pdo()->prepare('UPDATE collab_tasks SET state = ?, state_at = ?, blocked_reason = ?, started_at = CASE WHEN started_at = \'\' AND ? = \'doing\' THEN ? ELSE started_at END WHERE id = ?')
+            ->execute([$state, $now, $state === 'blocked' ? $reason : '', $state, $now, $taskId]);
+        if ($state === 'blocked') {
+            $to = (int) ($t['assigned_by'] ?? 0) ?: (int) $t['creator_id'];
+            if ($to > 0 && $to !== $uid && class_exists('Notifications')) {
+                try { Notifications::push($to, 'task', 'Blocked: ' . $t['title'], self::nameOf($uid) . ' is blocked on: ' . $reason, '/portal/#tasks', 'task-blocked:' . $taskId . ':' . substr(sha1($reason), 0, 8)); }
+                catch (Throwable $e) { error_log('[collab] notify: ' . $e->getMessage()); }
+            }
+            self::log($uid, self::nameOf($uid), 'is blocked on a task', (string) $t['title'], '/portal/#tasks');
+        }
+        return self::oneTask($uid, $taskId) ?? ['error' => 'Task not found.'];
+    }
+
+    /** Size a task: S, M or L ('' to clear). */
+    public static function setSize(int $uid, int $taskId, string $size): ?array
+    {
+        self::ensureTasks();
+        if (!self::ownedTask($uid, $taskId)) return null;
+        Database::pdo()->prepare('UPDATE collab_tasks SET size = ? WHERE id = ?')->execute([self::normSize($size), $taskId]);
+        $t = self::oneTask($uid, $taskId);
+        if ($t && $t['goal_id'] > 0 && class_exists('GoalPlanner')) GoalPlanner::syncProgress($t['goal_id']);
+        return $t;
+    }
+
+    /**
+     * Is this task stuck? Blocked over two days, doing over a week, or given
+     * out and untouched over two weeks: the age of work in progress, which is
+     * what tells you something is wrong before the due date does.
+     * Returns ['flag' => '' | 'blocked' | 'stalled' | 'ageing', 'days' => n].
+     */
+    public static function flagOf(array $r, ?int $now = null): array
+    {
+        if (!empty($r['done'])) return ['flag' => '', 'days' => 0];
+        $now = $now ?? time();
+        $state = (string) ($r['state'] ?? '') ?: 'todo';
+        $since = (string) (($r['state_at'] ?? '') ?: (($r['assigned_at'] ?? '') ?: ($r['created_at'] ?? '')));
+        $days = $since === '' ? 0 : (int) floor(($now - (strtotime($since . ' UTC') ?: $now)) / 86400);
+        if ($state === 'todo' && (int) ($r['assignee_id'] ?? 0) === 0) return ['flag' => '', 'days' => $days];   /* the pool has its own clock */
+        $limit = self::STUCK_DAYS[$state] ?? 14;
+        if ($days <= $limit) return ['flag' => '', 'days' => $days];
+        return ['flag' => match ($state) { 'blocked' => 'blocked', 'doing' => 'stalled', default => 'ageing' }, 'days' => $days];
     }
 
     /**
@@ -529,6 +625,12 @@ final class Collab
             'creator_name'  => $creator === $uid ? 'You' : self::nameOf($creator),
             'goal_id'       => $goalId,
             'goal_title'    => $goalId > 0 ? self::goalTitle($goalId) : '',
+            'state'         => $r['done'] ? 'done' : (in_array((string) ($r['state'] ?? ''), self::STATES, true) && $r['state'] !== 'done' ? (string) $r['state'] : 'todo'),
+            'blocked_reason'=> (string) ($r['blocked_reason'] ?? ''),
+            'size'          => (string) ($r['size'] ?? ''),
+            'started_at'    => (string) ($r['started_at'] ?? ''),
+            'done_at'       => (string) ($r['done_at'] ?? ''),
+            'stuck'         => self::flagOf($r),
         ];
     }
 
