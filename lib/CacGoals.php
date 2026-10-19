@@ -33,7 +33,7 @@ final class CacGoals
     /* Bumped when what a sync does changes, so a new version reads CACENTRE at
        once rather than an hour after the old one last did (and dropped what
        the new one would keep). */
-    public const VERSION = 5;
+    public const VERSION = 6;
     private const RETRY = 600;
     /* Work still to do: what CACENTRE's console calls open (a goal starts there
        as a draft), and missed goals — past their date, not done. Only achieved
@@ -129,6 +129,7 @@ final class CacGoals
                 $pdo->prepare('UPDATE team_goals SET cac_goal_id = ?, cac_commitment_id = ?, cac_code = ? WHERE id = ?')->execute([(int) $g['id'], $cid, (string) ($g['code'] ?? ''), $gid]);
             }
             self::mirrorMeasure($gid, $g);
+            self::mirrorContext($gid, $g);
             $out['mirrored']++;
             /* Steps count toward a commitment only when it is the real owner's. */
             if ($open) $mirrors[$gid] = ['owner' => $owner, 'cid' => $cid];
@@ -175,6 +176,33 @@ final class CacGoals
             ->execute([mb_substr((string) ($g['unit'] ?? ''), 0, 24), $n($g['baseline'] ?? null), $n($g['target'] ?? null), $n($g['progress'] ?? null), $dir,
                        $d($g['started_on'] ?? ''), $d($g['due_on'] ?? ''), $gid]);
         if (class_exists('GoalTrack')) GoalTrack::refresh($gid);
+    }
+
+    /**
+     * What CACENTRE knows about the goal beyond its number — purpose, outcome,
+     * success criteria, method, budget, resources, risks — as the context the
+     * planner draws steps from. A door that does not send it (an older
+     * CACENTRE) leaves what is here alone.
+     */
+    private static function mirrorContext(int $gid, array $g): void
+    {
+        if (!array_key_exists('outcome', $g) && !array_key_exists('risks', $g)) return;
+        $t = static fn($k) => trim((string) ($g[$k] ?? ''));
+        $join = static fn(array $parts) => implode("\n", array_filter($parts, static fn($x) => $x !== ''));
+        $budget = is_numeric($g['budget'] ?? null) && (float) $g['budget'] > 0
+            ? 'Budget: ' . ($t('currency') ?: 'NGN') . ' ' . number_format((float) $g['budget'], 0) : '';
+        $more = Goals::measure([
+            'purpose'   => $t('purpose'),
+            'done_when' => $join([$t('outcome'), $t('success_criteria') !== '' ? 'Success: ' . $t('success_criteria') : '']),
+            'context'   => $join([$t('metric') !== '' ? 'Measured by: ' . $t('metric') : '', $t('method') !== '' ? 'How it is measured: ' . $t('method') : '',
+                                  $t('entity') !== '' ? 'At: ' . $t('entity') : '', $t('priority') !== '' && $t('priority') !== 'normal' ? 'Priority: ' . $t('priority') : '']),
+            'resources' => $join([$budget, $t('resources')]),
+            'risks'     => $t('risks'),
+        ]);
+        if (isset($more['error']) || !$more) return;
+        $sets = implode(', ', array_map(static fn($k) => "$k = ?", array_keys($more)));
+        try { Database::pdo()->prepare("UPDATE team_goals SET $sets WHERE id = ?")->execute([...array_values($more), $gid]); }
+        catch (Throwable $e) { error_log('[cac-goals] context: ' . $e->getMessage()); }
     }
 
     /** "12 count by 31 Oct · MAM Academy" — what the goal is measured by, in a line. */

@@ -10,6 +10,16 @@ declare(strict_types=1);
 
 final class Goals
 {
+    /** Context fields a goal may carry, and the most each holds. */
+    public const CONTEXT = ['context' => 2000, 'done_when' => 1000, 'scope' => 1000, 'constraints' => 1000, 'risks' => 1000,
+                            'resources' => 1000, 'audience' => 500, 'skills' => 500, 'links' => 1000];
+
+    /** Every field create and edit take besides title and target. */
+    public static function fields(): array
+    {
+        return ['purpose', 'unit', 'direction', 'baseline', 'target_value', 'start_on', 'due_on', ...array_keys(self::CONTEXT)];
+    }
+
     public static function ensure(): void
     {
         static $done = false;
@@ -32,7 +42,8 @@ final class Goals
 
     /**
      * Create a goal. Returns new id or 0. $more: purpose, unit, direction,
-     * baseline, target_value, start_on, due_on (see measure()).
+     * baseline, target_value, start_on, due_on and the context (self::CONTEXT;
+     * see measure()).
      */
     public static function create(int $authorId, string $title, string $target = '', array $more = []): int
     {
@@ -62,6 +73,11 @@ final class Goals
         $c = [];
         $num = static function ($v) { $v = is_string($v) ? str_replace([',', ' ', '₦'], '', trim($v)) : $v; return ($v === null || $v === '') ? null : (is_numeric($v) ? (float) $v : false); };
         if (array_key_exists('purpose', $in)) $c['purpose'] = trim(mb_substr(preg_replace('/\s+/u', ' ', (string) $in['purpose']) ?? '', 0, 500));
+        /* The context the AI plans from (GoalTrack::CONTEXT_LABELS). */
+        foreach (self::CONTEXT as $k => $max) if (array_key_exists($k, $in)) {
+            $v = trim(str_replace("\r", '', (string) $in[$k]));
+            $c[$k] = mb_substr((string) preg_replace("/\n{3,}/", "\n\n", $v), 0, $max);
+        }
         if (array_key_exists('unit', $in)) $c['unit'] = trim(mb_substr((string) $in['unit'], 0, 24));
         if (array_key_exists('direction', $in)) $c['direction'] = in_array($in['direction'], ['increase', 'decrease', 'maintain'], true) ? $in['direction'] : 'increase';
         foreach (['baseline', 'target_value'] as $k) if (array_key_exists($k, $in)) {

@@ -45,7 +45,7 @@ try {
         case 'create':
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
-            $more = array_intersect_key($body, array_flip(['purpose', 'unit', 'direction', 'baseline', 'target_value', 'start_on', 'due_on']));
+            $more = array_intersect_key($body, array_flip(Goals::fields()));
             $m = Goals::measure($more);
             if (isset($m['error'])) json_out(['ok' => false, 'error' => $m['error']], 422);
             $id = Goals::create($uid, (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''), $more);
@@ -62,7 +62,7 @@ try {
             if ($method !== 'POST') json_out(['ok' => false, 'error' => 'POST required.'], 405);
             $writeGuard();
             $r = Goals::edit($uid, (int) ($body['id'] ?? 0), (string) ($body['title'] ?? ''), (string) ($body['target'] ?? ''),
-                array_intersect_key($body, array_flip(['purpose', 'unit', 'direction', 'baseline', 'target_value', 'start_on', 'due_on'])));
+                array_intersect_key($body, array_flip(Goals::fields())));
             json_out(is_string($r) ? ['ok' => false, 'error' => $r] : ['ok' => $r], is_string($r) ? 422 : 200);
 
         case 'checkin':

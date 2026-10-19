@@ -79,7 +79,7 @@ final class GatePass
 
     /**
      * Eight hex characters that are the same wherever the secret is and say
-     * nothing about it, so the gate (its /healthz and CACENTRE's Desks page)
+     * nothing about it, so the gate (shown on CACENTRE's Desks page)
      * and this site can be compared when the gate's signature is refused.
      * Same derivation as gate/src/crypto.ts fingerprint().
      */

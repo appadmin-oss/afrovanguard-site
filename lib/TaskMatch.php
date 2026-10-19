@@ -320,7 +320,7 @@ final class TaskMatch
      *
      * @param array<int|string, array{title:string, kind?:string}> $tasks
      */
-    public static function assignMany(array $tasks, array $exclude = []): array
+    public static function assignMany(array $tasks, array $exclude = [], string $about = ''): array
     {
         $ai = self::$aiForTests ?? ((class_exists('Collab') && Collab::aiAvailable() && class_exists('AvAgent')) ? [AvAgent::class, 'complete'] : null);
         if (!$tasks || !$ai) return self::spread($tasks, $exclude);
@@ -337,7 +337,8 @@ final class TaskMatch
             . 'by fit of their roles (a person may hold several) and what they say they do; then course, faculty and centre. Spread the work: do not give one person '
             . 'most of the steps when another fits nearly as well, and count their open tasks. If nobody\'s roles or description really fit a step, answer null for it — '
             . 'it will wait in the pool for a volunteer to take. Respond with ONLY a JSON array: [{"step":<number>,"id":<candidate number or null>,"why":"<under 15 words>"}]';
-        $prompt = "STEPS:\n" . implode("\n", $lines) . "\n\nCANDIDATES:\n" . implode("\n", array_map([self::class, 'candidateLine'], array_values($cands)));
+        /* The goal the steps serve: who it is for and the skills it needs say who fits. */
+        $prompt = (trim($about) !== '' ? "GOAL:\n" . trim($about) . "\n\n" : '') . "STEPS:\n" . implode("\n", $lines) . "\n\nCANDIDATES:\n" . implode("\n", array_map([self::class, 'candidateLine'], array_values($cands)));
         $r = $ai($system, $prompt, ['max_tokens' => 600, 'temperature' => 0.1, 'actor' => 'tasks.match']);
         $text = (string) preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim((string) ($r['text'] ?? '')));
         $j = empty($r['ok']) ? null : json_decode($text, true);

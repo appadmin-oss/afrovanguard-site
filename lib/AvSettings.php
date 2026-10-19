@@ -179,7 +179,7 @@ final class AvSettings
         'GATE_PASS_SECRET' => [
             'group' => 'CACENTRE gate', 'label' => 'Gate pass secret', 'secret' => true, 'type' => 'text',
             'ph' => 'at least 32 random characters',
-            'help' => 'The same value as AV_PASS_SECRET on the Cloudflare gate (Workers → cacentre-gate → Settings → Variables and Secrets). Signs members’ phone passes at /gate-pass and the gate’s lookups and check-in reports. At least 32 characters. If CACENTRE says Afrovanguard refused the gate’s signature, compare the fingerprint shown here with the one CACENTRE shows (Attendance → Desks) or the gate’s /healthz: different fingerprints mean different secrets.',
+            'help' => 'The same value as AV_PASS_SECRET on the Cloudflare gate (Workers → cacentre-gate → Settings → Variables and Secrets). Signs members’ phone passes at /gate-pass and the gate’s lookups and check-in reports. At least 32 characters. If CACENTRE says Afrovanguard refused the gate’s signature, compare the fingerprint shown here with the one CACENTRE shows under Attendance → Desks: different fingerprints mean different secrets.',
         ],
         'GATE_URL' => [
             'group' => 'CACENTRE gate', 'label' => 'Gate address', 'secret' => false, 'type' => 'url',

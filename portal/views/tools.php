@@ -290,6 +290,20 @@
                     <label><span>Due</span><input id="tlGoalDue" class="goal-in goal-in--sm" type="date"></label>
                   </div>
                 </fieldset>
+                <details class="goal-ctx" id="tlGoalCtx">
+                  <summary>Context for the planner <span class="goal-opt">the AI draws steps and picks people from this — the more it knows, the better its steps</span></summary>
+                  <div class="goal-ctx-grid">
+                    <label class="goal-lbl">Done when<textarea id="tlGoalDone" class="goal-in goal-in--sm" rows="2" maxlength="1000" placeholder="What is true when this is finished: 300 members paid, the hall booked and full…"></textarea></label>
+                    <label class="goal-lbl">Background<textarea id="tlGoalBg" class="goal-in goal-in--sm" rows="3" maxlength="2000" placeholder="Where things stand, what has been tried, what was learnt"></textarea></label>
+                    <label class="goal-lbl">Who it serves<input id="tlGoalAud" class="goal-in goal-in--sm" maxlength="500" placeholder="Students at UNILAG, first-year members, donors…"></label>
+                    <label class="goal-lbl">Scope<textarea id="tlGoalScope" class="goal-in goal-in--sm" rows="2" maxlength="1000" placeholder="In: … · Out: …"></textarea></label>
+                    <label class="goal-lbl">Constraints<textarea id="tlGoalCons" class="goal-in goal-in--sm" rows="2" maxlength="1000" placeholder="Budget, rules, dates that cannot move"></textarea></label>
+                    <label class="goal-lbl">Risks<textarea id="tlGoalRisk" class="goal-in goal-in--sm" rows="2" maxlength="1000" placeholder="What could stop it"></textarea></label>
+                    <label class="goal-lbl">Resources<textarea id="tlGoalRes" class="goal-in goal-in--sm" rows="2" maxlength="1000" placeholder="People, money, tools, partners available"></textarea></label>
+                    <label class="goal-lbl">Skills needed<input id="tlGoalSkills" class="goal-in goal-in--sm" maxlength="500" placeholder="design, events, fundraising… — helps pick who does each step"></label>
+                    <label class="goal-lbl">References<textarea id="tlGoalLinks" class="goal-in goal-in--sm" rows="2" maxlength="1000" placeholder="Links to plans, documents, past reports — one per line"></textarea></label>
+                  </div>
+                </details>
                 <div class="goal-row goal-row--end">
                   <span class="poll-msg" id="tlGoalMsg" role="status" aria-live="polite"></span>
                   <button type="submit" class="pbtn pbtn-gold">Add goal</button>

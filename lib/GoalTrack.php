@@ -64,6 +64,12 @@ final class GoalTrack
             'status' => "VARCHAR(12) NOT NULL DEFAULT 'active'", 'closed_note' => "VARCHAR(300) NOT NULL DEFAULT ''",
             /* Also CacGoals's, so a site that never linked CACENTRE can still ask "is this a mirror?". */
             'cac_goal_id' => 'INTEGER NOT NULL DEFAULT 0', 'cac_code' => "VARCHAR(32) NOT NULL DEFAULT ''",
+            /* The foundation the planner and the matcher work from (Goals::CONTEXT). */
+            'context' => "VARCHAR(2000) NOT NULL DEFAULT ''", 'done_when' => "VARCHAR(1000) NOT NULL DEFAULT ''",
+            'scope' => "VARCHAR(1000) NOT NULL DEFAULT ''", 'constraints' => "VARCHAR(1000) NOT NULL DEFAULT ''",
+            'risks' => "VARCHAR(1000) NOT NULL DEFAULT ''", 'resources' => "VARCHAR(1000) NOT NULL DEFAULT ''",
+            'audience' => "VARCHAR(500) NOT NULL DEFAULT ''", 'skills' => "VARCHAR(500) NOT NULL DEFAULT ''",
+            'links' => "VARCHAR(1000) NOT NULL DEFAULT ''",
         ] as $c => $decl) {
             try { if (!Database::columnExists('team_goals', $c)) $pdo->exec("ALTER TABLE team_goals ADD COLUMN $c $decl"); } catch (Throwable $e) {}
         }
@@ -268,6 +274,7 @@ final class GoalTrack
         if ($forecast && ($forecast['late_days'] ?? 0) > 3) $out[] = ['kind' => 'late', 'text' => 'At the pace so far it finishes around ' . gmdate('j M', strtotime($forecast['date'])) . ', ' . $forecast['late_days'] . ' days after it is due.'];
         if ($forecast && $forecast['date'] === null && $forecast['note'] !== '' && !in_array($health['state'], ['not_started', 'completed'], true)) $out[] = ['kind' => 'stalled', 'text' => $forecast['note']];
         if (!$mirror && (int) ($g['confidence'] ?? 0) > 0 && (int) $g['confidence'] <= 4) $out[] = ['kind' => 'confidence', 'text' => 'Its owner gives it ' . (int) $g['confidence'] . ' in 10. Ask what would raise that.'];
+        if (!$mirror && ($f = self::foundation($g))['score'] < 50) $out[] = ['kind' => 'thin', 'text' => 'The planner has little to go on, so its steps will be generic. Add ' . implode(', ', array_slice($f['missing'], 0, 3)) . '.'];
         if (!$mirror && $steps['open'] === 0 && ($progress ?? 0) < 1.0) $out[] = ['kind' => 'no_steps', 'text' => 'Nothing is open toward it. The next steps are drawn at the next planning round, or add one.'];
         return $out;
     }
@@ -287,6 +294,7 @@ final class GoalTrack
             'measured' => self::measured($g), 'unit' => (string) ($g['unit'] ?? ''), 'direction' => (string) (($g['direction'] ?? '') ?: 'increase'),
             'baseline' => self::num($g['baseline'] ?? null), 'target_value' => self::num($g['target_value'] ?? null), 'current_value' => self::num($g['current_value'] ?? null),
             'start_on' => (string) ($g['start_on'] ?? ''), 'due_on' => (string) ($g['due_on'] ?? ''),
+            'context' => self::contextOf($g), 'foundation' => self::foundation($g),
             'progress' => $progress === null ? null : round($progress, 4),
             'pct' => $progress === null ? null : (int) round(100 * max(0.0, $progress)),
             'steps' => $steps, 'health' => $health, 'forecast' => $forecast,
@@ -356,9 +364,20 @@ final class GoalTrack
             $s = self::shape($g);
             $bits = [];
             if ($s['purpose'] !== '') $bits[] = 'WHY: ' . $s['purpose'];
+            foreach (self::CONTEXT_LABELS as $k => $label) if (($s['context'][$k] ?? '') !== '') $bits[] = $label . ': ' . $s['context'][$k];
             if ($s['measured']) $bits[] = 'MEASURE: ' . self::fmt($s['current_value'] ?? $s['baseline'] ?? 0) . ' ' . $s['unit'] . ' now, from ' . self::fmt($s['baseline'] ?? 0) . ', target ' . self::fmt($s['target_value']) . ' (' . $s['direction'] . ')';
             if ($s['due_on'] !== '') $bits[] = 'DUE: ' . $s['due_on'] . ' — ' . str_replace('_', ' ', $s['health']['state']);
             if ($s['steps']['total'] > 0) $bits[] = 'STEPS SO FAR: ' . $s['steps']['done'] . ' of ' . $s['steps']['total'] . ' done';
+            /* The steps themselves, so the next round builds on them and does not repeat them. */
+            [$done, $open] = self::stepTitles($goalId);
+            if ($done) $bits[] = 'ALREADY DONE (do not repeat): ' . implode('; ', $done);
+            if ($open) $bits[] = 'ALREADY OPEN (do not repeat): ' . implode('; ', $open);
+            $lines = [];
+            foreach (array_slice(self::checkins($goalId, 4), 1) as $c) {
+                $t = trim((string) ($c['note'] ?? '') . ((string) ($c['blocker'] ?? '') !== '' ? ' — in the way: ' . $c['blocker'] : ''));
+                if ($t !== '') $lines[] = substr((string) ($c['at'] ?? ''), 0, 10) . ' ' . $t;
+            }
+            if ($lines) $bits[] = 'EARLIER CHECK-INS: ' . implode(' | ', $lines);
             if ($s['last_checkin'] && $s['last_checkin']['blocker'] !== '') $bits[] = 'IN THE WAY (owner, last check-in): ' . $s['last_checkin']['blocker'];
             if ($s['last_checkin'] && $s['last_checkin']['note'] !== '') $bits[] = 'LATEST: ' . $s['last_checkin']['note'];
             foreach ($s['warnings'] as $w) if ($w['kind'] === 'diverging') $bits[] = 'NOTE: the steps done so far have not moved the number — plan different steps that act on it directly.';
@@ -373,6 +392,56 @@ final class GoalTrack
         $st = Database::pdo()->prepare('SELECT * FROM team_goals WHERE author_id = ? AND closed = 0 AND cac_goal_id = 0 ORDER BY id');
         try { $st->execute([$uid]); } catch (Throwable $e) { return []; }
         return array_values(array_filter($st->fetchAll(PDO::FETCH_ASSOC), static fn($g) => self::checkinDue($g, $now)));
+    }
+
+    /** How each piece of context is named to the AI, in the order it reads them. */
+    public const CONTEXT_LABELS = [
+        'context' => 'BACKGROUND', 'done_when' => 'DONE WHEN', 'audience' => 'WHO IT SERVES', 'scope' => 'SCOPE',
+        'constraints' => 'CONSTRAINTS', 'risks' => 'RISKS', 'resources' => 'RESOURCES', 'skills' => 'SKILLS NEEDED', 'links' => 'REFERENCES',
+    ];
+
+    /** The goal's context fields, trimmed, every key present. */
+    public static function contextOf(array $g): array
+    {
+        $out = [];
+        foreach (array_keys(self::CONTEXT_LABELS) as $k) $out[$k] = trim((string) ($g[$k] ?? ''));
+        return $out;
+    }
+
+    /**
+     * How much the planner has to go on, 0–100, and what would help most —
+     * a goal with only a title gets generic steps.
+     */
+    public static function foundation(array $g): array
+    {
+        $c = self::contextOf($g);
+        $have = ['purpose' => trim((string) ($g['purpose'] ?? '')) !== '', 'measure' => self::measured($g), 'due' => (string) ($g['due_on'] ?? '') !== ''];
+        foreach (['context', 'done_when', 'audience', 'resources', 'constraints'] as $k) $have[$k] = $c[$k] !== '';
+        $score = (int) round(100 * count(array_filter($have)) / count($have));
+        $ask = [
+            'done_when' => 'what “done” looks like', 'context' => 'the background — where things stand and what has been tried',
+            'purpose' => 'why it matters', 'measure' => 'a number to measure it by', 'audience' => 'who it serves',
+            'resources' => 'what is available (people, money, tools)', 'constraints' => 'its limits (budget, rules, dates)', 'due' => 'a due date',
+        ];
+        $missing = [];
+        foreach ($ask as $k => $t) if (!$have[$k]) $missing[] = $t;
+        return ['score' => $score, 'missing' => $missing];
+    }
+
+    /** Titles of the goal's steps, done and open, newest first, a dozen of each. */
+    private static function stepTitles(int $goalId): array
+    {
+        $done = []; $open = [];
+        try {
+            $st = Database::pdo()->prepare('SELECT title, done FROM collab_tasks WHERE goal_id = ? ORDER BY id DESC');
+            $st->execute([$goalId]);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+                $title = mb_substr(trim((string) $t['title']), 0, 120);
+                if ((int) $t['done'] === 1) { if (count($done) < 12) $done[] = $title; }
+                elseif (count($open) < 12) $open[] = $title;
+            }
+        } catch (Throwable $e) {}
+        return [$done, $open];
     }
 
     public static function fmt(?float $v): string

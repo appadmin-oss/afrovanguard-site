@@ -129,6 +129,37 @@ $gs = array_values(array_filter($secs, fn($x) => ($x['id'] ?? '') === 'goal' . $
 ck('pop-up: a goal reads its number and pace, not just steps', $gs && str_contains($gs['sub'], '290 of 500 members') && preg_match('/^(Behind|At risk) · /u', $gs['sub']) === 1);
 ck('pop-up: a blocked step says on what', $gs && str_contains(json_encode($gs['items']), 'Blocked: Waiting on the bank'));
 
+/* ── Context: the foundation the planner works from ─────────────────── */
+$bare = Goals::create(9931, 'Run a book drive', '');
+ck('context: a goal with only a title says the planner has little to go on', $shape($bare)['foundation']['score'] < 50
+   && in_array('thin', array_column($shape($bare)['warnings'], 'kind'), true) && in_array('what “done” looks like', $shape($bare)['foundation']['missing'], true));
+ck('context: edit takes background, done-when, who, scope, constraints, risks, resources, skills and references',
+   Goals::edit(9931, $bare, 'Run a book drive', '', ['purpose' => 'Libraries at three centres are empty.', 'done_when' => '600 books shelved',
+     'context' => "Tried once in 2025; 80 books.\r\n\n\n\nDonors liked the receipts.", 'audience' => 'Pupils at the three centres', 'scope' => 'Lagos only',
+     'constraints' => 'No money for transport', 'risks' => 'Rainy season', 'resources' => 'Two cars on loan', 'skills' => 'outreach, logistics',
+     'links' => 'https://example.org/plan', 'unit' => 'books', 'baseline' => '0', 'target_value' => '600', 'due_on' => $day(40)]) === true);
+$bs = $shape($bare);
+ck('context: it is kept, tidied (no carriage returns, no runs of blank lines), and shown', $bs['context']['done_when'] === '600 books shelved'
+   && $bs['context']['context'] === "Tried once in 2025; 80 books.\n\nDonors liked the receipts." && $bs['context']['skills'] === 'outreach, logistics');
+ck('context: with it the foundation is strong and the warning goes', $bs['foundation']['score'] >= 75 && !in_array('thin', array_column($bs['warnings'], 'kind'), true));
+ck('context: a field is capped at its size', mb_strlen(Goals::measure(['context' => str_repeat('a', 5000)])['context']) === 2000);
+Collab::addTask(9931, 'Ask the parish for boxes', 9931, '', 'normal', $bare, 'S');
+$dn = Collab::addTask(9931, 'List the donors from 2025', 9931, '', 'normal', $bare, 'S');
+Collab::setState(9931, $dn, 'done');
+$pc = GoalTrack::planningContext($bare);
+ck('planner: is told the context by name', str_contains($pc, 'DONE WHEN: 600 books shelved') && str_contains($pc, 'WHO IT SERVES: Pupils') && str_contains($pc, 'CONSTRAINTS: No money')
+   && str_contains($pc, 'RISKS: Rainy season') && str_contains($pc, 'RESOURCES: Two cars') && str_contains($pc, 'REFERENCES: https://example.org/plan'));
+ck('planner: and the steps already done and open, so it does not repeat them', str_contains($pc, 'ALREADY DONE (do not repeat): List the donors from 2025')
+   && str_contains($pc, 'ALREADY OPEN (do not repeat): Ask the parish for boxes'));
+ck('planner: its instructions say to use the context and not repeat steps', str_contains(AvPrompts::render('goal.tasks', ['max' => '5', 'today' => '2026-10-19']), 'Never repeat a step'));
+ck('goals API: create and edit take every context field', count(array_diff(array_keys(Goals::CONTEXT), Goals::fields())) === 0
+   && str_contains((string) file_get_contents(AV_ROOT . '/portal/goals.php'), 'Goals::fields()'));
+$seen = '';
+TaskMatch::$aiForTests = static function ($sys, $prompt) use (&$seen) { $seen = $prompt; return ['ok' => false]; };
+TaskMatch::assignMany([['title' => 'Drive the boxes', 'kind' => '']], [], "Run a book drive\nSkills needed: logistics");
+TaskMatch::$aiForTests = null;
+ck('matcher: told the goal it is assigning for, with the skills it needs', str_contains($seen, "GOAL:\nRun a book drive\nSkills needed: logistics"));
+
 $tp->exec('DELETE FROM goal_checkins WHERE goal_id IN (SELECT id FROM team_goals WHERE author_id BETWEEN 9930 AND 9939)');
 $tp->exec('DELETE FROM collab_tasks WHERE creator_id BETWEEN 9930 AND 9939');
 $tp->exec('DELETE FROM team_goals WHERE author_id BETWEEN 9930 AND 9939');

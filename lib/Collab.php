@@ -374,7 +374,13 @@ final class Collab
            each) and what they say they do — spread so one person is not handed
            the lot. A step nobody fits stays in the pool. Suggested on every
            task; assigned only when asked. */
-        $fits = class_exists('TaskMatch') ? TaskMatch::assignMany($plan) : [];
+        $about = '';
+        if (class_exists('GoalTrack') && ($row = GoalTrack::row($goalId))) {
+            $ctx = GoalTrack::contextOf($row);
+            $about = implode("\n", array_filter([$goal['title'], $ctx['audience'] !== '' ? 'Who it serves: ' . $ctx['audience'] : '',
+                $ctx['skills'] !== '' ? 'Skills needed: ' . $ctx['skills'] : '', $ctx['resources'] !== '' ? 'Resources: ' . $ctx['resources'] : '']));
+        }
+        $fits = class_exists('TaskMatch') ? TaskMatch::assignMany($plan, [], $about) : [];
         $created = []; $assigned = 0;
         foreach ($plan as $k => $pl) {
             $it = $pl['it'];

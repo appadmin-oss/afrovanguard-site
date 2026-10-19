@@ -460,7 +460,25 @@
     var $id = function (i) { return document.getElementById(i); };
     var form = $id('tlGoalForm'), listEl = $id('tlGoalList'), msg = $id('tlGoalMsg');
     var F = { title: $id('tlGoalTitle'), purpose: $id('tlGoalPurpose'), unit: $id('tlGoalUnit'), baseline: $id('tlGoalBase'),
-              target_value: $id('tlGoalTo'), direction: $id('tlGoalDir'), start_on: $id('tlGoalStart'), due_on: $id('tlGoalDue') };
+              target_value: $id('tlGoalTo'), direction: $id('tlGoalDir'), start_on: $id('tlGoalStart'), due_on: $id('tlGoalDue'),
+              done_when: $id('tlGoalDone'), context: $id('tlGoalBg'), audience: $id('tlGoalAud'), scope: $id('tlGoalScope'),
+              constraints: $id('tlGoalCons'), risks: $id('tlGoalRisk'), resources: $id('tlGoalRes'), skills: $id('tlGoalSkills'), links: $id('tlGoalLinks') };
+    var CTX = ['done_when', 'context', 'audience', 'scope', 'constraints', 'risks', 'resources', 'skills', 'links'];
+    var CTX_LABEL = { done_when: 'Done when', context: 'Background', audience: 'Who it serves', scope: 'Scope', constraints: 'Constraints',
+                      risks: 'Risks', resources: 'Resources', skills: 'Skills needed', links: 'References' };
+    function ctxHTML(g) {
+      var c = g.context || {}, rows = CTX.filter(function (k) { return c[k]; });
+      var f = g.foundation;
+      var meter = f && !g.mirror && !g.closed ? '<span class="goal-found' + (f.score < 50 ? ' is-thin' : '') + '" title="' + esc(f.missing.length ? 'Would help: ' + f.missing.join(', ') : 'The planner has what it needs') + '">Planner context ' + f.score + '%</span>' : '';
+      if (!rows.length) return meter ? '<p class="goal-meta">' + meter + '</p>' : '';
+      return '<details class="goal-ctxv"><summary>Context' + (meter ? ' · ' + meter : '') + '</summary><dl>'
+        + rows.map(function (k) {
+            var v = k === 'links'
+              ? c[k].split(/\n+/).map(function (l) { l = l.trim(); return /^https?:\/\//i.test(l) ? '<a href="' + esc(l) + '" target="_blank" rel="noopener noreferrer">' + esc(l) + '</a>' : esc(l); }).join('<br>')
+              : esc(c[k]).replace(/\n/g, '<br>');
+            return '<dt>' + CTX_LABEL[k] + '</dt><dd>' + v + '</dd>';
+          }).join('') + '</dl></details>';
+    }
     var DATA = [], EDITING = 0, OPEN = {};
     var HEALTH = { on_track: ['On track', 'ok'], at_risk: ['At risk', 'warn'], behind: ['Behind', 'bad'], completed: ['Target reached', 'ok'],
                    not_started: ['Not started', ''], no_date: ['No due date', ''], unmeasured: ['No progress yet', ''], closed: ['Closed', ''] };
@@ -498,11 +516,13 @@
       return '<article class="goal goal--' + esc(h[1] || 'none') + (g.closed ? ' is-done' : '') + '" data-id="' + g.id + '">'
         + '<div class="goal-top"><h3>' + esc(g.title) + '</h3><span class="goal-health goal-health--' + esc(h[1] || 'none') + '">' + esc(h[0]) + '</span></div>'
         + (g.purpose ? '<p class="goal-why">' + esc(g.purpose) + '</p>' : '')
+        + (g.context && g.context.done_when ? '<p class="goal-why"><b>Done when:</b> ' + esc(g.context.done_when) + '</p>' : '')
         + measure
         + '<div class="goal-bar" role="img" aria-label="' + pct + '% done' + (exp != null ? ', ' + exp + '% expected by today' : '') + '"><span style="width:' + fill + '%"></span>'
         + (exp != null && exp > 0 && exp < 100 ? '<i class="goal-pace" style="left:' + exp + '%" title="Where it should be by today"></i>' : '') + '</div>'
         + '<div class="goal-line"><span class="goal-pct">' + (g.pct == null ? '—' : pct + '%') + '</span>' + stepsLine + '</div>'
         + (meta.length ? '<p class="goal-meta">' + meta.join(' · ') + '</p>' : '')
+        + ctxHTML(g)
         + lc + (warns && !g.closed ? '<ul class="goal-warns">' + warns + '</ul>' : '')
         + (g.closed && g.closed_note ? '<p class="goal-why">' + esc(g.closed_note) + '</p>' : '')
         + '<div class="goal-foot"><span>' + who + '</span>' + acts + '</div>'
@@ -558,6 +578,7 @@
     function resetForm() {
       Object.keys(F).forEach(function (k) { if (F[k]) F[k].value = k === 'direction' ? 'increase' : ''; });
       EDITING = 0; var btn = form.querySelector('[type=submit]'); if (btn) btn.textContent = 'Add goal';
+      var det = $id('tlGoalCtx'); if (det) det.open = false;
     }
     form && form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -582,6 +603,9 @@
         F.title.value = g.title || ''; F.purpose.value = g.purpose || ''; F.unit.value = g.unit || '';
         F.baseline.value = g.baseline != null ? g.baseline : ''; F.target_value.value = g.target_value != null ? g.target_value : '';
         F.direction.value = g.direction || 'increase'; F.start_on.value = g.start_on || ''; F.due_on.value = g.due_on || '';
+        var cx = g.context || {};
+        CTX.forEach(function (k) { if (F[k]) F[k].value = cx[k] || ''; });
+        var det = $id('tlGoalCtx'); if (det) det.open = true;
         var btn = form.querySelector('[type=submit]'); if (btn) btn.textContent = 'Save goal';
         say('Editing “' + g.title + '”.'); F.title.focus(); form.scrollIntoView({ block: 'nearest' }); return;
       }

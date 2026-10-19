@@ -31,7 +31,9 @@ ck('cac goals: not set up here → no request, says so', CacGoals::sync()['error
 $port = 0;
 if ($s = @stream_socket_server('tcp://127.0.0.1:0', $e1, $e2)) { $nm = (string) stream_socket_get_name($s, false); $port = (int) substr($nm, strrpos($nm, ':') + 1); fclose($s); }
 $state = tempnam(sys_get_temp_dir(), 'avcg');
-$goal = ['id' => 41, 'code' => 'G-41', 'title' => 'Twelve sessions', 'unit' => 'count', 'target' => 12, 'baseline' => 0, 'direction' => 'increase', 'progress' => 4, 'started_on' => '2026-10-01', 'due_on' => '2026-10-31', 'status' => 'active', 'entity' => 'MAM Academy', 'owner_av' => 9911, 'owner_name' => 'Ola', 'commitment_id' => 7];
+$goal = ['id' => 41, 'code' => 'G-41', 'title' => 'Twelve sessions', 'unit' => 'count', 'target' => 12, 'baseline' => 0, 'direction' => 'increase', 'progress' => 4, 'started_on' => '2026-10-01', 'due_on' => '2026-10-31', 'status' => 'active', 'entity' => 'MAM Academy', 'owner_av' => 9911, 'owner_name' => 'Ola', 'commitment_id' => 7,
+         'purpose' => 'Keep the academy full.', 'outcome' => 'Twelve sessions held', 'success_criteria' => 'Each with 20 learners', 'metric' => 'sessions held',
+         'method' => 'register count', 'priority' => 'high', 'budget' => 150000, 'currency' => 'NGN', 'resources' => 'Hall B on Saturdays', 'risks' => 'Exams in November'];
 $orphan = ['id' => 42, 'code' => 'G-42', 'title' => 'Nobody here owns this', 'status' => 'active', 'owner_av' => 0, 'owner_emails' => ['stranger@cacentre.test'], 'owner_name' => 'Tunde Stranger', 'commitment_id' => 9];
 /* Not linked at CACENTRE, but one of the owner's addresses there is a member here. */
 $byMail = ['id' => 43, 'code' => 'G-43', 'title' => 'Owner known by email', 'status' => 'draft', 'owner_av' => 0, 'owner_emails' => ['ola@cacentre.test', 'OLA.GOAL@mail.test'], 'commitment_id' => 0];
@@ -79,6 +81,11 @@ if (!is_resource($stub) || !$up) {
     $ms = GoalTrack::shape($m, 9911);
     ck('cac goals: the mirror carries CACENTRE’s measure — 4 of 12 count is a third', $ms['measured'] && $ms['target_value'] === 12.0 && $ms['current_value'] === 4.0 && $ms['pct'] === 33);
     ck('cac goals: and its dates, so its pace is judged as CACENTRE judges it', $ms['due_on'] === '2026-10-31' && $ms['start_on'] === '2026-10-01');
+    ck('cac goals: the mirror carries CACENTRE’s context for the planner — purpose, outcome, success, method, budget, resources, risks',
+       $ms['purpose'] === 'Keep the academy full.' && $ms['context']['done_when'] === "Twelve sessions held\nSuccess: Each with 20 learners"
+       && str_contains($ms['context']['context'], 'Measured by: sessions held') && str_contains($ms['context']['context'], 'Priority: high')
+       && $ms['context']['resources'] === "Budget: NGN 150,000\nHall B on Saturdays" && $ms['context']['risks'] === 'Exams in November');
+    ck('cac goals: an older CACENTRE that sends no context leaves it alone', ($oc = $mirror(43)) && (string) $oc['risks'] === '');
     ck('cac goals: measured there, so nobody is asked to check in on it here', $ms['mirror'] && !$ms['checkin_due']);
     $steps = $m ? $gp->query('SELECT * FROM collab_tasks WHERE goal_id = ' . (int) $m['id'])->fetchAll(PDO::FETCH_ASSOC) : [];
     ck('cac goals: given steps here (three goals a run; the fourth next time)', $r['planned'] === ($stew > 0 ? 3 : 2) && count($steps) >= 1);
